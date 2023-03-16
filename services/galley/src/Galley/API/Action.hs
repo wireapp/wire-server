@@ -55,10 +55,12 @@ import Data.Singletons
 import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.MLS.Removal
+import Galley.API.MLS.Types (cmAssocs)
 import Galley.API.Util
 import Galley.App
 import Galley.Data.Conversation
 import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation.Types (mlsMetadata)
 import Galley.Data.Services
 import Galley.Data.Types
 import Galley.Effects
@@ -70,7 +72,8 @@ import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.FireAndForget as E
 import Galley.Effects.GundeckAccess
 import qualified Galley.Effects.MemberStore as E
-import Galley.Effects.ProposalStore
+import qualified Galley.Effects.ProposalStore as E
+import qualified Galley.Effects.SubConversationStore as E
 import qualified Galley.Effects.TeamStore as E
 import Galley.Intra.Push
 import Galley.Options
@@ -124,6 +127,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member LegalHoldStore r,
       Member MemberStore r,
       Member ProposalStore r,
+      Member SubConversationStore r,
       Member TeamStore r,
       Member TinyLog r,
       Member ConversationStore r,
@@ -139,22 +143,37 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Input UTCTime) r,
       Member (Input Env) r,
       Member ProposalStore r,
+      Member SubConversationStore r,
       Member TinyLog r
     )
   HasConversationActionEffects 'ConversationRemoveMembersTag r =
     ( Member MemberStore r,
-      Member (Error NoChanges) r
+      Member (Error NoChanges) r,
+      Member SubConversationStore r,
+      Member ProposalStore r,
+      Member (Input Env) r,
+      Member (Input UTCTime) r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member GundeckAccess r,
+      Member (Error InternalError) r,
+      Member TinyLog r
     )
   HasConversationActionEffects 'ConversationMemberUpdateTag r =
     ( Member MemberStore r,
       Member (ErrorS 'ConvMemberNotFound) r
     )
   HasConversationActionEffects 'ConversationDeleteTag r =
-    ( Member (Error FederationError) r,
-      Member (ErrorS 'NotATeamMember) r,
+    ( Member BrigAccess r,
       Member CodeStore r,
-      Member TeamStore r,
-      Member ConversationStore r
+      Member ConversationStore r,
+      Member (Error FederationError) r,
+      Member (ErrorS 'NotATeamMember) r,
+      Member FederatorAccess r,
+      Member MemberStore r,
+      Member ProposalStore r,
+      Member SubConversationStore r,
+      Member TeamStore r
     )
   HasConversationActionEffects 'ConversationRenameTag r =
     ( Member (Error InvalidInput) r,
@@ -179,7 +198,8 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member TeamStore r,
       Member TinyLog r,
       Member (Input UTCTime) r,
-      Member ConversationStore r
+      Member ConversationStore r,
+      Member SubConversationStore r
     )
   HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
     ( Member ConversationStore r,
@@ -305,42 +325,52 @@ performAction tag origUser lconv action = do
       performConversationJoin origUser lconv action
     SConversationLeaveTag -> do
       let victims = [origUser]
-      E.deleteMembers (tUnqualified lcnv) (toUserList lconv victims)
-      -- update in-memory view of the conversation
-      let lconv' =
-            lconv <&> \c ->
-              foldQualified
-                lconv
-                ( \lu ->
-                    c
-                      { convLocalMembers =
-                          filter (\lm -> lmId lm /= tUnqualified lu) (convLocalMembers c)
-                      }
-                )
-                ( \ru ->
-                    c
-                      { convRemoteMembers =
-                          filter (\rm -> rmId rm /= ru) (convRemoteMembers c)
-                      }
-                )
-                origUser
+      lconv' <- traverse (convDeleteMembers (toUserList lconv victims)) lconv
+      -- send remove proposals in the MLS case
       traverse_ (removeUser lconv') victims
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
       when (null presentVictims) noChanges
-      E.deleteMembers (tUnqualified lcnv) (toUserList lconv presentVictims)
+      traverse_ (convDeleteMembers (toUserList lconv presentVictims)) lconv
+      -- send remove proposals in the MLS case
+      traverse_ (removeUser lconv) presentVictims
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
     SConversationMemberUpdateTag -> do
       void $ ensureOtherMember lconv (cmuTarget action) conv
       E.setOtherMember lcnv (cmuTarget action) (cmuUpdate action)
       pure (mempty, action)
     SConversationDeleteTag -> do
+      let deleteGroup groupId = do
+            cm <- E.lookupMLSClients groupId
+            let refs = cm & cmAssocs & map (snd . snd)
+            E.deleteKeyPackageRefs refs
+            E.removeAllMLSClients groupId
+            E.deleteAllProposals groupId
+
+      let cid = convId conv
+      for_ (conv & mlsMetadata <&> cnvmlsGroupId) $ \gidParent -> do
+        sconvs <- E.listSubConversations cid
+        gidSubs <- for (Map.assocs sconvs) $ \(subid, mlsData) -> do
+          let gidSub = cnvmlsGroupId mlsData
+          E.deleteSubConversation cid subid
+          E.deleteGroupIdForSubConversation gidSub
+          deleteGroup gidSub
+          pure gidSub
+        E.deleteGroupIdForConversation gidParent
+        deleteGroup gidParent
+
+        let odr = OnDeleteMLSConversationRequest ([gidParent] <> gidSubs)
+        let remotes = bucketRemote (map rmId (Data.convRemoteMembers conv))
+        E.runFederatedConcurrently_ remotes $ \_ -> do
+          void $ fedClient @'Galley @"on-delete-mls-conversation" odr
+
       key <- E.makeKey (tUnqualified lcnv)
       E.deleteCode key ReusableCode
       case convTeam conv of
         Nothing -> E.deleteConversation (tUnqualified lcnv)
         Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
+
       pure (mempty, action)
     SConversationRenameTag -> do
       cn <- rangeChecked (cupName action)
@@ -432,6 +462,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
         Member LegalHoldStore r,
         Member MemberStore r,
         Member ProposalStore r,
+        Member SubConversationStore r,
         Member TeamStore r,
         Member TinyLog r
       ) =>
@@ -476,8 +507,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
     checkLHPolicyConflictsRemote _remotes = pure ()
 
 performConversationAccessData ::
-  ( HasConversationActionEffects 'ConversationAccessDataTag r
-  ) =>
+  HasConversationActionEffects 'ConversationAccessDataTag r =>
   Qualified UserId ->
   Local Conversation ->
   ConversationAccessData ->
@@ -588,7 +618,7 @@ updateLocalConversation lcnv qusr con action = do
   unless (protocolValidAction (convProtocol conv) (fromSing tag)) $
     throwS @'InvalidOperation
 
-  -- perform all authorisation checks and, if successful, the update itself
+  -- perform all authorisation checks and, if successful, then update itself
   updateLocalConversationUnchecked @tag (qualifyAs lcnv conv) qusr con action
 
 -- | Similar to 'updateLocalConversationWithLocalUser', but takes a
@@ -644,8 +674,8 @@ updateLocalConversationUnchecked lconv qusr con action = do
     (convBotsAndMembers conv <> extraTargets)
     action'
 
--- --------------------------------------------------------------------------------
--- -- Utilities
+--------------------------------------------------------------------------------
+-- Utilities
 
 ensureConversationActionAllowed ::
   forall tag mem x r.
@@ -840,6 +870,7 @@ kickMember ::
     Member (Input UTCTime) r,
     Member (Input Env) r,
     Member MemberStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Qualified UserId ->

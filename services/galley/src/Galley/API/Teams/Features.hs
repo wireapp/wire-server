@@ -57,7 +57,6 @@ import Galley.Effects
 import Galley.Effects.BrigAccess (getAccountConferenceCallingConfigClient, updateSearchVisibilityInbound)
 import Galley.Effects.ConversationStore as ConversationStore
 import Galley.Effects.GundeckAccess
-import Galley.Effects.ProposalStore
 import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
 import Galley.Effects.TeamFeatureStore
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
@@ -353,9 +352,11 @@ updateLockStatus tid lockStatus = do
 -- In `getConfigForUser` this is mostly also the case. But there are exceptions, e.g. `ConferenceCallingConfig`
 getFeatureStatusForUser ::
   forall (db :: Type) cfg r.
-  ( Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member TeamStore r,
+  ( ( Member (ErrorS 'NotATeamMember) r,
+      Member (ErrorS OperationDenied) r,
+      Member (ErrorS 'TeamNotFound) r,
+      Member TeamStore r
+    ),
     GetConfigForTeamConstraints db cfg r,
     GetConfigForUserConstraints db cfg r,
     GetFeatureConfig db cfg
@@ -536,11 +537,13 @@ genericGetConfigForMultiTeam tids = do
 genericGetConfigForUser ::
   forall db cfg r.
   FeaturePersistentConstraint db cfg =>
-  ( Member (Input Opts) r,
-    Member (TeamFeatureStore db) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member TeamStore r,
+  ( ( Member (Input Opts) r,
+      Member (TeamFeatureStore db) r,
+      Member (ErrorS OperationDenied) r,
+      Member (ErrorS 'NotATeamMember) r,
+      Member (ErrorS 'TeamNotFound) r,
+      Member TeamStore r
+    ),
     GetFeatureConfig db cfg
   ) =>
   UserId ->
@@ -718,6 +721,7 @@ instance SetFeatureConfig db LegalholdConfig where
           Member (ListItems LegacyPaging ConvId) r,
           Member MemberStore r,
           Member ProposalStore r,
+          Member SubConversationStore r,
           Member (TeamFeatureStore db) r,
           Member TeamStore r,
           Member (TeamMemberStore InternalPaging) r,

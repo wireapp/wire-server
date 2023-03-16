@@ -65,6 +65,6 @@ makeSem ''FederatorAccess
 runFederatedConcurrently_ ::
   (KnownComponent c, Foldable f, Functor f, Member FederatorAccess r) =>
   f (Remote a) ->
-  (Remote [a] -> FederatorClient c ()) ->
+  (Remote [a] -> FederatorClient c x) ->
   Sem r ()
 runFederatedConcurrently_ xs = void . runFederatedConcurrently xs

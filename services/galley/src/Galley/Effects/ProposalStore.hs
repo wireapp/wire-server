@@ -47,5 +47,8 @@ data ProposalStore m a where
     GroupId ->
     Epoch ->
     ProposalStore m [(Maybe ProposalOrigin, RawMLS Proposal)]
+  DeleteAllProposals ::
+    GroupId ->
+    ProposalStore m ()
 
 makeSem ''ProposalStore

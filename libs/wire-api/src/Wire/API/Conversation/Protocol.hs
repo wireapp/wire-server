@@ -36,11 +36,13 @@ import Control.Arrow
 import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
+import Data.Time.Clock
 import Imports
 import Wire.API.Conversation.Action.Tag
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
+import Wire.API.MLS.SubConversation
 import Wire.Arbitrary
 
 data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag
@@ -52,11 +54,41 @@ data ConversationMLSData = ConversationMLSData
     cnvmlsGroupId :: GroupId,
     -- | The current epoch number of the corresponding MLS group.
     cnvmlsEpoch :: Epoch,
+    -- | The time stamp of the epoch.
+    cnvmlsEpochTimestamp :: Maybe UTCTime,
     -- | The cipher suite to be used in the MLS group.
     cnvmlsCipherSuite :: CipherSuiteTag
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform ConversationMLSData
+  deriving (ToJSON, FromJSON) via Schema ConversationMLSData
+
+mlsDataSchema :: ObjectSchema SwaggerDoc ConversationMLSData
+mlsDataSchema =
+  ConversationMLSData
+    <$> cnvmlsGroupId
+      .= fieldWithDocModifier
+        "group_id"
+        (description ?~ "An MLS group identifier (at most 256 bytes long)")
+        schema
+    <*> cnvmlsEpoch
+      .= fieldWithDocModifier
+        "epoch"
+        (description ?~ "The epoch number of the corresponding MLS group")
+        schema
+    <*> cnvmlsEpochTimestamp
+      .= fieldWithDocModifier
+        "epoch_timestamp"
+        (description ?~ "The timestamp of the epoch number")
+        schemaEpochTimestamp
+    <*> cnvmlsCipherSuite
+      .= fieldWithDocModifier
+        "cipher_suite"
+        (description ?~ "The cipher suite of the corresponding MLS group")
+        schema
+
+instance ToSchema ConversationMLSData where
+  schema = object "ConversationMLSData" mlsDataSchema
 
 -- | Conversation protocol and protocol-specific data.
 data Protocol
@@ -112,22 +144,3 @@ deriving via (Schema Protocol) instance ToJSON Protocol
 protocolDataSchema :: ProtocolTag -> ObjectSchema SwaggerDoc Protocol
 protocolDataSchema ProtocolProteusTag = tag _ProtocolProteus (pure ())
 protocolDataSchema ProtocolMLSTag = tag _ProtocolMLS mlsDataSchema
-
-mlsDataSchema :: ObjectSchema SwaggerDoc ConversationMLSData
-mlsDataSchema =
-  ConversationMLSData
-    <$> cnvmlsGroupId
-      .= fieldWithDocModifier
-        "group_id"
-        (description ?~ "An MLS group identifier (at most 256 bytes long)")
-        schema
-    <*> cnvmlsEpoch
-      .= fieldWithDocModifier
-        "epoch"
-        (description ?~ "The epoch number of the corresponding MLS group")
-        schema
-    <*> cnvmlsCipherSuite
-      .= fieldWithDocModifier
-        "cipher_suite"
-        (description ?~ "The cipher suite of the corresponding MLS group")
-        schema

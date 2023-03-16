@@ -19,6 +19,7 @@ module Galley.API.Public.Conversation where
 
 import Galley.API.Create
 import Galley.API.MLS.GroupInfo
+import Galley.API.MLS.SubConversation
 import Galley.API.MLS.Types
 import Galley.API.Query
 import Galley.API.Update
@@ -49,6 +50,10 @@ conversationAPI =
     <@> mkNamedAPI @"create-self-conversation@v2" createProteusSelfConversation
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
     <@> mkNamedAPI @"get-mls-self-conversation" getMLSSelfConversationWithError
+    <@> mkNamedAPI @"get-subconversation" (callsFed getSubConversation)
+    <@> mkNamedAPI @"leave-subconversation" (callsFed leaveSubConversation)
+    <@> mkNamedAPI @"delete-subconversation" (callsFed deleteSubConversation)
+    <@> mkNamedAPI @"get-subconversation-group-info" (callsFed getSubConversationGroupInfo)
     <@> mkNamedAPI @"create-one-to-one-conversation@v2" (callsFed createOne2OneConversation)
     <@> mkNamedAPI @"create-one-to-one-conversation" (callsFed createOne2OneConversation)
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" (callsFed addMembersUnqualified)

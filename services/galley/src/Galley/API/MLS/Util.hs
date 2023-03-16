@@ -22,12 +22,14 @@ import Data.Id
 import Data.Qualified
 import Galley.Data.Conversation.Types hiding (Conversation)
 import qualified Galley.Data.Conversation.Types as Data
+import Galley.Data.Types
 import Galley.Effects
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Imports
 import Polysemy
+import Polysemy.Resource (Resource, bracket)
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as TinyLog
 import qualified System.Logger as Log
@@ -77,3 +79,29 @@ getPendingBackendRemoveProposals gid epoch = do
             TinyLog.warn $ Log.msg ("found pending proposal without origin, ignoring" :: ByteString)
             pure Nothing
       )
+
+withCommitLock ::
+  forall r a.
+  ( Members
+      '[ Resource,
+         ConversationStore,
+         ErrorS 'MLSStaleMessage
+       ]
+      r
+  ) =>
+  GroupId ->
+  Epoch ->
+  Sem r a ->
+  Sem r a
+withCommitLock gid epoch action =
+  bracket
+    ( acquireCommitLock gid epoch ttl >>= \lockAcquired ->
+        when (lockAcquired == NotAcquired) $
+          throwS @'MLSStaleMessage
+    )
+    (const $ releaseCommitLock gid epoch)
+    $ \_ -> do
+      -- FUTUREWORK: fetch epoch again and check that is matches
+      action
+  where
+    ttl = fromIntegral (600 :: Int) -- 10 minutes

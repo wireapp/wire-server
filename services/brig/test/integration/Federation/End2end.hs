@@ -42,7 +42,7 @@ import Data.Qualified
 import Data.Range (checked)
 import qualified Data.Set as Set
 import qualified Data.Text as T
-import Federation.Util (connectUsersEnd2End, generateClientPrekeys, getConvQualified)
+import Federation.Util
 import Imports
 import System.FilePath
 import qualified System.Logger as Log
@@ -64,6 +64,7 @@ import Wire.API.Internal.Notification (ntfTransient)
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User hiding (assetKey)
@@ -120,6 +121,8 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
         test mg "claim remote key packages" $ claimRemoteKeyPackages brig brigTwo,
         test mg "send an MLS message to a remote user" $
           testSendMLSMessage brig brigTwo galley galleyTwo cannon cannonTwo,
+        test mg "send an MLS subconversation message to a federated user" $
+          testSendMLSMessageToSubConversation brig brigTwo galley galleyTwo cannon cannonTwo,
         test mg "remote typing indicator" $
           testRemoteTypingIndicator brig brigTwo galley galleyTwo cannon cannonTwo
       ]
@@ -738,6 +741,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
       ( brig1
           . paths ["clients", toByteString' aliceClient]
           . zUser (qUnqualified (userQualifiedId alice))
+          . zClient aliceClient
           . json update
       )
       !!! const 200 === statusCode
@@ -747,6 +751,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
       ( brig1
           . paths ["mls", "key-packages", "self", toByteString' aliceClient]
           . zUser (qUnqualified (userQualifiedId alice))
+          . zClient aliceClient
           . json (KeyPackageUpload [aliceKP])
       )
       !!! const 201 === statusCode
@@ -781,6 +786,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
                 toByteString' (qUnqualified (userQualifiedId alice))
               ]
             . zUser (qUnqualified (userQualifiedId bob))
+            . zClient bobClient
         )
         <!! const 200 === statusCode
     -- Note: we are ignoring the claimed key package here, because we have already
@@ -869,6 +875,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
             . paths
               ["mls", "messages"]
             . zUser (userId bob)
+            . zClient bobClient
             . zConn "conn"
             . header "Z-Type" "access"
             . content "message/mls"
@@ -881,6 +888,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
             . galley2
             . paths ["v2", "mls", "welcome"]
             . zUser (userId bob)
+            . zClient bobClient
             . zConn "conn"
             . header "Z-Type" "access"
             . content "message/mls"
@@ -893,6 +901,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
             . paths
               ["mls", "messages"]
             . zUser (userId bob)
+            . zClient bobClient
             . zConn "conn"
             . header "Z-Type" "access"
             . content "message/mls"
@@ -933,6 +942,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
             . paths
               ["mls", "messages"]
             . zUser (userId alice)
+            . zClient aliceClient
             . zConn "conn"
             . header "Z-Type" "access"
             . content "message/mls"
@@ -941,6 +951,350 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
         !!! const 201 === statusCode
 
       -- verify that bob receives the reply
+      WS.assertMatch_ (5 # Second) wsBob $ \n -> do
+        let e = List1.head (WS.unpackPayload n)
+        ntfTransient n @?= False
+        evtConv e @?= qconvId
+        evtType e @?= MLSMessageAdd
+        evtFrom e @?= userQualifiedId alice
+        evtData e @?= EdMLSMessage reply
+
+-- bob creates an MLS conversation on domain 2 with alice on domain 1, then
+-- creates a subconversation, and finally sends a message to alice
+testSendMLSMessageToSubConversation :: Brig -> Brig -> Galley -> Galley -> Cannon -> Cannon -> Http ()
+testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 = do
+  let cli :: String -> FilePath -> [String] -> CreateProcess
+      cli store tmp args =
+        proc "mls-test-cli" $
+          ["--store", tmp </> (store <> ".db")] <> args
+
+  -- create alice user and client on domain 1
+  alice <- randomUser brig1
+  aliceClient <-
+    clientId . responseJsonUnsafe
+      <$> addClient
+        brig1
+        (userId alice)
+        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+  let aliceClientId =
+        show (userId alice)
+          <> ":"
+          <> T.unpack (client aliceClient)
+          <> "@"
+          <> T.unpack (domainText (qDomain (userQualifiedId alice)))
+
+  -- create bob user and client on domain 2
+  bob <- randomUser brig2
+  bobClient <-
+    clientId . responseJsonUnsafe
+      <$> addClient
+        brig2
+        (userId bob)
+        (defNewClient PermanentClientType [] (someLastPrekeys !! 1))
+  let bobClientId =
+        show (userId bob)
+          <> ":"
+          <> T.unpack (client bobClient)
+          <> "@"
+          <> T.unpack (domainText (qDomain (userQualifiedId bob)))
+
+  withSystemTempDirectory "mls" $ \tmp -> do
+    -- create alice's key package
+    void . liftIO $ spawn (cli aliceClientId tmp ["init", aliceClientId]) Nothing
+    kpMLS <- liftIO $ spawn (cli aliceClientId tmp ["key-package", "create"]) Nothing
+    aliceKP <- liftIO $ case decodeMLS' kpMLS of
+      Right kp -> pure kp
+      Left e -> assertFailure $ "Could not decode alice Key Package: " <> T.unpack e
+
+    -- set public key
+    let update =
+          defUpdateClient
+            { updateClientMLSPublicKeys =
+                Map.singleton
+                  Ed25519
+                  (bcSignatureKey (kpCredential (rmValue aliceKP)))
+            }
+    put
+      ( brig1
+          . paths ["clients", toByteString' aliceClient]
+          . zUser (qUnqualified (userQualifiedId alice))
+          . json update
+      )
+      !!! const 200 === statusCode
+
+    -- upload key package
+    post
+      ( brig1
+          . paths ["mls", "key-packages", "self", toByteString' aliceClient]
+          . zUser (qUnqualified (userQualifiedId alice))
+          . zClient aliceClient
+          . json (KeyPackageUpload [aliceKP])
+      )
+      !!! const 201 === statusCode
+
+    -- create bob's client state
+    void . liftIO $ spawn (cli bobClientId tmp ["init", bobClientId]) Nothing
+
+    connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
+
+    -- bob claims alice's key package
+    void $
+      post
+        ( brig2
+            . paths
+              [ "mls",
+                "key-packages",
+                "claim",
+                toByteString' (qDomain (userQualifiedId alice)),
+                toByteString' (qUnqualified (userQualifiedId alice))
+              ]
+            . zUser (qUnqualified (userQualifiedId bob))
+            . zClient bobClient
+        )
+        <!! const 200 === statusCode
+    -- Note: we are ignoring the claimed key package here, because we have already
+    -- saved it to a file. We still need to claim because that ensures that the
+    -- backend can add the appropriate key package ref mapping.
+
+    -- create conversation on domain 2
+    conv <-
+      responseJsonError
+        =<< createMLSConversation galley2 (userId bob) bobClient
+          <!! const 201 === statusCode
+    groupId <- case cnvProtocol conv of
+      ProtocolMLS p -> pure (unGroupId (cnvmlsGroupId p))
+      ProtocolProteus -> liftIO $ assertFailure "Expected MLS conversation"
+    let qconvId = cnvQualifiedId conv
+    groupJSON <-
+      liftIO $
+        spawn
+          ( cli
+              bobClientId
+              tmp
+              [ "group",
+                "create",
+                T.unpack (toBase64Text groupId)
+              ]
+          )
+          Nothing
+    liftIO $ BS.writeFile (tmp </> "group.json") groupJSON
+
+    -- invite alice
+    liftIO $ BS.writeFile (tmp </> aliceClientId) (rmRaw aliceKP)
+    commit <-
+      liftIO $
+        spawn
+          ( cli
+              bobClientId
+              tmp
+              [ "member",
+                "add",
+                "--in-place",
+                "--group",
+                tmp </> "group.json",
+                "--welcome-out",
+                tmp </> "welcome",
+                tmp </> aliceClientId
+              ]
+          )
+          Nothing
+    welcome <- liftIO $ BS.readFile (tmp </> "welcome")
+
+    -- send welcome and commit
+    WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
+      post
+        ( galley2
+            . paths
+              ["mls", "messages"]
+            . zUser (userId bob)
+            . zClient bobClient
+            . zConn "conn"
+            . header "Z-Type" "access"
+            . content "message/mls"
+            . bytes commit
+        )
+        !!! const 201 === statusCode
+
+      post
+        ( unversioned
+            . galley2
+            . paths
+              ["v2", "mls", "welcome"]
+            . zUser (userId bob)
+            . zClient bobClient
+            . zConn "conn"
+            . header "Z-Type" "access"
+            . content "message/mls"
+            . bytes welcome
+        )
+        !!! const 201 === statusCode
+
+      -- verify that alice receives the welcome message
+      WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
+        let e = List1.head (WS.unpackPayload n)
+        ntfTransient n @?= False
+        evtType e @?= MLSWelcome
+        evtFrom e @?= userQualifiedId alice
+        evtData e @?= EdMLSWelcome welcome
+
+      -- verify that alice receives a join event
+      WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
+        let e = List1.head (WS.unpackPayload n)
+        evtConv e @?= qconvId
+        evtType e @?= MemberJoin
+        evtFrom e @?= userQualifiedId bob
+        fmap (sort . mMembers) (evtData e ^? _EdMembersJoin)
+          @?= Just [SimpleMember (userQualifiedId alice) roleNameWireMember]
+
+    -- alice creates the group
+    void . liftIO $
+      spawn
+        ( cli
+            aliceClientId
+            tmp
+            [ "group",
+              "from-welcome",
+              "--group-out",
+              tmp </> "groupA.json",
+              tmp </> "welcome"
+            ]
+        )
+        Nothing
+
+    -- SUBCONVERSATION
+    -- create subconversation on domain 2
+    subConv <-
+      responseJsonError
+        =<< createMLSSubConversation galley2 (userId bob) qconvId (SubConvId "sub")
+          <!! const 200 === statusCode
+    let subGroupId = unGroupId . pscGroupId $ subConv
+    subGroupJSON <-
+      liftIO $
+        spawn
+          ( cli
+              bobClientId
+              tmp
+              [ "group",
+                "create",
+                T.unpack (toBase64Text subGroupId)
+              ]
+          )
+          Nothing
+    liftIO $ BS.writeFile (tmp </> "subgroup.json") subGroupJSON
+
+    -- bob sends commit bundle for subconversation
+    do
+      subCommitRaw <-
+        liftIO $
+          spawn
+            ( cli
+                bobClientId
+                tmp
+                [ "commit",
+                  "--in-place",
+                  "--group",
+                  tmp </> "subgroup.json",
+                  "--group-state-out",
+                  tmp </> "subgroupstate.mls"
+                ]
+            )
+            Nothing
+      sendCommitBundle
+        tmp
+        "subgroupstate.mls"
+        galley2
+        (userId bob)
+        bobClient
+        subCommitRaw
+
+    -- alice sends an external commit to add herself to the subconveration
+    do
+      subCommitRaw <-
+        liftIO $
+          spawn
+            ( cli
+                aliceClientId
+                tmp
+                [ "external-commit",
+                  "--group-out",
+                  tmp </> "subgroupA.json",
+                  "--group-state-in",
+                  tmp </> "subgroupstate.mls",
+                  "--group-state-out",
+                  tmp </> "subgroupstateA.mls"
+                ]
+            )
+            Nothing
+      sendCommitBundle
+        tmp
+        "subgroupstateA.mls"
+        galley1
+        (userId alice)
+        aliceClient
+        subCommitRaw
+
+    -- prepare bob's message to the subconversation
+    dove <-
+      liftIO $
+        spawn
+          ( cli
+              bobClientId
+              tmp
+              ["message", "--group", tmp </> "subgroup.json", "dove"]
+          )
+          Nothing
+
+    -- prepare alice's reply to the subconversation
+    reply <-
+      liftIO $
+        spawn
+          ( cli
+              aliceClientId
+              tmp
+              ["message", "--group", tmp </> "subgroupA.json", "raven"]
+          )
+          Nothing
+
+    -- send bob's message
+    WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
+      post
+        ( galley2
+            . paths
+              ["mls", "messages"]
+            . zUser (userId bob)
+            . zClient bobClient
+            . zConn "conn"
+            . header "Z-Type" "access"
+            . content "message/mls"
+            . bytes dove
+        )
+        !!! const 201 === statusCode
+
+      -- verify that alice receives bob's message in the subconversation
+      WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
+        let e = List1.head (WS.unpackPayload n)
+        ntfTransient n @?= False
+        evtConv e @?= qconvId
+        evtType e @?= MLSMessageAdd
+        evtFrom e @?= userQualifiedId bob
+        evtData e @?= EdMLSMessage dove
+
+    -- send alice's message
+    WS.bracketR cannon2 (userId bob) $ \wsBob -> do
+      post
+        ( galley1
+            . paths
+              ["mls", "messages"]
+            . zUser (userId alice)
+            . zClient aliceClient
+            . zConn "conn"
+            . header "Z-Type" "access"
+            . content "message/mls"
+            . bytes reply
+        )
+        !!! const 201 === statusCode
+
+      -- verify that bob receives alice's message in the subconversation
       WS.assertMatch_ (5 # Second) wsBob $ \n -> do
         let e = List1.head (WS.unpackPayload n)
         ntfTransient n @?= False

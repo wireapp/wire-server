@@ -22,7 +22,7 @@ module Galley.API.Util where
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
-import Data.ByteString.Conversion
+import Data.ByteString.Conversion (ToByteString, toByteString')
 import qualified Data.Code as Code
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -39,7 +39,7 @@ import Galley.API.Error
 import Galley.API.Mapping
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services (BotMember, newBotMember)
-import qualified Galley.Data.Types as DataTypes
+import qualified Galley.Data.Types as Data
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.CodeStore
@@ -348,6 +348,24 @@ memberJoinEvent lorig qconv t lmems rmems =
     localToSimple u = SimpleMember (tUntagged (qualifyAs lorig (lmId u))) (lmConvRoleName u)
     remoteToSimple u = SimpleMember (tUntagged (rmId u)) (rmConvRoleName u)
 
+convDeleteMembers ::
+  Member MemberStore r =>
+  UserList UserId ->
+  Data.Conversation ->
+  Sem r Data.Conversation
+convDeleteMembers ul conv = do
+  deleteMembers (Data.convId conv) ul
+  let locals = Set.fromList (ulLocals ul)
+      remotes = Set.fromList (ulRemotes ul)
+  -- update in-memory view of the conversation
+  pure $
+    conv
+      { Data.convLocalMembers =
+          filter (\lm -> Set.notMember (lmId lm) locals) (Data.convLocalMembers conv),
+        Data.convRemoteMembers =
+          filter (\rm -> Set.notMember (rmId rm) remotes) (Data.convRemoteMembers conv)
+      }
+
 isMember :: Foldable m => UserId -> m LocalMember -> Bool
 isMember u = isJust . find ((u ==) . lmId)
 
@@ -524,16 +542,29 @@ getConversationAndCheckMembership ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r
   ) =>
-  UserId ->
+  Qualified UserId ->
   Local ConvId ->
   Sem r Data.Conversation
-getConversationAndCheckMembership uid lcnv = do
-  (conv, _) <-
-    getConversationAndMemberWithError
-      @'ConvAccessDenied
-      uid
-      lcnv
-  pure conv
+getConversationAndCheckMembership quid lcnv = do
+  foldQualified
+    lcnv
+    ( \lusr -> do
+        (conv, _) <-
+          getConversationAndMemberWithError
+            @'ConvAccessDenied
+            (tUnqualified lusr)
+            lcnv
+        pure conv
+    )
+    ( \rusr -> do
+        (conv, _) <-
+          getConversationAndMemberWithError
+            @'ConvNotFound
+            rusr
+            lcnv
+        pure conv
+    )
+    quid
 
 getConversationWithError ::
   ( Member ConversationStore r,
@@ -597,12 +628,12 @@ verifyReusableCode ::
     Member (ErrorS 'CodeNotFound) r
   ) =>
   ConversationCode ->
-  Sem r DataTypes.Code
+  Sem r Data.Code
 verifyReusableCode convCode = do
   c <-
-    getCode (conversationKey convCode) DataTypes.ReusableCode
+    getCode (conversationKey convCode) Data.ReusableCode
       >>= noteS @'CodeNotFound
-  unless (DataTypes.codeValue c == conversationCode convCode) $
+  unless (Data.codeValue c == conversationCode convCode) $
     throwS @'CodeNotFound
   pure c
 

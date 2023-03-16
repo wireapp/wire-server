@@ -99,7 +99,6 @@ import qualified Galley.Effects.ExternalAccess as E
 import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
-import Galley.Effects.ProposalStore
 import qualified Galley.Effects.ServiceStore as E
 import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import Galley.Effects.WaiRoutes
@@ -271,6 +270,7 @@ type UpdateConversationAccessEffects =
      Input UTCTime,
      MemberStore,
      ProposalStore,
+     SubConversationStore,
      TeamStore,
      TinyLog
    ]
@@ -317,6 +317,7 @@ updateConversationReceiptMode ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -369,6 +370,7 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
     ConversationUpdateResponseError err' -> rethrowErrors @(HasConversationActionGalleyErrors tag) err'
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
 
+  -- FUTUREWORK: Should we really be calling a federation handler here?
   onConversationUpdated (tDomain rcnv) convUpdate
   notifyRemoteConversationAction lusr (qualifyAs rcnv convUpdate) (Just conn)
 
@@ -385,6 +387,7 @@ updateConversationReceiptModeUnqualified ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -447,7 +450,8 @@ updateConversationMessageTimerUnqualified ::
 updateConversationMessageTimerUnqualified lusr zcon cnv = updateConversationMessageTimer lusr zcon (tUntagged (qualifyAs lusr cnv))
 
 deleteLocalConversation ::
-  ( Member CodeStore r,
+  ( Member BrigAccess r,
+    Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -457,6 +461,9 @@ deleteLocalConversation ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
+    Member SubConversationStore r,
+    Member MemberStore r,
+    Member ProposalStore r,
     Member (Input UTCTime) r,
     Member TeamStore r,
     Member (Logger (Msg -> Msg)) r
@@ -656,6 +663,7 @@ joinConversationByReusableCode ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
+    Member SubConversationStore r,
     Member TeamStore r,
     Member (TeamFeatureStore db) r,
     Member (Logger (Msg -> Msg)) r,
@@ -698,7 +706,6 @@ joinConversationById lusr zcon cnv = do
   joinConversation lusr zcon conv LinkAccess
 
 joinConversation ::
-  forall r.
   ( Member BrigAccess r,
     Member FederatorAccess r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -765,6 +772,7 @@ addMembers ::
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r
   ) =>
@@ -802,6 +810,7 @@ addMembersUnqualifiedV2 ::
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r
   ) =>
@@ -839,6 +848,7 @@ addMembersUnqualified ::
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r
   ) =>
@@ -1014,6 +1024,7 @@ removeMemberUnqualified ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -1039,6 +1050,7 @@ removeMemberQualified ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -1106,6 +1118,7 @@ removeMemberFromLocalConv ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Local ConvId ->

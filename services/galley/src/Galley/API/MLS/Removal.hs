@@ -16,9 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.MLS.Removal
-  ( removeClientsWithClientMap,
+  ( createAndSendRemoveProposals,
     removeClient,
-    removeUserWithClientMap,
     removeUser,
   )
 where
@@ -26,15 +25,16 @@ where
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
-import qualified Data.Set as Set
 import Data.Time
+import Galley.API.MLS.Conversation
 import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Types
 import qualified Galley.Data.Conversation.Types as Data
 import Galley.Effects
-import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
+import Galley.Effects.SubConversationStore
+import qualified Galley.Effects.SubConversationStore as E
 import Galley.Env
 import Imports
 import Polysemy
@@ -42,13 +42,15 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
 import Wire.API.Conversation.Protocol
+import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 
 -- | Send remove proposals for a set of clients to clients in the ClientMap.
-removeClientsWithClientMap ::
+createAndSendRemoveProposals ::
   ( Member (Input UTCTime) r,
     Member TinyLog r,
     Member ExternalAccess r,
@@ -56,33 +58,71 @@ removeClientsWithClientMap ::
     Member GundeckAccess r,
     Member ProposalStore r,
     Member (Input Env) r,
-    Traversable t
+    Foldable t
   ) =>
-  Local Data.Conversation ->
+  Local ConvOrSubConv ->
   t KeyPackageRef ->
+  Qualified UserId ->
+  -- | The client map that has all the recipients of the message. This is an
+  -- argument, and not constructed within the function, because of a special
+  -- case of subconversations where everyone but the subconversation leaver
+  -- client should get the remove proposal message; in this case the recipients
+  -- are a strict subset of all the clients represented by the in-memory
+  -- conversation/subconversation client maps.
   ClientMap ->
+  Sem r ()
+createAndSendRemoveProposals lConvOrSubConv cs qusr cm = do
+  let meta = mlsMetaConvOrSub (tUnqualified lConvOrSubConv)
+  mKeyPair <- getMLSRemovalKey
+  case mKeyPair of
+    Nothing -> do
+      warn $ Log.msg ("No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Not able to remove client from MLS conversation." :: Text)
+    Just (secKey, pubKey) -> do
+      for_ cs $ \kpref -> do
+        let proposal = mkRemoveProposal kpref
+            msg = mkSignedMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) (ProposalMessage proposal)
+            msgEncoded = encodeMLS' msg
+        storeProposal
+          (cnvmlsGroupId meta)
+          (cnvmlsEpoch meta)
+          (proposalRef (cnvmlsCipherSuite meta) proposal)
+          ProposalOriginBackend
+          proposal
+        propagateMessage qusr lConvOrSubConv Nothing msgEncoded cm
+
+removeClientsWithClientMapRecursively ::
+  ( Members
+      '[ Input UTCTime,
+         TinyLog,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         ProposalStore,
+         SubConversationStore,
+         Input Env
+       ]
+      r,
+    Foldable f
+  ) =>
+  Local MLSConversation ->
+  (ConvOrSubConv -> f KeyPackageRef) ->
   Qualified UserId ->
   Sem r ()
-removeClientsWithClientMap lc cs cm qusr = do
-  case Data.convProtocol (tUnqualified lc) of
-    ProtocolProteus -> pure ()
-    ProtocolMLS meta -> do
-      mKeyPair <- getMLSRemovalKey
-      case mKeyPair of
-        Nothing -> do
-          warn $ Log.msg ("No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Not able to remove client from MLS conversation." :: Text)
-        Just (secKey, pubKey) -> do
-          for_ cs $ \kpref -> do
-            let proposal = mkRemoveProposal kpref
-                msg = mkSignedMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) (ProposalMessage proposal)
-                msgEncoded = encodeMLS' msg
-            storeProposal
-              (cnvmlsGroupId meta)
-              (cnvmlsEpoch meta)
-              (proposalRef (cnvmlsCipherSuite meta) proposal)
-              ProposalOriginBackend
-              proposal
-            propagateMessage qusr lc cm Nothing msgEncoded
+removeClientsWithClientMapRecursively lMlsConv getKPs qusr = do
+  let mainConv = fmap Conv lMlsConv
+      cm = mcMembers (tUnqualified lMlsConv)
+  createAndSendRemoveProposals mainConv (getKPs (tUnqualified mainConv)) qusr cm
+
+  -- remove this client from all subconversations
+  subs <- listSubConversations' (mcId (tUnqualified lMlsConv))
+  for_ subs $ \sub -> do
+    let subConv = fmap (flip SubConv sub) lMlsConv
+
+    createAndSendRemoveProposals
+      subConv
+      (getKPs (tUnqualified subConv))
+      qusr
+      cm
 
 -- | Send remove proposals for a single client of a user to the local conversation.
 removeClient ::
@@ -93,6 +133,7 @@ removeClient ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Local Data.Conversation ->
@@ -100,29 +141,10 @@ removeClient ::
   ClientId ->
   Sem r ()
 removeClient lc qusr cid = do
-  for_ (cnvmlsGroupId <$> Data.mlsMetadata (tUnqualified lc)) $ \groupId -> do
-    cm <- lookupMLSClients groupId
-    let cidAndKP = Set.toList . Set.map snd . Set.filter ((==) cid . fst) $ Map.findWithDefault mempty qusr cm
-    removeClientsWithClientMap lc cidAndKP cm qusr
-
--- | Send remove proposals for all clients of the user to clients in the ClientMap.
---
--- All clients of the user have to be contained in the ClientMap.
-removeUserWithClientMap ::
-  ( Member (Input UTCTime) r,
-    Member TinyLog r,
-    Member ExternalAccess r,
-    Member FederatorAccess r,
-    Member GundeckAccess r,
-    Member ProposalStore r,
-    Member (Input Env) r
-  ) =>
-  Local Data.Conversation ->
-  ClientMap ->
-  Qualified UserId ->
-  Sem r ()
-removeUserWithClientMap lc cm qusr =
-  removeClientsWithClientMap lc (Set.toList . Set.map snd $ Map.findWithDefault mempty qusr cm) cm qusr
+  mMlsConv <- mkMLSConversation (tUnqualified lc)
+  for_ mMlsConv $ \mlsConv -> do
+    let getKPs = cmLookupRef (mkClientIdentity qusr cid) . membersConvOrSub
+    removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getKPs qusr
 
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::
@@ -133,12 +155,25 @@ removeUser ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Local Data.Conversation ->
   Qualified UserId ->
   Sem r ()
 removeUser lc qusr = do
-  for_ (Data.mlsMetadata (tUnqualified lc)) $ \meta -> do
-    cm <- lookupMLSClients (cnvmlsGroupId meta)
-    removeUserWithClientMap lc cm qusr
+  mMlsConv <- mkMLSConversation (tUnqualified lc)
+  for_ mMlsConv $ \mlsConv -> do
+    let getKPs = Map.findWithDefault mempty qusr . membersConvOrSub
+    removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getKPs qusr
+
+-- | Convert cassandra subconv maps into SubConversations
+listSubConversations' ::
+  Member SubConversationStore r =>
+  ConvId ->
+  Sem r [SubConversation]
+listSubConversations' cid = do
+  subs <- E.listSubConversations cid
+  msubs <- for (Map.assocs subs) $ \(subId, _) -> do
+    getSubConversation cid subId
+  pure (catMaybes msubs)

@@ -26,7 +26,6 @@ import Data.Qualified
 import Data.Time
 import Galley.API.MLS.Types
 import Galley.API.Push
-import qualified Galley.Data.Conversation.Types as Data
 import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.FederatorAccess
@@ -44,6 +43,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.SubConversation
 import Wire.API.Message
 
 -- | Propagate a message.
@@ -55,38 +55,48 @@ propagateMessage ::
     Member TinyLog r
   ) =>
   Qualified UserId ->
-  Local Data.Conversation ->
-  ClientMap ->
+  Local ConvOrSubConv ->
   Maybe ConnId ->
   ByteString ->
+  -- | The client map that has all the recipients of the message. This is an
+  -- argument, and not constructed within the function, because of a special
+  -- case of subconversations where everyone but the subconversation leaver
+  -- client should get the remove proposal message; in this case the recipients
+  -- are a strict subset of all the clients represented by the in-memory
+  -- conversation/subconversation client maps.
+  ClientMap ->
   Sem r ()
-propagateMessage qusr lconv cm con raw = do
-  -- FUTUREWORK: check the epoch
-  let lmems = Data.convLocalMembers . tUnqualified $ lconv
+propagateMessage qusr lConvOrSub con raw cm = do
+  now <- input @UTCTime
+  let mlsConv = convOfConvOrSub <$> lConvOrSub
+      lmems = mcLocalMembers . tUnqualified $ mlsConv
       botMap = Map.fromList $ do
         m <- lmems
         b <- maybeToList $ newBotMember m
         pure (lmId m, b)
       mm = defMessageMetadata
-  now <- input @UTCTime
-  let lcnv = fmap Data.convId lconv
-      qcnv = tUntagged lcnv
-      e = Event qcnv Nothing qusr now $ EdMLSMessage raw
+  let qt =
+        tUntagged lConvOrSub <&> \case
+          Conv c -> (mcId c, Nothing)
+          SubConv c s -> (mcId c, Just (scSubConvId s))
+      qcnv = fst <$> qt
+      sconv = snd (qUnqualified qt)
+      e = Event qcnv sconv qusr now $ EdMLSMessage raw
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
-      mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
-  runMessagePush lconv (Just qcnv) $
-    foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients lcnv)
+      mkPush u c = newMessagePush mlsConv botMap con mm (u, c) e
+  runMessagePush mlsConv (Just qcnv) $
+    foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients mlsConv)
 
   -- send to remotes
   traverse_ handleError
-    <=< runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers . tUnqualified $ lconv))
+    <=< runFederatedConcurrentlyEither (map remoteMemberQualify (mcRemoteMembers . tUnqualified $ mlsConv))
     $ \(tUnqualified -> rs) ->
       fedClient @'Galley @"on-mls-message-sent" $
         RemoteMLSMessage
           { rmmTime = now,
             rmmSender = qusr,
             rmmMetadata = mm,
-            rmmConversation = tUnqualified lcnv,
+            rmmConversation = qUnqualified qcnv,
             rmmRecipients = rs >>= remoteMemberMLSClients,
             rmmMessage = Base64ByteString raw
           }
@@ -97,7 +107,7 @@ propagateMessage qusr lconv cm con raw = do
           localUserId = lmId lm
        in map
             (\(c, _) -> (localUserId, c))
-            (toList (Map.findWithDefault mempty localUserQId cm))
+            (Map.assocs (Map.findWithDefault mempty localUserQId cm))
 
     remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
     remoteMemberMLSClients rm =
@@ -105,7 +115,7 @@ propagateMessage qusr lconv cm con raw = do
           remoteUserId = qUnqualified remoteUserQId
        in map
             (\(c, _) -> (remoteUserId, c))
-            (toList (Map.findWithDefault mempty remoteUserQId cm))
+            (Map.assocs (Map.findWithDefault mempty remoteUserQId cm))
 
     handleError ::
       Member TinyLog r =>

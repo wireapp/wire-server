@@ -750,17 +750,20 @@ addTeamMember lzusr zcon tid nmem = do
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMember ::
   forall db r.
-  ( Member BrigAccess r,
-    Member GundeckAccess r,
-    Member (ErrorS 'TooManyTeamMembers) r,
-    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
-    Member (Input Opts) r,
-    Member (Input UTCTime) r,
-    Member LegalHoldStore r,
-    Member P.TinyLog r,
-    Member (TeamFeatureStore db) r,
-    Member TeamNotificationStore r,
-    Member TeamStore r,
+  ( ( Member BrigAccess r,
+      Member GundeckAccess r,
+      Member (ErrorS 'TooManyTeamMembers) r,
+      Member (Input (Local ())) r,
+      Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
+      Member (Input Opts) r,
+      Member (Input UTCTime) r,
+      Member MemberStore r,
+      Member LegalHoldStore r,
+      Member P.TinyLog r,
+      Member (TeamFeatureStore db) r,
+      Member TeamNotificationStore r,
+      Member TeamStore r
+    ),
     FeaturePersistentConstraint db LegalholdConfig
   ) =>
   TeamId ->
@@ -1088,13 +1091,16 @@ getTeamConversation zusr tid cid = do
     >>= noteS @'ConvNotFound
 
 deleteTeamConversation ::
-  ( Member CodeStore r,
+  ( Member BrigAccess r,
+    Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
+    Member MemberStore r,
+    Member ProposalStore r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -1237,10 +1243,11 @@ ensureNotTooLarge tid = do
 --  FUTUREWORK: Find a way around the fanout limit.
 ensureNotTooLargeForLegalHold ::
   forall db r.
-  ( Member LegalHoldStore r,
-    Member TeamStore r,
-    Member (TeamFeatureStore db) r,
-    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
+  ( ( Member LegalHoldStore r,
+      Member TeamStore r,
+      Member (TeamFeatureStore db) r,
+      Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r
+    ),
     FeaturePersistentConstraint db LegalholdConfig
   ) =>
   TeamId ->
@@ -1375,11 +1382,12 @@ getBindingTeamMembers zusr = do
 -- RegisterError`.
 canUserJoinTeam ::
   forall db r.
-  ( Member BrigAccess r,
-    Member LegalHoldStore r,
-    Member TeamStore r,
-    Member (TeamFeatureStore db) r,
-    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
+  ( ( Member BrigAccess r,
+      Member LegalHoldStore r,
+      Member TeamStore r,
+      Member (TeamFeatureStore db) r,
+      Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r
+    ),
     FeaturePersistentConstraint db LegalholdConfig
   ) =>
   TeamId ->

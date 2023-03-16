@@ -3099,8 +3099,10 @@ deleteRemoteMemberConvLocalQualifiedOk = do
       Left err -> assertFailure err
       Right e -> assertLeaveEvent qconvId qAlice [qChad] e
 
-  let [remote1GalleyFederatedRequest] = fedRequestsForDomain remoteDomain1 Galley federatedRequests
-      [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 Galley federatedRequests
+  remote1GalleyFederatedRequest <-
+    assertOne (filter ((== "on-conversation-updated") . frRPC) (fedRequestsForDomain remoteDomain1 Galley federatedRequests))
+  remote2GalleyFederatedRequest <-
+    assertOne (filter ((== "on-conversation-updated") . frRPC) (fedRequestsForDomain remoteDomain2 Galley federatedRequests))
   assertRemoveUpdate remote1GalleyFederatedRequest qconvId qAlice [qUnqualified qChad, qUnqualified qDee] qChad
   assertRemoveUpdate remote2GalleyFederatedRequest qconvId qAlice [qUnqualified qEve] qChad
 

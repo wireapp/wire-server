@@ -51,11 +51,13 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-message-v1"
            ( Summary "Post an MLS message"
-               :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "send-mls-message"
-               :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Brig "get-mls-clients"
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
+               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
+               :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
+               :> MakesFederatedCall 'Galley "send-mls-message"
                :> Until 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
@@ -75,6 +77,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSGroupConversationMismatch
                :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'MLSSubConvClientNotInParent
                :> CanThrow MLSProposalFailure
                :> "messages"
                :> ZLocalUser
@@ -90,7 +93,9 @@ type MLSMessagingAPI =
                :> MakesFederatedCall 'Galley "send-mls-message"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> MakesFederatedCall 'Brig "get-mls-clients"
+               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
                :> From 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
@@ -110,6 +115,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSGroupConversationMismatch
                :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'MLSSubConvClientNotInParent
                :> CanThrow MLSProposalFailure
                :> "messages"
                :> ZLocalUser
@@ -126,7 +132,9 @@ type MLSMessagingAPI =
                :> MakesFederatedCall 'Galley "send-mls-commit-bundle"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> MakesFederatedCall 'Brig "get-mls-clients"
+               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
                :> From 'V4
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
@@ -147,6 +155,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MLSWelcomeMismatch
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'MLSSubConvClientNotInParent
                :> CanThrow MLSProposalFailure
                :> "commit-bundles"
                :> ZLocalUser

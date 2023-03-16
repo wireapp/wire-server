@@ -44,6 +44,7 @@ import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
+import Wire.API.User.Client
 
 type LegalHoldFeatureStatusChangeErrors =
   '( 'ActionDenied 'RemoveConversationMember,
@@ -65,7 +66,8 @@ type LegalHoldFeatureStatusChangeErrors =
 type LegalHoldFeaturesStatusChangeFederatedCalls =
   '[ MakesFederatedCall 'Galley "on-conversation-updated",
      MakesFederatedCall 'Galley "on-mls-message-sent",
-     MakesFederatedCall 'Galley "on-new-remote-conversation"
+     MakesFederatedCall 'Galley "on-new-remote-conversation",
+     MakesFederatedCall 'Galley "on-new-remote-subconversation"
    ]
 
 type IFeatureAPI =
@@ -207,6 +209,19 @@ type InternalAPIBase =
                :> "connect"
                :> ReqBody '[Servant.JSON] Connect
                :> ConversationVerb
+           )
+    -- This endpoint is meant for testing membership of a conversation
+    :<|> Named
+           "get-conversation-clients"
+           ( Summary "Get mls conversation client list"
+               :> ZLocalUser
+               :> CanThrow 'ConvNotFound
+               :> "conversation"
+               :> Capture "cnv" ConvId
+               :> MultiVerb1
+                    'GET
+                    '[Servant.JSON]
+                    (Respond 200 "Clients" ClientList)
            )
     :<|> Named
            "guard-legalhold-policy-conflicts"

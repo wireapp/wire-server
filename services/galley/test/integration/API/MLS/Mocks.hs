@@ -22,6 +22,7 @@ module API.MLS.Mocks
     sendMessageMock,
     claimKeyPackagesMock,
     queryGroupStateMock,
+    deleteMLSConvMock,
   )
 where
 
@@ -43,6 +44,7 @@ receiveCommitMock clients =
   asum
     [ "on-conversation-updated" ~> (),
       "on-new-remote-conversation" ~> EmptyResponse,
+      "on-new-remote-subconversation" ~> EmptyResponse,
       "get-mls-clients" ~>
         Set.fromList
           ( map (flip ClientInfo True . ciClient) clients
@@ -56,7 +58,11 @@ welcomeMock :: Mock LByteString
 welcomeMock = "mls-welcome" ~> MLSWelcomeSent
 
 sendMessageMock :: Mock LByteString
-sendMessageMock = "send-mls-message" ~> MLSMessageResponseUpdates []
+sendMessageMock =
+  asum
+    [ "send-mls-message" ~> MLSMessageResponseUpdates [],
+      "send-mls-commit-bundle" ~> MLSMessageResponseUpdates []
+    ]
 
 claimKeyPackagesMock :: KeyPackageBundle -> Mock LByteString
 claimKeyPackagesMock kpb = "claim-key-packages" ~> kpb
@@ -69,3 +75,11 @@ queryGroupStateMock gs qusr = do
     if uid == qUnqualified qusr
       then GetGroupInfoResponseState (Base64ByteString gs)
       else GetGroupInfoResponseError ConvNotFound
+
+deleteMLSConvMock :: Mock LByteString
+deleteMLSConvMock =
+  asum
+    [ "on-delete-mls-conversation" ~> EmptyResponse,
+      "on-new-remote-subconversation" ~> EmptyResponse,
+      "on-conversation-updated" ~> EmptyResponse
+    ]

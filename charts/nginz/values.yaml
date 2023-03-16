@@ -522,6 +522,8 @@ nginx_conf:
     - path: /mls/commit-bundles
       envs:
       - all
+      max_body_size: 70m
+      body_buffer_size: 256k
     - path: /mls/public-keys
       envs:
       - all

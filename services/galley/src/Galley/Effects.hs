@@ -39,8 +39,10 @@ module Galley.Effects
     CustomBackendStore,
     LegalHoldStore,
     MemberStore,
+    ProposalStore,
     SearchVisibilityStore,
     ServiceStore,
+    SubConversationStore,
     TeamFeatureStore,
     TeamMemberStore,
     TeamNotificationStore,
@@ -81,6 +83,8 @@ import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.ServiceStore
 import Galley.Effects.SparAccess
+import Galley.Effects.SubConversationStore
+import Galley.Effects.SubConversationSupply
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
@@ -94,6 +98,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Error
 import Wire.Sem.Paging.Cassandra
+import Wire.Sem.Random
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
@@ -108,6 +113,9 @@ type GalleyEffects1 =
      CodeStore,
      ProposalStore,
      ConversationStore,
+     SubConversationStore,
+     SubConversationSupply,
+     Random,
      CustomBackendStore,
      LegalHoldStore,
      MemberStore,

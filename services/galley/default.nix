@@ -47,6 +47,7 @@
 , HsOpenSSL
 , HsOpenSSL-x509-system
 , hspec
+, http-api-data
 , http-client
 , http-client-openssl
 , http-client-tls
@@ -283,6 +284,7 @@ mkDerivation {
     HsOpenSSL
     HsOpenSSL-x509-system
     hspec
+    http-api-data
     http-client
     http-client-openssl
     http-client-tls

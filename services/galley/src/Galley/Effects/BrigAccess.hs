@@ -53,6 +53,7 @@ module Galley.Effects.BrigAccess
     addKeyPackageRef,
     validateAndAddKeyPackageRef,
     updateKeyPackageRef,
+    deleteKeyPackageRefs,
 
     -- * Features
     getAccountConferenceCallingConfigClient,
@@ -134,6 +135,7 @@ data BrigAccess m a where
   AddKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> BrigAccess m ()
   ValidateAndAddKeyPackageRef :: NewKeyPackage -> BrigAccess m (Either Text NewKeyPackageResult)
   UpdateKeyPackageRef :: KeyPackageUpdate -> BrigAccess m ()
+  DeleteKeyPackageRefs :: [KeyPackageRef] -> BrigAccess m ()
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatus SearchVisibilityInboundConfig ->
     BrigAccess m ()

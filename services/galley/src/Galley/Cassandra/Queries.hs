@@ -36,6 +36,7 @@ import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.SubConversation
 import Wire.API.Provider
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -215,9 +216,10 @@ selectConv ::
       Maybe ProtocolTag,
       Maybe GroupId,
       Maybe Epoch,
+      Maybe (Writetime Epoch),
       Maybe CipherSuiteTag
     )
-selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, cipher_suite from conversation where conv = ?"
+selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite from conversation where conv = ?"
 
 selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
 selectReceiptMode = "select receipt_mode from conversation where conv = ?"
@@ -313,11 +315,46 @@ deleteUserConv = "delete from user where user = ? and conv = ?"
 
 -- MLS Conversations --------------------------------------------------------
 
-insertGroupId :: PrepQuery W (GroupId, ConvId, Domain) ()
-insertGroupId = "INSERT INTO group_id_conv_id (group_id, conv_id, domain) VALUES (?, ?, ?)"
+insertGroupIdForConversation :: PrepQuery W (GroupId, ConvId, Domain) ()
+insertGroupIdForConversation = "INSERT INTO group_id_conv_id (group_id, conv_id, domain) VALUES (?, ?, ?)"
 
-lookupGroupId :: PrepQuery R (Identity GroupId) (ConvId, Domain)
-lookupGroupId = "SELECT conv_id, domain from group_id_conv_id where group_id = ?"
+lookupGroupId :: PrepQuery R (Identity GroupId) (ConvId, Domain, Maybe SubConvId)
+lookupGroupId = "SELECT conv_id, domain, subconv_id from group_id_conv_id where group_id = ?"
+
+-- MLS SubConversations -----------------------------------------------------
+
+selectSubConversation :: PrepQuery R (ConvId, SubConvId) (CipherSuiteTag, Epoch, Writetime Epoch, GroupId)
+selectSubConversation = "SELECT cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ? and subconv_id = ?"
+
+insertSubConversation :: PrepQuery W (ConvId, SubConvId, CipherSuiteTag, Epoch, GroupId, Maybe OpaquePublicGroupState) ()
+insertSubConversation = "INSERT INTO subconversation (conv_id, subconv_id, cipher_suite, epoch, group_id, public_group_state) VALUES (?, ?, ?, ?, ?, ?)"
+
+updateSubConvPublicGroupState :: PrepQuery W (ConvId, SubConvId, Maybe OpaquePublicGroupState) ()
+updateSubConvPublicGroupState = "INSERT INTO subconversation (conv_id, subconv_id, public_group_state) VALUES (?, ?, ?)"
+
+selectSubConvPublicGroupState :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe OpaquePublicGroupState))
+selectSubConvPublicGroupState = "SELECT public_group_state FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
+
+deleteGroupId :: PrepQuery W (Identity GroupId) ()
+deleteGroupId = "DELETE FROM group_id_conv_id WHERE group_id = ?"
+
+insertGroupIdForSubConversation :: PrepQuery W (GroupId, ConvId, Domain, SubConvId) ()
+insertGroupIdForSubConversation = "INSERT INTO group_id_conv_id (group_id, conv_id, domain, subconv_id) VALUES (?, ?, ?, ?)"
+
+lookupGroupIdForSubConversation :: PrepQuery R (Identity GroupId) (ConvId, Domain, SubConvId)
+lookupGroupIdForSubConversation = "SELECT conv_id, domain, subconv_id from group_id_conv_id where group_id = ?"
+
+insertEpochForSubConversation :: PrepQuery W (Epoch, ConvId, SubConvId) ()
+insertEpochForSubConversation = "UPDATE subconversation set epoch = ? WHERE conv_id = ? AND subconv_id = ?"
+
+listSubConversations :: PrepQuery R (Identity ConvId) (SubConvId, CipherSuiteTag, Epoch, Writetime Epoch, GroupId)
+listSubConversations = "SELECT subconv_id, cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ?"
+
+selectSubConversations :: PrepQuery R (Identity ConvId) (Identity SubConvId)
+selectSubConversations = "SELECT subconv_id FROM subconversation WHERE conv_id = ?"
+
+deleteSubConversation :: PrepQuery W (ConvId, SubConvId) ()
+deleteSubConversation = "DELETE FROM subconversation where conv_id = ? and subconv_id = ?"
 
 -- Members ------------------------------------------------------------------
 
@@ -424,6 +461,9 @@ addMLSClient = "insert into mls_group_member_client (group_id, user_domain, user
 
 removeMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
 removeMLSClient = "delete from mls_group_member_client where group_id = ? and user_domain = ? and user = ? and client = ?"
+
+removeAllMLSClients :: PrepQuery W (Identity GroupId) ()
+removeAllMLSClients = "DELETE FROM mls_group_member_client WHERE group_id = ?"
 
 lookupMLSClients :: PrepQuery R (Identity GroupId) (Domain, UserId, ClientId, KeyPackageRef)
 lookupMLSClients = "select user_domain, user, client, key_package_ref from mls_group_member_client where group_id = ?"

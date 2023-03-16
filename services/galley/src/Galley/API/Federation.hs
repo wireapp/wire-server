@@ -17,7 +17,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Galley.API.Federation where
+module Galley.API.Federation
+  ( FederationAPI,
+    federationSitemap,
+    onConversationUpdated,
+  )
+where
 
 import Control.Error
 import Control.Lens (itraversed, preview, to, (<.>))
@@ -44,6 +49,7 @@ import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Message
 import Galley.API.MLS.Removal
+import Galley.API.MLS.SubConversation hiding (leaveSubConversation)
 import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
@@ -53,10 +59,12 @@ import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
+import Galley.Effects.ConversationStore (deleteGroupIds)
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
-import Galley.Effects.ProposalStore (ProposalStore)
+import qualified Galley.Effects.SubConversationStore as E
+import Galley.Effects.SubConversationSupply
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList (UserList (UserList))
@@ -94,7 +102,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.Internal.Brig.Connection
-import Wire.API.Routes.Named
+import Wire.API.Routes.Named (Named (Named))
 import Wire.API.ServantProto
 
 type FederationAPI = "federation" :> FedApi 'Galley
@@ -105,6 +113,7 @@ federationSitemap ::
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
     :<|> Named @"on-new-remote-conversation" onNewRemoteConversation
+    :<|> Named @"on-new-remote-subconversation" onNewRemoteSubConversation
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"on-conversation-updated" onConversationUpdated
     :<|> Named @"leave-conversation" (callsFed (exposeAnnotations leaveConversation))
@@ -120,6 +129,10 @@ federationSitemap =
     :<|> Named @"on-client-removed" (callsFed (exposeAnnotations onClientRemoved))
     :<|> Named @"update-typing-indicator" (callsFed (exposeAnnotations updateTypingIndicator))
     :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
+    :<|> Named @"get-sub-conversation" getSubConversationForRemoteUser
+    :<|> Named @"delete-sub-conversation" (callsFed deleteSubConversationForRemoteUser)
+    :<|> Named @"leave-sub-conversation" (callsFed leaveSubConversation)
+    :<|> Named @"on-delete-mls-conversation" onDeleteMLSConversation
 
 onClientRemoved ::
   ( Member ConversationStore r,
@@ -131,6 +144,7 @@ onClientRemoved ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Domain ->
@@ -191,15 +205,37 @@ onConversationCreated domain rc = do
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
 
 onNewRemoteConversation ::
-  Member ConversationStore r =>
+  Members
+    '[ ConversationStore,
+       SubConversationStore
+     ]
+    r =>
   Domain ->
   F.NewRemoteConversation ->
   Sem r EmptyResponse
 onNewRemoteConversation domain nrc = do
   -- update group_id -> conv_id mapping
   for_ (preview (to F.nrcProtocol . _ProtocolMLS) nrc) $ \mls ->
-    E.setGroupId (cnvmlsGroupId mls) (Qualified (F.nrcConvId nrc) domain)
+    E.setGroupIdForConversation
+      (cnvmlsGroupId mls)
+      (Qualified (F.nrcConvId nrc) domain)
 
+  pure EmptyResponse
+
+onNewRemoteSubConversation ::
+  Members
+    '[ ConversationStore,
+       SubConversationStore
+     ]
+    r =>
+  Domain ->
+  F.NewRemoteSubConversation ->
+  Sem r EmptyResponse
+onNewRemoteSubConversation domain nrsc = do
+  E.setGroupIdForSubConversation
+    (cnvmlsGroupId (F.nrscMlsData nrsc))
+    (Qualified (F.nrscConvId nrsc) domain)
+    (F.nrscSubConvId nrsc)
   pure EmptyResponse
 
 getConversations ::
@@ -338,6 +374,7 @@ leaveConversation ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Domain ->
@@ -469,6 +506,7 @@ onUserDeleted ::
     Member (Input Env) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Domain ->
@@ -531,6 +569,7 @@ updateConversation ::
     Member TeamStore r,
     Member TinyLog r,
     Member ConversationStore r,
+    Member SubConversationStore r,
     Member (Input (Local ())) r
   ) =>
   Domain ->
@@ -610,6 +649,7 @@ sendMLSCommitBundle ::
     Member Resource r,
     Member TeamStore r,
     Member P.TinyLog r,
+    Member SubConversationStore r,
     Member ProposalStore r
   ) =>
   Domain ->
@@ -629,10 +669,16 @@ sendMLSCommitBundle remoteDomain msr =
       let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
       bundle <- either (throw . mlsProtocolError) pure $ deserializeCommitBundle (fromBase64ByteString (F.mmsrRawMessage msr))
       let msg = rmValue (cbCommitMsg bundle)
-      qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-      when (Conv (qUnqualified qcnv) /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
+      qConvOrSub <- E.lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+      when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
       F.MLSMessageResponseUpdates . map lcuUpdate
-        <$> postMLSCommitBundle loc (tUntagged sender) Nothing qcnv Nothing bundle
+        <$> postMLSCommitBundle
+          loc
+          (tUntagged sender)
+          (Just (mmsrSenderClient msr))
+          qConvOrSub
+          Nothing
+          bundle
 
 sendMLSMessage ::
   ( Member BrigAccess r,
@@ -651,7 +697,8 @@ sendMLSMessage ::
     Member Resource r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member ProposalStore r
+    Member ProposalStore r,
+    Member SubConversationStore r
   ) =>
   Domain ->
   F.MLSMessageSendRequest ->
@@ -671,33 +718,16 @@ sendMLSMessage remoteDomain msr =
       raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
       case rmValue raw of
         SomeMessage _ msg -> do
-          qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-          when (Conv (qUnqualified qcnv) /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
+          qConvOrSub <- E.lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+          when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
           F.MLSMessageResponseUpdates . map lcuUpdate
-            <$> postMLSMessage loc (tUntagged sender) Nothing qcnv Nothing raw
-
-class ToGalleyRuntimeError (effs :: EffectRow) r where
-  mapToGalleyError ::
-    Member (Error GalleyError) r =>
-    Sem (Append effs r) a ->
-    Sem r a
-
-instance ToGalleyRuntimeError '[] r where
-  mapToGalleyError = id
-
-instance
-  forall (err :: GalleyError) effs r.
-  ( ToGalleyRuntimeError effs r,
-    SingI err,
-    Member (Error GalleyError) (Append effs r)
-  ) =>
-  ToGalleyRuntimeError (ErrorS err ': effs) r
-  where
-  mapToGalleyError act =
-    mapToGalleyError @effs @r $
-      runError act >>= \case
-        Left _ -> throw (demote @err)
-        Right res -> pure res
+            <$> postMLSMessage
+              loc
+              (tUntagged sender)
+              (Just (mmsrSenderClient msr))
+              qConvOrSub
+              Nothing
+              raw
 
 mlsSendWelcome ::
   ( Member BrigAccess r,
@@ -777,6 +807,7 @@ queryGroupInfo ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
+    Member SubConversationStore r,
     Member MemberStore r
   ) =>
   Domain ->
@@ -788,9 +819,14 @@ queryGroupInfo origDomain req =
     . mapToGalleyError @MLSGroupInfoStaticErrors
     $ do
       assertMLSEnabled
-      lconvId <- qualifyLocal . ggireqConv $ req
       let sender = toRemoteUnsafe origDomain . ggireqSender $ req
-      state <- getGroupInfoFromLocalConv (tUntagged sender) lconvId
+      state <- case ggireqConv req of
+        Conv convId -> do
+          lconvId <- qualifyLocal convId
+          getGroupInfoFromLocalConv (tUntagged sender) lconvId
+        SubConv convId subConvId -> do
+          lconvId <- qualifyLocal convId
+          getSubConversationGroupInfoFromLocalConv (tUntagged sender) subConvId lconvId
       pure
         . Base64ByteString
         . unOpaquePublicGroupState
@@ -828,3 +864,113 @@ onTypingIndicatorUpdated origDomain TypingDataUpdated {..} = do
   let qcnv = Qualified tudConvId origDomain
   pushTypingIndicatorEvents tudOrigUserId tudTime tudUsersInConv Nothing qcnv tudTypingStatus
   pure EmptyResponse
+
+getSubConversationForRemoteUser ::
+  Members
+    '[ SubConversationStore,
+       ConversationStore,
+       Input (Local ()),
+       Error InternalError,
+       P.TinyLog
+     ]
+    r =>
+  Domain ->
+  GetSubConversationsRequest ->
+  Sem r GetSubConversationsResponse
+getSubConversationForRemoteUser domain GetSubConversationsRequest {..} =
+  fmap (either F.GetSubConversationsResponseError F.GetSubConversationsResponseSuccess)
+    . runError @GalleyError
+    . mapToGalleyError @MLSGetSubConvStaticErrors
+    $ do
+      let qusr = Qualified gsreqUser domain
+      lconv <- qualifyLocal gsreqConv
+      getLocalSubConversation qusr lconv gsreqSubConv
+
+leaveSubConversation ::
+  ( HasLeaveSubConversationEffects r,
+    Members
+      '[ Input (Local ()),
+         Resource,
+         SubConversationSupply
+       ]
+      r
+  ) =>
+  Domain ->
+  LeaveSubConversationRequest ->
+  Sem r LeaveSubConversationResponse
+leaveSubConversation domain lscr = do
+  let rusr = toRemoteUnsafe domain (lscrUser lscr)
+      cid = mkClientIdentity (tUntagged rusr) (lscrClient lscr)
+  lcnv <- qualifyLocal (lscrConv lscr)
+  fmap (either (LeaveSubConversationResponseProtocolError . unTagged) id)
+    . runError @MLSProtocolError
+    . fmap (either LeaveSubConversationResponseError id)
+    . runError @GalleyError
+    . mapToGalleyError @LeaveSubConversationStaticErrors
+    $ leaveLocalSubConversation cid lcnv (lscrSubConv lscr)
+      $> LeaveSubConversationResponseOk
+
+deleteSubConversationForRemoteUser ::
+  ( Members
+      '[ ConversationStore,
+         FederatorAccess,
+         Input (Local ()),
+         Input Env,
+         MemberStore,
+         Resource,
+         SubConversationStore,
+         SubConversationSupply
+       ]
+      r
+  ) =>
+  Domain ->
+  DeleteSubConversationFedRequest ->
+  Sem r DeleteSubConversationResponse
+deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
+  fmap
+    ( either
+        F.DeleteSubConversationResponseError
+        (\() -> F.DeleteSubConversationResponseSuccess)
+    )
+    . runError @GalleyError
+    . mapToGalleyError @MLSDeleteSubConvStaticErrors
+    $ do
+      let qusr = Qualified dscreqUser domain
+          dsc = DeleteSubConversationRequest dscreqGroupId dscreqEpoch
+      lconv <- qualifyLocal dscreqConv
+      deleteLocalSubConversation qusr lconv dscreqSubConv dsc
+
+onDeleteMLSConversation ::
+  Members '[ConversationStore] r =>
+  Domain ->
+  OnDeleteMLSConversationRequest ->
+  Sem r EmptyResponse
+onDeleteMLSConversation _domain OnDeleteMLSConversationRequest {..} = do
+  deleteGroupIds odmcGroupIds
+  pure EmptyResponse
+
+--------------------------------------------------------------------------------
+-- Error handling machinery
+
+class ToGalleyRuntimeError (effs :: EffectRow) r where
+  mapToGalleyError ::
+    Member (Error GalleyError) r =>
+    Sem (Append effs r) a ->
+    Sem r a
+
+instance ToGalleyRuntimeError '[] r where
+  mapToGalleyError = id
+
+instance
+  forall (err :: GalleyError) effs r.
+  ( ToGalleyRuntimeError effs r,
+    SingI err,
+    Member (Error GalleyError) (Append effs r)
+  ) =>
+  ToGalleyRuntimeError (ErrorS err ': effs) r
+  where
+  mapToGalleyError act =
+    mapToGalleyError @effs @r $
+      runError act >>= \case
+        Left _ -> throw (demote @err)
+        Right res -> pure res

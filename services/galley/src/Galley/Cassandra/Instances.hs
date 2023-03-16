@@ -40,6 +40,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import qualified Wire.API.Team.Feature as Public
@@ -255,3 +256,9 @@ instance Cql CipherSuite where
       then Right . CipherSuite . fromIntegral $ i
       else Left "CipherSuite: an out of bounds value for Word16"
   fromCql _ = Left "CipherSuite: int expected"
+
+instance Cql SubConvId where
+  ctype = Tagged TextColumn
+  toCql = CqlText . unSubConvId
+  fromCql (CqlText txt) = Right (SubConvId txt)
+  fromCql _ = Left "SubConvId: Text expected"

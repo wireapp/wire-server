@@ -31,7 +31,7 @@ import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
 newtype GroupId = GroupId {unGroupId :: ByteString}
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform GroupId)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema GroupId)
 

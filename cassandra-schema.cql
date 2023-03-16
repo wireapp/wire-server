@@ -353,7 +353,8 @@ CREATE TABLE galley_test.legalhold_pending_prekeys (
 CREATE TABLE galley_test.group_id_conv_id (
     group_id blob PRIMARY KEY,
     conv_id uuid,
-    domain text
+    domain text,
+    subconv_id text
 ) WITH bloom_filter_fp_chance = 0.01
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
@@ -514,6 +515,30 @@ CREATE TABLE galley_test.mls_commit_locks (
     epoch bigint,
     PRIMARY KEY (group_id, epoch)
 ) WITH CLUSTERING ORDER BY (epoch ASC)
+    AND bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE galley_test.subconversation (
+    conv_id uuid,
+    subconv_id text,
+    cipher_suite int,
+    epoch bigint,
+    group_id blob,
+    public_group_state blob,
+    PRIMARY KEY (conv_id, subconv_id)
+) WITH CLUSTERING ORDER BY (subconv_id ASC)
     AND bloom_filter_fp_chance = 0.01
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
