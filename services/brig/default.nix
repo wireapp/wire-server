@@ -49,6 +49,7 @@
 , fsnotify
 , galley-types
 , geoip2
+, ghc-debug-stub
 , gitignoreSource
 , gundeck-types
 , hashable
@@ -208,6 +209,7 @@ mkDerivation {
     fsnotify
     galley-types
     geoip2
+    ghc-debug-stub
     gundeck-types
     hashable
     HaskellNet
@@ -325,6 +327,7 @@ mkDerivation {
     federator
     filepath
     galley-types
+    ghc-debug-stub
     gundeck-types
     hscim
     HsOpenSSL
