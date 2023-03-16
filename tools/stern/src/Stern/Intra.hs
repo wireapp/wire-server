@@ -156,7 +156,7 @@ putUserStatus status uid = do
         "brig"
         b
         ( method PUT
-            . paths ["/i/users", toByteString' uid, "status"]
+            . paths ["i", "users", toByteString' uid, "status"]
             . lbytes (encode payload)
             . contentJson
             . expect2xx
@@ -205,7 +205,7 @@ getUsersConnections uids = do
         "brig"
         b
         ( method POST
-            . path "/i/users/connections-status"
+            . path "i/users/connections-status"
             . Bilge.json reqBody
             . expect2xx
         )
@@ -226,7 +226,7 @@ getUserProfiles uidsOrHandles = do
             "brig"
             b
             ( method GET
-                . path "/i/users"
+                . path "i/users"
                 . qry
                 . expect2xx
             )
@@ -249,7 +249,7 @@ getUserProfilesByIdentity emailOrPhone = do
         "brig"
         b
         ( method GET
-            . path "/i/users"
+            . path "i/users"
             . userKeyToParam emailOrPhone
             . expect2xx
         )
@@ -267,7 +267,7 @@ getEjpdInfo handles includeContacts = do
         "brig"
         b
         ( method POST
-            . path "/i/ejpd-request"
+            . path "i/ejpd-request"
             . Bilge.json bdy
             . (if includeContacts then queryItem "include_contacts" "true" else id)
             . expect2xx
@@ -301,7 +301,7 @@ revokeIdentity emailOrPhone = do
       "brig"
       b
       ( method POST
-          . path "/i/users/revoke-identity"
+          . path "i/users/revoke-identity"
           . userKeyToParam emailOrPhone
           . expect2xx
       )
@@ -315,7 +315,7 @@ deleteAccount uid = do
       "brig"
       b
       ( method DELETE
-          . paths ["/i/users", toByteString' uid]
+          . paths ["i", "users", toByteString' uid]
           . expect2xx
       )
 
@@ -328,7 +328,7 @@ setStatusBindingTeam tid status = do
       "galley"
       g
       ( method PUT
-          . paths ["/i/teams", toByteString' tid, "status"]
+          . paths ["i", "teams", toByteString' tid, "status"]
           . Bilge.json (Team.TeamStatusUpdate status Nothing)
           . expect2xx
       )
@@ -342,7 +342,7 @@ deleteBindingTeam tid = do
       "galley"
       g
       ( method DELETE
-          . paths ["/i/teams", toByteString' tid]
+          . paths ["i", "teams", toByteString' tid]
           . expect2xx
       )
 
@@ -356,7 +356,7 @@ deleteBindingTeamForce tid = do
       "galley"
       g
       ( method DELETE
-          . paths ["/i/teams", toByteString' tid]
+          . paths ["i", "teams", toByteString' tid]
           . queryItem "force" "true"
           . expect2xx
       )
@@ -520,7 +520,7 @@ getTeamFeatureFlag tid = do
   gly <- view galley
   let req =
         method GET
-          . paths ["/i/teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+          . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case Bilge.statusCode resp of
     200 -> pure $ responseJsonUnsafe @(Public.WithStatus cfg) resp
@@ -541,7 +541,7 @@ setTeamFeatureFlag tid status = do
   gly <- view galley
   let req =
         method PUT
-          . paths ["/i/teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+          . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
           . Bilge.json status
           . contentJson
   resp <- catchRpcErrors $ rpc' "galley" gly req
@@ -568,7 +568,7 @@ getSearchVisibility tid = do
       "galley"
       gly
       ( method GET
-          . paths ["/i/teams", toByteString' tid, "search-visibility"]
+          . paths ["i", "teams", toByteString' tid, "search-visibility"]
           . expect2xx
       )
   where
@@ -585,7 +585,7 @@ setSearchVisibility tid typ = do
         "galley"
         gly
         ( method PUT
-            . paths ["/i/teams", toByteString' tid, "search-visibility"]
+            . paths ["i", "teams", toByteString' tid, "search-visibility"]
             . lbytes (encode $ TeamSearchVisibilityView typ)
             . contentJson
         )
@@ -661,7 +661,7 @@ getEmailConsentLog email = do
         "galeb"
         g
         ( method GET
-            . paths ["/i/consent/logs/emails", toByteString' email]
+            . paths ["i", "consent", "logs", "emails", toByteString' email]
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
@@ -695,7 +695,7 @@ getMarketoResult email = do
         "galeb"
         g
         ( method GET
-            . paths ["/i/marketo/emails", toByteString' email]
+            . paths ["i", "marketo", "emails", toByteString' email]
             . expectStatus (`elem` [200, 404])
         )
   -- 404 is acceptable when marketo doesn't know about this user, return an empty result
@@ -716,7 +716,7 @@ getUserConsentLog uid = do
         "galeb"
         g
         ( method GET
-            . paths ["/i/consent/logs/users", toByteString' uid]
+            . paths ["i", "consent", "logs", "users", toByteString' uid]
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
