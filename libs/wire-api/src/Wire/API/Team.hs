@@ -75,7 +75,7 @@ import Data.Attoparsec.Combinator (choice)
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import Data.Id (TeamId, UserId)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword6)
 import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S
@@ -290,7 +290,7 @@ instance ToSchema TeamUpdateData where
 -- TeamDeleteData
 
 data TeamDeleteData = TeamDeleteData
-  { _tdAuthPassword :: Maybe PlainTextPassword,
+  { _tdAuthPassword :: Maybe PlainTextPassword6,
     _tdVerificationCode :: Maybe Code.Value
   }
   deriving stock (Eq, Show)
@@ -299,10 +299,10 @@ data TeamDeleteData = TeamDeleteData
 instance Arbitrary TeamDeleteData where
   arbitrary = TeamDeleteData <$> arbitrary <*> arbitrary
 
-newTeamDeleteData :: Maybe PlainTextPassword -> TeamDeleteData
+newTeamDeleteData :: Maybe PlainTextPassword6 -> TeamDeleteData
 newTeamDeleteData = flip TeamDeleteData Nothing
 
-newTeamDeleteDataWithCode :: Maybe PlainTextPassword -> Maybe Code.Value -> TeamDeleteData
+newTeamDeleteDataWithCode :: Maybe PlainTextPassword6 -> Maybe Code.Value -> TeamDeleteData
 newTeamDeleteDataWithCode = TeamDeleteData
 
 instance ToSchema TeamDeleteData where

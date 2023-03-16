@@ -193,6 +193,7 @@ http {
 
     zauth_keystore {{ .Values.nginx_conf.zauth_keystore }};
     zauth_acl      {{ .Values.nginx_conf.zauth_acl }};
+    oauth_pub_key  {{ .Values.nginx_conf.oauth_pub_key }};
 
     location /status {
         zauth off;
@@ -256,6 +257,10 @@ http {
         limit_conn conns_per_addr 20;
                 {{- end }}
               {{- end }}
+            {{- end }}
+
+            {{- if ($location.oauth_scope) }}
+        oauth_scope {{ $location.oauth_scope }};
             {{- end }}
 
             {{- if hasKey $location "specific_user_rate_limit" }}
@@ -345,6 +350,7 @@ http {
     # we need to specify zauth_keystore etc.
     zauth_keystore {{ .Values.nginx_conf.zauth_keystore }};
     zauth_acl      {{ .Values.nginx_conf.zauth_acl }};
+    oauth_pub_key  {{ .Values.nginx_conf.oauth_pub_key }};
 
     listen {{ .Values.config.http.metricsPort }};
 

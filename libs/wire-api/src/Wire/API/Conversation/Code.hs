@@ -43,7 +43,7 @@ import qualified URI.ByteString as URI
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 newtype CreateConversationCodeRequest = CreateConversationCodeRequest
-  { cccrPassword :: Maybe PlainTextPassword
+  { cccrPassword :: Maybe PlainTextPassword8
   }
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateConversationCodeRequest

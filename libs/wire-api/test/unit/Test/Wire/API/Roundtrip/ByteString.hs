@@ -26,6 +26,7 @@ import qualified Wire.API.Asset as Asset
 import qualified Wire.API.Call.Config as Call.Config
 import qualified Wire.API.Conversation.Code as Conversation.Code
 import qualified Wire.API.Conversation.Role as Conversation.Role
+import qualified Wire.API.OAuth as OAuth
 import qualified Wire.API.Properties as Properties
 import qualified Wire.API.Provider as Provider
 import qualified Wire.API.Provider.Service as Provider.Service
@@ -81,7 +82,8 @@ tests =
       testRoundTrip @User.Search.TeamUserSearchSortBy,
       testRoundTrip @User.Search.TeamUserSearchSortOrder,
       testRoundTrip @User.Search.RoleFilter,
-      testRoundTrip @User.IdentityProvider.WireIdPAPIVersion
+      testRoundTrip @User.IdentityProvider.WireIdPAPIVersion,
+      testRoundTrip @OAuth.OAuthScope
       -- FUTUREWORK:
       -- testCase "Call.Config.TurnUsername (doesn't have FromByteString)" ...
       -- testCase "User.Activation.ActivationTarget (doesn't have FromByteString)" ...

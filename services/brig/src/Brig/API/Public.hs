@@ -32,6 +32,7 @@ import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages
+import Brig.API.OAuth (oauthAPI)
 import qualified Brig.API.Properties as API
 import Brig.API.Public.Swagger
 import Brig.API.Types
@@ -117,6 +118,7 @@ import qualified Wire.API.Routes.Internal.Spar as SparInternalAPI
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
+import qualified Wire.API.Routes.Public.Brig.OAuth as OAuth
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -142,6 +144,7 @@ import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
 import Wire.Sem.Concurrency
+import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 
 -- User API -----------------------------------------------------------
@@ -170,6 +173,7 @@ versionedSwaggerDocsAPI (Just V4) =
         <> CannonAPI.swaggerDoc
         <> GundeckAPI.swaggerDoc
         <> ProxyAPI.swaggerDoc
+        <> OAuth.swaggerDoc
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
@@ -214,7 +218,8 @@ servantSitemap ::
     Member Now r,
     Member PasswordResetStore r,
     Member PublicKeyBundle r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member Jwk r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -233,6 +238,7 @@ servantSitemap =
     :<|> callingAPI
     :<|> Team.servantAPI
     :<|> systemSettingsAPI
+    :<|> oauthAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =

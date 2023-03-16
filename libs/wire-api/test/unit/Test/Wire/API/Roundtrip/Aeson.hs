@@ -39,6 +39,7 @@ import qualified Wire.API.CustomBackend as CustomBackend
 import qualified Wire.API.Event.Conversation as Event.Conversation
 import qualified Wire.API.Event.Team as Event.Team
 import qualified Wire.API.Message as Message
+import qualified Wire.API.OAuth as OAuth
 import qualified Wire.API.Properties as Properties
 import qualified Wire.API.Provider as Provider
 import qualified Wire.API.Provider.Bot as Provider.Bot
@@ -143,6 +144,13 @@ tests =
       testRoundTrip @Message.OtrRecipients,
       testRoundTrip @Message.NewOtrMessage,
       testRoundTrip @Message.ClientMismatch,
+      testRoundTrip @OAuth.RedirectUrl,
+      testRoundTrip @OAuth.OAuthApplicationName,
+      testRoundTrip @OAuth.RegisterOAuthClientRequest,
+      testRoundTrip @OAuth.OAuthClient,
+      testRoundTrip @OAuth.CreateOAuthAuthorizationCodeRequest,
+      testRoundTrip @OAuth.OAuthAccessTokenRequest,
+      testRoundTrip @OAuth.OAuthApplication,
       testRoundTrip @Properties.PropertyKey,
       testRoundTrip @Provider.Provider,
       testRoundTrip @Provider.ProviderProfile,

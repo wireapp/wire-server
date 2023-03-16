@@ -73,7 +73,7 @@ import Data.Id (UserId)
 import Data.Json.Util
 import Data.Kind
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword6)
 import Data.Proxy
 import Data.Schema
 import Data.Swagger (ToParamSchema (..))
@@ -390,7 +390,7 @@ instance ToSchema NewTeamMember where
 -- TeamMemberDeleteData
 
 newtype TeamMemberDeleteData = TeamMemberDeleteData
-  { _tmdAuthPassword :: Maybe PlainTextPassword
+  { _tmdAuthPassword :: Maybe PlainTextPassword6
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
@@ -401,7 +401,7 @@ instance ToSchema TeamMemberDeleteData where
     objectWithDocModifier "TeamMemberDeleteData" (description ?~ "Data for a team member deletion request in case of binding teams.") $
       TeamMemberDeleteData <$> _tmdAuthPassword .= optFieldWithDocModifier "password" (description ?~ "The account password to authorise the deletion.") (maybeWithDefault Null schema)
 
-newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
+newTeamMemberDeleteData :: Maybe PlainTextPassword6 -> TeamMemberDeleteData
 newTeamMemberDeleteData = TeamMemberDeleteData
 
 makeLenses ''TeamMember'

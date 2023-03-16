@@ -30,6 +30,7 @@ nginx_conf:
   zauth_keystore: /etc/wire/nginz/secrets/zauth.conf
   zauth_acl: /etc/wire/nginz/conf/zauth.acl
   basic_auth_file: /etc/wire/nginz/secrets/basic_auth.txt
+  oauth_pub_key: /etc/wire/nginz/secrets/oauth_ed25519_pub.jwk
   worker_processes: auto
   worker_rlimit_nofile: 131072
   worker_connections: 65536
@@ -159,6 +160,7 @@ nginx_conf:
       envs:
       - staging
     - path: /self$ # Matches exactly /self
+      oauth_scope: self
       envs:
       - all
     - path: /self/name
@@ -376,6 +378,31 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
+    - path: /oauth/clients/([^/]*)$
+      envs:
+      - all
+    - path: /i/oauth/clients$
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
+    - path: /oauth/authorization/codes
+      envs:
+      - all
+    - path: /oauth/applications
+      envs:
+      - all
+    - path: /oauth/token
+      envs:
+      - all
+      disable_zauth: true  # authorized by auth code (see above)
+    - path: /oauth/revoke
+      envs:
+      - all
+      disable_zauth: true
+    - path: /oauth/applications
+      envs:
+      - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true
@@ -404,6 +431,16 @@ nginx_conf:
       - all
       max_body_size: 40m
       body_buffer_size: 256k
+    - path: /conversations$
+      envs:
+      - all
+      doc: true
+      oauth_scope: conversations
+    - path: /conversations/([^/]*)/code
+      envs:
+      - all
+      doc: true
+      oauth_scope: conversations_code
     - path: /conversations
       envs:
       - all
@@ -475,6 +512,7 @@ nginx_conf:
     - path: /feature-configs(.*)
       envs:
       - all
+      oauth_scope: feature_configs
     - path: /mls/welcome
       envs:
       - all

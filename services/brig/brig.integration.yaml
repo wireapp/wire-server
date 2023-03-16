@@ -199,6 +199,13 @@ optSettings:
   # To only allow specific phone number prefixes to register uncomment and update the settings below
   # setAllowlistPhonePrefixes:
   #   - "+1555555"
+  # needs to be kept in sync with services/nginz/integration-test/resources/oauth/ed25519_public.jwk
+  setOAuthJwkKeyPair: test/resources/oauth/ed25519.jwk
+  setOAuthAuthCodeExpirationTimeSecs: 3 # 3 secs
+  setOAuthAccessTokenExpirationTimeSecs: 3 # 3 secs
+  setOAuthEnabled: true
+  setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
+  setOAuthMaxActiveRefreshTokens: 10
 
 logLevel: Warn
 logNetStrings: false

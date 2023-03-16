@@ -49,7 +49,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 hiding (head)
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
-import Data.Misc (HttpsUrl, PlainTextPassword (..), mkHttpsUrl)
+import Data.Misc (HttpsUrl, PlainTextPassword6, mkHttpsUrl, plainTextPassword6)
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
@@ -638,7 +638,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
         . paths ["teams", toByteString' tid, "members", toByteString' (mem1 ^. userId)]
         . zUser owner
         . zConn "conn"
-        . json (newTeamMemberDeleteData (Just $ PlainTextPassword "wrong passwd"))
+        . json (newTeamMemberDeleteData (plainTextPassword6 "wrong passwd"))
     )
     !!! do
       const 403 === statusCode
@@ -711,7 +711,7 @@ testRemoveBindingTeamOwner = do
   Util.waitForMemberDeletion ownerB tid ownerWithoutEmail
   assertTeamUpdate "Remove ownerWithoutEmail" tid 2 [ownerB]
   where
-    check :: HasCallStack => TeamId -> UserId -> UserId -> Maybe PlainTextPassword -> Maybe LText -> TestM ()
+    check :: HasCallStack => TeamId -> UserId -> UserId -> Maybe PlainTextPassword6 -> Maybe LText -> TestM ()
     check tid deleter deletee pass maybeError = do
       g <- viewGalley
       delete
@@ -1180,7 +1180,7 @@ testDeleteBindingTeam ownerHasPassword = do
         . paths ["teams", toByteString' tid]
         . zUser owner
         . zConn "conn"
-        . json (newTeamDeleteData (Just $ PlainTextPassword "wrong passwd"))
+        . json (newTeamDeleteData (plainTextPassword6 "wrong passwd"))
     )
     !!! do
       const 403 === statusCode

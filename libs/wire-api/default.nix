@@ -53,6 +53,7 @@
 , iproute
 , iso3166-country-codes
 , iso639
+, jose
 , lens
 , lib
 , memory
@@ -157,6 +158,7 @@ mkDerivation {
     iproute
     iso3166-country-codes
     iso639
+    jose
     lens
     memory
     metrics-wai
