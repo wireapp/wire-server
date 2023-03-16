@@ -90,7 +90,7 @@ releases:
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/nginx-ingress-services'
     values:
-      - './helm_vars/nginx-ingress-services/values.yaml'
+      - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
       - './helm_vars/nginx-ingress-services/certificates-namespace1.yaml'
     set:
       # Federation domain is also the SRV record created by the
@@ -103,7 +103,7 @@ releases:
     namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/nginx-ingress-services'
     values:
-      - './helm_vars/nginx-ingress-services/values.yaml'
+      - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
       - './helm_vars/nginx-ingress-services/certificates-namespace2.yaml'
     set:
       # Federation domain is also the SRV record created by the
