@@ -53,6 +53,7 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
+import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.TeamStore as E
@@ -91,6 +92,7 @@ createGroupConversationUpToV3 ::
     Member ConversationStore r,
     Member MemberStore r,
     Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -129,6 +131,7 @@ createGroupConversation ::
     Member ConversationStore r,
     Member MemberStore r,
     Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -165,6 +168,7 @@ createGroupConversationGeneric ::
     Member ConversationStore r,
     Member MemberStore r,
     Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -378,6 +382,7 @@ createOne2OneConversation lusr zcon j = do
 
 createLegacyOne2OneConversationUnchecked ::
   ( Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member FederatorAccess r,
@@ -438,6 +443,7 @@ createOne2OneConversationUnchecked self zcon name mtid other = do
 
 createOne2OneConversationLocally ::
   ( Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -644,7 +650,8 @@ groupConversationCreated failedToAdd lusr cnv = do
 -- changed later on when a message/event queue per remote backend is
 -- implemented.
 notifyCreatedConversation ::
-  ( Member (Error InternalError) r,
+  ( Member (Error FederationError) r,
+    Member (Error InternalError) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -662,6 +669,11 @@ notifyCreatedConversation lusr conn c = do
   -- Notify local users
   let remoteOthers = map remoteMemberToOther $ Data.convRemoteMembers c
       localOthers = map (localMemberToOther (tDomain lusr)) $ Data.convLocalMembers c
+
+  unless (null remoteOthers) $
+    unlessM E.isFederationConfigured $
+      throw FederationNotConfigured
+
   E.push =<< mapM (toPush now remoteOthers localOthers) (Data.convLocalMembers c)
   pure failedToNotify
   where
