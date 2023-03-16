@@ -306,6 +306,7 @@ let
     (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
     pkgs.jq
     pkgs.kubectl
+    pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
     pkgs.ormolu
     pkgs.shellcheck
