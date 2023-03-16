@@ -133,6 +133,16 @@ let
         sha256 = "sha256-6FLTMMqvL0xFa5zsMnjVAmdpghmdeBl813bWcOyQo5E=";
       };
     };
+    ghc-debug = {
+      src = fetchgit {
+        url = "https://gitlab.haskell.org/ghc/ghc-debug.git";
+        rev = "ed3975717e27fd858f35b33359b94ef9a12735f3";
+        sha256 = "sha256-g2lbKt3+hToVFQvaHOa9dg4HqAL7YgReo8fy7wQavmY=";
+      };
+      packages = {
+        ghc-debug-brick = "ghc-debug-brick";
+      }
+    };
     saml2-web-sso = {
       src = fetchgit {
         url = "https://github.com/wireapp/saml2-web-sso";
