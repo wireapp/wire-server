@@ -18,8 +18,7 @@ environments:
       - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
       - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
       - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
-      - kubeVersionAbove1_23: {{ semverCompare ">= 1.23-0" (requiredEnv "KUBERNETES_VERSION" | quote) }}
-      - kubeVersionBelow1_21: {{ semverCompare "< 1.21-0" (requiredEnv "KUBERNETES_VERSION" | quote) }}
+      - ingressChart: {{ requiredEnv "INGRESS_CHART" }}
       - imagePullPolicy: Always
       - redisStorageClass: hcloud-volumes
   kind:
@@ -28,7 +27,7 @@ environments:
       - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
       - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
       - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
-      - kubeVersionAbove1_23: {{ semverCompare ">= 1.23-0" (requiredEnv "KUBERNETES_VERSION" | quote) }}
+      - ingressChart: {{ requiredEnv "INGRESS_CHART" }}
       - imagePullPolicy: Never
       - redisStorageClass: standard
 
@@ -77,33 +76,15 @@ releases:
 
   - name: '{{ .Values.namespace }}-ingress-c'
     namespace: '{{ .Values.namespace }}'
-    chart: '../.local/charts/ingress-nginx-controller'
-    condition: kubeVersionAbove1_23
+    chart: '../.local/charts/{{ .Values.ingressChart }}'
     values:
-      - './helm_vars/ingress-nginx-controller/values.yaml.gotmpl'
+      - './helm_vars/{{ .Values.ingressChart }}/values.yaml.gotmpl'
 
   - name: '{{ .Values.namespace }}-ingress-c-2'
     namespace: '{{ .Values.namespaceFed2 }}'
-    chart: '../.local/charts/ingress-nginx-controller'
-    condition: kubeVersionAbove1_23
+    chart: '../.local/charts/{{ .Values.ingressChart }}'
     values:
-      - './helm_vars/ingress-nginx-controller/values.yaml.gotmpl'
-
-  # on old clusters, install the old controller chart
-  - name: '{{ .Values.namespace }}-ingress-co'
-    namespace: '{{ .Values.namespace }}'
-    chart: '../.local/charts/nginx-ingress-controller'
-    condition: kubeVersionBelow1_21
-    values:
-      - './helm_vars/nginx-ingress-controller/values.yaml'
-
-  # on old clusters, install the old controller chart
-  - name: '{{ .Values.namespace }}-ingress-co-2'
-    namespace: '{{ .Values.namespaceFed2 }}'
-    chart: '../.local/charts/nginx-ingress-controller'
-    condition: kubeVersionBelow1_21
-    values:
-      - './helm_vars/nginx-ingress-controller/values.yaml'
+      - './helm_vars/{{ .Values.ingressChart }}/values.yaml.gotmpl'
 
   - name: '{{ .Values.namespace }}-ingresses'
     namespace: '{{ .Values.namespace }}'

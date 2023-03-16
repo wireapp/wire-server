@@ -30,7 +30,12 @@ echo "Generating self-signed certificates..."
 KUBERNETES_VERSION_MAJOR="$(kubectl version -o json | jq -r .serverVersion.major)"
 KUBERNETES_VERSION_MINOR="$(kubectl version -o json | jq -r .serverVersion.minor)"
 export KUBERNETES_VERSION="$KUBERNETES_VERSION_MAJOR.$KUBERNETES_VERSION_MINOR"
-echo "kubeVersion: $KUBERNETES_VERSION"
+if (( KUBERNETES_VERSION_MINOR >= 23 )); then
+    export INGRESS_CHART="ingress-nginx-controller"
+else
+    export INGRESS_CHART="nginx-ingress-controller"
+fi
+echo "kubeVersion: $KUBERNETES_VERSION and ingress controller=$INGRESS_CHART"
 export NAMESPACE_1="$NAMESPACE"
 export FEDERATION_DOMAIN_BASE="$NAMESPACE_1.svc.cluster.local"
 export FEDERATION_DOMAIN_1="federation-test-helper.$FEDERATION_DOMAIN_BASE"
