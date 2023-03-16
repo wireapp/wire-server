@@ -130,7 +130,7 @@ import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import Data.LegalHold (UserLegalHoldStatus)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword6, PlainTextPassword8)
 import Data.Qualified
 import Data.Range
 import Data.SOP
@@ -711,7 +711,7 @@ data NewUser = NewUser
     newUserOrigin :: Maybe NewUserOrigin,
     newUserLabel :: Maybe CookieLabel,
     newUserLocale :: Maybe Locale,
-    newUserPassword :: Maybe PlainTextPassword,
+    newUserPassword :: Maybe PlainTextPassword8,
     newUserExpiresIn :: Maybe ExpiresIn,
     newUserManagedBy :: Maybe ManagedBy
   }
@@ -759,7 +759,7 @@ data NewUserRaw = NewUserRaw
     newUserRawTeamId :: Maybe TeamId,
     newUserRawLabel :: Maybe CookieLabel,
     newUserRawLocale :: Maybe Locale,
-    newUserRawPassword :: Maybe PlainTextPassword,
+    newUserRawPassword :: Maybe PlainTextPassword8,
     newUserRawExpiresIn :: Maybe ExpiresIn,
     newUserRawManagedBy :: Maybe ManagedBy
   }
@@ -1130,8 +1130,8 @@ instance (res ~ PutSelfResponses) => AsUnion res (Maybe UpdateProfileError) wher
 
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange
-  { cpOldPassword :: Maybe PlainTextPassword,
-    cpNewPassword :: PlainTextPassword
+  { cpOldPassword :: Maybe PlainTextPassword6,
+    cpNewPassword :: PlainTextPassword8
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordChange)
@@ -1326,7 +1326,7 @@ instance
 
 -- | Payload for requesting account deletion.
 newtype DeleteUser = DeleteUser
-  { deleteUserPassword :: Maybe PlainTextPassword
+  { deleteUserPassword :: Maybe PlainTextPassword6
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
@@ -1339,7 +1339,7 @@ instance ToSchema DeleteUser where
         <$> deleteUserPassword
           .= maybe_ (optField "password" schema)
 
-mkDeleteUser :: Maybe PlainTextPassword -> DeleteUser
+mkDeleteUser :: Maybe PlainTextPassword6 -> DeleteUser
 mkDeleteUser = DeleteUser
 
 instance ToJSON DeleteUser where

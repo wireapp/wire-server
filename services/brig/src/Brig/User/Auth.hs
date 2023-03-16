@@ -71,7 +71,7 @@ import Data.Id
 import qualified Data.List.NonEmpty as NE
 import Data.List1 (List1)
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword6)
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
@@ -269,7 +269,7 @@ renewAccess uts at mcid = do
 revokeAccess ::
   (MonadClient m, Log.MonadLogger m, MonadReader Env m) =>
   UserId ->
-  PlainTextPassword ->
+  PlainTextPassword6 ->
   [CookieId] ->
   [CookieLabel] ->
   ExceptT AuthError m ()
@@ -466,8 +466,8 @@ legalHoldLogin ::
   LegalHoldLogin ->
   CookieType ->
   ExceptT LegalHoldLoginError (AppT r) (Access ZAuth.LegalHoldUser)
-legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
-  wrapHttpClientE (Data.reauthenticate uid plainTextPassword) !>> LegalHoldReAuthError
+legalHoldLogin (LegalHoldLogin uid pw label) typ = do
+  wrapHttpClientE (Data.reauthenticate uid pw) !>> LegalHoldReAuthError
   -- legalhold login is only possible if
   -- the user is a team user
   -- and the team has legalhold enabled

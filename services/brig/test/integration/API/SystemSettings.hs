@@ -22,7 +22,9 @@ import Bilge.Assert
 import Brig.Options
 import Control.Lens
 import qualified Data.ByteString.Char8 as BS
+import Data.ByteString.Conversion (toByteString')
 import Data.Id
+import Data.String.Conversions (cs)
 import Imports
 import Network.Wai.Test as WaiTest
 import Test.Tasty
@@ -59,11 +61,8 @@ testGetSettings opts = liftIO $ do
     getSystemSettings :: WaiTest.Session SystemSettingsPublic
     getSystemSettings =
       responseJsonError
-        =<< get (path (BS.pack ("/" ++ latestVersion ++ "/system/settings/unauthorized")))
+        =<< get (path (BS.pack ("/" ++ cs latestVersion ++ "/system/settings/unauthorized")))
           <!! statusCode === const 200
-      where
-        latestVersion :: String
-        latestVersion = map toLower $ show (maxBound :: Version)
 
 testGetSettingsInternal :: Opts -> Http ()
 testGetSettingsInternal opts = liftIO $ do
@@ -84,4 +83,7 @@ testGetSettingsInternal opts = liftIO $ do
 
     getSystemSettings :: UserId -> WaiTest.Session SystemSettings
     getSystemSettings uid =
-      responseJsonError =<< get (paths ["system", "settings"] . zUser uid) <!! statusCode === const 200
+      responseJsonError =<< get (paths (latestVersion : ["system", "settings"]) . zUser uid) <!! statusCode === const 200
+
+latestVersion :: ByteString
+latestVersion = toByteString' (maxBound :: Version)

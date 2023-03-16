@@ -117,7 +117,7 @@ getLegalHoldAuthToken ::
     Member (Input Env) r
   ) =>
   UserId ->
-  Maybe PlainTextPassword ->
+  Maybe PlainTextPassword6 ->
   Sem r OpaqueAuthToken
 getLegalHoldAuthToken uid pw = do
   r <-

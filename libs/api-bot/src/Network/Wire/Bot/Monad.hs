@@ -104,7 +104,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Metrics (Metrics)
 import qualified Data.Metrics as Metrics
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.Text (pack, unpack)
 import Data.Time.Clock
@@ -345,7 +345,7 @@ data Bot = Bot
     botMetrics :: BotMetrics,
     -- END TODO
     botClients :: TVar [BotClient], -- TODO: IORef?
-    botPassphrase :: PlainTextPassword
+    botPassphrase :: PlainTextPassword6
   }
 
 instance Show Bot where
@@ -452,7 +452,7 @@ newBot tag = liftBotNet $ do
   keys <- liftIO $ awaitActivationMail mbox folders sndr email
   log Info $ botLogFields (userId user) tag . msg (val "Activate user")
   forM_ keys (uncurry activateKey >=> flip assertTrue "Activation failed.")
-  bot <- mkBot tag user pw
+  bot <- mkBot tag user (plainTextPassword8To6 pw)
   -- TODO: addBotClient?
   incrBotsCreatedNew
   pure bot
@@ -689,7 +689,7 @@ try ma = do
 -------------------------------------------------------------------------------
 -- Internal Bot Lifecycle
 
-mkBot :: BotTag -> User -> PlainTextPassword -> BotNet Bot
+mkBot :: BotTag -> User -> PlainTextPassword6 -> BotNet Bot
 mkBot tag user pw = do
   log Info $ botLogFields (userId user) tag . msg (val "Login")
   let ident = fromMaybe (error "No email") (userEmail user)
@@ -978,12 +978,12 @@ botLogFields u t = field "Bot" (show u) . field "Tag" (unTag t)
 -------------------------------------------------------------------------------
 -- Randomness
 
-randUser :: Email -> BotTag -> IO (NewUser, PlainTextPassword)
+randUser :: Email -> BotTag -> IO (NewUser, PlainTextPassword8)
 randUser (Email loc dom) (BotTag tag) = do
   uuid <- nextRandom
   pwdUuid <- nextRandom
   let email = Email (loc <> "+" <> tag <> "-" <> pack (toString uuid)) dom
-  let passw = PlainTextPassword (pack (toString pwdUuid))
+  let passw = plainTextPassword8Unsafe (pack (toString pwdUuid))
   pure
     ( NewUser
         { newUserDisplayName = Name (tag <> "-Wirebot-" <> pack (toString uuid)),

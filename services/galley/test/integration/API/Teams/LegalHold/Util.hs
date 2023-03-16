@@ -29,7 +29,7 @@ import Data.Id
 import Data.LegalHold
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword)
+import Data.Misc (PlainTextPassword6)
 import Data.PEM
 import Data.Streaming.Network (bindRandomPortTCP)
 import Data.String.Conversions (LBS, cs)
@@ -346,7 +346,7 @@ getSettings uid tid = do
       . zConn "conn"
       . zType "access"
 
-deleteSettings :: HasCallStack => Maybe PlainTextPassword -> UserId -> TeamId -> TestM ResponseLBS
+deleteSettings :: HasCallStack => Maybe PlainTextPassword6 -> UserId -> TeamId -> TestM ResponseLBS
 deleteSettings mPassword uid tid = do
   g <- viewGalley
   delete $
@@ -376,7 +376,7 @@ getUserStatus' g uid tid = do
       . zConn "conn"
       . zType "access"
 
-approveLegalHoldDevice :: HasCallStack => Maybe PlainTextPassword -> UserId -> UserId -> TeamId -> TestM ResponseLBS
+approveLegalHoldDevice :: HasCallStack => Maybe PlainTextPassword6 -> UserId -> UserId -> TeamId -> TestM ResponseLBS
 approveLegalHoldDevice mPassword zusr uid tid = do
   g <- viewGalley
   approveLegalHoldDevice' g mPassword zusr uid tid
@@ -384,7 +384,7 @@ approveLegalHoldDevice mPassword zusr uid tid = do
 approveLegalHoldDevice' ::
   (HasCallStack, MonadHttp m) =>
   GalleyR ->
-  Maybe PlainTextPassword ->
+  Maybe PlainTextPassword6 ->
   UserId ->
   UserId ->
   TeamId ->
@@ -400,7 +400,7 @@ approveLegalHoldDevice' g mPassword zusr uid tid = do
 
 disableLegalHoldForUser ::
   HasCallStack =>
-  Maybe PlainTextPassword ->
+  Maybe PlainTextPassword6 ->
   TeamId ->
   UserId ->
   UserId ->
@@ -412,7 +412,7 @@ disableLegalHoldForUser mPassword tid zusr uid = do
 disableLegalHoldForUser' ::
   (HasCallStack, MonadHttp m) =>
   GalleyR ->
-  Maybe PlainTextPassword ->
+  Maybe PlainTextPassword6 ->
   TeamId ->
   UserId ->
   UserId ->

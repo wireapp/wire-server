@@ -49,8 +49,16 @@ module Data.Misc
     Fingerprint (..),
     Rsa,
 
-    -- * PlainTextPassword
-    PlainTextPassword (..),
+    -- * PlainTextPassword6
+    PlainTextPassword' (..),
+    PlainTextPassword6,
+    PlainTextPassword8,
+    plainTextPassword6,
+    plainTextPassword8,
+    fromPlainTextPassword,
+    plainTextPassword8Unsafe,
+    plainTextPassword6Unsafe,
+    plainTextPassword8To6,
 
     -- * Typesafe FUTUREWORKS
     FutureWork (..),
@@ -75,6 +83,8 @@ import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import GHC.TypeLits (Nat)
+import GHC.TypeNats (KnownNat)
 import Imports
 import Servant (FromHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary), chooseInteger)
@@ -338,23 +348,47 @@ instance Arbitrary (Fingerprint Rsa) where
 --------------------------------------------------------------------------------
 -- Password
 
-newtype PlainTextPassword = PlainTextPassword
-  {fromPlainTextPassword :: Text}
+type PlainTextPassword6 = PlainTextPassword' (6 :: Nat)
+
+type PlainTextPassword8 = PlainTextPassword' (8 :: Nat)
+
+plainTextPassword6 :: Text -> Maybe PlainTextPassword6
+plainTextPassword6 = fmap PlainTextPassword' . checked
+
+plainTextPassword6Unsafe :: Text -> PlainTextPassword6
+plainTextPassword6Unsafe = PlainTextPassword' . unsafeRange
+
+plainTextPassword8 :: Text -> Maybe PlainTextPassword8
+plainTextPassword8 = fmap PlainTextPassword' . checked
+
+plainTextPassword8Unsafe :: Text -> PlainTextPassword8
+plainTextPassword8Unsafe = PlainTextPassword' . unsafeRange
+
+fromPlainTextPassword :: PlainTextPassword' t -> Text
+fromPlainTextPassword = fromRange . fromPlainTextPassword'
+
+-- | Convert a 'PlainTextPassword8' to a legacy 'PlainTextPassword'.
+plainTextPassword8To6 :: PlainTextPassword8 -> PlainTextPassword6
+plainTextPassword8To6 = PlainTextPassword' . unsafeRange . fromPlainTextPassword
+
+newtype PlainTextPassword' (minLen :: Nat) = PlainTextPassword'
+  {fromPlainTextPassword' :: Range minLen (1024 :: Nat) Text}
   deriving stock (Eq, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema PlainTextPassword
 
-instance Show PlainTextPassword where
-  show _ = "PlainTextPassword <hidden>"
+deriving via (Schema (PlainTextPassword' tag)) instance ToSchema (PlainTextPassword' tag) => FromJSON (PlainTextPassword' tag)
 
-instance ToSchema PlainTextPassword where
-  schema =
-    PlainTextPassword
-      <$> fromPlainTextPassword
-        .= untypedRangedSchema 6 1024 schema
+deriving via (Schema (PlainTextPassword' tag)) instance ToSchema (PlainTextPassword' tag) => ToJSON (PlainTextPassword' tag)
 
-instance Arbitrary PlainTextPassword where
-  -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars
-  arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
+deriving via (Schema (PlainTextPassword' tag)) instance ToSchema (PlainTextPassword' tag) => S.ToSchema (PlainTextPassword' tag)
+
+instance Show (PlainTextPassword' minLen) where
+  show _ = "PlainTextPassword' <hidden>"
+
+instance (KnownNat (n :: Nat), Within Text n 1024) => ToSchema (PlainTextPassword' n) where
+  schema = PlainTextPassword' <$> fromPlainTextPassword' .= schema
+
+instance (KnownNat (n :: Nat), Within Text n 1024) => Arbitrary (PlainTextPassword' n) where
+  arbitrary = PlainTextPassword' <$> arbitrary
 
 -- | Usage:
 -- 1. Use this type in patterns to mark FUTUREWORKS.

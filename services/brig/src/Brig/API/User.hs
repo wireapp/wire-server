@@ -156,7 +156,7 @@ import Data.List.Extra
 import Data.List1 as List1 (List1, singleton)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc
 import Data.Qualified
 import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
@@ -1105,7 +1105,7 @@ completePasswordReset ::
   ) =>
   PasswordResetIdentity ->
   PasswordResetCode ->
-  PlainTextPassword ->
+  PlainTextPassword8 ->
   ExceptT PasswordResetError (AppT r) ()
 completePasswordReset ident code pw = do
   key <- mkPasswordResetKey ident
@@ -1122,7 +1122,7 @@ completePasswordReset ident code pw = do
 
 -- | Pull the current password of a user and compare it against the one about to be installed.
 -- If the two are the same, throw an error.  If no current password can be found, do nothing.
-checkNewIsDifferent :: UserId -> PlainTextPassword -> ExceptT PasswordResetError (AppT r) ()
+checkNewIsDifferent :: UserId -> PlainTextPassword' t -> ExceptT PasswordResetError (AppT r) ()
 checkNewIsDifferent uid pw = do
   mcurrpw <- lift . wrapClient $ Data.lookupPassword uid
   case mcurrpw of
@@ -1159,7 +1159,7 @@ deleteSelfUser ::
   forall r.
   (Member GalleyProvider r) =>
   UserId ->
-  Maybe PlainTextPassword ->
+  Maybe PlainTextPassword6 ->
   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
 deleteSelfUser uid pwd = do
   account <- lift . wrapClient $ Data.lookupAccount uid

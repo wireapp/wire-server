@@ -60,7 +60,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#))
 import Data.List1 (List1)
-import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
+import Data.Misc (HttpsUrl (..), PlainTextPassword6)
 import Data.PEM (PEM, pemParseBS, pemWriteLBS)
 import Data.Proxy
 import Data.Range (Range)
@@ -419,7 +419,7 @@ instance FromJSON UpdateService where
 -- | Update service connection information.
 -- This operation requires re-authentication via password.
 data UpdateServiceConn = UpdateServiceConn
-  { updateServiceConnPassword :: PlainTextPassword,
+  { updateServiceConnPassword :: PlainTextPassword6,
     updateServiceConnUrl :: Maybe HttpsUrl,
     updateServiceConnKeys :: Maybe (Range 1 2 [ServiceKeyPEM]),
     updateServiceConnTokens :: Maybe (Range 1 2 [ServiceToken]),
@@ -428,7 +428,7 @@ data UpdateServiceConn = UpdateServiceConn
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateServiceConn)
 
-mkUpdateServiceConn :: PlainTextPassword -> UpdateServiceConn
+mkUpdateServiceConn :: PlainTextPassword6 -> UpdateServiceConn
 mkUpdateServiceConn pw = UpdateServiceConn pw Nothing Nothing Nothing Nothing
 
 instance ToJSON UpdateServiceConn where
@@ -455,7 +455,7 @@ instance FromJSON UpdateServiceConn where
 
 -- | Input data for a service deletion request.
 newtype DeleteService = DeleteService
-  {deleteServicePassword :: PlainTextPassword}
+  {deleteServicePassword :: PlainTextPassword6}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
 

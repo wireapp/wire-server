@@ -45,7 +45,7 @@ import System.Random.MWC.Distributions (uniformShuffle)
 
 newtype Cache = Cache {cache :: IORef [CachedUser]}
 
-data CachedUser = CachedUser !PlainTextPassword !User
+data CachedUser = CachedUser !PlainTextPassword6 !User
 
 -- | Load users out of a file in the following format:
 --
@@ -77,7 +77,7 @@ put c a = liftIO . atomicModifyIORef (cache c) $ \u -> (a : u, ())
 
 toUser :: HasCallStack => Logger -> Domain -> [CachedUser] -> [LText] -> IO [CachedUser]
 toUser _ domain acc [i, e, p] = do
-  let pw = PlainTextPassword . Text.toStrict $ Text.strip p
+  let pw = plainTextPassword6Unsafe . Text.toStrict $ Text.strip p
   let iu = error "Cache.toUser: invalid user"
   let ie = error "Cache.toUser: invalid email"
   let ui = fromMaybe iu . fromByteString . encodeUtf8 . Text.toStrict . Text.strip $ i

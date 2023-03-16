@@ -1,1 +1,0 @@
-Add config to allow to run helm tests for different services in parallel; improve integration test output logs

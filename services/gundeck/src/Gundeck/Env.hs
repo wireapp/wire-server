@@ -24,6 +24,7 @@ import Cassandra (ClientState, Keyspace (..))
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.AutoUpdate
+import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses, (^.))
 import Control.Retry (capDelay, exponentialBackoff)
 import Data.Default (def)
@@ -65,7 +66,7 @@ makeLenses ''Env
 schemaVersion :: Int32
 schemaVersion = 7
 
-createEnv :: Metrics -> Opts -> IO Env
+createEnv :: Metrics -> Opts -> IO ([Async ()], Env)
 createEnv m o = do
   l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
   c <-
@@ -81,13 +82,13 @@ createEnv m o = do
           managerResponseTimeout = responseTimeoutMicro 5000000
         }
 
-  r <- createRedisPool l (o ^. optRedis) "main-redis"
+  (rThread, r) <- createRedisPool l (o ^. optRedis) "main-redis"
 
-  rAdditional <- case o ^. optRedisAdditionalWrite of
-    Nothing -> pure Nothing
+  (rAdditionalThreads, rAdditional) <- case o ^. optRedisAdditionalWrite of
+    Nothing -> pure ([], Nothing)
     Just additionalRedis -> do
-      rAdd <- createRedisPool l additionalRedis "additional-write-redis"
-      pure $ Just rAdd
+      (rAddThread, rAdd) <- createRedisPool l additionalRedis "additional-write-redis"
+      pure ([rAddThread], Just rAdd)
 
   p <-
     C.init
@@ -110,13 +111,13 @@ createEnv m o = do
         { updateAction = Ms . round . (* 1000) <$> getPOSIXTime
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. optSettings . setMaxConcurrentNativePushes)
-  pure $! Env def m o l n p r rAdditional a io mtbs
+  pure $! (rThread : rAdditionalThreads,) $! Env def m o l n p r rAdditional a io mtbs
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
-createRedisPool :: Logger.Logger -> RedisEndpoint -> ByteString -> IO Redis.RobustConnection
+createRedisPool :: Logger.Logger -> RedisEndpoint -> ByteString -> IO (Async (), Redis.RobustConnection)
 createRedisPool l endpoint identifier = do
   let redisConnInfo =
         Redis.defaultConnectInfo

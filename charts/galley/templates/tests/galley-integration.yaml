@@ -39,7 +39,7 @@ spec:
         name: "galley-integration-secrets"
     - name: "galley-secrets"
       secret:
-        secretName: "galley-mls"
+        secretName: "galley"
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
