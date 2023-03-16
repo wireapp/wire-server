@@ -236,6 +236,7 @@ let
             pkgs.dumb-init
             drv
             tmpDir
+            (hlib.justStaticExecutables (hPkgs localMods).ghc-debug-brick)
           ] ++ debugUtils ++ pkgs.lib.optionals (builtins.hasAttr execName extraContents) (builtins.getAttr execName extraContents);
           # Any mkdir running in this step won't actually make it to the image,
           # hence we use the tmpDir derivation in the contents

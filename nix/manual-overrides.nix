@@ -25,6 +25,7 @@ hself: hsuper: {
   type-errors = hlib.dontCheck hsuper.type-errors;
   wai-middleware-prometheus = hlib.doJailbreak hsuper.wai-middleware-prometheus;
   wai-predicates = hlib.markUnbroken hsuper.wai-predicates;
+  ghc-debug-brick = hlib.doJailbreak hsuper.ghc-debug-brick;
 
   # Some test seems to be broken
   hsaml2 = hlib.dontCheck hsuper.hsaml2;
