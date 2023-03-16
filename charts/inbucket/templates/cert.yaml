@@ -7,9 +7,13 @@ metadata:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     release: "{{ .Release.Name }}"
     heritage: "{{ .Release.Service }}"
+  annotations:
+    # The issuer changes when it's configured to use staging or prod ACME
+    # servers.
+    checksum/issuer: {{ include (print .Template.BasePath "/issuer.yaml") . | sha256sum }}
 spec:
   issuerRef:
-    name: letsencrypt-http01
+    name: letsencrypt-inbucket
     kind: Issuer
   usages:
     - server auth

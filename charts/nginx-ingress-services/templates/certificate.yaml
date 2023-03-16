@@ -4,10 +4,6 @@ kind: Certificate
 metadata:
   name: "{{ include "nginx-ingress-services.zone" . | replace "." "-" }}-csr"
   namespace: {{ .Release.Namespace }}
-  labels:
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    release: "{{ .Release.Name }}"
-    heritage: "{{ .Release.Service }}"
 spec:
   issuerRef:
     name: {{ .Values.tls.issuer.name }}
