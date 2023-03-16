@@ -120,6 +120,7 @@ import Polysemy.Input
 import Polysemy.Output
 import qualified Polysemy.TinyLog as P
 import qualified SAML2.WebSSO as SAML
+import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation.Role (Action (DeleteConversation), wireConvRoles)
 import qualified Wire.API.Conversation.Role as Public
@@ -1105,7 +1106,8 @@ deleteTeamConversation ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member SubConversationStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (P.Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->

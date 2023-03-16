@@ -27,7 +27,9 @@ import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import qualified Brig.Options as Opt
 import qualified Cassandra as DB
-import Data.Misc (PlainTextPassword (..))
+import Data.Aeson as A
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Misc
 import Imports
 import Test.Tasty hiding (Timeout)
 import Util
@@ -48,7 +50,8 @@ tests cs _cl _at _conf p b _c _g =
   testGroup
     "password-reset"
     [ test p "post /password-reset[/complete] - 201[/200]" $ testPasswordReset b cs,
-      test p "post /password-reset after put /access/self/email - 400" $ testPasswordResetAfterEmailUpdate b cs
+      test p "post /password-reset after put /access/self/email - 400" $ testPasswordResetAfterEmailUpdate b cs,
+      test p "post /password-reset/complete - password too short - 400" $ testPasswordResetInvalidPasswordLength b cs
     ]
 
 testPasswordReset :: Brig -> DB.ClientState -> Http ()
@@ -57,7 +60,7 @@ testPasswordReset brig cs = do
   let Just email = userEmail u
   let uid = userId u
   -- initiate reset
-  let newpw = PlainTextPassword "newsecret"
+  let newpw = plainTextPassword8Unsafe "newsecret"
   do
     initiatePasswordReset brig email !!! const 201 === statusCode
     passwordResetData <- preparePasswordReset brig cs email uid newpw
@@ -67,7 +70,7 @@ testPasswordReset brig cs = do
     !!! const 403 === statusCode
   login
     brig
-    (PasswordLogin (PasswordLoginData (LoginByEmail email) newpw Nothing Nothing))
+    (PasswordLogin (PasswordLoginData (LoginByEmail email) (plainTextPassword8To6 newpw) Nothing Nothing))
     PersistentCookie
     !!! const 200 === statusCode
   -- reset password again to the same new password, get 400 "must be different"
@@ -84,9 +87,35 @@ testPasswordResetAfterEmailUpdate brig cs = do
   eml <- randomEmail
   initiateEmailUpdateLogin brig eml (emailLogin email defPassword Nothing) uid !!! const 202 === statusCode
   initiatePasswordReset brig email !!! const 201 === statusCode
-  passwordResetData <- preparePasswordReset brig cs email uid (PlainTextPassword "newsecret")
+  passwordResetData <- preparePasswordReset brig cs email uid (plainTextPassword8Unsafe "newsecret")
   -- activate new email
   activateEmail brig eml
   checkEmail brig uid eml
   -- attempting to complete password reset should fail
   completePasswordReset brig passwordResetData !!! const 400 === statusCode
+
+testPasswordResetInvalidPasswordLength :: Brig -> DB.ClientState -> Http ()
+testPasswordResetInvalidPasswordLength brig cs = do
+  u <- randomUser brig
+  let Just email = userEmail u
+  let uid = userId u
+  -- for convenience, we create a valid password first that we replace with an invalid one in the JSON later
+  let newpw = plainTextPassword8Unsafe "newsecret"
+  initiatePasswordReset brig email !!! const 201 === statusCode
+  passwordResetData <- preparePasswordReset brig cs email uid newpw
+  let shortPassword = String "123456"
+  let reqBody = toJSON passwordResetData & addJsonKey "password" shortPassword
+  postCompletePasswordReset reqBody !!! const 400 === statusCode
+  where
+    addJsonKey :: Key -> Value -> Value -> Object
+    addJsonKey key val (Object xs) = KeyMap.insert key val xs
+    addJsonKey _ _ _ = error "invalid JSON object"
+
+    postCompletePasswordReset :: Object -> MonadHttp m => m ResponseLBS
+    postCompletePasswordReset bdy =
+      post
+        ( brig
+            . path "/password-reset/complete"
+            . contentJson
+            . body (RequestBodyLBS (encode bdy))
+        )

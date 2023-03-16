@@ -102,6 +102,7 @@ mkDerivation {
     swagger2
     tagged
     tasty
+    tasty-hunit
     text
     time
     time-locale-compat

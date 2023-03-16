@@ -115,7 +115,7 @@ unversioned r =
 viewCargohold :: TestM Cargohold
 viewCargohold =
   fmap
-    (apiVersion ("v" <> toHeader latestVersion) .)
+    (apiVersion (toHeader latestVersion) .)
     viewUnversionedCargohold
   where
     latestVersion :: Version

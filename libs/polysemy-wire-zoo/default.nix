@@ -3,7 +3,9 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation
+, aeson
 , base
+, bytestring
 , cassandra-util
 , containers
 , gitignoreSource
@@ -11,12 +13,14 @@
 , hspec
 , hspec-discover
 , imports
+, jose
 , lib
 , polysemy
 , polysemy-check
 , polysemy-plugin
 , QuickCheck
 , saml2-web-sso
+, string-conversions
 , time
 , tinylog
 , types-common
@@ -29,16 +33,20 @@ mkDerivation {
   version = "0.1.0";
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
+    aeson
     base
+    bytestring
     cassandra-util
     HsOpenSSL
     hspec
     imports
+    jose
     polysemy
     polysemy-check
     polysemy-plugin
     QuickCheck
     saml2-web-sso
+    string-conversions
     time
     tinylog
     types-common

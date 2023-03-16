@@ -1,1 +1,0 @@
-Fix a bug in the helm chart's nginx-ingress-services / federator Ingress resource introduced in the last release.

@@ -53,7 +53,7 @@ import Data.ByteString.Conversion
 import Data.Code as Code
 import Data.Handle (Handle (fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
-import Data.Misc (PlainTextPassword)
+import Data.Misc (PlainTextPassword6)
 import qualified Data.Text.Lazy as Lazy
 import Imports
 import Network.HTTP.Types.Method
@@ -355,7 +355,7 @@ deleteBrigUserInternal buid = do
 ensureReAuthorised ::
   (HasCallStack, MonadSparToBrig m) =>
   Maybe UserId ->
-  Maybe PlainTextPassword ->
+  Maybe PlainTextPassword6 ->
   Maybe Code.Value ->
   Maybe VerificationAction ->
   m ()

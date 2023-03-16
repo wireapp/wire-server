@@ -1,1 +1,0 @@
-Make stern fail on startup if supported backend api version needs bumping
