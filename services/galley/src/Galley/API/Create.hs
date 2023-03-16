@@ -660,14 +660,7 @@ notifyCreatedConversation lusr conn c = do
   -- of being added to a conversation
   failedToNotify <- registerRemoteConversationMemberships now (tDomain lusr) c
   -- Notify local users
-  let remoteOthers = map remoteMemberToOther $ Data.convRemoteMembers c -- TODO(md):
-  -- should
-  -- 'failedToNotify'
-  -- be
-  -- filtered
-  -- out
-  -- from
-  -- 'remoteOthers'?
+  let remoteOthers = map remoteMemberToOther $ Data.convRemoteMembers c
       localOthers = map (localMemberToOther (tDomain lusr)) $ Data.convLocalMembers c
   E.push =<< mapM (toPush now remoteOthers localOthers) (Data.convLocalMembers c)
   pure failedToNotify
