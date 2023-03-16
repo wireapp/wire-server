@@ -8,7 +8,7 @@ kind: Ingress
 metadata:
   name: federator-ingress
   annotations:
-    kubernetes.io/ingress.class: "nginx"
+    kubernetes.io/ingress.class: "{{ .Values.config.ingressClass }}"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
