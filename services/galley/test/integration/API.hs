@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -64,6 +65,7 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer
+import GHC.TypeLits
 import Galley.API.Mapping
 import Galley.Options (optFederator)
 import Galley.Types.Conversations.Members
@@ -119,6 +121,19 @@ tests s =
       API.MLS.tests s
     ]
   where
+    rb1, rb2 :: RemoteBackend
+    rb1 =
+      RemoteBackend
+        { rbDomain = Domain "c.example.com",
+          rbReachable = BackendReachable,
+          rbUsers = 2
+        }
+    rb2 =
+      RemoteBackend
+        { rbDomain = Domain "d.example.com",
+          rbReachable = BackendReachable,
+          rbUsers = 1
+        }
     mainTests =
       testGroup
         "Main Conversations API"
@@ -126,7 +141,7 @@ tests s =
           test s "metrics" metrics,
           test s "fetch conversation by qualified ID (v2)" testGetConvQualifiedV2,
           test s "create Proteus conversation" postProteusConvOk,
-          test s "create conversation with remote users" postConvWithRemoteUsersOk,
+          test s "create conversation with remote users" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2]),
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
           test s "fail to get >500 conversations with v2 API" getConvsFailMaxSizeV2,
@@ -321,38 +336,59 @@ postProteusConvOk = do
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
 
-postConvWithRemoteUsersOk :: TestM ()
-postConvWithRemoteUsersOk = do
+data BackendReachability = BackendReachable | BackendUnreachable
+  deriving (Eq, Ord)
+
+data RemoteBackend = RemoteBackend
+  { rbDomain :: Domain,
+    rbReachable :: BackendReachability,
+    rbUsers :: Nat
+  }
+  deriving (Eq, Ord)
+
+postConvWithRemoteUsersOk :: Set RemoteBackend -> TestM ()
+postConvWithRemoteUsersOk rbs = do
   c <- view tsCannon
   (alice, qAlice) <- randomUserTuple
   (alex, qAlex) <- randomUserTuple
   (amy, qAmy) <- randomUserTuple
   connectUsers alice (list1 alex [amy])
-  let cDomain = Domain "c.example.com"
-      dDomain = Domain "d.example.com"
-  [qChad, qCharlie, qDee] <-
-    traverse randomQualifiedId [cDomain, cDomain, dDomain]
-  mapM_ (connectWithRemoteUser alice) [qChad, qCharlie, qDee]
+  (allRemotes, participatingRemotes) <- do
+    v <- forM (toList rbs) $ \rb -> do
+      users <- connectBackend alice rb
+      pure (users, participating rb users)
+    pure $ foldr (\(a, p) acc -> (a <> fst acc, p <> snd acc)) ([], []) v
 
   let nameMaxSize = T.replicate 256 "a"
+      otherLocals = [qAlex, qAmy]
   WS.bracketR3 c alice alex amy $ \(wsAlice, wsAlex, wsAmy) -> do
+    let joiners = allRemotes <> otherLocals
+        unreachableBackends =
+          Set.fromList $
+            foldMap
+              ( \rb ->
+                  guard (rbReachable rb == BackendUnreachable)
+                    $> rbDomain rb
+              )
+              rbs
     (rsp, federatedRequests) <-
-      withTempMockFederator' (mockReply ()) $
+      withTempMockFederator' (mockUnreachable unreachableBackends) $
         postConvQualified
           alice
           Nothing
           defNewProteusConv
             { newConvName = checked nameMaxSize,
-              newConvQualifiedUsers = [qAlex, qAmy, qChad, qCharlie, qDee]
+              newConvQualifiedUsers = joiners
             }
           <!! const 201 === statusCode
+    let shouldBePresent = otherLocals <> participatingRemotes
     qcid <-
       assertConv
         rsp
         RegularConv
         alice
         qAlice
-        [qAlex, qAmy, qChad, qCharlie, qDee]
+        shouldBePresent
         (Just nameMaxSize)
         Nothing
     let cid = qUnqualified qcid
@@ -361,29 +397,46 @@ postConvWithRemoteUsersOk = do
       mapM_ WS.assertSuccess
         =<< Async.mapConcurrently (checkWs qAlice) (zip cvs [wsAlice, wsAlex, wsAmy])
 
-    cFedReq <- assertOne $ filter (\r -> frTargetDomain r == cDomain) federatedRequests
-    cFedReqBody <- assertRight $ parseFedRequest cFedReq
-
-    dFedReq <- assertOne $ filter (\r -> frTargetDomain r == dDomain) federatedRequests
-    dFedReqBody <- assertRight $ parseFedRequest dFedReq
+    liftIO $
+      -- as many federated requests as remote backends, i.e., one per remote backend
+      Set.size (Set.fromList $ frTargetDomain <$> federatedRequests) @?= Set.size rbs
+    let fedReq = federatedRequests !! 0
+    fedReqBody <- assertRight $ parseFedRequest fedReq
 
     liftIO $ do
-      length federatedRequests @?= 2
+      length federatedRequests @?= Set.size rbs
 
-      F.ccOrigUserId cFedReqBody @?= alice
-      F.ccCnvId cFedReqBody @?= cid
-      F.ccCnvType cFedReqBody @?= RegularConv
-      F.ccCnvAccess cFedReqBody @?= [InviteAccess]
-      F.ccCnvAccessRoles cFedReqBody
+      F.ccOrigUserId fedReqBody @?= alice
+      F.ccCnvId fedReqBody @?= cid
+      F.ccCnvType fedReqBody @?= RegularConv
+      F.ccCnvAccess fedReqBody @?= [InviteAccess]
+      F.ccCnvAccessRoles fedReqBody
         @?= Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
-      F.ccCnvName cFedReqBody @?= Just nameMaxSize
-      F.ccNonCreatorMembers cFedReqBody
-        @?= Set.fromList (toOtherMember <$> [qAlex, qAmy, qChad, qCharlie, qDee])
-      F.ccMessageTimer cFedReqBody @?= Nothing
-      F.ccReceiptMode cFedReqBody @?= Nothing
+      F.ccCnvName fedReqBody @?= Just nameMaxSize
+      F.ccNonCreatorMembers fedReqBody
+        @?= Set.fromList (toOtherMember <$> shouldBePresent)
+      F.ccMessageTimer fedReqBody @?= Nothing
+      F.ccReceiptMode fedReqBody @?= Nothing
 
-      dFedReqBody @?= cFedReqBody
+      fedBodies <- forM federatedRequests $ assertRight . parseFedRequest
+      assertBool "Not all request bodies are equal" (all (fedReqBody ==) fedBodies)
   where
+    mockUnreachable :: Set Domain -> Mock LByteString
+    mockUnreachable unreachable = do
+      r <- getRequest
+      if (Set.member (frTargetDomain r) unreachable)
+        then (mockFail "not reachable")
+        else (mockReply ())
+    connectBackend :: UserId -> RemoteBackend -> TestM [Qualified UserId]
+    connectBackend usr RemoteBackend {..} = do
+      users <- replicateM (fromIntegral rbUsers) (randomQualifiedId rbDomain)
+      mapM_ (connectWithRemoteUser usr) users
+      pure users
+    participating :: RemoteBackend -> [a] -> [a]
+    participating rb users =
+      if rbReachable rb == BackendReachable
+        then users
+        else []
     toOtherMember qid = OtherMember qid Nothing roleNameWireAdmin
     convView cnv usr = do
       r <- getConv usr cnv <!! const 200 === statusCode
