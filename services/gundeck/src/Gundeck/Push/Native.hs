@@ -64,7 +64,7 @@ push1 :: NativePush -> Address -> Gundeck ()
 push1 = push1' 0
   where
     push1' :: Int -> NativePush -> Address -> Gundeck ()
-    push1' n m a = do
+    push1' n m a =
       if n > retryInvalidThreshold
         then onPersistentlyInvalidEndpoint
         else do
@@ -117,16 +117,16 @@ push1 = push1' 0
           aws <- view awsEnv
           ept <- Aws.execute aws (Aws.createEndpoint uid trp env app tok)
           case ept of
-            Left (Aws.EndpointInUse arn) -> do
+            Left (Aws.EndpointInUse arn) ->
               Log.info $ "arn" .= toText arn ~~ msg (val "ARN in use")
-            Left (Aws.AppNotFound app') -> do
+            Left (Aws.AppNotFound app') ->
               Log.info $ msg ("Push token of unknown application: '" <> appNameText app' <> "'")
-            Left (Aws.InvalidToken _) -> do
+            Left (Aws.InvalidToken _) ->
               Log.info $
                 "token"
                   .= tokenText tok
                   ~~ msg (val "Invalid push token.")
-            Left (Aws.TokenTooLong l) -> do
+            Left (Aws.TokenTooLong l) ->
               Log.info $ msg ("Push token is too long: token length = " ++ show l)
             Right arn -> do
               Data.updateArn uid trp app tok arn
