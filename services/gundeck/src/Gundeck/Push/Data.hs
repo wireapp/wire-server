@@ -17,6 +17,7 @@
 
 module Gundeck.Push.Data
   ( insert,
+    updateArn,
     delete,
     lookup,
     erase,
@@ -46,6 +47,12 @@ insert u t a p e o c = retry x5 $ write q (params LocalQuorum (u, t, a, p, e, o,
   where
     q :: PrepQuery W (UserId, Transport, AppName, Token, EndpointArn, ConnId, ClientId) ()
     q = "insert into user_push (usr, transport, app, ptoken, arn, connection, client) values (?, ?, ?, ?, ?, ?, ?)"
+
+updateArn :: MonadClient m => UserId -> Transport -> AppName -> Token -> EndpointArn -> m ()
+updateArn u t a p arn = retry x5 $ write q (params LocalQuorum (arn, u, t, a, p))
+  where
+    q :: PrepQuery W (EndpointArn, UserId, Transport, AppName, Token) ()
+    q = "update user_push set arn = ? where usr = ? and transport = ? and app = ? and ptoken = ?"
 
 delete :: MonadClient m => UserId -> Transport -> AppName -> Token -> m ()
 delete u t a p = retry x5 $ write q (params LocalQuorum (u, t, a, p))
