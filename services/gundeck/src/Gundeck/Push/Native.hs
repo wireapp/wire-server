@@ -71,22 +71,21 @@ push1 = push1' 0
           e <- view awsEnv
           r <- Aws.execute e $ publish m a
           case r of
-            Success _ -> do
-              Log.debug $
-                field "user" (toByteString (a ^. addrUser))
-                  ~~ field "notificationId" (toText (npNotificationid m))
-                  ~~ Log.msg (val "Native push success")
-              view monitor >>= counterIncr (path "push.native.success")
+            Success _ -> onSuccess
             Failure EndpointDisabled _ -> onDisabled
             Failure PayloadTooLarge _ -> onPayloadTooLarge
             Failure EndpointInvalid _ ->
               if n < retryInvalidThreshold
                 then onInvalidEndpoint
                 else onPersistentlyInvalidEndpoint
-            Failure (PushException ex) _ -> do
-              logError a "Native push failed" ex
-              view monitor >>= counterIncr (path "push.native.errors")
+            Failure (PushException ex) _ -> onPushException ex
       where
+        onSuccess = do
+          Log.debug $
+            field "user" (toByteString (a ^. addrUser))
+              ~~ field "notificationId" (toText (npNotificationid m))
+              ~~ Log.msg (val "Native push success")
+          view monitor >>= counterIncr (path "push.native.success")
         onDisabled =
           handleAny (logError a "Failed to cleanup disabled endpoint") $ do
             Log.info $
@@ -138,6 +137,9 @@ push1 = push1' 0
               ~~ field "cause" ("InvalidEndpoint" :: Text)
               ~~ msg (val "Invalid ARN. Dropping push message.")
           view monitor >>= counterIncr (path "push.native.invalid")
+        onPushException ex = do
+          logError a "Native push failed" ex
+          view monitor >>= counterIncr (path "push.native.errors")
         onTokenRemoved = do
           i <- mkNotificationId
           let c = a ^. addrClient
