@@ -330,21 +330,36 @@ postConvWithRemoteUsersOk = do
   connectUsers alice (list1 alex [amy])
   let cDomain = Domain "c.example.com"
       dDomain = Domain "d.example.com"
-  qChad <- randomQualifiedId cDomain
-  qCharlie <- randomQualifiedId cDomain
-  qDee <- randomQualifiedId dDomain
+  [qChad, qCharlie, qDee] <-
+    traverse randomQualifiedId [cDomain, cDomain, dDomain]
   mapM_ (connectWithRemoteUser alice) [qChad, qCharlie, qDee]
 
   let nameMaxSize = T.replicate 256 "a"
   WS.bracketR3 c alice alex amy $ \(wsAlice, wsAlex, wsAmy) -> do
     (rsp, federatedRequests) <-
       withTempMockFederator' (mockReply ()) $
-        postConvQualified alice Nothing defNewProteusConv {newConvName = checked nameMaxSize, newConvQualifiedUsers = [qAlex, qAmy, qChad, qCharlie, qDee]}
+        postConvQualified
+          alice
+          Nothing
+          defNewProteusConv
+            { newConvName = checked nameMaxSize,
+              newConvQualifiedUsers = [qAlex, qAmy, qChad, qCharlie, qDee]
+            }
           <!! const 201 === statusCode
-    qcid <- assertConv rsp RegularConv alice qAlice [qAlex, qAmy, qChad, qCharlie, qDee] (Just nameMaxSize) Nothing
+    qcid <-
+      assertConv
+        rsp
+        RegularConv
+        alice
+        qAlice
+        [qAlex, qAmy, qChad, qCharlie, qDee]
+        (Just nameMaxSize)
+        Nothing
     let cid = qUnqualified qcid
     cvs <- mapM (convView cid) [alice, alex, amy]
-    liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs qAlice) (zip cvs [wsAlice, wsAlex, wsAmy])
+    liftIO $
+      mapM_ WS.assertSuccess
+        =<< Async.mapConcurrently (checkWs qAlice) (zip cvs [wsAlice, wsAlex, wsAmy])
 
     cFedReq <- assertOne $ filter (\r -> frTargetDomain r == cDomain) federatedRequests
     cFedReqBody <- assertRight $ parseFedRequest cFedReq
@@ -359,9 +374,11 @@ postConvWithRemoteUsersOk = do
       F.ccCnvId cFedReqBody @?= cid
       F.ccCnvType cFedReqBody @?= RegularConv
       F.ccCnvAccess cFedReqBody @?= [InviteAccess]
-      F.ccCnvAccessRoles cFedReqBody @?= Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
+      F.ccCnvAccessRoles cFedReqBody
+        @?= Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
       F.ccCnvName cFedReqBody @?= Just nameMaxSize
-      F.ccNonCreatorMembers cFedReqBody @?= Set.fromList (toOtherMember <$> [qAlex, qAmy, qChad, qCharlie, qDee])
+      F.ccNonCreatorMembers cFedReqBody
+        @?= Set.fromList (toOtherMember <$> [qAlex, qAmy, qChad, qCharlie, qDee])
       F.ccMessageTimer cFedReqBody @?= Nothing
       F.ccReceiptMode cFedReqBody @?= Nothing
 
