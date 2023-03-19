@@ -677,3 +677,30 @@ cargohold:
 
 When this option is unspecified, wire-server defaults to path style addressing
 to ensure smooth transition for older deployments.
+
+## I have a team larger than 500 users
+
+By default, the maximum number of users in a team is set at 500.
+
+This can be changed in the Brig config, with this option:
+
+```yaml
+
+    optSettings:
+      setMaxTeamSize: 501
+
+```
+   
+```{note}
+
+   Note however that some messages need to be fanned out to all members of a team, and due to End to End Encryption (E2EE), this is very computationally expensive for large numbers of recipients.
+
+   Therefore, it is recommended to leave the maximum number of users at 500, and to instead create additional teams.
+
+   Very large teams could cause issues with dropped messages and with Legal Hold being unavailable.
+
+```
+
+
+
+
