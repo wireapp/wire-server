@@ -38,7 +38,7 @@ The authorization server does the authentication of the user and establishes whe
 
 ### Supported OAuth flow
 
-`wire-server` currently only supports the [authorization code flow](https://www.rfc-editor.org/rfc/rfc6749#section-4.1) which is optimized for confidential clients such as Outlook Calendar Extension.
+`wire-server` currently only supports the [Authorization Code Flow with Proof Key for Code Exchange (PKCE)](https://www.rfc-editor.org/rfc/rfc7636) which is optimized for public clients such as Outlook Calendar Extension.
 
 ```{image} oauth.svg
 ```
@@ -76,7 +76,7 @@ Client credentials will be generated and returned by wire-server:
 
 These credentials have to be stored in a safe place and cannot be recovered if they are lost.
 
-### Get authorization code
+### Authorization request
 
 When the user wants to use the 3rd party app for the first time, they need to authorize it to access Wire resources on their behalf.
 
@@ -86,6 +86,8 @@ If the user is already logged in the authentication will be skipped and they are
 
 On the consent page, the user is asked to authorize the client's access request. They can either grant or deny the request and the corresponding scope, a list of permissions to give to the 3rd party app, (4. in diagram above).
 
+The client needs to create a `code_verifier` as described in [RFC 7636 section 4.1](https://www.rfc-editor.org/rfc/rfc7636#section-4.1) and a `code_challenge` (unpadded base64url-encoded SHA256 hash of the code verifier as described in [RFC 7636 section 4.2](https://www.rfc-editor.org/rfc/rfc7636#section-4.2)). The `code_challenge` must be included in the request. The `S256` code challenge method is mandatory.
+
 Example request:
 
 ```http
@@ -94,18 +96,22 @@ GET /authorize?
   response_type=code&
   client_id=b9e65569-aa61-462d-915d-94c8d6ef17a7&
   redirect_uri=https%3A%2F%2Fclient.example.com&
-  state=foobar HTTP/1.1
+  state=foobar&
+  code_challenge=qVrqDTN8ivyWEEw6wyfUc3bwhCA2RE4V2fbiC4mC7ofqAF4t&
+  code_challenge_method=S256 HTTP/1.1
 ```
 
 Url encoded query parameters:
 
-| Parameter       | Description                                                                                                                                                                                                                                                                       |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scope`         | Required. The scope of the access request.                                                                                                                                                                                                                                        |
-| `response_type` | Required. Value MUST be set to  `code`.                                                                                                                                                                                                                                           |
-| `client_id`     | Required. The client identifier.                                                                                                                                                                                                                                                  |
-| `redirect_url`  | Required. MUST match the URL that was provided during client registration                                                                                                                                                                                                         |
-| `state`         | Required. An opaque value used by the client to maintain state between the request and callback.</br>The authorization server includes this value when redirecting the user-agent back to the client.</br>The parameter is used for preventing cross-site request forgery. |
+| Parameter               | Description                                                                                                                                                                                                                                                                |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scope`                 | Required. The scope of the access request.                                                                                                                                                                                                                                 |
+| `response_type`         | Required. Value MUST be set to `code`.                                                                                                                                                                                                                                     |
+| `client_id`             | Required. The client identifier.                                                                                                                                                                                                                                           |
+| `redirect_url`          | Required. MUST match the URL that was provided during client registration                                                                                                                                                                                                  |
+| `state`                 | Required. An opaque value used by the client to maintain state between the request and callback.</br>The authorization server includes this value when redirecting the user-agent back to the client.</br>The parameter is used for preventing cross-site request forgery. |
+| `code_challenge`        | Required. Generated by the client from the `code_verifier`                                                                                                                                                                                                                 |
+| `code_challenge_method` | Required. It MUST be set to `S256`                                                                                                                                                                                                                                         |
 
 Once the user consents, the browser will be redirected back to the 3rd party app, using the redirect URI provided during client registration, with an authorization code and the state value as query parameters (5. in diagram above). The authorization code can now be used by the 3rd party app to retrieve an access token and a refresh token and is good for one use.
 
@@ -127,7 +133,7 @@ The 3rd party app sends the authorization code together with the client credenti
 ```shell
 curl -s -X POST server.example.com/oauth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d 'code=1395a1a44b72e0b81ec8fe6c791d2d3f22bc1c4df96857a88c3e2914bb687b7b&client_id=b9e65569-aa61-462d-915d-94c8d6ef17a7&grant_type=authorization_code&redirect_uri=https%3A%2F%2Fclient.example.com&client_secret=3f6fbd62835859b2bac411b2a2a2a54699ec56504ee32099748de3a762d41a2d'
+  -d 'code=1395a1a44b72e0b81ec8fe6c791d2d3f22bc1c4df96857a88c3e2914bb687b7b&client_id=b9e65569-aa61-462d-915d-94c8d6ef17a7&grant_type=authorization_code&redirect_uri=https%3A%2F%2Fclient.example.com&code_verifier=2dae11ce5e162e2c01180ae4f8b55103b8297408b8aab12f99f63df3c2415234'
 ```
 
 Parameters:
@@ -138,7 +144,7 @@ Parameters:
 | `client_id`     | Required. The client identifier.                                                        |
 | `grant_type`    | Required. Value MUST be set to `authorization_code`.                                    |
 | `redirect_uri`  | Required. The value MUST be identical to the one provided in the  authorization request |
-| `client_secret` | Required. The client's secret.                                                          |
+| `code_verifier` | Required. The code verifier as described above.                                        |
 
 Example response:
 
@@ -151,7 +157,7 @@ Example response:
 }
 ```
 
-The expiration time the response (`expires_in`) refers to the expiration time of the access token.
+The expiration time in the response (`expires_in`) refers to the expiration time of the access token.
 
 ### Accessing a resource
 
@@ -205,8 +211,8 @@ curl -i -s -X POST localhost:8080/oauth/revoke \
 
 Parameters:
 
-| Parameter      | Description                                       |
-| -------------- | ------------------------------------------------- |
+| Parameter       | Description                                       |
+| --------------- | ------------------------------------------------- |
 | `client_id`     | Required. The client identifier.                  |
 | `refresh_token` | Required. The refresh token issued to the client. |
 | `client_secret` | Required. The client's secret.                    |
