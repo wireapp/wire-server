@@ -40,6 +40,7 @@ import qualified API.Util.TeamFeature as Util
 import Bilge hiding (head, timeout)
 import qualified Bilge
 import Bilge.Assert
+import Control.Arrow
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (throw)
 import Control.Lens (at, ix, preview, view, (.~), (?~))
@@ -121,19 +122,23 @@ tests s =
       API.MLS.tests s
     ]
   where
-    rb1, rb2 :: RemoteBackend
+    rb1, rb2 :: Remote Backend
     rb1 =
-      RemoteBackend
-        { rbDomain = Domain "c.example.com",
-          rbReachable = BackendReachable,
-          rbUsers = 2
-        }
+      toRemoteUnsafe
+        (Domain "c.example.com")
+        ( Backend
+            { bReachable = BackendReachable,
+              bUsers = 2
+            }
+        )
     rb2 =
-      RemoteBackend
-        { rbDomain = Domain "d.example.com",
-          rbReachable = BackendReachable,
-          rbUsers = 1
-        }
+      toRemoteUnsafe
+        (Domain "d.example.com")
+        ( Backend
+            { bReachable = BackendReachable,
+              bUsers = 1
+            }
+        )
     mainTests =
       testGroup
         "Main Conversations API"
@@ -339,14 +344,16 @@ postProteusConvOk = do
 data BackendReachability = BackendReachable | BackendUnreachable
   deriving (Eq, Ord)
 
-data RemoteBackend = RemoteBackend
-  { rbDomain :: Domain,
-    rbReachable :: BackendReachability,
-    rbUsers :: Nat
+data Backend = Backend
+  { bReachable :: BackendReachability,
+    bUsers :: Nat
   }
   deriving (Eq, Ord)
 
-postConvWithRemoteUsersOk :: Set RemoteBackend -> TestM ()
+rbReachable :: Remote Backend -> BackendReachability
+rbReachable = bReachable . tUnqualified
+
+postConvWithRemoteUsersOk :: Set (Remote Backend) -> TestM ()
 postConvWithRemoteUsersOk rbs = do
   c <- view tsCannon
   (alice, qAlice) <- randomUserTuple
@@ -368,7 +375,7 @@ postConvWithRemoteUsersOk rbs = do
             foldMap
               ( \rb ->
                   guard (rbReachable rb == BackendUnreachable)
-                    $> rbDomain rb
+                    $> tDomain rb
               )
               rbs
     (rsp, federatedRequests) <-
@@ -427,12 +434,12 @@ postConvWithRemoteUsersOk rbs = do
       if (Set.member (frTargetDomain r) unreachable)
         then (mockFail "not reachable")
         else (mockReply ())
-    connectBackend :: UserId -> RemoteBackend -> TestM [Qualified UserId]
-    connectBackend usr RemoteBackend {..} = do
-      users <- replicateM (fromIntegral rbUsers) (randomQualifiedId rbDomain)
+    connectBackend :: UserId -> Remote Backend -> TestM [Qualified UserId]
+    connectBackend usr ((tDomain &&& bUsers . tUnqualified) -> (d, c)) = do
+      users <- replicateM (fromIntegral c) (randomQualifiedId d)
       mapM_ (connectWithRemoteUser usr) users
       pure users
-    participating :: RemoteBackend -> [a] -> [a]
+    participating :: Remote Backend -> [a] -> [a]
     participating rb users =
       if rbReachable rb == BackendReachable
         then users
