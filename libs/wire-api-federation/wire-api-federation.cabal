@@ -134,6 +134,7 @@ test-suite spec
     Test.Wire.API.Federation.Golden.LeaveConversationRequest
     Test.Wire.API.Federation.Golden.LeaveConversationResponse
     Test.Wire.API.Federation.Golden.MessageSendResponse
+    Test.Wire.API.Federation.Golden.MLSMessageSendingStatus
     Test.Wire.API.Federation.Golden.NewConnectionRequest
     Test.Wire.API.Federation.Golden.NewConnectionResponse
     Test.Wire.API.Federation.Golden.Runner

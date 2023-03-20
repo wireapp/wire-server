@@ -325,17 +325,17 @@ newtype UnreachableUsers = UnreachableUsers {unreachableUsers :: [Qualified User
 
 instance ToSchema UnreachableUsers where
   schema =
-    object "UnreachableUsers" $
+    named "UnreachableUsers" $
       UnreachableUsers
         <$> unreachableUsers
-          .= field "failed_to_send" (array schema)
+          .= array schema
 
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],
     mmssTime :: UTCTimeMillis,
     mmssUnreachableUsers :: UnreachableUsers
   }
-  deriving (Show)
+  deriving (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema MLSMessageSendingStatus
 
 instance ToSchema MLSMessageSendingStatus where
@@ -356,7 +356,7 @@ instance ToSchema MLSMessageSendingStatus where
           .= fieldWithDocModifier
             "failed_to_send"
             (description ?~ "List of federated users who could not be reached and did not receive the message")
-            (unreachableUsers .= UnreachableUsers <$> schema)
+            schema
 
 verifyMessageSignature :: CipherSuiteTag -> Message 'MLSPlainText -> ByteString -> Bool
 verifyMessageSignature cs msg pubkey =
