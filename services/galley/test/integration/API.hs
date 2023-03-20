@@ -25,6 +25,7 @@ where
 
 import qualified API.CustomBackend as CustomBackend
 import qualified API.Federation as Federation
+import API.Federation.Util
 import qualified API.MLS
 import qualified API.MessageTimer as MessageTimer
 import qualified API.Roles as Roles
@@ -66,7 +67,6 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer
-import GHC.TypeLits
 import Galley.API.Mapping
 import Galley.Options (optFederator)
 import Galley.Types.Conversations.Members
@@ -340,18 +340,6 @@ postProteusConvOk = do
       case evtData e of
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
-
-data BackendReachability = BackendReachable | BackendUnreachable
-  deriving (Eq, Ord)
-
-data Backend = Backend
-  { bReachable :: BackendReachability,
-    bUsers :: Nat
-  }
-  deriving (Eq, Ord)
-
-rbReachable :: Remote Backend -> BackendReachability
-rbReachable = bReachable . tUnqualified
 
 postConvWithRemoteUsersOk :: Set (Remote Backend) -> TestM ()
 postConvWithRemoteUsersOk rbs = do
