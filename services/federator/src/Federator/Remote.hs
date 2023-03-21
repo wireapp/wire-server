@@ -23,12 +23,14 @@ module Federator.Remote
     RemoteError (..),
     interpretRemote,
     discoverAndCall,
+    foo,
   )
 where
 
 import qualified Control.Exception as E
 import Control.Monad.Codensity
 import Data.Binary.Builder
+-- import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import qualified Data.Text as Text
@@ -36,6 +38,8 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import Federator.Discovery
 import Federator.Error
+import Federator.Monitor (mkTLSSettingsOrThrow)
+import Federator.Options
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
@@ -130,3 +134,19 @@ interpretRemote = interpret $ \case
           (responseStatusCode resp)
           (toLazyByteString bdy)
     pure resp
+
+foo :: IO ()
+foo = do
+  -- cert <- BS.readFile "../../adhoc-b-crt"
+  let headers =
+        [ ("Content-Type", "application/json"),
+          ("Wire-Origin-Domain", "b.adhoc-testing.wire.link")
+          -- ("X-SSL-Certificate", cert)
+        ]
+  let req' = HTTP2.requestBuilder HTTP.methodPost "/federation/cargohold/stream-asset" headers "{\"user\": \"7a1dce4d-bab1-4d77-9286-ccd6fdf5efbc\", \"key\": \"3-1-46468089-a64a-46ee-9a3f-29a711d5a92f\"}"
+      settings = RunSettings AllowAll True Nothing "../../adhoc-b-crt" "../../adhoc-b-key" Nothing Nothing
+  sslCtx <- mkTLSSettingsOrThrow settings
+  -- contextSetKeylogCallback sslCtx $ \line -> appendFile "/tmp/opensslkeylog" (line <> "\n")
+  withHTTP2Request (Just sslCtx) req' "federator.a.adhoc-testing.wire.link" 443 $ \resp -> do
+    lbs <- streamingResponseStrictBody resp
+    LBS.writeFile "/tmp/foo.png" (toLazyByteString lbs)
