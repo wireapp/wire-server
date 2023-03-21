@@ -90,19 +90,6 @@ self: super: {
 
   helm = super.callPackage ./pkgs/helm { };
 
-  helmfile = staticBinary {
-    pname = "helmfile";
-    version = "0.141.0";
-
-    darwinAmd64Url = "https://github.com/roboll/helmfile/releases/download/v0.141.0/helmfile_darwin_amd64";
-    darwinAmd64Sha256 = "0szfd3vy6fzd5657079hz5vii86f9xkg3bdzp3g4knkcw5x1kpxy";
-
-    linuxAmd64Url = "https://github.com/roboll/helmfile/releases/download/v0.141.0/helmfile_linux_amd64";
-    linuxAmd64Sha256 = "0f5d9w3qjvwip4qn79hsigwp8nbjpj58p289hww503j43wjyxx8r";
-
-    inherit (super) stdenv fetchurl;
-  };
-
   kind = staticBinary {
     pname = "kind";
     version = "0.11.0";
