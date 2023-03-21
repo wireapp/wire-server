@@ -1191,10 +1191,11 @@ testRemoteToLocal = do
 
   let bobDomain = Domain "faraway.example.com"
   -- create users
-  alice <- randomQualifiedUser
-  bob <- randomQualifiedId bobDomain
-
-  connectWithRemoteUser (qUnqualified alice) bob
+  [alice, bob] <-
+    createAndConnectUsers
+      [ Nothing,
+        Just (domainText bobDomain)
+      ]
 
   -- Simulate the whole MLS setup for both clients first. In reality,
   -- backend calls would need to happen in order for bob to get ahold of a
