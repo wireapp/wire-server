@@ -6,7 +6,6 @@
 # See https://github.com/kubernetes/ingress-nginx/blob/main/charts/ingress-nginx/values.yaml for all possible values to override.
 ingress-nginx:
   controller:
-    watchIngressWithoutClass: true
     enableTopologyAwareRouting: true
     # -- Use a `DaemonSet` or `Deployment`
     kind: DaemonSet
