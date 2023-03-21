@@ -35,6 +35,8 @@ module Wire.API.Team.Feature
     setStatus,
     setLockStatus,
     setConfig,
+    setConfig',
+    setTTL,
     setWsTTL,
     WithStatusPatch,
     wsPatch,
@@ -76,6 +78,7 @@ module Wire.API.Team.Feature
     FileSharingConfig (..),
     MLSConfig (..),
     OutlookCalIntegrationConfig (..),
+    MlsE2EIdConfig (..),
     AllFeatureConfigs (..),
     unImplicitLockStatus,
     ImplicitLockStatus (..),
@@ -101,10 +104,13 @@ import qualified Data.Swagger as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
+import Data.Time (UTCTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Deriving.Aeson
 import GHC.TypeLits
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
+import Test.QuickCheck (oneof)
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
@@ -138,8 +144,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- because the lockstatus is checked in 'setFeatureStatus' before which is the public API for setting the feature status.
 --
 -- 6. Add public routes to Wire.API.Routes.Public.Galley.Feature: 'FeatureStatusGet',
--- 'FeatureStatusPut' (optional) and by by user: 'FeatureConfigGet'. Then
--- implement them in Galley.API.Public.Feature.
+-- 'FeatureStatusPut' (optional). Then implement them in Galley.API.Public.Feature.
 --
 -- 7. Add internal routes in Wire.API.Routes.Internal.Galley
 --
@@ -219,10 +224,16 @@ setLockStatus :: LockStatus -> WithStatus cfg -> WithStatus cfg
 setLockStatus ls (WithStatusBase s _ c ttl) = WithStatusBase s (Identity ls) c ttl
 
 setConfig :: cfg -> WithStatus cfg -> WithStatus cfg
-setConfig c (WithStatusBase s ls _ ttl) = WithStatusBase s ls (Identity c) ttl
+setConfig = setConfig'
+
+setConfig' :: forall (m :: Type -> Type) (cfg :: Type). Applicative m => cfg -> WithStatusBase m cfg -> WithStatusBase m cfg
+setConfig' c (WithStatusBase s ls _ ttl) = WithStatusBase s ls (pure c) ttl
+
+setTTL :: forall (m :: Type -> Type) (cfg :: Type). Applicative m => FeatureTTL -> WithStatusBase m cfg -> WithStatusBase m cfg
+setTTL ttl (WithStatusBase s ls c _) = WithStatusBase s ls c (pure ttl)
 
 setWsTTL :: FeatureTTL -> WithStatus cfg -> WithStatus cfg
-setWsTTL ttl (WithStatusBase s ls c _) = WithStatusBase s ls c (Identity ttl)
+setWsTTL = setTTL
 
 type WithStatus (cfg :: Type) = WithStatusBase Identity cfg
 
@@ -880,6 +891,39 @@ instance FeatureTrivialConfig OutlookCalIntegrationConfig where
   trivialConfig = OutlookCalIntegrationConfig
 
 ----------------------------------------------------------------------
+-- MlsE2EId
+
+data MlsE2EIdConfig = MlsE2EIdConfig {verificationExpiration :: Maybe UTCTime}
+  deriving stock (Eq, Show, Generic)
+
+instance Arbitrary MlsE2EIdConfig where
+  arbitrary = oneof [pure $ MlsE2EIdConfig Nothing, MlsE2EIdConfig . Just . posixSecondsToUTCTime . fromIntegral <$> (arbitrary @Word32)]
+
+instance ToSchema MlsE2EIdConfig where
+  schema :: ValueSchema NamedSwaggerDoc MlsE2EIdConfig
+  schema =
+    object "MlsE2EIdConfig" $
+      MlsE2EIdConfig
+        <$> (fmap toSeconds . verificationExpiration) .= maybe_ (optFieldWithDocModifier "verificationExpiration" desc (fromSeconds <$> schema))
+    where
+      fromSeconds :: Int -> UTCTime
+      fromSeconds = posixSecondsToUTCTime . fromIntegral
+
+      toSeconds :: UTCTime -> Int
+      toSeconds = truncate . utcTimeToPOSIXSeconds
+
+      desc :: NamedSwaggerDoc -> NamedSwaggerDoc
+      desc =
+        description
+          ?~ "Unix timestamp (number of seconds that have passed since 00:00:00 UTC on Thursday, 1 January 1970) after which the period for clients to verify their identity expires. \
+             \When the timer goes off, they will be logged out and get the certificate automatically on their devices."
+
+instance IsFeatureConfig MlsE2EIdConfig where
+  type FeatureSymbol MlsE2EIdConfig = "mlsE2EId"
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked (MlsE2EIdConfig Nothing) FeatureTTLUnlimited
+  objectSchema = field "config" schema
+
+----------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -954,7 +998,8 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
     afcMLS :: WithStatus MLSConfig,
     afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig,
-    afcOutlookCalIntegration :: WithStatus OutlookCalIntegrationConfig
+    afcOutlookCalIntegration :: WithStatus OutlookCalIntegrationConfig,
+    afcMlsE2EId :: WithStatus MlsE2EIdConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -979,6 +1024,7 @@ instance ToSchema AllFeatureConfigs where
         <*> afcMLS .= featureField
         <*> afcExposeInvitationURLsToTeamAdmin .= featureField
         <*> afcOutlookCalIntegration .= featureField
+        <*> afcMlsE2EId .= featureField
     where
       featureField ::
         forall cfg.
@@ -990,6 +1036,7 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

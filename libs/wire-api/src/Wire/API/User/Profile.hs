@@ -71,7 +71,6 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 -- Name
 
 -- | Usually called display name.
---
 -- Length is between 1 and 128 characters.
 newtype Name = Name
   {fromName :: Text}

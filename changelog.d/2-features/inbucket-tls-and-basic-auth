@@ -1,0 +1,1 @@
+Add TLS and basic authentication to the inbucket (fake webmailer) ingress.

@@ -125,7 +125,7 @@ tests _cl _at opts p db b c g =
       test p "get/head nonce/clients" $ testNewNonce b,
       testGroup
         "post /clients/:cid/access-token"
-        [ test p "success" $ testCreateAccessToken b,
+        [ test p "invalid values" $ testCreateAccessTokenInvalidValues b,
           test p "proof missing" $ testCreateAccessTokenMissingProof b,
           test p "no nonce" $ testCreateAccessTokenNoNonce b
         ]
@@ -1366,18 +1366,16 @@ testNewNonce brig = do
         Just "no-store" @=? getHeader "Cache-Control" response
       pure nonceBs
 
-testCreateAccessToken :: Brig -> Http ()
-testCreateAccessToken brig = do
-  uid <- userId <$> randomUser brig
-  cid <- createClientForUser brig uid
-  n <- Util.headNonce brig uid cid <!! const 200 === statusCode
-  let proof _nonce = Just $ Proof "xxxx.yyyy.zzzz"
-  response <- responseJsonError =<< Util.createAccessToken brig uid cid (proof n) <!! const 200 === statusCode
-  let expectedToken = DPoPAccessToken "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-  liftIO $ do
-    expectedToken @=? datrToken response
-    DPoP @=? datrType response
-    300 @=? datrExpiresIn response
+testCreateAccessTokenInvalidValues :: Brig -> Http ()
+testCreateAccessTokenInvalidValues brig =
+  do
+    uid <- userId <$> randomUser brig
+    cid <- createClientForUser brig uid
+    n <- Util.headNonce brig uid cid <!! const 200 === statusCode
+    let proof _nonce = Just $ Proof "xxxx.yyyy.zzzz"
+    Util.createAccessToken brig uid cid (proof n)
+      !!! do
+        const 400 === statusCode
 
 testCreateAccessTokenMissingProof :: Brig -> Http ()
 testCreateAccessTokenMissingProof brig = do

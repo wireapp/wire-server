@@ -31,7 +31,7 @@ import Wire.API.User.Auth
 -- tokens.
 data LegalHoldLogin = LegalHoldLogin
   { lhlUserId :: !UserId,
-    lhlPassword :: !(Maybe PlainTextPassword),
+    lhlPassword :: !(Maybe PlainTextPassword6),
     lhlLabel :: !(Maybe CookieLabel)
   }
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema LegalHoldLogin

@@ -105,10 +105,14 @@ validateKeyPackage identity (RawMLS (KeyPackageData -> kpd) kp) = do
 validateCredential :: ClientIdentity -> Credential -> Handler r ()
 validateCredential identity cred = do
   identity' <-
-    either mlsProtocolError pure $
+    either credentialError pure $
       decodeMLS' (bcIdentity cred)
   when (identity /= identity') $
     throwStd (errorToWai @'MLSIdentityMismatch)
+  where
+    credentialError e =
+      mlsProtocolError $
+        "Failed to parse identity: " <> e
 
 data RequiredExtensions f = RequiredExtensions
   { reLifetime :: f Lifetime,

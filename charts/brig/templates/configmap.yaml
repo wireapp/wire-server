@@ -302,8 +302,26 @@ data:
       {{- if .setEnableMLS }}
       setEnableMLS: {{ .setEnableMLS }}
       {{- end }}
+      {{- if $.Values.secrets.oauthJwkKeyPair }}
+      setOAuthJwkKeyPair: /etc/wire/brig/secrets/oauth_ed25519.jwk
+      {{- end }}
+      {{- if .setOAuthAuthCodeExpirationTimeSecs }}
+      setOAuthAuthCodeExpirationTimeSecs: {{ .setOAuthAuthCodeExpirationTimeSecs }}
+      {{- end }}
+      {{- if .setOAuthAccessTokenExpirationTimeSecs }}
+      setOAuthAccessTokenExpirationTimeSecs: {{ .setOAuthAccessTokenExpirationTimeSecs }}
+      {{- end }}
+      {{- if .setOAuthEnabled }}
+      setOAuthEnabled: {{ .setOAuthEnabled }}
+      {{- end }}
       {{- if .setDisabledAPIVersions }}
       setDisabledAPIVersions: {{ .setDisabledAPIVersions }}
+      {{- end }}
+      {{- if .setOAuthRefreshTokenExpirationTimeSecs }}
+      setOAuthRefreshTokenExpirationTimeSecs: {{ .setOAuthRefreshTokenExpirationTimeSecs }}
+      {{- end }}
+      {{- if .setOAuthMaxActiveRefreshTokens }}
+      setOAuthMaxActiveRefreshTokens: {{ .setOAuthMaxActiveRefreshTokens }}
       {{- end }}
     {{- end }}
   {{- end }}

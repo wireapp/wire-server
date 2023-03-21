@@ -58,7 +58,7 @@ changeEmailBrig brig usr newEmail = do
     pure (decodeCookie rsp, decodeToken rsp)
   changeEmailBrigCreds brig cky tok newEmail
   where
-    emailLogin :: Email -> Misc.PlainTextPassword -> Maybe Auth.CookieLabel -> Auth.Login
+    emailLogin :: Email -> Misc.PlainTextPassword6 -> Maybe Auth.CookieLabel -> Auth.Login
     emailLogin e pw cl =
       Auth.PasswordLogin $
         Auth.PasswordLoginData (Auth.LoginByEmail e) pw cl Nothing

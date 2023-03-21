@@ -1,0 +1,8 @@
+{
+    "config": {
+        "verificationExpiration": 1676377048
+    },
+    "lockStatus": "locked",
+    "status": "enabled",
+    "ttl": "unlimited"
+}

@@ -12,6 +12,7 @@
 , exceptions
 , gitignoreSource
 , http-types
+, http2
 , imports
 , kan-extensions
 , lib
@@ -46,6 +47,7 @@ mkDerivation {
     errors
     exceptions
     http-types
+    http2
     imports
     kan-extensions
     metrics-core

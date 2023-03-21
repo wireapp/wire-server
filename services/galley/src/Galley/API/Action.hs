@@ -28,6 +28,8 @@ module Galley.API.Action
     updateLocalConversationUnchecked,
     NoChanges (..),
     LocalConversationUpdate (..),
+    notifyTypingIndicator,
+    pushTypingIndicatorEvents,
 
     -- * Utilities
     ensureConversationActionAllowed,
@@ -43,6 +45,7 @@ import Control.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Kind
+import qualified Data.List as List
 import Data.List.NonEmpty (nonEmpty)
 import qualified Data.Map as Map
 import Data.Misc
@@ -65,9 +68,11 @@ import qualified Galley.Effects.CodeStore as E
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.FireAndForget as E
+import Galley.Effects.GundeckAccess
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.ProposalStore
 import qualified Galley.Effects.TeamStore as E
+import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
@@ -83,6 +88,7 @@ import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -563,6 +569,7 @@ updateLocalConversation ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
+    Member (Logger (Log.Msg -> Log.Msg)) r,
     HasConversationActionEffects tag r,
     SingI tag
   ) =>
@@ -601,6 +608,7 @@ updateLocalConversationUnchecked ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
+    Member (Logger (Log.Msg -> Log.Msg)) r,
     HasConversationActionEffects tag r
   ) =>
   Local Conversation ->
@@ -623,6 +631,11 @@ updateLocalConversationUnchecked lconv qusr con action = do
   (extraTargets, action') <- performAction tag qusr lconv action
 
   notifyConversationAction
+    -- Removing members should be fault tolerant.
+    ( case tag of
+        SConversationRemoveMembersTag -> False
+        _ -> True
+    )
     (sing @tag)
     qusr
     False
@@ -680,8 +693,10 @@ notifyConversationAction ::
   ( Member FederatorAccess r,
     Member ExternalAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
+  Bool ->
   Sing tag ->
   Qualified UserId ->
   Bool ->
@@ -690,7 +705,7 @@ notifyConversationAction ::
   BotsAndMembers ->
   ConversationAction (tag :: ConversationActionTag) ->
   Sem r LocalConversationUpdate
-notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
+notifyConversationAction failEarly tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap convId lconv
       conv = tUnqualified lconv
@@ -715,19 +730,45 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
           { nrcConvId = convId conv,
             nrcProtocol = convProtocol conv
           }
-  E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
-    void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+  let errorIntolerant = do
+        E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
+          void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+        fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
+          . E.runFederatedConcurrently (toList (bmRemotes targets))
+          $ \ruids -> do
+            let update = mkUpdate (tUnqualified ruids)
+            -- if notifyOrigDomain is false, filter out user from quid's domain,
+            -- because quid's backend will update local state and notify its users
+            -- itself using the ConversationUpdate returned by this function
+            if notifyOrigDomain || tDomain ruids /= qDomain quid
+              then fedClient @'Galley @"on-conversation-updated" update $> Nothing
+              else pure (Just update)
+      errorTolerant = do
+        fedEithers <- E.runFederatedConcurrentlyEither (toList newDomains) $ \_ -> do
+          void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+        for_ fedEithers $
+          either
+            (logError "on-new-remote-conversation" "An error occurred while communicating with federated server: ")
+            (pure . tUnqualified)
+        updates <-
+          E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
+            \ruids -> do
+              let update = mkUpdate (tUnqualified ruids)
+              -- if notifyOrigDomain is false, filter out user from quid's domain,
+              -- because quid's backend will update local state and notify its users
+              -- itself using the ConversationUpdate returned by this function
+              if notifyOrigDomain || tDomain ruids /= qDomain quid
+                then fedClient @'Galley @"on-conversation-updated" update $> Nothing
+                else pure (Just update)
+        let f = fromMaybe (mkUpdate []) . asum . map tUnqualified . rights
+            update = f updates
+        for_ (lefts updates) $
+          logError
+            "on-conversation-update"
+            "An error occurred while communicating with federated server: "
+        pure update
 
-  update <- fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
-    . E.runFederatedConcurrently (toList (bmRemotes targets))
-    $ \ruids -> do
-      let update = mkUpdate (tUnqualified ruids)
-      -- if notifyOrigDomain is false, filter out user from quid's domain,
-      -- because quid's backend will update local state and notify its users
-      -- itself using the ConversationUpdate returned by this function
-      if notifyOrigDomain || tDomain ruids /= qDomain quid
-        then fedClient @'Galley @"on-conversation-updated" update $> Nothing
-        else pure (Just update)
+  update <- if failEarly then errorIntolerant else errorTolerant
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
@@ -735,6 +776,11 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   -- return both the event and the 'ConversationUpdate' structure corresponding
   -- to the originating domain (if it is remote)
   pure $ LocalConversationUpdate e update
+  where
+    logError :: Show a => String -> String -> (a, FederationError) -> Sem r ()
+    logError field msg e =
+      P.warn $
+        Log.field "federation call" field . Log.msg (msg <> show e)
 
 -- | Notify all local members about a remote conversation update that originated
 -- from a local user
@@ -809,6 +855,7 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
       lconv
       ()
   notifyConversationAction
+    False
     (sing @'ConversationRemoveMembersTag)
     qusr
     True
@@ -816,3 +863,54 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
     lconv
     (targets <> extraTargets)
     (pure victim)
+
+notifyTypingIndicator ::
+  ( Member (Input UTCTime) r,
+    Member (Input (Local ())) r,
+    Member GundeckAccess r,
+    Member FederatorAccess r
+  ) =>
+  Conversation ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  TypingStatus ->
+  Sem r TypingDataUpdated
+notifyTypingIndicator conv qusr mcon ts = do
+  let origDomain = qDomain qusr
+  now <- input
+  lconv <- qualifyLocal (Data.convId conv)
+
+  pushTypingIndicatorEvents qusr now (fmap lmId (Data.convLocalMembers conv)) mcon (tUntagged lconv) ts
+
+  let (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)
+  let tdu users =
+        TypingDataUpdated
+          { tudTime = now,
+            tudOrigUserId = qusr,
+            tudConvId = Data.convId conv,
+            tudUsersInConv = users,
+            tudTypingStatus = ts
+          }
+
+  void $ E.runFederatedConcurrentlyEither (fmap rmId remoteMemsOther) $ \rmems -> do
+    fedClient @'Galley @"on-typing-indicator-updated" (tdu (tUnqualified rmems))
+
+  pure (tdu (fmap (tUnqualified . rmId) remoteMemsOrig))
+
+pushTypingIndicatorEvents ::
+  (Member GundeckAccess r) =>
+  Qualified UserId ->
+  UTCTime ->
+  [UserId] ->
+  Maybe ConnId ->
+  Qualified ConvId ->
+  TypingStatus ->
+  Sem r ()
+pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
+  let e = Event qcnv Nothing qusr tEvent (EdTyping ts)
+  for_ (newPushLocal ListComplete (qUnqualified qusr) (ConvEvent e) (userRecipient <$> users)) $ \p ->
+    push1 $
+      p
+        & pushConn .~ mcon
+        & pushRoute .~ RouteDirect
+        & pushTransient .~ True

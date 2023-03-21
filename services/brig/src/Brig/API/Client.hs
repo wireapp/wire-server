@@ -83,7 +83,7 @@ import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
 import Data.Map.Strict (traverseWithKey)
 import qualified Data.Map.Strict as Map
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
@@ -224,7 +224,7 @@ updateClient u c r = do
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
-rmClient :: UserId -> ConnId -> ClientId -> Maybe PlainTextPassword -> ExceptT ClientError (AppT r) ()
+rmClient :: UserId -> ConnId -> ClientId -> Maybe PlainTextPassword6 -> ExceptT ClientError (AppT r) ()
 rmClient u con clt pw =
   maybe (throwE ClientNotFound) fn =<< lift (wrapClient $ Data.lookupClient u clt)
   where

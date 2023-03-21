@@ -118,6 +118,7 @@ federationSitemap =
     :<|> Named @"send-mls-commit-bundle" (callsFed (exposeAnnotations sendMLSCommitBundle))
     :<|> Named @"query-group-info" queryGroupInfo
     :<|> Named @"on-client-removed" (callsFed (exposeAnnotations onClientRemoved))
+    :<|> Named @"update-typing-indicator" (callsFed (exposeAnnotations updateTypingIndicator))
     :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
 
 onClientRemoved ::
@@ -371,6 +372,7 @@ leaveConversation requestingDomain lc = do
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
       _ <-
         notifyConversationAction
+          False
           SConversationLeaveTag
           (tUntagged leaver)
           False
@@ -498,6 +500,7 @@ onUserDeleted origDomain udcn = do
               removeUser (qualifyAs lc conv) (tUntagged deletedUser)
               void $
                 notifyConversationAction
+                  False
                   (sing @'ConversationLeaveTag)
                   untaggedDeletedUser
                   False
@@ -793,20 +796,35 @@ queryGroupInfo origDomain req =
         . unOpaquePublicGroupState
         $ state
 
-onTypingIndicatorUpdated ::
-  ( Member MemberStore r,
-    Member GundeckAccess r,
+updateTypingIndicator ::
+  ( Member GundeckAccess r,
+    Member FederatorAccess r,
+    Member ConversationStore r,
     Member (Input UTCTime) r,
     Member (Input (Local ())) r
   ) =>
   Domain ->
-  TypingDataUpdateRequest ->
-  Sem r EmptyResponse
-onTypingIndicatorUpdated origDomain TypingDataUpdateRequest {..} = do
+  F.TypingDataUpdateRequest ->
+  Sem r F.TypingDataUpdateResponse
+updateTypingIndicator origDomain TypingDataUpdateRequest {..} = do
   let qusr = Qualified tdurUserId origDomain
   lcnv <- qualifyLocal tdurConvId
-  -- FUTUREWORK: Consider if we should throw exceptions from this kind of function
-  void $
-    runError @(Tagged 'ConvNotFound ()) $
-      isTyping qusr Nothing lcnv tdurTypingStatus
+
+  ret <- runError
+    . mapToRuntimeError @'ConvNotFound ConvNotFound
+    $ do
+      (conv, _) <- getConversationAndMemberWithError @'ConvNotFound qusr lcnv
+      notifyTypingIndicator conv qusr Nothing tdurTypingStatus
+
+  pure (either TypingDataUpdateError TypingDataUpdateSuccess ret)
+
+onTypingIndicatorUpdated ::
+  ( Member GundeckAccess r
+  ) =>
+  Domain ->
+  TypingDataUpdated ->
+  Sem r EmptyResponse
+onTypingIndicatorUpdated origDomain TypingDataUpdated {..} = do
+  let qcnv = Qualified tudConvId origDomain
+  pushTypingIndicatorEvents tudOrigUserId tudTime tudUsersInConv Nothing qcnv tudTypingStatus
   pure EmptyResponse

@@ -59,7 +59,7 @@ import Data.Handle (Handle)
 import Data.Id (ScimTokenId, TeamId, UserId)
 import Data.Json.Util ((#))
 import qualified Data.Map as Map
-import Data.Misc (PlainTextPassword)
+import Data.Misc (PlainTextPassword6)
 import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.Swagger hiding (Operation)
@@ -380,7 +380,7 @@ data CreateScimToken = CreateScimToken
   { -- | Token description (as memory aid for whoever is creating the token)
     createScimTokenDescr :: !Text,
     -- | User password, which we ask for because creating a token is a "powerful" operation
-    createScimTokenPassword :: !(Maybe PlainTextPassword),
+    createScimTokenPassword :: !(Maybe PlainTextPassword6),
     -- | User code (sent by email), for 2nd factor to 'createScimTokenPassword'
     createScimTokenCode :: !(Maybe Code.Value)
   }

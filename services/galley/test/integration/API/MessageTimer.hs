@@ -151,6 +151,7 @@ messageTimerChangeWithRemotes = do
   resp <-
     postConvWithRemoteUsers
       bob
+      Nothing
       defNewProteusConv {newConvQualifiedUsers = [qalice]}
   let qconv = decodeQualifiedConvId resp
 

@@ -70,7 +70,7 @@ import Data.Code as Code
 import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword6)
 import Data.SOP
 import Data.Schema
 import qualified Data.Swagger as S
@@ -312,7 +312,7 @@ data Login
 
 data PasswordLoginData = PasswordLoginData
   { plId :: LoginId,
-    plPassword :: PlainTextPassword,
+    plPassword :: PlainTextPassword6,
     plLabel :: Maybe CookieLabel,
     plCode :: Maybe Code.Value
   }
@@ -371,7 +371,7 @@ loginLabel (SmsLogin sl) = slLabel sl
 -- RemoveCookies
 
 data RemoveCookies = RemoveCookies
-  { rmCookiesPassword :: PlainTextPassword,
+  { rmCookiesPassword :: PlainTextPassword6,
     rmCookiesLabels :: [CookieLabel],
     rmCookiesIdents :: [CookieId]
   }

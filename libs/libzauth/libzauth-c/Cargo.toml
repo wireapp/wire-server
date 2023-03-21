@@ -13,3 +13,8 @@ libc = ">= 0.2"
 
 [dependencies.zauth]
 path = "../libzauth"
+
+# fork of jwt-simple which supports JWK handling
+[dependencies.jwt-simple]
+git = "https://github.com/wireapp/rust-jwt-simple"
+rev = "15a69f82288d68b74a75c1364e5d4bf681f1c07b"

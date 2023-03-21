@@ -81,7 +81,7 @@ import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
-import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword (..), latitude, location, longitude)
+import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword6, latitude, location, longitude)
 import Data.Qualified
 import Data.Schema
 import qualified Data.Set as Set
@@ -585,7 +585,7 @@ data NewClient = NewClient
     newClientLabel :: Maybe Text,
     newClientClass :: Maybe ClientClass,
     newClientCookie :: Maybe CookieLabel,
-    newClientPassword :: Maybe PlainTextPassword,
+    newClientPassword :: Maybe PlainTextPassword6,
     newClientModel :: Maybe Text,
     newClientCapabilities :: Maybe (Set ClientCapability),
     newClientMLSPublicKeys :: MLSPublicKeys,
@@ -728,7 +728,7 @@ instance ToSchema UpdateClient where
 -- RmClient
 
 newtype RmClient = RmClient
-  { rmPassword :: Maybe PlainTextPassword
+  { rmPassword :: Maybe PlainTextPassword6
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
