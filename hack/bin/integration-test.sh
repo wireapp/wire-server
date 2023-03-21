@@ -6,7 +6,7 @@ NAMESPACE=${NAMESPACE:-test-integration}
 # set to 1 to disable running helm tests in parallel
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 CLEANUP_LOCAL_FILES=${CLEANUP_LOCAL_FILES:-1} # set to 0 to keep files
-DOCKER_TAG=${DOCKER_TAG:"no-tag"}
+DOCKER_TAG=${DOCKER_TAG:no-tag}
 
 echo "Running integration tests on wire-server with parallelism=${HELM_PARALLELISM} ..."
 
