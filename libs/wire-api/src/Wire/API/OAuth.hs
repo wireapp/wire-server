@@ -272,6 +272,12 @@ newtype OAuthCodeChallenge = OAuthCodeChallenge {unOAuthCodeChallenge :: Text}
 instance ToSchema OAuthCodeChallenge where
   schema = named "OAuthCodeChallenge" $ unOAuthCodeChallenge .= fmap OAuthCodeChallenge (unnamed schema)
 
+instance ToByteString OAuthCodeChallenge where
+  builder = builder . unOAuthCodeChallenge
+
+instance FromByteString OAuthCodeChallenge where
+  parser = OAuthCodeChallenge <$> parser
+
 verifyCodeChallenge :: OAuthCodeVerifier -> OAuthCodeChallenge -> Bool
 verifyCodeChallenge verifier challenge = challenge == mkChallenge verifier
 
@@ -681,3 +687,9 @@ instance Cql OAuthScope where
   toCql = CqlText . cs . toByteString'
   fromCql (CqlText t) = maybe (Left "invalid oauth scope") Right $ fromByteString' (cs t)
   fromCql _ = Left "OAuthScope: Text expected"
+
+instance Cql OAuthCodeChallenge where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . toByteString
+  fromCql (CqlBlob t) = runParser parser (toStrict t)
+  fromCql _ = Left "OAuthCodeChallenge: Blob expected"

@@ -144,7 +144,7 @@ testCreateOAuthCodeSuccess brig = do
   uid <- randomId
   let scope = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
   state <- UUID.toText <$> liftIO nextRandom
-  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid scope OAuthResponseTypeCode redirectUrl state undefined undefined) !!! do
+  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid scope OAuthResponseTypeCode redirectUrl state S256 codeChallenge) !!! do
     const 302 === statusCode
     const (Just $ unRedirectUrl redirectUrl ^. pathL) === (fmap getPath . getLocation)
     const (Just $ ["code", "state"]) === (fmap (fmap fst . getQueryParams) . getLocation)
@@ -161,7 +161,7 @@ testCreateOAuthCodeRedirectUrlMismatch brig = do
   uid <- randomId
   state <- UUID.toText <$> liftIO nextRandom
   let differentUrl = mkUrl "https://wire.com"
-  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode differentUrl state undefined undefined) !!! do
+  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode differentUrl state S256 codeChallenge) !!! do
     const 400 === statusCode
     const Nothing === (fmap getPath . getLocation)
     const (Just "redirect-url-miss-match") === fmap Error.label . responseJsonMaybe
@@ -172,7 +172,7 @@ testCreateOAuthCodeClientNotFound brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
   state <- UUID.toText <$> liftIO nextRandom
-  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode redirectUrl state undefined undefined) !!! do
+  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode redirectUrl state S256 codeChallenge) !!! do
     const 404 === statusCode
     const (Just $ "access_denied") === (getLocation >=> getQueryParamValue "error")
     const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
@@ -293,7 +293,7 @@ testCreateCodeOAuthClientAccessDeniedWhenDisabled opts brig =
     uid <- randomId
     state <- UUID.toText <$> liftIO nextRandom
     let redirectUrl = mkUrl "https://example.com"
-    createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode redirectUrl state undefined undefined) !!! do
+    createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode redirectUrl state S256 codeChallenge) !!! do
       const 403 === statusCode
       const (Just $ "access_denied") === (getLocation >=> getQueryParamValue "error")
       const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
@@ -800,7 +800,7 @@ generateOAuthAuthorizationCode :: (MonadIO m, MonadHttp m, MonadCatch m, HasCall
 generateOAuthAuthorizationCode brig uid cid scope url = do
   state <- UUID.toText <$> liftIO nextRandom
   response <-
-    createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid scope OAuthResponseTypeCode url state undefined undefined) <!! do
+    createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid scope OAuthResponseTypeCode url state S256 codeChallenge) <!! do
       const 302 === statusCode
   pure $ fromMaybe (error "oauth auth code generation failed") $ (getHeader "Location" >=> fromByteString >=> getQueryParamValue "code" >=> fromByteString) response
 
@@ -850,3 +850,9 @@ getQueryParams (RedirectUrl uri) = uri ^. (queryL . queryPairsL)
 
 getQueryParamValue :: ByteString -> RedirectUrl -> Maybe ByteString
 getQueryParamValue key uri = snd <$> find ((== key) . fst) (getQueryParams uri)
+
+codeChallenge :: OAuthCodeChallenge
+codeChallenge = either (\e -> error $ "invalid code challenge " <> show e) id $ A.eitherDecode "\"G7CWLBqYDT8doT_oEIN3un_QwZWYKHmOqG91nwNzITc\""
+
+codeVerifier :: OAuthCodeVerifier
+codeVerifier = either (\e -> error $ "invalid code verifier " <> show e) id $ A.eitherDecode "\"nE3k3zykOmYki~kriKzAmeFiGT7cWugcuToFwo1YPgrZ1cFvaQqLa.dXY9MnDj3umAmG-8lSNIYIl31Cs_.fV5r2psa4WWZcB.Nlc3A-t3p67NDZaOJjIiH~8PvUH_hR\""
