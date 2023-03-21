@@ -707,7 +707,7 @@ listUsersByUnqualifiedIdsOrHandles ::
 listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
   domain <- viewFederationDomain
   case (mUids, mHandles) of
-    (Just uids, _) -> listUsersByIdsOrHandles self (Public.ListUsersByIds ((`Qualified` domain) <$> fromCommaSeparatedList uids))
+    (Just uids, _) -> listUsersByIdsOrHandlesV3 self (Public.ListUsersByIds ((`Qualified` domain) <$> fromCommaSeparatedList uids))
     (_, Just handles) ->
       let normalRangedList = fromCommaSeparatedList $ fromRange handles
           qualifiedList = (`Qualified` domain) <$> normalRangedList
@@ -716,7 +716,7 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
           -- annotation here otherwise a change in 'Public.ListUsersByHandles'
           -- could cause this code to break.
           qualifiedRangedList :: Range 1 4 [Qualified Handle] = unsafeRange qualifiedList
-       in listUsersByIdsOrHandles self (Public.ListUsersByHandles qualifiedRangedList)
+       in listUsersByIdsOrHandlesV3 self (Public.ListUsersByHandles qualifiedRangedList)
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
 listUsersByIdsOrHandlesV3 ::

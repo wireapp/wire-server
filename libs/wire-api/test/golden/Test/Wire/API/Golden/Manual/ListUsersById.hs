@@ -17,13 +17,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap where
+module Test.Wire.API.Golden.Manual.ListUsersById where
 
 import Data.Domain
-import GHC.Exts (IsList (fromList))
+import Data.Id
+import Data.LegalHold
+import Data.Qualified
+import qualified Data.UUID as UUID
 import Imports
-import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
-import Wire.API.User.Client (QualifiedUserClientPrekeyMap, mkQualifiedUserClientPrekeyMap)
+import Wire.API.User
 
 domain1, domain2 :: Domain
 domain1 = Domain "example.com"
@@ -34,50 +36,50 @@ user1 = Id . fromJust $ UUID.fromString "4f201a43-935e-4e19-8fe0-0a878d3d6e74"
 user2 = Id . fromJust $ UUID.fromString "eb48b095-d96f-4a94-b4ec-2a1d61447e13"
 
 profile1, profile2 :: UserProfile
-profile1 = UserProfile
-  { userId = user1
-  , profileQualifiedId = Qualified user1 domain1
-  , userIdentity = Nothing
-  , profileName = Name "user1"
-  , userPict = Pict []
-  , userAssets = []
-  , userAccentId = ColourId 0
-  , userDeleted = false
-  , userLocale = "AU"
-  , userService = Nothing
-  , userHandle = Nothing
-  , userExpire = Nothing
-  , userTeam = Nothing
-  , userManagedBy = ManagedByWire
-  }
-profile2 = UserProfile
-  { userId = user2
-  , profileQualifiedId = Qualified user2 domain2
-  , userIdentity = Nothing
-  , profileName = Name "user2"
-  , userPict = Pict []
-  , userAssets = []
-  , userAccentId = ColourId 0
-  , userDeleted = false
-  , userLocale = "AU"
-  , userService = Nothing
-  , userHandle = Nothing
-  , userExpire = Nothing
-  , userTeam = Nothing
-  , userManagedBy = ManagedByWire
-  }
+profile1 =
+  UserProfile
+    { profileQualifiedId = Qualified user1 domain1,
+      profileName = Name "user1",
+      profilePict = Pict [],
+      profileAssets = [],
+      profileAccentId = ColourId 0,
+      profileDeleted = False,
+      profileService = Nothing,
+      profileHandle = Nothing,
+      profileExpire = Nothing,
+      profileTeam = Nothing,
+      profileEmail = Nothing,
+      profileLegalholdStatus = UserLegalHoldDisabled
+    }
+profile2 =
+  UserProfile
+    { profileQualifiedId = Qualified user2 domain2,
+      profileName = Name "user2",
+      profilePict = Pict [],
+      profileAssets = [],
+      profileAccentId = ColourId 0,
+      profileDeleted = False,
+      profileService = Nothing,
+      profileHandle = Nothing,
+      profileExpire = Nothing,
+      profileTeam = Nothing,
+      profileEmail = Nothing,
+      profileLegalholdStatus = UserLegalHoldDisabled
+    }
 
 testObject_ListUsersById_1 :: ListUsersById
 testObject_ListUsersById_1 = ListUsersById mempty Nothing
 
-testObject_QualifiedUserClientPrekeyMap_2 :: ListUsersById
-testObject_QualifiedUserClientPrekeyMap_2 = ListUsersById
-  { listUsersByIdFound = [profile1, profile2]
-  , listUsersByIdFailed = Just []
-  }
+testObject_ListUsersById_2 :: ListUsersById
+testObject_ListUsersById_2 =
+  ListUsersById
+    { listUsersByIdFound = [profile1, profile2],
+      listUsersByIdFailed = Just []
+    }
 
-testObject_QualifiedUserClientPrekeyMap_3 :: ListUsersById
-testObject_QualifiedUserClientPrekeyMap_3 = ListUsersById
-  { listUsersByIdFound = [profile1]
-  , listUsersByIdFailed = pure $ [Qualified user2 domain2]
-  }
+testObject_ListUsersById_3 :: ListUsersById
+testObject_ListUsersById_3 =
+  ListUsersById
+    { listUsersByIdFound = [profile1],
+      listUsersByIdFailed = pure $ [Qualified user2 domain2]
+    }
