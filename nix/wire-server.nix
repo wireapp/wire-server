@@ -300,7 +300,7 @@ let
     pkgs.gnused
     pkgs.parallel
     pkgs.ripgrep
-    pkgs.helm
+    pkgs.kubernetes-helm
     pkgs.helmfile
     pkgs.hlint
     (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
