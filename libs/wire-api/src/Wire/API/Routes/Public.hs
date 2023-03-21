@@ -53,7 +53,7 @@ import Servant.API.Modifiers
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
 import Servant.Swagger (HasSwagger (toSwagger))
-import Wire.API.OAuth
+import qualified Wire.API.OAuth as OAuth
 
 mapRequestArgument ::
   forall mods a b.
@@ -256,13 +256,13 @@ instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts :> api) whe
 instance ToSchema a => ToSchema (Headers ls a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @a)
 
-data DescriptionOAuthScope (scope :: OAuthScope)
+data DescriptionOAuthScope (scope :: OAuth.OAuthScope)
 
-instance (HasSwagger api, IsOAuthScope scope) => HasSwagger (DescriptionOAuthScope scope :> api) where
+instance (HasSwagger api, OAuth.IsOAuthScope scope) => HasSwagger (DescriptionOAuthScope scope :> api) where
   toSwagger _ = toSwagger (Proxy @api) & addScopeDescription
     where
       addScopeDescription :: Swagger -> Swagger
-      addScopeDescription = allOperations . description %~ Just . (<> "\nOAuth scope: `" <> cs (toByteString (toOAuthScope @scope)) <> "`") . fold
+      addScopeDescription = allOperations . description %~ Just . (<> "\nOAuth scope: `" <> cs (toByteString (OAuth.toOAuthScope @scope)) <> "`") . fold
 
 instance (HasServer api ctx) => HasServer (DescriptionOAuthScope scope :> api) ctx where
   type ServerT (DescriptionOAuthScope scope :> api) m = ServerT api m
