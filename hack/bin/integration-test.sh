@@ -44,6 +44,9 @@ summary() {
     done
 }
 
+# TODO: Remove me! This line is only here for checking AWS access in this script.
+aws s3 ls s3://wire-server-test-logs/
+
 # Run tests in parallel using GNU parallel (see https://www.gnu.org/software/parallel/)
 # The below commands are a little convoluted, but we wish to:
 # - run integration tests. If they fail, keep track of this, but still go and get logs, so we see what failed
