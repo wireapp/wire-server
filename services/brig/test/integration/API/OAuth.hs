@@ -82,7 +82,8 @@ tests m db b n o = do
           test m "wrong redirect url fail" $ testCreateAccessTokenWrongUrl b,
           test m "expired code fail" $ testCreateAccessTokenExpiredCode o b,
           test m "wrong grant type fail" $ testCreateAccessTokenWrongGrantType b,
-          test m "wrong code challenge fail" $ testCreateAccessTokenWrongCodeChallenge b
+          test m "wrong code challenge fail" $ testCreateAccessTokenWrongCodeChallenge b,
+          test m "wrong code verifier fail" $ testCreateAccessTokenWrongCodeVerifier b
         ],
       testGroup
         "access denied when disabled"
@@ -274,11 +275,25 @@ testCreateAccessTokenWrongCodeChallenge brig = do
   (cid, code) <- generateOAuthClientAndAuthorizationCode' wrongCodeChallenge brig uid scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid codeVerifier code redirectUrl
   createOAuthAccessToken' brig accessTokenRequest !!! do
-    const 400 === statusCode
-    const (Just "invalid-code-challenge") === fmap Error.label . responseJsonMaybe
+    const 403 === statusCode
+    const (Just "invalid_grant") === fmap Error.label . responseJsonMaybe
   where
     wrongCodeChallenge :: OAuthCodeChallenge
-    wrongCodeChallenge = either (\e -> error $ "invalid code challenge " <> show e) id $ A.eitherDecode "\"kw8DtStRIz2MTWyG59pd9h2Kyfhoa8SM4aU8CUWM1DU\""
+    wrongCodeChallenge = fromMaybe (error $ "invalid code challenge") $ A.decode "\"kw8DtStRIz2MTWyG59pd9h2Kyfhoa8SM4aU8CUWM1DU\""
+
+testCreateAccessTokenWrongCodeVerifier :: Brig -> Http ()
+testCreateAccessTokenWrongCodeVerifier brig = do
+  uid <- randomId
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid wrongCodeVerifier code redirectUrl
+  createOAuthAccessToken' brig accessTokenRequest !!! do
+    const 403 === statusCode
+    const (Just "invalid_grant") === fmap Error.label . responseJsonMaybe
+  where
+    wrongCodeVerifier :: OAuthCodeVerifier
+    wrongCodeVerifier = fromMaybe (error "invalid code verifier") $ A.decode "\"x9xpNj_TNfXY5h-CggZozno7ldzPmbEh8al~HJQmfiZtvvx0uxlDa~mNCZrH37XZnClD71Vx_Edx8FU1XU2mt38.o49Wnca~at75RBoxHn..F-_n5kveOSCpc_Oemyap\""
 
 testGetOAuthClientInfoAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
 testGetOAuthClientInfoAccessDeniedWhenDisabled opts brig =

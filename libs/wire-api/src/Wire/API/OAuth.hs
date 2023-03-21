@@ -638,6 +638,7 @@ data OAuthError
   | OAuthInvalidClientCredentials
   | OAuthInvalidGrantType
   | OAuthInvalidRefreshToken
+  | OAuthInvalidGrant
 
 instance KnownError (MapError e) => IsSwaggerError (e :: OAuthError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
@@ -659,6 +660,8 @@ type instance MapError 'OAuthInvalidClientCredentials = 'StaticError 403 "forbid
 type instance MapError 'OAuthInvalidGrantType = 'StaticError 403 "forbidden" "Invalid grant type"
 
 type instance MapError 'OAuthInvalidRefreshToken = 'StaticError 403 "forbidden" "Invalid refresh token"
+
+type instance MapError 'OAuthInvalidGrant = 'StaticError 403 "invalid_grant" "Invalid grant"
 
 --------------------------------------------------------------------------------
 -- CQL instances

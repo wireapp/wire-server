@@ -75,6 +75,7 @@ type OAuthAPI =
                :> CanThrow 'OAuthInvalidRefreshToken
                :> CanThrow 'OAuthInvalidGrantType
                :> CanThrow 'OAuthInvalidClientCredentials
+               :> CanThrow 'OAuthInvalidGrant
                :> "oauth"
                :> "token"
                :> ReqBody '[FormUrlEncoded] (Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest)
@@ -87,7 +88,6 @@ type OAuthAPI =
                :> CanThrow 'OAuthJwtError
                :> CanThrow 'OAuthInvalidRefreshToken
                :> CanThrow 'OAuthClientNotFound
-               :> CanThrow 'OAuthInvalidClientCredentials
                :> "oauth"
                :> "revoke"
                :> ReqBody '[JSON] OAuthRevokeRefreshTokenRequest

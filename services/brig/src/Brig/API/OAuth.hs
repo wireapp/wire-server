@@ -171,13 +171,14 @@ verifyRefreshToken key rt = do
 createAccessTokenWithAuthorizationCode :: (Member Now r, Member Jwk r) => OAuthAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessTokenWithAuthorizationCode req = do
   unless (oatGrantType req == OAuthGrantTypeAuthorizationCode) $ throwStd $ errorToWai @'OAuthInvalidGrantType
-  (cid, uid, scope, uri, _mChal) <-
+  (cid, uid, scope, uri, mChal) <-
     lift (wrapClient $ lookupAndDeleteByOAuthAuthorizationCode (oatCode req))
       >>= maybe (throwStd $ errorToWai @'OAuthAuthorizationCodeNotFound) pure
   oauthClient <- getOAuthClient uid (oatClientId req) >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
   unless (uri == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
   unless (ocRedirectUrl oauthClient == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
+  unless (maybe False (verifyCodeChallenge (oatCodeVerifier req)) mChal) $ throwStd $ errorToWai @'OAuthInvalidGrant
 
   key <- signingKey
   createAccessToken key uid cid scope
