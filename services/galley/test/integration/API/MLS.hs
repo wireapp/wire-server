@@ -817,7 +817,7 @@ testRemoteAppMessage = do
     ((message, events), reqs) <- withTempMockFederator' mock $ do
       void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
       message <- createApplicationMessage alice1 "hello"
-      events <- sendAndConsumeMessage message
+      (events, _) <- sendAndConsumeMessage message
       pure (message, events)
 
     liftIO $ do
@@ -1070,7 +1070,7 @@ testAppMessage = do
     message <- createApplicationMessage alice1 "some text"
 
     mlsBracket clients $ \wss -> do
-      events <- sendAndConsumeMessage message
+      (events, _) <- sendAndConsumeMessage message
       liftIO $ events @?= []
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $
@@ -1098,7 +1098,7 @@ testAppMessage2 = do
     message <- createApplicationMessage bob1 "some text"
 
     mlsBracket (alice1 : clients) $ \wss -> do
-      events <- sendAndConsumeMessage message
+      (events, _) <- sendAndConsumeMessage message
       liftIO $ events @?= []
 
       -- check that the corresponding event is received
@@ -1124,7 +1124,7 @@ testAppMessageUnreachable = do
         sendAndConsumeCommit commit
 
     message <- createApplicationMessage alice1 "hi, bob!"
-    us <- sendAndConsumeMessageUnreachable message
+    (_, us) <- sendAndConsumeMessage message
     liftIO $ do
       assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
       UnreachableUsers [bob] @?= us
@@ -1326,9 +1326,9 @@ propExistingConv = do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
     void $ setupMLSGroup alice1
-    events <- createAddProposals alice1 [bob] >>= traverse sendAndConsumeMessage
+    res <- traverse sendAndConsumeMessage =<< createAddProposals alice1 [bob]
 
-    liftIO $ events @?= [[]]
+    liftIO $ (fst <$> res) @?= [[]]
 
 propInvalidEpoch :: TestM ()
 propInvalidEpoch = do
