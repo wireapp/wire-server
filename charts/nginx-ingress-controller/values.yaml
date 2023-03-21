@@ -43,6 +43,7 @@ nginx-ingress:
 # downsides of this setting
 #   https://www.asykim.com/blog/deep-dive-into-kubernetes-external-traffic-policies
     kind: DaemonSet
+    ingressClass: nginx
     # By default, each node will now be configured to accept ingress traffic. You should add
     # all the nodes to your external load balancer, or add them to DNS records.
     #
