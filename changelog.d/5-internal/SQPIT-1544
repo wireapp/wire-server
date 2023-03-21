@@ -1,0 +1,4 @@
+When sending a push message, stop deleting the push token and start recreating
+ARN when ARN is reported as invalid on AWS, but push token still is present in
+Cassandra. This allows on-demand migrations from one AWS account used for push
+notifications to another one.
