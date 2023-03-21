@@ -482,7 +482,7 @@ getMultiUserPrekeyBundleHV3 ::
   Member (Concurrency 'Unsafe) r =>
   UserId ->
   Public.QualifiedUserClients ->
-  (Handler r) Public.QualifiedUserClientPrekeyMapV3
+  (Handler r) Public.QualifiedUserClientPrekeyMapV4
 getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   let Sum (size :: Int) =

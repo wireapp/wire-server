@@ -154,6 +154,7 @@ import qualified Test.Wire.API.Golden.Generated.PubClient_user
 import qualified Test.Wire.API.Golden.Generated.PushTokenList_user
 import qualified Test.Wire.API.Golden.Generated.PushToken_user
 import qualified Test.Wire.API.Golden.Generated.Push_2eToken_2eTransport_user
+import qualified Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user
 import qualified Test.Wire.API.Golden.Generated.QueuedNotificationList_user
 import qualified Test.Wire.API.Golden.Generated.QueuedNotification_user
 import qualified Test.Wire.API.Golden.Generated.RTCConfiguration_user
@@ -1434,5 +1435,11 @@ tests =
             (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_9, "testObject_Event_conversation_9.json"),
             (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_11, "testObject_Event_conversation_11.json"),
             (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_10, "testObject_Event_conversation_10.json")
-          ]
+          ],
+       testGroup "Golden: QualifiedUserClientPrekeyMapV4" $
+        testObjects
+          [ (Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user.testObject_QualifiedUserClientPrekeyMapV4_user_1, "testObject_QualifiedUserClientPrekeyMapV4_1.json"),
+            (Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user.testObject_QualifiedUserClientPrekeyMapV4_user_2, "testObject_QualifiedUserClientPrekeyMapV4_2.json"),
+            (Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user.testObject_QualifiedUserClientPrekeyMapV4_user_3, "testObject_QualifiedUserClientPrekeyMapV4_3.json")
+          ],
     ]

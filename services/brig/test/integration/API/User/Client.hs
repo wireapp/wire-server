@@ -89,12 +89,12 @@ tests _cl _at opts p db b c g =
       test p "get /users/<localdomain>/:uid/prekeys/:client - 200" $ testGetClientPrekeyQualified b opts,
       test p "post /users/prekeys" $ testMultiUserGetPrekeys b,
       test p "post /users/list-prekeys" $ testMultiUserGetPrekeysQualified b opts,
-      test p "post /users/list-prekeys@v3" $ testMultiUserGetPrekeysQualifiedV3 b opts,
+      test p "post /users/list-prekeys@v4" $ testMultiUserGetPrekeysQualifiedV4 b opts,
       test p "post /users/list-clients - 200" $ testListClientsBulk opts b,
       test p "post /users/list-clients/v2 - 200" $ testListClientsBulkV2 opts b,
       test p "post /users/list-prekeys - clients without prekeys" $ testClientsWithoutPrekeys b c db opts,
-      test p "post /users/list-prekeys@v3 - clients without prekeys" $ testClientsWithoutPrekeysV3 b c db opts,
-      test p "post /users/list-prekeys@v3 - clients without prekeys fail to list" $ testClientsWithoutPrekeysFailToListV3 b c db,
+      test p "post /users/list-prekeys@v4 - clients without prekeys" $ testClientsWithoutPrekeysV4 b c db opts,
+      test p "post /users/list-prekeys@v4 - clients without prekeys fail to list" $ testClientsWithoutPrekeysFailToListV4 b c db,
       test p "post /clients - 201 (pwd)" $ testAddGetClient def {addWithPassword = True} b c,
       test p "post /clients - 201 (no pwd)" $ testAddGetClient def {addWithPassword = False} b c,
       testGroup
@@ -445,7 +445,7 @@ testClientsWithoutPrekeys brig cannon db opts = do
       const 200 === statusCode
 
     post
-      ( apiVersion "v2"
+      ( apiVersion "v3"
           . brig
           . paths ["users", "list-prekeys"]
           . contentJson
@@ -476,7 +476,7 @@ testClientsWithoutPrekeys brig cannon db opts = do
         @?= Just (clientId c11)
 
   post
-    ( apiVersion "v2"
+    ( apiVersion "v3"
         . brig
         . paths ["users", "list-prekeys"]
         . contentJson
@@ -504,8 +504,8 @@ testClientsWithoutPrekeys brig cannon db opts = do
             Map.singleton u $
               Map.fromList xs
 
-testClientsWithoutPrekeysV3 :: Brig -> Cannon -> DB.ClientState -> Opt.Opts -> Http ()
-testClientsWithoutPrekeysV3 brig cannon db opts = do
+testClientsWithoutPrekeysV4 :: Brig -> Cannon -> DB.ClientState -> Opt.Opts -> Http ()
+testClientsWithoutPrekeysV4 brig cannon db opts = do
   uid1 <- userId <$> randomUser brig
   let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
   c11 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
@@ -586,9 +586,9 @@ testClientsWithoutPrekeysV3 brig cannon db opts = do
         )
         === responseJsonEither
   where
-    expectedClientMap :: Domain -> UserId -> [(ClientId, Maybe Prekey)] -> Maybe [Qualified UserId] -> QualifiedUserClientPrekeyMapV3
+    expectedClientMap :: Domain -> UserId -> [(ClientId, Maybe Prekey)] -> Maybe [Qualified UserId] -> QualifiedUserClientPrekeyMapV4
     expectedClientMap domain u xs failed =
-      QualifiedUserClientPrekeyMapV3
+      QualifiedUserClientPrekeyMapV4
         { qualifiedUserClientPrekeys =
             coerce $
               mkQualifiedUserClientPrekeyMap $
@@ -599,8 +599,8 @@ testClientsWithoutPrekeysV3 brig cannon db opts = do
           failedToList = failed
         }
 
-testClientsWithoutPrekeysFailToListV3 :: Brig -> Cannon -> DB.ClientState -> Http ()
-testClientsWithoutPrekeysFailToListV3 brig cannon db = do
+testClientsWithoutPrekeysFailToListV4 :: Brig -> Cannon -> DB.ClientState -> Http ()
+testClientsWithoutPrekeysFailToListV4 brig cannon db = do
   uid1 <- userId <$> randomUser brig
   let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
   c11 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
@@ -640,7 +640,7 @@ testClientsWithoutPrekeysFailToListV3 brig cannon db = do
         const 200 === statusCode
         const
           ( Right $
-              QualifiedUserClientPrekeyMapV3
+              QualifiedUserClientPrekeyMapV4
                 { qualifiedUserClientPrekeys = QualifiedUserClientMap Map.empty,
                   failedToList = pure [Qualified uid1 domain]
                 }
@@ -663,7 +663,7 @@ testClientsWithoutPrekeysFailToListV3 brig cannon db = do
       const 200 === statusCode
       const
         ( Right $
-            QualifiedUserClientPrekeyMapV3
+            QualifiedUserClientPrekeyMapV4
               { qualifiedUserClientPrekeys = QualifiedUserClientMap Map.empty,
                 failedToList = pure [Qualified uid1 domain]
               }
@@ -855,7 +855,7 @@ testMultiUserGetPrekeysQualifiedV3 brig opts = do
   uid <- userId <$> randomUser brig
 
   let expectedUserClientMap =
-        QualifiedUserClientPrekeyMapV3
+        QualifiedUserClientPrekeyMapV4
           { qualifiedUserClientPrekeys =
               coerce $
                 mkQualifiedUserClientPrekeyMap $

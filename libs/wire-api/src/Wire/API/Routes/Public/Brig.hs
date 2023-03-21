@@ -658,7 +658,7 @@ type PrekeyAPI =
                \maximum conversation size."
                :> MakesFederatedCall 'Brig "claim-multi-prekey-bundle"
                :> ZUser
-               :> Until 'V3
+               :> Until 'V4
                :> "users"
                :> "list-prekeys"
                :> ReqBody '[JSON] QualifiedUserClients
@@ -672,11 +672,11 @@ type PrekeyAPI =
                \maximum conversation size."
                :> MakesFederatedCall 'Brig "claim-multi-prekey-bundle"
                :> ZUser
-               :> From 'V3
+               :> From 'V4
                :> "users"
                :> "list-prekeys"
                :> ReqBody '[JSON] QualifiedUserClients
-               :> Post '[JSON] QualifiedUserClientPrekeyMapV3
+               :> Post '[JSON] QualifiedUserClientPrekeyMapV4
            )
 
 type UserClientAPI =

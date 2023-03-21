@@ -331,7 +331,7 @@ claimMultiPrekeyBundles protectee quc = do
 
 -- Similar to claimMultiPrekeyBundles except for the following changes
 -- 1) A new return type that contains both the client map and a list of
---    users that messages couldn't be sent to.
+--    users that prekeys couldn't be fetched for.
 -- 2) A semantic change on federation errors when gathering remote clients.
 --    Remote federation errors at this step no-longer cause the entire call
 --    to fail, allowing partial results to be returned.
@@ -340,7 +340,7 @@ claimMultiPrekeyBundlesV3 ::
   Member (Concurrency 'Unsafe) r =>
   LegalholdProtectee ->
   QualifiedUserClients ->
-  ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMapV3
+  ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMapV4
 claimMultiPrekeyBundlesV3 protectee quc = do
   loc <- qualifyLocal ()
   let (locals, remotes) =
@@ -358,7 +358,7 @@ claimMultiPrekeyBundlesV3 protectee quc = do
             localPrekeys <> rights remotePrekeys
       failed = lefts remotePrekeys >>= toQualifiedUser . fst
   pure $
-    QualifiedUserClientPrekeyMapV3 prekeys $
+    QualifiedUserClientPrekeyMapV4 prekeys $
       if null failed
         then Nothing
         else pure failed
