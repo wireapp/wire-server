@@ -12,3 +12,8 @@ ingress-nginx:
         # choose a random free port
         https: null
         http: null
+      # in CI, do not use ValidatingWebhooks, as these, if not properly cleaned up
+      # (i.e. the ingress controller was deleted in another namespace but the webhook remains)
+      # prevent new kind:Ingress resources to be created in the cluster.
+      admissionWebhooks:
+        enabled: false
