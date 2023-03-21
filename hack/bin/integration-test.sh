@@ -21,6 +21,12 @@ cleanup() {
     fi
 }
 
+awsUploadLogs() {
+    for t in "${tests[@]}"; do
+        aws cp "logs-$t" "s3://wire-server-test-logs/$t.log"
+    done
+}
+
 summary() {
     echo "==============="
     echo "=== summary ==="
@@ -83,6 +89,7 @@ if ((exit_code > 0)); then
     summary
 fi
 
+awsUploadLogs
 cleanup
 
 if ((exit_code > 0)); then
