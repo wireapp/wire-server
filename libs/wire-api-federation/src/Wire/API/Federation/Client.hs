@@ -365,14 +365,23 @@ allocTLSConfig :: SSL -> HTTP2.BufferSize -> IO HTTP2.Config
 allocTLSConfig ssl bufsize = do
   buf <- mallocBytes bufsize
   timmgr <- System.TimeManager.initialize $ 30 * 1000000
-  let readData :: Int -> IO ByteString
-      -- Sometimes the frame header says that the payload length is 0. Reading 0
-      -- bytes multiple times seems to be causing errors in openssl. I cannot
-      -- figure out why. The previous implementation didn't try to read from the
-      -- socket when trying to read 0 bytes, so special handling for 0 maintains
-      -- that behaviour.
-      readData 0 = pure ""
-      readData n = SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
+  ref <- newIORef mempty
+  let readData n = do
+        chunk <- readIORef ref
+        if BS.length chunk >= n
+          then case BS.splitAt n chunk of
+            (result, chunk') -> do
+              writeIORef ref chunk'
+              pure result
+          else do
+            -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
+            -- (some sites terminate SSL connection right after returning the data).
+            chunk' <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
+            if BS.null chunk'
+              then pure chunk
+              else do
+                modifyIORef ref (<> chunk')
+                readData n
   pure
     HTTP2.Config
       { HTTP2.confWriteBuffer = buf,
