@@ -81,7 +81,7 @@ propagateMessage qusr lconv cm con raw = do
 
   -- send to remotes
   UnreachableUsers . concat
-    <$$> traverse (handleError rmems)
+    <$$> traverse handleError
     <=< runFederatedConcurrentlyEither (map remoteMemberQualify rmems)
     $ \(tUnqualified -> rs) ->
       fedClient @'Galley @"on-mls-message-sent" $
@@ -114,17 +114,17 @@ propagateMessage qusr lconv cm con raw = do
 
     handleError ::
       Member TinyLog r =>
-      [RemoteMember] ->
-      Either (Remote [a], FederationError) (Remote RemoteMLSMessageResponse) ->
+      -- [RemoteMember] ->
+      Either (Remote [RemoteMember], FederationError) (Remote RemoteMLSMessageResponse) ->
       Sem r [Qualified UserId]
-    handleError _ (Right x) = case tUnqualified x of
+    handleError (Right x) = case tUnqualified x of
       RemoteMLSMessageOk -> pure []
       RemoteMLSMessageMLSNotEnabled -> do
         logFedError x (errorToWai @'MLSNotEnabled)
         pure []
-    handleError rmems (Left (r, e)) = do
+    handleError (Left (r, e)) = do
       logFedError r (toWai e)
-      pure $ remotesToQIds rmems
+      pure $ remotesToQIds (tUnqualified  r)
     logFedError :: Member TinyLog r => Remote x -> Wai.Error -> Sem r ()
     logFedError r e =
       warn $
