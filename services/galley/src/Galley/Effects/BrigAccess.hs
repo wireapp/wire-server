@@ -119,7 +119,7 @@ data BrigAccess m a where
     BrigAccess m ()
   GetLegalHoldAuthToken ::
     UserId ->
-    Maybe PlainTextPassword ->
+    Maybe PlainTextPassword6 ->
     BrigAccess m OpaqueAuthToken
   AddLegalHoldClientToUserEither ::
     UserId ->

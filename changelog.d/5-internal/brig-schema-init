@@ -1,1 +1,0 @@
-Make brig-schema a little faster by merging the first 34 schema migrations on fresh installations.

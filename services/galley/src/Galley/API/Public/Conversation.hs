@@ -61,8 +61,8 @@ conversationAPI =
     <@> mkNamedAPI @"get-conversation-guest-links-status" (getConversationGuestLinksStatus @Cassandra)
     <@> mkNamedAPI @"remove-code-unqualified" rmCodeUnqualified
     <@> mkNamedAPI @"get-code" (getCode @Cassandra)
-    <@> mkNamedAPI @"member-typing-unqualified" isTypingUnqualified
-    <@> mkNamedAPI @"member-typing-qualified" (callsFed (exposeAnnotations isTypingQualified))
+    <@> mkNamedAPI @"member-typing-unqualified" (callsFed (exposeAnnotations memberTypingUnqualified))
+    <@> mkNamedAPI @"member-typing-qualified" (callsFed (exposeAnnotations memberTyping))
     <@> mkNamedAPI @"remove-member-unqualified" (callsFed (exposeAnnotations removeMemberUnqualified))
     <@> mkNamedAPI @"remove-member" (callsFed (exposeAnnotations removeMemberQualified))
     <@> mkNamedAPI @"update-other-member-unqualified" (callsFed (exposeAnnotations updateOtherMemberUnqualified))

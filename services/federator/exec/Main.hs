@@ -22,11 +22,10 @@ where
 
 import Federator.Run (run)
 import Imports
-import OpenSSL
 import Util.Options (getOptions)
 
 main :: IO ()
-main = withOpenSSL $ do
+main = do
   let desc = "Federation Service"
       defaultPath = "/etc/wire/federator/conf/federator.yaml"
   options <- getOptions desc Nothing defaultPath

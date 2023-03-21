@@ -49,6 +49,8 @@ module Data.Id
     RequestId (..),
     BotId (..),
     NoId,
+    OAuthClientId,
+    OAuthRefreshTokenId,
   )
 where
 
@@ -97,6 +99,8 @@ data IdTag
   | Service
   | Team
   | ScimToken
+  | OAuthClient
+  | OAuthRefreshToken
 
 idTagName :: IdTag -> Text
 idTagName Asset = "Asset"
@@ -107,6 +111,8 @@ idTagName Provider = "Provider"
 idTagName Service = "Service"
 idTagName Team = "Team"
 idTagName ScimToken = "ScimToken"
+idTagName OAuthClient = "OAuthClient"
+idTagName OAuthRefreshToken = "OAuthRefreshToken"
 
 class KnownIdTag (t :: IdTag) where
   idTagValue :: IdTag
@@ -127,6 +133,10 @@ instance KnownIdTag 'Team where idTagValue = Team
 
 instance KnownIdTag 'ScimToken where idTagValue = ScimToken
 
+instance KnownIdTag 'OAuthClient where idTagValue = OAuthClient
+
+instance KnownIdTag 'OAuthRefreshToken where idTagValue = OAuthRefreshToken
+
 type AssetId = Id 'Asset
 
 type InvitationId = Id 'Invitation
@@ -144,6 +154,10 @@ type ServiceId = Id 'Service
 type TeamId = Id 'Team
 
 type ScimTokenId = Id 'ScimToken
+
+type OAuthClientId = Id 'OAuthClient
+
+type OAuthRefreshTokenId = Id 'OAuthRefreshToken
 
 -- Id -------------------------------------------------------------------------
 

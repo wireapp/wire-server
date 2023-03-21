@@ -33,7 +33,7 @@ import Wire.API.User
 -- | Certain operations might require reauth of the user. These are available
 -- only for users that have already set a password.
 data ReAuthUser = ReAuthUser
-  { reAuthPassword :: Maybe PlainTextPassword,
+  { reAuthPassword :: Maybe PlainTextPassword6,
     reAuthCode :: Maybe Value,
     reAuthCodeAction :: Maybe VerificationAction
   }

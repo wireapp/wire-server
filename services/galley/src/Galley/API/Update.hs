@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Update
   ( -- * Managing Conversations
@@ -55,8 +56,8 @@ module Galley.API.Update
     postOtrMessageUnqualified,
     postProteusBroadcast,
     postOtrBroadcastUnqualified,
-    isTypingUnqualified,
-    isTypingQualified,
+    memberTypingUnqualified,
+    memberTyping,
 
     -- * External Services
     addServiceH,
@@ -117,6 +118,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import System.Logger (Msg)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
@@ -401,7 +403,8 @@ updateConversationMessageTimer ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -433,7 +436,8 @@ updateConversationMessageTimerUnqualified ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -454,7 +458,8 @@ deleteLocalConversation ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -483,13 +488,13 @@ addCodeUnqualified ::
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   UserId ->
-  ConnId ->
+  Maybe ConnId ->
   ConvId ->
   Sem r AddCodeResult
-addCodeUnqualified usr zcon cnv = do
+addCodeUnqualified usr mZcon cnv = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
-  addCode @db lusr zcon lcnv
+  addCode @db lusr mZcon lcnv
 
 addCode ::
   forall db r.
@@ -506,10 +511,10 @@ addCode ::
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   Local ConvId ->
   Sem r AddCodeResult
-addCode lusr zcon lcnv = do
+addCode lusr mZcon lcnv = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
   Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
@@ -525,7 +530,7 @@ addCode lusr zcon lcnv = do
       now <- input
       conversationCode <- createCode code
       let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate conversationCode)
-      pushConversationEvent (Just zcon) event (qualifyAs lusr (map lmId users)) bots
+      pushConversationEvent mZcon event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
     Just code -> do
       conversationCode <- createCode code
@@ -653,6 +658,7 @@ joinConversationByReusableCode ::
     Member MemberStore r,
     Member TeamStore r,
     Member (TeamFeatureStore db) r,
+    Member (Logger (Msg -> Msg)) r,
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Local UserId ->
@@ -680,7 +686,8 @@ joinConversationById ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -703,7 +710,8 @@ joinConversation ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -725,6 +733,7 @@ joinConversation lusr zcon conv access = do
       addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
     lcuEvent
       <$> notifyConversationAction
+        False
         (sing @'ConversationJoinTag)
         (tUntagged lusr)
         False
@@ -917,7 +926,8 @@ updateOtherMemberLocalConv ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -942,7 +952,8 @@ updateOtherMemberUnqualified ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -967,7 +978,8 @@ updateOtherMember ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1276,7 +1288,8 @@ updateConversationName ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1300,7 +1313,8 @@ updateUnqualifiedConversationName ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1320,7 +1334,8 @@ updateLocalConversationName ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1331,11 +1346,12 @@ updateLocalConversationName lusr zcon lcnv rename =
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationRenameTag lcnv (tUntagged lusr) (Just zcon) rename
 
-isTypingQualified ::
+memberTyping ::
   ( Member GundeckAccess r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member ConversationStore r,
     Member MemberStore r,
     Member FederatorAccess r
   ) =>
@@ -1344,39 +1360,47 @@ isTypingQualified ::
   Qualified ConvId ->
   TypingStatus ->
   Sem r ()
-isTypingQualified lusr zcon qcnv ts = do
+memberTyping lusr zcon qcnv ts = do
   foldQualified
     lusr
-    (\lcnv -> isTypingUnqualified lusr zcon (tUnqualified lcnv) ts)
-    (\rcnv -> isTypingRemote rcnv)
+    ( \lcnv -> do
+        (conv, _) <- getConversationAndMemberWithError @'ConvNotFound (tUntagged lusr) lcnv
+        void $ notifyTypingIndicator conv (tUntagged lusr) (Just zcon) ts
+    )
+    ( \rcnv -> do
+        isMemberRemoteConv <- E.checkLocalMemberRemoteConv (tUnqualified lusr) rcnv
+        unless isMemberRemoteConv $ throwS @'ConvNotFound
+        let rpc =
+              TypingDataUpdateRequest
+                { tdurTypingStatus = ts,
+                  tdurUserId = tUnqualified lusr,
+                  tdurConvId = tUnqualified rcnv
+                }
+        res <- E.runFederated rcnv (fedClient @'Galley @"update-typing-indicator" rpc)
+        case res of
+          TypingDataUpdateSuccess (TypingDataUpdated {..}) -> do
+            pushTypingIndicatorEvents tudOrigUserId tudTime tudUsersInConv (Just zcon) qcnv tudTypingStatus
+          TypingDataUpdateError _ -> pure ()
+    )
     qcnv
-  where
-    isTypingRemote rcnv = do
-      isMemberRemoteConv <- E.checkLocalMemberRemoteConv (tUnqualified lusr) rcnv
-      unless isMemberRemoteConv $ throwS @'ConvNotFound
-      let rpc =
-            TypingDataUpdateRequest
-              { tdurTypingStatus = ts,
-                tdurUserId = tUnqualified lusr,
-                tdurConvId = tUnqualified rcnv
-              }
-      void $ E.runFederated rcnv (fedClient @'Galley @"on-typing-indicator-updated" rpc)
 
-isTypingUnqualified ::
+memberTypingUnqualified ::
   ( Member GundeckAccess r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member ConversationStore r,
+    Member FederatorAccess r
   ) =>
   Local UserId ->
   ConnId ->
   ConvId ->
   TypingStatus ->
   Sem r ()
-isTypingUnqualified lusr zcon cnv ts = do
+memberTypingUnqualified lusr zcon cnv ts = do
   lcnv <- qualifyLocal cnv
-  isTyping (tUntagged lusr) (Just zcon) lcnv ts
+  memberTyping lusr zcon (tUntagged lcnv) ts
 
 addServiceH ::
   ( Member ServiceStore r,

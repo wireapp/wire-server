@@ -32,6 +32,7 @@ import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages
+import Brig.API.OAuth (oauthAPI)
 import qualified Brig.API.Properties as API
 import Brig.API.Public.Swagger
 import Brig.API.Types
@@ -118,6 +119,7 @@ import qualified Wire.API.Routes.Internal.Spar as SparInternalAPI
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
+import qualified Wire.API.Routes.Public.Brig.OAuth as OAuth
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -143,6 +145,7 @@ import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
 import Wire.Sem.Concurrency
+import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 
 -- User API -----------------------------------------------------------
@@ -161,7 +164,7 @@ docsAPI =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just V3) =
+versionedSwaggerDocsAPI (Just V4) =
   swaggerSchemaUIServer $
     ( brigSwagger
         <> versionSwagger
@@ -171,6 +174,7 @@ versionedSwaggerDocsAPI (Just V3) =
         <> CannonAPI.swaggerDoc
         <> GundeckAPI.swaggerDoc
         <> ProxyAPI.swaggerDoc
+        <> OAuth.swaggerDoc
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
@@ -178,6 +182,7 @@ versionedSwaggerDocsAPI (Just V3) =
 versionedSwaggerDocsAPI (Just V0) = swaggerPregenUIServer $(pregenSwagger V0)
 versionedSwaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
 versionedSwaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
+versionedSwaggerDocsAPI (Just V3) = swaggerPregenUIServer $(pregenSwagger V3)
 versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
 
 -- | Serves Swagger docs for internal endpoints
@@ -191,7 +196,7 @@ internalEndpointsSwaggerDocsAPI ::
   PortNumber ->
   S.Swagger ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
-internalEndpointsSwaggerDocsAPI service examplePort swagger (Just V3) =
+internalEndpointsSwaggerDocsAPI service examplePort swagger (Just V4) =
   swaggerSchemaUIServer $
     swagger
       & adjustSwaggerForInternalEndpoint service examplePort
@@ -199,6 +204,7 @@ internalEndpointsSwaggerDocsAPI service examplePort swagger (Just V3) =
 internalEndpointsSwaggerDocsAPI _ _ _ (Just V0) = emptySwagger
 internalEndpointsSwaggerDocsAPI _ _ _ (Just V1) = emptySwagger
 internalEndpointsSwaggerDocsAPI _ _ _ (Just V2) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just V3) = emptySwagger
 internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
   internalEndpointsSwaggerDocsAPI service examplePort swagger (Just maxBound)
 
@@ -213,7 +219,8 @@ servantSitemap ::
     Member Now r,
     Member PasswordResetStore r,
     Member PublicKeyBundle r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member Jwk r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -232,6 +239,7 @@ servantSitemap =
     :<|> callingAPI
     :<|> Team.servantAPI
     :<|> systemSettingsAPI
+    :<|> oauthAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =

@@ -31,7 +31,7 @@ import qualified Data.LanguageCodes
       ( SN
       ),
   )
-import Data.Misc (PlainTextPassword (PlainTextPassword))
+import Data.Misc (plainTextPassword8Unsafe)
 import Data.Range (unsafeRange)
 import Data.Text.Ascii (AsciiChars (validate))
 import qualified Data.UUID as UUID (fromString)
@@ -97,7 +97,7 @@ testObject_NewUser_user_1 =
         Just (Locale {lLanguage = Language Data.LanguageCodes.SN, lCountry = Just (Country {fromCountry = LY})}),
       newUserPassword =
         Just
-          ( PlainTextPassword
+          ( plainTextPassword8Unsafe
               "\143961%5T5'<IQtf]\13622\EOT\1019095\FS+\f\98493\FS$\fY\RSG=p\182047V\DC2E_ni\\Q:\118823>\17286\7398\ENQ-\1063783\100891\&7W@\59062)!$%v{\f\n_I6\1088622\52764]r\1105300\61079\STXGi_L\ENQ@tr<\35715\&2Dr\16519\\\v8\49277\DC4\1069631e\b\190386\71324srN\34600\26071Qk+\36197\999209O\\c6\1032813X\1026685\1074390VV\\\999471^\1105556\DC4(P~y\SI(\nrO\1037710U=$\1038971k\1011736\&7.\NAK[dn\1061566\31927_\NUL\997265\vNVd\54706z\1029333pV6\RS\166743#/m\1065646w\NAK\27792u\144303\SIs\DC1\136497^A\95500>\SUB#\EMsC!3#\59953`\159877q\65860\\VrnT\DLE\SYN\1060441\DC4\STX\156538\1003845\DC2d \1028483#\CAN\179878/k\14627X\"I\SIO,`GU+\DC1\DEL\"\n\47090n)\ESC\1059861x\1018430\1097583%\DC2\SIVr\f\1044385H`\128647W\FS\NAK\1050334vii\FS\a\ENQ\1005180&d\GS\146823\991562.\1090052j\1008159$=a_s\DLEQ\1020394\SO\f\ETX\1019724B\ENQ\CANL\STX_ZX\NAK h_sGj)\1047298|\NUL\SI\rlUN)\ACK\DC1`8\f\1018610\999181\b,A\DC1\tt/0lT\1071777\a}\SYNj\SI\az|\ENQ\152944J,26\1022981\ETX9\11179\&0\EMw'\NULO&g\USF0\1001389kg\STX\DC1|Q\1048680\SUBM\131896\1038590vuPgVp\180615)/<W\1077985R\1069905,\39037\v\145751y\DLE\vS\SUB(\DC4!\SI\181381\RS\988082U*(\194576\&4rX\SO\8572A\1035058\SO\DC4z9\1050749\1083893{^\1053567\168917\n\b\1105884rYL\31991h\167262?J\ETBn45X.L\1098255^{ot|\EMq\34593\a(\137115I\v\ESC\168793\132359\ENQ.\17815y0a\32961I\DEL\NAKKk\154911\NAK\34647\1063811\SIM`\178041\47494N\NAK9`\1026852\FS@Y~\SOL\1018994\1098118o3\95471;\1011338\1010407\DC3fz\SUB\1025379(}.)[!'2LJS\rBK\3667\ETX5<u`\SO\"\12511i\1018516H&\DLEP\1106835#\188694t1\ENQ{\ENQ\1083098\fS\NUL=\SYN\1080920\ESC\30501\ESC$\1044616\&3\1687@GKvG/\1000255\157153,\176780i\1028057\&9TW\ESCoe\f\FSf\1110205S\GS\42634\998348g\1053453{\DC2\63337fg\DLE\1095355\DLEbc\1030987\1023379f_}.@\17549{r~{\f[?`\1050469\1070751[!\DC2B7%"
           ),
       newUserExpiresIn = Nothing,
@@ -133,7 +133,7 @@ testObject_NewUser_user_5 =
       (Name {fromName = "test name"})
   )
     { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamMember invCode)),
-      newUserPassword = Just (PlainTextPassword "123456")
+      newUserPassword = Just (plainTextPassword8Unsafe "12345678")
     }
 
 testObject_NewUser_user_6 :: NewUser
@@ -154,7 +154,7 @@ testObject_NewUser_user_7 =
   )
     { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamCreator user)),
       newUserIdentity = Just (PhoneIdentity (Phone "+12345678")),
-      newUserPassword = Just (PlainTextPassword "123456")
+      newUserPassword = Just (plainTextPassword8Unsafe "12345678")
     }
   where
     user =
@@ -184,5 +184,5 @@ testObject_NewUser_user_8 =
   )
     { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamMember invCode)),
       newUserIdentity = Just (PhoneIdentity (Phone "+12345678")),
-      newUserPassword = Just (PlainTextPassword "123456")
+      newUserPassword = Just (plainTextPassword8Unsafe "12345678")
     }

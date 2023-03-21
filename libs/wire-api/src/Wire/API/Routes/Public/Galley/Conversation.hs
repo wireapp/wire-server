@@ -33,6 +33,7 @@ import Wire.API.Event.Conversation
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
+import Wire.API.OAuth
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -161,6 +162,7 @@ type ConversationAPI =
     :<|> Named
            "get-group-info"
            ( Summary "Get MLS group information"
+               :> From 'V4
                :> MakesFederatedCall 'Galley "query-group-info"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'MLSMissingGroupInfo
@@ -328,9 +330,11 @@ type ConversationAPI =
     :<|> Named
            "create-group-conversation@v2"
            ( Summary "Create a new conversation"
+               :> DescriptionOAuthScope 'WriteConversations
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> Until 'V3
                :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'NotConnected
@@ -339,7 +343,8 @@ type ConversationAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
-               :> ZConn
+               :> ZOptClient
+               :> ZOptConn
                :> "conversations"
                :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
                :> ConversationV2Verb
@@ -347,9 +352,11 @@ type ConversationAPI =
     :<|> Named
            "create-group-conversation"
            ( Summary "Create a new conversation"
+               :> DescriptionOAuthScope 'WriteConversations
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> From 'V3
                :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'NotConnected
@@ -358,7 +365,8 @@ type ConversationAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
-               :> ZConn
+               :> ZOptClient
+               :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
                :> ConversationVerb
@@ -384,6 +392,7 @@ type ConversationAPI =
     :<|> Named
            "get-mls-self-conversation"
            ( Summary "Get the user's MLS self-conversation"
+               :> From 'V4
                :> ZLocalUser
                :> "conversations"
                :> "mls-self"
@@ -582,11 +591,12 @@ type ConversationAPI =
     :<|> Named
            "create-conversation-code-unqualified"
            ( Summary "Create or recreate a conversation code"
+               :> DescriptionOAuthScope 'WriteConversationsCode
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
                :> ZUser
-               :> ZConn
+               :> ZOptConn
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
                :> "code"
@@ -645,6 +655,8 @@ type ConversationAPI =
            "member-typing-unqualified"
            ( Summary "Sending typing notifications"
                :> Until 'V3
+               :> MakesFederatedCall 'Galley "update-typing-indicator"
+               :> MakesFederatedCall 'Galley "on-typing-indicator-updated"
                :> CanThrow 'ConvNotFound
                :> ZLocalUser
                :> ZConn
@@ -657,6 +669,7 @@ type ConversationAPI =
     :<|> Named
            "member-typing-qualified"
            ( Summary "Sending typing notifications"
+               :> MakesFederatedCall 'Galley "update-typing-indicator"
                :> MakesFederatedCall 'Galley "on-typing-indicator-updated"
                :> CanThrow 'ConvNotFound
                :> ZLocalUser
