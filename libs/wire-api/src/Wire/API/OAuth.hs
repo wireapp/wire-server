@@ -112,7 +112,7 @@ instance ToSchema RegisterOAuthClientRequest where
     object "RegisterOAuthClientRequest" $
       RegisterOAuthClientRequest
         <$> applicationName .= fieldWithDocModifier "application_name" applicationNameDescription schema
-        <*> (\x -> x.redirectUrl) .= fieldWithDocModifier "redirect_url" redirectUrlDescription schema
+        <*> (.redirectUrl) .= fieldWithDocModifier "redirect_url" redirectUrlDescription schema
     where
       applicationNameDescription = description ?~ "The name of the application. This will be shown to the user when they are asked to authorize the application. The name must be between " <> minL <> " and " <> maxL <> " characters long."
       redirectUrlDescription = description ?~ "The URL to redirect to after the user has authorized the application."
@@ -148,8 +148,8 @@ instance ToSchema OAuthClientCredentials where
   schema =
     object "OAuthClientCredentials" $
       OAuthClientCredentials
-        <$> (\x -> x.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> (\x -> x.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
+        <$> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
     where
       clientIdDescription = description ?~ "The ID of the application."
       clientSecretDescription = description ?~ "The secret of the application."
@@ -167,9 +167,9 @@ instance ToSchema OAuthClient where
   schema =
     object "OAuthClient" $
       OAuthClient
-        <$> (\x -> x.clientId) .= field "client_id" schema
-        <*> (\x -> x.name) .= field "application_name" schema
-        <*> (\x -> x.redirectUrl) .= field "redirect_url" schema
+        <$> (.clientId) .= field "client_id" schema
+        <*> (.name) .= field "application_name" schema
+        <*> (.redirectUrl) .= field "redirect_url" schema
 
 data OAuthResponseType = OAuthResponseTypeCode
   deriving (Eq, Show, Generic)
@@ -258,10 +258,10 @@ instance ToSchema CreateOAuthAuthorizationCodeRequest where
   schema =
     object "CreateOAuthAuthorizationCodeRequest" $
       CreateOAuthAuthorizationCodeRequest
-        <$> (\x -> x.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> (\x -> x.scope) .= fieldWithDocModifier "scope" scopeDescription schema
+        <$> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.scope) .= fieldWithDocModifier "scope" scopeDescription schema
         <*> responseType .= fieldWithDocModifier "response_type" responseTypeDescription schema
-        <*> (\x -> x.redirectUrl) .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
+        <*> (.redirectUrl) .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
         <*> state .= fieldWithDocModifier "state" stateDescription schema
     where
       clientIdDescription = description ?~ "The ID of the OAuth client"
@@ -338,9 +338,9 @@ instance ToSchema OAuthAccessTokenRequest where
   schema =
     object "OAuthAccessTokenRequest" $
       OAuthAccessTokenRequest
-        <$> (\x -> x.grantType) .= fieldWithDocModifier "grant_type" grantTypeDescription schema
-        <*> (\x -> x.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> (\x -> x.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
+        <$> (.grantType) .= fieldWithDocModifier "grant_type" grantTypeDescription schema
+        <*> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
         <*> code .= fieldWithDocModifier "code" codeDescription schema
         <*> redirectUri .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
     where
@@ -428,7 +428,7 @@ instance ToSchema OAuthAccessTokenResponse where
         <$> accessToken .= fieldWithDocModifier "access_token" accessTokenDescription schema
         <*> tokenType .= fieldWithDocModifier "token_type" tokenTypeDescription schema
         <*> expiresIn .= fieldWithDocModifier "expires_in" expiresInDescription (fromIntegral <$> roundDiffTime .= schema)
-        <*> (\x -> x.refreshToken) .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
+        <*> (.refreshToken) .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       roundDiffTime :: NominalDiffTime -> Int32
       roundDiffTime = round
@@ -497,10 +497,10 @@ instance ToSchema OAuthRefreshAccessTokenRequest where
   schema =
     object "OAuthRefreshAccessTokenRequest" $
       OAuthRefreshAccessTokenRequest
-        <$> (\x -> x.grantType) .= fieldWithDocModifier "grant_type" grantTypeDescription schema
-        <*> (\x -> x.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> (\x -> x.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
-        <*> (\x -> x.refreshToken) .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
+        <$> (.grantType) .= fieldWithDocModifier "grant_type" grantTypeDescription schema
+        <*> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
+        <*> (.refreshToken) .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       grantTypeDescription = description ?~ "The grant type. Must be `refresh_token`"
       clientIdDescription = description ?~ "The OAuth client's ID"
@@ -546,9 +546,9 @@ instance ToSchema OAuthRevokeRefreshTokenRequest where
   schema =
     object "OAuthRevokeRefreshTokenRequest" $
       OAuthRevokeRefreshTokenRequest
-        <$> (\x -> x.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> (\x -> x.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
-        <*> (\x -> x.refreshToken) .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
+        <$> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
+        <*> (.refreshToken) .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       clientIdDescription = description ?~ "The OAuth client's ID"
       clientSecretDescription = description ?~ "The OAuth client's secret"
@@ -567,7 +567,7 @@ instance ToSchema OAuthApplication where
     object "OAuthApplication" $
       OAuthApplication
         <$> applicationId .= fieldWithDocModifier "id" idDescription schema
-        <*> (\x -> x.name) .= fieldWithDocModifier "name" nameDescription schema
+        <*> (.name) .= fieldWithDocModifier "name" nameDescription schema
     where
       idDescription = description ?~ "The OAuth client's ID"
       nameDescription = description ?~ "The OAuth client's name"

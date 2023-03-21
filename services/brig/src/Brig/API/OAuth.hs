@@ -288,7 +288,7 @@ getOAuthApplications uid = do
   nub . catMaybes <$> for activeRefreshTokens oauthApp
   where
     oauthApp :: OAuthRefreshTokenInfo -> (Handler r) (Maybe OAuthApplication)
-    oauthApp info = (OAuthApplication info.clientId . (\x -> x.name)) <$$> getOAuthClient info.userId info.clientId
+    oauthApp info = (OAuthApplication info.clientId . (.name)) <$$> getOAuthClient info.userId info.clientId
 
 --------------------------------------------------------------------------------
 
