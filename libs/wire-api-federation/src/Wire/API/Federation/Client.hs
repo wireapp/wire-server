@@ -370,25 +370,25 @@ allocTLSConfig ssl bufsize = do
   -- out why. The previous implementation didn't try to read from the socket
   -- when trying to read 0 bytes, so special handling for 0 maintains that
   -- behaviour.
-  let readData 0 = pure mempty
-      readData n = do
+  let readData prevChunk 0 = pure prevChunk
+      readData prevChunk n = do
         -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
         -- (some sites terminate SSL connection right after returning the data).
         chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
         let chunkLen = BS.length chunk
         if
             | chunkLen == 0 || chunkLen == n ->
-                pure chunk
+                pure (prevChunk <> chunk)
             | chunkLen > n ->
                 error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
             | otherwise ->
-                mappend chunk <$> readData (n - chunkLen)
+                readData (prevChunk <> chunk) (n - chunkLen)
   pure
     HTTP2.Config
       { HTTP2.confWriteBuffer = buf,
         HTTP2.confBufferSize = bufsize,
         HTTP2.confSendAll = SSL.write ssl,
-        HTTP2.confReadN = readData,
+        HTTP2.confReadN = readData mempty,
         HTTP2.confPositionReadMaker = HTTP2.defaultPositionReadMaker,
         HTTP2.confTimeoutManager = timmgr
       }
