@@ -28,6 +28,7 @@ import qualified Data.Aeson.Types as A
 import Data.ByteArray (convert)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
+import Data.Either.Combinators (mapLeft)
 import qualified Data.HashMap.Strict as HM
 import Data.Id as Id
 import Data.Range
@@ -264,6 +265,12 @@ instance ToSchema OAuthCodeVerifier where
   schema :: ValueSchema NamedSwaggerDoc OAuthCodeVerifier
   schema = OAuthCodeVerifier <$> unOAuthCodeVerifier .= schema
 
+instance FromHttpApiData OAuthCodeVerifier where
+  parseQueryParam = fmap OAuthCodeVerifier . mapLeft cs . checkedEither
+
+instance ToHttpApiData OAuthCodeVerifier where
+  toQueryParam = fromRange . unOAuthCodeVerifier
+
 newtype OAuthCodeChallenge = OAuthCodeChallenge {unOAuthCodeChallenge :: Text}
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OAuthCodeChallenge)
@@ -381,7 +388,7 @@ instance ToHttpApiData OAuthGrantType where
 data OAuthAccessTokenRequest = OAuthAccessTokenRequest
   { oatGrantType :: OAuthGrantType,
     oatClientId :: OAuthClientId,
-    oatClientSecret :: OAuthClientPlainTextSecret,
+    oatCodeVerifier :: OAuthCodeVerifier,
     oatCode :: OAuthAuthorizationCode,
     oatRedirectUri :: RedirectUrl
   }
@@ -395,13 +402,13 @@ instance ToSchema OAuthAccessTokenRequest where
       OAuthAccessTokenRequest
         <$> oatGrantType .= fieldWithDocModifier "grant_type" grantTypeDescription schema
         <*> oatClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> oatClientSecret .= fieldWithDocModifier "client_secret" clientSecretDescription schema
+        <*> oatCodeVerifier .= fieldWithDocModifier "code_verifier" codeVerifierDescription schema
         <*> oatCode .= fieldWithDocModifier "code" codeDescription schema
         <*> oatRedirectUri .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
     where
       grantTypeDescription = description ?~ "Indicates which authorization flow to use. Use `authorization_code` for authorization code flow."
       clientIdDescription = description ?~ "The ID of the OAuth client"
-      clientSecretDescription = description ?~ "The secret of the OAuth client"
+      codeVerifierDescription = description ?~ "The code verifier to complete the code challenge"
       codeDescription = description ?~ "The authorization code"
       redirectUriDescription = description ?~ "The URL must match the URL that was used to generate the authorization code."
 
@@ -410,7 +417,7 @@ instance FromForm OAuthAccessTokenRequest where
     OAuthAccessTokenRequest
       <$> parseUnique "grant_type" f
       <*> parseUnique "client_id" f
-      <*> parseUnique "client_secret" f
+      <*> parseUnique "code_verifier" f
       <*> parseUnique "code" f
       <*> parseUnique "redirect_uri" f
 
@@ -420,7 +427,7 @@ instance ToForm OAuthAccessTokenRequest where
       mempty
         & HM.insert "grant_type" [toQueryParam (oatGrantType req)]
         & HM.insert "client_id" [toQueryParam (oatClientId req)]
-        & HM.insert "client_secret" [toQueryParam (oatClientSecret req)]
+        & HM.insert "code_verifier" [toQueryParam (oatCodeVerifier req)]
         & HM.insert "code" [toQueryParam (oatCode req)]
         & HM.insert "redirect_uri" [toQueryParam (oatRedirectUri req)]
 
@@ -541,7 +548,6 @@ data OAuthRefreshTokenInfo = OAuthRefreshTokenInfo
 data OAuthRefreshAccessTokenRequest = OAuthRefreshAccessTokenRequest
   { oartGrantType :: OAuthGrantType,
     oartClientId :: OAuthClientId,
-    oartClientSecret :: OAuthClientPlainTextSecret,
     oartRefreshToken :: OAuthRefreshToken
   }
   deriving (Eq, Show, Generic)
@@ -553,12 +559,10 @@ instance ToSchema OAuthRefreshAccessTokenRequest where
       OAuthRefreshAccessTokenRequest
         <$> oartGrantType .= fieldWithDocModifier "grant_type" grantTypeDescription schema
         <*> oartClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> oartClientSecret .= fieldWithDocModifier "client_secret" clientSecretDescription schema
         <*> oartRefreshToken .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       grantTypeDescription = description ?~ "The grant type. Must be `refresh_token`"
       clientIdDescription = description ?~ "The OAuth client's ID"
-      clientSecretDescription = description ?~ "The OAuth client's secret"
       refreshTokenDescription = description ?~ "The refresh token"
 
 instance FromForm OAuthRefreshAccessTokenRequest where
@@ -567,7 +571,6 @@ instance FromForm OAuthRefreshAccessTokenRequest where
     OAuthRefreshAccessTokenRequest
       <$> parseUnique "grant_type" f
       <*> parseUnique "client_id" f
-      <*> parseUnique "client_secret" f
       <*> parseUnique "refresh_token" f
 
 instance ToForm OAuthRefreshAccessTokenRequest where
@@ -576,7 +579,6 @@ instance ToForm OAuthRefreshAccessTokenRequest where
       mempty
         & HM.insert "grant_type" [toQueryParam (oartGrantType req)]
         & HM.insert "client_id" [toQueryParam (oartClientId req)]
-        & HM.insert "client_secret" [toQueryParam (oartClientSecret req)]
         & HM.insert "refresh_token" [toQueryParam (oartRefreshToken req)]
 
 instance FromForm (Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest) where
@@ -590,7 +592,6 @@ instance FromForm (Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest
 
 data OAuthRevokeRefreshTokenRequest = OAuthRevokeRefreshTokenRequest
   { ortrClientId :: OAuthClientId,
-    ortrClientSecret :: OAuthClientPlainTextSecret,
     ortrRefreshToken :: OAuthRefreshToken
   }
   deriving (Eq, Show, Generic)
@@ -601,11 +602,9 @@ instance ToSchema OAuthRevokeRefreshTokenRequest where
     object "OAuthRevokeRefreshTokenRequest" $
       OAuthRevokeRefreshTokenRequest
         <$> ortrClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> ortrClientSecret .= fieldWithDocModifier "client_secret" clientSecretDescription schema
         <*> ortrRefreshToken .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       clientIdDescription = description ?~ "The OAuth client's ID"
-      clientSecretDescription = description ?~ "The OAuth client's secret"
       refreshTokenDescription = description ?~ "The refresh token"
 
 data OAuthApplication = OAuthApplication

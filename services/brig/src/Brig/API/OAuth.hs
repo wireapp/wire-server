@@ -27,7 +27,7 @@ import Brig.API.Error (throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App
 import qualified Brig.Options as Opt
-import Brig.Password (Password, mkSafePassword, verifyPassword)
+import Brig.Password (Password, mkSafePassword)
 import Cassandra hiding (Set)
 import qualified Cassandra as C
 import Control.Error (assertMay, failWith, failWithM)
@@ -152,10 +152,7 @@ createAccessTokenWithRefreshToken req = do
   key <- signingKey
   (OAuthRefreshTokenInfo _ cid uid scope _) <- lookupVerifyAndDeleteToken key (oartRefreshToken req)
   void $ getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
-
   unless (cid == oartClientId req) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
-  unlessM (verifyClientSecret (oartClientSecret req) cid) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
-
   createAccessToken key uid cid scope
 
 lookupVerifyAndDeleteToken :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenInfo
@@ -181,7 +178,6 @@ createAccessTokenWithAuthorizationCode req = do
 
   unless (uri == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
   unless (ocRedirectUrl oauthClient == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
-  unlessM (verifyClientSecret (oatClientSecret req) (ocId oauthClient)) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
 
   key <- signingKey
   createAccessToken key uid cid scope
@@ -252,17 +248,6 @@ createAccessToken key uid cid scope = do
           algo <- bestJWSAlg key
           signClaims key (newJWSHeader ((), algo)) claims
 
-verifyClientSecret :: OAuthClientPlainTextSecret -> OAuthClientId -> (Handler r) Bool
-verifyClientSecret secret cid =
-  case plainTextPassword6 $ toText $ unOAuthClientPlainTextSecret secret of
-    Nothing -> pure False
-    Just plainTextPw ->
-      lift $
-        wrapClient $
-          lookupOAuthClientSecret cid <&> \case
-            Nothing -> False
-            Just pw -> verifyPassword plainTextPw pw
-
 --------------------------------------------------------------------------------
 
 revokeRefreshToken :: Member Jwk r => OAuthRevokeRefreshTokenRequest -> (Handler r) ()
@@ -272,8 +257,6 @@ revokeRefreshToken req = do
   let uid = oriUserId info
       cid = oriClientId info
   void $ getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
-
-  unlessM (verifyClientSecret (ortrClientSecret req) cid) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
   lift $ wrapClient $ deleteOAuthRefreshToken info
 
 lookupAndVerifyToken :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenInfo
@@ -315,13 +298,6 @@ lookupOauthClient cid = do
   where
     q :: PrepQuery R (Identity OAuthClientId) (OAuthApplicationName, RedirectUrl)
     q = "SELECT name, redirect_uri FROM oauth_client WHERE id = ?"
-
-lookupOAuthClientSecret :: (MonadClient m) => OAuthClientId -> m (Maybe Password)
-lookupOAuthClientSecret cid = do
-  runIdentity <$$> retry x5 (query1 q (params LocalQuorum (Identity cid)))
-  where
-    q :: PrepQuery R (Identity OAuthClientId) (Identity Password)
-    q = "SELECT secret FROM oauth_client WHERE id = ?"
 
 insertOAuthAuthorizationCode :: (MonadClient m) => Word64 -> OAuthAuthorizationCode -> OAuthClientId -> UserId -> OAuthScopes -> RedirectUrl -> OAuthCodeChallenge -> m ()
 insertOAuthAuthorizationCode ttl code cid uid scope uri chal = do
