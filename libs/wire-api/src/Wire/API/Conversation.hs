@@ -310,7 +310,7 @@ instance ToSchema CreateGroupConversation where
     where
       toFlatList :: Map Domain (Set a) -> [Qualified a]
       toFlatList m =
-        join $ (\(d, s) -> flip Qualified d <$> Set.toList s) <$> Map.assocs m
+        (\(d, s) -> flip Qualified d <$> Set.toList s) =<< Map.assocs m
       fromFlatList :: Ord a => [Qualified a] -> Map Domain (Set a)
       fromFlatList = fmap Set.fromList . indexQualified
 

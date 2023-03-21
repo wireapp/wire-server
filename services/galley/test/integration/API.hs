@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -352,7 +351,7 @@ postConvWithRemoteUsersOk rbs = do
     v <- forM (toList rbs) $ \rb -> do
       users <- connectBackend alice rb
       pure (users, participating rb users)
-    pure $ foldr (\(a, p) acc -> (a <> fst acc, p <> snd acc)) ([], []) v
+    pure $ foldr (\(a, p) acc -> bimap ((<>) a) ((<>) p) acc) ([], []) v
 
   let nameMaxSize = T.replicate 256 "a"
       otherLocals = [qAlex, qAmy]
@@ -395,7 +394,7 @@ postConvWithRemoteUsersOk rbs = do
     liftIO $
       -- as many federated requests as remote backends, i.e., one per remote backend
       Set.size (Set.fromList $ frTargetDomain <$> federatedRequests) @?= Set.size rbs
-    let fedReq = federatedRequests !! 0
+    let fedReq = head federatedRequests
     fedReqBody <- assertRight $ parseFedRequest fedReq
 
     liftIO $ do
@@ -419,11 +418,11 @@ postConvWithRemoteUsersOk rbs = do
     mockUnreachable :: Set Domain -> Mock LByteString
     mockUnreachable unreachable = do
       r <- getRequest
-      if (Set.member (frTargetDomain r) unreachable)
-        then (mockFail "not reachable")
-        else (mockReply ())
+      if Set.member (frTargetDomain r) unreachable
+        then mockFail "not reachable"
+        else mockReply ()
     connectBackend :: UserId -> Remote Backend -> TestM [Qualified UserId]
-    connectBackend usr ((tDomain &&& bUsers . tUnqualified) -> (d, c)) = do
+    connectBackend usr (tDomain &&& bUsers . tUnqualified -> (d, c)) = do
       users <- replicateM (fromIntegral c) (randomQualifiedId d)
       mapM_ (connectWithRemoteUser usr) users
       pure users
