@@ -103,7 +103,7 @@ getOAuthClient _ cid = do
   lift $ wrapClient $ lookupOauthClient cid
 
 createNewOAuthAuthorizationCode :: UserId -> CreateOAuthAuthorizationCodeRequest -> (Handler r) CreateOAuthCodeResponse
-createNewOAuthAuthorizationCode uid code@(CreateOAuthAuthorizationCodeRequest _cid _scope _responseType redirectUrl state) = do
+createNewOAuthAuthorizationCode uid code@(CreateOAuthAuthorizationCodeRequest _cid _scope _responseType redirectUrl state _ _) = do
   runExceptT (validateAndCreateAuthorizationCode uid code) >>= \case
     Right oauthCode ->
       pure $ CreateOAuthCodeSuccess $ redirectUrl & addParams [("code", toByteString' oauthCode), ("state", cs state)]
@@ -123,7 +123,7 @@ data CreateNewOAuthCodeError
   | CreateNewOAuthCodeErrorRedirectUrlMissMatch
 
 validateAndCreateAuthorizationCode :: UserId -> CreateOAuthAuthorizationCodeRequest -> ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthorizationCode
-validateAndCreateAuthorizationCode uid (CreateOAuthAuthorizationCodeRequest cid scope responseType redirectUrl _state) = do
+validateAndCreateAuthorizationCode uid (CreateOAuthAuthorizationCodeRequest cid scope responseType redirectUrl _state _ _) = do
   failWithM CreateNewOAuthCodeErrorFeatureDisabled (assertMay . Opt.setOAuthEnabled <$> view settings)
   OAuthClient _ _ uri <- failWithM CreateNewOAuthCodeErrorClientNotFound $ getOAuthClient uid cid
   failWith CreateNewOAuthCodeErrorUnsupportedResponseType (assertMay $ responseType == OAuthResponseTypeCode)
