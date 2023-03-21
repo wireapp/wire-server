@@ -85,8 +85,8 @@ import Imports
 import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.HTTP2.Frame as HTTP2
-import Network.TLS
 import qualified Network.Wai.Utilities.Error as Wai
+import OpenSSL.Session (SomeSSLException)
 import Servant.Client
 import Wire.API.Error
 
@@ -94,7 +94,7 @@ import Wire.API.Error
 data FederatorClientHTTP2Error
   = FederatorClientNoStatusCode
   | FederatorClientHTTP2Exception HTTP2.HTTP2Error
-  | FederatorClientTLSException TLSException
+  | FederatorClientTLSException SomeSSLException
   | FederatorClientConnectionError IOException
   deriving (Show, Typeable)
 
@@ -213,7 +213,7 @@ federationRemoteHTTP2Error (FederatorClientTLSException e) =
   Wai.mkError
     (HTTP.mkStatus 525 "SSL Handshake Failure")
     "federation-tls-error"
-    (LT.fromStrict (displayTLSException e))
+    (LT.pack (displayException e))
 federationRemoteHTTP2Error (FederatorClientConnectionError e) =
   Wai.mkError
     federatorConnectionRefusedStatus
@@ -240,22 +240,6 @@ federationRemoteResponseError status =
     ( "A remote federator failed with status code "
         <> LT.pack (show (HTTP.statusCode status))
     )
-
-displayTLSException :: TLSException -> Text
-displayTLSException (Terminated _ reason err) = T.pack reason <> ": " <> displayTLSError err
-displayTLSException (HandshakeFailed err) = T.pack "handshake failed: " <> displayTLSError err
-displayTLSException ConnectionNotEstablished = T.pack "connection not established"
-
-displayTLSError :: TLSError -> Text
-displayTLSError (Error_Misc msg) = T.pack msg
-displayTLSError (Error_Protocol (msg, _, _)) = "protocol error: " <> T.pack msg
-displayTLSError (Error_Certificate msg) = "certificate error: " <> T.pack msg
-displayTLSError (Error_HandshakePolicy msg) = "handshake policy error: " <> T.pack msg
-displayTLSError Error_EOF = "end-of-file error"
-displayTLSError (Error_Packet msg) = "packet error: " <> T.pack msg
-displayTLSError (Error_Packet_unexpected actual expected) =
-  "unexpected packet: " <> T.pack expected <> ", " <> "got " <> T.pack actual
-displayTLSError (Error_Packet_Parsing msg) = "packet parsing error: " <> T.pack msg
 
 federationServantErrorToWai :: ClientError -> Wai.Error
 federationServantErrorToWai (DecodeFailure msg _) = federationInvalidBody msg
