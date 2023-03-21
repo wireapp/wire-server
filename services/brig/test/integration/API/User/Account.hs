@@ -775,7 +775,7 @@ testMultipleUsers brig = do
             (Just $ userDisplayName u3, Nothing)
           ]
   post
-    ( apiVersion "v2"
+    ( apiVersion "v3"
         . brig
         . zUser (userId u1)
         . contentJson

@@ -223,23 +223,23 @@ type UserAPI =
     :<|>
     -- See Note [ephemeral user sideeffect]
     Named
-      "list-users-by-ids-or-handles"
+      "list-users-by-ids-or-handles@V3"
       ( Summary "List users"
           :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
           :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> ZUser
-          :> Until 'V3
+          :> Until 'V4
           :> "list-users"
           :> ReqBody '[JSON] ListUsersQuery
           :> Post '[JSON] [UserProfile]
       )
     :<|> Named
-           "list-users-by-ids-or-handles@V3"
+           "list-users-by-ids-or-handles"
            ( Summary "List users"
                :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
                :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> ZUser
-               :> From 'V3
+               :> From 'V4
                :> "list-users"
                :> ReqBody '[JSON] ListUsersQuery
                :> Post '[JSON] ListUsersById

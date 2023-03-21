@@ -1458,9 +1458,7 @@ lookupProfilesV3 self others = do
   pure (l >>= flattenUsers, join r)
   where
     flattenUsers :: (Qualified [UserId], FederationError) -> [(Qualified UserId, FederationError)]
-    flattenUsers (l, e) =
-      let mkUser u = Qualified u (qDomain l)
-       in (,e) . mkUser <$> qUnqualified l
+    flattenUsers (l, e) = (,e) <$> sequenceA l
 
 lookupProfilesFromDomain ::
   (Member GalleyProvider r) =>

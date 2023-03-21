@@ -711,7 +711,7 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
        in listUsersByIdsOrHandles self (Public.ListUsersByHandles qualifiedRangedList)
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
-listUsersByIdsOrHandles ::
+listUsersByIdsOrHandlesV3 ::
   forall r.
   ( Member GalleyProvider r,
     Member (Concurrency 'Unsafe) r
@@ -719,7 +719,7 @@ listUsersByIdsOrHandles ::
   UserId ->
   Public.ListUsersQuery ->
   (Handler r) [Public.UserProfile]
-listUsersByIdsOrHandles self q = do
+listUsersByIdsOrHandlesV3 self q = do
   lself <- qualifyLocal self
   foundUsers <- case q of
     Public.ListUsersByIds us ->
@@ -740,9 +740,9 @@ listUsersByIdsOrHandles self q = do
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
     byIds lself uids = API.lookupProfiles lself uids !>> fedError
 
--- Similar to listUsersByIdsOrHandles, except that it allows partial successes
+-- Similar to listUsersByIdsOrHandlesV3, except that it allows partial successes
 -- using a new return type
-listUsersByIdsOrHandlesV3 ::
+listUsersByIdsOrHandles ::
   forall r.
   ( Member GalleyProvider r,
     Member (Concurrency 'Unsafe) r
@@ -750,7 +750,7 @@ listUsersByIdsOrHandlesV3 ::
   UserId ->
   Public.ListUsersQuery ->
   Handler r ListUsersById
-listUsersByIdsOrHandlesV3 self q = do
+listUsersByIdsOrHandles self q = do
   lself <- qualifyLocal self
   (errors, foundUsers) <- case q of
     Public.ListUsersByIds us ->
