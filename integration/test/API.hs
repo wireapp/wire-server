@@ -6,7 +6,6 @@ import Data.Aeson
 import qualified Data.Array as Array
 import Data.Default
 import Imports
-import Response
 import System.Random
 
 randomEmail :: App String
@@ -87,7 +86,6 @@ addClient ::
   App Response
 addClient user args = do
   uid <- objId user
-  -- TODO: this is wrong?
   req <- baseRequest Brig $ "/i/clients/" <> uid
   pks <- maybe (fmap pure getPrekey) pure args.prekeys
   lpk <- maybe getLastPrekey pure args.lastPrekey

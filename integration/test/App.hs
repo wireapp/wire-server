@@ -5,19 +5,28 @@ import qualified Control.Exception as E
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader
 import Data.Aeson
+import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.Aeson.Key as KM
 import qualified Data.Aeson.KeyMap as KM
+import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as LC8
+import qualified Data.CaseInsensitive as CI
 import qualified Data.Scientific as Sci
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import GHC.Exception
+import GHC.Records
 import GHC.Stack
 import Imports hiding (ask, asks)
 import qualified Network.HTTP.Client as HTTP
-
-green :: String
-green = "\x1b[38;5;10m"
+import qualified Network.HTTP.Types as HTTP
+import Network.URI (uriToString)
+import Test.Tasty.Providers
+import qualified Test.Tasty.Providers as Tasty
+import Test.Tasty.Providers.ConsoleFormat
 
 yellow :: String
 yellow = "\x1b[38;5;11m"
@@ -43,15 +52,33 @@ colored color s = color <> s <> resetColor
 newtype App a = App {unApp :: ReaderT Env IO a}
   deriving (Functor, Applicative, Monad, MonadIO)
 
-runApp :: App () -> IO ()
-runApp m = do
-  e <- mkEnv
-  E.try (runAppWithEnv e m) >>= \case
-    Left (AssertionFailure stack msg) -> do
-      displayStack stack
-      putStrLn "\x1b[38;5;1massertion failed\x1b[0m"
-      putStrLn msg
-    Right () -> pure ()
+instance IsTest (App ()) where
+  run _opts action _ = do
+    env <- mkEnv
+    result :: Tasty.Result <-
+      (runAppWithEnv env action >> pure (Tasty.testPassed ""))
+        `E.catches` [ E.Handler
+                        ( \(e :: AssertionFailure) -> do
+                            pure (testFailedDetails (displayException e) (printFailureDetails e))
+                        ),
+                      E.Handler
+                        (\(ex :: SomeException) -> pure (testFailed (show ex)))
+                    ]
+    pure result
+
+  testOptions = mempty
+
+printFailureDetails :: AssertionFailure -> ResultDetailsPrinter
+printFailureDetails (AssertionFailure stack mbResponse _) = ResultDetailsPrinter $ \testLevel _withFormat -> do
+  let nindent = 2 * testLevel + 2
+  putStrLn (indent nindent (prettyStack stack))
+  for_ mbResponse $ \r -> putStrLn (indent nindent (prettyReponse r))
+
+indent :: Int -> String -> String
+indent n s =
+  unlines (map (pad <>) (lines s))
+  where
+    pad = replicate n ' '
 
 runAppWithEnv :: Env -> App a -> IO a
 runAppWithEnv e m = runReaderT (unApp m) e
@@ -62,12 +89,11 @@ getContext = App $ asks (.context)
 getManager :: App HTTP.Manager
 getManager = App $ asks (.manager)
 
-onFailure :: App a -> IO b -> App a
-onFailure m k = App $ do
+onFailureAddResponse :: Response -> App a -> App a
+onFailureAddResponse r m = App $ do
   e <- ask
-  liftIO $ E.catch (runAppWithEnv e m) $ \exc -> do
-    void k
-    E.throw (exc :: AssertionFailure)
+  liftIO $ E.catch (runAppWithEnv e m) $ \(AssertionFailure stack _ msg) -> do
+    E.throw (AssertionFailure stack (Just r) msg)
 
 getPrekey :: App Value
 getPrekey = App $ do
@@ -90,11 +116,13 @@ getLastPrekey = App $ do
     lastPrekeyId :: Int
     lastPrekeyId = 65535
 
-data AssertionFailure = AssertionFailure CallStack String
-  deriving (Show)
+data AssertionFailure = AssertionFailure CallStack (Maybe Response) String
+
+instance Show AssertionFailure where
+  show (AssertionFailure _ _ msg) = "AssertionFailure _ _ " <> show msg
 
 instance Exception AssertionFailure where
-  displayException (AssertionFailure _ msg) = msg
+  displayException (AssertionFailure _ _ msg) = msg
 
 (@?=) ::
   (Eq a, Show a, HasCallStack) =>
@@ -110,10 +138,13 @@ assertionFailure :: HasCallStack => String -> App a
 assertionFailure msg =
   deepseq msg $
     liftIO $
-      E.throw (AssertionFailure callStack msg)
+      E.throw (AssertionFailure callStack Nothing msg)
 
-displayStack :: CallStack -> IO ()
-displayStack = traverse_ putStrLn . ("\x1b[38;5;11mcall stack:\x1b[0m" :) . drop 1 . prettyCallStackLines
+prettyStack :: CallStack -> String
+prettyStack cs =
+  intercalate "\n" $
+    [colored yellow "call stack: "]
+      <> (drop 1 . prettyCallStackLines) cs
 
 class ProducesJSON a where
   prodJSON :: HasCallStack => a -> App Value
@@ -257,3 +288,112 @@ firstSuccess (x : xs) =
   x >>= \case
     Nothing -> firstSuccess xs
     Just y -> pure (Just y)
+
+data Response = Response
+  { jsonBody :: Maybe Aeson.Value,
+    body :: ByteString,
+    status :: Int,
+    headers :: [HTTP.Header],
+    request :: HTTP.Request
+  }
+
+instance HasField "json" Response (App Aeson.Value) where
+  getField response = maybe (assertionFailure "Response has no json body") pure response.jsonBody
+
+baseRequest :: Service -> String -> App HTTP.Request
+baseRequest service path = do
+  ctx <- getContext
+  liftIO . HTTP.parseRequest $
+    "http://localhost:" <> show (servicePort ctx.serviceMap service) <> path
+
+addJSONObject :: [Aeson.Pair] -> HTTP.Request -> HTTP.Request
+addJSONObject = addJSON . Aeson.object
+
+addJSON :: Aeson.Value -> HTTP.Request -> HTTP.Request
+addJSON obj req =
+  req
+    { HTTP.requestBody = HTTP.RequestBodyLBS (Aeson.encode obj),
+      HTTP.requestHeaders =
+        ("Content-Type", "application/json")
+          : HTTP.requestHeaders req
+    }
+
+addHeader :: String -> String -> HTTP.Request -> HTTP.Request
+addHeader name value req =
+  req {HTTP.requestHeaders = (CI.mk . C8.pack $ name, C8.pack value) : HTTP.requestHeaders req}
+
+zUser :: String -> HTTP.Request -> HTTP.Request
+zUser = addHeader "Z-User"
+
+zConnection :: String -> HTTP.Request -> HTTP.Request
+zConnection = addHeader "Z-Connection"
+
+submit :: ByteString -> HTTP.Request -> App Response
+submit method req0 = do
+  let req = req0 {HTTP.method = method}
+  manager <- getManager
+  res <- liftIO $ HTTP.httpLbs req manager
+  pure $
+    Response
+      { jsonBody = Aeson.decode (HTTP.responseBody res),
+        body = L.toStrict (HTTP.responseBody res),
+        status = HTTP.statusCode (HTTP.responseStatus res),
+        headers = HTTP.responseHeaders res,
+        request = req
+      }
+
+showRequest :: HTTP.Request -> String
+showRequest r =
+  T.unpack (T.decodeUtf8 (HTTP.method r))
+    <> " "
+    <> uriToString id (HTTP.getUri r) ""
+
+showHeaders :: [HTTP.Header] -> String
+showHeaders r =
+  intercalate "\n" $
+    r <&> \(name, value) ->
+      C8.unpack (CI.original name) <> ": " <> C8.unpack value
+
+getRequestBody :: HTTP.Request -> Maybe ByteString
+getRequestBody req = case HTTP.requestBody req of
+  HTTP.RequestBodyLBS lbs -> pure (L.toStrict lbs)
+  HTTP.RequestBodyBS bs -> pure bs
+  _ -> Nothing
+
+hline :: String
+hline = replicate 40 '-'
+
+prettyReponse :: Response -> String
+prettyReponse r =
+  unlines $
+    concat
+      [ pure hline,
+        pure $ colored yellow "request: \n" <> showRequest r.request,
+        pure $ colored yellow "request headers: \n" <> showHeaders (HTTP.requestHeaders r.request),
+        case getRequestBody r.request of
+          Nothing -> []
+          Just b ->
+            [ colored yellow "request body:",
+              T.unpack . T.decodeUtf8 $ case Aeson.decode (L.fromStrict b) of
+                Just v -> L.toStrict (Aeson.encodePretty (v :: Aeson.Value))
+                Nothing -> b
+            ],
+        pure $ colored blue "response status: " <> show r.status,
+        pure $ colored blue "response body:",
+        pure $
+          ( T.unpack . T.decodeUtf8 $
+              case r.jsonBody of
+                Just b -> L.toStrict (Aeson.encodePretty b)
+                Nothing -> r.body
+          ),
+        pure hline
+      ]
+
+printResponse :: Response -> IO ()
+printResponse = putStrLn . prettyReponse
+
+withResponse :: HasCallStack => Response -> (Response -> App a) -> App a
+withResponse r k = onFailureAddResponse r (k r)
+
+bindResponse :: HasCallStack => App Response -> (Response -> App a) -> App a
+bindResponse m k = m >>= \r -> withResponse r k
