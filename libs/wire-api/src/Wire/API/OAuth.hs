@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,6 +16,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 module Wire.API.OAuth where
 
@@ -98,8 +100,8 @@ instance ToSchema OAuthApplicationName where
   schema = OAuthApplicationName <$> unOAuthApplicationName .= schema
 
 data RegisterOAuthClientRequest = RegisterOAuthClientRequest
-  { nocApplicationName :: OAuthApplicationName,
-    nocRedirectUrl :: RedirectUrl
+  { applicationName :: OAuthApplicationName,
+    redirectUrl :: RedirectUrl
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RegisterOAuthClientRequest)
@@ -109,8 +111,8 @@ instance ToSchema RegisterOAuthClientRequest where
   schema =
     object "RegisterOAuthClientRequest" $
       RegisterOAuthClientRequest
-        <$> nocApplicationName .= fieldWithDocModifier "application_name" applicationNameDescription schema
-        <*> nocRedirectUrl .= fieldWithDocModifier "redirect_url" redirectUrlDescription schema
+        <$> applicationName .= fieldWithDocModifier "application_name" applicationNameDescription schema
+        <*> (.redirectUrl) .= fieldWithDocModifier "redirect_url" redirectUrlDescription schema
     where
       applicationNameDescription = description ?~ "The name of the application. This will be shown to the user when they are asked to authorize the application. The name must be between " <> minL <> " and " <> maxL <> " characters long."
       redirectUrlDescription = description ?~ "The URL to redirect to after the user has authorized the application."
@@ -125,6 +127,7 @@ instance Show OAuthClientPlainTextSecret where
   show _ = "<OAuthClientPlainTextSecret>"
 
 instance ToSchema OAuthClientPlainTextSecret where
+  schema :: ValueSchema NamedSwaggerDoc OAuthClientPlainTextSecret
   schema = (toText . unOAuthClientPlainTextSecret) .= parsedText "OAuthClientPlainTextSecret" (fmap OAuthClientPlainTextSecret . validateBase16)
 
 instance FromHttpApiData OAuthClientPlainTextSecret where
@@ -134,8 +137,8 @@ instance ToHttpApiData OAuthClientPlainTextSecret where
   toQueryParam = toText . unOAuthClientPlainTextSecret
 
 data OAuthClientCredentials = OAuthClientCredentials
-  { occClientId :: OAuthClientId,
-    occClientSecret :: OAuthClientPlainTextSecret
+  { clientId :: OAuthClientId,
+    clientSecret :: OAuthClientPlainTextSecret
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OAuthClientCredentials)
@@ -145,16 +148,16 @@ instance ToSchema OAuthClientCredentials where
   schema =
     object "OAuthClientCredentials" $
       OAuthClientCredentials
-        <$> occClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> occClientSecret .= fieldWithDocModifier "client_secret" clientSecretDescription schema
+        <$> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
     where
       clientIdDescription = description ?~ "The ID of the application."
       clientSecretDescription = description ?~ "The secret of the application."
 
 data OAuthClient = OAuthClient
-  { ocId :: OAuthClientId,
-    ocName :: OAuthApplicationName,
-    ocRedirectUrl :: RedirectUrl
+  { clientId :: OAuthClientId,
+    name :: OAuthApplicationName,
+    redirectUrl :: RedirectUrl
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OAuthClient)
@@ -164,9 +167,9 @@ instance ToSchema OAuthClient where
   schema =
     object "OAuthClient" $
       OAuthClient
-        <$> ocId .= field "client_id" schema
-        <*> ocName .= field "application_name" schema
-        <*> ocRedirectUrl .= field "redirect_url" schema
+        <$> (.clientId) .= field "client_id" schema
+        <*> (.name) .= field "application_name" schema
+        <*> (.redirectUrl) .= field "redirect_url" schema
 
 data OAuthResponseType = OAuthResponseTypeCode
   deriving (Eq, Show, Generic)
@@ -241,11 +244,11 @@ instance ToSchema OAuthScopes where
         pure $ (not . T.null) `filter` T.splitOn " " scope & maybe Set.empty Set.fromList . mapM (fromByteString' . cs)
 
 data CreateOAuthAuthorizationCodeRequest = CreateOAuthAuthorizationCodeRequest
-  { noacClientId :: OAuthClientId,
-    noacScope :: OAuthScopes,
-    noacResponseType :: OAuthResponseType,
-    noacRedirectUri :: RedirectUrl,
-    noacState :: Text
+  { clientId :: OAuthClientId,
+    scope :: OAuthScopes,
+    responseType :: OAuthResponseType,
+    redirectUrl :: RedirectUrl,
+    state :: Text
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CreateOAuthAuthorizationCodeRequest)
@@ -255,11 +258,11 @@ instance ToSchema CreateOAuthAuthorizationCodeRequest where
   schema =
     object "CreateOAuthAuthorizationCodeRequest" $
       CreateOAuthAuthorizationCodeRequest
-        <$> noacClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> noacScope .= fieldWithDocModifier "scope" scopeDescription schema
-        <*> noacResponseType .= fieldWithDocModifier "response_type" responseTypeDescription schema
-        <*> noacRedirectUri .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
-        <*> noacState .= fieldWithDocModifier "state" stateDescription schema
+        <$> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.scope) .= fieldWithDocModifier "scope" scopeDescription schema
+        <*> responseType .= fieldWithDocModifier "response_type" responseTypeDescription schema
+        <*> (.redirectUrl) .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
+        <*> state .= fieldWithDocModifier "state" stateDescription schema
     where
       clientIdDescription = description ?~ "The ID of the OAuth client"
       scopeDescription = description ?~ "The scopes which are requested to get authorization for, separated by a space"
@@ -321,11 +324,11 @@ instance ToHttpApiData OAuthGrantType where
   toQueryParam = cs . toByteString
 
 data OAuthAccessTokenRequest = OAuthAccessTokenRequest
-  { oatGrantType :: OAuthGrantType,
-    oatClientId :: OAuthClientId,
-    oatClientSecret :: OAuthClientPlainTextSecret,
-    oatCode :: OAuthAuthorizationCode,
-    oatRedirectUri :: RedirectUrl
+  { grantType :: OAuthGrantType,
+    clientId :: OAuthClientId,
+    clientSecret :: OAuthClientPlainTextSecret,
+    code :: OAuthAuthorizationCode,
+    redirectUri :: RedirectUrl
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OAuthAccessTokenRequest)
@@ -335,11 +338,11 @@ instance ToSchema OAuthAccessTokenRequest where
   schema =
     object "OAuthAccessTokenRequest" $
       OAuthAccessTokenRequest
-        <$> oatGrantType .= fieldWithDocModifier "grant_type" grantTypeDescription schema
-        <*> oatClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> oatClientSecret .= fieldWithDocModifier "client_secret" clientSecretDescription schema
-        <*> oatCode .= fieldWithDocModifier "code" codeDescription schema
-        <*> oatRedirectUri .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
+        <$> (.grantType) .= fieldWithDocModifier "grant_type" grantTypeDescription schema
+        <*> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
+        <*> code .= fieldWithDocModifier "code" codeDescription schema
+        <*> redirectUri .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
     where
       grantTypeDescription = description ?~ "Indicates which authorization flow to use. Use `authorization_code` for authorization code flow."
       clientIdDescription = description ?~ "The ID of the OAuth client"
@@ -360,11 +363,11 @@ instance ToForm OAuthAccessTokenRequest where
   toForm req =
     Form $
       mempty
-        & HM.insert "grant_type" [toQueryParam (oatGrantType req)]
-        & HM.insert "client_id" [toQueryParam (oatClientId req)]
-        & HM.insert "client_secret" [toQueryParam (oatClientSecret req)]
-        & HM.insert "code" [toQueryParam (oatCode req)]
-        & HM.insert "redirect_uri" [toQueryParam (oatRedirectUri req)]
+        & HM.insert "grant_type" [toQueryParam (req.grantType)]
+        & HM.insert "client_id" [toQueryParam (req.clientId)]
+        & HM.insert "client_secret" [toQueryParam (req.clientSecret)]
+        & HM.insert "code" [toQueryParam (req.code)]
+        & HM.insert "redirect_uri" [toQueryParam (req.redirectUri)]
 
 data OAuthAccessTokenType = OAuthAccessTokenTypeBearer
   deriving (Eq, Show, Generic)
@@ -410,10 +413,10 @@ type OAuthAccessToken = OAuthToken 'Access
 type OAuthRefreshToken = OAuthToken 'Refresh
 
 data OAuthAccessTokenResponse = OAuthAccessTokenResponse
-  { oatAccessToken :: OAuthAccessToken,
-    oatTokenType :: OAuthAccessTokenType,
-    oatExpiresIn :: NominalDiffTime,
-    oatRefreshToken :: OAuthRefreshToken
+  { accessToken :: OAuthAccessToken,
+    tokenType :: OAuthAccessTokenType,
+    expiresIn :: NominalDiffTime,
+    refreshToken :: OAuthRefreshToken
   }
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthAccessTokenResponse)
@@ -422,10 +425,10 @@ instance ToSchema OAuthAccessTokenResponse where
   schema =
     object "OAuthAccessTokenResponse" $
       OAuthAccessTokenResponse
-        <$> oatAccessToken .= fieldWithDocModifier "access_token" accessTokenDescription schema
-        <*> oatTokenType .= fieldWithDocModifier "token_type" tokenTypeDescription schema
-        <*> oatExpiresIn .= fieldWithDocModifier "expires_in" expiresInDescription (fromIntegral <$> roundDiffTime .= schema)
-        <*> oatRefreshToken .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
+        <$> accessToken .= fieldWithDocModifier "access_token" accessTokenDescription schema
+        <*> tokenType .= fieldWithDocModifier "token_type" tokenTypeDescription schema
+        <*> expiresIn .= fieldWithDocModifier "expires_in" expiresInDescription (fromIntegral <$> roundDiffTime .= schema)
+        <*> (.refreshToken) .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       roundDiffTime :: NominalDiffTime -> Int32
       roundDiffTime = round
@@ -448,7 +451,7 @@ instance A.FromJSON OAuthClaimsSet where
 
 instance A.ToJSON OAuthClaimsSet where
   toJSON s =
-    ins "scope" (scope s) (A.toJSON (jwtClaims s))
+    ins "scope" (s.scope) (A.toJSON (jwtClaims s))
     where
       ins k v (A.Object o) = A.Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
@@ -472,31 +475,32 @@ verify' key token = do
   runJOSE (verifyClaims (defaultJWTValidationSettings audCheck) key token)
 
 data OAuthRefreshTokenInfo = OAuthRefreshTokenInfo
-  { oriId :: OAuthRefreshTokenId,
-    oriClientId :: OAuthClientId,
-    oriUserId :: UserId,
-    oriScopes :: OAuthScopes,
-    oriCreatedAt :: UTCTime
+  { refreshTokenId :: OAuthRefreshTokenId,
+    clientId :: OAuthClientId,
+    userId :: UserId,
+    scopes :: OAuthScopes,
+    createdAt :: UTCTime
   }
   deriving (Eq, Show, Generic)
 
 data OAuthRefreshAccessTokenRequest = OAuthRefreshAccessTokenRequest
-  { oartGrantType :: OAuthGrantType,
-    oartClientId :: OAuthClientId,
-    oartClientSecret :: OAuthClientPlainTextSecret,
-    oartRefreshToken :: OAuthRefreshToken
+  { grantType :: OAuthGrantType,
+    clientId :: OAuthClientId,
+    clientSecret :: OAuthClientPlainTextSecret,
+    refreshToken :: OAuthRefreshToken
   }
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthRefreshAccessTokenRequest)
 
 instance ToSchema OAuthRefreshAccessTokenRequest where
+  schema :: ValueSchema NamedSwaggerDoc OAuthRefreshAccessTokenRequest
   schema =
     object "OAuthRefreshAccessTokenRequest" $
       OAuthRefreshAccessTokenRequest
-        <$> oartGrantType .= fieldWithDocModifier "grant_type" grantTypeDescription schema
-        <*> oartClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> oartClientSecret .= fieldWithDocModifier "client_secret" clientSecretDescription schema
-        <*> oartRefreshToken .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
+        <$> (.grantType) .= fieldWithDocModifier "grant_type" grantTypeDescription schema
+        <*> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
+        <*> (.refreshToken) .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       grantTypeDescription = description ?~ "The grant type. Must be `refresh_token`"
       clientIdDescription = description ?~ "The OAuth client's ID"
@@ -516,10 +520,10 @@ instance ToForm OAuthRefreshAccessTokenRequest where
   toForm req =
     Form $
       mempty
-        & HM.insert "grant_type" [toQueryParam (oartGrantType req)]
-        & HM.insert "client_id" [toQueryParam (oartClientId req)]
-        & HM.insert "client_secret" [toQueryParam (oartClientSecret req)]
-        & HM.insert "refresh_token" [toQueryParam (oartRefreshToken req)]
+        & HM.insert "grant_type" [toQueryParam (req.grantType)]
+        & HM.insert "client_id" [toQueryParam (req.clientId)]
+        & HM.insert "client_secret" [toQueryParam (req.clientSecret)]
+        & HM.insert "refresh_token" [toQueryParam (req.refreshToken)]
 
 instance FromForm (Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest) where
   fromForm :: Form -> Either Text (Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest)
@@ -531,9 +535,9 @@ instance FromForm (Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest
       choose (Left err) _ = Left err
 
 data OAuthRevokeRefreshTokenRequest = OAuthRevokeRefreshTokenRequest
-  { ortrClientId :: OAuthClientId,
-    ortrClientSecret :: OAuthClientPlainTextSecret,
-    ortrRefreshToken :: OAuthRefreshToken
+  { clientId :: OAuthClientId,
+    clientSecret :: OAuthClientPlainTextSecret,
+    refreshToken :: OAuthRefreshToken
   }
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthRevokeRefreshTokenRequest)
@@ -542,17 +546,17 @@ instance ToSchema OAuthRevokeRefreshTokenRequest where
   schema =
     object "OAuthRevokeRefreshTokenRequest" $
       OAuthRevokeRefreshTokenRequest
-        <$> ortrClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> ortrClientSecret .= fieldWithDocModifier "client_secret" clientSecretDescription schema
-        <*> ortrRefreshToken .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
+        <$> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> (.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
+        <*> (.refreshToken) .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       clientIdDescription = description ?~ "The OAuth client's ID"
       clientSecretDescription = description ?~ "The OAuth client's secret"
       refreshTokenDescription = description ?~ "The refresh token"
 
 data OAuthApplication = OAuthApplication
-  { oaId :: OAuthClientId,
-    oaName :: OAuthApplicationName
+  { applicationId :: OAuthClientId,
+    name :: OAuthApplicationName
   }
   deriving (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform OAuthApplication)
@@ -562,8 +566,8 @@ instance ToSchema OAuthApplication where
   schema =
     object "OAuthApplication" $
       OAuthApplication
-        <$> oaId .= fieldWithDocModifier "id" idDescription schema
-        <*> oaName .= fieldWithDocModifier "name" nameDescription schema
+        <$> applicationId .= fieldWithDocModifier "id" idDescription schema
+        <*> (.name) .= fieldWithDocModifier "name" nameDescription schema
     where
       idDescription = description ?~ "The OAuth client's ID"
       nameDescription = description ?~ "The OAuth client's name"
