@@ -123,7 +123,7 @@ type CreateOAuthAuthorizationCodeHeaders = '[Header "Location" RedirectUrl]
 
 type CreateOAuthAuthorizationCodeResponses =
   '[ -- success
-     WithHeaders CreateOAuthAuthorizationCodeHeaders RedirectUrl (RespondEmpty 302 "Found"),
+     WithHeaders CreateOAuthAuthorizationCodeHeaders RedirectUrl (RespondEmpty 201 "Created"),
      -- feature disabled
      WithHeaders CreateOAuthAuthorizationCodeHeaders RedirectUrl (RespondEmpty 403 "Forbidden"),
      -- unsupported response type
