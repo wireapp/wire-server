@@ -840,8 +840,8 @@ testMultiUserGetPrekeysQualified brig opts = do
       const 200 === statusCode
       const (Right $ expectedUserClientMap) === responseJsonEither
 
-testMultiUserGetPrekeysQualifiedV3 :: Brig -> Opt.Opts -> Http ()
-testMultiUserGetPrekeysQualifiedV3 brig opts = do
+testMultiUserGetPrekeysQualifiedV4 :: Brig -> Opt.Opts -> Http ()
+testMultiUserGetPrekeysQualifiedV4 brig opts = do
   let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
 
   xs <- generateClients 3 brig

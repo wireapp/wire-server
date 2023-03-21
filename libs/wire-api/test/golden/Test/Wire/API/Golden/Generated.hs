@@ -1440,10 +1440,10 @@ tests =
             (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_11, "testObject_Event_conversation_11.json"),
             (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_10, "testObject_Event_conversation_10.json")
           ],
-       testGroup "Golden: QualifiedUserClientPrekeyMapV4" $
+      testGroup "Golden: QualifiedUserClientPrekeyMapV4" $
         testObjects
           [ (Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user.testObject_QualifiedUserClientPrekeyMapV4_user_1, "testObject_QualifiedUserClientPrekeyMapV4_1.json"),
             (Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user.testObject_QualifiedUserClientPrekeyMapV4_user_2, "testObject_QualifiedUserClientPrekeyMapV4_2.json"),
             (Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user.testObject_QualifiedUserClientPrekeyMapV4_user_3, "testObject_QualifiedUserClientPrekeyMapV4_3.json")
-          ],
+          ]
     ]

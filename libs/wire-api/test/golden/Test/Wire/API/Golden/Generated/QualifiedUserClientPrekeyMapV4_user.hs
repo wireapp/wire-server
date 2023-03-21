@@ -18,31 +18,41 @@
 module Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user where
 
 import Data.Domain (Domain (..))
-import Data.Id (Id (Id))
-import Data.Json.Util (readUTCTimeMillis)
+import Data.Id (ClientId (..), Id (Id), UserId)
+import qualified Data.Map as Map
 import Data.Qualified (Qualified (..))
 import qualified Data.UUID as UUID (fromString)
 import Imports
-import Wire.API.Connection
-  ( Relation (..),
-    UserConnection (..),
-  )
+import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClientPrekeyMapV4 (..))
+
+domain1, domain2 :: Domain
+domain1 = Domain "example.com"
+domain2 = Domain "test.net"
+
+user1, user2 :: UserId
+user1 = Id . fromJust $ UUID.fromString "44f9c51e-0dce-4e7f-85ba-b4e5a545ce68"
+user2 = Id . fromJust $ UUID.fromString "284c4e8f-78ef-43f4-a77a-015c22e37960"
+
+clientId :: ClientId
+clientId = ClientId "0123456789ABCEF"
 
 testObject_QualifiedUserClientPrekeyMapV4_user_1 :: QualifiedUserClientPrekeyMapV4
 testObject_QualifiedUserClientPrekeyMapV4_user_1 =
   QualifiedUserClientPrekeyMapV4
-    { qualifiedUserClientPrekeys = QualifiedUserClientMap mempty
-    , failedToList = Nothing
+    { qualifiedUserClientPrekeys = QualifiedUserClientMap mempty,
+      failedToList = Nothing
     }
+
 testObject_QualifiedUserClientPrekeyMapV4_user_2 :: QualifiedUserClientPrekeyMapV4
 testObject_QualifiedUserClientPrekeyMapV4_user_2 =
   QualifiedUserClientPrekeyMapV4
-    { qualifiedUserClientPrekeys = QualifiedUserClientMap $ Map.singleton (Domain _) $ Map.singleton (UserId _) $ Map.singleton (ClientId _) _
-    , failedToList = Just []
+    { qualifiedUserClientPrekeys = QualifiedUserClientMap $ Map.singleton domain1 $ Map.singleton user1 $ Map.singleton clientId Nothing,
+      failedToList = Just []
     }
+
 testObject_QualifiedUserClientPrekeyMapV4_user_3 :: QualifiedUserClientPrekeyMapV4
 testObject_QualifiedUserClientPrekeyMapV4_user_3 =
   QualifiedUserClientPrekeyMapV4
-    { qualifiedUserClientPrekeys = QualifiedUserClientMap mempty
-    , failedToList = Just [Qualified (UserId _) (Domain _), Qualified (UserId _) (Domain _)]
+    { qualifiedUserClientPrekeys = QualifiedUserClientMap mempty,
+      failedToList = Just [Qualified user1 domain1, Qualified user2 domain2]
     }
