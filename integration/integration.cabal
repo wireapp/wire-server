@@ -76,7 +76,6 @@ executable integration-main
     API
     App
     Config
-    Response
     Run
     RunAllTests
     SetupHelpers
@@ -96,5 +95,6 @@ executable integration-main
     , network-uri
     , random
     , scientific
+    , tasty
     , text
     , transformers

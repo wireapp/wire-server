@@ -6,7 +6,6 @@ import API
 import App
 import Data.Default
 import Imports
-import Response
 import SetupHelpers
 
 -- | Cannot delete a legalhold client

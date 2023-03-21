@@ -4,7 +4,6 @@ import qualified API
 import App
 import Data.Aeson
 import Imports
-import Response
 
 randomUser :: API.CreateUser -> App Value
 randomUser cu = bindResponse (API.createUser cu) $ \resp -> do
