@@ -65,8 +65,8 @@ push1 = push1' 0
   where
     push1' :: Int -> NativePush -> Address -> Gundeck ()
     push1' n m a =
-      if n > retryInvalidThreshold
-        then onPersistentlyInvalidEndpoint
+      if n > retryUnauthorisedThreshold
+        then onPersistentlyUnauthorisedEndpoint
         else do
           e <- view awsEnv
           r <- Aws.execute e $ publish m a
@@ -74,10 +74,11 @@ push1 = push1' 0
             Success _ -> onSuccess
             Failure EndpointDisabled _ -> onDisabled
             Failure PayloadTooLarge _ -> onPayloadTooLarge
-            Failure EndpointInvalid _ ->
-              if n < retryInvalidThreshold
-                then onInvalidEndpoint
-                else onPersistentlyInvalidEndpoint
+            Failure EndpointInvalid _ -> onInvalidEndpoint
+            Failure EndpointUnauthorised _ ->
+              if n < retryUnauthorisedThreshold
+                then onUnauthorisedEndpoint
+                else onPersistentlyUnauthorisedEndpoint
             Failure (PushException ex) _ -> onPushException ex
       where
         onSuccess = do
@@ -104,8 +105,18 @@ push1 = push1' 0
             field "user" (toByteString (a ^. addrUser))
               ~~ field "arn" (toText (a ^. addrEndpoint))
               ~~ msg (val "Payload too large")
-        retryInvalidThreshold = 1
-        onInvalidEndpoint = do
+        onInvalidEndpoint =
+          handleAny (logError a "Failed to cleanup orphaned push token") $ do
+            Log.warn $
+              field "user" (toByteString (a ^. addrUser))
+                ~~ field "arn" (toText (a ^. addrEndpoint))
+                ~~ field "cause" ("InvalidEndpoint" :: Text)
+                ~~ msg (val "Invalid ARN. Deleting orphaned push token")
+            view monitor >>= counterIncr (path "push.native.invalid")
+            Data.delete (a ^. addrUser) (a ^. addrTransport) (a ^. addrApp) (a ^. addrToken)
+            onTokenRemoved
+        retryUnauthorisedThreshold = 1
+        onUnauthorisedEndpoint = do
           -- try to recreate ARN (cf. Gundeck.Push.addToken.create)
           let uid = a ^. addrUser
           let t = a ^. addrPushToken
@@ -130,13 +141,13 @@ push1 = push1' 0
             Right arn -> do
               Data.updateArn uid trp app tok arn
               push1' (succ n) m (a & addrEndpoint .~ arn) -- try to send the push message with the new ARN
-        onPersistentlyInvalidEndpoint = handleAny (logError a "Found orphaned push token") $ do
+        onPersistentlyUnauthorisedEndpoint = handleAny (logError a "Found orphaned push token") $ do
           Log.warn $
             field "user" (toByteString (a ^. addrUser))
               ~~ field "arn" (toText (a ^. addrEndpoint))
-              ~~ field "cause" ("InvalidEndpoint" :: Text)
+              ~~ field "cause" ("UnauthorisedEndpoint" :: Text)
               ~~ msg (val "Invalid ARN. Dropping push message.")
-          view monitor >>= counterIncr (path "push.native.invalid")
+          view monitor >>= counterIncr (path "push.native.unauthorized")
         onPushException ex = do
           logError a "Native push failed" ex
           view monitor >>= counterIncr (path "push.native.errors")
@@ -167,6 +178,7 @@ publish m a = flip catches pushException $ do
     toResult (Left (Aws.EndpointDisabled _)) = Failure EndpointDisabled a
     toResult (Left (Aws.PayloadTooLarge _)) = Failure PayloadTooLarge a
     toResult (Left (Aws.InvalidEndpoint _)) = Failure EndpointInvalid a
+    toResult (Left (Aws.UnauthorisedEndpoint _)) = Failure EndpointUnauthorised a
     toResult (Right ()) = Success a
     pushException =
       [ Handler (\(ex :: SomeAsyncException) -> throwM ex),
