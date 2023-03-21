@@ -145,8 +145,9 @@ testCreateOAuthCodeSuccess brig = do
   uid <- randomId
   let scope = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
   state <- UUID.toText <$> liftIO nextRandom
+
   createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest c.clientId scope OAuthResponseTypeCode redirectUrl state S256 challenge) !!! do
-    const 302 === statusCode
+    const 201 === statusCode
     const (Just $ unRedirectUrl redirectUrl ^. pathL) === (fmap getPath . getLocation)
     const (Just $ ["code", "state"]) === (fmap (fmap fst . getQueryParams) . getLocation)
     const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
@@ -809,7 +810,7 @@ generateOAuthAuthorizationCode' chal brig uid cid scope url = do
   state <- UUID.toText <$> liftIO nextRandom
   response <-
     createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid scope OAuthResponseTypeCode url state S256 chal) <!! do
-      const 302 === statusCode
+      const 201 === statusCode
   pure $ fromMaybe (error "oauth auth code generation failed") $ (getHeader "Location" >=> fromByteString >=> getQueryParamValue "code" >=> fromByteString) response
 
 signAccessToken :: JWK -> OAuthClaimsSet -> Http SignedJWT
