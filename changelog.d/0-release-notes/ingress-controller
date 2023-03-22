@@ -33,3 +33,5 @@ releases:
 +    chart: 'wire/ingress-nginx-controller'
      version: 'CHANGE_ME'
 ```
+
+For more information read the documentation under https://docs.wire.com/how-to/install/ingress.html (or go to https://docs.wire.com and search for "ingress-nginx-controller")
