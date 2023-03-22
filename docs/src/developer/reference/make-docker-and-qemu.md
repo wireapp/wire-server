@@ -177,7 +177,7 @@ QEMU's userspace emulation allows you to download a program written for a differ
 #### About BinFmt Support:
 BinFmt support is a set of extensions to the linux kernel that allow you to specify an interpreter for binaries of a certain pattern (magic number, ELF header, .EXE header, etc), so that when you attempt to execute them, the kernel will launch the interpreter of your choice, passing it the path to the binary you tried to execute. On my debian machine, it is used for python by default. Many people use this support for executing windows executables on linux using the WINE package, which contains a re-implementation of the Windows system libraries.
 
-The Linux kernel's BinFmt module can be set to look for an interpreter at run time, or to load the interpreter into memory when it is configured. The packages we're going to set up and exercise in this stage use the "load when you configure" approach. This is useful, so than when you're operating in a docker container, you don't have to place the system emulator in the docker container itsself for the kernel to find it.
+The Linux kernel's BinFmt module can be set to look for an interpreter at run time, or to load the interpreter into memory when it is configured. The packages we're going to set up and exercise in this stage use the "load when you configure" approach. This is useful, so than when you're operating in a docker container, you don't have to place the system emulator in the docker container itself for the kernel to find it.
 
 #### Installing QEMU with BinFmt support:
 
@@ -412,7 +412,7 @@ To remove all of the git repositories containing the Dockerfiles we download to 
 
 ### Reading through the Makefile
 
-OK, now that we have a handle on what it does, and how to use it, let's get into the Makefile itsself.
+OK, now that we have a handle on what it does, and how to use it, let's get into the Makefile itself.
 
 A Makefile is a series of rules for performing tasks, variables used when creating those tasks, and some minimal functions and conditional structures.  Rules are implemented as groups of bash commands, where each line is handled by a new bash interpreter. Personally, I think it 'feels functiony', only without a type system and with lots of side effects. Like if bash tried to be functional.
 
@@ -1065,7 +1065,7 @@ The cassandra/Dockerfile rule is almost identical to this last rule, only substi
 
 ## Pitfalls I fell into writing this.
 
-The first large mistake I made when writing this, is that the root of the makefile's dependency tree contained both images that had dependencies, and the dependent images themselves. This had me writing methods to keep the image build process from stepping on itsself. what was happening is that, in the case of the airdock-* and localstack images, when trying to build all of the images at once, make would race all the way down to the git clone steps, and run the git clone multiple times at the same time, where it just needs to be run once.
+The first large mistake I made when writing this, is that the root of the makefile's dependency tree contained both images that had dependencies, and the dependent images themselves. This had me writing methods to keep the image build process from stepping on itself. what was happening is that, in the case of the airdock-* and localstack images, when trying to build all of the images at once, make would race all the way down to the git clone steps, and run the git clone multiple times at the same time, where it just needs to be run once.
 
 The second was that I didn't really understand that manifest files refer to dockerhub only, not to the local machine. This was giving me similar race conditions, where an image build for architecture A would complete, and try to build the manifest when architecture B was still building.
 

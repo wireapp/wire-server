@@ -15,6 +15,13 @@ nginx-ingress:
       http2-max-header-size: 32k
       proxy-buffer-size: 16k
       proxy-body-size: 1024m
+
+      # custom log format, remove query parameters from logs as they sometimes contain sensitive information like access tokens (context: websocket establishment in browsers)
+      # See also SEC-47 for context.
+      # default log format (for image 0.30.0) in
+      # https://github.com/kubernetes/ingress-nginx/blob/49f20f849cc13564691acc49f639955f02f3c75e/docs/user-guide/nginx-configuration/configmap.md
+      # If ever needing to debug query parameter usage, you can use the (sanitized) logs from nginz instead.
+      log-format-upstream: '$remote_addr - $remote_user [$time_local] "$request_method $uri" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_length $request_time [$proxy_upstream_name] [$proxy_alternative_upstream_name] $upstream_addr $upstream_response_length $upstream_response_time $upstream_status $req_id'
 # Normally, NodePort will listen to traffic on all nodes, and uses kube-proxy
 # to redirect to the node that actually runs nginx-ingress-controller. However
 # one problem with this is that this traffic is NAT'ed. This means that nginx

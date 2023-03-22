@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE OverloadedRecordDot #-}
 
 module Brig.API.OAuth
   ( internalOauthAPI,
@@ -103,16 +104,16 @@ getOAuthClient _ cid = do
   lift $ wrapClient $ lookupOauthClient cid
 
 createNewOAuthAuthorizationCode :: UserId -> CreateOAuthAuthorizationCodeRequest -> (Handler r) CreateOAuthCodeResponse
-createNewOAuthAuthorizationCode uid code@(CreateOAuthAuthorizationCodeRequest _cid _scope _responseType redirectUrl state) = do
+createNewOAuthAuthorizationCode uid code = do
   runExceptT (validateAndCreateAuthorizationCode uid code) >>= \case
     Right oauthCode ->
-      pure $ CreateOAuthCodeSuccess $ redirectUrl & addParams [("code", toByteString' oauthCode), ("state", cs state)]
+      pure $ CreateOAuthCodeSuccess $ code.redirectUrl & addParams [("code", toByteString' oauthCode), ("state", cs code.state)]
     Left CreateNewOAuthCodeErrorFeatureDisabled ->
-      pure $ CreateOAuthCodeFeatureDisabled $ redirectUrl & addParams [("error", "access_denied"), ("error_description", "OAuth is not enabled"), ("state", cs state)]
+      pure $ CreateOAuthCodeFeatureDisabled $ code.redirectUrl & addParams [("error", "access_denied"), ("error_description", "OAuth is not enabled"), ("state", cs code.state)]
     Left CreateNewOAuthCodeErrorClientNotFound ->
-      pure $ CreateOAuthCodeClientNotFound $ redirectUrl & addParams [("error", "access_denied"), ("error_description", "The client ID was not found"), ("state", cs state)]
+      pure $ CreateOAuthCodeClientNotFound $ code.redirectUrl & addParams [("error", "access_denied"), ("error_description", "The client ID was not found"), ("state", cs code.state)]
     Left CreateNewOAuthCodeErrorUnsupportedResponseType ->
-      pure $ CreateOAuthCodeUnsupportedResponseType $ redirectUrl & addParams [("error", "access_denied"), ("error_description", "The client ID was not found"), ("state", cs state)]
+      pure $ CreateOAuthCodeUnsupportedResponseType $ code.redirectUrl & addParams [("error", "access_denied"), ("error_description", "The client ID was not found"), ("state", cs code.state)]
     Left CreateNewOAuthCodeErrorRedirectUrlMissMatch ->
       pure CreateOAuthCodeRedirectUrlMissMatch
 
@@ -123,11 +124,11 @@ data CreateNewOAuthCodeError
   | CreateNewOAuthCodeErrorRedirectUrlMissMatch
 
 validateAndCreateAuthorizationCode :: UserId -> CreateOAuthAuthorizationCodeRequest -> ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthorizationCode
-validateAndCreateAuthorizationCode uid (CreateOAuthAuthorizationCodeRequest cid scope responseType redirectUrl _state) = do
+validateAndCreateAuthorizationCode uid (CreateOAuthAuthorizationCodeRequest cid scope responseType redirectUrl _) = do
   failWithM CreateNewOAuthCodeErrorFeatureDisabled (assertMay . Opt.setOAuthEnabled <$> view settings)
-  OAuthClient _ _ uri <- failWithM CreateNewOAuthCodeErrorClientNotFound $ getOAuthClient uid cid
   failWith CreateNewOAuthCodeErrorUnsupportedResponseType (assertMay $ responseType == OAuthResponseTypeCode)
-  failWith CreateNewOAuthCodeErrorRedirectUrlMissMatch (assertMay $ uri == redirectUrl)
+  client <- failWithM CreateNewOAuthCodeErrorClientNotFound $ getOAuthClient uid cid
+  failWith CreateNewOAuthCodeErrorRedirectUrlMissMatch (assertMay $ client.redirectUrl == redirectUrl)
   lift mkAuthorizationCode
   where
     mkAuthorizationCode :: (Handler r) OAuthAuthorizationCode
@@ -148,13 +149,13 @@ createAccessTokenWith req = do
 
 createAccessTokenWithRefreshToken :: (Member Now r, Member Jwk r) => OAuthRefreshAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessTokenWithRefreshToken req = do
-  unless (oartGrantType req == OAuthGrantTypeRefreshToken) $ throwStd $ errorToWai @'OAuthInvalidGrantType
+  unless (req.grantType == OAuthGrantTypeRefreshToken) $ throwStd $ errorToWai @'OAuthInvalidGrantType
   key <- signingKey
-  (OAuthRefreshTokenInfo _ cid uid scope _) <- lookupVerifyAndDeleteToken key (oartRefreshToken req)
+  (OAuthRefreshTokenInfo _ cid uid scope _) <- lookupVerifyAndDeleteToken key req.refreshToken
   void $ getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
-  unless (cid == oartClientId req) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
-  unlessM (verifyClientSecret (oartClientSecret req) cid) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
+  unless (cid == req.clientId) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
+  unlessM (verifyClientSecret req.clientSecret cid) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
 
   createAccessToken key uid cid scope
 
@@ -173,15 +174,15 @@ verifyRefreshToken key rt = do
 
 createAccessTokenWithAuthorizationCode :: (Member Now r, Member Jwk r) => OAuthAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessTokenWithAuthorizationCode req = do
-  unless (oatGrantType req == OAuthGrantTypeAuthorizationCode) $ throwStd $ errorToWai @'OAuthInvalidGrantType
+  unless (req.grantType == OAuthGrantTypeAuthorizationCode) $ throwStd $ errorToWai @'OAuthInvalidGrantType
   (cid, uid, scope, uri) <-
-    lift (wrapClient $ lookupAndDeleteByOAuthAuthorizationCode (oatCode req))
+    lift (wrapClient $ lookupAndDeleteByOAuthAuthorizationCode req.code)
       >>= maybe (throwStd $ errorToWai @'OAuthAuthorizationCodeNotFound) pure
-  oauthClient <- getOAuthClient uid (oatClientId req) >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
+  oauthClient <- getOAuthClient uid req.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
-  unless (uri == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
-  unless (ocRedirectUrl oauthClient == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
-  unlessM (verifyClientSecret (oatClientSecret req) (ocId oauthClient)) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
+  unless (uri == req.redirectUri) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
+  unless (oauthClient.redirectUrl == req.redirectUri) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
+  unlessM (verifyClientSecret req.clientSecret oauthClient.clientId) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
 
   key <- signingKey
   createAccessToken key uid cid scope
@@ -268,12 +269,9 @@ verifyClientSecret secret cid =
 revokeRefreshToken :: Member Jwk r => OAuthRevokeRefreshTokenRequest -> (Handler r) ()
 revokeRefreshToken req = do
   key <- signingKey
-  info <- lookupAndVerifyToken key (ortrRefreshToken req)
-  let uid = oriUserId info
-      cid = oriClientId info
-  void $ getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
-
-  unlessM (verifyClientSecret (ortrClientSecret req) cid) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
+  info <- lookupAndVerifyToken key req.refreshToken
+  void $ getOAuthClient info.userId info.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
+  unlessM (verifyClientSecret req.clientSecret info.clientId) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
   lift $ wrapClient $ deleteOAuthRefreshToken info
 
 lookupAndVerifyToken :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenInfo
@@ -290,14 +288,14 @@ getOAuthApplications uid = do
   nub . catMaybes <$> for activeRefreshTokens oauthApp
   where
     oauthApp :: OAuthRefreshTokenInfo -> (Handler r) (Maybe OAuthApplication)
-    oauthApp info = (OAuthApplication (oriClientId info) . ocName) <$$> getOAuthClient (oriUserId info) (oriClientId info)
+    oauthApp info = (OAuthApplication info.clientId . (.name)) <$$> getOAuthClient info.userId info.clientId
 
 --------------------------------------------------------------------------------
 
 revokeOAuthAccountAccess :: UserId -> OAuthClientId -> (Handler r) ()
 revokeOAuthAccountAccess uid cid = do
   rts <- lift $ wrapClient $ lookupOAuthRefreshTokens uid
-  for_ rts $ \rt -> when (oriClientId rt == cid) $ lift $ wrapClient $ deleteOAuthRefreshToken rt
+  for_ rts $ \rt -> when (rt.clientId == cid) $ lift $ wrapClient $ deleteOAuthRefreshToken rt
 
 --------------------------------------------------------------------------------
 -- DB
@@ -350,11 +348,11 @@ lookupAndDeleteByOAuthAuthorizationCode code = lookupOAuthAuthorizationCode <* d
 
 insertOAuthRefreshToken :: (MonadClient m) => Word32 -> Word64 -> OAuthRefreshTokenInfo -> m ()
 insertOAuthRefreshToken maxActiveTokens ttl info = do
-  let rid = oriId info
-  oldTokes <- determineOldestTokensToBeDeleted <$> lookupOAuthRefreshTokens (oriUserId info)
+  let rid = refreshTokenId info
+  oldTokes <- determineOldestTokensToBeDeleted <$> lookupOAuthRefreshTokens info.userId
   for_ oldTokes deleteOAuthRefreshToken
-  retry x5 . write qInsertId $ params LocalQuorum (oriUserId info, rid)
-  retry x5 . write qInsertInfo $ params LocalQuorum (rid, oriClientId info, oriUserId info, C.Set (Set.toList (unOAuthScopes (oriScopes info))), oriCreatedAt info)
+  retry x5 . write qInsertId $ params LocalQuorum (info.userId, rid)
+  retry x5 . write qInsertInfo $ params LocalQuorum (rid, info.clientId, info.userId, C.Set (Set.toList (unOAuthScopes (scopes info))), info.createdAt)
   where
     qInsertInfo :: PrepQuery W (OAuthRefreshTokenId, OAuthClientId, UserId, C.Set OAuthScope, UTCTime) ()
     qInsertInfo = fromString $ "INSERT INTO oauth_refresh_token (id, client, user, scope, created_at) VALUES (?, ?, ?, ?, ?) USING TTL " <> show ttl
@@ -366,7 +364,7 @@ insertOAuthRefreshToken maxActiveTokens ttl info = do
     determineOldestTokensToBeDeleted tokens =
       take (length sorted - fromIntegral maxActiveTokens + 1) sorted
       where
-        sorted = sortOn oriCreatedAt tokens
+        sorted = sortOn createdAt tokens
 
 lookupOAuthRefreshTokens :: (MonadClient m) => UserId -> m [OAuthRefreshTokenInfo]
 lookupOAuthRefreshTokens uid = do
@@ -386,8 +384,8 @@ lookupOAuthRefreshTokenInfo rid = do
 
 deleteOAuthRefreshToken :: (MonadClient m) => OAuthRefreshTokenInfo -> m ()
 deleteOAuthRefreshToken info = do
-  let rid = oriId info
-  retry x5 . write qDeleteId $ params LocalQuorum (oriUserId info, rid)
+  let rid = refreshTokenId info
+  retry x5 . write qDeleteId $ params LocalQuorum (userId info, rid)
   retry x5 . write qDeleteInfo $ params LocalQuorum (Identity rid)
   where
     qDeleteId :: PrepQuery W (UserId, OAuthRefreshTokenId) ()
