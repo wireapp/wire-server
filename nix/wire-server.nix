@@ -85,7 +85,7 @@ let
     inconsistencies = [ "inconsistencies" ];
     api-simulations = [ "api-smoketest" "api-loadtest" ];
     zauth = [ "zauth" ];
-    integration = [ "integration" ];
+    integration = [ "integration-integration" ];
   };
 
   attrsets = lib.attrsets;

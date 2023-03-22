@@ -97,7 +97,7 @@ testHooks hooks =
     }
   where
     generate p l = do
-      let cname = CExeName (mkUnqualComponentName "integration")
+      let cname = CExeName (mkUnqualComponentName "integration-integration")
       let roots = case lookupComponent p cname of
             Just (CExe exe) -> map getSymbolicPath (hsSourceDirs (buildInfo exe))
             _ -> []
