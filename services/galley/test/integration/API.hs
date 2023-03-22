@@ -429,7 +429,7 @@ postConvWithRemoteUsersOk rbs = do
     mockUnreachable unreachable = do
       r <- getRequest
       if Set.member (frTargetDomain r) unreachable
-        then mockFail "not reachable"
+        then throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
         else mockReply ()
     connectBackend :: UserId -> Remote Backend -> TestM [Qualified UserId]
     connectBackend usr (tDomain &&& bUsers . tUnqualified -> (d, c)) = do
