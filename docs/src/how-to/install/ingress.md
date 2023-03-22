@@ -44,6 +44,8 @@ Most managed K8s clusters have support for LoadBalancers. Kubernetes clusters th
 In case you're provisioning on bare metal, without any hardware load balancer support in front,
 you might be using MetalLB, which supports BGP or Failover [L2 ARP announcements](https://metallb.universe.tf/configuration/_advanced_l2_configuration/).
 
+Please read [baremetal deployment documentation](https://kubernetes.github.io/ingress-nginx/deploy/baremetal/)
+
 The choice of CCM highly depends on the environment you choose to deploy wire-server in.
 ```
 
