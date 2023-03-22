@@ -38,8 +38,17 @@ To inspect default TLS settings, see [defaults in the latest code](https://githu
 
 ## Installing on bare-metal without dynamic load balancer support
 
-In case you cannot create a `kind: service` of `type: LoadBalancer`, then you
-can fall back to manually ensure traffic reaches your installation:
+```{note}
+Most managed K8s clusters have support for LoadBalancers. Kubernetes clusters that are manually set up can also support this, by using a provider/environment-specific [CCM (Cloud Controller Manager)](https://kubernetes.io/docs/concepts/architecture/cloud-controller/) (see hcloud and digitalocean for examples).
+
+In case you're provisioning on bare metal, without any hardware load balancer support in front,
+you might be using MetalLB, which supports BGP or Failover [L2 ARP announcements](https://metallb.universe.tf/configuration/_advanced_l2_configuration/).
+
+The choice of CCM highly depends on the environment you choose to deploy wire-server in.
+```
+
+In case you cannot change the type of kubernetes cluster you run, and therefore cannot create a `kind: service` of `type: LoadBalancer`, then you
+can fall back to NodePorts and manually ensure traffic reaches your installation:
 
 ```yaml
 # helmfile.yaml
@@ -61,6 +70,9 @@ ingress-nginx:
     kind: DaemonSet
     service:
       type: NodePort
+      nodePorts:
+        https: 31773
+        http: 31772
 ```
 
 Then, on each of your kubernetes worker nodes, two ports are exposed: ports
@@ -70,8 +82,6 @@ You should add a port-forwarding rule on the node or on the loadbalancer that
 forwards ports 443 and 80 to these respective ports. Any traffic hitting the http port is simply getting a http 30x redirect to https.
 
 Downsides of this approach: The NodePort approach always requires manual configuration of some external load balancer/firewall to round-robin between node IPs and is error-prone. It's also a bit annoying to have to decide on some global ports that may not be used otherwise.
-
-Most managed K8s clusters have support for LoadBalancers, you can also get this for your own clusters in hcloud etc. It's even possible to do it for pure bare metal, without any "load balancer hardware", by using BGP or some leadership election over who's announcing the "load balancer ip" via ARP (https://metallb.universe.tf/configuration/_advanced_l2_configuration/).
 
 ### Using NodePort (not the default) with externalTrafficPolicy=Local (the default)
 
@@ -95,8 +105,8 @@ redirect them to the correct service, whilst maintaining the source ip
 address. The ingress controller is sort of taking over the role of what
 kube-proxy was doing before.
 More information:
-- https://kubernetes.io/docs/tutorials/services/source-ip/#source-ip-for-services-with-typenodeport
-- https://kubernetes.github.io/ingress-nginx/deploy/baremetal/
+- [source-ip](https://kubernetes.io/docs/tutorials/services/source-ip/#source-ip-for-services-with-typenodeport)
+- [ingress and baremetal](https://kubernetes.github.io/ingress-nginx/deploy/baremetal/)
 
 There are also downsides to setting `externalTrafficPolicy: Local`, please look at the [following blog post](https://www.asykim.com/blog/deep-dive-into-kubernetes-external-traffic-policies), which very clearly explains the upsides and
 downsides of this setting
