@@ -45,7 +45,7 @@ mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${tests[@]}" | parallel echo "Running helm tests for {}..."
 printf '%s\n' "${tests[@]}" | parallel -P "${HELM_PARALLELISM}" \
     helm test -n "${NAMESPACE}" "${NAMESPACE}-${CHART}" --timeout 900s --filter name="${NAMESPACE}-${CHART}-{}-integration" "> $OUTPUT_DIR/logs-{};" \
-    echo '$? > stat-{};' \
+    echo "$? >  $OUTPUT_DIR/stat-{};" \
     echo "==== Done testing {}. ====" '};' \
     kubectl -n "${NAMESPACE}" logs "${NAMESPACE}-${CHART}-{}-integration" ">> $OUTPUT_DIR/logs-{};"
 
