@@ -624,6 +624,7 @@ getConversationByReusableCode ::
     Member CodeStore r,
     Member ConversationStore r,
     Member (ErrorS 'CodeNotFound) r,
+    Member (ErrorS 'InvalidConversationPassword) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'GuestLinksDisabled) r,
@@ -638,7 +639,7 @@ getConversationByReusableCode ::
   Value ->
   Sem r ConversationCoverView
 getConversationByReusableCode lusr key value = do
-  c <- verifyReusableCode (ConversationCode key value Nothing Nothing)
+  c <- verifyReusableCode False Nothing (ConversationCode key value Nothing Nothing)
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   ensureConversationAccess (tUnqualified lusr) conv CodeAccess
   ensureGuestLinksEnabled @db (Data.convTeam conv)

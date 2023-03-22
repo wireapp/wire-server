@@ -317,6 +317,7 @@ type ConversationAPI =
            "get-conversation-by-reusable-code"
            ( Summary "Get limited conversation information by key/code pair"
                :> CanThrow 'CodeNotFound
+               :> CanThrow 'InvalidConversationPassword
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'GuestLinksDisabled
@@ -549,14 +550,16 @@ type ConversationAPI =
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to members
     :<|> Named
-           "join-conversation-by-code-unqualified"
+           "join-conversation-by-code-unqualified@v3"
            ( Summary
                "Join a conversation using a reusable code.\
                \If the guest links team feature is disabled, this will fail with 409 GuestLinksDisabled.\
                \Note that this is currently inconsistent (for backwards compatibility reasons) with `POST /conversations/code-check` which responds with 404 CodeNotFound if guest links are disabled."
+               :> Until 'V4
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> CanThrow 'CodeNotFound
+               :> CanThrow 'InvalidConversationPassword
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
@@ -570,6 +573,32 @@ type ConversationAPI =
                :> ReqBody '[Servant.JSON] ConversationCode
                :> MultiVerb 'POST '[Servant.JSON] ConvJoinResponses (UpdateResult Event)
            )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to members
+    :<|> Named
+           "join-conversation-by-code-unqualified"
+           ( Summary
+               "Join a conversation using a reusable code.\
+               \If the guest links team feature is disabled, this will fail with 409 GuestLinksDisabled.\
+               \Note that this is currently inconsistent (for backwards compatibility reasons) with `POST /conversations/code-check` which responds with 404 CodeNotFound if guest links are disabled."
+               :> From 'V4
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
+               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> CanThrow 'CodeNotFound
+               :> CanThrow 'InvalidConversationPassword
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'GuestLinksDisabled
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'TooManyMembers
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> "join"
+               :> ReqBody '[Servant.JSON] JoinConversationByCode
+               :> MultiVerb 'POST '[Servant.JSON] ConvJoinResponses (UpdateResult Event)
+           )
     :<|> Named
            "code-check"
            ( Summary
@@ -578,6 +607,7 @@ type ConversationAPI =
                \Note that this is currently inconsistent (for backwards compatibility reasons) with `POST /conversations/join` which responds with 409 GuestLinksDisabled if guest links are disabled."
                :> CanThrow 'CodeNotFound
                :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidConversationPassword
                :> "conversations"
                :> "code-check"
                :> ReqBody '[Servant.JSON] ConversationCode

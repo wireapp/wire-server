@@ -56,16 +56,18 @@ data Code = Code
   }
   deriving (Eq, Show, Generic)
 
-toCode :: Key -> Scope -> (Value, Int32, ConvId, Maybe Password) -> Code
+toCode :: Key -> Scope -> (Value, Int32, ConvId, Maybe Password) -> (Code, Maybe Password)
 toCode k s (val, ttl, cnv, mPw) =
-  Code
-    { codeKey = k,
-      codeValue = val,
-      codeTTL = Timeout (fromIntegral ttl),
-      codeConversation = cnv,
-      codeScope = s,
-      codeHasPassword = isJust mPw
-    }
+  ( Code
+      { codeKey = k,
+        codeValue = val,
+        codeTTL = Timeout (fromIntegral ttl),
+        codeConversation = cnv,
+        codeScope = s,
+        codeHasPassword = isJust mPw
+      },
+    mPw
+  )
 
 -- Note on key/value used for a conversation Code
 --

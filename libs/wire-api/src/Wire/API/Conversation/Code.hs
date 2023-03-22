@@ -23,6 +23,7 @@ module Wire.API.Conversation.Code
     ConversationCode (..),
     mkConversationCode,
     CreateConversationCodeRequest (..),
+    JoinConversationByCode (..),
 
     -- * re-exports
     Code.Key (..),
@@ -45,7 +46,8 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 newtype CreateConversationCodeRequest = CreateConversationCodeRequest
   { cccrPassword :: Maybe PlainTextPassword8
   }
-  deriving stock (Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CreateConversationCodeRequest)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateConversationCodeRequest
 
 instance ToSchema CreateConversationCodeRequest where
@@ -54,6 +56,23 @@ instance ToSchema CreateConversationCodeRequest where
       "CreateConversationCodeRequest"
       (description ?~ "Optional request body for creating a conversation code with a password")
       $ CreateConversationCodeRequest <$> cccrPassword .= maybe_ (optField "password" schema)
+
+data JoinConversationByCode = JoinConversationByCode
+  { jcbcCode :: ConversationCode,
+    jcbcPassword :: Maybe PlainTextPassword8
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform JoinConversationByCode)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema JoinConversationByCode
+
+instance ToSchema JoinConversationByCode where
+  schema =
+    objectWithDocModifier
+      "JoinConversationByCode"
+      (description ?~ "Request body for joining a conversation by code")
+      $ JoinConversationByCode
+        <$> jcbcCode .= fieldWithDocModifier "code" (description ?~ "Conversation code") schema
+        <*> jcbcPassword .= maybe_ (optField "password" schema)
 
 data ConversationCode = ConversationCode
   { conversationKey :: Code.Key,

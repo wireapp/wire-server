@@ -283,7 +283,7 @@ conversationSchema v =
 -- link about the conversation.
 data ConversationCoverView = ConversationCoverView
   { cnvCoverConvId :: ConvId,
-    cnvCoverName :: Maybe Text
+    cnvCoverName :: Maybe Text -- todo(leif): add info about password
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationCoverView)

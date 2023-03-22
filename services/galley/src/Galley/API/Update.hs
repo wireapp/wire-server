@@ -23,6 +23,7 @@ module Galley.API.Update
     unblockConvH,
     checkReusableCode,
     joinConversationByReusableCode,
+    joinConversationByReusableCodeWithMaybePassword,
     joinConversationById,
     addCodeUnqualified,
     addCodeUnqualifiedWithReqBody,
@@ -564,7 +565,7 @@ addCode lusr mZcon lcnv mReq = do
       let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate conversationCode)
       pushConversationEvent mZcon event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
-    Just code -> do
+    Just (code, _) -> do
       conversationCode <- createCode code
       pure $ CodeAlreadyExisted conversationCode
   where
@@ -645,7 +646,7 @@ getCode lusr cnv = do
   ensureAccess conv CodeAccess
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   key <- E.makeKey cnv
-  c <- E.getCode key ReusableCode >>= noteS @'CodeNotFound
+  (c, _) <- E.getCode key ReusableCode >>= noteS @'CodeNotFound
   returnCode c
 
 returnCode :: Member CodeStore r => Code -> Sem r ConversationCode
@@ -659,13 +660,14 @@ checkReusableCode ::
     Member (TeamFeatureStore db) r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidConversationPassword) r,
     Member (Input Opts) r,
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   ConversationCode ->
   Sem r ()
 checkReusableCode convCode = do
-  code <- verifyReusableCode convCode
+  code <- verifyReusableCode False Nothing convCode
   conv <- E.getConversation (codeConversation code) >>= noteS @'ConvNotFound
   mapErrorS @'GuestLinksDisabled @'CodeNotFound $
     Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
@@ -676,6 +678,7 @@ joinConversationByReusableCode ::
     Member CodeStore r,
     Member ConversationStore r,
     Member (ErrorS 'CodeNotFound) r,
+    Member (ErrorS 'InvalidConversationPassword) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
@@ -697,8 +700,39 @@ joinConversationByReusableCode ::
   ConnId ->
   ConversationCode ->
   Sem r (UpdateResult Event)
-joinConversationByReusableCode lusr zcon convCode = do
-  c <- verifyReusableCode convCode
+joinConversationByReusableCode lusr zcon code =
+  joinConversationByReusableCodeWithMaybePassword @db lusr zcon (JoinConversationByCode code Nothing)
+
+joinConversationByReusableCodeWithMaybePassword ::
+  forall db r.
+  ( Member BrigAccess r,
+    Member CodeStore r,
+    Member ConversationStore r,
+    Member (ErrorS 'CodeNotFound) r,
+    Member (ErrorS 'InvalidConversationPassword) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'GuestLinksDisabled) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TooManyMembers) r,
+    Member FederatorAccess r,
+    Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member MemberStore r,
+    Member TeamStore r,
+    Member (TeamFeatureStore db) r,
+    Member (Logger (Msg -> Msg)) r,
+    FeaturePersistentConstraint db GuestLinksConfig
+  ) =>
+  Local UserId ->
+  ConnId ->
+  JoinConversationByCode ->
+  Sem r (UpdateResult Event)
+joinConversationByReusableCodeWithMaybePassword lusr zcon req = do
+  c <- verifyReusableCode True (jcbcPassword req) (jcbcCode req)
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
   joinConversation lusr zcon conv CodeAccess

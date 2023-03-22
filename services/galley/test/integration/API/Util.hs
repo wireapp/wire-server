@@ -107,7 +107,7 @@ import Web.Cookie
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.Code (CreateConversationCodeRequest (..))
+import Wire.API.Conversation.Code (CreateConversationCodeRequest (..), JoinConversationByCode (JoinConversationByCode))
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -1347,15 +1347,18 @@ postJoinConv u c = do
       . zType "access"
 
 postJoinCodeConv :: UserId -> ConversationCode -> TestM ResponseLBS
-postJoinCodeConv u j = do
+postJoinCodeConv = postJoinCodeConv' Nothing
+
+postJoinCodeConv' :: Maybe PlainTextPassword8 -> UserId -> ConversationCode -> TestM ResponseLBS
+postJoinCodeConv' mPw u j = do
   g <- viewGalley
   post $
     g
-      . paths ["/conversations", "join"]
+      . paths ["conversations", "join"]
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json j
+      . json (JoinConversationByCode j mPw)
 
 putQualifiedAccessUpdate ::
   (MonadHttp m, HasGalley m, MonadIO m) =>

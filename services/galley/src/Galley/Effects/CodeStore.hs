@@ -49,7 +49,7 @@ import Wire.API.Password
 
 data CodeStore m a where
   CreateCode :: Code -> Maybe Password -> CodeStore m ()
-  GetCode :: Key -> Scope -> CodeStore m (Maybe Code)
+  GetCode :: Key -> Scope -> CodeStore m (Maybe (Code, Maybe Password))
   DeleteCode :: Key -> Scope -> CodeStore m ()
   MakeKey :: ConvId -> CodeStore m Key
   GenerateCode :: ConvId -> Scope -> Timeout -> CodeStore m Code

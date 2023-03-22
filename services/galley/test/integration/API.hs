@@ -1534,30 +1534,12 @@ postJoinCodeConvWithPassword = do
   let pw = plainTextPassword8Unsafe "password"
   cCode <- decodeConvCodeEvent <$> postConvCode' (Just pw) alice conv
   liftIO $ conversationHasPassword cCode @?= Just True
-  -- with ActivatedAccess, bob can join, but not eve
-  -- WS.bracketR c bob $ \(_wsB) -> do
-  postJoinCodeConv bob cCode !!! const 403 === statusCode
-
---   -- non-admin cannot create invite link
---   postConvCode bob conv !!! const 403 === statusCode
---   -- test no-op
---   postJoinCodeConv bob payload !!! const 204 === statusCode
---   -- eve cannot join
---   postJoinCodeConv eve payload !!! const 403 === statusCode
---   void . liftIO $
---     WS.assertMatchN (5 # Second) [wsA, wsB] $
---       wsAssertMemberJoinWithRole qconv qbob [qbob] roleNameWireMember
---   -- changing access to non-activated should give eve access
---   Right accessRolesWithGuests <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
---   let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) accessRolesWithGuests
---   putQualifiedAccessUpdate alice qconv nonActivatedAccess !!! const 200 === statusCode
---   postJoinCodeConv eve payload !!! const 200 === statusCode
---   -- guest cannot create invite link
---   postConvCode eve conv !!! const 403 === statusCode
---   -- after removing CodeAccess, no further people can join
---   let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) accessRoles
---   putQualifiedAccessUpdate alice qconv noCodeAccess !!! const 200 === statusCode
---   postJoinCodeConv dave payload !!! const 404 === statusCode
+  -- join without password should fail
+  postJoinCodeConv' Nothing bob cCode !!! const 403 === statusCode
+  -- join with wrong password should fail
+  postJoinCodeConv' (Just (plainTextPassword8Unsafe "wrong-password")) bob cCode !!! const 403 === statusCode
+  -- join with correct password should succeed
+  postJoinCodeConv' (Just pw) bob cCode !!! const 200 === statusCode
 
 postConvertCodeConv :: TestM ()
 postConvertCodeConv = do

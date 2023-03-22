@@ -62,7 +62,7 @@ insertCode c mPw = do
   retry x5 (write Cql.insertCode (params LocalQuorum (k, v, cnv, s, mPw, t)))
 
 -- | Lookup a conversation by code.
-lookupCode :: Key -> Scope -> Client (Maybe Code)
+lookupCode :: Key -> Scope -> Client (Maybe (Code, Maybe Password))
 lookupCode k s =
   fmap (toCode k s) <$> retry x1 (query1 Cql.lookupCode (params LocalQuorum (k, s)))
 
