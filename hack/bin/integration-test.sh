@@ -6,7 +6,7 @@ NAMESPACE=${NAMESPACE:-test-integration}
 # set to 1 to disable running helm tests in parallel
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 CLEANUP_LOCAL_FILES=${CLEANUP_LOCAL_FILES:-1} # set to 0 to keep files
-OUTPUT_DIR=./test-logs
+OUTPUT_DIR=${OUTPUT_DIR:-test-logs}
 
 echo "Running integration tests on wire-server with parallelism=${HELM_PARALLELISM} ..."
 
@@ -84,6 +84,9 @@ if ((exit_code > 0)); then
 fi
 
 cleanup
+
+echo "Debug output dir"
+ls -l "$OUTPUT_DIR"
 
 if ((exit_code > 0)); then
     echo "Tests failed."
