@@ -114,7 +114,7 @@ deleteClient user mconn client = do
   submit "DELETE" $
     req
       & zUser uid
-      -- & zConnection conn
+      & zConnection conn
       & addJSONObject
         [ "password" .= defPassword
         ]
