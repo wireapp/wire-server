@@ -1,0 +1,58 @@
+# The following defaults apply to a cloud-like setup (in which you can ask your
+# kubernetes installation to give you a LoadBalancer setup).
+#
+# If you are on bare metal and wish an installation similiar in spirit as the
+# older similarly named wrapper chart 'nginx-ingress-controller' (note the
+# swapped words 'nginx' and 'ingress'), where we assume no load balancer support
+# and instead expose NodePorts on ports 31773 and 31772, and where you need to
+# ensure traffic gets to these ports in another way; then please read the
+# documentation on https://docs.wire.com/how-to/install/ingress.html (or go to
+# https://docs.wire.com and search for "ingress-nginx-controller")
+#
+# See
+# https://github.com/kubernetes/ingress-nginx/blob/main/charts/ingress-nginx/values.yaml
+# for all possible values to override.
+ingress-nginx:
+  controller:
+    enableTopologyAwareRouting: true
+    # Use kind: `DaemonSet` (when using NodePort) or `Deployment` (when using
+    # LoadBalancer)
+    kind: Deployment
+    service:
+      type: LoadBalancer  # or NodePort (then also use DaemonSet)
+      # set externalTrafficPolicy=Local to keep the source IP available in
+      # upstream services. Comes with tradeoff considerations, see
+      # documentation on "ingress" on docs.wire.com
+      externalTrafficPolicy: Local
+      nodePorts:
+        # If you set service.type = NodePort, then the nginx controller instance
+        # is exposed on ports 31773 (https) and 31772 (http) on the node on
+        # which it runs. You should add a port-forwarding rule on the node or on
+        # the loadbalancer that forwards ports 443 and 80 to these respective
+        # ports.
+        https: 31773
+        http: 31772
+    config:
+      # NOTE: These are some sane defaults (compliant to TR-02102-2), you may
+      # want to overrride them on your own installation For TR-02102-2 see
+      # https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html
+      # As a Wire employee, for Wire-internal discussions and context see *
+      # https://wearezeta.atlassian.net/browse/FS-33 *
+      # https://wearezeta.atlassian.net/browse/FS-444
+      ssl-protocols: "TLSv1.2 TLSv1.3"
+      # override cipher suites used in TLS 1.2 (only, if TLS 1.2 is used)
+      ssl-ciphers: "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
+      # override cipher suites used in TLS 1.3 (only, if TLS 1.3 is used)
+      server-snippet: "ssl_conf_command Ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384;"
+      # used to be called http2-max-(header|field)-size, removed in controller v1.3
+      large-client-header-buffers: "16 32k"
+      proxy-buffer-size: "16k"
+      proxy-body-size: "1024m"
+      hsts-max-age: "31536000"
+      # Override log format to remove logging access tokens:
+      # removes 'request_query: "$args"', since it can include '?access_token=...'
+      # (sometimes sent for assets and websocket establishments)
+      # We do not wish to log these (SEC-47)
+      # Also add ssl/tls protocol/cipher to gain some observability here (can we turn off TLS 1.2?)
+      log-format-escape-json: true
+      log-format-upstream: '{"bytes_sent": "$bytes_sent", "duration": "$request_time", "http_referrer": "$http_referer", "http_user_agent": "$http_user_agent", "method": "$request_method", "path": "$uri", "remote_addr": "$proxy_protocol_addr", "remote_user": "$remote_user", "request_id": "$req_id", "request_length": "$request_length", "request_proto": "$server_protocol", "request_time": "$request_time", "status": "$status", "time": "$time_iso8601", "tls_cipher": "$ssl_cipher", "tls_protocol": "$ssl_protocol", "vhost": "$host", "x_forwarded_for": "$proxy_add_x_forwarded_for"}'

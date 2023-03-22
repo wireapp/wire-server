@@ -25,7 +25,7 @@ Therefore it is not necessary to add them to openssl based configurations.
 
 ## Ingress Traffic (wire-server)
 
-The list of TLS ciphers for incoming requests is limited by default to the [following](https://github.com/wireapp/wire-server/blob/master/charts/nginx-ingress-controller/values.yaml#L7) (for general server-certificates, both for federation and client API), and can be overridden on your installation if needed.
+The list of TLS ciphers for incoming requests is limited by default to the [following](https://github.com/wireapp/wire-server/blob/master/charts/ingress-nginx-controller/values.yaml#L41-45) (for general server-certificates, both for federation and client API), and can be overridden on your installation if needed.
 
 ## Egress Traffic (wire-server/federation)
 

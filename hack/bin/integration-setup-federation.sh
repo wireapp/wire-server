@@ -20,13 +20,22 @@ ${DIR}/integration-cleanup.sh
 # script beforehand on all relevant charts to download the nested dependencies
 # (e.g. cassandra from underneath databases-ephemeral)
 echo "updating recursive dependencies ..."
-charts=(fake-aws databases-ephemeral redis-cluster wire-server nginx-ingress-controller nginx-ingress-services)
+charts=(fake-aws databases-ephemeral redis-cluster wire-server ingress-nginx-controller nginx-ingress-controller nginx-ingress-services)
 mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${charts[@]}" | parallel -P "${HELM_PARALLELISM}" "$DIR/update.sh" "$CHARTS_DIR/{}"
 
 # FUTUREWORK: use helm functions instead, see https://wearezeta.atlassian.net/browse/SQPIT-723
 echo "Generating self-signed certificates..."
 
+KUBERNETES_VERSION_MAJOR="$(kubectl version -o json | jq -r .serverVersion.major)"
+KUBERNETES_VERSION_MINOR="$(kubectl version -o json | jq -r .serverVersion.minor)"
+export KUBERNETES_VERSION="$KUBERNETES_VERSION_MAJOR.$KUBERNETES_VERSION_MINOR"
+if (( KUBERNETES_VERSION_MAJOR > 1 || KUBERNETES_VERSION_MAJOR == 1 && KUBERNETES_VERSION_MINOR >= 23 )); then
+    export INGRESS_CHART="ingress-nginx-controller"
+else
+    export INGRESS_CHART="nginx-ingress-controller"
+fi
+echo "kubeVersion: $KUBERNETES_VERSION and ingress controller=$INGRESS_CHART"
 export NAMESPACE_1="$NAMESPACE"
 export FEDERATION_DOMAIN_BASE="$NAMESPACE_1.svc.cluster.local"
 export FEDERATION_DOMAIN_1="federation-test-helper.$FEDERATION_DOMAIN_BASE"

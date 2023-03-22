@@ -13,7 +13,9 @@ environments:
     values:
       - namespace: {{ requiredEnv "NAMESPACE" }}
       - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN" }}
+      - ingressChart: {{ requiredEnv "INGRESS_CHART" }}
       - imagePullPolicy: Always
+      - redisStorageClass: hcloud-volumes
 
 repositories:
   - name: stable
@@ -39,17 +41,17 @@ releases:
     values:
       - './helm_vars/redis-cluster/values.yaml.gotmpl'
 
-  - name: '{{ .Values.namespace }}-nginx-ingress-controller'
+  - name: '{{ .Values.namespace }}-ic'
     namespace: '{{ .Values.namespace }}'
-    chart: '../.local/charts/nginx-ingress-controller'
+    chart: '../.local/charts/{{ .Values.ingressChart }}'
     values:
-      - './helm_vars/nginx-ingress-controller/values.yaml'
+      - './helm_vars/{{ .Values.ingressChart }}/values.yaml.gotmpl'
 
-  - name: '{{ .Values.namespace }}-nginx-ingress-services'
+  - name: '{{ .Values.namespace }}-i'
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/nginx-ingress-services'
     values:
-      - './helm_vars/nginx-ingress-services/values.yaml'
+      - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
       - './helm_vars/nginx-ingress-services/certificates-namespace1.yaml'
     set:
       # Federation domain is also the SRV record created by the
@@ -57,6 +59,8 @@ releases:
       # differ, so we don't make any silly assumptions in the code.
       - name: config.dns.federator
         value: {{ .Values.federationDomain }}
+    needs:
+      - '{{ .Values.namespace }}-ic'
 
   # Note that wire-server depends on databases-ephemeral being up; and in some
   # cases on nginx-ingress also being up. If installing helm charts in a

@@ -5,7 +5,7 @@ kind: Ingress
 metadata:
   name: nginx-ingress
   annotations:
-    kubernetes.io/ingress.class: "nginx"
+    kubernetes.io/ingress.class: "{{ .Values.config.ingressClass }}"
 spec:
   # This assumes you have created the given cert (see secret.yaml)
   # https://github.com/kubernetes/ingress-nginx/blob/master/docs/examples/PREREQUISITES.md#tls-certificates

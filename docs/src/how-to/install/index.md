@@ -19,6 +19,7 @@ Infrastructure configuration <infrastructure-configuration>
 How to monitor wire-server <monitoring>
 How to see centralized logs for wire-server <logging>
 
+Ingress-controller (getting traffic in) <ingress>
 Web app settings <web-app-settings>
 sft
 restund
