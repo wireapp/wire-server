@@ -1,5 +1,6 @@
 module Config where
 
+import Data.Aeson
 import Imports
 import Network.HTTP.Client
 
@@ -12,16 +13,27 @@ data Env = Env
     lastPrekeys :: IORef [String]
   }
 
-data ServiceMap = ServiceMap
-  { brig :: Word16,
-    galley :: Word16,
-    cannon :: Word16
+data HostPort = HostPort
+  { host :: String,
+    port :: Word16
   }
+  deriving (Show, Generic)
 
-servicePort :: ServiceMap -> Service -> Word16
-servicePort m Brig = m.brig
-servicePort m Galley = m.galley
-servicePort m Cannon = m.cannon
+instance FromJSON HostPort
+
+data ServiceMap = ServiceMap
+  { brig :: HostPort,
+    galley :: HostPort,
+    cannon :: HostPort
+  }
+  deriving (Show, Generic)
+
+instance FromJSON ServiceMap
+
+serviceHostPort :: ServiceMap -> Service -> HostPort
+serviceHostPort m Brig = m.brig
+serviceHostPort m Galley = m.galley
+serviceHostPort m Cannon = m.cannon
 
 data Context = Context
   { serviceMap :: ServiceMap,
@@ -39,9 +51,9 @@ mkEnv = do
           Context
             { serviceMap =
                 ServiceMap
-                  { brig = 8082,
-                    galley = 8085,
-                    cannon = 8083
+                  { brig = HostPort {host = "localhost", port = 8082},
+                    galley = HostPort {host = "localhost", port = 8085},
+                    cannon = HostPort {host = "localhost", port = 8083}
                   },
               version = 4
             },

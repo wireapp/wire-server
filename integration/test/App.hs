@@ -304,7 +304,8 @@ baseRequest :: Service -> String -> App HTTP.Request
 baseRequest service path = do
   ctx <- getContext
   liftIO . HTTP.parseRequest $
-    "http://localhost:" <> show (servicePort ctx.serviceMap service) <> path
+    let HostPort h p = serviceHostPort ctx.serviceMap service
+     in "http://" <> h <> ":" <> show p <> path
 
 addJSONObject :: [Aeson.Pair] -> HTTP.Request -> HTTP.Request
 addJSONObject = addJSON . Aeson.object
