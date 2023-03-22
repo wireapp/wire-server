@@ -666,15 +666,25 @@ notifyCreatedConversation lusr conn c = do
   -- Ask remote server to store conversation membership and notify remote users
   -- of being added to a conversation
   failedToNotify <- registerRemoteConversationMemberships now (tDomain lusr) c
-  -- Notify local users
-  let remoteOthers = map remoteMemberToOther $ Data.convRemoteMembers c
+  let allRemotes = Data.convRemoteMembers c
+      notifiedRemotes =
+        filter
+          (\rm -> Set.notMember (rmId rm) failedToNotify)
+          allRemotes
       localOthers = map (localMemberToOther (tDomain lusr)) $ Data.convLocalMembers c
-
-  unless (null remoteOthers) $
+  unless (null allRemotes) $
     unlessM E.isFederationConfigured $
       throw FederationNotConfigured
 
-  E.push =<< mapM (toPush now remoteOthers localOthers) (Data.convLocalMembers c)
+  -- Notify local users
+  E.push
+    =<< mapM
+      ( toPush
+          now
+          (remoteMemberToOther <$> notifiedRemotes)
+          localOthers
+      )
+      (Data.convLocalMembers c)
   pure failedToNotify
   where
     route
