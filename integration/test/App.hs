@@ -181,7 +181,7 @@ a %?= b = do
   when (xa /= xb) $ do
     xaP <- prettyJSON xa
     xbP <- prettyJSON xb
-    assertionFailure $ "Expected:\n" <> xbP <> "Actual:\n" <> xaP
+    assertionFailure $ "Expected:\n" <> xbP <> "\nActual:\n" <> xaP
 
 pprintJSON :: ProducesJSON a => a -> App ()
 pprintJSON = prettyJSON >=> putStrLn
