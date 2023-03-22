@@ -418,7 +418,7 @@ postConvWithRemoteUsersOk rbs = do
         @?= Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
       F.ccCnvName fedReqBody @?= Just nameMaxSize
       assertBool "Notifying an incorrect set of conversation members" $
-        shouldBePresentSet `Set.isSubsetOf` (F.ccNonCreatorMembers fedReqBody)
+        shouldBePresentSet `Set.isSubsetOf` F.ccNonCreatorMembers fedReqBody
       F.ccMessageTimer fedReqBody @?= Nothing
       F.ccReceiptMode fedReqBody @?= Nothing
 
