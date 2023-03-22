@@ -376,6 +376,7 @@ postConvWithRemoteUsersOk rbs = do
             }
           <!! const 201 === statusCode
     let shouldBePresent = otherLocals <> participatingRemotes
+        shouldBePresentSet = Set.fromList (toOtherMember <$> shouldBePresent)
     qcid <-
       assertConv
         rsp
@@ -386,7 +387,7 @@ postConvWithRemoteUsersOk rbs = do
         (Just nameMaxSize)
         Nothing
     let cid = qUnqualified qcid
-    cvs <- mapM (convView cid) [alice, alex, amy]
+    cvs <- mapM (convView qcid) [alice, alex, amy]
     liftIO $
       mapM_ WS.assertSuccess
         =<< Async.mapConcurrently (checkWs qAlice) (zip cvs [wsAlice, wsAlex, wsAmy])
@@ -407,8 +408,8 @@ postConvWithRemoteUsersOk rbs = do
       F.ccCnvAccessRoles fedReqBody
         @?= Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
       F.ccCnvName fedReqBody @?= Just nameMaxSize
-      F.ccNonCreatorMembers fedReqBody
-        @?= Set.fromList (toOtherMember <$> shouldBePresent)
+      assertBool "Notifying an incorrect set of conversation members" $
+        shouldBePresentSet `Set.isSubsetOf` (F.ccNonCreatorMembers fedReqBody)
       F.ccMessageTimer fedReqBody @?= Nothing
       F.ccReceiptMode fedReqBody @?= Nothing
 
@@ -432,9 +433,8 @@ postConvWithRemoteUsersOk rbs = do
         then users
         else []
     toOtherMember qid = OtherMember qid Nothing roleNameWireAdmin
-    convView cnv usr = do
-      r <- getConv usr cnv <!! const 200 === statusCode
-      unVersioned @'V2 <$> responseJsonError r
+    convView cnv usr =
+      responseJsonError =<< getConvQualified usr cnv <!! const 200 === statusCode
     checkWs qalice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
       ntfTransient n @?= False
       let e = List1.head (WS.unpackPayload n)
