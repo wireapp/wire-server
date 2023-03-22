@@ -68,7 +68,7 @@ common common-all
     UndecidableInstances
     ViewPatterns
 
-executable integration
+executable integration-integration
   import:         common-all
   main-is:        ../main.hs
   hs-source-dirs: test
