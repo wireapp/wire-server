@@ -35,7 +35,6 @@ import Cassandra.CQL hiding (Set)
 import Control.Applicative
 import Control.Lens hiding (set, (.=))
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteString as B
@@ -167,7 +166,6 @@ data KeyPackageTBS = KeyPackageTBS
     cipherSuite :: CipherSuite,
     initKey :: HPKEPublicKey,
     leafNode :: LeafNode,
-    credential :: Credential,
     extensions :: [Extension]
   }
   deriving stock (Eq, Show, Generic)
@@ -177,7 +175,6 @@ instance ParseMLS KeyPackageTBS where
   parseMLS =
     KeyPackageTBS
       <$> parseMLS
-      <*> parseMLS
       <*> parseMLS
       <*> parseMLS
       <*> parseMLS
@@ -201,9 +198,6 @@ instance HasField "cipherSuite" KeyPackage CipherSuite where
 instance HasField "initKey" KeyPackage HPKEPublicKey where
   getField = (.tbs.rmValue.initKey)
 
-instance HasField "credential" KeyPackage Credential where
-  getField = (.tbs.rmValue.credential)
-
 instance HasField "extensions" KeyPackage [Extension] where
   getField = (.tbs.rmValue.extensions)
 
@@ -211,7 +205,7 @@ instance HasField "leafNode" KeyPackage LeafNode where
   getField = (.tbs.rmValue.leafNode)
 
 keyPackageIdentity :: KeyPackage -> Either Text ClientIdentity
-keyPackageIdentity = decodeMLS' @ClientIdentity . (.credential.identityData)
+keyPackageIdentity = decodeMLS' @ClientIdentity . (.leafNode.credential.identityData)
 
 rawKeyPackageSchema :: ValueSchema NamedSwaggerDoc (RawMLS KeyPackage)
 rawKeyPackageSchema =
@@ -225,7 +219,7 @@ instance ParseMLS KeyPackage where
   parseMLS =
     KeyPackage
       <$> parseRawMLS parseMLS
-      <*> parseMLSBytes @Word16
+      <*> parseMLSBytes @VarInt
 
 --------------------------------------------------------------------------------
 

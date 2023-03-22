@@ -94,7 +94,7 @@ validateKeyPackage identity (RawMLS (KeyPackageData -> kpd) kp) = do
     (pvTag (kp.protocolVersion) >>= guard . (== ProtocolMLS10))
 
   -- validate credential, lifetime and capabilities
-  validateCredential identity kp.credential
+  validateCredential identity kp.leafNode.credential
   validateSource kp.leafNode.source
   validateCapabilities kp.leafNode.capabilities
 

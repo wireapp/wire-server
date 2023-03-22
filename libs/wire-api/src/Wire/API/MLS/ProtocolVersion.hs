@@ -30,7 +30,7 @@ import Imports
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
-newtype ProtocolVersion = ProtocolVersion {pvNumber :: Word8}
+newtype ProtocolVersion = ProtocolVersion {pvNumber :: Word16}
   deriving newtype (Eq, Ord, Show, Binary, Arbitrary, ParseMLS, SerialiseMLS)
 
 data ProtocolVersionTag = ProtocolMLS10 | ProtocolMLSDraft11

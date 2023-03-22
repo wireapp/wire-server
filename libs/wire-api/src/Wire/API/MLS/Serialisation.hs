@@ -108,13 +108,11 @@ instance Binary VarInt where
   get :: Get VarInt
   get = do
     w <- lookAhead getWord8
-    let x = shiftR (w .&. 0xc0) 6
-        maskVarInt = VarInt . (.&. 0x3fffffff)
-    if
-        | x == 0b00 -> maskVarInt . fromIntegral <$> getWord8
-        | x == 0b01 -> maskVarInt . fromIntegral <$> getWord16be
-        | x == 0b10 -> maskVarInt . fromIntegral <$> getWord32be
-        | otherwise -> fail "invalid VarInt prefix"
+    case shiftR (w .&. 0xc0) 6 of
+      0b00 -> VarInt . fromIntegral <$> getWord8
+      0b01 -> VarInt . (.&. 0x3fff) . fromIntegral <$> getWord16be
+      0b10 -> VarInt . (.&. 0x3fffffff) . fromIntegral <$> getWord32be
+      _ -> fail "invalid VarInt prefix"
 
 instance SerialiseMLS VarInt where serialiseMLS = put
 
