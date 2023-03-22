@@ -85,6 +85,7 @@ let
     inconsistencies = [ "inconsistencies" ];
     api-simulations = [ "api-smoketest" "api-loadtest" ];
     zauth = [ "zauth" ];
+    integration = [ "integration" ];
   };
 
   attrsets = lib.attrsets;
@@ -203,11 +204,12 @@ let
   # Some images require extra things which is not possible to specify using
   # cabal file dependencies, so cabal2nix cannot automatically add these.
   #
-  # extraContents :: Map Text [Derivation]
-  extraContents = {
+  # extraContents :: Map Exe Derivation -> Map Text [Derivation]
+  extraContents = exes: {
     brig = [ brig-templates ];
     brig-integration = [ brig-templates pkgs.mls-test-cli ];
     galley-integration = [ pkgs.mls-test-cli ];
+    integration = with exes; [ brig cannon cargohold federator galley gundeck proxy spar stern ];
   };
 
   # useful to poke around a container during a 'kubectl exec'
@@ -225,6 +227,8 @@ let
   ];
 
   images = localMods@{ enableOptimization, enableDocs, enableTests }:
+    let exes = staticExecs localMods;
+    in
     attrsets.mapAttrs
       (execName: drv:
         pkgs.dockerTools.streamLayeredImage {
@@ -236,7 +240,7 @@ let
             pkgs.dumb-init
             drv
             tmpDir
-          ] ++ debugUtils ++ pkgs.lib.optionals (builtins.hasAttr execName extraContents) (builtins.getAttr execName extraContents);
+          ] ++ debugUtils ++ pkgs.lib.optionals (builtins.hasAttr execName (extraContents exes)) (builtins.getAttr execName (extraContents exes));
           # Any mkdir running in this step won't actually make it to the image,
           # hence we use the tmpDir derivation in the contents
           fakeRootCommands = ''
@@ -249,7 +253,7 @@ let
           };
         }
       )
-      (staticExecs localMods);
+      exes;
 
   localModsEnableAll = {
     enableOptimization = true;
