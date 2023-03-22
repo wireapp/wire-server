@@ -124,7 +124,7 @@ propagateMessage qusr lconv cm con raw = do
         pure []
     handleError (Left (r, e)) = do
       logFedError r (toWai e)
-      pure $ remotesToQIds (tUnqualified  r)
+      pure $ remotesToQIds (tUnqualified r)
     logFedError :: Member TinyLog r => Remote x -> Wai.Error -> Sem r ()
     logFedError r e =
       warn $
