@@ -6,7 +6,8 @@
 # swapped words 'nginx' and 'ingress'), where we assume no load balancer support
 # and instead expose NodePorts on ports 31773 and 31772, and where you need to
 # ensure traffic gets to these ports in another way; then please read the
-# documentation on https://docs.wire.com (or search for "ingress")
+# documentation on https://docs.wire.com/how-to/install/ingress.html (or go to
+# https://docs.wire.com and search for "ingress-nginx-controller")
 #
 # See
 # https://github.com/kubernetes/ingress-nginx/blob/main/charts/ingress-nginx/values.yaml
