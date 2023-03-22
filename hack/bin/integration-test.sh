@@ -6,18 +6,18 @@ NAMESPACE=${NAMESPACE:-test-integration}
 # set to 1 to disable running helm tests in parallel
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 CLEANUP_LOCAL_FILES=${CLEANUP_LOCAL_FILES:-1} # set to 0 to keep files
+OUTPUT_DIR=./test-logs
 
 echo "Running integration tests on wire-server with parallelism=${HELM_PARALLELISM} ..."
 
 CHART=wire-server
 tests=(galley cargohold gundeck federator spar brig)
 
+mkdir -p $OUTPUT_DIR
+
 cleanup() {
     if (( CLEANUP_LOCAL_FILES > 0 )); then
-        for t in "${tests[@]}"; do
-            rm -f "stat-$t"
-            rm -f "logs-$t"
-        done
+        rm -r $OUTPUT_DIR
     fi
 }
 
@@ -25,10 +25,10 @@ summary() {
     echo "==============="
     echo "=== summary ==="
     echo "==============="
-    printf '%s\n' "${tests[@]}" | parallel echo "=== tail {}: ===" ';' tail -2 logs-{}
+    printf '%s\n' "${tests[@]}" | parallel echo "=== tail {}: ===" ';' tail -2 $OUTPUT_DIR/logs-{}
 
     for t in "${tests[@]}"; do
-        x=$(cat "stat-$t")
+        x=$(cat "$OUTPUT_DIR/stat-$t")
         if ((x > 0)); then
             echo "$t-integration FAILED ❌. pfff..."
         else
@@ -44,17 +44,17 @@ summary() {
 mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${tests[@]}" | parallel echo "Running helm tests for {}..."
 printf '%s\n' "${tests[@]}" | parallel -P "${HELM_PARALLELISM}" \
-    helm test -n "${NAMESPACE}" "${NAMESPACE}-${CHART}" --timeout 900s --filter name="${NAMESPACE}-${CHART}-{}-integration" '> logs-{};' \
+    helm test -n "${NAMESPACE}" "${NAMESPACE}-${CHART}" --timeout 900s --filter name="${NAMESPACE}-${CHART}-{}-integration" "> $OUTPUT_DIR/logs-{};" \
     echo '$? > stat-{};' \
     echo "==== Done testing {}. ====" '};' \
-    kubectl -n "${NAMESPACE}" logs "${NAMESPACE}-${CHART}-{}-integration" '>> logs-{};'
+    kubectl -n "${NAMESPACE}" logs "${NAMESPACE}-${CHART}-{}-integration" ">> $OUTPUT_DIR/logs-{};"
 
 summary
 
 # in case any integration test suite failed, exit this script with an error.
 exit_code=0
 for t in "${tests[@]}"; do
-    x=$(cat "stat-$t")
+    x=$(cat "$OUTPUT_DIR/stat-$t")
     if ((x > 0)); then
         exit_code=1
     fi
@@ -66,18 +66,18 @@ if ((exit_code > 0)); then
     echo "======================="
     # in case a integration test suite failed, print relevant logs
     for t in "${tests[@]}"; do
-        x=$(cat "stat-$t")
+        x=$(cat "$OUTPUT_DIR/stat-$t")
         if ((x > 0)); then
             echo "=== logs for failed $t-integration ==="
-            cat "logs-$t"
+            cat "$OUTPUT_DIR/logs-$t"
         fi
     done
     summary
     for t in "${tests[@]}"; do
-        x=$(cat "stat-$t")
+        x=$(cat "$OUTPUT_DIR/stat-$t")
         if ((x > 0)); then
             echo "=== (relevant) logs for failed $t-integration ==="
-            "$DIR/integration-logs-relevant-bits.sh" < "logs-$t"
+            "$DIR/integration-logs-relevant-bits.sh" < "$OUTPUT_DIR/logs-$t"
         fi
     done
     summary
