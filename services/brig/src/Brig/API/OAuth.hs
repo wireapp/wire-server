@@ -303,10 +303,10 @@ lookupOauthClient cid = do
 insertOAuthAuthorizationCode :: (MonadClient m) => Word64 -> OAuthAuthorizationCode -> OAuthClientId -> UserId -> OAuthScopes -> RedirectUrl -> OAuthCodeChallenge -> m ()
 insertOAuthAuthorizationCode ttl code cid uid scope uri chal = do
   let cqlScope = C.Set (Set.toList (unOAuthScopes scope))
-  retry x5 . write q $ params LocalQuorum (code, cid, uid, cqlScope, uri, chal)
+  retry x5 . write q $ params LocalQuorum (code, cid, uid, cqlScope, uri, chal, fromIntegral ttl)
   where
-    q :: PrepQuery W (OAuthAuthorizationCode, OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl, OAuthCodeChallenge) ()
-    q = fromString $ "INSERT INTO oauth_auth_code (code, client, user, scope, redirect_uri, code_challenge) VALUES (?, ?, ?, ?, ?, ?) USING TTL " <> show ttl
+    q :: PrepQuery W (OAuthAuthorizationCode, OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl, OAuthCodeChallenge, Int32) ()
+    q = fromString $ "INSERT INTO oauth_auth_code (code, client, user, scope, redirect_uri, code_challenge) VALUES (?, ?, ?, ?, ?, ?) USING TTL ?"
 
 lookupAndDeleteByOAuthAuthorizationCode :: (MonadClient m) => OAuthAuthorizationCode -> m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl, Maybe OAuthCodeChallenge))
 lookupAndDeleteByOAuthAuthorizationCode code = lookupOAuthAuthorizationCode <* deleteOAuthAuthorizationCode
@@ -330,14 +330,14 @@ insertOAuthRefreshToken maxActiveTokens ttl info = do
   let rid = info.refreshTokenId
   oldTokes <- determineOldestTokensToBeDeleted <$> lookupOAuthRefreshTokens info.userId
   for_ oldTokes deleteOAuthRefreshToken
-  retry x5 . write qInsertId $ params LocalQuorum (info.userId, rid)
-  retry x5 . write qInsertInfo $ params LocalQuorum (rid, info.clientId, info.userId, C.Set (Set.toList (unOAuthScopes info.scopes)), info.createdAt)
+  retry x5 . write qInsertId $ params LocalQuorum (info.userId, rid, fromIntegral ttl)
+  retry x5 . write qInsertInfo $ params LocalQuorum (rid, info.clientId, info.userId, C.Set (Set.toList (unOAuthScopes info.scopes)), info.createdAt, fromIntegral ttl)
   where
-    qInsertInfo :: PrepQuery W (OAuthRefreshTokenId, OAuthClientId, UserId, C.Set OAuthScope, UTCTime) ()
-    qInsertInfo = fromString $ "INSERT INTO oauth_refresh_token (id, client, user, scope, created_at) VALUES (?, ?, ?, ?, ?) USING TTL " <> show ttl
+    qInsertInfo :: PrepQuery W (OAuthRefreshTokenId, OAuthClientId, UserId, C.Set OAuthScope, UTCTime, Int32) ()
+    qInsertInfo = fromString $ "INSERT INTO oauth_refresh_token (id, client, user, scope, created_at) VALUES (?, ?, ?, ?, ?) USING TTL ?"
 
-    qInsertId :: PrepQuery W (UserId, OAuthRefreshTokenId) ()
-    qInsertId = fromString $ "INSERT INTO oauth_user_refresh_token (user, token_id) VALUES (?, ?) USING TTL " <> show ttl
+    qInsertId :: PrepQuery W (UserId, OAuthRefreshTokenId, Int32) ()
+    qInsertId = fromString $ "INSERT INTO oauth_user_refresh_token (user, token_id) VALUES (?, ?) USING TTL ?"
 
     determineOldestTokensToBeDeleted :: [OAuthRefreshTokenInfo] -> [OAuthRefreshTokenInfo]
     determineOldestTokensToBeDeleted tokens =
