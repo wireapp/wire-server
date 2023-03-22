@@ -121,23 +121,6 @@ tests s =
       API.MLS.tests s
     ]
   where
-    rb1, rb2 :: Remote Backend
-    rb1 =
-      toRemoteUnsafe
-        (Domain "c.example.com")
-        ( Backend
-            { bReachable = BackendReachable,
-              bUsers = 2
-            }
-        )
-    rb2 =
-      toRemoteUnsafe
-        (Domain "d.example.com")
-        ( Backend
-            { bReachable = BackendReachable,
-              bUsers = 1
-            }
-        )
     mainTests =
       testGroup
         "Main Conversations API"
@@ -146,6 +129,7 @@ tests s =
           test s "fetch conversation by qualified ID (v2)" testGetConvQualifiedV2,
           test s "create Proteus conversation" postProteusConvOk,
           test s "create conversation with remote users" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2]),
+          test s "create conversation with remote users (some unreachable)" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2, rb3]),
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
           test s "fail to get >500 conversations with v2 API" getConvsFailMaxSizeV2,
@@ -269,6 +253,31 @@ tests s =
               test s "send typing indicators with invalid pyaload" postTypingIndicatorsHandlesNonsense
             ]
         ]
+    rb1, rb2, rb3 :: Remote Backend
+    rb1 =
+      toRemoteUnsafe
+        (Domain "c.example.com")
+        ( Backend
+            { bReachable = BackendReachable,
+              bUsers = 2
+            }
+        )
+    rb2 =
+      toRemoteUnsafe
+        (Domain "d.example.com")
+        ( Backend
+            { bReachable = BackendReachable,
+              bUsers = 1
+            }
+        )
+    rb3 =
+      toRemoteUnsafe
+        (Domain "e.example.com")
+        ( Backend
+            { bReachable = BackendUnreachable,
+              bUsers = 2
+            }
+        )
 
 -------------------------------------------------------------------------------
 -- API Tests
