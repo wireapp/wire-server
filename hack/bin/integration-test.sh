@@ -13,7 +13,8 @@ echo "Running integration tests on wire-server with parallelism=${HELM_PARALLELI
 CHART=wire-server
 tests=(galley cargohold gundeck federator spar brig)
 
-mkdir -p $OUTPUT_DIR
+echo "Create $OUTPUT_DIR (if it doesn't exist)"
+mkdir -p "$OUTPUT_DIR"
 
 cleanup() {
     if (( CLEANUP_LOCAL_FILES > 0 )); then
