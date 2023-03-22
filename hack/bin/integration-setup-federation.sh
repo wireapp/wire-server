@@ -30,7 +30,7 @@ echo "Generating self-signed certificates..."
 KUBERNETES_VERSION_MAJOR="$(kubectl version -o json | jq -r .serverVersion.major)"
 KUBERNETES_VERSION_MINOR="$(kubectl version -o json | jq -r .serverVersion.minor)"
 export KUBERNETES_VERSION="$KUBERNETES_VERSION_MAJOR.$KUBERNETES_VERSION_MINOR"
-if (( KUBERNETES_VERSION_MINOR >= 23 )); then
+if (( KUBERNETES_VERSION_MAJOR > 1 || KUBERNETES_VERSION_MAJOR == 1 && KUBERNETES_VERSION_MINOR >= 23 )); then
     export INGRESS_CHART="ingress-nginx-controller"
 else
     export INGRESS_CHART="nginx-ingress-controller"
