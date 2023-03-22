@@ -174,7 +174,7 @@ createAccessTokenWithAuthorizationCode :: (Member Now r, Member Jwk r) => OAuthA
 createAccessTokenWithAuthorizationCode req = do
   unless (req.grantType == OAuthGrantTypeAuthorizationCode) $ throwStd $ errorToWai @'OAuthInvalidGrantType
   (cid, uid, scope, uri, mChal) <-
-    lift (wrapClient $ lookupAndDeleteByOAuthAuthorizationCode (req.code))
+    lift (wrapClient $ lookupAndDeleteByOAuthAuthorizationCode req.code)
       >>= maybe (throwStd $ errorToWai @'OAuthAuthorizationCodeNotFound) pure
   oauthClient <- getOAuthClient uid req.clientId >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
@@ -343,7 +343,7 @@ insertOAuthRefreshToken maxActiveTokens ttl info = do
     determineOldestTokensToBeDeleted tokens =
       take (length sorted - fromIntegral maxActiveTokens + 1) sorted
       where
-        sorted = sortOn (.createdAt) tokens
+        sorted = sortOn createdAt tokens
 
 lookupOAuthRefreshTokens :: (MonadClient m) => UserId -> m [OAuthRefreshTokenInfo]
 lookupOAuthRefreshTokens uid = do
