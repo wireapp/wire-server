@@ -3,6 +3,7 @@ module Config where
 import Data.Aeson
 import Imports
 import Network.HTTP.Client
+import Test.Tasty.Options
 
 data Service = Brig | Galley | Cannon
 
@@ -30,6 +31,20 @@ data ServiceMap = ServiceMap
 
 instance FromJSON ServiceMap
 
+newtype ConfigFile = ConfigFile {unConfigFile :: FilePath}
+
+instance IsOption ConfigFile where
+  defaultValue = ConfigFile "services/integration.yaml"
+  parseValue = Just . ConfigFile
+  optionName = "config"
+  optionHelp = "Configuration file for integration tests. Default: services/integration.yaml"
+
+instance IsOption ServiceMap where
+  defaultValue = error "NO Default value"
+  parseValue = const Nothing
+  optionName = "config-loaded-from-file"
+  optionHelp = "This option can only be provdided via the --config flag"
+
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
 serviceHostPort m Galley = m.galley
@@ -40,8 +55,8 @@ data Context = Context
     version :: Int
   }
 
-mkEnv :: IO Env
-mkEnv = do
+mkEnv :: ServiceMap -> IO Env
+mkEnv serviceMap = do
   manager <- newManager defaultManagerSettings
   pks <- newIORef (zip [1 ..] somePrekeys)
   lpks <- newIORef someLastPrekeys
@@ -49,12 +64,7 @@ mkEnv = do
     Env
       { context =
           Context
-            { serviceMap =
-                ServiceMap
-                  { brig = HostPort {host = "localhost", port = 8082},
-                    galley = HostPort {host = "localhost", port = 8085},
-                    cannon = HostPort {host = "localhost", port = 8083}
-                  },
+            { serviceMap = serviceMap,
               version = 4
             },
         manager = manager,

@@ -14,7 +14,9 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as LC8
 import qualified Data.CaseInsensitive as CI
+import Data.Proxy (Proxy (Proxy))
 import qualified Data.Scientific as Sci
+import Data.Tagged
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import GHC.Exception
@@ -24,6 +26,7 @@ import Imports hiding (ask, asks)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
 import Network.URI (uriToString)
+import Test.Tasty.Options
 import Test.Tasty.Providers
 import qualified Test.Tasty.Providers as Tasty
 import Test.Tasty.Providers.ConsoleFormat
@@ -53,8 +56,9 @@ newtype App a = App {unApp :: ReaderT Env IO a}
   deriving (Functor, Applicative, Monad, MonadIO)
 
 instance IsTest (App ()) where
-  run _opts action _ = do
-    env <- mkEnv
+  run opts action _ = do
+    let serviceMap = lookupOption opts
+    env <- mkEnv serviceMap
     result :: Tasty.Result <-
       (runAppWithEnv env action >> pure (Tasty.testPassed ""))
         `E.catches` [ E.Handler
@@ -66,7 +70,7 @@ instance IsTest (App ()) where
                     ]
     pure result
 
-  testOptions = mempty
+  testOptions = Tagged [Option (Proxy @ConfigFile)]
 
 printFailureDetails :: AssertionFailure -> ResultDetailsPrinter
 printFailureDetails (AssertionFailure stack mbResponse _) = ResultDetailsPrinter $ \testLevel _withFormat -> do
