@@ -19,6 +19,11 @@ releases:
     namespace: 'wire'
     chart: 'wire/ingress-nginx-controller'
     version: 'CHANGE_ME'
+
+# charts wire-server and nginx-ingress-services also need to be installed, see other
+# documentation
+#  - name: ...
+#    chart: ...
 ```
 
 By default, the `wire/ingress-nginx-controller` chart will create a `Deployment`
@@ -29,7 +34,7 @@ By default three pods will come up and external traffic will be load balanced in
 three pods, which will also do TLS termination and forward traffic to upstream
 services (`nginz` and others).
 
-To inspect default TLS settings, see TODO
+To inspect default TLS settings, see [defaults in the latest code](https://github.com/wireapp/wire-server/blob/develop/charts/ingress-nginx-controller/values.yaml) and also see {ref}`tls`.
 
 ## Installing on bare-metal without dynamic load balancer support
 
