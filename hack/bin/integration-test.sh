@@ -12,6 +12,7 @@ echo "Running integration tests on wire-server with parallelism=${HELM_PARALLELI
 
 CHART=wire-server
 # tests=(stern galley cargohold gundeck federator spar brig integration)
+# TODO: revert this to original + integration
 tests=(integration)
 
 cleanup() {
