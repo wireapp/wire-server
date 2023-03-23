@@ -17,7 +17,26 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.MLS.CipherSuite where
+module Wire.API.MLS.CipherSuite (
+  -- * MLS ciphersuites
+  CipherSuite (..),
+  CipherSuiteTag (..),
+  cipherSuiteTag,
+  tagCipherSuite,
+
+  -- * MLS signature schemes
+  SignatureScheme (..),
+  SignatureSchemeTag (..),
+  signatureScheme,
+  signatureSchemeName,
+  signatureSchemeTag,
+  csSignatureScheme,
+
+  -- * Utilities
+  csHash,
+  csVerifySignatureWithLabel,
+  csVerifySignature,
+  ) where
 
 import Cassandra.CQL
 import Control.Error (note)
@@ -88,12 +107,39 @@ csHash :: CipherSuiteTag -> ByteString -> ByteString -> ByteString
 csHash MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 ctx value =
   HKDF.expand (HKDF.extract @SHA256 (mempty :: ByteString) value) ctx 16
 
-csVerifySignature :: CipherSuiteTag -> ByteString -> ByteString -> ByteString -> Bool
+csVerifySignature :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString -> Bool
 csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 pub x sig =
   fromMaybe False . maybeCryptoError $ do
     pub' <- Ed25519.publicKey pub
     sig' <- Ed25519.signature sig
-    pure $ Ed25519.verify pub' x sig'
+    pure $ Ed25519.verify pub' x.rmRaw sig'
+
+data SignContent a = SignContent
+  { sigLabel :: ByteString,
+    content :: RawMLS a
+  }
+
+instance SerialiseMLS (SignContent a) where
+  serialiseMLS c = do
+    serialiseMLSBytes @VarInt c.sigLabel
+    serialiseMLSBytes @VarInt c.content.rmRaw
+
+mkSignContent :: ByteString -> RawMLS a -> SignContent a
+mkSignContent sigLabel content =
+  SignContent
+    { sigLabel = "MLS 1.0 " <> sigLabel,
+      content = content
+    }
+
+csVerifySignatureWithLabel ::
+  CipherSuiteTag ->
+  ByteString ->
+  ByteString ->
+  RawMLS a ->
+  ByteString ->
+  Bool
+csVerifySignatureWithLabel cs pub label x sig =
+  csVerifySignature cs pub (mkRawMLS (mkSignContent label x)) sig
 
 csSignatureScheme :: CipherSuiteTag -> SignatureSchemeTag
 csSignatureScheme MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = Ed25519

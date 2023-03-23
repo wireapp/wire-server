@@ -398,7 +398,7 @@ verifyMessageSignature ::
   ByteString ->
   Bool
 verifyMessageSignature ctx msgContent authData pubkey = isJust $ do
-  let tbs = encodeMLS' (framedContentTBS ctx msgContent)
+  let tbs = mkRawMLS (framedContentTBS ctx msgContent)
       sig = authData.signature_
   cs <- cipherSuiteTag ctx.rmValue.cipherSuite
   guard $ csVerifySignature cs pubkey tbs sig

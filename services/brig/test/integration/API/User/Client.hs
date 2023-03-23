@@ -61,7 +61,7 @@ import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.Internal.Notification
-
+import Wire.API.MLS.CipherSuite
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import qualified Wire.API.User as Public
@@ -71,7 +71,6 @@ import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
-import Wire.API.MLS.CipherSuite
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at opts p db b c g =
