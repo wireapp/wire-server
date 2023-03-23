@@ -41,7 +41,6 @@ import Bilge.RPC
 import Brig.API.Types
 import Brig.API.User (changeSingleAccountStatus)
 import Brig.App
-import Brig.Budget
 import qualified Brig.Code as Code
 import qualified Brig.Data.Activation as Data
 import Brig.Data.Client
@@ -78,6 +77,7 @@ import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
+import Wire.API.Budget
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User

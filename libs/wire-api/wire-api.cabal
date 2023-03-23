@@ -15,6 +15,7 @@ library
   exposed-modules:
     Wire.API.ApplyMods
     Wire.API.Asset
+    Wire.API.Budget
     Wire.API.Call.Config
     Wire.API.Connection
     Wire.API.ConverProtoLens

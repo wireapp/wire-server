@@ -42,7 +42,6 @@ library
     Brig.AWS
     Brig.AWS.SesNotification
     Brig.AWS.Types
-    Brig.Budget
     Brig.Calling
     Brig.Calling.API
     Brig.Calling.Internal
