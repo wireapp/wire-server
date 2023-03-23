@@ -8,9 +8,17 @@ metadata:
     app: integration-integration
     release: {{ .Release.Name }}
 spec:
+  volumes:
+    - name: "integration-config"
+      configMap:
+        name: "integration-config"
+
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-    command: [ "integration" ]
+    command: [ "integration", "--config", "/etc/wire/integration/integration.yaml" ]
+    volumeMounts:
+    - name: "integration-config"
+      mountPath: "/etc/wire/integration"
 
   restartPolicy: Never
