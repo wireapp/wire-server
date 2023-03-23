@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "integration-config"
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation
+data:
+  config.yaml: |
+    brig:
+      host: brig.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
+    cannon:
+      host: cannon.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
+    galley:
+      host: galley.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
+    cargohold:
+      host: cargohold.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
+    gundeck:
+      host: gundeck.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
+    spar:
+      host: spar.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
+    # not sure if this is correct
+    federatorInternal:
+      host: federator.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
+    # not sure if this is correct
+    federatorExternal:
+      host: federator.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8081
+
+    nginz:
+      host: nginz-integration-http.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
