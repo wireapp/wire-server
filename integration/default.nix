@@ -22,9 +22,11 @@
 , network-uri
 , random
 , scientific
+, tagged
 , tasty
 , text
 , transformers
+, yaml
 }:
 mkDerivation {
   pname = "integration";
@@ -47,9 +49,11 @@ mkDerivation {
     network-uri
     random
     scientific
+    tagged
     tasty
     text
     transformers
+    yaml
   ];
   license = lib.licenses.agpl3Only;
   mainProgram = "integration";
