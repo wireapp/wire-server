@@ -348,9 +348,6 @@ kube-integration-test:
 	export NAMESPACE=$(NAMESPACE); \
 	export HELM_PARALLELISM=$(HELM_PARALLELISM); \
 	export VERSION=${DOCKER_TAG}; \
-	export UPLOAD_LOGS=${UPLOAD_LOGS}; \
-	export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}; \
-	export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
 	./hack/bin/integration-test.sh
 
 .PHONY: kube-integration-teardown
