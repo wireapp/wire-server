@@ -24,7 +24,8 @@ import API.MLS.Util
 import API.Util
 import Bilge hiding (head)
 import Bilge.Assert
-import Cassandra
+import Cassandra hiding (Set)
+import Control.Exception (throw)
 import Control.Lens (view)
 import Control.Lens.Extras
 import qualified Control.Monad.State as State
@@ -48,6 +49,7 @@ import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
+import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
@@ -130,7 +132,7 @@ tests s =
             [ test s "send application message" testAppMessage,
               test s "send remote application message" testRemoteAppMessage,
               test s "another participant sends an application message" testAppMessage2,
-              -- FUTUREWORK(elland): add happy path test as well
+              test s "send message, some remotes are reachable" testAppMessageSomeReachable,
               test s "send message, remote users are unreachable" testAppMessageUnreachable
             ],
           testGroup
@@ -1107,6 +1109,44 @@ testAppMessage2 = do
         WS.assertMatchN_ (5 # WS.Second) wss $
           wsAssertMLSMessage conversation bob (mpMessage message)
 
+testAppMessageSomeReachable :: TestM ()
+testAppMessageSomeReachable = do
+  users@[_alice, bob, charlie] <-
+    createAndConnectUsers
+      [ Nothing,
+        Just "bob.example.com",
+        Just "charlie.example.com"
+      ]
+
+  void $ runMLSTest $ do
+    [alice1, bob1, charlie1] <-
+      traverse createMLSClient users
+
+    void $ setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob, charlie]
+
+    let mocks =
+          receiveCommitMockByDomain [bob1, charlie1]
+            <|> welcomeMock
+    ([event], _) <-
+      withTempMockFederator' mocks $ do
+        sendAndConsumeCommit commit
+
+    let unreachables = Set.singleton (Domain "charlie.example.com")
+    withTempMockFederator' (mockUnreachableFor unreachables) $ do
+      message <- createApplicationMessage alice1 "hi, bob!"
+      (_, us) <- sendAndConsumeMessage message
+      liftIO $ do
+        assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
+        us @?= UnreachableUsers [charlie]
+  where
+    mockUnreachableFor :: Set Domain -> Mock LByteString
+    mockUnreachableFor backends = do
+      r <- getRequest
+      if Set.member (frTargetDomain r) backends
+        then throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
+        else mockReply ("RemoteMLSMessageOk" :: String)
+
 testAppMessageUnreachable :: TestM ()
 testAppMessageUnreachable = do
   -- alice is local, bob is remote
@@ -1127,7 +1167,7 @@ testAppMessageUnreachable = do
     (_, us) <- sendAndConsumeMessage message
     liftIO $ do
       assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-      UnreachableUsers [bob] @?= us
+      us @?= UnreachableUsers [bob]
 
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do
