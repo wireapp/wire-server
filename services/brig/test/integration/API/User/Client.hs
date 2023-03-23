@@ -615,15 +615,22 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db = do
     DB.runClient db $
       DB.write removeClientKeys (DB.params DB.LocalQuorum (uid1, clientId c11))
 
-  uid2 <- userId <$> randomUser brig
+  uid2 <- fakeRemoteUser
 
   let domain = Domain "foo.bar"
 
-  let userClients =
+  let userClients1 =
         QualifiedUserClients $
           Map.singleton domain $
             Map.singleton uid1 $
               Set.fromList [clientId c11, clientId c12]
+      userClients2 =
+        QualifiedUserClients $
+          Map.fromList
+            [ ( qDomain uid2,
+                Map.singleton (qUnqualified uid2) mempty
+              )
+            ]
 
   WS.bracketR cannon uid1 $ \ws -> do
     getClient brig uid1 (clientId c11) !!! do
@@ -633,8 +640,8 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db = do
       ( brig
           . paths ["users", "list-prekeys"]
           . contentJson
-          . body (RequestBodyLBS $ encode userClients)
-          . zUser uid2
+          . body (RequestBodyLBS $ encode userClients1)
+          . zUser (qUnqualified uid2)
       )
       !!! do
         const 200 === statusCode
@@ -656,8 +663,8 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db = do
     ( brig
         . paths ["users", "list-prekeys"]
         . contentJson
-        . body (RequestBodyLBS $ encode userClients)
-        . zUser uid2
+        . body (RequestBodyLBS $ encode userClients2)
+        . zUser (qUnqualified uid2)
     )
     !!! do
       const 200 === statusCode
@@ -665,7 +672,7 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db = do
         ( Right $
             QualifiedUserClientPrekeyMapV4
               { qualifiedUserClientPrekeys = QualifiedUserClientMap Map.empty,
-                failedToList = pure [Qualified uid1 domain]
+                failedToList = pure [uid2]
               }
         )
         === responseJsonEither

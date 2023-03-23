@@ -655,7 +655,7 @@ type PrekeyAPI =
                :> Post '[JSON] UserClientPrekeyMap
            )
     :<|> Named
-           "get-multi-user-prekey-bundle-qualified@v2"
+           "get-multi-user-prekey-bundle-qualified@v3"
            ( Summary
                "Given a map of domain to (map of user IDs to client IDs) return a \
                \prekey for each one. You can't request information for more users than \

@@ -289,13 +289,15 @@ claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError (AppT r) Prek
 claimRemotePrekeyBundle quser = do
   Federation.claimPrekeyBundle quser !>> ClientFederationError
 
-claimMultiPrekeyBundles ::
-  forall r.
-  (Member (Concurrency 'Unsafe) r) =>
+claimMultiPrekeyBundlesInternal ::
+  Member (Concurrency 'Unsafe) r =>
   LegalholdProtectee ->
   QualifiedUserClients ->
-  ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMap
-claimMultiPrekeyBundles protectee quc = do
+  ExceptT
+    ClientError
+    (AppT r)
+    ([Qualified UserClientPrekeyMap], [Remote UserClients])
+claimMultiPrekeyBundlesInternal protectee quc = do
   loc <- qualifyLocal ()
   let (locals, remotes) =
         partitionQualifiedAndTag
@@ -305,6 +307,23 @@ claimMultiPrekeyBundles protectee quc = do
               (Map.assocs (qualifiedUserClients quc))
           )
   localPrekeys <- traverse claimLocal locals
+  pure (localPrekeys, remotes)
+  where
+    claimLocal ::
+      Member (Concurrency 'Unsafe) r =>
+      Local UserClients ->
+      ExceptT ClientError (AppT r) (Qualified UserClientPrekeyMap)
+    claimLocal luc =
+      tUntagged . qualifyAs luc
+        <$> claimLocalMultiPrekeyBundles protectee (tUnqualified luc)
+
+claimMultiPrekeyBundlesV3 ::
+  Member (Concurrency 'Unsafe) r =>
+  LegalholdProtectee ->
+  QualifiedUserClients ->
+  ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMap
+claimMultiPrekeyBundlesV3 protectee quc = do
+  (localPrekeys, remotes) <- claimMultiPrekeyBundlesInternal protectee quc
   remotePrekeys <-
     mapExceptT wrapHttpClient $
       traverseConcurrentlyWithErrors
@@ -324,33 +343,20 @@ claimMultiPrekeyBundles protectee quc = do
       tUntagged . qualifyAs ruc
         <$> Federation.claimMultiPrekeyBundle (tDomain ruc) (tUnqualified ruc)
 
-    claimLocal :: Local UserClients -> ExceptT ClientError (AppT r) (Qualified UserClientPrekeyMap)
-    claimLocal luc =
-      tUntagged . qualifyAs luc
-        <$> claimLocalMultiPrekeyBundles protectee (tUnqualified luc)
-
 -- Similar to claimMultiPrekeyBundles except for the following changes
 -- 1) A new return type that contains both the client map and a list of
 --    users that prekeys couldn't be fetched for.
 -- 2) A semantic change on federation errors when gathering remote clients.
 --    Remote federation errors at this step no-longer cause the entire call
 --    to fail, allowing partial results to be returned.
-claimMultiPrekeyBundlesV3 ::
+claimMultiPrekeyBundles ::
   forall r.
   Member (Concurrency 'Unsafe) r =>
   LegalholdProtectee ->
   QualifiedUserClients ->
   ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMapV4
-claimMultiPrekeyBundlesV3 protectee quc = do
-  loc <- qualifyLocal ()
-  let (locals, remotes) =
-        partitionQualifiedAndTag
-          loc
-          ( map
-              (fmap UserClients . uncurry (flip Qualified))
-              (Map.assocs (qualifiedUserClients quc))
-          )
-  localPrekeys <- traverse claimLocal locals
+claimMultiPrekeyBundles protectee quc = do
+  (localPrekeys, remotes) <- claimMultiPrekeyBundlesInternal protectee quc
   remotePrekeys <- mapExceptT wrapHttpClient $ lift $ traverseConcurrently claimRemote remotes
   let prekeys =
         getQualifiedUserClientPrekeyMap $
@@ -369,11 +375,6 @@ claimMultiPrekeyBundlesV3 protectee quc = do
     claimRemote ruc =
       tUntagged . qualifyAs ruc
         <$> Federation.claimMultiPrekeyBundle (tDomain ruc) (tUnqualified ruc)
-
-    claimLocal :: Local UserClients -> ExceptT ClientError (AppT r) (Qualified UserClientPrekeyMap)
-    claimLocal luc =
-      tUntagged . qualifyAs luc
-        <$> claimLocalMultiPrekeyBundles protectee (tUnqualified luc)
 
 claimLocalMultiPrekeyBundles ::
   forall r.
