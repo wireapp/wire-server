@@ -50,6 +50,7 @@ import Data.Handle
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.LegalHold
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 (singleton)
 import qualified Data.List1 as List1
 import Data.Misc (plainTextPassword6Unsafe)
@@ -859,7 +860,7 @@ testMultipleUsersV3 opts brig = do
         . map (\u -> (pure $ profileName u, profileEmail u))
         . listUsersByIdFound
         <$> responseJsonMaybe r
-    resultFailed r = fmap Set.fromList . listUsersByIdFailed <$> responseJsonMaybe r
+    resultFailed r = fmap (Set.fromList . NonEmpty.toList) . listUsersByIdFailed <$> responseJsonMaybe r
 
 testCreateUserAnonExpiry :: Brig -> Http ()
 testCreateUserAnonExpiry b = do

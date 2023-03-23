@@ -74,7 +74,7 @@ testObject_ListUsersById_2 :: ListUsersById
 testObject_ListUsersById_2 =
   ListUsersById
     { listUsersByIdFound = [profile1, profile2],
-      listUsersByIdFailed = Just []
+      listUsersByIdFailed = Nothing
     }
 
 testObject_ListUsersById_3 :: ListUsersById

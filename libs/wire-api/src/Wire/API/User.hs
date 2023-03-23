@@ -130,6 +130,7 @@ import Data.Handle (Handle)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
+import Data.List.NonEmpty
 import Data.LegalHold (UserLegalHoldStatus)
 import Data.Misc (PlainTextPassword6, PlainTextPassword8)
 import Data.Qualified
@@ -170,7 +171,7 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 ------- Paritial Successes
 data ListUsersById = ListUsersById
   { listUsersByIdFound :: [UserProfile],
-    listUsersByIdFailed :: Maybe [Qualified UserId]
+    listUsersByIdFailed :: Maybe (NonEmpty (Qualified UserId))
   }
   deriving (Eq, Show)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema ListUsersById
@@ -180,7 +181,7 @@ instance ToSchema ListUsersById where
     object "ListUsersById" $
       ListUsersById
         <$> listUsersByIdFound .= field "found" (array schema)
-        <*> listUsersByIdFailed .= maybe_ (optField "failed" $ array schema)
+        <*> listUsersByIdFailed .= maybe_ (optField "failed" $ nonEmptyArray schema)
 
 --------------------------------------------------------------------------------
 -- UserIdList

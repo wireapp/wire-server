@@ -82,6 +82,7 @@ import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
+import Data.List.NonEmpty (nonEmpty)
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
@@ -719,6 +720,17 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
        in listUsersByIdsOrHandlesV3 self (Public.ListUsersByHandles qualifiedRangedList)
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
+listUsersByIdsOrHandlesGetIds :: [Handle] -> (Handler r) [Qualified UserId]
+listUsersByIdsOrHandlesGetIds localHandles = do
+  localUsers <- catMaybes <$> traverse (lift . wrapClient . API.lookupHandle) localHandles
+  domain <- viewFederationDomain
+  pure $ map (`Qualified` domain) localUsers
+
+listUsersByIdsOrHandlesGetUsers :: Local x -> Range n m [Qualified Handle] -> Handler r [Qualified UserId]
+listUsersByIdsOrHandlesGetUsers lself hs = do
+  let (localHandles, _) = partitionQualified lself (fromRange hs)
+  listUsersByIdsOrHandlesGetIds localHandles
+
 listUsersByIdsOrHandlesV3 ::
   forall r.
   ( Member GalleyProvider r,
@@ -733,18 +745,12 @@ listUsersByIdsOrHandlesV3 self q = do
     Public.ListUsersByIds us ->
       byIds lself us
     Public.ListUsersByHandles hs -> do
-      let (localHandles, _) = partitionQualified lself (fromRange hs)
-      us <- getIds localHandles
+      us <- listUsersByIdsOrHandlesGetUsers lself hs
       Handle.filterHandleResults lself =<< byIds lself us
   case foundUsers of
     [] -> throwStd $ notFound "None of the specified ids or handles match any users"
     _ -> pure foundUsers
   where
-    getIds :: [Handle] -> (Handler r) [Qualified UserId]
-    getIds localHandles = do
-      localUsers <- catMaybes <$> traverse (lift . wrapClient . API.lookupHandle) localHandles
-      domain <- viewFederationDomain
-      pure $ map (`Qualified` domain) localUsers
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
     byIds lself uids = API.lookupProfiles lself uids !>> fedError
 
@@ -764,18 +770,12 @@ listUsersByIdsOrHandles self q = do
     Public.ListUsersByIds us ->
       byIds lself us
     Public.ListUsersByHandles hs -> do
-      let (localHandles, _) = partitionQualified lself (fromRange hs)
-      us <- getIds localHandles
+      us <- listUsersByIdsOrHandlesGetUsers  lself hs
       (l, r) <- byIds lself us
       r' <- Handle.filterHandleResults lself r
       pure (l, r')
-  pure $ ListUsersById foundUsers $ if null errors then Nothing else pure $ fst <$> errors
+  pure $ ListUsersById foundUsers $ fst <$$> nonEmpty errors
   where
-    getIds :: [Handle] -> Handler r [Qualified UserId]
-    getIds localHandles = do
-      localUsers <- catMaybes <$> traverse (lift . wrapClient . API.lookupHandle) localHandles
-      domain <- viewFederationDomain
-      pure $ map (`Qualified` domain) localUsers
     byIds ::
       Local UserId ->
       [Qualified UserId] ->
