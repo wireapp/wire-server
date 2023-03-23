@@ -312,6 +312,7 @@ let
     pkgs.treefmt
     pkgs.gawk
     pkgs.cfssl
+    pkgs.awscli2
     (hlib.justStaticExecutables pkgs.haskellPackages.cabal-fmt)
   ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.skopeo
