@@ -1508,6 +1508,7 @@ CREATE TABLE brig_test.prekeys (
 CREATE TABLE brig_test.oauth_auth_code (
     code ascii PRIMARY KEY,
     client uuid,
+    code_challenge blob,
     redirect_uri blob,
     scope set<text>,
     user uuid

@@ -23,11 +23,14 @@ module Wire.API.OAuth where
 import Cassandra hiding (Set)
 import Control.Lens (preview, view, (%~), (?~))
 import Control.Monad.Except
+import Crypto.Hash as Crypto
 import Crypto.JWT hiding (Context, params, uri, verify)
 import qualified Data.Aeson.KeyMap as M
 import qualified Data.Aeson.Types as A
+import Data.ByteArray (convert)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
+import Data.Either.Combinators (mapLeft)
 import qualified Data.HashMap.Strict as HM
 import Data.Id as Id
 import Data.Range
@@ -243,12 +246,70 @@ instance ToSchema OAuthScopes where
       oauthScopeParser scope =
         pure $ (not . T.null) `filter` T.splitOn " " scope & maybe Set.empty Set.fromList . mapM (fromByteString' . cs)
 
+data CodeChallengeMethod = S256
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CodeChallengeMethod)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema CodeChallengeMethod)
+
+instance ToSchema CodeChallengeMethod where
+  schema :: ValueSchema NamedSwaggerDoc CodeChallengeMethod
+  schema =
+    enum @Text "CodeChallengeMethod" $
+      mconcat
+        [ element "S256" S256
+        ]
+
+newtype OAuthCodeVerifier = OAuthCodeVerifier {unOAuthCodeVerifier :: Range 43 128 Text}
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OAuthCodeVerifier)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthCodeVerifier)
+
+instance ToSchema OAuthCodeVerifier where
+  schema :: ValueSchema NamedSwaggerDoc OAuthCodeVerifier
+  schema = OAuthCodeVerifier <$> unOAuthCodeVerifier .= schema
+
+instance FromHttpApiData OAuthCodeVerifier where
+  parseQueryParam = fmap OAuthCodeVerifier . mapLeft cs . checkedEither
+
+instance ToHttpApiData OAuthCodeVerifier where
+  toQueryParam = fromRange . unOAuthCodeVerifier
+
+newtype OAuthCodeChallenge = OAuthCodeChallenge {unOAuthCodeChallenge :: Text}
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OAuthCodeChallenge)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthCodeChallenge)
+
+instance ToSchema OAuthCodeChallenge where
+  schema = named "OAuthCodeChallenge" $ unOAuthCodeChallenge .= fmap OAuthCodeChallenge (unnamed schema)
+
+instance ToByteString OAuthCodeChallenge where
+  builder = builder . unOAuthCodeChallenge
+
+instance FromByteString OAuthCodeChallenge where
+  parser = OAuthCodeChallenge <$> parser
+
+verifyCodeChallenge :: OAuthCodeVerifier -> OAuthCodeChallenge -> Bool
+verifyCodeChallenge verifier challenge = challenge == mkChallenge verifier
+
+mkChallenge :: OAuthCodeVerifier -> OAuthCodeChallenge
+mkChallenge =
+  OAuthCodeChallenge
+    . toText
+    . encodeBase64UrlUnpadded
+    . convert
+    . Crypto.hash @ByteString @Crypto.SHA256
+    . cs
+    . fromRange
+    . unOAuthCodeVerifier
+
 data CreateOAuthAuthorizationCodeRequest = CreateOAuthAuthorizationCodeRequest
   { clientId :: OAuthClientId,
     scope :: OAuthScopes,
     responseType :: OAuthResponseType,
-    redirectUrl :: RedirectUrl,
-    state :: Text
+    redirectUri :: RedirectUrl,
+    state :: Text,
+    codeChallengeMethod :: CodeChallengeMethod,
+    codeChallenge :: OAuthCodeChallenge
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CreateOAuthAuthorizationCodeRequest)
@@ -260,15 +321,19 @@ instance ToSchema CreateOAuthAuthorizationCodeRequest where
       CreateOAuthAuthorizationCodeRequest
         <$> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
         <*> (.scope) .= fieldWithDocModifier "scope" scopeDescription schema
-        <*> responseType .= fieldWithDocModifier "response_type" responseTypeDescription schema
-        <*> (.redirectUrl) .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
-        <*> state .= fieldWithDocModifier "state" stateDescription schema
+        <*> (.responseType) .= fieldWithDocModifier "response_type" responseTypeDescription schema
+        <*> (.redirectUri) .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
+        <*> (.state) .= fieldWithDocModifier "state" stateDescription schema
+        <*> (.codeChallengeMethod) .= fieldWithDocModifier "code_challenge_method" codeChallengeMethodDescription schema
+        <*> (.codeChallenge) .= fieldWithDocModifier "code_challenge" codeChallengeDescription schema
     where
       clientIdDescription = description ?~ "The ID of the OAuth client"
       scopeDescription = description ?~ "The scopes which are requested to get authorization for, separated by a space"
       responseTypeDescription = description ?~ "Indicates which authorization flow to use. Use `code` for authorization code flow."
       redirectUriDescription = description ?~ "The URL to which to redirect the browser after authorization has been granted by the user."
       stateDescription = description ?~ "An opaque value used by the client to maintain state between the request and callback. The authorization server includes this value when redirecting the user-agent back to the client.  The parameter SHOULD be used for preventing cross-site request forgery"
+      codeChallengeMethodDescription = description ?~ "The method used to encode the code challenge. Only `S256` is supported."
+      codeChallengeDescription = description ?~ "Generated by the client from the code verifier (unpadded base64url-encoded SHA256 hash of the code verifier)"
 
 newtype OAuthAuthorizationCode = OAuthAuthorizationCode {unOAuthAuthorizationCode :: AsciiBase16}
   deriving (Eq, Generic, Arbitrary)
@@ -326,7 +391,7 @@ instance ToHttpApiData OAuthGrantType where
 data OAuthAccessTokenRequest = OAuthAccessTokenRequest
   { grantType :: OAuthGrantType,
     clientId :: OAuthClientId,
-    clientSecret :: OAuthClientPlainTextSecret,
+    codeVerifier :: OAuthCodeVerifier,
     code :: OAuthAuthorizationCode,
     redirectUri :: RedirectUrl
   }
@@ -340,22 +405,22 @@ instance ToSchema OAuthAccessTokenRequest where
       OAuthAccessTokenRequest
         <$> (.grantType) .= fieldWithDocModifier "grant_type" grantTypeDescription schema
         <*> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> (.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
-        <*> code .= fieldWithDocModifier "code" codeDescription schema
-        <*> redirectUri .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
+        <*> (.codeVerifier) .= fieldWithDocModifier "code_verifier" codeVerifierDescription schema
+        <*> (.code) .= fieldWithDocModifier "code" codeDescription schema
+        <*> (.redirectUri) .= fieldWithDocModifier "redirect_uri" redirectUrlDescription schema
     where
       grantTypeDescription = description ?~ "Indicates which authorization flow to use. Use `authorization_code` for authorization code flow."
       clientIdDescription = description ?~ "The ID of the OAuth client"
-      clientSecretDescription = description ?~ "The secret of the OAuth client"
+      codeVerifierDescription = description ?~ "The code verifier to complete the code challenge"
       codeDescription = description ?~ "The authorization code"
-      redirectUriDescription = description ?~ "The URL must match the URL that was used to generate the authorization code."
+      redirectUrlDescription = description ?~ "The URL must match the URL that was used to generate the authorization code."
 
 instance FromForm OAuthAccessTokenRequest where
   fromForm f =
     OAuthAccessTokenRequest
       <$> parseUnique "grant_type" f
       <*> parseUnique "client_id" f
-      <*> parseUnique "client_secret" f
+      <*> parseUnique "code_verifier" f
       <*> parseUnique "code" f
       <*> parseUnique "redirect_uri" f
 
@@ -365,7 +430,7 @@ instance ToForm OAuthAccessTokenRequest where
       mempty
         & HM.insert "grant_type" [toQueryParam (req.grantType)]
         & HM.insert "client_id" [toQueryParam (req.clientId)]
-        & HM.insert "client_secret" [toQueryParam (req.clientSecret)]
+        & HM.insert "code_verifier" [toQueryParam (req.codeVerifier)]
         & HM.insert "code" [toQueryParam (req.code)]
         & HM.insert "redirect_uri" [toQueryParam (req.redirectUri)]
 
@@ -486,7 +551,6 @@ data OAuthRefreshTokenInfo = OAuthRefreshTokenInfo
 data OAuthRefreshAccessTokenRequest = OAuthRefreshAccessTokenRequest
   { grantType :: OAuthGrantType,
     clientId :: OAuthClientId,
-    clientSecret :: OAuthClientPlainTextSecret,
     refreshToken :: OAuthRefreshToken
   }
   deriving (Eq, Show, Generic)
@@ -499,12 +563,10 @@ instance ToSchema OAuthRefreshAccessTokenRequest where
       OAuthRefreshAccessTokenRequest
         <$> (.grantType) .= fieldWithDocModifier "grant_type" grantTypeDescription schema
         <*> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> (.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
         <*> (.refreshToken) .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       grantTypeDescription = description ?~ "The grant type. Must be `refresh_token`"
       clientIdDescription = description ?~ "The OAuth client's ID"
-      clientSecretDescription = description ?~ "The OAuth client's secret"
       refreshTokenDescription = description ?~ "The refresh token"
 
 instance FromForm OAuthRefreshAccessTokenRequest where
@@ -513,7 +575,6 @@ instance FromForm OAuthRefreshAccessTokenRequest where
     OAuthRefreshAccessTokenRequest
       <$> parseUnique "grant_type" f
       <*> parseUnique "client_id" f
-      <*> parseUnique "client_secret" f
       <*> parseUnique "refresh_token" f
 
 instance ToForm OAuthRefreshAccessTokenRequest where
@@ -522,7 +583,6 @@ instance ToForm OAuthRefreshAccessTokenRequest where
       mempty
         & HM.insert "grant_type" [toQueryParam (req.grantType)]
         & HM.insert "client_id" [toQueryParam (req.clientId)]
-        & HM.insert "client_secret" [toQueryParam (req.clientSecret)]
         & HM.insert "refresh_token" [toQueryParam (req.refreshToken)]
 
 instance FromForm (Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest) where
@@ -536,7 +596,6 @@ instance FromForm (Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest
 
 data OAuthRevokeRefreshTokenRequest = OAuthRevokeRefreshTokenRequest
   { clientId :: OAuthClientId,
-    clientSecret :: OAuthClientPlainTextSecret,
     refreshToken :: OAuthRefreshToken
   }
   deriving (Eq, Show, Generic)
@@ -547,11 +606,9 @@ instance ToSchema OAuthRevokeRefreshTokenRequest where
     object "OAuthRevokeRefreshTokenRequest" $
       OAuthRevokeRefreshTokenRequest
         <$> (.clientId) .= fieldWithDocModifier "client_id" clientIdDescription schema
-        <*> (.clientSecret) .= fieldWithDocModifier "client_secret" clientSecretDescription schema
         <*> (.refreshToken) .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       clientIdDescription = description ?~ "The OAuth client's ID"
-      clientSecretDescription = description ?~ "The OAuth client's secret"
       refreshTokenDescription = description ?~ "The refresh token"
 
 data OAuthApplication = OAuthApplication
@@ -585,6 +642,7 @@ data OAuthError
   | OAuthInvalidClientCredentials
   | OAuthInvalidGrantType
   | OAuthInvalidRefreshToken
+  | OAuthInvalidGrant
 
 instance KnownError (MapError e) => IsSwaggerError (e :: OAuthError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
@@ -606,6 +664,8 @@ type instance MapError 'OAuthInvalidClientCredentials = 'StaticError 403 "forbid
 type instance MapError 'OAuthInvalidGrantType = 'StaticError 403 "forbidden" "Invalid grant type"
 
 type instance MapError 'OAuthInvalidRefreshToken = 'StaticError 403 "forbidden" "Invalid refresh token"
+
+type instance MapError 'OAuthInvalidGrant = 'StaticError 403 "invalid_grant" "Invalid grant"
 
 --------------------------------------------------------------------------------
 -- CQL instances
@@ -633,3 +693,9 @@ instance Cql OAuthScope where
   toCql = CqlText . cs . toByteString'
   fromCql (CqlText t) = maybe (Left "invalid oauth scope") Right $ fromByteString' (cs t)
   fromCql _ = Left "OAuthScope: Text expected"
+
+instance Cql OAuthCodeChallenge where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . toByteString
+  fromCql (CqlBlob t) = runParser parser (toStrict t)
+  fromCql _ = Left "OAuthCodeChallenge: Blob expected"
