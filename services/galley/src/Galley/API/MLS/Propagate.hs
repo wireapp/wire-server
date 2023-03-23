@@ -114,7 +114,6 @@ propagateMessage qusr lconv cm con raw = do
 
     handleError ::
       Member TinyLog r =>
-      -- [RemoteMember] ->
       Either (Remote [RemoteMember], FederationError) (Remote RemoteMLSMessageResponse) ->
       Sem r [Qualified UserId]
     handleError (Right x) = case tUnqualified x of
