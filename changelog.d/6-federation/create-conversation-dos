@@ -1,0 +1,1 @@
+Do not cause denial of service when creating a conversation with users from an unreachable backend
