@@ -588,6 +588,7 @@ data LocalConversationUpdate = LocalConversationUpdate
   { lcuEvent :: Event,
     lcuUpdate :: ConversationUpdate
   }
+  deriving (Show)
 
 updateLocalConversation ::
   forall tag r.

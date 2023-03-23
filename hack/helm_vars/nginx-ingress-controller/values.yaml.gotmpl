@@ -1,6 +1,8 @@
 nginx-ingress:
   controller:
-    kind: DaemonSet
+    kind: Deployment
+    replicaCount: 1
+    ingressClass: "nginx-{{ .Release.Namespace }}"
     service:
       type: NodePort
       externalTrafficPolicy: Local

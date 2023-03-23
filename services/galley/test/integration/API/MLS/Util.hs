@@ -51,6 +51,7 @@ import qualified Data.Text.Encoding as T
 import Data.Time
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDV4
+import qualified Data.Tuple.Extra as Tuple
 import Galley.Keys
 import Galley.Options
 import qualified Galley.Options as Opts
@@ -180,7 +181,7 @@ remotePostCommitBundle rsender qcs bundle = do
       MLSMessageResponseProposalFailure e ->
         assertFailure $
           "proposal failure while receiving commit bundle: " <> displayException e
-      MLSMessageResponseUpdates _ -> pure []
+      MLSMessageResponseUpdates _ _ -> pure []
 
 postCommitBundle ::
   HasCallStack =>
@@ -922,12 +923,13 @@ consumeMessage1 cid msg = do
 
 -- | Send an MLS message and simulate clients receiving it. If the message is a
 -- commit, the 'sendAndConsumeCommit' function should be used instead.
-sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest [Event]
+sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], UnreachableUsers)
 sendAndConsumeMessage mp = do
-  events <-
-    fmap mmssEvents . responseJsonError
-      =<< postMessage (mpSender mp) (mpMessage mp)
-        <!! const 201 === statusCode
+  res <-
+    fmap (mmssEvents Tuple.&&& mmssUnreachableUsers) $
+      responseJsonError
+        =<< postMessage (mpSender mp) (mpMessage mp)
+          <!! const 201 === statusCode
   consumeMessage mp
 
   for_ (mpWelcome mp) $ \welcome -> do
@@ -935,7 +937,7 @@ sendAndConsumeMessage mp = do
       !!! const 201 === statusCode
     consumeWelcome welcome
 
-  pure events
+  pure res
 
 -- | Send an MLS commit message, simulate clients receiving it, and update the
 -- test state accordingly.
@@ -944,7 +946,7 @@ sendAndConsumeCommit ::
   MessagePackage ->
   MLSTest [Event]
 sendAndConsumeCommit mp = do
-  events <- sendAndConsumeMessage mp
+  (events, _) <- sendAndConsumeMessage mp
 
   -- increment epoch and add new clients
   State.modify $ \mls ->

@@ -18,6 +18,7 @@ environments:
       - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
       - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
       - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
+      - ingressChart: {{ requiredEnv "INGRESS_CHART" }}
       - imagePullPolicy: Always
       - redisStorageClass: hcloud-volumes
   kind:
@@ -26,6 +27,7 @@ environments:
       - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
       - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
       - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
+      - ingressChart: {{ requiredEnv "INGRESS_CHART" }}
       - imagePullPolicy: Never
       - redisStorageClass: standard
 
@@ -35,6 +37,9 @@ repositories:
 
   - name: bitnami
     url: 'https://charts.bitnami.com/bitnami'
+
+  - name: ingress
+    url: 'https://kubernetes.github.io/ingress-nginx'
 
 releases:
   - name: '{{ .Values.namespace }}-fake-aws'
@@ -69,23 +74,23 @@ releases:
     values:
       - './helm_vars/redis-cluster/values.yaml.gotmpl'
 
-  - name: '{{ .Values.namespace }}-nginx-ingress-controller'
+  - name: '{{ .Values.namespace }}-ic'
     namespace: '{{ .Values.namespace }}'
-    chart: '../.local/charts/nginx-ingress-controller'
+    chart: '../.local/charts/{{ .Values.ingressChart }}'
     values:
-      - './helm_vars/nginx-ingress-controller/values.yaml'
+      - './helm_vars/{{ .Values.ingressChart }}/values.yaml.gotmpl'
 
-  - name: '{{ .Values.namespace }}-nginx-ingress-controller-2'
+  - name: '{{ .Values.namespace }}-ic2'
     namespace: '{{ .Values.namespaceFed2 }}'
-    chart: '../.local/charts/nginx-ingress-controller'
+    chart: '../.local/charts/{{ .Values.ingressChart }}'
     values:
-      - './helm_vars/nginx-ingress-controller/values.yaml'
+      - './helm_vars/{{ .Values.ingressChart }}/values.yaml.gotmpl'
 
-  - name: '{{ .Values.namespace }}-nginx-ingress-services'
+  - name: '{{ .Values.namespace }}-i'
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/nginx-ingress-services'
     values:
-      - './helm_vars/nginx-ingress-services/values.yaml'
+      - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
       - './helm_vars/nginx-ingress-services/certificates-namespace1.yaml'
     set:
       # Federation domain is also the SRV record created by the
@@ -93,12 +98,14 @@ releases:
       # differ, so we don't make any silly assumptions in the code.
       - name: config.dns.federator
         value: {{ .Values.federationDomain }}
+    needs:
+      - '{{ .Values.namespace }}-ic'
 
-  - name: '{{ .Values.namespace }}-nginx-ingress-services-2'
+  - name: '{{ .Values.namespace }}-i2'
     namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/nginx-ingress-services'
     values:
-      - './helm_vars/nginx-ingress-services/values.yaml'
+      - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
       - './helm_vars/nginx-ingress-services/certificates-namespace2.yaml'
     set:
       # Federation domain is also the SRV record created by the
@@ -106,9 +113,9 @@ releases:
       # differ, so we don't make any silly assumptions in the code.
       - name: config.dns.federator
         value: {{ .Values.federationDomainFed2 }}
+    needs:
+      - '{{ .Values.namespace }}-ic2'
 
-  #---------------------------------------------
-  #
   # Note that wire-server depends on databases-ephemeral being up; and in some
   # cases on nginx-ingress also being up. If installing helm charts in a
   # parallel way, it's expected to see some wire-server pods (namely the

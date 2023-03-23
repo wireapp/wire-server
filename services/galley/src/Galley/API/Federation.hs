@@ -671,7 +671,7 @@ sendMLSCommitBundle remoteDomain msr =
       let msg = rmValue (cbCommitMsg bundle)
       qConvOrSub <- E.lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
       when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
-      F.MLSMessageResponseUpdates . map lcuUpdate
+      uncurry F.MLSMessageResponseUpdates . first (map lcuUpdate)
         <$> postMLSCommitBundle
           loc
           (tUntagged sender)
@@ -720,7 +720,7 @@ sendMLSMessage remoteDomain msr =
         SomeMessage _ msg -> do
           qConvOrSub <- E.lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
           when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
-          F.MLSMessageResponseUpdates . map lcuUpdate
+          uncurry F.MLSMessageResponseUpdates . first (map lcuUpdate)
             <$> postMLSMessage
               loc
               (tUntagged sender)
