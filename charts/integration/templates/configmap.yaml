@@ -6,7 +6,7 @@ metadata:
     "helm.sh/hook": post-install
     "helm.sh/hook-delete-policy": before-hook-creation
 data:
-  config.yaml: |
+  integration.yaml: |
     brig:
       host: brig.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080
