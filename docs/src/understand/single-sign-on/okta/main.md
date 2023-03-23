@@ -84,11 +84,11 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-- In the case you are looking for Donload of IdP Metadata and SAML Signing Certificates.
+- In the case you are looking for Download of IdP Metadata and SAML Signing Certificates.
 - Under "Sign-On" tab, find (scroll down) SAML Signing Certificates section.
 - Click the Actions button next to the certificate.
 - Choosing View IdP metadata opens a new browser tab containing the metadata, you can then right-click the metadata and save it as a (.xml) file.
-- Choosing Download certificate which will automatically save the certificate as a file.
+- Choosing Download certificate will automatically save the certificate as a file.
 
 **(\*) Note**: To provide IdP metadata in Wire's Team Settings, file has to be saved as `.xml` file.
 
