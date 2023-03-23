@@ -1511,7 +1511,7 @@ CREATE TABLE brig_test.oauth_auth_code (
     redirect_uri blob,
     scope set<text>,
     user uuid
-) WITH bloom_filter_fp_chance = 0.1
+) WITH bloom_filter_fp_chance = 0.01
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
@@ -1648,7 +1648,7 @@ CREATE TABLE brig_test.password_reset (
     retries int,
     timeout timestamp,
     user uuid
-) WITH bloom_filter_fp_chance = 0.01
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
