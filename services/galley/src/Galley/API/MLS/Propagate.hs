@@ -36,7 +36,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Input
-import Polysemy.TinyLog hiding (trace)
+import Polysemy.TinyLog
 import qualified System.Logger.Class as Logger
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -44,7 +44,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.Message
 import Wire.API.Message
 
 -- | Propagate a message.
@@ -60,11 +59,10 @@ propagateMessage ::
   ClientMap ->
   Maybe ConnId ->
   ByteString ->
-  Sem r UnreachableUsers
+  Sem r ()
 propagateMessage qusr lconv cm con raw = do
   -- FUTUREWORK: check the epoch
   let lmems = Data.convLocalMembers . tUnqualified $ lconv
-      rmems = Data.convRemoteMembers . tUnqualified $ lconv
       botMap = Map.fromList $ do
         m <- lmems
         b <- maybeToList $ newBotMember m
@@ -80,9 +78,8 @@ propagateMessage qusr lconv cm con raw = do
     foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients lcnv)
 
   -- send to remotes
-  UnreachableUsers . concat
-    <$$> traverse handleError
-    <=< runFederatedConcurrentlyEither (map remoteMemberQualify rmems)
+  traverse_ handleError
+    <=< runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers . tUnqualified $ lconv))
     $ \(tUnqualified -> rs) ->
       fedClient @'Galley @"on-mls-message-sent" $
         RemoteMLSMessage
@@ -110,20 +107,15 @@ propagateMessage qusr lconv cm con raw = do
             (\(c, _) -> (remoteUserId, c))
             (toList (Map.findWithDefault mempty remoteUserQId cm))
 
-    remotesToQIds = fmap (tUntagged . rmId)
-
     handleError ::
       Member TinyLog r =>
-      Either (Remote [RemoteMember], FederationError) (Remote RemoteMLSMessageResponse) ->
-      Sem r [Qualified UserId]
+      Either (Remote [a], FederationError) (Remote RemoteMLSMessageResponse) ->
+      Sem r ()
     handleError (Right x) = case tUnqualified x of
-      RemoteMLSMessageOk -> pure []
-      RemoteMLSMessageMLSNotEnabled -> do
-        logFedError x (errorToWai @'MLSNotEnabled)
-        pure []
-    handleError (Left (r, e)) = do
-      logFedError r (toWai e)
-      pure $ remotesToQIds (tUnqualified r)
+      RemoteMLSMessageOk -> pure ()
+      RemoteMLSMessageMLSNotEnabled -> logFedError x (errorToWai @'MLSNotEnabled)
+    handleError (Left (r, e)) = logFedError r (toWai e)
+
     logFedError :: Member TinyLog r => Remote x -> Wai.Error -> Sem r ()
     logFedError r e =
       warn $

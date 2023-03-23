@@ -23,7 +23,6 @@ import qualified Test.Wire.API.Federation.Golden.ConversationCreated as Conversa
 import qualified Test.Wire.API.Federation.Golden.ConversationUpdate as ConversationUpdate
 import qualified Test.Wire.API.Federation.Golden.LeaveConversationRequest as LeaveConversationRequest
 import qualified Test.Wire.API.Federation.Golden.LeaveConversationResponse as LeaveConversationResponse
-import qualified Test.Wire.API.Federation.Golden.MLSMessageSendingStatus as MLSMessageSendingStatus
 import qualified Test.Wire.API.Federation.Golden.MessageSendResponse as MessageSendResponse
 import qualified Test.Wire.API.Federation.Golden.NewConnectionRequest as NewConnectionRequest
 import qualified Test.Wire.API.Federation.Golden.NewConnectionResponse as NewConnectionResponse
@@ -33,16 +32,11 @@ spec :: Spec
 spec =
   describe "Golden tests" $ do
     testObjects
-      [ (MessageSendResponse.testObject_MessageSendResponse1, "testObject_MessageSendResponse1.json"),
-        (MessageSendResponse.testObject_MessageSendResponse2, "testObject_MessageSendResponse2.json"),
-        (MessageSendResponse.testObject_MessageSendResponse3, "testObject_MessageSendResponse3.json"),
-        (MessageSendResponse.testObject_MessageSendResponse4, "testObject_MessageSendResponse4.json"),
-        (MessageSendResponse.testObject_MessageSendResponse5, "testObject_MessageSendResponse5.json")
-      ]
-    testObjects
-      [ (MLSMessageSendingStatus.testObject_MLSMessageSendingStatus1, "testObject_MLSMessageSendingStatus1.json"),
-        (MLSMessageSendingStatus.testObject_MLSMessageSendingStatus2, "testObject_MLSMessageSendingStatus2.json"),
-        (MLSMessageSendingStatus.testObject_MLSMessageSendingStatus3, "testObject_MLSMessageSendingStatus3.json")
+      [ (MessageSendResponse.testObject_MessageSendReponse1, "testObject_MessageSendReponse1.json"),
+        (MessageSendResponse.testObject_MessageSendReponse2, "testObject_MessageSendReponse2.json"),
+        (MessageSendResponse.testObject_MessageSendReponse3, "testObject_MessageSendReponse3.json"),
+        (MessageSendResponse.testObject_MessageSendReponse4, "testObject_MessageSendReponse4.json"),
+        (MessageSendResponse.testObject_MessageSendReponse5, "testObject_MessageSendReponse5.json")
       ]
     testObjects [(LeaveConversationRequest.testObject_LeaveConversationRequest1, "testObject_LeaveConversationRequest1.json")]
     testObjects
