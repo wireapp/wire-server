@@ -1334,7 +1334,7 @@ testJoinCodeConv = do
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
   getJoinCodeConv bob (conversationKey cCode) (conversationCode cCode) !!! do
-    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const (Right (ConversationCoverView convId (Just convName) False)) === responseJsonEither
 
   -- A user that would not be able to join conversation cannot view it either.
   eve <- ephemeralUser
@@ -1400,7 +1400,7 @@ testJoinTeamConvGuestLinksDisabled = do
   -- guest can join if guest link feature is enabled
   checkFeatureStatus Public.FeatureStatusEnabled
   getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
-    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const (Right (ConversationCoverView convId (Just convName) False)) === responseJsonEither
     const 200 === statusCode
   postConvCodeCheck cCode !!! const 200 === statusCode
   postJoinCodeConv eve cCode !!! const 200 === statusCode
@@ -1431,7 +1431,7 @@ testJoinTeamConvGuestLinksDisabled = do
   TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId enabled !!! do
     const 200 === statusCode
   getJoinCodeConv eve' (conversationKey cCode) (conversationCode cCode) !!! do
-    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const (Right (ConversationCoverView convId (Just convName) False)) === responseJsonEither
     const 200 === statusCode
   postConvCodeCheck cCode !!! const 200 === statusCode
   postJoinCodeConv eve' cCode !!! const 200 === statusCode
@@ -1452,7 +1452,7 @@ testJoinNonTeamConvGuestLinksDisabled = do
 
   -- works by default
   getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
-    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const (Right (ConversationCoverView convId (Just convName) False)) === responseJsonEither
     const 200 === statusCode
 
   -- for non-team conversations it still works if status is disabled for the team but not server wide
@@ -1461,7 +1461,7 @@ testJoinNonTeamConvGuestLinksDisabled = do
     const 200 === statusCode
 
   getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
-    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+    const (Right (ConversationCoverView convId (Just convName) False)) === responseJsonEither
     const 200 === statusCode
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
@@ -1522,18 +1522,18 @@ postJoinCodeConvOk = do
 
 postJoinCodeConvWithPassword :: TestM ()
 postJoinCodeConvWithPassword = do
-  _c <- view tsCannon
   alice <- randomUser
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
-  _eve <- ephemeralUser
-  _dave <- ephemeralUser
   Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
   conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just accessRoles) Nothing
   let _qconv = Qualified conv (qDomain qbob)
   let pw = plainTextPassword8Unsafe "password"
   cCode <- decodeConvCodeEvent <$> postConvCode' (Just pw) alice conv
   liftIO $ conversationHasPassword cCode @?= Just True
+  getJoinCodeConv bob (conversationKey cCode) (conversationCode cCode) !!! do
+    const (Right (ConversationCoverView conv (Just "gossip") True)) === responseJsonEither
+    const 200 === statusCode
   -- join without password should fail
   postJoinCodeConv' Nothing bob cCode !!! const 403 === statusCode
   -- join with wrong password should fail

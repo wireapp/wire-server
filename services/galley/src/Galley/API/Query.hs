@@ -61,6 +61,7 @@ import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Types (Code (codeConversation))
+import qualified Galley.Data.Types as Data
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
@@ -643,13 +644,14 @@ getConversationByReusableCode lusr key value = do
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   ensureConversationAccess (tUnqualified lusr) conv CodeAccess
   ensureGuestLinksEnabled @db (Data.convTeam conv)
-  pure $ coverView conv
+  pure $ coverView c conv
   where
-    coverView :: Data.Conversation -> ConversationCoverView
-    coverView conv =
+    coverView :: Data.Code -> Data.Conversation -> ConversationCoverView
+    coverView c conv =
       ConversationCoverView
         { cnvCoverConvId = Data.convId conv,
-          cnvCoverName = Data.convName conv
+          cnvCoverName = Data.convName conv,
+          cnvCoverHasPassword = Data.codeHasPassword c
         }
 
 ensureGuestLinksEnabled ::
