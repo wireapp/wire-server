@@ -6,19 +6,30 @@ NAMESPACE=${NAMESPACE:-test-integration}
 # set to 1 to disable running helm tests in parallel
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 CLEANUP_LOCAL_FILES=${CLEANUP_LOCAL_FILES:-1} # set to 0 to keep files
-OUTPUT_DIR=${OUTPUT_DIR:-test-logs}
 
 echo "Running integration tests on wire-server with parallelism=${HELM_PARALLELISM} ..."
 
 CHART=wire-server
 tests=(galley cargohold gundeck federator spar brig)
 
-echo "Create $OUTPUT_DIR (if it doesn't exist)"
-mkdir -p "$OUTPUT_DIR"
-
 cleanup() {
     if (( CLEANUP_LOCAL_FILES > 0 )); then
-        rm -r $OUTPUT_DIR
+        for t in "${tests[@]}"; do
+            rm -f "stat-$t"
+            rm -f "logs-$t"
+        done
+    fi
+}
+
+# Copy to the concourse output (indetified by $OUTPUT_DIR) for propagation to
+# following steps.
+copyToOutputDir(){
+    echo "\$OUTPUT_DIR is set to $OUTPUT_DIR"
+    if [ -n "$OUTPUT_DIR" ]; then
+        for t in "${tests[@]}"; do
+            echo "Copy logs-$t to $OUTPUT_DIR"
+            cp "logs-$t" "$OUTPUT_DIR"
+        done
     fi
 }
 
@@ -26,10 +37,10 @@ summary() {
     echo "==============="
     echo "=== summary ==="
     echo "==============="
-    printf '%s\n' "${tests[@]}" | parallel echo "=== tail {}: ===" ';' tail -2 $OUTPUT_DIR/logs-{}
+    printf '%s\n' "${tests[@]}" | parallel echo "=== tail {}: ===" ';' tail -2 logs-{}
 
     for t in "${tests[@]}"; do
-        x=$(cat "$OUTPUT_DIR/stat-$t")
+        x=$(cat "stat-$t")
         if ((x > 0)); then
             echo "$t-integration FAILED ❌. pfff..."
         else
@@ -45,17 +56,17 @@ summary() {
 mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${tests[@]}" | parallel echo "Running helm tests for {}..."
 printf '%s\n' "${tests[@]}" | parallel -P "${HELM_PARALLELISM}" \
-    helm test -n "${NAMESPACE}" "${NAMESPACE}-${CHART}" --timeout 900s --filter name="${NAMESPACE}-${CHART}-{}-integration" "> $OUTPUT_DIR/logs-{};" \
-    echo "$? >  $OUTPUT_DIR/stat-{};" \
+    helm test -n "${NAMESPACE}" "${NAMESPACE}-${CHART}" --timeout 900s --filter name="${NAMESPACE}-${CHART}-{}-integration" '> logs-{};' \
+    echo '$? > stat-{};' \
     echo "==== Done testing {}. ====" '};' \
-    kubectl -n "${NAMESPACE}" logs "${NAMESPACE}-${CHART}-{}-integration" ">> $OUTPUT_DIR/logs-{};"
+    kubectl -n "${NAMESPACE}" logs "${NAMESPACE}-${CHART}-{}-integration" '>> logs-{};'
 
 summary
 
 # in case any integration test suite failed, exit this script with an error.
 exit_code=0
 for t in "${tests[@]}"; do
-    x=$(cat "$OUTPUT_DIR/stat-$t")
+    x=$(cat "stat-$t")
     if ((x > 0)); then
         exit_code=1
     fi
@@ -67,27 +78,25 @@ if ((exit_code > 0)); then
     echo "======================="
     # in case a integration test suite failed, print relevant logs
     for t in "${tests[@]}"; do
-        x=$(cat "$OUTPUT_DIR/stat-$t")
+        x=$(cat "stat-$t")
         if ((x > 0)); then
             echo "=== logs for failed $t-integration ==="
-            cat "$OUTPUT_DIR/logs-$t"
+            cat "logs-$t"
         fi
     done
     summary
     for t in "${tests[@]}"; do
-        x=$(cat "$OUTPUT_DIR/stat-$t")
+        x=$(cat "stat-$t")
         if ((x > 0)); then
             echo "=== (relevant) logs for failed $t-integration ==="
-            "$DIR/integration-logs-relevant-bits.sh" < "$OUTPUT_DIR/logs-$t"
+            "$DIR/integration-logs-relevant-bits.sh" < "logs-$t"
         fi
     done
     summary
 fi
 
+copyToOutputDir
 cleanup
-
-echo "Debug output dir"
-ls -l "$OUTPUT_DIR"
 
 if ((exit_code > 0)); then
     echo "Tests failed."
