@@ -81,7 +81,7 @@ type MLSMessagingAPI =
                :> CanThrow MLSProposalFailure
                :> "messages"
                :> ZLocalUser
-               :> ZOptClient
+               :> ZClient
                :> ZConn
                :> ReqBody '[MLS] (RawMLS Message)
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" [Event])
@@ -119,7 +119,7 @@ type MLSMessagingAPI =
                :> CanThrow MLSProposalFailure
                :> "messages"
                :> ZLocalUser
-               :> ZOptClient
+               :> ZClient
                :> ZConn
                :> ReqBody '[MLS] (RawMLS Message)
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" MLSMessageSendingStatus)
@@ -159,7 +159,7 @@ type MLSMessagingAPI =
                :> CanThrow MLSProposalFailure
                :> "commit-bundles"
                :> ZLocalUser
-               :> ZOptClient
+               :> ZClient
                :> ZConn
                :> ReqBody '[CommitBundleMimeType] CommitBundle
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Commit accepted and forwarded" MLSMessageSendingStatus)

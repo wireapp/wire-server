@@ -417,7 +417,8 @@ uploadNewKeyPackage qcid = do
 
 generateKeyPackage :: HasCallStack => ClientIdentity -> MLSTest (RawMLS KeyPackage, KeyPackageRef)
 generateKeyPackage qcid = do
-  kp <- liftIO . decodeMLSError =<< mlscli qcid ["key-package", "create"] Nothing
+  kpData <- mlscli qcid ["key-package", "create"] Nothing
+  kp <- liftIO $ decodeMLSError kpData
   let ref = fromJust (kpRef' kp)
   fp <- keyPackageFile qcid ref
   liftIO $ BS.writeFile fp (rmRaw kp)
@@ -904,6 +905,8 @@ consumeMessage1 cid msg = do
 -- commit, the 'sendAndConsumeCommit' function should be used instead.
 sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], UnreachableUsers)
 sendAndConsumeMessage mp = do
+  putStrLn "sending message:"
+  print $ hex (mpMessage mp)
   res <-
     fmap (mmssEvents Tuple.&&& mmssUnreachableUsers) $
       responseJsonError

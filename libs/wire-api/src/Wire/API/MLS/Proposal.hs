@@ -21,7 +21,6 @@
 module Wire.API.MLS.Proposal where
 
 import Cassandra
-import Control.Arrow
 import Control.Lens (makePrisms)
 import Data.Binary
 import Data.Binary.Get
@@ -42,10 +41,9 @@ data Proposal
   = AddProposal (RawMLS KeyPackage)
   | UpdateProposal KeyPackage
   | RemoveProposal KeyPackageRef
-  | PreSharedKeyProposal PreSharedKeyID
+  | PreSharedKeyProposal PreSharedKeyID -- TODO
   | ReInitProposal ReInit
   | ExternalInitProposal ByteString
-  | AppAckProposal [MessageRange]
   | GroupContextExtensionsProposal [Extension]
   deriving stock (Eq, Show)
 
@@ -57,10 +55,9 @@ instance ParseMLS Proposal where
       RemoveProposalTag -> RemoveProposal <$> parseMLS
       PreSharedKeyProposalTag -> PreSharedKeyProposal <$> parseMLS
       ReInitProposalTag -> ReInitProposal <$> parseMLS
-      ExternalInitProposalTag -> ExternalInitProposal <$> parseMLSBytes @Word16
-      AppAckProposalTag -> AppAckProposal <$> parseMLSVector @Word32 parseMLS
+      ExternalInitProposalTag -> ExternalInitProposal <$> parseMLSBytes @VarInt
       GroupContextExtensionsProposalTag ->
-        GroupContextExtensionsProposal <$> parseMLSVector @Word32 parseMLS
+        GroupContextExtensionsProposal <$> parseMLSVector @VarInt parseMLS
 
 mkRemoveProposal :: KeyPackageRef -> RawMLS Proposal
 mkRemoveProposal ref = RawMLS bytes (RemoveProposal ref)
@@ -68,16 +65,6 @@ mkRemoveProposal ref = RawMLS bytes (RemoveProposal ref)
     bytes = LBS.toStrict . runPut $ do
       serialiseMLS RemoveProposalTag
       serialiseMLS ref
-
-serialiseAppAckProposal :: [MessageRange] -> Put
-serialiseAppAckProposal mrs = do
-  serialiseMLS AppAckProposalTag
-  serialiseMLSVector @Word32 serialiseMLS mrs
-
-mkAppAckProposal :: [MessageRange] -> RawMLS Proposal
-mkAppAckProposal = uncurry RawMLS . (bytes &&& AppAckProposal)
-  where
-    bytes = LBS.toStrict . runPut . serialiseAppAckProposal
 
 -- | Compute the proposal ref given a ciphersuite and the raw proposal data.
 proposalRef :: CipherSuiteTag -> RawMLS Proposal -> ProposalRef
@@ -90,7 +77,7 @@ data PreSharedKeyTag = ExternalKeyTag | ResumptionKeyTag
   deriving (Bounded, Enum, Eq, Show)
 
 instance ParseMLS PreSharedKeyTag where
-  parseMLS = parseMLSEnum @Word16 "PreSharedKeyID type"
+  parseMLS = parseMLSEnum @Word8 "PreSharedKeyID type"
 
 data PreSharedKeyID = ExternalKeyID ByteString | ResumptionKeyID Resumption
   deriving stock (Eq, Show)
@@ -99,7 +86,7 @@ instance ParseMLS PreSharedKeyID where
   parseMLS = do
     t <- parseMLS
     case t of
-      ExternalKeyTag -> ExternalKeyID <$> parseMLSBytes @Word8
+      ExternalKeyTag -> ExternalKeyID <$> parseMLSBytes @VarInt
       ResumptionKeyTag -> ResumptionKeyID <$> parseMLS
 
 data Resumption = Resumption
@@ -130,7 +117,7 @@ instance ParseMLS ReInit where
       <$> parseMLS
       <*> parseMLS
       <*> parseMLS
-      <*> parseMLSVector @Word32 parseMLS
+      <*> parseMLSVector @VarInt parseMLS
 
 data MessageRange = MessageRange
   { mrSender :: KeyPackageRef,

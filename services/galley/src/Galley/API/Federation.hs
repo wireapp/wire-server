@@ -674,7 +674,7 @@ sendMLSCommitBundle remoteDomain msr =
         <$> postMLSCommitBundle
           loc
           (tUntagged sender)
-          (Just (mmsrSenderClient msr))
+          (mmsrSenderClient msr)
           qConvOrSub
           Nothing
           ibundle
@@ -722,7 +722,7 @@ sendMLSMessage remoteDomain msr =
         <$> postMLSMessage
           loc
           (tUntagged sender)
-          (Just (mmsrSenderClient msr))
+          (mmsrSenderClient msr)
           qConvOrSub
           Nothing
           msg

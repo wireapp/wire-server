@@ -29,12 +29,14 @@ import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Parser
 import Data.Binary.Parser.Char8
+import Data.Binary.Put
 import Data.Domain
 import Data.Id
 import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Data.UUID
 import GHC.Records
 import Imports
@@ -77,6 +79,7 @@ data ClientIdentity = ClientIdentity
   }
   deriving stock (Eq, Ord, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientIdentity
+  deriving (Arbitrary) via (GenericUniform ClientIdentity)
 
 instance Show ClientIdentity where
   show (ClientIdentity dom u c) =
@@ -100,6 +103,17 @@ instance ToSchema ClientIdentity where
         <*> ciUser .= field "user_id" schema
         <*> ciClient .= field "client_id" schema
 
+instance S.ToParamSchema ClientIdentity where
+  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+
+instance FromHttpApiData ClientIdentity where
+  parseHeader = decodeMLS'
+  parseUrlPiece = decodeMLS' . T.encodeUtf8
+
+instance ToHttpApiData ClientIdentity where
+  toHeader = encodeMLS'
+  toUrlPiece = T.decodeUtf8 . encodeMLS'
+
 instance ParseMLS ClientIdentity where
   parseMLS = do
     uid <-
@@ -110,6 +124,14 @@ instance ParseMLS ClientIdentity where
     dom <-
       either fail pure . (mkDomain . T.pack) =<< many' anyChar
     pure $ ClientIdentity dom uid cid
+
+instance SerialiseMLS ClientIdentity where
+  serialiseMLS cid = do
+    putByteString $ toASCIIBytes (toUUID (ciUser cid))
+    putCharUtf8 ':'
+    putStringUtf8 $ T.unpack (client (ciClient cid))
+    putCharUtf8 '@'
+    putStringUtf8 $ T.unpack (domainText (ciDomain cid))
 
 mkClientIdentity :: Qualified UserId -> ClientId -> ClientIdentity
 mkClientIdentity (Qualified uid domain) = ClientIdentity domain uid

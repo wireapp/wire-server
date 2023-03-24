@@ -24,6 +24,7 @@ module Wire.API.MLS.LeafNode
   )
 where
 
+import qualified Data.Swagger as S
 import GHC.Records
 import Imports
 import Test.QuickCheck
@@ -72,6 +73,9 @@ instance ParseMLS LeafNode where
     LeafNode
       <$> parseMLS
       <*> parseMLSBytes @VarInt
+
+instance S.ToSchema LeafNode where
+  declareNamedSchema _ = pure (mlsSwagger "LeafNode")
 
 instance HasField "encryptionKey" LeafNode HPKEPublicKey where
   getField = (.tbs.encryptionKey)

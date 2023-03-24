@@ -39,4 +39,4 @@ instance ParseMLS Extension where
 instance SerialiseMLS Extension where
   serialiseMLS (Extension ty d) = do
     serialiseMLS ty
-    serialiseMLSBytes @Word32 d
+    serialiseMLSBytes @VarInt d

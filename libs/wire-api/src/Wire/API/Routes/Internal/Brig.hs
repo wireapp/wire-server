@@ -54,6 +54,8 @@ import Wire.API.Error.Brig
 import Wire.API.MLS.CipherSuite (SignatureSchemeTag)
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
+import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
@@ -277,6 +279,7 @@ type MLSAPI =
          )
            :<|> GetMLSClients
            :<|> MapKeyPackageRefs
+           -- TODO: remove the following endpoint
            :<|> Named
                   "put-key-package-add"
                   ( "key-package-add"
@@ -285,6 +288,16 @@ type MLSAPI =
                            'PUT
                            '[Servant.JSON]
                            (Respond 200 "Key package ref mapping updated" NewKeyPackageResult)
+                  )
+           :<|> Named
+                  "validate-leaf-node"
+                  ( "validate-leaf-node"
+                      :> Capture "identity" ClientIdentity
+                      :> ReqBody '[MLS] LeafNode
+                      :> MultiVerb1
+                           'GET
+                           '[Servant.JSON]
+                           (RespondEmpty 200 "Leaf node is valid")
                   )
        )
 

@@ -30,7 +30,6 @@ module Galley.API.MLS.Message
   )
 where
 
-import Control.Arrow ((>>>))
 import Control.Comonad
 import Control.Error.Util (hush)
 import Control.Lens (forOf_, preview)
@@ -99,8 +98,12 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
-import Wire.API.Routes.Internal.Brig
 import Wire.API.User.Client
+
+-- TODO:
+-- [ ] replace ref with index in remove proposals
+-- [ ] validate leaf nodes and key packages locally on galley
+-- [ ] remove MissingSenderClient error
 
 data IncomingMessage = IncomingMessage
   { epoch :: Epoch,
@@ -232,16 +235,16 @@ postMLSMessageFromLocalUserV1 ::
     Member SubConversationStore r
   ) =>
   Local UserId ->
-  Maybe ClientId ->
+  ClientId ->
   ConnId ->
   RawMLS Message ->
   Sem r [Event]
-postMLSMessageFromLocalUserV1 lusr mc conn smsg = do
+postMLSMessageFromLocalUserV1 lusr c conn smsg = do
   assertMLSEnabled
   imsg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage smsg
   cnvOrSub <- lookupConvByGroupId imsg.groupId >>= noteS @'ConvNotFound
-  fst . first (map lcuEvent)
-    <$> postMLSMessage lusr (tUntagged lusr) mc cnvOrSub (Just conn) imsg
+  map lcuEvent . fst
+    <$> postMLSMessage lusr (tUntagged lusr) c cnvOrSub (Just conn) imsg
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
@@ -264,17 +267,17 @@ postMLSMessageFromLocalUser ::
     Member SubConversationStore r
   ) =>
   Local UserId ->
-  Maybe ClientId ->
+  ClientId ->
   ConnId ->
   RawMLS Message ->
   Sem r MLSMessageSendingStatus
-postMLSMessageFromLocalUser lusr mc conn smsg = do
+postMLSMessageFromLocalUser lusr c conn smsg = do
   assertMLSEnabled
   imsg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage smsg
   cnvOrSub <- lookupConvByGroupId imsg.groupId >>= noteS @'ConvNotFound
   (events, unreachables) <-
     first (map lcuEvent)
-      <$> postMLSMessage lusr (tUntagged lusr) mc cnvOrSub (Just conn) imsg
+      <$> postMLSMessage lusr (tUntagged lusr) c cnvOrSub (Just conn) imsg
   t <- toUTCTimeMillis <$> input
   pure $ MLSMessageSendingStatus events t unreachables
 
@@ -287,16 +290,16 @@ postMLSCommitBundle ::
   ) =>
   Local x ->
   Qualified UserId ->
-  Maybe ClientId ->
+  ClientId ->
   Qualified ConvOrSubConvId ->
   Maybe ConnId ->
   IncomingBundle ->
   Sem r ([LocalConversationUpdate], UnreachableUsers)
-postMLSCommitBundle loc qusr mc qConvOrSub conn bundle =
+postMLSCommitBundle loc qusr c qConvOrSub conn bundle =
   foldQualified
     loc
-    (postMLSCommitBundleToLocalConv qusr mc conn bundle)
-    (postMLSCommitBundleToRemoteConv loc qusr mc conn bundle)
+    (postMLSCommitBundleToLocalConv qusr c conn bundle)
+    (postMLSCommitBundleToRemoteConv loc qusr c conn bundle)
     qConvOrSub
 
 postMLSCommitBundleFromLocalUser ::
@@ -307,17 +310,17 @@ postMLSCommitBundleFromLocalUser ::
     Member SubConversationStore r
   ) =>
   Local UserId ->
-  Maybe ClientId ->
+  ClientId ->
   ConnId ->
   CommitBundle ->
   Sem r MLSMessageSendingStatus
-postMLSCommitBundleFromLocalUser lusr mc conn bundle = do
+postMLSCommitBundleFromLocalUser lusr c conn bundle = do
   assertMLSEnabled
   ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
   qConvOrSub <- lookupConvByGroupId ibundle.groupId >>= noteS @'ConvNotFound
   (events, unreachables) <-
     first (map lcuEvent)
-      <$> postMLSCommitBundle lusr (tUntagged lusr) mc qConvOrSub (Just conn) ibundle
+      <$> postMLSCommitBundle lusr (tUntagged lusr) c qConvOrSub (Just conn) ibundle
   t <- toUTCTimeMillis <$> input
   pure $ MLSMessageSendingStatus events t unreachables
 
@@ -328,15 +331,14 @@ postMLSCommitBundleToLocalConv ::
     Member SubConversationStore r
   ) =>
   Qualified UserId ->
-  Maybe ClientId ->
+  ClientId ->
   Maybe ConnId ->
   IncomingBundle ->
   Local ConvOrSubConvId ->
   Sem r ([LocalConversationUpdate], UnreachableUsers)
-postMLSCommitBundleToLocalConv qusr mc conn bundle lConvOrSubId = do
+postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr lConvOrSubId
-
-  senderClient <- fmap ciClient <$> getSenderIdentity qusr mc (Just bundle.sender)
+  senderIdentity <- getSenderIdentity qusr c (Just bundle.sender)
 
   action <- getCommitData lConvOrSub bundle.epoch bundle.commit.rmValue
   -- check that the welcome message matches the action
@@ -348,8 +350,7 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lConvOrSubId = do
       $ throwS @'MLSWelcomeMismatch
   events <-
     processCommitWithAction
-      qusr
-      senderClient
+      senderIdentity
       conn
       lConvOrSub
       bundle.epoch
@@ -379,21 +380,19 @@ postMLSCommitBundleToRemoteConv ::
   ) =>
   Local x ->
   Qualified UserId ->
-  Maybe ClientId ->
+  ClientId ->
   Maybe ConnId ->
   IncomingBundle ->
   Remote ConvOrSubConvId ->
   Sem r ([LocalConversationUpdate], UnreachableUsers)
-postMLSCommitBundleToRemoteConv loc qusr mc con bundle rConvOrSubId = do
+postMLSCommitBundleToRemoteConv loc qusr c con bundle rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
   -- only members may send commit bundles to a remote conversation
 
   flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) (convOfConvOrSub <$> rConvOrSubId)
 
-  senderIdentity <-
-    noteS @'MLSMissingSenderClient
-      =<< getSenderIdentity qusr mc (Just bundle.sender)
+  senderIdentity <- getSenderIdentity qusr c (Just bundle.sender)
 
   resp <-
     runFederated rConvOrSubId $
@@ -436,43 +435,30 @@ postMLSMessage ::
   ) =>
   Local x ->
   Qualified UserId ->
-  Maybe ClientId ->
+  ClientId ->
   Qualified ConvOrSubConvId ->
   Maybe ConnId ->
   IncomingMessage ->
   Sem r ([LocalConversationUpdate], UnreachableUsers)
-postMLSMessage loc qusr mc qconvOrSub con msg = do
-  mSender <- fmap ciClient <$> getSenderIdentity qusr mc msg.sender
+postMLSMessage loc qusr c qconvOrSub con msg = do
+  -- verify sender identity
+  void $ getSenderIdentity qusr c msg.sender
+
   foldQualified
     loc
-    (postMLSMessageToLocalConv qusr mSender con msg)
-    (postMLSMessageToRemoteConv loc qusr mSender con msg)
+    (postMLSMessageToLocalConv qusr c con msg)
+    (postMLSMessageToRemoteConv loc qusr c con msg)
     qconvOrSub
 
-getSenderIndex :: Sender -> Maybe Word32
-getSenderIndex sender = case sender of
-  SenderMember index -> Just index
-  _ -> Nothing
-
--- FUTUREWORK: once we can assume that the Z-Client header is present (i.e.
--- when v2 is dropped), remove the Maybe in the return type.
 getSenderIdentity ::
-  ( Member (ErrorS 'MLSClientSenderUserMismatch) r
-  ) =>
   Qualified UserId ->
-  Maybe ClientId ->
+  ClientId ->
   Maybe Sender ->
-  Sem r (Maybe ClientIdentity)
-getSenderIdentity qusr mc mSender = do
-  let mSenderClient = do
-        sender <- mSender
-        index <- getSenderIndex sender
-        error "TODO: get client ID from index" index
-  -- At this point, mc is the client ID of the request, while mSenderClient is the
-  -- one contained in the message. We throw an error if the two don't match.
-  when (((==) <$> mc <*> mSenderClient) == Just False) $
-    throwS @'MLSClientSenderUserMismatch
-  pure (mkClientIdentity qusr <$> (mc <|> mSenderClient))
+  Sem r ClientIdentity
+getSenderIdentity qusr c _mSender = do
+  let cid = mkClientIdentity qusr c
+  -- TODO: check that mSender matches cid
+  pure cid
 
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
@@ -480,7 +466,6 @@ postMLSMessageToLocalConv ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
@@ -490,19 +475,21 @@ postMLSMessageToLocalConv ::
     Member SubConversationStore r
   ) =>
   Qualified UserId ->
-  Maybe ClientId ->
+  ClientId ->
   Maybe ConnId ->
   IncomingMessage ->
   Local ConvOrSubConvId ->
   Sem r ([LocalConversationUpdate], UnreachableUsers)
-postMLSMessageToLocalConv qusr senderClient con msg convOrSubId = do
+postMLSMessageToLocalConv qusr c con msg convOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr convOrSubId
+
+  senderIdentity <- getSenderIdentity qusr c msg.sender
 
   -- validate message
   events <- case msg.content of
     IncomingMessageContentPublic pub -> case pub.content of
-      FramedContentCommit c ->
-        processCommit qusr senderClient con lConvOrSub msg.epoch pub.sender c.rmValue
+      FramedContentCommit commit ->
+        processCommit senderIdentity con lConvOrSub msg.epoch pub.sender commit.rmValue
       FramedContentApplicationData _ -> throwS @'MLSUnsupportedMessage
       FramedContentProposal prop ->
         processProposal qusr lConvOrSub msg pub prop $> mempty
@@ -521,18 +508,17 @@ postMLSMessageToRemoteConv ::
   ) =>
   Local x ->
   Qualified UserId ->
-  Maybe ClientId ->
+  ClientId ->
   Maybe ConnId ->
   IncomingMessage ->
   Remote ConvOrSubConvId ->
   Sem r ([LocalConversationUpdate], UnreachableUsers)
-postMLSMessageToRemoteConv loc qusr mc con msg rConvOrSubId = do
+postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
   -- only members may send messages to the remote conversation
   flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) (convOfConvOrSub <$> rConvOrSubId)
 
-  senderClient <- noteS @'MLSMissingSenderClient mc
   resp <-
     runFederated rConvOrSubId $
       fedClient @'Galley @"send-mls-message" $
@@ -632,7 +618,6 @@ processCommit ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
@@ -640,17 +625,16 @@ processCommit ::
     Member Resource r,
     Member SubConversationStore r
   ) =>
-  Qualified UserId ->
-  Maybe ClientId ->
+  ClientIdentity ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
   Epoch ->
   Sender ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processCommit qusr senderClient con lConvOrSub epoch sender commit = do
+processCommit senderIdentity con lConvOrSub epoch sender commit = do
   action <- getCommitData lConvOrSub epoch commit
-  processCommitWithAction qusr senderClient con lConvOrSub epoch action sender commit
+  processCommitWithAction senderIdentity con lConvOrSub epoch action sender commit
 
 processExternalCommit ::
   forall r.
@@ -661,7 +645,6 @@ processExternalCommit ::
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSKeyPackageRefNotFound) r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
@@ -674,17 +657,16 @@ processExternalCommit ::
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
-  Qualified UserId ->
-  Maybe ClientId ->
+  ClientIdentity ->
   Local ConvOrSubConv ->
   Epoch ->
   ProposalAction ->
   Maybe UpdatePath ->
   Sem r ()
-processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath =
+processExternalCommit senderIdentity lConvOrSub epoch action updatePath =
   withCommitLock (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub) epoch $ do
     let convOrSub = tUnqualified lConvOrSub
-    newKeyPackage <-
+    leafNode <-
       upLeaf
         <$> note
           (mlsProtocolError "External commits need an update path")
@@ -696,33 +678,16 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath =
       throw . mlsProtocolError $
         "The external commit must not have add proposals"
 
-    newRef <-
-      kpRef' newKeyPackage
-        & note (mlsProtocolError "An invalid key package in the update path")
-
     -- validate and update mapping in brig
-    eithCid <-
-      nkpresClientIdentity
-        <$$> validateAndAddKeyPackageRef
-          NewKeyPackage
-            { nkpConversation = tUntagged (convOfConvOrSub . idForConvOrSub <$> lConvOrSub),
-              nkpKeyPackage = KeyPackageData (rmRaw newKeyPackage)
-            }
-    cid <- either (\errMsg -> throw (mlsProtocolError ("Tried to add invalid KeyPackage: " <> errMsg))) pure eithCid
-
-    unless (cidQualifiedUser cid == qusr) $
-      throw . mlsProtocolError $
-        "The external commit attempts to add another user"
-
-    senderClient <- noteS @'MLSMissingSenderClient mSenderClient
-
-    unless (ciClient cid == senderClient) $
-      throw . mlsProtocolError $
-        "The external commit attempts to add another client of the user, it must only add itself"
+    validateLeafNode senderIdentity leafNode >>= \case
+      Left errMsg ->
+        throw $
+          mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
+      Right _ -> pure ()
 
     -- only members can join a subconversation
     forOf_ _SubConv convOrSub $ \(mlsConv, _) ->
-      unless (isClientMember cid (mcMembers mlsConv)) $
+      unless (isClientMember senderIdentity (mcMembers mlsConv)) $
         throwS @'MLSSubConvClientNotInParent
 
     -- check if there is a key package ref in the remove proposal
@@ -730,14 +695,12 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath =
       if Map.null (paRemove action)
         then pure Nothing
         else do
-          (remCid, r) <- derefUser (paRemove action) qusr
-          unless (cidQualifiedUser cid == cidQualifiedUser remCid)
+          (remCid, r) <- derefUser (paRemove action) (cidQualifiedUser senderIdentity)
+          unless (cidQualifiedUser senderIdentity == cidQualifiedUser remCid)
             . throw
             . mlsProtocolError
             $ "The external commit attempts to remove a client from a user other than themselves"
           pure (Just r)
-
-    updateKeyPackageMapping lConvOrSub qusr (ciClient cid) remRef newRef
 
     -- increment epoch number
     lConvOrSub' <- for lConvOrSub incrementEpoch
@@ -749,7 +712,7 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath =
         <$> getPendingBackendRemoveProposals (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub') epoch
     -- requeue backend remove proposals for the current epoch
     let cm = membersConvOrSub (tUnqualified lConvOrSub')
-    createAndSendRemoveProposals lConvOrSub' kpRefs qusr cm
+    createAndSendRemoveProposals lConvOrSub' kpRefs (cidQualifiedUser senderIdentity) cm
   where
     derefUser :: ClientMap -> Qualified UserId -> Sem r (ClientIdentity, KeyPackageRef)
     derefUser cm user = case Map.assocs cm of
@@ -777,15 +740,13 @@ processCommitWithAction ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member Resource r,
     Member SubConversationStore r
   ) =>
-  Qualified UserId ->
-  Maybe ClientId ->
+  ClientIdentity ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
   Epoch ->
@@ -793,99 +754,38 @@ processCommitWithAction ::
   Sender ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processCommitWithAction qusr senderClient con lConvOrSub epoch action sender commit =
+processCommitWithAction senderIdentity con lConvOrSub epoch action sender commit =
   case sender of
-    SenderMember index ->
-      processInternalCommit qusr senderClient con lConvOrSub epoch action (error "TODO" index) commit
+    SenderMember _index ->
+      processInternalCommit senderIdentity con lConvOrSub epoch action commit
     SenderExternal _ -> throw (mlsProtocolError "Unexpected sender")
     SenderNewMemberProposal -> throw (mlsProtocolError "Unexpected sender")
     SenderNewMemberCommit ->
-      processExternalCommit qusr senderClient lConvOrSub epoch action (cPath commit) $> []
+      processExternalCommit senderIdentity lConvOrSub epoch action (cPath commit) $> []
 
 processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member SubConversationStore r,
     Member Resource r
   ) =>
-  Qualified UserId ->
-  Maybe ClientId ->
+  ClientIdentity ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
   Epoch ->
   ProposalAction ->
-  KeyPackageRef ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef commit = do
+processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
   let convOrSub = tUnqualified lConvOrSub
       mlsMeta = mlsMetaConvOrSub convOrSub
-      localSelf = isLocal lConvOrSub qusr
-
-  updatePathRef <-
-    for
-      (cPath commit)
-      (upLeaf >>> kpRef' >>> note (mlsProtocolError "Could not compute key package ref"))
 
   withCommitLock (cnvmlsGroupId . mlsMetaConvOrSub $ convOrSub) epoch $ do
-    postponedKeyPackageRefUpdate <-
-      if epoch == Epoch 0
-        then do
-          let cType = cnvmType . mcMetadata . convOfConvOrSub $ convOrSub
-          case (localSelf, cType, cmAssocs . membersConvOrSub $ convOrSub, convOrSub) of
-            (True, SelfConv, [], Conv _) -> do
-              creatorClient <- noteS @'MLSMissingSenderClient senderClient
-              let creatorRef = fromMaybe senderRef updatePathRef
-              updateKeyPackageMapping lConvOrSub qusr creatorClient Nothing creatorRef
-            (True, SelfConv, _, _) ->
-              -- this is a newly created (sub)conversation, and it should
-              -- contain exactly one client (the creator)
-              throw (InternalErrorWithDescription "Unexpected creator client set")
-            (True, _, [(qu, (creatorClient, _))], Conv _)
-              | qu == qusr -> do
-                  -- use update path as sender reference and if not existing fall back to sender
-                  let creatorRef = fromMaybe senderRef updatePathRef
-                  -- register the creator client
-                  updateKeyPackageMapping
-                    lConvOrSub
-                    qusr
-                    creatorClient
-                    Nothing
-                    creatorRef
-            -- remote clients cannot send the first commit
-            (False, _, _, _) -> throwS @'MLSStaleMessage
-            (True, _, [], SubConv parentConv _) -> do
-              creatorClient <- noteS @'MLSMissingSenderClient senderClient
-              unless (isClientMember (mkClientIdentity qusr creatorClient) (mcMembers parentConv)) $
-                throwS @'MLSSubConvClientNotInParent
-              let creatorRef = fromMaybe senderRef updatePathRef
-              updateKeyPackageMapping lConvOrSub qusr creatorClient Nothing creatorRef
-            (_, _, _, _) ->
-              throw (InternalErrorWithDescription "Unexpected creator client set")
-          pure $ pure () -- no key package ref update necessary
-        else case updatePathRef of
-          Just updatedRef -> do
-            -- postpone key package ref update until other checks/processing passed
-            case senderClient of
-              Just cli ->
-                pure
-                  ( updateKeyPackageMapping
-                      lConvOrSub
-                      qusr
-                      cli
-                      (Just senderRef)
-                      updatedRef
-                  )
-              Nothing -> pure (pure ())
-          Nothing -> pure (pure ()) -- ignore commits without update path
-
     -- check all pending proposals are referenced in the commit
     allPendingProposals <- getAllPendingProposalRefs (cnvmlsGroupId mlsMeta) epoch
     let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) (cProposals commit)
@@ -893,44 +793,12 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
       throwS @'MLSCommitMissingReferences
 
     -- process and execute proposals
-    updates <- executeProposalAction qusr con lConvOrSub action
+    updates <- executeProposalAction (cidQualifiedUser senderIdentity) con lConvOrSub action
 
-    -- update key package ref if necessary
-    postponedKeyPackageRefUpdate
     -- increment epoch number
     for_ lConvOrSub incrementEpoch
 
     pure updates
-
--- | Note: Use this only for KeyPackage that are already validated
-updateKeyPackageMapping ::
-  ( Member BrigAccess r,
-    Member MemberStore r
-  ) =>
-  Local ConvOrSubConv ->
-  Qualified UserId ->
-  ClientId ->
-  Maybe KeyPackageRef ->
-  KeyPackageRef ->
-  Sem r ()
-updateKeyPackageMapping lConvOrSub qusr cid mOld new = do
-  let qconv = tUntagged (convOfConvOrSub . idForConvOrSub <$> lConvOrSub)
-  -- update actual mapping in brig
-  case mOld of
-    Nothing ->
-      addKeyPackageRef new qusr cid qconv
-    Just old ->
-      updateKeyPackageRef
-        KeyPackageUpdate
-          { kpupPrevious = old,
-            kpupNext = new
-          }
-  let groupId = cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub
-
-  -- remove old (client, key package) pair
-  removeMLSClients groupId qusr (Set.singleton cid)
-  -- add new (client, key package) pair
-  addMLSClients groupId qusr (Set.singleton (cid, new))
 
 applyProposalRef ::
   ( HasProposalEffects r,
@@ -963,35 +831,23 @@ applyProposal ::
   GroupId ->
   Proposal ->
   Sem r ProposalAction
-applyProposal convOrSubConvId groupId (AddProposal kp) = do
+applyProposal _convOrSubConvId groupId (AddProposal kp) = do
   ref <- kpRef' kp & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
   mbClientIdentity <- getClientByKeyPackageRef ref
   clientIdentity <- case mbClientIdentity of
     Nothing -> do
-      -- external add proposal for a new key package unknown to the backend
-      lConvOrSubConvId <- qualifyLocal convOrSubConvId
-      addKeyPackageMapping lConvOrSubConvId ref (KeyPackageData (rmRaw kp))
-    Just ci ->
-      -- ad-hoc add proposal in commit, the key package has been claimed before
-      pure ci
-  pure (paAddClient . (<$$>) (,ref) . cidQualifiedClient $ clientIdentity)
-  where
-    addKeyPackageMapping :: Local ConvOrSubConvId -> KeyPackageRef -> KeyPackageData -> Sem r ClientIdentity
-    addKeyPackageMapping lConvOrSubConvId ref kpdata = do
-      -- validate and update mapping in brig
-      eithCid <-
-        nkpresClientIdentity
-          <$$> validateAndAddKeyPackageRef
-            NewKeyPackage
-              { nkpConversation = tUntagged (convOfConvOrSub <$> lConvOrSubConvId),
-                nkpKeyPackage = kpdata
-              }
-      cid <- either (\errMsg -> throw (mlsProtocolError ("Tried to add invalid KeyPackage: " <> errMsg))) pure eithCid
-      let qcid = cidQualifiedClient cid
-      let qusr = fst <$> qcid
-      -- update mapping in galley
-      addMLSClients groupId qusr (Set.singleton (ciClient cid, ref))
+      -- TODO: validate key package
+      cid <-
+        either
+          (\_ -> throw (mlsProtocolError "Invalid key package in an Add proposal"))
+          pure
+          $ keyPackageIdentity kp.rmValue
+      addMLSClients groupId (cidQualifiedUser cid) (Set.singleton (ciClient cid, ref))
       pure cid
+    Just cid ->
+      -- ad-hoc add proposal in commit, the key package has been claimed before
+      pure cid
+  pure (paAddClient . (<$$>) (,ref) . cidQualifiedClient $ clientIdentity)
 applyProposal _convOrSubConvId _groupId (RemoveProposal ref) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
   pure (paRemoveClient ((,ref) <$$> qclient))

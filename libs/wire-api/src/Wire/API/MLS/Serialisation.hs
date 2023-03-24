@@ -46,6 +46,7 @@ module Wire.API.MLS.Serialisation
     mlsSwagger,
     parseRawMLS,
     mkRawMLS,
+    traceMLS,
   )
 where
 
@@ -68,6 +69,7 @@ import Data.Proxy
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
+import Debug.Trace
 import Imports
 import Test.QuickCheck (Arbitrary (..), chooseInt)
 
@@ -184,19 +186,19 @@ serialiseMLSEnum ::
   Put
 serialiseMLSEnum = put . fromMLSEnum @w
 
-data MLSEnumError = MLSEnumUnknown | MLSEnumInvalid
+data MLSEnumError = MLSEnumUnknown Int | MLSEnumInvalid
 
 toMLSEnum' :: forall a w. (Bounded a, Enum a, Integral w) => w -> Either MLSEnumError a
 toMLSEnum' w = case fromIntegral w - 1 of
   n
     | n < 0 -> Left MLSEnumInvalid
-    | n < fromEnum @a minBound || n > fromEnum @a maxBound -> Left MLSEnumUnknown
+    | n < fromEnum @a minBound || n > fromEnum @a maxBound -> Left (MLSEnumUnknown n)
     | otherwise -> pure (toEnum n)
 
 toMLSEnum :: forall a w f. (Bounded a, Enum a, MonadFail f, Integral w) => String -> w -> f a
 toMLSEnum name = either err pure . toMLSEnum'
   where
-    err MLSEnumUnknown = fail $ "Unknown " <> name
+    err (MLSEnumUnknown value) = fail $ "Unknown " <> name <> ": " <> show value
     err MLSEnumInvalid = fail $ "Invalid " <> name
 
 fromMLSEnum :: (Integral w, Enum a) => a -> w
@@ -309,3 +311,9 @@ instance SerialiseMLS (RawMLS a) where
 
 mkRawMLS :: SerialiseMLS a => a -> RawMLS a
 mkRawMLS x = RawMLS (LBS.toStrict (runPut (serialiseMLS x))) x
+
+traceMLS :: Show a => String -> Get a -> Get a
+traceMLS l g = do
+  r <- g
+  traceM $ l <> " " <> show r
+  pure r

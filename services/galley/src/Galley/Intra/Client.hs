@@ -26,7 +26,8 @@ module Galley.Intra.Client
     getLocalMLSClients,
     addKeyPackageRef,
     updateKeyPackageRef,
-    validateAndAddKeyPackageRef,
+    validateLeafNode,
+    validateKeyPackage,
     deleteKeyPackageRefs,
   )
 where
@@ -66,6 +67,8 @@ import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
+import Wire.API.MLS.Serialisation
 import Wire.API.Routes.Internal.Brig
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Client
@@ -246,19 +249,38 @@ updateKeyPackageRef keyPackageRef =
           . expect2xx
       )
 
-validateAndAddKeyPackageRef :: NewKeyPackage -> App (Either Text NewKeyPackageResult)
-validateAndAddKeyPackageRef nkp = do
+validateKeyPackage :: ClientIdentity -> RawMLS KeyPackage -> App (Either Text ())
+validateKeyPackage cid keyPackage = do
   res <-
     call
       Brig
-      ( method PUT
-          . paths ["i", "mls", "key-package-add"]
-          . json nkp
+      ( method GET
+          . paths ["i", "mls", "validate-key-package", toHeader cid]
+          . content "message/mls"
+          . bytes (encodeMLS' keyPackage)
       )
   let statusCode = HTTP.statusCode (Rq.responseStatus res)
   if
       | statusCode `div` 100 == 2 -> Right <$> parseResponse (mkError status502 "server-error") res
       | statusCode `div` 100 == 4 -> do
           err <- parseResponse (mkError status502 "server-error") res
-          pure (Left ("Error validating keypackage: " <> toStrict (Error.label err) <> ": " <> toStrict (Error.message err)))
-      | otherwise -> throwM (mkError status502 "server-error" "Unexpected http status returned from /i/mls/key-packages/add")
+          pure (Left ("Error validating key package: " <> toStrict (Error.label err) <> ": " <> toStrict (Error.message err)))
+      | otherwise -> throwM (mkError status502 "server-error" "Unexpected http status returned from /i/mls/validate-leaf-node")
+
+validateLeafNode :: ClientIdentity -> RawMLS LeafNode -> App (Either Text ())
+validateLeafNode cid leafNode = do
+  res <-
+    call
+      Brig
+      ( method GET
+          . paths ["i", "mls", "validate-leaf-node", toHeader cid]
+          . content "message/mls"
+          . bytes (encodeMLS' leafNode)
+      )
+  let statusCode = HTTP.statusCode (Rq.responseStatus res)
+  if
+      | statusCode `div` 100 == 2 -> Right <$> parseResponse (mkError status502 "server-error") res
+      | statusCode `div` 100 == 4 -> do
+          err <- parseResponse (mkError status502 "server-error") res
+          pure (Left ("Error validating leaf node: " <> toStrict (Error.label err) <> ": " <> toStrict (Error.message err)))
+      | otherwise -> throwM (mkError status502 "server-error" "Unexpected http status returned from /i/mls/validate-leaf-node")

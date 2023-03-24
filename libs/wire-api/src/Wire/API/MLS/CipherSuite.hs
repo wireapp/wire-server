@@ -17,26 +17,27 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.MLS.CipherSuite (
-  -- * MLS ciphersuites
-  CipherSuite (..),
-  CipherSuiteTag (..),
-  cipherSuiteTag,
-  tagCipherSuite,
+module Wire.API.MLS.CipherSuite
+  ( -- * MLS ciphersuites
+    CipherSuite (..),
+    CipherSuiteTag (..),
+    cipherSuiteTag,
+    tagCipherSuite,
 
-  -- * MLS signature schemes
-  SignatureScheme (..),
-  SignatureSchemeTag (..),
-  signatureScheme,
-  signatureSchemeName,
-  signatureSchemeTag,
-  csSignatureScheme,
+    -- * MLS signature schemes
+    SignatureScheme (..),
+    SignatureSchemeTag (..),
+    signatureScheme,
+    signatureSchemeName,
+    signatureSchemeTag,
+    csSignatureScheme,
 
-  -- * Utilities
-  csHash,
-  csVerifySignatureWithLabel,
-  csVerifySignature,
-  ) where
+    -- * Utilities
+    csHash,
+    csVerifySignatureWithLabel,
+    csVerifySignature,
+  )
+where
 
 import Cassandra.CQL
 import Control.Error (note)

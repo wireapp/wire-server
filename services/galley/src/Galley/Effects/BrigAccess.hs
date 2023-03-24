@@ -51,7 +51,8 @@ module Galley.Effects.BrigAccess
     getClientByKeyPackageRef,
     getLocalMLSClients,
     addKeyPackageRef,
-    validateAndAddKeyPackageRef,
+    validateLeafNode,
+    validateKeyPackage,
     updateKeyPackageRef,
     deleteKeyPackageRefs,
 
@@ -76,7 +77,8 @@ import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.Routes.Internal.Brig
+import Wire.API.MLS.LeafNode
+import Wire.API.MLS.Serialisation
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature
@@ -134,7 +136,14 @@ data BrigAccess m a where
   GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
   GetLocalMLSClients :: Local UserId -> SignatureSchemeTag -> BrigAccess m (Set ClientInfo)
   AddKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> BrigAccess m ()
-  ValidateAndAddKeyPackageRef :: NewKeyPackage -> BrigAccess m (Either Text NewKeyPackageResult)
+  ValidateLeafNode ::
+    ClientIdentity ->
+    RawMLS LeafNode ->
+    BrigAccess m (Either Text ())
+  ValidateKeyPackage ::
+    ClientIdentity ->
+    RawMLS KeyPackage ->
+    BrigAccess m (Either Text ())
   UpdateKeyPackageRef :: KeyPackageUpdate -> BrigAccess m ()
   DeleteKeyPackageRefs :: [KeyPackageRef] -> BrigAccess m ()
   UpdateSearchVisibilityInbound ::

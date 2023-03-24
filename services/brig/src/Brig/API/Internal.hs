@@ -147,6 +147,8 @@ mlsAPI =
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
     :<|> Named @"put-key-package-add" upsertKeyPackage
+    -- Used by galley to validate leaf nodes appearing in an update path
+    :<|> Named @"validate-leaf-node" validateLeafNode
 
 accountAPI ::
   ( Member BlacklistStore r,

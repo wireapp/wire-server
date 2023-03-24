@@ -33,6 +33,7 @@ import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
+-- TODO: replace with GroupInfo
 data PublicGroupStateTBS = PublicGroupStateTBS
   { pgsVersion :: ProtocolVersion,
     pgsCipherSuite :: CipherSuite,

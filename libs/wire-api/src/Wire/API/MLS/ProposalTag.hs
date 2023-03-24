@@ -29,7 +29,6 @@ data ProposalTag
   | PreSharedKeyProposalTag
   | ReInitProposalTag
   | ExternalInitProposalTag
-  | AppAckProposalTag
   | GroupContextExtensionsProposalTag
   deriving stock (Bounded, Enum, Eq, Generic, Show)
   deriving (Arbitrary) via GenericUniform ProposalTag

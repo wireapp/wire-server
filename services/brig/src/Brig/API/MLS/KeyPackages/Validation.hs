@@ -18,6 +18,7 @@
 module Brig.API.MLS.KeyPackages.Validation
   ( -- * Main key package validation function
     validateKeyPackage,
+    validateLeafNode,
     mlsProtocolError,
     validateLifetime',
   )
@@ -95,11 +96,15 @@ validateKeyPackage identity (RawMLS (KeyPackageData -> kpd) kp) = do
     (pvTag (kp.protocolVersion) >>= guard . (== ProtocolMLS10))
 
   -- validate credential, lifetime and capabilities
-  validateCredential identity kp.leafNode.credential
-  validateSource kp.leafNode.source
-  validateCapabilities kp.leafNode.capabilities
+  validateLeafNode identity kp.leafNode
 
   pure (kpRef cs kpd, kpd)
+
+validateLeafNode :: ClientIdentity -> LeafNode -> Handler r ()
+validateLeafNode identity leafNode = do
+  validateCredential identity leafNode.credential
+  validateSource leafNode.source
+  validateCapabilities leafNode.capabilities
 
 validateCredential :: ClientIdentity -> Credential -> Handler r ()
 validateCredential identity (BasicCredential cred) = do

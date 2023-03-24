@@ -18,7 +18,7 @@
 module Wire.API.MLS.Commit where
 
 import Imports
-import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
@@ -30,16 +30,19 @@ data Commit = Commit
   deriving (Eq, Show)
 
 instance ParseMLS Commit where
-  parseMLS = Commit <$> parseMLSVector @Word32 parseMLS <*> parseMLSOptional parseMLS
+  parseMLS =
+    Commit
+      <$> traceMLS "proposals" (parseMLSVector @VarInt parseMLS)
+      <*> traceMLS "update path" (parseMLSOptional parseMLS)
 
 data UpdatePath = UpdatePath
-  { upLeaf :: RawMLS KeyPackage,
+  { upLeaf :: RawMLS LeafNode,
     upNodes :: [UpdatePathNode]
   }
   deriving (Eq, Show)
 
 instance ParseMLS UpdatePath where
-  parseMLS = UpdatePath <$> parseMLS <*> parseMLSVector @Word32 parseMLS
+  parseMLS = UpdatePath <$> parseMLS <*> parseMLSVector @VarInt parseMLS
 
 data UpdatePathNode = UpdatePathNode
   { upnPublicKey :: ByteString,
@@ -48,7 +51,7 @@ data UpdatePathNode = UpdatePathNode
   deriving (Eq, Show)
 
 instance ParseMLS UpdatePathNode where
-  parseMLS = UpdatePathNode <$> parseMLSBytes @Word16 <*> parseMLSVector @Word32 parseMLS
+  parseMLS = UpdatePathNode <$> parseMLSBytes @VarInt <*> parseMLSVector @VarInt parseMLS
 
 data HPKECiphertext = HPKECiphertext
   { hcOutput :: ByteString,
@@ -58,9 +61,9 @@ data HPKECiphertext = HPKECiphertext
   deriving (Arbitrary) via (GenericUniform HPKECiphertext)
 
 instance ParseMLS HPKECiphertext where
-  parseMLS = HPKECiphertext <$> parseMLSBytes @Word16 <*> parseMLSBytes @Word16
+  parseMLS = HPKECiphertext <$> parseMLSBytes @VarInt <*> parseMLSBytes @VarInt
 
 instance SerialiseMLS HPKECiphertext where
   serialiseMLS (HPKECiphertext out ct) = do
-    serialiseMLSBytes @Word16 out
-    serialiseMLSBytes @Word16 ct
+    serialiseMLSBytes @VarInt out
+    serialiseMLSBytes @VarInt ct

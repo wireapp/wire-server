@@ -27,6 +27,7 @@ import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
 import Wire.API.ConverProtoLens
 import Wire.API.MLS.CommitBundle
+import Wire.API.MLS.Credential
 import Wire.API.MLS.Extension
 import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.KeyPackage
@@ -40,10 +41,10 @@ tests :: T.TestTree
 tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "MLS roundtrip tests" $
     [ testRoundTrip @KeyPackageRef,
+      testRoundTrip @ClientIdentity,
       testRoundTrip @TestPreconfiguredSender,
       testRoundTrip @RemoveProposalMessage,
       testRoundTrip @RemoveProposalPayload,
-      testRoundTrip @AppAckProposalTest,
       testRoundTrip @ExtensionVector,
       testRoundTrip @PublicGroupStateTBS,
       testRoundTrip @PublicGroupState,
@@ -100,15 +101,18 @@ newtype MessageGenerator tbs = MessageGenerator {unMessageGenerator :: Message}
 
 instance ArbitraryFramedContent fc => Arbitrary (MessageGenerator fc) where
   arbitrary =
-    fmap MessageGenerator $
+    fmap MessageGenerator $ do
+      fc <- arbitraryFramedContent @fc
+      mt <- case fc.sender of
+        SenderMember _ -> Just <$> arbitrary
+        _ -> pure Nothing
       Message
         <$> arbitrary
         <*> fmap
           MessagePublic
-          ( PublicMessage
-              <$> fmap mkRawMLS (arbitraryFramedContent @fc)
-              <*> (FramedContentAuthData <$> arbitrary <*> pure Nothing)
-              <*> arbitrary
+          ( PublicMessage (mkRawMLS fc)
+              <$> (FramedContentAuthData <$> arbitrary <*> pure Nothing)
+              <*> pure mt
           )
 
 data FramedContentGenerator sender payload
@@ -162,27 +166,15 @@ instance ArbitrarySender TestPreconfiguredSender where
 
 ---
 
-newtype AppAckProposalTest = AppAckProposalTest Proposal
-  deriving newtype (ParseMLS, Eq, Show)
-
-instance Arbitrary AppAckProposalTest where
-  arbitrary = AppAckProposalTest . AppAckProposal <$> arbitrary
-
-instance SerialiseMLS AppAckProposalTest where
-  serialiseMLS (AppAckProposalTest (AppAckProposal mrs)) = serialiseAppAckProposal mrs
-  serialiseMLS _ = serialiseAppAckProposal []
-
----
-
 newtype ExtensionVector = ExtensionVector [Extension]
   deriving newtype (Arbitrary, Eq, Show)
 
 instance ParseMLS ExtensionVector where
-  parseMLS = ExtensionVector <$> parseMLSVector @Word32 (parseMLS @Extension)
+  parseMLS = ExtensionVector <$> parseMLSVector @VarInt (parseMLS @Extension)
 
 instance SerialiseMLS ExtensionVector where
   serialiseMLS (ExtensionVector exts) = do
-    serialiseMLSVector @Word32 serialiseMLS exts
+    serialiseMLSVector @VarInt serialiseMLS exts
 
 ---
 

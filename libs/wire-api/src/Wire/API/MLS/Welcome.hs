@@ -43,15 +43,15 @@ instance ParseMLS Welcome where
     Welcome
       <$> parseMLS @ProtocolVersion
       <*> parseMLS
-      <*> parseMLSVector @Word32 parseMLS
-      <*> parseMLSBytes @Word32
+      <*> parseMLSVector @VarInt parseMLS
+      <*> parseMLSBytes @VarInt
 
 instance SerialiseMLS Welcome where
   serialiseMLS (Welcome pv cs ss gi) = do
     serialiseMLS pv
     serialiseMLS cs
-    serialiseMLSVector @Word32 serialiseMLS ss
-    serialiseMLSBytes @Word32 gi
+    serialiseMLSVector @VarInt serialiseMLS ss
+    serialiseMLSBytes @VarInt gi
 
 data GroupSecrets = GroupSecrets
   { gsNewMember :: KeyPackageRef,

@@ -70,18 +70,18 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 
 data WireFormatTag
-  = WireFormatPrivateTag
-  | WireFormatPublicTag
+  = WireFormatPublicTag
+  | WireFormatPrivateTag
   | WireFormatWelcomeTag
   | WireFormatGroupInfoTag
   | WireFormatKeyPackageTag
   deriving (Enum, Bounded, Eq, Show)
 
 instance ParseMLS WireFormatTag where
-  parseMLS = parseMLSEnum @Word8 "wire format"
+  parseMLS = parseMLSEnum @Word16 "wire format"
 
 instance SerialiseMLS WireFormatTag where
-  serialiseMLS = serialiseMLSEnum @Word8
+  serialiseMLS = serialiseMLSEnum @Word16
 
 data Message = Message
   { protocolVersion :: ProtocolVersion,
@@ -90,7 +90,10 @@ data Message = Message
   deriving (Eq, Show)
 
 instance ParseMLS Message where
-  parseMLS = Message <$> parseMLS <*> parseMLS
+  parseMLS =
+    Message
+      <$> traceMLS "version" parseMLS
+      <*> traceMLS "content" parseMLS
 
 instance SerialiseMLS Message where
   serialiseMLS msg = do
@@ -154,9 +157,9 @@ data PublicMessage = PublicMessage
 
 instance ParseMLS PublicMessage where
   parseMLS = do
-    content <- parseMLS
+    content <- traceMLS "pub content" parseMLS
     authData <- parseFramedContentAuthData (framedContentDataTag (content.rmValue.content))
-    membershipTag <- case content.rmValue.sender of
+    membershipTag <- traceMLS "membership tag" $ case content.rmValue.sender of
       SenderMember _ -> Just <$> parseMLSBytes @VarInt
       _ -> pure Nothing
     pure
@@ -249,11 +252,11 @@ data FramedContent = FramedContent
 instance ParseMLS FramedContent where
   parseMLS =
     FramedContent
-      <$> parseMLS
-      <*> parseMLS
-      <*> parseMLS
-      <*> parseMLSBytes @VarInt
-      <*> parseMLS
+      <$> traceMLS "groupId" parseMLS
+      <*> traceMLS "epoch" parseMLS
+      <*> traceMLS "sender" parseMLS
+      <*> traceMLS "authdata" (parseMLSBytes @VarInt)
+      <*> traceMLS "content" parseMLS
 
 instance SerialiseMLS FramedContent where
   serialiseMLS fc = do
@@ -336,7 +339,7 @@ data FramedContentAuthData = FramedContentAuthData
   deriving (Eq, Show)
 
 parseFramedContentAuthData :: FramedContentDataTag -> Get FramedContentAuthData
-parseFramedContentAuthData tag = do
+parseFramedContentAuthData tag = traceMLS "authdata" $ do
   sig <- parseMLSBytes @VarInt
   confirmationTag <- case tag of
     FramedContentCommitTag -> Just <$> parseMLSBytes @VarInt
