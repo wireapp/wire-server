@@ -124,9 +124,9 @@ def humanize_days(n):
     else:
         weeks = n // 7
         if weeks < 4:
-            return f'{weeks} weeks ago'
+            return f'{weeks} week{'s' if weeks >= 2 else ''} ago'
         else:
-            return f'{weeks // 4} months ago'
+            return f'{weeks // 4} month{'s' if weeks >= 8 else ''} ago'
 
 def human_format_date(dt, today):
     days = (today - dt).days
@@ -157,7 +157,7 @@ def pretty_flake(flake, today):
     return "\n".join(lines) + '\n'
 
 def pager(s):
-    pipe = os.popen('less -S', 'w')
+    pipe = os.popen('less -RS', 'w')
     pipe.write(s)
     pipe.close()
 
