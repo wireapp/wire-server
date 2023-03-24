@@ -5,6 +5,7 @@ import requests
 import json
 import os
 import yaml
+import argparse
 
 BUCKET_BASEURL = 'https://s3.eu-west-1.amazonaws.com/public.wire.com/ci/failing-tests'
 CONCOURSE_BASEURL = 'https://concourse.ops.zinfra.io/teams/main'
@@ -96,17 +97,21 @@ def search_matching_flake(test_names, test_name):
         if tests_match(flake, test_name):
             return flake
 
-def associate_fails(test_names, data):
+def associate_fails(test_names, data, default_comment=''):
     d = {k: [] for k in test_names}
+    unassociated = []
     for item in data:
         flake = search_matching_flake(test_names, item['test_name'])
         if flake:
             d[flake].append(item)
-    return [{'test_name': k, 'fails': v} for k, v in  d.items()]
+        else:
+            unassociated.append(item)
 
-def associate_comments(flakes, comments):
+    return [{'test_name': k, 'fails': v, 'comments': default_comment} for k, v in  d.items()], unassociated
+
+def associate_comments(flakes, comments, default_comments=''):
     for flake in flakes:
-        flake['comments'] = comments.get(flake['test_name'])
+        flake['comments'] = comments.get(flake['test_name'], default_comments)
 
 def sort_flakes(flakes):
     flakes.sort(key=lambda f: len(f['fails']), reverse=True)
@@ -142,11 +147,10 @@ def pretty_flake(flake, today):
     if comments:
         for l in comments.splitlines():
             lines.append('    ' + l)
-    else:
-        lines.append('    (discovered flake, no notes in flaky-tests.yaml)')
     lines.append('')
     for fail in flake['fails']:
         b = fail['build']
+
         end_time = datetime.datetime.fromtimestamp(b['end_time'])
         s = human_format_date(end_time, today)
         if (today - end_time) < datetime.timedelta(days=CONCOURSE_LOG_RETENTION_DAYS):
@@ -156,6 +160,12 @@ def pretty_flake(flake, today):
 
     return "\n".join(lines) + '\n'
 
+def pretty_flakes(flakes, today):
+    lines = []
+    for flake in flakes:
+        lines.append(pretty_flake(flake, today))
+    return '\n'.join(lines)
+
 def pager(s):
     pipe = os.popen('less -RS', 'w')
     pipe.write(s)
@@ -163,20 +173,30 @@ def pager(s):
 
 
 def main():
+    parser = argparse.ArgumentParser(prog='flaky_test.py', description='Shows flaky tests')
+    parser.add_argument('-d', '--discover', action='store_true', help='Show failing tests that are not marked/discovered as being flaky. Use this to manually discover flaky test.')
+    args = parser.parse_args()
+
     today = datetime.datetime.now()
     data = fetch(n_weeks=4*4)
 
     test_names = discover_flakes(data)
     flaky_tests_comments = read_flaky_tests()
     test_names = test_names.union(flaky_tests_comments.keys())
-    flakes = associate_fails(test_names, data)
-    associate_comments(flakes, flaky_tests_comments)
+    flakes, unassociated = associate_fails(test_names, data)
 
-    sort_flakes(flakes)
-    lines = []
-    for flake in flakes:
-        lines.append(pretty_flake(flake, today))
-    pager('\n'.join(lines))
+    if args.discover:
+
+        test_names = set([i['test_name'] for i in unassociated])
+        flake_candidates, _ = associate_fails(test_names, unassociated, '(if this is a flaky test, please add it to flaky-tests.yaml)')
+        sort_flakes(flake_candidates)
+        pager(pretty_flakes(flake_candidates, today))
+
+    else:
+        associate_comments(flakes, flaky_tests_comments, '(discovered flake, please check and add it to flaky-tests.yaml, otherwise it might now show up again)')
+        sort_flakes(flakes)
+        pager(pretty_flakes(flakes, today))
+
 
 def test():
     data = fetch(1)
