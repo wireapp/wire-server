@@ -2661,8 +2661,8 @@ checkUserUpdateEvent uid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   etype @?= Just "user.update"
   euser @?= Just (UUID.toText (toUUID uid))
 
-checkUserDeleteEvent :: HasCallStack => UserId -> WS.WebSocket -> TestM ()
-checkUserDeleteEvent uid w = WS.assertMatch_ checkTimeout w $ \notif -> do
+checkUserDeleteEvent :: HasCallStack => UserId -> WS.Timeout -> WS.WebSocket -> TestM ()
+checkUserDeleteEvent uid timeout_ w = WS.assertMatch_ timeout_ w $ \notif -> do
   let j = Object $ List1.head (ntfPayload notif)
   let etype = j ^? key "type" . _String
   let euser = j ^? key "id" . _String
