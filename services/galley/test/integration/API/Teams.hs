@@ -1496,7 +1496,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
           )
           !!! const 202
             === statusCode
-        for_ (owner : otherRealUsersInTeam) $ \u -> checkUserDeleteEvent u checkTimeout wsExtern
+        for_ (owner : otherRealUsersInTeam) $ \u -> checkUserDeleteEvent u (7 # Second) wsExtern
         -- Ensure users are marked as deleted; since we already
         -- received the event, should _really_ be deleted
         for_ (owner : otherRealUsersInTeam) $ Util.ensureDeletedState True extern
