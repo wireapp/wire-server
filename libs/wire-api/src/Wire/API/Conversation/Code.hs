@@ -54,8 +54,11 @@ instance ToSchema CreateConversationCodeRequest where
   schema =
     objectWithDocModifier
       "CreateConversationCodeRequest"
-      (description ?~ "Optional request body for creating a conversation code with a password")
-      $ CreateConversationCodeRequest <$> cccrPassword .= maybe_ (optField "password" schema)
+      (description ?~ "Request body for creating a conversation code")
+      $ CreateConversationCodeRequest
+        <$> cccrPassword .= maybe_ (optFieldWithDocModifier "password" desc schema)
+    where
+      desc = description ?~ "Password for accessing the conversation via guest link. Set to null or omit for no password."
 
 data JoinConversationByCode = JoinConversationByCode
   { jcbcCode :: ConversationCode,
