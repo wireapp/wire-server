@@ -2699,6 +2699,19 @@ checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
     Conv.EdConversation x -> (qUnqualified . cnvQualifiedId) x @?= cid
     other -> assertFailure $ "Unexpected event data: " <> show other
 
+wsAssertConvCreate ::
+  HasCallStack =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  Notification ->
+  IO ()
+wsAssertConvCreate conv eventFrom n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  evtConv e @?= conv
+  evtType e @?= Conv.ConvCreate
+  evtFrom e @?= eventFrom
+
 wsAssertConvCreateWithRole ::
   HasCallStack =>
   Qualified ConvId ->

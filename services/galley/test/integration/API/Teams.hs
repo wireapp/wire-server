@@ -1246,12 +1246,21 @@ testDeleteTeamConv = do
   extern <- Util.randomUser
   qExtern <- Qualified extern <$> viewFederationDomain
   for_ members $ \m -> Util.connectUsers (m & qUnqualified) (list1 extern [])
-  cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
-  qcid1 <- Qualified cid1 <$> viewFederationDomain
+  (cid1, qcid1) <- WS.bracketR c owner $ \wsOwner -> do
+    cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
+    qcid1 <- Qualified cid1 <$> viewFederationDomain
+    WS.assertMatch_ (5 # Second) wsOwner $
+      wsAssertConvCreate qcid1 qOwner
+    pure (cid1, qcid1)
   let access = ConversationAccessData (Set.fromList [InviteAccess, CodeAccess]) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
   putQualifiedAccessUpdate owner qcid1 access !!! const 200 === statusCode
   code <- decodeConvCodeEvent <$> (postConvCode owner cid1 <!! const 201 === statusCode)
-  cid2 <- Util.createTeamConv owner tid (qUnqualified <$> members) (Just "blup") Nothing Nothing
+  cid2 <- WS.bracketR c owner $ \wsOwner -> do
+    cid2 <- Util.createTeamConv owner tid (qUnqualified <$> members) (Just "blup") Nothing Nothing
+    qcid2 <- Qualified cid2 <$> viewFederationDomain
+    WS.assertMatch_ (5 # Second) wsOwner $
+      wsAssertConvCreate qcid2 qOwner
+    pure cid2
   Util.postMembers owner (qExtern :| [qMember]) qcid1 !!! const 200 === statusCode
   for_ (qExtern : members) $ \u -> Util.assertConvMember u cid1
   for_ members $ flip Util.assertConvMember cid2
