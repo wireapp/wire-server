@@ -6,6 +6,7 @@ import json
 import os
 import yaml
 import argparse
+from pydoc import pager
 
 BUCKET_BASEURL = 'https://s3.eu-west-1.amazonaws.com/public.wire.com/ci/failing-tests'
 CONCOURSE_BASEURL = 'https://concourse.ops.zinfra.io/teams/main'
@@ -115,7 +116,7 @@ def associate_comments(flakes, comments, default_comments=''):
         flake['comments'] = comments.get(flake['test_name'], default_comments)
 
 def sort_flakes(flakes):
-    flakes.sort(key=lambda f: len(f['fails']), reverse=True)
+    flakes.sort(key=lambda f: (-len(f['fails']), f['test_name']), reverse=False)
     for flake in flakes:
         flake['fails'].sort(key=lambda f: f['build']['end_time'], reverse=True)
 
@@ -175,11 +176,6 @@ def pretty_flakes(flakes, today, logs=False):
     for flake in flakes:
         lines.append(pretty_flake(flake, today, logs))
     return '\n'.join(lines)
-
-def pager(s):
-    pipe = os.popen('less -RS', 'w')
-    pipe.write(s)
-    pipe.close()
 
 explain = '''Tips:
     Run with --discover to manually discover new flaky tests
