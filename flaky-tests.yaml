@@ -42,3 +42,17 @@
       assertTeamActivate, called at test/integration/API/Util.hs:191:3 in main:API.Util
       createBindingTeam', called at test/integration/API/Util.hs:183:20 in main:API.Util
       createBindingTeam, called at test/integration/API/Teams.hs:1546:25 in main:API.Teams
+
+-
+  test_name: "delete team conversation"
+  comments: |
+    Exception: unexpected notification received
+    Match failure: expected: no notification
+     but got: "conversation.create"
+
+    2023-03-24: The test is not waiting for notifications triggered by creating
+                conversations. When later asserting that no notification is sent
+                for deleting conversations, the test fails under load when the
+                create conversation notification happens to come in late. This
+                is fixed by waiting for all previous notifications before
+                asserting the absence of (new) notifications.
