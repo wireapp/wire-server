@@ -80,11 +80,12 @@ tests m db b n o = do
         "create access token"
         [ test m "success" $ testCreateAccessTokenSuccess o b,
           test m "wrong client id fail" $ testCreateAccessTokenWrongClientId b,
-          test m "wrong client secret fail" $ testCreateAccessTokenWrongClientSecret b,
           test m "wrong code fail" $ testCreateAccessTokenWrongAuthorizationCode b,
           test m "wrong redirect url fail" $ testCreateAccessTokenWrongUrl b,
           test m "expired code fail" $ testCreateAccessTokenExpiredCode o b,
-          test m "wrong grant type fail" $ testCreateAccessTokenWrongGrantType b
+          test m "wrong grant type fail" $ testCreateAccessTokenWrongGrantType b,
+          test m "wrong code challenge fail" $ testCreateAccessTokenWrongCodeChallenge b,
+          test m "wrong code verifier fail" $ testCreateAccessTokenWrongCodeVerifier b
         ],
       testGroup
         "access denied when disabled"
@@ -117,7 +118,6 @@ tests m db b n o = do
           test m "no token id - fail" $ testRefreshTokenNoTokenId o b,
           test m "non-existing id - fail" $ testRefreshTokenNonExistingId o b,
           test m "wrong client id - fail" $ testRefreshTokenWrongClientId b,
-          test m "wrong client secret - fail" $ testRefreshTokenWrongClientSecret b,
           test m "wrong grant type - fail" $ testRefreshTokenWrongGrantType b,
           test m "expired token - fail" $ testRefreshTokenExpiredToken o b,
           test m "revoked token - fail" $ testRefreshTokenRevokedToken b
@@ -146,7 +146,8 @@ testCreateOAuthCodeSuccess brig = do
   uid <- randomId
   let scope = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
   state <- UUID.toText <$> liftIO nextRandom
-  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest c.clientId scope OAuthResponseTypeCode redirectUrl state) !!! do
+
+  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest c.clientId scope OAuthResponseTypeCode redirectUrl state S256 challenge) !!! do
     const 201 === statusCode
     const (Just $ unRedirectUrl redirectUrl ^. pathL) === (fmap getPath . getLocation)
     const (Just $ ["code", "state"]) === (fmap (fmap fst . getQueryParams) . getLocation)
@@ -163,7 +164,7 @@ testCreateOAuthCodeRedirectUrlMismatch brig = do
   uid <- randomId
   state <- UUID.toText <$> liftIO nextRandom
   let differentUrl = mkUrl "https://wire.com"
-  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest c.clientId mempty OAuthResponseTypeCode differentUrl state) !!! do
+  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest c.clientId mempty OAuthResponseTypeCode differentUrl state S256 challenge) !!! do
     const 400 === statusCode
     const Nothing === (fmap getPath . getLocation)
     const (Just "redirect-url-miss-match") === fmap Error.label . responseJsonMaybe
@@ -174,7 +175,7 @@ testCreateOAuthCodeClientNotFound brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
   state <- UUID.toText <$> liftIO nextRandom
-  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode redirectUrl state) !!! do
+  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode redirectUrl state S256 challenge) !!! do
     const 404 === statusCode
     const (Just $ "access_denied") === (getLocation >=> getQueryParamValue "error")
     const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
@@ -187,8 +188,8 @@ testCreateAccessTokenSuccess opts brig = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.singleton ReadSelf
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   -- authorization code should be deleted and can only be used once
   createOAuthAccessToken' brig accessTokenRequest !!! do
@@ -216,33 +217,21 @@ testCreateAccessTokenWrongClientId brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
-  (_, secret, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
+  (_, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
   cid <- randomId
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   createOAuthAccessToken' brig accessTokenRequest !!! do
     const 404 === statusCode
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
-
-testCreateAccessTokenWrongClientSecret :: Brig -> Http ()
-testCreateAccessTokenWrongClientSecret brig = do
-  uid <- randomId
-  let redirectUrl = mkUrl "https://example.com"
-  let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
-  (cid, _, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
-  let secret = OAuthClientPlainTextSecret $ encodeBase16 "ee2316e304f5c318e4607d86748018eb9c66dc4f391c31bcccd9291d24b4c7e"
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
-  createOAuthAccessToken' brig accessTokenRequest !!! do
-    const 403 === statusCode
-    const (Just "forbidden") === fmap Error.label . responseJsonMaybe
 
 testCreateAccessTokenWrongAuthorizationCode :: Brig -> Http ()
 testCreateAccessTokenWrongAuthorizationCode brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
-  (cid, secret, _) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
+  (cid, _) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
   let code = OAuthAuthorizationCode $ encodeBase16 "eb32eb9e2aa36c081c89067dddf81bce83c1c57e0b74cfb14c9f026f145f2b1f"
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   createOAuthAccessToken' brig accessTokenRequest !!! do
     const 404 === statusCode
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
@@ -252,9 +241,9 @@ testCreateAccessTokenWrongUrl brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://wire.com"
   let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
   let wrongUrl = mkUrl "https://example.com"
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code wrongUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code wrongUrl
   createOAuthAccessToken' brig accessTokenRequest !!! do
     const 400 === statusCode
     const (Just "redirect-url-miss-match") === fmap Error.label . responseJsonMaybe
@@ -265,9 +254,9 @@ testCreateAccessTokenExpiredCode opts brig =
     uid <- randomId
     let redirectUrl = mkUrl "https://example.com"
     let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
-    (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
+    (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
     liftIO $ threadDelay (1 * 1200 * 1000)
-    let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+    let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
     createOAuthAccessToken' brig accessTokenRequest !!! do
       const 404 === statusCode
       const (Just "not-found") === fmap Error.label . responseJsonMaybe
@@ -277,9 +266,37 @@ testCreateAccessTokenWrongGrantType brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeRefreshToken cid secret code redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeRefreshToken cid verifier code redirectUrl
   createOAuthAccessToken' brig accessTokenRequest !!! assertAccessDenied
+
+testCreateAccessTokenWrongCodeChallenge :: Brig -> Http ()
+testCreateAccessTokenWrongCodeChallenge brig = do
+  uid <- randomId
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
+  (cid, code) <- generateOAuthClientAndAuthorizationCode' wrongCodeChallenge brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
+  createOAuthAccessToken' brig accessTokenRequest !!! do
+    const 403 === statusCode
+    const (Just "invalid_grant") === fmap Error.label . responseJsonMaybe
+  where
+    wrongCodeChallenge :: OAuthCodeChallenge
+    wrongCodeChallenge = fromMaybe (error $ "invalid code challenge") $ A.decode "\"kw8DtStRIz2MTWyG59pd9h2Kyfhoa8SM4aU8CUWM1DU\""
+
+testCreateAccessTokenWrongCodeVerifier :: Brig -> Http ()
+testCreateAccessTokenWrongCodeVerifier brig = do
+  uid <- randomId
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid wrongCodeVerifier code redirectUrl
+  createOAuthAccessToken' brig accessTokenRequest !!! do
+    const 403 === statusCode
+    const (Just "invalid_grant") === fmap Error.label . responseJsonMaybe
+  where
+    wrongCodeVerifier :: OAuthCodeVerifier
+    wrongCodeVerifier = fromMaybe (error "invalid code verifier") $ A.decode "\"x9xpNj_TNfXY5h-CggZozno7ldzPmbEh8al~HJQmfiZtvvx0uxlDa~mNCZrH37XZnClD71Vx_Edx8FU1XU2mt38.o49Wnca~at75RBoxHn..F-_n5kveOSCpc_Oemyap\""
 
 testGetOAuthClientInfoAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
 testGetOAuthClientInfoAccessDeniedWhenDisabled opts brig =
@@ -295,7 +312,7 @@ testCreateCodeOAuthClientAccessDeniedWhenDisabled opts brig =
     uid <- randomId
     state <- UUID.toText <$> liftIO nextRandom
     let redirectUrl = mkUrl "https://example.com"
-    createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode redirectUrl state) !!! do
+    createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode redirectUrl state S256 challenge) !!! do
       const 403 === statusCode
       const (Just $ "access_denied") === (getLocation >=> getQueryParamValue "error")
       const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
@@ -306,10 +323,9 @@ testCreateAccessTokenAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
 testCreateAccessTokenAccessDeniedWhenDisabled opts brig =
   withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthEnabledInternal ?~ False) $ do
     cid <- randomId
-    let secret = OAuthClientPlainTextSecret $ encodeBase16 "ee2316e304f5c318e4607d86748018eb9c66dc4f391c31bcccd9291d24b4c7e"
     let code = OAuthAuthorizationCode $ encodeBase16 "eb32eb9e2aa36c081c89067dddf81bce83c1c57e0b74cfb14c9f026f145f2b1f"
     let url = mkUrl "https://example.com"
-    let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code url
+    let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code url
     createOAuthAccessToken' brig accessTokenRequest !!! assertAccessDenied
 
 testRefreshAccessTokenAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
@@ -317,11 +333,11 @@ testRefreshAccessTokenAccessDeniedWhenDisabled opts brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthEnabledInternal ?~ False) $ do
-    let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret resp.refreshToken
+    let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid resp.refreshToken
     refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! assertAccessDenied
 
 testRegisterOAuthClientAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
@@ -348,10 +364,10 @@ testAccessResourceSuccessNginz brig nginz = do
   -- with Authorization header containing an OAuth bearer token
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
-  oauthToken <- accessToken <$> createOAuthAccessToken brig accessTokenRequest
-  self' <- responseJsonError =<< get (nginz . paths ["self"] . authHeader oauthToken) <!! const 200 === statusCode
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
+  resp <- createOAuthAccessToken brig accessTokenRequest
+  self' <- responseJsonError =<< get (nginz . paths ["self"] . authHeader resp.accessToken) <!! const 200 === statusCode
   liftIO $ self @?= self'
 
 testAccessResourceInsufficientScope :: Brig -> Nginz -> Http ()
@@ -359,8 +375,8 @@ testAccessResourceInsufficientScope brig nginz = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [WriteConversations]
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   get (nginz . paths ["self"] . authHeader resp.accessToken) !!! do
     const 403 === statusCode
@@ -371,8 +387,8 @@ testAccessResourceExpiredToken brig nginz = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   liftIO $ threadDelay (5 * 1000 * 1000)
   get (nginz . paths ["self"] . authHeader resp.accessToken) !!! do
@@ -396,8 +412,8 @@ testAccessResourceInvalidSignature opts brig nginz = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   claimSet <- fromRight (error "token invalid") <$> liftIO (verify key (unOAuthToken $ resp.accessToken))
@@ -418,10 +434,10 @@ testRefreshTokenMaxActiveTokens opts db brig =
           -- this is due to the interpreter of the `Now` effect which auto-updates every second
           -- FUTUREWORK: once the interpreter of the `Now` effect is changed to use a monotonic clock, we can remove this delay
           threadDelay $ 1000 * 1000
-    (rid1, cid, secret) <- do
+    (rid1, cid, _) <- do
       let testMsg = "0 active refresh tokens - 1st requested token will be active"
-      (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
-      let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+      (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
+      let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
       resp <- createOAuthAccessToken brig accessTokenRequest
       rid <- extractRefreshTokenId jwk resp.refreshToken
       tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
@@ -431,7 +447,7 @@ testRefreshTokenMaxActiveTokens opts db brig =
     rid2 <- do
       let testMsg = "1 active refresh token - 2nd requested token will added to active tokens"
       code <- generateOAuthAuthorizationCode brig uid cid scopes redirectUrl
-      let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+      let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
       resp <- createOAuthAccessToken brig accessTokenRequest
       rid <- extractRefreshTokenId jwk resp.refreshToken
       tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
@@ -441,7 +457,7 @@ testRefreshTokenMaxActiveTokens opts db brig =
     rid3 <- do
       let testMsg = "2 active refresh tokens - 3rd token requested replaces the 1st one"
       code <- generateOAuthAuthorizationCode brig uid cid scopes redirectUrl
-      let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+      let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
       resp <- createOAuthAccessToken brig accessTokenRequest
       rid <- extractRefreshTokenId jwk resp.refreshToken
       tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
@@ -451,7 +467,7 @@ testRefreshTokenMaxActiveTokens opts db brig =
     do
       let testMsg = "2 active refresh tokens - 4th token requests replaces the 2nd one"
       code <- generateOAuthAuthorizationCode brig uid cid scopes redirectUrl
-      let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+      let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
       resp <- createOAuthAccessToken brig accessTokenRequest
       rid <- extractRefreshTokenId jwk resp.refreshToken
       tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
@@ -469,13 +485,13 @@ testRefreshTokenRetrieveAccessToken brig nginz = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   get (nginz . paths ["self"] . authHeader (resp.accessToken)) !!! const 200 === statusCode
   threadDelay $ 5 * 1000 * 1000 -- wait 5 seconds for access token to expire
   get (nginz . paths ["self"] . authHeader (resp.accessToken)) !!! const 401 === statusCode
-  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret resp.refreshToken
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid resp.refreshToken
   resp' <- refreshOAuthAccessToken brig refreshAccessTokenRequest
   get (nginz . paths ["self"] . authHeader resp'.accessToken) !!! const 200 === statusCode
 
@@ -484,14 +500,14 @@ testRefreshTokenWrongSignature opts brig = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   badRefreshToken <- liftIO $ do
     claims <- verifyRefreshToken key (unOAuthToken $ resp.refreshToken)
     OAuthToken <$> signRefreshToken badKey claims
-  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret badRefreshToken
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid badRefreshToken
   refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
     const 403 === statusCode
     const "Forbidden" === statusMessage
@@ -501,10 +517,10 @@ testRefreshTokenNoTokenId opts brig = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, secret, _) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  (cid, _) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
   key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   badRefreshToken <- liftIO $ OAuthToken <$> signRefreshToken key emptyClaimsSet
-  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret badRefreshToken
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid badRefreshToken
   refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
     const 403 === statusCode
     const "Forbidden" === statusMessage
@@ -514,8 +530,8 @@ testRefreshTokenNonExistingId opts brig = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   badRefreshToken <-
@@ -526,7 +542,7 @@ testRefreshTokenNonExistingId opts brig = do
         sub <- maybe (error "creating sub claim failed") pure $ idToText rid ^? stringOrUri
         let invalidClaims = claims & claimSub ?~ sub
         signRefreshToken key invalidClaims
-  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret badRefreshToken
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid badRefreshToken
   refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
     const 403 === statusCode
     const "Forbidden" === statusMessage
@@ -536,25 +552,11 @@ testRefreshTokenWrongClientId brig = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   badCid <- randomId
-  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken badCid secret resp.refreshToken
-  refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
-    const 403 === statusCode
-    const "Forbidden" === statusMessage
-
-testRefreshTokenWrongClientSecret :: Brig -> Http ()
-testRefreshTokenWrongClientSecret brig = do
-  user <- createUser "alice" brig
-  let redirectUrl = mkUrl "https://example.com"
-  let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
-  resp <- createOAuthAccessToken brig accessTokenRequest
-  let badSecret = OAuthClientPlainTextSecret $ encodeBase16 "ee2316e304f5c318e4607d86748018eb9c66dc4f391c31bcccd9291d24b4c7e"
-  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid badSecret resp.refreshToken
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken badCid resp.refreshToken
   refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
     const 403 === statusCode
     const "Forbidden" === statusMessage
@@ -564,10 +566,10 @@ testRefreshTokenWrongGrantType brig = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
-  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret resp.refreshToken
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeAuthorizationCode cid resp.refreshToken
   refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
     const 403 === statusCode
     const "Forbidden" === statusMessage
@@ -579,10 +581,10 @@ testRefreshTokenExpiredToken opts brig =
     user <- createUser "alice" brig
     let redirectUrl = mkUrl "https://example.com"
     let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-    (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
-    let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+    (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+    let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
     resp <- createOAuthAccessToken brig accessTokenRequest
-    let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret resp.refreshToken
+    let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid resp.refreshToken
     threadDelay $ 2 * 1010 * 1000 -- wait for 2 seconds for the token to expire
     refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
       const 403 === statusCode
@@ -593,11 +595,11 @@ testRefreshTokenRevokedToken brig = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
-  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret resp.refreshToken
-  revokeOAuthRefreshToken brig (OAuthRevokeRefreshTokenRequest cid secret resp.refreshToken) !!! const 200 === statusCode
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid resp.refreshToken
+  revokeOAuthRefreshToken brig (OAuthRevokeRefreshTokenRequest cid resp.refreshToken) !!! const 200 === statusCode
   refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
     const 403 === statusCode
     const "Forbidden" === statusMessage
@@ -688,8 +690,8 @@ postConvCode svc mkHeader token c = do
 getAccessTokenForScope :: Brig -> UserId -> [OAuthScope] -> Http OAuthAccessTokenResponse
 getAccessTokenForScope brig uid scopes = do
   let redirectUrl = mkUrl "https://example.com"
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig uid (OAuthScopes $ Set.fromList scopes) redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid (OAuthScopes $ Set.fromList scopes) redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   createOAuthAccessToken brig accessTokenRequest
 
 createTeamConv ::
@@ -722,8 +724,8 @@ getFeatureConfigs svc mkHeader token = do
 createOAuthApplicationWithAccountAccess :: Brig -> UserId -> Http OAuthAccessTokenResponse
 createOAuthApplicationWithAccountAccess brig uid = do
   let redirectUrl = mkUrl "https://example.com"
-  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig uid (OAuthScopes $ mempty) redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig uid (OAuthScopes $ mempty) redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   createOAuthAccessToken brig accessTokenRequest
 
 verifyRefreshToken :: JWK -> SignedJWT -> IO ClaimsSet
@@ -793,17 +795,23 @@ revokeOAuthApplicationAccess :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallSt
 revokeOAuthApplicationAccess brig uid cid =
   void $ revokeOAuthApplicationAccess' brig uid cid <!! const 204 === statusCode
 
-generateOAuthClientAndAuthorizationCode :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> OAuthScopes -> RedirectUrl -> m (OAuthClientId, OAuthClientPlainTextSecret, OAuthAuthorizationCode)
-generateOAuthClientAndAuthorizationCode brig uid scope url = do
+generateOAuthClientAndAuthorizationCode :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> OAuthScopes -> RedirectUrl -> m (OAuthClientId, OAuthAuthorizationCode)
+generateOAuthClientAndAuthorizationCode = generateOAuthClientAndAuthorizationCode' challenge
+
+generateOAuthClientAndAuthorizationCode' :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => OAuthCodeChallenge -> Brig -> UserId -> OAuthScopes -> RedirectUrl -> m (OAuthClientId, OAuthAuthorizationCode)
+generateOAuthClientAndAuthorizationCode' chal brig uid scope url = do
   let newOAuthClient = RegisterOAuthClientRequest (OAuthApplicationName (unsafeRange "E Corp")) url
-  OAuthClientCredentials cid secret <- registerNewOAuthClient brig newOAuthClient
-  (cid,secret,) <$> generateOAuthAuthorizationCode brig uid cid scope url
+  OAuthClientCredentials cid _ <- registerNewOAuthClient brig newOAuthClient
+  (cid,) <$> generateOAuthAuthorizationCode' chal brig uid cid scope url
 
 generateOAuthAuthorizationCode :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> OAuthClientId -> OAuthScopes -> RedirectUrl -> m OAuthAuthorizationCode
-generateOAuthAuthorizationCode brig uid cid scope url = do
+generateOAuthAuthorizationCode = generateOAuthAuthorizationCode' challenge
+
+generateOAuthAuthorizationCode' :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => OAuthCodeChallenge -> Brig -> UserId -> OAuthClientId -> OAuthScopes -> RedirectUrl -> m OAuthAuthorizationCode
+generateOAuthAuthorizationCode' chal brig uid cid scope url = do
   state <- UUID.toText <$> liftIO nextRandom
   response <-
-    createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid scope OAuthResponseTypeCode url state) <!! do
+    createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid scope OAuthResponseTypeCode url state S256 chal) <!! do
       const 201 === statusCode
   pure $ fromMaybe (error "oauth auth code generation failed") $ (getHeader "Location" >=> fromByteString >=> getQueryParamValue "code" >=> fromByteString) response
 
@@ -853,3 +861,9 @@ getQueryParams (RedirectUrl uri) = uri ^. (queryL . queryPairsL)
 
 getQueryParamValue :: ByteString -> RedirectUrl -> Maybe ByteString
 getQueryParamValue key uri = snd <$> find ((== key) . fst) (getQueryParams uri)
+
+challenge :: OAuthCodeChallenge
+challenge = either (\e -> error $ "invalid code challenge " <> show e) id $ A.eitherDecode "\"G7CWLBqYDT8doT_oEIN3un_QwZWYKHmOqG91nwNzITc\""
+
+verifier :: OAuthCodeVerifier
+verifier = either (\e -> error $ "invalid code verifier " <> show e) id $ A.eitherDecode "\"nE3k3zykOmYki~kriKzAmeFiGT7cWugcuToFwo1YPgrZ1cFvaQqLa.dXY9MnDj3umAmG-8lSNIYIl31Cs_.fV5r2psa4WWZcB.Nlc3A-t3p67NDZaOJjIiH~8PvUH_hR\""

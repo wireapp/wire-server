@@ -21,6 +21,7 @@ import qualified Data.Code as Code
 import Data.CommaSeparatedList
 import Data.Id
 import Data.Range
+import Data.SOP (I (..), NS (..))
 import Imports hiding (head)
 import Servant hiding (WithStatus)
 import Servant.Swagger.Internal.Orphans ()
@@ -46,6 +47,23 @@ import Wire.API.Team.Feature
 
 type ConversationResponse = ResponseForExistedCreated Conversation
 
+-- | A type similar to 'ConversationResponse' introduced to allow for a failure
+-- to add remote members while creating a conversation.
+data CreateGroupConversationResponse
+  = GroupConversationExisted Conversation
+  | GroupConversationCreated CreateGroupConversation
+
+instance
+  (ResponseType r1 ~ Conversation, ResponseType r2 ~ CreateGroupConversation) =>
+  AsUnion '[r1, r2] CreateGroupConversationResponse
+  where
+  toUnion (GroupConversationExisted x) = Z (I x)
+  toUnion (GroupConversationCreated x) = S (Z (I x))
+
+  fromUnion (Z (I x)) = GroupConversationExisted x
+  fromUnion (S (Z (I x))) = GroupConversationCreated x
+  fromUnion (S (S x)) = case x of {}
+
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
 type ConversationVerb =
@@ -62,6 +80,21 @@ type ConversationVerb =
          (Respond 201 "Conversation created" Conversation)
      ]
     ConversationResponse
+
+type CreateGroupConversationVerb =
+  MultiVerb
+    'POST
+    '[JSON]
+    '[ WithHeaders
+         ConversationHeaders
+         Conversation
+         (Respond 200 "Conversation existed" Conversation),
+       WithHeaders
+         ConversationHeaders
+         CreateGroupConversation
+         (Respond 201 "Conversation created" CreateGroupConversation)
+     ]
+    CreateGroupConversationResponse
 
 type ConversationV2Verb =
   MultiVerb
@@ -352,11 +385,11 @@ type ConversationAPI =
                :> ConversationV2Verb
            )
     :<|> Named
-           "create-group-conversation"
+           "create-group-conversation@v3"
            ( Summary "Create a new conversation"
                :> DescriptionOAuthScope 'WriteConversations
                :> MakesFederatedCall 'Galley "on-conversation-created"
-               :> From 'V3
+               :> Until 'V4
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MLSNonEmptyMemberList
@@ -372,6 +405,27 @@ type ConversationAPI =
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
                :> ConversationVerb
+           )
+    :<|> Named
+           "create-group-conversation"
+           ( Summary "Create a new conversation"
+               :> MakesFederatedCall 'Galley "on-conversation-created"
+               :> From 'V4
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'MLSMissingSenderClient
+               :> CanThrow 'MLSNonEmptyMemberList
+               :> CanThrow 'MLSNotEnabled
+               :> CanThrow 'NotConnected
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'MissingLegalholdConsent
+               :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
+               :> ZLocalUser
+               :> ZOptClient
+               :> ZOptConn
+               :> "conversations"
+               :> ReqBody '[Servant.JSON] NewConv
+               :> CreateGroupConversationVerb
            )
     :<|> Named
            "create-self-conversation@v2"
