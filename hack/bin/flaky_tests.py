@@ -124,9 +124,9 @@ def humanize_days(n):
     else:
         weeks = n // 7
         if weeks < 4:
-            return f'{weeks} week{'s' if weeks >= 2 else ''} ago'
+            return f'{weeks} week{"s" if weeks >= 2 else ""} ago'
         else:
-            return f'{weeks // 4} month{'s' if weeks >= 8 else ''} ago'
+            return f'{weeks // 4} month{"s" if weeks >= 8 else ""} ago'
 
 def human_format_date(dt, today):
     days = (today - dt).days
