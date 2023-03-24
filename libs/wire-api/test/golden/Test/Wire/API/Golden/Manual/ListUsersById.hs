@@ -67,18 +67,18 @@ profile2 =
       profileLegalholdStatus = UserLegalHoldDisabled
     }
 
-testObject_ListUsersById_1 :: ListUsersById
-testObject_ListUsersById_1 = ListUsersById mempty Nothing
+testObject_ListUsersById_user_1 :: ListUsersById
+testObject_ListUsersById_user_1 = ListUsersById mempty Nothing
 
-testObject_ListUsersById_2 :: ListUsersById
-testObject_ListUsersById_2 =
+testObject_ListUsersById_user_2 :: ListUsersById
+testObject_ListUsersById_user_2 =
   ListUsersById
     { listUsersByIdFound = [profile1, profile2],
       listUsersByIdFailed = Nothing
     }
 
-testObject_ListUsersById_3 :: ListUsersById
-testObject_ListUsersById_3 =
+testObject_ListUsersById_user_3 :: ListUsersById
+testObject_ListUsersById_user_3 =
   ListUsersById
     { listUsersByIdFound = [profile1],
       listUsersByIdFailed = pure $ [Qualified user2 domain2]

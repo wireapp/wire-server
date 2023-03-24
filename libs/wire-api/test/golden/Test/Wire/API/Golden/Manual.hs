@@ -148,8 +148,8 @@ tests =
           ],
       testGroup "ListUsersById" $
         testObjects
-          [ (testObject_ListUsersById_1, "testObject_ListUsersById_1.json"),
-            (testObject_ListUsersById_2, "testObject_ListUsersById_2.json"),
-            (testObject_ListUsersById_3, "testObject_ListUsersById_3.json")
+          [ (testObject_ListUsersById_user_1, "testObject_ListUsersById_user_1.json"),
+            (testObject_ListUsersById_user_2, "testObject_ListUsersById_user_2.json"),
+            (testObject_ListUsersById_user_3, "testObject_ListUsersById_user_3.json")
           ]
     ]
