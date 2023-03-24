@@ -135,18 +135,22 @@ def humanize_days(n):
 
 def human_format_date(dt, today):
     days = (today - dt).days
-    return f'· {format_date(dt)} ({humanize_days(days)})'
+    return Colors.BLUE + f'· {format_date(dt)} ({humanize_days(days)})' + Colors.RESET
 
 def create_url(build):
     return CONCOURSE_BASEURL + f"/pipelines/{build['pipeline_name']}/jobs/{build['job_name']}/builds/{build['name']}"
 
-def pretty_flake(flake, today):
+def pretty_flake(flake, today, logs=False):
     lines = []
     lines.append(Colors.YELLOW + f"❄ \"{flake['test_name']}\"" + Colors.RESET)
+
+    if not logs:
+        lines.append(f'  Run with --log "{flake["test_name"]}" to see error logs')
+
     comments = flake['comments']
     if comments:
         for l in comments.splitlines():
-            lines.append('    ' + l)
+            lines.append('  ' + Colors.PURPLEISH + l + Colors.RESET)
     lines.append('')
     for fail in flake['fails']:
         b = fail['build']
@@ -157,13 +161,18 @@ def pretty_flake(flake, today):
             url = create_url(b)
             s = s + ' ' + url
         lines.append('  ' + s)
+        if logs:
+            lines.append('')
+            for l in fail['context'].splitlines():
+                lines.append('      ' + l)
+            lines.append('')
 
     return "\n".join(lines) + '\n'
 
-def pretty_flakes(flakes, today):
+def pretty_flakes(flakes, today, logs=False):
     lines = []
     for flake in flakes:
-        lines.append(pretty_flake(flake, today))
+        lines.append(pretty_flake(flake, today, logs))
     return '\n'.join(lines)
 
 def pager(s):
@@ -171,31 +180,42 @@ def pager(s):
     pipe.write(s)
     pipe.close()
 
+explain = '''Tips:
+    Run with --discover to manually discover new flaky tests
+
+'''
 
 def main():
     parser = argparse.ArgumentParser(prog='flaky_test.py', description='Shows flaky tests')
     parser.add_argument('-d', '--discover', action='store_true', help='Show failing tests that are not marked/discovered as being flaky. Use this to manually discover flaky test.')
+    parser.add_argument('-l', '--logs', help='Show surrounding logs for given test')
     args = parser.parse_args()
 
     today = datetime.datetime.now()
     data = fetch(n_weeks=4*4)
+    if args.logs:
+        flakes, unassociated = associate_fails([args.logs], data)
+        sort_flakes(flakes)
+        pager(explain + pretty_flakes(flakes, today, logs=True))
+        return
 
     test_names = discover_flakes(data)
     flaky_tests_comments = read_flaky_tests()
     test_names = test_names.union(flaky_tests_comments.keys())
     flakes, unassociated = associate_fails(test_names, data)
 
+
     if args.discover:
 
         test_names = set([i['test_name'] for i in unassociated])
         flake_candidates, _ = associate_fails(test_names, unassociated, '(if this is a flaky test, please add it to flaky-tests.yaml)')
         sort_flakes(flake_candidates)
-        pager(pretty_flakes(flake_candidates, today))
+        pager(explain + pretty_flakes(flake_candidates, today))
 
     else:
         associate_comments(flakes, flaky_tests_comments, '(discovered flake, please check and add it to flaky-tests.yaml, otherwise it might now show up again)')
         sort_flakes(flakes)
-        pager(pretty_flakes(flakes, today))
+        pager(explain + pretty_flakes(flakes, today))
 
 
 def test():

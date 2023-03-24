@@ -375,7 +375,7 @@ in
       pkgs.netcat
       pkgs.niv
       (pkgs.python3.withPackages
-        (ps: with ps; [ pyyaml requests ]))
+        (ps: with ps; [ pyyaml ipdb requests ]))
       pkgs.rsync
       pkgs.wget
       pkgs.yq
