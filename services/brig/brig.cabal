@@ -149,6 +149,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -160,6 +161,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -333,6 +335,7 @@ executable brig
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -344,6 +347,7 @@ executable brig
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -392,6 +396,7 @@ executable brig-index
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -403,6 +408,7 @@ executable brig-index
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -490,6 +496,7 @@ executable brig-integration
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -501,6 +508,7 @@ executable brig-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -674,6 +682,7 @@ executable brig-schema
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -685,6 +694,7 @@ executable brig-schema
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -748,6 +758,7 @@ test-suite brig-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -759,6 +770,7 @@ test-suite brig-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
