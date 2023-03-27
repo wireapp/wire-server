@@ -1,14 +1,23 @@
--- TODO: Move this to some other package, perhaps even upstream?
-module Wire.API.Federation.HTTP2 where
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE OverloadedStrings #-}
 
+module HTTP2.Client.Manager where
+
+import Control.Concurrent
 import Control.Concurrent.Async
-import Control.Concurrent.STM.TVar
+import Control.Concurrent.STM
 import Control.Exception
+import Control.Monad
+import Control.Monad.IO.Class
+import Data.ByteString
+import Data.IORef
+import Data.Map
 import qualified Data.Map as Map
 import Data.Streaming.Network
-import Imports hiding (newTVarIO)
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Socket as NS
+import Prelude
 
 data HTTP2Conn = HTTP2Conn
   { backgroundThread :: Async (),
@@ -21,6 +30,9 @@ data HTTP2Conn = HTTP2Conn
 
 type Target = (ByteString, Int)
 
+-- FUTUREWORK: Support HTTPS, perhaps ALPN negatiation can also be used to
+-- HTTP1. I think HTTP1 vs HTTP2 can not be negotated without TLS, so perhaps
+-- this manager will default to HTTP2.
 data HTTP2Manager = HTTP2Manager
   { connections :: TVar (Map Target HTTP2Conn),
     cacheLimit :: Int
@@ -30,34 +42,26 @@ defaultHTTP2Manager :: IO HTTP2Manager
 defaultHTTP2Manager =
   HTTP2Manager <$> newTVarIO mempty <*> pure 20
 
+-- | Make an HTTP2 request, if it is the first time the 'HTTP2Manager' sees this
+-- (server,port) comibination, it creates the connection and keeps it around for
+-- any subsequent requests. Subsequest requests try to use this connection, in
+-- case the connection is already dead (e.g. the background thread has
+-- finished), a new connection is created.
+--
+-- It is important to consume the response body completely before the
+-- continuation can finish.
 withHTTP2Request :: HTTP2Manager -> ByteString -> Int -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
 withHTTP2Request mgr host port req f = do
-  mConn <- atomically getConnection
+  mConn <- atomically $ getConnection mgr host port
   conn <- maybe connect pure mConn
-  -- Better than a null pointer
-  result <- newIORef (error "impossible")
+  -- A null pointer! Its is better (faster?) to do this than create 'IORef
+  -- (Maybe a)' as we can assume that 'sendRequest' either calls the
+  -- continuation or fails, either way the 'readIORef' should never be
+  -- evaluating the error.
+  result <- newIORef (error "impossible::sendRequest suceeded without calling the continuation")
   sendRequest conn req (writeIORef result <=< f)
   readIORef result
   where
-    -- Removes connection from map if it is not alive anymore
-    getConnection :: STM (Maybe HTTP2Conn)
-    getConnection = do
-      conns <- readTVar (connections mgr)
-      case Map.lookup (host, port) conns of
-        Nothing -> pure Nothing
-        Just conn ->
-          -- If there is a connection for the (host,port), ensure that it is alive
-          -- before using it.
-          pollSTM (backgroundThread conn) >>= \case
-            Nothing -> pure (Just conn)
-            Just (Left (SomeException _err)) -> do
-              -- TODO: Log the error, maybe by adding a generic logger function to Http2Manager
-              writeTVar (connections mgr) $ Map.delete (host, port) conns
-              pure Nothing
-            Just (Right ()) -> do
-              writeTVar (connections mgr) $ Map.delete (host, port) conns
-              pure Nothing
-
     -- Ensures that any old connection is preserved. This is required to ensure
     -- that concurrent calls to this function don't cause the connections to
     -- leak. It is possible that the connection won't leak because it is waiting
@@ -80,6 +84,51 @@ withHTTP2Request mgr host port req f = do
       (inserted, finalConn) <- atomically $ insertNewConn conn
       unless inserted $ putMVar stopMVar ()
       pure finalConn
+
+-- | Removes connection from map if it is not alive anymore
+getConnection :: HTTP2Manager -> ByteString -> Int -> STM (Maybe HTTP2Conn)
+getConnection mgr host port = do
+  conns <- readTVar (connections mgr)
+  case Map.lookup (host, port) conns of
+    Nothing -> pure Nothing
+    Just conn ->
+      -- If there is a connection for the (host,port), ensure that it is alive
+      -- before using it.
+      pollSTM (backgroundThread conn) >>= \case
+        Nothing -> pure (Just conn)
+        Just (Left (SomeException _err)) -> do
+          -- TODO: Log the error, maybe by adding a generic logger function to Http2Manager
+          writeTVar (connections mgr) $ Map.delete (host, port) conns
+          pure Nothing
+        Just (Right ()) -> do
+          writeTVar (connections mgr) $ Map.delete (host, port) conns
+          pure Nothing
+
+-- | Disconnects HTTP2 connection if there exists one. If the background thread
+-- running the connection does not finish within 1 second, it is canceled.
+--
+-- NOTE: Any requests in progress might not finish correctly.
+-- FUTUREWORK: Write a safe version of this function.
+unsafeDisconnectServer :: HTTP2Manager -> ByteString -> Int -> IO ()
+unsafeDisconnectServer mgr host port = do
+  mConn <- atomically $ getConnection mgr host port
+  case mConn of
+    Nothing -> pure ()
+    Just conn -> do
+      disconnect conn
+
+      -- Wait on two threads:
+      -- 1. background thread which _should_ be exiting soon
+      -- 2. sleep for 1 second.
+      --
+      -- whenever one of them finishes, the other is canceled. Errors are
+      -- ignored.
+      --
+      -- All of this to say wait max 1 second for the background thread to
+      -- finish.
+      waitOneSec <- async $ threadDelay 1_000_000
+      _ <- waitAnyCatchCancel [waitOneSec, backgroundThread conn]
+      atomically . modifyTVar' (connections mgr) $ Map.delete (host, port)
 
 startPersistentHTTP2Connection ::
   -- hostname
@@ -105,15 +154,15 @@ startPersistentHTTP2Connection ::
   -- runs this function
   MVar () ->
   IO ()
-startPersistentHTTP2Connection hostname port cacheLimit sendReqMVar gracefulStop = do
+startPersistentHTTP2Connection hostname port cl sendReqMVar gracefulStop = do
   let clientConfig =
         HTTP2.ClientConfig
-          { HTTP2.scheme = "https",
+          { HTTP2.scheme = "http",
             HTTP2.authority = hostname,
-            HTTP2.cacheLimit = cacheLimit
+            HTTP2.cacheLimit = cl
           }
   bracket (fst <$> getSocketTCP hostname port) NS.close $ \sock ->
     bracket (HTTP2.allocSimpleConfig sock 4096) HTTP2.freeSimpleConfig $ \http2Cfg ->
-      HTTP2.run clientConfig http2Cfg $ \sendRequest -> do
-        putMVar sendReqMVar sendRequest
+      HTTP2.run clientConfig http2Cfg $ \sendReq -> do
+        putMVar sendReqMVar sendReq
         takeMVar gracefulStop

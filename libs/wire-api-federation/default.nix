@@ -40,7 +40,6 @@
 , singletons
 , singletons-th
 , sop-core
-, stm
 , streaming-commons
 , swagger2
 , template-haskell
@@ -89,7 +88,6 @@ mkDerivation {
     singletons
     singletons-th
     sop-core
-    stm
     streaming-commons
     swagger2
     template-haskell

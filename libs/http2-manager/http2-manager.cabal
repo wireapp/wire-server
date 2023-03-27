@@ -1,0 +1,62 @@
+cabal-version: 1.12
+name:          http2-manager
+version:       0.0.1
+synopsis:      Managed connection pool for HTTP2
+description:   Helps reuse HTTP2 connections
+category:      Web
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2020 Wire Swiss GmbH
+license:       AGPL-3
+license-file:  LICENSE
+build-type:    Simple
+
+library
+  -- cabal-fmt: expand src
+  exposed-modules:  HTTP2.Client.Manager
+  other-modules:    Paths_http2_manager
+  hs-source-dirs:   src
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
+
+  build-depends:
+      async
+    , base
+    , bytestring
+    , containers
+    , HsOpenSSL
+    , http2
+    , network
+    , stm
+    , streaming-commons
+
+  default-language: Haskell2010
+
+test-suite http2-manager-tests
+  type:               exitcode-stdio-1.0
+  main-is:            Main.hs
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints -threaded
+
+  -- cabal-fmt: expand test
+  other-modules:
+    Main
+    Test.HTTP2.Client.ManagerSpec
+
+  hs-source-dirs:     test
+  build-tool-depends: hspec-discover:hspec-discover
+  build-depends:
+      async
+    , base
+    , bytestring
+    , HsOpenSSL
+    , hspec
+    , http-types
+    , http2
+    , http2-manager
+    , network
+    , streaming-commons
