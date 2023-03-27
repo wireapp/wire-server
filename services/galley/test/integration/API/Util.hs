@@ -1358,7 +1358,8 @@ postJoinCodeConv' mPw u j = do
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json (JoinConversationByCode j mPw)
+      -- `json (JoinConversationByCode j Nothing)` and `json j` are equivalent, using the latter to test backwards compatibility
+      . (if isJust mPw then json (JoinConversationByCode j mPw) else json j)
 
 putQualifiedAccessUpdate ::
   (MonadHttp m, HasGalley m, MonadIO m) =>

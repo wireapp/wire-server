@@ -77,7 +77,7 @@ instance ToSchema JoinConversationByCode where
       "JoinConversationByCode"
       (description ?~ "Request body for joining a conversation by code")
       $ JoinConversationByCode
-        <$> jcbcCode .= fieldWithDocModifier "code" (description ?~ "Conversation code") schema
+        <$> jcbcCode .= conversationCodeObjectSchema
         <*> jcbcPassword .= maybe_ (optField "password" schema)
 
 data ConversationCode = ConversationCode
