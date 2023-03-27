@@ -63,3 +63,17 @@
                 create conversation notification happens to come in late. This
                 is fixed by waiting for all previous notifications before
                 asserting the absence of (new) notifications.
+
+-
+  test_name: "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations"
+  comments: |
+    Exception: unexpected notification received
+    Match failure: expected: no notification
+     but got: "conversation.create"
+
+    2023-03-24: The test is not waiting for notifications triggered by creating
+                conversations. When later asserting that no notification is sent
+                for deleting user, the test fails under load when the create
+                conversation notification happens to come in late. This is fixed
+                by waiting for all previous notifications before asserting the
+                absence of (new) notifications.
