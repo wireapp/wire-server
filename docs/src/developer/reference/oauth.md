@@ -90,7 +90,7 @@ The client needs to create a unique `code_verifier` as described in [RFC 7636 se
 
 Example request:
 
-```http
+```
 GET /authorize?
   scope=read%3Aself%20write%3Aconversation&
   response_type=code&
