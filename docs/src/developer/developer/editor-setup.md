@@ -104,7 +104,7 @@ it to work here.
 
 ## VSCode
 
-The project can be loaded into the [Haskell Language Server](https://github.com/haskell/haskell-language-server). 
+The project can be loaded into the [Haskell Language Server](https://github.com/haskell/haskell-language-server).
 This gives type checking, code completion, HLint hints, formatting with Ormolu, lookup of definitions and references, etc..
 All needed dependencies (like the `haskell-language-server` and `stack` binaries) are provided by `shell.nix`.
 
@@ -115,5 +115,5 @@ Setup steps:
 - Reload the window as proposed by the `Nix Environment Selector` plugin
 
 An alternative way to make these dependencies accessible to VSCode is to start it in the `direnv` environment.
-I.e. from a shell that's current working directory is in the project. The drawbacks of this approach are 
+I.e. from a shell that's current working directory is in the project. The drawbacks of this approach are
 that it only works locally (not on a remote connection) and one VSCode process needs to be started per project.
