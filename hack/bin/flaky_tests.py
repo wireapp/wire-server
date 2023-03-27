@@ -29,10 +29,9 @@ def read_flaky_tests():
             result[item['test_name']] = item['comments']
     return result
 
-def current_week_start():
-    now = datetime.date.today()
+def current_week_start(now):
     k = now.weekday()
-    return now - datetime.timedelta(days=k)
+    return (now - datetime.timedelta(days=k)).replace(hour=0, minute=0, second=0, microsecond=0)
 
 def format_date(dt):
     return dt.strftime('%Y-%m-%d')
@@ -51,12 +50,14 @@ def fetch_week(week_start):
                 result.append(item)
     return result
 
-def fetch(n_weeks=1):
-    ws_start = current_week_start()
+def fetch(today, n_weeks):
+    ws_start = current_week_start(today)
     data = []
     for i in range(n_weeks):
-        ws = ws_start + datetime.timedelta(days=i)
+        ws = ws_start + datetime.timedelta(days=-7*i)
+        print(f'\rFetching {i+1}/{n_weeks} {format_date(ws)}')
         data += fetch_week(ws)
+    print()
     return data
 
 def tests_match(s1, s2):
@@ -145,7 +146,7 @@ def pretty_flake(flake, today, logs=False):
     lines.append(Colors.YELLOW + f"❄ \"{flake['test_name']}\"" + Colors.RESET)
 
     if not logs:
-        lines.append(f'  Run with --log "{flake["test_name"]}" to see error logs')
+        lines.append(f'  Run with --logs "{flake["test_name"]}" to see error logs')
 
     comments = flake['comments']
     if comments:
@@ -192,7 +193,7 @@ def main():
     args = parser.parse_args()
 
     today = datetime.datetime.now()
-    data = fetch(n_weeks=4*4)
+    data = fetch(today=today, n_weeks=4*4)
     if args.logs:
         flakes, unassociated = associate_fails([args.logs], data)
         sort_flakes(flakes)
@@ -213,7 +214,7 @@ def main():
         pager(explain + pretty_flakes(flake_candidates, today))
 
     else:
-        associate_comments(flakes, flaky_tests_comments, '(discovered flake, please check and add it to flaky-tests.yaml, otherwise it might now show up again)')
+        associate_comments(flakes, flaky_tests_comments, '(discovered flake, please check and add it to flaky-tests.yaml)')
         sort_flakes(flakes)
         pager(explain + pretty_flakes(flakes, today))
 

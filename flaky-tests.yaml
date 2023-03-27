@@ -17,12 +17,19 @@
                 I've increased the timeout from 4 to 7 seconds for that one
                 assertion. Let's see if this helps.
 
+- test_name: "GET /mls/key-packages/claim/local/:user - self claim"
+  comments: |
+    /bin/sh: createProcess: posix_spawnp: failed (Bad address)
+    This is probably to resource exhaustion.
+    Can we try increasing limits?
+
 -
   test_name: "Brig API Integration.MLS.GET /mls/key-packages/claim/local/:user"
   comments: |
       Same error as for teset "GET /mls/key-packages/claim/local/:user - self claim"
 
       Error executing request: /bin/sh: createProcess: posix_spawnp: failed (Bad address)
+
 -
    test_name: "max active tokens"
    comments: |
