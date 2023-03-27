@@ -348,6 +348,7 @@ kube-integration-test:
 	export NAMESPACE=$(NAMESPACE); \
 	export HELM_PARALLELISM=$(HELM_PARALLELISM); \
 	export VERSION=${DOCKER_TAG}; \
+	export UPLOAD_LOGS=${UPLOAD_LOGS} \
 	./hack/bin/integration-test.sh
 
 .PHONY: kube-integration-teardown
