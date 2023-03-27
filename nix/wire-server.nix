@@ -300,12 +300,13 @@ let
     pkgs.gnused
     pkgs.parallel
     pkgs.ripgrep
-    pkgs.helm
+    pkgs.kubernetes-helm
     pkgs.helmfile
     pkgs.hlint
     (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
     pkgs.jq
     pkgs.kubectl
+    pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
     pkgs.ormolu
     pkgs.shellcheck
@@ -374,7 +375,7 @@ in
       pkgs.netcat
       pkgs.niv
       (pkgs.python3.withPackages
-        (ps: with ps; [ pyyaml requests ]))
+        (ps: with ps; [ pyyaml ipdb requests ]))
       pkgs.rsync
       pkgs.wget
       pkgs.yq

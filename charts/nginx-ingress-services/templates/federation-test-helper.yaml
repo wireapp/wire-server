@@ -1,3 +1,4 @@
+{{- $newLabels := eq (include "integrationTestHelperNewLabels" .) "true" -}}
 # Assumes that the controller is deployed in the same namespace. Only used for
 # enabling discovery by creating SRV records while running integration tests.
 {{- if (and .Values.federator.enabled .Values.federator.integrationTestHelper) }}
@@ -13,7 +14,12 @@ spec:
     protocol: TCP
     targetPort: https
   selector:
+    {{- if $newLabels }}
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/name: ingress-nginx
+    {{- else }}
     app: nginx-ingress
     component: controller
+    {{- end }}
   type: ClusterIP
 {{- end }}

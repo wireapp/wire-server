@@ -2661,8 +2661,8 @@ checkUserUpdateEvent uid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   etype @?= Just "user.update"
   euser @?= Just (UUID.toText (toUUID uid))
 
-checkUserDeleteEvent :: HasCallStack => UserId -> WS.WebSocket -> TestM ()
-checkUserDeleteEvent uid w = WS.assertMatch_ checkTimeout w $ \notif -> do
+checkUserDeleteEvent :: HasCallStack => UserId -> WS.Timeout -> WS.WebSocket -> TestM ()
+checkUserDeleteEvent uid timeout_ w = WS.assertMatch_ timeout_ w $ \notif -> do
   let j = Object $ List1.head (ntfPayload notif)
   let etype = j ^? key "type" . _String
   let euser = j ^? key "id" . _String
@@ -2698,6 +2698,19 @@ checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   case evtData e of
     Conv.EdConversation x -> (qUnqualified . cnvQualifiedId) x @?= cid
     other -> assertFailure $ "Unexpected event data: " <> show other
+
+wsAssertConvCreate ::
+  HasCallStack =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  Notification ->
+  IO ()
+wsAssertConvCreate conv eventFrom n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  evtConv e @?= conv
+  evtType e @?= Conv.ConvCreate
+  evtFrom e @?= eventFrom
 
 wsAssertConvCreateWithRole ::
   HasCallStack =>

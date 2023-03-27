@@ -539,6 +539,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ConversationPagingState
     Test.Wire.API.Golden.Manual.ConversationsResponse
     Test.Wire.API.Golden.Manual.ConvIdsPage
+    Test.Wire.API.Golden.Manual.CreateGroupConversation
     Test.Wire.API.Golden.Manual.CreateScimToken
     Test.Wire.API.Golden.Manual.FeatureConfigEvent
     Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
@@ -657,6 +658,7 @@ test-suite wire-api-tests
     Test.Wire.API.Call.Config
     Test.Wire.API.Conversation
     Test.Wire.API.MLS
+    Test.Wire.API.OAuth
     Test.Wire.API.RawJson
     Test.Wire.API.Roundtrip.Aeson
     Test.Wire.API.Roundtrip.ByteString

@@ -980,7 +980,7 @@ testDeleteBindingTeamSingleMember = do
       )
       !!! const 202
         === statusCode
-    checkUserDeleteEvent owner wsOwner
+    checkUserDeleteEvent owner checkTimeout wsOwner
 
     WS.assertNoEvent (1 # Second) [wsExtern]
     -- Note that given the async nature of team deletion, we may
@@ -1015,8 +1015,8 @@ testDeleteBindingTeamMoreThanOneMember = do
     -- now try again with the 'force' query flag, which should work
     delete (g . paths ["/i/teams", toByteString' tid] . queryItem "force" "true") !!! do
       const 202 === statusCode
-    checkUserDeleteEvent alice wsAlice
-    zipWithM_ checkUserDeleteEvent members wsMembers
+    checkUserDeleteEvent alice checkTimeout wsAlice
+    zipWithM_ (flip checkUserDeleteEvent checkTimeout) members wsMembers
     assertTeamDelete 10 "team delete, should be there" tid
 
   let ensureDeleted :: UserId -> TestM ()
@@ -1217,9 +1217,9 @@ testDeleteBindingTeam ownerHasPassword = do
       )
       !!! const 202
         === statusCode
-    checkUserDeleteEvent owner wsOwner
-    checkUserDeleteEvent (mem1 ^. userId) wsMember1
-    checkUserDeleteEvent (mem2 ^. userId) wsMember2
+    checkUserDeleteEvent owner checkTimeout wsOwner
+    checkUserDeleteEvent (mem1 ^. userId) checkTimeout wsMember1
+    checkUserDeleteEvent (mem2 ^. userId) checkTimeout wsMember2
     checkTeamDeleteEvent tid wsOwner
     checkTeamDeleteEvent tid wsMember1
     checkTeamDeleteEvent tid wsMember2
@@ -1246,12 +1246,21 @@ testDeleteTeamConv = do
   extern <- Util.randomUser
   qExtern <- Qualified extern <$> viewFederationDomain
   for_ members $ \m -> Util.connectUsers (m & qUnqualified) (list1 extern [])
-  cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
-  qcid1 <- Qualified cid1 <$> viewFederationDomain
+  (cid1, qcid1) <- WS.bracketR c owner $ \wsOwner -> do
+    cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
+    qcid1 <- Qualified cid1 <$> viewFederationDomain
+    WS.assertMatch_ (5 # Second) wsOwner $
+      wsAssertConvCreate qcid1 qOwner
+    pure (cid1, qcid1)
   let access = ConversationAccessData (Set.fromList [InviteAccess, CodeAccess]) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
   putQualifiedAccessUpdate owner qcid1 access !!! const 200 === statusCode
   code <- decodeConvCodeEvent <$> (postConvCode owner cid1 <!! const 201 === statusCode)
-  cid2 <- Util.createTeamConv owner tid (qUnqualified <$> members) (Just "blup") Nothing Nothing
+  cid2 <- WS.bracketR c owner $ \wsOwner -> do
+    cid2 <- Util.createTeamConv owner tid (qUnqualified <$> members) (Just "blup") Nothing Nothing
+    qcid2 <- Qualified cid2 <$> viewFederationDomain
+    WS.assertMatch_ (5 # Second) wsOwner $
+      wsAssertConvCreate qcid2 qOwner
+    pure cid2
   Util.postMembers owner (qExtern :| [qMember]) qcid1 !!! const 200 === statusCode
   for_ (qExtern : members) $ \u -> Util.assertConvMember u cid1
   for_ members $ flip Util.assertConvMember cid2
@@ -1480,7 +1489,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
           then checkTeamMemberLeave tid victim wsOwner
           else WS.assertNoEvent (1 # Second) [wsOwner]
         -- User deletion events
-        mapM_ (checkUserDeleteEvent victim) wsOthers
+        mapM_ (checkUserDeleteEvent victim checkTimeout) wsOthers
         Util.ensureDeletedState True owner victim
     deleteTeam :: HasCallStack => TeamId -> UserId -> [UserId] -> [Qualified ConvId] -> UserId -> TestM ()
     deleteTeam tid owner otherRealUsersInTeam teamCidsThatExternBelongsTo extern = do
@@ -1496,7 +1505,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
           )
           !!! const 202
             === statusCode
-        for_ (owner : otherRealUsersInTeam) $ \u -> checkUserDeleteEvent u wsExtern
+        for_ (owner : otherRealUsersInTeam) $ \u -> checkUserDeleteEvent u (7 # Second) wsExtern
         -- Ensure users are marked as deleted; since we already
         -- received the event, should _really_ be deleted
         for_ (owner : otherRealUsersInTeam) $ Util.ensureDeletedState True extern
