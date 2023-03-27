@@ -115,7 +115,7 @@ type CreateConversationCodeVerb =
   MultiVerb
     'POST
     '[JSON]
-    '[ Respond 200 "Conversation code already exists." ConversationCode,
+    '[ Respond 200 "Conversation code already exists." ConversationCodeInfo,
        Respond 201 "Conversation code created." Event
      ]
     AddCodeResult
@@ -750,8 +750,8 @@ type ConversationAPI =
                :> MultiVerb
                     'GET
                     '[JSON]
-                    '[Respond 200 "Conversation Code" ConversationCode]
-                    ConversationCode
+                    '[Respond 200 "Conversation Code" ConversationCodeInfo]
+                    ConversationCodeInfo
            )
     -- This endpoint can lead to the following events being sent:
     -- - Typing event to members

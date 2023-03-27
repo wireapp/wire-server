@@ -559,19 +559,17 @@ addCode lusr mZcon lcnv mReq = do
       mPw <- forM (cccrPassword =<< mReq) mkSafePassword
       E.createCode code mPw
       now <- input
-      conversationCode <- do
-        cc <- createCode code
-        pure $ cc {conversationHasPassword = Just $ isJust mPw}
+      conversationCode <- createCode (isJust mPw) code
       let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate conversationCode)
       pushConversationEvent mZcon event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
-    Just (code, _) -> do
-      conversationCode <- createCode code
+    Just (code, mPw) -> do
+      conversationCode <- createCode (isJust mPw) code
       pure $ CodeAlreadyExisted conversationCode
   where
-    createCode :: Code -> Sem r ConversationCode
-    createCode code = do
-      mkConversationCode (codeKey code) (codeValue code) (codeHasPassword code) <$> E.getConversationCodeURI
+    createCode :: Bool -> Code -> Sem r ConversationCodeInfo
+    createCode hasPw code = do
+      mkConversationCodeInfo hasPw (codeKey code) (codeValue code) <$> E.getConversationCodeURI
     ensureGuestsOrNonTeamMembersAllowed :: Data.Conversation -> Sem r ()
     ensureGuestsOrNonTeamMembersAllowed conv =
       unless
@@ -638,7 +636,7 @@ getCode ::
   ) =>
   Local UserId ->
   ConvId ->
-  Sem r ConversationCode
+  Sem r ConversationCodeInfo
 getCode lusr cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
@@ -646,12 +644,8 @@ getCode lusr cnv = do
   ensureAccess conv CodeAccess
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   key <- E.makeKey cnv
-  (c, _) <- E.getCode key ReusableCode >>= noteS @'CodeNotFound
-  returnCode c
-
-returnCode :: Member CodeStore r => Code -> Sem r ConversationCode
-returnCode c = do
-  mkConversationCode (codeKey c) (codeValue c) (codeHasPassword c) <$> E.getConversationCodeURI
+  (c, mPw) <- E.getCode key ReusableCode >>= noteS @'CodeNotFound
+  mkConversationCodeInfo (isJust mPw) (codeKey c) (codeValue c) <$> E.getConversationCodeURI
 
 checkReusableCode ::
   forall db r.

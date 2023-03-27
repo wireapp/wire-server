@@ -1,3 +1,5 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -21,9 +23,10 @@
 module Wire.API.Conversation.Code
   ( -- * ConversationCode
     ConversationCode (..),
-    mkConversationCode,
     CreateConversationCodeRequest (..),
     JoinConversationByCode (..),
+    ConversationCodeInfo (..),
+    mkConversationCodeInfo,
 
     -- * re-exports
     Code.Key (..),
@@ -80,46 +83,60 @@ instance ToSchema JoinConversationByCode where
 data ConversationCode = ConversationCode
   { conversationKey :: Code.Key,
     conversationCode :: Code.Value,
-    conversationUri :: Maybe HttpsUrl,
-    conversationHasPassword :: Maybe Bool
+    conversationUri :: Maybe HttpsUrl
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationCode)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationCode
+
+conversationCodeObjectSchema :: ObjectSchema SwaggerDoc ConversationCode
+conversationCodeObjectSchema =
+  ConversationCode
+    <$> conversationKey
+      .= fieldWithDocModifier
+        "key"
+        (description ?~ "Stable conversation identifier")
+        schema
+    <*> conversationCode
+      .= fieldWithDocModifier
+        "code"
+        (description ?~ "Conversation code (random)")
+        schema
+    <*> conversationUri
+      .= maybe_
+        ( optFieldWithDocModifier
+            "uri"
+            (description ?~ "Full URI (containing key/code) to join a conversation")
+            schema
+        )
 
 instance ToSchema ConversationCode where
   schema =
     objectWithDocModifier
       "ConversationCode"
       (description ?~ "Contains conversation properties to update")
-      $ ConversationCode
-        <$> conversationKey
-          .= fieldWithDocModifier
-            "key"
-            (description ?~ "Stable conversation identifier")
-            schema
-        <*> conversationCode
-          .= fieldWithDocModifier
-            "code"
-            (description ?~ "Conversation code (random)")
-            schema
-        <*> conversationUri
-          .= maybe_
-            ( optFieldWithDocModifier
-                "uri"
-                (description ?~ "Full URI (containing key/code) to join a conversation")
-                schema
-            )
-        <*> conversationHasPassword .= maybe_ (optField "has_password" schema)
+      conversationCodeObjectSchema
 
-mkConversationCode :: Code.Key -> Code.Value -> Bool -> HttpsUrl -> ConversationCode
-mkConversationCode k v hasPw (HttpsUrl prefix) =
-  ConversationCode
-    { conversationKey = k,
-      conversationCode = v,
-      conversationUri = Just (HttpsUrl link),
-      conversationHasPassword = Just hasPw
-    }
+data ConversationCodeInfo = ConversationCodeInfo
+  { code :: ConversationCode,
+    hasPassword :: Bool
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationCodeInfo)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationCodeInfo
+
+instance ToSchema ConversationCodeInfo where
+  schema =
+    objectWithDocModifier
+      "ConversationCodeInfo"
+      (description ?~ "Contains conversation properties to update")
+      $ ConversationCodeInfo
+        <$> (.code) .= conversationCodeObjectSchema
+        <*> hasPassword .= fieldWithDocModifier "has_password" (description ?~ "Whether the conversation has a password") schema
+
+mkConversationCodeInfo :: Bool -> Code.Key -> Code.Value -> HttpsUrl -> ConversationCodeInfo
+mkConversationCodeInfo hasPw k v (HttpsUrl prefix) =
+  ConversationCodeInfo (ConversationCode k v (Just (HttpsUrl link))) hasPw
   where
     q = [("key", toByteString' k), ("code", toByteString' v)]
     link = prefix & (URI.queryL . URI.queryPairsL) .~ q

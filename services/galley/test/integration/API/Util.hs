@@ -107,7 +107,7 @@ import Web.Cookie
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.Code (CreateConversationCodeRequest (..), JoinConversationByCode (JoinConversationByCode))
+import Wire.API.Conversation.Code hiding (Value)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -1854,7 +1854,7 @@ instance FromJSON TestErrorLabel where
 decodeConvCode :: Response (Maybe Lazy.ByteString) -> ConversationCode
 decodeConvCode = responseJsonUnsafe
 
-decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCode
+decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCodeInfo
 decodeConvCodeEvent r = case responseJsonUnsafe r of
   (Event _ _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"

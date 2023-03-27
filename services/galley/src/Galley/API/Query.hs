@@ -640,7 +640,7 @@ getConversationByReusableCode ::
   Value ->
   Sem r ConversationCoverView
 getConversationByReusableCode lusr key value = do
-  c <- verifyReusableCode False Nothing (ConversationCode key value Nothing Nothing)
+  c <- verifyReusableCode False Nothing (ConversationCode key value Nothing)
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   ensureConversationAccess (tUnqualified lusr) conv CodeAccess
   ensureGuestLinksEnabled @db (Data.convTeam conv)

@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -84,6 +85,7 @@ import Util.Options (Endpoint (Endpoint))
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Code hiding (Value)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -1402,7 +1404,7 @@ testJoinCodeConv = do
   Right noGuestsAccess <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole] [GuestAccessRole]
   alice <- randomUser
   convId <- decodeConvId <$> postConv alice [] (Just convName) [CodeAccess] (Just noGuestsAccess) Nothing
-  cCode <- decodeConvCodeEvent <$> postConvCode alice convId
+  cCode <- (.code) . decodeConvCodeEvent <$> postConvCode alice convId
 
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
@@ -1463,7 +1465,7 @@ testJoinTeamConvGuestLinksDisabled = do
   bob <- randomUser
   Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
   convId <- decodeConvId <$> postTeamConv teamId owner [] (Just convName) [CodeAccess, LinkAccess] (Just accessRoles) Nothing
-  cCode <- decodeConvCodeEvent <$> postConvCode owner convId
+  cCode <- (.code) . decodeConvCodeEvent <$> postConvCode owner convId
 
   let checkFeatureStatus fstatus =
         Util.getTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId !!! do
@@ -1521,7 +1523,7 @@ testJoinNonTeamConvGuestLinksDisabled = do
   userNotInTeam <- randomUser
   Right accessRoles <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole] [GuestAccessRole]
   convId <- decodeConvId <$> postConv owner [] (Just convName) [CodeAccess] (Just accessRoles) Nothing
-  cCode <- decodeConvCodeEvent <$> postConvCode owner convId
+  cCode <- (.code) . decodeConvCodeEvent <$> postConvCode owner convId
 
   -- works by default
   getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
@@ -1556,8 +1558,9 @@ postJoinCodeConvOk = do
   Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
   conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just accessRoles) Nothing
   let qconv = Qualified conv (qDomain qbob)
-  cCode <- decodeConvCodeEvent <$> postConvCode alice conv
-  liftIO $ conversationHasPassword cCode @?= Just False
+  info <- decodeConvCodeEvent <$> postConvCode alice conv
+  let cCode = info.code
+  liftIO $ info.hasPassword @?= False
   -- currently ConversationCode is used both as return type for POST ../code and as body for ../join
   -- POST /code gives code,key,uri
   -- POST /join expects code,key
@@ -1602,8 +1605,9 @@ postJoinCodeConvWithPassword = do
   conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just accessRoles) Nothing
   let _qconv = Qualified conv (qDomain qbob)
   let pw = plainTextPassword8Unsafe "password"
-  cCode <- decodeConvCodeEvent <$> postConvCode' (Just pw) alice conv
-  liftIO $ conversationHasPassword cCode @?= Just True
+  info <- decodeConvCodeEvent <$> postConvCode' (Just pw) alice conv
+  liftIO $ info.hasPassword @?= True
+  let cCode = info.code
   getJoinCodeConv bob (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView conv (Just "gossip") True)) === responseJsonEither
     const 200 === statusCode
@@ -1642,7 +1646,7 @@ postConvertCodeConv = do
         wsAssertConvAccessUpdate qconv qalice nonActivatedAccess
   -- Create/get/update/delete codes
   getConvCode alice conv !!! const 404 === statusCode
-  c1 <- decodeConvCodeEvent <$> (postConvCode alice conv <!! const 201 === statusCode)
+  c1 <- (.code) . decodeConvCodeEvent <$> (postConvCode alice conv <!! const 201 === statusCode)
   postConvCodeCheck c1 !!! const 200 === statusCode
   c1' <- decodeConvCode <$> (getConvCode alice conv <!! const 200 === statusCode)
   liftIO $ assertEqual "c1 c1' codes should match" c1 c1'
@@ -1687,7 +1691,7 @@ postConvertTeamConv = do
   mallory <- ephemeralUser
   let qmallory = Qualified mallory localDomain
       qconv = Qualified conv localDomain
-  j <- decodeConvCodeEvent <$> postConvCode alice conv
+  j <- (.code) . decodeConvCodeEvent <$> postConvCode alice conv
   WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
     postJoinCodeConv mallory j !!! const 200 === statusCode
     void . liftIO $
@@ -1814,7 +1818,7 @@ testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved = do
   -- and given alice and bob are in a team conversation and alice created a guest link
   let accessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole]
   qconvId <- decodeQualifiedConvId <$> postTeamConv tid alice [bob] (Just "chit chat") [CodeAccess] (Just accessRoles) Nothing
-  cCode <- decodeConvCodeEvent <$> postConvCode alice (qUnqualified qconvId)
+  cCode <- (.code) . decodeConvCodeEvent <$> postConvCode alice (qUnqualified qconvId)
 
   -- then charlie can join via the guest link
   postJoinCodeConv charlie cCode !!! const 200 === statusCode

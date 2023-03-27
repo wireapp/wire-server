@@ -119,6 +119,7 @@ tests =
       testRoundTrip @Conversation.Bot.RemoveBotResponse,
       testRoundTrip @Conversation.Bot.UpdateBotPrekeys,
       testRoundTrip @Conversation.Code.ConversationCode,
+      testRoundTrip @Conversation.Code.ConversationCodeInfo,
       testRoundTrip @Conversation.Code.JoinConversationByCode,
       testRoundTrip @Conversation.Code.CreateConversationCodeRequest,
       testRoundTrip @Conversation.Member.MemberUpdate,

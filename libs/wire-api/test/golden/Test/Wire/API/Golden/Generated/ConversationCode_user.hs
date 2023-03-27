@@ -68,8 +68,7 @@ testObject_ConversationCode_user_1 =
                   uriQuery = Query {queryPairs = []},
                   uriFragment = Nothing
                 }
-          ),
-      conversationHasPassword = Nothing
+          )
     }
 
 testObject_ConversationCode_user_2 :: ConversationCode
@@ -77,6 +76,5 @@ testObject_ConversationCode_user_2 =
   ConversationCode
     { conversationKey = Key {asciiKey = unsafeRange (fromRight undefined (validate "NEN=eLUWHXclTp=_2Nap"))},
       conversationCode = Value {asciiValue = unsafeRange (fromRight undefined (validate "lLz-9vR8ENum0kI-xWJs"))},
-      conversationUri = Nothing,
-      conversationHasPassword = Nothing
+      conversationUri = Nothing
     }
