@@ -86,3 +86,7 @@ Returns the Letsencrypt API server URL based on whether testMode is enabled or d
 {{- define "ingress.supportsPathType" -}}
   {{- or (eq (include "ingress.isStable" .) "true") (and (eq (include "ingress.apiVersion" .) "networking.k8s.io/v1beta1") (semverCompare ">= 1.18-0" (include "kubeVersion" .))) -}}
 {{- end -}}
+
+{{- define "integrationTestHelperNewLabels" -}}
+  {{- (semverCompare ">= 1.23-0" (include "kubeVersion" .)) -}}
+{{- end -}}

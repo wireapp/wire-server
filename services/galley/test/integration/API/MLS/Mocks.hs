@@ -17,6 +17,7 @@
 
 module API.MLS.Mocks
   ( receiveCommitMock,
+    receiveCommitMockByDomain,
     messageSentMock,
     welcomeMock,
     sendMessageMock,
@@ -37,6 +38,7 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Message
 import Wire.API.User.Client
 
 receiveCommitMock :: [ClientIdentity] -> Mock LByteString
@@ -51,6 +53,19 @@ receiveCommitMock clients =
           )
     ]
 
+receiveCommitMockByDomain :: [ClientIdentity] -> Mock LByteString
+receiveCommitMockByDomain clients = do
+  r <- getRequest
+  let fClients = filter (\c -> frTargetDomain r == ciDomain c) clients
+  asum
+    [ "on-conversation-updated" ~> (),
+      "on-new-remote-conversation" ~> EmptyResponse,
+      "get-mls-clients" ~>
+        Set.fromList
+          ( map (flip ClientInfo True . ciClient) fClients
+          )
+    ]
+
 messageSentMock :: Mock LByteString
 messageSentMock = "on-mls-message-sent" ~> RemoteMLSMessageOk
 
@@ -59,10 +74,10 @@ welcomeMock = "mls-welcome" ~> MLSWelcomeSent
 
 sendMessageMock :: Mock LByteString
 sendMessageMock =
-  asum
-    [ "send-mls-message" ~> MLSMessageResponseUpdates [],
-      "send-mls-commit-bundle" ~> MLSMessageResponseUpdates []
-    ]
+  "send-mls-message" ~>
+    MLSMessageResponseUpdates
+      []
+      (UnreachableUsers [])
 
 claimKeyPackagesMock :: KeyPackageBundle -> Mock LByteString
 claimKeyPackagesMock kpb = "claim-key-packages" ~> kpb

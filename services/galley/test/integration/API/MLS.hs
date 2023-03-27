@@ -24,9 +24,10 @@ import API.MLS.Util
 import API.Util
 import Bilge hiding (empty, head)
 import Bilge.Assert
-import Cassandra
-import Control.Applicative
+import Cassandra hiding (Set)
+import Control.Exception (throw)
 import Control.Lens (view)
+import Control.Lens.Extras
 import qualified Control.Monad.State as State
 import Crypto.Error
 import qualified Crypto.PubKey.Ed25519 as Ed25519
@@ -47,6 +48,7 @@ import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
+import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (Second), (#))
@@ -59,11 +61,13 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
+import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
+import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
@@ -128,7 +132,9 @@ tests s =
             "Local Sender/Local Conversation"
             [ test s "send application message" testAppMessage,
               test s "send remote application message" testRemoteAppMessage,
-              test s "another participant sends an application message" testAppMessage2
+              test s "another participant sends an application message" testAppMessage2,
+              test s "send message, some remotes are reachable" testAppMessageSomeReachable,
+              test s "send message, remote users are unreachable" testAppMessageUnreachable
             ],
           testGroup
             "Local Sender/Remote Conversation"
@@ -867,7 +873,7 @@ testRemoteAppMessage = do
     ((message, events), reqs) <- withTempMockFederator' mock $ do
       void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
       message <- createApplicationMessage alice1 "hello"
-      events <- sendAndConsumeMessage message
+      (events, _) <- sendAndConsumeMessage message
       pure (message, events)
 
     liftIO $ do
@@ -1122,7 +1128,7 @@ testAppMessage = do
     message <- createApplicationMessage alice1 "some text"
 
     mlsBracket clients $ \wss -> do
-      events <- sendAndConsumeMessage message
+      (events, _) <- sendAndConsumeMessage message
       liftIO $ events @?= []
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $
@@ -1150,7 +1156,7 @@ testAppMessage2 = do
     message <- createApplicationMessage bob1 "some text"
 
     mlsBracket (alice1 : clients) $ \wss -> do
-      events <- sendAndConsumeMessage message
+      (events, _) <- sendAndConsumeMessage message
       liftIO $ events @?= []
 
       -- check that the corresponding event is received
@@ -1158,6 +1164,66 @@ testAppMessage2 = do
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $
           wsAssertMLSMessage (fmap Conv conversation) bob (mpMessage message)
+
+testAppMessageSomeReachable :: TestM ()
+testAppMessageSomeReachable = do
+  users@[_alice, bob, charlie] <-
+    createAndConnectUsers
+      [ Nothing,
+        Just "bob.example.com",
+        Just "charlie.example.com"
+      ]
+
+  void $ runMLSTest $ do
+    [alice1, bob1, charlie1] <-
+      traverse createMLSClient users
+
+    void $ setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob, charlie]
+
+    let mocks =
+          receiveCommitMockByDomain [bob1, charlie1]
+            <|> welcomeMock
+    ([event], _) <-
+      withTempMockFederator' mocks $ do
+        sendAndConsumeCommit commit
+
+    let unreachables = Set.singleton (Domain "charlie.example.com")
+    withTempMockFederator' (mockUnreachableFor unreachables) $ do
+      message <- createApplicationMessage alice1 "hi, bob!"
+      (_, us) <- sendAndConsumeMessage message
+      liftIO $ do
+        assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
+        us @?= UnreachableUsers [charlie]
+  where
+    mockUnreachableFor :: Set Domain -> Mock LByteString
+    mockUnreachableFor backends = do
+      r <- getRequest
+      if Set.member (frTargetDomain r) backends
+        then throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
+        else mockReply ("RemoteMLSMessageOk" :: String)
+
+testAppMessageUnreachable :: TestM ()
+testAppMessageUnreachable = do
+  -- alice is local, bob is remote
+  -- alice creates a local conversation and invites bob
+  -- alice then sends a message to the conversation, but bob is not reachable anymore
+  -- since we did not properly setup federation, we can't reach the remote server with bob's msg
+  users@[_alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    void $ setupMLSGroup alice1
+
+    commit <- createAddCommit alice1 [bob]
+    ([event], _) <-
+      withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
+        sendAndConsumeCommit commit
+
+    message <- createApplicationMessage alice1 "hi, bob!"
+    (_, us) <- sendAndConsumeMessage message
+    liftIO $ do
+      assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
+      us @?= UnreachableUsers [bob]
 
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do
@@ -1221,12 +1287,15 @@ testRemoteToLocal = do
 
   let bobDomain = Domain "faraway.example.com"
   -- create users
-  [alice, bob] <- createAndConnectUsers [Nothing, Just (domainText bobDomain)]
+  [alice, bob] <-
+    createAndConnectUsers
+      [ Nothing,
+        Just (domainText bobDomain)
+      ]
 
   -- Simulate the whole MLS setup for both clients first. In reality,
   -- backend calls would need to happen in order for bob to get ahold of a
   -- welcome message, but that should not affect the correctness of the test.
-
   runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
 
@@ -1245,7 +1314,6 @@ testRemoteToLocal = do
     cannon <- view tsCannon
 
     -- actual test
-
     let msr =
           MLSMessageSendRequest
             { mmsrConvOrSubId = Conv (qUnqualified qcnv),
@@ -1255,9 +1323,9 @@ testRemoteToLocal = do
             }
 
     WS.bracketR cannon (qUnqualified alice) $ \ws -> do
-      resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
+      MLSMessageResponseUpdates updates _ <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
       liftIO $ do
-        resp @?= MLSMessageResponseUpdates []
+        updates @?= []
         WS.assertMatch_ (5 # Second) ws $
           wsAssertMLSMessage (fmap Conv qcnv) bob (mpMessage message)
 
@@ -1358,9 +1426,9 @@ propExistingConv = do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
     void $ setupMLSGroup alice1
-    events <- createAddProposals alice1 [bob] >>= traverse sendAndConsumeMessage
+    res <- traverse sendAndConsumeMessage =<< createAddProposals alice1 [bob]
 
-    liftIO $ events @?= [[]]
+    liftIO $ (fst <$> res) @?= [[]]
 
 propInvalidEpoch :: TestM ()
 propInvalidEpoch = do
@@ -2061,7 +2129,7 @@ testAddUserToRemoteConvWithBundle = do
     commit <- createAddCommit bob1 [charlie]
     commitBundle <- createBundle commit
 
-    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates []
+    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers [])
     (_, reqs) <- withTempMockFederator' mock $ do
       void $ sendAndConsumeCommitBundle commit
 
@@ -2462,7 +2530,10 @@ testJoinRemoteSubConv = do
 
     -- bob joins subconversation
     let pgs = mpPublicGroupState initialCommit
-    let mock = queryGroupStateMock (fold pgs) bob <|> sendMessageMock
+    let mock =
+          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers []))
+            <|> queryGroupStateMock (fold pgs) bob
+            <|> sendMessageMock
     (_, reqs) <- withTempMockFederator' mock $ do
       commit <- createExternalCommit bob1 Nothing qcs
       sendAndConsumeCommitBundle commit
@@ -2583,7 +2654,7 @@ testSendMessageSubConv = do
 
     message <- createApplicationMessage alice1 "some text"
     mlsBracket [bob1, bob2] $ \wss -> do
-      events <- sendAndConsumeMessage message
+      (events, _) <- sendAndConsumeMessage message
       liftIO $ events @?= []
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
@@ -2939,7 +3010,10 @@ testDeleteRemoteParentOfSubConv = do
     receiveNewRemoteConv qcs subGroupId
 
     let pgs = mpPublicGroupState initialCommit
-    let mock = queryGroupStateMock (fold pgs) bob <|> sendMessageMock
+    let mock =
+          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers []))
+            <|> queryGroupStateMock (fold pgs) bob
+            <|> sendMessageMock
     void $ withTempMockFederator' mock $ do
       -- bob joins subconversation
       commit <- createExternalCommit bob1 Nothing qcs
@@ -3109,7 +3183,7 @@ testLeaveSubConv isSubConvCreator = do
     do
       message <- createApplicationMessage (head others) "some text"
       mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
-        events <- sendAndConsumeMessage message
+        (events, _) <- sendAndConsumeMessage message
         liftIO $ events @?= []
         WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
           wsAssertMLSMessage qsub (cidQualifiedUser . head $ others) (mpMessage message) n
@@ -3207,7 +3281,8 @@ testLeaveRemoteSubConv = do
 
     let pgs = mpPublicGroupState initialCommit
     let mock =
-          queryGroupStateMock (fold pgs) bob
+          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers []))
+            <|> queryGroupStateMock (fold pgs) bob
             <|> sendMessageMock
             <|> ("leave-sub-conversation" ~> LeaveSubConversationResponseOk)
     (_, reqs) <- withTempMockFederator' mock $ do

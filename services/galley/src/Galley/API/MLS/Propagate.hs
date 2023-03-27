@@ -35,7 +35,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Input
-import Polysemy.TinyLog
+import Polysemy.TinyLog hiding (trace)
 import qualified System.Logger.Class as Logger
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -43,6 +43,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.Message
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
 
@@ -58,18 +59,13 @@ propagateMessage ::
   Local ConvOrSubConv ->
   Maybe ConnId ->
   ByteString ->
-  -- | The client map that has all the recipients of the message. This is an
-  -- argument, and not constructed within the function, because of a special
-  -- case of subconversations where everyone but the subconversation leaver
-  -- client should get the remove proposal message; in this case the recipients
-  -- are a strict subset of all the clients represented by the in-memory
-  -- conversation/subconversation client maps.
   ClientMap ->
-  Sem r ()
+  Sem r UnreachableUsers
 propagateMessage qusr lConvOrSub con raw cm = do
   now <- input @UTCTime
   let mlsConv = convOfConvOrSub <$> lConvOrSub
       lmems = mcLocalMembers . tUnqualified $ mlsConv
+      rmems = mcRemoteMembers . tUnqualified $ mlsConv
       botMap = Map.fromList $ do
         m <- lmems
         b <- maybeToList $ newBotMember m
@@ -88,8 +84,9 @@ propagateMessage qusr lConvOrSub con raw cm = do
     foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients mlsConv)
 
   -- send to remotes
-  traverse_ handleError
-    <=< runFederatedConcurrentlyEither (map remoteMemberQualify (mcRemoteMembers . tUnqualified $ mlsConv))
+  UnreachableUsers . concat
+    <$$> traverse handleError
+    <=< runFederatedConcurrentlyEither (map remoteMemberQualify rmems)
     $ \(tUnqualified -> rs) ->
       fedClient @'Galley @"on-mls-message-sent" $
         RemoteMLSMessage
@@ -117,15 +114,20 @@ propagateMessage qusr lConvOrSub con raw cm = do
             (\(c, _) -> (remoteUserId, c))
             (Map.assocs (Map.findWithDefault mempty remoteUserQId cm))
 
+    remotesToQIds = fmap (tUntagged . rmId)
+
     handleError ::
       Member TinyLog r =>
-      Either (Remote [a], FederationError) (Remote RemoteMLSMessageResponse) ->
-      Sem r ()
+      Either (Remote [RemoteMember], FederationError) (Remote RemoteMLSMessageResponse) ->
+      Sem r [Qualified UserId]
     handleError (Right x) = case tUnqualified x of
-      RemoteMLSMessageOk -> pure ()
-      RemoteMLSMessageMLSNotEnabled -> logFedError x (errorToWai @'MLSNotEnabled)
-    handleError (Left (r, e)) = logFedError r (toWai e)
-
+      RemoteMLSMessageOk -> pure []
+      RemoteMLSMessageMLSNotEnabled -> do
+        logFedError x (errorToWai @'MLSNotEnabled)
+        pure []
+    handleError (Left (r, e)) = do
+      logFedError r (toWai e)
+      pure $ remotesToQIds (tUnqualified r)
     logFedError :: Member TinyLog r => Remote x -> Wai.Error -> Sem r ()
     logFedError r e =
       warn $

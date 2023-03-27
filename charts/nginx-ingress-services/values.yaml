@@ -91,8 +91,9 @@ service:
   accountPages:
     externalPort: 8080
 
+config:
+  ingressClass: "nginx"
 # You will need to supply some DNS names, namely
-# config:
 #   dns:
 #     https: nginz-https.<domain>
 #     ssl: nginz-ssl.<domain> # For websockets
