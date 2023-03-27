@@ -2530,7 +2530,10 @@ testJoinRemoteSubConv = do
 
     -- bob joins subconversation
     let pgs = mpPublicGroupState initialCommit
-    let mock = queryGroupStateMock (fold pgs) bob <|> sendMessageMock
+    let mock =
+          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers []))
+            <|> queryGroupStateMock (fold pgs) bob
+            <|> sendMessageMock
     (_, reqs) <- withTempMockFederator' mock $ do
       commit <- createExternalCommit bob1 Nothing qcs
       sendAndConsumeCommitBundle commit
@@ -3007,7 +3010,10 @@ testDeleteRemoteParentOfSubConv = do
     receiveNewRemoteConv qcs subGroupId
 
     let pgs = mpPublicGroupState initialCommit
-    let mock = queryGroupStateMock (fold pgs) bob <|> sendMessageMock
+    let mock =
+          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers []))
+            <|> queryGroupStateMock (fold pgs) bob
+            <|> sendMessageMock
     void $ withTempMockFederator' mock $ do
       -- bob joins subconversation
       commit <- createExternalCommit bob1 Nothing qcs
@@ -3275,7 +3281,8 @@ testLeaveRemoteSubConv = do
 
     let pgs = mpPublicGroupState initialCommit
     let mock =
-          queryGroupStateMock (fold pgs) bob
+          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers []))
+            <|> queryGroupStateMock (fold pgs) bob
             <|> sendMessageMock
             <|> ("leave-sub-conversation" ~> LeaveSubConversationResponseOk)
     (_, reqs) <- withTempMockFederator' mock $ do
