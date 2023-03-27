@@ -61,9 +61,8 @@ if [ "$(git status -s | grep -v \?\?)" != "" ]; then
     fi
 fi
 
-readarray -t EXTS < <(sed -n '/^default-extensions:/,$ { s/^- //p }' < package-defaults.yaml)
 echo "ormolu mode: $ARG_ORMOLU_MODE"
-echo "language extensions: ${EXTS[@]}"
+echo "language extensions are taken from the resp. cabal files"
 
 FAILURES=0
 
@@ -84,7 +83,7 @@ for hsfile in $files; do
     FAILED=0
 
     # run in background so that we can detect Ctrl-C properly
-    ormolu --mode $ARG_ORMOLU_MODE --check-idempotence ${EXTS[@]/#/'-o -X'} "$hsfile" &
+    ormolu --mode $ARG_ORMOLU_MODE --check-idempotence "$hsfile" &
     wait $! && err=0 || err=$?
 
     if [ "$err" == "100" ]; then
