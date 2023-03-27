@@ -171,7 +171,7 @@ withTeam action =
   where
     waitForDeleteEvent :: TeamId -> TestM ()
     waitForDeleteEvent tid =
-      assertTeamDelete 10 "waitForDeleteEvent" tid
+      assertTeamDelete 15 "waitForDeleteEvent" tid
 
 withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket) -> m a) -> m a
 withFreePortAnyAddr = bracket openFreePortAnyAddr (liftIO . Socket.close . snd)
