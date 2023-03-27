@@ -56,7 +56,8 @@ selectSubConversation convId subConvId = do
                 cnvmlsEpochTimestamp = epochTimestamp epoch epochWritetime,
                 cnvmlsCipherSuite = suite
               },
-          scMembers = cm
+          scMembers = cm,
+          scIndexMap = mempty -- TODO
         }
 
 insertSubConversation :: ConvId -> SubConvId -> CipherSuiteTag -> Epoch -> GroupId -> Maybe OpaquePublicGroupState -> Client ()

@@ -147,7 +147,7 @@ newtype RemoveProposalPayload = RemoveProposalPayload {unRemoveProposalPayload :
   deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
 
 instance Arbitrary RemoveProposalPayload where
-  arbitrary = RemoveProposalPayload . FramedContentProposal . mkRemoveProposal <$> arbitrary
+  arbitrary = RemoveProposalPayload . FramedContentProposal . mkRawMLS . RemoveProposal <$> arbitrary
 
 instance ArbitraryFramedContentData RemoveProposalPayload where
   arbitraryFramedContentData = unRemoveProposalPayload <$> arbitrary

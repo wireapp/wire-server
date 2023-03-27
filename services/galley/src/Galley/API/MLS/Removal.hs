@@ -43,7 +43,6 @@ import Polysemy.TinyLog
 import qualified System.Logger as Log
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
@@ -61,7 +60,7 @@ createAndSendRemoveProposals ::
     Foldable t
   ) =>
   Local ConvOrSubConv ->
-  t KeyPackageRef ->
+  t Word32 ->
   Qualified UserId ->
   -- | The client map that has all the recipients of the message. This is an
   -- argument, and not constructed within the function, because of a special
@@ -71,15 +70,15 @@ createAndSendRemoveProposals ::
   -- conversation/subconversation client maps.
   ClientMap ->
   Sem r ()
-createAndSendRemoveProposals lConvOrSubConv cs qusr cm = do
+createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
   let meta = mlsMetaConvOrSub (tUnqualified lConvOrSubConv)
   mKeyPair <- getMLSRemovalKey
   case mKeyPair of
     Nothing -> do
       warn $ Log.msg ("No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Not able to remove client from MLS conversation." :: Text)
     Just (secKey, pubKey) -> do
-      for_ cs $ \kpref -> do
-        let proposal = mkRemoveProposal kpref
+      for_ indices $ \idx -> do
+        let proposal = mkRawMLS (RemoveProposal idx)
             msg =
               mkSignedMessage
                 secKey
@@ -111,13 +110,13 @@ removeClientsWithClientMapRecursively ::
     Foldable f
   ) =>
   Local MLSConversation ->
-  (ConvOrSubConv -> f KeyPackageRef) ->
+  (ConvOrSubConv -> f Word32) ->
   Qualified UserId ->
   Sem r ()
-removeClientsWithClientMapRecursively lMlsConv getKPs qusr = do
+removeClientsWithClientMapRecursively lMlsConv getIndices qusr = do
   let mainConv = fmap Conv lMlsConv
       cm = mcMembers (tUnqualified lMlsConv)
-  createAndSendRemoveProposals mainConv (getKPs (tUnqualified mainConv)) qusr cm
+  createAndSendRemoveProposals mainConv (getIndices (tUnqualified mainConv)) qusr cm
 
   -- remove this client from all subconversations
   subs <- listSubConversations' (mcId (tUnqualified lMlsConv))
@@ -126,7 +125,7 @@ removeClientsWithClientMapRecursively lMlsConv getKPs qusr = do
 
     createAndSendRemoveProposals
       subConv
-      (getKPs (tUnqualified subConv))
+      (getIndices (tUnqualified subConv))
       qusr
       cm
 
@@ -149,8 +148,8 @@ removeClient ::
 removeClient lc qusr cid = do
   mMlsConv <- mkMLSConversation (tUnqualified lc)
   for_ mMlsConv $ \mlsConv -> do
-    let getKPs = cmLookupRef (mkClientIdentity qusr cid) . membersConvOrSub
-    removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getKPs qusr
+    let getIndices = cmLookupIndex (mkClientIdentity qusr cid) . membersConvOrSub
+    removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getIndices qusr
 
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::

@@ -60,7 +60,6 @@ import Imports
 import Polysemy
 import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.MLS.Group
-import Wire.API.MLS.KeyPackage
 import Wire.API.Provider.Service
 
 data MemberStore m a where
@@ -77,7 +76,7 @@ data MemberStore m a where
   SetOtherMember :: Local ConvId -> Qualified UserId -> OtherMemberUpdate -> MemberStore m ()
   DeleteMembers :: ConvId -> UserList UserId -> MemberStore m ()
   DeleteMembersInRemoteConversation :: Remote ConvId -> [UserId] -> MemberStore m ()
-  AddMLSClients :: GroupId -> Qualified UserId -> Set (ClientId, KeyPackageRef) -> MemberStore m ()
+  AddMLSClients :: GroupId -> Qualified UserId -> Set (ClientId, Word32) -> MemberStore m ()
   RemoveMLSClients :: GroupId -> Qualified UserId -> Set ClientId -> MemberStore m ()
   RemoveAllMLSClients :: GroupId -> MemberStore m ()
   LookupMLSClients :: GroupId -> MemberStore m ClientMap

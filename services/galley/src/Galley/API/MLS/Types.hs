@@ -20,6 +20,8 @@ module Galley.API.MLS.Types where
 
 import Data.Domain
 import Data.Id
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IntMap
 import qualified Data.Map as Map
 import Data.Qualified
 import Galley.Types.Conversations.Members
@@ -27,20 +29,26 @@ import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.SubConversation
 
-type ClientMap = Map (Qualified UserId) (Map ClientId KeyPackageRef)
+newtype IndexMap = IndexMap {unIndexMap :: IntMap ClientIdentity}
+  deriving (Eq, Show)
+  deriving newtype (Semigroup, Monoid)
 
-mkClientMap :: [(Domain, UserId, ClientId, KeyPackageRef)] -> ClientMap
+indexToClient :: IndexMap -> Word32 -> Maybe ClientIdentity
+indexToClient m i = IntMap.lookup (fromIntegral i) (unIndexMap m)
+
+type ClientMap = Map (Qualified UserId) (Map ClientId Word32)
+
+mkClientMap :: [(Domain, UserId, ClientId, Int32)] -> ClientMap
 mkClientMap = foldr addEntry mempty
   where
-    addEntry :: (Domain, UserId, ClientId, KeyPackageRef) -> ClientMap -> ClientMap
-    addEntry (dom, usr, c, kpr) =
-      Map.insertWith (<>) (Qualified usr dom) (Map.singleton c kpr)
+    addEntry :: (Domain, UserId, ClientId, Int32) -> ClientMap -> ClientMap
+    addEntry (dom, usr, c, kpi) =
+      Map.insertWith (<>) (Qualified usr dom) (Map.singleton c (fromIntegral kpi))
 
-cmLookupRef :: ClientIdentity -> ClientMap -> Maybe KeyPackageRef
-cmLookupRef cid cm = do
+cmLookupIndex :: ClientIdentity -> ClientMap -> Maybe Word32
+cmLookupIndex cid cm = do
   clients <- Map.lookup (cidQualifiedUser cid) cm
   Map.lookup (ciClient cid) clients
 
@@ -54,13 +62,19 @@ cmRemoveClient cid cm = case Map.lookup (cidQualifiedUser cid) cm of
           else Map.insert (cidQualifiedUser cid) clients' cm
 
 isClientMember :: ClientIdentity -> ClientMap -> Bool
-isClientMember ci = isJust . cmLookupRef ci
+isClientMember ci = isJust . cmLookupIndex ci
 
-cmAssocs :: ClientMap -> [(Qualified UserId, (ClientId, KeyPackageRef))]
+cmAssocs :: ClientMap -> [(ClientIdentity, Word32)]
 cmAssocs cm = do
   (quid, clients) <- Map.assocs cm
-  (clientId, ref) <- Map.assocs clients
-  pure (quid, (clientId, ref))
+  (clientId, idx) <- Map.assocs clients
+  pure (mkClientIdentity quid clientId, idx)
+
+cmSingleton :: ClientIdentity -> Word32 -> ClientMap
+cmSingleton cid idx =
+  Map.singleton
+    (cidQualifiedUser cid)
+    (Map.singleton (ciClient cid) idx)
 
 -- | Inform a handler for 'POST /conversations/list-ids' if the MLS global team
 -- conversation and the MLS self-conversation should be included in the
@@ -74,7 +88,8 @@ data MLSConversation = MLSConversation
     mcMLSData :: ConversationMLSData,
     mcLocalMembers :: [LocalMember],
     mcRemoteMembers :: [RemoteMember],
-    mcMembers :: ClientMap
+    mcMembers :: ClientMap,
+    mcIndexMap :: IndexMap
   }
   deriving (Show)
 
@@ -82,13 +97,14 @@ data SubConversation = SubConversation
   { scParentConvId :: ConvId,
     scSubConvId :: SubConvId,
     scMLSData :: ConversationMLSData,
-    scMembers :: ClientMap
+    scMembers :: ClientMap,
+    scIndexMap :: IndexMap
   }
   deriving (Eq, Show)
 
 toPublicSubConv :: Qualified SubConversation -> PublicSubConversation
 toPublicSubConv (Qualified (SubConversation {..}) domain) =
-  let members = fmap (\(quid, (cid, _kp)) -> mkClientIdentity quid cid) (cmAssocs scMembers)
+  let members = map fst (cmAssocs scMembers)
    in PublicSubConversation
         { pscParentConvId = Qualified scParentConvId domain,
           pscSubConvId = scSubConvId,
@@ -108,6 +124,10 @@ mlsMetaConvOrSub (SubConv _ s) = scMLSData s
 membersConvOrSub :: ConvOrSubConv -> ClientMap
 membersConvOrSub (Conv c) = mcMembers c
 membersConvOrSub (SubConv _ s) = scMembers s
+
+indicesConvOrSub :: ConvOrSubConv -> IndexMap
+indicesConvOrSub (Conv c) = mcIndexMap c
+indicesConvOrSub (SubConv _ s) = scIndexMap s
 
 convOfConvOrSub :: ConvOrSubChoice c s -> c
 convOfConvOrSub (Conv c) = c

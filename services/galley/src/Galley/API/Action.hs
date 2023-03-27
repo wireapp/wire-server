@@ -55,7 +55,6 @@ import Data.Singletons
 import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.MLS.Removal
-import Galley.API.MLS.Types (cmAssocs)
 import Galley.API.Util
 import Galley.App
 import Galley.Data.Conversation
@@ -342,9 +341,6 @@ performAction tag origUser lconv action = do
       pure (mempty, action)
     SConversationDeleteTag -> do
       let deleteGroup groupId = do
-            cm <- E.lookupMLSClients groupId
-            let refs = cm & cmAssocs & map (snd . snd)
-            E.deleteKeyPackageRefs refs
             E.removeAllMLSClients groupId
             E.deleteAllProposals groupId
 

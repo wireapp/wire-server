@@ -37,7 +37,6 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
-import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 
@@ -72,7 +71,7 @@ getPendingBackendRemoveProposals ::
   ) =>
   GroupId ->
   Epoch ->
-  Sem r [KeyPackageRef]
+  Sem r [Word32]
 getPendingBackendRemoveProposals gid epoch = do
   proposals <- getAllPendingProposals gid epoch
   catMaybes
@@ -80,7 +79,7 @@ getPendingBackendRemoveProposals gid epoch = do
       proposals
       ( \case
           (Just ProposalOriginBackend, proposal) -> case rmValue proposal of
-            RemoveProposal kp -> pure . Just $ kp
+            RemoveProposal i -> pure (Just i)
             _ -> pure Nothing
           (Just ProposalOriginClient, _) -> pure Nothing
           (Nothing, _) -> do

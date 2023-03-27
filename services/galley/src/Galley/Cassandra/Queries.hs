@@ -34,7 +34,6 @@ import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.SubConversation
 import Wire.API.Password (Password)
@@ -462,8 +461,8 @@ rmMemberClient c =
 
 -- MLS Clients --------------------------------------------------------------
 
-addMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId, KeyPackageRef) ()
-addMLSClient = "insert into mls_group_member_client (group_id, user_domain, user, client, key_package_ref) values (?, ?, ?, ?, ?)"
+addMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId, Int32) ()
+addMLSClient = "insert into mls_group_member_client (group_id, user_domain, user, client, leaf_node_index) values (?, ?, ?, ?, ?)"
 
 removeMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
 removeMLSClient = "delete from mls_group_member_client where group_id = ? and user_domain = ? and user = ? and client = ?"
@@ -471,8 +470,8 @@ removeMLSClient = "delete from mls_group_member_client where group_id = ? and us
 removeAllMLSClients :: PrepQuery W (Identity GroupId) ()
 removeAllMLSClients = "DELETE FROM mls_group_member_client WHERE group_id = ?"
 
-lookupMLSClients :: PrepQuery R (Identity GroupId) (Domain, UserId, ClientId, KeyPackageRef)
-lookupMLSClients = "select user_domain, user, client, key_package_ref from mls_group_member_client where group_id = ?"
+lookupMLSClients :: PrepQuery R (Identity GroupId) (Domain, UserId, ClientId, Int32)
+lookupMLSClients = "select user_domain, user, client, leaf_node_index from mls_group_member_client where group_id = ?"
 
 acquireCommitLock :: PrepQuery W (GroupId, Epoch, Int32) Row
 acquireCommitLock = "insert into mls_commit_locks (group_id, epoch) values (?, ?) if not exists using ttl ?"

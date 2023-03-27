@@ -42,7 +42,8 @@ mkMLSConversation conv =
           mcLocalMembers = Data.convLocalMembers conv,
           mcRemoteMembers = Data.convRemoteMembers conv,
           mcMLSData = mlsData,
-          mcMembers = cm
+          mcMembers = cm,
+          mcIndexMap = mempty -- TODO
         }
 
 mcConv :: MLSConversation -> Data.Conversation

@@ -24,14 +24,13 @@ import Cassandra
 import Control.Lens (makePrisms)
 import Data.Binary
 import Data.Binary.Get
-import Data.Binary.Put
-import qualified Data.ByteString.Lazy as LBS
 import Imports
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Context
 import Wire.API.MLS.Extension
 import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.ProposalTag
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
@@ -39,10 +38,10 @@ import Wire.Arbitrary
 
 data Proposal
   = AddProposal (RawMLS KeyPackage)
-  | UpdateProposal KeyPackage
-  | RemoveProposal KeyPackageRef
-  | PreSharedKeyProposal PreSharedKeyID -- TODO
-  | ReInitProposal ReInit
+  | UpdateProposal (RawMLS LeafNode)
+  | RemoveProposal Word32
+  | PreSharedKeyProposal (RawMLS PreSharedKeyID)
+  | ReInitProposal (RawMLS ReInit)
   | ExternalInitProposal ByteString
   | GroupContextExtensionsProposal [Extension]
   deriving stock (Eq, Show)
@@ -59,12 +58,28 @@ instance ParseMLS Proposal where
       GroupContextExtensionsProposalTag ->
         GroupContextExtensionsProposal <$> parseMLSVector @VarInt parseMLS
 
-mkRemoveProposal :: KeyPackageRef -> RawMLS Proposal
-mkRemoveProposal ref = RawMLS bytes (RemoveProposal ref)
-  where
-    bytes = LBS.toStrict . runPut $ do
-      serialiseMLS RemoveProposalTag
-      serialiseMLS ref
+instance SerialiseMLS Proposal where
+  serialiseMLS (AddProposal kp) = do
+    serialiseMLS AddProposalTag
+    serialiseMLS kp
+  serialiseMLS (UpdateProposal ln) = do
+    serialiseMLS UpdateProposalTag
+    serialiseMLS ln
+  serialiseMLS (RemoveProposal i) = do
+    serialiseMLS RemoveProposalTag
+    serialiseMLS i
+  serialiseMLS (PreSharedKeyProposal k) = do
+    serialiseMLS PreSharedKeyProposalTag
+    serialiseMLS k
+  serialiseMLS (ReInitProposal ri) = do
+    serialiseMLS ReInitProposalTag
+    serialiseMLS ri
+  serialiseMLS (ExternalInitProposal ko) = do
+    serialiseMLS ExternalInitProposalTag
+    serialiseMLSBytes @VarInt ko
+  serialiseMLS (GroupContextExtensionsProposal es) = do
+    serialiseMLS GroupContextExtensionsProposalTag
+    serialiseMLSVector @VarInt serialiseMLS es
 
 -- | Compute the proposal ref given a ciphersuite and the raw proposal data.
 proposalRef :: CipherSuiteTag -> RawMLS Proposal -> ProposalRef

@@ -2909,7 +2909,7 @@ wsAssertBackendRemoveProposalWithEpoch fromUser convId kpref epoch n = do
   pure bs
 
 wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvOrSubConvId -> KeyPackageRef -> Notification -> IO ByteString
-wsAssertBackendRemoveProposal fromUser cnvOrSubCnv kpref n = do
+wsAssertBackendRemoveProposal fromUser cnvOrSubCnv _kpref n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= convOfConvOrSub <$> cnvOrSubCnv
@@ -2922,7 +2922,7 @@ wsAssertBackendRemoveProposal fromUser cnvOrSubCnv kpref n = do
       pmsg.content.rmValue.sender @?= SenderExternal 0
       case pmsg.content.rmValue.content of
         FramedContentProposal prop -> case prop.rmValue of
-          RemoveProposal kpRefRemove -> kpRefRemove @?= kpref
+          RemoveProposal kpRefRemove -> kpRefRemove @?= error "kpref"
           otherProp -> assertFailure $ "Expected RemoveProposal but got " <> show otherProp
         otherPayload -> assertFailure $ "Expected ProposalMessage but got " <> show otherPayload
     _ -> assertFailure $ "Expected PublicMessage"

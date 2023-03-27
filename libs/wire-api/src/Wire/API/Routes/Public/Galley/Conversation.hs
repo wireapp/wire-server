@@ -380,7 +380,6 @@ type ConversationAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
-               :> ZOptClient
                :> ZOptConn
                :> "conversations"
                :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
@@ -403,7 +402,6 @@ type ConversationAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
-               :> ZOptClient
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
@@ -424,7 +422,6 @@ type ConversationAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
-               :> ZOptClient
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
@@ -1261,7 +1258,6 @@ type ConversationAPI =
                :> CanThrow 'ConvInvalidProtocolTransition
                :> CanThrow 'ConvMemberNotFound
                :> ZLocalUser
-               :> ZClient
                :> ZConn
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId

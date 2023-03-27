@@ -121,7 +121,9 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
     usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
     pure (userClientQid usr c)
   void . liftIO $ spawn (cli qcid2 tmp ["init", qcid2]) Nothing
-  kp <- liftIO $ decodeMLSError <$> spawn (cli qcid2 tmp ["key-package", "create"]) Nothing
+  kp :: RawMLS KeyPackage <-
+    liftIO $
+      decodeMLSError <$> spawn (cli qcid2 tmp ["key-package", "create"]) Nothing
   liftIO $ BS.writeFile (tmp </> qcid2) (rmRaw kp)
 
   let groupFilename = "group"
@@ -132,7 +134,7 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
 
   secretKey <- Ed25519.generateSecretKey
   let publicKey = Ed25519.toPublic secretKey
-  let proposal = mkRemoveProposal (fromJust (kpRef' kp))
+  let proposal = mkRawMLS (RemoveProposal (error "TODO: remove proposal"))
   let message =
         mkSignedMessage
           secretKey

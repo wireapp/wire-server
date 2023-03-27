@@ -22,13 +22,11 @@ import Imports
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
 data Welcome = Welcome
-  { welProtocolVersion :: ProtocolVersion,
-    welCipherSuite :: CipherSuite,
+  { welCipherSuite :: CipherSuite,
     welSecrets :: [GroupSecrets],
     welGroupInfo :: ByteString
   }
@@ -41,14 +39,12 @@ instance S.ToSchema Welcome where
 instance ParseMLS Welcome where
   parseMLS =
     Welcome
-      <$> parseMLS @ProtocolVersion
-      <*> parseMLS
+      <$> parseMLS
       <*> parseMLSVector @VarInt parseMLS
       <*> parseMLSBytes @VarInt
 
 instance SerialiseMLS Welcome where
-  serialiseMLS (Welcome pv cs ss gi) = do
-    serialiseMLS pv
+  serialiseMLS (Welcome cs ss gi) = do
     serialiseMLS cs
     serialiseMLSVector @VarInt serialiseMLS ss
     serialiseMLSBytes @VarInt gi

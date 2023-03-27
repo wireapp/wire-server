@@ -593,6 +593,7 @@ executable galley-schema
     V79_TeamFeatureMlsE2EId
     V80_AddConversationCodePassword
     V81_MLSSubconversation
+    V82_MLSDraft17
 
   hs-source-dirs:     schema/src
   default-extensions: TemplateHaskell

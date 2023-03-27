@@ -142,7 +142,8 @@ getLocalSubConversation qusr lconv sconv = do
                       cnvmlsEpochTimestamp = Nothing,
                       cnvmlsCipherSuite = suite
                     },
-                scMembers = mkClientMap []
+                scMembers = mkClientMap [],
+                scIndexMap = mempty -- TODO
               }
       pure sub
     Just sub -> pure sub
@@ -423,9 +424,9 @@ leaveLocalSubConversation cid lcnv sub = do
   subConv <-
     noteS @'ConvNotFound
       =<< Eff.getSubConversation (tUnqualified lcnv) sub
-  kp <-
+  idx <-
     note (mlsProtocolError "Client is not a member of the subconversation") $
-      cmLookupRef cid (scMembers subConv)
+      cmLookupIndex cid (scMembers subConv)
   -- remove the leaver from the member list
   let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData subConv)
   Eff.removeMLSClients gid (cidQualifiedUser cid) . Set.singleton . ciClient $ cid
@@ -440,7 +441,7 @@ leaveLocalSubConversation cid lcnv sub = do
     else
       createAndSendRemoveProposals
         (qualifyAs lcnv (SubConv mlsConv subConv))
-        (Identity kp)
+        (Identity idx)
         (cidQualifiedUser cid)
         cm
 

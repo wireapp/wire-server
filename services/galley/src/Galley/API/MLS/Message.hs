@@ -48,7 +48,6 @@ import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Enabled
-import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Removal
 import Galley.API.MLS.Types
@@ -101,9 +100,14 @@ import Wire.API.Message
 import Wire.API.User.Client
 
 -- TODO:
--- [ ] replace ref with index in remove proposals
+-- [x] replace ref with index in remove proposals
 -- [ ] validate leaf nodes and key packages locally on galley
 -- [ ] remove MissingSenderClient error
+-- [ ] PreSharedKey proposal
+-- [ ] remove all key package ref mapping
+-- [ ] initialise index maps
+-- [ ] newtype for leaf node indices
+-- [ ] compute new indices for add proposals
 
 data IncomingMessage = IncomingMessage
   { epoch :: Epoch,
@@ -341,13 +345,13 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
   senderIdentity <- getSenderIdentity qusr c (Just bundle.sender)
 
   action <- getCommitData lConvOrSub bundle.epoch bundle.commit.rmValue
-  -- check that the welcome message matches the action
-  for_ bundle.welcome $ \welcome ->
-    when
-      ( Set.fromList (map gsNewMember (welSecrets (rmValue welcome)))
-          /= Set.fromList (map (snd . snd) (cmAssocs (paAdd action)))
-      )
-      $ throwS @'MLSWelcomeMismatch
+  -- TODO: check that the welcome message matches the action
+  -- for_ bundle.welcome $ \welcome ->
+  --   when
+  --     ( Set.fromList (map gsNewMember (welSecrets (rmValue welcome)))
+  --         /= Set.fromList (map (snd . snd) (cmAssocs (paAdd action)))
+  --     )
+  --     $ throwS @'MLSWelcomeMismatch
   events <-
     processCommitWithAction
       senderIdentity
@@ -464,7 +468,6 @@ postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
@@ -582,11 +585,11 @@ instance Semigroup ProposalAction where
 instance Monoid ProposalAction where
   mempty = ProposalAction mempty mempty mempty
 
-paAddClient :: Qualified (UserId, (ClientId, KeyPackageRef)) -> ProposalAction
-paAddClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (uncurry Map.singleton (snd (qUnqualified quc)))}
+paAddClient :: ClientIdentity -> Word32 -> ProposalAction
+paAddClient cid idx = mempty {paAdd = cmSingleton cid idx}
 
-paRemoveClient :: Qualified (UserId, (ClientId, KeyPackageRef)) -> ProposalAction
-paRemoveClient quc = mempty {paRemove = Map.singleton (fmap fst quc) (uncurry Map.singleton (snd (qUnqualified quc)))}
+paRemoveClient :: ClientIdentity -> Word32 -> ProposalAction
+paRemoveClient cid idx = mempty {paRemove = cmSingleton cid idx}
 
 paExternalInitPresent :: ProposalAction
 paExternalInitPresent = mempty {paExternalInit = Any True}
@@ -616,7 +619,6 @@ processCommit ::
   ( HasProposalEffects r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
@@ -642,8 +644,6 @@ processExternalCommit ::
     Member ConversationStore r,
     Member (Error MLSProtocolError) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSKeyPackageRefNotFound) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member ExternalAccess r,
@@ -663,82 +663,73 @@ processExternalCommit ::
   ProposalAction ->
   Maybe UpdatePath ->
   Sem r ()
-processExternalCommit senderIdentity lConvOrSub epoch action updatePath =
-  withCommitLock (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub) epoch $ do
-    let convOrSub = tUnqualified lConvOrSub
-    leafNode <-
-      upLeaf
-        <$> note
-          (mlsProtocolError "External commits need an update path")
-          updatePath
-    when (paExternalInit action == mempty) $
-      throw . mlsProtocolError $
-        "The external commit is missing an external init proposal"
-    unless (paAdd action == mempty) $
-      throw . mlsProtocolError $
-        "The external commit must not have add proposals"
+processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
+  let convOrSub = tUnqualified lConvOrSub
+  leafNode <-
+    upLeaf
+      <$> note
+        (mlsProtocolError "External commits need an update path")
+        updatePath
+  when (paExternalInit action == mempty) $
+    throw . mlsProtocolError $
+      "The external commit is missing an external init proposal"
+  unless (paAdd action == mempty) $
+    throw . mlsProtocolError $
+      "The external commit must not have add proposals"
 
-    -- validate and update mapping in brig
-    validateLeafNode senderIdentity leafNode >>= \case
-      Left errMsg ->
-        throw $
-          mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
-      Right _ -> pure ()
+  -- validate and update mapping in brig
+  validateLeafNode senderIdentity leafNode >>= \case
+    Left errMsg ->
+      throw $
+        mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
+    Right _ -> pure ()
 
-    -- only members can join a subconversation
-    forOf_ _SubConv convOrSub $ \(mlsConv, _) ->
-      unless (isClientMember senderIdentity (mcMembers mlsConv)) $
-        throwS @'MLSSubConvClientNotInParent
+  -- only members can join a subconversation
+  forOf_ _SubConv convOrSub $ \(mlsConv, _) ->
+    unless (isClientMember senderIdentity (mcMembers mlsConv)) $
+      throwS @'MLSSubConvClientNotInParent
 
-    -- check if there is a key package ref in the remove proposal
-    remRef <-
-      if Map.null (paRemove action)
-        then pure Nothing
-        else do
-          (remCid, r) <- derefUser (paRemove action) (cidQualifiedUser senderIdentity)
-          unless (cidQualifiedUser senderIdentity == cidQualifiedUser remCid)
-            . throw
-            . mlsProtocolError
-            $ "The external commit attempts to remove a client from a user other than themselves"
-          pure (Just r)
+  let groupId = cnvmlsGroupId (mlsMetaConvOrSub convOrSub)
+
+  withCommitLock groupId epoch $ do
+    -- validate remove proposal: an external commit can contain
+    --
+    -- > At most one Remove proposal, with which the joiner removes an old
+    -- > version of themselves
+    remIndex <- case cmAssocs (paRemove action) of
+      [] -> pure Nothing
+      [(_, idx :: Word32)] -> do
+        cid <-
+          note (mlsProtocolError "Invalid index in remove proposal") $
+            indexToClient (indicesConvOrSub convOrSub) idx
+        unless (cid == senderIdentity) $
+          throw $
+            mlsProtocolError "Only the self client can be removed by an external commit"
+        pure (Just idx)
+      _ -> throw (mlsProtocolError "Multiple remove proposals in external commits not allowed")
 
     -- increment epoch number
     lConvOrSub' <- for lConvOrSub incrementEpoch
 
     -- fetch backend remove proposals of the previous epoch
-    kpRefs <-
+    indicesInRemoveProposals <-
       -- skip remove proposals of already removed by the external commit
-      filter (maybe (const True) (/=) remRef)
-        <$> getPendingBackendRemoveProposals (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub') epoch
+      filter (maybe (const True) (/=) remIndex)
+        <$> getPendingBackendRemoveProposals groupId epoch
+
     -- requeue backend remove proposals for the current epoch
     let cm = membersConvOrSub (tUnqualified lConvOrSub')
-    createAndSendRemoveProposals lConvOrSub' kpRefs (cidQualifiedUser senderIdentity) cm
-  where
-    derefUser :: ClientMap -> Qualified UserId -> Sem r (ClientIdentity, KeyPackageRef)
-    derefUser cm user = case Map.assocs cm of
-      [(u, clients)] -> do
-        unless (user == u) $
-          throwS @'MLSClientSenderUserMismatch
-        ref <- ensureSingleton clients
-        ci <- derefKeyPackage ref
-        unless (cidQualifiedUser ci == user) $
-          throwS @'MLSClientSenderUserMismatch
-        pure (ci, ref)
-      _ -> throwRemProposal
-    ensureSingleton :: Map k a -> Sem r a
-    ensureSingleton m = case Map.elems m of
-      [e] -> pure e
-      _ -> throwRemProposal
-    throwRemProposal =
-      throw . mlsProtocolError $
-        "The external commit must have at most one remove proposal"
+    createAndSendRemoveProposals
+      lConvOrSub'
+      indicesInRemoveProposals
+      (cidQualifiedUser senderIdentity)
+      cm
 
 processCommitWithAction ::
   forall r.
   ( HasProposalEffects r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
@@ -831,26 +822,16 @@ applyProposal ::
   GroupId ->
   Proposal ->
   Sem r ProposalAction
-applyProposal _convOrSubConvId groupId (AddProposal kp) = do
-  ref <- kpRef' kp & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
-  mbClientIdentity <- getClientByKeyPackageRef ref
-  clientIdentity <- case mbClientIdentity of
-    Nothing -> do
-      -- TODO: validate key package
-      cid <-
-        either
-          (\_ -> throw (mlsProtocolError "Invalid key package in an Add proposal"))
-          pure
-          $ keyPackageIdentity kp.rmValue
-      addMLSClients groupId (cidQualifiedUser cid) (Set.singleton (ciClient cid, ref))
-      pure cid
-    Just cid ->
-      -- ad-hoc add proposal in commit, the key package has been claimed before
-      pure cid
-  pure (paAddClient . (<$$>) (,ref) . cidQualifiedClient $ clientIdentity)
-applyProposal _convOrSubConvId _groupId (RemoveProposal ref) = do
-  qclient <- cidQualifiedClient <$> derefKeyPackage ref
-  pure (paRemoveClient ((,ref) <$$> qclient))
+applyProposal _convOrSubConvId _groupId (AddProposal kp) = do
+  let idx = error "TODO: compute new index"
+  -- TODO: validate key package
+  cid <- getKeyPackageIdentity kp.rmValue
+  -- TODO: we probably should not update the conversation state here
+  -- addMLSClients groupId (cidQualifiedUser cid) (Set.singleton (ciClient cid, idx))
+  pure (paAddClient cid idx)
+applyProposal _convOrSubConvId _groupId (RemoveProposal idx) = do
+  let cid = error "TODO: lookup in index map"
+  pure (paRemoveClient cid idx)
 applyProposal _convOrSubConvId _groupId (ExternalInitProposal _) =
   -- only record the fact there was an external init proposal, but do not
   -- process it in any way.
@@ -950,11 +931,7 @@ checkExternalProposalUser qusr prop = do
     loc
     ( \lusr -> case prop of
         AddProposal kp -> do
-          ClientIdentity {ciUser, ciClient} <-
-            either
-              (const $ throwS @'MLSUnsupportedProposal)
-              pure
-              (keyPackageIdentity kp.rmValue)
+          ClientIdentity {ciUser, ciClient} <- getKeyPackageIdentity kp.rmValue
           -- requesting user must match key package owner
           when (tUnqualified lusr /= ciUser) $ throwS @'MLSUnsupportedProposal
           -- client referenced in key package must be one of the user's clients
@@ -1188,6 +1165,14 @@ removeMembers qusr con lconvOrSub users = case tUnqualified lconvOrSub of
       . toList
       $ users
   SubConv _ _ -> pure []
+
+getKeyPackageIdentity ::
+  Member (ErrorS 'MLSUnsupportedProposal) r =>
+  KeyPackage ->
+  Sem r ClientIdentity
+getKeyPackageIdentity =
+  either (\_ -> throwS @'MLSUnsupportedProposal) pure
+    . keyPackageIdentity
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
