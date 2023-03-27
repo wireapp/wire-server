@@ -49,9 +49,9 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time
+import qualified Data.Tuple.Extra as Tuple
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDV4
-import qualified Data.Tuple.Extra as Tuple
 import Galley.Keys
 import Galley.Options
 import qualified Galley.Options as Opts

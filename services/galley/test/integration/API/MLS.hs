@@ -61,8 +61,8 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
-import Wire.API.Federation.API.Common
 import Wire.API.Event.Conversation
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential

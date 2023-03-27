@@ -43,8 +43,8 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Message
+import Wire.API.MLS.SubConversation
 import Wire.API.Message
 
 -- | Propagate a message.
@@ -61,7 +61,7 @@ propagateMessage ::
   ByteString ->
   ClientMap ->
   Sem r UnreachableUsers
-propagateMessage qusr lConvOrSub con raw cm  = do
+propagateMessage qusr lConvOrSub con raw cm = do
   now <- input @UTCTime
   let mlsConv = convOfConvOrSub <$> lConvOrSub
       lmems = mcLocalMembers . tUnqualified $ mlsConv
