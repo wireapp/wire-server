@@ -93,6 +93,26 @@ spec = describe "HTTP2.Client.Manager" $ do
 
       readIORef acceptedConns `shouldReturn` 1
 
+  it "should re-use the connection even an exception is thrown while handling a response" $ do
+    withTestServer $ \TestServer {..} -> do
+      mgr <- defaultHTTP2Manager
+
+      let exceptionThrower =
+            withHTTP2Request mgr "localhost" serverPort (Client.requestBuilder "GET" "/echo" [] "some body") $ \_ ->
+              throw TestException
+
+      -- Also test if the exception is propagated correctly and doesn't cause
+      -- other errors
+      exceptionThrower `shouldThrow` (== TestException)
+      echoTest mgr serverPort
+
+      readIORef acceptedConns `shouldReturn` 1
+
+data TestException = TestException
+  deriving (Show, Eq)
+
+instance Exception TestException
+
 data TestServer = TestServer
   { serverThread :: Async (),
     acceptedConns :: IORef Int,
