@@ -12,7 +12,10 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as LBS
 import Data.IORef
-import Data.Streaming.Network (bindRandomPortGen)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Streaming.Network (bindPortTCP, bindRandomPortTCP)
+import Data.Unique
 import HTTP2.Client.Manager
 import Network.HTTP.Types
 import qualified Network.HTTP2.Client as Client
@@ -108,6 +111,21 @@ spec = describe "HTTP2.Client.Manager" $ do
 
       readIORef acceptedConns `shouldReturn` 1
 
+  it "should create a new connection when the server restarts" $ do
+    mgr <- defaultHTTP2Manager
+    port <- withTestServer $ \TestServer {..} -> do
+      putStrLn $ "Port: " <> show serverPort
+      echoTest mgr serverPort
+      readIORef acceptedConns `shouldReturn` 1
+      pure serverPort
+    withTestServerOnPort port $ \TestServer {..} -> do
+      -- TODO: This gets stuck because it happens before the client can realize
+      -- that the server is gone, but it shouldn't get stuck, so the client
+      -- needs some smartness.
+      echoTest mgr port
+      -- this is still 1 because we have a new 'TestServer'
+      readIORef acceptedConns `shouldReturn` 1
+
 data TestException = TestException
   deriving (Show, Eq)
 
@@ -116,25 +134,42 @@ instance Exception TestException
 data TestServer = TestServer
   { serverThread :: Async (),
     acceptedConns :: IORef Int,
+    liveConns :: IORef (Map Unique (Async ())),
     serverPort :: Int
   }
 
 withTestServer :: (TestServer -> IO a) -> IO a
 withTestServer action = do
-  bracket (bindRandomPortGen Stream "*") (close . snd) $ \(serverPort, listenSock) -> do
-    acceptedConns <- newIORef 0
-    serverThread <- async $ testServerTCP listenSock acceptedConns
+  bracket (bindRandomPortTCP "*") (close . snd) (withTestServerOnSocket action)
+
+withTestServerOnPort :: Int -> (TestServer -> IO a) -> IO a
+withTestServerOnPort serverPort action = do
+  bracket (bindPortTCP serverPort "*") close $ \listenSock ->
+    withTestServerOnSocket action (serverPort, listenSock)
+
+withTestServerOnSocket :: (TestServer -> IO a) -> (Int, Socket) -> IO a
+withTestServerOnSocket action (serverPort, listenSock) = do
+  acceptedConns <- newIORef 0
+  liveConns <- newIORef mempty
+  let cleanupServer serverThread = do
+        cancel serverThread
+        mapM_ cancel =<< readIORef liveConns
+  bracket (async $ testServerTCP listenSock acceptedConns liveConns) cleanupServer $ \serverThread ->
     action TestServer {..}
 
-testServerTCP :: Socket -> IORef Int -> IO ()
-testServerTCP listenSock connsCounter = do
+testServerTCP :: Socket -> IORef Int -> IORef (Map Unique (Async ())) -> IO ()
+testServerTCP listenSock connsCounter conns = do
   listen listenSock 1024
   forever $ do
     (sock, _) <- accept listenSock
+    connKey <- newUnique
     modifyIORef connsCounter (+ 1)
-    -- This can leak!
-    async $ bracket (Client.allocSimpleConfig sock 4096) Client.freeSimpleConfig $ \cfg -> do
-      Server.run cfg testServer
+    let cleanup cfg = do
+          Client.freeSimpleConfig cfg
+          close sock
+    thread <- async $ bracket (Server.allocSimpleConfig sock 4096) cleanup $ \cfg -> do
+      Server.run cfg testServer `finally` modifyIORef conns (Map.delete connKey)
+    modifyIORef conns $ Map.insert connKey thread
 
 testServer :: Server.Request -> Server.Aux -> (Server.Response -> [Server.PushPromise] -> IO ()) -> IO ()
 testServer req _ respWriter = do

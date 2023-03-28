@@ -37,6 +37,7 @@ mkDerivation {
     async
     base
     bytestring
+    containers
     HsOpenSSL
     hspec
     http-types

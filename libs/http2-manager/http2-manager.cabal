@@ -53,6 +53,7 @@ test-suite http2-manager-tests
       async
     , base
     , bytestring
+    , containers
     , HsOpenSSL
     , hspec
     , http-types
