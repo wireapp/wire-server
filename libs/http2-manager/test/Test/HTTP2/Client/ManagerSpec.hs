@@ -24,7 +24,7 @@ echoTest :: HTTP2Manager -> Int -> Expectation
 echoTest mgr serverPort =
   withHTTP2Request mgr "localhost" serverPort (Client.requestBuilder "GET" "/echo" [] "some body") $ \res -> do
     Client.responseStatus res `shouldBe` Just status200
-    readResponseBody res `ioShouldBe` "some body"
+    readResponseBody res `shouldReturn` "some body"
 
 spec :: Spec
 spec = describe "HTTP2.Client.Manager" $ do
@@ -34,7 +34,7 @@ spec = describe "HTTP2.Client.Manager" $ do
 
       echoTest mgr serverPort
 
-      readIORef acceptedConns `ioShouldBe` 1
+      readIORef acceptedConns `shouldReturn` 1
 
   it "should be able to re-use an HTTP2 connection for multiple requests" $ do
     withTestServer $ \TestServer {..} -> do
@@ -43,7 +43,7 @@ spec = describe "HTTP2.Client.Manager" $ do
       echoTest mgr serverPort
       echoTest mgr serverPort
 
-      readIORef acceptedConns `ioShouldBe` 1
+      readIORef acceptedConns `shouldReturn` 1
 
   it "shouldn't try to re-use a disconnected connection" $ do
     withTestServer $ \TestServer {..} -> do
@@ -53,7 +53,7 @@ spec = describe "HTTP2.Client.Manager" $ do
       unsafeDisconnectServer mgr "localhost" serverPort
       echoTest mgr serverPort
 
-      readIORef acceptedConns `ioShouldBe` 2
+      readIORef acceptedConns `shouldReturn` 2
 
   it "should re-use connections even for concurrent requests" $ do
     withTestServer $ \TestServer {..} -> do
@@ -64,7 +64,7 @@ spec = describe "HTTP2.Client.Manager" $ do
       echoTest mgr serverPort
       mapConcurrently_ id $ replicate 10 (echoTest mgr serverPort)
 
-      readIORef acceptedConns `ioShouldBe` 1
+      readIORef acceptedConns `shouldReturn` 1
 
   it "should re-use the connection even if one of the requests is stuck forever" $ do
     withTestServer $ \TestServer {..} -> do
@@ -81,7 +81,7 @@ spec = describe "HTTP2.Client.Manager" $ do
         -- that this request is still alive even after an echo test which
         -- started after this and finished before this.
         takeMVar chunkOfInfiniteTest
-        Client.getResponseBodyChunk res `ioShouldBe` "foo\n"
+        Client.getResponseBodyChunk res `shouldReturn` "foo\n"
 
       takeMVar infiniteRespRecieved
       echoTest mgr serverPort
@@ -91,7 +91,7 @@ spec = describe "HTTP2.Client.Manager" $ do
       -- the thread are caught.
       wait infiniteRespThread
 
-      readIORef acceptedConns `ioShouldBe` 1
+      readIORef acceptedConns `shouldReturn` 1
 
 data TestServer = TestServer
   { serverThread :: Async (),
@@ -146,6 +146,3 @@ readChunks action = LBS.fromChunks <$> go []
       action >>= \case
         "" -> pure chunks
         c -> go (c : chunks)
-
-ioShouldBe :: (Eq a, Show a, HasCallStack) => IO a -> a -> Expectation
-ioShouldBe action x = action >>= flip shouldBe x
