@@ -654,6 +654,7 @@ type ConversationAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
+               :> CanThrow 'CreateConversationCodeConflict
                :> ZUser
                :> ZOptConn
                :> "conversations"
@@ -671,6 +672,7 @@ type ConversationAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
+               :> CanThrow 'CreateConversationCodeConflict
                :> ZUser
                :> ZOptConn
                :> "conversations"

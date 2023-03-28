@@ -481,6 +481,7 @@ addCodeUnqualifiedWithReqBody ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
+    Member (ErrorS 'CreateConversationCodeConflict) r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
@@ -504,6 +505,7 @@ addCodeUnqualified ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
+    Member (ErrorS 'CreateConversationCodeConflict) r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
@@ -530,6 +532,7 @@ addCode ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'GuestLinksDisabled) r,
+    Member (ErrorS 'CreateConversationCodeConflict) r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -563,6 +566,7 @@ addCode lusr mZcon lcnv mReq = do
       pushConversationEvent mZcon event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
     Just (code, mPw) -> do
+      when (isJust mPw || isJust (mReq >>= cccrPassword)) $ throwS @'CreateConversationCodeConflict
       conversationCode <- createCode (isJust mPw) code
       pure $ CodeAlreadyExisted conversationCode
   where

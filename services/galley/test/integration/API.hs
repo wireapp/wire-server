@@ -244,6 +244,13 @@ tests s =
           test s "revoke guest links for non-team conversation" testJoinNonTeamConvGuestLinksDisabled,
           test s "get code rejected if guest links disabled" testGetCodeRejectedIfGuestLinksDisabled,
           test s "post code rejected if guest links disabled" testPostCodeRejectedIfGuestLinksDisabled,
+          testGroup
+            "conversation code already exists"
+            [ test s "existing has no password, requested has no password - 201" postCodeWithoutPasswordExistsWithoutPasswordRequested,
+              test s "existing has no password, requested has password - 409" postCodeWithoutPasswordExistsWithPasswordRequested,
+              test s "existing has password, requested has no password - 409" postCodeWithPasswordExistsWithoutPasswordRequested,
+              test s "existing has password, requested has password - 409" postCodeWithPasswordExistsWithPasswordRequested
+            ],
           test s "remove user with only local convs" removeUserNoFederation,
           test s "remove user with local and remote convs" removeUser,
           test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests,
@@ -1603,7 +1610,6 @@ postJoinCodeConvWithPassword = do
   let bob = qUnqualified qbob
   Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
   conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just accessRoles) Nothing
-  let _qconv = Qualified conv (qDomain qbob)
   let pw = plainTextPassword8Unsafe "password"
   info <- decodeConvCodeEvent <$> postConvCode' (Just pw) alice conv
   liftIO $ info.hasPassword @?= True
@@ -1617,6 +1623,36 @@ postJoinCodeConvWithPassword = do
   postJoinCodeConv' (Just (plainTextPassword8Unsafe "wrong-password")) bob cCode !!! const 403 === statusCode
   -- join with correct password should succeed
   postJoinCodeConv' (Just pw) bob cCode !!! const 200 === statusCode
+
+postCodeWithoutPasswordExistsWithoutPasswordRequested :: TestM ()
+postCodeWithoutPasswordExistsWithoutPasswordRequested = do
+  alice <- randomUser
+  conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole])) Nothing
+  info1 <- decodeConvCodeEvent <$> (postConvCode alice conv <!! const 201 === statusCode)
+  info2 <- decodeConvCode <$> (postConvCode alice conv <!! const 200 === statusCode)
+  liftIO $ info1 @?= info2
+
+postCodeWithPasswordExistsWithoutPasswordRequested :: TestM ()
+postCodeWithPasswordExistsWithoutPasswordRequested = do
+  alice <- randomUser
+  conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole])) Nothing
+  postConvCode' (Just (plainTextPassword8Unsafe "password")) alice conv !!! const 201 === statusCode
+  postConvCode alice conv !!! const 409 === statusCode
+
+postCodeWithoutPasswordExistsWithPasswordRequested :: TestM ()
+postCodeWithoutPasswordExistsWithPasswordRequested = do
+  alice <- randomUser
+  conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole])) Nothing
+  postConvCode alice conv !!! const 201 === statusCode
+  postConvCode' (Just (plainTextPassword8Unsafe "password")) alice conv !!! const 409 === statusCode
+
+postCodeWithPasswordExistsWithPasswordRequested :: TestM ()
+postCodeWithPasswordExistsWithPasswordRequested = do
+  alice <- randomUser
+  conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole])) Nothing
+  postConvCode' (Just (plainTextPassword8Unsafe "password")) alice conv !!! const 201 === statusCode
+  postConvCode' (Just (plainTextPassword8Unsafe "some-other-password")) alice conv !!! const 409 === statusCode
+  postConvCode' (Just (plainTextPassword8Unsafe "password")) alice conv !!! const 409 === statusCode
 
 postConvertCodeConv :: TestM ()
 postConvertCodeConv = do
@@ -1648,10 +1684,10 @@ postConvertCodeConv = do
   getConvCode alice conv !!! const 404 === statusCode
   c1 <- (.code) . decodeConvCodeEvent <$> (postConvCode alice conv <!! const 201 === statusCode)
   postConvCodeCheck c1 !!! const 200 === statusCode
-  c1' <- decodeConvCode <$> (getConvCode alice conv <!! const 200 === statusCode)
+  c1' <- (.code) . decodeConvCode <$> (getConvCode alice conv <!! const 200 === statusCode)
   liftIO $ assertEqual "c1 c1' codes should match" c1 c1'
   postConvCode alice conv !!! const 200 === statusCode
-  c2 <- decodeConvCode <$> (postConvCode alice conv <!! const 200 === statusCode)
+  c2 <- (.code) . decodeConvCode <$> (postConvCode alice conv <!! const 200 === statusCode)
   liftIO $ assertEqual "c1 c2 codes should match" c1 c2
   deleteConvCode alice conv !!! const 200 === statusCode
   getConvCode alice conv !!! const 404 === statusCode

@@ -1852,7 +1852,7 @@ instance IsString TestErrorLabel where
 instance FromJSON TestErrorLabel where
   parseJSON = fmap TestErrorLabel . withObject "TestErrorLabel" (.: "label")
 
-decodeConvCode :: Response (Maybe Lazy.ByteString) -> ConversationCode
+decodeConvCode :: Response (Maybe Lazy.ByteString) -> ConversationCodeInfo
 decodeConvCode = responseJsonUnsafe
 
 decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCodeInfo
