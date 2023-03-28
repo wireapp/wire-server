@@ -107,6 +107,7 @@ import Web.Cookie
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Code hiding (Value)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -1346,15 +1347,19 @@ postJoinConv u c = do
       . zType "access"
 
 postJoinCodeConv :: UserId -> ConversationCode -> TestM ResponseLBS
-postJoinCodeConv u j = do
+postJoinCodeConv = postJoinCodeConv' Nothing
+
+postJoinCodeConv' :: Maybe PlainTextPassword8 -> UserId -> ConversationCode -> TestM ResponseLBS
+postJoinCodeConv' mPw u j = do
   g <- viewGalley
   post $
     g
-      . paths ["/conversations", "join"]
+      . paths ["conversations", "join"]
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json j
+      -- `json (JoinConversationByCode j Nothing)` and `json j` are equivalent, using the latter to test backwards compatibility
+      . (if isJust mPw then json (JoinConversationByCode j mPw) else json j)
 
 putQualifiedAccessUpdate ::
   (MonadHttp m, HasGalley m, MonadIO m) =>
@@ -1406,7 +1411,10 @@ putMessageTimerUpdate u c acc = do
       . json acc
 
 postConvCode :: UserId -> ConvId -> TestM ResponseLBS
-postConvCode u c = do
+postConvCode = postConvCode' Nothing
+
+postConvCode' :: Maybe PlainTextPassword8 -> UserId -> ConvId -> TestM ResponseLBS
+postConvCode' mPw u c = do
   g <- viewGalley
   post $
     g
@@ -1414,6 +1422,7 @@ postConvCode u c = do
       . zUser u
       . zConn "conn"
       . zType "access"
+      . json (CreateConversationCodeRequest mPw)
 
 postConvCodeCheck :: ConversationCode -> TestM ResponseLBS
 postConvCodeCheck code = do
@@ -1843,10 +1852,10 @@ instance IsString TestErrorLabel where
 instance FromJSON TestErrorLabel where
   parseJSON = fmap TestErrorLabel . withObject "TestErrorLabel" (.: "label")
 
-decodeConvCode :: Response (Maybe Lazy.ByteString) -> ConversationCode
+decodeConvCode :: Response (Maybe Lazy.ByteString) -> ConversationCodeInfo
 decodeConvCode = responseJsonUnsafe
 
-decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCode
+decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCodeInfo
 decodeConvCodeEvent r = case responseJsonUnsafe r of
   (Event _ _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"

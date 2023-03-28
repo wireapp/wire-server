@@ -29,7 +29,6 @@ import Brig.API.Error (throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App
 import qualified Brig.Options as Opt
-import Brig.Password (Password, mkSafePassword)
 import Cassandra hiding (Set)
 import qualified Cassandra as C
 import Control.Error (assertMay, failWith, failWithM)
@@ -50,6 +49,7 @@ import Polysemy (Member)
 import Servant hiding (Handler, Tagged)
 import Wire.API.Error
 import Wire.API.OAuth as OAuth
+import Wire.API.Password (Password, mkSafePassword)
 import qualified Wire.API.Routes.Internal.Brig.OAuth as I
 import Wire.API.Routes.Named (Named (..))
 import Wire.API.Routes.Public.Brig.OAuth
