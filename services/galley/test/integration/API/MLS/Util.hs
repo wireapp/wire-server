@@ -839,10 +839,10 @@ consumeMessage1 cid msg = do
 
 -- | Send an MLS message and simulate clients receiving it. If the message is a
 -- commit, the 'sendAndConsumeCommit' function should be used instead.
-sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], UnreachableUsers)
+sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], UnreachableUserList)
 sendAndConsumeMessage mp = do
   res <-
-    fmap (mmssEvents Tuple.&&& mmssUnreachableUsers) $
+    fmap (mmssEvents Tuple.&&& mmssUnreachableUserList) $
       responseJsonError
         =<< postMessage (mpSender mp) (mpMessage mp)
           <!! const 201 === statusCode

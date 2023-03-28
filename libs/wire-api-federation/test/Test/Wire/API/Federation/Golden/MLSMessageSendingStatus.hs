@@ -30,7 +30,7 @@ testObject_MLSMessageSendingStatus1 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "1864-04-12 12:22:43.673 UTC"),
-      mmssUnreachableUsers = UnreachableUsers []
+      mmssUnreachableUserList = UnreachableUserList []
     }
 
 testObject_MLSMessageSendingStatus2 :: MLSMessageSendingStatus
@@ -38,7 +38,7 @@ testObject_MLSMessageSendingStatus2 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "2001-04-12 12:22:43.673 UTC"),
-      mmssUnreachableUsers = failed1
+      mmssUnreachableUserList = failed1
     }
 
 testObject_MLSMessageSendingStatus3 :: MLSMessageSendingStatus
@@ -46,18 +46,18 @@ testObject_MLSMessageSendingStatus3 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "1999-04-12 12:22:43.673 UTC"),
-      mmssUnreachableUsers = failed2
+      mmssUnreachableUserList = failed2
     }
 
-failed1 :: UnreachableUsers
+failed1 :: UnreachableUserList
 failed1 =
   let domain = Domain "offline.example.com"
-   in UnreachableUsers [Qualified (Id . fromJust . UUID.fromString $ "00000000-0000-0000-0000-000200000008") domain]
+   in UnreachableUserList [Qualified (Id . fromJust . UUID.fromString $ "00000000-0000-0000-0000-000200000008") domain]
 
-failed2 :: UnreachableUsers
+failed2 :: UnreachableUserList
 failed2 =
   let domain = Domain "golden.example.com"
-   in UnreachableUsers
+   in UnreachableUserList
         [ Qualified (Id . fromJust . UUID.fromString $ "00000000-0000-0000-0000-000200000008") domain,
           Qualified (Id . fromJust . UUID.fromString $ "00000000-0000-0000-0000-000100000007") domain
         ]

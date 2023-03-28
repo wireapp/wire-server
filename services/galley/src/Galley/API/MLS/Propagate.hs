@@ -60,7 +60,7 @@ propagateMessage ::
   ClientMap ->
   Maybe ConnId ->
   ByteString ->
-  Sem r UnreachableUsers
+  Sem r UnreachableUserList
 propagateMessage qusr lconv cm con raw = do
   -- FUTUREWORK: check the epoch
   let lmems = Data.convLocalMembers . tUnqualified $ lconv
@@ -80,7 +80,7 @@ propagateMessage qusr lconv cm con raw = do
     foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients lcnv)
 
   -- send to remotes
-  UnreachableUsers . concat
+  UnreachableUserList . concat
     <$$> traverse handleError
     <=< runFederatedConcurrentlyEither (map remoteMemberQualify rmems)
     $ \(tUnqualified -> rs) ->

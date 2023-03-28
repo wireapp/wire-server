@@ -1138,7 +1138,7 @@ testAppMessageSomeReachable = do
       (_, us) <- sendAndConsumeMessage message
       liftIO $ do
         assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-        us @?= UnreachableUsers [charlie]
+        us @?= UnreachableUserList [charlie]
   where
     mockUnreachableFor :: Set Domain -> Mock LByteString
     mockUnreachableFor backends = do
@@ -1167,7 +1167,7 @@ testAppMessageUnreachable = do
     (_, us) <- sendAndConsumeMessage message
     liftIO $ do
       assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-      us @?= UnreachableUsers [bob]
+      us @?= UnreachableUserList [bob]
 
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do
@@ -2038,7 +2038,7 @@ testAddUserToRemoteConvWithBundle = do
     commit <- createAddCommit bob1 [charlie]
     commitBundle <- createBundle commit
 
-    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers [])
+    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUserList [])
     (_, reqs) <- withTempMockFederator' mock $ do
       void $ sendAndConsumeCommitBundle commit
 

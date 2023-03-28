@@ -218,7 +218,7 @@ postMLSCommitBundle ::
   Qualified ConvId ->
   Maybe ConnId ->
   CommitBundle ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], UnreachableUserList)
 postMLSCommitBundle loc qusr mc qcnv conn rawBundle =
   foldQualified
     loc
@@ -276,7 +276,7 @@ postMLSCommitBundleToLocalConv ::
   Maybe ConnId ->
   CommitBundle ->
   Local ConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], UnreachableUserList)
 postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   let msg = rmValue (cbCommitMsg bundle)
   conv <- getLocalConvForUser qusr lcnv
@@ -339,7 +339,7 @@ postMLSCommitBundleToRemoteConv ::
   Maybe ConnId ->
   CommitBundle ->
   Remote ConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], UnreachableUserList)
 postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
@@ -393,7 +393,7 @@ postMLSMessage ::
   Qualified ConvId ->
   Maybe ConnId ->
   RawMLS SomeMessage ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], UnreachableUserList)
 postMLSMessage loc qusr mc qcnv con smsg =
   case rmValue smsg of
     SomeMessage tag msg -> do
@@ -471,7 +471,7 @@ postMLSMessageToLocalConv ::
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Local ConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], UnreachableUserList)
 postMLSMessageToLocalConv qusr senderClient con smsg lcnv =
   case rmValue smsg of
     SomeMessage tag msg -> do
@@ -513,7 +513,7 @@ postMLSMessageToRemoteConv ::
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Remote ConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], UnreachableUserList)
 postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr

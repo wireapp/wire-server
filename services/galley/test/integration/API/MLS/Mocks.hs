@@ -75,7 +75,7 @@ sendMessageMock =
   "send-mls-message" ~>
     MLSMessageResponseUpdates
       []
-      (UnreachableUsers [])
+      (UnreachableUserList [])
 
 claimKeyPackagesMock :: KeyPackageBundle -> Mock LByteString
 claimKeyPackagesMock kpb = "claim-key-packages" ~> kpb
