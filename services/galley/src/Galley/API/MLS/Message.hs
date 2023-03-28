@@ -186,8 +186,6 @@ postMLSMessageFromLocalUser lusr mc conn smsg = do
   -- FUTUREWORK: Inline the body of 'postMLSMessageFromLocalUserV1' once version
   -- V1 is dropped
   assertMLSEnabled
-  -- (events, unreachables) <- postMLSMessageFromLocalUserV1 lusr mc conn msg
-  assertMLSEnabled
   (events, unreachables) <- case rmValue smsg of
     SomeMessage _ msg -> do
       qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
