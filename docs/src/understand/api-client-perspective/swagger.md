@@ -48,6 +48,10 @@ The URL pattern is `https://<nginz-host>/v<version>/api/swagger-ui/`. To figure
 out which versions are supported by your backend, query
 `https://<nginz-host>/<version>/api-version`.
 
+If you want to get the raw json for the swagger (ie., for compiling it
+into client code in typescript, kotlin, swift, ...), replace
+`swagger-ui` with `swagger.json` in the above URL pattern.
+
 The [API versioning](../../developer/developer/api-versioning.md) article
 discusses the versioning topic in detail.
 
