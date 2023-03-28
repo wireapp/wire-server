@@ -34,8 +34,8 @@ import Wire.API.Routes.Version
 -- | Strip off version prefix. Return 404 if the version is not supported.
 versionMiddleware :: Set Version -> Middleware
 versionMiddleware disabledAPIVersions app req k = case parseVersion (removeVersionHeader req) of
-  Right (req', v) ->
-    if v `elem` disabledAPIVersions
+  Right (req', v) -> do
+    if v `elem` disabledAPIVersions && requestIsDisableable req'
       then err (toUrlPiece v)
       else app (addVersionHeader v req') k
   Left (BadVersion v) -> err v
@@ -60,6 +60,13 @@ parseVersion req = do
 
 looksLikeVersion :: Text -> Bool
 looksLikeVersion version = case T.splitAt 1 version of (h, t) -> h == "v" && T.all isDigit t
+
+-- | swagger-delivering end-points are not disableable: they should work for all versions.
+requestIsDisableable :: Request -> Bool
+requestIsDisableable (pathInfo -> path) = case path of
+  ["api", "swagger-ui"] -> False
+  ["api", "swagger.json"] -> False
+  _ -> True
 
 removeVersionHeader :: Request -> Request
 removeVersionHeader req =
