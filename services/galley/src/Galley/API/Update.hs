@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -558,7 +559,7 @@ addCode lusr mZcon lcnv mReq = do
   case mCode of
     Nothing -> do
       code <- E.generateCode (tUnqualified lcnv) ReusableCode (Timeout 3600 * 24 * 365) -- one year FUTUREWORK: configurable
-      mPw <- forM (cccrPassword =<< mReq) mkSafePassword
+      mPw <- forM ((.password) =<< mReq) mkSafePassword
       E.createCode code mPw
       now <- input
       conversationCode <- createCode (isJust mPw) code
@@ -566,7 +567,7 @@ addCode lusr mZcon lcnv mReq = do
       pushConversationEvent mZcon event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
     Just (code, mPw) -> do
-      when (isJust mPw || isJust (mReq >>= cccrPassword)) $ throwS @'CreateConversationCodeConflict
+      when (isJust mPw || isJust (mReq >>= (.password))) $ throwS @'CreateConversationCodeConflict
       conversationCode <- createCode (isJust mPw) code
       pure $ CodeAlreadyExisted conversationCode
   where
@@ -698,7 +699,7 @@ joinConversationByReusableCode ::
   JoinConversationByCode ->
   Sem r (UpdateResult Event)
 joinConversationByReusableCode lusr zcon req = do
-  c <- verifyReusableCode True (jcbcPassword req) (jcbcCode req)
+  c <- verifyReusableCode True req.password req.code
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
   joinConversation lusr zcon conv CodeAccess

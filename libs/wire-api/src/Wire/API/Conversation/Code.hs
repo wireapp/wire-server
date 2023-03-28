@@ -47,25 +47,26 @@ import qualified URI.ByteString as URI
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 newtype CreateConversationCodeRequest = CreateConversationCodeRequest
-  { cccrPassword :: Maybe PlainTextPassword8
+  { password :: Maybe PlainTextPassword8
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CreateConversationCodeRequest)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateConversationCodeRequest
 
 instance ToSchema CreateConversationCodeRequest where
+  schema :: ValueSchema NamedSwaggerDoc CreateConversationCodeRequest
   schema =
     objectWithDocModifier
       "CreateConversationCodeRequest"
       (description ?~ "Request body for creating a conversation code")
       $ CreateConversationCodeRequest
-        <$> cccrPassword .= maybe_ (optFieldWithDocModifier "password" desc schema)
+        <$> (.password) .= maybe_ (optFieldWithDocModifier "password" desc schema)
     where
       desc = description ?~ "Password for accessing the conversation via guest link. Set to null or omit for no password."
 
 data JoinConversationByCode = JoinConversationByCode
-  { jcbcCode :: ConversationCode,
-    jcbcPassword :: Maybe PlainTextPassword8
+  { code :: ConversationCode,
+    password :: Maybe PlainTextPassword8
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform JoinConversationByCode)
@@ -77,8 +78,8 @@ instance ToSchema JoinConversationByCode where
       "JoinConversationByCode"
       (description ?~ "Request body for joining a conversation by code")
       $ JoinConversationByCode
-        <$> jcbcCode .= conversationCodeObjectSchema
-        <*> jcbcPassword .= maybe_ (optField "password" schema)
+        <$> (.code) .= conversationCodeObjectSchema
+        <*> (.password) .= maybe_ (optField "password" schema)
 
 data ConversationCode = ConversationCode
   { conversationKey :: Code.Key,
@@ -132,7 +133,7 @@ instance ToSchema ConversationCodeInfo where
       (description ?~ "Contains conversation properties to update")
       $ ConversationCodeInfo
         <$> (.code) .= conversationCodeObjectSchema
-        <*> hasPassword .= fieldWithDocModifier "has_password" (description ?~ "Whether the conversation has a password") schema
+        <*> (.hasPassword) .= fieldWithDocModifier "has_password" (description ?~ "Whether the conversation has a password") schema
 
 mkConversationCodeInfo :: Bool -> Code.Key -> Code.Value -> HttpsUrl -> ConversationCodeInfo
 mkConversationCodeInfo hasPw k v (HttpsUrl prefix) =

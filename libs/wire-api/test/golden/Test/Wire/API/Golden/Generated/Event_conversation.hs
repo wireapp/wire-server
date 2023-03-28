@@ -78,14 +78,13 @@ testObject_Event_conversation_3 =
       evtData =
         EdConvCodeUpdate
           ( ConversationCodeInfo
-              { code =
-                  ConversationCode
-                    { conversationKey = Key {asciiKey = unsafeRange "CRdONS7988O2QdyndJs1"},
-                      conversationCode = Value {asciiValue = unsafeRange "7d6713"},
-                      conversationUri = Just $ HttpsUrl (URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})
-                    },
-                hasPassword = False
-              }
+              ( ConversationCode
+                  { conversationKey = Key {asciiKey = unsafeRange "CRdONS7988O2QdyndJs1"},
+                    conversationCode = Value {asciiValue = unsafeRange "7d6713"},
+                    conversationUri = Just $ HttpsUrl (URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})
+                  }
+              )
+              False
           )
     }
 
