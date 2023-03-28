@@ -451,6 +451,7 @@ executable brig-integration
     API.Search
     API.Search.Util
     API.Settings
+    API.Swagger
     API.SystemSettings
     API.Team
     API.Team.Util
