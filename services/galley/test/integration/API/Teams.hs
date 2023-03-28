@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
@@ -79,6 +80,7 @@ import TestHelpers
 import TestSetup
 import UnliftIO (mapConcurrently)
 import Wire.API.Conversation
+import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Event.Team
@@ -1254,7 +1256,7 @@ testDeleteTeamConv = do
     pure (cid1, qcid1)
   let access = ConversationAccessData (Set.fromList [InviteAccess, CodeAccess]) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
   putQualifiedAccessUpdate owner qcid1 access !!! const 200 === statusCode
-  code <- decodeConvCodeEvent <$> (postConvCode owner cid1 <!! const 201 === statusCode)
+  codeInfo <- decodeConvCodeEvent <$> (postConvCode owner cid1 <!! const 201 === statusCode)
   cid2 <- WS.bracketR c owner $ \wsOwner -> do
     cid2 <- Util.createTeamConv owner tid (qUnqualified <$> members) (Just "blup") Nothing Nothing
     qcid2 <- Qualified cid2 <$> viewFederationDomain
@@ -1293,7 +1295,7 @@ testDeleteTeamConv = do
     for_ [owner, member ^. userId, extern] $ \u -> do
       Util.getConv u x !!! const 404 === statusCode
       Util.assertNotConvMember u x
-  postConvCodeCheck code !!! const 404 === statusCode
+  postConvCodeCheck codeInfo.code !!! const 404 === statusCode
 
 testUpdateTeamIconValidation :: TestM ()
 testUpdateTeamIconValidation = do

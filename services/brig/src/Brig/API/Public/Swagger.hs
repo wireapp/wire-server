@@ -36,11 +36,11 @@ import Wire.API.Routes.Version
 
 type SwaggerDocsAPIBase = SwaggerSchemaUI "swagger-ui" "swagger.json"
 
-type VersionedSwaggerDocsAPI = "api" :> Header VersionHeader Version :> SwaggerDocsAPIBase
+type VersionedSwaggerDocsAPI = "api" :> Header VersionHeader VersionNumber :> SwaggerDocsAPIBase
 
 type ServiceSwaggerDocsAPIBase service = SwaggerSchemaUI service (AppendSymbol service "-swagger.json")
 
-type VersionedSwaggerDocsAPIBase service = Header VersionHeader Version :> ServiceSwaggerDocsAPIBase service
+type VersionedSwaggerDocsAPIBase service = Header VersionHeader VersionNumber :> ServiceSwaggerDocsAPIBase service
 
 type InternalEndpointsSwaggerDocsAPI =
   "api-internal"

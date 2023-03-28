@@ -712,6 +712,7 @@ executable galley-schema
     V77_MLSGroupMemberClient
     V78_TeamFeatureOutlookCalIntegration
     V79_TeamFeatureMlsE2EId
+    V80_AddConversationCodePassword
 
   hs-source-dirs:     schema/src
   default-extensions:

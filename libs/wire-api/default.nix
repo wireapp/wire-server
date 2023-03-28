@@ -43,6 +43,7 @@
 , hex
 , hostname-validate
 , hscim
+, HsOpenSSL
 , hspec
 , hspec-wai
 , http-api-data
@@ -73,6 +74,7 @@
 , saml2-web-sso
 , schema-profunctor
 , scientific
+, scrypt
 , servant
 , servant-client
 , servant-client-core
@@ -150,6 +152,7 @@ mkDerivation {
     hashable
     hostname-validate
     hscim
+    HsOpenSSL
     http-api-data
     http-media
     http-types
@@ -175,6 +178,7 @@ mkDerivation {
     saml2-web-sso
     schema-profunctor
     scientific
+    scrypt
     servant
     servant-client
     servant-client-core
