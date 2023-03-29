@@ -6,6 +6,7 @@ NAMESPACE=${NAMESPACE:-test-integration}
 # set to 1 to disable running helm tests in parallel
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 CLEANUP_LOCAL_FILES=${CLEANUP_LOCAL_FILES:-1} # set to 0 to keep files
+UPLOAD_LOGS=${UPLOAD_LOGS:-0}
 
 echo "Running integration tests on wire-server with parallelism=${HELM_PARALLELISM} ..."
 
@@ -17,6 +18,17 @@ cleanup() {
         for t in "${tests[@]}"; do
             rm -f "stat-$t"
             rm -f "logs-$t"
+        done
+    fi
+}
+
+# Copy to the concourse output (indetified by $OUTPUT_DIR) for propagation to
+# following steps.
+copyToAwsS3(){
+    if (( UPLOAD_LOGS > 0 )); then
+        for t in "${tests[@]}"; do
+            echo "Copy logs-$t to s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION.log"
+            aws s3 cp "logs-$t" "s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION.log"
         done
     fi
 }
@@ -83,6 +95,7 @@ if ((exit_code > 0)); then
     summary
 fi
 
+copyToAwsS3
 cleanup
 
 if ((exit_code > 0)); then

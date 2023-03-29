@@ -1,0 +1,1 @@
+Add an option (`UPLOAD_LOGS`) to upload integration test logs to AWS S3.
