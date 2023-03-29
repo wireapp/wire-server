@@ -42,7 +42,7 @@
 # Using thse tweaks we can get a haskell package set which has wire-server
 # components and the required dependencies. We then use this package set along
 # with nixpkgs' dockerTools to make derivations for docker images that we need.
-pkgs: pkgsCachix:
+pkgs:
 let
   lib = pkgs.lib;
   hlib = pkgs.haskell.lib;
@@ -331,8 +331,7 @@ let
     # deterministically on a specific image.
     tag = null;
     bundleNixpkgs = false;
-    # FUTUREWORK: Use pkgs.cachix here when we update `nixpkgs` to latest nixpkgs-unstable
-    extraPkgs = commonTools ++ [ pkgsCachix.cachix ];
+    extraPkgs = commonTools ++ [ pkgs.cachix ];
     nixConf = {
       experimental-features = "nix-command";
     };
