@@ -63,7 +63,6 @@
                 create conversation notification happens to come in late. This
                 is fixed by waiting for all previous notifications before
                 asserting the absence of (new) notifications.
-
 -
   test_name: "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations"
   comments: |
@@ -81,3 +80,15 @@
   test_name: "POST /register - can add team members above fanout limit when whitelisting is enabled"
   comments: |
     2023-03-27: Hopefully fix by increasing timeout from 10 to 15 seconds for this test.
+
+-
+  test_name: "delete binding team (owner has no passwd)"
+  comments: |
+    2023-03-29: I suspect it's the team deletion notification that is timing out.
+                I've added a HasCallstack to have better insights which one is failing.
+                Also increased timeout from 10 to 15 seconds.
+
+-
+  test_name: "delete binding team (owner has passwd)"
+  comments: |
+    See "delete binding team (owner has no passwd)"

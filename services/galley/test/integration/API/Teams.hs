@@ -1152,7 +1152,7 @@ getVerificationCode uid action = do
         === statusCode
   pure $ responseJsonUnsafe @Code.Value resp
 
-testDeleteBindingTeam :: Bool -> TestM ()
+testDeleteBindingTeam :: HasCallStack => Bool -> TestM ()
 testDeleteBindingTeam ownerHasPassword = do
   g <- viewGalley
   c <- view tsCannon
@@ -1228,7 +1228,7 @@ testDeleteBindingTeam ownerHasPassword = do
     WS.assertNoEvent (1 # Second) [wsExtern]
     -- Note that given the async nature of team deletion, we may
     -- have other events in the queue (such as TEAM_UPDATE)
-    assertTeamDelete 10 "team delete, should be there" tid
+    assertTeamDelete 15 "team delete, should be there" tid
   forM_ [owner, mem1 ^. userId, mem2 ^. userId] $
     -- Ensure users are marked as deleted; since we already
     -- received the event, should _really_ be deleted
