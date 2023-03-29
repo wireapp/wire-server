@@ -162,7 +162,7 @@ http {
   limit_req_log_level warn;
   limit_conn_log_level warn;
 
-  limit_conn conns_per_user 25;
+  limit_conn conns_per_user 75;
 
   #
   #  Proxied Upstream Services
@@ -259,7 +259,7 @@ http {
               {{- if ($location.unlimited_requests_endpoint) }}
                  # Note that this endpoint has no rate limit per user for authenticated requests
               {{- else }}
-                 limit_req zone=reqs_per_user burst=20;
+                 limit_req zone=reqs_per_user burst=20 nodelay;
               {{- end }}
             {{- end }}
 
