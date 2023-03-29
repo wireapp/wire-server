@@ -1,0 +1,1 @@
+Decrease only 2FA limit after failed attempt, and not failed login attempt
