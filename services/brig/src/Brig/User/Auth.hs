@@ -156,9 +156,9 @@ login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
     verifyLoginCode mbCode uid =
       verifyCode mbCode Login uid
         `catchE` \case
-          VerificationCodeNoPendingCode -> wrapHttpClientE $ loginFailedWith LoginCodeInvalid uid
-          VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
-          VerificationCodeNoEmail -> wrapHttpClientE $ loginFailed uid
+          VerificationCodeNoPendingCode -> wrapHttpClientE $ throwE LoginCodeInvalid
+          VerificationCodeRequired -> wrapHttpClientE $ throwE LoginCodeRequired
+          VerificationCodeNoEmail -> wrapHttpClientE $ throwE LoginFailed
 login (SmsLogin (SmsLoginData phone code label)) typ = do
   uid <- wrapHttpClientE $ resolveLoginId (LoginByPhone phone)
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
