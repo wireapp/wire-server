@@ -27,7 +27,7 @@
 # 3.2: Version overrides: These are very similar to nix/haskell-pins.nix, but
 # the package set itself sometimes contains newer versions of a few packages
 # along with the old versions, e.g., the package set contains aeson and
-# aeson_2_1_1_0. We use the latest version provided by the pacakge set, so we
+# aeson_2_1_1_0. We use the latest version provided by the package set, so we
 # don't have to remember to update the version here, nixpkgs will take care of
 # giving us the latest version.
 #
