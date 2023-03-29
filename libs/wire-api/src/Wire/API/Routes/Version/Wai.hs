@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Routes.Version.Wai where
+module Wire.API.Routes.Version.Wai (versionMiddleware) where
 
 import Control.Monad.Except (throwError)
 import Data.ByteString.Conversion
