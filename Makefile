@@ -411,6 +411,11 @@ chart-%:
 	./hack/bin/set-wire-server-image-version.sh $(DOCKER_TAG)
 	./hack/bin/set-helm-chart-version.sh "$*" $(HELM_SEMVER)
 
+.PHONY: template-%
+template-%: chart-%
+	
+
+
 # Usecase for this make target:
 #  * for local integration testing of wire-server inside kubernetes
 .PHONY: charts-integration
