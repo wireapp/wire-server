@@ -22,6 +22,8 @@ config:
   ws:
     wsPort: 8081
     useProxyProtocol: true
+  http2:
+    enabled: true
 terminationGracePeriodSeconds: 30
 nginx_conf:
   user: nginx

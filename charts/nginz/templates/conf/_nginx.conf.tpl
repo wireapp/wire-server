@@ -186,7 +186,7 @@ http {
   #
 
   server {
-    listen {{ .Values.config.http.httpPort }};
+    listen {{ .Values.config.http.httpPort }}{{ if (.Values.config.http2.enabled) }} http2 {{end}};
     listen {{ .Values.config.ws.wsPort }}{{ if (.Values.config.ws.useProxyProtocol) }} proxy_protocol{{ end }};
 
     zauth_keystore {{ .Values.nginx_conf.zauth_keystore }};
