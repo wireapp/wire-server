@@ -63,6 +63,7 @@ parseVersion req = do
         throwError NoVersion
       case xs of
         ("i" : _) -> throwError InternalApisAreUnversioned
+        ("api-internal" : _) -> throwError InternalApisAreUnversioned
         _ -> pure (x, xs)
   n <- fmapL (const $ BadVersion version) $ parseUrlPiece version
   pure (rewriteRequestPure (\(_, q) _ -> (pinfo, q)) req, n)
