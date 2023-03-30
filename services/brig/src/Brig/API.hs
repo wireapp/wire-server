@@ -33,6 +33,8 @@ import Network.Wai.Routing (Routes)
 import Polysemy
 import Wire.Sem.Concurrency
 
+-- TODO: Remove later
+-- Touch, to force a rebuild
 sitemap ::
   forall r p.
   ( Member BlacklistPhonePrefixStore r,
