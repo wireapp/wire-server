@@ -54,6 +54,7 @@ import Imports hiding (local)
 import qualified Index.Create
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Network.URI (pathSegments)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative hiding (action)
@@ -196,7 +197,13 @@ runTests iConf brigOpts otherArgs = do
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
 
-    mkVersionedRequest endpoint = addPrefix . mkRequest endpoint
+    mkVersionedRequest endpoint = maybeAddPrefix . mkRequest endpoint
+
+    maybeAddPrefix :: Request -> Request
+    maybeAddPrefix r = case pathSegments $ getUri r of
+      ("i" : _) -> r
+      ("api-internal" : _) -> r
+      _ -> addPrefix r
 
     addPrefix :: Request -> Request
     addPrefix r = r {HTTP.path = toHeader latestVersion <> "/" <> removeSlash (HTTP.path r)}

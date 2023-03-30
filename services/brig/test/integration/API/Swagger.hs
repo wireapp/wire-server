@@ -30,11 +30,17 @@ import Util
 tests :: Manager -> Opts -> Brig -> TestTree
 tests p _opts brigNoImplicitVersion =
   testGroup "version" $
-    [ test p "GET /api/swagger.json" $ testSwaggerJson brigNoImplicitVersion "",
-      test p "GET /api/swagger-ui" $ testSwaggerUI brigNoImplicitVersion "",
-      test p "GET /v2/api/swagger.json" $ testSwaggerJson brigNoImplicitVersion "/v2",
-      test p "GET /v2/api/swagger-ui" $ testSwaggerUI brigNoImplicitVersion "/v2",
-      test p "GET /v2/i/status" $ testInternalApi brigNoImplicitVersion "/v2"
+    [ testGroup "public" $
+        [ test p "GET /api/swagger.json" $ testSwaggerJson brigNoImplicitVersion "",
+          test p "GET /api/swagger-ui" $ testSwaggerUI brigNoImplicitVersion "",
+          test p "GET /v2/api/swagger.json" $ testSwaggerJson brigNoImplicitVersion "/v2",
+          test p "GET /v2/api/swagger-ui" $ testSwaggerUI brigNoImplicitVersion "/v2"
+        ],
+      testGroup "internal" $
+        [ test p "GET /v2/api-internal/swagger-ui/brig" $ void (get (brigNoImplicitVersion . path "/v2/api-internal/swagger-ui/brig" . expect4xx)),
+          test p "GET /v2/api-internal/swagger-ui/gundeck" $ void (get (brigNoImplicitVersion . path "/v2/api-internal/swagger-ui/gundeck" . expect4xx)),
+          test p "GET /v2/i/status" $ void (get (brigNoImplicitVersion . path "/v2/i/status" . expect4xx))
+        ]
     ]
 
 testSwaggerJson :: Brig -> ByteString -> Http ()
@@ -46,7 +52,3 @@ testSwaggerUI :: Brig -> ByteString -> Http ()
 testSwaggerUI brig version = do
   r <- get (brig . path (version <> "/api/swagger-ui") . expect2xx)
   liftIO $ assertBool "HTML body" ("<div id=\"swagger-ui\"></div>" `isInfixOf` (cs . fromJust . responseBody $ r))
-
-testInternalApi :: Brig -> ByteString -> Http ()
-testInternalApi brig version = do
-  void $ get (brig . path (version <> "/i/status") . expect4xx)
