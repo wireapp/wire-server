@@ -646,7 +646,7 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db opts = do
       !!! do
         const 200 === statusCode
         const
-           ( Right $
+          ( Right $
               expectedClientMapClientsWithoutPrekeys
                 domain
                 uid1
