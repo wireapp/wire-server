@@ -9,6 +9,7 @@ import Control.Concurrent.MVar
 import Control.Exception
 import Control.Monad
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as LBS
 import Data.IORef
@@ -84,7 +85,7 @@ spec = describe "HTTP2.Client.Manager" $ do
         -- that this request is still alive even after an echo test which
         -- started after this and finished before this.
         takeMVar chunkOfInfiniteTest
-        Client.getResponseBodyChunk res `shouldReturn` "foo\n"
+        Client.getResponseBodyChunk res `shouldReturn` BS.concat (replicate 1000 "foo\n")
 
       takeMVar infiniteRespRecieved
       echoTest mgr serverPort
@@ -180,7 +181,7 @@ testServer req _ respWriter = do
     Just "/inifite" -> do
       let infiniteBSWriter :: (Builder.Builder -> IO ()) -> IO () -> IO ()
           infiniteBSWriter bsWriter flush = do
-            bsWriter "foo\n"
+            bsWriter $ Builder.lazyByteString $ LBS.concat $ replicate 1000 "foo\n"
             flush
             infiniteBSWriter bsWriter flush
           infiniteResponse = Server.responseStreaming status200 [] infiniteBSWriter
