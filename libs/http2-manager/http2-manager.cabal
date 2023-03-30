@@ -60,4 +60,5 @@ test-suite http2-manager-tests
     , http2
     , http2-manager
     , network
+    , stm
     , streaming-commons

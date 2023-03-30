@@ -6,6 +6,7 @@ module Test.HTTP2.Client.ManagerSpec where
 
 import Control.Concurrent.Async
 import Control.Concurrent.MVar
+import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
 import Data.ByteString (ByteString)
@@ -112,17 +113,32 @@ spec = describe "HTTP2.Client.Manager" $ do
 
       readIORef acceptedConns `shouldReturn` 1
 
+  it "should fail with appropriate error when a dead connection is used" $ do
+    mgr <- defaultHTTP2Manager
+    Just deadConn <- withTestServer $ \TestServer {..} -> do
+      echoTest mgr serverPort
+      readIORef acceptedConns `shouldReturn` 1
+      Map.lookup ("localhost", serverPort) <$> readTVarIO (connections mgr)
+
+    let brokenRequest = sendRequestWithConnection deadConn (Client.requestBuilder "GET" "/echo" [] "some body") $ \_ -> do
+          expectationFailure "Expected no response when request is made to a dead server"
+    brokenRequest `shouldThrow` (\ConnectionAlreadyClosed -> True)
+
   it "should create a new connection when the server restarts" $ do
     mgr <- defaultHTTP2Manager
     port <- withTestServer $ \TestServer {..} -> do
-      putStrLn $ "Port: " <> show serverPort
       echoTest mgr serverPort
       readIORef acceptedConns `shouldReturn` 1
       pure serverPort
+
+    -- See "should fail with appropriate error when a dead connection is used"
+    -- to know what happens when we don't wait for the background thread to go
+    -- away.
+    Just deadConn <- Map.lookup ("localhost", port) <$> readTVarIO (connections mgr)
+    -- TODO: This wait throws an error, look into it.
+    void $ waitCatch $ backgroundThread deadConn
+
     withTestServerOnPort port $ \TestServer {..} -> do
-      -- TODO: This gets stuck because it happens before the client can realize
-      -- that the server is gone, but it shouldn't get stuck, so the client
-      -- needs some smartness.
       echoTest mgr port
       -- this is still 1 because we have a new 'TestServer'
       readIORef acceptedConns `shouldReturn` 1

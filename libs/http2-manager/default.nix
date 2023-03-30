@@ -43,6 +43,7 @@ mkDerivation {
     http-types
     http2
     network
+    stm
     streaming-commons
   ];
   testToolDepends = [ hspec-discover ];
