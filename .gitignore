@@ -15,6 +15,7 @@ target
 *.tar
 *.asc
 *.tmp
+.vs
 *~
 .#*
 *#*#

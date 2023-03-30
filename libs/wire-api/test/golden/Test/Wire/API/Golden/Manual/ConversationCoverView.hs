@@ -28,15 +28,18 @@ testObject_ConversationCoverView_1 =
   ConversationCoverView
     (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002")))
     Nothing
+    False
 
 testObject_ConversationCoverView_2 :: ConversationCoverView
 testObject_ConversationCoverView_2 =
   ConversationCoverView
     (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002")))
     (Just "conversation name")
+    False
 
 testObject_ConversationCoverView_3 :: ConversationCoverView
 testObject_ConversationCoverView_3 =
   ConversationCoverView
     (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002")))
     (Just "")
+    True

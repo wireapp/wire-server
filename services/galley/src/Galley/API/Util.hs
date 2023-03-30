@@ -29,7 +29,7 @@ import Data.Id as Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import qualified Data.Map as Map
-import Data.Misc (PlainTextPassword6)
+import Data.Misc (PlainTextPassword6, PlainTextPassword8)
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
@@ -76,6 +76,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.Password (verifyPassword)
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Member
@@ -594,16 +595,25 @@ pushConversationEvent conn e lusers bots = do
 
 verifyReusableCode ::
   ( Member CodeStore r,
-    Member (ErrorS 'CodeNotFound) r
+    Member (ErrorS 'CodeNotFound) r,
+    Member (ErrorS 'InvalidConversationPassword) r
   ) =>
+  Bool ->
+  Maybe PlainTextPassword8 ->
   ConversationCode ->
   Sem r DataTypes.Code
-verifyReusableCode convCode = do
-  c <-
+verifyReusableCode checkPw mPtpw convCode = do
+  (c, mPw) <-
     getCode (conversationKey convCode) DataTypes.ReusableCode
       >>= noteS @'CodeNotFound
   unless (DataTypes.codeValue c == conversationCode convCode) $
     throwS @'CodeNotFound
+  case (checkPw, mPtpw, mPw) of
+    (True, Just ptpw, Just pw) ->
+      unless (verifyPassword ptpw pw) $ throwS @'InvalidConversationPassword
+    (True, Nothing, Just _) ->
+      throwS @'InvalidConversationPassword
+    (_, _, _) -> pure ()
   pure c
 
 ensureConversationAccess ::
@@ -747,7 +757,9 @@ fromConversationCreated loc rc@ConversationCreated {..} =
         (ConvMembers this others)
         ProtocolProteus
 
--- | Notify remote users of being added to a new conversation
+-- | Notify remote users of being added to a new conversation. The return value
+-- consists of users that could not be notified; they will not be considered to
+-- be conversation members.
 registerRemoteConversationMemberships ::
   (Member FederatorAccess r) =>
   -- | The time stamp when the conversation was created
@@ -755,12 +767,16 @@ registerRemoteConversationMemberships ::
   -- | The domain of the user that created the conversation
   Domain ->
   Data.Conversation ->
-  Sem r ()
+  Sem r (Set (Remote UserId))
 registerRemoteConversationMemberships now localDomain c = do
   let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
       rc = toConversationCreated now localDomain c
-  runFederatedConcurrently_ allRemoteMembers $ \_ ->
+  fmap toSet $ runFederatedConcurrentlyEither allRemoteMembers $ \_ ->
     fedClient @'Galley @"on-conversation-created" rc
+  where
+    toSet :: forall a x e. Ord x => [Either (Remote [x], e) a] -> Set (Remote x)
+    toSet =
+      Set.fromList . foldMap (either (sequenceA . fst) mempty)
 
 --------------------------------------------------------------------------------
 -- Legalhold

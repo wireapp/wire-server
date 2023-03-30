@@ -7,7 +7,7 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster fake-aws nginx-ingress-controller nginx-ingress-services fluent-bit kibana sftd restund coturn
+CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana sftd restund coturn
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
@@ -17,7 +17,7 @@ CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster databases-ephemeral	
 fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
-nginx-ingress-controller nginx-ingress-services reaper sftd restund coturn		\
+nginx-ingress-controller ingress-nginx-controller nginx-ingress-services reaper sftd restund coturn		\
 inbucket k8ssandra-test-cluster postgresql
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
@@ -164,7 +164,7 @@ services: init install
 format:
 	./tools/ormolu.sh
 
-# formats all Haskell files even if local changes are not committed to git
+# formats all Haskell files changed in this PR, even if local changes are not committed to git
 .PHONY: formatf
 formatf:
 	./tools/ormolu.sh -f pr
@@ -345,7 +345,11 @@ kube-integration-setup: charts-integration
 
 .PHONY: kube-integration-test
 kube-integration-test:
-	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-test.sh
+	export NAMESPACE=$(NAMESPACE); \
+	export HELM_PARALLELISM=$(HELM_PARALLELISM); \
+	export VERSION=${DOCKER_TAG}; \
+	export UPLOAD_LOGS=${UPLOAD_LOGS}; \
+	./hack/bin/integration-test.sh
 
 .PHONY: kube-integration-teardown
 kube-integration-teardown:

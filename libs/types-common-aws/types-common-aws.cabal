@@ -41,6 +41,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -52,6 +53,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms

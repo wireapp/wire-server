@@ -92,7 +92,6 @@ library
     Brig.IO.Journal
     Brig.Locale
     Brig.Options
-    Brig.Password
     Brig.Phone
     Brig.Provider.API
     Brig.Provider.DB
@@ -149,6 +148,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -160,6 +160,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -333,6 +334,7 @@ executable brig
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -344,6 +346,7 @@ executable brig
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -392,6 +395,7 @@ executable brig-index
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -403,6 +407,7 @@ executable brig-index
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -452,6 +457,7 @@ executable brig-integration
     API.Search
     API.Search.Util
     API.Settings
+    API.Swagger
     API.SystemSettings
     API.Team
     API.Team.Util
@@ -490,6 +496,7 @@ executable brig-integration
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -501,6 +508,7 @@ executable brig-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -657,6 +665,7 @@ executable brig-schema
     V72_AddNonceTable
     V73_ReplaceNonceTable
     V74_AddOAuthTables
+    V75_AddOAuthCodeChallenge
     V_FUTUREWORK
 
   hs-source-dirs:     schema/src
@@ -673,6 +682,7 @@ executable brig-schema
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -684,6 +694,7 @@ executable brig-schema
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -747,6 +758,7 @@ test-suite brig-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -758,6 +770,7 @@ test-suite brig-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms

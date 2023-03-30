@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -25,6 +26,7 @@ module Galley.API.Update
     joinConversationByReusableCode,
     joinConversationById,
     addCodeUnqualified,
+    addCodeUnqualifiedWithReqBody,
     rmCodeUnqualified,
     getCode,
     updateUnqualifiedConversationName,
@@ -131,6 +133,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
+import Wire.API.Password (mkSafePassword)
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
@@ -472,17 +475,19 @@ deleteLocalConversation lusr con lcnv =
 getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
 getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
-addCodeUnqualified ::
+addCodeUnqualifiedWithReqBody ::
   forall db r.
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
+    Member (ErrorS 'CreateConversationCodeConflict) r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member (Embed IO) r,
     Member (Input Opts) r,
     Member (TeamFeatureStore db) r,
     FeaturePersistentConstraint db GuestLinksConfig
@@ -490,11 +495,36 @@ addCodeUnqualified ::
   UserId ->
   Maybe ConnId ->
   ConvId ->
+  CreateConversationCodeRequest ->
   Sem r AddCodeResult
-addCodeUnqualified usr mZcon cnv = do
+addCodeUnqualifiedWithReqBody usr mZcon cnv req = addCodeUnqualified @db (Just req) usr mZcon cnv
+
+addCodeUnqualified ::
+  forall db r.
+  ( Member CodeStore r,
+    Member ConversationStore r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'GuestLinksDisabled) r,
+    Member (ErrorS 'CreateConversationCodeConflict) r,
+    Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (Input Opts) r,
+    Member (Embed IO) r,
+    Member (TeamFeatureStore db) r,
+    FeaturePersistentConstraint db GuestLinksConfig
+  ) =>
+  Maybe CreateConversationCodeRequest ->
+  UserId ->
+  Maybe ConnId ->
+  ConvId ->
+  Sem r AddCodeResult
+addCodeUnqualified mReq usr mZcon cnv = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
-  addCode @db lusr mZcon lcnv
+  addCode @db lusr mZcon lcnv mReq
 
 addCode ::
   forall db r.
@@ -503,18 +533,21 @@ addCode ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'GuestLinksDisabled) r,
+    Member (ErrorS 'CreateConversationCodeConflict) r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member (Input Opts) r,
     Member (TeamFeatureStore db) r,
+    Member (Embed IO) r,
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Local UserId ->
   Maybe ConnId ->
   Local ConvId ->
+  Maybe CreateConversationCodeRequest ->
   Sem r AddCodeResult
-addCode lusr mZcon lcnv = do
+addCode lusr mZcon lcnv mReq = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
   Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
@@ -526,19 +559,21 @@ addCode lusr mZcon lcnv = do
   case mCode of
     Nothing -> do
       code <- E.generateCode (tUnqualified lcnv) ReusableCode (Timeout 3600 * 24 * 365) -- one year FUTUREWORK: configurable
-      E.createCode code
+      mPw <- forM ((.password) =<< mReq) mkSafePassword
+      E.createCode code mPw
       now <- input
-      conversationCode <- createCode code
+      conversationCode <- createCode (isJust mPw) code
       let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate conversationCode)
       pushConversationEvent mZcon event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
-    Just code -> do
-      conversationCode <- createCode code
+    Just (code, mPw) -> do
+      when (isJust mPw || isJust (mReq >>= (.password))) $ throwS @'CreateConversationCodeConflict
+      conversationCode <- createCode (isJust mPw) code
       pure $ CodeAlreadyExisted conversationCode
   where
-    createCode :: Code -> Sem r ConversationCode
-    createCode code = do
-      mkConversationCode (codeKey code) (codeValue code) <$> E.getConversationCodeURI
+    createCode :: Bool -> Code -> Sem r ConversationCodeInfo
+    createCode hasPw code = do
+      mkConversationCodeInfo hasPw (codeKey code) (codeValue code) <$> E.getConversationCodeURI
     ensureGuestsOrNonTeamMembersAllowed :: Data.Conversation -> Sem r ()
     ensureGuestsOrNonTeamMembersAllowed conv =
       unless
@@ -605,7 +640,7 @@ getCode ::
   ) =>
   Local UserId ->
   ConvId ->
-  Sem r ConversationCode
+  Sem r ConversationCodeInfo
 getCode lusr cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
@@ -613,12 +648,8 @@ getCode lusr cnv = do
   ensureAccess conv CodeAccess
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   key <- E.makeKey cnv
-  c <- E.getCode key ReusableCode >>= noteS @'CodeNotFound
-  returnCode c
-
-returnCode :: Member CodeStore r => Code -> Sem r ConversationCode
-returnCode c = do
-  mkConversationCode (codeKey c) (codeValue c) <$> E.getConversationCodeURI
+  (c, mPw) <- E.getCode key ReusableCode >>= noteS @'CodeNotFound
+  mkConversationCodeInfo (isJust mPw) (codeKey c) (codeValue c) <$> E.getConversationCodeURI
 
 checkReusableCode ::
   forall db r.
@@ -627,13 +658,14 @@ checkReusableCode ::
     Member (TeamFeatureStore db) r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidConversationPassword) r,
     Member (Input Opts) r,
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   ConversationCode ->
   Sem r ()
 checkReusableCode convCode = do
-  code <- verifyReusableCode convCode
+  code <- verifyReusableCode False Nothing convCode
   conv <- E.getConversation (codeConversation code) >>= noteS @'ConvNotFound
   mapErrorS @'GuestLinksDisabled @'CodeNotFound $
     Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
@@ -644,6 +676,7 @@ joinConversationByReusableCode ::
     Member CodeStore r,
     Member ConversationStore r,
     Member (ErrorS 'CodeNotFound) r,
+    Member (ErrorS 'InvalidConversationPassword) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
@@ -663,10 +696,10 @@ joinConversationByReusableCode ::
   ) =>
   Local UserId ->
   ConnId ->
-  ConversationCode ->
+  JoinConversationByCode ->
   Sem r (UpdateResult Event)
-joinConversationByReusableCode lusr zcon convCode = do
-  c <- verifyReusableCode convCode
+joinConversationByReusableCode lusr zcon req = do
+  c <- verifyReusableCode True req.password req.code
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
   joinConversation lusr zcon conv CodeAccess
