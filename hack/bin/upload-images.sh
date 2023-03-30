@@ -26,7 +26,7 @@ image_list_file="$tmp_link_store/image-list"
 nix -v --show-trace -L build -f "$ROOT_DIR/nix" wireServer.imagesList -o "$image_list_file"
 
 # Build everything first so we can benefit the most from having many cores.
-nix -v --show-trace -L build -f "$ROOT_DIR/nix" "wireServer.$IMAGES_ATTR" --no-link
+nix -v --keep-build-log --show-trace -L build -f "$ROOT_DIR/nix" "wireServer.$IMAGES_ATTR" --no-link
 
 xargs -I {} -P 10 "$SCRIPT_DIR/upload-image.sh" "wireServer.$IMAGES_ATTR.{}" < "$image_list_file"
 
