@@ -9,7 +9,7 @@ resources:
     cpu: "1"
 image:
   repository: quay.io/wire/webapp
-  tag: "2023-03-27-production.0-v0.31.12-0-663b521"
+  tag: "2023-03-29-production.0-v0.31.12-0-2cd4ac3"
 service:
   https:
     externalPort: 443
