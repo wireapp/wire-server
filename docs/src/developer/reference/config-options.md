@@ -697,25 +697,25 @@ For example to disable API version v3, you need to configure:
 
 ```
 # brig's values.yaml
-config.optSettings.setDisabledAPIVersions: [ 3 ]
+config.optSettings.setDisabledAPIVersions: [ v3 ]
 
 # cannon's values.yaml
-config.disabledAPIVersions: [ 3 ]
+config.disabledAPIVersions: [ v3 ]
 
 # cargohold's values.yaml
-config.settings.disabledAPIVersions: [ 3 ]
+config.settings.disabledAPIVersions: [ v3 ]
 
 # galley's values.yaml
-config.settings.disabledAPIVersions: [ 3 ]
+config.settings.disabledAPIVersions: [ v3 ]
 
 # gundecks' values.yaml
-config.disabledAPIVersions: [ 3 ]
+config.disabledAPIVersions: [ v3 ]
 
 # proxy's values.yaml
-config.disabledAPIVersions: [ 3 ]
+config.disabledAPIVersions: [ v3 ]
 
 # spar's values.yaml
-config.disabledAPIVersions: [ 3 ]
+config.disabledAPIVersions: [ v3 ]
 ```
 
 The default setting is that no API version is disabled.

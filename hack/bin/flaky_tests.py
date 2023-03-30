@@ -6,6 +6,7 @@ import json
 import os
 import yaml
 import argparse
+from pydoc import pager
 
 BUCKET_BASEURL = 'https://s3.eu-west-1.amazonaws.com/public.wire.com/ci/failing-tests'
 CONCOURSE_BASEURL = 'https://concourse.ops.zinfra.io/teams/main'
@@ -29,10 +30,9 @@ def read_flaky_tests():
             result[item['test_name']] = item['comments']
     return result
 
-def current_week_start():
-    now = datetime.date.today()
+def current_week_start(now):
     k = now.weekday()
-    return now - datetime.timedelta(days=k)
+    return (now - datetime.timedelta(days=k)).replace(hour=0, minute=0, second=0, microsecond=0)
 
 def format_date(dt):
     return dt.strftime('%Y-%m-%d')
@@ -51,12 +51,14 @@ def fetch_week(week_start):
                 result.append(item)
     return result
 
-def fetch(n_weeks=1):
-    ws_start = current_week_start()
+def fetch(today, n_weeks):
+    ws_start = current_week_start(today)
     data = []
     for i in range(n_weeks):
-        ws = ws_start + datetime.timedelta(days=i)
+        ws = ws_start + datetime.timedelta(days=-7*i)
+        print(f'\rFetching {i+1}/{n_weeks} {format_date(ws)}')
         data += fetch_week(ws)
+    print()
     return data
 
 def tests_match(s1, s2):
@@ -114,7 +116,7 @@ def associate_comments(flakes, comments, default_comments=''):
         flake['comments'] = comments.get(flake['test_name'], default_comments)
 
 def sort_flakes(flakes):
-    flakes.sort(key=lambda f: len(f['fails']), reverse=True)
+    flakes.sort(key=lambda f: (-len(f['fails']), f['test_name']), reverse=False)
     for flake in flakes:
         flake['fails'].sort(key=lambda f: f['build']['end_time'], reverse=True)
 
@@ -145,7 +147,7 @@ def pretty_flake(flake, today, logs=False):
     lines.append(Colors.YELLOW + f"❄ \"{flake['test_name']}\"" + Colors.RESET)
 
     if not logs:
-        lines.append(f'  Run with --log "{flake["test_name"]}" to see error logs')
+        lines.append(f'  Run with --logs "{flake["test_name"]}" to see error logs')
 
     comments = flake['comments']
     if comments:
@@ -175,11 +177,6 @@ def pretty_flakes(flakes, today, logs=False):
         lines.append(pretty_flake(flake, today, logs))
     return '\n'.join(lines)
 
-def pager(s):
-    pipe = os.popen('less -RS', 'w')
-    pipe.write(s)
-    pipe.close()
-
 explain = '''Tips:
     Run with --discover to manually discover new flaky tests
 
@@ -192,7 +189,7 @@ def main():
     args = parser.parse_args()
 
     today = datetime.datetime.now()
-    data = fetch(n_weeks=4*4)
+    data = fetch(today=today, n_weeks=4*4)
     if args.logs:
         flakes, unassociated = associate_fails([args.logs], data)
         sort_flakes(flakes)
@@ -213,7 +210,7 @@ def main():
         pager(explain + pretty_flakes(flake_candidates, today))
 
     else:
-        associate_comments(flakes, flaky_tests_comments, '(discovered flake, please check and add it to flaky-tests.yaml, otherwise it might now show up again)')
+        associate_comments(flakes, flaky_tests_comments, '(discovered flake, please check and add it to flaky-tests.yaml)')
         sort_flakes(flakes)
         pager(explain + pretty_flakes(flakes, today))
 

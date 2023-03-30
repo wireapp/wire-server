@@ -26,6 +26,7 @@ import Imports hiding (head)
 import Servant hiding (WithStatus)
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation
+import Wire.API.Conversation.Code
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Error
@@ -114,7 +115,7 @@ type CreateConversationCodeVerb =
   MultiVerb
     'POST
     '[JSON]
-    '[ Respond 200 "Conversation code already exists." ConversationCode,
+    '[ Respond 200 "Conversation code already exists." ConversationCodeInfo,
        Respond 201 "Conversation code created." Event
      ]
     AddCodeResult
@@ -349,6 +350,7 @@ type ConversationAPI =
            "get-conversation-by-reusable-code"
            ( Summary "Get limited conversation information by key/code pair"
                :> CanThrow 'CodeNotFound
+               :> CanThrow 'InvalidConversationPassword
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'GuestLinksDisabled
@@ -610,6 +612,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> CanThrow 'CodeNotFound
+               :> CanThrow 'InvalidConversationPassword
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
@@ -620,7 +623,7 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                :> "join"
-               :> ReqBody '[Servant.JSON] ConversationCode
+               :> ReqBody '[Servant.JSON] JoinConversationByCode
                :> MultiVerb 'POST '[Servant.JSON] ConvJoinResponses (UpdateResult Event)
            )
     :<|> Named
@@ -631,6 +634,7 @@ type ConversationAPI =
                \Note that this is currently inconsistent (for backwards compatibility reasons) with `POST /conversations/join` which responds with 409 GuestLinksDisabled if guest links are disabled."
                :> CanThrow 'CodeNotFound
                :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidConversationPassword
                :> "conversations"
                :> "code-check"
                :> ReqBody '[Servant.JSON] ConversationCode
@@ -643,17 +647,38 @@ type ConversationAPI =
     -- this endpoint can lead to the following events being sent:
     -- - ConvCodeUpdate event to members, if code didn't exist before
     :<|> Named
-           "create-conversation-code-unqualified"
+           "create-conversation-code-unqualified@v3"
            ( Summary "Create or recreate a conversation code"
+               :> Until 'V4
                :> DescriptionOAuthScope 'WriteConversationsCode
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
+               :> CanThrow 'CreateConversationCodeConflict
                :> ZUser
                :> ZOptConn
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
                :> "code"
+               :> CreateConversationCodeVerb
+           )
+    -- this endpoint can lead to the following events being sent:
+    -- - ConvCodeUpdate event to members, if code didn't exist before
+    :<|> Named
+           "create-conversation-code-unqualified"
+           ( Summary "Create or recreate a conversation code"
+               :> From 'V4
+               :> DescriptionOAuthScope 'WriteConversationsCode
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'GuestLinksDisabled
+               :> CanThrow 'CreateConversationCodeConflict
+               :> ZUser
+               :> ZOptConn
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "code"
+               :> ReqBody '[JSON] CreateConversationCodeRequest
                :> CreateConversationCodeVerb
            )
     :<|> Named
@@ -700,8 +725,8 @@ type ConversationAPI =
                :> MultiVerb
                     'GET
                     '[JSON]
-                    '[Respond 200 "Conversation Code" ConversationCode]
-                    ConversationCode
+                    '[Respond 200 "Conversation Code" ConversationCodeInfo]
+                    ConversationCodeInfo
            )
     -- This endpoint can lead to the following events being sent:
     -- - Typing event to members

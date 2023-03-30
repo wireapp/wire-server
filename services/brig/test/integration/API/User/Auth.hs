@@ -32,7 +32,6 @@ import qualified Bilge as Http
 import Bilge.Assert hiding (assert)
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opts
-import Brig.Password (Password, mkSafePassword)
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie (revokeAllCookies)
 import Brig.ZAuth (ZAuth, runZAuth)
@@ -69,6 +68,7 @@ import qualified Test.Tasty.HUnit as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
 import Wire.API.Conversation (Conversation (..))
+import Wire.API.Password (Password, mkSafePassword)
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import qualified Wire.API.User as Public

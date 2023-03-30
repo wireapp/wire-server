@@ -318,7 +318,8 @@ instance ToSchema CreateGroupConversation where
 -- link about the conversation.
 data ConversationCoverView = ConversationCoverView
   { cnvCoverConvId :: ConvId,
-    cnvCoverName :: Maybe Text
+    cnvCoverName :: Maybe Text,
+    cnvCoverHasPassword :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationCoverView)
@@ -334,6 +335,7 @@ instance ToSchema ConversationCoverView where
       $ ConversationCoverView
         <$> cnvCoverConvId .= field "id" schema
         <*> cnvCoverName .= optField "name" (maybeWithDefault A.Null schema)
+        <*> cnvCoverHasPassword .= field "has_password" schema
 
 data ConversationList a = ConversationList
   { convList :: [a],

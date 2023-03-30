@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -56,6 +55,7 @@ import Util
 import Web.FormUrlEncoded
 import Wire.API.Conversation (Access (..), Conversation (cnvQualifiedId))
 import qualified Wire.API.Conversation as Conv
+import Wire.API.Conversation.Code (CreateConversationCodeRequest (CreateConversationCodeRequest))
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
 import qualified Wire.API.Conversation.Role as Role
 import Wire.API.OAuth
@@ -684,6 +684,7 @@ postConvCode svc mkHeader token c = do
     svc
       . paths ["conversations", toByteString' c, "code"]
       . mkHeader token
+      . json (CreateConversationCodeRequest Nothing)
 
 getAccessTokenForScope :: Brig -> UserId -> [OAuthScope] -> Http OAuthAccessTokenResponse
 getAccessTokenForScope brig uid scopes = do

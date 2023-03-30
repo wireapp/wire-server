@@ -125,7 +125,6 @@ import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
-import Brig.Password
 import qualified Brig.Queue as Queue
 import qualified Brig.Team.DB as Team
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
@@ -173,6 +172,7 @@ import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
+import Wire.API.Password
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Team hiding (newTeam)

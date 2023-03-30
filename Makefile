@@ -164,7 +164,7 @@ services: init install
 format:
 	./tools/ormolu.sh
 
-# formats all Haskell files even if local changes are not committed to git
+# formats all Haskell files changed in this PR, even if local changes are not committed to git
 .PHONY: formatf
 formatf:
 	./tools/ormolu.sh -f pr
@@ -345,7 +345,11 @@ kube-integration-setup: charts-integration
 
 .PHONY: kube-integration-test
 kube-integration-test:
-	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-test.sh
+	export NAMESPACE=$(NAMESPACE); \
+	export HELM_PARALLELISM=$(HELM_PARALLELISM); \
+	export VERSION=${DOCKER_TAG}; \
+	export UPLOAD_LOGS=${UPLOAD_LOGS}; \
+	./hack/bin/integration-test.sh
 
 .PHONY: kube-integration-teardown
 kube-integration-teardown:

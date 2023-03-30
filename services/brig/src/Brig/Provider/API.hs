@@ -42,7 +42,6 @@ import Brig.Email (mkEmailKey)
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options (Settings (..))
 import qualified Brig.Options as Opt
-import Brig.Password
 import Brig.Provider.DB (ServiceConn (..))
 import qualified Brig.Provider.DB as DB
 import Brig.Provider.Email
@@ -105,6 +104,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.Event.Conversation as Public (Event)
+import Wire.API.Password
 import Wire.API.Provider
 import qualified Wire.API.Provider as Public
 import qualified Wire.API.Provider.Bot as Ext

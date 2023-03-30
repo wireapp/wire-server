@@ -40,13 +40,18 @@ docs.
 
 The first part of the URL's path is the version. No specified version means
 Swagger docs of the *latest* API version. This differs from other API endpoints
-where no version means `v0`! New versions are added from time to time. If you
+where no version means `v0`!
+
+New versions are added from time to time. If you
 would like to look at the docs of another version (which did not exist at the
 time of writing): Just update the first path element of an existing link.
-
 The URL pattern is `https://<nginz-host>/v<version>/api/swagger-ui/`. To figure
 out which versions are supported by your backend, query
 `https://<nginz-host>/<version>/api-version`.
+
+If you want to get the raw json for the swagger (ie., for compiling it
+into client code in typescript, kotlin, swift, ...), replace
+`swagger-ui` with `swagger.json` in the above URL pattern.
 
 The [API versioning](../../developer/developer/api-versioning.md) article
 discusses the versioning topic in detail.
@@ -57,7 +62,7 @@ To get the versions a backend (`staging-nginz-https.zinfra.io` in this case)
 supports, execute:
 
 ```sh
-curl https://staging-nginz-https.zinfra.io/api-version 
+curl https://staging-nginz-https.zinfra.io/api-version
 {"development":[3],"domain":"staging.zinfra.io","federation":false,"supported":[0,1,2]}
 ```
 

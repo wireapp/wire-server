@@ -63,6 +63,7 @@ library
     Wire.API.MLS.Welcome
     Wire.API.Notification
     Wire.API.OAuth
+    Wire.API.Password
     Wire.API.Properties
     Wire.API.Provider
     Wire.API.Provider.Bot
@@ -176,6 +177,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -187,6 +189,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -242,6 +245,7 @@ library
     , hashable
     , hostname-validate
     , hscim
+    , HsOpenSSL
     , http-api-data
     , http-media
     , http-types
@@ -267,6 +271,7 @@ library
     , saml2-web-sso
     , schema-profunctor
     , scientific
+    , scrypt
     , servant
     , servant-client
     , servant-client-core
@@ -569,6 +574,7 @@ test-suite wire-api-golden-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -580,6 +586,7 @@ test-suite wire-api-golden-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -690,6 +697,7 @@ test-suite wire-api-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -701,6 +709,7 @@ test-suite wire-api-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
