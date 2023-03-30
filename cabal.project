@@ -1,4 +1,4 @@
-with-compiler: ghc-9.2.4
+with-compiler: ghc-9.2.7
 
 packages:
     libs/api-bot/
