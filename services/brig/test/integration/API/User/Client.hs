@@ -94,7 +94,7 @@ tests _cl _at opts p db b c g =
       test p "post /users/list-clients/v2 - 200" $ testListClientsBulkV2 opts b,
       test p "post /users/list-prekeys - clients without prekeys" $ testClientsWithoutPrekeys b c db opts,
       test p "post /users/list-prekeys@v4 - clients without prekeys" $ testClientsWithoutPrekeysV4 b c db opts,
-      test p "post /users/list-prekeys@v4 - clients without prekeys fail to list" $ testClientsWithoutPrekeysFailToListV4 b c db,
+      test p "post /users/list-prekeys@v4 - clients without prekeys fail to list" $ testClientsWithoutPrekeysFailToListV4 b c db opts,
       test p "post /clients - 201 (pwd)" $ testAddGetClient def {addWithPassword = True} b c,
       test p "post /clients - 201 (no pwd)" $ testAddGetClient def {addWithPassword = False} b c,
       testGroup
@@ -545,7 +545,7 @@ testClientsWithoutPrekeysV4 brig cannon db opts = do
         const 200 === statusCode
         const
           ( Right $
-              expectedClientMap
+              expectedClientMapClientsWithoutPrekeys
                 domain
                 uid1
                 [ (clientId c11, Nothing),
@@ -576,7 +576,7 @@ testClientsWithoutPrekeysV4 brig cannon db opts = do
       const 200 === statusCode
       const
         ( Right $
-            expectedClientMap
+            expectedClientMapClientsWithoutPrekeys
               domain
               uid1
               [ (clientId c11, Nothing),
@@ -585,22 +585,22 @@ testClientsWithoutPrekeysV4 brig cannon db opts = do
               Nothing
         )
         === responseJsonEither
-  where
-    expectedClientMap :: Domain -> UserId -> [(ClientId, Maybe Prekey)] -> Maybe [Qualified UserId] -> QualifiedUserClientPrekeyMapV4
-    expectedClientMap domain u xs failed =
-      QualifiedUserClientPrekeyMapV4
-        { qualifiedUserClientPrekeys =
-            coerce $
-              mkQualifiedUserClientPrekeyMap $
-                Map.singleton domain $
-                  mkUserClientPrekeyMap $
-                    Map.singleton u $
-                      Map.fromList xs,
-          failedToList = failed
-        }
 
-testClientsWithoutPrekeysFailToListV4 :: Brig -> Cannon -> DB.ClientState -> Http ()
-testClientsWithoutPrekeysFailToListV4 brig cannon db = do
+expectedClientMapClientsWithoutPrekeys :: Domain -> UserId -> [(ClientId, Maybe Prekey)] -> Maybe [Qualified UserId] -> QualifiedUserClientPrekeyMapV4
+expectedClientMapClientsWithoutPrekeys domain u xs failed =
+  QualifiedUserClientPrekeyMapV4
+    { qualifiedUserClientPrekeys =
+        coerce $
+          mkQualifiedUserClientPrekeyMap $
+            Map.singleton domain $
+              mkUserClientPrekeyMap $
+                Map.singleton u $
+                  Map.fromList xs,
+      failedToList = failed
+    }
+
+testClientsWithoutPrekeysFailToListV4 :: Brig -> Cannon -> DB.ClientState -> Opt.Opts -> Http ()
+testClientsWithoutPrekeysFailToListV4 brig cannon db opts = do
   uid1 <- userId <$> randomUser brig
   let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
   c11 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
@@ -617,7 +617,7 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db = do
 
   uid2 <- fakeRemoteUser
 
-  let domain = Domain "foo.bar"
+  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
 
   let userClients1 =
         QualifiedUserClients $
@@ -646,18 +646,26 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db = do
       !!! do
         const 200 === statusCode
         const
-          ( Right $
-              QualifiedUserClientPrekeyMapV4
-                { qualifiedUserClientPrekeys = QualifiedUserClientMap Map.empty,
-                  failedToList = pure [Qualified uid1 domain]
-                }
+           ( Right $
+              expectedClientMapClientsWithoutPrekeys
+                domain
+                uid1
+                [ (clientId c11, Nothing),
+                  (clientId c12, Just pk12)
+                ]
+                Nothing
           )
           === responseJsonEither
 
     getClient brig uid1 (clientId c11) !!! do
-      const 200 === statusCode
+      const 404 === statusCode
 
-    liftIO $ WS.assertNoEvent (5 # Second) [ws]
+    liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
+      let ob = Object $ List1.head (ntfPayload n)
+      ob ^? key "type" . _String
+        @?= Just "user.client-remove"
+      fmap ClientId (ob ^? key "client" . key "id" . _String)
+        @?= Just (clientId c11)
 
   post
     ( brig
