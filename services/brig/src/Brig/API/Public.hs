@@ -770,7 +770,7 @@ listUsersByIdsOrHandles self q = do
     Public.ListUsersByIds us ->
       byIds lself us
     Public.ListUsersByHandles hs -> do
-      us <- listUsersByIdsOrHandlesGetUsers  lself hs
+      us <- listUsersByIdsOrHandlesGetUsers lself hs
       (l, r) <- byIds lself us
       r' <- Handle.filterHandleResults lself r
       pure (l, r')

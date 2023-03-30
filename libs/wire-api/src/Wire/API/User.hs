@@ -130,8 +130,8 @@ import Data.Handle (Handle)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
-import Data.List.NonEmpty
 import Data.LegalHold (UserLegalHoldStatus)
+import Data.List.NonEmpty
 import Data.Misc (PlainTextPassword6, PlainTextPassword8)
 import Data.Qualified
 import Data.Range
