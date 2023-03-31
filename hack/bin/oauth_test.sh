@@ -37,46 +37,48 @@ if [ -z "$USER" ]; then
 fi
 
 SCOPE="read:self"
+# Beware to not use hard coded values like these, anywhere but in test environments
+CODE_VERIFIER="0LgRJptQI--6vQjlQfoXEM1GG4oSeN6ttESXVZRL6SEQAS6GuXW4X_FNkfp72BS9W157xZQKoJqXksj8C6UzO0.MQfgV3sdeOlg1XNSVlR50gYHfVM0A~qNyfZDmWFE8"
+CODE_CHALLENGE="dc8qty_fbGDz4wfFPnvApmLfaP14uYDVkJ2tE8N0Xgk"
 
 CLIENT=$(
   curl -s -X POST localhost:8082/i/oauth/clients \
     -H "Content-Type: application/json" \
     -d '{
-      "applicationName":"foobar",
-      "redirectUrl":"https://example.com"
+      "application_name":"foobar",
+      "redirect_url":"https://example.com"
     }'
 )
 
-CLIENT_ID=$(echo "$CLIENT" | jq -r '.clientId')
-CLIENT_SECRET=$(echo "$CLIENT" | jq -r '.clientSecret')
+CLIENT_ID=$(echo "$CLIENT" | jq -r '.client_id')
 
-AUTH_CODE=$(
+AUTH_CODE_RESPONSE=$(
   curl -i -s -X POST localhost:8082/oauth/authorization/codes \
     -H 'Z-User: '"$USER" \
     -H "Content-Type: application/json" \
     -d '{
-      "clientId": "'"$CLIENT_ID"'",
+      "client_id": "'"$CLIENT_ID"'",
       "scope": "'"$SCOPE"'",
-      "responseType": "code",
-      "redirectUri": "https://example.com",
-      "state": "foobar"
-    }' |
-    awk -F ': ' '/^Location/ {print $2}' | awk -F'[=&]' '{print $2}'
+      "response_type": "code",
+      "redirect_uri": "https://example.com",
+      "state": "foobar",
+      "code_challenge": "'"$CODE_CHALLENGE"'",
+      "code_challenge_method": "S256"
+    }'
 )
+
+AUTH_CODE=$(echo "$AUTH_CODE_RESPONSE" | awk -F ': ' '/^Location/ {print $2}' | awk -F'[=&]' '{print $2}')
 
 ACCESS_TOKEN_RESPONSE=$(
   curl -s -X POST localhost:8080/oauth/token \
     -H "Content-Type: application/x-www-form-urlencoded" \
-    -d 'code='"$AUTH_CODE"'&client_id='"$CLIENT_ID"'&grant_type=authorization_code&redirect_uri=https://example.com&client_secret='"$CLIENT_SECRET"
+    -d 'code='"$AUTH_CODE"'&client_id='"$CLIENT_ID"'&grant_type=authorization_code&redirect_uri=https://example.com&code_verifier='"$CODE_VERIFIER"
 )
 
-echo "$ACCESS_TOKEN_RESPONSE" | jq
-
-ACCESS_TOKEN=$(echo "$ACCESS_TOKEN_RESPONSE" | jq -r '.accessToken')
-REFRESH_TOKEN=$(echo "$ACCESS_TOKEN_RESPONSE" | jq -r '.refreshToken')
+ACCESS_TOKEN=$(echo "$ACCESS_TOKEN_RESPONSE" | jq -r '.access_token')
+REFRESH_TOKEN=$(echo "$ACCESS_TOKEN_RESPONSE" | jq -r '.refresh_token')
 
 echo "client id    : $CLIENT_ID"
-echo "client secret: $CLIENT_SECRET"
 echo "scope        : $SCOPE"
 echo "auth code    : $AUTH_CODE"
 echo "access token : $ACCESS_TOKEN"
@@ -88,10 +90,10 @@ curl -s -H 'Authorization: Bearer '"$ACCESS_TOKEN" -H "Content-Type: application
 REFRESH_ACCESS_TOKEN_RESPONSE=$(
   curl -s -X POST localhost:8080/oauth/token \
     -H "Content-Type: application/x-www-form-urlencoded" \
-    -d 'refresh_token='"$REFRESH_TOKEN"'&client_id='"$CLIENT_ID"'&grant_type=refresh_token&client_secret='"$CLIENT_SECRET"
+    -d 'refresh_token='"$REFRESH_TOKEN"'&client_id='"$CLIENT_ID"'&grant_type=refresh_token'
 )
 
-NEW_ACCESS_TOKEN=$(echo "$REFRESH_ACCESS_TOKEN_RESPONSE" | jq -r '.accessToken')
+NEW_ACCESS_TOKEN=$(echo "$REFRESH_ACCESS_TOKEN_RESPONSE" | jq -r '.access_token')
 
 echo ""
 echo "making a request to /self with a new access token ..."
