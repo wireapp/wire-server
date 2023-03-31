@@ -221,7 +221,7 @@ upload-hoogle-image:
 ## cassandra management
 
 .PHONY: git-add-cassandra-schema
-git-add-cassandra-schema: db-reset git-add-cassandra-schema-impl
+git-add-cassandra-schema: db-migrate git-add-cassandra-schema-impl
 
 .PHONY: git-add-cassandra-schema-impl
 git-add-cassandra-schema-impl:

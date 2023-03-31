@@ -556,7 +556,7 @@ data Settings = Settings
     -- It should also match the SRV DNS records under which other wire-server installations can find this backend:
     --    _wire-server-federator._tcp.<federationDomain>
     -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
-    -- Remember to keep it the same in Galley.
+    -- Remember to keep it the same in all services.
     -- Example:
     --   allowedDomains:
     --     - wire.com
