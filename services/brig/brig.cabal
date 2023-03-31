@@ -576,6 +576,7 @@ executable brig-integration
     , MonadRandom            >=0.5
     , mtl
     , network
+    , network-uri
     , optparse-applicative
     , pem
     , pipes

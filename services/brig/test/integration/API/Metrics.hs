@@ -60,8 +60,8 @@ testMetricsEndpoint opts brig0 = withSettingsOverrides opts $ do
   beforeSelf <- getCount "/self" "GET"
   beforeClients <- getCount "/users/:uid/clients" "GET"
   beforeProperties <- getCount "/login" "POST"
-  (uid, Just email) <- (\u -> (userId u, userEmail u)) <$> randomUser brig
-  uid' <- userId <$> randomUser brig
+  (uid, Just email) <- (\u -> (userId u, userEmail u)) <$> randomUser brig0
+  uid' <- userId <$> randomUser brig0
   _ <- get (brig . path p1 . zAuthAccess uid "conn" . expect2xx)
   _ <- get (brig . path (p2 $ toByteString' uid) . zAuthAccess uid "conn" . expect2xx)
   _ <- get (brig . path (p2 $ toByteString' uid') . zAuthAccess uid "conn" . expect2xx)
