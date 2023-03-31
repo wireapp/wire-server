@@ -86,8 +86,6 @@ Internal APIs are not under version control.
     endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/cargohold)
     - [`galley` - **internal** (private)
     endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley)
-    - [`legalhold` - **internal** (private)
-    endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/legalhold)
     - [`spar` - **internal** (private)
     endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/spar)
 
