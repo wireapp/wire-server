@@ -92,5 +92,5 @@ Internal APIs are not under version control.
 The URL pattern is similar to that of public endpoints for latest version:
 `https://<nginz-host>/api-internal/swagger-ui/<service>`.
 
-If you want to get the raw json for the swagger:
+If you want to get the raw json of the swagger:
 `https://<nginz-host>/api-internal/swagger-ui/<service>-swagger.json`.
