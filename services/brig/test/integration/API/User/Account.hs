@@ -132,8 +132,8 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "head /users/:uid - 404" $ testUserDoesNotExistUnqualified b,
       test p "head /users/:domain/:uid - 200" $ testUserExists b,
       test p "head /users/:domain/:uid - 404" $ testUserDoesNotExist b,
-      test p "post /list-users - 200" $ testMultipleUsers b,
-      test p "post /list-users@v3 - 200" $ testMultipleUsersV3 opts b,
+      test p "post /list-users@v3 - 200" $ testMultipleUsersV3 b,
+      test p "post /list-users - 200" $ testMultipleUsers opts b,
       test p "put /self - 200" $ testUserUpdate b c userJournalWatcher,
       test p "put /access/self/email - 2xx" $ testEmailUpdate b userJournalWatcher,
       test p "put /self/phone - 202" $ testPhoneUpdate b,
@@ -763,8 +763,8 @@ testMultipleUsersUnqualified brig = do
     field :: FromJSON a => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
-testMultipleUsers :: Brig -> Http ()
-testMultipleUsers brig = do
+testMultipleUsersV3 :: Brig -> Http ()
+testMultipleUsersV3 brig = do
   u1 <- randomUser brig
   u2 <- randomUser brig
   u3 <- createAnonUser "a" brig
@@ -795,8 +795,8 @@ testMultipleUsers brig = do
     field :: FromJSON a => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
-testMultipleUsersV3 :: Opt.Opts -> Brig -> Http ()
-testMultipleUsersV3 opts brig = do
+testMultipleUsers :: Opt.Opts -> Brig -> Http ()
+testMultipleUsers opts brig = do
   u1 <- randomUser brig
   u2 <- randomUser brig
   u3 <- createAnonUser "a" brig
