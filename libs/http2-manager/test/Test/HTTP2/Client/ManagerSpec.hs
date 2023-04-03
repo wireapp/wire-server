@@ -18,6 +18,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Streaming.Network (bindPortTCP, bindRandomPortTCP)
 import Data.Unique
+import GHC.IO.Exception
 import HTTP2.Client.Manager
 import Network.HTTP.Types
 import qualified Network.HTTP2.Client as Client
@@ -40,6 +41,12 @@ spec = describe "HTTP2.Client.Manager" $ do
       echoTest mgr serverPort
 
       readIORef acceptedConns `shouldReturn` 1
+
+  it "should fail appropriately when a server is not available" $ do
+    mgr <- defaultHTTP2Manager
+
+    -- Assumes that nothing is running on this port
+    echoTest mgr 42420 `shouldThrow` (\IOError {..} -> ioe_type == NoSuchThing)
 
   it "should be able to re-use an HTTP2 connection for multiple requests" $ do
     withTestServer $ \TestServer {..} -> do

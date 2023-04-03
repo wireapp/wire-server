@@ -166,37 +166,38 @@ startPersistentHTTP2Connection ::
   MVar (Either Request CloseConnection) ->
   IO ()
 startPersistentHTTP2Connection hostname port cl sendReqMVar = do
+  liveReqs <- newIORef mempty
   let clientConfig =
         HTTP2.ClientConfig
           { HTTP2.scheme = "http",
             HTTP2.authority = hostname,
             HTTP2.cacheLimit = cl
           }
-  -- What if the first bracket fails? The other thread will probably still write
-  -- to the MVar and nobody will listen to it. TODO: Write a test and handle
-  -- this.
-  bracket (fst <$> getSocketTCP hostname port) NS.close $ \sock ->
+      tooLateNotifier e = forever $ do
+        takeMVar sendReqMVar >>= \case
+          Left Request {..} -> do
+            -- No need to get stuck here
+            void $ tryPutMVar exceptionMVar (SomeException e)
+          _ -> pure ()
+
+      cleanupWith (SomeException e) = do
+        -- Is it really OK to cancel the remaining threads because if there
+        -- are any threads here?
+        mapM_ (\(thread, _) -> cancelWith thread e) =<< readIORef liveReqs
+        -- Spawns a thread that will hang around for 1 second to deal with
+        -- the race betwen main thread sending a request and this thread
+        -- already having stoped waiting for new requests. Sending requests
+        -- after 'handleRequests' has finsihed just causes the main thread
+        -- to hang until recieving 'BlockedIndefinitelyOnMVar'.
+        --
+        -- 1 second is hopefully enough to ensure that this thread is seen
+        -- as finished.
+        void $ async $ race_ (tooLateNotifier e) (threadDelay 1_000_000)
+
+      cleanup = cleanupWith (SomeException ConnectionAlreadyClosed)
+
+  handle cleanupWith $ bracket (fst <$> getSocketTCP hostname port) NS.close $ \sock ->
     bracket (HTTP2.allocSimpleConfig sock 4096) HTTP2.freeSimpleConfig $ \http2Cfg -> do
-      liveReqs <- newIORef mempty
-      let tooLateNotifier = forever $ do
-            takeMVar sendReqMVar >>= \case
-              Left Request {..} -> do
-                -- No need to get stuck here
-                void $ tryPutMVar exceptionMVar (SomeException ConnectionAlreadyClosed)
-              _ -> pure ()
-      let cleanup = do
-            -- Is it really OK to cancel the remaining threads because if there
-            -- are any threads here?
-            mapM_ (\(thread, _) -> cancelWith thread ConnectionAlreadyClosed) =<< readIORef liveReqs
-            -- Spawns a thread that will hang around for 1 second to deal with
-            -- the race betwen main thread sending a request and this thread
-            -- already having stoped waiting for new requests. Sending requests
-            -- after 'handleRequests' has finsihed just causes the main thread
-            -- to hang until recieving 'BlockedIndefinitelyOnMVar'.
-            --
-            -- 1 second is hopefully enough to ensure that this thread is seen
-            -- as finished.
-            void $ async $ race_ tooLateNotifier (threadDelay 1_000_000)
       flip finally cleanup $ HTTP2.run clientConfig http2Cfg $ \sendReq -> do
         handleRequests liveReqs sendReq
   where
