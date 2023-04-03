@@ -450,6 +450,11 @@ nginx_conf:
       - all
       doc: true
       oauth_scope: conversations_code
+    - path: /conversations/join
+      envs:
+      - all
+      specific_user_rate_limit: reqs_per_addr
+      specific_user_rate_limit_burst: "10"
     - path: /conversations
       envs:
       - all
