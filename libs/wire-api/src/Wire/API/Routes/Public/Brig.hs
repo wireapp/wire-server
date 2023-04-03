@@ -223,14 +223,26 @@ type UserAPI =
           :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
           :> Get '[JSON] [UserProfile]
       )
+    :<|> Named
+           "list-users-by-ids-or-handles"
+           ( Summary "List users"
+               :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
+               :> ZUser
+               :> From 'V4
+               :> "list-users"
+               :> ReqBody '[JSON] ListUsersQuery
+               :> Post '[JSON] ListUsersById
+           )
     :<|>
     -- See Note [ephemeral user sideeffect]
     Named
-      "list-users-by-ids-or-handles"
+      "list-users-by-ids-or-handles@V3"
       ( Summary "List users"
           :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
           :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> ZUser
+          :> Until 'V4
           :> "list-users"
           :> ReqBody '[JSON] ListUsersQuery
           :> Post '[JSON] [UserProfile]

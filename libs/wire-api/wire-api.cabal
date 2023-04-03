@@ -550,6 +550,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
     Test.Wire.API.Golden.Manual.GroupId
     Test.Wire.API.Golden.Manual.ListConversations
+    Test.Wire.API.Golden.Manual.ListUsersById
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
     Test.Wire.API.Golden.Manual.SearchResultContact
     Test.Wire.API.Golden.Manual.TeamSize

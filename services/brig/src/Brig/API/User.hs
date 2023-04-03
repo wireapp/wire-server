@@ -40,6 +40,7 @@ module Brig.API.User
     lookupAccountsByIdentity,
     lookupProfile,
     lookupProfiles,
+    lookupProfilesV3,
     lookupLocalProfiles,
     getLegalHoldStatus,
     Data.lookupName,
@@ -1436,6 +1437,28 @@ lookupProfiles self others =
     <$> traverseConcurrentlyWithErrorsAppT
       (lookupProfilesFromDomain self)
       (bucketQualified others)
+
+-- | Similar to lookupProfiles except it returns all results and all errors
+-- allowing for partial success.
+lookupProfilesV3 ::
+  ( Member GalleyProvider r,
+    Member (Concurrency 'Unsafe) r
+  ) =>
+  -- | User 'self' on whose behalf the profiles are requested.
+  Local UserId ->
+  -- | The users ('others') for which to obtain the profiles.
+  [Qualified UserId] ->
+  AppT r ([(Qualified UserId, FederationError)], [UserProfile])
+lookupProfilesV3 self others = do
+  t <-
+    traverseConcurrently
+      (lookupProfilesFromDomain self)
+      (bucketQualified others)
+  let (l, r) = partitionEithers t
+  pure (l >>= flattenUsers, join r)
+  where
+    flattenUsers :: (Qualified [UserId], FederationError) -> [(Qualified UserId, FederationError)]
+    flattenUsers (l, e) = (,e) <$> sequenceA l
 
 lookupProfilesFromDomain ::
   (Member GalleyProvider r) =>
