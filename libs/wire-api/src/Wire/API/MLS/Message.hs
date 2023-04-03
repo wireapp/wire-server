@@ -40,6 +40,10 @@ module Wire.API.MLS.Message
     UnreachableUserList (..),
     verifyMessageSignature,
     mkSignedMessage,
+
+    -- * Failed to process
+    FailedToProcess (..),
+    failedToSend,
   )
 where
 
@@ -336,6 +340,7 @@ data FailedToProcess = FailedToProcess
   { send :: UnreachableUserList
   }
   deriving (Eq, Show)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema FailedToProcess
 
 instance Semigroup FailedToProcess where
   ftp1 <> ftp2 =
@@ -357,6 +362,9 @@ failedToProcessObjectSchema =
 
 instance ToSchema FailedToProcess where
   schema = object "FailedToProcess" failedToProcessObjectSchema
+
+failedToSend :: UnreachableUserList -> FailedToProcess
+failedToSend us = mempty {send = us}
 
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],

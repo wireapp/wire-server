@@ -1135,10 +1135,10 @@ testAppMessageSomeReachable = do
     let unreachables = Set.singleton (Domain "charlie.example.com")
     withTempMockFederator' (mockUnreachableFor unreachables) $ do
       message <- createApplicationMessage alice1 "hi, bob!"
-      (_, us) <- sendAndConsumeMessage message
+      (_, ftp) <- sendAndConsumeMessage message
       liftIO $ do
         assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-        us @?= UnreachableUserList [charlie]
+        ftp @?= failedToSend (UnreachableUserList [charlie])
   where
     mockUnreachableFor :: Set Domain -> Mock LByteString
     mockUnreachableFor backends = do
@@ -1164,10 +1164,10 @@ testAppMessageUnreachable = do
         sendAndConsumeCommit commit
 
     message <- createApplicationMessage alice1 "hi, bob!"
-    (_, us) <- sendAndConsumeMessage message
+    (_, ftp) <- sendAndConsumeMessage message
     liftIO $ do
       assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-      us @?= UnreachableUserList [bob]
+      ftp @?= failedToSend (UnreachableUserList [bob])
 
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do
@@ -2038,7 +2038,7 @@ testAddUserToRemoteConvWithBundle = do
     commit <- createAddCommit bob1 [charlie]
     commitBundle <- createBundle commit
 
-    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUserList [])
+    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] mempty
     (_, reqs) <- withTempMockFederator' mock $ do
       void $ sendAndConsumeCommitBundle commit
 

@@ -2308,8 +2308,8 @@ assertMismatchQualified ::
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
   Assertions ()
-assertMismatchQualified failedToSend missing redundant deleted = do
-  assertExpected "failed to send" failedToSend (fmap mssFailedToSend . responseJsonMaybe)
+assertMismatchQualified failureToSend missing redundant deleted = do
+  assertExpected "failed to send" failureToSend (fmap mssFailedToSend . responseJsonMaybe)
   assertExpected "missing" missing (fmap mssMissingClients . responseJsonMaybe)
   assertExpected "redundant" redundant (fmap mssRedundantClients . responseJsonMaybe)
   assertExpected "deleted" deleted (fmap mssDeletedClients . responseJsonMaybe)

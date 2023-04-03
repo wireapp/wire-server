@@ -216,7 +216,7 @@ postMLSCommitBundle ::
   Qualified ConvId ->
   Maybe ConnId ->
   CommitBundle ->
-  Sem r ([LocalConversationUpdate], UnreachableUserList)
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 postMLSCommitBundle loc qusr mc qcnv conn rawBundle =
   foldQualified
     loc
@@ -274,7 +274,7 @@ postMLSCommitBundleToLocalConv ::
   Maybe ConnId ->
   CommitBundle ->
   Local ConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUserList)
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   let msg = rmValue (cbCommitMsg bundle)
   conv <- getLocalConvForUser qusr lcnv
@@ -318,7 +318,7 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   for_ (cbWelcome bundle) $
     postMLSWelcome lcnv conn
 
-  pure (events, unreachables)
+  pure (events, failedToSend unreachables)
 
 postMLSCommitBundleToRemoteConv ::
   ( Members MLSBundleStaticErrors r,
@@ -337,7 +337,7 @@ postMLSCommitBundleToRemoteConv ::
   Maybe ConnId ->
   CommitBundle ->
   Remote ConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUserList)
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
@@ -391,14 +391,14 @@ postMLSMessage ::
   Qualified ConvId ->
   Maybe ConnId ->
   RawMLS SomeMessage ->
-  Sem r ([LocalConversationUpdate], UnreachableUserList)
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 postMLSMessage loc qusr mc qcnv con smsg =
   case rmValue smsg of
     SomeMessage tag msg -> do
       mSender <- fmap ciClient <$> getSenderIdentity qusr mc tag msg
       foldQualified
         loc
-        (postMLSMessageToLocalConv qusr mSender con smsg)
+        (fmap (second failedToSend) . postMLSMessageToLocalConv qusr mSender con smsg)
         (postMLSMessageToRemoteConv loc qusr mSender con smsg)
         qcnv
 
@@ -511,7 +511,7 @@ postMLSMessageToRemoteConv ::
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Remote ConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUserList)
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr

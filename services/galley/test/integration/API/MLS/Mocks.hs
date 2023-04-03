@@ -37,7 +37,6 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.Message
 import Wire.API.User.Client
 
 receiveCommitMock :: [ClientIdentity] -> Mock LByteString
@@ -75,7 +74,7 @@ sendMessageMock =
   "send-mls-message" ~>
     MLSMessageResponseUpdates
       []
-      (UnreachableUserList [])
+      mempty
 
 claimKeyPackagesMock :: KeyPackageBundle -> Mock LByteString
 claimKeyPackagesMock kpb = "claim-key-packages" ~> kpb

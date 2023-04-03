@@ -30,7 +30,7 @@ testObject_MLSMessageSendingStatus1 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "1864-04-12 12:22:43.673 UTC"),
-      mmssUnreachableUserList = UnreachableUserList []
+      mmssFailedToProcess = mempty
     }
 
 testObject_MLSMessageSendingStatus2 :: MLSMessageSendingStatus
@@ -38,7 +38,7 @@ testObject_MLSMessageSendingStatus2 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "2001-04-12 12:22:43.673 UTC"),
-      mmssUnreachableUserList = failed1
+      mmssFailedToProcess = failedToSend failed1
     }
 
 testObject_MLSMessageSendingStatus3 :: MLSMessageSendingStatus
@@ -46,7 +46,7 @@ testObject_MLSMessageSendingStatus3 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "1999-04-12 12:22:43.673 UTC"),
-      mmssUnreachableUserList = failed2
+      mmssFailedToProcess = failedToSend failed2
     }
 
 failed1 :: UnreachableUserList
