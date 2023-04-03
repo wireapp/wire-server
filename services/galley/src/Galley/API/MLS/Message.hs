@@ -108,6 +108,7 @@ import Wire.API.User.Client
 -- [ ] initialise index maps
 -- [ ] newtype for leaf node indices
 -- [ ] compute new indices for add proposals
+-- [ ] remove prefixes from rmValue and rmRaw
 
 data IncomingMessage = IncomingMessage
   { epoch :: Epoch,

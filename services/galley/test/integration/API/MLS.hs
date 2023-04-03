@@ -356,9 +356,8 @@ testWelcomeNoKey = do
     void $ setupMLSGroup alice1
 
     -- add bob using an "out-of-band" key package
-    (_, ref) <- generateKeyPackage bob1
-    kp <- keyPackageFile bob1 ref
-    commit <- createAddCommitWithKeyPackages alice1 [(bob1, kp)]
+    (kp, _) <- generateKeyPackage bob1
+    commit <- createAddCommitWithKeyPackages alice1 [(bob1, kp.rmRaw)]
     welcome <- liftIO $ case mpWelcome commit of
       Nothing -> assertFailure "Expected welcome message"
       Just w -> pure w
@@ -556,10 +555,10 @@ testAddClientPartial = do
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
     -- now bob2 and bob3 upload key packages, and alice adds bob2 only
-    kp <- uploadNewKeyPackage bob2 >>= keyPackageFile bob2
+    kp <- uploadNewKeyPackage bob2
     void $ uploadNewKeyPackage bob3
     void $
-      createAddCommitWithKeyPackages alice1 [(bob2, kp)]
+      createAddCommitWithKeyPackages alice1 [(bob2, kp.rmRaw)]
         >>= sendAndConsumeCommit
 
 testSendAnotherUsersCommit :: TestM ()
@@ -1779,8 +1778,8 @@ sendRemoteMLSWelcomeKPNotFound = do
   commit <- runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ setupFakeMLSGroup alice1
-    kp <- generateKeyPackage bob1 >>= keyPackageFile bob1 . snd
-    createAddCommitWithKeyPackages alice1 [(bob1, kp)]
+    kp <- fst <$> generateKeyPackage bob1
+    createAddCommitWithKeyPackages alice1 [(bob1, kp.rmRaw)]
   welcome <- assertJust (mpWelcome commit)
 
   fedGalleyClient <- view tsFedGalleyClient

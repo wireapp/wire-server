@@ -28,6 +28,7 @@ import Control.Arrow ((&&&))
 import Control.Error.Util
 import Control.Lens (preview, to, view, (.~), (^..))
 import Control.Monad.Catch
+import Control.Monad.Cont
 import Control.Monad.State (StateT, evalStateT)
 import qualified Control.Monad.State as State
 import Control.Monad.Trans.Maybe
@@ -400,7 +401,7 @@ createFakeMLSClient qusr = do
   pure cid
 
 -- | create and upload to backend
-uploadNewKeyPackage :: HasCallStack => ClientIdentity -> MLSTest KeyPackageRef
+uploadNewKeyPackage :: HasCallStack => ClientIdentity -> MLSTest (RawMLS KeyPackage)
 uploadNewKeyPackage qcid = do
   (kp, _) <- generateKeyPackage qcid
 
@@ -413,15 +414,13 @@ uploadNewKeyPackage qcid = do
         . json (KeyPackageUpload [kp])
     )
     !!! const 201 === statusCode
-  pure $ fromJust (kpRef' kp)
+  pure kp
 
 generateKeyPackage :: HasCallStack => ClientIdentity -> MLSTest (RawMLS KeyPackage, KeyPackageRef)
 generateKeyPackage qcid = do
   kpData <- mlscli qcid ["key-package", "create"] Nothing
   kp <- liftIO $ decodeMLSError kpData
   let ref = fromJust (kpRef' kp)
-  fp <- keyPackageFile qcid ref
-  liftIO $ BS.writeFile fp (rmRaw kp)
   pure (kp, ref)
 
 setClientGroupState :: HasCallStack => ClientIdentity -> ByteString -> MLSTest ()
@@ -549,13 +548,6 @@ fakeGroupId =
   liftIO $
     fmap (GroupId . BS.pack) (replicateM 32 (generate arbitrary))
 
-keyPackageFile :: HasCallStack => ClientIdentity -> KeyPackageRef -> MLSTest FilePath
-keyPackageFile qcid ref =
-  State.gets $ \mls ->
-    mlsBaseDir mls
-      </> cid2Str qcid
-      </> T.unpack (T.decodeUtf8 (hex (unKeyPackageRef ref)))
-
 claimLocalKeyPackages :: HasCallStack => ClientIdentity -> Local UserId -> MLSTest KeyPackageBundle
 claimLocalKeyPackages qcid lusr = do
   brig <- viewBrig
@@ -606,16 +598,13 @@ claimKeyPackages cid qusr = do
   loc <- liftTest $ qualifyLocal ()
   foldQualified loc (claimLocalKeyPackages cid) claimRemoteKeyPackages qusr
 
-bundleKeyPackages :: KeyPackageBundle -> MLSTest [(ClientIdentity, FilePath)]
-bundleKeyPackages bundle = do
-  let bundleEntries = kpbEntries bundle
-      entryIdentity be = mkClientIdentity (kpbeUser be) (kpbeClient be)
-  for (toList bundleEntries) $ \be -> do
-    let d = kpData . kpbeKeyPackage $ be
-        qcid = entryIdentity be
-    fn <- keyPackageFile qcid (kpbeRef be)
-    liftIO $ BS.writeFile fn d
-    pure (qcid, fn)
+bundleKeyPackages :: KeyPackageBundle -> [(ClientIdentity, ByteString)]
+bundleKeyPackages bundle =
+  let getEntry be =
+        ( mkClientIdentity (kpbeUser be) (kpbeClient be),
+          kpData (kpbeKeyPackage be)
+        )
+   in map getEntry (toList (kpbEntries bundle))
 
 -- | Claim keypackages and create a commit/welcome pair on a given client.
 -- Note that this alters the state of the group immediately. If we want to test
@@ -623,7 +612,7 @@ bundleKeyPackages bundle = do
 -- group to the previous state by using an older version of the group file.
 createAddCommit :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTest MessagePackage
 createAddCommit cid users = do
-  kps <- concat <$> traverse (bundleKeyPackages <=< claimKeyPackages cid) users
+  kps <- fmap (concat . map bundleKeyPackages) . traverse (claimKeyPackages cid) $ users
   liftIO $ assertBool "no key packages could be claimed" (not (null kps))
   createAddCommitWithKeyPackages cid kps
 
@@ -654,8 +643,8 @@ createExternalCommit qcid mpgs qcs = do
 
   State.modify $ \mls ->
     mls
-      { mlsNewMembers = Set.singleton qcid -- This might be a different client
-      -- than those that have been in the
+      { mlsNewMembers = Set.singleton qcid
+      -- This might be a different client than those that have been in the
       -- group from before.
       }
 
@@ -670,7 +659,7 @@ createExternalCommit qcid mpgs qcs = do
 
 createAddProposals :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTest [MessagePackage]
 createAddProposals cid users = do
-  kps <- concat <$> traverse (bundleKeyPackages <=< claimKeyPackages cid) users
+  kps <- fmap (concat . map bundleKeyPackages) . traverse (claimKeyPackages cid) $ users
   traverse (createAddProposalWithKeyPackage cid) kps
 
 -- | Create an application message.
@@ -696,13 +685,14 @@ createApplicationMessage cid messageContent = do
 
 createAddCommitWithKeyPackages ::
   ClientIdentity ->
-  [(ClientIdentity, FilePath)] ->
+  [(ClientIdentity, ByteString)] ->
   MLSTest MessagePackage
 createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
   bd <- State.gets mlsBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   pgsFile <- liftIO $ emptyTempFile bd "pgs"
-  commit <-
+
+  commit <- runContT (traverse (withTempKeyPackageFile . snd) clientsAndKeyPackages) $ \kpFiles ->
     mlscli
       qcid
       ( [ "member",
@@ -716,7 +706,7 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
           "--group-out",
           "<group-out>"
         ]
-          <> map snd clientsAndKeyPackages
+          <> kpFiles
       )
       Nothing
 
@@ -737,13 +727,13 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
 
 createAddProposalWithKeyPackage ::
   ClientIdentity ->
-  (ClientIdentity, FilePath) ->
+  (ClientIdentity, ByteString) ->
   MLSTest MessagePackage
 createAddProposalWithKeyPackage cid (_, kp) = do
-  prop <-
+  prop <- runContT (withTempKeyPackageFile kp) $ \kpFile ->
     mlscli
       cid
-      ["proposal", "--group-in", "<group-in>", "--group-out", "<group-out>", "add", kp]
+      ["proposal", "--group-in", "<group-in>", "--group-out", "<group-out>", "add", kpFile]
       Nothing
   pure
     MessagePackage
@@ -791,17 +781,15 @@ readWelcome fp = runMaybeT $ do
   liftIO $ BS.readFile fp
 
 createRemoveCommit :: HasCallStack => ClientIdentity -> [ClientIdentity] -> MLSTest MessagePackage
-createRemoveCommit cid targets = do
+createRemoveCommit cid _targets = do
+  -- TODO
   bd <- State.gets mlsBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   pgsFile <- liftIO $ emptyTempFile bd "pgs"
 
   g <- getClientGroupState cid
 
-  let kprefByClient = Map.fromList (readGroupState g)
-  let fetchKeyPackage c = keyPackageFile c (kprefByClient Map.! c)
-  kps <- traverse fetchKeyPackage targets
-
+  let indices = map snd (readGroupState g)
   commit <-
     mlscli
       cid
@@ -816,7 +804,7 @@ createRemoveCommit cid targets = do
           "--group-state-out",
           pgsFile
         ]
-          <> kps
+          <> map show indices
       )
       Nothing
   welcome <- liftIO $ readWelcome welcomeFile
@@ -987,20 +975,21 @@ mlsBracket clients k = do
   c <- view tsCannon
   WS.bracketAsClientRN c (map (ciUser &&& ciClient) clients) k
 
-readGroupState :: ByteString -> [(ClientIdentity, KeyPackageRef)]
+readGroupState :: ByteString -> [(ClientIdentity, Word32)]
 readGroupState j = do
+  -- TODO: figure out the new JSON format of the group state
   node <- j ^.. key "group" . key "tree" . key "tree" . key "nodes" . _Array . traverse
   leafNode <- node ^.. key "node" . key "LeafNode"
   identity <-
     either (const []) pure . decodeMLS' . BS.pack . map fromIntegral $
       leafNode ^.. key "key_package" . key "payload" . key "credential" . key "credential" . key "Basic" . key "identity" . key "vec" . _Array . traverse . _Integer
-  kpr <- (unhexM . T.encodeUtf8 =<<) $ leafNode ^.. key "key_package_ref" . _String
-  pure (identity, KeyPackageRef kpr)
+  _kpr <- (unhexM . T.encodeUtf8 =<<) $ leafNode ^.. key "key_package_ref" . _String
+  pure (identity, error "TODO: get index")
 
 getClientsFromGroupState ::
   ClientIdentity ->
   Qualified UserId ->
-  MLSTest [(ClientIdentity, KeyPackageRef)]
+  MLSTest [(ClientIdentity, Word32)]
 getClientsFromGroupState cid u = do
   groupState <- readGroupState <$> getClientGroupState cid
   pure $ filter (\(cid', _) -> cidQualifiedUser cid' == u) groupState
@@ -1292,3 +1281,14 @@ getCurrentGroupId = do
   State.gets mlsGroupId >>= \case
     Nothing -> liftIO $ assertFailure "Creating add proposal for non-existing group"
     Just g -> pure g
+
+withTempKeyPackageFile :: ByteString -> ContT a MLSTest FilePath
+withTempKeyPackageFile bs = do
+  bd <- State.gets mlsBaseDir
+  ContT $ \k ->
+    bracket
+      (liftIO (openBinaryTempFile bd "kp"))
+      (\(fp, _) -> liftIO (removeFile fp))
+      $ \(fp, h) -> do
+        liftIO $ BS.hPut h bs `finally` hClose h
+        k fp

@@ -121,7 +121,6 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Internal.Notification hiding (target)
-import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
@@ -2899,17 +2898,17 @@ wsAssertConvReceiptModeUpdate conv usr new n = do
   evtFrom e @?= usr
   evtData e @?= EdConvReceiptModeUpdate (ConversationReceiptModeUpdate new)
 
-wsAssertBackendRemoveProposalWithEpoch :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Epoch -> Notification -> IO ByteString
-wsAssertBackendRemoveProposalWithEpoch fromUser convId kpref epoch n = do
-  bs <- wsAssertBackendRemoveProposal fromUser (Conv <$> convId) kpref n
+wsAssertBackendRemoveProposalWithEpoch :: HasCallStack => Qualified UserId -> Qualified ConvId -> Word32 -> Epoch -> Notification -> IO ByteString
+wsAssertBackendRemoveProposalWithEpoch fromUser convId idx epoch n = do
+  bs <- wsAssertBackendRemoveProposal fromUser (Conv <$> convId) idx n
   let msg = fromRight (error "Failed to parse Message") $ decodeMLS' @Message bs
   case msg.content of
     MessagePublic pmsg -> liftIO $ pmsg.content.rmValue.epoch @?= epoch
     _ -> assertFailure "unexpected message content"
   pure bs
 
-wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvOrSubConvId -> KeyPackageRef -> Notification -> IO ByteString
-wsAssertBackendRemoveProposal fromUser cnvOrSubCnv _kpref n = do
+wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvOrSubConvId -> Word32 -> Notification -> IO ByteString
+wsAssertBackendRemoveProposal fromUser cnvOrSubCnv idx n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= convOfConvOrSub <$> cnvOrSubCnv
@@ -2922,7 +2921,7 @@ wsAssertBackendRemoveProposal fromUser cnvOrSubCnv _kpref n = do
       pmsg.content.rmValue.sender @?= SenderExternal 0
       case pmsg.content.rmValue.content of
         FramedContentProposal prop -> case prop.rmValue of
-          RemoveProposal kpRefRemove -> kpRefRemove @?= error "kpref"
+          RemoveProposal kpRefRemove -> kpRefRemove @?= idx
           otherProp -> assertFailure $ "Expected RemoveProposal but got " <> show otherProp
         otherPayload -> assertFailure $ "Expected ProposalMessage but got " <> show otherPayload
     _ -> assertFailure $ "Expected PublicMessage"

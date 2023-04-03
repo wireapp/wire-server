@@ -108,7 +108,7 @@ withCommitLock gid epoch action =
     )
     (const $ releaseCommitLock gid epoch)
     $ \_ -> do
-      -- FUTUREWORK: fetch epoch again and check that is matches
+      -- FUTUREWORK: fetch epoch again and check that it matches
       action
   where
     ttl = fromIntegral (600 :: Int) -- 10 minutes
