@@ -107,15 +107,18 @@ newTeam tid uid nme ico tb = Team tid uid nme ico Nothing tb DefaultIcon
 
 instance ToSchema Team where
   schema =
-    object "Team" $
+    objectWithDocModifier "Team" desc $
       Team
         <$> _teamId .= field "id" schema
         <*> _teamCreator .= field "creator" schema
         <*> _teamName .= field "name" schema
         <*> _teamIcon .= field "icon" schema
         <*> _teamIconKey .= maybe_ (optField "icon_key" schema)
-        <*> _teamBinding .= (fromMaybe Binding <$> optField "binding" schema)
+        <*> _teamBinding .= (fromMaybe Binding <$> optFieldWithDocModifier "binding" bindingDesc schema)
         <*> _teamSplashScreen .= (fromMaybe DefaultIcon <$> optField "splash_screen" schema)
+    where
+      desc = description ?~ "`binding` is deprecated, and should be ignored. The non-binding teams API is not used (and will not be supported from API version V4 onwards), and `binding` should always be `true`."
+      bindingDesc = description ?~ "Deprecated, please ignore."
 
 -- | How a team "binds" its members (users)
 --
