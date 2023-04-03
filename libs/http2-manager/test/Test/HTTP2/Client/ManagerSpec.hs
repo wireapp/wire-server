@@ -142,8 +142,7 @@ spec = describe "HTTP2.Client.Manager" $ do
     -- to know what happens when we don't wait for the background thread to go
     -- away.
     Just deadConn <- Map.lookup ("localhost", port) <$> readTVarIO (connections mgr)
-    -- TODO: This wait throws an error, look into it.
-    void $ waitCatch $ backgroundThread deadConn
+    wait $ backgroundThread deadConn
 
     withTestServerOnPort port $ \TestServer {..} -> do
       echoTest mgr port
