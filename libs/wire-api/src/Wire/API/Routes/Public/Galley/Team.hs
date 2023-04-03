@@ -70,7 +70,7 @@ type TeamAPI =
     :<|> Named
            "get-teams"
            ( Summary "Get teams (deprecated); use `GET /teams/:tid`"
-               -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
+               :> Until 'V4
                :> ZUser
                :> "teams"
                :> Get '[JSON] TeamList
