@@ -1138,7 +1138,7 @@ testAppMessageSomeReachable = do
       (_, ftp) <- sendAndConsumeMessage message
       liftIO $ do
         assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-        ftp @?= failedToSend (UnreachableUserList [charlie])
+        ftp @?= failedToSend [charlie]
   where
     mockUnreachableFor :: Set Domain -> Mock LByteString
     mockUnreachableFor backends = do
@@ -1167,7 +1167,7 @@ testAppMessageUnreachable = do
     (_, ftp) <- sendAndConsumeMessage message
     liftIO $ do
       assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-      ftp @?= failedToSend (UnreachableUserList [bob])
+      ftp @?= failedToSend [bob]
 
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do

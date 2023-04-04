@@ -37,13 +37,15 @@ module Wire.API.MLS.Message
     MLSCipherTextSym0,
     MLSMessageSendingStatus (..),
     KnownFormatTag (..),
-    UnreachableUserList (..),
     verifyMessageSignature,
     mkSignedMessage,
 
     -- * Failed to process
+    UnreachableUserList (..),
+    unreachableFromList,
     FailedToProcess (..),
     failedToSend,
+    failedToSendMaybe,
   )
 where
 
@@ -57,6 +59,7 @@ import qualified Data.ByteArray as BA
 import Data.Id
 import Data.Json.Util
 import Data.Kind
+import Data.List.NonEmpty
 import Data.Qualified
 import Data.Schema
 import Data.Singletons.TH
@@ -322,22 +325,33 @@ instance SerialiseMLS (MessagePayload 'MLSPlainText) where
   -- so the next case is left as a stub
   serialiseMLS _ = pure ()
 
-newtype UnreachableUserList = UnreachableUserList {unreachableUsers :: [Qualified UserId]}
+newtype UnreachableUserList = UnreachableUserList {unreachableUsers :: NonEmpty (Qualified UserId)}
   deriving stock (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema UnreachableUserList
-  deriving newtype (Semigroup, Monoid)
+  deriving newtype (Semigroup)
 
 instance ToSchema UnreachableUserList where
   schema =
     named "UnreachableUserList" $
       UnreachableUserList
         <$> unreachableUsers
-          .= array schema
+          .= nonEmptyArray schema
+
+unreachableFromList :: [Qualified UserId] -> Maybe UnreachableUserList
+unreachableFromList = fmap UnreachableUserList . nonEmpty
+
+-- | A 'mappend'-like operation on two optional values of a type with a
+-- Semigroup instance.
+(<\>) :: Semigroup a => Maybe a -> Maybe a -> Maybe a
+Nothing <\> Nothing = Nothing
+Nothing <\> v = v
+v <\> Nothing = v
+(Just a) <\> (Just b) = Just (a <> b)
 
 -- | Lists of remote users that could not be processed in a federated action,
 -- e.g., a message could not be sent to these remote users.
 data FailedToProcess = FailedToProcess
-  { send :: UnreachableUserList
+  { send :: Maybe UnreachableUserList
   }
   deriving (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema FailedToProcess
@@ -345,7 +359,7 @@ data FailedToProcess = FailedToProcess
 instance Semigroup FailedToProcess where
   ftp1 <> ftp2 =
     FailedToProcess
-      { send = send ftp1 <> send ftp2
+      { send = send ftp1 <\> send ftp2
       }
 
 instance Monoid FailedToProcess where
@@ -355,16 +369,21 @@ failedToProcessObjectSchema :: ObjectSchema SwaggerDoc FailedToProcess
 failedToProcessObjectSchema =
   FailedToProcess
     <$> send
-      .= fieldWithDocModifier
-        "failed_to_send"
-        (description ?~ "List of federated users who could not be reached and did not receive the message")
-        (unnamed schema)
+      .= maybe_
+        ( optFieldWithDocModifier
+            "failed_to_send"
+            (description ?~ "List of federated users who could not be reached and did not receive the message")
+            (unnamed schema)
+        )
 
 instance ToSchema FailedToProcess where
   schema = object "FailedToProcess" failedToProcessObjectSchema
 
-failedToSend :: UnreachableUserList -> FailedToProcess
-failedToSend us = mempty {send = us}
+failedToSend :: [Qualified UserId] -> FailedToProcess
+failedToSend = failedToSendMaybe . unreachableFromList
+
+failedToSendMaybe :: Maybe UnreachableUserList -> FailedToProcess
+failedToSendMaybe us = mempty {send = us}
 
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],

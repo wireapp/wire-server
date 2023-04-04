@@ -49,15 +49,15 @@ testObject_MLSMessageSendingStatus3 =
       mmssFailedToProcess = failedToSend failed2
     }
 
-failed1 :: UnreachableUserList
+failed1 :: [Qualified UserId]
 failed1 =
   let domain = Domain "offline.example.com"
-   in UnreachableUserList [Qualified (Id . fromJust . UUID.fromString $ "00000000-0000-0000-0000-000200000008") domain]
+   in [Qualified (Id . fromJust . UUID.fromString $ "00000000-0000-0000-0000-000200000008") domain]
 
-failed2 :: UnreachableUserList
+failed2 :: [Qualified UserId]
 failed2 =
   let domain = Domain "golden.example.com"
-   in UnreachableUserList
-        [ Qualified (Id . fromJust . UUID.fromString $ "00000000-0000-0000-0000-000200000008") domain,
-          Qualified (Id . fromJust . UUID.fromString $ "00000000-0000-0000-0000-000100000007") domain
-        ]
+   in flip Qualified domain . Id . fromJust . UUID.fromString
+        <$> [ "00000000-0000-0000-0000-000200000008",
+              "00000000-0000-0000-0000-000100000007"
+            ]

@@ -318,7 +318,7 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   for_ (cbWelcome bundle) $
     postMLSWelcome lcnv conn
 
-  pure (events, failedToSend unreachables)
+  pure (events, failedToSendMaybe unreachables)
 
 postMLSCommitBundleToRemoteConv ::
   ( Members MLSBundleStaticErrors r,
@@ -398,7 +398,7 @@ postMLSMessage loc qusr mc qcnv con smsg =
       mSender <- fmap ciClient <$> getSenderIdentity qusr mc tag msg
       foldQualified
         loc
-        (fmap (second failedToSend) . postMLSMessageToLocalConv qusr mSender con smsg)
+        (fmap (second failedToSendMaybe) . postMLSMessageToLocalConv qusr mSender con smsg)
         (postMLSMessageToRemoteConv loc qusr mSender con smsg)
         qcnv
 
@@ -469,7 +469,7 @@ postMLSMessageToLocalConv ::
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Local ConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUserList)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUserList)
 postMLSMessageToLocalConv qusr senderClient con smsg lcnv =
   case rmValue smsg of
     SomeMessage tag msg -> do
