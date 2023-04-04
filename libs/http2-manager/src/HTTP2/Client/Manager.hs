@@ -1,7 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module HTTP2.Client.Manager where
 
@@ -12,13 +14,17 @@ import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.ByteString
+import qualified Data.ByteString as BS
 import Data.IORef
 import Data.Map
 import qualified Data.Map as Map
 import Data.Streaming.Network
 import Data.Unique
+import Foreign.Marshal.Alloc (mallocBytes)
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Socket as NS
+import qualified OpenSSL.Session as SSL
+import qualified System.TimeManager
 import Prelude
 
 data HTTP2Conn = HTTP2Conn
@@ -29,19 +35,37 @@ data HTTP2Conn = HTTP2Conn
     sendRequestMVar :: MVar (Either Request ())
   }
 
-type Target = (ByteString, Int)
+type Target = (TLSEnabled, ByteString, Int)
+
+type TLSEnabled = Bool
 
 -- FUTUREWORK: Support HTTPS, perhaps ALPN negatiation can also be used to
 -- HTTP1. I think HTTP1 vs HTTP2 can not be negotated without TLS, so perhaps
 -- this manager will default to HTTP2.
 data HTTP2Manager = HTTP2Manager
   { connections :: TVar (Map Target HTTP2Conn),
-    cacheLimit :: Int
+    cacheLimit :: Int,
+    sslContext :: SSL.SSLContext
   }
 
 defaultHTTP2Manager :: IO HTTP2Manager
-defaultHTTP2Manager =
-  HTTP2Manager <$> newTVarIO mempty <*> pure 20
+defaultHTTP2Manager = do
+  ctx <- SSL.context
+  SSL.contextSetVerificationMode ctx $
+    SSL.VerifyPeer
+      { vpFailIfNoPeerCert = True,
+        -- Only relvant when running as server
+        vpClientOnce = False,
+        vpCallback = Nothing
+      }
+  SSL.contextSetALPNProtos ctx ["h2"]
+  http2ManagerWithSSLCtx ctx
+
+http2ManagerWithSSLCtx :: SSL.SSLContext -> IO HTTP2Manager
+http2ManagerWithSSLCtx sslContext = do
+  connections <- newTVarIO mempty
+  let cacheLimit = 20
+  pure $ HTTP2Manager {..}
 
 -- | Does not check whether connection is actually running. Users should use
 -- 'withHTTP2Request'. This function is good for testing.
@@ -62,9 +86,9 @@ sendRequestWithConnection conn req f = do
 --
 -- It is important to consume the response body completely before the
 -- continuation can finish.
-withHTTP2Request :: HTTP2Manager -> ByteString -> Int -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
-withHTTP2Request mgr host port req f = do
-  mConn <- atomically $ getConnection mgr host port
+withHTTP2Request :: HTTP2Manager -> TLSEnabled -> ByteString -> Int -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
+withHTTP2Request mgr@HTTP2Manager {..} tlsEnabled host port req f = do
+  mConn <- atomically $ getConnection mgr tlsEnabled host port
   conn <- maybe connect pure mConn
   sendRequestWithConnection conn req f
   where
@@ -76,25 +100,25 @@ withHTTP2Request mgr host port req f = do
     -- 'BlockedIndefinitelyOnMVar' exception. So perhaps this is useless?
     insertNewConn :: HTTP2Conn -> STM (Bool, HTTP2Conn)
     insertNewConn newConn = do
-      stateTVar (connections mgr) $ \conns ->
-        case Map.lookup (host, port) conns of
-          Nothing -> ((True, newConn), Map.insert (host, port) newConn conns)
+      stateTVar connections $ \conns ->
+        case Map.lookup (tlsEnabled, host, port) conns of
+          Nothing -> ((True, newConn), Map.insert (tlsEnabled, host, port) newConn conns)
           Just alreadyEstablishedConn -> ((False, alreadyEstablishedConn), conns)
 
     connect :: IO HTTP2Conn
     connect = do
       sendReqMVar <- newEmptyMVar
-      thread <- liftIO . async $ startPersistentHTTP2Connection host port (cacheLimit mgr) sendReqMVar
+      thread <- liftIO . async $ startPersistentHTTP2Connection sslContext tlsEnabled host port cacheLimit sendReqMVar
       let conn = HTTP2Conn thread (putMVar sendReqMVar (Right ())) sendReqMVar
       (inserted, finalConn) <- atomically $ insertNewConn conn
       unless inserted $ disconnect conn
       pure finalConn
 
 -- | Removes connection from map if it is not alive anymore
-getConnection :: HTTP2Manager -> ByteString -> Int -> STM (Maybe HTTP2Conn)
-getConnection mgr host port = do
+getConnection :: HTTP2Manager -> TLSEnabled -> ByteString -> Int -> STM (Maybe HTTP2Conn)
+getConnection mgr tlsEnabled host port = do
   conns <- readTVar (connections mgr)
-  case Map.lookup (host, port) conns of
+  case Map.lookup (tlsEnabled, host, port) conns of
     Nothing -> pure Nothing
     Just conn ->
       -- If there is a connection for the (host,port), ensure that it is alive
@@ -103,10 +127,10 @@ getConnection mgr host port = do
         Nothing -> pure (Just conn)
         Just (Left (SomeException _err)) -> do
           -- TODO: Log the error, maybe by adding a generic logger function to Http2Manager
-          writeTVar (connections mgr) $ Map.delete (host, port) conns
+          writeTVar (connections mgr) $ Map.delete (tlsEnabled, host, port) conns
           pure Nothing
         Just (Right ()) -> do
-          writeTVar (connections mgr) $ Map.delete (host, port) conns
+          writeTVar (connections mgr) $ Map.delete (tlsEnabled, host, port) conns
           pure Nothing
 
 -- | Disconnects HTTP2 connection if there exists one. If the background thread
@@ -114,9 +138,9 @@ getConnection mgr host port = do
 --
 -- NOTE: Any requests in progress might not finish correctly.
 -- FUTUREWORK: Write a safe version of this function.
-unsafeDisconnectServer :: HTTP2Manager -> ByteString -> Int -> IO ()
-unsafeDisconnectServer mgr host port = do
-  mConn <- atomically $ getConnection mgr host port
+unsafeDisconnectServer :: HTTP2Manager -> TLSEnabled -> ByteString -> Int -> IO ()
+unsafeDisconnectServer mgr tlsEnabled host port = do
+  mConn <- atomically $ getConnection mgr tlsEnabled host port
   case mConn of
     Nothing -> pure ()
     Just conn -> do
@@ -133,7 +157,7 @@ unsafeDisconnectServer mgr host port = do
       -- finish.
       waitOneSec <- async $ threadDelay 1_000_000
       _ <- waitAnyCatchCancel [waitOneSec, backgroundThread conn]
-      atomically . modifyTVar' (connections mgr) $ Map.delete (host, port)
+      atomically . modifyTVar' (connections mgr) $ Map.delete (tlsEnabled, host, port)
 
 data Request = Request
   { -- | The request to be sent.
@@ -156,6 +180,8 @@ data Request = Request
 type CloseConnection = ()
 
 startPersistentHTTP2Connection ::
+  SSL.SSLContext ->
+  TLSEnabled ->
   -- hostname
   ByteString ->
   -- port
@@ -165,11 +191,11 @@ startPersistentHTTP2Connection ::
   -- MVar used to communicate requests or the need to close the connection.
   MVar (Either Request CloseConnection) ->
   IO ()
-startPersistentHTTP2Connection hostname port cl sendReqMVar = do
+startPersistentHTTP2Connection ctx tlsEnabled hostname port cl sendReqMVar = do
   liveReqs <- newIORef mempty
   let clientConfig =
         HTTP2.ClientConfig
-          { HTTP2.scheme = "http",
+          { HTTP2.scheme = if tlsEnabled then "https" else "http",
             HTTP2.authority = hostname,
             HTTP2.cacheLimit = cl
           }
@@ -195,11 +221,23 @@ startPersistentHTTP2Connection hostname port cl sendReqMVar = do
         void $ async $ race_ (tooLateNotifier e) (threadDelay 1_000_000)
 
       cleanup = cleanupWith (SomeException ConnectionAlreadyClosed)
+      mkConfigParam sock =
+        if tlsEnabled
+          then do
+            ssl <- SSL.connection ctx sock
+            SSL.connect ssl
+            pure $ Right ssl
+          else pure $ Left sock
+      cleanupSSL (Left _) = pure ()
+      cleanupSSL (Right ssl) = SSL.shutdown ssl SSL.Unidirectional
 
-  handle cleanupWith $ bracket (fst <$> getSocketTCP hostname port) NS.close $ \sock ->
-    bracket (HTTP2.allocSimpleConfig sock 4096) HTTP2.freeSimpleConfig $ \http2Cfg -> do
-      flip finally cleanup $ HTTP2.run clientConfig http2Cfg $ \sendReq -> do
-        handleRequests liveReqs sendReq
+  handle cleanupWith $ bracket (fst <$> getSocketTCP hostname port) NS.close $ \sock -> do
+    bracket (mkConfigParam sock) cleanupSSL $ \http2ConfigParam ->
+      bracket (allocHTTP2Config http2ConfigParam) HTTP2.freeSimpleConfig $ \http2Cfg -> do
+        -- If there is an exception throw it to all the threads, if not throw
+        -- 'ConnectionAlreadyClosed' to all the threads.
+        flip finally cleanup $ HTTP2.run clientConfig http2Cfg $ \sendReq -> do
+          handleRequests liveReqs sendReq
   where
     handleRequests :: IORef (Map Unique (Async (), MVar SomeException)) -> (HTTP2.Request -> (HTTP2.Response -> IO ()) -> IO ()) -> IO ()
     handleRequests liveReqs sendReq = do
@@ -236,3 +274,37 @@ data ConnectionAlreadyClosed = ConnectionAlreadyClosed
   deriving (Show)
 
 instance Exception ConnectionAlreadyClosed
+
+allocHTTP2Config :: Either NS.Socket SSL.SSL -> IO HTTP2.Config
+allocHTTP2Config (Left sock) = HTTP2.allocSimpleConfig sock 4096
+allocHTTP2Config (Right ssl) = do
+  let bufsize = 4096
+  buf <- mallocBytes bufsize
+  timmgr <- System.TimeManager.initialize $ 30 * 1000000
+  -- Sometimes the frame header says that the payload length is 0. Reading 0
+  -- bytes multiple times seems to be causing errors in openssl. I cannot figure
+  -- out why. The previous implementation didn't try to read from the socket
+  -- when trying to read 0 bytes, so special handling for 0 maintains that
+  -- behaviour.
+  let readData prevChunk 0 = pure prevChunk
+      readData prevChunk n = do
+        -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
+        -- (some sites terminate SSL connection right after returning the data).
+        chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
+        let chunkLen = BS.length chunk
+        if
+            | chunkLen == 0 || chunkLen == n ->
+                pure (prevChunk <> chunk)
+            | chunkLen > n ->
+                error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
+            | otherwise ->
+                readData (prevChunk <> chunk) (n - chunkLen)
+  pure
+    HTTP2.Config
+      { HTTP2.confWriteBuffer = buf,
+        HTTP2.confBufferSize = bufsize,
+        HTTP2.confSendAll = SSL.write ssl,
+        HTTP2.confReadN = readData mempty,
+        HTTP2.confPositionReadMaker = HTTP2.defaultPositionReadMaker,
+        HTTP2.confTimeoutManager = timmgr
+      }
