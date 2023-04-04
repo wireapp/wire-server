@@ -106,7 +106,7 @@ instance HasField "wireFormat" Message WireFormatTag where
 data MessageContent
   = MessagePrivate (RawMLS PrivateMessage)
   | MessagePublic PublicMessage
-  | MessageWelcome Welcome
+  | MessageWelcome (RawMLS Welcome)
   | MessageGroupInfo -- TODO
   | MessageKeyPackage (RawMLS KeyPackage)
   deriving (Eq, Show)

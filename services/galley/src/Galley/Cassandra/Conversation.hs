@@ -58,7 +58,7 @@ import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group
-import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 
 createMLSSelfConversation ::
@@ -199,16 +199,15 @@ conversationMeta conv =
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
       pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm
 
-getPublicGroupState :: ConvId -> Client (Maybe OpaquePublicGroupState)
-getPublicGroupState cid = do
-  fmap join $
-    runIdentity
-      <$$> retry
-        x1
-        ( query1
-            Cql.selectPublicGroupState
-            (params LocalQuorum (Identity cid))
-        )
+getGroupInfo :: ConvId -> Client (Maybe GroupInfoData)
+getGroupInfo cid = do
+  runIdentity
+    <$$> retry
+      x1
+      ( query1
+          Cql.selectGroupInfo
+          (params LocalQuorum (Identity cid))
+      )
 
 isConvAlive :: ConvId -> Client Bool
 isConvAlive cid = do
@@ -241,9 +240,9 @@ updateConvMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer 
 updateConvEpoch :: ConvId -> Epoch -> Client ()
 updateConvEpoch cid epoch = retry x5 $ write Cql.updateConvEpoch (params LocalQuorum (epoch, cid))
 
-setPublicGroupState :: ConvId -> OpaquePublicGroupState -> Client ()
-setPublicGroupState conv gib =
-  write Cql.updatePublicGroupState (params LocalQuorum (gib, conv))
+setGroupInfo :: ConvId -> GroupInfoData -> Client ()
+setGroupInfo conv gid =
+  write Cql.updateGroupInfo (params LocalQuorum (gid, conv))
 
 getConversation :: ConvId -> Client (Maybe Conversation)
 getConversation conv = do
@@ -463,7 +462,7 @@ interpretConversationStoreToCassandra = interpret $ \case
   LookupConvByGroupId gId -> embedClient $ lookupConvByGroupId gId
   GetConversations cids -> localConversations cids
   GetConversationMetadata cid -> embedClient $ conversationMeta cid
-  GetPublicGroupState cid -> embedClient $ getPublicGroupState cid
+  GetGroupInfo cid -> embedClient $ getGroupInfo cid
   IsConversationAlive cid -> embedClient $ isConvAlive cid
   SelectConversations uid cids -> embedClient $ localConversationIdsOf uid cids
   GetRemoteConversationStatus uid cids -> embedClient $ remoteConversationStatus uid cids
@@ -476,7 +475,7 @@ interpretConversationStoreToCassandra = interpret $ \case
   DeleteConversation cid -> embedClient $ deleteConversation cid
   SetGroupIdForConversation gId cid -> embedClient $ setGroupIdForConversation gId cid
   DeleteGroupIdForConversation gId -> embedClient $ deleteGroupIdForConversation gId
-  SetPublicGroupState cid gib -> embedClient $ setPublicGroupState cid gib
+  SetGroupInfo cid gib -> embedClient $ setGroupInfo cid gib
   AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl
   ReleaseCommitLock gId epoch -> embedClient $ releaseCommitLock gId epoch
   DeleteGroupIds gIds -> deleteGroupIds gIds

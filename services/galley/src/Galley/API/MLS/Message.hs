@@ -87,12 +87,11 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
-import Wire.API.MLS.GroupInfoBundle
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
-import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
@@ -107,8 +106,11 @@ import Wire.API.User.Client
 -- [ ] remove all key package ref mapping
 -- [ ] initialise index maps
 -- [ ] newtype for leaf node indices
--- [ ] compute new indices for add proposals
+-- [x] compute new indices for add proposals
 -- [ ] remove prefixes from rmValue and rmRaw
+-- [x] remove PublicGroupState and GroupInfoBundle modules
+-- [ ] remove protobuf definitions of CommitBundle
+-- [ ] (?) rename public_group_state field in conversation table
 
 data IncomingMessage = IncomingMessage
   { epoch :: Epoch,
@@ -141,7 +143,7 @@ data IncomingBundle = IncomingBundle
     commit :: RawMLS Commit,
     rawMessage :: RawMLS Message,
     welcome :: Maybe (RawMLS Welcome),
-    groupInfoBundle :: GroupInfoBundle,
+    groupInfo :: GroupInfoData,
     serialized :: ByteString
   }
 
@@ -173,9 +175,9 @@ mkIncomingMessage msg = case msg.rmValue.content of
             }
   _ -> Nothing
 
-mkIncomingBundle :: CommitBundle -> Maybe IncomingBundle
+mkIncomingBundle :: RawMLS CommitBundle -> Maybe IncomingBundle
 mkIncomingBundle bundle = do
-  imsg <- mkIncomingMessage bundle.cbCommitMsg
+  imsg <- mkIncomingMessage bundle.rmValue.cbCommitMsg
   content <- case imsg.content of
     IncomingMessageContentPublic c -> pure c
     _ -> Nothing
@@ -188,10 +190,10 @@ mkIncomingBundle bundle = do
         groupId = imsg.groupId,
         sender = content.sender,
         commit = commit,
-        rawMessage = bundle.cbCommitMsg,
-        welcome = bundle.cbWelcome,
-        groupInfoBundle = bundle.cbGroupInfoBundle,
-        serialized = serializeCommitBundle bundle
+        rawMessage = bundle.rmValue.cbCommitMsg,
+        welcome = bundle.rmValue.cbWelcome,
+        groupInfo = GroupInfoData bundle.rmValue.cbGroupInfo.rmRaw,
+        serialized = bundle.rmRaw
       }
 
 type MLSMessageStaticErrors =
@@ -318,7 +320,7 @@ postMLSCommitBundleFromLocalUser ::
   Local UserId ->
   ClientId ->
   ConnId ->
-  CommitBundle ->
+  RawMLS CommitBundle ->
   Sem r MLSMessageSendingStatus
 postMLSCommitBundleFromLocalUser lusr c conn bundle = do
   assertMLSEnabled
@@ -363,7 +365,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
       action
       bundle.sender
       bundle.commit.rmValue
-  storeGroupInfoBundle (idForConvOrSub . tUnqualified $ lConvOrSub) bundle.groupInfoBundle
+  storeGroupInfo (idForConvOrSub . tUnqualified $ lConvOrSub) bundle.groupInfo
 
   let cm = membersConvOrSub (tUnqualified lConvOrSub)
   unreachables <- propagateMessage qusr lConvOrSub conn bundle.commit.rmRaw cm
@@ -1275,18 +1277,16 @@ instance
   where
   handleMLSProposalFailure = mapError (MLSProposalFailure . toWai)
 
-storeGroupInfoBundle ::
+storeGroupInfo ::
   ( Member ConversationStore r,
     Member SubConversationStore r
   ) =>
   ConvOrSubConvId ->
-  GroupInfoBundle ->
+  GroupInfoData ->
   Sem r ()
-storeGroupInfoBundle convOrSub bundle = do
-  let gs = toOpaquePublicGroupState (gipGroupState bundle)
-  case convOrSub of
-    Conv cid -> setPublicGroupState cid gs
-    SubConv cid subconvid -> setSubConversationPublicGroupState cid subconvid (Just gs)
+storeGroupInfo convOrSub ginfo = case convOrSub of
+  Conv cid -> setGroupInfo cid ginfo
+  SubConv cid subconvid -> setSubConversationGroupInfo cid subconvid (Just ginfo)
 
 fetchConvOrSub ::
   forall r.

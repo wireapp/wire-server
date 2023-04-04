@@ -22,6 +22,8 @@ module Wire.API.MLS.Serialisation
   ( ParseMLS (..),
     SerialiseMLS (..),
     VarInt (..),
+    parseMLSStream,
+    serialiseMLSStream,
     parseMLSVector,
     serialiseMLSVector,
     parseMLSBytes,
@@ -119,6 +121,12 @@ instance Binary VarInt where
 instance SerialiseMLS VarInt where serialiseMLS = put
 
 instance ParseMLS VarInt where parseMLS = get
+
+parseMLSStream :: Get a -> Get [a]
+parseMLSStream = many . lookAhead
+
+serialiseMLSStream :: (a -> Put) -> [a] -> Put
+serialiseMLSStream = traverse_
 
 parseMLSVector :: forall w a. (Binary w, Integral w) => Get a -> Get [a]
 parseMLSVector getItem = do

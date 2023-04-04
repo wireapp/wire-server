@@ -69,7 +69,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
-import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 
 type MLSGetSubConvStaticErrors =
@@ -193,7 +193,7 @@ getSubConversationGroupInfo ::
   Local UserId ->
   Qualified ConvId ->
   SubConvId ->
-  Sem r OpaquePublicGroupState
+  Sem r GroupInfoData
 getSubConversationGroupInfo lusr qcnvId subconv = do
   assertMLSEnabled
   foldQualified
@@ -213,10 +213,10 @@ getSubConversationGroupInfoFromLocalConv ::
   Qualified UserId ->
   SubConvId ->
   Local ConvId ->
-  Sem r OpaquePublicGroupState
+  Sem r GroupInfoData
 getSubConversationGroupInfoFromLocalConv qusr subConvId lcnvId = do
   void $ getLocalConvForUser qusr lcnvId
-  Eff.getSubConversationPublicGroupState (tUnqualified lcnvId) subConvId
+  Eff.getSubConversationGroupInfo (tUnqualified lcnvId) subConvId
     >>= noteS @'MLSMissingGroupInfo
 
 type MLSDeleteSubConvStaticErrors =

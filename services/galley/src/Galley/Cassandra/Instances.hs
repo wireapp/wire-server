@@ -37,8 +37,8 @@ import Wire.API.Asset (AssetKey, assetKeyToText)
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Proposal
-import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -201,12 +201,12 @@ instance Cql GroupId where
   fromCql (CqlBlob b) = Right . GroupId . LBS.toStrict $ b
   fromCql _ = Left "group_id: blob expected"
 
-instance Cql OpaquePublicGroupState where
+instance Cql GroupInfoData where
   ctype = Tagged BlobColumn
 
-  toCql = CqlBlob . LBS.fromStrict . unOpaquePublicGroupState
-  fromCql (CqlBlob b) = Right $ OpaquePublicGroupState (LBS.toStrict b)
-  fromCql _ = Left "OpaquePublicGroupState: blob expected"
+  toCql = CqlBlob . LBS.fromStrict . unGroupInfoData
+  fromCql (CqlBlob b) = Right $ GroupInfoData (LBS.toStrict b)
+  fromCql _ = Left "GroupInfoData: blob expected"
 
 instance Cql Icon where
   ctype = Tagged TextColumn

@@ -27,14 +27,14 @@ import Polysemy
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group
-import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 
 data SubConversationStore m a where
-  CreateSubConversation :: ConvId -> SubConvId -> CipherSuiteTag -> Epoch -> GroupId -> Maybe OpaquePublicGroupState -> SubConversationStore m ()
+  CreateSubConversation :: ConvId -> SubConvId -> CipherSuiteTag -> Epoch -> GroupId -> Maybe GroupInfoData -> SubConversationStore m ()
   GetSubConversation :: ConvId -> SubConvId -> SubConversationStore m (Maybe SubConversation)
-  GetSubConversationPublicGroupState :: ConvId -> SubConvId -> SubConversationStore m (Maybe OpaquePublicGroupState)
-  SetSubConversationPublicGroupState :: ConvId -> SubConvId -> Maybe OpaquePublicGroupState -> SubConversationStore m ()
+  GetSubConversationGroupInfo :: ConvId -> SubConvId -> SubConversationStore m (Maybe GroupInfoData)
+  SetSubConversationGroupInfo :: ConvId -> SubConvId -> Maybe GroupInfoData -> SubConversationStore m ()
   SetGroupIdForSubConversation :: GroupId -> Qualified ConvId -> SubConvId -> SubConversationStore m ()
   SetSubConversationEpoch :: ConvId -> SubConvId -> Epoch -> SubConversationStore m ()
   DeleteGroupIdForSubConversation :: GroupId -> SubConversationStore m ()

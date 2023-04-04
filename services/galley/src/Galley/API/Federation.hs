@@ -93,9 +93,8 @@ import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
-import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
-import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
@@ -666,7 +665,10 @@ sendMLSCommitBundle remoteDomain msr =
       assertMLSEnabled
       loc <- qualifyLocal ()
       let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
-      bundle <- either (throw . mlsProtocolError) pure $ deserializeCommitBundle (fromBase64ByteString (F.mmsrRawMessage msr))
+      bundle <-
+        either (throw . mlsProtocolError) pure $
+          decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
+
       ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
       qConvOrSub <- E.lookupConvByGroupId ibundle.groupId >>= noteS @'ConvNotFound
       when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
@@ -827,7 +829,7 @@ queryGroupInfo origDomain req =
           getSubConversationGroupInfoFromLocalConv (tUntagged sender) subConvId lconvId
       pure
         . Base64ByteString
-        . unOpaquePublicGroupState
+        . unGroupInfoData
         $ state
 
 updateTypingIndicator ::

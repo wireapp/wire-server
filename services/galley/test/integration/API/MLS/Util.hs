@@ -52,6 +52,7 @@ import Data.Time
 import qualified Data.Tuple.Extra as Tuple
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDV4
+import Debug.Trace
 import Galley.Keys
 import Galley.Options
 import qualified Galley.Options as Opts
@@ -75,7 +76,6 @@ import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
-import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
@@ -293,7 +293,7 @@ data MessagePackage = MessagePackage
   { mpSender :: ClientIdentity,
     mpMessage :: ByteString,
     mpWelcome :: Maybe ByteString,
-    mpPublicGroupState :: Maybe ByteString
+    mpGroupInfo :: Maybe ByteString
   }
   deriving (Show)
 
@@ -632,9 +632,9 @@ createExternalCommit qcid mpgs qcs = do
     mlscli
       qcid
       [ "external-commit",
-        "--group-state-in",
+        "--group-info-in",
         "-",
-        "--group-state-out",
+        "--group-info-out",
         pgsFile,
         "--group-out",
         "<group-out>"
@@ -654,7 +654,7 @@ createExternalCommit qcid mpgs qcs = do
       { mpSender = qcid,
         mpMessage = commit,
         mpWelcome = Nothing,
-        mpPublicGroupState = Just newPgs
+        mpGroupInfo = Just newPgs
       }
 
 createAddProposals :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTest [MessagePackage]
@@ -680,7 +680,7 @@ createApplicationMessage cid messageContent = do
       { mpSender = cid,
         mpMessage = message,
         mpWelcome = Nothing,
-        mpPublicGroupState = Nothing
+        mpGroupInfo = Nothing
       }
 
 createAddCommitWithKeyPackages ::
@@ -722,7 +722,7 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
       { mpSender = qcid,
         mpMessage = commit,
         mpWelcome = Just welcome,
-        mpPublicGroupState = Just pgs
+        mpGroupInfo = Just pgs
       }
 
 createAddProposalWithKeyPackage ::
@@ -740,7 +740,7 @@ createAddProposalWithKeyPackage cid (_, kp) = do
       { mpSender = cid,
         mpMessage = prop,
         mpWelcome = Nothing,
-        mpPublicGroupState = Nothing
+        mpGroupInfo = Nothing
       }
 
 createPendingProposalCommit :: HasCallStack => ClientIdentity -> MLSTest MessagePackage
@@ -758,7 +758,7 @@ createPendingProposalCommit qcid = do
         "<group-out>",
         "--welcome-out",
         welcomeFile,
-        "--group-state-out",
+        "--group-info-out",
         pgsFile
       ]
       Nothing
@@ -770,7 +770,7 @@ createPendingProposalCommit qcid = do
       { mpSender = qcid,
         mpMessage = commit,
         mpWelcome = welcome,
-        mpPublicGroupState = Just pgs
+        mpGroupInfo = Just pgs
       }
 
 readWelcome :: FilePath -> IO (Maybe ByteString)
@@ -801,7 +801,7 @@ createRemoveCommit cid _targets = do
           "<group-out>",
           "--welcome-out",
           welcomeFile,
-          "--group-state-out",
+          "--group-info-out",
           pgsFile
         ]
           <> map show indices
@@ -814,7 +814,7 @@ createRemoveCommit cid _targets = do
       { mpSender = cid,
         mpMessage = commit,
         mpWelcome = welcome,
-        mpPublicGroupState = Just pgs
+        mpGroupInfo = Just pgs
       }
 
 createExternalAddProposal :: HasCallStack => ClientIdentity -> MLSTest MessagePackage
@@ -845,7 +845,7 @@ createExternalAddProposal joiner = do
       { mpSender = joiner,
         mpMessage = proposal,
         mpWelcome = Nothing,
-        mpPublicGroupState = Nothing
+        mpGroupInfo = Nothing
       }
 
 consumeWelcome :: HasCallStack => ByteString -> MLSTest ()
@@ -932,24 +932,24 @@ mkBundle :: MessagePackage -> Either Text CommitBundle
 mkBundle mp = do
   commitB <- decodeMLS' (mpMessage mp)
   welcomeB <- traverse decodeMLS' (mpWelcome mp)
-  pgs <- note "public group state unavailable" (mpPublicGroupState mp)
-  pgsB <- decodeMLS' pgs
-  pure $
-    CommitBundle commitB welcomeB $
-      GroupInfoBundle UnencryptedGroupInfo TreeFull pgsB
+  ginfo <- note "group info unavailable" (mpGroupInfo mp)
+  ginfoB <- decodeMLS' ginfo
+  pure $ CommitBundle commitB welcomeB ginfoB
 
 createBundle :: MonadIO m => MessagePackage -> m ByteString
 createBundle mp = do
   bundle <-
     either (liftIO . assertFailure . T.unpack) pure $
       mkBundle mp
-  pure (serializeCommitBundle bundle)
+  pure (encodeMLS' bundle)
 
 sendAndConsumeCommitBundle ::
   HasCallStack =>
   MessagePackage ->
   MLSTest [Event]
 sendAndConsumeCommitBundle mp = do
+  traverse_ (traceM . ("welcome: " <>) . show . hex) $ mpWelcome mp
+  traverse_ (traceM . ("groupState: " <>) . show . hex) $ mpGroupInfo mp
   qcs <- getConvId
   bundle <- createBundle mp
   events <- liftTest $ postCommitBundle (mpSender mp) qcs bundle

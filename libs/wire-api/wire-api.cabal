@@ -105,7 +105,7 @@ library
     Wire.API.MLS.Epoch
     Wire.API.MLS.Extension
     Wire.API.MLS.Group
-    Wire.API.MLS.GroupInfoBundle
+    Wire.API.MLS.GroupInfo
     Wire.API.MLS.HPKEPublicKey
     Wire.API.MLS.KeyPackage
     Wire.API.MLS.Keys
@@ -115,7 +115,6 @@ library
     Wire.API.MLS.Proposal
     Wire.API.MLS.ProposalTag
     Wire.API.MLS.ProtocolVersion
-    Wire.API.MLS.PublicGroupState
     Wire.API.MLS.Serialisation
     Wire.API.MLS.Servant
     Wire.API.MLS.SubConversation

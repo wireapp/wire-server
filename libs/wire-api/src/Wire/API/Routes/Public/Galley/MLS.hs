@@ -164,7 +164,7 @@ type MLSMessagingAPI =
                :> ZLocalUser
                :> ZClient
                :> ZConn
-               :> ReqBody '[CommitBundleMimeType] CommitBundle
+               :> ReqBody '[MLS] (RawMLS CommitBundle)
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Commit accepted and forwarded" MLSMessageSendingStatus)
            )
     :<|> Named

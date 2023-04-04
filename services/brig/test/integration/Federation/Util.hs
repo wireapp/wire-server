@@ -67,7 +67,6 @@ import Wire.API.Conversation (Conversation (cnvMembers))
 import Wire.API.Conversation.Member (OtherMember (OtherMember), cmOthers)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.MLS.CommitBundle
-import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.Serialisation
 import Wire.API.Team.Feature (FeatureStatus (..))
 import Wire.API.User
@@ -123,8 +122,7 @@ sendCommitBundle tmp subGroupStateFn galley uid cid commit = do
   subGroupStateRaw <- liftIO $ BS.readFile $ tmp </> subGroupStateFn
   subGroupState <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ subGroupStateRaw
   subCommit <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ commit
-  let subGroupBundle = CommitBundle subCommit Nothing (GroupInfoBundle UnencryptedGroupInfo TreeFull subGroupState)
-  let subGroupBundleRaw = serializeCommitBundle subGroupBundle
+  let subGroupBundle = CommitBundle subCommit Nothing subGroupState
   post
     ( galley
         . paths
@@ -133,7 +131,7 @@ sendCommitBundle tmp subGroupStateFn galley uid cid commit = do
         . zClient cid
         . zConn "conn"
         . header "Z-Type" "access"
-        . content "application/x-protobuf"
-        . bytes subGroupBundleRaw
+        . content "message/mls"
+        . lbytes (encodeMLS subGroupBundle)
     )
     !!! const 201 === statusCode

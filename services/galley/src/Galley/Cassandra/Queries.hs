@@ -34,7 +34,7 @@ import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 import Wire.API.Password (Password)
 import Wire.API.Provider
@@ -284,11 +284,11 @@ deleteConv = "delete from conversation using timestamp 32503680000000000 where c
 markConvDeleted :: PrepQuery W (Identity ConvId) ()
 markConvDeleted = "update conversation set deleted = true where conv = ?"
 
-selectPublicGroupState :: PrepQuery R (Identity ConvId) (Identity (Maybe OpaquePublicGroupState))
-selectPublicGroupState = "select public_group_state from conversation where conv = ?"
+selectGroupInfo :: PrepQuery R (Identity ConvId) (Identity GroupInfoData)
+selectGroupInfo = "select public_group_state from conversation where conv = ?"
 
-updatePublicGroupState :: PrepQuery W (OpaquePublicGroupState, ConvId) ()
-updatePublicGroupState = "update conversation set public_group_state = ? where conv = ?"
+updateGroupInfo :: PrepQuery W (GroupInfoData, ConvId) ()
+updateGroupInfo = "update conversation set public_group_state = ? where conv = ?"
 
 -- Conversations accessible by code -----------------------------------------
 
@@ -331,14 +331,14 @@ lookupGroupId = "SELECT conv_id, domain, subconv_id from group_id_conv_id where 
 selectSubConversation :: PrepQuery R (ConvId, SubConvId) (CipherSuiteTag, Epoch, Writetime Epoch, GroupId)
 selectSubConversation = "SELECT cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ? and subconv_id = ?"
 
-insertSubConversation :: PrepQuery W (ConvId, SubConvId, CipherSuiteTag, Epoch, GroupId, Maybe OpaquePublicGroupState) ()
+insertSubConversation :: PrepQuery W (ConvId, SubConvId, CipherSuiteTag, Epoch, GroupId, Maybe GroupInfoData) ()
 insertSubConversation = "INSERT INTO subconversation (conv_id, subconv_id, cipher_suite, epoch, group_id, public_group_state) VALUES (?, ?, ?, ?, ?, ?)"
 
-updateSubConvPublicGroupState :: PrepQuery W (ConvId, SubConvId, Maybe OpaquePublicGroupState) ()
-updateSubConvPublicGroupState = "INSERT INTO subconversation (conv_id, subconv_id, public_group_state) VALUES (?, ?, ?)"
+updateSubConvGroupInfo :: PrepQuery W (ConvId, SubConvId, Maybe GroupInfoData) ()
+updateSubConvGroupInfo = "INSERT INTO subconversation (conv_id, subconv_id, public_group_state) VALUES (?, ?, ?)"
 
-selectSubConvPublicGroupState :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe OpaquePublicGroupState))
-selectSubConvPublicGroupState = "SELECT public_group_state FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
+selectSubConvGroupInfo :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe GroupInfoData))
+selectSubConvGroupInfo = "SELECT public_group_state FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
 
 deleteGroupId :: PrepQuery W (Identity GroupId) ()
 deleteGroupId = "DELETE FROM group_id_conv_id WHERE group_id = ?"

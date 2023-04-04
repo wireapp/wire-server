@@ -21,19 +21,15 @@ module Test.Wire.API.Roundtrip.MLS (tests) where
 
 import Data.Binary.Put
 import Imports
-import qualified Proto.Mls
 import qualified Test.Tasty as T
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
-import Wire.API.ConverProtoLens
-import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Extension
-import Wire.API.MLS.GroupInfoBundle
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
-import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 
@@ -46,13 +42,9 @@ tests =
       testRoundTrip @RemoveProposalMessage,
       testRoundTrip @RemoveProposalPayload,
       testRoundTrip @ExtensionVector,
-      testRoundTrip @PublicGroupStateTBS,
-      testRoundTrip @PublicGroupState,
+      testRoundTrip @GroupInfoData,
       testRoundTrip @Welcome,
-      testRoundTrip @OpaquePublicGroupState,
-      testRoundTrip @VarInt,
-      testConvertProtoRoundTrip @Proto.Mls.GroupInfoBundle @GroupInfoBundle,
-      testConvertProtoRoundTrip @Proto.Mls.CommitBundle @TestCommitBundle
+      testRoundTrip @VarInt
     ]
 
 testRoundTrip ::
@@ -65,24 +57,6 @@ testRoundTrip = testProperty msg trip
     trip (v :: a) =
       counterexample (show (runPut (serialiseMLS v))) $
         Right v === (decodeMLS . runPut . serialiseMLS) v
-
-testConvertProtoRoundTrip ::
-  forall p a.
-  ( Arbitrary a,
-    Typeable a,
-    Show a,
-    Show p,
-    Eq a,
-    ConvertProtoLens p a
-  ) =>
-  T.TestTree
-testConvertProtoRoundTrip = testProperty (show (typeRep @a)) trip
-  where
-    trip (v :: a) =
-      counterexample (show (toProtolens @p @a v)) $
-        Right v === do
-          let pa = toProtolens @p @a v
-          fromProtolens @p @a pa
 
 --------------------------------------------------------------------------------
 -- auxiliary types
@@ -133,7 +107,7 @@ instance
 
 ---
 
-newtype RemoveProposalMessage = RemoveProposalMessage {unRemoveProposalMessage :: Message}
+newtype RemoveProposalMessage = RemoveProposalMessage Message
   deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
 
 instance Arbitrary RemoveProposalMessage where
@@ -175,24 +149,3 @@ instance ParseMLS ExtensionVector where
 instance SerialiseMLS ExtensionVector where
   serialiseMLS (ExtensionVector exts) = do
     serialiseMLSVector @VarInt serialiseMLS exts
-
----
-
-newtype TestCommitBundle = TestCommitBundle {unTestCommitBundle :: CommitBundle}
-  deriving (Show, Eq)
-
--- | The commit bundle should contain a commit message, not a remove proposal
--- message. However defining MLS serialization for Commits and all nested types
--- seems overkill to test the commit bundle roundtrip
-instance Arbitrary TestCommitBundle where
-  arbitrary = do
-    bundle <-
-      CommitBundle
-        <$> (mkRawMLS . unRemoveProposalMessage <$> arbitrary)
-        <*> oneof [Just <$> (mkRawMLS <$> arbitrary), pure Nothing]
-        <*> arbitrary
-    pure (TestCommitBundle bundle)
-
-instance ConvertProtoLens Proto.Mls.CommitBundle TestCommitBundle where
-  fromProtolens = fmap TestCommitBundle . fromProtolens @Proto.Mls.CommitBundle @CommitBundle
-  toProtolens = toProtolens . unTestCommitBundle
