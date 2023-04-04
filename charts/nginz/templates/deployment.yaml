@@ -62,14 +62,14 @@ spec:
           httpGet:
             path: /status
             port: {{ .Values.config.http.httpPort }}
-            scheme: {{ if .Values.config.http2.enabled }}HTTP2{{ else }}HTTP{{ end }}
+            scheme: HTTP
         livenessProbe:
           initialDelaySeconds: 30
           timeoutSeconds: 1
           httpGet:
             path: /status
             port: {{ .Values.config.http.httpPort }}
-            scheme: {{ if .Values.config.http2.enabled }}HTTP2{{ else }}HTTP{{ end }}
+            scheme: HTTP
         resources:
 {{ toYaml .Values.resources | indent 12 }}
       dnsPolicy: ClusterFirst
