@@ -357,7 +357,7 @@ claimMultiPrekeyBundles ::
   ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMapV4
 claimMultiPrekeyBundles protectee quc = do
   (localPrekeys, remotes) <- claimMultiPrekeyBundlesInternal protectee quc
-  remotePrekeys <- mapExceptT wrapHttpClient $ lift $ traverseConcurrently claimRemote remotes
+  remotePrekeys <- mapExceptT wrapHttpClient $ lift $ traverseConcurrentlySem claimRemote remotes
   let prekeys =
         getQualifiedUserClientPrekeyMap $
           qualifiedUserClientPrekeyMapFromList $

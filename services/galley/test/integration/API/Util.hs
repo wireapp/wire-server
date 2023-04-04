@@ -87,6 +87,7 @@ import Imports
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Media.MediaType
 import qualified Network.HTTP.Types as HTTP
+import Network.URI (pathSegments)
 import Network.Wai (defaultRequest)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Test as Wai
@@ -148,7 +149,13 @@ import Wire.API.User.Client.Prekey
 -- API Operations
 
 addPrefix :: Request -> Request
-addPrefix = addPrefixAtVersion maxBound
+addPrefix = maybeAddPrefixAtVersion maxBound
+
+maybeAddPrefixAtVersion :: Version -> Request -> Request
+maybeAddPrefixAtVersion vers r = case pathSegments $ getUri r of
+  ("i" : _) -> r
+  ("api-internal" : _) -> r
+  _ -> addPrefixAtVersion vers r
 
 addPrefixAtVersion :: Version -> Request -> Request
 addPrefixAtVersion v r = r {HTTP.path = toHeader v <> "/" <> removeSlash (HTTP.path r)}

@@ -459,8 +459,9 @@ testRefreshTokenMaxActiveTokens opts db brig =
       let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
       resp <- createOAuthAccessToken brig accessTokenRequest
       rid <- extractRefreshTokenId jwk resp.refreshToken
-      tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
-      liftIO $ assertBool testMsg $ [rid2, rid] `hasSameElems` (refreshTokenId <$> tokens)
+      recoverN 3 $ do
+        tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
+        liftIO $ assertBool testMsg $ [rid2, rid] `hasSameElems` (refreshTokenId <$> tokens)
       pure rid
     delayOneSec
     do

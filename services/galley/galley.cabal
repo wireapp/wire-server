@@ -496,6 +496,7 @@ executable galley-integration
     , metrics-wai
     , mtl
     , network
+    , network-uri
     , optparse-applicative
     , pem
     , process

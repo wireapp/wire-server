@@ -83,6 +83,7 @@ import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
+import Data.List.NonEmpty (nonEmpty)
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
@@ -110,6 +111,7 @@ import qualified Wire.API.Connection as Public
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.API
+import Wire.API.Federation.Error
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.Internal.Brig as BrigInternalAPI
 import qualified Wire.API.Routes.Internal.Cannon as CannonInternalAPI
@@ -250,6 +252,7 @@ servantSitemap =
         :<|> Named @"get-user-by-handle-qualified" (callsFed (exposeAnnotations Handle.getHandleInfo))
         :<|> Named @"list-users-by-unqualified-ids-or-handles" (callsFed (exposeAnnotations listUsersByUnqualifiedIdsOrHandles))
         :<|> Named @"list-users-by-ids-or-handles" (callsFed (exposeAnnotations listUsersByIdsOrHandles))
+        :<|> Named @"list-users-by-ids-or-handles@V3" (callsFed (exposeAnnotations listUsersByIdsOrHandlesV3))
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
 
@@ -723,7 +726,7 @@ listUsersByUnqualifiedIdsOrHandles ::
 listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
   domain <- viewFederationDomain
   case (mUids, mHandles) of
-    (Just uids, _) -> listUsersByIdsOrHandles self (Public.ListUsersByIds ((`Qualified` domain) <$> fromCommaSeparatedList uids))
+    (Just uids, _) -> listUsersByIdsOrHandlesV3 self (Public.ListUsersByIds ((`Qualified` domain) <$> fromCommaSeparatedList uids))
     (_, Just handles) ->
       let normalRangedList = fromCommaSeparatedList $ fromRange handles
           qualifiedList = (`Qualified` domain) <$> normalRangedList
@@ -732,10 +735,21 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
           -- annotation here otherwise a change in 'Public.ListUsersByHandles'
           -- could cause this code to break.
           qualifiedRangedList :: Range 1 4 [Qualified Handle] = unsafeRange qualifiedList
-       in listUsersByIdsOrHandles self (Public.ListUsersByHandles qualifiedRangedList)
+       in listUsersByIdsOrHandlesV3 self (Public.ListUsersByHandles qualifiedRangedList)
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
-listUsersByIdsOrHandles ::
+listUsersByIdsOrHandlesGetIds :: [Handle] -> (Handler r) [Qualified UserId]
+listUsersByIdsOrHandlesGetIds localHandles = do
+  localUsers <- catMaybes <$> traverse (lift . wrapClient . API.lookupHandle) localHandles
+  domain <- viewFederationDomain
+  pure $ map (`Qualified` domain) localUsers
+
+listUsersByIdsOrHandlesGetUsers :: Local x -> Range n m [Qualified Handle] -> Handler r [Qualified UserId]
+listUsersByIdsOrHandlesGetUsers lself hs = do
+  let (localHandles, _) = partitionQualified lself (fromRange hs)
+  listUsersByIdsOrHandlesGetIds localHandles
+
+listUsersByIdsOrHandlesV3 ::
   forall r.
   ( Member GalleyProvider r,
     Member (Concurrency 'Unsafe) r
@@ -743,26 +757,48 @@ listUsersByIdsOrHandles ::
   UserId ->
   Public.ListUsersQuery ->
   (Handler r) [Public.UserProfile]
-listUsersByIdsOrHandles self q = do
+listUsersByIdsOrHandlesV3 self q = do
   lself <- qualifyLocal self
   foundUsers <- case q of
     Public.ListUsersByIds us ->
       byIds lself us
     Public.ListUsersByHandles hs -> do
-      let (localHandles, _) = partitionQualified lself (fromRange hs)
-      us <- getIds localHandles
+      us <- listUsersByIdsOrHandlesGetUsers lself hs
       Handle.filterHandleResults lself =<< byIds lself us
   case foundUsers of
     [] -> throwStd $ notFound "None of the specified ids or handles match any users"
     _ -> pure foundUsers
   where
-    getIds :: [Handle] -> (Handler r) [Qualified UserId]
-    getIds localHandles = do
-      localUsers <- catMaybes <$> traverse (lift . wrapClient . API.lookupHandle) localHandles
-      domain <- viewFederationDomain
-      pure $ map (`Qualified` domain) localUsers
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
     byIds lself uids = API.lookupProfiles lself uids !>> fedError
+
+-- Similar to listUsersByIdsOrHandlesV3, except that it allows partial successes
+-- using a new return type
+listUsersByIdsOrHandles ::
+  forall r.
+  ( Member GalleyProvider r,
+    Member (Concurrency 'Unsafe) r
+  ) =>
+  UserId ->
+  Public.ListUsersQuery ->
+  Handler r ListUsersById
+listUsersByIdsOrHandles self q = do
+  lself <- qualifyLocal self
+  (errors, foundUsers) <- case q of
+    Public.ListUsersByIds us ->
+      byIds lself us
+    Public.ListUsersByHandles hs -> do
+      us <- listUsersByIdsOrHandlesGetUsers lself hs
+      (l, r) <- byIds lself us
+      r' <- Handle.filterHandleResults lself r
+      pure (l, r')
+  pure $ ListUsersById foundUsers $ fst <$$> nonEmpty errors
+  where
+    byIds ::
+      Local UserId ->
+      [Qualified UserId] ->
+      Handler r ([(Qualified UserId, FederationError)], [Public.UserProfile])
+    byIds lself uids = lift (API.lookupProfilesV3 lself uids) !>> fedError
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)

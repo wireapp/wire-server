@@ -84,6 +84,7 @@
 , mwc-random
 , network
 , network-conduit-tls
+, network-uri
 , optparse-applicative
 , pem
 , pipes
@@ -344,6 +345,7 @@ mkDerivation {
     MonadRandom
     mtl
     network
+    network-uri
     optparse-applicative
     pem
     pipes
