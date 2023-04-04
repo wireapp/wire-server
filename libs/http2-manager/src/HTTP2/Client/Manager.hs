@@ -199,6 +199,8 @@ startPersistentHTTP2Connection ctx tlsEnabled hostname port cl sendReqMVar = do
             HTTP2.authority = hostname,
             HTTP2.cacheLimit = cl
           }
+      -- Sends error to requests which show up too late, i.e. after the
+      -- connection is already closed
       tooLateNotifier e = forever $ do
         takeMVar sendReqMVar >>= \case
           Left Request {..} -> do
@@ -206,7 +208,8 @@ startPersistentHTTP2Connection ctx tlsEnabled hostname port cl sendReqMVar = do
             void $ tryPutMVar exceptionMVar (SomeException e)
           _ -> pure ()
 
-      cleanupWith (SomeException e) = do
+      -- Sends errors to the request threads when an error occurs
+      cleanupThreadsWith (SomeException e) = do
         -- Is it really OK to cancel the remaining threads because if there
         -- are any threads here?
         mapM_ (\(thread, _) -> cancelWith thread e) =<< readIORef liveReqs
@@ -220,7 +223,8 @@ startPersistentHTTP2Connection ctx tlsEnabled hostname port cl sendReqMVar = do
         -- as finished.
         void $ async $ race_ (tooLateNotifier e) (threadDelay 1_000_000)
 
-      cleanup = cleanupWith (SomeException ConnectionAlreadyClosed)
+      cleanupThreads = cleanupThreadsWith (SomeException ConnectionAlreadyClosed)
+
       mkConfigParam sock =
         if tlsEnabled
           then do
@@ -231,15 +235,15 @@ startPersistentHTTP2Connection ctx tlsEnabled hostname port cl sendReqMVar = do
       cleanupSSL (Left _) = pure ()
       cleanupSSL (Right ssl) = SSL.shutdown ssl SSL.Unidirectional
 
-  handle cleanupWith $ bracket (fst <$> getSocketTCP hostname port) NS.close $ \sock -> do
+  handle cleanupThreadsWith $ bracket (fst <$> getSocketTCP hostname port) NS.close $ \sock -> do
     bracket (mkConfigParam sock) cleanupSSL $ \http2ConfigParam ->
       bracket (allocHTTP2Config http2ConfigParam) HTTP2.freeSimpleConfig $ \http2Cfg -> do
         -- If there is an exception throw it to all the threads, if not throw
         -- 'ConnectionAlreadyClosed' to all the threads.
-        flip finally cleanup $ HTTP2.run clientConfig http2Cfg $ \sendReq -> do
+        flip finally cleanupThreads $ HTTP2.run clientConfig http2Cfg $ \sendReq -> do
           handleRequests liveReqs sendReq
   where
-    handleRequests :: IORef (Map Unique (Async (), MVar SomeException)) -> (HTTP2.Request -> (HTTP2.Response -> IO ()) -> IO ()) -> IO ()
+    handleRequests :: IORef LiveReqs -> SendReqFn -> IO ()
     handleRequests liveReqs sendReq = do
       let waitAndFork = do
             reqOrStop <- takeMVar sendReqMVar
@@ -253,6 +257,7 @@ startPersistentHTTP2Connection ctx tlsEnabled hostname port cl sendReqMVar = do
                 mapM_ (wait . fst) =<< readIORef liveReqs
       waitAndFork
 
+    processRequest :: IORef LiveReqs -> SendReqFn -> Request -> IO ()
     processRequest liveReqs sendReq Request {..} = do
       unique <- newUnique
       thread <- async $ do
@@ -269,6 +274,10 @@ startPersistentHTTP2Connection ctx tlsEnabled hostname port cl sendReqMVar = do
       putMVar threadKilled (SomeException e)
     generalHandler threadKilled e = putMVar threadKilled e
     exceptionHandlers threadKilled = [Handler $ tooLateHandler threadKilled, Handler $ generalHandler threadKilled]
+
+type LiveReqs = Map Unique (Async (), MVar SomeException)
+
+type SendReqFn = HTTP2.Request -> (HTTP2.Response -> IO ()) -> IO ()
 
 data ConnectionAlreadyClosed = ConnectionAlreadyClosed
   deriving (Show)
