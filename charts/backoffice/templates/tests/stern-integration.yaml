@@ -26,6 +26,6 @@ spec:
       mountPath: "/etc/wire/stern/conf"
     resources:
       requests:
-        memory: "512Mi"
-        cpu: "2"
+        memory: "128Mi"
+        cpu: "1"
   restartPolicy: Never
