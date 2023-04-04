@@ -60,6 +60,7 @@ import Galley.Effects.ProposalStore
 import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
+import Galley.Types.UserList
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -285,7 +286,7 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
 
   senderClient <- fmap ciClient <$> getSenderIdentity qusr mc SMLSPlainText msg
 
-  events <- case msgPayload msg of
+  (events, failedToProcess) <- case msgPayload msg of
     CommitMessage commit ->
       do
         action <- getCommitData lconv mlsMeta (msgEpoch msg) commit
@@ -296,7 +297,7 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
                 /= Set.fromList (map (snd . snd) (cmAssocs (paAdd action)))
             )
             $ throwS @'MLSWelcomeMismatch
-        updates <-
+        (updates, failedToProcess) <-
           processCommitWithAction
             qusr
             senderClient
@@ -309,7 +310,7 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
             (msgSender msg)
             commit
         storeGroupInfoBundle lconv (cbGroupInfoBundle bundle)
-        pure updates
+        pure (updates, failedToProcess)
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     ProposalMessage _ -> throwS @'MLSUnsupportedMessage
 
@@ -318,7 +319,7 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   for_ (cbWelcome bundle) $
     postMLSWelcome lcnv conn
 
-  pure (events, failedToSendMaybe unreachables)
+  pure (events, failedToProcess <> failedToSendMaybe unreachables)
 
 postMLSCommitBundleToRemoteConv ::
   ( Members MLSBundleStaticErrors r,
@@ -398,7 +399,7 @@ postMLSMessage loc qusr mc qcnv con smsg =
       mSender <- fmap ciClient <$> getSenderIdentity qusr mc tag msg
       foldQualified
         loc
-        (fmap (second failedToSendMaybe) . postMLSMessageToLocalConv qusr mSender con smsg)
+        (postMLSMessageToLocalConv qusr mSender con smsg)
         (postMLSMessageToRemoteConv loc qusr mSender con smsg)
         qcnv
 
@@ -469,7 +470,7 @@ postMLSMessageToLocalConv ::
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Local ConvId ->
-  Sem r ([LocalConversationUpdate], Maybe UnreachableUserList)
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 postMLSMessageToLocalConv qusr senderClient con smsg lcnv =
   case rmValue smsg of
     SomeMessage tag msg -> do
@@ -481,13 +482,13 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv =
       let lconv = qualifyAs lcnv conv
 
       -- validate message
-      events <- case tag of
+      (events, failedToProcess) <- case tag of
         SMLSPlainText -> case msgPayload msg of
           CommitMessage c ->
             processCommit qusr senderClient con lconv mlsMeta cm (msgEpoch msg) (msgSender msg) c
           ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
           ProposalMessage prop ->
-            processProposal qusr conv mlsMeta msg prop $> mempty
+            processProposal qusr conv mlsMeta msg prop $> (mempty, mempty)
         SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
           Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
           Right ProposalMessageTag -> throwS @'MLSUnsupportedMessage
@@ -496,7 +497,7 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv =
 
       -- forward message
       unreachables <- propagateMessage qusr lconv cm con (rmRaw smsg)
-      pure (events, unreachables)
+      pure (events, failedToProcess <> failedToSendMaybe unreachables)
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
@@ -630,7 +631,7 @@ processCommit ::
   Epoch ->
   Sender 'MLSPlainText ->
   Commit ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 processCommit qusr senderClient con lconv mlsMeta cm epoch sender commit = do
   action <- getCommitData lconv mlsMeta epoch commit
   processCommitWithAction qusr senderClient con lconv mlsMeta cm epoch action sender commit
@@ -765,11 +766,13 @@ processCommitWithAction ::
   ProposalAction ->
   Sender 'MLSPlainText ->
   Commit ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 processCommitWithAction qusr senderClient con lconv mlsMeta cm epoch action sender commit =
   case sender of
     MemberSender ref -> processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action ref commit
-    NewMemberSender -> processExternalCommit qusr senderClient lconv mlsMeta cm epoch action (cPath commit) $> []
+    NewMemberSender ->
+      processExternalCommit qusr senderClient lconv mlsMeta cm epoch action (cPath commit)
+        $> (mempty, mempty)
     _ -> throw (mlsProtocolError "Unexpected sender")
 
 processInternalCommit ::
@@ -793,7 +796,7 @@ processInternalCommit ::
   ProposalAction ->
   KeyPackageRef ->
   Commit ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action senderRef commit = do
   self <- noteS @'ConvNotFound $ getConvMember lconv (tUnqualified lconv) qusr
 
@@ -1107,7 +1110,7 @@ executeProposalAction ::
   ConversationMLSData ->
   ClientMap ->
   ProposalAction ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 executeProposalAction qusr con lconv mlsMeta cm action = do
   let ss = csSignatureScheme (cnvmlsCipherSuite mlsMeta)
       newUserClients = Map.assocs (paAdd action)
@@ -1160,7 +1163,6 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
             && Set.isSubsetOf clients allClients
         )
         $ do
-          -- unless (Set.isSubsetOf allClients clients) $ do
           -- FUTUREWORK: turn this error into a proper response
           throwS @'MLSClientMismatch
 
@@ -1168,6 +1170,16 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
 
   -- add users to the conversation and send events
   addEvents <- foldMap addMembers . nonEmpty . map fst $ newUserClients
+  let failedAdding =
+        Set.toList $
+          Set.fromList (fst <$> newUserClients)
+            `Set.difference` Set.fromList
+              ( ulAll lconv
+                  . ulNewMembers lconv (tUnqualified lconv)
+                  . toUserList lconv
+                  . foldMap (onlyJoining . lcuEvent)
+                  $ addEvents
+              )
 
   -- add clients in the conversation state
   for_ newUserClients $ \(qtarget, newClients) -> do
@@ -1181,8 +1193,12 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
   for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
     removeMLSClients (cnvmlsGroupId mlsMeta) qtarget (Set.map fst clients)
 
-  pure (addEvents <> removeEvents)
+  pure (addEvents <> removeEvents, failedToAdd failedAdding)
   where
+    onlyJoining :: Event -> [Qualified UserId]
+    onlyJoining (evtData -> EdMembersJoin ms) = smQualifiedId <$> mMembers ms
+    onlyJoining _ = []
+
     checkRemoval ::
       Qualified UserId ->
       Set ClientId ->

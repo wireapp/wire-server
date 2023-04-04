@@ -46,6 +46,8 @@ module Wire.API.MLS.Message
     FailedToProcess (..),
     failedToSend,
     failedToSendMaybe,
+    failedToAdd,
+    failedToAddMaybe,
   )
 where
 
@@ -351,7 +353,8 @@ v <\> Nothing = v
 -- | Lists of remote users that could not be processed in a federated action,
 -- e.g., a message could not be sent to these remote users.
 data FailedToProcess = FailedToProcess
-  { send :: Maybe UnreachableUserList
+  { send :: Maybe UnreachableUserList,
+    add :: Maybe UnreachableUserList
   }
   deriving (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema FailedToProcess
@@ -359,11 +362,12 @@ data FailedToProcess = FailedToProcess
 instance Semigroup FailedToProcess where
   ftp1 <> ftp2 =
     FailedToProcess
-      { send = send ftp1 <\> send ftp2
+      { send = send ftp1 <\> send ftp2,
+        add = add ftp1 <\> add ftp2
       }
 
 instance Monoid FailedToProcess where
-  mempty = FailedToProcess mempty
+  mempty = FailedToProcess mempty mempty
 
 failedToProcessObjectSchema :: ObjectSchema SwaggerDoc FailedToProcess
 failedToProcessObjectSchema =
@@ -375,6 +379,13 @@ failedToProcessObjectSchema =
             (description ?~ "List of federated users who could not be reached and did not receive the message")
             (unnamed schema)
         )
+    <*> add
+      .= maybe_
+        ( optFieldWithDocModifier
+            "failed_to_add"
+            (description ?~ "List of federated users who could not be reached and be added to a conversation")
+            (unnamed schema)
+        )
 
 instance ToSchema FailedToProcess where
   schema = object "FailedToProcess" failedToProcessObjectSchema
@@ -384,6 +395,12 @@ failedToSend = failedToSendMaybe . unreachableFromList
 
 failedToSendMaybe :: Maybe UnreachableUserList -> FailedToProcess
 failedToSendMaybe us = mempty {send = us}
+
+failedToAdd :: [Qualified UserId] -> FailedToProcess
+failedToAdd = failedToAddMaybe . unreachableFromList
+
+failedToAddMaybe :: Maybe UnreachableUserList -> FailedToProcess
+failedToAddMaybe us = mempty {add = us}
 
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],
