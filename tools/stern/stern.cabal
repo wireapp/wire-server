@@ -196,3 +196,171 @@ test-suite stern-tests
     , tasty
     , tasty-hunit
     , wire-api
+
+executable stern-integration
+  main-is:            Main.hs
+
+  -- cabal-fmt: expand test/integration
+  other-modules:
+    API
+    Main
+    TestSetup
+    Util
+
+  hs-source-dirs:     test/integration
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -threaded -with-rtsopts=-N -Wredundant-constraints
+
+  build-depends:
+      aeson
+    , aeson-qq
+    , amazonka
+    , amazonka-sqs
+    , async
+    , base
+    , base64-bytestring
+    , bilge
+    , binary
+    , brig-types
+    , bytestring
+    , bytestring-conversion
+    , call-stack
+    , case-insensitive
+    , cassandra-util
+    , cassava
+    , cereal
+    , comonad
+    , containers
+    , cookie
+    , cryptonite
+    , currency-codes
+    , data-default
+    , data-timeout
+    , directory
+    , errors
+    , exceptions
+    , extended
+    , extra                    >=1.3
+    , federator
+    , filepath
+    , galley
+    , galley-types
+    , gundeck-types
+    , hex
+    , HsOpenSSL
+    , HsOpenSSL-x509-system
+    , hspec
+    , http-client
+    , http-client-openssl
+    , http-client-tls
+    , http-media
+    , http-types
+    , imports
+    , kan-extensions
+    , lens
+    , lens-aeson
+    , memory
+    , metrics-wai
+    , mtl
+    , network
+    , network-uri
+    , optparse-applicative
+    , pem
+    , process
+    , proto-lens
+    , protobuf
+    , QuickCheck
+    , quickcheck-instances
+    , random
+    , raw-strings-qq           >=1.0
+    , retry
+    , safe                     >=0.3
+    , saml2-web-sso            >=0.19
+    , schema-profunctor
+    , servant
+    , servant-client
+    , servant-client-core
+    , servant-server
+    , servant-swagger
+    , singletons
+    , singletons-th
+    , sop-core
+    , ssl-util
+    , stern
+    , streaming-commons
+    , string-conversions
+    , tagged
+    , tasty                    >=0.8
+    , tasty-cannon             >=0.3.2
+    , tasty-hunit              >=0.9
+    , temporary
+    , text
+    , time
+    , tinylog
+    , tls                      >=1.3.8
+    , transformers
+    , types-common
+    , types-common-aws
+    , types-common-journal
+    , unix
+    , unliftio
+    , unordered-containers
+    , uri-bytestring
+    , uuid
+    , uuid-types
+    , vector
+    , wai
+    , wai-extra
+    , wai-utilities
+    , warp
+    , warp-tls                 >=3.2
+    , wire-api
+    , wire-api-federation
+    , wire-message-proto-lens
+    , yaml
+
+  default-language:   Haskell2010
