@@ -14,6 +14,8 @@ build-type:         Simple
 -- cabal-fmt: glob-files test/resources/*.pem
 extra-source-files:
   test/resources/localhost-key.pem
+  test/resources/localhost.example.com-key.pem
+  test/resources/localhost.example.com.pem
   test/resources/localhost.pem
   test/resources/unit-ca.pem
 
@@ -37,6 +39,7 @@ library
     , network
     , stm
     , streaming-commons
+    , text
     , time-manager
 
   default-language: Haskell2010

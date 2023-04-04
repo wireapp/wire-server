@@ -47,8 +47,15 @@ spec = do
   -- write. Like ensure that the hostname validation works (it currently
   -- does't!).
   describe "HTTP2.Client.Manager [with TLS]" $ do
-    ctx <- runIO $ loadServerSSLContext
-    specTemplate (Just ctx)
+    localhostCtx <- runIO $ loadServerSSLContext
+    specTemplate (Just localhostCtx)
+
+    it "should error appropriately when the server presents a wrong certificate" $ do
+      ctx <- loadWrongServerSSLContext
+      mgr <- mkTestManager
+      withTestServer (Just ctx) $ \TestServer {..} ->
+        -- TODO: Specify the specific exception
+        echoTest mgr True serverPort `shouldThrow` (\(SomeException _) -> True)
 
 specTemplate :: Maybe SSL.SSLContext -> Spec
 specTemplate mCtx = do
@@ -183,6 +190,17 @@ loadServerSSLContext = do
   ctx <- SSL.context
   SSL.contextSetCertificateFile ctx "test/resources/localhost.pem"
   SSL.contextSetPrivateKeyFile ctx "test/resources/localhost-key.pem"
+  SSL.contextSetALPNProtos ctx ["h2"]
+  SSL.contextSetCiphers ctx "HIGH"
+  sslCheck <- SSL.contextCheckPrivateKey ctx
+  sslCheck `shouldBe` True
+  pure ctx
+
+loadWrongServerSSLContext :: IO SSL.SSLContext
+loadWrongServerSSLContext = do
+  ctx <- SSL.context
+  SSL.contextSetCertificateFile ctx "test/resources/localhost.example.com.pem"
+  SSL.contextSetPrivateKeyFile ctx "test/resources/localhost.example.com-key.pem"
   SSL.contextSetALPNProtos ctx ["h2"]
   SSL.contextSetCiphers ctx "HIGH"
   sslCheck <- SSL.contextCheckPrivateKey ctx

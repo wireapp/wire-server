@@ -17,6 +17,7 @@
 , network
 , stm
 , streaming-commons
+, text
 , time-manager
 }:
 mkDerivation {
@@ -33,6 +34,7 @@ mkDerivation {
     network
     stm
     streaming-commons
+    text
     time-manager
   ];
   testHaskellDepends = [

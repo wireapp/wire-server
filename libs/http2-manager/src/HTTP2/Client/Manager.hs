@@ -19,6 +19,8 @@ import Data.IORef
 import Data.Map
 import qualified Data.Map as Map
 import Data.Streaming.Network
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Data.Unique
 import Foreign.Marshal.Alloc (mallocBytes)
 import qualified Network.HTTP2.Client as HTTP2
@@ -229,6 +231,11 @@ startPersistentHTTP2Connection ctx tlsEnabled hostname port cl sendReqMVar = do
         if tlsEnabled
           then do
             ssl <- SSL.connection ctx sock
+            let hostnameStr = Text.unpack $ Text.decodeUtf8 hostname
+            -- Perhaps a hook at enable/disable or customize this would be nice.
+            -- OpenSSL also supports a callback.
+            SSL.setTlsextHostName ssl hostnameStr
+            SSL.enableHostnameValidation ssl hostnameStr
             SSL.connect ssl
             pure $ Right ssl
           else pure $ Left sock
