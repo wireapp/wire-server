@@ -41,7 +41,7 @@ test-suite http2-manager-tests
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints -threaded
+    -Wredundant-constraints -threaded -with-rtsopts=-N
 
   -- cabal-fmt: expand test
   other-modules:
