@@ -1,15 +1,21 @@
-cabal-version: 1.12
-name:          http2-manager
-version:       0.0.1
-synopsis:      Managed connection pool for HTTP2
-description:   Helps reuse HTTP2 connections
-category:      Web
-author:        Wire Swiss GmbH
-maintainer:    Wire Swiss GmbH <backend@wire.com>
-copyright:     (c) 2020 Wire Swiss GmbH
-license:       AGPL-3
-license-file:  LICENSE
-build-type:    Simple
+cabal-version:      1.12
+name:               http2-manager
+version:            0.0.1
+synopsis:           Managed connection pool for HTTP2
+description:        Helps reuse HTTP2 connections
+category:           Web
+author:             Wire Swiss GmbH
+maintainer:         Wire Swiss GmbH <backend@wire.com>
+copyright:          (c) 2020 Wire Swiss GmbH
+license:            AGPL-3
+license-file:       LICENSE
+build-type:         Simple
+
+-- cabal-fmt: glob-files test/resources/*.pem
+extra-source-files:
+  test/resources/localhost-key.pem
+  test/resources/localhost.pem
+  test/resources/unit-ca.pem
 
 library
   -- cabal-fmt: expand src
