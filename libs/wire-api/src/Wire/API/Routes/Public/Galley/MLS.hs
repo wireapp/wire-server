@@ -66,6 +66,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSCommitMissingReferences
                :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSInvalidLeafNodeIndex
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSProtocolErrorTag
@@ -101,21 +102,22 @@ type MLSMessagingAPI =
                :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound
                :> CanThrow 'LegalHoldNotEnabled
+               :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'MLSClientMismatch
+               :> CanThrow 'MLSClientSenderUserMismatch
                :> CanThrow 'MLSCommitMissingReferences
+               :> CanThrow 'MLSGroupConversationMismatch
+               :> CanThrow 'MLSInvalidLeafNodeIndex
                :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSProtocolErrorTag
                :> CanThrow 'MLSSelfRemovalNotAllowed
                :> CanThrow 'MLSStaleMessage
+               :> CanThrow 'MLSSubConvClientNotInParent
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
-               :> CanThrow 'MLSClientSenderUserMismatch
-               :> CanThrow 'MLSGroupConversationMismatch
-               :> CanThrow 'MLSMissingSenderClient
-               :> CanThrow 'MissingLegalholdConsent
-               :> CanThrow 'MLSSubConvClientNotInParent
                :> CanThrow MLSProposalFailure
                :> "messages"
                :> ZLocalUser
@@ -140,22 +142,23 @@ type MLSMessagingAPI =
                :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound
                :> CanThrow 'LegalHoldNotEnabled
+               :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'MLSClientMismatch
+               :> CanThrow 'MLSClientSenderUserMismatch
                :> CanThrow 'MLSCommitMissingReferences
+               :> CanThrow 'MLSGroupConversationMismatch
+               :> CanThrow 'MLSInvalidLeafNodeIndex
                :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSProtocolErrorTag
                :> CanThrow 'MLSSelfRemovalNotAllowed
                :> CanThrow 'MLSStaleMessage
+               :> CanThrow 'MLSSubConvClientNotInParent
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
-               :> CanThrow 'MLSClientSenderUserMismatch
-               :> CanThrow 'MLSGroupConversationMismatch
-               :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MLSWelcomeMismatch
-               :> CanThrow 'MissingLegalholdConsent
-               :> CanThrow 'MLSSubConvClientNotInParent
                :> CanThrow MLSProposalFailure
                :> "commit-bundles"
                :> ZLocalUser

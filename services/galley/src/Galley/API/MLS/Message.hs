@@ -204,6 +204,7 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSProposalNotFound,
      ErrorS 'MissingLegalholdConsent,
      ErrorS 'MLSKeyPackageRefNotFound,
+     ErrorS 'MLSInvalidLeafNodeIndex,
      ErrorS 'MLSClientMismatch,
      ErrorS 'MLSUnsupportedProposal,
      ErrorS 'MLSCommitMissingReferences,
@@ -550,6 +551,7 @@ type HasProposalEffects r =
     Member (Error MLSProposalFailure) r,
     Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSClientMismatch) r,
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
     Member (ErrorS 'MLSKeyPackageRefNotFound) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
     Member ExternalAccess r,
@@ -614,7 +616,16 @@ getCommitData lConvOrSub epoch commit = do
 
   -- check epoch number
   when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
-  foldMap (applyProposalRef (idForConvOrSub convOrSub) mlsMeta groupId epoch suite) (cProposals commit)
+  foldMap
+    ( applyProposalRef
+        (idForConvOrSub convOrSub)
+        (indexMapConvOrSub convOrSub)
+        mlsMeta
+        groupId
+        epoch
+        suite
+    )
+    (cProposals commit)
 
 processCommit ::
   ( HasProposalEffects r,
@@ -702,7 +713,7 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
       [(_, idx :: Word32)] -> do
         cid <-
           note (mlsProtocolError "Invalid index in remove proposal") $
-            indexToClient (indicesConvOrSub convOrSub) idx
+            imLookup (indexMapConvOrSub convOrSub) idx
         unless (cid == senderIdentity) $
           throw $
             mlsProtocolError "Only the self client can be removed by an external commit"
@@ -801,43 +812,45 @@ applyProposalRef ::
     )
   ) =>
   ConvOrSubConvId ->
+  IndexMap ->
   ConversationMLSData ->
   GroupId ->
   Epoch ->
   CipherSuiteTag ->
   ProposalOrRef ->
   Sem r ProposalAction
-applyProposalRef convOrSubConvId mlsMeta groupId epoch _suite (Ref ref) = do
+applyProposalRef convOrSubConvId im mlsMeta groupId epoch _suite (Ref ref) = do
   p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
   checkEpoch epoch mlsMeta
   checkGroup groupId mlsMeta
-  applyProposal convOrSubConvId groupId (rmValue p)
-applyProposalRef convOrSubConvId _mlsMeta groupId _epoch suite (Inline p) = do
+  applyProposal convOrSubConvId im groupId (rmValue p)
+applyProposalRef convOrSubConvId im _mlsMeta groupId _epoch suite (Inline p) = do
   checkProposalCipherSuite suite p
-  applyProposal convOrSubConvId groupId p
+  applyProposal convOrSubConvId im groupId p
 
 applyProposal ::
   forall r.
   HasProposalEffects r =>
   ConvOrSubConvId ->
+  IndexMap ->
   GroupId ->
   Proposal ->
   Sem r ProposalAction
-applyProposal _convOrSubConvId _groupId (AddProposal kp) = do
-  let idx = error "TODO: compute new index"
+applyProposal _convOrSubConvId im _groupId (AddProposal kp) = do
+  let idx = imNextIndex im
   -- TODO: validate key package
   cid <- getKeyPackageIdentity kp.rmValue
   -- TODO: we probably should not update the conversation state here
   -- addMLSClients groupId (cidQualifiedUser cid) (Set.singleton (ciClient cid, idx))
   pure (paAddClient cid idx)
-applyProposal _convOrSubConvId _groupId (RemoveProposal idx) = do
-  let cid = error "TODO: lookup in index map"
+applyProposal _convOrSubConvId im _groupId (RemoveProposal idx) = do
+  cid <- noteS @'MLSInvalidLeafNodeIndex $ imLookup im idx
   pure (paRemoveClient cid idx)
-applyProposal _convOrSubConvId _groupId (ExternalInitProposal _) =
+applyProposal _convOrSubConvId _im _groupId (ExternalInitProposal _) =
   -- only record the fact there was an external init proposal, but do not
   -- process it in any way.
   pure paExternalInitPresent
-applyProposal _convOrSubConvId _groupId _ = pure mempty
+applyProposal _convOrSubConvId _im _groupId _ = pure mempty
 
 checkProposalCipherSuite ::
   Member (Error MLSProtocolError) r =>

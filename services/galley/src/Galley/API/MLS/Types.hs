@@ -35,8 +35,13 @@ newtype IndexMap = IndexMap {unIndexMap :: IntMap ClientIdentity}
   deriving (Eq, Show)
   deriving newtype (Semigroup, Monoid)
 
-indexToClient :: IndexMap -> Word32 -> Maybe ClientIdentity
-indexToClient m i = IntMap.lookup (fromIntegral i) (unIndexMap m)
+imLookup :: IndexMap -> Word32 -> Maybe ClientIdentity
+imLookup m i = IntMap.lookup (fromIntegral i) (unIndexMap m)
+
+imNextIndex :: IndexMap -> Word32
+imNextIndex im =
+  fromIntegral . fromJust $
+    find (\n -> not $ IntMap.member n (unIndexMap im)) [0 ..]
 
 type ClientMap = Map (Qualified UserId) (Map ClientId Word32)
 
@@ -125,9 +130,9 @@ membersConvOrSub :: ConvOrSubConv -> ClientMap
 membersConvOrSub (Conv c) = mcMembers c
 membersConvOrSub (SubConv _ s) = scMembers s
 
-indicesConvOrSub :: ConvOrSubConv -> IndexMap
-indicesConvOrSub (Conv c) = mcIndexMap c
-indicesConvOrSub (SubConv _ s) = scIndexMap s
+indexMapConvOrSub :: ConvOrSubConv -> IndexMap
+indexMapConvOrSub (Conv c) = mcIndexMap c
+indexMapConvOrSub (SubConv _ s) = scIndexMap s
 
 convOfConvOrSub :: ConvOrSubChoice c s -> c
 convOfConvOrSub (Conv c) = c

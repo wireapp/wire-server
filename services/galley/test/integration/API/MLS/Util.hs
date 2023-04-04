@@ -701,7 +701,7 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
           "<group-in>",
           "--welcome-out",
           welcomeFile,
-          "--group-state-out",
+          "--group-info-out",
           pgsFile,
           "--group-out",
           "<group-out>"
