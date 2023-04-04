@@ -13,16 +13,16 @@ spec:
       configMap:
         name: "stern-integration"
     # Used to read some values from the stern service
-    - name: "stern-config"
+    - name: "backoffice-config"
       configMap:
-        name: "stern"
+        name: "backoffice"
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
     volumeMounts:
     - name: "stern-integration"
       mountPath: "/etc/wire/integration"
-    - name: "stern-config"
+    - name: "backoffice-config"
       mountPath: "/etc/wire/stern/conf"
     resources:
       requests:

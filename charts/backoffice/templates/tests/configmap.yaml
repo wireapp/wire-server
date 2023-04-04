@@ -16,5 +16,5 @@ data:
       port: 8080
 
     stern:
-      host: stern
+      host: backoffice
       port: 8080
