@@ -53,3 +53,11 @@ coturnGracefulTermination: false
 # terminated. This setting is only effective when coturnGracefulTermination is
 # set to true.
 coturnGracePeriodSeconds: 86400 # one day
+
+livenessProbe:
+  timeoutSeconds: 5
+  failureThreshold: 5
+
+readinessProbe:
+  timeoutSeconds: 5
+  failureThreshold: 5
