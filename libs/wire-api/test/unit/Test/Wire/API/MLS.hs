@@ -61,7 +61,11 @@ tests =
 
 testParseKeyPackage :: IO ()
 testParseKeyPackage = do
-  kpData <- BS.readFile "test/resources/key_package1.mls"
+  let qcid = "b455a431-9db6-4404-86e7-6a3ebe73fcaf:3ae58155@mls.example.com"
+  kpData <- withSystemTempDirectory "mls" $ \tmp -> do
+    void $ spawn (cli qcid tmp ["init", qcid]) Nothing
+    spawn (cli qcid tmp ["key-package", "create"]) Nothing
+
   kp <- case decodeMLS' @KeyPackage kpData of
     Left err -> assertFailure (T.unpack err)
     Right x -> pure x
@@ -79,10 +83,6 @@ testParseKeyPackage = do
             ciUser = Id (fromJust (UUID.fromString "b455a431-9db6-4404-86e7-6a3ebe73fcaf")),
             ciClient = newClientId 0x3ae58155
           }
-
-  -- check raw TBS package
-  let rawTBS = kp.tbs.rmRaw
-  rawTBS @?= BS.take 196 kpData
 
 -- TODO
 testParseCommit :: IO ()
@@ -102,8 +102,13 @@ testParseGroupInfo = pure ()
 
 testKeyPackageRef :: IO ()
 testKeyPackageRef = do
-  kpData <- BS.readFile "test/resources/key_package1.mls"
-  ref <- KeyPackageRef <$> BS.readFile "test/resources/key_package_ref1"
+  let qcid = "b455a431-9db6-4404-86e7-6a3ebe73fcaf:3ae58155@mls.example.com"
+  (kpData, ref) <- withSystemTempDirectory "mls" $ \tmp -> do
+    void $ spawn (cli qcid tmp ["init", qcid]) Nothing
+    kpData <- spawn (cli qcid tmp ["key-package", "create"]) Nothing
+    ref <- spawn (cli qcid tmp ["key-package", "ref", "-"]) (Just kpData)
+    pure (kpData, KeyPackageRef ref)
+
   kpRef MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 (KeyPackageData kpData) @?= ref
 
 -- TODO
@@ -116,27 +121,26 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
     let c = newClientId 0x3ae58155
     usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
     pure (userClientQid usr c)
-  void . liftIO $ spawn (cli qcid tmp ["init", qcid]) Nothing
+  void $ spawn (cli qcid tmp ["init", qcid]) Nothing
 
   qcid2 <- do
     let c = newClientId 0x4ae58157
     usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
     pure (userClientQid usr c)
-  void . liftIO $ spawn (cli qcid2 tmp ["init", qcid2]) Nothing
+  void $ spawn (cli qcid2 tmp ["init", qcid2]) Nothing
   kp :: RawMLS KeyPackage <-
-    liftIO $
-      decodeMLSError <$> spawn (cli qcid2 tmp ["key-package", "create"]) Nothing
-  liftIO $ BS.writeFile (tmp </> qcid2) (rmRaw kp)
+    decodeMLSError <$> spawn (cli qcid2 tmp ["key-package", "create"]) Nothing
+  BS.writeFile (tmp </> qcid2) (rmRaw kp)
 
   let groupFilename = "group"
   let gid = GroupId "abcd"
   createGroup tmp qcid groupFilename gid
 
-  void $ liftIO $ spawn (cli qcid tmp ["member", "add", "--group", tmp </> groupFilename, "--in-place", tmp </> qcid2]) Nothing
+  void $ spawn (cli qcid tmp ["member", "add", "--group", tmp </> groupFilename, "--in-place", tmp </> qcid2]) Nothing
 
   secretKey <- Ed25519.generateSecretKey
   let publicKey = Ed25519.toPublic secretKey
-  let proposal = mkRawMLS (RemoveProposal (error "TODO: remove proposal"))
+  let proposal = mkRawMLS (RemoveProposal 1)
   let message =
         mkSignedMessage
           secretKey
@@ -150,7 +154,7 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
   let signerKeyFilename = "signer-key.bin"
   BS.writeFile (tmp </> signerKeyFilename) (convert publicKey)
 
-  void . liftIO $
+  void $
     spawn
       ( cli
           qcid

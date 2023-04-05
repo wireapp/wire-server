@@ -24,7 +24,10 @@ import Cassandra
 import Control.Lens (makePrisms)
 import Data.Binary
 import Data.Binary.Get
+import Data.Binary.Put
+import Data.ByteString as B
 import Imports
+import Test.QuickCheck
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Context
 import Wire.API.MLS.Extension
@@ -44,7 +47,8 @@ data Proposal
   | ReInitProposal (RawMLS ReInit)
   | ExternalInitProposal ByteString
   | GroupContextExtensionsProposal [Extension]
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Proposal)
 
 instance ParseMLS Proposal where
   parseMLS =
@@ -86,6 +90,7 @@ proposalRef :: CipherSuiteTag -> RawMLS Proposal -> ProposalRef
 proposalRef cs =
   ProposalRef
     . csHash cs proposalContext
+    . flip RawMLS ()
     . rmRaw
 
 data PreSharedKeyTag = ExternalKeyTag | ResumptionKeyTag
@@ -94,8 +99,12 @@ data PreSharedKeyTag = ExternalKeyTag | ResumptionKeyTag
 instance ParseMLS PreSharedKeyTag where
   parseMLS = parseMLSEnum @Word8 "PreSharedKeyID type"
 
+instance SerialiseMLS PreSharedKeyTag where
+  serialiseMLS = serialiseMLSEnum @Word8
+
 data PreSharedKeyID = ExternalKeyID ByteString | ResumptionKeyID Resumption
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PreSharedKeyID)
 
 instance ParseMLS PreSharedKeyID where
   parseMLS = do
@@ -104,12 +113,21 @@ instance ParseMLS PreSharedKeyID where
       ExternalKeyTag -> ExternalKeyID <$> parseMLSBytes @VarInt
       ResumptionKeyTag -> ResumptionKeyID <$> parseMLS
 
+instance SerialiseMLS PreSharedKeyID where
+  serialiseMLS (ExternalKeyID bs) = do
+    serialiseMLS ExternalKeyTag
+    serialiseMLSBytes @VarInt bs
+  serialiseMLS (ResumptionKeyID r) = do
+    serialiseMLS ResumptionKeyTag
+    serialiseMLS r
+
 data Resumption = Resumption
   { resUsage :: Word8,
     resGroupId :: GroupId,
     resEpoch :: Word64
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Resumption)
 
 instance ParseMLS Resumption where
   parseMLS =
@@ -118,13 +136,20 @@ instance ParseMLS Resumption where
       <*> parseMLS
       <*> parseMLS
 
+instance SerialiseMLS Resumption where
+  serialiseMLS r = do
+    serialiseMLS r.resUsage
+    serialiseMLS r.resGroupId
+    serialiseMLS r.resEpoch
+
 data ReInit = ReInit
   { riGroupId :: GroupId,
     riProtocolVersion :: ProtocolVersion,
     riCipherSuite :: CipherSuite,
     riExtensions :: [Extension]
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ReInit)
 
 instance ParseMLS ReInit where
   parseMLS =
@@ -133,6 +158,13 @@ instance ParseMLS ReInit where
       <*> parseMLS
       <*> parseMLS
       <*> parseMLSVector @VarInt parseMLS
+
+instance SerialiseMLS ReInit where
+  serialiseMLS ri = do
+    serialiseMLS ri.riGroupId
+    serialiseMLS ri.riProtocolVersion
+    serialiseMLS ri.riCipherSuite
+    serialiseMLSVector @VarInt serialiseMLS ri.riExtensions
 
 data MessageRange = MessageRange
   { mrSender :: KeyPackageRef,
@@ -163,8 +195,12 @@ data ProposalOrRefTag = InlineTag | RefTag
 instance ParseMLS ProposalOrRefTag where
   parseMLS = parseMLSEnum @Word8 "ProposalOrRef type"
 
+instance SerialiseMLS ProposalOrRefTag where
+  serialiseMLS = serialiseMLSEnum @Word8
+
 data ProposalOrRef = Inline Proposal | Ref ProposalRef
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ProposalOrRef)
 
 instance ParseMLS ProposalOrRef where
   parseMLS =
@@ -172,11 +208,25 @@ instance ParseMLS ProposalOrRef where
       InlineTag -> Inline <$> parseMLS
       RefTag -> Ref <$> parseMLS
 
+instance SerialiseMLS ProposalOrRef where
+  serialiseMLS (Inline p) = do
+    serialiseMLS InlineTag
+    serialiseMLS p
+  serialiseMLS (Ref r) = do
+    serialiseMLS RefTag
+    serialiseMLS r
+
 newtype ProposalRef = ProposalRef {unProposalRef :: ByteString}
-  deriving stock (Eq, Show, Ord)
+  deriving stock (Eq, Show, Ord, Generic)
 
 instance ParseMLS ProposalRef where
   parseMLS = ProposalRef <$> getByteString 16
+
+instance SerialiseMLS ProposalRef where
+  serialiseMLS = putByteString . unProposalRef
+
+instance Arbitrary ProposalRef where
+  arbitrary = ProposalRef . B.pack <$> vectorOf 16 arbitrary
 
 makePrisms ''ProposalOrRef
 

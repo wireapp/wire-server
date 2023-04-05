@@ -31,7 +31,7 @@ data CommitBundle = CommitBundle
     cbWelcome :: Maybe (RawMLS Welcome),
     cbGroupInfo :: RawMLS GroupInfo
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 data CommitBundleF f = CommitBundleF
   { cbCommitMsg :: f (RawMLS Message),
@@ -72,7 +72,7 @@ findMessageInStream msg = case msg.rmValue.content of
     FramedContentCommit _ -> pure (CommitBundleF (pure msg) empty empty)
     _ -> Left "unexpected public message"
   MessageWelcome w -> pure (CommitBundleF empty (pure w) empty)
-  MessageGroupInfo -> error "TODO: get group info from message"
+  MessageGroupInfo gi -> pure (CommitBundleF empty empty (pure gi))
   _ -> Left "unexpected message type"
 
 findMessagesInStream :: Alternative f => [RawMLS Message] -> Either Text (CommitBundleF f)
@@ -87,8 +87,8 @@ instance ParseMLS CommitBundle where
 instance SerialiseMLS CommitBundle where
   serialiseMLS cb = do
     serialiseMLS cb.cbCommitMsg
-    traverse_ serialiseMLS cb.cbWelcome
-    serialiseMLS cb.cbGroupInfo
+    traverse_ (serialiseMLS . mkMessage . MessageWelcome) cb.cbWelcome
+    serialiseMLS $ mkMessage (MessageGroupInfo cb.cbGroupInfo)
 
 instance S.ToSchema CommitBundle where
   declareNamedSchema _ = pure (mlsSwagger "CommitBundle")

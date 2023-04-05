@@ -27,31 +27,49 @@ data Commit = Commit
   { cProposals :: [ProposalOrRef],
     cPath :: Maybe UpdatePath
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Commit)
 
 instance ParseMLS Commit where
   parseMLS =
     Commit
-      <$> traceMLS "proposals" (parseMLSVector @VarInt parseMLS)
-      <*> traceMLS "update path" (parseMLSOptional parseMLS)
+      <$> parseMLSVector @VarInt parseMLS
+      <*> parseMLSOptional parseMLS
+
+instance SerialiseMLS Commit where
+  serialiseMLS c = do
+    serialiseMLSVector @VarInt serialiseMLS c.cProposals
+    serialiseMLSOptional serialiseMLS c.cPath
 
 data UpdatePath = UpdatePath
   { upLeaf :: RawMLS LeafNode,
     upNodes :: [UpdatePathNode]
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UpdatePath)
 
 instance ParseMLS UpdatePath where
   parseMLS = UpdatePath <$> parseMLS <*> parseMLSVector @VarInt parseMLS
+
+instance SerialiseMLS UpdatePath where
+  serialiseMLS up = do
+    serialiseMLS up.upLeaf
+    serialiseMLSVector @VarInt serialiseMLS up.upNodes
 
 data UpdatePathNode = UpdatePathNode
   { upnPublicKey :: ByteString,
     upnSecret :: [HPKECiphertext]
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UpdatePathNode)
 
 instance ParseMLS UpdatePathNode where
   parseMLS = UpdatePathNode <$> parseMLSBytes @VarInt <*> parseMLSVector @VarInt parseMLS
+
+instance SerialiseMLS UpdatePathNode where
+  serialiseMLS upn = do
+    serialiseMLSBytes @VarInt upn.upnPublicKey
+    serialiseMLSVector @VarInt serialiseMLS upn.upnSecret
 
 data HPKECiphertext = HPKECiphertext
   { hcOutput :: ByteString,

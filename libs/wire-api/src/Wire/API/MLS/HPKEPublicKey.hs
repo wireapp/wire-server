@@ -28,3 +28,6 @@ newtype HPKEPublicKey = HPKEPublicKey {unHPKEPublicKey :: ByteString}
 
 instance ParseMLS HPKEPublicKey where
   parseMLS = HPKEPublicKey <$> parseMLSBytes @VarInt
+
+instance SerialiseMLS HPKEPublicKey where
+  serialiseMLS = serialiseMLSBytes @VarInt . unHPKEPublicKey

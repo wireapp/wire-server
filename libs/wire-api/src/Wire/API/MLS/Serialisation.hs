@@ -123,7 +123,11 @@ instance SerialiseMLS VarInt where serialiseMLS = put
 instance ParseMLS VarInt where parseMLS = get
 
 parseMLSStream :: Get a -> Get [a]
-parseMLSStream = many . lookAhead
+parseMLSStream p = do
+  e <- isEmpty
+  if e
+    then pure []
+    else (:) <$> p <*> parseMLSStream p
 
 serialiseMLSStream :: (a -> Put) -> [a] -> Put
 serialiseMLSStream = traverse_
@@ -264,6 +268,9 @@ data RawMLS a = RawMLS
     rmValue :: a
   }
   deriving stock (Eq, Show, Foldable)
+
+instance (Arbitrary a, SerialiseMLS a) => Arbitrary (RawMLS a) where
+  arbitrary = mkRawMLS <$> arbitrary
 
 -- | A schema for a raw MLS object.
 --

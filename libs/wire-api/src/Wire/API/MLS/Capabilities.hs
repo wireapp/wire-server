@@ -44,3 +44,11 @@ instance ParseMLS Capabilities where
       <*> parseMLSVector @VarInt parseMLS
       <*> parseMLSVector @VarInt parseMLS
       <*> parseMLSVector @VarInt parseMLS
+
+instance SerialiseMLS Capabilities where
+  serialiseMLS caps = do
+    serialiseMLSVector @VarInt serialiseMLS caps.versions
+    serialiseMLSVector @VarInt serialiseMLS caps.ciphersuites
+    serialiseMLSVector @VarInt serialiseMLS caps.extensions
+    serialiseMLSVector @VarInt serialiseMLS caps.proposals
+    serialiseMLSVector @VarInt serialiseMLS caps.credentials

@@ -43,12 +43,13 @@ import Cassandra.CQL
 import Control.Error (note)
 import Control.Lens ((?~))
 import Crypto.Error
+import Crypto.Hash (hashWith)
 import Crypto.Hash.Algorithms
-import qualified Crypto.KDF.HKDF as HKDF
 import qualified Crypto.PubKey.Ed25519 as Ed25519
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
 import qualified Data.Aeson.Types as Aeson
+import Data.ByteArray hiding (index)
 import Data.Proxy
 import Data.Schema
 import qualified Data.Swagger as S
@@ -104,9 +105,9 @@ cipherSuiteTag (CipherSuite n) = case n of
 tagCipherSuite :: CipherSuiteTag -> CipherSuite
 tagCipherSuite MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = CipherSuite 1
 
-csHash :: CipherSuiteTag -> ByteString -> ByteString -> ByteString
+csHash :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString
 csHash MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 ctx value =
-  HKDF.expand (HKDF.extract @SHA256 (mempty :: ByteString) value) ctx 16
+  convert . hashWith SHA256 . encodeMLS' $ RefHashInput ctx value
 
 csVerifySignature :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString -> Bool
 csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 pub x sig =
@@ -114,6 +115,11 @@ csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 pub x sig =
     pub' <- Ed25519.publicKey pub
     sig' <- Ed25519.signature sig
     pure $ Ed25519.verify pub' x.rmRaw sig'
+
+type RefHashInput = SignContent
+
+pattern RefHashInput :: ByteString -> RawMLS a -> RefHashInput a
+pattern RefHashInput label content = SignContent label content
 
 data SignContent a = SignContent
   { sigLabel :: ByteString,

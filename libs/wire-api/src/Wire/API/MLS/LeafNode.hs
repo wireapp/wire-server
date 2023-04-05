@@ -18,6 +18,7 @@
 module Wire.API.MLS.LeafNode
   ( LeafIndex,
     LeafNode (..),
+    LeafNodeTBS (..),
     LeafNodeSource (..),
     LeafNodeSourceTag (..),
     leafNodeSourceTag,
@@ -59,6 +60,15 @@ instance ParseMLS LeafNodeTBS where
       <*> parseMLS
       <*> parseMLSVector @VarInt parseMLS
 
+instance SerialiseMLS LeafNodeTBS where
+  serialiseMLS tbs = do
+    serialiseMLS tbs.encryptionKey
+    serialiseMLSBytes @VarInt tbs.signatureKey
+    serialiseMLS tbs.credential
+    serialiseMLS tbs.capabilities
+    serialiseMLS tbs.source
+    serialiseMLSVector @VarInt serialiseMLS tbs.extensions
+
 -- | This type can only verify the signature when the LeafNodeSource is
 -- LeafNodeSourceKeyPackage
 data LeafNode = LeafNode
@@ -73,6 +83,11 @@ instance ParseMLS LeafNode where
     LeafNode
       <$> parseMLS
       <*> parseMLSBytes @VarInt
+
+instance SerialiseMLS LeafNode where
+  serialiseMLS ln = do
+    serialiseMLS ln.tbs
+    serialiseMLSBytes @VarInt ln.signature_
 
 instance S.ToSchema LeafNode where
   declareNamedSchema _ = pure (mlsSwagger "LeafNode")
@@ -109,14 +124,27 @@ instance ParseMLS LeafNodeSource where
       LeafNodeSourceUpdateTag -> pure LeafNodeSourceUpdate
       LeafNodeSourceCommitTag -> LeafNodeSourceCommit <$> parseMLSBytes @VarInt
 
+instance SerialiseMLS LeafNodeSource where
+  serialiseMLS (LeafNodeSourceKeyPackage lt) = do
+    serialiseMLS LeafNodeSourceKeyPackageTag
+    serialiseMLS lt
+  serialiseMLS LeafNodeSourceUpdate =
+    serialiseMLS LeafNodeSourceUpdateTag
+  serialiseMLS (LeafNodeSourceCommit bs) = do
+    serialiseMLS LeafNodeSourceCommitTag
+    serialiseMLSBytes @VarInt bs
+
 data LeafNodeSourceTag
   = LeafNodeSourceKeyPackageTag
   | LeafNodeSourceUpdateTag
   | LeafNodeSourceCommitTag
   deriving (Show, Eq, Ord, Enum, Bounded)
 
-instance Bounded LeafNodeSourceTag => ParseMLS LeafNodeSourceTag where
+instance ParseMLS LeafNodeSourceTag where
   parseMLS = parseMLSEnum @Word8 "leaf node source"
+
+instance SerialiseMLS LeafNodeSourceTag where
+  serialiseMLS = serialiseMLSEnum @Word8
 
 instance HasField "name" LeafNodeSourceTag Text where
   getField LeafNodeSourceKeyPackageTag = "key_package"

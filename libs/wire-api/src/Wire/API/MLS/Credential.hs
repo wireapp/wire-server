@@ -59,12 +59,20 @@ data CredentialTag where
 instance ParseMLS CredentialTag where
   parseMLS = parseMLSEnum @Word16 "credential type"
 
+instance SerialiseMLS CredentialTag where
+  serialiseMLS = serialiseMLSEnum @Word16
+
 instance ParseMLS Credential where
   parseMLS =
     parseMLS >>= \case
       BasicCredentialTag ->
         BasicCredential
           <$> parseMLSBytes @VarInt
+
+instance SerialiseMLS Credential where
+  serialiseMLS (BasicCredential i) = do
+    serialiseMLS BasicCredentialTag
+    serialiseMLSBytes @VarInt i
 
 credentialTag :: Credential -> CredentialTag
 credentialTag BasicCredential {} = BasicCredentialTag

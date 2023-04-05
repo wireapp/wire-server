@@ -58,6 +58,16 @@ instance ParseMLS GroupContext where
       <*> parseMLSBytes @VarInt
       <*> parseMLSVector @VarInt parseMLS
 
+instance SerialiseMLS GroupContext where
+  serialiseMLS gc = do
+    serialiseMLS gc.protocolVersion
+    serialiseMLS gc.cipherSuite
+    serialiseMLS gc.groupId
+    serialiseMLS gc.epoch
+    serialiseMLSBytes @VarInt gc.treeHash
+    serialiseMLSBytes @VarInt gc.confirmedTranscriptHash
+    serialiseMLSVector @VarInt serialiseMLS gc.extensions
+
 data GroupInfoTBS = GroupInfoTBS
   { groupContext :: GroupContext,
     extensions :: [Extension],
@@ -75,6 +85,13 @@ instance ParseMLS GroupInfoTBS where
       <*> parseMLSBytes @VarInt
       <*> parseMLS
 
+instance SerialiseMLS GroupInfoTBS where
+  serialiseMLS tbs = do
+    serialiseMLS tbs.groupContext
+    serialiseMLSVector @VarInt serialiseMLS tbs.extensions
+    serialiseMLSBytes @VarInt tbs.confirmationTag
+    serialiseMLS tbs.signer
+
 data GroupInfo = GroupInfo
   { tbs :: GroupInfoTBS,
     signature_ :: ByteString
@@ -87,6 +104,11 @@ instance ParseMLS GroupInfo where
     GroupInfo
       <$> parseMLS
       <*> parseMLSBytes @VarInt
+
+instance SerialiseMLS GroupInfo where
+  serialiseMLS gi = do
+    serialiseMLS gi.tbs
+    serialiseMLSBytes @VarInt gi.signature_
 
 instance HasField "groupContext" GroupInfo GroupContext where
   getField = (.tbs.groupContext)

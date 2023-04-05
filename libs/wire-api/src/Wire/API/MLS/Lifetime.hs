@@ -26,7 +26,7 @@ import Wire.Arbitrary
 
 -- | Seconds since the UNIX epoch.
 newtype Timestamp = Timestamp {timestampSeconds :: Word64}
-  deriving newtype (Eq, Show, Arbitrary, ParseMLS)
+  deriving newtype (Eq, Show, Arbitrary, ParseMLS, SerialiseMLS)
 
 tsPOSIX :: Timestamp -> POSIXTime
 tsPOSIX = fromIntegral . timestampSeconds
@@ -40,3 +40,8 @@ data Lifetime = Lifetime
 
 instance ParseMLS Lifetime where
   parseMLS = Lifetime <$> parseMLS <*> parseMLS
+
+instance SerialiseMLS Lifetime where
+  serialiseMLS lt = do
+    serialiseMLS lt.ltNotBefore
+    serialiseMLS lt.ltNotAfter
