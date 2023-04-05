@@ -52,6 +52,8 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import qualified Data.Text.Lazy.Encoding as LText
 import Foreign.Marshal.Alloc
+import HTTP2.Client.Manager (HTTP2Manager)
+import qualified HTTP2.Client.Manager as H2Manager
 import Imports
 import qualified Network.HPACK as HTTP2
 import qualified Network.HPACK.Token as HTTP2
@@ -76,7 +78,8 @@ import Wire.API.VersionInfo
 data FederatorClientEnv = FederatorClientEnv
   { ceOriginDomain :: Domain,
     ceTargetDomain :: Domain,
-    ceFederator :: Endpoint
+    ceFederator :: Endpoint,
+    ceHttp2Manager :: HTTP2Manager
   }
 
 data FederatorClientVersionedEnv = FederatorClientVersionedEnv
@@ -173,19 +176,22 @@ withHTTP2Request mSSLCtx req hostname port k = do
               bracket (allocTLSConfig ssl 4096) freeTLSConfig k'
       withHTTP2Config $ \conf -> do
         HTTP2.run clientConfig conf $ \sendRequest ->
-          sendRequest req $ \resp -> do
-            let headers = headersFromTable (HTTP2.responseHeaders resp)
-                result = fromAction BS.null $ HTTP2.getResponseBodyChunk resp
-            case HTTP2.responseStatus resp of
-              Nothing -> E.throw FederatorClientNoStatusCode
-              Just status ->
-                k
-                  Response
-                    { responseStatusCode = status,
-                      responseHeaders = Seq.fromList headers,
-                      responseHttpVersion = HTTP.http20,
-                      responseBody = result
-                    }
+          sendRequest req $ consumeStreamingResponseWith k
+
+consumeStreamingResponseWith :: (StreamingResponse -> a) -> HTTP2.Response -> a
+consumeStreamingResponseWith k resp = do
+  let headers = headersFromTable (HTTP2.responseHeaders resp)
+      result = fromAction BS.null $ HTTP2.getResponseBodyChunk resp
+  case HTTP2.responseStatus resp of
+    Nothing -> E.throw FederatorClientNoStatusCode
+    Just status ->
+      k
+        Response
+          { responseStatusCode = status,
+            responseHeaders = Seq.fromList headers,
+            responseHttpVersion = HTTP.http20,
+            responseBody = result
+          }
 
 instance KnownComponent c => RunClient (FederatorClient c) where
   runRequestAcceptStatus expectedStatuses req = do
@@ -249,10 +255,13 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
   resp <-
     either throwError pure <=< liftCodensity $
       Codensity $ \k ->
-        E.catch
-          (withHTTP2Request Nothing req' hostname port (k . Right))
-          (k . Left . FederatorClientHTTP2Error)
-
+        E.catches
+          (H2Manager.withHTTP2Request (ceHttp2Manager env) False hostname port req' (consumeStreamingResponseWith (k . Right)))
+          [ E.Handler $ k . Left . FederatorClientHTTP2Error,
+            E.Handler $ k . Left . FederatorClientHTTP2Error . FederatorClientConnectionError,
+            E.Handler $ k . Left . FederatorClientHTTP2Error . FederatorClientHTTP2Exception,
+            E.Handler $ k . Left . FederatorClientHTTP2Error . FederatorClientTLSException
+          ]
   if successfulStatus (responseStatusCode resp)
     then liftIO $ handleResponse resp
     else do

@@ -27,6 +27,7 @@ module CargoHold.App
     closeEnv,
     aws,
     httpManager,
+    http2Manager,
     metrics,
     appLogger,
     requestId,
@@ -61,6 +62,7 @@ import Data.Default (def)
 import Data.Metrics.Middleware (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Qualified
+import HTTP2.Client.Manager (HTTP2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (log)
 import Network.HTTP.Client (ManagerSettings (..), requestHeaders, responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -78,6 +80,7 @@ data Env = Env
     _metrics :: Metrics,
     _appLogger :: Logger,
     _httpManager :: Manager,
+    _http2Manager :: HTTP2Manager,
     _requestId :: RequestId,
     _options :: Opt.Opts,
     _localUnit :: Local ()
@@ -93,9 +96,10 @@ newEnv o = do
   met <- Metrics.metrics
   lgr <- Log.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
   mgr <- initHttpManager (o ^. optAws . awsS3Compatibility)
+  h2mgr <- initHttp2Manager
   ama <- initAws (o ^. optAws) lgr mgr
   let loc = toLocalUnsafe (o ^. optSettings . Opt.setFederationDomain) ()
-  pure $ Env ama met lgr mgr def o loc
+  pure $ Env ama met lgr mgr h2mgr def o loc
 
 initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
 initAws o l = AWS.mkEnv l (o ^. awsS3Endpoint) addrStyle downloadEndpoint (o ^. awsS3Bucket) (o ^. awsCloudFront)
@@ -126,6 +130,9 @@ initHttpManager s3Compat =
           req
     modifyRequestHeaders f req =
       req {requestHeaders = f (requestHeaders req)}
+
+initHttp2Manager :: IO HTTP2Manager
+initHttp2Manager = http2ManagerWithSSLCtx =<< initSSLContext
 
 initSSLContext :: IO SSLContext
 initSSLContext = do

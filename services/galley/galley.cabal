@@ -229,6 +229,7 @@ library
     , http-client-tls            >=0.2.2
     , http-media
     , http-types                 >=0.8
+    , http2-manager
     , imports
     , insert-ordered-containers
     , kan-extensions

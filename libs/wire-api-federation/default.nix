@@ -21,6 +21,7 @@
 , http-media
 , http-types
 , http2
+, http2-manager
 , HUnit
 , imports
 , kan-extensions
@@ -72,6 +73,7 @@ mkDerivation {
     http-media
     http-types
     http2
+    http2-manager
     imports
     kan-extensions
     lens

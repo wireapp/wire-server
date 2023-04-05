@@ -30,6 +30,7 @@ import Data.Domain
 import Data.Proxy
 import qualified Data.Text.Encoding as Text
 import Federator.MockServer
+import HTTP2.Client.Manager (defaultHTTP2Manager)
 import Imports
 import Network.HTTP.Media
 import Network.HTTP.Types as HTTP
@@ -90,11 +91,13 @@ withMockFederatorClient ::
   FederatorClient c a ->
   IO (Either ResponseFailure a, [FederatedRequest])
 withMockFederatorClient headers resp action = withTempMockFederator headers resp $ \port -> do
+  mgr <- defaultHTTP2Manager
   let env =
         FederatorClientEnv
           { ceOriginDomain = originDomain,
             ceTargetDomain = targetDomain,
-            ceFederator = Endpoint "127.0.0.1" (fromIntegral port)
+            ceFederator = Endpoint "127.0.0.1" (fromIntegral port),
+            ceHttp2Manager = mgr
           }
   a <- runFederatorClient env action
   case a of
@@ -128,11 +131,13 @@ type StreamingAPI = StreamGet NewlineFraming PlainText (SourceIO Text)
 
 testClientStreaming :: IO ()
 testClientStreaming = withInfiniteMockServer $ \port -> do
+  mgr <- defaultHTTP2Manager
   let env =
         FederatorClientEnv
           { ceOriginDomain = originDomain,
             ceTargetDomain = targetDomain,
-            ceFederator = Endpoint "127.0.0.1" (fromIntegral port)
+            ceFederator = Endpoint "127.0.0.1" (fromIntegral port),
+            ceHttp2Manager = mgr
           }
       venv = FederatorClientVersionedEnv env Nothing
   let c = clientIn (Proxy @StreamingAPI) (Proxy @(FederatorClient 'Brig))
@@ -192,11 +197,13 @@ testClientExceptions = do
 testClientConnectionError :: IO ()
 testClientConnectionError = do
   handle <- generate arbitrary
+  mgr <- defaultHTTP2Manager
   let env =
         FederatorClientEnv
           { ceOriginDomain = originDomain,
             ceTargetDomain = targetDomain,
-            ceFederator = Endpoint "127.0.0.1" 1
+            ceFederator = Endpoint "127.0.0.1" 1,
+            ceHttp2Manager = mgr
           }
   result <- runFederatorClient env (fedClient @'Brig @"get-user-by-handle" handle)
   case result of

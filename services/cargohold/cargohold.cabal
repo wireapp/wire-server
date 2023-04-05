@@ -110,6 +110,7 @@ library
     , http-client            >=0.4
     , http-client-openssl    >=0.2
     , http-types             >=0.8
+    , http2-manager
     , imports
     , kan-extensions
     , lens                   >=4.1

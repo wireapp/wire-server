@@ -237,6 +237,7 @@ library
     , http-client-openssl        >=0.2
     , http-media
     , http-types                 >=0.8
+    , http2-manager
     , imports
     , insert-ordered-containers
     , iproute                    >=1.5
