@@ -1,0 +1,1 @@
+Coturn helm chart: Increase the default timeout of liveness/readiness probe and make it configurable
