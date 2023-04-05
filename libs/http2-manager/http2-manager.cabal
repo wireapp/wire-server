@@ -21,7 +21,10 @@ extra-source-files:
 
 library
   -- cabal-fmt: expand src
-  exposed-modules:  HTTP2.Client.Manager
+  exposed-modules:
+    HTTP2.Client.Manager
+    HTTP2.Client.Manager.Internal
+
   other-modules:    Paths_http2_manager
   hs-source-dirs:   src
   ghc-options:

@@ -24,6 +24,7 @@ import Data.Unique
 import Foreign.Marshal.Alloc (mallocBytes)
 import GHC.IO.Exception
 import HTTP2.Client.Manager
+import HTTP2.Client.Manager.Internal
 import Network.HTTP.Types
 import qualified Network.HTTP2.Client as Client
 import qualified Network.HTTP2.Client as HTTP2
