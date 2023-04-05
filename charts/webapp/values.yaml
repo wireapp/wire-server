@@ -9,7 +9,7 @@ resources:
     cpu: "1"
 image:
   repository: quay.io/wire/webapp
-  tag: "2023-04-03-RC-frida"
+  tag: "2023-04-05-RC-frida"
 service:
   https:
     externalPort: 443
