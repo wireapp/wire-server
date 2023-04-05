@@ -12,18 +12,12 @@ spec:
     - name: "stern-integration"
       configMap:
         name: "stern-integration"
-    # Used to read some values from the stern service
-    - name: "backoffice-config"
-      configMap:
-        name: "backoffice"
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
     volumeMounts:
     - name: "stern-integration"
       mountPath: "/etc/wire/integration"
-    - name: "backoffice-config"
-      mountPath: "/etc/wire/stern/conf"
     resources:
       requests:
         memory: "128Mi"

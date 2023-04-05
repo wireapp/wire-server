@@ -52,7 +52,7 @@ newtype ServiceConfigFile = ServiceConfigFile String
   deriving (Eq, Ord, Typeable)
 
 instance IsOption ServiceConfigFile where
-  defaultValue = ServiceConfigFile "/etc/wire/stern/conf/stern.yaml"
+  defaultValue = ServiceConfigFile "/etc/wire/integration/integration.yaml"
   parseValue = fmap ServiceConfigFile . safeRead
   optionName = pure "service-config"
   optionHelp = pure "Service config file to read from"
