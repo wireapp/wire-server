@@ -117,6 +117,7 @@ type SternAPI =
     :<|> Named
            "get-user-connections"
            ( Summary "Displays user's connections"
+               :> Description "[Deprecated] This is using API version V1 and will be removed in the future."
                :> "users"
                :> Capture "uid" UserId
                :> "connections"

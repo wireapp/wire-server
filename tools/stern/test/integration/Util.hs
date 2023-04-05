@@ -35,11 +35,13 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.String.Conversions
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Tuple.Extra
 import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Imports
+import System.Random
 import Test.Tasty.HUnit
 import TestSetup
 import Web.Cookie
@@ -81,16 +83,33 @@ randomUser'' :: HasCallStack => Bool -> Bool -> Bool -> TestM User
 randomUser'' isCreator hasPassword hasEmail = selfUser <$> randomUserProfile' isCreator hasPassword hasEmail
 
 randomUserProfile' :: HasCallStack => Bool -> Bool -> Bool -> TestM SelfProfile
-randomUserProfile' isCreator hasPassword hasEmail = do
+randomUserProfile' isCreator hasPassword hasEmail = randomUserProfile'' isCreator hasPassword hasEmail <&> fst
+
+randomUserProfile'' :: HasCallStack => Bool -> Bool -> Bool -> TestM (SelfProfile, (Email, Phone))
+randomUserProfile'' isCreator hasPassword hasEmail = do
   b <- view tsBrig
   e <- liftIO randomEmail
-  let p =
+  p <- liftIO randomPhone
+  let pl =
         object $
           ["name" .= fromEmail e]
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
+            <> ["phone" .= fromPhone p]
             <> ["team" .= BindingNewTeam (newNewTeam (unsafeRange "teamName") DefaultIcon) | isCreator]
-  responseJsonUnsafe <$> (post (b . path "/i/users" . Bilge.json p) <!! const 201 === statusCode)
+  (,(e, p)) . responseJsonUnsafe <$> (post (b . path "/i/users" . Bilge.json pl) <!! const 201 === statusCode)
+
+randomPhone :: MonadIO m => m Phone
+randomPhone = liftIO $ do
+  nrs <- map show <$> replicateM 14 (randomRIO (0, 9) :: IO Int)
+  let phone = parsePhone . Text.pack $ "+0" ++ concat nrs
+  pure $ fromMaybe (error "Invalid random phone#") phone
+
+randomEmailUser :: HasCallStack => TestM (UserId, Email)
+randomEmailUser = randomUserProfile'' False False True <&> first ((.userId) . selfUser) <&> second fst
+
+randomPhoneUser :: HasCallStack => TestM (UserId, Phone)
+randomPhoneUser = randomUserProfile'' False False True <&> first ((.userId) . selfUser) <&> second snd
 
 defPassword :: PlainTextPassword8
 defPassword = plainTextPassword8Unsafe "topsecretdefaultpassword"
@@ -99,6 +118,22 @@ randomEmail :: MonadIO m => m Email
 randomEmail = do
   uid <- liftIO nextRandom
   pure $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
+
+setHandle :: UserId -> Text -> TestM ()
+setHandle uid h = do
+  b <- view tsBrig
+  put
+    ( b
+        . paths ["/i/users", toByteString' uid, "handle"]
+        . Bilge.json (HandleUpdate h)
+    )
+    !!! do
+      const 200 === statusCode
+
+randomHandle :: MonadIO m => m Text
+randomHandle = liftIO $ do
+  nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
+  pure (Text.pack (map chr nrs))
 
 refreshIndex :: TestM ()
 refreshIndex = do

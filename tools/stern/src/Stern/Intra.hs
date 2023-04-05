@@ -164,6 +164,7 @@ putUserStatus status uid = do
   where
     payload = AccountStatusUpdate status
 
+-- This won't work anymore once API version V1 is not supported anymore
 getUserConnections :: UserId -> Handler [UserConnection]
 getUserConnections uid = do
   info $ msg "Getting user connections"
@@ -186,7 +187,7 @@ getUserConnections uid = do
             b
             ( method GET
                 . header "Z-User" (toByteString' uid)
-                . versionedPath "/connections"
+                . Bilge.paths ["v1", "connections"]
                 . queryItem "size" (toByteString' batchSize)
                 . maybe id (queryItem "start" . toByteString') start
                 . expect2xx
