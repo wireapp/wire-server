@@ -17,6 +17,7 @@ extra-source-files:
   test/resources/localhost.example.com-key.pem
   test/resources/localhost.example.com.pem
   test/resources/localhost.pem
+  test/resources/unit-ca-key.pem
   test/resources/unit-ca.pem
 
 library
