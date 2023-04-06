@@ -84,7 +84,7 @@ import qualified Proto.Otr_Fields as Proto.Otr
 import Servant (FromHttpApiData (..))
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.ServantProto (FromProto (..), ToProto (..))
-import Wire.API.User.Client (QualifiedUserClientMap (QualifiedUserClientMap), QualifiedUserClients, UserClientMap (..), UserClients (..))
+import Wire.API.User.Client
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -526,35 +526,45 @@ instance ToSchema MessageSendingStatus where
     object "MessageSendingStatus" $
       MessageSendingStatus
         <$> mssTime
+          -- TODO(md): fix this one as well as the description doesn't show up
           .= fieldWithDocModifier
             "time"
             (description ?~ "Time of sending message.")
             schema
         <*> mssMissingClients
-          .= fieldWithDocModifier
+          .= qualifiedUserClientsFieldWithDesc
             "missing"
-            (description ?~ "Clients that the message /should/ have been encrypted for, but wasn't.")
-            schema
+            "Clients that the message /should/ have been encrypted for, but wasn't."
         <*> mssRedundantClients
-          .= fieldWithDocModifier
+          .= qualifiedUserClientsFieldWithDesc
             "redundant"
-            (description ?~ "Clients that the message /should not/ have been encrypted for, but was.")
-            schema
+            "Clients that the message /should not/ have been encrypted for, but was."
         <*> mssDeletedClients
-          .= fieldWithDocModifier
+          .= qualifiedUserClientsFieldWithDesc
             "deleted"
-            (description ?~ "Clients that were deleted.")
-            schema
+            "Clients that were deleted."
         <*> mssFailedToSend
-          .= fieldWithDocModifier
+          .= qualifiedUserClientsFieldWithDesc
             "failed_to_send"
-            ( description
-                ?~ "When message sending fails for some clients but succeeds for others,\
-                   \this field will contain the list of clients for which the message sending \
-                   \failed. This list should be empty when message sending is not even tried, \
-                   \like when some clients are missing."
-            )
-            schema
+            "When message sending fails for some clients but succeeds for others, \
+            \e.g., because a remote backend is unreachable, \
+            \this field will contain the list of clients for which the message sending \
+            \failed. This list should be empty when message sending is not even tried, \
+            \like when some clients are missing."
+    where
+      -- This is to ensure that the Swagger model has a unique name, thereby
+      -- allowing for a description specific to that field instead of having it
+      -- overwritten by other models of the same type.
+      qualifiedUserClientsFieldWithDesc name desc =
+        field
+          name
+          ( named
+              ( "QualifiedUserClients ("
+                  <> name
+                  <> ")"
+              )
+              $ (S.schema . description ?~ desc) qualifiedUserClientsValueSchema
+          )
 
 -- QueryParams
 
