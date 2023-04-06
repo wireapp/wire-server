@@ -64,386 +64,120 @@ tests s =
       test s "GET /users/:uid/search" testSearchUsers,
       test s "POST /users/revoke-identity?email=..." testRevokeIdentity,
       test s "PUT /users/:uid/email" testPutEmail,
-      -- -- :<|> Named
-      -- --        "put-phone"
-      -- --        ( Summary "Change a user's phone number."
-      -- --            :> Description "The new phone number must be verified before the change takes effect."
-      -- --            :> "users"
-      -- --            :> Capture "uid" UserId
-      -- --            :> "phone"
-      -- --            :> Servant.ReqBody '[JSON] PhoneUpdate
-      -- --            :> Put '[JSON] NoContent
-      -- --        )
-      -- putPhone :: UserId -> PhoneUpdate -> TestM ()
-      -- putPhone uid phoneUpdate = do
-      --   s <- view tsStern
-      --   void $ put (s . paths ["users", toByteString' uid, "phone"] . json phoneUpdate . expect2xx)
-
-      -- -- :<|> Named
-      -- --        "delete-user"
-      -- --        ( Summary "Delete a user (irrevocable!)"
-      -- --            :> Description
-      -- --                 "Email or Phone must match UserId's (to prevent copy/paste mistakes).  Use exactly one of the two query params."
-      -- --            :> "users"
-      -- --            :> Capture "uid" UserId
-      -- --            :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
-      -- --            :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
-      -- --            :> Delete '[JSON] NoContent
-      -- --        )
-      -- deleteUser :: UserId -> Either Email Phone -> TestM ()
-      -- deleteUser uid emailOrPhone = do
-      --   s <- view tsStern
-      --   void $ delete (s . paths ["users", toByteString' uid] . mkQueryParam emailOrPhone . expect2xx)
-
-      -- -- :<|> Named
-      -- --        "suspend-team"
-      -- --        ( Summary "Suspend a team."
-      -- --            :> "teams"
-      -- --            :> Capture "tid" TeamId
-      -- --            :> "suspend"
-      -- --            :> Put '[JSON] NoContent
-      -- --        )
-      -- suspendTeam :: TeamId -> TestM ()
-      -- suspendTeam tid = do
-      --   s <- view tsStern
-      --   void $ put (s . paths ["teams", toByteString' tid, "suspend"] . expect2xx)
-
-      -- -- :<|> Named
-      -- --        "unsuspend-team"
-      -- --        ( Summary "Set a team status to 'Active', independently on previous status.  (Cannot be used to un-delete teams, though.)"
-      -- --            :> "teams"
-      -- --            :> Capture "tid" TeamId
-      -- --            :> "unsuspend"
-      -- --            :> Put '[JSON] NoContent
-      -- --        )
-      -- unsuspendTeam :: TeamId -> TestM ()
-      -- unsuspendTeam tid = do
-      --   s <- view tsStern
-      --   void $ put (s . paths ["teams", toByteString' tid, "unsuspend"] . expect2xx)
-
-      -- -- :<|> Named
-      -- --        "delete-team"
-      -- --        ( Summary "Delete a team (irrevocable!). You can only delete teams with 1 user unless you use the 'force' query flag"
-      -- --            :> Description
-      -- --                 "The email address of the user must be provided to prevent copy/paste mistakes.\n\
-      -- --                 \The force query flag can be used to delete teams with more than one user. \
-      -- --                 \CAUTION: FORCE DELETE WILL PERMANENTLY DELETE ALL TEAM MEMBERS! \
-      -- --                 \CHECK TEAM MEMBER LIST (SEE ABOVE OR BELOW) IF YOU ARE UNCERTAIN THAT'S WHAT YOU WANT."
-      -- --            :> "teams"
-      -- --            :> Capture "tid" TeamId
-      -- --            :> QueryParam' [Optional, Strict, Description "THIS WILL PERMANENTLY DELETE ALL TEAM MEMBERS! CHECK TEAM MEMBER LIST (SEE ABOVE OR BELOW) IF YOU ARE UNCERTAIN THAT'S WHAT YOU WANT."] "force" Bool
-      -- --            :> QueryParam' [Optional, Strict, Description "Matching verified remaining user address"] "email" Email
-      -- --            :> Delete '[JSON] NoContent
-      -- --        )
-      -- deleteTeam :: TeamId -> Bool -> Email -> TestM ()
-      -- deleteTeam tid force email = do
-      --   s <- view tsStern
-      --   void $ delete (s . paths ["teams", toByteString' tid] . queryItem "force" (toByteString' force) . queryItem "email" (toByteString' email) . expect2xx)
-
-      -- -- :<|> Named
-      -- --        "ejpd-info"
-      -- --        ( Summary "internal wire.com process: https://wearezeta.atlassian.net/wiki/spaces/~463749889/pages/256738296/EJPD+official+requests+process"
-      -- --            :> "ejpd-info"
-      -- --            :> QueryParam' [Optional, Strict, Description "If 'true', this gives you more more exhaustive information about this user (including social network)"] "include_contacts" Bool
-      -- --            :> QueryParam' [Required, Strict, Description "Handles of the users, separated by commas (NB: all chars need to be lower case!)"] "handles" [Handle]
-      -- --            :> Get '[JSON] EJPD.EJPDResponseBody
-      -- --        )
-      -- ejpdInfo :: Bool -> [Handle] -> TestM EJPD.EJPDResponseBody
-      -- ejpdInfo includeContacts handles = do
-      --   s <- view tsStern
-      --   r <- get (s . paths ["ejpd-info"] . queryItem "include_contacts" (toByteString' includeContacts) . queryItem "handles" (toByteString' handles) . expect2xx)
-      --   pure $ responseJsonUnsafe r
-
-      -- -- :<|> Named
-      -- --        "head-user-blacklist"
-      -- --        ( Summary "Fetch blacklist information on a email/phone (200: blacklisted; 404: not blacklisted)"
-      -- --            :> "users"
-      -- --            :> "blacklist"
-      -- --            :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
-      -- --            :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
-      -- --            :> Verb 'HEAD 200 '[JSON] NoContent
-      -- --        )
-      -- userBlacklistHead :: Either Email Phone -> TestM ()
-      -- userBlacklistHead emailOrPhone = do
-      --   s <- view tsStern
-      --   void $ Bilge.head (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone . expect2xx)
-
-      -- -- :<|> Named
-      -- --        "post-user-blacklist"
-      -- --        ( Summary "Add the email/phone to our blacklist"
-      -- --            :> "users"
-      -- --            :> "blacklist"
-      -- --            :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
-      -- --            :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
-      -- --            :> Post '[JSON] NoContent
-      -- --        )
-      -- postUserBlacklist :: Either Email Phone -> TestM ()
-      -- postUserBlacklist emailOrPhone = do
-      --   s <- view tsStern
-      --   void $ post (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone . expect2xx)
-
-      -- -- :<|> Named
-      -- --        "delete-user-blacklist"
-      -- --        ( Summary "Remove the email/phone from our blacklist"
-      -- --            :> "users"
-      -- --            :> "blacklist"
-      -- --            :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
-      -- --            :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
-      -- --            :> Delete '[JSON] NoContent
-      -- --        )
-      -- deleteUserBlacklist :: Either Email Phone -> TestM ()
-      -- deleteUserBlacklist emailOrPhone = do
-      --   s <- view tsStern
-      --   void $ delete (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone . expect2xx)
-
-      -- -- :<|> Named
-      -- --        "get-team-info-by-member-email"
-      -- --        ( Summary "Fetch a team information given a member's email"
-      -- --            :> "teams"
-      -- --            :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
-      -- --            :> Get '[JSON] TeamInfo
-      -- --        )
-      -- getTeamInfoByMemberEmail :: Email -> TestM TeamInfo
-      -- getTeamInfoByMemberEmail email = do
-      --   s <- view tsStern
-      --   r <- get (s . paths ["teams"] . queryItem "email" (toByteString' email) . expect2xx)
-      --   pure $ responseJsonUnsafe r
-
-      -- -- :<|> Named
-      -- --        "get-team-admin-info"
-      -- --        ( Summary "Gets information about a team's members, owners, and admins"
-      -- --            :> "teams"
-      -- --            :> Capture "tid" TeamId
-      -- --            :> "admins"
-      -- --            :> Get '[JSON] TeamAdminInfo
-      -- --        )
-      -- getTeamAdminInfo :: TeamId -> TestM TeamAdminInfo
-      -- getTeamAdminInfo tid = do
-      --   s <- view tsStern
-      --   r <- get (s . paths ["teams", toByteString' tid, "admins"] . expect2xx)
-      --   pure $ responseJsonUnsafe r
-
-      -- -- :<|> Named "get-route-legalhold-config" (MkFeatureGetRoute LegalholdConfig)
-      -- getFeatureConfig ::
-      --   forall cfg.
-      --   ( KnownSymbol (FeatureSymbol cfg),
-      --     ToSchema cfg,
-      --     Typeable cfg,
-      --     IsFeatureConfig cfg
-      --   ) =>
-      --   TeamId ->
-      --   TestM (WithStatus cfg)
-      -- getFeatureConfig tid = do
-      --   s <- view tsStern
-      --   r <- get (s . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg] . expect2xx)
-      --   pure $ responseJsonUnsafe r
-
-      -- -- :<|> Named "put-route-legalhold-config" (MkFeaturePutRouteTrivialConfigNoTTL LegalholdConfig)
-      -- putLegalholdConfig :: TeamId -> FeatureStatus -> TestM ()
-      -- putLegalholdConfig tid status = do
-      --   s <- view tsStern
-      --   void $ put (s . paths ["teams", toByteString' tid, "features", "legalhold"] . queryItem "status" (toByteString' status) . expect2xx)
-
-      -- -- :<|> Named "get-route-sso-config" (MkFeatureGetRoute SSOConfig)
-      -- getSSOConfig :: TeamId -> TestM (WithStatus SSOConfig)
-      -- getSSOConfig tid = do
-      --   s <- view tsStern
-      --   r <- get (s . paths ["teams", toByteString' tid, "features", "sso"] . expect2xx)
-      --   pure $ responseJsonUnsafe r
-
-      -- -- :<|> Named "put-route-sso-config" (MkFeaturePutRouteTrivialConfigNoTTL SSOConfig)
-      -- putSSOConfig :: TeamId -> FeatureStatus -> TestM ()
-      -- putSSOConfig tid cfg = do
-      --   s <- view tsStern
-      --   void $ put (s . paths ["teams", toByteString' tid, "features", "sso"] . queryItem "status" (toByteString' cfg) . expect2xx)
-
-      -- -- :<|> Named "put-route-search-visibility-available-config" (MkFeaturePutRouteTrivialConfigNoTTL SearchVisibilityAvailableConfig)
-      -- putSearchVisibilityAvailableConfig :: TeamId -> FeatureStatus -> TestM ()
-      -- putSearchVisibilityAvailableConfig tid cfg = do
-      --   s <- view tsStern
-      --   void $ put (s . paths ["teams", toByteString' tid, "features", "search-visibility-available"] . queryItem "status" (toByteString' cfg) . expect2xx)
-
-      -- -- :<|> Named "put-route-validate-saml-emails-config" (MkFeaturePutRouteTrivialConfigNoTTL ValidateSAMLEmailsConfig)
-      -- putValidateSAMLEmailsConfig :: TeamId -> FeatureStatus -> TestM ()
-      -- putValidateSAMLEmailsConfig tid cfg = do
-      --   s <- view tsStern
-      --   void $ put (s . paths ["teams", toByteString' tid, "features", "validate-saml-emails"] . queryItem "status" (toByteString' cfg) . expect2xx)
-
-      -- -- :<|> Named "put-route-digital-signatures-config" (MkFeaturePutRouteTrivialConfigNoTTL DigitalSignaturesConfig)
-      -- putDigitalSignaturesConfig :: TeamId -> FeatureStatus -> TestM ()
-      -- putDigitalSignaturesConfig tid cfg = do
-      --   s <- view tsStern
-      --   void $ put (s . paths ["teams", toByteString' tid, "features", "digital-signatures"] . queryItem "status" (toByteString' cfg) . expect2xx)
-
-      -- -- :<|> Named "put-route-file-sharing-config" (MkFeaturePutRouteTrivialConfigNoTTL FileSharingConfig)
-      -- putFileSharingConfig :: TeamId -> FeatureStatus -> TestM ()
-      -- putFileSharingConfig tid cfg = do
-      --   s <- view tsStern
-      --   void $ put (s . paths ["teams", toByteString' tid, "features", "file-sharing"] . queryItem "status" (toByteString' cfg) . expect2xx)
-
-      -- -- :<|> Named "put-route-conference-calling-config" (MkFeaturePutRouteTrivialConfigWithTTL ConferenceCallingConfig)
-      -- putConferenceCallingConfig :: TeamId -> FeatureStatus -> FeatureTTLDays -> TestM ()
-      -- putConferenceCallingConfig tid cfg ttl = do
-      --   s <- view tsStern
-      --   void $ put (s . paths ["teams", toByteString' tid, "features", "conference-calling"] . queryItem "status" (toByteString' cfg) . queryItem "ttl" (toByteString' ttl) . expect2xx)
-
-      -- -- type MkFeaturePutRoute (feature :: Type) =
-      -- --   Summary "Disable / enable feature flag for a given team"
-      -- --     :> "teams"
-      -- --     :> Capture "tid" TeamId
-      -- --     :> "features"
-      -- --     :> FeatureSymbol feature
-      -- --     :> ReqBody '[JSON] (WithStatusNoLock feature)
-      -- --     :> Put '[JSON] NoContent
-      -- putFeatureConfig ::
-      --   forall cfg.
-      --   ( KnownSymbol (FeatureSymbol cfg),
-      --     ToSchema cfg,
-      --     Typeable cfg,
-      --     IsFeatureConfig cfg
-      --   ) =>
-      --   TeamId ->
-      --   WithStatusNoLock cfg ->
-      --   TestM ()
-      -- putFeatureConfig tid cfg = do
-      --   s <- view tsStern
-      --   void $ put (s . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg] . json cfg . expect2xx)
-
-      -- -- :<|> Named
-      -- --        "get-search-visibility"
-      -- --        ( Summary "Shows the current TeamSearchVisibility value for the given team"
-      -- --            :> Description
-      -- --                 "These endpoints should be part of team settings. Until that happens, \
-      -- --                 \we access them from here for authorized personnel to enable/disable \
-      -- --                 \this on the team's behalf"
-      -- --            :> "teams"
-      -- --            :> Capture "tid" TeamId
-      -- --            :> "search-visibility"
-      -- --            :> Get '[JSON] TeamSearchVisibilityView
-      -- --        )
-      -- getSearchVisibility :: TeamId -> TestM TeamSearchVisibilityView
-      -- getSearchVisibility tid = do
-      --   s <- view tsStern
-      --   r <- get (s . paths ["teams", toByteString' tid, "search-visibility"] . expect2xx)
-      --   pure $ responseJsonUnsafe r
-
-      -- -- :<|> Named
-      -- --        "put-search-visibility"
-      -- --        ( Summary "Shows the current TeamSearchVisibility value for the given team"
-      -- --            :> Description
-      -- --                 "These endpoints should be part of team settings. Until that happens, \
-      -- --                 \we access them from here for authorized personnel to enable/disable \
-      -- --                 \this on the team's behalf"
-      -- --            :> "teams"
-      -- --            :> Capture "tid" TeamId
-      -- --            :> "search-visibility"
-      -- --            :> ReqBody '[JSON] TeamSearchVisibility
-      -- --            :> Get '[JSON] NoContent
-      -- --        )
-      -- putSearchVisibility :: TeamId -> TeamSearchVisibility -> TestM ()
-      -- putSearchVisibility tid vis = do
-      --   s <- view tsStern
-      --   void $ put (s . paths ["teams", toByteString' tid, "search-visibility"] . json vis . expect2xx)
-
-      -- -- :<|> Named "get-route-outlook-cal-config" (MkFeatureGetRoute OutlookCalIntegrationConfig)
-      -- -- :<|> Named "put-route-outlook-cal-config" (MkFeaturePutRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
-      -- -- :<|> Named
-      -- --        "get-team-invoice"
-      -- --        ( Summary "Get a specific invoice by Number"
-      -- --            :> Description "Relevant only internally at Wire"
-      -- --            :> "teams"
-      -- --            :> Capture "tid" TeamId
-      -- --            :> "invoice"
-      -- --            :> Capture "inr" InvoiceId
-      -- --            :> Get '[JSON] Text
-      -- --        )
-      -- getTeamInvoice :: TeamId -> InvoiceId -> TestM Text
-      -- getTeamInvoice tid inr = do
-      --   s <- view tsStern
-      --   r <- get (s . paths ["teams", toByteString' tid, "invoice", toByteString' inr] . expect2xx)
-      --   pure $ responseJsonUnsafe r
-
-      -- -- :<|> Named
-      -- --        "get-team-billing-info"
-      -- --        ( Summary "Gets billing information about a team"
-      -- --            :> Description "Relevant only internally at Wire"
-      -- --            :> "teams"
-      -- --            :> Capture "tid" TeamId
-      -- --            :> "billing"
-      -- --            :> Get '[JSON] TeamBillingInfo
-      -- --        )
-      -- getTeamBillingInfo :: TeamId -> TestM TeamBillingInfo
-      -- getTeamBillingInfo tid = do
-      --   s <- view tsStern
-      --   r <- get (s . paths ["teams", toByteString' tid, "billing"] . expect2xx)
-      --   pure $ responseJsonUnsafe r
-
-      -- -- :<|> Named
-      -- --        "put-team-billing-info"
-      -- --        ( Summary "Updates billing information about a team. Non specified fields will NOT be updated"
-      -- --            :> Description "Relevant only internally at Wire"
-      -- --            :> "teams"
-      -- --            :> Capture "tid" TeamId
-      -- --            :> "billing"
-      -- --            :> ReqBody '[JSON] TeamBillingInfoUpdate
-      -- --            :> Put '[JSON] TeamBillingInfo
-      -- --        )
-      -- putTeamBillingInfo :: TeamId -> TeamBillingInfoUpdate -> TestM TeamBillingInfo
-      -- putTeamBillingInfo tid upd = do
-      --   s <- view tsStern
-      --   r <- put (s . paths ["teams", toByteString' tid, "billing"] . json upd . expect2xx)
-      --   pure $ responseJsonUnsafe r
-
-      -- -- :<|> Named
-      -- --        "post-team-billing-info"
-      -- --        ( Summary
-      -- --            "Sets billing information about a team. Can only be used on teams that do NOT have any \
-      -- --            \billing information set. To update team billing info, use the update endpoint"
-      -- --            :> Description "Relevant only internally at Wire"
-      -- --            :> "teams"
-      -- --            :> Capture "tid" TeamId
-      -- --            :> "billing"
-      -- --            :> ReqBody '[JSON] TeamBillingInfo
-      -- --            :> Post '[JSON] TeamBillingInfo
-      -- --        )
-      -- postTeamBillingInfo :: TeamId -> TeamBillingInfo -> TestM TeamBillingInfo
-      -- postTeamBillingInfo tid upd = do
-      --   s <- view tsStern
-      --   r <- post (s . paths ["teams", toByteString' tid, "billing"] . json upd . expect2xx)
-      --   pure $ responseJsonUnsafe r
-
-      -- -- :<|> Named
-      -- --        "get-consent-log"
-      -- --        ( Summary "Fetch the consent log given an email address of a non-user"
-      -- --            :> Description "Relevant only internally at Wire"
-      -- --            :> "i"
-      -- --            :> "consent"
-      -- --            :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
-      -- --            :> Get '[JSON] ConsentLogAndMarketo
-      -- --        )
-      -- getConsentLog :: Email -> TestM ConsentLogAndMarketo
-      -- getConsentLog email = do
-      --   s <- view tsStern
-      --   r <- get (s . paths ["i", "consent"] . queryItem "email" (toByteString' email) . expect2xx)
-      --   pure $ responseJsonUnsafe r
-
-      -- -- :<|> Named
-      -- --        "get-user-meta-info"
-      -- --        ( Summary "Fetch a user's meta info given a user id: TEMPORARY!"
-      -- --            :> Description "Relevant only internally at Wire"
-      -- --            :> "i"
-      -- --            :> "user"
-      -- --            :> "meta-info"
-      -- --            :> QueryParam' [Required, Strict, Description "A valid UserId"] "id" UserId
-      -- --            :> Post '[JSON] UserMetaInfo
-      -- --        )
-      -- getUserMetaInfo :: UserId -> TestM UserMetaInfo
-      -- getUserMetaInfo uid = do
-      --   s <- view tsStern
-      --   r <- post (s . paths ["i", "user", "meta-info"] . queryItem "id" (toByteString' uid) . expect2xx)
-      --   pure $ responseJsonUnsafe r
+      test s "PUT /users/:uid/phone" testPutPhone,
+      test s "DELETE /users/:uid" testDeleteUser,
+      test s "PUT /teams/:tid/suspend" testSuspendTeam,
+      test s "PUT /teams/:tid/unsuspend" testUnsuspendTeam,
+      test s "DELETE /teams/:tid" testDeleteTeam,
+      test s "GET /ejpd-info" testEjpdInfo,
+      test s "HEAD /users/blacklist" testUserBlacklistHead,
+      test s "POST /users/blacklist" testPostUserBlacklist,
+      test s "DELETE /users/blacklist" testDeleteUserBlacklist,
+      test s "GET /teams" testGetTeamInfoByMemberEmail,
+      test s "GET /teams/:tid/admins" testGetTeamAdminInfo,
+      test s "GET /teams/:tid/features/legalhold" testGetLegalholdConfig,
+      test s "PUT /teams/:tid/features/legalhold" testPutLegalholdConfig,
+      test s "GET /teams/:tid/features/sso" testGetSSOConfig,
+      test s "PUT /teams/:tid/features/sso" testPutSSOConfig,
+      test s "PUT /teams/:tid/features/search-visibility-available" testPutSearchVisibilityAvailableConfig,
+      test s "PUT /teams/:tid/features/validate-saml-emails" testPutValidateSAMLEmailsConfig,
+      test s "PUT /teams/:tid/features/digital-signatures" testPutDigitalSignaturesConfig,
+      test s "PUT /teams/:tid/features/file-sharing" testPutFileSharingConfig,
+      test s "PUT /teams/:tid/features/conference-calling" testPutConferenceCallingConfig,
+      test s "PUT /teams/:tid/features/:feature" testPutFeatureConfig,
+      test s "GET /teams/:tid/search-visibility" testGetSearchVisibility,
+      test s "PUT /teams/:tid/search-visibility" testPutSearchVisibility,
+      test s "GET /teams/:tid/invoice/:inr" testGetTeamInvoice,
+      test s "GET /teams/:tid/billing" testGetTeamBillingInfo,
+      test s "PUT /teams/:tid/billing" testPutTeamBillingInfo,
+      test s "POST /teams/:tid/billing" testPostTeamBillingInfo,
+      test s "GET /i/consent" testGetConsentLog,
       test s "GET /teams/:id" testGetTeamInfo
     ]
+
+testPutPhone :: TestM ()
+testPutPhone = pure ()
+
+testDeleteUser :: TestM ()
+testDeleteUser = pure ()
+
+testSuspendTeam :: TestM ()
+testSuspendTeam = pure ()
+
+testUnsuspendTeam :: TestM ()
+testUnsuspendTeam = pure ()
+
+testDeleteTeam :: TestM ()
+testDeleteTeam = pure ()
+
+testEjpdInfo :: TestM ()
+testEjpdInfo = pure ()
+
+testUserBlacklistHead :: TestM ()
+testUserBlacklistHead = pure ()
+
+testPostUserBlacklist :: TestM ()
+testPostUserBlacklist = pure ()
+
+testDeleteUserBlacklist :: TestM ()
+testDeleteUserBlacklist = pure ()
+
+testGetTeamInfoByMemberEmail :: TestM ()
+testGetTeamInfoByMemberEmail = pure ()
+
+testGetTeamAdminInfo :: TestM ()
+testGetTeamAdminInfo = pure ()
+
+testGetLegalholdConfig :: TestM ()
+testGetLegalholdConfig = pure ()
+
+testPutLegalholdConfig :: TestM ()
+testPutLegalholdConfig = pure ()
+
+testGetSSOConfig :: TestM ()
+testGetSSOConfig = pure ()
+
+testPutSSOConfig :: TestM ()
+testPutSSOConfig = pure ()
+
+testPutSearchVisibilityAvailableConfig :: TestM ()
+testPutSearchVisibilityAvailableConfig = pure ()
+
+testPutValidateSAMLEmailsConfig :: TestM ()
+testPutValidateSAMLEmailsConfig = pure ()
+
+testPutDigitalSignaturesConfig :: TestM ()
+testPutDigitalSignaturesConfig = pure ()
+
+testPutFileSharingConfig :: TestM ()
+testPutFileSharingConfig = pure ()
+
+testPutConferenceCallingConfig :: TestM ()
+testPutConferenceCallingConfig = pure ()
+
+testPutFeatureConfig :: TestM ()
+testPutFeatureConfig = pure ()
+
+testGetSearchVisibility :: TestM ()
+testGetSearchVisibility = pure ()
+
+testPutSearchVisibility :: TestM ()
+testPutSearchVisibility = pure ()
+
+testGetTeamInvoice :: TestM ()
+testGetTeamInvoice = pure ()
+
+testGetTeamBillingInfo :: TestM ()
+testGetTeamBillingInfo = pure ()
+
+testPutTeamBillingInfo :: TestM ()
+testPutTeamBillingInfo = pure ()
+
+testPostTeamBillingInfo :: TestM ()
+testPostTeamBillingInfo = pure ()
+
+testGetConsentLog :: TestM ()
+testGetConsentLog = pure ()
 
 testGetConnectionsByIds :: TestM ()
 testGetConnectionsByIds = do
