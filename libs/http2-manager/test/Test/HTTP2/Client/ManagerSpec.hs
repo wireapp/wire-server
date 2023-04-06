@@ -107,12 +107,12 @@ specTemplate mCtx = do
   it "should re-use the connection even if one of the requests is stuck forever" $ do
     withTestServer mCtx $ \TestServer {..} -> do
       mgr <- mkTestManager
-      infiniteRespRecieved <- newEmptyMVar
+      infiniteRespHeaderRecieved <- newEmptyMVar
       chunkOfInfiniteTest <- newEmptyMVar
 
       infiniteRespThread <- async $ withHTTP2Request mgr (isJust mCtx, "localhost", serverPort) (Client.requestNoBody "GET" "/inifite" []) $ \res -> do
-        putMVar infiniteRespRecieved ()
         Client.responseStatus res `shouldBe` Just status200
+        putMVar infiniteRespHeaderRecieved ()
 
         -- The test server writes "foo\n" 1000 times in each chunk. We do this
         -- to ensure that this request is still alive even after an echo test
@@ -120,7 +120,7 @@ specTemplate mCtx = do
         takeMVar chunkOfInfiniteTest
         Client.getResponseBodyChunk res `shouldReturn` BS.concat (replicate 1000 "foo\n")
 
-      takeMVar infiniteRespRecieved
+      takeMVar infiniteRespHeaderRecieved
       echoTest mgr (isJust mCtx) serverPort
 
       putMVar chunkOfInfiniteTest ()
