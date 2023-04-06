@@ -35,7 +35,16 @@ import qualified Brig.Code as Code
 import qualified Brig.Options as Opt
 import qualified Cassandra as DB
 import Control.Lens (at, preview, (?~), (^.), (^?))
-import Data.Aeson hiding (json)
+import Crypto.JWT hiding (Ed25519, header, params)
+import Data.Aeson
+  ( Object,
+    Result (Success),
+    Value (Number, Object, String),
+    encode,
+    fromJSON,
+  )
+import qualified Data.Aeson as A
+import qualified Data.Aeson.KeyMap as M
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Default
@@ -47,7 +56,9 @@ import Data.Nonce (isValidBase64UrlEncodedUUID)
 import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import Data.Text.Ascii (AsciiChars (validate))
+import Data.Time (getCurrentTime)
 import qualified Data.Vector as Vec
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
@@ -339,7 +350,7 @@ testListClients brig = do
   let pks = Map.fromList [(Ed25519, "random")]
   void $ putClient brig uid (clientId c1) pks
   let c1' = c1 {clientMLSPublicKeys = pks}
-  let cs = sortBy (compare `on` clientId) [c1', c2, c3]
+  let cs' = sortBy (compare `on` clientId) [c1', c2, c3]
 
   get
     ( brig
@@ -348,7 +359,7 @@ testListClients brig = do
     )
     !!! do
       const 200 === statusCode
-      const (Just cs) === responseJsonMaybe
+      const (Just cs') === responseJsonMaybe
 
 testMLSClient :: Brig -> Http ()
 testMLSClient brig = do
@@ -1155,16 +1166,82 @@ testNewNonce brig = do
         Just "no-store" @=? getHeader "Cache-Control" response
       pure nonceBs
 
+-- {
+--   "iat": 1680707939,
+--   "exp": 1688483939,
+--   "nbf": 1680707939,
+--   "sub": "im:wireapp=YTM0NjEyODNmZGE2NGQzNmE4MTc4ZTZjNWMxNWM0MDU/ebfb7769766d4d10@staging.zinfra.io",
+--   "jti": "6fc59e7f-b666-4ffc-b738-4f4760c884ca",
+--   "nonce": "dE1bEcU1TySsa97QzuMJPg==",
+--   "htm": "POST",
+--   "htu": "https://staging-nginz-https.zinfra.io/v4/clients/ebfb7769766d4d10/access-token",
+--   "chal": "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+-- }
+
+data DPoPClaimsSet = DPoPClaimsSet
+  { jwtClaims :: ClaimsSet,
+    claimNonce :: Text,
+    claimHtm :: Text,
+    claimHtu :: Text,
+    claimChal :: Text
+  }
+  deriving (Eq, Show, Generic)
+
+instance HasClaimsSet DPoPClaimsSet where
+  claimsSet f s = fmap (\a' -> s {jwtClaims = a'}) (f (jwtClaims s))
+
+instance A.FromJSON DPoPClaimsSet where
+  parseJSON = A.withObject "OAuthClaimsSet" $ \o ->
+    DPoPClaimsSet
+      <$> A.parseJSON (A.Object o)
+      <*> o A..: "nonce"
+      <*> o A..: "htm"
+      <*> o A..: "htu"
+      <*> o A..: "chal"
+
+instance A.ToJSON DPoPClaimsSet where
+  toJSON s =
+    ins "nonce" (claimNonce s) (A.toJSON (jwtClaims s))
+      & ins "htm" (claimHtm s)
+      & ins "htu" (claimHtu s)
+      & ins "chal" (claimChal s)
+    where
+      ins k v (Object o) = Object $ M.insert k (A.toJSON v) o
+      ins _ _ a = a
+
+signAccessToken :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
+signAccessToken claims = doSignClaims
+  where
+    doSignClaims :: IO (Either JWTError SignedJWT)
+    doSignClaims = runJOSE $ do
+      algo <- bestJWSAlg jwkKey
+      signJWT jwkKey (newJWSHeader ((), algo)) claims
+
+    jwkKey :: JWK
+    jwkKey = do
+      fromMaybe (error "invalid jwk") . A.decode $
+        "{\"kty\": \"OKP\",\"crv\": \"Ed25519\",\"x\": \"CPvhIdimF20tOPjbb-fXJrwS2RKDp7686T90AZ0-Th8\"}"
+
 testCreateAccessTokenInvalidValues :: Brig -> Http ()
 testCreateAccessTokenInvalidValues brig =
   do
     uid <- userId <$> randomUser brig
     cid <- createClientForUser brig uid
     n <- Util.headNonce brig uid cid <!! const 200 === statusCode
-    let proof _nonce = Just $ Proof "xxxx.yyyy.zzzz"
-    Util.createAccessToken brig uid cid (proof n)
-      !!! do
-        const 400 === statusCode
+    now <- liftIO getCurrentTime
+    let claimsSet' =
+          emptyClaimsSet
+            & claimIat ?~ NumericDate now
+            & claimExp ?~ NumericDate now
+            & claimNbf ?~ NumericDate now
+            & claimSub ?~ fromMaybe (error "") (("im:wireapp=YTM0NjEyODNmZGE2NGQzNmE4MTc4ZTZjNWMxNWM0MDU/ebfb7769766d4d10@staging.zinfra.io" :: Text) ^? stringOrUri)
+            & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
+    let dpopClaims = DPoPClaimsSet claimsSet' "nonce" "POST" "https://staging-nginz-https.zinfra.io/v4/clients/ebfb7769766d4d10/access-token" "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+    signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
+    let signed = either (\e -> "invalid jwt: " <> show e) cs signedOrError
+    let proof _nonce = Just $ Proof (cs signed)
+    response <- Util.createAccessToken brig uid cid (proof n)
+    print response
 
 testCreateAccessTokenMissingProof :: Brig -> Http ()
 testCreateAccessTokenMissingProof brig = do
