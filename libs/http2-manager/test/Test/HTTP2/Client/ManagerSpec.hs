@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Test.HTTP2.Client.ManagerSpec where
 
@@ -153,7 +154,11 @@ specTemplate mCtx = do
 
     let brokenRequest = sendRequestWithConnection deadConn (Client.requestBuilder "GET" "/echo" [] "some body") $ \_ -> do
           expectationFailure "Expected no response when request is made to a dead server"
-    brokenRequest `shouldThrow` (\ConnectionAlreadyClosed -> True)
+        -- It is hard to control which one of these will be thrown
+        expectedException (fromException -> Just ConnectionAlreadyClosed) = True
+        expectedException (fromException -> Just Client.ConnectionIsClosed) = True
+        expectedException _ = False
+    brokenRequest `shouldThrow` expectedException
 
   it "should create a new connection when the server restarts" $ do
     mgr <- mkTestManager
