@@ -22,7 +22,7 @@ spec:
       serviceAccountName: reaper-role
       containers:
       - name: reaper
-        image: bitnami/kubectl:1.19.7
+        image: bitnami/kubectl:1.24.12
         command: ["bash"]
         args:
         - -c
