@@ -92,11 +92,11 @@ sendRequestWithConnection conn req f = do
 --
 -- It is important that the continuation consumes the response body completely
 -- before it returns.
-withHTTP2Request :: HTTP2Manager -> TLSEnabled -> ByteString -> Int -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
-withHTTP2Request mgr@HTTP2Manager {..} tlsEnabled host port req f = do
+withHTTP2Request :: HTTP2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
+withHTTP2Request mgr@HTTP2Manager {..} target req f = do
   -- TODO: What do we do when there is resource contention here? we could leave
   -- a note to make the consumers deal with this with a timeout.
-  mConn <- atomically $ getConnection mgr tlsEnabled host port
+  mConn <- atomically $ getConnection mgr target
   conn <- maybe connect pure mConn
   sendRequestWithConnection conn req f
   where
@@ -109,24 +109,24 @@ withHTTP2Request mgr@HTTP2Manager {..} tlsEnabled host port req f = do
     insertNewConn :: HTTP2Conn -> STM (Bool, HTTP2Conn)
     insertNewConn newConn = do
       stateTVar connections $ \conns ->
-        case Map.lookup (tlsEnabled, host, port) conns of
-          Nothing -> ((True, newConn), Map.insert (tlsEnabled, host, port) newConn conns)
+        case Map.lookup target conns of
+          Nothing -> ((True, newConn), Map.insert target newConn conns)
           Just alreadyEstablishedConn -> ((False, alreadyEstablishedConn), conns)
 
     connect :: IO HTTP2Conn
     connect = do
       sendReqMVar <- newEmptyMVar
-      thread <- liftIO . async $ startPersistentHTTP2Connection sslContext tlsEnabled host port cacheLimit sendReqMVar
+      thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sendReqMVar
       let newConn = HTTP2Conn thread (putMVar sendReqMVar (Right ())) sendReqMVar
       (inserted, finalConn) <- atomically $ insertNewConn newConn
       unless inserted $ disconnect newConn
       pure finalConn
 
 -- | Removes connection from map if it is not alive anymore
-getConnection :: HTTP2Manager -> TLSEnabled -> ByteString -> Int -> STM (Maybe HTTP2Conn)
-getConnection mgr tlsEnabled host port = do
+getConnection :: HTTP2Manager -> Target -> STM (Maybe HTTP2Conn)
+getConnection mgr target = do
   conns <- readTVar (connections mgr)
-  case Map.lookup (tlsEnabled, host, port) conns of
+  case Map.lookup target conns of
     Nothing -> pure Nothing
     Just conn ->
       -- If there is a connection for the (host,port), ensure that it is alive
@@ -135,10 +135,10 @@ getConnection mgr tlsEnabled host port = do
         Nothing -> pure (Just conn)
         Just (Left (SomeException _err)) -> do
           -- TODO: Log the error, maybe by adding a generic logger function to Http2Manager
-          writeTVar (connections mgr) $ Map.delete (tlsEnabled, host, port) conns
+          writeTVar (connections mgr) $ Map.delete target conns
           pure Nothing
         Just (Right ()) -> do
-          writeTVar (connections mgr) $ Map.delete (tlsEnabled, host, port) conns
+          writeTVar (connections mgr) $ Map.delete target conns
           pure Nothing
 
 -- | Disconnects HTTP2 connection if there exists one. If the background thread
@@ -146,9 +146,9 @@ getConnection mgr tlsEnabled host port = do
 --
 -- NOTE: Any requests in progress might not finish correctly.
 -- FUTUREWORK: Write a safe version of this function.
-unsafeDisconnectServer :: HTTP2Manager -> TLSEnabled -> ByteString -> Int -> IO ()
-unsafeDisconnectServer mgr tlsEnabled host port = do
-  mConn <- atomically $ getConnection mgr tlsEnabled host port
+unsafeDisconnectServer :: HTTP2Manager -> Target -> IO ()
+unsafeDisconnectServer mgr target = do
+  mConn <- atomically $ getConnection mgr target
   case mConn of
     Nothing -> pure ()
     Just conn -> do
@@ -165,7 +165,7 @@ unsafeDisconnectServer mgr tlsEnabled host port = do
       -- finish.
       waitOneSec <- async $ threadDelay 1_000_000
       _ <- waitAnyCatchCancel [waitOneSec, backgroundThread conn]
-      atomically . modifyTVar' (connections mgr) $ Map.delete (tlsEnabled, host, port)
+      atomically . modifyTVar' (connections mgr) $ Map.delete target
 
 data Request = Request
   { -- | The request to be sent.
@@ -189,17 +189,13 @@ type CloseConnection = ()
 
 startPersistentHTTP2Connection ::
   SSL.SSLContext ->
-  TLSEnabled ->
-  -- hostname
-  ByteString ->
-  -- port
-  Int ->
+  Target ->
   -- cacheLimit
   Int ->
   -- MVar used to communicate requests or the need to close the connection.
   MVar (Either Request CloseConnection) ->
   IO ()
-startPersistentHTTP2Connection ctx tlsEnabled hostname port cl sendReqMVar = do
+startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl sendReqMVar = do
   liveReqs <- newIORef mempty
   let clientConfig =
         HTTP2.ClientConfig

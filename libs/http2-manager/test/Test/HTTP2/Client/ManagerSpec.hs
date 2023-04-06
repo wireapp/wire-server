@@ -37,7 +37,7 @@ import Test.Hspec
 
 echoTest :: HTTP2Manager -> TLSEnabled -> Int -> Expectation
 echoTest mgr tlsEnabled serverPort =
-  withHTTP2Request mgr tlsEnabled "localhost" serverPort (Client.requestBuilder "GET" "/echo" [] "some body") $ \res -> do
+  withHTTP2Request mgr (tlsEnabled, "localhost", serverPort) (Client.requestBuilder "GET" "/echo" [] "some body") $ \res -> do
     Client.responseStatus res `shouldBe` Just status200
     readResponseBody res `shouldReturn` "some body"
 
@@ -88,7 +88,7 @@ specTemplate mCtx = do
       mgr <- mkTestManager
 
       echoTest mgr (isJust mCtx) serverPort
-      unsafeDisconnectServer mgr (isJust mCtx) "localhost" serverPort
+      unsafeDisconnectServer mgr (isJust mCtx, "localhost", serverPort)
       echoTest mgr (isJust mCtx) serverPort
 
       readIORef acceptedConns `shouldReturn` 2
@@ -110,7 +110,7 @@ specTemplate mCtx = do
       infiniteRespRecieved <- newEmptyMVar
       chunkOfInfiniteTest <- newEmptyMVar
 
-      infiniteRespThread <- async $ withHTTP2Request mgr (isJust mCtx) "localhost" serverPort (Client.requestNoBody "GET" "/inifite" []) $ \res -> do
+      infiniteRespThread <- async $ withHTTP2Request mgr (isJust mCtx, "localhost", serverPort) (Client.requestNoBody "GET" "/inifite" []) $ \res -> do
         putMVar infiniteRespRecieved ()
         Client.responseStatus res `shouldBe` Just status200
 
@@ -135,7 +135,7 @@ specTemplate mCtx = do
       mgr <- mkTestManager
 
       let exceptionThrower =
-            withHTTP2Request mgr (isJust mCtx) "localhost" serverPort (Client.requestBuilder "GET" "/echo" [] "some body") $ \_ ->
+            withHTTP2Request mgr (isJust mCtx, "localhost", serverPort) (Client.requestBuilder "GET" "/echo" [] "some body") $ \_ ->
               throw TestException
 
       -- Also test if the exception is propagated correctly and doesn't cause

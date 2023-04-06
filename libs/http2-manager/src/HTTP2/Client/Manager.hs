@@ -1,6 +1,9 @@
 module HTTP2.Client.Manager
   ( HTTP2Manager,
     TLSEnabled,
+    HostName,
+    Port,
+    Target,
     defaultHTTP2Manager,
     http2ManagerWithSSLCtx,
     withHTTP2Request,
