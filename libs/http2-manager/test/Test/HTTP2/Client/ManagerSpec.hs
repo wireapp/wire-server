@@ -237,7 +237,6 @@ withTestServerOnSocket mCtx action (serverPort, listenSock) = do
 allocServerConfig :: Either Socket SSL.SSL -> IO Server.Config
 allocServerConfig (Left sock) = HTTP2.allocSimpleConfig sock 4096
 allocServerConfig (Right ssl) = do
-  let bufsize = 4096
   buf <- mallocBytes bufsize
   timmgr <- System.TimeManager.initialize $ 30 * 1000000
   -- Sometimes the frame header says that the payload length is 0. Reading 0

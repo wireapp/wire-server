@@ -37,9 +37,13 @@ data HTTP2Conn = HTTP2Conn
     sendRequestMVar :: MVar (Either Request ())
   }
 
-type Target = (TLSEnabled, ByteString, Int)
-
 type TLSEnabled = Bool
+
+type HostName = ByteString
+
+type Port = Int
+
+type Target = (TLSEnabled, HostName, Port)
 
 -- FUTUREWORK: Support HTTPS, perhaps ALPN negatiation can also be used to
 -- HTTP1. I think HTTP1 vs HTTP2 can not be negotated without TLS, so perhaps
@@ -90,6 +94,8 @@ sendRequestWithConnection conn req f = do
 -- continuation can finish.
 withHTTP2Request :: HTTP2Manager -> TLSEnabled -> ByteString -> Int -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
 withHTTP2Request mgr@HTTP2Manager {..} tlsEnabled host port req f = do
+  -- TODO: What do we do when there is resource contention here? we could leave
+  -- a note to make the consumers deal with this with a timeout.
   mConn <- atomically $ getConnection mgr tlsEnabled host port
   conn <- maybe connect pure mConn
   sendRequestWithConnection conn req f
@@ -111,9 +117,9 @@ withHTTP2Request mgr@HTTP2Manager {..} tlsEnabled host port req f = do
     connect = do
       sendReqMVar <- newEmptyMVar
       thread <- liftIO . async $ startPersistentHTTP2Connection sslContext tlsEnabled host port cacheLimit sendReqMVar
-      let conn = HTTP2Conn thread (putMVar sendReqMVar (Right ())) sendReqMVar
-      (inserted, finalConn) <- atomically $ insertNewConn conn
-      unless inserted $ disconnect conn
+      let newConn = HTTP2Conn thread (putMVar sendReqMVar (Right ())) sendReqMVar
+      (inserted, finalConn) <- atomically $ insertNewConn newConn
+      unless inserted $ disconnect newConn
       pure finalConn
 
 -- | Removes connection from map if it is not alive anymore
@@ -227,6 +233,7 @@ startPersistentHTTP2Connection ctx tlsEnabled hostname port cl sendReqMVar = do
 
       cleanupThreads = cleanupThreadsWith (SomeException ConnectionAlreadyClosed)
 
+      -- TODO: Use ADT instead of Either
       mkConfigParam sock =
         if tlsEnabled
           then do
@@ -247,8 +254,10 @@ startPersistentHTTP2Connection ctx tlsEnabled hostname port cl sendReqMVar = do
       bracket (allocHTTP2Config http2ConfigParam) HTTP2.freeSimpleConfig $ \http2Cfg -> do
         -- If there is an exception throw it to all the threads, if not throw
         -- 'ConnectionAlreadyClosed' to all the threads.
-        flip finally cleanupThreads $ HTTP2.run clientConfig http2Cfg $ \sendReq -> do
-          handleRequests liveReqs sendReq
+        let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq -> do
+              handleRequests liveReqs sendReq
+        -- TODO: Either explain why finally and handle are are required or make it more obvious.
+        flip finally cleanupThreads $ handle cleanupThreadsWith $ runAction
   where
     handleRequests :: IORef LiveReqs -> SendReqFn -> IO ()
     handleRequests liveReqs sendReq = do
@@ -291,10 +300,12 @@ data ConnectionAlreadyClosed = ConnectionAlreadyClosed
 
 instance Exception ConnectionAlreadyClosed
 
+bufsize :: Int
+bufsize = 4096
+
 allocHTTP2Config :: Either NS.Socket SSL.SSL -> IO HTTP2.Config
-allocHTTP2Config (Left sock) = HTTP2.allocSimpleConfig sock 4096
+allocHTTP2Config (Left sock) = HTTP2.allocSimpleConfig sock bufsize
 allocHTTP2Config (Right ssl) = do
-  let bufsize = 4096
   buf <- mallocBytes bufsize
   timmgr <- System.TimeManager.initialize $ 30 * 1000000
   -- Sometimes the frame header says that the payload length is 0. Reading 0
@@ -302,19 +313,19 @@ allocHTTP2Config (Right ssl) = do
   -- out why. The previous implementation didn't try to read from the socket
   -- when trying to read 0 bytes, so special handling for 0 maintains that
   -- behaviour.
-  let readData prevChunk 0 = pure prevChunk
-      readData prevChunk n = do
+  let readData acc 0 = pure acc
+      readData acc n = do
         -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
         -- (some sites terminate SSL connection right after returning the data).
         chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
         let chunkLen = BS.length chunk
         if
             | chunkLen == 0 || chunkLen == n ->
-                pure (prevChunk <> chunk)
+                pure (acc <> chunk)
             | chunkLen > n ->
                 error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
             | otherwise ->
-                readData (prevChunk <> chunk) (n - chunkLen)
+                readData (acc <> chunk) (n - chunkLen)
   pure
     HTTP2.Config
       { HTTP2.confWriteBuffer = buf,
