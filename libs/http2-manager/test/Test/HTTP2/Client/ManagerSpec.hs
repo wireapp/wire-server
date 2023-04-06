@@ -55,8 +55,7 @@ spec = do
       ctx <- loadWrongServerSSLContext
       mgr <- mkTestManager
       withTestServer (Just ctx) $ \TestServer {..} ->
-        -- TODO: Specify the specific exception
-        echoTest mgr True serverPort `shouldThrow` (\(SomeException _) -> True)
+        echoTest mgr True serverPort `shouldThrow` (\(_ :: SSL.SomeSSLException) -> True)
 
 specTemplate :: Maybe SSL.SSLContext -> Spec
 specTemplate mCtx = do
