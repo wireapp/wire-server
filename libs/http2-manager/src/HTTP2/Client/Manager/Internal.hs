@@ -149,13 +149,27 @@ getConnection mgr target = do
           writeTVar (connections mgr) $ Map.delete target conns
           pure Nothing
 
+-- | Disconnects HTTP2 connection if there exists one. Will hang around until
+-- all the ongoing requests complete. This would throw an error if the
+-- background thread maintaining the connection throws an error, e.g. there was
+-- a TLS error or the connection was already disconnected with error.
+disconnectServer :: HTTP2Manager -> Target -> IO ()
+disconnectServer mgr target = do
+  mConn <- atomically $ getConnection mgr target
+  case mConn of
+    Nothing -> pure ()
+    Just conn -> do
+      disconnect conn
+      wait (backgroundThread conn)
+      atomically . modifyTVar' (connections mgr) $ Map.delete target
+
 -- | Disconnects HTTP2 connection if there exists one. If the background thread
 -- running the connection does not finish within 1 second, it is canceled.
+-- Errors from the background thread running the connection are not propagated.
 --
 -- NOTE: Any requests in progress might not finish correctly.
--- FUTUREWORK: Write a safe version of this function.
-unsafeDisconnectServer :: HTTP2Manager -> Target -> IO ()
-unsafeDisconnectServer mgr target = do
+disconnectServerWithTimeout :: HTTP2Manager -> Target -> Int -> IO ()
+disconnectServerWithTimeout mgr target microSeconds = do
   mConn <- atomically $ getConnection mgr target
   case mConn of
     Nothing -> pure ()
@@ -164,14 +178,14 @@ unsafeDisconnectServer mgr target = do
 
       -- Wait on two threads:
       -- 1. background thread which _should_ be exiting soon
-      -- 2. sleep for 1 second.
+      -- 2. sleep for given number of microseconds.
       --
       -- whenever one of them finishes, the other is canceled. Errors are
       -- ignored.
       --
       -- All of this to say wait max 1 second for the background thread to
       -- finish.
-      waitOneSec <- async $ threadDelay 1_000_000
+      waitOneSec <- async $ threadDelay microSeconds
       _ <- waitAnyCatchCancel [waitOneSec, backgroundThread conn]
       atomically . modifyTVar' (connections mgr) $ Map.delete target
 

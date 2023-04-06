@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -88,7 +89,7 @@ specTemplate mCtx = do
       mgr <- mkTestManager
 
       echoTest mgr (isJust mCtx) serverPort
-      unsafeDisconnectServer mgr (isJust mCtx, "localhost", serverPort)
+      disconnectServerWithTimeout mgr (isJust mCtx, "localhost", serverPort) 1_000_000
       echoTest mgr (isJust mCtx) serverPort
 
       readIORef acceptedConns `shouldReturn` 2
