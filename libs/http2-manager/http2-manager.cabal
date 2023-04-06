@@ -30,8 +30,7 @@ library
   hs-source-dirs:   src
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wpartial-fields -fwarn-tabs -Wredundant-constraints
 
   build-depends:
       async
