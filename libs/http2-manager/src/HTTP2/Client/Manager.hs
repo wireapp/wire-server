@@ -1,5 +1,7 @@
 module HTTP2.Client.Manager
   ( HTTP2Manager,
+    setCacheLimit,
+    setSSLContext,
     TLSEnabled,
     HostName,
     Port,

@@ -73,6 +73,14 @@ http2ManagerWithSSLCtx sslContext = do
   let cacheLimit = 20
   pure $ HTTP2Manager {..}
 
+-- | Warning: This won't affect already established connections
+setCacheLimit :: Int -> HTTP2Manager -> HTTP2Manager
+setCacheLimit cl mgr = mgr {cacheLimit = cl}
+
+-- | Warning: This won't affect already established connections
+setSSLContext :: SSL.SSLContext -> HTTP2Manager -> HTTP2Manager
+setSSLContext ctx mgr = mgr {sslContext = ctx}
+
 -- | Does not check whether connection is actually running. Users should use
 -- 'withHTTP2Request'. This function is good for testing.
 sendRequestWithConnection :: HTTP2Conn -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
