@@ -85,13 +85,13 @@ sendRequestWithConnection conn req f = do
     Right (SomeException e) -> throw e
 
 -- | Make an HTTP2 request, if it is the first time the 'HTTP2Manager' sees this
--- (server,port) comibination, it creates the connection and keeps it around for
+-- (tlsenabled,server,port) combination, it creates the connection and keeps it around for
 -- any subsequent requests. Subsequest requests try to use this connection, in
 -- case the connection is already dead (e.g. the background thread has
 -- finished), a new connection is created.
 --
--- It is important to consume the response body completely before the
--- continuation can finish.
+-- It is important that the continuation consumes the response body completely
+-- before it returns.
 withHTTP2Request :: HTTP2Manager -> TLSEnabled -> ByteString -> Int -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
 withHTTP2Request mgr@HTTP2Manager {..} tlsEnabled host port req f = do
   -- TODO: What do we do when there is resource contention here? we could leave

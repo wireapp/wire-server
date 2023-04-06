@@ -98,7 +98,7 @@ specTemplate mCtx = do
       mgr <- mkTestManager
 
       -- Do 1 request before the concurrent ones, otherwise most of them would
-      -- of course end up making multiple connections.
+      -- end up making multiple connections.
       echoTest mgr (isJust mCtx) serverPort
       mapConcurrently_ id $ replicate 10 (echoTest mgr (isJust mCtx) serverPort)
 
@@ -130,7 +130,7 @@ specTemplate mCtx = do
 
       readIORef acceptedConns `shouldReturn` 1
 
-  it "should re-use the connection even an exception is thrown while handling a response" $ do
+  it "should re-use the connection even if an exception is thrown while handling a response" $ do
     withTestServer mCtx $ \TestServer {..} -> do
       mgr <- mkTestManager
 
