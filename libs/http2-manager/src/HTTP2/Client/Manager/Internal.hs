@@ -76,10 +76,10 @@ http2ManagerWithSSLCtx sslContext = do
 -- | Does not check whether connection is actually running. Users should use
 -- 'withHTTP2Request'. This function is good for testing.
 sendRequestWithConnection :: HTTP2Conn -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
-sendRequestWithConnection conn req f = do
+sendRequestWithConnection conn req k = do
   result <- newEmptyMVar
   threadKilled <- newEmptyMVar
-  putMVar (sendRequestMVar conn) (Left (Request req (putMVar result <=< f) threadKilled))
+  putMVar (sendRequestMVar conn) (Left (Request req (putMVar result <=< k) threadKilled))
   race (takeMVar result) (takeMVar threadKilled) >>= \case
     Left x -> pure x
     Right (SomeException e) -> throw e
