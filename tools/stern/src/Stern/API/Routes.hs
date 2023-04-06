@@ -163,7 +163,6 @@ type SternAPI =
                :> "users"
                :> Capture "uid" UserId
                :> "email"
-               :> QueryParam' [Optional, Strict, Description "If set to true, a validation email will be sent to the new email address"] "validate" Bool
                :> Servant.ReqBody '[JSON] EmailUpdate
                :> Put '[JSON] NoContent
            )

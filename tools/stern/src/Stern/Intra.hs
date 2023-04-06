@@ -285,7 +285,7 @@ getContacts u q s = do
         "brig"
         b
         ( method GET
-            . versionedPath "/search/contacts"
+            . versionedPath "search/contacts"
             . header "Z-User" (toByteString' u)
             . queryItem "q" (toByteString' q)
             . queryItem "size" (toByteString' s)
@@ -362,8 +362,8 @@ deleteBindingTeamForce tid = do
           . expect2xx
       )
 
-changeEmail :: UserId -> EmailUpdate -> Bool -> Handler ()
-changeEmail u upd validate = do
+changeEmail :: UserId -> EmailUpdate -> Handler ()
+changeEmail u upd = do
   info $ msg "Updating email address"
   b <- view brig
   void . catchRpcErrors $
@@ -372,7 +372,6 @@ changeEmail u upd validate = do
       b
       ( method PUT
           . Bilge.path "i/self/email"
-          . (if validate then queryItem "validate" "true" else id)
           . header "Z-User" (toByteString' u)
           . header "Z-Connection" (toByteString' "")
           . lbytes (encode upd)

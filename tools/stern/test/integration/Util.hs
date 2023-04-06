@@ -111,6 +111,9 @@ randomEmailUser = randomUserProfile'' False False True <&> first ((.userId) . se
 randomPhoneUser :: HasCallStack => TestM (UserId, Phone)
 randomPhoneUser = randomUserProfile'' False False True <&> first ((.userId) . selfUser) <&> second snd
 
+randomEmailPhoneUser :: HasCallStack => TestM (UserId, (Email, Phone))
+randomEmailPhoneUser = randomUserProfile'' False False True <&> first ((.userId) . selfUser)
+
 defPassword :: PlainTextPassword8
 defPassword = plainTextPassword8Unsafe "topsecretdefaultpassword"
 
