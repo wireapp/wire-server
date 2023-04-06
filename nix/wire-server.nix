@@ -79,7 +79,7 @@ let
     gundeck = [ "gundeck" "gundeck-integration" "gundeck-schema" ];
     proxy = [ "proxy" ];
     spar = [ "spar" "spar-integration" "spar-schema" "spar-migrate-data" ];
-    stern = [ "stern" ];
+    stern = [ "stern" "stern-integration"];
 
     billing-team-member-backfill = [ "billing-team-member-backfill" ];
     inconsistencies = [ "inconsistencies" ];

@@ -61,6 +61,7 @@ run_all_integration_tests() {
       run_integration_tests "$package"
     fi
   done
+  run_integration_tests "stern"
 }
 
 if [ "$package" == "all" ]; then
