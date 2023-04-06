@@ -39,6 +39,8 @@ data CommitBundleF f = CommitBundleF
     cbGroupInfo :: f (RawMLS GroupInfo)
   }
 
+deriving instance Show (CommitBundleF [])
+
 instance Alternative f => Semigroup (CommitBundleF f) where
   cb1 <> cb2 =
     CommitBundleF

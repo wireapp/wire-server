@@ -458,10 +458,6 @@ testAddUser = do
   qcnv <- runMLSTest $ do
     [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
 
-    putStrLn $ "alice1: " <> show alice1
-    putStrLn $ "bob1: " <> show bob1
-    putStrLn $ "bob2: " <> show bob2
-
     traverse_ uploadNewKeyPackage [bob1, bob2]
 
     (_, qcnv) <- setupMLSGroup alice1

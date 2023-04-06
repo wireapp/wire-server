@@ -35,9 +35,6 @@ import Cassandra.CQL hiding (Set)
 import Control.Applicative
 import Control.Lens hiding (set, (.=))
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Binary.Get
-import Data.Binary.Put
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LBS
 import Data.Id
 import Data.Json.Util
@@ -125,18 +122,16 @@ newtype KeyPackageRef = KeyPackageRef {unKeyPackageRef :: ByteString}
   deriving stock (Eq, Ord, Show)
   deriving (FromHttpApiData, ToHttpApiData, S.ToParamSchema) via Base64ByteString
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema KeyPackageRef)
-
-instance Arbitrary KeyPackageRef where
-  arbitrary = KeyPackageRef . B.pack <$> vectorOf 16 arbitrary
+  deriving newtype (Arbitrary)
 
 instance ToSchema KeyPackageRef where
   schema = named "KeyPackageRef" $ unKeyPackageRef .= fmap KeyPackageRef base64Schema
 
 instance ParseMLS KeyPackageRef where
-  parseMLS = KeyPackageRef <$> getByteString 16
+  parseMLS = KeyPackageRef <$> parseMLSBytes @VarInt
 
 instance SerialiseMLS KeyPackageRef where
-  serialiseMLS = putByteString . unKeyPackageRef
+  serialiseMLS = serialiseMLSBytes @VarInt . unKeyPackageRef
 
 instance Cql KeyPackageRef where
   ctype = Tagged BlobColumn
