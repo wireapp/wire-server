@@ -41,7 +41,7 @@ module Wire.API.MLS.Message
     mkSignedMessage,
 
     -- * Failed to process
-    UnreachableUsers (..),
+    UnreachableUsers (UnreachableUsers),
     unreachableFromList,
     FailedToProcess (..),
     failedToSend,
