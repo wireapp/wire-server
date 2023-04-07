@@ -54,14 +54,7 @@ receiveCommitMockByDomain :: [ClientIdentity] -> Mock LByteString
 receiveCommitMockByDomain clients = do
   r <- getRequest
   let fClients = filter (\c -> frTargetDomain r == ciDomain c) clients
-  asum
-    [ "on-conversation-updated" ~> (),
-      "on-new-remote-conversation" ~> EmptyResponse,
-      "get-mls-clients" ~>
-        Set.fromList
-          ( map (flip ClientInfo True . ciClient) fClients
-          )
-    ]
+  receiveCommitMock fClients
 
 messageSentMock :: Mock LByteString
 messageSentMock = "on-mls-message-sent" ~> RemoteMLSMessageOk
