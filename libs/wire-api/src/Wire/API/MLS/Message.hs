@@ -41,7 +41,7 @@ module Wire.API.MLS.Message
     mkSignedMessage,
 
     -- * Failed to process
-    UnreachableUserList (..),
+    UnreachableUsers (..),
     unreachableFromList,
     FailedToProcess (..),
     failedToSend,
@@ -327,20 +327,20 @@ instance SerialiseMLS (MessagePayload 'MLSPlainText) where
   -- so the next case is left as a stub
   serialiseMLS _ = pure ()
 
-newtype UnreachableUserList = UnreachableUserList {unreachableUsers :: NonEmpty (Qualified UserId)}
+newtype UnreachableUsers = UnreachableUsers {unreachableUsers :: NonEmpty (Qualified UserId)}
   deriving stock (Eq, Show)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema UnreachableUserList
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema UnreachableUsers
   deriving newtype (Semigroup)
 
-instance ToSchema UnreachableUserList where
+instance ToSchema UnreachableUsers where
   schema =
-    named "UnreachableUserList" $
-      UnreachableUserList
+    named "UnreachableUsers" $
+      UnreachableUsers
         <$> unreachableUsers
           .= nonEmptyArray schema
 
-unreachableFromList :: [Qualified UserId] -> Maybe UnreachableUserList
-unreachableFromList = fmap UnreachableUserList . nonEmpty
+unreachableFromList :: [Qualified UserId] -> Maybe UnreachableUsers
+unreachableFromList = fmap UnreachableUsers . nonEmpty
 
 -- | A 'mappend'-like operation on two optional values of a type with a
 -- Semigroup instance.
@@ -353,8 +353,8 @@ v <\> Nothing = v
 -- | Lists of remote users that could not be processed in a federated action,
 -- e.g., a message could not be sent to these remote users.
 data FailedToProcess = FailedToProcess
-  { send :: Maybe UnreachableUserList,
-    add :: Maybe UnreachableUserList
+  { send :: Maybe UnreachableUsers,
+    add :: Maybe UnreachableUsers
   }
   deriving (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema FailedToProcess
@@ -393,13 +393,13 @@ instance ToSchema FailedToProcess where
 failedToSend :: [Qualified UserId] -> FailedToProcess
 failedToSend = failedToSendMaybe . unreachableFromList
 
-failedToSendMaybe :: Maybe UnreachableUserList -> FailedToProcess
+failedToSendMaybe :: Maybe UnreachableUsers -> FailedToProcess
 failedToSendMaybe us = mempty {send = us}
 
 failedToAdd :: [Qualified UserId] -> FailedToProcess
 failedToAdd = failedToAddMaybe . unreachableFromList
 
-failedToAddMaybe :: Maybe UnreachableUserList -> FailedToProcess
+failedToAddMaybe :: Maybe UnreachableUsers -> FailedToProcess
 failedToAddMaybe us = mempty {add = us}
 
 data MLSMessageSendingStatus = MLSMessageSendingStatus

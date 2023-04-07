@@ -60,7 +60,7 @@ propagateMessage ::
   ClientMap ->
   Maybe ConnId ->
   ByteString ->
-  Sem r (Maybe UnreachableUserList)
+  Sem r (Maybe UnreachableUsers)
 propagateMessage qusr lconv cm con raw = do
   -- FUTUREWORK: check the epoch
   let lmems = Data.convLocalMembers . tUnqualified $ lconv
