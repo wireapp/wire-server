@@ -25,7 +25,6 @@ import API.Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra hiding (Set)
-import Control.Exception (throw)
 import Control.Lens (view)
 import Control.Lens.Extras
 import qualified Control.Monad.State as State
@@ -49,7 +48,6 @@ import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
-import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
@@ -1133,19 +1131,12 @@ testAppMessageSomeReachable = do
         sendAndConsumeCommit commit
 
     let unreachables = Set.singleton (Domain "charlie.example.com")
-    withTempMockFederator' (mockUnreachableFor unreachables) $ do
+    withTempMockFederator' (mlsMockUnreachableFor unreachables) $ do
       message <- createApplicationMessage alice1 "hi, bob!"
       (_, ftp) <- sendAndConsumeMessage message
       liftIO $ do
         assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
         ftp @?= failedToSend [charlie]
-  where
-    mockUnreachableFor :: Set Domain -> Mock LByteString
-    mockUnreachableFor backends = do
-      r <- getRequest
-      if Set.member (frTargetDomain r) backends
-        then throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
-        else mockReply ("RemoteMLSMessageOk" :: String)
 
 testAppMessageUnreachable :: TestM ()
 testAppMessageUnreachable = do
