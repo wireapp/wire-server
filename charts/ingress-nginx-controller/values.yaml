@@ -32,6 +32,17 @@ ingress-nginx:
         # ports.
         https: 31773
         http: 31772
+    # Image digests are not supported by our `wire-server-deploy` machinery. They
+    # cannot be correctly dumped to tar files an then be loaded by `containerd`.
+    image:
+      tag: "v1.6.4"
+      digest: ""
+      digestChroot: ""
+    admissionWebhooks:
+      patch:
+        image:
+          tag: "v20220916-gd32f8c343"
+          digest: ""
     config:
       # NOTE: These are some sane defaults (compliant to TR-02102-2), you may
       # want to overrride them on your own installation For TR-02102-2 see

@@ -1,0 +1,3 @@
+Image digests are not supported by our wire-server-deploy machinery. They cannot
+be correctly dumped to tar files and then be loaded by containerd. Thus, we're
+removing (by overriding) them from `ingress-nginx` default values.
