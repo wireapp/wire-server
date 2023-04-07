@@ -526,7 +526,6 @@ instance ToSchema MessageSendingStatus where
     object "MessageSendingStatus" $
       MessageSendingStatus
         <$> mssTime
-          -- TODO(md): fix this one as well as the description doesn't show up
           .= fieldWithDocModifier
             "time"
             (description ?~ "Time of sending message.")
