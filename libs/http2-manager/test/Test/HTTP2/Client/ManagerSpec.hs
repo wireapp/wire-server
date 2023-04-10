@@ -8,6 +8,7 @@
 
 module Test.HTTP2.Client.ManagerSpec where
 
+import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
@@ -17,6 +18,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.IORef
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -33,14 +35,24 @@ import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.HTTP2.Server as Server
 import Network.Socket
 import qualified OpenSSL.Session as SSL
+import System.Random (randomRIO)
 import qualified System.TimeManager
 import Test.Hspec
 
 echoTest :: HTTP2Manager -> TLSEnabled -> Int -> Expectation
-echoTest mgr tlsEnabled serverPort =
-  withHTTP2Request mgr (tlsEnabled, "localhost", serverPort) (Client.requestBuilder "GET" "/echo" [] "some body") $ \res -> do
+echoTest = echoTest' "/echo" "some body"
+
+echoTest' :: ByteString -> Builder.Builder -> HTTP2Manager -> TLSEnabled -> Int -> Expectation
+echoTest' path msg mgr tlsEnabled serverPort =
+  withHTTP2Request mgr (tlsEnabled, "localhost", serverPort) (Client.requestBuilder "GET" path [] msg) $ \res -> do
     Client.responseStatus res `shouldBe` Just status200
-    readResponseBody res `shouldReturn` "some body"
+    readResponseBody res `shouldReturn` (Builder.toLazyByteString msg)
+
+-- | server delays by 0..100ms between every two lines, so this is good for randomized load testing.
+--
+-- TODO: implement the delay below!
+multiLineEchoTest :: HTTP2Manager -> TLSEnabled -> Int -> Expectation
+multiLineEchoTest = echoTest' "/multiline" "1\n2\n3\n4\n5\n6\n"
 
 spec :: Spec
 spec = do
@@ -61,6 +73,12 @@ spec = do
 
 specTemplate :: Maybe SSL.SSLContext -> Spec
 specTemplate mCtx = do
+  it "randomized load test" $ do
+    withTestServer mCtx $ \TestServer {..} -> do
+      mgr <- mkTestManager
+      let onethread _ = replicateM_ 6 (multiLineEchoTest mgr (isJust mCtx) serverPort)
+      mapConcurrently_ onethread [(0 :: Int) .. 94]
+
   it "should be able to make an HTTP2 request" $ do
     withTestServer mCtx $ \TestServer {..} -> do
       mgr <- mkTestManager
@@ -308,6 +326,17 @@ testServer req _ respWriter = do
             infiniteBSWriter bsWriter flush
           infiniteResponse = Server.responseStreaming status200 [] infiniteBSWriter
       respWriter infiniteResponse []
+    Just "/multiline" -> do
+      reqBodyLines <- LBS.lines <$> readRequestBody req
+      let delayedBSWriter :: [LBS.ByteString] -> (Builder.Builder -> IO ()) -> IO () -> IO ()
+          delayedBSWriter [] _ _ = pure ()
+          delayedBSWriter (line : moreLines) bsWriter flush = do
+            bsWriter $ Builder.lazyByteString (line <> "\n")
+            flush
+            threadDelay =<< randomRIO (0, 100_000)
+            delayedBSWriter moreLines bsWriter flush
+          delayedResponse = Server.responseStreaming status200 [] (delayedBSWriter reqBodyLines)
+      respWriter delayedResponse []
     _ -> do
       respWriter (Server.responseNoBody status404 []) []
 

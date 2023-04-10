@@ -73,6 +73,7 @@ test-suite http2-manager-tests
     , http2
     , http2-manager
     , network
+    , random
     , stm
     , streaming-commons
     , time-manager
