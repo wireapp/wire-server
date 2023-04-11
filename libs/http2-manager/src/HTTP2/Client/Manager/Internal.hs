@@ -305,7 +305,6 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl sendReqMVar =
                   `catches` exceptionHandlers exceptionMVar
                 waitAndFork
               CloseConnection -> do
-                -- TODO: Maybe add a timeout?
                 mapM_ (wait . fst) =<< readIORef liveReqs
       waitAndFork
 
