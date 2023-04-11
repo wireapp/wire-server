@@ -251,25 +251,13 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl sendReqMVar =
 
       cleanupThreads = cleanupThreadsWith (SomeException ConnectionAlreadyClosed)
 
-      -- TODO: Use ADT instead of Either
-      mkConfigParam sock =
-        if tlsEnabled
-          then do
-            ssl <- SSL.connection ctx sock
-            let hostnameStr = Text.unpack $ Text.decodeUtf8 hostname
-            -- Perhaps a hook at enable/disable or customize this would be nice.
-            -- OpenSSL also supports a callback.
-            SSL.setTlsextHostName ssl hostnameStr
-            SSL.enableHostnameValidation ssl hostnameStr
-            SSL.connect ssl
-            pure $ Right ssl
-          else pure $ Left sock
-      cleanupSSL (Left _) = pure ()
-      cleanupSSL (Right ssl) = SSL.shutdown ssl SSL.Unidirectional
+      transportConfig
+        | tlsEnabled = Just $ TLSParams ctx hostname
+        | otherwise = Nothing
 
   handle cleanupThreadsWith $ bracket (fst <$> getSocketTCP hostname port) NS.close $ \sock -> do
-    bracket (mkConfigParam sock) cleanupSSL $ \http2ConfigParam ->
-      bracket (allocHTTP2Config http2ConfigParam) HTTP2.freeSimpleConfig $ \http2Cfg -> do
+    bracket (mkTransport sock transportConfig) cleanupTransport $ \transport ->
+      bracket (allocHTTP2Config transport) HTTP2.freeSimpleConfig $ \http2Cfg -> do
         -- If there is an exception throw it to all the threads, if not throw
         -- 'ConnectionAlreadyClosed' to all the threads.
         let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq -> do
@@ -313,6 +301,31 @@ type LiveReqs = Map Unique (Async (), MVar SomeException)
 
 type SendReqFn = HTTP2.Request -> (HTTP2.Response -> IO ()) -> IO ()
 
+data Transport
+  = InsecureTransport NS.Socket
+  | SecureTransport SSL.SSL
+
+data TLSParams = TLSParams
+  { context :: SSL.SSLContext,
+    hostname :: HostName
+  }
+
+mkTransport :: NS.Socket -> Maybe TLSParams -> IO Transport
+mkTransport sock Nothing = pure $ InsecureTransport sock
+mkTransport sock (Just TLSParams {..}) = do
+  ssl <- SSL.connection context sock
+  let hostnameStr = Text.unpack $ Text.decodeUtf8 hostname
+  -- Perhaps a hook at enable/disable or customize this would be nice.
+  -- OpenSSL also supports a callback.
+  SSL.setTlsextHostName ssl hostnameStr
+  SSL.enableHostnameValidation ssl hostnameStr
+  SSL.connect ssl
+  pure $ SecureTransport ssl
+
+cleanupTransport :: Transport -> IO ()
+cleanupTransport (InsecureTransport _) = pure ()
+cleanupTransport (SecureTransport ssl) = SSL.shutdown ssl SSL.Unidirectional
+
 data ConnectionAlreadyClosed = ConnectionAlreadyClosed
   deriving (Show)
 
@@ -321,9 +334,9 @@ instance Exception ConnectionAlreadyClosed
 bufsize :: Int
 bufsize = 4096
 
-allocHTTP2Config :: Either NS.Socket SSL.SSL -> IO HTTP2.Config
-allocHTTP2Config (Left sock) = HTTP2.allocSimpleConfig sock bufsize
-allocHTTP2Config (Right ssl) = do
+allocHTTP2Config :: Transport -> IO HTTP2.Config
+allocHTTP2Config (InsecureTransport sock) = HTTP2.allocSimpleConfig sock bufsize
+allocHTTP2Config (SecureTransport ssl) = do
   buf <- mallocBytes bufsize
   timmgr <- System.TimeManager.initialize $ 30 * 1000000
   -- Sometimes the frame header says that the payload length is 0. Reading 0
