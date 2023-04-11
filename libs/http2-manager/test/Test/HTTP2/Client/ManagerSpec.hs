@@ -73,12 +73,6 @@ spec = do
 
 specTemplate :: Maybe SSL.SSLContext -> Spec
 specTemplate mCtx = do
-  it "randomized load test" $ do
-    withTestServer mCtx $ \TestServer {..} -> do
-      mgr <- mkTestManager
-      let onethread _ = replicateM_ 6 (multiLineEchoTest mgr (isJust mCtx) serverPort)
-      mapConcurrently_ onethread [(0 :: Int) .. 94]
-
   it "should be able to make an HTTP2 request" $ do
     withTestServer mCtx $ \TestServer {..} -> do
       mgr <- mkTestManager
@@ -101,6 +95,12 @@ specTemplate mCtx = do
       echoTest mgr (isJust mCtx) serverPort
 
       readIORef acceptedConns `shouldReturn` 1
+
+  it "should process many concurrent requests correctly under different timing situations" $ do
+    withTestServer mCtx $ \TestServer {..} -> do
+      mgr <- mkTestManager
+      let onethread _ = replicateM_ 6 (multiLineEchoTest mgr (isJust mCtx) serverPort)
+      mapConcurrently_ onethread [(0 :: Int) .. 94]
 
   it "shouldn't try to re-use a disconnected connection" $ do
     withTestServer mCtx $ \TestServer {..} -> do
