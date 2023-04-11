@@ -32,8 +32,6 @@ import Prelude
 data HTTP2Conn = HTTP2Conn
   { backgroundThread :: Async (),
     disconnect :: IO (),
-    -- See comment in 'startPersistentHTTP2Connection' about why this returns
-    -- '()'
     connectionActionMVar :: MVar ConnectionAction
   }
 
