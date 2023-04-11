@@ -1451,7 +1451,7 @@ lookupProfilesV3 ::
   AppT r ([(Qualified UserId, FederationError)], [UserProfile])
 lookupProfilesV3 self others = do
   t <-
-    traverseConcurrently
+    traverseConcurrentlyAppT
       (lookupProfilesFromDomain self)
       (bucketQualified others)
   let (l, r) = partitionEithers t

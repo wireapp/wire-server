@@ -249,7 +249,8 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
         mkQualifiedUserClientPrekeyMap . fmap mkUserClientPrekeyMap . qmap $
           [mkClientMap <$> c1, mkClientMap <$> c2]
   post
-    ( brig1
+    ( apiVersion "v3"
+        . brig1
         . zUser (qUnqualified (fst c1))
         . paths ["users", "list-prekeys"]
         . body (RequestBodyLBS (Aeson.encode uc))

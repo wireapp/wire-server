@@ -73,6 +73,7 @@ import qualified Cassandra as Data
 import Control.Error hiding (bool)
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
+import Control.Monad.Except
 import Data.Aeson hiding (json)
 import Data.Bifunctor
 import qualified Data.ByteString.Lazy as Lazy
@@ -297,6 +298,7 @@ servantSitemap =
         :<|> Named @"get-users-prekey-bundle-unqualified" (callsFed (exposeAnnotations getPrekeyBundleUnqualifiedH))
         :<|> Named @"get-users-prekey-bundle-qualified" (callsFed (exposeAnnotations getPrekeyBundleH))
         :<|> Named @"get-multi-user-prekey-bundle-unqualified" getMultiUserPrekeyBundleUnqualifiedH
+        :<|> Named @"get-multi-user-prekey-bundle-qualified@v3" (callsFed (exposeAnnotations getMultiUserPrekeyBundleHV3))
         :<|> Named @"get-multi-user-prekey-bundle-qualified" (callsFed (exposeAnnotations getMultiUserPrekeyBundleH))
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
@@ -475,12 +477,11 @@ getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
     throwStd (errorToWai @'E.TooManyClients)
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
-getMultiUserPrekeyBundleH ::
-  (Member (Concurrency 'Unsafe) r) =>
-  UserId ->
+getMultiUserPrekeyBundleHInternal ::
+  (MonadReader Env m, MonadError Brig.API.Error.Error m) =>
   Public.QualifiedUserClients ->
-  (Handler r) Public.QualifiedUserClientPrekeyMap
-getMultiUserPrekeyBundleH zusr qualUserClients = do
+  m ()
+getMultiUserPrekeyBundleHInternal qualUserClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   let Sum (size :: Int) =
         Map.foldMapWithKey
@@ -488,6 +489,23 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
           (Public.qualifiedUserClients qualUserClients)
   when (size > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
+
+getMultiUserPrekeyBundleHV3 ::
+  Member (Concurrency 'Unsafe) r =>
+  UserId ->
+  Public.QualifiedUserClients ->
+  (Handler r) Public.QualifiedUserClientPrekeyMap
+getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
+  getMultiUserPrekeyBundleHInternal qualUserClients
+  API.claimMultiPrekeyBundlesV3 (ProtectedUser zusr) qualUserClients !>> clientError
+
+getMultiUserPrekeyBundleH ::
+  Member (Concurrency 'Unsafe) r =>
+  UserId ->
+  Public.QualifiedUserClients ->
+  (Handler r) Public.QualifiedUserClientPrekeyMapV4
+getMultiUserPrekeyBundleH zusr qualUserClients = do
+  getMultiUserPrekeyBundleHInternal qualUserClients
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient ::
