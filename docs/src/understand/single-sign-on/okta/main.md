@@ -79,7 +79,7 @@ ______________________________________________________________________
 - Find the "Identity Provider Metadata" link. Copy the link address (normally done by right-clicking on the link and selecting "Copy link location" or a similar item in the menu).
 - Store the link address somewhere for a future step.
 
-```{image} 006-application-sign-on.png
+```{image} 006-add-application-sign-on.png
 ```
 
 ______________________________________________________________________
