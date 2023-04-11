@@ -130,7 +130,7 @@ import qualified Data.Text.IO as Text
 import Data.Time.Clock
 import Data.Yaml (FromJSON)
 import qualified Database.Bloodhound as ES
-import HTTP2.Client.Manager (HTTP2Manager, http2ManagerWithSSLCtx)
+import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -176,7 +176,7 @@ data Env = Env
     _tmTemplates :: Localised TeamTemplates,
     _templateBranding :: TemplateBranding,
     _httpManager :: Manager,
-    _http2Manager :: HTTP2Manager,
+    _http2Manager :: Http2Manager,
     _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
     _settings :: Settings,
     _nexmoCreds :: Nexmo.Credentials,
@@ -205,7 +205,7 @@ newEnv o = do
   lgr <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   cas <- initCassandra o lgr
   mgr <- initHttpManager
-  h2Mgr <- initHTTP2Manager
+  h2Mgr <- initHttp2Manager
   ext <- initExtGetManager
   utp <- loadUserTemplates o
   ptp <- loadProviderTemplates o
@@ -359,8 +359,8 @@ initHttpManager = do
         managerResponseTimeout = responseTimeoutMicro 10000000
       }
 
-initHTTP2Manager :: IO HTTP2Manager
-initHTTP2Manager = do
+initHttp2Manager :: IO Http2Manager
+initHttp2Manager = do
   ctx <- SSL.context
   SSL.contextAddOption ctx SSL_OP_NO_SSLv2
   SSL.contextAddOption ctx SSL_OP_NO_SSLv3

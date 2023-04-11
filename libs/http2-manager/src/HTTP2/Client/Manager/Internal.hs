@@ -46,14 +46,14 @@ type Target = (TLSEnabled, HostName, Port)
 -- FUTUREWORK: Support HTTPS, perhaps ALPN negatiation can also be used to
 -- HTTP1. I think HTTP1 vs HTTP2 can not be negotated without TLS, so perhaps
 -- this manager will default to HTTP2.
-data HTTP2Manager = HTTP2Manager
+data Http2Manager = Http2Manager
   { connections :: TVar (Map Target HTTP2Conn),
     cacheLimit :: Int,
     sslContext :: SSL.SSLContext
   }
 
-defaultHTTP2Manager :: IO HTTP2Manager
-defaultHTTP2Manager = do
+defaultHttp2Manager :: IO Http2Manager
+defaultHttp2Manager = do
   ctx <- SSL.context
   SSL.contextSetVerificationMode ctx $
     SSL.VerifyPeer
@@ -65,18 +65,18 @@ defaultHTTP2Manager = do
   SSL.contextSetALPNProtos ctx ["h2"]
   http2ManagerWithSSLCtx ctx
 
-http2ManagerWithSSLCtx :: SSL.SSLContext -> IO HTTP2Manager
+http2ManagerWithSSLCtx :: SSL.SSLContext -> IO Http2Manager
 http2ManagerWithSSLCtx sslContext = do
   connections <- newTVarIO mempty
   let cacheLimit = 20
-  pure $ HTTP2Manager {..}
+  pure $ Http2Manager {..}
 
 -- | Warning: This won't affect already established connections
-setCacheLimit :: Int -> HTTP2Manager -> HTTP2Manager
+setCacheLimit :: Int -> Http2Manager -> Http2Manager
 setCacheLimit cl mgr = mgr {cacheLimit = cl}
 
 -- | Warning: This won't affect already established connections
-setSSLContext :: SSL.SSLContext -> HTTP2Manager -> HTTP2Manager
+setSSLContext :: SSL.SSLContext -> Http2Manager -> Http2Manager
 setSSLContext ctx mgr = mgr {sslContext = ctx}
 
 -- | Does not check whether connection is actually running. Users should use
@@ -90,7 +90,7 @@ sendRequestWithConnection conn req k = do
     Left x -> pure x
     Right (SomeException e) -> throw e
 
--- | Make an HTTP2 request, if it is the first time the 'HTTP2Manager' sees this
+-- | Make an HTTP2 request, if it is the first time the 'Http2Manager' sees this
 -- (tlsenabled,server,port) combination, it creates the connection and keeps it around for
 -- any subsequent requests. Subsequest requests try to use this connection, in
 -- case the connection is already dead (e.g. the background thread has
@@ -100,14 +100,14 @@ sendRequestWithConnection conn req k = do
 -- before it returns.
 --
 -- NOTE: If many concurrent requests are made to the same server using a single
--- instance of 'HTTP2Manager', it could cause the manager to make multiple
+-- instance of 'Http2Manager', it could cause the manager to make multiple
 -- connections to the server. Eventually only one connection will be kept open.
 -- This, in theory, would cause some contention over 'STM' based 'Map' that the
--- 'HTTP2Manager' keeps and so could decrease throughput. In cases where many
+-- 'Http2Manager' keeps and so could decrease throughput. In cases where many
 -- concurrent requests are to be made, it might be best to ensure that a
 -- connection exists using 'connectIfNotAlreadyConnected' before making all the
 -- requests.
-withHTTP2Request :: HTTP2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
+withHTTP2Request :: Http2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
 withHTTP2Request mgr target req f = do
   conn <- getOrMakeConnection mgr target
   sendRequestWithConnection conn req f
@@ -116,13 +116,13 @@ withHTTP2Request mgr target req f = do
 -- many concurrent requests. This way the first few requests don't have to fight
 -- for making a connection This way the first few requests don't have to fight
 -- for making a connection.
-connectIfNotAlreadyConnected :: HTTP2Manager -> Target -> IO ()
+connectIfNotAlreadyConnected :: Http2Manager -> Target -> IO ()
 connectIfNotAlreadyConnected mgr target = void $ getOrMakeConnection mgr target
 
 -- | Gets a connection if it exists and is alive, otherwise connects to the
 -- given 'Target'.
-getOrMakeConnection :: HTTP2Manager -> Target -> IO HTTP2Conn
-getOrMakeConnection mgr@HTTP2Manager {..} target = do
+getOrMakeConnection :: Http2Manager -> Target -> IO HTTP2Conn
+getOrMakeConnection mgr@Http2Manager {..} target = do
   mConn <- atomically $ getConnection mgr target
   maybe connect pure mConn
   where
@@ -149,7 +149,7 @@ getOrMakeConnection mgr@HTTP2Manager {..} target = do
       pure finalConn
 
 -- | Removes connection from map if it is not alive anymore
-getConnection :: HTTP2Manager -> Target -> STM (Maybe HTTP2Conn)
+getConnection :: Http2Manager -> Target -> STM (Maybe HTTP2Conn)
 getConnection mgr target = do
   conns <- readTVar (connections mgr)
   case Map.lookup target conns of
@@ -171,7 +171,7 @@ getConnection mgr target = do
 -- all the ongoing requests complete. This would throw an error if the
 -- background thread maintaining the connection throws an error, e.g. there was
 -- a TLS error or the connection was already disconnected with error.
-disconnectServer :: HTTP2Manager -> Target -> IO ()
+disconnectServer :: Http2Manager -> Target -> IO ()
 disconnectServer mgr target = do
   mConn <- atomically $ getConnection mgr target
   case mConn of
@@ -186,7 +186,7 @@ disconnectServer mgr target = do
 -- Errors from the background thread running the connection are not propagated.
 --
 -- NOTE: Any requests in progress might not finish correctly.
-disconnectServerWithTimeout :: HTTP2Manager -> Target -> Int -> IO ()
+disconnectServerWithTimeout :: Http2Manager -> Target -> Int -> IO ()
 disconnectServerWithTimeout mgr target microSeconds = do
   mConn <- atomically $ getConnection mgr target
   case mConn of

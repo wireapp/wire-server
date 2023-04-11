@@ -39,10 +39,10 @@ import System.Random (randomRIO)
 import qualified System.TimeManager
 import Test.Hspec
 
-echoTest :: HTTP2Manager -> TLSEnabled -> Int -> Expectation
+echoTest :: Http2Manager -> TLSEnabled -> Int -> Expectation
 echoTest = echoTest' "/echo" "some body"
 
-echoTest' :: ByteString -> Builder.Builder -> HTTP2Manager -> TLSEnabled -> Int -> Expectation
+echoTest' :: ByteString -> Builder.Builder -> Http2Manager -> TLSEnabled -> Int -> Expectation
 echoTest' path msg mgr tlsEnabled serverPort =
   withHTTP2Request mgr (tlsEnabled, "localhost", serverPort) (Client.requestBuilder "GET" path [] msg) $ \res -> do
     Client.responseStatus res `shouldBe` Just status200
@@ -51,7 +51,7 @@ echoTest' path msg mgr tlsEnabled serverPort =
 -- | server delays by 0..100ms between every two lines, so this is good for randomized load testing.
 --
 -- TODO: implement the delay below!
-multiLineEchoTest :: HTTP2Manager -> TLSEnabled -> Int -> Expectation
+multiLineEchoTest :: Http2Manager -> TLSEnabled -> Int -> Expectation
 multiLineEchoTest = echoTest' "/multiline" "1\n2\n3\n4\n5\n6\n"
 
 spec :: Spec
@@ -232,9 +232,9 @@ loadWrongServerSSLContext = do
   sslCheck `shouldBe` True
   pure ctx
 
-mkTestManager :: IO HTTP2Manager
+mkTestManager :: IO Http2Manager
 mkTestManager = do
-  mgr <- defaultHTTP2Manager
+  mgr <- defaultHttp2Manager
   SSL.contextSetCAFile (sslContext mgr) "test/resources/unit-ca.pem"
   pure mgr
 

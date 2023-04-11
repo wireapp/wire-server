@@ -30,7 +30,7 @@ import Data.Domain
 import Data.Proxy
 import qualified Data.Text.Encoding as Text
 import Federator.MockServer
-import HTTP2.Client.Manager (defaultHTTP2Manager)
+import HTTP2.Client.Manager (defaultHttp2Manager)
 import Imports
 import Network.HTTP.Media
 import Network.HTTP.Types as HTTP
@@ -91,7 +91,7 @@ withMockFederatorClient ::
   FederatorClient c a ->
   IO (Either ResponseFailure a, [FederatedRequest])
 withMockFederatorClient headers resp action = withTempMockFederator headers resp $ \port -> do
-  mgr <- defaultHTTP2Manager
+  mgr <- defaultHttp2Manager
   let env =
         FederatorClientEnv
           { ceOriginDomain = originDomain,
@@ -131,7 +131,7 @@ type StreamingAPI = StreamGet NewlineFraming PlainText (SourceIO Text)
 
 testClientStreaming :: IO ()
 testClientStreaming = withInfiniteMockServer $ \port -> do
-  mgr <- defaultHTTP2Manager
+  mgr <- defaultHttp2Manager
   let env =
         FederatorClientEnv
           { ceOriginDomain = originDomain,
@@ -197,7 +197,7 @@ testClientExceptions = do
 testClientConnectionError :: IO ()
 testClientConnectionError = do
   handle <- generate arbitrary
-  mgr <- defaultHTTP2Manager
+  mgr <- defaultHttp2Manager
   let env =
         FederatorClientEnv
           { ceOriginDomain = originDomain,

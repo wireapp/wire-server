@@ -52,7 +52,7 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import qualified Data.Text.Lazy.Encoding as LText
 import Foreign.Marshal.Alloc
-import HTTP2.Client.Manager (HTTP2Manager)
+import HTTP2.Client.Manager (Http2Manager)
 import qualified HTTP2.Client.Manager as H2Manager
 import Imports
 import qualified Network.HPACK as HTTP2
@@ -79,7 +79,7 @@ data FederatorClientEnv = FederatorClientEnv
   { ceOriginDomain :: Domain,
     ceTargetDomain :: Domain,
     ceFederator :: Endpoint,
-    ceHttp2Manager :: HTTP2Manager
+    ceHttp2Manager :: Http2Manager
   }
 
 data FederatorClientVersionedEnv = FederatorClientVersionedEnv

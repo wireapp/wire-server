@@ -62,7 +62,7 @@ import Data.Default (def)
 import Data.Metrics.Middleware (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Qualified
-import HTTP2.Client.Manager (HTTP2Manager, http2ManagerWithSSLCtx)
+import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (log)
 import Network.HTTP.Client (ManagerSettings (..), requestHeaders, responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -80,7 +80,7 @@ data Env = Env
     _metrics :: Metrics,
     _appLogger :: Logger,
     _httpManager :: Manager,
-    _http2Manager :: HTTP2Manager,
+    _http2Manager :: Http2Manager,
     _requestId :: RequestId,
     _options :: Opt.Opts,
     _localUnit :: Local ()
@@ -131,7 +131,7 @@ initHttpManager s3Compat =
     modifyRequestHeaders f req =
       req {requestHeaders = f (requestHeaders req)}
 
-initHttp2Manager :: IO HTTP2Manager
+initHttp2Manager :: IO Http2Manager
 initHttp2Manager = http2ManagerWithSSLCtx =<< initSSLContext
 
 initSSLContext :: IO SSLContext

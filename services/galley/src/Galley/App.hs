@@ -85,7 +85,7 @@ import Galley.Options
 import Galley.Queue
 import qualified Galley.Queue as Q
 import qualified Galley.Types.Teams as Teams
-import HTTP2.Client.Manager (HTTP2Manager, http2ManagerWithSSLCtx)
+import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (forkIO)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -154,7 +154,7 @@ createEnv m o = do
   l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
   cass <- initCassandra o l
   mgr <- initHttpManager o
-  h2mgr <- initHTTP2Manager
+  h2mgr <- initHttp2Manager
   validateOptions l o
   Env def m o l mgr h2mgr (o ^. optFederator) (o ^. optBrig) cass
     <$> Q.new 16000
@@ -199,8 +199,8 @@ initHttpManager o = do
         managerIdleConnectionCount = 3 * (o ^. optSettings . setHttpPoolSize)
       }
 
-initHTTP2Manager :: IO HTTP2Manager
-initHTTP2Manager = do
+initHttp2Manager :: IO Http2Manager
+initHttp2Manager = do
   ctx <- Ssl.context
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv3

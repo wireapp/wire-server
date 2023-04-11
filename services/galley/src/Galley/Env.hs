@@ -29,7 +29,7 @@ import Data.Range
 import qualified Galley.Aws as Aws
 import Galley.Options
 import qualified Galley.Queue as Q
-import HTTP2.Client.Manager (HTTP2Manager)
+import HTTP2.Client.Manager (Http2Manager)
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
@@ -52,7 +52,7 @@ data Env = Env
     _options :: Opts,
     _applog :: Logger,
     _manager :: Manager,
-    _http2Manager :: HTTP2Manager,
+    _http2Manager :: Http2Manager,
     _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _brig :: Endpoint, -- FUTUREWORK: see _federator
     _cstate :: ClientState,
