@@ -200,27 +200,6 @@ postCommitBundle sender qcs bundle = do
     (\rsender -> remotePostCommitBundle rsender qcs bundle)
     (cidQualifiedUser sender $> sender)
 
--- FUTUREWORK: remove this and start using commit bundles everywhere in tests
-postWelcome ::
-  ( MonadIO m,
-    MonadHttp m,
-    MonadReader TestSetup m,
-    HasCallStack
-  ) =>
-  UserId ->
-  ByteString ->
-  m ResponseLBS
-postWelcome uid welcome = do
-  galley <- view tsUnversionedGalley
-  post
-    ( galley
-        . paths ["v2", "mls", "welcome"]
-        . zUser uid
-        . zConn "conn"
-        . Bilge.content "message/mls"
-        . bytes welcome
-    )
-
 saveRemovalKey :: FilePath -> TestM ()
 saveRemovalKey fp = do
   keys <- fromJust <$> view (tsGConf . optSettings . setMlsPrivateKeyPaths)
@@ -612,7 +591,7 @@ bundleKeyPackages bundle =
 -- group to the previous state by using an older version of the group file.
 createAddCommit :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTest MessagePackage
 createAddCommit cid users = do
-  kps <- fmap (concat . map bundleKeyPackages) . traverse (claimKeyPackages cid) $ users
+  kps <- fmap (concatMap bundleKeyPackages) . traverse (claimKeyPackages cid) $ users
   liftIO $ assertBool "no key packages could be claimed" (not (null kps))
   createAddCommitWithKeyPackages cid kps
 
@@ -659,7 +638,7 @@ createExternalCommit qcid mpgs qcs = do
 
 createAddProposals :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTest [MessagePackage]
 createAddProposals cid users = do
-  kps <- fmap (concat . map bundleKeyPackages) . traverse (claimKeyPackages cid) $ users
+  kps <- fmap (concatMap bundleKeyPackages) . traverse (claimKeyPackages cid) $ users
   traverse (createAddProposalWithKeyPackage cid) kps
 
 -- | Create an application message.
@@ -893,40 +872,14 @@ consumeMessage1 cid msg = do
 -- commit, the 'sendAndConsumeCommit' function should be used instead.
 sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], UnreachableUsers)
 sendAndConsumeMessage mp = do
-  putStrLn "sending message:"
-  print $ hex (mpMessage mp)
+  for_ mp.mpWelcome $ \_ -> liftIO $ assertFailure "use sendAndConsumeCommitBundle"
   res <-
     fmap (mmssEvents Tuple.&&& mmssUnreachableUsers) $
       responseJsonError
         =<< postMessage (mpSender mp) (mpMessage mp)
           <!! const 201 === statusCode
   consumeMessage mp
-
-  for_ (mpWelcome mp) $ \welcome -> do
-    postWelcome (ciUser (mpSender mp)) welcome
-      !!! const 201 === statusCode
-    consumeWelcome welcome
-
   pure res
-
--- | Send an MLS commit message, simulate clients receiving it, and update the
--- test state accordingly.
-sendAndConsumeCommit ::
-  HasCallStack =>
-  MessagePackage ->
-  MLSTest [Event]
-sendAndConsumeCommit mp = do
-  (events, _) <- sendAndConsumeMessage mp
-
-  -- increment epoch and add new clients
-  State.modify $ \mls ->
-    mls
-      { mlsEpoch = mlsEpoch mls + 1,
-        mlsMembers = mlsMembers mls <> mlsNewMembers mls,
-        mlsNewMembers = mempty
-      }
-
-  pure events
 
 mkBundle :: MessagePackage -> Either Text CommitBundle
 mkBundle mp = do

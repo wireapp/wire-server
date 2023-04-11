@@ -43,7 +43,7 @@ mkMLSConversation conv =
           mcRemoteMembers = Data.convRemoteMembers conv,
           mcMLSData = mlsData,
           mcMembers = cm,
-          mcIndexMap = mempty -- TODO
+          mcIndexMap = mkIndexMap cm
         }
 
 mcConv :: MLSConversation -> Data.Conversation

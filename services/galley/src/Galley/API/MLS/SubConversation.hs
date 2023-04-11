@@ -143,7 +143,7 @@ getLocalSubConversation qusr lconv sconv = do
                       cnvmlsCipherSuite = suite
                     },
                 scMembers = mkClientMap [],
-                scIndexMap = mempty -- TODO
+                scIndexMap = mempty
               }
       pure sub
     Just sub -> pure sub

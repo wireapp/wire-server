@@ -26,7 +26,7 @@ import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
 import Data.Time.Clock
-import Galley.API.MLS.Types (SubConversation (..))
+import Galley.API.MLS.Types
 import Galley.Cassandra.Conversation.MLS (lookupMLSClients)
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store (embedClient)
@@ -57,7 +57,7 @@ selectSubConversation convId subConvId = do
                 cnvmlsCipherSuite = suite
               },
           scMembers = cm,
-          scIndexMap = mempty -- TODO
+          scIndexMap = mkIndexMap cm
         }
 
 insertSubConversation ::

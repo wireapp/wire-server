@@ -29,21 +29,33 @@ import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.Credential
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
 
 newtype IndexMap = IndexMap {unIndexMap :: IntMap ClientIdentity}
   deriving (Eq, Show)
   deriving newtype (Semigroup, Monoid)
 
-imLookup :: IndexMap -> Word32 -> Maybe ClientIdentity
+mkIndexMap :: ClientMap -> IndexMap
+mkIndexMap = IndexMap . IntMap.fromList . map (swap . fmap fromIntegral) . cmAssocs
+
+imLookup :: IndexMap -> LeafIndex -> Maybe ClientIdentity
 imLookup m i = IntMap.lookup (fromIntegral i) (unIndexMap m)
 
-imNextIndex :: IndexMap -> Word32
+imNextIndex :: IndexMap -> LeafIndex
 imNextIndex im =
   fromIntegral . fromJust $
     find (\n -> not $ IntMap.member n (unIndexMap im)) [0 ..]
 
-type ClientMap = Map (Qualified UserId) (Map ClientId Word32)
+imAddClient :: IndexMap -> ClientIdentity -> (LeafIndex, IndexMap)
+imAddClient im cid = let idx = imNextIndex im in (idx, IndexMap $ IntMap.insert (fromIntegral idx) cid $ unIndexMap im)
+
+imRemoveClient :: IndexMap -> LeafIndex -> Maybe (ClientIdentity, IndexMap)
+imRemoveClient im idx = do
+  cid <- imLookup im idx
+  pure (cid, IndexMap . IntMap.delete (fromIntegral idx) $ unIndexMap im)
+
+type ClientMap = Map (Qualified UserId) (Map ClientId LeafIndex)
 
 mkClientMap :: [(Domain, UserId, ClientId, Int32)] -> ClientMap
 mkClientMap = foldr addEntry mempty
@@ -52,7 +64,7 @@ mkClientMap = foldr addEntry mempty
     addEntry (dom, usr, c, kpi) =
       Map.insertWith (<>) (Qualified usr dom) (Map.singleton c (fromIntegral kpi))
 
-cmLookupIndex :: ClientIdentity -> ClientMap -> Maybe Word32
+cmLookupIndex :: ClientIdentity -> ClientMap -> Maybe LeafIndex
 cmLookupIndex cid cm = do
   clients <- Map.lookup (cidQualifiedUser cid) cm
   Map.lookup (ciClient cid) clients
@@ -69,13 +81,13 @@ cmRemoveClient cid cm = case Map.lookup (cidQualifiedUser cid) cm of
 isClientMember :: ClientIdentity -> ClientMap -> Bool
 isClientMember ci = isJust . cmLookupIndex ci
 
-cmAssocs :: ClientMap -> [(ClientIdentity, Word32)]
+cmAssocs :: ClientMap -> [(ClientIdentity, LeafIndex)]
 cmAssocs cm = do
   (quid, clients) <- Map.assocs cm
   (clientId, idx) <- Map.assocs clients
   pure (mkClientIdentity quid clientId, idx)
 
-cmSingleton :: ClientIdentity -> Word32 -> ClientMap
+cmSingleton :: ClientIdentity -> LeafIndex -> ClientMap
 cmSingleton cid idx =
   Map.singleton
     (cidQualifiedUser cid)

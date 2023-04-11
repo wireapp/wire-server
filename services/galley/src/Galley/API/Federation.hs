@@ -695,7 +695,6 @@ sendMLSMessage ::
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member MemberStore r,
-    Member Resource r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member ProposalStore r,
