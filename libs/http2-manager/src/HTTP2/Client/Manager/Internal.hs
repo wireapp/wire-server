@@ -100,10 +100,16 @@ sendRequestWithConnection conn req k = do
 --
 -- It is important that the continuation consumes the response body completely
 -- before it returns.
+--
+-- NOTE: If many concurrent requests are made to the same server using a single
+-- instance of 'HTTP2Manager', it could cause the manager to make multiple
+-- connections to the server. Eventually only one connection will be kept open.
+-- This, in theory, would cause some contention over 'STM' based 'Map' that the
+-- 'HTTP2Manager' keeps and so could decrease throughput. In cases where many
+-- concurrent requests are to be made, perhaps it is better to first make 1
+-- request and then make all the other requests.
 withHTTP2Request :: HTTP2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
 withHTTP2Request mgr@HTTP2Manager {..} target req f = do
-  -- TODO: What do we do when there is resource contention here? we could leave
-  -- a note to make the consumers deal with this with a timeout.
   mConn <- atomically $ getConnection mgr target
   conn <- maybe connect pure mConn
   sendRequestWithConnection conn req f
