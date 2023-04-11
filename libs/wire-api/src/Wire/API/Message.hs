@@ -523,47 +523,42 @@ data MessageSendingStatus = MessageSendingStatus
 
 instance ToSchema MessageSendingStatus where
   schema =
-    object "MessageSendingStatus" $
-      MessageSendingStatus
-        <$> mssTime
-          .= fieldWithDocModifier
-            "time"
-            (description ?~ "Time of sending message.")
-            schema
-        <*> mssMissingClients
-          .= qualifiedUserClientsFieldWithDesc
-            "missing"
-            "Clients that the message /should/ have been encrypted for, but wasn't."
-        <*> mssRedundantClients
-          .= qualifiedUserClientsFieldWithDesc
-            "redundant"
-            "Clients that the message /should not/ have been encrypted for, but was."
-        <*> mssDeletedClients
-          .= qualifiedUserClientsFieldWithDesc
-            "deleted"
-            "Clients that were deleted."
-        <*> mssFailedToSend
-          .= qualifiedUserClientsFieldWithDesc
-            "failed_to_send"
-            "When message sending fails for some clients but succeeds for others, \
-            \e.g., because a remote backend is unreachable, \
-            \this field will contain the list of clients for which the message sending \
-            \failed. This list should be empty when message sending is not even tried, \
-            \like when some clients are missing."
+    objectWithDocModifier
+      "MessageSendingStatus"
+      (description ?~ combinedDesc)
+      $ MessageSendingStatus
+        <$> mssTime .= field "time" schema
+        <*> mssMissingClients .= field "missing" schema
+        <*> mssRedundantClients .= field "redundant" schema
+        <*> mssDeletedClients .= field "deleted" schema
+        <*> mssFailedToSend .= field "failed_to_send" schema
     where
-      -- This is to ensure that the Swagger model has a unique name, thereby
-      -- allowing for a description specific to that field instead of having it
-      -- overwritten by other models of the same type.
-      qualifiedUserClientsFieldWithDesc name desc =
-        field
-          name
-          ( named
-              ( "QualifiedUserClients ("
-                  <> name
-                  <> ")"
-              )
-              $ (S.schema . description ?~ desc) qualifiedUserClientsValueSchema
-          )
+      combinedDesc =
+        "The Proteus message sending status. It has these fields:\n\
+        \- `time`: "
+          <> timeDesc
+          <> "\n\
+             \- `missing`: "
+          <> missingDesc
+          <> "\n\
+             \- `redundant`: "
+          <> redundantDesc
+          <> "\n\
+             \- `deleted`: "
+          <> deletedDesc
+          <> "\n\
+             \- `failed_to_send`: "
+          <> failedToSendDesc
+      timeDesc = "Time of sending message."
+      missingDesc = "Clients that the message /should/ have been encrypted for, but wasn't."
+      redundantDesc = "Clients that the message /should not/ have been encrypted for, but was."
+      deletedDesc = "Clients that were deleted."
+      failedToSendDesc =
+        "When message sending fails for some clients but succeeds for others, \
+        \e.g., because a remote backend is unreachable, \
+        \this field will contain the list of clients for which the message sending \
+        \failed. This list should be empty when message sending is not even tried, \
+        \like when some clients are missing."
 
 -- QueryParams
 
