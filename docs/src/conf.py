@@ -34,6 +34,7 @@ release = version
 # ones.
 extensions = [
     'sphinxcontrib.kroki',
+    'sphinxcontrib.plantuml',
     "myst_parser",
     'rst2pdf.pdfbuilder',
     'sphinx_multiversion',
