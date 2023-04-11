@@ -259,8 +259,6 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl sendReqMVar =
     bracket (fst <$> getSocketTCP hostname port) NS.close $ \sock -> do
       bracket (mkTransport sock transportConfig) cleanupTransport $ \transport ->
         bracket (allocHTTP2Config transport) HTTP2.freeSimpleConfig $ \http2Cfg -> do
-          -- If there is an exception throw it to all the threads, if not throw
-          -- 'ConnectionAlreadyClosed' to all the threads.
           let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq -> do
                 handleRequests liveReqs sendReq
           -- Any request threads still hanging about after 'runAction' finishes
