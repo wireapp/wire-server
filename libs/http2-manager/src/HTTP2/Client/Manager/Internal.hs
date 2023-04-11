@@ -141,11 +141,11 @@ getConnection mgr target = do
       -- before using it.
       pollSTM (backgroundThread conn) >>= \case
         Nothing -> pure (Just conn)
-        Just (Left (SomeException _err)) -> do
-          -- TODO: Log the error, maybe by adding a generic logger function to Http2Manager
-          writeTVar (connections mgr) $ Map.delete target conns
-          pure Nothing
-        Just (Right ()) -> do
+        Just _ -> do
+          -- FUTUREWORK: Maybe there is value in logging any exceptions we
+          -- recieve here. But logging in STM will be tricky, and the threads
+          -- running requests on the connection which got an exception would've
+          -- anyway recieved the exception, so maybe it is not as valueable.
           writeTVar (connections mgr) $ Map.delete target conns
           pure Nothing
 
