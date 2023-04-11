@@ -15,6 +15,7 @@
 , http2
 , lib
 , network
+, random
 , stm
 , streaming-commons
 , text
@@ -47,6 +48,7 @@ mkDerivation {
     http-types
     http2
     network
+    random
     stm
     streaming-commons
     time-manager
