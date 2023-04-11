@@ -34,7 +34,7 @@ data HTTP2Conn = HTTP2Conn
     disconnect :: IO (),
     -- See comment in 'startPersistentHTTP2Connection' about why this returns
     -- '()'
-    sendRequestMVar :: MVar (Either Request ())
+    connectionActionMVar :: MVar ConnectionAction
   }
 
 type TLSEnabled = Bool
@@ -87,7 +87,7 @@ sendRequestWithConnection :: HTTP2Conn -> HTTP2.Request -> (HTTP2.Response -> IO
 sendRequestWithConnection conn req k = do
   result <- newEmptyMVar
   threadKilled <- newEmptyMVar
-  putMVar (sendRequestMVar conn) (Left (Request req (putMVar result <=< k) threadKilled))
+  putMVar (connectionActionMVar conn) (SendRequest (Request req (putMVar result <=< k) threadKilled))
   race (takeMVar result) (takeMVar threadKilled) >>= \case
     Left x -> pure x
     Right (SomeException e) -> throw e
@@ -145,7 +145,7 @@ getOrMakeConnection mgr@HTTP2Manager {..} target = do
     connect = do
       sendReqMVar <- newEmptyMVar
       thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sendReqMVar
-      let newConn = HTTP2Conn thread (putMVar sendReqMVar (Right ())) sendReqMVar
+      let newConn = HTTP2Conn thread (putMVar sendReqMVar CloseConnection) sendReqMVar
       (inserted, finalConn) <- atomically $ insertNewConn newConn
       unless inserted $ disconnect newConn
       pure finalConn
@@ -229,13 +229,17 @@ data Request = Request
 -- | Used to close a persistent connection gracefully
 type CloseConnection = ()
 
+data ConnectionAction
+  = SendRequest Request
+  | CloseConnection
+
 startPersistentHTTP2Connection ::
   SSL.SSLContext ->
   Target ->
   -- cacheLimit
   Int ->
   -- MVar used to communicate requests or the need to close the connection.
-  MVar (Either Request CloseConnection) ->
+  MVar ConnectionAction ->
   IO ()
 startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl sendReqMVar = do
   liveReqs <- newIORef mempty
@@ -249,10 +253,10 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl sendReqMVar =
       -- connection is already closed
       tooLateNotifier e = forever $ do
         takeMVar sendReqMVar >>= \case
-          Left Request {..} -> do
+          SendRequest Request {..} -> do
             -- No need to get stuck here
             void $ tryPutMVar exceptionMVar (SomeException e)
-          _ -> pure ()
+          CloseConnection -> pure ()
 
       -- Sends errors to the request threads when an error occurs
       cleanupThreadsWith (SomeException e) = do
@@ -296,11 +300,11 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl sendReqMVar =
       let waitAndFork = do
             reqOrStop <- takeMVar sendReqMVar
             case reqOrStop of
-              Left r@(Request {..}) -> do
+              SendRequest r@(Request {..}) -> do
                 processRequest liveReqs sendReq r
                   `catches` exceptionHandlers exceptionMVar
                 waitAndFork
-              Right () -> do
+              CloseConnection -> do
                 -- TODO: Maybe add a timeout?
                 mapM_ (wait . fst) =<< readIORef liveReqs
       waitAndFork
