@@ -137,7 +137,7 @@ getConnection mgr target = do
   case Map.lookup target conns of
     Nothing -> pure Nothing
     Just conn ->
-      -- If there is a connection for the (host,port), ensure that it is alive
+      -- If there is a connection for the target, ensure that it is alive
       -- before using it.
       pollSTM (backgroundThread conn) >>= \case
         Nothing -> pure (Just conn)
@@ -236,8 +236,9 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl sendReqMVar =
 
       -- Sends errors to the request threads when an error occurs
       cleanupThreadsWith (SomeException e) = do
-        -- Is it really OK to cancel the remaining threads because if there
-        -- are any threads here?
+        -- Is it really OK to cancel the remaining threads even when throwing
+        -- 'ConnectionAlreadyClosed', there is a chance that they could finish,
+        -- but how would we know here?
         mapM_ (\(thread, _) -> cancelWith thread e) =<< readIORef liveReqs
         -- Spawns a thread that will hang around for 1 second to deal with
         -- the race betwen main thread sending a request and this thread
