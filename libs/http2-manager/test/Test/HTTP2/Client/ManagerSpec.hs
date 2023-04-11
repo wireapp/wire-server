@@ -46,7 +46,7 @@ echoTest' :: ByteString -> Builder.Builder -> HTTP2Manager -> TLSEnabled -> Int 
 echoTest' path msg mgr tlsEnabled serverPort =
   withHTTP2Request mgr (tlsEnabled, "localhost", serverPort) (Client.requestBuilder "GET" path [] msg) $ \res -> do
     Client.responseStatus res `shouldBe` Just status200
-    readResponseBody res `shouldReturn` (Builder.toLazyByteString msg)
+    readResponseBody res `shouldReturn` Builder.toLazyByteString msg
 
 -- | server delays by 0..100ms between every two lines, so this is good for randomized load testing.
 --
