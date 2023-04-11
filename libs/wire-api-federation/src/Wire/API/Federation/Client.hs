@@ -256,7 +256,7 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
     either throwError pure <=< liftCodensity $
       Codensity $ \k ->
         E.catches
-          (H2Manager.withHTTP2Request (ceHttp2Manager env) False hostname port req' (consumeStreamingResponseWith (k . Right)))
+          (H2Manager.withHTTP2Request (ceHttp2Manager env) (False, hostname, port) req' (consumeStreamingResponseWith (k . Right)))
           [ E.Handler $ k . Left . FederatorClientHTTP2Error,
             E.Handler $ k . Left . FederatorClientHTTP2Error . FederatorClientConnectionError,
             E.Handler $ k . Left . FederatorClientHTTP2Error . FederatorClientHTTP2Exception,
