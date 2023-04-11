@@ -255,21 +255,22 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl sendReqMVar =
         | tlsEnabled = Just $ TLSParams ctx hostname
         | otherwise = Nothing
 
-  handle cleanupThreadsWith $ bracket (fst <$> getSocketTCP hostname port) NS.close $ \sock -> do
-    bracket (mkTransport sock transportConfig) cleanupTransport $ \transport ->
-      bracket (allocHTTP2Config transport) HTTP2.freeSimpleConfig $ \http2Cfg -> do
-        -- If there is an exception throw it to all the threads, if not throw
-        -- 'ConnectionAlreadyClosed' to all the threads.
-        let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq -> do
-              handleRequests liveReqs sendReq
-        -- Any request threads still hanging about after 'runAction' finishes
-        -- are canceled with 'ConnectionAlreadyClosed'.
-        flip finally cleanupThreads $
-          -- Any exceptions thrown will get re-thrown to any running requests,
-          -- handle at the top level is not good as 'finally' wrapping this
-          -- function would kill all threads with some other exception.
-          handle cleanupThreadsWith $
-            runAction
+  handle cleanupThreadsWith $
+    bracket (fst <$> getSocketTCP hostname port) NS.close $ \sock -> do
+      bracket (mkTransport sock transportConfig) cleanupTransport $ \transport ->
+        bracket (allocHTTP2Config transport) HTTP2.freeSimpleConfig $ \http2Cfg -> do
+          -- If there is an exception throw it to all the threads, if not throw
+          -- 'ConnectionAlreadyClosed' to all the threads.
+          let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq -> do
+                handleRequests liveReqs sendReq
+          -- Any request threads still hanging about after 'runAction' finishes
+          -- are canceled with 'ConnectionAlreadyClosed'.
+          flip finally cleanupThreads $
+            -- Any exceptions thrown will get re-thrown to any running requests,
+            -- handle at the top level is not good as 'finally' wrapping this
+            -- function would kill all threads with some other exception.
+            handle cleanupThreadsWith $
+              runAction
   where
     handleRequests :: IORef LiveReqs -> SendReqFn -> IO ()
     handleRequests liveReqs sendReq = do
