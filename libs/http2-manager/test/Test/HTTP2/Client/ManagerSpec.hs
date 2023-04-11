@@ -176,6 +176,7 @@ specTemplate mCtx = do
         -- It is hard to control which one of these will be thrown
         expectedException (fromException -> Just ConnectionAlreadyClosed) = True
         expectedException (fromException -> Just Client.ConnectionIsClosed) = True
+        expectedException (fromException -> Just (ioe_type -> ResourceVanished)) = True
         expectedException _ = False
     brokenRequest `shouldThrow` expectedException
 
