@@ -352,4 +352,4 @@ readChunks action = LBS.fromChunks <$> go []
     go chunks = do
       action >>= \case
         "" -> pure chunks
-        c -> go (c : chunks)
+        c -> go (chunks <> [c])
