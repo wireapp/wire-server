@@ -9,6 +9,7 @@ module HTTP2.Client.Manager
     defaultHTTP2Manager,
     http2ManagerWithSSLCtx,
     withHTTP2Request,
+    connectIfNotAlreadyConnected,
     ConnectionAlreadyClosed (..),
     disconnectServer,
     disconnectServerWithTimeout,

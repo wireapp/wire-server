@@ -106,13 +106,27 @@ sendRequestWithConnection conn req k = do
 -- connections to the server. Eventually only one connection will be kept open.
 -- This, in theory, would cause some contention over 'STM' based 'Map' that the
 -- 'HTTP2Manager' keeps and so could decrease throughput. In cases where many
--- concurrent requests are to be made, perhaps it is better to first make 1
--- request and then make all the other requests.
+-- concurrent requests are to be made, it might be best to ensure that a
+-- connection exists using 'connectIfNotAlreadyConnected' before making all the
+-- requests.
 withHTTP2Request :: HTTP2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
-withHTTP2Request mgr@HTTP2Manager {..} target req f = do
-  mConn <- atomically $ getConnection mgr target
-  conn <- maybe connect pure mConn
+withHTTP2Request mgr target req f = do
+  conn <- getOrMakeConnection mgr target
   sendRequestWithConnection conn req f
+
+-- | Connects to a server if it is not already connected, useful when making
+-- many concurrent requests. This way the first few requests don't have to fight
+-- for making a connection This way the first few requests don't have to fight
+-- for making a connection.
+connectIfNotAlreadyConnected :: HTTP2Manager -> Target -> IO ()
+connectIfNotAlreadyConnected mgr target = void $ getOrMakeConnection mgr target
+
+-- | Gets a connection if it exists and is alive, otherwise connects to the
+-- given 'Target'.
+getOrMakeConnection :: HTTP2Manager -> Target -> IO HTTP2Conn
+getOrMakeConnection mgr@HTTP2Manager {..} target = do
+  mConn <- atomically $ getConnection mgr target
+  maybe connect pure mConn
   where
     -- Ensures that any old connection is preserved. This is required to ensure
     -- that concurrent calls to this function don't cause the connections to
