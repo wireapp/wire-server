@@ -66,7 +66,6 @@ import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
-import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
@@ -93,12 +92,11 @@ tests s =
         ],
       testGroup
         "Deletion"
-        [ test s "delete a MLS conversation" testDeleteMLSConv
+        [ test s "delete an MLS conversation" testDeleteMLSConv
         ],
       testGroup
         "Commit"
         [ test s "add user to a conversation" testAddUser,
-          test s "add user with an incomplete welcome" testAddUserWithBundleIncompleteWelcome,
           test s "add user (not connected)" testAddUserNotConnected,
           test s "add user (partial client list)" testAddUserPartial,
           test s "add client of existing user" testAddClientPartial,
@@ -378,33 +376,6 @@ testAddUserWithBundle = do
   liftIO $ assertBool "Commit does not contain a public group State" (isJust (mpGroupInfo commit))
   liftIO $ mpGroupInfo commit @?= Just returnedGS
 
-testAddUserWithBundleIncompleteWelcome :: TestM ()
-testAddUserWithBundleIncompleteWelcome = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
-
-  runMLSTest $ do
-    (alice1 : bobClients) <- traverse createMLSClient [alice, bob, bob]
-    traverse_ uploadNewKeyPackage bobClients
-    void $ setupMLSGroup alice1
-
-    -- create commit, but remove first recipient from welcome message
-    commit <- do
-      commit <- createAddCommit alice1 [bob]
-      liftIO $ do
-        welcome <- assertJust (mpWelcome commit)
-        w <- either (assertFailure . T.unpack) pure $ decodeMLS' welcome
-        let w' = w {welSecrets = take 1 (welSecrets w)}
-            welcome' = encodeMLS' w'
-            commit' = commit {mpWelcome = Just welcome'}
-        pure commit'
-
-    bundle <- createBundle commit
-    err <-
-      responseJsonError
-        =<< localPostCommitBundle (mpSender commit) bundle
-          <!! const 400 === statusCode
-    liftIO $ Wai.label err @?= "mls-welcome-mismatch"
-
 testAddUser :: TestM ()
 testAddUser = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
@@ -437,10 +408,11 @@ testAddUserNotConnected = do
     void $ setupMLSGroup alice1
     -- add unconnected user with a commit
     commit <- createAddCommit alice1 [bob]
+    bundle <- createBundle commit
     err <- mlsBracket [alice1, bob1] $ \wss -> do
       err <-
         responseJsonError
-          =<< postMessage (mpSender commit) (mpMessage commit)
+          =<< localPostCommitBundle (mpSender commit) bundle
             <!! const 403 === statusCode
       void . liftIO $ WS.assertNoEvent (1 # WS.Second) wss
       pure err
@@ -485,9 +457,10 @@ testAddUserPartial = do
     void $ uploadNewKeyPackage bob3
 
     -- alice sends a commit now, and should get a conflict error
+    bundle <- createBundle commit
     err <-
       responseJsonError
-        =<< postMessage (mpSender commit) (mpMessage commit)
+        =<< localPostCommitBundle (mpSender commit) bundle
           <!! const 409 === statusCode
     liftIO $ Wai.label err @?= "mls-client-mismatch"
 
@@ -547,9 +520,10 @@ testAddUsersToProteus = do
     void $ uploadNewKeyPackage bob1
     void $ setupFakeMLSGroup alice1
     mp <- createAddCommit alice1 [bob]
+    bundle <- createBundle mp
     err <-
       responseJsonError
-        =<< postMessage alice1 (mpMessage mp) <!! const 404 === statusCode
+        =<< localPostCommitBundle alice1 bundle <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "no-conversation"
 
 testAddUsersDirectly :: TestM ()
@@ -626,9 +600,10 @@ testStaleCommit = do
     setClientGroupState alice1 gsBackup
 
     commit <- createAddCommit alice1 users2
+    bundle <- createBundle commit
     err <-
       responseJsonError
-        =<< postMessage (mpSender commit) (mpMessage commit)
+        =<< localPostCommitBundle (mpSender commit) bundle
           <!! const 409 === statusCode
     liftIO $ Wai.label err @?= "mls-stale-message"
 
@@ -688,9 +663,10 @@ testCommitLock = do
     -- commit should fail due to competing lock
     do
       commit <- createAddCommit alice1 [cidQualifiedUser dee1]
+      bundle <- createBundle commit
       err <-
         responseJsonError
-          =<< postMessage alice1 (mpMessage commit)
+          =<< localPostCommitBundle alice1 bundle
             <!! const 409 === statusCode
       liftIO $ Wai.label err @?= "mls-stale-message"
   where
@@ -741,9 +717,10 @@ testUnknownProposalRefCommit = do
     commit <- createPendingProposalCommit alice1
 
     -- send commit before proposal
+    bundle <- createBundle commit
     err <-
       responseJsonError
-        =<< postMessage alice1 (mpMessage commit)
+        =<< localPostCommitBundle alice1 bundle
           <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "mls-proposal-not-found"
 
@@ -767,9 +744,10 @@ testCommitNotReferencingAllProposals = do
     commit <- createPendingProposalCommit alice1
 
     -- send commit and expect and error
+    bundle <- createBundle commit
     err <-
       responseJsonError
-        =<< postMessage alice1 (mpMessage commit)
+        =<< localPostCommitBundle alice1 bundle
           <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-commit-missing-references"
 
@@ -809,9 +787,10 @@ testRemoveClientsIncomplete = do
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
     commit <- createRemoveCommit alice1 [bob1]
 
+    bundle <- createBundle commit
     err <-
       responseJsonError
-        =<< postMessage alice1 (mpMessage commit)
+        =<< localPostCommitBundle alice1 bundle
           <!! statusCode === const 409
     liftIO $ Wai.label err @?= "mls-client-mismatch"
 
@@ -2199,8 +2178,9 @@ postMLSMessageDisabled = do
     void $ uploadNewKeyPackage bob1
     void $ setupMLSGroup alice1
     mp <- createAddCommit alice1 [bob]
+    bundle <- createBundle mp
     withMLSDisabled $
-      postMessage (mpSender mp) (mpMessage mp)
+      localPostCommitBundle (mpSender mp) bundle
         !!! assertMLSNotEnabled
 
 postMLSBundleDisabled :: TestM ()

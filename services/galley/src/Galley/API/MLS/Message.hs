@@ -112,6 +112,7 @@ import Wire.API.User.Client
 -- [x] remove PublicGroupState and GroupInfoBundle modules
 -- [ ] remove protobuf definitions of CommitBundle
 -- [ ] (?) rename public_group_state field in conversation table
+-- [ ] consider adding more integration tests
 
 data IncomingMessage = IncomingMessage
   { epoch :: Epoch,
