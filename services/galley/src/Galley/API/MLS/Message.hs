@@ -84,6 +84,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.CommitBundle
@@ -135,7 +136,7 @@ data IncomingPublicMessageContent = IncomingPublicMessageContent
     content :: FramedContentData,
     -- for verification
     framedContent :: RawMLS FramedContent,
-    authData :: FramedContentAuthData
+    authData :: RawMLS FramedContentAuthData
   }
 
 data IncomingBundle = IncomingBundle
@@ -176,6 +177,14 @@ mkIncomingMessage msg = case msg.rmValue.content of
               rawMessage = msg
             }
   _ -> Nothing
+
+incomingMessageAuthenticatedContent :: IncomingPublicMessageContent -> AuthenticatedContent
+incomingMessageAuthenticatedContent pmsg =
+  AuthenticatedContent
+    { wireFormat = WireFormatPublicTag,
+      content = pmsg.framedContent,
+      authData = pmsg.authData
+    }
 
 mkIncomingBundle :: RawMLS CommitBundle -> Maybe IncomingBundle
 mkIncomingBundle bundle = do
@@ -893,7 +902,7 @@ processProposal qusr lConvOrSub msg pub prop = do
   when (isExternal pub.sender) $ do
     checkExternalProposalSignature pub prop
     checkExternalProposalUser qusr propValue
-  let propRef = proposalRef suiteTag prop
+  let propRef = authContentRef suiteTag (incomingMessageAuthenticatedContent pub)
   storeProposal msg.groupId msg.epoch propRef ProposalOriginClient prop
 
 isExternal :: Sender -> Bool

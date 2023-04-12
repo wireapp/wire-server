@@ -36,6 +36,7 @@ import System.Process
 import Test.Tasty
 import Test.Tasty.HUnit
 import UnliftIO (withSystemTempDirectory)
+import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Epoch
@@ -140,16 +141,17 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
 
   secretKey <- Ed25519.generateSecretKey
   let publicKey = Ed25519.toPublic secretKey
-  let proposal = mkRawMLS (RemoveProposal 1)
-  let message =
-        mkSignedMessage
+      proposal = mkRawMLS (RemoveProposal 1)
+      pmessage =
+        mkSignedPublicMessage
           secretKey
           publicKey
           gid
           (Epoch 1)
           (FramedContentProposal proposal)
+      message = mkMessage $ MessagePublic pmessage
+      messageFilename = "signed-message.mls"
 
-  let messageFilename = "signed-message.mls"
   BS.writeFile (tmp </> messageFilename) (rmRaw (mkRawMLS message))
   let signerKeyFilename = "signer-key.bin"
   BS.writeFile (tmp </> signerKeyFilename) (convert publicKey)

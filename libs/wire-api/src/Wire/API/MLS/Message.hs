@@ -1,5 +1,6 @@
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -16,10 +17,10 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wwarn #-}
 
 module Wire.API.MLS.Message
   ( -- * MLS Message types
+    WireFormatTag (..),
     Message (..),
     mkMessage,
     MessageContent (..),
@@ -35,7 +36,6 @@ module Wire.API.MLS.Message
 
     -- * Utilities
     verifyMessageSignature,
-    mkSignedMessage,
 
     -- * Servant types
     MLSMessageSendingStatus (..),
@@ -43,17 +43,12 @@ module Wire.API.MLS.Message
 where
 
 import Control.Lens ((?~))
-import Crypto.PubKey.Ed25519
 import qualified Data.Aeson as A
 import Data.Binary
-import qualified Data.ByteArray as BA
 import Data.Id
 import Data.Json.Util
-import Data.Kind
 import Data.Qualified
 import Data.Schema
-import Data.Schema hiding (tag)
-import Data.Singletons.TH
 import qualified Data.Swagger as S
 import GHC.Records
 import Imports
@@ -155,7 +150,7 @@ instance S.ToSchema Message where
 
 data PublicMessage = PublicMessage
   { content :: RawMLS FramedContent,
-    authData :: FramedContentAuthData,
+    authData :: RawMLS FramedContentAuthData,
     -- Present iff content.rmValue.sender is of type Member.
     membershipTag :: Maybe ByteString
   }
@@ -164,7 +159,7 @@ data PublicMessage = PublicMessage
 instance ParseMLS PublicMessage where
   parseMLS = do
     content <- parseMLS
-    authData <- parseFramedContentAuthData (framedContentDataTag (content.rmValue.content))
+    authData <- parseRawMLS (parseFramedContentAuthData (framedContentDataTag (content.rmValue.content)))
     membershipTag <- case content.rmValue.sender of
       SenderMember _ -> Just <$> parseMLSBytes @VarInt
       _ -> pure Nothing
@@ -347,9 +342,9 @@ data FramedContentAuthData = FramedContentAuthData
   deriving (Eq, Show)
 
 parseFramedContentAuthData :: FramedContentDataTag -> Get FramedContentAuthData
-parseFramedContentAuthData tag = do
+parseFramedContentAuthData t = do
   sig <- parseMLSBytes @VarInt
-  confirmationTag <- case tag of
+  confirmationTag <- case t of
     FramedContentCommitTag -> Just <$> parseMLSBytes @VarInt
     _ -> pure Nothing
   pure (FramedContentAuthData sig confirmationTag)
@@ -370,44 +365,15 @@ data GroupContext = GroupContext
   }
   deriving (Eq, Show)
 
--- | Craft a message with the backend itself as a sender.
-mkSignedMessage ::
-  SecretKey -> PublicKey -> GroupId -> Epoch -> FramedContentData -> Message
-mkSignedMessage priv pub gid epoch payload =
-  let framedContent =
-        mkRawMLS
-          FramedContent
-            { groupId = gid,
-              epoch = epoch,
-              sender = SenderExternal 0,
-              content = payload,
-              authenticatedData = mempty
-            }
-      tbs =
-        FramedContentTBS
-          { protocolVersion = defaultProtocolVersion,
-            wireFormat = WireFormatPublicTag,
-            content = framedContent,
-            groupContext = Nothing
-          }
-      sig = BA.convert $ sign priv pub (encodeMLS' tbs)
-   in mkMessage $
-        MessagePublic
-          PublicMessage
-            { content = framedContent,
-              authData = FramedContentAuthData sig Nothing,
-              membershipTag = Nothing
-            }
-
 verifyMessageSignature ::
   RawMLS GroupContext ->
   RawMLS FramedContent ->
-  FramedContentAuthData ->
+  RawMLS FramedContentAuthData ->
   ByteString ->
   Bool
 verifyMessageSignature ctx msgContent authData pubkey = isJust $ do
   let tbs = mkRawMLS (framedContentTBS ctx msgContent)
-      sig = authData.signature_
+      sig = authData.rmValue.signature_
   cs <- cipherSuiteTag ctx.rmValue.cipherSuite
   guard $ csVerifySignature cs pubkey tbs sig
 

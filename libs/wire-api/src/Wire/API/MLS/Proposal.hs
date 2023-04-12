@@ -23,13 +23,10 @@ module Wire.API.MLS.Proposal where
 import Cassandra
 import Control.Lens (makePrisms)
 import Data.Binary
-import Data.Binary.Get
-import Data.Binary.Put
 import Data.ByteString as B
 import Imports
 import Test.QuickCheck
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.Context
 import Wire.API.MLS.Extension
 import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
@@ -84,14 +81,6 @@ instance SerialiseMLS Proposal where
   serialiseMLS (GroupContextExtensionsProposal es) = do
     serialiseMLS GroupContextExtensionsProposalTag
     serialiseMLSVector @VarInt serialiseMLS es
-
--- | Compute the proposal ref given a ciphersuite and the raw proposal data.
-proposalRef :: CipherSuiteTag -> RawMLS Proposal -> ProposalRef
-proposalRef cs =
-  ProposalRef
-    . csHash cs proposalContext
-    . flip RawMLS ()
-    . rmRaw
 
 data PreSharedKeyTag = ExternalKeyTag | ResumptionKeyTag
   deriving (Bounded, Enum, Eq, Show)
@@ -218,15 +207,13 @@ instance SerialiseMLS ProposalOrRef where
 
 newtype ProposalRef = ProposalRef {unProposalRef :: ByteString}
   deriving stock (Eq, Show, Ord, Generic)
+  deriving newtype (Arbitrary)
 
 instance ParseMLS ProposalRef where
-  parseMLS = ProposalRef <$> getByteString 16
+  parseMLS = ProposalRef <$> parseMLSBytes @VarInt
 
 instance SerialiseMLS ProposalRef where
-  serialiseMLS = putByteString . unProposalRef
-
-instance Arbitrary ProposalRef where
-  arbitrary = ProposalRef . B.pack <$> vectorOf 16 arbitrary
+  serialiseMLS = serialiseMLSBytes @VarInt . unProposalRef
 
 makePrisms ''ProposalOrRef
 

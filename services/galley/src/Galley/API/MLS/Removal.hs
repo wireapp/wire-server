@@ -42,6 +42,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
 import Wire.API.Conversation.Protocol
+import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -79,18 +80,19 @@ createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
     Just (secKey, pubKey) -> do
       for_ indices $ \idx -> do
         let proposal = mkRawMLS (RemoveProposal idx)
-            msg =
-              mkSignedMessage
+            pmsg =
+              mkSignedPublicMessage
                 secKey
                 pubKey
                 (cnvmlsGroupId meta)
                 (cnvmlsEpoch meta)
                 (FramedContentProposal proposal)
+            msg = mkMessage (MessagePublic pmsg)
             msgEncoded = encodeMLS' msg
         storeProposal
           (cnvmlsGroupId meta)
           (cnvmlsEpoch meta)
-          (proposalRef (cnvmlsCipherSuite meta) proposal)
+          (publicMessageRef (cnvmlsCipherSuite meta) pmsg)
           ProposalOriginBackend
           proposal
         propagateMessage qusr lConvOrSubConv Nothing msgEncoded cm
