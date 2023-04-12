@@ -29,7 +29,7 @@ import Data.Text.Ascii (validate)
 import qualified Data.UUID as UUID (fromString)
 import Imports
 import Wire.API.Conversation
-import Wire.API.Conversation.Code (Key (..), Value (..))
+import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Conversation.Typing
@@ -287,11 +287,14 @@ testObject_Event_user_14 =
     (EdConvCodeUpdate cc)
   where
     cc =
-      ConversationCode
-        { conversationKey = Key {asciiKey = unsafeRange (fromRight undefined (validate "NEN=eLUWHXclTp=_2Nap"))},
-          conversationCode = Value {asciiValue = unsafeRange (fromRight undefined (validate "lLz-9vR8ENum0kI-xWJs"))},
-          conversationUri = Nothing
-        }
+      ConversationCodeInfo
+        ( ConversationCode
+            { conversationKey = Key {asciiKey = unsafeRange (fromRight undefined (validate "NEN=eLUWHXclTp=_2Nap"))},
+              conversationCode = Value {asciiValue = unsafeRange (fromRight undefined (validate "lLz-9vR8ENum0kI-xWJs"))},
+              conversationUri = Nothing
+            }
+        )
+        False
 
 testObject_Event_user_15 :: Event
 testObject_Event_user_15 =

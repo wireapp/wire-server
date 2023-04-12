@@ -29,7 +29,7 @@ import Data.Id as Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import qualified Data.Map as Map
-import Data.Misc (PlainTextPassword6)
+import Data.Misc (PlainTextPassword6, PlainTextPassword8)
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
@@ -76,6 +76,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.Password (verifyPassword)
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Member
@@ -625,16 +626,25 @@ pushConversationEvent conn e lusers bots = do
 
 verifyReusableCode ::
   ( Member CodeStore r,
-    Member (ErrorS 'CodeNotFound) r
+    Member (ErrorS 'CodeNotFound) r,
+    Member (ErrorS 'InvalidConversationPassword) r
   ) =>
+  Bool ->
+  Maybe PlainTextPassword8 ->
   ConversationCode ->
   Sem r Data.Code
-verifyReusableCode convCode = do
-  c <-
+verifyReusableCode checkPw mPtpw convCode = do
+  (c, mPw) <-
     getCode (conversationKey convCode) Data.ReusableCode
       >>= noteS @'CodeNotFound
   unless (Data.codeValue c == conversationCode convCode) $
     throwS @'CodeNotFound
+  case (checkPw, mPtpw, mPw) of
+    (True, Just ptpw, Just pw) ->
+      unless (verifyPassword ptpw pw) $ throwS @'InvalidConversationPassword
+    (True, Nothing, Just _) ->
+      throwS @'InvalidConversationPassword
+    (_, _, _) -> pure ()
   pure c
 
 ensureConversationAccess ::

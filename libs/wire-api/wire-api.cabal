@@ -63,6 +63,7 @@ library
     Wire.API.MLS.Welcome
     Wire.API.Notification
     Wire.API.OAuth
+    Wire.API.Password
     Wire.API.Properties
     Wire.API.Provider
     Wire.API.Provider.Bot
@@ -176,6 +177,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -187,6 +189,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -242,6 +245,7 @@ library
     , hashable
     , hostname-validate
     , hscim
+    , HsOpenSSL
     , http-api-data
     , http-media
     , http-types
@@ -267,6 +271,7 @@ library
     , saml2-web-sso
     , schema-profunctor
     , scientific
+    , scrypt
     , servant
     , servant-client
     , servant-client-core
@@ -449,6 +454,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.PushToken_user
     Test.Wire.API.Golden.Generated.PushTokenList_user
     Test.Wire.API.Golden.Generated.QualifiedNewOtrMessage_user
+    Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user
     Test.Wire.API.Golden.Generated.QueuedNotification_user
     Test.Wire.API.Golden.Generated.QueuedNotificationList_user
     Test.Wire.API.Golden.Generated.ReceiptMode_user
@@ -545,6 +551,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
     Test.Wire.API.Golden.Manual.GroupId
     Test.Wire.API.Golden.Manual.ListConversations
+    Test.Wire.API.Golden.Manual.ListUsersById
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
     Test.Wire.API.Golden.Manual.SearchResultContact
     Test.Wire.API.Golden.Manual.SubConversation
@@ -569,6 +576,7 @@ test-suite wire-api-golden-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -580,6 +588,7 @@ test-suite wire-api-golden-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -659,6 +668,7 @@ test-suite wire-api-tests
     Test.Wire.API.Conversation
     Test.Wire.API.MLS
     Test.Wire.API.MLS.SubConversation
+    Test.Wire.API.OAuth
     Test.Wire.API.RawJson
     Test.Wire.API.Roundtrip.Aeson
     Test.Wire.API.Roundtrip.ByteString
@@ -690,6 +700,7 @@ test-suite wire-api-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -701,6 +712,7 @@ test-suite wire-api-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms

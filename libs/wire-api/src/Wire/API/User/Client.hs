@@ -32,6 +32,7 @@ module Wire.API.User.Client
     mkUserClientPrekeyMap,
     QualifiedUserClientMap (..),
     QualifiedUserClientPrekeyMap (..),
+    QualifiedUserClientPrekeyMapV4 (..),
     mkQualifiedUserClientPrekeyMap,
     qualifiedUserClientPrekeyMapFromList,
     UserClientsFull (..),
@@ -281,8 +282,34 @@ qualifiedUserClientMapSchema sch =
               (schemaDoc innerSchema ^. Swagger.schema . Swagger.example)
           )
 
+data QualifiedUserClientPrekeyMapV4 = QualifiedUserClientPrekeyMapV4
+  { qualifiedUserClientPrekeys :: QualifiedUserClientMap (Maybe Prekey),
+    failedToList :: Maybe [Qualified UserId]
+  }
+  deriving stock (Eq, Show)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema QualifiedUserClientPrekeyMapV4
+
+instance Arbitrary QualifiedUserClientPrekeyMapV4 where
+  arbitrary =
+    QualifiedUserClientPrekeyMapV4
+      <$> arbitrary
+      <*> arbitrary
+
+instance ToSchema QualifiedUserClientPrekeyMapV4 where
+  schema =
+    object "QualifiedUserClientPrekeyMapV4" $
+      QualifiedUserClientPrekeyMapV4
+        <$> fmap to' (from' .= field "qualified_user_client_prekeys" (map_ schema))
+        <*> failedToList .= maybe_ (optField "failed_to_list" (array schema))
+    where
+      from' :: QualifiedUserClientPrekeyMapV4 -> Map Domain UserClientPrekeyMap
+      from' = coerce . qualifiedUserClientPrekeys
+      to' :: Map Domain UserClientPrekeyMap -> QualifiedUserClientMap (Maybe Prekey)
+      to' = coerce
+
 newtype QualifiedUserClientPrekeyMap = QualifiedUserClientPrekeyMap
-  {getQualifiedUserClientPrekeyMap :: QualifiedUserClientMap (Maybe Prekey)}
+  { getQualifiedUserClientPrekeyMap :: QualifiedUserClientMap (Maybe Prekey)
+  }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema QualifiedUserClientPrekeyMap

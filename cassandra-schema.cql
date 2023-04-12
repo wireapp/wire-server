@@ -419,6 +419,7 @@ CREATE TABLE galley_test.conversation_codes (
     key ascii,
     scope int,
     conversation uuid,
+    password blob,
     value ascii,
     PRIMARY KEY (key, scope)
 ) WITH CLUSTERING ORDER BY (scope ASC)
@@ -1533,6 +1534,7 @@ CREATE TABLE brig_test.prekeys (
 CREATE TABLE brig_test.oauth_auth_code (
     code ascii PRIMARY KEY,
     client uuid,
+    code_challenge blob,
     redirect_uri blob,
     scope set<text>,
     user uuid

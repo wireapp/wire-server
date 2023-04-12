@@ -223,14 +223,26 @@ type UserAPI =
           :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
           :> Get '[JSON] [UserProfile]
       )
+    :<|> Named
+           "list-users-by-ids-or-handles"
+           ( Summary "List users"
+               :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
+               :> ZUser
+               :> From 'V4
+               :> "list-users"
+               :> ReqBody '[JSON] ListUsersQuery
+               :> Post '[JSON] ListUsersById
+           )
     :<|>
     -- See Note [ephemeral user sideeffect]
     Named
-      "list-users-by-ids-or-handles"
+      "list-users-by-ids-or-handles@V3"
       ( Summary "List users"
           :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
           :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> ZUser
+          :> Until 'V4
           :> "list-users"
           :> ReqBody '[JSON] ListUsersQuery
           :> Post '[JSON] [UserProfile]
@@ -655,6 +667,20 @@ type PrekeyAPI =
                :> Post '[JSON] UserClientPrekeyMap
            )
     :<|> Named
+           "get-multi-user-prekey-bundle-qualified@v3"
+           ( Summary
+               "Given a map of domain to (map of user IDs to client IDs) return a \
+               \prekey for each one. You can't request information for more users than \
+               \maximum conversation size."
+               :> MakesFederatedCall 'Brig "claim-multi-prekey-bundle"
+               :> ZUser
+               :> Until 'V4
+               :> "users"
+               :> "list-prekeys"
+               :> ReqBody '[JSON] QualifiedUserClients
+               :> Post '[JSON] QualifiedUserClientPrekeyMap
+           )
+    :<|> Named
            "get-multi-user-prekey-bundle-qualified"
            ( Summary
                "Given a map of domain to (map of user IDs to client IDs) return a \
@@ -662,10 +688,11 @@ type PrekeyAPI =
                \maximum conversation size."
                :> MakesFederatedCall 'Brig "claim-multi-prekey-bundle"
                :> ZUser
+               :> From 'V4
                :> "users"
                :> "list-prekeys"
                :> ReqBody '[JSON] QualifiedUserClients
-               :> Post '[JSON] QualifiedUserClientPrekeyMap
+               :> Post '[JSON] QualifiedUserClientPrekeyMapV4
            )
 
 type UserClientAPI =

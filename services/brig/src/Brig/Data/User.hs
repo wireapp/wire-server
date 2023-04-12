@@ -77,7 +77,6 @@ where
 import Brig.App (Env, currentTime, settings, viewFederationDomain, zauthEnv)
 import Brig.Data.Instances ()
 import Brig.Options
-import Brig.Password
 import Brig.Types.Intra
 import Brig.Types.User (HavePendingInvitations (NoPendingInvitations, WithPendingInvitations))
 import qualified Brig.ZAuth as ZAuth
@@ -95,6 +94,7 @@ import Data.Range (fromRange)
 import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Imports
+import Wire.API.Password
 import Wire.API.Provider.Service
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User

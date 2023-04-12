@@ -64,6 +64,7 @@
 , metrics-wai
 , mtl
 , network
+, network-uri
 , optparse-applicative
 , pem
 , polysemy
@@ -298,6 +299,7 @@ mkDerivation {
     metrics-wai
     mtl
     network
+    network-uri
     optparse-applicative
     pem
     process

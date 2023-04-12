@@ -27,6 +27,7 @@ import qualified Test.Wire.API.Call.Config as Call.Config
 import qualified Test.Wire.API.Conversation as Conversation
 import qualified Test.Wire.API.MLS as MLS
 import qualified Test.Wire.API.MLS.SubConversation as SubConversation
+import qualified Test.Wire.API.OAuth as OAuth
 import qualified Test.Wire.API.RawJson as RawJson
 import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
 import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
@@ -68,5 +69,6 @@ main =
         SubConversation.tests,
         Routes.Version.tests,
         unsafePerformIO Routes.Version.Wai.tests,
-        RawJson.tests
+        RawJson.tests,
+        OAuth.tests
       ]

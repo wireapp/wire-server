@@ -94,7 +94,7 @@ config:
     setOAuthMaxActiveRefreshTokens: 10
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
-    # setDisabledAPIVersions: [ 3 ]
+    # setDisabledAPIVersions: [ v3 ]
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}

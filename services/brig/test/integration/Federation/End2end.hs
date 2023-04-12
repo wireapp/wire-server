@@ -173,7 +173,8 @@ testGetUsersById brig1 brig2 = do
       q = ListUsersByIds (map userQualifiedId users)
       expected = sort (map userQualifiedId users)
   post
-    ( brig1
+    ( apiVersion "v3"
+        . brig1
         . path "list-users"
         . zUser (userId self)
         . json q
@@ -251,7 +252,8 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
         mkQualifiedUserClientPrekeyMap . fmap mkUserClientPrekeyMap . qmap $
           [mkClientMap <$> c1, mkClientMap <$> c2]
   post
-    ( brig1
+    ( apiVersion "v3"
+        . brig1
         . zUser (qUnqualified (fst c1))
         . paths ["users", "list-prekeys"]
         . body (RequestBodyLBS (Aeson.encode uc))

@@ -160,6 +160,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -171,6 +172,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -315,6 +317,7 @@ executable galley
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -326,6 +329,7 @@ executable galley
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -412,6 +416,7 @@ executable galley-integration
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -423,6 +428,7 @@ executable galley-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -497,6 +503,7 @@ executable galley-integration
     , metrics-wai
     , mtl
     , network
+    , network-uri
     , optparse-applicative
     , pem
     , process
@@ -579,6 +586,7 @@ executable galley-migrate-data
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -590,6 +598,7 @@ executable galley-migrate-data
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -711,7 +720,8 @@ executable galley-schema
     V77_MLSGroupMemberClient
     V78_TeamFeatureOutlookCalIntegration
     V79_TeamFeatureMlsE2EId
-    V80_MLSSubconversation
+    V80_AddConversationCodePassword
+    V81_MLSSubconversation
 
   hs-source-dirs:     schema/src
   default-extensions:
@@ -727,6 +737,7 @@ executable galley-schema
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -738,6 +749,7 @@ executable galley-schema
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -809,6 +821,7 @@ test-suite galley-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -820,6 +833,7 @@ test-suite galley-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms

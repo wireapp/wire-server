@@ -56,8 +56,8 @@ nginx_conf:
   - /search/common
 
   default_client_max_body_size: "256k"
-  rate_limit_reqs_per_user: "10r/s"
-  rate_limit_reqs_per_addr: "5r/m"
+  rate_limit_reqs_per_user: "30r/s"
+  rate_limit_reqs_per_addr: "15r/m"
 
   # This value must be a list of strings. Each string is copied verbatim into
   # the nginx.conf after the default 'limit_req_zone' directives. This should be
@@ -301,6 +301,12 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
+    - path: /i/users/([^/]*)/verification-code/([^/])*
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
+      versioned: false
     - path: /i/teams/([^/]*)/suspend
       envs:
       - staging
@@ -444,6 +450,11 @@ nginx_conf:
       - all
       doc: true
       oauth_scope: conversations_code
+    - path: /conversations/join
+      envs:
+      - all
+      specific_user_rate_limit: reqs_per_addr
+      specific_user_rate_limit_burst: "10"
     - path: /conversations
       envs:
       - all

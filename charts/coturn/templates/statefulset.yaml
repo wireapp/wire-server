@@ -49,6 +49,10 @@ spec:
         - name: secrets
           secret:
             secretName: coturn
+        - name: coturndb
+          emptyDir:
+            medium: Memory
+            sizeLimit: 128Mi # observed size: 80 kilobytes
         {{- if .Values.tls.enabled }}
         - name: secrets-tls
           secret:
@@ -102,6 +106,11 @@ spec:
             - name: secrets
               mountPath: /secrets/
               readOnly: true
+            # > By default, Coturn Docker image persists its data in /var/lib/coturn/ directory.
+            # > You can speedup Coturn simply by using tmpfs for that.
+            # We use a memory-backed emptyDir here instead.
+            - name: coturndb
+              mountPath: /var/lib/coturn
           {{- if .Values.tls.enabled }}
             - name: secrets-tls
               mountPath: /secrets-tls/
@@ -143,11 +152,15 @@ spec:
               protocol: TCP
 
           livenessProbe:
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
             httpGet:
               path: /
               port: status-http
 
           readinessProbe:
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
             httpGet:
               path: /
               port: status-http

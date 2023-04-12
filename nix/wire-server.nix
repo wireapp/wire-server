@@ -27,7 +27,7 @@
 # 3.2: Version overrides: These are very similar to nix/haskell-pins.nix, but
 # the package set itself sometimes contains newer versions of a few packages
 # along with the old versions, e.g., the package set contains aeson and
-# aeson_2_1_1_0. We use the latest version provided by the pacakge set, so we
+# aeson_2_1_1_0. We use the latest version provided by the package set, so we
 # don't have to remember to update the version here, nixpkgs will take care of
 # giving us the latest version.
 #
@@ -42,7 +42,7 @@
 # Using thse tweaks we can get a haskell package set which has wire-server
 # components and the required dependencies. We then use this package set along
 # with nixpkgs' dockerTools to make derivations for docker images that we need.
-pkgs: pkgsCachix:
+pkgs:
 let
   lib = pkgs.lib;
   hlib = pkgs.haskell.lib;
@@ -79,7 +79,7 @@ let
     gundeck = [ "gundeck" "gundeck-integration" "gundeck-schema" ];
     proxy = [ "proxy" ];
     spar = [ "spar" "spar-integration" "spar-schema" "spar-migrate-data" ];
-    stern = [ "stern" ];
+    stern = [ "stern" "stern-integration"];
 
     billing-team-member-backfill = [ "billing-team-member-backfill" ];
     inconsistencies = [ "inconsistencies" ];
@@ -313,6 +313,7 @@ let
     pkgs.treefmt
     pkgs.gawk
     pkgs.cfssl
+    pkgs.awscli2
     (hlib.justStaticExecutables pkgs.haskellPackages.cabal-fmt)
   ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.skopeo
@@ -330,8 +331,7 @@ let
     # deterministically on a specific image.
     tag = null;
     bundleNixpkgs = false;
-    # FUTUREWORK: Use pkgs.cachix here when we update `nixpkgs` to latest nixpkgs-unstable
-    extraPkgs = commonTools ++ [ pkgsCachix.cachix ];
+    extraPkgs = commonTools ++ [ pkgs.cachix ];
     nixConf = {
       experimental-features = "nix-command";
     };
@@ -375,7 +375,7 @@ in
       pkgs.netcat
       pkgs.niv
       (pkgs.python3.withPackages
-        (ps: with ps; [ pyyaml requests ]))
+        (ps: with ps; [ pyyaml ipdb requests ]))
       pkgs.rsync
       pkgs.wget
       pkgs.yq
