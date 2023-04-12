@@ -63,7 +63,7 @@ sendWelcomes ::
 sendWelcomes loc con cids welcome = do
   now <- input
   let (locals, remotes) = partitionQualified loc (map cidQualifiedClient cids)
-  let msg = encodeMLS' $ mkMessage (MessageWelcome welcome)
+  let msg = mkRawMLS $ mkMessage (MessageWelcome welcome)
   sendLocalWelcomes con now msg (qualifyAs loc locals)
   sendRemoteWelcomes msg remotes
 
@@ -71,10 +71,10 @@ sendLocalWelcomes ::
   Member GundeckAccess r =>
   Maybe ConnId ->
   UTCTime ->
-  ByteString ->
+  RawMLS Message ->
   Local [(UserId, ClientId)] ->
   Sem r ()
-sendLocalWelcomes con now rawWelcome lclients = do
+sendLocalWelcomes con now welcome lclients = do
   runMessagePush lclients Nothing $
     foldMap (uncurry mkPush) (tUnqualified lclients)
   where
@@ -83,21 +83,24 @@ sendLocalWelcomes con now rawWelcome lclients = do
       -- FUTUREWORK: use the conversation ID stored in the key package mapping table
       let lcnv = qualifyAs lclients (selfConv u)
           lusr = qualifyAs lclients u
-          e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now $ EdMLSWelcome rawWelcome
+          e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now $ EdMLSWelcome welcome.rmRaw
        in newMessagePush lclients mempty con defMessageMetadata (u, c) e
 
 sendRemoteWelcomes ::
   ( Member FederatorAccess r,
     Member P.TinyLog r
   ) =>
-  ByteString ->
+  RawMLS Message ->
   [Remote (UserId, ClientId)] ->
   Sem r ()
-sendRemoteWelcomes rawWelcome clients = do
-  let req = MLSWelcomeRequest . Base64ByteString $ rawWelcome
-      rpc = fedClient @'Galley @"mls-welcome" req
-  traverse_ handleError <=< runFederatedConcurrentlyEither clients $
-    const rpc
+sendRemoteWelcomes welcome clients = do
+  let msg = Base64ByteString welcome.rmRaw
+  traverse_ handleError <=< runFederatedConcurrentlyEither clients $ \rcpts ->
+    fedClient @'Galley @"mls-welcome"
+      MLSWelcomeRequest
+        { welcomeMessage = msg,
+          recipients = tUnqualified rcpts
+        }
   where
     handleError ::
       Member P.TinyLog r =>

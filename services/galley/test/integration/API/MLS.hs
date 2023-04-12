@@ -83,9 +83,8 @@ tests s =
         ],
       testGroup
         "Welcome"
-        [ test s "local welcome XXX" testLocalWelcome,
-          test s "post a remote MLS welcome message" sendRemoteMLSWelcome,
-          test s "post a remote MLS welcome message (key package ref not found)" sendRemoteMLSWelcomeKPNotFound
+        [ test s "local welcome" testLocalWelcome,
+          test s "post a remote MLS welcome message" sendRemoteMLSWelcome
         ],
       testGroup
         "Creation"
@@ -1700,11 +1699,12 @@ sendRemoteMLSWelcome :: TestM ()
 sendRemoteMLSWelcome = do
   -- Alice is from the originating domain and Bob is local, i.e., on the receiving domain
   [alice, bob] <- createAndConnectUsers [Just "alice.example.com", Nothing]
-  commit <- runMLSTest $ do
+  (commit, bob1) <- runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ setupFakeMLSGroup alice1
     void $ uploadNewKeyPackage bob1
-    createAddCommit alice1 [bob]
+    commit <- createAddCommit alice1 [bob]
+    pure (commit, bob1)
 
   welcome <- assertJust (mpWelcome commit)
 
@@ -1717,34 +1717,12 @@ sendRemoteMLSWelcome = do
       runFedClient @"mls-welcome" fedGalleyClient (qDomain alice) $
         MLSWelcomeRequest
           (Base64ByteString welcome)
+          [qUnqualified (cidQualifiedClient bob1)]
 
     -- check that the corresponding event is received
     liftIO $ do
       WS.assertMatch_ (5 # WS.Second) wsB $
         wsAssertMLSWelcome bob welcome
-
-sendRemoteMLSWelcomeKPNotFound :: TestM ()
-sendRemoteMLSWelcomeKPNotFound = do
-  [alice, bob] <- createAndConnectUsers [Just "alice.example.com", Nothing]
-  commit <- runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient [alice, bob]
-    void $ setupFakeMLSGroup alice1
-    kp <- fst <$> generateKeyPackage bob1
-    createAddCommitWithKeyPackages alice1 [(bob1, kp.rmRaw)]
-  welcome <- assertJust (mpWelcome commit)
-
-  fedGalleyClient <- view tsFedGalleyClient
-  cannon <- view tsCannon
-  WS.bracketR cannon (qUnqualified bob) $ \wsB -> do
-    -- send welcome message
-    void $
-      runFedClient @"mls-welcome" fedGalleyClient (qDomain alice) $
-        MLSWelcomeRequest
-          (Base64ByteString welcome)
-
-    liftIO $ do
-      -- check that no event is received
-      WS.assertNoEvent (1 # Second) [wsB]
 
 testBackendRemoveProposalLocalConvLocalLeaverCreator :: TestM ()
 testBackendRemoveProposalLocalConvLocalLeaverCreator = do

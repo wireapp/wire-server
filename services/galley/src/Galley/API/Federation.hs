@@ -46,7 +46,6 @@ import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.GroupInfo
-import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Message
 import Galley.API.MLS.Removal
 import Galley.API.MLS.SubConversation hiding (leaveSubConversation)
@@ -97,7 +96,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
-import Wire.API.MLS.Welcome
+-- import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named (Named (Named))
@@ -729,8 +728,7 @@ sendMLSMessage remoteDomain msr =
           msg
 
 mlsSendWelcome ::
-  ( Member BrigAccess r,
-    Member (Error InternalError) r,
+  ( Member (Error InternalError) r,
     Member GundeckAccess r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
@@ -739,26 +737,17 @@ mlsSendWelcome ::
   Domain ->
   F.MLSWelcomeRequest ->
   Sem r F.MLSWelcomeResponse
-mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawWelcome) =
+mlsSendWelcome _origDomain req =
   fmap (either (const MLSWelcomeMLSNotEnabled) (const MLSWelcomeSent))
     . runError @(Tagged 'MLSNotEnabled ())
     $ do
       assertMLSEnabled
       loc <- qualifyLocal ()
       now <- input
-      welcome <- either (throw . InternalErrorWithDescription . LT.fromStrict) pure $ decodeMLS' rawWelcome
-      -- Extract only recipients local to this backend
-      rcpts <-
-        fmap catMaybes
-          $ traverse
-            ( fmap (fmap cidQualifiedClient . hush)
-                . runError @(Tagged 'MLSKeyPackageRefNotFound ())
-                . derefKeyPackage
-                . gsNewMember
-            )
-          $ welSecrets welcome
-      let lrcpts = qualifyAs loc $ fst $ partitionQualified loc rcpts
-      sendLocalWelcomes Nothing now rawWelcome lrcpts
+      welcome <-
+        either (throw . InternalErrorWithDescription . LT.fromStrict) pure $
+          decodeMLS' (fromBase64ByteString req.welcomeMessage)
+      sendLocalWelcomes Nothing now welcome (qualifyAs loc req.recipients)
 
 onMLSMessageSent ::
   ( Member ExternalAccess r,

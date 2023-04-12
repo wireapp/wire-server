@@ -445,8 +445,11 @@ data ConversationUpdateResponse
     via (CustomEncoded ConversationUpdateResponse)
 
 -- | A wrapper around a raw welcome message
-newtype MLSWelcomeRequest = MLSWelcomeRequest
-  { unMLSWelcomeRequest :: Base64ByteString
+data MLSWelcomeRequest = MLSWelcomeRequest
+  { -- | A serialised welcome message.
+    welcomeMessage :: Base64ByteString,
+    -- | Recipients local to the target backend.
+    recipients :: [(UserId, ClientId)]
   }
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)
