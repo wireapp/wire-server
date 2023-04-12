@@ -60,7 +60,7 @@ spec:
         {{- end }}
       initContainers:
         - name: get-external-ip
-          image: bitnami/kubectl:1.19.7
+          image: bitnami/kubectl:1.24.12
           volumeMounts:
             - name: external-ip
               mountPath: /external-ip
