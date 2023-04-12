@@ -79,11 +79,11 @@ tests s =
     [ testGroup
         "Message"
         [ test s "sender must be part of conversation" testSenderNotInConversation,
-          test s "send other user's commit XXX" testSendAnotherUsersCommit
+          test s "send other user's commit" testSendAnotherUsersCommit
         ],
       testGroup
         "Welcome"
-        [ test s "local welcome" testLocalWelcome,
+        [ test s "local welcome XXX" testLocalWelcome,
           test s "post a remote MLS welcome message" sendRemoteMLSWelcome,
           test s "post a remote MLS welcome message (key package ref not found)" sendRemoteMLSWelcomeKPNotFound
         ],

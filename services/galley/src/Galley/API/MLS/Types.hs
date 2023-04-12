@@ -87,6 +87,9 @@ cmAssocs cm = do
   (clientId, idx) <- Map.assocs clients
   pure (mkClientIdentity quid clientId, idx)
 
+cmIdentities :: ClientMap -> [ClientIdentity]
+cmIdentities = map fst . cmAssocs
+
 cmSingleton :: ClientIdentity -> LeafIndex -> ClientMap
 cmSingleton cid idx =
   Map.singleton

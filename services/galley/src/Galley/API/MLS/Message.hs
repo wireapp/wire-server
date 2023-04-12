@@ -52,7 +52,7 @@ import Galley.API.MLS.Propagate
 import Galley.API.MLS.Removal
 import Galley.API.MLS.Types
 import Galley.API.MLS.Util
-import Galley.API.MLS.Welcome (postMLSWelcome)
+import Galley.API.MLS.Welcome (sendWelcomes)
 import Galley.API.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
 import qualified Galley.Data.Conversation.Types as Data
@@ -348,13 +348,6 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
   action <- getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.rmValue
-  -- TODO: check that the welcome message matches the action
-  -- for_ bundle.welcome $ \welcome ->
-  --   when
-  --     ( Set.fromList (map gsNewMember (welSecrets (rmValue welcome)))
-  --         /= Set.fromList (map (snd . snd) (cmAssocs (paAdd action)))
-  --     )
-  --     $ throwS @'MLSWelcomeMismatch
   events <-
     processCommitWithAction
       senderIdentity
@@ -368,8 +361,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
 
   let cm = membersConvOrSub (tUnqualified lConvOrSub)
   unreachables <- propagateMessage qusr lConvOrSub conn bundle.commit.rmRaw cm
-  traverse_ (postMLSWelcome lConvOrSub conn) bundle.welcome
-
+  traverse_ (sendWelcomes lConvOrSub conn (cmIdentities (paAdd action))) bundle.welcome
   pure (events, unreachables)
 
 postMLSCommitBundleToRemoteConv ::

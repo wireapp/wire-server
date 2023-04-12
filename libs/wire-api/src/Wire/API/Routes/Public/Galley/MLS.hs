@@ -21,111 +21,55 @@ import Servant hiding (WithStatus)
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Event.Conversation
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
-import Wire.API.MLS.Welcome
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
-import Wire.API.Routes.Version
 
 type MLSMessagingAPI =
   Named
-    "mls-welcome-message"
-    ( Summary "Post an MLS welcome message"
-        :> Until 'V3
-        :> MakesFederatedCall 'Galley "mls-welcome"
+    "mls-message"
+    ( Summary "Post an MLS message"
+        :> MakesFederatedCall 'Galley "on-mls-message-sent"
+        :> MakesFederatedCall 'Galley "send-mls-message"
+        :> MakesFederatedCall 'Galley "on-conversation-updated"
+        :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+        :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
+        :> MakesFederatedCall 'Brig "get-mls-clients"
+        :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
+        :> CanThrow 'ConvAccessDenied
+        :> CanThrow 'ConvMemberNotFound
+        :> CanThrow 'ConvNotFound
+        :> CanThrow 'LegalHoldNotEnabled
+        :> CanThrow 'MissingLegalholdConsent
+        :> CanThrow 'MLSClientMismatch
+        :> CanThrow 'MLSClientSenderUserMismatch
+        :> CanThrow 'MLSCommitMissingReferences
+        :> CanThrow 'MLSGroupConversationMismatch
+        :> CanThrow 'MLSInvalidLeafNodeIndex
         :> CanThrow 'MLSKeyPackageRefNotFound
+        :> CanThrow 'MLSMissingSenderClient
         :> CanThrow 'MLSNotEnabled
-        :> "welcome"
+        :> CanThrow 'MLSProposalNotFound
+        :> CanThrow 'MLSProtocolErrorTag
+        :> CanThrow 'MLSSelfRemovalNotAllowed
+        :> CanThrow 'MLSStaleMessage
+        :> CanThrow 'MLSSubConvClientNotInParent
+        :> CanThrow 'MLSUnsupportedMessage
+        :> CanThrow 'MLSUnsupportedProposal
+        :> CanThrow MLSProposalFailure
+        :> "messages"
         :> ZLocalUser
+        :> ZClient
         :> ZConn
-        :> ReqBody '[MLS] (RawMLS Welcome)
-        :> MultiVerb1 'POST '[JSON] (RespondEmpty 201 "Welcome message sent")
+        :> ReqBody '[MLS] (RawMLS Message)
+        :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" MLSMessageSendingStatus)
     )
-    :<|> Named
-           "mls-message-v1"
-           ( Summary "Post an MLS message"
-               :> MakesFederatedCall 'Brig "get-mls-clients"
-               :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
-               :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
-               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
-               :> MakesFederatedCall 'Galley "send-mls-message"
-               :> Until 'V2
-               :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'ConvMemberNotFound
-               :> CanThrow 'ConvNotFound
-               :> CanThrow 'LegalHoldNotEnabled
-               :> CanThrow 'MLSClientMismatch
-               :> CanThrow 'MLSCommitMissingReferences
-               :> CanThrow 'MLSKeyPackageRefNotFound
-               :> CanThrow 'MLSInvalidLeafNodeIndex
-               :> CanThrow 'MLSNotEnabled
-               :> CanThrow 'MLSProposalNotFound
-               :> CanThrow 'MLSProtocolErrorTag
-               :> CanThrow 'MLSSelfRemovalNotAllowed
-               :> CanThrow 'MLSStaleMessage
-               :> CanThrow 'MLSUnsupportedMessage
-               :> CanThrow 'MLSUnsupportedProposal
-               :> CanThrow 'MLSClientSenderUserMismatch
-               :> CanThrow 'MLSGroupConversationMismatch
-               :> CanThrow 'MLSMissingSenderClient
-               :> CanThrow 'MissingLegalholdConsent
-               :> CanThrow 'MLSSubConvClientNotInParent
-               :> CanThrow MLSProposalFailure
-               :> "messages"
-               :> ZLocalUser
-               :> ZClient
-               :> ZConn
-               :> ReqBody '[MLS] (RawMLS Message)
-               :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" [Event])
-           )
-    :<|> Named
-           "mls-message"
-           ( Summary "Post an MLS message"
-               :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "send-mls-message"
-               :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
-               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
-               :> MakesFederatedCall 'Brig "get-mls-clients"
-               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
-               :> From 'V2
-               :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'ConvMemberNotFound
-               :> CanThrow 'ConvNotFound
-               :> CanThrow 'LegalHoldNotEnabled
-               :> CanThrow 'MissingLegalholdConsent
-               :> CanThrow 'MLSClientMismatch
-               :> CanThrow 'MLSClientSenderUserMismatch
-               :> CanThrow 'MLSCommitMissingReferences
-               :> CanThrow 'MLSGroupConversationMismatch
-               :> CanThrow 'MLSInvalidLeafNodeIndex
-               :> CanThrow 'MLSKeyPackageRefNotFound
-               :> CanThrow 'MLSMissingSenderClient
-               :> CanThrow 'MLSNotEnabled
-               :> CanThrow 'MLSProposalNotFound
-               :> CanThrow 'MLSProtocolErrorTag
-               :> CanThrow 'MLSSelfRemovalNotAllowed
-               :> CanThrow 'MLSStaleMessage
-               :> CanThrow 'MLSSubConvClientNotInParent
-               :> CanThrow 'MLSUnsupportedMessage
-               :> CanThrow 'MLSUnsupportedProposal
-               :> CanThrow MLSProposalFailure
-               :> "messages"
-               :> ZLocalUser
-               :> ZClient
-               :> ZConn
-               :> ReqBody '[MLS] (RawMLS Message)
-               :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" MLSMessageSendingStatus)
-           )
     :<|> Named
            "mls-commit-bundle"
            ( Summary "Post a MLS CommitBundle"
@@ -137,7 +81,6 @@ type MLSMessagingAPI =
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> MakesFederatedCall 'Brig "get-mls-clients"
                :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
-               :> From 'V4
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound
@@ -170,7 +113,6 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-public-keys"
            ( Summary "Get public keys used by the backend to sign external proposals"
-               :> From 'V4
                :> CanThrow 'MLSNotEnabled
                :> "public-keys"
                :> ZLocalUser

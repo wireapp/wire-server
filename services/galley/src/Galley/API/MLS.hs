@@ -18,7 +18,6 @@
 module Galley.API.MLS
   ( isMLSEnabled,
     assertMLSEnabled,
-    postMLSWelcomeFromLocalUser,
     postMLSMessage,
     postMLSCommitBundleFromLocalUser,
     postMLSMessageFromLocalUser,
@@ -32,7 +31,6 @@ import Data.Id
 import Data.Qualified
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.Message
-import Galley.API.MLS.Welcome
 import Galley.Env
 import Imports
 import Polysemy
