@@ -26,7 +26,7 @@ import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
 import Control.Error.Util
-import Control.Lens (preview, to, view, (.~), (^..))
+import Control.Lens (preview, to, view, (.~), (^..), (^?))
 import Control.Monad.Catch
 import Control.Monad.Cont
 import Control.Monad.State (StateT, evalStateT)
@@ -41,7 +41,6 @@ import qualified Data.ByteString.Base64.URL as B64U
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
-import Data.Hex
 import Data.Id
 import Data.Json.Util hiding ((#))
 import qualified Data.Map as Map
@@ -932,14 +931,18 @@ mlsBracket clients k = do
 
 readGroupState :: ByteString -> [(ClientIdentity, Word32)]
 readGroupState j = do
-  -- TODO: figure out the new JSON format of the group state
-  node <- j ^.. key "group" . key "tree" . key "tree" . key "nodes" . _Array . traverse
-  leafNode <- node ^.. key "node" . key "LeafNode"
-  identity <-
-    either (const []) pure . decodeMLS' . BS.pack . map fromIntegral $
-      leafNode ^.. key "key_package" . key "payload" . key "credential" . key "credential" . key "Basic" . key "identity" . key "vec" . _Array . traverse . _Integer
-  _kpr <- (unhexM . T.encodeUtf8 =<<) $ leafNode ^.. key "key_package_ref" . _String
-  pure (identity, error "TODO: get index")
+  node <- j ^.. key "group" . key "public_group" . key "treesync" . key "tree" . key "leaf_nodes" . _Array . traverse . key "node"
+
+  case node ^? key "leaf_index" of
+    Just i -> do
+      identityBytes <- node ^.. key "leaf_node" . key "payload" . key "credential" . key "credential" . key "Basic" . key "identity" . key "vec"
+      let identity = BS.pack (identityBytes ^.. _Array . traverse . _Integer . to fromIntegral)
+      cid <- case decodeMLS' identity of
+        Left _ -> []
+        Right x -> pure x
+      n <- i ^.. _Integer . to fromIntegral
+      pure $ (cid, n)
+    Nothing -> []
 
 getClientsFromGroupState ::
   ClientIdentity ->
