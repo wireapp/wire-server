@@ -48,6 +48,8 @@ module Wire.API.MLS.Message
     failedToSendMaybe,
     failedToAdd,
     failedToAddMaybe,
+    failedToRemove,
+    failedToRemoveMaybe,
   )
 where
 
@@ -354,7 +356,8 @@ v <\> Nothing = v
 -- e.g., a message could not be sent to these remote users.
 data FailedToProcess = FailedToProcess
   { send :: Maybe UnreachableUsers,
-    add :: Maybe UnreachableUsers
+    add :: Maybe UnreachableUsers,
+    remove :: Maybe UnreachableUsers
   }
   deriving (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema FailedToProcess
@@ -363,11 +366,12 @@ instance Semigroup FailedToProcess where
   ftp1 <> ftp2 =
     FailedToProcess
       { send = send ftp1 <\> send ftp2,
-        add = add ftp1 <\> add ftp2
+        add = add ftp1 <\> add ftp2,
+        remove = remove ftp1 <\> remove ftp2
       }
 
 instance Monoid FailedToProcess where
-  mempty = FailedToProcess mempty mempty
+  mempty = FailedToProcess mempty mempty mempty
 
 failedToProcessObjectSchema :: ObjectSchema SwaggerDoc FailedToProcess
 failedToProcessObjectSchema =
@@ -386,6 +390,13 @@ failedToProcessObjectSchema =
             (description ?~ "List of federated users who could not be reached and be added to a conversation")
             (unnamed schema)
         )
+    <*> remove
+      .= maybe_
+        ( optFieldWithDocModifier
+            "failed_to_remove"
+            (description ?~ "List of federated users who could not be reached and be removed from a conversation")
+            (unnamed schema)
+        )
 
 instance ToSchema FailedToProcess where
   schema = object "FailedToProcess" failedToProcessObjectSchema
@@ -401,6 +412,12 @@ failedToAdd = failedToAddMaybe . unreachableFromList
 
 failedToAddMaybe :: Maybe UnreachableUsers -> FailedToProcess
 failedToAddMaybe us = mempty {add = us}
+
+failedToRemove :: [Qualified UserId] -> FailedToProcess
+failedToRemove = failedToRemoveMaybe . unreachableFromList
+
+failedToRemoveMaybe :: Maybe UnreachableUsers -> FailedToProcess
+failedToRemoveMaybe us = mempty {remove = us}
 
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],

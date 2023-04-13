@@ -27,7 +27,6 @@ module Galley.API.MLS.Message
 where
 
 import Control.Comonad
-import Control.Error.Util (hush)
 import Control.Lens (preview)
 import Data.Id
 import Data.Json.Util
@@ -1124,47 +1123,55 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
   -- Type 2 requires no special processing on the backend, so here we filter
   -- out all removals of that type, so that further checks and processing can
   -- be applied only to type 1 removals.
-  removedUsers <- mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
-    \(qtarget, Set.map fst -> clients) -> runError @() $ do
+  (failedRemoveFetching, removedUsers) <-
+    fmap partitionEithers $ forM (Map.assocs (paRemove action)) $ \(qtarget, Set.map fst -> clients) -> do
       -- fetch clients from brig
-      clientInfo <- Set.map ciId <$> getClientInfo lconv qtarget ss
-      -- if the clients being removed don't exist, consider this as a removal of
-      -- type 2, and skip it
-      when (Set.null (clientInfo `Set.intersection` clients)) $
-        throw ()
-      pure (qtarget, clients)
+      Set.map ciId <$$> getClientInfo lconv qtarget ss >>= \case
+        Left _ -> pure . Left $ qtarget
+        Right clientInfo -> do
+          -- if the clients being removed don't exist, consider this as a removal of
+          -- type 2, and skip it
+          pure $
+            if Set.null (clientInfo `Set.intersection` clients)
+              then Left qtarget
+              else Right (qtarget, clients)
 
   -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
   foldQualified lconv (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
 
   -- for each user, we compare their clients with the ones being added to the conversation
-  for_ newUserClients $ \(qtarget, newclients) -> case Map.lookup qtarget cm of
-    -- user is already present, skip check in this case
-    Just _ -> pure ()
-    -- new user
-    Nothing -> do
-      -- final set of clients in the conversation
-      let clients = Set.map fst (newclients <> Map.findWithDefault mempty qtarget cm)
-      -- get list of mls clients from brig
-      clientInfo <- getClientInfo lconv qtarget ss
-      let allClients = Set.map ciId clientInfo
-      let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
-      -- We check the following condition:
-      --   allMLSClients ⊆ clients ⊆ allClients
-      -- i.e.
-      -- - if a client has at least 1 key package, it has to be added
-      -- - if a client is being added, it has to still exist
-      --
-      -- The reason why we can't simply check that clients == allMLSClients is
-      -- that a client with no remaining key packages might be added by a user
-      -- who just fetched its last key package.
-      unless
-        ( Set.isSubsetOf allMLSClients clients
-            && Set.isSubsetOf clients allClients
-        )
-        $ do
-          -- FUTUREWORK: turn this error into a proper response
-          throwS @'MLSClientMismatch
+  failedAddFetching <- fmap catMaybes $
+    forM newUserClients $
+      \(qtarget, newclients) -> case Map.lookup qtarget cm of
+        -- user is already present, skip check in this case
+        Just _ -> pure Nothing
+        -- new user
+        Nothing -> do
+          -- final set of clients in the conversation
+          let clients = Set.map fst (newclients <> Map.findWithDefault mempty qtarget cm)
+          -- get list of mls clients from Brig (local or remote)
+          getClientInfo lconv qtarget ss >>= \case
+            Left _ -> pure (Just qtarget)
+            Right clientInfo -> do
+              let allClients = Set.map ciId clientInfo
+              let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
+              -- We check the following condition:
+              --   allMLSClients ⊆ clients ⊆ allClients
+              -- i.e.
+              -- - if a client has at least 1 key package, it has to be added
+              -- - if a client is being added, it has to still exist
+              --
+              -- The reason why we can't simply check that clients == allMLSClients is
+              -- that a client with no remaining key packages might be added by a user
+              -- who just fetched its last key package.
+              unless
+                ( Set.isSubsetOf allMLSClients clients
+                    && Set.isSubsetOf clients allClients
+                )
+                $ do
+                  -- FUTUREWORK: turn this error into a proper response
+                  throwS @'MLSClientMismatch
+              pure Nothing
 
   membersToRemove <- catMaybes <$> for removedUsers (uncurry checkRemoval)
 
@@ -1193,7 +1200,10 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
   for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
     removeMLSClients (cnvmlsGroupId mlsMeta) qtarget (Set.map fst clients)
 
-  pure (addEvents <> removeEvents, failedToAdd failedAdding)
+  let failedToProcess =
+        failedToAdd (failedAddFetching <> failedAdding)
+          <> failedToRemove failedRemoveFetching
+  pure (addEvents <> removeEvents, failedToProcess)
   where
     onlyJoining :: Event -> [Qualified UserId]
     onlyJoining (evtData -> EdMembersJoin ms) = smQualifiedId <$> mMembers ms
@@ -1260,17 +1270,18 @@ getClientInfo ::
   Local x ->
   Qualified UserId ->
   SignatureSchemeTag ->
-  Sem r (Set ClientInfo)
-getClientInfo loc = foldQualified loc getLocalMLSClients getRemoteMLSClients
+  Sem r (Either FederationError (Set ClientInfo))
+getClientInfo loc =
+  foldQualified loc (\lusr -> fmap Right . getLocalMLSClients lusr) getRemoteMLSClients
 
 getRemoteMLSClients ::
   ( Member FederatorAccess r
   ) =>
   Remote UserId ->
   SignatureSchemeTag ->
-  Sem r (Set ClientInfo)
+  Sem r (Either FederationError (Set ClientInfo))
 getRemoteMLSClients rusr ss = do
-  runFederated rusr $
+  runFederatedEither rusr $
     fedClient @'Brig @"get-mls-clients" $
       MLSClientsRequest
         { mcrUserId = tUnqualified rusr,
