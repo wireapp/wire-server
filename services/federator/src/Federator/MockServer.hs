@@ -212,7 +212,9 @@ mockUnreachableFor msg backends = do
   r <- getRequest
   if Set.member (frTargetDomain r) backends
     then throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
-    else mockReply msg
+    else do
+      liftIO $ putStrLn $ "In mockUnreachableFor, msg = " <> msg
+      mockReply msg
 
 -- | Abort the mock with an error.
 mockFail :: Text -> Mock a

@@ -109,6 +109,7 @@ tests s =
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "send a stale commit" testStaleCommit,
           test s "add remote user to a conversation" testAddRemoteUser,
+          test s "add remote users to a conversation (some unreachable)" testAddRemotesSomeUnreachable,
           test s "return error when commit is locked" testCommitLock,
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
           test s "post commit that references an unknown proposal" testUnknownProposalRefCommit,
@@ -638,6 +639,52 @@ testAddRemoteUser = do
     (events, reqs) <-
       withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
         sendAndConsumeCommit commit
+    pure (events, reqs, qcnv)
+
+  liftIO $ do
+    req <- assertOne $ filter ((== "on-conversation-updated") . frRPC) reqs
+    frTargetDomain req @?= qDomain bob
+    bdy <- case Aeson.eitherDecode (frBody req) of
+      Right b -> pure b
+      Left e -> assertFailure $ "Could not parse on-conversation-updated request body: " <> e
+    cuOrigUserId bdy @?= alice
+    cuConvId bdy @?= qUnqualified qcnv
+    cuAlreadyPresentUsers bdy @?= [qUnqualified bob]
+    cuAction bdy
+      @?= SomeConversationAction
+        SConversationJoinTag
+        ConversationJoin
+          { cjUsers = pure bob,
+            cjRole = roleNameWireMember
+          }
+
+  liftIO $ do
+    event <- assertOne events
+    assertJoinEvent qcnv alice [bob] roleNameWireMember event
+
+testAddRemotesSomeUnreachable :: TestM ()
+testAddRemotesSomeUnreachable = do
+  let bobDomain = Domain "bob.example.com"
+      charlieDomain = Domain "charlie.example.com"
+  users@[alice, bob, charlie] <-
+    createAndConnectUsers
+      [ Nothing,
+        Just (domainText bobDomain),
+        Just (domainText charlieDomain)
+      ]
+  (events, reqs, qcnv) <- runMLSTest $ do
+    [alice1, bob1, _charlie1] <- traverse createMLSClient users
+    (_, qcnv) <- setupMLSGroup alice1
+
+    commit <- createAddCommit alice1 [bob, charlie]
+    let unreachable = Set.singleton charlieDomain
+    (events, reqs) <-
+      withTempMockFederator'
+        ( mlsMockUnreachableFor unreachable
+            <|> receiveCommitMockByDomain [bob1]
+            <|> welcomeMock
+        )
+        $ sendAndConsumeCommit commit
     pure (events, reqs, qcnv)
 
   liftIO $ do
