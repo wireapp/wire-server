@@ -7,7 +7,7 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster fake-aws nginx-ingress-controller nginx-ingress-services fluent-bit kibana sftd restund coturn
+CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana sftd restund coturn
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
@@ -17,7 +17,7 @@ CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster databases-ephemeral	
 fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
-nginx-ingress-controller nginx-ingress-services reaper sftd restund coturn		\
+nginx-ingress-controller ingress-nginx-controller nginx-ingress-services reaper sftd restund coturn		\
 inbucket k8ssandra-test-cluster postgresql
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
@@ -94,11 +94,16 @@ ci: c db-migrate
 .PHONY: sanitize-pr
 sanitize-pr:
 	./hack/bin/generate-local-nix-packages.sh
-	make formatf-all
-	make hlint-inplace-all
+	make formatf
+	make hlint-inplace-pr
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
 	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
+	make list-flaky-tests
+
+list-flaky-tests:
+	@echo -e "\n\nif you want to run these, set RUN_FLAKY_TESTS=1\n\n"
+	@git grep -Hn '\bflakyTestCase \"'
 
 .PHONY: cabal-fmt
 cabal-fmt:
@@ -159,7 +164,7 @@ services: init install
 format:
 	./tools/ormolu.sh
 
-# formats all Haskell files even if local changes are not committed to git
+# formats all Haskell files changed in this PR, even if local changes are not committed to git
 .PHONY: formatf
 formatf:
 	./tools/ormolu.sh -f pr
@@ -216,7 +221,7 @@ upload-hoogle-image:
 ## cassandra management
 
 .PHONY: git-add-cassandra-schema
-git-add-cassandra-schema: db-reset git-add-cassandra-schema-impl
+git-add-cassandra-schema: db-migrate git-add-cassandra-schema-impl
 
 .PHONY: git-add-cassandra-schema-impl
 git-add-cassandra-schema-impl:
@@ -270,8 +275,8 @@ ifeq ($(INTEGRATION_FEDERATION_TESTS), 1)
 	$(EXE_SCHEMA) --keyspace $(package)_test2 --replication-factor 1 --reset
 endif
 endif
-	./dist/brig-index reset --elasticsearch-index directory_test --elasticsearch-server http://localhost:9200 > /dev/null
-	./dist/brig-index reset --elasticsearch-index directory_test2 --elasticsearch-server http://localhost:9200 > /dev/null
+	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 > /dev/null
+	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 > /dev/null
 
 # Usage:
 #
@@ -340,7 +345,11 @@ kube-integration-setup: charts-integration
 
 .PHONY: kube-integration-test
 kube-integration-test:
-	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-test.sh
+	export NAMESPACE=$(NAMESPACE); \
+	export HELM_PARALLELISM=$(HELM_PARALLELISM); \
+	export VERSION=${DOCKER_TAG}; \
+	export UPLOAD_LOGS=${UPLOAD_LOGS}; \
+	./hack/bin/integration-test.sh
 
 .PHONY: kube-integration-teardown
 kube-integration-teardown:

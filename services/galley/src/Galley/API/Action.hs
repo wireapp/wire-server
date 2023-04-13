@@ -558,6 +558,7 @@ data LocalConversationUpdate = LocalConversationUpdate
   { lcuEvent :: Event,
     lcuUpdate :: ConversationUpdate
   }
+  deriving (Show)
 
 updateLocalConversation ::
   forall tag r.
@@ -631,6 +632,11 @@ updateLocalConversationUnchecked lconv qusr con action = do
   (extraTargets, action') <- performAction tag qusr lconv action
 
   notifyConversationAction
+    -- Removing members should be fault tolerant.
+    ( case tag of
+        SConversationRemoveMembersTag -> False
+        _ -> True
+    )
     (sing @tag)
     qusr
     False
@@ -691,6 +697,7 @@ notifyConversationAction ::
     Member (Input UTCTime) r,
     Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
+  Bool ->
   Sing tag ->
   Qualified UserId ->
   Bool ->
@@ -699,7 +706,7 @@ notifyConversationAction ::
   BotsAndMembers ->
   ConversationAction (tag :: ConversationActionTag) ->
   Sem r LocalConversationUpdate
-notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
+notifyConversationAction failEarly tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap convId lconv
       conv = tUnqualified lconv
@@ -724,8 +731,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
           { nrcConvId = convId conv,
             nrcProtocol = convProtocol conv
           }
-  let faultIntolerant :: Sem r ConversationUpdate
-      faultIntolerant = do
+  let errorIntolerant = do
         E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
           void $ fedClient @'Galley @"on-new-remote-conversation" nrc
         fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
@@ -738,37 +744,32 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
             if notifyOrigDomain || tDomain ruids /= qDomain quid
               then fedClient @'Galley @"on-conversation-updated" update $> Nothing
               else pure (Just update)
-      -- Same as above, but rather than failing on a federation error, log it and carry on.
-      faultTolerant :: Sem r ConversationUpdate
-      faultTolerant = do
-        es <- E.runFederatedConcurrentlyEither (toList newDomains) $
-          const $ void $ fedClient @'Galley @"on-new-remote-conversation" nrc
-        let logErrors f e' = P.warn $ Log.field f $ "Error occured while communicating with federation member: " <> show e'
-        for_ (lefts es) $ logErrors "on-new-remote-conversation"
-        updates <- E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $ \ruids -> do
-          let update = mkUpdate (tUnqualified ruids)
-          -- if notifyOrigDomain is false, filter out user from quid's domain,
-          -- because quid's backend will update local state and notify its users
-          -- itself using the ConversationUpdate returned by this function
-          if notifyOrigDomain || tDomain ruids /= qDomain quid
-            then fedClient @'Galley @"on-conversation-updated" update $> Nothing
-            else pure (Just update)
-        for_ (lefts updates) $ logErrors "on-conversation-updated"
-        let f = fromMaybe (mkUpdate []) . asum . map tUnqualified
-        pure $ f $ rights updates
+      errorTolerant = do
+        fedEithers <- E.runFederatedConcurrentlyEither (toList newDomains) $ \_ -> do
+          void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+        for_ fedEithers $
+          either
+            (logError "on-new-remote-conversation" "An error occurred while communicating with federated server: ")
+            (pure . tUnqualified)
+        updates <-
+          E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
+            \ruids -> do
+              let update = mkUpdate (tUnqualified ruids)
+              -- if notifyOrigDomain is false, filter out user from quid's domain,
+              -- because quid's backend will update local state and notify its users
+              -- itself using the ConversationUpdate returned by this function
+              if notifyOrigDomain || tDomain ruids /= qDomain quid
+                then fedClient @'Galley @"on-conversation-updated" update $> Nothing
+                else pure (Just update)
+        let f = fromMaybe (mkUpdate []) . asum . map tUnqualified . rights
+            update = f updates
+        for_ (lefts updates) $
+          logError
+            "on-conversation-update"
+            "An error occurred while communicating with federated server: "
+        pure update
 
-  -- These singleton tags don't have an Eq instance, so pattern matching it is!
-  update <- case tag of
-    -- Tags indicating a metadata update of some sort.
-    SConversationRenameTag -> faultTolerant
-    SConversationMessageTimerUpdateTag -> faultTolerant
-    SConversationReceiptModeUpdateTag -> faultTolerant
-    SConversationAccessDataTag -> faultTolerant
-    SConversationMemberUpdateTag -> faultTolerant
-    -- Needed as part of updating access roles. If users are kicked we have to be tolerant.
-    SConversationRemoveMembersTag -> faultTolerant
-    -- Everything else works as it did before.
-    _ -> faultIntolerant
+  update <- if failEarly then errorIntolerant else errorTolerant
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
@@ -776,6 +777,11 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   -- return both the event and the 'ConversationUpdate' structure corresponding
   -- to the originating domain (if it is remote)
   pure $ LocalConversationUpdate e update
+  where
+    logError :: Show a => String -> String -> (a, FederationError) -> Sem r ()
+    logError field msg e =
+      P.warn $
+        Log.field "federation call" field . Log.msg (msg <> show e)
 
 -- | Notify all local members about a remote conversation update that originated
 -- from a local user
@@ -850,6 +856,7 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
       lconv
       ()
   notifyConversationAction
+    False
     (sing @'ConversationRemoveMembersTag)
     qusr
     True

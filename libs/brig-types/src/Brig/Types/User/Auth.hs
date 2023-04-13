@@ -25,7 +25,7 @@ where
 
 import Data.Aeson
 import Data.Id (UserId)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword6)
 import Imports
 import Wire.API.User.Auth
 
@@ -37,7 +37,7 @@ data SsoLogin
 -- This kind of login returns restricted 'LegalHoldUserToken's instead of regular
 -- tokens.
 data LegalHoldLogin
-  = LegalHoldLogin !UserId !(Maybe PlainTextPassword) !(Maybe CookieLabel)
+  = LegalHoldLogin !UserId !(Maybe PlainTextPassword6) !(Maybe CookieLabel)
 
 instance FromJSON SsoLogin where
   parseJSON = withObject "SsoLogin" $ \o ->

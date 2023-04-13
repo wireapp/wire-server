@@ -43,7 +43,7 @@ import Gundeck.Push.Native.Types as Types
 import Gundeck.Types
 import Gundeck.Util
 import Imports
-import System.Logger.Class (MonadLogger, field, msg, val, (~~))
+import System.Logger.Class (MonadLogger, field, msg, val, (.=), (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO (handleAny, mapConcurrently, pooledMapConcurrentlyN_)
 import Wire.API.Internal.Notification
@@ -61,58 +61,103 @@ push m addrs = do
     Just chunkSize -> pooledMapConcurrentlyN_ chunkSize (push1 m) addrs
 
 push1 :: NativePush -> Address -> Gundeck ()
-push1 m a = do
-  e <- view awsEnv
-  r <- Aws.execute e $ publish m a
-  case r of
-    Success _ -> do
-      Log.debug $
-        field "user" (toByteString (a ^. addrUser))
-          ~~ field "notificationId" (toText (npNotificationid m))
-          ~~ Log.msg (val "Native push success")
-      view monitor >>= counterIncr (path "push.native.success")
-    Failure EndpointDisabled _ -> onDisabled
-    Failure PayloadTooLarge _ -> onPayloadTooLarge
-    Failure EndpointInvalid _ -> onInvalidEndpoint
-    Failure (PushException ex) _ -> do
-      logError a "Native push failed" ex
-      view monitor >>= counterIncr (path "push.native.errors")
+push1 = push1' 0
   where
-    onDisabled =
-      handleAny (logError a "Failed to cleanup disabled endpoint") $ do
-        Log.info $
-          field "user" (toByteString (a ^. addrUser))
-            ~~ field "arn" (toText (a ^. addrEndpoint))
-            ~~ field "cause" ("EndpointDisabled" :: Text)
-            ~~ msg (val "Removing disabled endpoint and token")
-        view monitor >>= counterIncr (path "push.native.disabled")
-        Data.delete (a ^. addrUser) (a ^. addrTransport) (a ^. addrApp) (a ^. addrToken)
-        onTokenRemoved
-        e <- view awsEnv
-        Aws.execute e (Aws.deleteEndpoint (a ^. addrEndpoint))
-    onPayloadTooLarge = do
-      view monitor >>= counterIncr (path "push.native.too_large")
-      Log.warn $
-        field "user" (toByteString (a ^. addrUser))
-          ~~ field "arn" (toText (a ^. addrEndpoint))
-          ~~ msg (val "Payload too large")
-    onInvalidEndpoint =
-      handleAny (logError a "Failed to cleanup orphaned push token") $ do
-        Log.warn $
-          field "user" (toByteString (a ^. addrUser))
-            ~~ field "arn" (toText (a ^. addrEndpoint))
-            ~~ field "cause" ("InvalidEndpoint" :: Text)
-            ~~ msg (val "Invalid ARN. Deleting orphaned push token")
-        view monitor >>= counterIncr (path "push.native.invalid")
-        Data.delete (a ^. addrUser) (a ^. addrTransport) (a ^. addrApp) (a ^. addrToken)
-        onTokenRemoved
-    onTokenRemoved = do
-      i <- mkNotificationId
-      let c = a ^. addrClient
-      let r = singleton (target (a ^. addrUser) & targetClients .~ [c])
-      let t = a ^. addrPushToken
-      let p = singletonPayload (PushRemove t)
-      Stream.add i r p =<< view (options . optSettings . setNotificationTTL)
+    push1' :: Int -> NativePush -> Address -> Gundeck ()
+    push1' n m a =
+      if n > retryUnauthorisedThreshold
+        then onPersistentlyUnauthorisedEndpoint
+        else do
+          e <- view awsEnv
+          r <- Aws.execute e $ publish m a
+          case r of
+            Success _ -> onSuccess
+            Failure EndpointDisabled _ -> onDisabled
+            Failure PayloadTooLarge _ -> onPayloadTooLarge
+            Failure EndpointInvalid _ -> onInvalidEndpoint
+            Failure EndpointUnauthorised _ ->
+              if n < retryUnauthorisedThreshold
+                then onUnauthorisedEndpoint
+                else onPersistentlyUnauthorisedEndpoint
+            Failure (PushException ex) _ -> onPushException ex
+      where
+        onSuccess = do
+          Log.debug $
+            field "user" (toByteString (a ^. addrUser))
+              ~~ field "notificationId" (toText (npNotificationid m))
+              ~~ Log.msg (val "Native push success")
+          view monitor >>= counterIncr (path "push.native.success")
+        onDisabled =
+          handleAny (logError a "Failed to cleanup disabled endpoint") $ do
+            Log.info $
+              field "user" (toByteString (a ^. addrUser))
+                ~~ field "arn" (toText (a ^. addrEndpoint))
+                ~~ field "cause" ("EndpointDisabled" :: Text)
+                ~~ msg (val "Removing disabled endpoint and token")
+            view monitor >>= counterIncr (path "push.native.disabled")
+            Data.delete (a ^. addrUser) (a ^. addrTransport) (a ^. addrApp) (a ^. addrToken)
+            onTokenRemoved
+            e <- view awsEnv
+            Aws.execute e (Aws.deleteEndpoint (a ^. addrEndpoint))
+        onPayloadTooLarge = do
+          view monitor >>= counterIncr (path "push.native.too_large")
+          Log.warn $
+            field "user" (toByteString (a ^. addrUser))
+              ~~ field "arn" (toText (a ^. addrEndpoint))
+              ~~ msg (val "Payload too large")
+        onInvalidEndpoint =
+          handleAny (logError a "Failed to cleanup orphaned push token") $ do
+            Log.warn $
+              field "user" (toByteString (a ^. addrUser))
+                ~~ field "arn" (toText (a ^. addrEndpoint))
+                ~~ field "cause" ("InvalidEndpoint" :: Text)
+                ~~ msg (val "Invalid ARN. Deleting orphaned push token")
+            view monitor >>= counterIncr (path "push.native.invalid")
+            Data.delete (a ^. addrUser) (a ^. addrTransport) (a ^. addrApp) (a ^. addrToken)
+            onTokenRemoved
+        retryUnauthorisedThreshold = 1
+        onUnauthorisedEndpoint = do
+          -- try to recreate ARN (cf. Gundeck.Push.addToken.create)
+          let uid = a ^. addrUser
+          let t = a ^. addrPushToken
+          let trp = t ^. tokenTransport
+          let app = t ^. tokenApp
+          let tok = t ^. token
+          env <- view (options . optAws . awsArnEnv)
+          aws <- view awsEnv
+          ept <- Aws.execute aws (Aws.createEndpoint uid trp env app tok)
+          case ept of
+            Left (Aws.EndpointInUse arn) ->
+              Log.info $ "arn" .= toText arn ~~ msg (val "ARN in use")
+            Left (Aws.AppNotFound app') ->
+              Log.info $ msg ("Push token of unknown application: '" <> appNameText app' <> "'")
+            Left (Aws.InvalidToken _) ->
+              Log.info $
+                "token"
+                  .= tokenText tok
+                  ~~ msg (val "Invalid push token.")
+            Left (Aws.TokenTooLong l) ->
+              Log.info $ msg ("Push token is too long: token length = " ++ show l)
+            Right arn -> do
+              Data.updateArn uid trp app tok arn
+              push1' (succ n) m (a & addrEndpoint .~ arn) -- try to send the push message with the new ARN
+        onPersistentlyUnauthorisedEndpoint = handleAny (logError a "Found orphaned push token") $ do
+          Log.warn $
+            field "user" (toByteString (a ^. addrUser))
+              ~~ field "arn" (toText (a ^. addrEndpoint))
+              ~~ field "cause" ("UnauthorisedEndpoint" :: Text)
+              ~~ msg (val "Invalid ARN. Dropping push message.")
+          view monitor >>= counterIncr (path "push.native.unauthorized")
+        onPushException ex = do
+          logError a "Native push failed" ex
+          view monitor >>= counterIncr (path "push.native.errors")
+        onTokenRemoved = do
+          i <- mkNotificationId
+          let c = a ^. addrClient
+          let r = singleton (target (a ^. addrUser) & targetClients .~ [c])
+          let t = a ^. addrPushToken
+          let p = singletonPayload (PushRemove t)
+          Stream.add i r p =<< view (options . optSettings . setNotificationTTL)
 
 publish :: NativePush -> Address -> Aws.Amazon Result
 publish m a = flip catches pushException $ do
@@ -133,6 +178,7 @@ publish m a = flip catches pushException $ do
     toResult (Left (Aws.EndpointDisabled _)) = Failure EndpointDisabled a
     toResult (Left (Aws.PayloadTooLarge _)) = Failure PayloadTooLarge a
     toResult (Left (Aws.InvalidEndpoint _)) = Failure EndpointInvalid a
+    toResult (Left (Aws.UnauthorisedEndpoint _)) = Failure EndpointUnauthorised a
     toResult (Right ()) = Success a
     pushException =
       [ Handler (\(ex :: SomeAsyncException) -> throwM ex),

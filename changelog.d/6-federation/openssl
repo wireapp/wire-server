@@ -1,1 +1,1 @@
-Use `HsOpenSSL` instead of `tls` for federation communication.
+Fix bug with asset downloads and large federated responses

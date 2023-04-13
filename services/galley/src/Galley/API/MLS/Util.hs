@@ -51,7 +51,15 @@ getLocalConvForUser qusr lcnv = do
   conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
 
   -- check that sender is part of conversation
-  isMember' <- foldQualified lcnv (fmap isJust . getLocalMember (convId conv) . tUnqualified) (fmap isJust . getRemoteMember (convId conv)) qusr
+  isMember' <-
+    foldQualified
+      lcnv
+      ( fmap isJust
+          . getLocalMember (convId conv)
+          . tUnqualified
+      )
+      (fmap isJust . getRemoteMember (convId conv))
+      qusr
   unless isMember' $ throwS @'ConvNotFound
 
   pure conv

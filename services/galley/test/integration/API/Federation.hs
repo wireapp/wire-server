@@ -1035,26 +1035,35 @@ onUserDeleted = do
   createOne2OneConvWithRemote alice bob
 
   -- create group conversation with everybody
-  groupConvId <-
-    decodeQualifiedConvId
-      <$> ( postConvWithRemoteUsers
-              (tUnqualified alice)
-              Nothing
-              defNewProteusConv {newConvQualifiedUsers = [tUntagged bob, alex, bart, carl]}
-              <!! const 201 === statusCode
-          )
+  groupConvId <- WS.bracketR cannon (tUnqualified alice) $ \wsAlice -> do
+    convId <-
+      decodeQualifiedConvId
+        <$> ( postConvWithRemoteUsers
+                (tUnqualified alice)
+                Nothing
+                defNewProteusConv {newConvQualifiedUsers = [tUntagged bob, alex, bart, carl]}
+                <!! const 201 === statusCode
+            )
+    WS.assertMatch_ (5 # Second) wsAlice $
+      wsAssertConvCreate convId (tUntagged alice)
+    pure convId
 
   -- extraneous conversation
   extraConvId <- randomId
 
   -- conversation without bob
   noBobConvId <-
-    fmap decodeQualifiedConvId $
-      postConvQualified
-        (tUnqualified alice)
-        Nothing
-        defNewProteusConv {newConvQualifiedUsers = [alex]}
-        <!! const 201 === statusCode
+    WS.bracketR cannon (tUnqualified alice) $ \wsAlice -> do
+      convId <-
+        fmap decodeQualifiedConvId $
+          postConvQualified
+            (tUnqualified alice)
+            Nothing
+            defNewProteusConv {newConvQualifiedUsers = [alex]}
+            <!! const 201 === statusCode
+      WS.assertMatch_ (5 # Second) wsAlice $
+        wsAssertConvCreate convId (tUntagged alice)
+      pure convId
 
   WS.bracketR2 cannon (tUnqualified alice) (qUnqualified alex) $ \(wsAlice, wsAlex) -> do
     (resp, rpcCalls) <- withTempMockFederator' (mockReply ()) $ do

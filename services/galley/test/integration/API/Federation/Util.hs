@@ -15,9 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.Federation.Util (mkHandler) where
+module API.Federation.Util
+  ( mkHandler,
+
+    -- * the remote backend type
+    BackendReachability (..),
+    Backend (..),
+    rbReachable,
+  )
+where
 
 import Data.Kind
+import Data.Qualified
 import Data.SOP
 import Data.String.Conversions (cs)
 import GHC.TypeLits
@@ -101,3 +110,18 @@ instance
   PartialAPI (Named (name :: Symbol) endpoint :<|> api) (Named name h)
   where
   mkHandler h = h :<|> mkHandler @api EmptyAPI
+
+--------------------------------------------------------------------------------
+-- The remote backend type
+
+data BackendReachability = BackendReachable | BackendUnreachable
+  deriving (Eq, Ord)
+
+data Backend = Backend
+  { bReachable :: BackendReachability,
+    bUsers :: Nat
+  }
+  deriving (Eq, Ord)
+
+rbReachable :: Remote Backend -> BackendReachability
+rbReachable = bReachable . tUnqualified

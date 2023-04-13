@@ -24,6 +24,7 @@ import Galley.API.Query
 import Galley.API.Update
 import Galley.App
 import Galley.Cassandra.TeamFeatures
+import Imports
 import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Conversation
@@ -44,7 +45,8 @@ conversationAPI =
     <@> mkNamedAPI @"list-conversations@v2" (callsFed (exposeAnnotations listConversations))
     <@> mkNamedAPI @"list-conversations" (callsFed (exposeAnnotations listConversations))
     <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
-    <@> mkNamedAPI @"create-group-conversation@v2" (callsFed (exposeAnnotations createGroupConversation))
+    <@> mkNamedAPI @"create-group-conversation@v2" (callsFed (exposeAnnotations createGroupConversationUpToV3))
+    <@> mkNamedAPI @"create-group-conversation@v3" (callsFed (exposeAnnotations createGroupConversationUpToV3))
     <@> mkNamedAPI @"create-group-conversation" (callsFed (exposeAnnotations createGroupConversation))
     <@> mkNamedAPI @"create-self-conversation@v2" createProteusSelfConversation
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
@@ -57,7 +59,8 @@ conversationAPI =
     <@> mkNamedAPI @"join-conversation-by-id-unqualified" (callsFed joinConversationById)
     <@> mkNamedAPI @"join-conversation-by-code-unqualified" (callsFed (joinConversationByReusableCode @Cassandra))
     <@> mkNamedAPI @"code-check" (checkReusableCode @Cassandra)
-    <@> mkNamedAPI @"create-conversation-code-unqualified" (addCodeUnqualified @Cassandra)
+    <@> mkNamedAPI @"create-conversation-code-unqualified@v3" (addCodeUnqualified @Cassandra Nothing)
+    <@> mkNamedAPI @"create-conversation-code-unqualified" (addCodeUnqualifiedWithReqBody @Cassandra)
     <@> mkNamedAPI @"get-conversation-guest-links-status" (getConversationGuestLinksStatus @Cassandra)
     <@> mkNamedAPI @"remove-code-unqualified" rmCodeUnqualified
     <@> mkNamedAPI @"get-code" (getCode @Cassandra)

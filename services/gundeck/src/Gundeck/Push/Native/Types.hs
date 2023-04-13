@@ -102,6 +102,7 @@ data Failure
   = PayloadTooLarge
   | EndpointInvalid
   | EndpointDisabled
+  | EndpointUnauthorised
   | PushException !SomeException
   deriving (Show)
 

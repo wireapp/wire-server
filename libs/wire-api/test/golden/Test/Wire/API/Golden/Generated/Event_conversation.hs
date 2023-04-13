@@ -31,6 +31,7 @@ import GHC.Exts (IsList (fromList))
 import Imports
 import URI.ByteString (Authority (..), Host (..), Query (..), Scheme (..), URIRef (..))
 import Wire.API.Conversation (Access (..), MutedStatus (..))
+import Wire.API.Conversation.Code
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
@@ -76,11 +77,14 @@ testObject_Event_conversation_3 =
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
       evtData =
         EdConvCodeUpdate
-          ( ConversationCode
-              { conversationKey = Key {asciiKey = unsafeRange "CRdONS7988O2QdyndJs1"},
-                conversationCode = Value {asciiValue = unsafeRange "7d6713"},
-                conversationUri = Just $ HttpsUrl (URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})
-              }
+          ( ConversationCodeInfo
+              ( ConversationCode
+                  { conversationKey = Key {asciiKey = unsafeRange "CRdONS7988O2QdyndJs1"},
+                    conversationCode = Value {asciiValue = unsafeRange "7d6713"},
+                    conversationUri = Just $ HttpsUrl (URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})
+                  }
+              )
+              False
           )
     }
 

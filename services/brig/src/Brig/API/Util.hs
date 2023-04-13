@@ -22,6 +22,8 @@ module Brig.API.Util
     logInvitationCode,
     validateHandle,
     logEmail,
+    traverseConcurrentlyAppT,
+    traverseConcurrentlySem,
     traverseConcurrentlyWithErrors,
     traverseConcurrentlyWithErrorsSem,
     traverseConcurrentlyWithErrorsAppT,
@@ -44,6 +46,7 @@ import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except
+import Data.Bifunctor
 import Data.Domain (Domain)
 import Data.Handle (Handle, parseHandle)
 import Data.Id
@@ -96,6 +99,21 @@ logEmail email =
 logInvitationCode :: InvitationCode -> (Msg -> Msg)
 logInvitationCode code = Log.field "invitation_code" (toText $ fromInvitationCode code)
 
+-- | Traverse concurrently and collect errors.
+traverseConcurrentlyAppT ::
+  (Traversable t, Member (C.Concurrency 'C.Unsafe) r) =>
+  (a -> ExceptT e (AppT r) b) ->
+  t a ->
+  AppT r [Either (a, e) b]
+traverseConcurrentlyAppT f t = do
+  env <- temporaryGetEnv
+  AppT $
+    lift $
+      C.unsafePooledMapConcurrentlyN
+        8
+        (\a -> first (a,) <$> lowerAppT env (runExceptT $ f a))
+        t
+
 -- | Traverse concurrently and fail on first error.
 traverseConcurrentlyWithErrors ::
   (Traversable t, Exception e, MonadUnliftIO m) =>
@@ -108,6 +126,14 @@ traverseConcurrentlyWithErrors f =
     . ( traverse (either throwIO pure)
           <=< pooledMapConcurrentlyN 8 (runExceptT . f)
       )
+
+traverseConcurrentlySem ::
+  (Traversable t, MonadUnliftIO m) =>
+  (a -> ExceptT e m b) ->
+  t a ->
+  m (t (Either (a, e) b))
+traverseConcurrentlySem f =
+  pooledMapConcurrentlyN 8 $ \a -> first (a,) <$> runExceptT (f a)
 
 -- | Traverse concurrently and fail on first error.
 traverseConcurrentlyWithErrorsSem ::

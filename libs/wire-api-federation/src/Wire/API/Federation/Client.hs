@@ -365,20 +365,30 @@ allocTLSConfig :: SSL -> HTTP2.BufferSize -> IO HTTP2.Config
 allocTLSConfig ssl bufsize = do
   buf <- mallocBytes bufsize
   timmgr <- System.TimeManager.initialize $ 30 * 1000000
-  let readData :: Int -> IO ByteString
-      -- Sometimes the frame header says that the payload length is 0. Reading 0
-      -- bytes multiple times seems to be causing errors in openssl. I cannot
-      -- figure out why. The previous implementation didn't try to read from the
-      -- socket when trying to read 0 bytes, so special handling for 0 maintains
-      -- that behaviour.
-      readData 0 = pure ""
-      readData n = SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
+  -- Sometimes the frame header says that the payload length is 0. Reading 0
+  -- bytes multiple times seems to be causing errors in openssl. I cannot figure
+  -- out why. The previous implementation didn't try to read from the socket
+  -- when trying to read 0 bytes, so special handling for 0 maintains that
+  -- behaviour.
+  let readData prevChunk 0 = pure prevChunk
+      readData prevChunk n = do
+        -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
+        -- (some sites terminate SSL connection right after returning the data).
+        chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
+        let chunkLen = BS.length chunk
+        if
+            | chunkLen == 0 || chunkLen == n ->
+                pure (prevChunk <> chunk)
+            | chunkLen > n ->
+                error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
+            | otherwise ->
+                readData (prevChunk <> chunk) (n - chunkLen)
   pure
     HTTP2.Config
       { HTTP2.confWriteBuffer = buf,
         HTTP2.confBufferSize = bufsize,
         HTTP2.confSendAll = SSL.write ssl,
-        HTTP2.confReadN = readData,
+        HTTP2.confReadN = readData mempty,
         HTTP2.confPositionReadMaker = HTTP2.defaultPositionReadMaker,
         HTTP2.confTimeoutManager = timmgr
       }

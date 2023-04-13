@@ -48,7 +48,7 @@ import Brig.Types.User
 import Data.Code as Code
 import Data.Handle (Handle)
 import Data.Id (TeamId, UserId)
-import Data.Misc (PlainTextPassword)
+import Data.Misc (PlainTextPassword6)
 import Imports
 import Polysemy
 import qualified SAML2.WebSSO as SAML
@@ -76,7 +76,7 @@ data BrigAccess m a where
   GetRichInfo :: UserId -> BrigAccess m RichInfo
   CheckHandleAvailable :: Handle -> BrigAccess m Bool
   DeleteUser :: UserId -> BrigAccess m DeleteUserResult
-  EnsureReAuthorised :: Maybe UserId -> Maybe PlainTextPassword -> Maybe Code.Value -> Maybe VerificationAction -> BrigAccess m ()
+  EnsureReAuthorised :: Maybe UserId -> Maybe PlainTextPassword6 -> Maybe Code.Value -> Maybe VerificationAction -> BrigAccess m ()
   SsoLogin :: UserId -> BrigAccess m SetCookie
   GetStatus :: UserId -> BrigAccess m AccountStatus
   GetStatusMaybe :: UserId -> BrigAccess m (Maybe AccountStatus)

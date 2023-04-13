@@ -26,6 +26,7 @@ let
 
   # packages necessary to build wire-server docs
   docsPkgs = [
+    pkgs.plantuml
     pkgs.texlive.combined.scheme-full
     (pkgs.python3.withPackages
       (ps: with ps; [
@@ -39,6 +40,7 @@ let
         sphinx-copybutton
         sphinxcontrib-fulltoc
         sphinxcontrib-kroki
+        sphinxcontrib-plantuml
       ]))
   ];
 

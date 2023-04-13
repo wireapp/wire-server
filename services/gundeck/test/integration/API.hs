@@ -1246,7 +1246,7 @@ randomUser = do
         object
           [ "name" .= e,
             "email" .= e,
-            "password" .= ("secret" :: Text)
+            "password" .= ("secret-8-chars-long-at-least" :: Text)
           ]
   r <- post (runBrigR br . path "/i/users" . json p)
   pure

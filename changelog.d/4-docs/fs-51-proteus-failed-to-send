@@ -1,0 +1,1 @@
+Fix the Swagger documentation for the failed_to_send field in the response of the Proteus message sending endpoint

@@ -43,6 +43,7 @@
 , hex
 , hostname-validate
 , hscim
+, HsOpenSSL
 , hspec
 , hspec-wai
 , http-api-data
@@ -53,6 +54,7 @@
 , iproute
 , iso3166-country-codes
 , iso639
+, jose
 , lens
 , lib
 , memory
@@ -72,6 +74,7 @@
 , saml2-web-sso
 , schema-profunctor
 , scientific
+, scrypt
 , servant
 , servant-client
 , servant-client-core
@@ -149,6 +152,7 @@ mkDerivation {
     hashable
     hostname-validate
     hscim
+    HsOpenSSL
     http-api-data
     http-media
     http-types
@@ -157,6 +161,7 @@ mkDerivation {
     iproute
     iso3166-country-codes
     iso639
+    jose
     lens
     memory
     metrics-wai
@@ -173,6 +178,7 @@ mkDerivation {
     saml2-web-sso
     schema-profunctor
     scientific
+    scrypt
     servant
     servant-client
     servant-client-core

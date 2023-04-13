@@ -32,6 +32,7 @@ import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages
+import Brig.API.OAuth (oauthAPI)
 import qualified Brig.API.Properties as API
 import Brig.API.Public.Swagger
 import Brig.API.Types
@@ -72,6 +73,7 @@ import qualified Cassandra as Data
 import Control.Error hiding (bool)
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
+import Control.Monad.Except
 import Data.Aeson hiding (json)
 import Data.Bifunctor
 import qualified Data.ByteString.Lazy as Lazy
@@ -81,6 +83,7 @@ import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
+import Data.List.NonEmpty (nonEmpty)
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
@@ -108,6 +111,7 @@ import qualified Wire.API.Connection as Public
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.API
+import Wire.API.Federation.Error
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.Internal.Brig as BrigInternalAPI
 import qualified Wire.API.Routes.Internal.Cannon as CannonInternalAPI
@@ -117,6 +121,7 @@ import qualified Wire.API.Routes.Internal.Spar as SparInternalAPI
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
+import qualified Wire.API.Routes.Public.Brig.OAuth as OAuth
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -142,6 +147,7 @@ import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
 import Wire.Sem.Concurrency
+import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 
 -- User API -----------------------------------------------------------
@@ -160,7 +166,7 @@ docsAPI =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just V4) =
+versionedSwaggerDocsAPI (Just (VersionNumber V4)) =
   swaggerSchemaUIServer $
     ( brigSwagger
         <> versionSwagger
@@ -170,14 +176,15 @@ versionedSwaggerDocsAPI (Just V4) =
         <> CannonAPI.swaggerDoc
         <> GundeckAPI.swaggerDoc
         <> ProxyAPI.swaggerDoc
+        <> OAuth.swaggerDoc
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
       & cleanupSwagger
-versionedSwaggerDocsAPI (Just V0) = swaggerPregenUIServer $(pregenSwagger V0)
-versionedSwaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
-versionedSwaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
-versionedSwaggerDocsAPI (Just V3) = swaggerPregenUIServer $(pregenSwagger V3)
+versionedSwaggerDocsAPI (Just (VersionNumber V0)) = swaggerPregenUIServer $(pregenSwagger V0)
+versionedSwaggerDocsAPI (Just (VersionNumber V1)) = swaggerPregenUIServer $(pregenSwagger V1)
+versionedSwaggerDocsAPI (Just (VersionNumber V2)) = swaggerPregenUIServer $(pregenSwagger V2)
+versionedSwaggerDocsAPI (Just (VersionNumber V3)) = swaggerPregenUIServer $(pregenSwagger V3)
 versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
 
 -- | Serves Swagger docs for internal endpoints
@@ -191,15 +198,15 @@ internalEndpointsSwaggerDocsAPI ::
   PortNumber ->
   S.Swagger ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
-internalEndpointsSwaggerDocsAPI service examplePort swagger (Just V4) =
+internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V4)) =
   swaggerSchemaUIServer $
     swagger
       & adjustSwaggerForInternalEndpoint service examplePort
       & cleanupSwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just V0) = emptySwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just V1) = emptySwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just V2) = emptySwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just V3) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V0)) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V1)) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V2)) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V3)) = emptySwagger
 internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
   internalEndpointsSwaggerDocsAPI service examplePort swagger (Just maxBound)
 
@@ -214,7 +221,8 @@ servantSitemap ::
     Member Now r,
     Member PasswordResetStore r,
     Member PublicKeyBundle r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member Jwk r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -233,6 +241,7 @@ servantSitemap =
     :<|> callingAPI
     :<|> Team.servantAPI
     :<|> systemSettingsAPI
+    :<|> oauthAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -243,6 +252,7 @@ servantSitemap =
         :<|> Named @"get-user-by-handle-qualified" (callsFed (exposeAnnotations Handle.getHandleInfo))
         :<|> Named @"list-users-by-unqualified-ids-or-handles" (callsFed (exposeAnnotations listUsersByUnqualifiedIdsOrHandles))
         :<|> Named @"list-users-by-ids-or-handles" (callsFed (exposeAnnotations listUsersByIdsOrHandles))
+        :<|> Named @"list-users-by-ids-or-handles@V3" (callsFed (exposeAnnotations listUsersByIdsOrHandlesV3))
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
 
@@ -288,6 +298,7 @@ servantSitemap =
         :<|> Named @"get-users-prekey-bundle-unqualified" (callsFed (exposeAnnotations getPrekeyBundleUnqualifiedH))
         :<|> Named @"get-users-prekey-bundle-qualified" (callsFed (exposeAnnotations getPrekeyBundleH))
         :<|> Named @"get-multi-user-prekey-bundle-unqualified" getMultiUserPrekeyBundleUnqualifiedH
+        :<|> Named @"get-multi-user-prekey-bundle-qualified@v3" (callsFed (exposeAnnotations getMultiUserPrekeyBundleHV3))
         :<|> Named @"get-multi-user-prekey-bundle-qualified" (callsFed (exposeAnnotations getMultiUserPrekeyBundleH))
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
@@ -466,12 +477,11 @@ getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
     throwStd (errorToWai @'E.TooManyClients)
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
-getMultiUserPrekeyBundleH ::
-  (Member (Concurrency 'Unsafe) r) =>
-  UserId ->
+getMultiUserPrekeyBundleHInternal ::
+  (MonadReader Env m, MonadError Brig.API.Error.Error m) =>
   Public.QualifiedUserClients ->
-  (Handler r) Public.QualifiedUserClientPrekeyMap
-getMultiUserPrekeyBundleH zusr qualUserClients = do
+  m ()
+getMultiUserPrekeyBundleHInternal qualUserClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   let Sum (size :: Int) =
         Map.foldMapWithKey
@@ -479,6 +489,23 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
           (Public.qualifiedUserClients qualUserClients)
   when (size > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
+
+getMultiUserPrekeyBundleHV3 ::
+  Member (Concurrency 'Unsafe) r =>
+  UserId ->
+  Public.QualifiedUserClients ->
+  (Handler r) Public.QualifiedUserClientPrekeyMap
+getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
+  getMultiUserPrekeyBundleHInternal qualUserClients
+  API.claimMultiPrekeyBundlesV3 (ProtectedUser zusr) qualUserClients !>> clientError
+
+getMultiUserPrekeyBundleH ::
+  Member (Concurrency 'Unsafe) r =>
+  UserId ->
+  Public.QualifiedUserClients ->
+  (Handler r) Public.QualifiedUserClientPrekeyMapV4
+getMultiUserPrekeyBundleH zusr qualUserClients = do
+  getMultiUserPrekeyBundleHInternal qualUserClients
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient ::
@@ -699,7 +726,7 @@ listUsersByUnqualifiedIdsOrHandles ::
 listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
   domain <- viewFederationDomain
   case (mUids, mHandles) of
-    (Just uids, _) -> listUsersByIdsOrHandles self (Public.ListUsersByIds ((`Qualified` domain) <$> fromCommaSeparatedList uids))
+    (Just uids, _) -> listUsersByIdsOrHandlesV3 self (Public.ListUsersByIds ((`Qualified` domain) <$> fromCommaSeparatedList uids))
     (_, Just handles) ->
       let normalRangedList = fromCommaSeparatedList $ fromRange handles
           qualifiedList = (`Qualified` domain) <$> normalRangedList
@@ -708,10 +735,21 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
           -- annotation here otherwise a change in 'Public.ListUsersByHandles'
           -- could cause this code to break.
           qualifiedRangedList :: Range 1 4 [Qualified Handle] = unsafeRange qualifiedList
-       in listUsersByIdsOrHandles self (Public.ListUsersByHandles qualifiedRangedList)
+       in listUsersByIdsOrHandlesV3 self (Public.ListUsersByHandles qualifiedRangedList)
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
-listUsersByIdsOrHandles ::
+listUsersByIdsOrHandlesGetIds :: [Handle] -> (Handler r) [Qualified UserId]
+listUsersByIdsOrHandlesGetIds localHandles = do
+  localUsers <- catMaybes <$> traverse (lift . wrapClient . API.lookupHandle) localHandles
+  domain <- viewFederationDomain
+  pure $ map (`Qualified` domain) localUsers
+
+listUsersByIdsOrHandlesGetUsers :: Local x -> Range n m [Qualified Handle] -> Handler r [Qualified UserId]
+listUsersByIdsOrHandlesGetUsers lself hs = do
+  let (localHandles, _) = partitionQualified lself (fromRange hs)
+  listUsersByIdsOrHandlesGetIds localHandles
+
+listUsersByIdsOrHandlesV3 ::
   forall r.
   ( Member GalleyProvider r,
     Member (Concurrency 'Unsafe) r
@@ -719,26 +757,48 @@ listUsersByIdsOrHandles ::
   UserId ->
   Public.ListUsersQuery ->
   (Handler r) [Public.UserProfile]
-listUsersByIdsOrHandles self q = do
+listUsersByIdsOrHandlesV3 self q = do
   lself <- qualifyLocal self
   foundUsers <- case q of
     Public.ListUsersByIds us ->
       byIds lself us
     Public.ListUsersByHandles hs -> do
-      let (localHandles, _) = partitionQualified lself (fromRange hs)
-      us <- getIds localHandles
+      us <- listUsersByIdsOrHandlesGetUsers lself hs
       Handle.filterHandleResults lself =<< byIds lself us
   case foundUsers of
     [] -> throwStd $ notFound "None of the specified ids or handles match any users"
     _ -> pure foundUsers
   where
-    getIds :: [Handle] -> (Handler r) [Qualified UserId]
-    getIds localHandles = do
-      localUsers <- catMaybes <$> traverse (lift . wrapClient . API.lookupHandle) localHandles
-      domain <- viewFederationDomain
-      pure $ map (`Qualified` domain) localUsers
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
     byIds lself uids = API.lookupProfiles lself uids !>> fedError
+
+-- Similar to listUsersByIdsOrHandlesV3, except that it allows partial successes
+-- using a new return type
+listUsersByIdsOrHandles ::
+  forall r.
+  ( Member GalleyProvider r,
+    Member (Concurrency 'Unsafe) r
+  ) =>
+  UserId ->
+  Public.ListUsersQuery ->
+  Handler r ListUsersById
+listUsersByIdsOrHandles self q = do
+  lself <- qualifyLocal self
+  (errors, foundUsers) <- case q of
+    Public.ListUsersByIds us ->
+      byIds lself us
+    Public.ListUsersByHandles hs -> do
+      us <- listUsersByIdsOrHandlesGetUsers lself hs
+      (l, r) <- byIds lself us
+      r' <- Handle.filterHandleResults lself r
+      pure (l, r')
+  pure $ ListUsersById foundUsers $ fst <$$> nonEmpty errors
+  where
+    byIds ::
+      Local UserId ->
+      [Qualified UserId] ->
+      Handler r ([(Qualified UserId, FederationError)], [Public.UserProfile])
+    byIds lself uids = lift (API.lookupProfilesV3 lself uids) !>> fedError
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)

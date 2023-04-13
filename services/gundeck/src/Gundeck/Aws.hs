@@ -355,6 +355,7 @@ data PublishError
   = EndpointDisabled !EndpointArn
   | InvalidEndpoint !EndpointArn
   | PayloadTooLarge !EndpointArn
+  | UnauthorisedEndpoint !EndpointArn
 
 newtype Attributes = Attributes
   { setAttributes :: Endo (HashMap Text SNS.MessageAttributeValue)
@@ -424,6 +425,9 @@ publish arn txt attrs = do
           && AWS.newErrorCode "InvalidParameter" == e ^. serviceError_code
           && isArnError (e ^. serviceError_message) ->
           pure (Left (InvalidEndpoint arn))
+      | is "SNS" 403 x
+          && AWS.newErrorCode "AuthorizationError" == e ^. serviceError_code ->
+          pure (Left (UnauthorisedEndpoint arn))
     Left x -> throwM (GeneralError x)
   where
     -- Thank you Amazon for not having granular error codes!

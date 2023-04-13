@@ -87,6 +87,7 @@ import Imports
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Media.MediaType
 import qualified Network.HTTP.Types as HTTP
+import Network.URI (pathSegments)
 import Network.Wai (defaultRequest)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Test as Wai
@@ -107,6 +108,7 @@ import Web.Cookie
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Code hiding (Value)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -147,7 +149,13 @@ import Wire.API.User.Client.Prekey
 -- API Operations
 
 addPrefix :: Request -> Request
-addPrefix = addPrefixAtVersion maxBound
+addPrefix = maybeAddPrefixAtVersion maxBound
+
+maybeAddPrefixAtVersion :: Version -> Request -> Request
+maybeAddPrefixAtVersion vers r = case pathSegments $ getUri r of
+  ("i" : _) -> r
+  ("api-internal" : _) -> r
+  _ -> addPrefixAtVersion vers r
 
 addPrefixAtVersion :: Version -> Request -> Request
 addPrefixAtVersion v r = r {HTTP.path = toHeader v <> "/" <> removeSlash (HTTP.path r)}
@@ -1346,15 +1354,19 @@ postJoinConv u c = do
       . zType "access"
 
 postJoinCodeConv :: UserId -> ConversationCode -> TestM ResponseLBS
-postJoinCodeConv u j = do
+postJoinCodeConv = postJoinCodeConv' Nothing
+
+postJoinCodeConv' :: Maybe PlainTextPassword8 -> UserId -> ConversationCode -> TestM ResponseLBS
+postJoinCodeConv' mPw u j = do
   g <- viewGalley
   post $
     g
-      . paths ["/conversations", "join"]
+      . paths ["conversations", "join"]
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json j
+      -- `json (JoinConversationByCode j Nothing)` and `json j` are equivalent, using the latter to test backwards compatibility
+      . (if isJust mPw then json (JoinConversationByCode j mPw) else json j)
 
 putQualifiedAccessUpdate ::
   (MonadHttp m, HasGalley m, MonadIO m) =>
@@ -1406,7 +1418,10 @@ putMessageTimerUpdate u c acc = do
       . json acc
 
 postConvCode :: UserId -> ConvId -> TestM ResponseLBS
-postConvCode u c = do
+postConvCode = postConvCode' Nothing
+
+postConvCode' :: Maybe PlainTextPassword8 -> UserId -> ConvId -> TestM ResponseLBS
+postConvCode' mPw u c = do
   g <- viewGalley
   post $
     g
@@ -1414,6 +1429,7 @@ postConvCode u c = do
       . zUser u
       . zConn "conn"
       . zType "access"
+      . json (CreateConversationCodeRequest mPw)
 
 postConvCodeCheck :: ConversationCode -> TestM ResponseLBS
 postConvCodeCheck code = do
@@ -1843,10 +1859,10 @@ instance IsString TestErrorLabel where
 instance FromJSON TestErrorLabel where
   parseJSON = fmap TestErrorLabel . withObject "TestErrorLabel" (.: "label")
 
-decodeConvCode :: Response (Maybe Lazy.ByteString) -> ConversationCode
+decodeConvCode :: Response (Maybe Lazy.ByteString) -> ConversationCodeInfo
 decodeConvCode = responseJsonUnsafe
 
-decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCode
+decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCodeInfo
 decodeConvCodeEvent r = case responseJsonUnsafe r of
   (Event _ _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"
@@ -2154,7 +2170,7 @@ ensureClientCaps uid cid caps = do
   liftIO $ assertEqual ("ensureClientCaps: " <> show (uid, cid, caps)) (clientCapabilities clnt) caps
 
 -- TODO: Refactor, as used also in brig
-deleteClient :: UserId -> ClientId -> Maybe PlainTextPassword -> TestM ResponseLBS
+deleteClient :: UserId -> ClientId -> Maybe PlainTextPassword6 -> TestM ResponseLBS
 deleteClient u c pw = do
   b <- viewBrig
   delete $
@@ -2308,8 +2324,8 @@ otrRecipients =
 genRandom :: (Q.Arbitrary a, MonadIO m) => m a
 genRandom = liftIO . Q.generate $ Q.arbitrary
 
-defPassword :: PlainTextPassword
-defPassword = PlainTextPassword "secret"
+defPassword :: PlainTextPassword6
+defPassword = plainTextPassword6Unsafe "topsecretdefaultpassword"
 
 randomEmail :: MonadIO m => m Email
 randomEmail = do
@@ -2661,8 +2677,8 @@ checkUserUpdateEvent uid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   etype @?= Just "user.update"
   euser @?= Just (UUID.toText (toUUID uid))
 
-checkUserDeleteEvent :: HasCallStack => UserId -> WS.WebSocket -> TestM ()
-checkUserDeleteEvent uid w = WS.assertMatch_ checkTimeout w $ \notif -> do
+checkUserDeleteEvent :: HasCallStack => UserId -> WS.Timeout -> WS.WebSocket -> TestM ()
+checkUserDeleteEvent uid timeout_ w = WS.assertMatch_ timeout_ w $ \notif -> do
   let j = Object $ List1.head (ntfPayload notif)
   let etype = j ^? key "type" . _String
   let euser = j ^? key "id" . _String
@@ -2698,6 +2714,19 @@ checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   case evtData e of
     Conv.EdConversation x -> (qUnqualified . cnvQualifiedId) x @?= cid
     other -> assertFailure $ "Unexpected event data: " <> show other
+
+wsAssertConvCreate ::
+  HasCallStack =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  Notification ->
+  IO ()
+wsAssertConvCreate conv eventFrom n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  evtConv e @?= conv
+  evtType e @?= Conv.ConvCreate
+  evtFrom e @?= eventFrom
 
 wsAssertConvCreateWithRole ::
   HasCallStack =>

@@ -40,13 +40,18 @@ docs.
 
 The first part of the URL's path is the version. No specified version means
 Swagger docs of the *latest* API version. This differs from other API endpoints
-where no version means `v0`! New versions are added from time to time. If you
+where no version means `v0`!
+
+New versions are added from time to time. If you
 would like to look at the docs of another version (which did not exist at the
 time of writing): Just update the first path element of an existing link.
-
 The URL pattern is `https://<nginz-host>/v<version>/api/swagger-ui/`. To figure
 out which versions are supported by your backend, query
 `https://<nginz-host>/<version>/api-version`.
+
+If you want to get the raw json for the swagger (ie., for compiling it
+into client code in typescript, kotlin, swift, ...), replace
+`swagger-ui` with `swagger.json` in the above URL pattern.
 
 The [API versioning](../../developer/developer/api-versioning.md) article
 discusses the versioning topic in detail.
@@ -57,7 +62,7 @@ To get the versions a backend (`staging-nginz-https.zinfra.io` in this case)
 supports, execute:
 
 ```sh
-curl https://staging-nginz-https.zinfra.io/api-version 
+curl https://staging-nginz-https.zinfra.io/api-version
 {"development":[3],"domain":"staging.zinfra.io","federation":false,"supported":[0,1,2]}
 ```
 
@@ -70,19 +75,8 @@ Swagger docs for internal endpoints are served per service. I.e. there's one for
 `brig`, one for `cannon`, etc.. This is because Swagger doesn't play well with
 multiple actions having the same combination of HTTP method and URL path.
 
-- Version `v3`:
-    - [`brig` - **internal** (private)
-    endpoints](https://staging-nginz-https.zinfra.io/v3/api-internal/swagger-ui/brig)
-    - [`cannon` - **internal** (private)
-    endpoints](https://staging-nginz-https.zinfra.io/v3/api-internal/swagger-ui/cannon)
-    - [`cargohold` - **internal** (private)
-    endpoints](https://staging-nginz-https.zinfra.io/v3/api-internal/swagger-ui/cargohold)
-    - [`galley` - **internal** (private)
-    endpoints](https://staging-nginz-https.zinfra.io/v3/api-internal/swagger-ui/galley)
-    - [`legalhold` - **internal** (private)
-    endpoints](https://staging-nginz-https.zinfra.io/v3/api-internal/swagger-ui/legalhold)
-    - [`spar` - **internal** (private)
-    endpoints](https://staging-nginz-https.zinfra.io/v3/api-internal/swagger-ui/spar)
+Internal APIs are not under version control.
+
 - Unversioned:
     - [`brig` - **internal** (private)
     endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig)
@@ -92,15 +86,11 @@ multiple actions having the same combination of HTTP method and URL path.
     endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/cargohold)
     - [`galley` - **internal** (private)
     endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley)
-    - [`legalhold` - **internal** (private)
-    endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/legalhold)
     - [`spar` - **internal** (private)
     endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/spar)
 
-The URL pattern is similar to that of public endpoints:
-`https://<nginz-host>/v<version>/api-internal/swagger-ui/`. No specified version
-means Swagger docs the *latest* version (as for public endpoints' Swagger docs.)
+The URL pattern is similar to that of public endpoints for latest version:
+`https://<nginz-host>/api-internal/swagger-ui/<service>`.
 
-Due to technical reasons (we started to export Swagger docs for internal
-endpoints in version `v3`), there are no meaningful Swagger docs for internal
-endpoints for versions `v0` to `v2`.
+If you want to get the raw json of the swagger:
+`https://<nginz-host>/api-internal/swagger-ui/<service>-swagger.json`.

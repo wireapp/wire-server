@@ -25,9 +25,11 @@ import qualified API.Federation
 import qualified API.Internal
 import qualified API.MLS as MLS
 import qualified API.Metrics as Metrics
+import qualified API.OAuth
 import qualified API.Provider as Provider
 import qualified API.Search as Search
 import qualified API.Settings as Settings
+import qualified API.Swagger
 import qualified API.SystemSettings as SystemSettings
 import qualified API.Team as Team
 import qualified API.TeamUserSearch as TeamUserSearch
@@ -52,6 +54,7 @@ import Imports hiding (local)
 import qualified Index.Create
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Network.URI (pathSegments)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative hiding (action)
@@ -112,6 +115,7 @@ instance FromJSON Config
 runTests :: Config -> Opts.Opts -> [String] -> IO ()
 runTests iConf brigOpts otherArgs = do
   let b = mkVersionedRequest $ brig iConf
+      brigNoImplicitVersion = mkRequest $ brig iConf
       c = mkVersionedRequest $ cannon iConf
       gd = mkVersionedRequest $ gundeck iConf
       ch = mkVersionedRequest $ cargohold iConf
@@ -158,7 +162,9 @@ runTests iConf brigOpts otherArgs = do
 
   let smtp = SMTP.tests mg lg
       versionApi = API.Version.tests mg brigOpts b
+      swaggerApi = API.Swagger.tests mg brigOpts brigNoImplicitVersion
       mlsApi = MLS.tests mg b brigOpts
+      oauthAPI = API.OAuth.tests mg db b n brigOpts
 
   withArgs otherArgs . defaultMain
     $ testGroup
@@ -182,14 +188,22 @@ runTests iConf brigOpts otherArgs = do
         federationEndpoints,
         internalApi,
         versionApi,
+        swaggerApi,
         mlsApi,
-        smtp
+        smtp,
+        oauthAPI
       ]
       <> [federationEnd2End | includeFederationTests]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
 
-    mkVersionedRequest endpoint = addPrefix . mkRequest endpoint
+    mkVersionedRequest endpoint = maybeAddPrefix . mkRequest endpoint
+
+    maybeAddPrefix :: Request -> Request
+    maybeAddPrefix r = case pathSegments $ getUri r of
+      ("i" : _) -> r
+      ("api-internal" : _) -> r
+      _ -> addPrefix r
 
     addPrefix :: Request -> Request
     addPrefix r = r {HTTP.path = toHeader latestVersion <> "/" <> removeSlash (HTTP.path r)}

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "stern-integration"
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation
+data:
+  integration.yaml: |
+    brig:
+      host: brig
+      port: 8080
+
+    galley:
+      host: galley
+      port: 8080
+
+    stern:
+      host: backoffice
+      port: 8080
