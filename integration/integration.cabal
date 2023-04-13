@@ -95,8 +95,8 @@ executable integration
     , network-uri
     , random
     , scientific
+    , tagged
     , tasty
     , text
     , transformers
-    , tagged
     , yaml
