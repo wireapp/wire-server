@@ -1880,23 +1880,21 @@ testAccessUpdateGuestRemovedRemotesUnavailable = do
   WS.bracketRN c (map qUnqualified [alice, bob, charlie]) $ \[wsA, wsB, wsC] -> do
     -- conversation access role changes to team only
     (_, reqs) <- withTempMockFederator' (throw $ MockErrorResponse HTTP.status503 "Down for maintenance") $ do
+      -- This request should still succeed even with an unresponsive federation member.
       putQualifiedAccessUpdate
         (qUnqualified alice)
         (cnvQualifiedId conv)
         (ConversationAccessData mempty (Set.fromList [TeamMemberAccessRole]))
         !!! const 200 === statusCode
-    -- charlie and dee are kicked out
-    --
-    -- note that removing users happens asynchronously, so this check should
-    -- happen while the mock federator is still available
-    -- Bumping timeouts on these, as I have noticed in local testing that test
-    -- results aren't consistent on these checks
-    WS.assertMatchN_ (10 # Second) [wsA, wsB, wsC] $
-      wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie]
-    WS.assertMatchN_ (10 # Second) [wsA, wsB, wsC] $
-      wsAssertMembersLeave (cnvQualifiedId conv) alice [dee]
+      -- charlie and dee are kicked out
+      --
+      -- note that removing users happens asynchronously, so this check should
+      -- happen while the mock federator is still available
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
+        wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie]
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
+        wsAssertMembersLeave (cnvQualifiedId conv) alice [dee]
 
-    -- dee's remote _doesn't_ receives a notification
     let compareLists [] ys = [] @?= ys
         compareLists (x : xs) ys = case break (== x) ys of
           (ys1, _ : ys2) -> compareLists xs (ys1 <> ys2)
@@ -1917,6 +1915,7 @@ testAccessUpdateGuestRemovedRemotesUnavailable = do
             )
         )
         [ Right (alice, SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure charlie)),
+          Right (alice, SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure dee)),
           Right
             ( alice,
               SomeConversationAction
