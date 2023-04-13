@@ -20,6 +20,7 @@ module API.Roles where
 import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
+import Control.Exception
 import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion (toByteString')
@@ -32,6 +33,7 @@ import qualified Data.Set as Set
 import Data.Singletons
 import Federator.MockServer
 import Imports
+import qualified Network.HTTP.Types as Http
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -46,8 +48,6 @@ import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
-import qualified Network.HTTP.Types as Http
-import Control.Exception
 
 tests :: IO TestSetup -> TestTree
 tests s =

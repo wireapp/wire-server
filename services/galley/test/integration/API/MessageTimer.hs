@@ -23,6 +23,7 @@ where
 import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
+import Control.Exception
 import Control.Lens (view)
 import Data.Aeson (eitherDecode)
 import Data.Domain
@@ -34,6 +35,7 @@ import Data.Qualified
 import Data.Singletons
 import Federator.MockServer
 import Imports hiding (head)
+import qualified Network.HTTP.Types as Http
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -48,8 +50,6 @@ import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
-import Control.Exception
-import qualified Network.HTTP.Types as Http
 
 tests :: IO TestSetup -> TestTree
 tests s =

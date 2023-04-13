@@ -21,6 +21,7 @@ module API.Federation where
 import API.Util
 import Bilge hiding (head)
 import Bilge.Assert
+import Control.Exception
 import Control.Lens hiding ((#))
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (toByteString')
@@ -42,6 +43,7 @@ import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
 import Federator.MockServer
 import Imports
+import qualified Network.HTTP.Types as Http
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
@@ -61,8 +63,7 @@ import Wire.API.Message
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
-import qualified Network.HTTP.Types as Http
-import Control.Exception
+
 tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
@@ -505,8 +506,9 @@ notifyUpdateUnavailable extras action etype edata = do
             FedGalley.cuAction = action
           }
   WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
-    ((), _fedRequests) <- withTempMockFederator' (throw $ MockErrorResponse Http.status500 "Down for maintenance") $
-      runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
+    ((), _fedRequests) <-
+      withTempMockFederator' (throw $ MockErrorResponse Http.status500 "Down for maintenance") $
+        runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
     putStrLn $ "on-conversation-updated: " <> show _fedRequests
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsA $ \n -> do

@@ -3626,7 +3626,6 @@ putQualifiedConvRenameWithRemotesOk = do
       evtFrom e @?= qbob
       evtData e @?= EdConvRename (ConversationRename "gossip++")
 
-
 putQualifiedConvRenameWithRemotesUnavailable :: TestM ()
 putQualifiedConvRenameWithRemotesUnavailable = do
   c <- view tsCannon
@@ -4154,7 +4153,6 @@ putReceiptModeWithRemotesOk = do
       evtData e
         @?= EdConvReceiptModeUpdate
           (ConversationReceiptModeUpdate (ReceiptMode 43))
-
 
 putReceiptModeWithRemotesUnavailable :: TestM ()
 putReceiptModeWithRemotesUnavailable = do
