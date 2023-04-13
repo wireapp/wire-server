@@ -632,9 +632,15 @@ updateLocalConversationUnchecked lconv qusr con action = do
   (extraTargets, action') <- performAction tag qusr lconv action
 
   notifyConversationAction
-    -- Removing members should be fault tolerant.
     ( case tag of
+        -- Removing members should be fault tolerant.
         SConversationRemoveMembersTag -> False
+        -- Conversation metadata updates should be fault tolerant.
+        SConversationRenameTag -> False
+        SConversationMessageTimerUpdateTag -> False
+        SConversationReceiptModeUpdateTag -> False
+        SConversationAccessDataTag -> False
+        SConversationMemberUpdateTag -> False
         _ -> True
     )
     (sing @tag)
