@@ -40,6 +40,7 @@ module Wire.API.User.Client
     UserClients (..),
     mkUserClients,
     QualifiedUserClients (..),
+    qualifiedUserClientsValueSchema,
     filterClients,
     filterClientsFull,
 
@@ -431,9 +432,13 @@ instance Monoid QualifiedUserClients where
 instance Arbitrary QualifiedUserClients where
   arbitrary = QualifiedUserClients <$> mapOf' arbitrary (mapOf' arbitrary (setOf' arbitrary))
 
+qualifiedUserClientsValueSchema :: ValueSchema SwaggerDoc QualifiedUserClients
+qualifiedUserClientsValueSchema =
+  QualifiedUserClients <$> qualifiedUserClients .= map_ (map_ (set schema))
+
 instance ToSchema QualifiedUserClients where
   schema =
-    addDoc . named "QualifiedUserClients" $ QualifiedUserClients <$> qualifiedUserClients .= map_ (map_ (set schema))
+    addDoc . named "QualifiedUserClients" $ qualifiedUserClientsValueSchema
     where
       addDoc sch =
         sch

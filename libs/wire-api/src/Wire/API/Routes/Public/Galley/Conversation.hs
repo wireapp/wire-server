@@ -390,6 +390,7 @@ type ConversationAPI =
            ( Summary "Create a new conversation"
                :> DescriptionOAuthScope 'WriteConversations
                :> MakesFederatedCall 'Galley "on-conversation-created"
+               :> From 'V3
                :> Until 'V4
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSMissingSenderClient

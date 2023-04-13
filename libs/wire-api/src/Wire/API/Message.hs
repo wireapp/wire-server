@@ -84,7 +84,7 @@ import qualified Proto.Otr_Fields as Proto.Otr
 import Servant (FromHttpApiData (..))
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.ServantProto (FromProto (..), ToProto (..))
-import Wire.API.User.Client (QualifiedUserClientMap (QualifiedUserClientMap), QualifiedUserClients, UserClientMap (..), UserClients (..))
+import Wire.API.User.Client
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -523,38 +523,42 @@ data MessageSendingStatus = MessageSendingStatus
 
 instance ToSchema MessageSendingStatus where
   schema =
-    object "MessageSendingStatus" $
-      MessageSendingStatus
-        <$> mssTime
-          .= fieldWithDocModifier
-            "time"
-            (description ?~ "Time of sending message.")
-            schema
-        <*> mssMissingClients
-          .= fieldWithDocModifier
-            "missing"
-            (description ?~ "Clients that the message /should/ have been encrypted for, but wasn't.")
-            schema
-        <*> mssRedundantClients
-          .= fieldWithDocModifier
-            "redundant"
-            (description ?~ "Clients that the message /should not/ have been encrypted for, but was.")
-            schema
-        <*> mssDeletedClients
-          .= fieldWithDocModifier
-            "deleted"
-            (description ?~ "Clients that were deleted.")
-            schema
-        <*> mssFailedToSend
-          .= fieldWithDocModifier
-            "failed_to_send"
-            ( description
-                ?~ "When message sending fails for some clients but succeeds for others,\
-                   \this field will contain the list of clients for which the message sending \
-                   \failed. This list should be empty when message sending is not even tried, \
-                   \like when some clients are missing."
-            )
-            schema
+    objectWithDocModifier
+      "MessageSendingStatus"
+      (description ?~ combinedDesc)
+      $ MessageSendingStatus
+        <$> mssTime .= field "time" schema
+        <*> mssMissingClients .= field "missing" schema
+        <*> mssRedundantClients .= field "redundant" schema
+        <*> mssDeletedClients .= field "deleted" schema
+        <*> mssFailedToSend .= field "failed_to_send" schema
+    where
+      combinedDesc =
+        "The Proteus message sending status. It has these fields:\n\
+        \- `time`: "
+          <> timeDesc
+          <> "\n\
+             \- `missing`: "
+          <> missingDesc
+          <> "\n\
+             \- `redundant`: "
+          <> redundantDesc
+          <> "\n\
+             \- `deleted`: "
+          <> deletedDesc
+          <> "\n\
+             \- `failed_to_send`: "
+          <> failedToSendDesc
+      timeDesc = "Time of sending message."
+      missingDesc = "Clients that the message /should/ have been encrypted for, but wasn't."
+      redundantDesc = "Clients that the message /should not/ have been encrypted for, but was."
+      deletedDesc = "Clients that were deleted."
+      failedToSendDesc =
+        "When message sending fails for some clients but succeeds for others, \
+        \e.g., because a remote backend is unreachable, \
+        \this field will contain the list of clients for which the message sending \
+        \failed. This list should be empty when message sending is not even tried, \
+        \like when some clients are missing."
 
 -- QueryParams
 
