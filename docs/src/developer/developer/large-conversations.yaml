@@ -1,4 +1,4 @@
-# Context: We would like to refactor galley so the full list conversation
+# Context: We would like to refactor galley so the full list of conversation
 # members is never loaded into memory. This refactoring a requiste for
 # supporting large conversations (10k, 100k users).
 #
