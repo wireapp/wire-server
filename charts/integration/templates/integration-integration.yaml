@@ -13,12 +13,34 @@ spec:
       configMap:
         name: "integration-config"
 
+    - name: "galley-config"
+      configMap:
+        name: "galley"
+
+    - name: "galley-integration-secrets"
+      configMap:
+        name: "galley-integration-secrets"
+
+    - name: "galley-secrets"
+      secret:
+        secretName: "galley"
+
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
     command: [ "integration", "--config", "/etc/wire/integration/integration.yaml" ]
     volumeMounts:
+
     - name: "integration-config"
       mountPath: "/etc/wire/integration"
+
+    - name: "galley-config"
+      mountPath: "/etc/wire/galley/config"
+
+    - name: "galley-integration-secrets"
+      mountPath: "/etc/wire/galley/integration-secrets"
+
+    - name: "galley-secrets"
+      mountPath: "/etc/wire/galley/secrets"
 
   restartPolicy: Never
