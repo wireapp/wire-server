@@ -805,7 +805,7 @@ createExternalAddProposal joiner = do
   proposal <-
     mlscli
       joiner
-      [ "proposal-external",
+      [ "external-proposal",
         "--group-id",
         T.unpack (toBase64Text (unGroupId groupId)),
         "--epoch",
