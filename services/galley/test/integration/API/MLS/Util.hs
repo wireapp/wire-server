@@ -759,15 +759,15 @@ readWelcome fp = runMaybeT $ do
   liftIO $ BS.readFile fp
 
 createRemoveCommit :: HasCallStack => ClientIdentity -> [ClientIdentity] -> MLSTest MessagePackage
-createRemoveCommit cid _targets = do
-  -- TODO
+createRemoveCommit cid targets = do
   bd <- State.gets mlsBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   pgsFile <- liftIO $ emptyTempFile bd "pgs"
 
   g <- getClientGroupState cid
 
-  let indices = map snd (readGroupState g)
+  let groupStateMap = Map.fromList (readGroupState g)
+  let indices = map (fromMaybe (error "could not find target") . flip Map.lookup groupStateMap) targets
   commit <-
     mlscli
       cid
@@ -931,17 +931,15 @@ mlsBracket clients k = do
 
 readGroupState :: ByteString -> [(ClientIdentity, Word32)]
 readGroupState j = do
-  node <- j ^.. key "group" . key "public_group" . key "treesync" . key "tree" . key "leaf_nodes" . _Array . traverse . key "node"
-
-  case node ^? key "leaf_index" of
-    Just i -> do
-      identityBytes <- node ^.. key "leaf_node" . key "payload" . key "credential" . key "credential" . key "Basic" . key "identity" . key "vec"
+  (node, n) <- zip (j ^.. key "group" . key "public_group" . key "treesync" . key "tree" . key "leaf_nodes" . _Array . traverse . key "node") [0 ..]
+  case node ^? key "leaf_node" of
+    Just leafNode -> do
+      identityBytes <- leafNode ^.. key "payload" . key "credential" . key "credential" . key "Basic" . key "identity" . key "vec"
       let identity = BS.pack (identityBytes ^.. _Array . traverse . _Integer . to fromIntegral)
       cid <- case decodeMLS' identity of
         Left _ -> []
         Right x -> pure x
-      n <- i ^.. _Integer . to fromIntegral
-      pure $ (cid, n)
+      pure (cid, n)
     Nothing -> []
 
 getClientsFromGroupState ::
