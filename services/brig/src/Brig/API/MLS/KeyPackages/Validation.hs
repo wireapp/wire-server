@@ -17,10 +17,9 @@
 
 module Brig.API.MLS.KeyPackages.Validation
   ( -- * Main key package validation function
-    validateKeyPackage,
-    validateLeafNode,
-    mlsProtocolError,
+    validateUploadedKeyPackage,
     validateLifetime',
+    mlsProtocolError,
   )
 where
 
@@ -29,102 +28,55 @@ import Brig.API.Handler
 import Brig.App
 import qualified Brig.Data.Client as Data
 import Brig.Options
-import Control.Applicative
-import Control.Lens (view)
-import qualified Data.ByteString.Lazy as LBS
+import Control.Lens
+import qualified Data.ByteString as LBS
 import Data.Qualified
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Imports
 import Wire.API.Error
 import Wire.API.Error.Brig
-import Wire.API.MLS.Capabilities
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Lifetime
-import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Validation
 
-validateKeyPackage ::
+validateUploadedKeyPackage ::
   ClientIdentity ->
   RawMLS KeyPackage ->
   Handler r (KeyPackageRef, KeyPackageData)
-validateKeyPackage identity (RawMLS (KeyPackageData -> kpd) kp) = do
-  loc <- qualifyLocal ()
-  -- get ciphersuite
-  cs <-
-    maybe
-      (mlsProtocolError "Unsupported ciphersuite")
-      pure
-      $ cipherSuiteTag kp.cipherSuite
+validateUploadedKeyPackage identity kp = do
+  (cs, lt) <- either mlsProtocolError pure $ validateKeyPackage (Just identity) kp.rmValue
 
-  let ss = csSignatureScheme cs
+  validateLifetime lt
 
   -- Authenticate signature key. This is performed only upon uploading a key
   -- package for a local client.
+  loc <- qualifyLocal ()
   foldQualified
     loc
     ( \_ -> do
-        key <-
-          fmap LBS.toStrict $
-            maybe
-              (mlsProtocolError "No key associated to the given identity and signature scheme")
-              pure
-              =<< lift (wrapClient (Data.lookupMLSPublicKey (ciUser identity) (ciClient identity) ss))
-        when (key /= kp.leafNode.signatureKey) $
+        mkey :: Maybe LByteString <-
+          lift . wrapClient $
+            Data.lookupMLSPublicKey
+              (ciUser identity)
+              (ciClient identity)
+              (csSignatureScheme cs)
+        key :: LByteString <-
+          maybe
+            (mlsProtocolError "No key associated to the given identity and signature scheme")
+            pure
+            mkey
+        when (key /= LBS.fromStrict kp.rmValue.leafNode.signatureKey) $
           mlsProtocolError "Unrecognised signature key"
     )
-    (pure . const ())
+    (\_ -> pure ())
     (cidQualifiedClient identity)
 
-  -- validate signature
-  unless
-    ( csVerifySignatureWithLabel
-        cs
-        kp.leafNode.signatureKey
-        "KeyPackageTBS"
-        kp.tbs
-        kp.signature_
-    )
-    $ mlsProtocolError "Invalid signature"
-  -- validate protocol version
-  maybe
-    (mlsProtocolError "Unsupported protocol version")
-    pure
-    (pvTag (kp.protocolVersion) >>= guard . (== ProtocolMLS10))
-
-  -- validate credential, lifetime and capabilities
-  validateLeafNode identity kp.leafNode
-
+  let kpd = KeyPackageData kp.rmRaw
   pure (kpRef cs kpd, kpd)
-
-validateLeafNode :: ClientIdentity -> LeafNode -> Handler r ()
-validateLeafNode identity leafNode = do
-  validateCredential identity leafNode.credential
-  validateSource leafNode.source
-  validateCapabilities leafNode.capabilities
-
-validateCredential :: ClientIdentity -> Credential -> Handler r ()
-validateCredential identity (BasicCredential cred) = do
-  identity' <-
-    either credentialError pure $
-      decodeMLS' cred
-  when (identity /= identity') $
-    throwStd (errorToWai @'MLSIdentityMismatch)
-  where
-    credentialError e =
-      mlsProtocolError $
-        "Failed to parse identity: " <> e
-
-validateSource :: LeafNodeSource -> Handler r ()
-validateSource (LeafNodeSourceKeyPackage lt) = validateLifetime lt
-validateSource s =
-  mlsProtocolError $
-    "Expected 'key_package' source, got '"
-      <> (leafNodeSourceTag s).name
-      <> "'"
 
 validateLifetime :: Lifetime -> Handler r ()
 validateLifetime lt = do
@@ -142,9 +94,6 @@ validateLifetime' now mMaxLifetime lt = do
   for_ mMaxLifetime $ \maxLifetime ->
     when (tsPOSIX (ltNotAfter lt) > now + maxLifetime) $
       Left "Key package expiration time is too far in the future"
-
-validateCapabilities :: Capabilities -> Handler r ()
-validateCapabilities _ = pure ()
 
 mlsProtocolError :: Text -> Handler r a
 mlsProtocolError msg =

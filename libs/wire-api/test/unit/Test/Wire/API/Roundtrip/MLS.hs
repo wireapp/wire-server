@@ -41,7 +41,7 @@ tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "MLS roundtrip tests" $
     [ testRoundTrip @KeyPackageRef,
       testRoundTrip @LeafNode,
-      testRoundTrip @LeafNodeTBS,
+      testRoundTrip @LeafNodeCore,
       testRoundTrip @KeyPackageTBS,
       testRoundTrip @Credential,
       testRoundTrip @ClientIdentity,

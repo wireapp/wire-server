@@ -27,7 +27,6 @@ import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.MLS.KeyPackages.Validation
 import Brig.API.OAuth (internalOauthAPI)
 import Brig.API.Types
 import qualified Brig.API.User as API
@@ -89,7 +88,6 @@ import Wire.API.Federation.API
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.Serialisation
 import Wire.API.Routes.Internal.Brig
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
@@ -146,9 +144,6 @@ mlsAPI =
   )
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
-    :<|> Named @"put-key-package-add" upsertKeyPackage
-    -- Used by galley to validate leaf nodes appearing in an update path
-    :<|> Named @"validate-leaf-node" validateLeafNode
 
 accountAPI ::
   ( Member BlacklistStore r,
@@ -208,39 +203,6 @@ getConvIdByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.keyPackageRe
 -- Used by galley to update key packages in mls_key_package_ref on commits with update_path
 postKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> Handler r ()
 postKeyPackageRef ref = lift . wrapClient . Data.updateKeyPackageRef ref
-
--- Used by galley to update key package refs and also validate
-upsertKeyPackage :: NewKeyPackage -> Handler r NewKeyPackageResult
-upsertKeyPackage nkp = do
-  kp <-
-    either
-      (const $ mlsProtocolError "upsertKeyPackage: Cannot decocode KeyPackage")
-      pure
-      $ decodeMLS' @(RawMLS KeyPackage) (kpData . nkpKeyPackage $ nkp)
-  ref <- kpRef' kp & noteH "upsertKeyPackage: Unsupported CipherSuite"
-
-  identity <-
-    either
-      (const $ mlsProtocolError "upsertKeyPackage: Cannot decode ClientIdentity")
-      pure
-      $ keyPackageIdentity (rmValue kp)
-  mp <- lift . wrapClient . runMaybeT $ Data.derefKeyPackage ref
-  when (isNothing mp) $ do
-    void $ validateKeyPackage identity kp
-    lift . wrapClient $
-      Data.addKeyPackageRef
-        ref
-        ( NewKeyPackageRef
-            (fst <$> cidQualifiedClient identity)
-            (ciClient identity)
-            (nkpConversation nkp)
-        )
-
-  pure $ NewKeyPackageResult identity ref
-  where
-    noteH :: Text -> Maybe a -> Handler r a
-    noteH errMsg Nothing = mlsProtocolError errMsg
-    noteH _ (Just y) = pure y
 
 deleteKeyPackageRefs :: DeleteKeyPackageRefsRequest -> Handler r ()
 deleteKeyPackageRefs (DeleteKeyPackageRefsRequest refs) =

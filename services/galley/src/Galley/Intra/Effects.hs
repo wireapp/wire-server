@@ -86,8 +86,6 @@ interpretBrigAccess = interpret $ \case
   AddKeyPackageRef ref qusr cl qcnv ->
     embedApp $
       addKeyPackageRef ref qusr cl qcnv
-  ValidateLeafNode cid ln -> embedApp $ validateLeafNode cid ln
-  ValidateKeyPackage cid kp -> embedApp $ validateKeyPackage cid kp
   UpdateKeyPackageRef update ->
     embedApp $
       updateKeyPackageRef update

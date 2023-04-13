@@ -18,13 +18,16 @@
 module Wire.API.MLS.LeafNode
   ( LeafIndex,
     LeafNode (..),
+    LeafNodeCore (..),
     LeafNodeTBS (..),
+    LeafNodeTBSExtra (..),
     LeafNodeSource (..),
     LeafNodeSourceTag (..),
     leafNodeSourceTag,
   )
 where
 
+import Data.Binary
 import qualified Data.Swagger as S
 import GHC.Records
 import Imports
@@ -32,6 +35,7 @@ import Test.QuickCheck
 import Wire.API.MLS.Capabilities
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Extension
+import Wire.API.MLS.Group
 import Wire.API.MLS.HPKEPublicKey
 import Wire.API.MLS.Lifetime
 import Wire.API.MLS.Serialisation
@@ -39,7 +43,8 @@ import Wire.Arbitrary
 
 type LeafIndex = Word32
 
-data LeafNodeTBS = LeafNodeTBS
+-- LeafNodeCore contains fields in the intersection of LeafNode and LeafNodeTBS
+data LeafNodeCore = LeafNodeCore
   { encryptionKey :: HPKEPublicKey,
     signatureKey :: ByteString,
     credential :: Credential,
@@ -48,11 +53,42 @@ data LeafNodeTBS = LeafNodeTBS
     extensions :: [Extension]
   }
   deriving (Show, Eq, Generic)
-  deriving (Arbitrary) via (GenericUniform LeafNodeTBS)
+  deriving (Arbitrary) via (GenericUniform LeafNodeCore)
 
-instance ParseMLS LeafNodeTBS where
+-- extra fields in LeafNodeTBS, but not in LeafNode
+data LeafNodeTBSExtra
+  = LeafNodeTBSExtraKeyPackage
+  | LeafNodeTBSExtraUpdate GroupId LeafIndex
+  | LeafNodeTBSExtraCommit GroupId LeafIndex
+
+serialiseUntaggedLeafNodeTBSExtra :: LeafNodeTBSExtra -> Put
+serialiseUntaggedLeafNodeTBSExtra LeafNodeTBSExtraKeyPackage = pure ()
+serialiseUntaggedLeafNodeTBSExtra (LeafNodeTBSExtraUpdate gid idx) = do
+  serialiseMLS gid
+  serialiseMLS idx
+serialiseUntaggedLeafNodeTBSExtra (LeafNodeTBSExtraCommit gid idx) = do
+  serialiseMLS gid
+  serialiseMLS idx
+
+instance HasField "tag" LeafNodeTBSExtra LeafNodeSourceTag where
+  getField = \case
+    LeafNodeTBSExtraKeyPackage -> LeafNodeSourceKeyPackageTag
+    LeafNodeTBSExtraCommit _ _ -> LeafNodeSourceCommitTag
+    LeafNodeTBSExtraUpdate _ _ -> LeafNodeSourceUpdateTag
+
+data LeafNodeTBS = LeafNodeTBS
+  { core :: RawMLS LeafNodeCore,
+    extra :: LeafNodeTBSExtra
+  }
+
+instance SerialiseMLS LeafNodeTBS where
+  serialiseMLS tbs = do
+    serialiseMLS tbs.core
+    serialiseUntaggedLeafNodeTBSExtra tbs.extra
+
+instance ParseMLS LeafNodeCore where
   parseMLS =
-    LeafNodeTBS
+    LeafNodeCore
       <$> parseMLS
       <*> parseMLSBytes @VarInt
       <*> parseMLS
@@ -60,19 +96,19 @@ instance ParseMLS LeafNodeTBS where
       <*> parseMLS
       <*> parseMLSVector @VarInt parseMLS
 
-instance SerialiseMLS LeafNodeTBS where
-  serialiseMLS tbs = do
-    serialiseMLS tbs.encryptionKey
-    serialiseMLSBytes @VarInt tbs.signatureKey
-    serialiseMLS tbs.credential
-    serialiseMLS tbs.capabilities
-    serialiseMLS tbs.source
-    serialiseMLSVector @VarInt serialiseMLS tbs.extensions
+instance SerialiseMLS LeafNodeCore where
+  serialiseMLS core = do
+    serialiseMLS core.encryptionKey
+    serialiseMLSBytes @VarInt core.signatureKey
+    serialiseMLS core.credential
+    serialiseMLS core.capabilities
+    serialiseMLS core.source
+    serialiseMLSVector @VarInt serialiseMLS core.extensions
 
 -- | This type can only verify the signature when the LeafNodeSource is
 -- LeafNodeSourceKeyPackage
 data LeafNode = LeafNode
-  { tbs :: LeafNodeTBS,
+  { core :: RawMLS LeafNodeCore,
     signature_ :: ByteString
   }
   deriving (Show, Eq, Generic)
@@ -86,29 +122,29 @@ instance ParseMLS LeafNode where
 
 instance SerialiseMLS LeafNode where
   serialiseMLS ln = do
-    serialiseMLS ln.tbs
+    serialiseMLS ln.core
     serialiseMLSBytes @VarInt ln.signature_
 
 instance S.ToSchema LeafNode where
   declareNamedSchema _ = pure (mlsSwagger "LeafNode")
 
 instance HasField "encryptionKey" LeafNode HPKEPublicKey where
-  getField = (.tbs.encryptionKey)
+  getField = (.core.rmValue.encryptionKey)
 
 instance HasField "signatureKey" LeafNode ByteString where
-  getField = (.tbs.signatureKey)
+  getField = (.core.rmValue.signatureKey)
 
 instance HasField "credential" LeafNode Credential where
-  getField = (.tbs.credential)
+  getField = (.core.rmValue.credential)
 
 instance HasField "capabilities" LeafNode Capabilities where
-  getField = (.tbs.capabilities)
+  getField = (.core.rmValue.capabilities)
 
 instance HasField "source" LeafNode LeafNodeSource where
-  getField = (.tbs.source)
+  getField = (.core.rmValue.source)
 
 instance HasField "extensions" LeafNode [Extension] where
-  getField = (.tbs.extensions)
+  getField = (.core.rmValue.extensions)
 
 data LeafNodeSource
   = LeafNodeSourceKeyPackage Lifetime

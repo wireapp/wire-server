@@ -51,7 +51,7 @@ uploadKeyPackages :: Local UserId -> ClientId -> KeyPackageUpload -> Handler r (
 uploadKeyPackages lusr cid (kpuKeyPackages -> kps) = do
   assertMLSEnabled
   let identity = mkClientIdentity (tUntagged lusr) cid
-  kps' <- traverse (validateKeyPackage identity) kps
+  kps' <- traverse (validateUploadedKeyPackage identity) kps
   lift . wrapClient $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
 
 claimKeyPackages ::
@@ -121,7 +121,7 @@ claimRemoteKeyPackages lusr target = do
         . kpData
         . kpbeKeyPackage
         $ e
-    (refVal, _) <- validateKeyPackage cid kpRaw
+    (refVal, _) <- validateUploadedKeyPackage cid kpRaw
     unless (refVal == kpbeRef e)
       . throwE
       . clientDataError

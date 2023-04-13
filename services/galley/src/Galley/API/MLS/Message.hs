@@ -91,11 +91,13 @@ import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.API.MLS.Validation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.User.Client
@@ -103,6 +105,13 @@ import Wire.API.User.Client
 -- TODO:
 -- [x] replace ref with index in remove proposals
 -- [ ] validate leaf nodes and key packages locally on galley
+--   - [x] extract validation function to wire-api
+--   - [x] validate lifetime and public key consistency only on brig
+--   - [x] check that ciphersuite matches conversation on galley
+--   - [ ] check the signature on the LeafNode
+--   - [ ] ? verify capabilities
+--   - [ ] verify that all extensions are present in the capabilities
+--   - [ ] ? in the update case (in galley), verify that the encryption_key is different
 -- [ ] remove MissingSenderClient error
 -- [ ] PreSharedKey proposal
 -- [ ] remove all key package ref mapping
@@ -638,8 +647,7 @@ getCommitData senderIdentity lConvOrSub epoch commit = do
 
 processExternalCommit ::
   forall r.
-  ( Member BrigAccess r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (Error MLSProtocolError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSStaleMessage) r,
@@ -675,8 +683,14 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
     throw . mlsProtocolError $
       "The external commit must not have add proposals"
 
-  -- validate and update mapping in brig
-  validateLeafNode senderIdentity leafNode >>= \case
+  -- validate leaf node
+  let cs = cnvmlsCipherSuite (mlsMetaConvOrSub (tUnqualified lConvOrSub))
+  let groupId = cnvmlsGroupId (mlsMetaConvOrSub convOrSub)
+  let extra = LeafNodeTBSExtraCommit groupId (error "calculate index")
+
+  -- TODO: update client in conversation state
+
+  case validateLeafNode cs (Just senderIdentity) extra leafNode.rmValue of
     Left errMsg ->
       throw $
         mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
@@ -687,8 +701,6 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
     unless (isClientMember senderIdentity (mcMembers mlsConv)) $
       throwS @'MLSSubConvClientNotInParent
 
-  let groupId = cnvmlsGroupId (mlsMetaConvOrSub convOrSub)
-
   withCommitLock groupId epoch $ do
     -- validate remove proposal: an external commit can contain
     --
@@ -696,7 +708,7 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
     -- > version of themselves
     remIndex <- case cmAssocs (paRemove action) of
       [] -> pure Nothing
-      [(_, idx :: Word32)] -> do
+      [(_, idx)] -> do
         cid <-
           note (mlsProtocolError "Invalid index in remove proposal") $
             imLookup (indexMapConvOrSub convOrSub) idx
@@ -807,10 +819,10 @@ applyProposalRef convOrSubConvId mlsMeta groupId epoch _suite (Ref ref) = do
   p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
   checkEpoch epoch mlsMeta
   checkGroup groupId mlsMeta
-  applyProposal convOrSubConvId groupId (rmValue p)
-applyProposalRef convOrSubConvId _mlsMeta groupId _epoch suite (Inline p) = do
+  applyProposal convOrSubConvId mlsMeta groupId (rmValue p)
+applyProposalRef convOrSubConvId mlsMeta groupId _epoch suite (Inline p) = do
   checkProposalCipherSuite suite p
-  applyProposal convOrSubConvId groupId p
+  applyProposal convOrSubConvId mlsMeta groupId p
 
 addProposedClient :: Member (State IndexMap) r => ClientIdentity -> Sem r ProposalAction
 addProposedClient cid = do
@@ -825,23 +837,31 @@ applyProposal ::
     Member (State IndexMap) r
   ) =>
   ConvOrSubConvId ->
+  ConversationMLSData ->
   GroupId ->
   Proposal ->
   Sem r ProposalAction
-applyProposal _convOrSubConvId _groupId (AddProposal kp) = do
-  -- TODO: validate key package
+applyProposal _convOrSubConvId mlsMeta _groupId (AddProposal kp) = do
+  (cs, _lifetime) <-
+    either
+      (\msg -> throw (mlsProtocolError ("Invalid key package in Add proposal: " <> msg)))
+      pure
+      $ validateKeyPackage Nothing kp.rmValue
+  unless (mlsMeta.cnvmlsCipherSuite == cs) $
+    throw (mlsProtocolError "Key package ciphersuite does not match conversation")
+  -- we are not checking lifetime constraints here
   cid <- getKeyPackageIdentity kp.rmValue
   addProposedClient cid
-applyProposal _convOrSubConvId _groupId (RemoveProposal idx) = do
+applyProposal _convOrSubConvId _mlsMeta _groupId (RemoveProposal idx) = do
   im <- get
   (cid, im') <- noteS @'MLSInvalidLeafNodeIndex $ imRemoveClient im idx
   put im'
   pure (paRemoveClient cid idx)
-applyProposal _convOrSubConvId _groupId (ExternalInitProposal _) =
+applyProposal _convOrSubConvId _mlsMeta _groupId (ExternalInitProposal _) =
   -- only record the fact there was an external init proposal, but do not
   -- process it in any way.
   pure paExternalInitPresent
-applyProposal _convOrSubConvId _groupId _ = pure mempty
+applyProposal _convOrSubConvId _mlsMeta _groupId _ = pure mempty
 
 checkProposalCipherSuite ::
   Member (Error MLSProtocolError) r =>
