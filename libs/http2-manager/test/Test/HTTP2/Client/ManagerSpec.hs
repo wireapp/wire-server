@@ -98,9 +98,11 @@ specTemplate mCtx = do
 
   it "should process many concurrent requests correctly under different timing situations" $ do
     withTestServer mCtx $ \TestServer {..} -> do
+      let numserial = 100
+          numparallel = 1000
       mgr <- mkTestManager
-      let onethread _ = replicateM_ 6 (multiLineEchoTest mgr (isJust mCtx) serverPort)
-      mapConcurrently_ onethread [(0 :: Int) .. 94]
+      let onethread _ = replicateM_ numserial (multiLineEchoTest mgr (isJust mCtx) serverPort)
+      mapConcurrently_ onethread [(0 :: Int) .. numparallel]
 
   it "shouldn't try to re-use a disconnected connection" $ do
     withTestServer mCtx $ \TestServer {..} -> do
