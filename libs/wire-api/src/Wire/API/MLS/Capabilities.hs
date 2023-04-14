@@ -26,6 +26,7 @@ import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.2-2
 data Capabilities = Capabilities
   { versions :: [ProtocolVersion],
     ciphersuites :: [CipherSuite],

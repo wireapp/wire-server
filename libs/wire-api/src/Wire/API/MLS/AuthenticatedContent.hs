@@ -35,7 +35,8 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 
--- Needed to compute proposal refs.
+-- | Needed to compute proposal refs.
+-- https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-7
 data AuthenticatedContent = AuthenticatedContent
   { wireFormat :: WireFormatTag,
     content :: RawMLS FramedContent,

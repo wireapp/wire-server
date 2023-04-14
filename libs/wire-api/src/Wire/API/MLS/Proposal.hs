@@ -37,6 +37,7 @@ import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.1-2
 data Proposal
   = AddProposal (RawMLS KeyPackage)
   | UpdateProposal (RawMLS LeafNode)
@@ -92,6 +93,7 @@ instance SerialiseMLS Proposal where
     serialiseMLS GroupContextExtensionsProposalTag
     serialiseMLSVector @VarInt serialiseMLS es
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-8.4-6
 data PreSharedKeyTag = ExternalKeyTag | ResumptionKeyTag
   deriving (Bounded, Enum, Eq, Show)
 
@@ -101,6 +103,7 @@ instance ParseMLS PreSharedKeyTag where
 instance SerialiseMLS PreSharedKeyTag where
   serialiseMLS = serialiseMLSEnum @Word8
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-8.4-6
 data PreSharedKeyID = ExternalKeyID ByteString | ResumptionKeyID Resumption
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PreSharedKeyID)
@@ -120,6 +123,7 @@ instance SerialiseMLS PreSharedKeyID where
     serialiseMLS ResumptionKeyTag
     serialiseMLS r
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-8.4-6
 data Resumption = Resumption
   { resUsage :: Word8,
     resGroupId :: GroupId,
@@ -141,6 +145,7 @@ instance SerialiseMLS Resumption where
     serialiseMLS r.resGroupId
     serialiseMLS r.resEpoch
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.1.5-2
 data ReInit = ReInit
   { riGroupId :: GroupId,
     riProtocolVersion :: ProtocolVersion,
@@ -188,6 +193,7 @@ instance SerialiseMLS MessageRange where
     serialiseMLS mrFirstGeneration
     serialiseMLS mrLastGeneration
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.4-3
 data ProposalOrRefTag = InlineTag | RefTag
   deriving stock (Bounded, Enum, Eq, Show)
 
@@ -197,6 +203,7 @@ instance ParseMLS ProposalOrRefTag where
 instance SerialiseMLS ProposalOrRefTag where
   serialiseMLS = serialiseMLSEnum @Word8
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.4-3
 data ProposalOrRef = Inline Proposal | Ref ProposalRef
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ProposalOrRef)

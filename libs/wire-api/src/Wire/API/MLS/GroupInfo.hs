@@ -36,6 +36,7 @@ import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-8.1-2
 data GroupContext = GroupContext
   { protocolVersion :: ProtocolVersion,
     cipherSuite :: CipherSuite,
@@ -69,6 +70,7 @@ instance SerialiseMLS GroupContext where
     serialiseMLSBytes @VarInt gc.confirmedTranscriptHash
     serialiseMLSVector @VarInt serialiseMLS gc.extensions
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.4.3-7
 data GroupInfoTBS = GroupInfoTBS
   { groupContext :: GroupContext,
     extensions :: [Extension],
@@ -93,6 +95,7 @@ instance SerialiseMLS GroupInfoTBS where
     serialiseMLSBytes @VarInt tbs.confirmationTag
     serialiseMLS tbs.signer
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.4.3-2
 data GroupInfo = GroupInfo
   { tbs :: GroupInfoTBS,
     signature_ :: ByteString

@@ -80,6 +80,7 @@ instance ParseMLS WireFormatTag where
 instance SerialiseMLS WireFormatTag where
   serialiseMLS = serialiseMLSEnum @Word16
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
 data Message = Message
   { protocolVersion :: ProtocolVersion,
     content :: MessageContent
@@ -103,6 +104,7 @@ instance SerialiseMLS Message where
 instance HasField "wireFormat" Message WireFormatTag where
   getField = (.content.wireFormat)
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
 data MessageContent
   = MessagePrivate (RawMLS PrivateMessage)
   | MessagePublic PublicMessage
@@ -147,10 +149,12 @@ instance SerialiseMLS MessageContent where
 instance S.ToSchema Message where
   declareNamedSchema _ = pure (mlsSwagger "MLSMessage")
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.2-2
 data PublicMessage = PublicMessage
   { content :: RawMLS FramedContent,
     authData :: RawMLS FramedContentAuthData,
     -- Present iff content.rmValue.sender is of type Member.
+    -- https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.2-4
     membershipTag :: Maybe ByteString
   }
   deriving (Eq, Show)
@@ -175,6 +179,7 @@ instance SerialiseMLS PublicMessage where
     serialiseMLS msg.authData
     traverse_ (serialiseMLSBytes @VarInt) msg.membershipTag
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.3.1-2
 data PrivateMessage = PrivateMessage
   { groupId :: GroupId,
     epoch :: Epoch,
@@ -195,6 +200,7 @@ instance ParseMLS PrivateMessage where
       <*> parseMLSBytes @VarInt
       <*> parseMLSBytes @VarInt
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
 data SenderTag
   = SenderMemberTag
   | SenderExternalTag
@@ -208,6 +214,7 @@ instance ParseMLS SenderTag where
 instance SerialiseMLS SenderTag where
   serialiseMLS = serialiseMLSEnum @Word8
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
 data Sender
   = SenderMember LeafIndex
   | SenderExternal Word32
@@ -241,6 +248,7 @@ needsGroupContext (SenderMember _) = True
 needsGroupContext (SenderExternal _) = True
 needsGroupContext _ = False
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
 data FramedContent = FramedContent
   { groupId :: GroupId,
     epoch :: Epoch,
@@ -279,6 +287,7 @@ instance ParseMLS FramedContentDataTag where
 instance SerialiseMLS FramedContentDataTag where
   serialiseMLS = serialiseMLSEnum @Word8
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
 data FramedContentData
   = FramedContentApplicationData ByteString
   | FramedContentProposal (RawMLS Proposal)
@@ -309,6 +318,7 @@ instance SerialiseMLS FramedContentData where
     serialiseMLS FramedContentCommitTag
     serialiseMLS commit
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.1-2
 data FramedContentTBS = FramedContentTBS
   { protocolVersion :: ProtocolVersion,
     wireFormat :: WireFormatTag,
@@ -333,6 +343,7 @@ framedContentTBS ctx msgContent =
       groupContext = guard (needsGroupContext msgContent.rmValue.sender) $> ctx
     }
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.1-2
 data FramedContentAuthData = FramedContentAuthData
   { signature_ :: ByteString,
     -- Present iff it is part of a commit.

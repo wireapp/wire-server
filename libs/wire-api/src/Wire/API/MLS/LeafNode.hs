@@ -44,6 +44,8 @@ import Wire.Arbitrary
 type LeafIndex = Word32
 
 -- LeafNodeCore contains fields in the intersection of LeafNode and LeafNodeTBS
+--
+-- https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.2-2
 data LeafNodeCore = LeafNodeCore
   { encryptionKey :: HPKEPublicKey,
     signatureKey :: ByteString,
@@ -56,6 +58,8 @@ data LeafNodeCore = LeafNodeCore
   deriving (Arbitrary) via (GenericUniform LeafNodeCore)
 
 -- extra fields in LeafNodeTBS, but not in LeafNode
+--
+-- https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.2-2
 data LeafNodeTBSExtra
   = LeafNodeTBSExtraKeyPackage
   | LeafNodeTBSExtraUpdate GroupId LeafIndex
@@ -76,6 +80,7 @@ instance HasField "tag" LeafNodeTBSExtra LeafNodeSourceTag where
     LeafNodeTBSExtraCommit _ _ -> LeafNodeSourceCommitTag
     LeafNodeTBSExtraUpdate _ _ -> LeafNodeSourceUpdateTag
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.2-2
 data LeafNodeTBS = LeafNodeTBS
   { core :: RawMLS LeafNodeCore,
     extra :: LeafNodeTBSExtra
@@ -107,6 +112,8 @@ instance SerialiseMLS LeafNodeCore where
 
 -- | This type can only verify the signature when the LeafNodeSource is
 -- LeafNodeSourceKeyPackage
+--
+-- https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.2-2
 data LeafNode = LeafNode
   { core :: RawMLS LeafNodeCore,
     signature_ :: ByteString
@@ -146,6 +153,7 @@ instance HasField "source" LeafNode LeafNodeSource where
 instance HasField "extensions" LeafNode [Extension] where
   getField = (.core.rmValue.extensions)
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.2-2
 data LeafNodeSource
   = LeafNodeSourceKeyPackage Lifetime
   | LeafNodeSourceUpdate

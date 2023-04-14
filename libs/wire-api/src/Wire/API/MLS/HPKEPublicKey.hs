@@ -23,6 +23,7 @@ import Imports
 import Test.QuickCheck
 import Wire.API.MLS.Serialisation
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-5.1.1-2
 newtype HPKEPublicKey = HPKEPublicKey {unHPKEPublicKey :: ByteString}
   deriving (Show, Eq, Arbitrary)
 

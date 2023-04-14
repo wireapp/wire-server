@@ -30,6 +30,7 @@ import Imports
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
 newtype ProtocolVersion = ProtocolVersion {pvNumber :: Word16}
   deriving newtype (Eq, Ord, Show, Binary, Arbitrary, ParseMLS, SerialiseMLS)
 

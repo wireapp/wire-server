@@ -47,6 +47,7 @@ import Wire.Arbitrary
 -- | An MLS credential.
 --
 -- Only the @BasicCredential@ type is supported.
+-- https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-5.3-3
 data Credential = BasicCredential ByteString
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform Credential

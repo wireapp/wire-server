@@ -31,6 +31,7 @@ newtype Timestamp = Timestamp {timestampSeconds :: Word64}
 tsPOSIX :: Timestamp -> POSIXTime
 tsPOSIX = fromIntegral . timestampSeconds
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.2-2
 data Lifetime = Lifetime
   { ltNotBefore :: Timestamp,
     ltNotAfter :: Timestamp

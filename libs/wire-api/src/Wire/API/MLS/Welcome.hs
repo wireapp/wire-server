@@ -25,6 +25,7 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.4.3.1-5
 data Welcome = Welcome
   { welCipherSuite :: CipherSuite,
     welSecrets :: [GroupSecrets],
@@ -49,6 +50,7 @@ instance SerialiseMLS Welcome where
     serialiseMLSVector @VarInt serialiseMLS ss
     serialiseMLSBytes @VarInt gi
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.4.3.1-5
 data GroupSecrets = GroupSecrets
   { gsNewMember :: KeyPackageRef,
     gsSecrets :: HPKECiphertext

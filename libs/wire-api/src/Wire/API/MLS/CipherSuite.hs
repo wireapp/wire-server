@@ -116,11 +116,13 @@ csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 pub x sig =
     sig' <- Ed25519.signature sig
     pure $ Ed25519.verify pub' x.rmRaw sig'
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-5.2-5
 type RefHashInput = SignContent
 
 pattern RefHashInput :: ByteString -> RawMLS a -> RefHashInput a
 pattern RefHashInput label content = SignContent label content
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-5.1.2-6
 data SignContent a = SignContent
   { sigLabel :: ByteString,
     content :: RawMLS a

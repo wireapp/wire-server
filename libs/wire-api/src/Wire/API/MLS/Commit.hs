@@ -23,6 +23,7 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.4-3
 data Commit = Commit
   { cProposals :: [ProposalOrRef],
     cPath :: Maybe UpdatePath
@@ -41,6 +42,7 @@ instance SerialiseMLS Commit where
     serialiseMLSVector @VarInt serialiseMLS c.cProposals
     serialiseMLSOptional serialiseMLS c.cPath
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.6-2
 data UpdatePath = UpdatePath
   { upLeaf :: RawMLS LeafNode,
     upNodes :: [UpdatePathNode]
@@ -56,6 +58,7 @@ instance SerialiseMLS UpdatePath where
     serialiseMLS up.upLeaf
     serialiseMLSVector @VarInt serialiseMLS up.upNodes
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.6-2
 data UpdatePathNode = UpdatePathNode
   { upnPublicKey :: ByteString,
     upnSecret :: [HPKECiphertext]
@@ -71,6 +74,7 @@ instance SerialiseMLS UpdatePathNode where
     serialiseMLSBytes @VarInt upn.upnPublicKey
     serialiseMLSVector @VarInt serialiseMLS upn.upnSecret
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.6-2
 data HPKECiphertext = HPKECiphertext
   { hcOutput :: ByteString,
     hcCiphertext :: ByteString

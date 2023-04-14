@@ -157,6 +157,7 @@ kpRef' kp =
 
 --------------------------------------------------------------------------------
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-10-6
 data KeyPackageTBS = KeyPackageTBS
   { protocolVersion :: ProtocolVersion,
     cipherSuite :: CipherSuite,
@@ -184,6 +185,7 @@ instance SerialiseMLS KeyPackageTBS where
     serialiseMLS tbs.leafNode
     serialiseMLSVector @VarInt serialiseMLS tbs.extensions
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-10-6
 data KeyPackage = KeyPackage
   { tbs :: RawMLS KeyPackageTBS,
     signature_ :: ByteString
