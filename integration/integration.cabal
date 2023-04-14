@@ -69,10 +69,17 @@ common common-all
     ViewPatterns
 
 executable integration
-  import:         common-all
-  main-is:        ../main.hs
-  hs-source-dirs: test
-  other-modules:
+  import:        common-all
+  main-is:       ./main.hs
+  ghc-options:   -threaded
+  build-depends: integration
+
+library
+  import:          common-all
+  hs-source-dirs:  test
+
+  -- cabal-fmt: expand test
+  exposed-modules:
     API
     App
     Config
@@ -85,18 +92,40 @@ executable integration
     , aeson
     , aeson-pretty
     , array
+    , async
     , base
     , bytestring
     , case-insensitive
+    , containers
     , data-default
+    , filepath
     , http-client
     , http-types
     , imports
+    , network
     , network-uri
+    , process
     , random
+    , retry
     , scientific
+    , split
     , tagged
     , tasty
     , text
     , transformers
     , yaml
+
+test-suite unit
+  import:         common-all
+  type:           exitcode-stdio-1.0
+  main-is:        ../unit.hs
+  hs-source-dirs: unit
+  build-depends:
+    , aeson
+    , base
+    , imports
+    , integration
+    , raw-strings-qq
+    , tasty
+
+  other-modules:  Basic

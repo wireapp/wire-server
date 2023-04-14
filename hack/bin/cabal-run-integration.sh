@@ -49,6 +49,7 @@ run_integration_tests() {
     "$TOP_LEVEL/services/run-services" \
       "$TOP_LEVEL/dist/integration" \
       --service-configs-dir "$TOP_LEVEL/services/.integration/A/etc/wire/" \
+      --services-cwd-base "$TOP_LEVEL/services" \
       "${@:2}"
   else
     service_dir="$TOP_LEVEL/services/$package"

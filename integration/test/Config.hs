@@ -1,17 +1,24 @@
 module Config where
 
 import Data.Aeson
+import qualified Data.Char as C
 import Imports
 import Network.HTTP.Client
 import Test.Tasty.Options
 
 data Service = Brig | Galley | Cannon
+  deriving (Show, Eq, Ord)
+
+serviceName :: Service -> String
+serviceName srv = map C.toLower (show srv)
 
 data Env = Env
   { context :: Context,
     manager :: Manager,
     prekeys :: IORef [(Int, String)],
-    lastPrekeys :: IORef [String]
+    lastPrekeys :: IORef [String],
+    serviceConfigsDir :: FilePath,
+    servicesCwdBase :: ServicesCwdBase
   }
 
 data HostPort = HostPort
@@ -40,10 +47,29 @@ instance IsOption ConfigFile where
   optionHelp = "Configuration file for integration tests. Default: services/integration.yaml"
 
 instance IsOption ServiceMap where
-  defaultValue = error "NO Default value"
+  defaultValue = error "No Default value"
   parseValue = const Nothing
   optionName = "config-loaded-from-file"
-  optionHelp = "This option can only be provdided via the --config flag"
+  optionHelp = "This option can only be provided via the --config flag"
+
+newtype ServiceConfigsDir = ServiceConfigsDir {unServiceConfigsDir :: FilePath}
+
+instance IsOption ServiceConfigsDir where
+  defaultValue = ServiceConfigsDir "/etc/wire"
+  parseValue = Just . ServiceConfigsDir
+  optionName = "service-configs-dir"
+  optionHelp = "Base directory that holds all service's configs. Default value: /etc/wire"
+
+data ServicesCwdBase
+  = NoServicesCwdBase
+  | ServicesCwdBase FilePath
+  deriving (Show, Eq)
+
+instance IsOption ServicesCwdBase where
+  defaultValue = NoServicesCwdBase
+  parseValue = Just . ServicesCwdBase
+  optionName = "services-cwd-base"
+  optionHelp = "Base directory that spawned services will be started in, e.g. for ./services brig will be started in cwd ./services/brig"
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
@@ -55,8 +81,8 @@ data Context = Context
     version :: Int
   }
 
-mkEnv :: ServiceMap -> IO Env
-mkEnv serviceMap = do
+mkEnv :: ServiceMap -> ServiceConfigsDir -> ServicesCwdBase -> IO Env
+mkEnv serviceMap configsDir cwdBase = do
   manager <- newManager defaultManagerSettings
   pks <- newIORef (zip [1 ..] somePrekeys)
   lpks <- newIORef someLastPrekeys
@@ -69,7 +95,9 @@ mkEnv serviceMap = do
             },
         manager = manager,
         prekeys = pks,
-        lastPrekeys = lpks
+        lastPrekeys = lpks,
+        serviceConfigsDir = unServiceConfigsDir configsDir,
+        servicesCwdBase = cwdBase
       }
 
 somePrekeys :: [String]
