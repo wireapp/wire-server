@@ -56,7 +56,6 @@ import Wire.API.Event.Conversation
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Epoch
-import Wire.API.MLS.Extension
 import Wire.API.MLS.Group
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.KeyPackage
@@ -353,17 +352,6 @@ instance SerialiseMLS FramedContentAuthData where
   serialiseMLS ad = do
     serialiseMLSBytes @VarInt ad.signature_
     traverse_ (serialiseMLSBytes @VarInt) ad.confirmationTag
-
-data GroupContext = GroupContext
-  { protocolVersion :: ProtocolVersion,
-    cipherSuite :: CipherSuite,
-    groupId :: GroupId,
-    epoch :: Epoch,
-    treeHash :: ByteString,
-    confirmedTranscriptHash :: ByteString,
-    extensions :: [Extension]
-  }
-  deriving (Eq, Show)
 
 verifyMessageSignature ::
   RawMLS GroupContext ->

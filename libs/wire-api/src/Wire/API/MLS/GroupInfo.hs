@@ -16,7 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.MLS.GroupInfo
-  ( GroupInfo (..),
+  ( GroupContext (..),
+    GroupInfo (..),
     GroupInfoData (..),
   )
 where
