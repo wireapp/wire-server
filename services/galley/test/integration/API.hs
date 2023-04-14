@@ -3348,7 +3348,7 @@ leaveRemoteConvQualifiedOk = do
       qBob = Qualified bob remoteDomain
   let mockedFederatedGalleyResponse = do
         guardComponent Galley
-        mockReply (F.LeaveConversationResponse (Right ()))
+        mockReply (F.LeaveConversationResponse (Right mempty))
       mockResponses =
         mockedFederatedBrigResponse [(qBob, "Bob")]
           <|> mockedFederatedGalleyResponse
@@ -3961,7 +3961,7 @@ putRemoteReceiptModeOk = do
             cuAction =
               SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action
           }
-  let mockResponse = mockReply (ConversationUpdateResponseUpdate responseConvUpdate)
+  let mockResponse = mockReply (ConversationUpdateResponseUpdate (responseConvUpdate, mempty))
 
   WS.bracketR c adam $ \wsAdam -> do
     (res, federatedRequests) <- withTempMockFederator' mockResponse $ do
@@ -4237,7 +4237,7 @@ removeUser = do
               do
                 guard (d `elem` [bDomain, cDomain])
                 asum
-                  [ "leave-conversation" ~> F.LeaveConversationResponse (Right ()),
+                  [ "leave-conversation" ~> F.LeaveConversationResponse (Right mempty),
                     "on-conversation-updated" ~> ()
                   ]
             ]

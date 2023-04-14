@@ -344,7 +344,7 @@ leaveConversation ::
   F.LeaveConversationRequest ->
   Sem r F.LeaveConversationResponse
 leaveConversation requestingDomain lc = do
-  let leaver :: Remote UserId = qTagUnsafe $ Qualified (F.lcLeaver lc) requestingDomain
+  let leaver = Qualified (F.lcLeaver lc) requestingDomain
   lcnv <- qualifyLocal (F.lcConvId lc)
 
   res <-
@@ -354,34 +354,35 @@ leaveConversation requestingDomain lc = do
       . mapToRuntimeError @'InvalidOperation F.RemoveFromConversationErrorRemovalNotAllowed
       . mapError @NoChanges (const F.RemoveFromConversationErrorUnchanged)
       $ do
-        (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound (tUntagged leaver) lcnv
+        (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound leaver lcnv
         update <-
-          lcuUpdate
+          first lcuUpdate
             <$> updateLocalConversation
               @'ConversationLeaveTag
               lcnv
-              (tUntagged leaver)
+              leaver
               Nothing
               ()
         pure (update, conv)
 
   case res of
     Left e -> pure $ F.LeaveConversationResponse (Left e)
-    Right (_update, conv) -> do
-      let remotes = filter ((== tDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
+    Right ((_update, updateFailedToProcess), conv) -> do
+      let remotes = filter ((== qDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
-      _ <-
+      (_, notifyFailedToProcess) <-
         notifyConversationAction
           False
           SConversationLeaveTag
-          (tUntagged leaver)
+          leaver
           False
           Nothing
           (qualifyAs lcnv conv)
           botsAndMembers
           ()
 
-      pure $ F.LeaveConversationResponse (Right ())
+      pure . F.LeaveConversationResponse . Right $
+        updateFailedToProcess <> notifyFailedToProcess
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
@@ -545,46 +546,46 @@ updateConversation origDomain updateRequest = do
     SomeConversationAction tag action -> case tag of
       SConversationJoinTag ->
         mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationJoinTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationJoinTag lcnv (tUntagged rusr) Nothing action
       SConversationLeaveTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationLeaveTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationLeaveTag lcnv (tUntagged rusr) Nothing action
       SConversationRemoveMembersTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationRemoveMembersTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationRemoveMembersTag lcnv (tUntagged rusr) Nothing action
       SConversationMemberUpdateTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationMemberUpdateTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationMemberUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationDeleteTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationDeleteTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationDeleteTag lcnv (tUntagged rusr) Nothing action
       SConversationRenameTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationRenameTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationRenameTag lcnv (tUntagged rusr) Nothing action
       SConversationMessageTimerUpdateTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationMessageTimerUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationReceiptModeUpdateTag ->
         mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationReceiptModeUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationAccessDataTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged rusr) Nothing action
   where
     mkResponse = fmap toResponse . runError @GalleyError . runError @NoChanges

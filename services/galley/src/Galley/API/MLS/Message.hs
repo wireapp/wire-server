@@ -1185,6 +1185,7 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
                   . ulNewMembers lconv (tUnqualified lconv)
                   . toUserList lconv
                   . foldMap (onlyJoining . lcuEvent)
+                  . fst
                   $ addEvents
               )
 
@@ -1202,8 +1203,10 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
 
   let failedToProcess =
         failedToAdd (failedAddFetching <> failedAdding)
+          <> snd addEvents
           <> failedToRemove failedRemoveFetching
-  pure (addEvents <> removeEvents, failedToProcess)
+          <> snd removeEvents
+  pure (fst addEvents <> fst removeEvents, failedToProcess)
   where
     onlyJoining :: Event -> [Qualified UserId]
     onlyJoining (evtData -> EdMembersJoin ms) = smQualifiedId <$> mMembers ms
@@ -1234,13 +1237,13 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
     existingMembers :: Set (Qualified UserId)
     existingMembers = existingLocalMembers <> existingRemoteMembers
 
-    addMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
+    addMembers :: NonEmpty (Qualified UserId) -> Sem r ([LocalConversationUpdate], FailedToProcess)
     addMembers =
       -- FUTUREWORK: update key package ref mapping to reflect conversation membership
       foldMap
         ( handleNoChanges
             . handleMLSProposalFailures @ProposalErrors
-            . fmap pure
+            . fmap (first pure)
             . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
             . flip ConversationJoin roleNameWireMember
         )
@@ -1248,12 +1251,12 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
         . filter (flip Set.notMember existingMembers)
         . toList
 
-    removeMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
+    removeMembers :: NonEmpty (Qualified UserId) -> Sem r ([LocalConversationUpdate], FailedToProcess)
     removeMembers =
       foldMap
         ( handleNoChanges
             . handleMLSProposalFailures @ProposalErrors
-            . fmap pure
+            . fmap (first pure)
             . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
         )
         . nonEmpty

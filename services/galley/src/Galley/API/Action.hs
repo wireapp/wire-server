@@ -95,6 +95,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API (Component (Galley), fedClient)
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.Message
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import qualified Wire.API.User as User
@@ -578,7 +579,7 @@ updateLocalConversation ::
   Qualified UserId ->
   Maybe ConnId ->
   ConversationAction tag ->
-  Sem r LocalConversationUpdate
+  Sem r (LocalConversationUpdate, FailedToProcess)
 updateLocalConversation lcnv qusr con action = do
   let tag = sing @tag
 
@@ -616,7 +617,7 @@ updateLocalConversationUnchecked ::
   Qualified UserId ->
   Maybe ConnId ->
   ConversationAction tag ->
-  Sem r LocalConversationUpdate
+  Sem r (LocalConversationUpdate, FailedToProcess)
 updateLocalConversationUnchecked lconv qusr con action = do
   let tag = sing @tag
       lcnv = fmap convId lconv
@@ -705,7 +706,7 @@ notifyConversationAction ::
   Local Conversation ->
   BotsAndMembers ->
   ConversationAction (tag :: ConversationActionTag) ->
-  Sem r LocalConversationUpdate
+  Sem r (LocalConversationUpdate, FailedToProcess)
 notifyConversationAction failEarly tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap convId lconv
@@ -726,6 +727,10 @@ notifyConversationAction failEarly tag quid notifyOrigDomain con lconv targets a
         Set.difference
           (Set.map void (bmRemotes targets))
           (Set.fromList (map (void . rmId) (convRemoteMembers conv)))
+      newRemotes =
+        Set.filter (\r -> Set.member (void r) newDomains)
+          . bmRemotes
+          $ targets
   let nrc =
         NewRemoteConversation
           { nrcConvId = convId conv,
@@ -734,7 +739,7 @@ notifyConversationAction failEarly tag quid notifyOrigDomain con lconv targets a
   let errorIntolerant = do
         E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
           void $ fedClient @'Galley @"on-new-remote-conversation" nrc
-        fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
+        update <- fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
           . E.runFederatedConcurrently (toList (bmRemotes targets))
           $ \ruids -> do
             let update = mkUpdate (tUnqualified ruids)
@@ -744,13 +749,18 @@ notifyConversationAction failEarly tag quid notifyOrigDomain con lconv targets a
             if notifyOrigDomain || tDomain ruids /= qDomain quid
               then fedClient @'Galley @"on-conversation-updated" update $> Nothing
               else pure (Just update)
+        pure (update, mempty)
       errorTolerant = do
-        fedEithers <- E.runFederatedConcurrentlyEither (toList newDomains) $ \_ -> do
-          void $ fedClient @'Galley @"on-new-remote-conversation" nrc
-        for_ fedEithers $
-          either
-            (logError "on-new-remote-conversation" "An error occurred while communicating with federated server: ")
-            (pure . tUnqualified)
+        notifyEithers <-
+          E.runFederatedConcurrentlyEither (toList newRemotes) $ \_ -> do
+            void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+        -- For now these users will not be able to join the conversation until
+        -- queueing and retrying is implemented.
+        let failedNotifies = lefts notifyEithers
+        for_ failedNotifies $
+          logError
+            "on-new-remote-conversation"
+            "An error occurred while communicating with federated server: "
         updates <-
           E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
             \ruids -> do
@@ -763,21 +773,33 @@ notifyConversationAction failEarly tag quid notifyOrigDomain con lconv targets a
                 else pure (Just update)
         let f = fromMaybe (mkUpdate []) . asum . map tUnqualified . rights
             update = f updates
-        for_ (lefts updates) $
+            failedUpdates = lefts updates
+            toFailedToProcess :: [Qualified UserId] -> FailedToProcess
+            toFailedToProcess us = case tag of
+              SConversationJoinTag -> failedToAdd us
+              SConversationLeaveTag -> failedToRemove us
+              SConversationRemoveMembersTag -> failedToRemove us
+              _ -> mempty
+        for_ failedUpdates $
           logError
-            "on-conversation-update"
+            "on-conversation-updated"
             "An error occurred while communicating with federated server: "
-        pure update
+        let totalFailedToProcess =
+              failedToAdd (qualifiedFails failedNotifies)
+                <> toFailedToProcess (qualifiedFails failedUpdates)
+        pure (update, totalFailedToProcess)
 
-  update <- if failEarly then errorIntolerant else errorTolerant
+  (update, failedToProcess) <- if failEarly then errorIntolerant else errorTolerant
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
 
   -- return both the event and the 'ConversationUpdate' structure corresponding
   -- to the originating domain (if it is remote)
-  pure $ LocalConversationUpdate e update
+  pure $ (LocalConversationUpdate e update, failedToProcess)
   where
+    qualifiedFails :: [(QualifiedWithTag t [a], b)] -> [Qualified a]
+    qualifiedFails = foldMap (sequenceA . tUntagged . fst)
     logError :: Show a => String -> String -> (a, FederationError) -> Sem r ()
     logError field msg e =
       P.warn $

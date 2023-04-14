@@ -365,11 +365,11 @@ newtype MessageSendResponse = MessageSendResponse
         )
 
 newtype LeaveConversationResponse = LeaveConversationResponse
-  {leaveResponse :: Either RemoveFromConversationError ()}
+  {leaveResponse :: Either RemoveFromConversationError FailedToProcess}
   deriving stock (Eq, Show)
   deriving
     (ToJSON, FromJSON)
-    via (Either (CustomEncoded RemoveFromConversationError) ())
+    via (Either (CustomEncoded RemoveFromConversationError) FailedToProcess)
 
 type UserDeletedNotificationMaxConvs = 1000
 
@@ -398,7 +398,7 @@ data ConversationUpdateRequest = ConversationUpdateRequest
 
 data ConversationUpdateResponse
   = ConversationUpdateResponseError GalleyError
-  | ConversationUpdateResponseUpdate ConversationUpdate
+  | ConversationUpdateResponseUpdate (ConversationUpdate, FailedToProcess)
   | ConversationUpdateResponseNoChanges
   deriving stock (Eq, Show, Generic)
   deriving
