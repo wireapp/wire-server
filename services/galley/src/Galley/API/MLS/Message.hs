@@ -112,6 +112,7 @@ import Wire.API.User.Client
 --   - [ ] ? verify capabilities
 --   - [ ] verify that all extensions are present in the capabilities
 --   - [ ] ? in the update case (in galley), verify that the encryption_key is different
+-- [ ] validate proposals when processing proposal and commit messages
 -- [ ] remove MissingSenderClient error
 -- [ ] PreSharedKey proposal
 -- [ ] remove all key package ref mapping
@@ -123,6 +124,7 @@ import Wire.API.User.Client
 -- [ ] remove protobuf definitions of CommitBundle
 -- [ ] (?) rename public_group_state field in conversation table
 -- [ ] consider adding more integration tests
+-- [ ] remove prefixes from fields in Commit and Proposal
 
 data IncomingMessage = IncomingMessage
   { epoch :: Epoch,
@@ -608,9 +610,28 @@ paRemoveClient cid idx = mempty {paRemove = cmSingleton cid idx}
 paExternalInitPresent :: ProposalAction
 paExternalInitPresent = mempty {paExternalInit = Any True}
 
+-- | This is used to sort proposals into the correct processing order, as defined by the spec
+data ProposalProcessingStage
+  = ProposalProcessingStageExtensions
+  | ProposalProcessingStageUpdate
+  | ProposalProcessingStageRemove
+  | ProposalProcessingStageAdd
+  | ProposalProcessingStagePreSharedKey
+  | ProposalProcessingStageExternalInit
+  | ProposalProcessingStageReInit
+  deriving (Eq, Ord)
+
+proposalProcessingStage :: Proposal -> ProposalProcessingStage
+proposalProcessingStage (AddProposal _) = ProposalProcessingStageAdd
+proposalProcessingStage (RemoveProposal _) = ProposalProcessingStageRemove
+proposalProcessingStage (UpdateProposal _) = ProposalProcessingStageUpdate
+proposalProcessingStage (PreSharedKeyProposal _) = ProposalProcessingStagePreSharedKey
+proposalProcessingStage (ReInitProposal _) = ProposalProcessingStageReInit
+proposalProcessingStage (ExternalInitProposal _) = ProposalProcessingStageExternalInit
+proposalProcessingStage (GroupContextExtensionsProposal _) = ProposalProcessingStageExtensions
+
 getCommitData ::
   ( HasProposalEffects r,
-    Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSStaleMessage) r
   ) =>
@@ -624,7 +645,6 @@ getCommitData senderIdentity lConvOrSub epoch commit = do
       mlsMeta = mlsMetaConvOrSub convOrSub
       curEpoch = cnvmlsEpoch mlsMeta
       groupId = cnvmlsGroupId mlsMeta
-      suite = cnvmlsCipherSuite mlsMeta
 
   -- check epoch number
   when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
@@ -633,16 +653,12 @@ getCommitData senderIdentity lConvOrSub epoch commit = do
       if epoch == Epoch 0
         then addProposedClient senderIdentity
         else mempty
+    proposals <- traverse (derefProposal groupId epoch) commit.cProposals
     action <-
       foldMap
-        ( applyProposalRef
-            (idForConvOrSub convOrSub)
-            mlsMeta
-            groupId
-            epoch
-            suite
-        )
-        (cProposals commit)
+        (applyProposal mlsMeta groupId)
+        -- sort proposals before processing
+        (sortOn proposalProcessingStage proposals)
     pure (creatorAction <> action)
 
 processExternalCommit ::
@@ -801,28 +817,18 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
 
     pure updates
 
-applyProposalRef ::
-  ( HasProposalEffects r,
-    Member (State IndexMap) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSStaleMessage) r
+derefProposal ::
+  ( Member ProposalStore r,
+    Member (ErrorS 'MLSProposalNotFound) r
   ) =>
-  ConvOrSubConvId ->
-  ConversationMLSData ->
   GroupId ->
   Epoch ->
-  CipherSuiteTag ->
   ProposalOrRef ->
-  Sem r ProposalAction
-applyProposalRef convOrSubConvId mlsMeta groupId epoch _suite (Ref ref) = do
+  Sem r Proposal
+derefProposal groupId epoch (Ref ref) = do
   p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
-  checkEpoch epoch mlsMeta
-  checkGroup groupId mlsMeta
-  applyProposal convOrSubConvId mlsMeta groupId (rmValue p)
-applyProposalRef convOrSubConvId mlsMeta groupId _epoch suite (Inline p) = do
-  checkProposalCipherSuite suite p
-  applyProposal convOrSubConvId mlsMeta groupId p
+  pure p.rmValue
+derefProposal _ _ (Inline p) = pure p
 
 addProposedClient :: Member (State IndexMap) r => ClientIdentity -> Sem r ProposalAction
 addProposedClient cid = do
@@ -832,16 +838,16 @@ addProposedClient cid = do
   pure (paAddClient cid idx)
 
 applyProposal ::
-  forall r.
-  ( HasProposalEffects r,
-    Member (State IndexMap) r
+  ( Member (State IndexMap) r,
+    Member (Error MLSProtocolError) r,
+    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r
   ) =>
-  ConvOrSubConvId ->
   ConversationMLSData ->
   GroupId ->
   Proposal ->
   Sem r ProposalAction
-applyProposal _convOrSubConvId mlsMeta _groupId (AddProposal kp) = do
+applyProposal mlsMeta _groupId (AddProposal kp) = do
   (cs, _lifetime) <-
     either
       (\msg -> throw (mlsProtocolError ("Invalid key package in Add proposal: " <> msg)))
@@ -852,16 +858,16 @@ applyProposal _convOrSubConvId mlsMeta _groupId (AddProposal kp) = do
   -- we are not checking lifetime constraints here
   cid <- getKeyPackageIdentity kp.rmValue
   addProposedClient cid
-applyProposal _convOrSubConvId _mlsMeta _groupId (RemoveProposal idx) = do
+applyProposal _mlsMeta _groupId (RemoveProposal idx) = do
   im <- get
   (cid, im') <- noteS @'MLSInvalidLeafNodeIndex $ imRemoveClient im idx
   put im'
   pure (paRemoveClient cid idx)
-applyProposal _convOrSubConvId _mlsMeta _groupId (ExternalInitProposal _) =
+applyProposal _mlsMeta _groupId (ExternalInitProposal _) =
   -- only record the fact there was an external init proposal, but do not
   -- process it in any way.
   pure paExternalInitPresent
-applyProposal _convOrSubConvId _mlsMeta _groupId _ = pure mempty
+applyProposal _mlsMeta _groupId _ = pure mempty
 
 checkProposalCipherSuite ::
   Member (Error MLSProtocolError) r =>
