@@ -46,7 +46,10 @@ run_integration_tests() {
   if [[ "$package" = "integration" ]]
   then
     cd "$TOP_LEVEL"
-    "$TOP_LEVEL/services/run-services" "$TOP_LEVEL/dist/integration"
+    "$TOP_LEVEL/services/run-services" \
+      "$TOP_LEVEL/dist/integration" \
+      --service-configs-dir "$TOP_LEVEL/services/.integration/A/etc/wire/" \
+      "${@:2}"
   else
     service_dir="$TOP_LEVEL/services/$package"
 
