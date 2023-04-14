@@ -30,7 +30,7 @@ data ProposalTag
   | ReInitProposalTag
   | ExternalInitProposalTag
   | GroupContextExtensionsProposalTag
-  deriving stock (Bounded, Enum, Eq, Generic, Show)
+  deriving stock (Bounded, Enum, Eq, Ord, Generic, Show)
   deriving (Arbitrary) via GenericUniform ProposalTag
 
 instance ParseMLS ProposalTag where

@@ -37,6 +37,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 
@@ -71,7 +72,7 @@ getPendingBackendRemoveProposals ::
   ) =>
   GroupId ->
   Epoch ->
-  Sem r [Word32]
+  Sem r [LeafIndex]
 getPendingBackendRemoveProposals gid epoch = do
   proposals <- getAllPendingProposals gid epoch
   catMaybes

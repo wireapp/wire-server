@@ -24,6 +24,7 @@ import Cassandra
 import Control.Lens (makePrisms)
 import Data.Binary
 import Data.ByteString as B
+import GHC.Records
 import Imports
 import Test.QuickCheck
 import Wire.API.MLS.CipherSuite
@@ -46,6 +47,15 @@ data Proposal
   | GroupContextExtensionsProposal [Extension]
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Proposal)
+
+instance HasField "tag" Proposal ProposalTag where
+  getField (AddProposal _) = AddProposalTag
+  getField (UpdateProposal _) = UpdateProposalTag
+  getField (RemoveProposal _) = RemoveProposalTag
+  getField (PreSharedKeyProposal _) = PreSharedKeyProposalTag
+  getField (ReInitProposal _) = ReInitProposalTag
+  getField (ExternalInitProposal _) = ExternalInitProposalTag
+  getField (GroupContextExtensionsProposal _) = GroupContextExtensionsProposalTag
 
 instance ParseMLS Proposal where
   parseMLS =

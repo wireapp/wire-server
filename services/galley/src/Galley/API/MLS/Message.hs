@@ -95,6 +95,7 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
+import Wire.API.MLS.ProposalTag
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Validation
@@ -368,21 +369,35 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr lConvOrSubId
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
-  action <- getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.rmValue
-  events <-
-    processCommitWithAction
-      senderIdentity
-      conn
-      lConvOrSub
-      bundle.epoch
-      action
-      bundle.sender
-      bundle.commit.rmValue
+  (events, newClients) <- case bundle.sender of
+    SenderMember _index -> do
+      action <- getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.rmValue
+      events <-
+        processInternalCommit
+          senderIdentity
+          conn
+          lConvOrSub
+          bundle.epoch
+          action
+          bundle.commit.rmValue
+      pure (events, cmIdentities (paAdd action))
+    SenderExternal _ -> throw (mlsProtocolError "Unexpected sender")
+    SenderNewMemberProposal -> throw (mlsProtocolError "Unexpected sender")
+    SenderNewMemberCommit -> do
+      action <- getExternalCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.rmValue
+      processExternalCommit
+        senderIdentity
+        lConvOrSub
+        bundle.epoch
+        action
+        (cPath bundle.commit.rmValue)
+      pure ([], [])
+
   storeGroupInfo (idForConvOrSub . tUnqualified $ lConvOrSub) bundle.groupInfo
 
   let cm = membersConvOrSub (tUnqualified lConvOrSub)
   unreachables <- propagateMessage qusr lConvOrSub conn bundle.commit.rmRaw cm
-  traverse_ (sendWelcomes lConvOrSub conn (cmIdentities (paAdd action))) bundle.welcome
+  traverse_ (sendWelcomes lConvOrSub conn newClients) bundle.welcome
   pure (events, unreachables)
 
 postMLSCommitBundleToRemoteConv ::
@@ -647,6 +662,7 @@ getCommitData senderIdentity lConvOrSub epoch commit = do
       groupId = cnvmlsGroupId mlsMeta
 
   -- check epoch number
+  -- TODO: is this really needed?
   when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
   evalState (indexMapConvOrSub convOrSub) $ do
     creatorAction <-
@@ -654,18 +670,75 @@ getCommitData senderIdentity lConvOrSub epoch commit = do
         then addProposedClient senderIdentity
         else mempty
     proposals <- traverse (derefProposal groupId epoch) commit.cProposals
-    action <-
-      foldMap
-        (applyProposal mlsMeta groupId)
-        -- sort proposals before processing
-        (sortOn proposalProcessingStage proposals)
+    action <- applyProposals mlsMeta groupId proposals
     pure (creatorAction <> action)
+
+getExternalCommitData ::
+  forall r.
+  ( Member (Error MLSProtocolError) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r
+  ) =>
+  ClientIdentity ->
+  Local ConvOrSubConv ->
+  Epoch ->
+  Commit ->
+  Sem r ProposalAction
+getExternalCommitData senderIdentity lConvOrSub epoch commit = do
+  let convOrSub = tUnqualified lConvOrSub
+      mlsMeta = mlsMetaConvOrSub convOrSub
+      curEpoch = cnvmlsEpoch mlsMeta
+      groupId = cnvmlsGroupId mlsMeta
+  when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
+  proposals <- traverse getInlineProposal commit.cProposals
+
+  -- According to the spec, an external commit must contain:
+  -- (https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#section-12.2
+  --
+  -- > Exactly one ExternalInit
+  -- > At most one Remove proposal, with which the joiner removes an old
+  -- > version of themselves.
+  -- > Zero or more PreSharedKey proposals.
+  -- > No other proposals.
+  let counts = foldr (\x -> Map.insertWith (+) x.tag (1 :: Int)) mempty proposals
+
+  unless (Map.lookup ExternalInitProposalTag counts == Just 1) $
+    throw (mlsProtocolError "External commits must contain exactly one ExternalInit proposal")
+  unless (Map.findWithDefault 0 RemoveProposalTag counts <= 1) $
+    throw (mlsProtocolError "External commits must contain at most one Remove proposal")
+  unless (null (Map.keys counts \\ allowedProposals)) $
+    throw (mlsProtocolError "Invalid proposal type in an external commit")
+
+  action <-
+    evalState (indexMapConvOrSub convOrSub) $ do
+      -- process optional removal
+      propAction <- applyProposals mlsMeta groupId proposals
+      -- add sender
+      selfAction <- addProposedClient senderIdentity
+      case cmAssocs (paRemove propAction) of
+        [(cid, _)]
+          | cid /= senderIdentity ->
+              throw $ mlsProtocolError "Only the self client can be removed by an external commit"
+        _ -> pure ()
+
+      pure $ propAction <> selfAction
+
+  pure action
+  where
+    allowedProposals = [ExternalInitProposalTag, RemoveProposalTag, PreSharedKeyProposalTag]
+
+    getInlineProposal :: ProposalOrRef -> Sem r Proposal
+    getInlineProposal (Ref _) =
+      throw (mlsProtocolError "External commits cannot reference proposals")
+    getInlineProposal (Inline p) = pure p
 
 processExternalCommit ::
   forall r.
   ( Member ConversationStore r,
     Member (Error MLSProtocolError) r,
     Member (ErrorS 'ConvNotFound) r,
+    Member (Error InternalError) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member ExternalAccess r,
@@ -687,52 +760,34 @@ processExternalCommit ::
   Sem r ()
 processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
   let convOrSub = tUnqualified lConvOrSub
-  leafNode <-
-    upLeaf
-      <$> note
-        (mlsProtocolError "External commits need an update path")
-        updatePath
-  when (paExternalInit action == mempty) $
-    throw . mlsProtocolError $
-      "The external commit is missing an external init proposal"
-  unless (paAdd action == mempty) $
-    throw . mlsProtocolError $
-      "The external commit must not have add proposals"
-
-  -- validate leaf node
-  let cs = cnvmlsCipherSuite (mlsMetaConvOrSub (tUnqualified lConvOrSub))
-  let groupId = cnvmlsGroupId (mlsMetaConvOrSub convOrSub)
-  let extra = LeafNodeTBSExtraCommit groupId (error "calculate index")
-
-  -- TODO: update client in conversation state
-
-  case validateLeafNode cs (Just senderIdentity) extra leafNode.rmValue of
-    Left errMsg ->
-      throw $
-        mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
-    Right _ -> pure ()
 
   -- only members can join a subconversation
   forOf_ _SubConv convOrSub $ \(mlsConv, _) ->
     unless (isClientMember senderIdentity (mcMembers mlsConv)) $
       throwS @'MLSSubConvClientNotInParent
 
+  -- get index of the newly added client, as calculated when processing proposals
+  idx <- case cmAssocs (paAdd action) of
+    [(cid, idx)] | cid == senderIdentity -> pure idx
+    _ -> throw (InternalErrorWithDescription "Unexpected Add action for external commit")
+
+  -- extract leaf node from update path and validate it
+  leafNode <-
+    upLeaf
+      <$> note
+        (mlsProtocolError "External commits need an update path")
+        updatePath
+  let cs = cnvmlsCipherSuite (mlsMetaConvOrSub (tUnqualified lConvOrSub))
+  let groupId = cnvmlsGroupId (mlsMetaConvOrSub convOrSub)
+  let extra = LeafNodeTBSExtraCommit groupId idx
+  case validateLeafNode cs (Just senderIdentity) extra leafNode.rmValue of
+    Left errMsg ->
+      throw $
+        mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
+    Right _ -> pure ()
+
   withCommitLock groupId epoch $ do
-    -- validate remove proposal: an external commit can contain
-    --
-    -- > At most one Remove proposal, with which the joiner removes an old
-    -- > version of themselves
-    remIndex <- case cmAssocs (paRemove action) of
-      [] -> pure Nothing
-      [(_, idx)] -> do
-        cid <-
-          note (mlsProtocolError "Invalid index in remove proposal") $
-            imLookup (indexMapConvOrSub convOrSub) idx
-        unless (cid == senderIdentity) $
-          throw $
-            mlsProtocolError "Only the self client can be removed by an external commit"
-        pure (Just idx)
-      _ -> throw (mlsProtocolError "Multiple remove proposals in external commits not allowed")
+    let remIndices = map snd (cmAssocs (paRemove action))
 
     -- increment epoch number
     lConvOrSub' <- for lConvOrSub incrementEpoch
@@ -740,7 +795,7 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
     -- fetch backend remove proposals of the previous epoch
     indicesInRemoveProposals <-
       -- skip remove proposals of already removed by the external commit
-      filter (maybe (const True) (/=) remIndex)
+      (\\ remIndices)
         <$> getPendingBackendRemoveProposals groupId epoch
 
     -- requeue backend remove proposals for the current epoch
@@ -750,35 +805,6 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
       indicesInRemoveProposals
       (cidQualifiedUser senderIdentity)
       cm
-
-processCommitWithAction ::
-  forall r.
-  ( HasProposalEffects r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member Resource r,
-    Member SubConversationStore r
-  ) =>
-  ClientIdentity ->
-  Maybe ConnId ->
-  Local ConvOrSubConv ->
-  Epoch ->
-  ProposalAction ->
-  Sender ->
-  Commit ->
-  Sem r [LocalConversationUpdate]
-processCommitWithAction senderIdentity con lConvOrSub epoch action sender commit =
-  case sender of
-    SenderMember _index ->
-      processInternalCommit senderIdentity con lConvOrSub epoch action commit
-    SenderExternal _ -> throw (mlsProtocolError "Unexpected sender")
-    SenderNewMemberProposal -> throw (mlsProtocolError "Unexpected sender")
-    SenderNewMemberCommit ->
-      processExternalCommit senderIdentity lConvOrSub epoch action (cPath commit) $> []
 
 processInternalCommit ::
   forall r.
@@ -836,6 +862,21 @@ addProposedClient cid = do
   let (idx, im') = imAddClient im cid
   put im'
   pure (paAddClient cid idx)
+
+applyProposals ::
+  ( Member (State IndexMap) r,
+    Member (Error MLSProtocolError) r,
+    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r
+  ) =>
+  ConversationMLSData ->
+  GroupId ->
+  [Proposal] ->
+  Sem r ProposalAction
+applyProposals mlsMeta groupId =
+  -- proposals are sorted before processing
+  foldMap (applyProposal mlsMeta groupId)
+    . sortOn proposalProcessingStage
 
 applyProposal ::
   ( Member (State IndexMap) r,
@@ -1120,6 +1161,8 @@ executeProposalAction qusr con lconvOrSub action = do
               }
       runFederatedConcurrently_ (toList remoteDomains) $ \_ -> do
         void $ fedClient @'Galley @"on-new-remote-subconversation" nrc
+
+  -- TODO: increment epoch here instead of in the calling site
 
   pure (addEvents <> removeEvents)
   where
