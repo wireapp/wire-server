@@ -37,6 +37,7 @@ module Galley.API.Action
     notifyConversationAction,
     notifyRemoteConversationAction,
     ConversationUpdate,
+    FederationFailEarly (..),
   )
 where
 
@@ -634,14 +635,14 @@ updateLocalConversationUnchecked lconv qusr con action = do
   notifyConversationAction
     ( case tag of
         -- Removing members should be fault tolerant.
-        SConversationRemoveMembersTag -> False
+        SConversationRemoveMembersTag -> FaultTolerant
         -- Conversation metadata updates should be fault tolerant.
-        SConversationRenameTag -> False
-        SConversationMessageTimerUpdateTag -> False
-        SConversationReceiptModeUpdateTag -> False
-        SConversationAccessDataTag -> False
-        SConversationMemberUpdateTag -> False
-        _ -> True
+        SConversationRenameTag -> FaultTolerant
+        SConversationMessageTimerUpdateTag -> FaultTolerant
+        SConversationReceiptModeUpdateTag -> FaultTolerant
+        SConversationAccessDataTag -> FaultTolerant
+        SConversationMemberUpdateTag -> FaultTolerant
+        _ -> FailEarly
     )
     (sing @tag)
     qusr
@@ -695,6 +696,11 @@ addMembersToLocalConversation lcnv users role = do
   let action = ConversationJoin neUsers role
   pure (bmFromMembers lmems rmems, action)
 
+data FederationFailEarly
+  = FailEarly
+  | FaultTolerant
+  deriving (Eq, Show)
+
 notifyConversationAction ::
   forall tag r.
   ( Member FederatorAccess r,
@@ -703,7 +709,7 @@ notifyConversationAction ::
     Member (Input UTCTime) r,
     Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
-  Bool ->
+  FederationFailEarly ->
   Sing tag ->
   Qualified UserId ->
   Bool ->
@@ -775,7 +781,9 @@ notifyConversationAction failEarly tag quid notifyOrigDomain con lconv targets a
             "An error occurred while communicating with federated server: "
         pure update
 
-  update <- if failEarly then errorIntolerant else errorTolerant
+  update <- case failEarly of
+    FailEarly -> errorIntolerant
+    FaultTolerant -> errorTolerant
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
@@ -862,7 +870,7 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
       lconv
       ()
   notifyConversationAction
-    False
+    FaultTolerant
     (sing @'ConversationRemoveMembersTag)
     qusr
     True
