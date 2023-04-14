@@ -4,6 +4,7 @@ module Test.Client where
 
 import API
 import App
+import Config
 import Data.Default
 import Imports
 import SetupHelpers
@@ -27,7 +28,17 @@ testDeleteUnknownClient = do
   let fakeClientId :: String = "deadbeefdeadbeef"
   bindResponse (deleteClient user Nothing fakeClientId) $ \resp -> do
     resp.status @?= 404
-    resp.json %. "label" %?= ("client-not-found" :: String)
+    resp.json %. "label" @%?= ("client-not-found" :: String)
 
-testOtherWithoutComments :: App ()
-testOtherWithoutComments = pure ()
+testModifiedServices :: HasCallStack => App ()
+testModifiedServices = do
+  bindResponse getBrigAPIVersion $ \resp ->
+    (resp.json %. "domain") @%?= ("example.com" :: String)
+
+  withModifiedService
+    Brig
+    ("optSettings.setFederationDomain" %.= ("overridden.example.com" :: String))
+    $ bindResponse getBrigAPIVersion
+    $ ( \resp ->
+          (resp.json %. "domain") @%?= ("overridden.example.com" :: String)
+      )

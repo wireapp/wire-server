@@ -47,7 +47,7 @@ createUser cu = do
   email <- maybe randomEmail pure cu.email
   let password = fromMaybe defPassword cu.password
       name = fromMaybe email cu.name
-  req <- baseRequest Brig "/i/users"
+  req <- baseRequest Brig Unversioned "/i/users"
   submit "POST" $
     addJSONObject
       [ "email" .= email,
@@ -86,7 +86,7 @@ addClient ::
   App Response
 addClient user args = do
   uid <- objId user
-  req <- baseRequest Brig $ "/i/clients/" <> uid
+  req <- baseRequest Brig Unversioned $ "/i/clients/" <> uid
   pks <- maybe (fmap pure getPrekey) pure args.prekeys
   lpk <- maybe getLastPrekey pure args.lastPrekey
   submit "POST" $
@@ -110,7 +110,7 @@ deleteClient user mconn client = do
   let conn = fromMaybe "0" mconn
   uid <- user & objId
   cid <- client & asString
-  req <- baseRequest Brig $ "/clients/" <> cid
+  req <- baseRequest Brig Unversioned $ "/clients/" <> cid
   submit "DELETE" $
     req
       & zUser uid
@@ -118,3 +118,9 @@ deleteClient user mconn client = do
       & addJSONObject
         [ "password" .= defPassword
         ]
+
+getBrigAPIVersion :: App Response
+getBrigAPIVersion = do
+  req <- baseRequest Brig Unversioned $ "/api-version"
+  submit "GET" $
+    req

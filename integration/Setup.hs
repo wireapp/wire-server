@@ -2,6 +2,7 @@
 {-# OPTIONS_GHC -Wall #-}
 
 import Control.Applicative
+import Distribution.Types.Library
 import Control.Monad
 import Data.Bool
 import Data.Foldable
@@ -16,15 +17,14 @@ import Distribution.Simple hiding (Module (..))
 import Distribution.Simple.BuildPaths
 import Distribution.Simple.LocalBuildInfo
 import Distribution.Types.BuildInfo
-import Distribution.Types.Executable
-import Distribution.Types.UnqualComponentName
 import Distribution.Utils.Path
 import System.Directory
 import System.FilePath
 import Prelude
 
 collectTests :: [FilePath] -> IO [(String, String, String, String)]
-collectTests roots = concat <$> traverse findAllTests (map (<> "/Test") roots)
+collectTests roots = do
+  concat <$> traverse findAllTests (map (<> "/Test") roots)
   where
     findAllTests :: FilePath -> IO [(String, String, String, String)]
     findAllTests root = do
@@ -97,11 +97,11 @@ testHooks hooks =
     }
   where
     generate p l = do
-      let cname = CExeName (mkUnqualComponentName "integration")
+      let cname = CLibName LMainLibName
       let roots = case lookupComponent p cname of
-            Just (CExe exe) -> map getSymbolicPath (hsSourceDirs (buildInfo exe))
+            Just (CLib lib) -> map getSymbolicPath (hsSourceDirs (libBuildInfo lib))
             _ -> []
-      for_ (Map.lookup cname (componentNameMap l)) $ \compBIs ->
+      for_ (Map.lookup cname (componentNameMap l)) $ \compBIs -> do
         for_ compBIs $ \compBI -> do
           let dest = autogenComponentModulesDir l compBI </> "RunAllTests.hs"
           tests <- collectTests roots
