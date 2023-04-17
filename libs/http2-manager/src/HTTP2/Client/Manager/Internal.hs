@@ -102,13 +102,13 @@ setSSLContext ctx mgr = mgr {sslContext = ctx}
 
 -- | Does not check whether connection is actually running. Users should use
 -- 'withHTTP2Request'. This function is good for testing.
-sendRequestWithConnection :: HTTP2Conn -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
+sendRequestWithConnection :: HTTP2Conn -> HTTP2.Request -> (HTTP2.Response -> IO r) -> IO r
 sendRequestWithConnection conn req k = do
-  result <- newEmptyMVar
-  threadKilled <- newEmptyMVar
+  result :: MVar r <- newEmptyMVar
+  threadKilled :: MVar SomeException <- newEmptyMVar
   putMVar (connectionActionMVar conn) (SendRequest (Request req (putMVar result <=< k) threadKilled))
   race (takeMVar result) (takeMVar threadKilled) >>= \case
-    Left x -> pure x
+    Left r -> pure r
     Right (SomeException e) -> throw e
 
 -- | Make an HTTP2 request, if it is the first time the 'Http2Manager' sees this
