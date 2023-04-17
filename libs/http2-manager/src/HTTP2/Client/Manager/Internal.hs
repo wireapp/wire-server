@@ -205,7 +205,7 @@ disconnectServer mgr target = do
     Just conn -> do
       disconnect conn
       wait (backgroundThread conn)
-      atomically . modifyTVar' (connections mgr) $ Map.delete target
+        `finally` (atomically . modifyTVar' (connections mgr) $ Map.delete target)
 
 -- | Disconnects HTTP2 connection if there exists one. If the background thread
 -- running the connection does not finish within 1 second, it is canceled.
@@ -229,9 +229,12 @@ disconnectServerWithTimeout mgr target microSeconds = do
       --
       -- All of this to say wait max 1 second for the background thread to
       -- finish.
-      waitOneSec <- async $ threadDelay microSeconds
-      _ <- waitAnyCatchCancel [waitOneSec, backgroundThread conn]
-      atomically . modifyTVar' (connections mgr) $ Map.delete target
+      let waitOnTwoThreads = do
+            waitOneSec <- async $ threadDelay microSeconds
+            void $ waitAnyCatchCancel [waitOneSec, backgroundThread conn]
+
+      waitOnTwoThreads
+        `finally` (atomically . modifyTVar' (connections mgr) $ Map.delete target)
 
 startPersistentHTTP2Connection ::
   SSL.SSLContext ->
