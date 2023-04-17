@@ -43,7 +43,11 @@ type Port = Int
 
 type Target = (TLSEnabled, HostName, Port)
 
--- FUTUREWORK: Support HTTPS, perhaps ALPN negatiation can also be used to
+data ConnectionAction
+  = SendRequest Request
+  | CloseConnection
+
+-- | FUTUREWORK: Support HTTPS, perhaps ALPN negotiation can also be used to
 -- HTTP1. I think HTTP1 vs HTTP2 can not be negotated without TLS, so perhaps
 -- this manager will default to HTTP2.
 data Http2Manager = Http2Manager
@@ -223,13 +227,6 @@ data Request = Request
     -- | MVar to communicate lack of response due to an exception.
     exceptionMVar :: MVar SomeException
   }
-
--- | Used to close a persistent connection gracefully
-type CloseConnection = ()
-
-data ConnectionAction
-  = SendRequest Request
-  | CloseConnection
 
 startPersistentHTTP2Connection ::
   SSL.SSLContext ->
