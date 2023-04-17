@@ -2,7 +2,7 @@ cabal-version:      1.12
 name:               http2-manager
 version:            0.0.1
 synopsis:           Managed connection pool for HTTP2
-description:        Helps reuse HTTP2 connections
+description:        Helps reuse HTTP2 connections with TLS support
 category:           Web
 author:             Wire Swiss GmbH
 maintainer:         Wire Swiss GmbH <backend@wire.com>
