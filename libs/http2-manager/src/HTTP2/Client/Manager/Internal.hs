@@ -132,9 +132,9 @@ sendRequestWithConnection conn req k = do
 -- connection exists using 'connectIfNotAlreadyConnected' before making all the
 -- requests.
 withHTTP2Request :: Http2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
-withHTTP2Request mgr target req f = do
+withHTTP2Request mgr target req k = do
   conn <- getOrMakeConnection mgr target
-  sendRequestWithConnection conn req f
+  sendRequestWithConnection conn req k
 
 -- | Connects to a server if it is not already connected, useful when making
 -- many concurrent requests. This way the first few requests don't have to fight
