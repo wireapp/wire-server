@@ -164,7 +164,7 @@ getConnection mgr target = do
       pollSTM (backgroundThread conn) >>= \case
         Nothing -> pure (Just conn)
         Just _ -> do
-          -- FUTUREWORK: Maybe there is value in logging any exceptions we
+          -- Maybe there is value in logging any exceptions we
           -- recieve here. But logging in STM will be tricky, and the threads
           -- running requests on the connection which got an exception would've
           -- anyway recieved the exception, so maybe it is not as valueable.
@@ -233,7 +233,9 @@ startPersistentHTTP2Connection ::
   Target ->
   -- cacheLimit
   Int ->
-  -- MVar used to communicate requests or the need to close the connection.
+  -- MVar used to communicate requests or the need to close the connection.  (We could use a
+  -- queue here to queue several requests, but since the requestor has to wait for the
+  -- response, it might as well block before sending off the request.)
   MVar ConnectionAction ->
   IO ()
 startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl sendReqMVar = do
