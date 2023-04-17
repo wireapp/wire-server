@@ -115,13 +115,13 @@ sendRequestWithConnection conn req k = do
     Right (SomeException e) -> throw e
 
 -- | Make an HTTP2 request, if it is the first time the 'Http2Manager' sees this
--- (tlsenabled,server,port) combination, it creates the connection and keeps it around for
+-- target, it creates the connection and keeps it around for
 -- any subsequent requests. Subsequest requests try to use this connection, in
 -- case the connection is already dead (e.g. the background thread has
 -- finished), a new connection is created.
 --
--- It is important that the continuation consumes the response body completely
--- before it returns.
+-- It is important that the continuation provided by the caller of this function
+-- consumes the response body completely before it returns.
 --
 -- NOTE: If many concurrent requests are made to the same server using a single
 -- instance of 'Http2Manager', it could cause the manager to make multiple
