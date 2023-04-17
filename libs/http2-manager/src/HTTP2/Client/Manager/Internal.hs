@@ -60,7 +60,10 @@ data Request = Request
     -- write the result, this is being dealt with in
     -- 'sendRequestWithConnection'.
     responseConsumer :: HTTP2.Response -> IO (),
-    -- | MVar to communicate lack of response due to an exception.
+    -- | There are exceptions which cannot be communicated in a continuation
+    -- becasue they can be raised even before the continuation starts. We also
+    -- need a way to communicate any exceptions raised by the continuation
+    -- itself. This 'MVar' will be written to in any of those cases.
     exceptionMVar :: MVar SomeException
   }
 
