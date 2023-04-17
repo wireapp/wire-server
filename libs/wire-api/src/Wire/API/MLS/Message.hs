@@ -347,10 +347,8 @@ unreachableFromList = fmap UnreachableUsers . nonEmpty
 -- | A 'mappend'-like operation on two optional values of a type with a
 -- Semigroup instance.
 (<\>) :: Semigroup a => Maybe a -> Maybe a -> Maybe a
-Nothing <\> Nothing = Nothing
-Nothing <\> v = v
-v <\> Nothing = v
 (Just a) <\> (Just b) = Just (a <> b)
+m <\> n = m <|> n
 
 -- | Lists of remote users that could not be processed in a federated action,
 -- e.g., a message could not be sent to these remote users.
