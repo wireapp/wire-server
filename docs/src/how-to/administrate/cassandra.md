@@ -49,6 +49,12 @@ describe tables;
 select * from <tablename> WHERE <primarykey>=<some-value> LIMIT 10;
 ```
 
+If your local install does not have cqlsh available, you can use docker instead:
+
+```
+sudo docker run -it --rm cassandra:3.11 cqlsh 172.16.0.132 9042
+```
+
 ## How to rolling-restart a cassandra cluster
 
 For maintenance you may need to restart the cluster.
