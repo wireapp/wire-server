@@ -47,6 +47,23 @@ data ConnectionAction
   = SendRequest Request
   | CloseConnection
 
+data Request = Request
+  { -- | The request to be sent.
+    request :: HTTP2.Request,
+    -- | Consumer for the response, must not exit until the response body is
+    -- completely consumed.
+    --
+    -- The response consumer has to return 'IO ()' because we want to processes
+    -- different requests on one connection and 'HTTP2.run' ties the return type
+    -- of response consumer to the return type of itself. Even if the response
+    -- consumer returned something else we would need another empty MVar to
+    -- write the result, this is being dealt with in
+    -- 'sendRequestWithConnection'.
+    responseConsumer :: HTTP2.Response -> IO (),
+    -- | MVar to communicate lack of response due to an exception.
+    exceptionMVar :: MVar SomeException
+  }
+
 -- | FUTUREWORK: Support HTTPS, perhaps ALPN negotiation can also be used to
 -- HTTP1. I think HTTP1 vs HTTP2 can not be negotated without TLS, so perhaps
 -- this manager will default to HTTP2.
@@ -210,23 +227,6 @@ disconnectServerWithTimeout mgr target microSeconds = do
       waitOneSec <- async $ threadDelay microSeconds
       _ <- waitAnyCatchCancel [waitOneSec, backgroundThread conn]
       atomically . modifyTVar' (connections mgr) $ Map.delete target
-
-data Request = Request
-  { -- | The request to be sent.
-    request :: HTTP2.Request,
-    -- | Consumer for the response, must not exit until the response body is
-    -- completely consumed.
-    --
-    -- The response consumer has to return 'IO ()' because we want to processes
-    -- different requests on one connection and 'HTTP2.run' ties the return type
-    -- of response consumer to the return type of itself. Even if the response
-    -- consumer returned something else we would need another empty MVar to
-    -- write the result, this is being dealt with in
-    -- 'sendRequestWithConnection'.
-    responseConsumer :: HTTP2.Response -> IO (),
-    -- | MVar to communicate lack of response due to an exception.
-    exceptionMVar :: MVar SomeException
-  }
 
 startPersistentHTTP2Connection ::
   SSL.SSLContext ->
