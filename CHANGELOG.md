@@ -228,8 +228,6 @@
 
 * Deflake integration test: metrics (#3053)
 
-* Document in code a function that sends remote Proteus messages (#PR_NOT_FOUND)
-
 * Lower the log level of federator inotify (#3056)
 
 * use Wai's settings for graceful shutdown (#3069)
