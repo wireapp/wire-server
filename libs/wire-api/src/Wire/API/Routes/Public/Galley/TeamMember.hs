@@ -31,6 +31,7 @@ import Wire.API.Routes.LowLevelStream
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Version
 import Wire.API.Team.Member
 import qualified Wire.API.User as User
 
@@ -96,7 +97,7 @@ type TeamMemberAPI =
     :<|> Named
            "add-team-member"
            ( Summary "Add a new team member"
-               -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
+               :> Until 'V4
                :> CanThrow 'InvalidPermissions
                :> CanThrow 'NoAddToBinding
                :> CanThrow 'NotATeamMember
@@ -142,7 +143,7 @@ type TeamMemberAPI =
     :<|> Named
            "delete-non-binding-team-member"
            ( Summary "Remove an existing team member"
-               -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
+               :> Until 'V4
                :> CanThrow AuthenticationError
                :> CanThrow 'AccessDenied
                :> CanThrow 'TeamMemberNotFound

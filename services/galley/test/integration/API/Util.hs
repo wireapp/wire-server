@@ -222,7 +222,8 @@ createBindingTeamWithQualifiedMembers num = do
 
 getTeams :: UserId -> [(ByteString, Maybe ByteString)] -> TestM TeamList
 getTeams u queryItems = do
-  g <- viewGalley
+  -- This endpoint is removed from version v4 onwards
+  g <- fmap (addPrefixAtVersion V3 .) (view tsUnversionedGalley)
   r <-
     get
       ( g
