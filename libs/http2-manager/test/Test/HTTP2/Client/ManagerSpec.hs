@@ -111,7 +111,7 @@ specTemplate mCtx = do
       mgr <- mkTestManager
 
       echoTest mgr (isJust mCtx) serverPort
-      disconnectServerWithTimeout mgr (isJust mCtx, "localhost", serverPort) 1_000_000
+      disconnectTargetWithTimeout mgr (isJust mCtx, "localhost", serverPort) 1_000_000
       echoTest mgr (isJust mCtx) serverPort
 
       readIORef acceptedConns `shouldReturn` 2
