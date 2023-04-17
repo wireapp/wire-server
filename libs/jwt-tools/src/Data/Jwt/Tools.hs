@@ -40,6 +40,7 @@ import Control.Exception
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion
 import Data.String.Conversions (cs)
+import Debug.Trace (traceM)
 import Foreign.C.String (CString, newCString, peekCString)
 import Foreign.Ptr (Ptr, nullPtr)
 import Imports
@@ -146,19 +147,26 @@ generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpir
   methodCStr <- liftIO $ newCString $ cs $ methodToBS method
   backendPubkeyBundleCStr <- toCStr backendPubkeyBundle
 
-  let before =
-        generateDpopAccessTokenFfi
-          dpopProofCStr
-          uidCStr
-          (_unClientId cid)
-          domainCStr
-          nonceCStr
-          uriCStr
-          methodCStr
-          (_unMaxSkewSecs maxSkewSecs)
-          (_unExpiryEpoch maxExpiration)
-          (_unNowEpoch now)
-          backendPubkeyBundleCStr
+  let before = do
+        res <-
+          generateDpopAccessTokenFfi
+            dpopProofCStr
+            uidCStr
+            (_unClientId cid)
+            domainCStr
+            nonceCStr
+            uriCStr
+            methodCStr
+            (_unMaxSkewSecs maxSkewSecs)
+            (_unExpiryEpoch maxExpiration)
+            (_unNowEpoch now)
+            backendPubkeyBundleCStr
+        traceM $ "res: " <> show res
+        err <- getErrorFfi (fromMaybe (error "") res)
+        traceM $ "err: " <> show err
+        token <- getTokenFfi (fromMaybe (error "") res)
+        traceM $ "token: " <> show token
+        pure res
 
   let mkAccessToken response = do
         case response of
@@ -167,7 +175,9 @@ generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpir
 
   let free = maybe (pure ()) free_dpop_access_token
 
-  ExceptT $ liftIO $ bracket before free mkAccessToken
+  res <- ExceptT $ liftIO $ bracket before free mkAccessToken
+  traceM $ "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX res: " <> show res
+  pure res
   where
     toCStr :: forall a m. (ToByteString a, MonadIO m) => a -> m CString
     toCStr = liftIO . newCString . toStr

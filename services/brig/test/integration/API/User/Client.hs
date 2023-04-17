@@ -60,6 +60,7 @@ import Data.String.Conversions (cs)
 import Data.Text.Ascii (AsciiChars (validate))
 import Data.Time (getCurrentTime)
 import qualified Data.Vector as Vec
+import Debug.Trace (traceM)
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import qualified System.Logger as Log
@@ -1166,18 +1167,6 @@ testNewNonce brig = do
         Just "no-store" @=? getHeader "Cache-Control" response
       pure nonceBs
 
--- {
---   "iat": 1680707939,
---   "exp": 1688483939,
---   "nbf": 1680707939,
---   "sub": "im:wireapp=YTM0NjEyODNmZGE2NGQzNmE4MTc4ZTZjNWMxNWM0MDU/ebfb7769766d4d10@staging.zinfra.io",
---   "jti": "6fc59e7f-b666-4ffc-b738-4f4760c884ca",
---   "nonce": "dE1bEcU1TySsa97QzuMJPg==",
---   "htm": "POST",
---   "htu": "https://staging-nginz-https.zinfra.io/v4/clients/ebfb7769766d4d10/access-token",
---   "chal": "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
--- }
-
 data DPoPClaimsSet = DPoPClaimsSet
   { jwtClaims :: ClaimsSet,
     claimNonce :: Text,
@@ -1222,25 +1211,39 @@ signAccessToken claims = doSignClaims
       fromMaybe (error "invalid jwk") . A.decode $
         "{\"kty\": \"OKP\",\"crv\": \"Ed25519\",\"x\": \"CPvhIdimF20tOPjbb-fXJrwS2RKDp7686T90AZ0-Th8\"}"
 
+-- {
+--   "iat": 1680707939,
+--   "exp": 1688483939,
+--   "nbf": 1680707939,
+--   "sub": "im:wireapp=YTM0NjEyODNmZGE2NGQzNmE4MTc4ZTZjNWMxNWM0MDU/ebfb7769766d4d10@staging.zinfra.io",
+--   "jti": "6fc59e7f-b666-4ffc-b738-4f4760c884ca",
+--   "nonce": "dE1bEcU1TySsa97QzuMJPg==",
+--   "htm": "POST",
+--   "htu": "https://staging-nginz-https.zinfra.io/v4/clients/ebfb7769766d4d10/access-token",
+--   "chal": "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+-- }
+
 testCreateAccessTokenInvalidValues :: Brig -> Http ()
 testCreateAccessTokenInvalidValues brig =
   do
     uid <- userId <$> randomUser brig
     cid <- createClientForUser brig uid
-    n <- Util.headNonce brig uid cid <!! const 200 === statusCode
+    traceM $ "created client: " <> cs (toByteString' cid)
+    nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
+    let nonceBs = fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
     now <- liftIO getCurrentTime
     let claimsSet' =
           emptyClaimsSet
             & claimIat ?~ NumericDate now
             & claimExp ?~ NumericDate now
             & claimNbf ?~ NumericDate now
-            & claimSub ?~ fromMaybe (error "") (("im:wireapp=YTM0NjEyODNmZGE2NGQzNmE4MTc4ZTZjNWMxNWM0MDU/ebfb7769766d4d10@staging.zinfra.io" :: Text) ^? stringOrUri)
+            & claimSub ?~ fromMaybe (error "") (("im:wireapp=YTM0NjEyODNmZGE2NGQzNmE4MTc4ZTZjNWMxNWM0MDU/" <> cs (toByteString' cid) <> "@example.com" :: Text) ^? stringOrUri)
             & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
-    let dpopClaims = DPoPClaimsSet claimsSet' "nonce" "POST" "https://staging-nginz-https.zinfra.io/v4/clients/ebfb7769766d4d10/access-token" "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+    let dpopClaims = DPoPClaimsSet claimsSet' (cs nonceBs) "POST" ("https://example.com/clients/" <> cs (toByteString' cid) <> "/access-token") "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
     signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
     let signed = either (\e -> "invalid jwt: " <> show e) cs signedOrError
-    let proof _nonce = Just $ Proof (cs signed)
-    response <- Util.createAccessToken brig uid cid (proof n)
+    let proof = Just $ Proof (cs signed)
+    response <- Util.createAccessToken brig uid cid proof
     print response
 
 testCreateAccessTokenMissingProof :: Brig -> Http ()
