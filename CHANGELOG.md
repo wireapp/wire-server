@@ -53,7 +53,7 @@
 
 * Adding a new version of /list-users that allows for partial success. (#3117)
 
-* Added a `failed_to_send` field to response when sending mls messages. (#PR_NOT_FOUND)
+* Added a `failed_to_send` field to response when sending mls messages. (#3081)
 
 * List failed-to-add remote users in response to `POST /conversations` (#3150)
 
@@ -73,7 +73,7 @@
 
 * Optional password for guest links (#3149)
 
-* Authorization Code Flow with PKCE support (#PR_NOT_FOUND)
+* Authorization Code Flow with PKCE support (#3165)
 
 * `conversations/join` endpoint rate limited per IP address (#3202)
 
@@ -99,11 +99,11 @@
 
 * Fix the Swagger documentation for the failed_to_send field in the response of the Proteus message sending endpoint (#3223)
 
-* Extend docs to support render plantuml directly, rewrote the saml flow diagram in plantuml (#PR_NOT_FOUND)
+* Extend docs to support render plantuml directly, rewrote the saml flow diagram in plantuml (#3226)
 
 * Allow swagger on disabled versions. (#3196)
 
-* Documentation of setting up SSO integration with Okta was outdated with images from Okta Classic UI, the new version was updated using Oktas latest design. (#PR_NOT_FOUND)
+* Documentation of setting up SSO integration with Okta was outdated with images from Okta Classic UI, the new version was updated using Oktas latest design. (#3175)
 
 
 ## Internal changes
@@ -114,7 +114,7 @@
   Cassandra. This allows on-demand migrations from one AWS account used for push
   notifications to another one. (#3162)
 
-* We don't explicitly set with-compiler inside the cabal.project file anymore, because the version of GHC is controlled by Nix, and our nixpkgs pin. (#PR_NOT_FOUND)
+* We don't explicitly set with-compiler inside the cabal.project file anymore, because the version of GHC is controlled by Nix, and our nixpkgs pin. (#3209)
 
 * - integration tests on CI will use either the old or the new ingress controller; depending on which kubernetes version they run on.
   - upgrade `kubectl` to default from the nixpkgs channel (currently `1.26`) by removing the manual version pin on 1.19
@@ -124,7 +124,7 @@
 
 * Make new record syntax a language default (#3192)
 
-* nixpkgs has been bumped to a more recent checkout (8c619a1f3cedd16ea172146e30645e703d21bfc1 -> 402cc3633cc60dfc50378197305c984518b30773, 2023-02-12 -> 2023-03-28). (#PR_NOT_FOUND)
+* nixpkgs has been bumped to a more recent checkout (8c619a1f3cedd16ea172146e30645e703d21bfc1 -> 402cc3633cc60dfc50378197305c984518b30773, 2023-02-12 -> 2023-03-28). (#3206)
 
 * Introduce VersionNumber newtype (see `/libs/wire-api/src/Wire/API/Routes/Version.hs` for explanation) (#3075)
 
@@ -599,7 +599,7 @@
 
 * Fix copyright date on docs.wire.com (#2792)
 
-* Improve and cross-link documentation on SNS / push notifications. (#PR_NOT_FOUND)
+* Improve and cross-link documentation on SNS / push notifications. (#2781)
 
 * Add extension sphinx-reredirects and configuration to generate simple JavaScript based redirects to new locations of previously inconsistently named files/URLs. (#2811)
 
