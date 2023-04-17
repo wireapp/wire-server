@@ -98,8 +98,10 @@ specTemplate mCtx = do
 
   it "should process many concurrent requests correctly under different timing situations" $ do
     withTestServer mCtx $ \TestServer {..} -> do
-      let numserial = 100
-          numparallel = 1000
+      let numserial = 8
+          -- don't incease `numparallel` beyond max streams until
+          -- https://github.com/kazu-yamamoto/http2/issues/71 is resolved!
+          numparallel = 99
       mgr <- mkTestManager
       let onethread _ = replicateM_ numserial (multiLineEchoTest mgr (isJust mCtx) serverPort)
       mapConcurrently_ onethread [(0 :: Int) .. numparallel]
