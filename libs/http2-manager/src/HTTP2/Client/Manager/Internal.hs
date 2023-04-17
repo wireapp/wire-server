@@ -220,7 +220,7 @@ disconnectTargetWithTimeout mgr target microSeconds = do
     Just conn -> do
       disconnect conn
 
-      -- Wait on two threads:
+      -- Wait with timeout using two threads:
       -- 1. background thread which _should_ be exiting soon
       -- 2. sleep for given number of microseconds.
       --
@@ -229,11 +229,11 @@ disconnectTargetWithTimeout mgr target microSeconds = do
       --
       -- All of this to say wait max 1 second for the background thread to
       -- finish.
-      let waitOnTwoThreads = do
+      let waitWithTimeout = do
             waitOneSec <- async $ threadDelay microSeconds
             void $ waitAnyCatchCancel [waitOneSec, backgroundThread conn]
 
-      waitOnTwoThreads
+      waitWithTimeout
         `finally` (atomically . modifyTVar' (connections mgr) $ Map.delete target)
 
 startPersistentHTTP2Connection ::
