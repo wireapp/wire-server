@@ -271,8 +271,6 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl sendReqMVar =
         -- as finished.
         void $ async $ race_ (tooLateNotifier e) (threadDelay 1_000_000)
 
-      cleanupThreads = cleanupThreadsWith (SomeException ConnectionAlreadyClosed)
-
       transportConfig
         | tlsEnabled = Just $ TLSParams ctx hostname
         | otherwise = Nothing
@@ -285,7 +283,7 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl sendReqMVar =
                 handleRequests liveReqs sendReq
           -- Any request threads still hanging about after 'runAction' finishes
           -- are canceled with 'ConnectionAlreadyClosed'.
-          flip finally cleanupThreads $
+          flip finally (cleanupThreadsWith (SomeException ConnectionAlreadyClosed)) $
             -- Any exceptions thrown will get re-thrown to any running requests,
             -- handle at the top level is not good as 'finally' wrapping this
             -- function would kill all threads with some other exception.
