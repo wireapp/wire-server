@@ -55,7 +55,7 @@ instance ToSchema Nonce where
       p = maybe (Left "Invalid Nonce") Right . fromByteString' . cs
 
 instance ToByteString Nonce where
-  builder = builder . Base64.encode . toStrict . UUID.toByteString . unNonce
+  builder = builder . Base64.encodeUnpadded . toStrict . UUID.toByteString . unNonce
 
 instance FromByteString Nonce where
   parser = do

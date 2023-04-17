@@ -105,6 +105,19 @@ generateDpopAccessTokenFfi ::
   BackendBundleCStr ->
   IO (Maybe (Ptr HsResult))
 generateDpopAccessTokenFfi dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys = do
+  traceM "XXXXXXXXXXXXXXXXXXXXXX INPUT VALUES (FFI)"
+  traceM $ "dpopProof: " <> show dpopProof
+  traceM $ "user: " <> show user
+  traceM $ "client: " <> show client
+  traceM $ "domain: " <> show domain
+  traceM $ "nonce: " <> show nonce
+  traceM $ "uri: " <> show uri
+  traceM $ "method: " <> show method
+  traceM $ "maxSkewSecs: " <> show maxSkewSecs
+  traceM $ "expiration: " <> show expiration
+  traceM $ "now: " <> show now
+  traceM $ "backendKeys: " <> show backendKeys
+  traceM "XXXXXXXXXXXXXXXXXXXXXX INPUT VALUES (FFI)"
   ptr <- generate_dpop_access_token dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys
   if ptr /= nullPtr
     then pure $ Just ptr
@@ -139,6 +152,19 @@ generateDpopToken ::
   PemBundle ->
   ExceptT DPoPTokenGenerationError m ByteString
 generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpiration now backendPubkeyBundle = do
+  traceM "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY INPUT VALUES"
+  traceM $ "dpopProof: " <> show dpopProof
+  traceM $ "uid: " <> show uid
+  traceM $ "cid: " <> show cid
+  traceM $ "domain: " <> show domain
+  traceM $ "nonce: " <> show nonce
+  traceM $ "uri: " <> show uri
+  traceM $ "method: " <> show method
+  traceM $ "maxSkewSecs: " <> show maxSkewSecs
+  traceM $ "maxExpiration: " <> show maxExpiration
+  traceM $ "now: " <> show now
+  traceM $ "backendPubkeyBundle: " <> show backendPubkeyBundle
+  traceM "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY INPUT VALUES"
   dpopProofCStr <- toCStr dpopProof
   uidCStr <- toCStr uid
   domainCStr <- toCStr domain

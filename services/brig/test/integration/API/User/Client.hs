@@ -34,7 +34,7 @@ import Bilge.Assert
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opt
 import qualified Cassandra as DB
-import Control.Lens (at, preview, (?~), (^.), (^?))
+import Control.Lens hiding (Wrapped, (#))
 import Crypto.JWT hiding (Ed25519, header, params)
 import Data.Aeson
   ( Object,
@@ -46,6 +46,7 @@ import Data.Aeson
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as M
 import Data.Aeson.Lens
+import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion
 import Data.Default
 import Data.Domain (Domain (..))
@@ -57,6 +58,7 @@ import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
+import Data.Text (replace)
 import Data.Text.Ascii (AsciiChars (validate))
 import Data.Time (getCurrentTime)
 import qualified Data.Vector as Vec
@@ -1204,12 +1206,21 @@ signAccessToken claims = doSignClaims
     doSignClaims :: IO (Either JWTError SignedJWT)
     doSignClaims = runJOSE $ do
       algo <- bestJWSAlg jwkKey
-      signJWT jwkKey (newJWSHeader ((), algo)) claims
+      let h =
+            newJWSHeader ((), algo)
+              & (jwk ?~ HeaderParam () jwkPubKey)
+              & (typ ?~ HeaderParam () "dpop+jwt")
+      signJWT jwkKey h claims
 
     jwkKey :: JWK
     jwkKey = do
       fromMaybe (error "invalid jwk") . A.decode $
-        "{\"kty\": \"OKP\",\"crv\": \"Ed25519\",\"x\": \"CPvhIdimF20tOPjbb-fXJrwS2RKDp7686T90AZ0-Th8\"}"
+        "{\"crv\":\"Ed25519\",\"d\":\"UA2fFks0Tin4YPNbNHfCb-_zH_RvFliQLKR7VpNG5xc\",\"kty\":\"OKP\",\"x\":\"CPvhIdimF20tOPjbb-fXJrwS2RKDp7686T90AZ0-Th8\"}"
+
+    jwkPubKey :: JWK
+    jwkPubKey = do
+      fromMaybe (error "invalid jwk") . A.decode $
+        "{\"crv\":\"Ed25519\",\"d\":\"UA2fFks0Tin4YPNbNHfCb-_zH_RvFliQLKR7VpNG5xc\",\"kty\":\"OKP\",\"x\":\"CPvhIdimF20tOPjbb-fXJrwS2RKDp7686T90AZ0-Th8\"}"
 
 -- {
 --   "iat": 1680707939,
@@ -1227,6 +1238,7 @@ testCreateAccessTokenInvalidValues :: Brig -> Http ()
 testCreateAccessTokenInvalidValues brig =
   do
     uid <- userId <$> randomUser brig
+    let uidb64 = replace "-" "" $ cs $ B64.encode (toByteString' uid)
     cid <- createClientForUser brig uid
     traceM $ "created client: " <> cs (toByteString' cid)
     nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
@@ -1237,14 +1249,16 @@ testCreateAccessTokenInvalidValues brig =
             & claimIat ?~ NumericDate now
             & claimExp ?~ NumericDate now
             & claimNbf ?~ NumericDate now
-            & claimSub ?~ fromMaybe (error "") (("im:wireapp=YTM0NjEyODNmZGE2NGQzNmE4MTc4ZTZjNWMxNWM0MDU/" <> cs (toByteString' cid) <> "@example.com" :: Text) ^? stringOrUri)
+            & claimSub ?~ fromMaybe (error "") (("im:wireapp=" <> cs uidb64 <> "/" <> cs (toByteString' cid) <> "@example.com" :: Text) ^? stringOrUri)
             & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
     let dpopClaims = DPoPClaimsSet claimsSet' (cs nonceBs) "POST" ("https://example.com/clients/" <> cs (toByteString' cid) <> "/access-token") "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
     signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
-    let signed = either (\e -> "invalid jwt: " <> show e) cs signedOrError
-    let proof = Just $ Proof (cs signed)
-    response <- Util.createAccessToken brig uid cid proof
-    print response
+    case signedOrError of
+      Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
+      Right signed -> do
+        let proof = Just $ Proof (cs signed)
+        response <- Util.createAccessToken brig uid cid proof
+        print response
 
 testCreateAccessTokenMissingProof :: Brig -> Http ()
 testCreateAccessTokenMissingProof brig = do
