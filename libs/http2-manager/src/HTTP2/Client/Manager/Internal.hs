@@ -152,10 +152,7 @@ getOrMakeConnection mgr@Http2Manager {..} target = do
   where
     -- Ensures that any old connection is preserved. This is required to ensure
     -- that concurrent calls to this function don't cause the connections to
-    -- leak. It is possible that the connection won't leak because it is waiting
-    -- on an MVar and as soon as it gets removed from the map and GC collects
-    -- the 'HTTP2Conn', the connection thread _should_ in theory get
-    -- 'BlockedIndefinitelyOnMVar' exception. So perhaps this is useless?
+    -- leak.
     insertNewConn :: HTTP2Conn -> STM (Bool, HTTP2Conn)
     insertNewConn newConn = do
       stateTVar connections $ \conns ->
@@ -169,7 +166,12 @@ getOrMakeConnection mgr@Http2Manager {..} target = do
       thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sendReqMVar
       let newConn = HTTP2Conn thread (putMVar sendReqMVar CloseConnection) sendReqMVar
       (inserted, finalConn) <- atomically $ insertNewConn newConn
-      unless inserted $ disconnect newConn
+      unless inserted $ do
+        -- It is possible that the connection won't leak because it is waiting
+        -- on an MVar and as soon as it gets removed from the map and GC collects
+        -- the 'HTTP2Conn', the connection thread _should_ in theory get
+        -- 'BlockedIndefinitelyOnMVar' exception. So perhaps this is useless?
+        disconnect newConn
       pure finalConn
 
 -- | Removes connection from map if it is not alive anymore
