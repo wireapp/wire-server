@@ -531,10 +531,8 @@ testCreateTeam brig galley userJournalWatcher = do
   email <- randomEmail
   usr <- responseJsonError =<< register email newTeam brig
   let uid = userId usr
-  -- Verify that the user is part of exactly one (binding) team
-  teams <- view teamListTeams <$> getTeams uid galley
-  liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
-  let team = fromMaybe (error "No team??") $ listToMaybe teams
+  let tid = fromMaybe (error "No team??") $ userTeam usr
+  team <- Team.tdTeam <$> getTeam galley tid
   mem <- getTeamMember uid (team ^. teamId) galley
   liftIO $ assertBool "Member not part of the team" (uid == mem ^. Member.userId)
   -- Verify that the user cannot send invitations before activating their account
@@ -565,9 +563,8 @@ testCreateTeamPreverified brig galley userJournalWatcher = do
       usr <- responseJsonError =<< register' email newTeam c brig <!! const 201 === statusCode
       let uid = userId usr
       Util.assertUserActivateJournaled userJournalWatcher usr "user activate"
-      teams <- view teamListTeams <$> getTeams uid galley
-      liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
-      let team = fromMaybe (error "No team??") $ listToMaybe teams
+      let tid = fromMaybe (error "No team??") $ userTeam usr
+      team <- Team.tdTeam <$> getTeam galley tid
       mem <- getTeamMember uid (team ^. teamId) galley
       liftIO $ assertBool "Member not part of the team" (uid == mem ^. Member.userId)
       team2 <- getTeam galley (team ^. teamId)

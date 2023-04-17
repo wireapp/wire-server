@@ -22,7 +22,7 @@
 
 module API.UserPendingActivation where
 
-import API.Team.Util (getTeams)
+import API.Team.Util (getTeam)
 import Bilge hiding (query)
 import Bilge.Assert ((<!!), (===))
 import Brig.Options (Opts (..), setTeamInvitationTimeout)
@@ -60,6 +60,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Invitation
 import Wire.API.User hiding (CreateScimToken)
@@ -152,7 +153,7 @@ getInvitationByEmail brig email =
 newTeam :: BindingNewTeam
 newTeam = BindingNewTeam $ newNewTeam (unsafeRange "teamName") DefaultIcon
 
-createUserWithTeamDisableSSO :: (HasCallStack, MonadCatch m, MonadHttp m, MonadIO m, MonadFail m) => Brig -> Galley -> m (UserId, TeamId)
+createUserWithTeamDisableSSO :: (HasCallStack, MonadCatch m, MonadHttp m, MonadIO m) => Brig -> Galley -> m (UserId, TeamId)
 createUserWithTeamDisableSSO brg gly = do
   e <- randomEmail
   n <- UUID.toString <$> liftIO UUID.nextRandom
@@ -166,7 +167,7 @@ createUserWithTeamDisableSSO brg gly = do
             ]
   bdy <- selfUser . responseJsonUnsafe <$> post (brg . path "/i/users" . contentJson . body p)
   let (uid, Just tid) = (userId bdy, userTeam bdy)
-  (team : _) <- (^. teamListTeams) <$> getTeams uid gly
+  team <- Team.tdTeam <$> getTeam gly tid
   () <-
     Control.Exception.assert {- "Team ID in registration and team table do not match" -} (tid == team ^. teamId) $
       pure ()
