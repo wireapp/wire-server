@@ -1,1 +1,0 @@
-Added a `failed_to_send` field to response when sending mls messages.

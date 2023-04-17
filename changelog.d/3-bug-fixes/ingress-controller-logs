@@ -1,1 +1,0 @@
-When using the (now deprecated) ingress controller on older versions of kubernetes, ensure query parameters are not logged in the ingress logs
