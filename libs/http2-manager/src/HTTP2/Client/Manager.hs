@@ -11,8 +11,8 @@ module HTTP2.Client.Manager
     withHTTP2Request,
     connectIfNotAlreadyConnected,
     ConnectionAlreadyClosed (..),
-    disconnectServer,
-    disconnectServerWithTimeout,
+    disconnectTarget,
+    disconnectTargetWithTimeout,
   )
 where
 

@@ -197,8 +197,8 @@ getConnection mgr target = do
 -- all the ongoing requests complete. This would throw an error if the
 -- background thread maintaining the connection throws an error, e.g. there was
 -- a TLS error or the connection was already disconnected with error.
-disconnectServer :: Http2Manager -> Target -> IO ()
-disconnectServer mgr target = do
+disconnectTarget :: Http2Manager -> Target -> IO ()
+disconnectTarget mgr target = do
   mConn <- atomically $ getConnection mgr target
   case mConn of
     Nothing -> pure ()
@@ -212,8 +212,8 @@ disconnectServer mgr target = do
 -- Errors from the background thread running the connection are not propagated.
 --
 -- NOTE: Any requests in progress might not finish correctly.
-disconnectServerWithTimeout :: Http2Manager -> Target -> Int -> IO ()
-disconnectServerWithTimeout mgr target microSeconds = do
+disconnectTargetWithTimeout :: Http2Manager -> Target -> Int -> IO ()
+disconnectTargetWithTimeout mgr target microSeconds = do
   mConn <- atomically $ getConnection mgr target
   case mConn of
     Nothing -> pure ()
