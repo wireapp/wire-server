@@ -329,6 +329,10 @@ assertBool :: HasCallStack => String -> Bool -> App ()
 assertBool _ True = pure ()
 assertBool msg False = assertFailure msg
 
+assertOne :: HasCallStack => [a] -> App a
+assertOne [x] = pure x
+assertOne xs = assertFailure ("Expected one, but got " <> show (length xs))
+
 expectFailure :: HasCallStack => (AssertionFailure -> App ()) -> App a -> App ()
 expectFailure checkFailure action = do
   env <- App $ ask
@@ -515,17 +519,23 @@ data Versioned = Versioned | Unversioned | ExplicitVersion Int
 baseRequest :: Service -> Versioned -> String -> App HTTP.Request
 baseRequest service versioned path = do
   ctx <- getContext
-  pathPrefix <- case versioned of
+  pathSegsPrefix <- case versioned of
     Versioned -> do
       v <- App $ asks (.context.version)
-      pure ("v" <> show v <> "/")
-    Unversioned -> pure ""
+      pure ["v" <> show v]
+    Unversioned -> pure []
     ExplicitVersion v -> do
-      pure ("v" <> show v <> "/")
+      pure ["v" <> show v]
 
   liftIO . HTTP.parseRequest $
     let HostPort h p = serviceHostPort ctx.serviceMap service
-     in "http://" <> h <> ":" <> show p <> pathPrefix <> path
+     in "http://" <> h <> ":" <> show p <> ("/" <> joinHttpPath (pathSegsPrefix <> splitHttpPath path))
+
+splitHttpPath :: String -> [String]
+splitHttpPath path = filter (not . null) (splitOn "/" path)
+
+joinHttpPath :: [String] -> String
+joinHttpPath = intercalate "/"
 
 addJSONObject :: [Aeson.Pair] -> HTTP.Request -> HTTP.Request
 addJSONObject = addJSON . Aeson.object
@@ -548,6 +558,9 @@ zUser = addHeader "Z-User"
 
 zConnection :: String -> HTTP.Request -> HTTP.Request
 zConnection = addHeader "Z-Connection"
+
+zType :: String -> HTTP.Request -> HTTP.Request
+zType = addHeader "Z-Type"
 
 submit :: ByteString -> HTTP.Request -> App Response
 submit method req0 = do

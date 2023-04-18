@@ -11,8 +11,6 @@ import Imports
 import SetupHelpers
 
 -- | Cannot delete a legalhold client
---
--- More comments
 testCantDeleteLHClient :: HasCallStack => App ()
 testCantDeleteLHClient = do
   user <- randomUser def
@@ -48,3 +46,23 @@ testModifiedBrig = do
     getAPIVersion = do
       req <- baseRequest Brig Unversioned $ "/api-version"
       submit "GET" req
+
+testModifiedGalley :: HasCallStack => App ()
+testModifiedGalley = do
+  (_user, tid) <- createTeam
+
+  let getFeatureStatus = do
+        bindResponse (getTeamFeatureInternal "searchVisibility" tid) $ \res -> do
+          res.status @?= 200
+          res.json %. "status"
+
+  do
+    status <- getFeatureStatus
+    status @%?= ("disabled" :: String)
+
+  withModifiedService
+    Galley
+    ("settings.featureFlags.teamSearchVisibility" %.= ("enabled-by-default" :: String))
+    $ do
+      status <- getFeatureStatus
+      status @%?= ("enabled" :: String)
