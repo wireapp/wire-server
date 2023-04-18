@@ -40,11 +40,11 @@ import qualified System.TimeManager
 import Test.Hspec
 
 echoTest :: Http2Manager -> TLSEnabled -> Int -> Expectation
-echoTest = echoTest' "/echo" "some body"
+echoTest = echoTest' "localhost" "/echo" "some body"
 
-echoTest' :: ByteString -> Builder.Builder -> Http2Manager -> TLSEnabled -> Int -> Expectation
-echoTest' path msg mgr tlsEnabled serverPort =
-  withHTTP2Request mgr (tlsEnabled, "localhost", serverPort) (Client.requestBuilder "GET" path [] msg) $ \res -> do
+echoTest' :: ByteString -> ByteString -> Builder.Builder -> Http2Manager -> TLSEnabled -> Int -> Expectation
+echoTest' hostname path msg mgr tlsEnabled serverPort =
+  withHTTP2Request mgr (tlsEnabled, hostname, serverPort) (Client.requestBuilder "GET" path [] msg) $ \res -> do
     Client.responseStatus res `shouldBe` Just status200
     readResponseBody res `shouldReturn` Builder.toLazyByteString msg
 
@@ -52,7 +52,7 @@ echoTest' path msg mgr tlsEnabled serverPort =
 --
 -- TODO: implement the delay below!
 multiLineEchoTest :: Http2Manager -> TLSEnabled -> Int -> Expectation
-multiLineEchoTest = echoTest' "/multiline" "1\n2\n3\n4\n5\n6\n"
+multiLineEchoTest = echoTest' "localhost" "/multiline" "1\n2\n3\n4\n5\n6\n"
 
 spec :: Spec
 spec = do
@@ -70,6 +70,11 @@ spec = do
       mgr <- mkTestManager
       withTestServer (Just ctx) $ \TestServer {..} ->
         echoTest mgr True serverPort `shouldThrow` (\(_ :: SSL.SomeSSLException) -> True)
+
+    it "should allow accepting a certificate without a trailing dot" $ do
+      mgr <- setSSLIgnoreTrailingDot True <$> mkTestManager
+      withTestServer (Just localhostCtx) $ \TestServer {..} ->
+        echoTest' "localhost." "/echo" "some body" mgr True serverPort
 
 specTemplate :: Maybe SSL.SSLContext -> Spec
 specTemplate mCtx = do
