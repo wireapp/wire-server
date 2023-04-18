@@ -33,6 +33,7 @@
 , http-media
 , http-types
 , http2
+, http2-manager
 , imports
 , interpolate
 , kan-extensions
@@ -242,6 +243,7 @@ mkDerivation {
     http-media
     http-types
     http2
+    http2-manager
     imports
     interpolate
     kan-extensions

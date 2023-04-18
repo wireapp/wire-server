@@ -221,8 +221,8 @@ let
       sha256 = "sha256-CfH1YJSGuF4O1aUfdJwUZKRrVzv5nSPhwoI7mf9ewEg=";
     };
     http2 = {
-      version = "4.0.0";
-      sha256 = "sha256-9rBhklwuuKZXWH4yV4tb7Sp5chR9AmBAMRBztDjx0uI=";
+      version = "4.1.0";
+      sha256 = "sha256-D6RWYBguoj+W1LwNeX04h4csXV69rrs0tZpeNr7ZBqE=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv
