@@ -87,7 +87,6 @@ library
     Galley.API.MLS.Conversation
     Galley.API.MLS.Enabled
     Galley.API.MLS.GroupInfo
-    Galley.API.MLS.KeyPackage
     Galley.API.MLS.Keys
     Galley.API.MLS.Message
     Galley.API.MLS.Propagate

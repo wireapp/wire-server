@@ -111,7 +111,7 @@ claimRemoteKeyPackages lusr target = do
           ckprTarget = tUnqualified target
         }
 
-  -- validate and set up mappings for all claimed key packages
+  -- validate all claimed key packages
   for_ (kpbEntries bundle) $ \e -> do
     let cid = mkClientIdentity (kpbeUser e) (kpbeClient e)
     kpRaw <-
@@ -126,7 +126,6 @@ claimRemoteKeyPackages lusr target = do
       . throwE
       . clientDataError
       $ InvalidKeyPackageRef
-    wrapClientE $ Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
 
   pure bundle
   where

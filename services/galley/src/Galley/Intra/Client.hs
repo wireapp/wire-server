@@ -22,11 +22,7 @@ module Galley.Intra.Client
     addLegalHoldClientToUser,
     removeLegalHoldClientFromUser,
     getLegalHoldAuthToken,
-    getClientByKeyPackageRef,
     getLocalMLSClients,
-    addKeyPackageRef,
-    updateKeyPackageRef,
-    deleteKeyPackageRefs,
   )
 where
 
@@ -54,13 +50,9 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
-import Servant
 import qualified System.Logger.Class as Logger
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
-import Wire.API.Routes.Internal.Brig
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -178,18 +170,6 @@ brigAddClient uid connId client = do
     then Right <$> parseResponse (mkError status502 "server-error") r
     else pure (Left ReAuthFailed)
 
--- | Calls 'Brig.API.Internal.getClientByKeyPackageRef'.
-getClientByKeyPackageRef :: KeyPackageRef -> App (Maybe ClientIdentity)
-getClientByKeyPackageRef ref = do
-  r <-
-    call Brig $
-      method GET
-        . paths ["i", "mls", "key-packages", toHeader ref]
-        . expectStatus (flip elem [200, 404])
-  if statusCode (responseStatus r) == 200
-    then Just <$> parseResponse (mkError status502 "server-error") r
-    else pure Nothing
-
 -- | Calls 'Brig.API.Internal.getMLSClients'.
 getLocalMLSClients :: Local UserId -> SignatureSchemeTag -> App (Set ClientInfo)
 getLocalMLSClients lusr ss =
@@ -206,36 +186,3 @@ getLocalMLSClients lusr ss =
         . expect2xx
     )
     >>= parseResponse (mkError status502 "server-error")
-
-deleteKeyPackageRefs :: [KeyPackageRef] -> App ()
-deleteKeyPackageRefs refs =
-  void $
-    call
-      Brig
-      ( method DELETE
-          . paths ["i", "mls", "key-packages"]
-          . json (DeleteKeyPackageRefsRequest refs)
-          . expect2xx
-      )
-
-addKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> App ()
-addKeyPackageRef ref qusr cl qcnv =
-  void $
-    call
-      Brig
-      ( method PUT
-          . paths ["i", "mls", "key-packages", toHeader ref]
-          . json (NewKeyPackageRef qusr cl qcnv)
-          . expect2xx
-      )
-
-updateKeyPackageRef :: KeyPackageUpdate -> App ()
-updateKeyPackageRef keyPackageRef =
-  void $
-    call
-      Brig
-      ( method POST
-          . paths ["i", "mls", "key-packages", toHeader $ kpupPrevious keyPackageRef]
-          . json (kpupNext keyPackageRef)
-          . expect2xx
-      )

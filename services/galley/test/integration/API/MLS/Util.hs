@@ -91,20 +91,6 @@ cid2Str cid =
     <> "@"
     <> T.unpack (domainText (ciDomain cid))
 
-mapRemoteKeyPackageRef ::
-  (MonadIO m, MonadHttp m, MonadCatch m) =>
-  (Request -> Request) ->
-  KeyPackageBundle ->
-  m ()
-mapRemoteKeyPackageRef brig bundle =
-  void $
-    put
-      ( brig
-          . paths ["i", "mls", "key-package-refs"]
-          . json bundle
-      )
-      !!! const 204 === statusCode
-
 postMessage ::
   ( HasCallStack,
     MonadIO m,
@@ -551,7 +537,6 @@ getUserClients qusr = do
 -- | Generate one key package for each client of a remote user
 claimRemoteKeyPackages :: HasCallStack => Remote UserId -> MLSTest KeyPackageBundle
 claimRemoteKeyPackages (tUntagged -> qusr) = do
-  brig <- viewBrig
   clients <- getUserClients qusr
   bundle <- fmap (KeyPackageBundle . Set.fromList) $
     for clients $ \cid -> do
@@ -563,7 +548,6 @@ claimRemoteKeyPackages (tUntagged -> qusr) = do
             kpbeRef = ref,
             kpbeKeyPackage = KeyPackageData (rmRaw kp)
           }
-  mapRemoteKeyPackageRef brig bundle
   pure bundle
 
 -- | Claim key package for a local user, or generate and map key packages for remote ones.

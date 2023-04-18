@@ -116,7 +116,7 @@ import Wire.API.User.Client
 -- [ ] validate proposals when processing proposal and commit messages
 -- [ ] remove MissingSenderClient error
 -- [ ] PreSharedKey proposal
--- [ ] remove all key package ref mapping
+-- [x] remove all key package ref mapping
 -- [x] initialise index maps
 -- [ ] newtype for leaf node indices
 -- [x] compute new indices for add proposals

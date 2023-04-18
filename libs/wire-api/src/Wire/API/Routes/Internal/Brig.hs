@@ -29,10 +29,6 @@ module Wire.API.Routes.Internal.Brig
     DeleteAccountConferenceCallingConfig,
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
-    NewKeyPackageRef (..),
-    NewKeyPackage (..),
-    NewKeyPackageResult (..),
-    DeleteKeyPackageRefsRequest (..),
   )
 where
 
@@ -52,8 +48,6 @@ import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.MLS.CipherSuite (SignatureSchemeTag)
-import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
@@ -183,129 +177,7 @@ instance ToSchema NewKeyPackageRef where
         <*> nkprClientId .= field "client_id" schema
         <*> nkprConversation .= field "conversation" schema
 
-data NewKeyPackage = NewKeyPackage
-  { nkpConversation :: Qualified ConvId,
-    nkpKeyPackage :: KeyPackageData
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewKeyPackage)
-
-instance ToSchema NewKeyPackage where
-  schema =
-    object "NewKeyPackage" $
-      NewKeyPackage
-        <$> nkpConversation .= field "conversation" schema
-        <*> nkpKeyPackage .= field "key_package" schema
-
-data NewKeyPackageResult = NewKeyPackageResult
-  { nkpresClientIdentity :: ClientIdentity,
-    nkpresKeyPackageRef :: KeyPackageRef
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewKeyPackageResult)
-
-instance ToSchema NewKeyPackageResult where
-  schema =
-    object "NewKeyPackageResult" $
-      NewKeyPackageResult
-        <$> nkpresClientIdentity .= field "client_identity" schema
-        <*> nkpresKeyPackageRef .= field "key_package_ref" schema
-
-newtype DeleteKeyPackageRefsRequest = DeleteKeyPackageRefsRequest {unDeleteKeyPackageRefsRequest :: [KeyPackageRef]}
-  deriving (Eq, Show)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema DeleteKeyPackageRefsRequest)
-
-instance ToSchema DeleteKeyPackageRefsRequest where
-  schema =
-    object "DeleteKeyPackageRefsRequest" $
-      DeleteKeyPackageRefsRequest
-        <$> unDeleteKeyPackageRefsRequest .= field "key_package_refs" (array schema)
-
-type MLSAPI =
-  "mls"
-    :> ( ( "key-packages"
-             :> ( ( Capture "ref" KeyPackageRef
-                      :> ( Named
-                             "get-client-by-key-package-ref"
-                             ( Summary "Resolve an MLS key package ref to a qualified client ID"
-                                 :> MultiVerb
-                                      'GET
-                                      '[Servant.JSON]
-                                      '[ RespondEmpty 404 "Key package ref not found",
-                                         Respond 200 "Key package ref found" ClientIdentity
-                                       ]
-                                      (Maybe ClientIdentity)
-                             )
-                             :<|> ( "conversation"
-                                      :> ( PutConversationByKeyPackageRef
-                                             :<|> GetConversationByKeyPackageRef
-                                         )
-                                  )
-                             :<|> Named
-                                    "put-key-package-ref"
-                                    ( Summary "Create a new KeyPackageRef mapping"
-                                        :> ReqBody '[Servant.JSON] NewKeyPackageRef
-                                        :> MultiVerb
-                                             'PUT
-                                             '[Servant.JSON]
-                                             '[RespondEmpty 201 "Key package ref mapping created"]
-                                             ()
-                                    )
-                             :<|> Named
-                                    "post-key-package-ref"
-                                    ( Summary "Update a KeyPackageRef in mapping"
-                                        :> ReqBody '[Servant.JSON] KeyPackageRef
-                                        :> MultiVerb
-                                             'POST
-                                             '[Servant.JSON]
-                                             '[RespondEmpty 201 "Key package ref mapping updated"]
-                                             ()
-                                    )
-                         )
-                  )
-                    :<|> Named
-                           "delete-key-package-refs"
-                           ( Summary "Delete a batch of KeyPackageRef mappings"
-                               :> ReqBody '[Servant.JSON] DeleteKeyPackageRefsRequest
-                               :> MultiVerb
-                                    'DELETE
-                                    '[Servant.JSON]
-                                    '[RespondEmpty 200 "Key package ref mappings deleted"]
-                                    ()
-                           )
-                )
-         )
-           :<|> GetMLSClients
-           :<|> MapKeyPackageRefs
-       )
-
-type PutConversationByKeyPackageRef =
-  Named
-    "put-conversation-by-key-package-ref"
-    ( Summary "Associate a conversation with a key package"
-        :> ReqBody '[Servant.JSON] (Qualified ConvId)
-        :> MultiVerb
-             'PUT
-             '[Servant.JSON]
-             [ RespondEmpty 404 "No key package found by reference",
-               RespondEmpty 204 "Converstaion associated"
-             ]
-             Bool
-    )
-
-type GetConversationByKeyPackageRef =
-  Named
-    "get-conversation-by-key-package-ref"
-    ( Summary
-        "Retrieve the conversation associated with a key package"
-        :> MultiVerb
-             'GET
-             '[Servant.JSON]
-             [ RespondEmpty 404 "No associated conversation or bad key package",
-               Respond 200 "Conversation found" (Qualified ConvId)
-             ]
-             (Maybe (Qualified ConvId))
-    )
+type MLSAPI = "mls" :> GetMLSClients
 
 type GetMLSClients =
   Summary "Return all clients and all MLS-capable clients of a user"
@@ -317,12 +189,6 @@ type GetMLSClients =
          'GET
          '[Servant.JSON]
          (Respond 200 "MLS clients" (Set ClientInfo))
-
-type MapKeyPackageRefs =
-  Summary "Insert bundle into the KeyPackage ref mapping. Only for tests."
-    :> "key-package-refs"
-    :> ReqBody '[Servant.JSON] KeyPackageBundle
-    :> MultiVerb 'PUT '[Servant.JSON] '[RespondEmpty 204 "Mapping was updated"] ()
 
 type GetVerificationCode =
   Summary "Get verification code for a given email and action"
