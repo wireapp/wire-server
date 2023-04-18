@@ -106,6 +106,7 @@ library
     , network-uri
     , process
     , random
+    , raw-strings-qq
     , retry
     , scientific
     , split
@@ -114,18 +115,3 @@ library
     , text
     , transformers
     , yaml
-
-test-suite unit
-  import:         common-all
-  type:           exitcode-stdio-1.0
-  main-is:        ../unit.hs
-  hs-source-dirs: unit
-  build-depends:
-    , aeson
-    , base
-    , imports
-    , integration
-    , raw-strings-qq
-    , tasty
-
-  other-modules:  Basic
