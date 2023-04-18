@@ -16,7 +16,7 @@ class Context:
         port = self.service_map[service]
         if not path or path[0] != "/":
             path = "/" + path
-        if self.version is not None:
+        if self.version is not None and not internal:
             vpath = f"/v{self.version}"
         else:
             vpath = ""

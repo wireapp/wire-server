@@ -10,7 +10,7 @@ import requests
 import string
 from .conversions import obj_qid, obj_id, obj_path
 
-DEFAULT_PASSWORD = "s3cret"
+DEFAULT_PASSWORD = "hunter2!"
 
 
 def random_letters(n=10):
