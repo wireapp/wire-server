@@ -118,9 +118,3 @@ deleteClient user mconn client = do
       & addJSONObject
         [ "password" .= defPassword
         ]
-
-getBrigAPIVersion :: App Response
-getBrigAPIVersion = do
-  req <- baseRequest Brig Unversioned $ "/api-version"
-  submit "GET" $
-    req

@@ -86,7 +86,7 @@ library
     Run
     RunAllTests
     SetupHelpers
-    Test.Client
+    Test.Demo
 
   build-depends:
     , aeson

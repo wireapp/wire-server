@@ -17,10 +17,6 @@ spec:
       configMap:
         name: "galley"
 
-    - name: "galley-integration-secrets"
-      configMap:
-        name: "galley-integration-secrets"
-
     - name: "galley-secrets"
       secret:
         secretName: "galley"
@@ -36,9 +32,6 @@ spec:
 
     - name: "galley-config"
       mountPath: "/etc/wire/galley/config"
-
-    - name: "galley-integration-secrets"
-      mountPath: "/etc/wire/galley/integration-secrets"
 
     - name: "galley-secrets"
       mountPath: "/etc/wire/galley/secrets"
