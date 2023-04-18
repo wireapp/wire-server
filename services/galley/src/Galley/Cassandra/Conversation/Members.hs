@@ -32,7 +32,7 @@ import qualified Data.List.Extra as List
 import Data.Monoid
 import Data.Qualified
 import qualified Data.Set as Set
-import Galley.Cassandra.Conversation.MLS (lookupMLSClients)
+import Galley.Cassandra.Conversation.MLS
 import Galley.Cassandra.Instances ()
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Services
@@ -348,6 +348,17 @@ addMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
   for_ cs $ \(c, idx) ->
     addPrepQuery Cql.addMLSClient (groupId, domain, usr, c, fromIntegral idx)
 
+-- TODO Could (and should) we use batch instead?
+planMLSClientRemoval :: GroupId -> Qualified UserId -> Set.Set ClientId -> Client ()
+planMLSClientRemoval groupId (Qualified usr domain) cs = for_ cs $ \c -> do
+  retry x5 $
+    trans
+      Cql.planMLSClientRemoval
+      ( params
+          LocalQuorum
+          (groupId, domain, usr, c)
+      )
+
 removeMLSClients :: GroupId -> Qualified UserId -> Set.Set ClientId -> Client ()
 removeMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
   setType BatchLogged
@@ -384,6 +395,9 @@ interpretMemberStoreToCassandra = interpret $ \case
     embedClient $
       removeLocalMembersFromRemoteConv rcnv uids
   AddMLSClients lcnv quid cs -> embedClient $ addMLSClients lcnv quid cs
+  PlanClientRemoval lcnv quid cs -> embedClient $ planMLSClientRemoval lcnv quid cs
   RemoveMLSClients lcnv quid cs -> embedClient $ removeMLSClients lcnv quid cs
   RemoveAllMLSClients gid -> embedClient $ removeAllMLSClients gid
   LookupMLSClients lcnv -> embedClient $ lookupMLSClients lcnv
+  LookupMLSLeafIndices lcnv -> embedClient $ lookupMLSLeafIndices lcnv
+  LookupMLSClientLeafIndices lcnv -> embedClient $ lookupMLSClientLeafIndices lcnv

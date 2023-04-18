@@ -36,8 +36,11 @@ newtype IndexMap = IndexMap {unIndexMap :: IntMap ClientIdentity}
   deriving (Eq, Show)
   deriving newtype (Semigroup, Monoid)
 
-mkIndexMap :: ClientMap -> IndexMap
-mkIndexMap = IndexMap . IntMap.fromList . map (swap . fmap fromIntegral) . cmAssocs
+mkIndexMap :: [(Domain, UserId, ClientId, Int32, Bool)] -> IndexMap
+mkIndexMap = IndexMap . foldr addEntry mempty
+  where
+    addEntry (dom, usr, c, leafidx, _pending_removal) =
+      IntMap.insert (fromIntegral leafidx) (ClientIdentity dom usr c)
 
 imLookup :: IndexMap -> LeafIndex -> Maybe ClientIdentity
 imLookup m i = IntMap.lookup (fromIntegral i) (unIndexMap m)
@@ -57,12 +60,13 @@ imRemoveClient im idx = do
 
 type ClientMap = Map (Qualified UserId) (Map ClientId LeafIndex)
 
-mkClientMap :: [(Domain, UserId, ClientId, Int32)] -> ClientMap
+mkClientMap :: [(Domain, UserId, ClientId, Int32, Bool)] -> ClientMap
 mkClientMap = foldr addEntry mempty
   where
-    addEntry :: (Domain, UserId, ClientId, Int32) -> ClientMap -> ClientMap
-    addEntry (dom, usr, c, kpi) =
-      Map.insertWith (<>) (Qualified usr dom) (Map.singleton c (fromIntegral kpi))
+    addEntry :: (Domain, UserId, ClientId, Int32, Bool) -> ClientMap -> ClientMap
+    addEntry (dom, usr, c, leafidx, pending_removal)
+      | pending_removal = id -- treat as removed, don't add to ClientMap
+      | otherwise = Map.insertWith (<>) (Qualified usr dom) (Map.singleton c (fromIntegral leafidx))
 
 cmLookupIndex :: ClientIdentity -> ClientMap -> Maybe LeafIndex
 cmLookupIndex cid cm = do

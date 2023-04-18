@@ -427,9 +427,9 @@ leaveLocalSubConversation cid lcnv sub = do
   idx <-
     note (mlsProtocolError "Client is not a member of the subconversation") $
       cmLookupIndex cid (scMembers subConv)
-  -- remove the leaver from the member list
   let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData subConv)
-  Eff.removeMLSClients gid (cidQualifiedUser cid) . Set.singleton . ciClient $ cid
+  -- plan to remove the leaver from the member list
+  Eff.planClientRemoval gid (cidQualifiedUser cid) . Set.singleton . ciClient $ cid
   let cm = cmRemoveClient cid (scMembers subConv)
   if Map.null cm
     then do

@@ -26,6 +26,7 @@ migration =
   Migration 82 "Upgrade to MLS draft 17 structures" $ do
     schema'
       [r| ALTER TABLE mls_group_member_client
-            ADD (leaf_node_index int
+            ADD (leaf_node_index int,
+                 removal_pending boolean
           );
         |]

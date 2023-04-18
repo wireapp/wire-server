@@ -39,9 +39,12 @@ module Galley.Effects.MemberStore
     setSelfMember,
     setOtherMember,
     addMLSClients,
+    planClientRemoval,
     removeMLSClients,
     removeAllMLSClients,
     lookupMLSClients,
+    lookupMLSLeafIndices,
+    lookupMLSClientLeafIndices,
 
     -- * Delete members
     deleteMembers,
@@ -77,9 +80,12 @@ data MemberStore m a where
   DeleteMembers :: ConvId -> UserList UserId -> MemberStore m ()
   DeleteMembersInRemoteConversation :: Remote ConvId -> [UserId] -> MemberStore m ()
   AddMLSClients :: GroupId -> Qualified UserId -> Set (ClientId, Word32) -> MemberStore m ()
+  PlanClientRemoval :: GroupId -> Qualified UserId -> Set ClientId -> MemberStore m ()
   RemoveMLSClients :: GroupId -> Qualified UserId -> Set ClientId -> MemberStore m ()
   RemoveAllMLSClients :: GroupId -> MemberStore m ()
   LookupMLSClients :: GroupId -> MemberStore m ClientMap
+  LookupMLSLeafIndices :: GroupId -> MemberStore m IndexMap
+  LookupMLSClientLeafIndices :: GroupId -> MemberStore m (ClientMap, IndexMap)
 
 makeSem ''MemberStore
 

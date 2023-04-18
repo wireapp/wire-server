@@ -32,9 +32,9 @@ import Galley.API.MLS.Propagate
 import Galley.API.MLS.Types
 import qualified Galley.Data.Conversation.Types as Data
 import Galley.Effects
+import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Galley.Effects.SubConversationStore
-import qualified Galley.Effects.SubConversationStore as E
 import Galley.Env
 import Imports
 import Polysemy
@@ -44,6 +44,7 @@ import qualified System.Logger as Log
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.Credential
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
@@ -61,7 +62,7 @@ createAndSendRemoveProposals ::
     Foldable t
   ) =>
   Local ConvOrSubConv ->
-  t Word32 ->
+  t LeafIndex ->
   Qualified UserId ->
   -- | The client map that has all the recipients of the message. This is an
   -- argument, and not constructed within the function, because of a special
@@ -104,6 +105,7 @@ removeClientsWithClientMapRecursively ::
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
+         MemberStore,
          ProposalStore,
          SubConversationStore,
          Input Env
@@ -112,19 +114,25 @@ removeClientsWithClientMapRecursively ::
     Foldable f
   ) =>
   Local MLSConversation ->
-  (ConvOrSubConv -> f Word32) ->
+  (ConvOrSubConv -> f LeafIndex) ->
   Qualified UserId ->
   Sem r ()
 removeClientsWithClientMapRecursively lMlsConv getIndices qusr = do
   let mainConv = fmap Conv lMlsConv
       cm = mcMembers (tUnqualified lMlsConv)
+      cs = foldMap Map.keysSet $ Map.lookup qusr cm
+      gid = cnvmlsGroupId . mcMLSData . tUnqualified $ lMlsConv
+
+  planClientRemoval gid qusr cs
   createAndSendRemoveProposals mainConv (getIndices (tUnqualified mainConv)) qusr cm
 
   -- remove this client from all subconversations
   subs <- listSubConversations' (mcId (tUnqualified lMlsConv))
   for_ subs $ \sub -> do
     let subConv = fmap (flip SubConv sub) lMlsConv
+        sgid = cnvmlsGroupId . scMLSData $ sub
 
+    planClientRemoval sgid qusr cs
     createAndSendRemoveProposals
       subConv
       (getIndices (tUnqualified subConv))
@@ -180,7 +188,7 @@ listSubConversations' ::
   ConvId ->
   Sem r [SubConversation]
 listSubConversations' cid = do
-  subs <- E.listSubConversations cid
+  subs <- listSubConversations cid
   msubs <- for (Map.assocs subs) $ \(subId, _) -> do
     getSubConversation cid subId
   pure (catMaybes msubs)

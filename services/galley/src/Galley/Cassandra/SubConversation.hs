@@ -27,7 +27,7 @@ import qualified Data.Map as Map
 import Data.Qualified
 import Data.Time.Clock
 import Galley.API.MLS.Types
-import Galley.Cassandra.Conversation.MLS (lookupMLSClients)
+import Galley.Cassandra.Conversation.MLS
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store (embedClient)
 import Galley.Effects.SubConversationStore (SubConversationStore (..))
@@ -44,7 +44,7 @@ selectSubConversation :: ConvId -> SubConvId -> Client (Maybe SubConversation)
 selectSubConversation convId subConvId = do
   m <- retry x5 (query1 Cql.selectSubConversation (params LocalQuorum (convId, subConvId)))
   for m $ \(suite, epoch, epochWritetime, groupId) -> do
-    cm <- lookupMLSClients groupId
+    (cm, im) <- lookupMLSClientLeafIndices groupId
     pure $
       SubConversation
         { scParentConvId = convId,
@@ -57,7 +57,7 @@ selectSubConversation convId subConvId = do
                 cnvmlsCipherSuite = suite
               },
           scMembers = cm,
-          scIndexMap = mkIndexMap cm
+          scIndexMap = im
         }
 
 insertSubConversation ::
