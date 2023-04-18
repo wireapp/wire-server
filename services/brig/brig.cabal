@@ -31,6 +31,7 @@ library
     Brig.API.MLS.KeyPackages
     Brig.API.MLS.KeyPackages.Validation
     Brig.API.MLS.Util
+    Brig.API.OAuth
     Brig.API.Properties
     Brig.API.Public
     Brig.API.Public.Swagger
@@ -91,7 +92,6 @@ library
     Brig.IO.Journal
     Brig.Locale
     Brig.Options
-    Brig.Password
     Brig.Phone
     Brig.Provider.API
     Brig.Provider.DB
@@ -148,6 +148,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -159,6 +160,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -230,6 +232,7 @@ library
     , HsOpenSSL                  >=0.10
     , HsOpenSSL-x509-system      >=0.1
     , html-entities              >=1.1
+    , http-api-data
     , http-client                >=0.5
     , http-client-openssl        >=0.2
     , http-media
@@ -238,6 +241,7 @@ library
     , insert-ordered-containers
     , iproute                    >=1.5
     , iso639                     >=0.1
+    , jose
     , jwt-tools
     , lens                       >=3.8
     , lens-aeson                 >=1.0
@@ -330,6 +334,7 @@ executable brig
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -341,6 +346,7 @@ executable brig
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -389,6 +395,7 @@ executable brig-index
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -400,6 +407,7 @@ executable brig-index
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -443,11 +451,13 @@ executable brig-integration
     API.Metrics
     API.MLS
     API.MLS.Util
+    API.OAuth
     API.Provider
     API.RichInfo.Util
     API.Search
     API.Search.Util
     API.Settings
+    API.Swagger
     API.SystemSettings
     API.Team
     API.Team.Util
@@ -486,6 +496,7 @@ executable brig-integration
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -497,6 +508,7 @@ executable brig-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -555,6 +567,7 @@ executable brig-integration
     , http-reverse-proxy
     , http-types
     , imports
+    , jose
     , lens                   >=3.9
     , lens-aeson
     , metrics-wai
@@ -563,6 +576,7 @@ executable brig-integration
     , MonadRandom            >=0.5
     , mtl
     , network
+    , network-uri
     , optparse-applicative
     , pem
     , pipes
@@ -651,6 +665,8 @@ executable brig-schema
     V71_AddTableVCodesThrottle
     V72_AddNonceTable
     V73_ReplaceNonceTable
+    V74_AddOAuthTables
+    V75_AddOAuthCodeChallenge
     V_FUTUREWORK
 
   hs-source-dirs:     schema/src
@@ -667,6 +683,7 @@ executable brig-schema
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -678,6 +695,7 @@ executable brig-schema
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -741,6 +759,7 @@ test-suite brig-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -752,6 +771,7 @@ test-suite brig-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms

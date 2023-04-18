@@ -27,6 +27,7 @@ module Brig.API.Types
     ReAuthError (..),
     LegalHoldLoginError (..),
     RetryAfter (..),
+    ListUsersById (..),
     foldKey,
   )
 where

@@ -27,7 +27,7 @@
 # 3.2: Version overrides: These are very similar to nix/haskell-pins.nix, but
 # the package set itself sometimes contains newer versions of a few packages
 # along with the old versions, e.g., the package set contains aeson and
-# aeson_2_1_1_0. We use the latest version provided by the pacakge set, so we
+# aeson_2_1_1_0. We use the latest version provided by the package set, so we
 # don't have to remember to update the version here, nixpkgs will take care of
 # giving us the latest version.
 #
@@ -79,7 +79,7 @@ let
     gundeck = [ "gundeck" "gundeck-integration" "gundeck-schema" ];
     proxy = [ "proxy" ];
     spar = [ "spar" "spar-integration" "spar-schema" "spar-migrate-data" ];
-    stern = [ "stern" ];
+    stern = [ "stern" "stern-integration"];
 
     billing-team-member-backfill = [ "billing-team-member-backfill" ];
     inconsistencies = [ "inconsistencies" ];
@@ -300,18 +300,20 @@ let
     pkgs.gnused
     pkgs.parallel
     pkgs.ripgrep
-    pkgs.helm
+    pkgs.kubernetes-helm
     pkgs.helmfile
     pkgs.hlint
     (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
     pkgs.jq
     pkgs.kubectl
+    pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
     pkgs.ormolu
     pkgs.shellcheck
     pkgs.treefmt
     pkgs.gawk
     pkgs.cfssl
+    pkgs.awscli2
     (hlib.justStaticExecutables pkgs.haskellPackages.cabal-fmt)
   ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.skopeo
@@ -373,7 +375,7 @@ in
       pkgs.netcat
       pkgs.niv
       (pkgs.python3.withPackages
-        (ps: with ps; [ pyyaml ]))
+        (ps: with ps; [ pyyaml ipdb requests ]))
       pkgs.rsync
       pkgs.wget
       pkgs.yq

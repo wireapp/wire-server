@@ -372,6 +372,7 @@ leaveConversation requestingDomain lc = do
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
       _ <-
         notifyConversationAction
+          False
           SConversationLeaveTag
           (tUntagged leaver)
           False
@@ -499,6 +500,7 @@ onUserDeleted origDomain udcn = do
               removeUser (qualifyAs lc conv) (tUntagged deletedUser)
               void $
                 notifyConversationAction
+                  False
                   (sing @'ConversationLeaveTag)
                   untaggedDeletedUser
                   False
@@ -629,7 +631,8 @@ sendMLSCommitBundle remoteDomain msr =
       let msg = rmValue (cbCommitMsg bundle)
       qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
       when (Conv (qUnqualified qcnv) /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
-      F.MLSMessageResponseUpdates . map lcuUpdate
+      uncurry F.MLSMessageResponseUpdates
+        . first (map lcuUpdate)
         <$> postMLSCommitBundle loc (tUntagged sender) Nothing qcnv Nothing bundle
 
 sendMLSMessage ::
@@ -671,7 +674,8 @@ sendMLSMessage remoteDomain msr =
         SomeMessage _ msg -> do
           qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
           when (Conv (qUnqualified qcnv) /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
-          F.MLSMessageResponseUpdates . map lcuUpdate
+          uncurry F.MLSMessageResponseUpdates
+            . first (map lcuUpdate)
             <$> postMLSMessage loc (tUntagged sender) Nothing qcnv Nothing raw
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where

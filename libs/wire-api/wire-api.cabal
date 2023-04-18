@@ -62,6 +62,8 @@ library
     Wire.API.MLS.SubConversation
     Wire.API.MLS.Welcome
     Wire.API.Notification
+    Wire.API.OAuth
+    Wire.API.Password
     Wire.API.Properties
     Wire.API.Provider
     Wire.API.Provider.Bot
@@ -80,6 +82,7 @@ library
     Wire.API.Routes.Internal.Brig
     Wire.API.Routes.Internal.Brig.Connection
     Wire.API.Routes.Internal.Brig.EJPD
+    Wire.API.Routes.Internal.Brig.OAuth
     Wire.API.Routes.Internal.Cannon
     Wire.API.Routes.Internal.Cargohold
     Wire.API.Routes.Internal.Galley
@@ -95,6 +98,7 @@ library
     Wire.API.Routes.Named
     Wire.API.Routes.Public
     Wire.API.Routes.Public.Brig
+    Wire.API.Routes.Public.Brig.OAuth
     Wire.API.Routes.Public.Cannon
     Wire.API.Routes.Public.Cargohold
     Wire.API.Routes.Public.Galley
@@ -173,6 +177,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -184,6 +189,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -239,6 +245,7 @@ library
     , hashable
     , hostname-validate
     , hscim
+    , HsOpenSSL
     , http-api-data
     , http-media
     , http-types
@@ -247,6 +254,7 @@ library
     , iproute                    >=1.5
     , iso3166-country-codes      >=0.2
     , iso639                     >=0.1
+    , jose
     , lens                       >=4.12
     , memory
     , metrics-wai
@@ -263,6 +271,7 @@ library
     , saml2-web-sso
     , schema-profunctor
     , scientific
+    , scrypt
     , servant
     , servant-client
     , servant-client-core
@@ -445,6 +454,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.PushToken_user
     Test.Wire.API.Golden.Generated.PushTokenList_user
     Test.Wire.API.Golden.Generated.QualifiedNewOtrMessage_user
+    Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user
     Test.Wire.API.Golden.Generated.QueuedNotification_user
     Test.Wire.API.Golden.Generated.QueuedNotificationList_user
     Test.Wire.API.Golden.Generated.ReceiptMode_user
@@ -535,11 +545,13 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ConversationPagingState
     Test.Wire.API.Golden.Manual.ConversationsResponse
     Test.Wire.API.Golden.Manual.ConvIdsPage
+    Test.Wire.API.Golden.Manual.CreateGroupConversation
     Test.Wire.API.Golden.Manual.CreateScimToken
     Test.Wire.API.Golden.Manual.FeatureConfigEvent
     Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
     Test.Wire.API.Golden.Manual.GroupId
     Test.Wire.API.Golden.Manual.ListConversations
+    Test.Wire.API.Golden.Manual.ListUsersById
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
     Test.Wire.API.Golden.Manual.SearchResultContact
     Test.Wire.API.Golden.Manual.TeamSize
@@ -563,6 +575,7 @@ test-suite wire-api-golden-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -574,6 +587,7 @@ test-suite wire-api-golden-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -652,6 +666,7 @@ test-suite wire-api-tests
     Test.Wire.API.Call.Config
     Test.Wire.API.Conversation
     Test.Wire.API.MLS
+    Test.Wire.API.OAuth
     Test.Wire.API.RawJson
     Test.Wire.API.Roundtrip.Aeson
     Test.Wire.API.Roundtrip.ByteString
@@ -660,6 +675,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.MLS
     Test.Wire.API.Routes
     Test.Wire.API.Routes.Version
+    Test.Wire.API.Routes.Version.Wai
     Test.Wire.API.Swagger
     Test.Wire.API.Team.Export
     Test.Wire.API.Team.Member
@@ -682,6 +698,7 @@ test-suite wire-api-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -693,6 +710,7 @@ test-suite wire-api-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -734,6 +752,9 @@ test-suite wire-api-tests
     , filepath
     , hex
     , hscim
+    , hspec
+    , hspec-wai
+    , http-types
     , imports
     , iso3166-country-codes
     , iso639
@@ -749,11 +770,13 @@ test-suite wire-api-tests
     , saml2-web-sso
     , schema-profunctor
     , servant
+    , servant-server
     , servant-swagger-ui
     , string-conversions
     , swagger2
     , tasty
     , tasty-expected-failure
+    , tasty-hspec
     , tasty-hunit
     , tasty-quickcheck
     , text
@@ -764,6 +787,7 @@ test-suite wire-api-tests
     , uri-bytestring
     , uuid
     , vector
+    , wai
     , wire-api
     , wire-message-proto-lens
 

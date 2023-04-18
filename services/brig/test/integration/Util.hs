@@ -58,7 +58,7 @@ import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc
 import Data.Proxy
 import Data.Qualified hiding (isLocal)
 import Data.Range
@@ -442,7 +442,7 @@ postUserRegister' :: MonadHttp m => Object -> Brig -> m ResponseLBS
 postUserRegister' payload brig = do
   post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload))
 
-deleteUser :: (MonadHttp m, HasCallStack) => UserId -> Maybe PlainTextPassword -> Brig -> m ResponseLBS
+deleteUser :: (MonadHttp m, HasCallStack) => UserId -> Maybe PlainTextPassword6 -> Brig -> m ResponseLBS
 deleteUser u p brig =
   delete $
     brig
@@ -906,7 +906,7 @@ updatePhone brig uid phn = do
 defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
 
-emailLogin :: Email -> PlainTextPassword -> Maybe CookieLabel -> Login
+emailLogin :: Email -> PlainTextPassword6 -> Maybe CookieLabel -> Login
 emailLogin e pw cl = PasswordLogin (PasswordLoginData (LoginByEmail e) pw cl Nothing)
 
 somePrekeys :: [Prekey]
@@ -973,14 +973,14 @@ someLastPrekeys =
     lastPrekey "pQABARn//wKhAFggQeUPM119c+6zRsEupA8zshTfrZiLpXx1Ji0UMMumq9IDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
   ]
 
-defPassword :: PlainTextPassword
-defPassword = PlainTextPassword defPasswordText
+defPassword :: PlainTextPassword6
+defPassword = plainTextPassword6Unsafe defPasswordText
 
 defPasswordText :: Text
-defPasswordText = "secret"
+defPasswordText = "topsecretdefaultpassword"
 
-defWrongPassword :: PlainTextPassword
-defWrongPassword = PlainTextPassword "not secret"
+defWrongPassword :: PlainTextPassword6
+defWrongPassword = plainTextPassword6Unsafe "not secret"
 
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"

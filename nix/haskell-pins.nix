@@ -3,12 +3,12 @@
 # 1. If your target git repository has only package with the cabal file at the
 # root, add it like this under 'gitPins':
 #     <name-of-the-package> = {
-#       src = fetchgit = {
-#          url = "<https-url-to-git>"
+#       src = fetchgit {
+#          url = "<https-url-to-git>";
 #          rev = "<commit-id/sha>";
 #          sha256 = "";
-#       }
-#     }
+#       };
+#     };
 #
 # 2. If your target git repsitory has many packages, add it like this under 'gitPins':
 #
@@ -35,7 +35,9 @@
 # 1. Determine the new commit ID/SHA of the git repository that you want to pin
 # and update the 'rev' field of the pin under 'gitPins'.
 #
-# 2. Update 'sha256' field under `fetchgit` to be an empty string.
+# 2. Update 'sha256' field under `fetchgit` to be an empty string.  (This step is optional:
+# since the hash has changed, the error will be the same if you remove it or if you leave the
+# old value in place.)
 #
 # 3. Run step 3. from how to add a git pin.
 #
@@ -169,6 +171,13 @@ let
       };
       packages = {
         tasty-hunit = "hunit";
+      };
+    };
+    jose = {
+      src = fetchgit {
+          url = "https://github.com/frasertweedale/hs-jose";
+          rev = "a7f919b19f667dfbb4d5c989ce620d3e75af8247";
+          sha256 = "sha256-SKEE9ZqhjBxHYUKQaoB4IpN4/Ui3tS4S98FgZqj7WlY=";
       };
     };
     # This can be removed once postie 0.6.0.3 (or later) is in nixpkgs

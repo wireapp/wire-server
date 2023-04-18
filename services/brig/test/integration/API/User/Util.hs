@@ -44,7 +44,7 @@ import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import Data.Kind
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc
 import Data.Qualified
 import Data.Range (unsafeRange)
 import qualified Data.Text.Ascii as Ascii
@@ -210,7 +210,7 @@ preparePasswordReset ::
   DB.ClientState ->
   Email ->
   UserId ->
-  PlainTextPassword ->
+  PlainTextPassword8 ->
   m CompletePasswordReset
 preparePasswordReset brig cs email uid newpw = do
   let qry = queryItem "email" (toByteString' email)

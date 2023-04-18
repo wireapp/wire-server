@@ -57,6 +57,7 @@ module Data.Text.Ascii
     AsciiBase64Url,
     validateBase64Url,
     encodeBase64Url,
+    encodeBase64UrlUnpadded,
     decodeBase64Url,
 
     -- * Base16 (Hex) Characters
@@ -309,6 +310,12 @@ validateBase64Url = validate
 -- encoding and a multiple of 4 bytes in length.
 encodeBase64Url :: ByteString -> AsciiBase64Url
 encodeBase64Url = unsafeFromByteString . B64Url.encode
+
+-- | Encode a bytestring into a text containing only url-safe
+-- base-64 characters. The resulting text is always a valid
+-- encoding in unpadded form.
+encodeBase64UrlUnpadded :: ByteString -> AsciiBase64Url
+encodeBase64UrlUnpadded = unsafeFromByteString . B64Url.encodeUnpadded
 
 -- | Decode a text containing only url-safe base-64 characters.
 -- Decoding only succeeds if the text is a valid encoding and

@@ -29,6 +29,12 @@ helmDepUp () {
       helm dep up
       echo "... updating in $path done."
     fi
+
+    if grep "dependencies:" Chart.yaml; then
+      echo "Updating dependencies (from Chart.yaml) in $path ..."
+      helm dep up
+      echo "... updating in $path done."
+    fi
 }
 
 helmDepUp "$dir"

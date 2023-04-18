@@ -34,6 +34,7 @@ module Wire.API.Conversation
     cnvMessageTimer,
     cnvReceiptMode,
     cnvAccessRoles,
+    CreateGroupConversation (..),
     ConversationCoverView (..),
     ConversationList (..),
     ListConversations (..),
@@ -88,12 +89,14 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
+import Data.Domain
 import Data.Id
 import Data.List.Extra (disjointOrd)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
+import qualified Data.Map as Map
 import Data.Misc
-import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
+import Data.Qualified
 import Data.Range (Range, fromRange, rangedSchema)
 import Data.SOP
 import Data.Schema
@@ -264,6 +267,16 @@ instance ToSchema Conversation where
 instance ToSchema (Versioned 'V2 Conversation) where
   schema = Versioned <$> unVersioned .= conversationSchema V2
 
+conversationObjectSchema :: Version -> ObjectSchema SwaggerDoc Conversation
+conversationObjectSchema v =
+  Conversation
+    <$> cnvQualifiedId .= field "qualified_id" schema
+    <* (qUnqualified . cnvQualifiedId)
+      .= optional (field "id" (deprecatedSchema "qualified_id" schema))
+    <*> cnvMetadata .= conversationMetadataObjectSchema (accessRolesVersionedSchema v)
+    <*> cnvMembers .= field "members" schema
+    <*> cnvProtocol .= protocolSchema
+
 conversationSchema ::
   Version ->
   ValueSchema NamedSwaggerDoc Conversation
@@ -271,19 +284,42 @@ conversationSchema v =
   objectWithDocModifier
     "Conversation"
     (description ?~ "A conversation object as returned from the server")
-    $ Conversation
-      <$> cnvQualifiedId .= field "qualified_id" schema
-      <* (qUnqualified . cnvQualifiedId)
-        .= optional (field "id" (deprecatedSchema "qualified_id" schema))
-      <*> cnvMetadata .= conversationMetadataObjectSchema (accessRolesVersionedSchema v)
-      <*> cnvMembers .= field "members" schema
-      <*> cnvProtocol .= protocolSchema
+    (conversationObjectSchema v)
+
+-- | The public-facing conversation type extended with information on which
+-- remote users could not be added when creating the conversation.
+data CreateGroupConversation = CreateGroupConversation
+  { cgcConversation :: Conversation,
+    -- | Remote users that could not be added to the created group conversation
+    -- because their backend was not reachable.
+    cgcFailedToAdd :: Map Domain (Set UserId)
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CreateGroupConversation)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CreateGroupConversation
+
+instance ToSchema CreateGroupConversation where
+  schema =
+    objectWithDocModifier
+      "CreateGroupConversation"
+      (description ?~ "A created group-conversation object extended with a list of failed-to-add users")
+      $ CreateGroupConversation
+        <$> cgcConversation .= conversationObjectSchema V4
+        <*> (toFlatList . cgcFailedToAdd)
+          .= field "failed_to_add" (fromFlatList <$> array schema)
+    where
+      toFlatList :: Map Domain (Set a) -> [Qualified a]
+      toFlatList m =
+        (\(d, s) -> flip Qualified d <$> Set.toList s) =<< Map.assocs m
+      fromFlatList :: Ord a => [Qualified a] -> Map Domain (Set a)
+      fromFlatList = fmap Set.fromList . indexQualified
 
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
 -- link about the conversation.
 data ConversationCoverView = ConversationCoverView
   { cnvCoverConvId :: ConvId,
-    cnvCoverName :: Maybe Text
+    cnvCoverName :: Maybe Text,
+    cnvCoverHasPassword :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationCoverView)
@@ -299,6 +335,7 @@ instance ToSchema ConversationCoverView where
       $ ConversationCoverView
         <$> cnvCoverConvId .= field "id" schema
         <*> cnvCoverName .= optField "name" (maybeWithDefault A.Null schema)
+        <*> cnvCoverHasPassword .= field "has_password" schema
 
 data ConversationList a = ConversationList
   { convList :: [a],
@@ -885,4 +922,9 @@ namespaceMLSSelfConv =
 
 instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
+  fromHeaders = snd
+
+instance AsHeaders '[ConvId] CreateGroupConversation CreateGroupConversation where
+  toHeaders c =
+    ((I . qUnqualified . cnvQualifiedId . cgcConversation $ c) :* Nil, c)
   fromHeaders = snd

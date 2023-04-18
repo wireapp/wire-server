@@ -1,0 +1,12 @@
+nginx-ingress:
+  controller:
+    kind: Deployment
+    replicaCount: 1
+    ingressClass: "nginx-{{ .Release.Namespace }}"
+    service:
+      type: NodePort
+      externalTrafficPolicy: Local
+      nodePorts:
+        # choose a random free port
+        https: null
+        http: null

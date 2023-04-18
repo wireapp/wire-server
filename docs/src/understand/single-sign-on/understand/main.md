@@ -147,7 +147,33 @@ Here is a blog post we like about how SAML works: <https://duo.com/blog/the-beer
 
 And here is a diagram that explains it in slightly more technical terms:
 
-```{image} Wire_SAML_Flow.png
+```{uml}
+@startuml
+
+title Wire SAML Authentication Flow
+hide footbox
+skinparam responseMessageBelowArrow true
+
+actor "**End User**\n(Mobile, Desktop, WebApp)" as user #a3d977
+entity "**Wire Server**" as wireserver #99d2f2
+entity "**Identity Provider**\n(IdP)" as idp #ffdf71
+
+user -> wireserver : User starts authentication in Wire
+wireserver -> user: HTTP POST to IdP w/auth request
+user -> idp : (HTML FORM redirect in browser)
+note right: Auth request is passed, verified
+
+idp --> idp: end user is sent to login page at IdP \n user logs in, or browser sends cookie
+
+...
+
+
+idp -> user: Redirect to Wire w/ SAML token
+note right: SAML token is generated
+user -> wireserver: (HTML FORM redirect in browser)
+wireserver -> user: User is logged into Wire
+
+@enduml
 ```
 
 Here is a critique of XML/DSig security (which SAML relies on): <https://www.cs.auckland.ac.nz/~pgut001/pubs/xmlsec.txt>

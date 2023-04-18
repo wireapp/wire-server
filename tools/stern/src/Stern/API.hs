@@ -215,8 +215,8 @@ searchOnBehalf
 revokeIdentity :: Maybe Email -> Maybe Phone -> Handler NoContent
 revokeIdentity mbe mbp = NoContent <$ (Intra.revokeIdentity =<< doubleMaybeToEither "email, phone" mbe mbp)
 
-changeEmail :: UserId -> Maybe Bool -> EmailUpdate -> Handler NoContent
-changeEmail = undefined --  uid validate upd = NoContent <$ Intra.changeEmail uid (fromMaybe False upd) validate
+changeEmail :: UserId -> EmailUpdate -> Handler NoContent
+changeEmail uid upd = NoContent <$ Intra.changeEmail uid upd
 
 changePhone :: UserId -> PhoneUpdate -> Handler NoContent
 changePhone uid upd = NoContent <$ Intra.changePhone uid upd

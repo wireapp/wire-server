@@ -19,9 +19,6 @@ module Brig.Provider.DB where
 
 import Brig.Data.Instances ()
 import Brig.Email (EmailKey, emailKeyOrig, emailKeyUniq)
-import Brig.Password
--- import Brig.Provider.DB.Instances ()
-
 import Brig.Types.Instances ()
 import Brig.Types.Provider.Tag
 import Cassandra as C
@@ -34,6 +31,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Imports
 import UnliftIO (mapConcurrently)
+import Wire.API.Password
 import Wire.API.Provider
 import Wire.API.Provider.Service hiding (updateServiceTags)
 import Wire.API.Provider.Service.Tag
@@ -131,7 +129,7 @@ deleteAccount pid = retry x5 $ write cql $ params LocalQuorum (Identity pid)
 updateAccountPassword ::
   MonadClient m =>
   ProviderId ->
-  PlainTextPassword ->
+  PlainTextPassword6 ->
   m ()
 updateAccountPassword pid pwd = do
   p <- liftIO $ mkSafePassword pwd

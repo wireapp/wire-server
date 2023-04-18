@@ -75,7 +75,7 @@ import Data.Attoparsec.Combinator (choice)
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import Data.Id (TeamId, UserId)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword6)
 import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S
@@ -107,15 +107,18 @@ newTeam tid uid nme ico tb = Team tid uid nme ico Nothing tb DefaultIcon
 
 instance ToSchema Team where
   schema =
-    object "Team" $
+    objectWithDocModifier "Team" desc $
       Team
         <$> _teamId .= field "id" schema
         <*> _teamCreator .= field "creator" schema
         <*> _teamName .= field "name" schema
         <*> _teamIcon .= field "icon" schema
         <*> _teamIconKey .= maybe_ (optField "icon_key" schema)
-        <*> _teamBinding .= (fromMaybe Binding <$> optField "binding" schema)
+        <*> _teamBinding .= (fromMaybe Binding <$> optFieldWithDocModifier "binding" bindingDesc schema)
         <*> _teamSplashScreen .= (fromMaybe DefaultIcon <$> optField "splash_screen" schema)
+    where
+      desc = description ?~ "`binding` is deprecated, and should be ignored. The non-binding teams API is not used (and will not be supported from API version V4 onwards), and `binding` will always be `true`."
+      bindingDesc = description ?~ "Deprecated, please ignore."
 
 -- | How a team "binds" its members (users)
 --
@@ -290,7 +293,7 @@ instance ToSchema TeamUpdateData where
 -- TeamDeleteData
 
 data TeamDeleteData = TeamDeleteData
-  { _tdAuthPassword :: Maybe PlainTextPassword,
+  { _tdAuthPassword :: Maybe PlainTextPassword6,
     _tdVerificationCode :: Maybe Code.Value
   }
   deriving stock (Eq, Show)
@@ -299,10 +302,10 @@ data TeamDeleteData = TeamDeleteData
 instance Arbitrary TeamDeleteData where
   arbitrary = TeamDeleteData <$> arbitrary <*> arbitrary
 
-newTeamDeleteData :: Maybe PlainTextPassword -> TeamDeleteData
+newTeamDeleteData :: Maybe PlainTextPassword6 -> TeamDeleteData
 newTeamDeleteData = flip TeamDeleteData Nothing
 
-newTeamDeleteDataWithCode :: Maybe PlainTextPassword -> Maybe Code.Value -> TeamDeleteData
+newTeamDeleteDataWithCode :: Maybe PlainTextPassword6 -> Maybe Code.Value -> TeamDeleteData
 newTeamDeleteDataWithCode = TeamDeleteData
 
 instance ToSchema TeamDeleteData where

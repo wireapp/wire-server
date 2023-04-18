@@ -35,7 +35,7 @@ import qualified Data.ByteString.Base64 as ES
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.Code as Code
 import Data.Id (ScimTokenId, TeamId, UserId, randomId)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc
 import Data.Range (unsafeRange)
 import Data.String.Conversions (cs)
 import Data.Text.Ascii (AsciiChars (validate))
@@ -278,7 +278,7 @@ testCreateTokenRequiresPassword = do
     owner
     CreateScimToken
       { createScimTokenDescr = "testCreateTokenRequiresPassword",
-        createScimTokenPassword = Just (PlainTextPassword "wrong password"),
+        createScimTokenPassword = Just (plainTextPassword6Unsafe "wrong password"),
         createScimTokenCode = Nothing
       }
     (env ^. teSpar)

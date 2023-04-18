@@ -103,6 +103,21 @@ by this system. It is still possible to implement them, but they will appear as
 different endpoints (and have different names) on the same path, and with
 non-overlapping version ranges.
 
+### Version bump checklist
+
+When making the client API version bump, i.e., when finalising a version, there
+are several steps to make apart from deciding what endpoint changes are part of
+the version:
+
+ - In `wire-api` extend the `Version` type with a new version by appending the
+   new version to the end, e.g., by adding `V4`. Make sure to update its
+   `ToSchema` instance,
+ - In the same `Version` module update the `developmentVersions` value to list
+   only the new version,
+ - Consider updating the `backendApiVersion` value in Stern, which is
+   unit-tested by checking if it is listed as supported in the response to `GET
+   /api-version`.
+
 ### Examples of endpoint evolution
 
 In the following, we present some examples of API changes and how they might be

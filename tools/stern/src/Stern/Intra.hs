@@ -89,6 +89,7 @@ import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wai.Utilities (Error (..), mkError)
+import Servant.API (toUrlPiece)
 import Stern.App
 import Stern.Types
 import System.Logger.Class hiding (Error, name, (.=))
@@ -119,11 +120,11 @@ import Wire.API.User.Search
 backendApiVersion :: Version
 backendApiVersion = V2
 
-path :: ByteString -> Request -> Request
-path = Bilge.path . ((toPathComponent backendApiVersion <> "/") <>)
+versionedPath :: ByteString -> Request -> Request
+versionedPath = Bilge.path . ((cs (toUrlPiece backendApiVersion) <> "/") <>)
 
-paths :: [ByteString] -> Request -> Request
-paths = Bilge.paths . (toPathComponent backendApiVersion :)
+versionedPaths :: [ByteString] -> Request -> Request
+versionedPaths = Bilge.paths . (cs (toUrlPiece backendApiVersion) :)
 
 -------------------------------------------------------------------------------
 
@@ -137,7 +138,7 @@ putUser uid upd = do
         "brig"
         b
         ( method PUT
-            . path "/self"
+            . versionedPath "/self"
             . header "Z-User" (toByteString' uid)
             . header "Z-Connection" (toByteString' "")
             . lbytes (encode upd)
@@ -155,7 +156,7 @@ putUserStatus status uid = do
         "brig"
         b
         ( method PUT
-            . paths ["/i/users", toByteString' uid, "status"]
+            . Bilge.paths ["i", "users", toByteString' uid, "status"]
             . lbytes (encode payload)
             . contentJson
             . expect2xx
@@ -163,6 +164,7 @@ putUserStatus status uid = do
   where
     payload = AccountStatusUpdate status
 
+-- This won't work anymore once API version V1 is not supported anymore
 getUserConnections :: UserId -> Handler [UserConnection]
 getUserConnections uid = do
   info $ msg "Getting user connections"
@@ -185,7 +187,7 @@ getUserConnections uid = do
             b
             ( method GET
                 . header "Z-User" (toByteString' uid)
-                . path "/connections"
+                . Bilge.paths ["v1", "connections"]
                 . queryItem "size" (toByteString' batchSize)
                 . maybe id (queryItem "start" . toByteString') start
                 . expect2xx
@@ -204,7 +206,7 @@ getUsersConnections uids = do
         "brig"
         b
         ( method POST
-            . path "/i/users/connections-status"
+            . Bilge.path "i/users/connections-status"
             . Bilge.json reqBody
             . expect2xx
         )
@@ -225,7 +227,7 @@ getUserProfiles uidsOrHandles = do
             "brig"
             b
             ( method GET
-                . path "/i/users"
+                . Bilge.path "i/users"
                 . qry
                 . expect2xx
             )
@@ -248,7 +250,7 @@ getUserProfilesByIdentity emailOrPhone = do
         "brig"
         b
         ( method GET
-            . path "/i/users"
+            . Bilge.path "i/users"
             . userKeyToParam emailOrPhone
             . expect2xx
         )
@@ -266,7 +268,7 @@ getEjpdInfo handles includeContacts = do
         "brig"
         b
         ( method POST
-            . path "/i/ejpd-request"
+            . Bilge.path "i/ejpd-request"
             . Bilge.json bdy
             . (if includeContacts then queryItem "include_contacts" "true" else id)
             . expect2xx
@@ -283,7 +285,7 @@ getContacts u q s = do
         "brig"
         b
         ( method GET
-            . path "/search/contacts"
+            . versionedPath "search/contacts"
             . header "Z-User" (toByteString' u)
             . queryItem "q" (toByteString' q)
             . queryItem "size" (toByteString' s)
@@ -300,7 +302,7 @@ revokeIdentity emailOrPhone = do
       "brig"
       b
       ( method POST
-          . path "/i/users/revoke-identity"
+          . Bilge.path "i/users/revoke-identity"
           . userKeyToParam emailOrPhone
           . expect2xx
       )
@@ -314,7 +316,7 @@ deleteAccount uid = do
       "brig"
       b
       ( method DELETE
-          . paths ["/i/users", toByteString' uid]
+          . Bilge.paths ["i", "users", toByteString' uid]
           . expect2xx
       )
 
@@ -327,7 +329,7 @@ setStatusBindingTeam tid status = do
       "galley"
       g
       ( method PUT
-          . paths ["/i/teams", toByteString' tid, "status"]
+          . Bilge.paths ["i", "teams", toByteString' tid, "status"]
           . Bilge.json (Team.TeamStatusUpdate status Nothing)
           . expect2xx
       )
@@ -341,7 +343,7 @@ deleteBindingTeam tid = do
       "galley"
       g
       ( method DELETE
-          . paths ["/i/teams", toByteString' tid]
+          . Bilge.paths ["i", "teams", toByteString' tid]
           . expect2xx
       )
 
@@ -355,13 +357,13 @@ deleteBindingTeamForce tid = do
       "galley"
       g
       ( method DELETE
-          . paths ["/i/teams", toByteString' tid]
+          . Bilge.paths ["i", "teams", toByteString' tid]
           . queryItem "force" "true"
           . expect2xx
       )
 
-changeEmail :: UserId -> EmailUpdate -> Bool -> Handler ()
-changeEmail u upd validate = do
+changeEmail :: UserId -> EmailUpdate -> Handler ()
+changeEmail u upd = do
   info $ msg "Updating email address"
   b <- view brig
   void . catchRpcErrors $
@@ -369,8 +371,7 @@ changeEmail u upd validate = do
       "brig"
       b
       ( method PUT
-          . path "i/self/email"
-          . (if validate then queryItem "validate" "true" else id)
+          . Bilge.path "i/self/email"
           . header "Z-User" (toByteString' u)
           . header "Z-Connection" (toByteString' "")
           . lbytes (encode upd)
@@ -387,7 +388,7 @@ changePhone u upd = do
       "brig"
       b
       ( method PUT
-          . path "/self/phone"
+          . versionedPath "/self/phone"
           . header "Z-User" (toByteString' u)
           . header "Z-Connection" (toByteString' "")
           . lbytes (encode upd)
@@ -411,7 +412,7 @@ getUserBindingTeam u = do
         "galley"
         g
         ( method GET
-            . path "teams"
+            . versionedPath "teams"
             . header "Z-User" (toByteString' u)
             . header "Z-Connection" (toByteString' "")
             . expect2xx
@@ -433,7 +434,7 @@ getInvoiceUrl tid iid = do
         "ibis"
         i
         ( method GET
-            . paths ["i", "team", toByteString' tid, "invoice", toByteString' iid]
+            . Bilge.paths ["i", "team", toByteString' tid, "invoice", toByteString' iid]
             . noRedirect
             . expectStatus (== 307)
         )
@@ -449,7 +450,7 @@ getTeamBillingInfo tid = do
         "ibis"
         i
         ( method GET
-            . paths ["i", "team", toByteString' tid, "billing"]
+            . Bilge.paths ["i", "team", toByteString' tid, "billing"]
         )
   case Bilge.statusCode r of
     200 -> Just <$> parseResponse (mkError status502 "bad-upstream") r
@@ -465,7 +466,7 @@ setTeamBillingInfo tid tbu = do
       "ibis"
       i
       ( method PUT
-          . paths ["i", "team", toByteString' tid, "billing"]
+          . Bilge.paths ["i", "team", toByteString' tid, "billing"]
           . lbytes (encode tbu)
           . contentJson
           . expect2xx
@@ -481,7 +482,7 @@ isBlacklisted emailOrPhone = do
         "brig"
         b
         ( method HEAD
-            . path "i/users/blacklist"
+            . Bilge.path "i/users/blacklist"
             . userKeyToParam emailOrPhone
         )
   case Bilge.statusCode r of
@@ -498,7 +499,7 @@ setBlacklistStatus status emailOrPhone = do
       "brig"
       b
       ( method (statusToMethod status)
-          . path "i/users/blacklist"
+          . Bilge.path "i/users/blacklist"
           . userKeyToParam emailOrPhone
           . expect2xx
       )
@@ -519,7 +520,7 @@ getTeamFeatureFlag tid = do
   gly <- view galley
   let req =
         method GET
-          . paths ["/i/teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+          . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case Bilge.statusCode resp of
     200 -> pure $ responseJsonUnsafe @(Public.WithStatus cfg) resp
@@ -540,7 +541,7 @@ setTeamFeatureFlag tid status = do
   gly <- view galley
   let req =
         method PUT
-          . paths ["/i/teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+          . Bilge.paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
           . Bilge.json status
           . contentJson
   resp <- catchRpcErrors $ rpc' "galley" gly req
@@ -567,7 +568,7 @@ getSearchVisibility tid = do
       "galley"
       gly
       ( method GET
-          . paths ["/i/teams", toByteString' tid, "search-visibility"]
+          . Bilge.paths ["i", "teams", toByteString' tid, "search-visibility"]
           . expect2xx
       )
   where
@@ -584,7 +585,7 @@ setSearchVisibility tid typ = do
         "galley"
         gly
         ( method PUT
-            . paths ["/i/teams", toByteString' tid, "search-visibility"]
+            . Bilge.paths ["i", "teams", toByteString' tid, "search-visibility"]
             . lbytes (encode $ TeamSearchVisibilityView typ)
             . contentJson
         )
@@ -628,7 +629,7 @@ getTeamData tid = do
         "galley"
         g
         ( method GET
-            . paths ["i", "teams", toByteString' tid]
+            . Bilge.paths ["i", "teams", toByteString' tid]
             . expectStatus (`elem` [200, 404])
         )
   case Bilge.statusCode r of
@@ -645,7 +646,7 @@ getTeamMembers tid = do
         "galley"
         g
         ( method GET
-            . paths ["i", "teams", toByteString' tid, "members"]
+            . Bilge.paths ["i", "teams", toByteString' tid, "members"]
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
@@ -660,7 +661,7 @@ getEmailConsentLog email = do
         "galeb"
         g
         ( method GET
-            . paths ["/i/consent/logs/emails", toByteString' email]
+            . Bilge.paths ["i", "consent", "logs", "emails", toByteString' email]
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
@@ -679,7 +680,7 @@ getUserConsentValue uid = do
         g
         ( method GET
             . header "Z-User" (toByteString' uid)
-            . path "/self/consent"
+            . versionedPath "/self/consent"
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
@@ -694,7 +695,7 @@ getMarketoResult email = do
         "galeb"
         g
         ( method GET
-            . paths ["/i/marketo/emails", toByteString' email]
+            . Bilge.paths ["i", "marketo", "emails", toByteString' email]
             . expectStatus (`elem` [200, 404])
         )
   -- 404 is acceptable when marketo doesn't know about this user, return an empty result
@@ -715,7 +716,7 @@ getUserConsentLog uid = do
         "galeb"
         g
         ( method GET
-            . paths ["/i/consent/logs/users", toByteString' uid]
+            . Bilge.paths ["i", "consent", "logs", "users", toByteString' uid]
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
@@ -731,7 +732,7 @@ getUserCookies uid = do
         g
         ( method GET
             . header "Z-User" (toByteString' uid)
-            . path "/cookies"
+            . versionedPath "/cookies"
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
@@ -757,7 +758,7 @@ getUserConversations uid = do
             b
             ( method GET
                 . header "Z-User" (toByteString' uid)
-                . path "conversations"
+                . versionedPath "conversations"
                 . queryItem "size" (toByteString' batchSize)
                 . maybe id (queryItem "start" . toByteString') start
                 . expect2xx
@@ -776,7 +777,7 @@ getUserClients uid = do
         b
         ( method GET
             . header "Z-User" (toByteString' uid)
-            . path "/clients"
+            . versionedPath "/clients"
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
@@ -793,7 +794,7 @@ getUserProperties uid = do
         b
         ( method GET
             . header "Z-User" (toByteString' uid)
-            . path "/properties"
+            . versionedPath "/properties"
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
@@ -809,7 +810,7 @@ getUserProperties uid = do
             b
             ( method GET
                 . header "Z-User" (toByteString' uid)
-                . paths ["/properties", toByteString' x]
+                . versionedPaths ["/properties", toByteString' x]
                 . expect2xx
             )
       info $ msg ("Response" ++ show r)
@@ -837,7 +838,7 @@ getUserNotifications uid = do
             b
             ( method GET
                 . header "Z-User" (toByteString' uid)
-                . path "/notifications"
+                . versionedPath "/notifications"
                 . queryItem "size" (toByteString' batchSize)
                 . maybe id (queryItem "since" . toByteString') start
                 . expectStatus (`elem` [200, 404])

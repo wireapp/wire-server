@@ -63,6 +63,7 @@
 , metrics-wai
 , mtl
 , network
+, network-uri
 , optparse-applicative
 , pem
 , polysemy
@@ -117,6 +118,7 @@
 , unordered-containers
 , uri-bytestring
 , uuid
+, uuid-types
 , vector
 , wai
 , wai-extra
@@ -295,6 +297,7 @@ mkDerivation {
     metrics-wai
     mtl
     network
+    network-uri
     optparse-applicative
     pem
     process
@@ -337,6 +340,7 @@ mkDerivation {
     unordered-containers
     uri-bytestring
     uuid
+    uuid-types
     vector
     wai
     wai-extra
@@ -374,6 +378,7 @@ mkDerivation {
     tasty-quickcheck
     transformers
     types-common
+    uuid-types
     wai
     wai-predicates
     wire-api

@@ -86,6 +86,11 @@ brig:
       setDpopMaxSkewSecs: 1
       setDpopTokenExpirationTimeSecs: 300
       setEnableMLS: true
+      setOAuthAuthCodeExpirationTimeSecs: 3 # 3 secs
+      setOAuthAccessTokenExpirationTimeSecs: 3 # 3 secs
+      setOAuthEnabled: true
+      setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
+      setOAuthMaxActiveRefreshTokens: 10
     aws:
       sesEndpoint: http://fake-aws-ses:4569
       sqsEndpoint: http://fake-aws-sqs:4568
@@ -121,6 +126,13 @@ brig:
       -----BEGIN PUBLIC KEY-----
       MCowBQYDK2VwAyEACPvhIdimF20tOPjbb+fXJrwS2RKDp7686T90AZ0+Th8=
       -----END PUBLIC KEY-----
+    oauthJwkKeyPair: |
+      {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "mhP-NgFw3ifIXGZqJVB0kemt9L3BtD5P8q4Gah4Iklc",
+        "d": "R8-pV2-sPN7dykV8HFJ73S64F3kMHTNnJiSN8UdWk_o"
+      }    
   tests:
     enableFederationTests: true
 cannon:
@@ -227,6 +239,13 @@ nginz:
     zAuth:
       # this must match the key in brig!
       publicKeys: 0UW38se1yeoc5bVNEvf5LyrHWGZkyvcGTVilK2geGdU=
+    oAuth:
+      publicKeys: |
+        {
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "x": "mhP-NgFw3ifIXGZqJVB0kemt9L3BtD5P8q4Gah4Iklc"
+        }       
 proxy:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}

@@ -39,7 +39,7 @@ spec:
         name: "galley-integration-secrets"
     - name: "galley-secrets"
       secret:
-        secretName: "galley-mls"
+        secretName: "galley"
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
@@ -61,4 +61,8 @@ spec:
       value: "dummy"
     - name: AWS_REGION
       value: "eu-west-1"
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "2"
   restartPolicy: Never

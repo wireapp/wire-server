@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
@@ -49,7 +50,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 hiding (head)
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
-import Data.Misc (HttpsUrl, PlainTextPassword (..), mkHttpsUrl)
+import Data.Misc (HttpsUrl, PlainTextPassword6, mkHttpsUrl, plainTextPassword6)
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
@@ -79,11 +80,13 @@ import TestHelpers
 import TestSetup
 import UnliftIO (mapConcurrently)
 import Wire.API.Conversation
+import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Event.Team
 import Wire.API.Internal.Notification hiding (target)
 import Wire.API.Routes.Internal.Galley.TeamsIntra as TeamsIntra
+import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
@@ -612,9 +615,12 @@ testRemoveBindingTeamMember ownerHasPassword = do
   Util.connectUsers owner (List1.singleton mext)
   cid1 <- Util.createTeamConv owner tid [mem1 ^. userId, mext] (Just "blaa") Nothing Nothing
   when ownerHasPassword $ do
+    -- request to remove a team member is handled by the by the endpoint do remove non-binding team member
+    -- which is not supported from V4 onwards, therefore we need to use API version V3
+    gv3 <- fmap (addPrefixAtVersion V3 .) (view tsUnversionedGalley)
     -- Deleting from a binding team with empty body is invalid
     delete
-      ( g
+      ( gv3
           . paths ["teams", toByteString' tid, "members", toByteString' (mem1 ^. userId)]
           . zUser owner
           . zConn "conn"
@@ -638,7 +644,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
         . paths ["teams", toByteString' tid, "members", toByteString' (mem1 ^. userId)]
         . zUser owner
         . zConn "conn"
-        . json (newTeamMemberDeleteData (Just $ PlainTextPassword "wrong passwd"))
+        . json (newTeamMemberDeleteData (plainTextPassword6 "wrong passwd"))
     )
     !!! do
       const 403 === statusCode
@@ -711,7 +717,7 @@ testRemoveBindingTeamOwner = do
   Util.waitForMemberDeletion ownerB tid ownerWithoutEmail
   assertTeamUpdate "Remove ownerWithoutEmail" tid 2 [ownerB]
   where
-    check :: HasCallStack => TeamId -> UserId -> UserId -> Maybe PlainTextPassword -> Maybe LText -> TestM ()
+    check :: HasCallStack => TeamId -> UserId -> UserId -> Maybe PlainTextPassword6 -> Maybe LText -> TestM ()
     check tid deleter deletee pass maybeError = do
       g <- viewGalley
       delete
@@ -980,7 +986,7 @@ testDeleteBindingTeamSingleMember = do
       )
       !!! const 202
         === statusCode
-    checkUserDeleteEvent owner wsOwner
+    checkUserDeleteEvent owner checkTimeout wsOwner
 
     WS.assertNoEvent (1 # Second) [wsExtern]
     -- Note that given the async nature of team deletion, we may
@@ -1015,8 +1021,8 @@ testDeleteBindingTeamMoreThanOneMember = do
     -- now try again with the 'force' query flag, which should work
     delete (g . paths ["/i/teams", toByteString' tid] . queryItem "force" "true") !!! do
       const 202 === statusCode
-    checkUserDeleteEvent alice wsAlice
-    zipWithM_ checkUserDeleteEvent members wsMembers
+    checkUserDeleteEvent alice checkTimeout wsAlice
+    zipWithM_ (flip checkUserDeleteEvent checkTimeout) members wsMembers
     assertTeamDelete 10 "team delete, should be there" tid
 
   let ensureDeleted :: UserId -> TestM ()
@@ -1180,7 +1186,7 @@ testDeleteBindingTeam ownerHasPassword = do
         . paths ["teams", toByteString' tid]
         . zUser owner
         . zConn "conn"
-        . json (newTeamDeleteData (Just $ PlainTextPassword "wrong passwd"))
+        . json (newTeamDeleteData (plainTextPassword6 "wrong passwd"))
     )
     !!! do
       const 403 === statusCode
@@ -1217,9 +1223,9 @@ testDeleteBindingTeam ownerHasPassword = do
       )
       !!! const 202
         === statusCode
-    checkUserDeleteEvent owner wsOwner
-    checkUserDeleteEvent (mem1 ^. userId) wsMember1
-    checkUserDeleteEvent (mem2 ^. userId) wsMember2
+    checkUserDeleteEvent owner checkTimeout wsOwner
+    checkUserDeleteEvent (mem1 ^. userId) checkTimeout wsMember1
+    checkUserDeleteEvent (mem2 ^. userId) checkTimeout wsMember2
     checkTeamDeleteEvent tid wsOwner
     checkTeamDeleteEvent tid wsMember1
     checkTeamDeleteEvent tid wsMember2
@@ -1246,12 +1252,21 @@ testDeleteTeamConv = do
   extern <- Util.randomUser
   qExtern <- Qualified extern <$> viewFederationDomain
   for_ members $ \m -> Util.connectUsers (m & qUnqualified) (list1 extern [])
-  cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
-  qcid1 <- Qualified cid1 <$> viewFederationDomain
+  (cid1, qcid1) <- WS.bracketR c owner $ \wsOwner -> do
+    cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
+    qcid1 <- Qualified cid1 <$> viewFederationDomain
+    WS.assertMatch_ (5 # Second) wsOwner $
+      wsAssertConvCreate qcid1 qOwner
+    pure (cid1, qcid1)
   let access = ConversationAccessData (Set.fromList [InviteAccess, CodeAccess]) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
   putQualifiedAccessUpdate owner qcid1 access !!! const 200 === statusCode
-  code <- decodeConvCodeEvent <$> (postConvCode owner cid1 <!! const 201 === statusCode)
-  cid2 <- Util.createTeamConv owner tid (qUnqualified <$> members) (Just "blup") Nothing Nothing
+  codeInfo <- decodeConvCodeEvent <$> (postConvCode owner cid1 <!! const 201 === statusCode)
+  cid2 <- WS.bracketR c owner $ \wsOwner -> do
+    cid2 <- Util.createTeamConv owner tid (qUnqualified <$> members) (Just "blup") Nothing Nothing
+    qcid2 <- Qualified cid2 <$> viewFederationDomain
+    WS.assertMatch_ (5 # Second) wsOwner $
+      wsAssertConvCreate qcid2 qOwner
+    pure cid2
   Util.postMembers owner (qExtern :| [qMember]) qcid1 !!! const 200 === statusCode
   for_ (qExtern : members) $ \u -> Util.assertConvMember u cid1
   for_ members $ flip Util.assertConvMember cid2
@@ -1284,7 +1299,7 @@ testDeleteTeamConv = do
     for_ [owner, member ^. userId, extern] $ \u -> do
       Util.getConv u x !!! const 404 === statusCode
       Util.assertNotConvMember u x
-  postConvCodeCheck code !!! const 404 === statusCode
+  postConvCodeCheck codeInfo.code !!! const 404 === statusCode
 
 testUpdateTeamIconValidation :: TestM ()
 testUpdateTeamIconValidation = do
@@ -1480,7 +1495,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
           then checkTeamMemberLeave tid victim wsOwner
           else WS.assertNoEvent (1 # Second) [wsOwner]
         -- User deletion events
-        mapM_ (checkUserDeleteEvent victim) wsOthers
+        mapM_ (checkUserDeleteEvent victim checkTimeout) wsOthers
         Util.ensureDeletedState True owner victim
     deleteTeam :: HasCallStack => TeamId -> UserId -> [UserId] -> [Qualified ConvId] -> UserId -> TestM ()
     deleteTeam tid owner otherRealUsersInTeam teamCidsThatExternBelongsTo extern = do
@@ -1496,7 +1511,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
           )
           !!! const 202
             === statusCode
-        for_ (owner : otherRealUsersInTeam) $ \u -> checkUserDeleteEvent u wsExtern
+        for_ (owner : otherRealUsersInTeam) $ \u -> checkUserDeleteEvent u (7 # Second) wsExtern
         -- Ensure users are marked as deleted; since we already
         -- received the event, should _really_ be deleted
         for_ (owner : otherRealUsersInTeam) $ Util.ensureDeletedState True extern

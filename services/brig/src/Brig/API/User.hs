@@ -40,6 +40,7 @@ module Brig.API.User
     lookupAccountsByIdentity,
     lookupProfile,
     lookupProfiles,
+    lookupProfilesV3,
     lookupLocalProfiles,
     getLegalHoldStatus,
     Data.lookupName,
@@ -124,7 +125,6 @@ import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
-import Brig.Password
 import qualified Brig.Queue as Queue
 import qualified Brig.Team.DB as Team
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
@@ -156,7 +156,7 @@ import Data.List.Extra
 import Data.List1 as List1 (List1, singleton)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc
 import Data.Qualified
 import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
@@ -172,6 +172,7 @@ import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
+import Wire.API.Password
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Team hiding (newTeam)
@@ -1105,7 +1106,7 @@ completePasswordReset ::
   ) =>
   PasswordResetIdentity ->
   PasswordResetCode ->
-  PlainTextPassword ->
+  PlainTextPassword8 ->
   ExceptT PasswordResetError (AppT r) ()
 completePasswordReset ident code pw = do
   key <- mkPasswordResetKey ident
@@ -1122,7 +1123,7 @@ completePasswordReset ident code pw = do
 
 -- | Pull the current password of a user and compare it against the one about to be installed.
 -- If the two are the same, throw an error.  If no current password can be found, do nothing.
-checkNewIsDifferent :: UserId -> PlainTextPassword -> ExceptT PasswordResetError (AppT r) ()
+checkNewIsDifferent :: UserId -> PlainTextPassword' t -> ExceptT PasswordResetError (AppT r) ()
 checkNewIsDifferent uid pw = do
   mcurrpw <- lift . wrapClient $ Data.lookupPassword uid
   case mcurrpw of
@@ -1159,7 +1160,7 @@ deleteSelfUser ::
   forall r.
   (Member GalleyProvider r) =>
   UserId ->
-  Maybe PlainTextPassword ->
+  Maybe PlainTextPassword6 ->
   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
 deleteSelfUser uid pwd = do
   account <- lift . wrapClient $ Data.lookupAccount uid
@@ -1436,6 +1437,28 @@ lookupProfiles self others =
     <$> traverseConcurrentlyWithErrorsAppT
       (lookupProfilesFromDomain self)
       (bucketQualified others)
+
+-- | Similar to lookupProfiles except it returns all results and all errors
+-- allowing for partial success.
+lookupProfilesV3 ::
+  ( Member GalleyProvider r,
+    Member (Concurrency 'Unsafe) r
+  ) =>
+  -- | User 'self' on whose behalf the profiles are requested.
+  Local UserId ->
+  -- | The users ('others') for which to obtain the profiles.
+  [Qualified UserId] ->
+  AppT r ([(Qualified UserId, FederationError)], [UserProfile])
+lookupProfilesV3 self others = do
+  t <-
+    traverseConcurrentlyAppT
+      (lookupProfilesFromDomain self)
+      (bucketQualified others)
+  let (l, r) = partitionEithers t
+  pure (l >>= flattenUsers, join r)
+  where
+    flattenUsers :: (Qualified [UserId], FederationError) -> [(Qualified UserId, FederationError)]
+    flattenUsers (l, e) = (,e) <$> sequenceA l
 
 lookupProfilesFromDomain ::
   (Member GalleyProvider r) =>

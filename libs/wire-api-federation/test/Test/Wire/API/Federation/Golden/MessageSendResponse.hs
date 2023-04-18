@@ -100,8 +100,8 @@ failed =
           ]
     }
 
-testObject_MessageSendReponse1 :: MessageSendResponse
-testObject_MessageSendReponse1 =
+testObject_MessageSendResponse1 :: MessageSendResponse
+testObject_MessageSendResponse1 =
   MessageSendResponse $
     Right
       MessageSendingStatus
@@ -112,11 +112,11 @@ testObject_MessageSendReponse1 =
           mssFailedToSend = failed
         }
 
-testObject_MessageSendReponse2 :: MessageSendResponse
-testObject_MessageSendReponse2 = MessageSendResponse . Left $ MessageNotSentLegalhold
+testObject_MessageSendResponse2 :: MessageSendResponse
+testObject_MessageSendResponse2 = MessageSendResponse . Left $ MessageNotSentLegalhold
 
-testObject_MessageSendReponse3 :: MessageSendResponse
-testObject_MessageSendReponse3 =
+testObject_MessageSendResponse3 :: MessageSendResponse
+testObject_MessageSendResponse3 =
   MessageSendResponse . Left . MessageNotSentClientMissing $
     MessageSendingStatus
       { mssTime = toUTCTimeMillis (read "1864-04-12 12:22:43.673 UTC"),
@@ -126,8 +126,8 @@ testObject_MessageSendReponse3 =
         mssFailedToSend = failed
       }
 
-testObject_MessageSendReponse4 :: MessageSendResponse
-testObject_MessageSendReponse4 = MessageSendResponse . Left $ MessageNotSentConversationNotFound
+testObject_MessageSendResponse4 :: MessageSendResponse
+testObject_MessageSendResponse4 = MessageSendResponse . Left $ MessageNotSentConversationNotFound
 
-testObject_MessageSendReponse5 :: MessageSendResponse
-testObject_MessageSendReponse5 = MessageSendResponse . Left $ MessageNotSentUnknownClient
+testObject_MessageSendResponse5 :: MessageSendResponse
+testObject_MessageSendResponse5 = MessageSendResponse . Left $ MessageNotSentUnknownClient

@@ -1,0 +1,27 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt-inbucket
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "inbucket.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ include "inbucket.chart" . }}
+spec:
+  acme:
+{{- if .Values.useStagingACMEServer }}
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+{{- else }}
+    server: https://acme-v02.api.letsencrypt.org/directory
+{{- end }}
+    # Email address used for ACME registration
+    email: {{ required "must specify certManager.certmasterEmail" .Values.certManager.certmasterEmail | quote }}
+    # Name of a secret used to store the ACME account private key
+    privateKeySecretRef:
+      name: letsencrypt-inbucket-key
+    # Enable the HTTP-01 challenge provider
+    solvers:
+    - http01:
+        ingress:
+          class:  nginx
