@@ -53,7 +53,6 @@ type MLSMessagingAPI =
         :> CanThrow 'MLSGroupConversationMismatch
         :> CanThrow 'MLSInvalidLeafNodeIndex
         :> CanThrow 'MLSKeyPackageRefNotFound
-        :> CanThrow 'MLSMissingSenderClient
         :> CanThrow 'MLSNotEnabled
         :> CanThrow 'MLSProposalNotFound
         :> CanThrow 'MLSProtocolErrorTag
@@ -92,7 +91,6 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSGroupConversationMismatch
                :> CanThrow 'MLSInvalidLeafNodeIndex
                :> CanThrow 'MLSKeyPackageRefNotFound
-               :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSProtocolErrorTag

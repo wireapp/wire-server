@@ -109,13 +109,13 @@ import Wire.API.User.Client
 --   - [x] extract validation function to wire-api
 --   - [x] validate lifetime and public key consistency only on brig
 --   - [x] check that ciphersuite matches conversation on galley
---   - [ ] check the signature on the LeafNode
+--   - [x] check the signature on the LeafNode
 --   - [ ] ? verify capabilities
 --   - [ ] verify that all extensions are present in the capabilities
 --   - [ ] ? in the update case (in galley), verify that the encryption_key is different
 -- [ ] validate proposals when processing proposal and commit messages
--- [ ] remove MissingSenderClient error
--- [ ] PreSharedKey proposal
+-- [x] remove MissingSenderClient error
+-- [ ] ? PreSharedKey proposal
 -- [x] remove all key package ref mapping
 -- [x] initialise index maps
 -- [ ] newtype for leaf node indices
@@ -236,7 +236,6 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSSelfRemovalNotAllowed,
      ErrorS 'MLSClientSenderUserMismatch,
      ErrorS 'MLSGroupConversationMismatch,
-     ErrorS 'MLSMissingSenderClient,
      ErrorS 'MLSSubConvClientNotInParent
    ]
 
@@ -255,7 +254,6 @@ postMLSMessageFromLocalUserV1 ::
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSGroupConversationMismatch) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
@@ -286,7 +284,6 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSGroupConversationMismatch) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
@@ -457,7 +454,6 @@ postMLSMessage ::
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSGroupConversationMismatch) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,

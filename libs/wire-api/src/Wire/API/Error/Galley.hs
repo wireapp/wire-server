@@ -86,7 +86,6 @@ data GalleyError
   | MLSClientSenderUserMismatch
   | MLSWelcomeMismatch
   | MLSMissingGroupInfo
-  | MLSMissingSenderClient
   | MLSUnexpectedSenderClient
   | MLSSubConvUnsupportedConvType
   | MLSSubConvClientNotInParent
@@ -229,8 +228,6 @@ type instance MapError 'MLSClientSenderUserMismatch = 'StaticError 400 "mls-clie
 type instance MapError 'MLSWelcomeMismatch = 'StaticError 400 "mls-welcome-mismatch" "The list of targets of a welcome message does not match the list of new clients in a group"
 
 type instance MapError 'MLSMissingGroupInfo = 'StaticError 404 "mls-missing-group-info" "The conversation has no group information"
-
-type instance MapError 'MLSMissingSenderClient = 'StaticError 403 "mls-missing-sender-client" "The client has to refresh their access token and provide their client ID"
 
 type instance MapError 'MLSSubConvUnsupportedConvType = 'StaticError 403 "mls-subconv-unsupported-convtype" "MLS subconversations are only supported for regular conversations"
 
