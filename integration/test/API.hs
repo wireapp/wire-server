@@ -152,5 +152,5 @@ deleteClient user mconn client = do
 
 getTeamFeatureInternal :: HasCallStack => String -> String -> App Response
 getTeamFeatureInternal featureName tid = do
-  req <- baseRequest Galley Versioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
+  req <- baseRequest Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
   submit "GET" $ req
