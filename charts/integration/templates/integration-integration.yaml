@@ -21,6 +21,18 @@ spec:
       secret:
         secretName: "galley"
 
+    - name: "brig-config"
+      configMap:
+        name: "brig"
+
+    - name: "brig-secrets"
+      configMap:
+        name: "brig"
+
+    - name: "turn-servers"
+      configMap:
+        name: "turn"
+
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -35,5 +47,14 @@ spec:
 
     - name: "galley-secrets"
       mountPath: "/etc/wire/galley/secrets"
+
+    - name: "brig-config"
+      mountPath: "/etc/wire/brig/config"
+
+    - name: "brig-secrets"
+      mountPath: "/etc/wire/brig/secrets"
+
+    - name: "turn-servers"
+      mountPath: "/etc/wire/brig/turn"
 
   restartPolicy: Never
