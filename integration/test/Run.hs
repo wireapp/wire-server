@@ -14,9 +14,11 @@ main = do
 
   let tree =
         testGroup "Tests" $
-          allTests <&> \(module_, name, _summary, _full, action) ->
-            let qualifiedName = module_ <> "." <> name
-             in singleTest qualifiedName action
+          let ts =
+                allTests <&> \(module_, name, _summary, _full, action) ->
+                  let qualifiedName = module_ <> "." <> name
+                   in (qualifiedName, action)
+           in map (uncurry singleTest) (sortOn fst ts)
 
   optsCLI <- parseOptions ingredients tree
 

@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module Test.Client where
+-- | This module is meant to show how the integration can be used
+module Test.Demo where
 
 import API
 import App
@@ -30,15 +31,20 @@ testDeleteUnknownClient = do
     resp.status @?= 404
     resp.json %. "label" @%?= ("client-not-found" :: String)
 
-testModifiedServices :: HasCallStack => App ()
-testModifiedServices = do
-  bindResponse getBrigAPIVersion $ \resp ->
+testModifiedBrig :: HasCallStack => App ()
+testModifiedBrig = do
+  bindResponse getAPIVersion $ \resp ->
     (resp.json %. "domain") @%?= ("example.com" :: String)
 
   withModifiedService
     Brig
     ("optSettings.setFederationDomain" %.= ("overridden.example.com" :: String))
-    $ bindResponse getBrigAPIVersion
+    $ bindResponse getAPIVersion
     $ ( \resp ->
           (resp.json %. "domain") @%?= ("overridden.example.com" :: String)
       )
+  where
+    getAPIVersion :: App Response
+    getAPIVersion = do
+      req <- baseRequest Brig Unversioned $ "/api-version"
+      submit "GET" req
