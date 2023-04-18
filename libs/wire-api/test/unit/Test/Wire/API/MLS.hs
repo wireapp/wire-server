@@ -131,7 +131,7 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
   void $ spawn (cli qcid2 tmp ["init", qcid2]) Nothing
   kp :: RawMLS KeyPackage <-
     decodeMLSError <$> spawn (cli qcid2 tmp ["key-package", "create"]) Nothing
-  BS.writeFile (tmp </> qcid2) (rmRaw kp)
+  BS.writeFile (tmp </> qcid2) (raw kp)
 
   let groupFilename = "group"
   let gid = GroupId "abcd"
@@ -152,7 +152,7 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
       message = mkMessage $ MessagePublic pmessage
       messageFilename = "signed-message.mls"
 
-  BS.writeFile (tmp </> messageFilename) (rmRaw (mkRawMLS message))
+  BS.writeFile (tmp </> messageFilename) (raw (mkRawMLS message))
   let signerKeyFilename = "signer-key.bin"
   BS.writeFile (tmp </> signerKeyFilename) (convert publicKey)
 

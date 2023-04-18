@@ -114,7 +114,7 @@ csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 pub x sig =
   fromMaybe False . maybeCryptoError $ do
     pub' <- Ed25519.publicKey pub
     sig' <- Ed25519.signature sig
-    pure $ Ed25519.verify pub' x.rmRaw sig'
+    pure $ Ed25519.verify pub' x.raw sig'
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-5.2-5
 type RefHashInput = SignContent
@@ -131,7 +131,7 @@ data SignContent a = SignContent
 instance SerialiseMLS (SignContent a) where
   serialiseMLS c = do
     serialiseMLSBytes @VarInt c.sigLabel
-    serialiseMLSBytes @VarInt c.content.rmRaw
+    serialiseMLSBytes @VarInt c.content.raw
 
 mkSignContent :: ByteString -> RawMLS a -> SignContent a
 mkSignContent sigLabel content =

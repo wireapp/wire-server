@@ -547,7 +547,7 @@ claimRemoteKeyPackages (tUntagged -> qusr) = do
           { user = qusr,
             client = ciClient cid,
             ref = ref,
-            keyPackage = KeyPackageData (rmRaw kp)
+            keyPackage = KeyPackageData (raw kp)
           }
   pure bundle
 

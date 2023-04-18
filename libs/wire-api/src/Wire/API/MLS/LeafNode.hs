@@ -136,22 +136,22 @@ instance S.ToSchema LeafNode where
   declareNamedSchema _ = pure (mlsSwagger "LeafNode")
 
 instance HasField "encryptionKey" LeafNode HPKEPublicKey where
-  getField = (.core.rmValue.encryptionKey)
+  getField = (.core.value.encryptionKey)
 
 instance HasField "signatureKey" LeafNode ByteString where
-  getField = (.core.rmValue.signatureKey)
+  getField = (.core.value.signatureKey)
 
 instance HasField "credential" LeafNode Credential where
-  getField = (.core.rmValue.credential)
+  getField = (.core.value.credential)
 
 instance HasField "capabilities" LeafNode Capabilities where
-  getField = (.core.rmValue.capabilities)
+  getField = (.core.value.capabilities)
 
 instance HasField "source" LeafNode LeafNodeSource where
-  getField = (.core.rmValue.source)
+  getField = (.core.value.source)
 
 instance HasField "extensions" LeafNode [Extension] where
-  getField = (.core.rmValue.extensions)
+  getField = (.core.value.extensions)
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.2-2
 data LeafNodeSource

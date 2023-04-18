@@ -264,8 +264,8 @@ decodeMLSWith' p = decodeMLSWith p . LBS.fromStrict
 -- retain the original serialised bytes (e.g. for signature verification, or to
 -- forward them verbatim).
 data RawMLS a = RawMLS
-  { rmRaw :: ByteString,
-    rmValue :: a
+  { raw :: ByteString,
+    value :: a
   }
   deriving stock (Eq, Show, Foldable)
 
@@ -281,7 +281,7 @@ instance (Arbitrary a, SerialiseMLS a) => Arbitrary (RawMLS a) where
 -- Note that a 'ValueSchema' for the underlying type @a@ is /not/ required.
 rawMLSSchema :: Text -> (ByteString -> Either Text a) -> ValueSchema NamedSwaggerDoc (RawMLS a)
 rawMLSSchema name p =
-  (toBase64Text . rmRaw)
+  (toBase64Text . raw)
     .= parsedText name (rawMLSFromText p)
 
 mlsSwagger :: Text -> S.NamedSchema
@@ -322,7 +322,7 @@ instance ParseMLS a => ParseMLS (RawMLS a) where
   parseMLS = parseRawMLS parseMLS
 
 instance SerialiseMLS (RawMLS a) where
-  serialiseMLS = putByteString . rmRaw
+  serialiseMLS = putByteString . raw
 
 mkRawMLS :: SerialiseMLS a => a -> RawMLS a
 mkRawMLS x = RawMLS (LBS.toStrict (runPut (serialiseMLS x))) x

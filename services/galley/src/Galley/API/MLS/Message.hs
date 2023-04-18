@@ -120,7 +120,7 @@ import Wire.API.User.Client
 -- [x] initialise index maps
 -- [ ] newtype for leaf node indices
 -- [x] compute new indices for add proposals
--- [ ] remove prefixes from rmValue and rmRaw
+-- [ ] remove prefixes from value and raw
 -- [x] remove PublicGroupState and GroupInfoBundle modules
 -- [ ] (?) rename public_group_state field in conversation table
 -- [ ] consider adding more integration tests
@@ -162,28 +162,28 @@ data IncomingBundle = IncomingBundle
   }
 
 mkIncomingMessage :: RawMLS Message -> Maybe IncomingMessage
-mkIncomingMessage msg = case msg.rmValue.content of
+mkIncomingMessage msg = case msg.value.content of
   MessagePublic pmsg ->
     Just
       IncomingMessage
-        { epoch = pmsg.content.rmValue.epoch,
-          groupId = pmsg.content.rmValue.groupId,
+        { epoch = pmsg.content.value.epoch,
+          groupId = pmsg.content.value.groupId,
           content =
             IncomingMessageContentPublic
               IncomingPublicMessageContent
-                { sender = pmsg.content.rmValue.sender,
-                  content = pmsg.content.rmValue.content,
+                { sender = pmsg.content.value.sender,
+                  content = pmsg.content.value.content,
                   framedContent = pmsg.content,
                   authData = pmsg.authData
                 },
           rawMessage = msg
         }
   MessagePrivate pmsg
-    | pmsg.rmValue.tag == FramedContentApplicationDataTag ->
+    | pmsg.value.tag == FramedContentApplicationDataTag ->
         Just
           IncomingMessage
-            { epoch = pmsg.rmValue.epoch,
-              groupId = pmsg.rmValue.groupId,
+            { epoch = pmsg.value.epoch,
+              groupId = pmsg.value.groupId,
               content = IncomingMessageContentPrivate,
               rawMessage = msg
             }
@@ -199,7 +199,7 @@ incomingMessageAuthenticatedContent pmsg =
 
 mkIncomingBundle :: RawMLS CommitBundle -> Maybe IncomingBundle
 mkIncomingBundle bundle = do
-  imsg <- mkIncomingMessage bundle.rmValue.commitMsg
+  imsg <- mkIncomingMessage bundle.value.commitMsg
   content <- case imsg.content of
     IncomingMessageContentPublic c -> pure c
     _ -> Nothing
@@ -212,10 +212,10 @@ mkIncomingBundle bundle = do
         groupId = imsg.groupId,
         sender = content.sender,
         commit = commit,
-        rawMessage = bundle.rmValue.commitMsg,
-        welcome = bundle.rmValue.welcome,
-        groupInfo = GroupInfoData bundle.rmValue.groupInfo.rmRaw,
-        serialized = bundle.rmRaw
+        rawMessage = bundle.value.commitMsg,
+        welcome = bundle.value.welcome,
+        groupInfo = GroupInfoData bundle.value.groupInfo.raw,
+        serialized = bundle.raw
       }
 
 type MLSMessageStaticErrors =
@@ -367,7 +367,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
 
   (events, newClients) <- case bundle.sender of
     SenderMember _index -> do
-      action <- getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.rmValue
+      action <- getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
       events <-
         processInternalCommit
           senderIdentity
@@ -375,24 +375,24 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
           lConvOrSub
           bundle.epoch
           action
-          bundle.commit.rmValue
+          bundle.commit.value
       pure (events, cmIdentities (paAdd action))
     SenderExternal _ -> throw (mlsProtocolError "Unexpected sender")
     SenderNewMemberProposal -> throw (mlsProtocolError "Unexpected sender")
     SenderNewMemberCommit -> do
-      action <- getExternalCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.rmValue
+      action <- getExternalCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
       processExternalCommit
         senderIdentity
         lConvOrSub
         bundle.epoch
         action
-        bundle.commit.rmValue.path
+        bundle.commit.value.path
       pure ([], [])
 
   storeGroupInfo (idForConvOrSub . tUnqualified $ lConvOrSub) bundle.groupInfo
 
   let cm = membersConvOrSub (tUnqualified lConvOrSub)
-  unreachables <- propagateMessage qusr lConvOrSub conn bundle.commit.rmRaw cm
+  unreachables <- propagateMessage qusr lConvOrSub conn bundle.commit.raw cm
   traverse_ (sendWelcomes lConvOrSub conn newClients) bundle.welcome
   pure (events, unreachables)
 
@@ -524,7 +524,7 @@ postMLSMessageToLocalConv qusr c con msg convOrSubId = do
     IncomingMessageContentPrivate -> pure mempty
 
   let cm = membersConvOrSub (tUnqualified lConvOrSub)
-  unreachables <- propagateMessage qusr lConvOrSub con msg.rawMessage.rmRaw cm
+  unreachables <- propagateMessage qusr lConvOrSub con msg.rawMessage.raw cm
   pure (events, unreachables)
 
 postMLSMessageToRemoteConv ::
@@ -554,7 +554,7 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
           { mmsrConvOrSubId = tUnqualified rConvOrSubId,
             mmsrSender = tUnqualified lusr,
             mmsrSenderClient = senderClient,
-            mmsrRawMessage = Base64ByteString msg.rawMessage.rmRaw
+            mmsrRawMessage = Base64ByteString msg.rawMessage.raw
           }
   case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e
@@ -764,7 +764,7 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
   let cs = cnvmlsCipherSuite (mlsMetaConvOrSub (tUnqualified lConvOrSub))
   let groupId = cnvmlsGroupId (mlsMetaConvOrSub convOrSub)
   let extra = LeafNodeTBSExtraCommit groupId idx
-  case validateLeafNode cs (Just senderIdentity) extra leafNode.rmValue of
+  case validateLeafNode cs (Just senderIdentity) extra leafNode.value of
     Left errMsg ->
       throw $
         mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
@@ -838,7 +838,7 @@ derefProposal ::
   Sem r Proposal
 derefProposal groupId epoch (Ref ref) = do
   p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
-  pure p.rmValue
+  pure p.value
 derefProposal _ _ (Inline p) = pure p
 
 addProposedClient :: Member (State IndexMap) r => ClientIdentity -> Sem r ProposalAction
@@ -878,11 +878,11 @@ applyProposal mlsMeta _groupId (AddProposal kp) = do
     either
       (\msg -> throw (mlsProtocolError ("Invalid key package in Add proposal: " <> msg)))
       pure
-      $ validateKeyPackage Nothing kp.rmValue
+      $ validateKeyPackage Nothing kp.value
   unless (mlsMeta.cnvmlsCipherSuite == cs) $
     throw (mlsProtocolError "Key package ciphersuite does not match conversation")
   -- we are not checking lifetime constraints here
-  cid <- getKeyPackageIdentity kp.rmValue
+  cid <- getKeyPackageIdentity kp.value
   addProposedClient cid
 applyProposal _mlsMeta _groupId (RemoveProposal idx) = do
   im <- get
@@ -901,7 +901,7 @@ checkProposalCipherSuite ::
   Proposal ->
   Sem r ()
 checkProposalCipherSuite suite (AddProposal kpRaw) = do
-  let kp = rmValue kpRaw
+  let kp = value kpRaw
   unless (kp.cipherSuite == tagCipherSuite suite)
     . throw
     . mlsProtocolError
@@ -949,7 +949,7 @@ processProposal qusr lConvOrSub msg pub prop = do
   unless isMember' $ throwS @'ConvNotFound
 
   -- FUTUREWORK: validate the member's conversation role
-  let propValue = rmValue prop
+  let propValue = value prop
   checkProposalCipherSuite suiteTag propValue
   when (isExternal pub.sender) $ do
     checkExternalProposalSignature pub prop
@@ -966,9 +966,9 @@ checkExternalProposalSignature ::
   IncomingPublicMessageContent ->
   RawMLS Proposal ->
   Sem r ()
-checkExternalProposalSignature msg prop = case rmValue prop of
+checkExternalProposalSignature msg prop = case value prop of
   AddProposal kp -> do
-    let pubkey = kp.rmValue.leafNode.signatureKey
+    let pubkey = kp.value.leafNode.signatureKey
         ctx = error "TODO: get group context"
     unless (verifyMessageSignature ctx msg.framedContent msg.authData pubkey) $ throwS @'MLSUnsupportedProposal
   _ -> pure () -- FUTUREWORK: check signature of other proposals as well
@@ -988,7 +988,7 @@ checkExternalProposalUser qusr prop = do
     loc
     ( \lusr -> case prop of
         AddProposal kp -> do
-          ClientIdentity {ciUser, ciClient} <- getKeyPackageIdentity kp.rmValue
+          ClientIdentity {ciUser, ciClient} <- getKeyPackageIdentity kp.value
           -- requesting user must match key package owner
           when (tUnqualified lusr /= ciUser) $ throwS @'MLSUnsupportedProposal
           -- client referenced in key package must be one of the user's clients

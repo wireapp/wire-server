@@ -151,8 +151,8 @@ kpRef cs =
 kpRef' :: RawMLS KeyPackage -> Maybe KeyPackageRef
 kpRef' kp =
   kpRef
-    <$> cipherSuiteTag (kp.rmValue.cipherSuite)
-    <*> pure (KeyPackageData (rmRaw kp))
+    <$> cipherSuiteTag (kp.value.cipherSuite)
+    <*> pure (KeyPackageData (raw kp))
 
 --------------------------------------------------------------------------------
 
@@ -196,19 +196,19 @@ instance S.ToSchema KeyPackage where
   declareNamedSchema _ = pure (mlsSwagger "KeyPackage")
 
 instance HasField "protocolVersion" KeyPackage ProtocolVersion where
-  getField = (.tbs.rmValue.protocolVersion)
+  getField = (.tbs.value.protocolVersion)
 
 instance HasField "cipherSuite" KeyPackage CipherSuite where
-  getField = (.tbs.rmValue.cipherSuite)
+  getField = (.tbs.value.cipherSuite)
 
 instance HasField "initKey" KeyPackage HPKEPublicKey where
-  getField = (.tbs.rmValue.initKey)
+  getField = (.tbs.value.initKey)
 
 instance HasField "extensions" KeyPackage [Extension] where
-  getField = (.tbs.rmValue.extensions)
+  getField = (.tbs.value.extensions)
 
 instance HasField "leafNode" KeyPackage LeafNode where
-  getField = (.tbs.rmValue.leafNode)
+  getField = (.tbs.value.leafNode)
 
 keyPackageIdentity :: KeyPackage -> Either Text ClientIdentity
 keyPackageIdentity = decodeMLS' @ClientIdentity . (.leafNode.credential.identityData)

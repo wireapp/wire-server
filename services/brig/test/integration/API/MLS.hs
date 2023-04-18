@@ -195,7 +195,7 @@ testKeyPackageRemoteClaim opts brig = do
           { user = u,
             client = ciClient qcid,
             ref = kp,
-            keyPackage = KeyPackageData . rmRaw $ r
+            keyPackage = KeyPackageData . raw $ r
           }
   let mockBundle = KeyPackageBundle (Set.fromList entries)
   (bundle :: KeyPackageBundle, _reqs) <-

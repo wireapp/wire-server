@@ -79,7 +79,7 @@ getPendingBackendRemoveProposals gid epoch = do
     <$> for
       proposals
       ( \case
-          (Just ProposalOriginBackend, proposal) -> case rmValue proposal of
+          (Just ProposalOriginBackend, proposal) -> case value proposal of
             RemoveProposal i -> pure (Just i)
             _ -> pure Nothing
           (Just ProposalOriginClient, _) -> pure Nothing

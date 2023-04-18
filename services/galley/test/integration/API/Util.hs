@@ -2904,7 +2904,7 @@ wsAssertBackendRemoveProposalWithEpoch fromUser convId idx epoch n = do
   bs <- wsAssertBackendRemoveProposal fromUser (Conv <$> convId) idx n
   let msg = fromRight (error "Failed to parse Message") $ decodeMLS' @Message bs
   case msg.content of
-    MessagePublic pmsg -> liftIO $ pmsg.content.rmValue.epoch @?= epoch
+    MessagePublic pmsg -> liftIO $ pmsg.content.value.epoch @?= epoch
     _ -> assertFailure "unexpected message content"
   pure bs
 
@@ -2919,9 +2919,9 @@ wsAssertBackendRemoveProposal fromUser cnvOrSubCnv idx n = do
   let msg = fromRight (error "Failed to parse Message") $ decodeMLS' @Message bs
   liftIO $ case msg.content of
     MessagePublic pmsg -> do
-      pmsg.content.rmValue.sender @?= SenderExternal 0
-      case pmsg.content.rmValue.content of
-        FramedContentProposal prop -> case prop.rmValue of
+      pmsg.content.value.sender @?= SenderExternal 0
+      case pmsg.content.value.content of
+        FramedContentProposal prop -> case prop.value of
           RemoveProposal removedIdx -> removedIdx @?= idx
           otherProp -> assertFailure $ "Expected RemoveProposal but got " <> show otherProp
         otherPayload -> assertFailure $ "Expected ProposalMessage but got " <> show otherPayload
@@ -2948,9 +2948,9 @@ wsAssertAddProposal fromUser convId n = do
   let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' @Message bs
   liftIO $ case msg.content of
     MessagePublic pmsg -> do
-      pmsg.content.rmValue.sender @?= SenderExternal 0
-      case pmsg.content.rmValue.content of
-        FramedContentProposal prop -> case prop.rmValue of
+      pmsg.content.value.sender @?= SenderExternal 0
+      case pmsg.content.value.content of
+        FramedContentProposal prop -> case prop.value of
           AddProposal _ -> pure ()
           otherProp -> assertFailure $ "Expected AddProposal but got " <> show otherProp
         otherPayload -> assertFailure $ "Expected ProposalMessage but got " <> show otherPayload

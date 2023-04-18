@@ -481,7 +481,7 @@ testAddClientPartial = do
     kp <- uploadNewKeyPackage bob2
     void $ uploadNewKeyPackage bob3
     void $
-      createAddCommitWithKeyPackages alice1 [(bob2, kp.rmRaw)]
+      createAddCommitWithKeyPackages alice1 [(bob2, kp.raw)]
         >>= sendAndConsumeCommitBundle
 
 testSendAnotherUsersCommit :: TestM ()

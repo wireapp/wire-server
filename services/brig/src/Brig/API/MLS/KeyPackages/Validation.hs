@@ -48,7 +48,7 @@ validateUploadedKeyPackage ::
   RawMLS KeyPackage ->
   Handler r (KeyPackageRef, KeyPackageData)
 validateUploadedKeyPackage identity kp = do
-  (cs, lt) <- either mlsProtocolError pure $ validateKeyPackage (Just identity) kp.rmValue
+  (cs, lt) <- either mlsProtocolError pure $ validateKeyPackage (Just identity) kp.value
 
   validateLifetime lt
 
@@ -69,13 +69,13 @@ validateUploadedKeyPackage identity kp = do
             (mlsProtocolError "No key associated to the given identity and signature scheme")
             pure
             mkey
-        when (key /= LBS.fromStrict kp.rmValue.leafNode.signatureKey) $
+        when (key /= LBS.fromStrict kp.value.leafNode.signatureKey) $
           mlsProtocolError "Unrecognised signature key"
     )
     (\_ -> pure ())
     (cidQualifiedClient identity)
 
-  let kpd = KeyPackageData kp.rmRaw
+  let kpd = KeyPackageData kp.raw
   pure (kpRef cs kpd, kpd)
 
 validateLifetime :: Lifetime -> Handler r ()

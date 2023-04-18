@@ -244,7 +244,7 @@ instance Cql ProposalRef where
 
 instance Cql (RawMLS Proposal) where
   ctype = Tagged BlobColumn
-  toCql = CqlBlob . LBS.fromStrict . rmRaw
+  toCql = CqlBlob . LBS.fromStrict . raw
   fromCql (CqlBlob b) = mapLeft T.unpack $ decodeMLS b
   fromCql _ = Left "Proposal: blob expected"
 

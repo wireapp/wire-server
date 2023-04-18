@@ -69,8 +69,8 @@ checkCommitBundleF cb =
     checkOpt name _ = Left ("Redundant occurrence of " <> name)
 
 findMessageInStream :: Alternative f => RawMLS Message -> Either Text (CommitBundleF f)
-findMessageInStream msg = case msg.rmValue.content of
-  MessagePublic mp -> case mp.content.rmValue.content of
+findMessageInStream msg = case msg.value.content of
+  MessagePublic mp -> case mp.content.value.content of
     FramedContentCommit _ -> pure (CommitBundleF (pure msg) empty empty)
     _ -> Left "unexpected public message"
   MessageWelcome w -> pure (CommitBundleF empty (pure w) empty)

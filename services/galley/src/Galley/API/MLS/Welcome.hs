@@ -83,7 +83,7 @@ sendLocalWelcomes con now welcome lclients = do
       -- FUTUREWORK: use the conversation ID stored in the key package mapping table
       let lcnv = qualifyAs lclients (selfConv u)
           lusr = qualifyAs lclients u
-          e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now $ EdMLSWelcome welcome.rmRaw
+          e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now $ EdMLSWelcome welcome.raw
        in newMessagePush lclients mempty con defMessageMetadata (u, c) e
 
 sendRemoteWelcomes ::
@@ -94,7 +94,7 @@ sendRemoteWelcomes ::
   [Remote (UserId, ClientId)] ->
   Sem r ()
 sendRemoteWelcomes welcome clients = do
-  let msg = Base64ByteString welcome.rmRaw
+  let msg = Base64ByteString welcome.raw
   traverse_ handleError <=< runFederatedConcurrentlyEither clients $ \rcpts ->
     fedClient @'Galley @"mls-welcome"
       MLSWelcomeRequest

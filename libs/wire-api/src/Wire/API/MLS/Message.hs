@@ -153,7 +153,7 @@ instance S.ToSchema Message where
 data PublicMessage = PublicMessage
   { content :: RawMLS FramedContent,
     authData :: RawMLS FramedContentAuthData,
-    -- Present iff content.rmValue.sender is of type Member.
+    -- Present iff content.value.sender is of type Member.
     -- https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.2-4
     membershipTag :: Maybe ByteString
   }
@@ -162,8 +162,8 @@ data PublicMessage = PublicMessage
 instance ParseMLS PublicMessage where
   parseMLS = do
     content <- parseMLS
-    authData <- parseRawMLS (parseFramedContentAuthData (framedContentDataTag (content.rmValue.content)))
-    membershipTag <- case content.rmValue.sender of
+    authData <- parseRawMLS (parseFramedContentAuthData (framedContentDataTag (content.value.content)))
+    membershipTag <- case content.value.sender of
       SenderMember _ -> Just <$> parseMLSBytes @VarInt
       _ -> pure Nothing
     pure
@@ -340,7 +340,7 @@ framedContentTBS ctx msgContent =
     { protocolVersion = defaultProtocolVersion,
       wireFormat = WireFormatPublicTag,
       content = msgContent,
-      groupContext = guard (needsGroupContext msgContent.rmValue.sender) $> ctx
+      groupContext = guard (needsGroupContext msgContent.value.sender) $> ctx
     }
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.1-2
@@ -372,8 +372,8 @@ verifyMessageSignature ::
   Bool
 verifyMessageSignature ctx msgContent authData pubkey = isJust $ do
   let tbs = mkRawMLS (framedContentTBS ctx msgContent)
-      sig = authData.rmValue.signature_
-  cs <- cipherSuiteTag ctx.rmValue.cipherSuite
+      sig = authData.value.signature_
+  cs <- cipherSuiteTag ctx.value.cipherSuite
   guard $ csVerifySignature cs pubkey tbs sig
 
 --------------------------------------------------------------------------------
