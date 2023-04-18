@@ -6,7 +6,7 @@ import Data.Aeson
 import qualified Data.Array as Array
 import Data.Default
 import Imports
-import System.Random
+import System.Random (randomRIO)
 
 randomEmail :: App String
 randomEmail = liftIO $ do
@@ -31,7 +31,8 @@ defPassword = "hunter2!"
 data CreateUser = CreateUser
   { email :: Maybe String,
     password :: Maybe String,
-    name :: Maybe String
+    name :: Maybe String,
+    team :: Bool
   }
 
 instance Default CreateUser where
@@ -39,7 +40,8 @@ instance Default CreateUser where
     CreateUser
       { email = Nothing,
         password = Nothing,
-        name = Nothing
+        name = Nothing,
+        team = False
       }
 
 createUser :: CreateUser -> App Response
@@ -50,12 +52,41 @@ createUser cu = do
   req <- baseRequest Brig Unversioned "/i/users"
   submit "POST" $
     addJSONObject
-      [ "email" .= email,
-        "name" .= name,
-        "password" .= password,
-        "icon" .= ("default" :: String)
-      ]
+      ( [ "email" .= email,
+          "name" .= name,
+          "password" .= password,
+          "icon" .= ("default" :: String)
+        ]
+          <> [ "team"
+                 .= object
+                   [ "name" .= ("integration test team" :: String),
+                     "icon" .= ("default" :: String)
+                   ]
+               | cu.team
+             ]
+      )
       req
+
+getTeams :: String -> App Response
+getTeams userId = do
+  req <- baseRequest Galley Versioned "/teams"
+  let req' =
+        req
+          & zUser userId
+          & zConnection "conn"
+          & zType "access"
+  submit "GET" req'
+
+-- | returns (user, team id)
+createTeam :: App (Value, String)
+createTeam = do
+  res <- createUser def {team = True}
+  user <- res.json
+  tid <- user %. "team" & asString
+  -- TODO
+  -- SQS.assertTeamActivate "create team" tid
+  -- refreshIndex
+  pure (user, tid)
 
 data AddClient = AddClient
   { ctype :: String,
@@ -118,3 +149,8 @@ deleteClient user mconn client = do
       & addJSONObject
         [ "password" .= defPassword
         ]
+
+getTeamFeatureInternal :: HasCallStack => String -> String -> App Response
+getTeamFeatureInternal featureName tid = do
+  req <- baseRequest Galley Versioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
+  submit "GET" $ req
