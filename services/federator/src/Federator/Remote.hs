@@ -36,10 +36,11 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import Federator.Discovery
 import Federator.Error
+import HTTP2.Client.Manager (Http2Manager)
+import qualified HTTP2.Client.Manager as H2Manager
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
-import OpenSSL.Session (SSLContext)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -101,7 +102,7 @@ interpretRemote ::
     Member DiscoverFederator r,
     Member (Error DiscoveryFailure) r,
     Member (Error RemoteError) r,
-    Member (Input SSLContext) r
+    Member (Input Http2Manager) r
   ) =>
   Sem (Remote ': r) a ->
   Sem r a
@@ -115,12 +116,16 @@ interpretRemote = interpret $ \case
         headers' = filter ((/= "Host") . fst) headers
         req' = HTTP2.requestBuilder HTTP.methodPost path headers' body
 
-    sslCtx <- input
+    mgr <- input
     resp <- mapError (RemoteError target) . (fromEither @FederatorClientHTTP2Error =<<) . embed $
       Codensity $ \k ->
-        E.catch
-          (withHTTP2Request (Just sslCtx) req' hostname (fromIntegral port) (k . Right))
-          (k . Left)
+        E.catches
+          (H2Manager.withHTTP2Request mgr (True, hostname, fromIntegral port) req' (consumeStreamingResponseWith $ k . Right))
+          [ E.Handler $ k . Left,
+            E.Handler $ k . Left . FederatorClientTLSException,
+            E.Handler $ k . Left . FederatorClientHTTP2Exception,
+            E.Handler $ k . Left . FederatorClientConnectionError
+          ]
 
     unless (HTTP.statusIsSuccessful (responseStatusCode resp)) $ do
       bdy <- embed @(Codensity IO) . liftIO $ streamingResponseStrictBody resp

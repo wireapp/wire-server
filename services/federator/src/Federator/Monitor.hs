@@ -36,14 +36,14 @@ mkTLSSettingsOrThrow = Polysemy.runM . runEither . Polysemy.runError @Federation
   where
     runEither = (either (Polysemy.embed @IO . throw) pure =<<)
 
-withMonitor :: Logger -> IORef SSLContext -> RunSettings -> IO a -> IO a
-withMonitor logger tlsVar rs action =
+withMonitor :: Logger -> (SSLContext -> IO ()) -> RunSettings -> IO a -> IO a
+withMonitor logger onNewContext rs action =
   bracket
     ( runSemDefault
         logger
         ( mkMonitor
             (runSemDefault logger . logAndIgnoreErrors)
-            tlsVar
+            onNewContext
             rs
         )
     )

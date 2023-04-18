@@ -26,7 +26,7 @@ module Wire.API.Federation.Client
     runFederatorClientToCodensity,
     runVersionedFederatorClientToCodensity,
     performHTTP2Request,
-    withHTTP2Request,
+    consumeStreamingResponseWith,
     streamingResponseStrictBody,
     headersFromTable,
   )
@@ -46,12 +46,9 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
-import Data.Streaming.Network
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import qualified Data.Text.Lazy.Encoding as LText
-import Foreign.Marshal.Alloc
 import HTTP2.Client.Manager (Http2Manager)
 import qualified HTTP2.Client.Manager as H2Manager
 import Imports
@@ -60,14 +57,10 @@ import qualified Network.HPACK.Token as HTTP2
 import qualified Network.HTTP.Media as HTTP
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
-import qualified Network.Socket as NS
 import qualified Network.Wai.Utilities.Error as Wai
-import OpenSSL.Session (SSL, SSLContext)
-import qualified OpenSSL.Session as SSL
 import Servant.Client
 import Servant.Client.Core
 import Servant.Types.SourceT
-import qualified System.TimeManager
 import Util.Options (Endpoint (..))
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain (originDomainHeaderName)
@@ -120,20 +113,13 @@ liftCodensity = FederatorClient . lift . lift . lift
 headersFromTable :: HTTP2.HeaderTable -> [HTTP.Header]
 headersFromTable (headerList, _) = flip map headerList $ first HTTP2.tokenKey
 
-connectSocket :: ByteString -> Int -> IO NS.Socket
-connectSocket hostname port =
-  handle (E.throw . FederatorClientConnectionError)
-    . fmap fst
-    $ getSocketFamilyTCP hostname port NS.AF_UNSPEC
-
 performHTTP2Request ::
-  Maybe SSLContext ->
+  Http2Manager ->
+  H2Manager.Target ->
   HTTP2.Request ->
-  ByteString ->
-  Int ->
   IO (Either FederatorClientHTTP2Error (ResponseF Builder))
-performHTTP2Request mtlsConfig req hostname port = try $ do
-  withHTTP2Request mtlsConfig req hostname port $ \resp -> do
+performHTTP2Request mgr target req = try $ do
+  H2Manager.withHTTP2Request mgr target req $ consumeStreamingResponseWith $ \resp -> do
     b <-
       fmap (fromRight mempty)
         . runExceptT
@@ -141,42 +127,6 @@ performHTTP2Request mtlsConfig req hostname port = try $ do
         . responseBody
         $ resp
     pure $ resp $> foldMap byteString b
-
-withHTTP2Request ::
-  Maybe SSLContext ->
-  HTTP2.Request ->
-  ByteString ->
-  Int ->
-  (StreamingResponse -> IO a) ->
-  IO a
-withHTTP2Request mSSLCtx req hostname port k = do
-  let clientConfig =
-        HTTP2.ClientConfig
-          { HTTP2.scheme = "https",
-            HTTP2.authority = hostname,
-            HTTP2.cacheLimit = 20
-          }
-  E.handle (E.throw . FederatorClientHTTP2Exception) $
-    bracket (connectSocket hostname port) NS.close $ \sock -> do
-      let withHTTP2Config k' = case mSSLCtx of
-            Nothing -> bracket (HTTP2.allocSimpleConfig sock 4096) HTTP2.freeSimpleConfig k'
-            Just sslCtx -> do
-              ssl <- E.handle (E.throw . FederatorClientTLSException) $ do
-                ssl <- SSL.connection sslCtx sock
-                -- We need to strip trailing dot because openssl doesn't ignore
-                -- it. https://github.com/openssl/openssl/issues/11560
-                let hostnameStr =
-                      Text.unpack $ case Text.decodeUtf8 hostname of
-                        (Text.stripSuffix "." -> Just withoutTrailingDot) -> withoutTrailingDot
-                        noTrailingDot -> noTrailingDot
-                SSL.setTlsextHostName ssl hostnameStr
-                SSL.enableHostnameValidation ssl hostnameStr
-                SSL.connect ssl
-                pure ssl
-              bracket (allocTLSConfig ssl 4096) freeTLSConfig k'
-      withHTTP2Config $ \conf -> do
-        HTTP2.run clientConfig conf $ \sendRequest ->
-          sendRequest req $ consumeStreamingResponseWith k
 
 consumeStreamingResponseWith :: (StreamingResponse -> a) -> HTTP2.Response -> a
 consumeStreamingResponseWith k resp = do
@@ -366,38 +316,3 @@ versionNegotiation =
               if Set.lookupMax supportedVersions > Set.lookupMax remoteVersions
                 then RemoteTooOld
                 else RemoteTooNew
-
-freeTLSConfig :: HTTP2.Config -> IO ()
-freeTLSConfig cfg = free (HTTP2.confWriteBuffer cfg)
-
-allocTLSConfig :: SSL -> HTTP2.BufferSize -> IO HTTP2.Config
-allocTLSConfig ssl bufsize = do
-  buf <- mallocBytes bufsize
-  timmgr <- System.TimeManager.initialize $ 30 * 1000000
-  -- Sometimes the frame header says that the payload length is 0. Reading 0
-  -- bytes multiple times seems to be causing errors in openssl. I cannot figure
-  -- out why. The previous implementation didn't try to read from the socket
-  -- when trying to read 0 bytes, so special handling for 0 maintains that
-  -- behaviour.
-  let readData prevChunk 0 = pure prevChunk
-      readData prevChunk n = do
-        -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
-        -- (some sites terminate SSL connection right after returning the data).
-        chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
-        let chunkLen = BS.length chunk
-        if
-            | chunkLen == 0 || chunkLen == n ->
-                pure (prevChunk <> chunk)
-            | chunkLen > n ->
-                error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
-            | otherwise ->
-                readData (prevChunk <> chunk) (n - chunkLen)
-  pure
-    HTTP2.Config
-      { HTTP2.confWriteBuffer = buf,
-        HTTP2.confBufferSize = bufsize,
-        HTTP2.confSendAll = SSL.write ssl,
-        HTTP2.confReadN = readData mempty,
-        HTTP2.confPositionReadMaker = HTTP2.defaultPositionReadMaker,
-        HTTP2.confTimeoutManager = timmgr
-      }

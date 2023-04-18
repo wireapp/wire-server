@@ -30,7 +30,7 @@ import Data.Domain
 import Data.Proxy
 import qualified Data.Text.Encoding as Text
 import Federator.MockServer
-import HTTP2.Client.Manager (defaultHttp2Manager)
+import HTTP2.Client.Manager (defaultHttp2Manager, withHTTP2Request)
 import Imports
 import Network.HTTP.Media
 import Network.HTTP.Types as HTTP
@@ -223,7 +223,8 @@ testResponseHeaders = do
               "/rpc/target.example.com/brig/test"
               [("Wire-Origin-Domain", "origin.example.com")]
               "body"
-      performHTTP2Request Nothing req "127.0.0.1" port
+      mgr <- defaultHttp2Manager
+      performHTTP2Request mgr (False, "127.0.0.1", port) req
   case r of
     Left err ->
       assertFailure $
@@ -235,7 +236,8 @@ testResponseHeaders = do
 testStreaming :: IO ()
 testStreaming = withInfiniteMockServer $ \port -> do
   let req = HTTP2.requestBuilder HTTP.methodPost "test" [] mempty
-  withHTTP2Request Nothing req "127.0.0.1" port $ \resp -> do
+  mgr <- defaultHttp2Manager
+  withHTTP2Request mgr (False, "127.0.0.1", port) req $ consumeStreamingResponseWith $ \resp -> do
     let expected = mconcat (replicate 512 "Hello\n")
     actual <- takeSourceT (fromIntegral (LBS.length expected)) (responseBody resp)
     actual @?= expected

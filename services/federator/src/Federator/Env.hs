@@ -25,6 +25,7 @@ import Bilge (RequestId)
 import Control.Lens (makeLenses)
 import Data.Metrics (Metrics)
 import Federator.Options (RunSettings)
+import HTTP2.Client.Manager
 import Imports
 import Network.DNS.Resolver (Resolver)
 import qualified Network.HTTP.Client as HTTP
@@ -41,7 +42,15 @@ data Env = Env
     _runSettings :: RunSettings,
     _service :: Component -> Endpoint,
     _httpManager :: HTTP.Manager,
-    _sslContext :: IORef SSLContext
+    _http2Manager :: IORef Http2Manager
   }
 
 makeLenses ''Env
+
+onNewSSLContext :: Env -> SSLContext -> IO ()
+onNewSSLContext env ctx =
+  atomicModifyIORef' (_http2Manager env) $ \mgr -> (setSSLContext ctx mgr, ())
+
+mkHttp2Manager :: SSLContext -> IO Http2Manager
+mkHttp2Manager sslContext =
+  setSSLIgnoreTrailingDot True <$> http2ManagerWithSSLCtx sslContext
