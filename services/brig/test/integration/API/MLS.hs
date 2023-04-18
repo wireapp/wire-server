@@ -124,7 +124,7 @@ testKeyPackageClaim brig = do
         )
         <!! const 200 === statusCode
 
-  liftIO $ Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle) @?= Set.fromList [(u, c1), (u, c2)]
+  liftIO $ Set.map (\e -> (e.user, e.client)) bundle.entries @?= Set.fromList [(u, c1), (u, c2)]
   checkMapping brig u bundle
 
   -- check that we have one fewer key package now
@@ -145,7 +145,7 @@ testKeyPackageSelfClaim brig = do
 
   -- claim own packages but skip the first
   do
-    bundle <-
+    bundle :: KeyPackageBundle <-
       responseJsonError
         =<< post
           ( brig
@@ -154,7 +154,7 @@ testKeyPackageSelfClaim brig = do
               . zUser (qUnqualified u)
           )
           <!! const 200 === statusCode
-    liftIO $ Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle) @?= Set.fromList [(u, c2)]
+    liftIO $ Set.map (\e -> (e.user, e.client)) bundle.entries @?= Set.fromList [(u, c2)]
 
     -- check that we still have all keypackages for client c1
     count <- getKeyPackageCount brig u c1
@@ -163,7 +163,7 @@ testKeyPackageSelfClaim brig = do
   -- if another user sets skip_own, nothing is skipped
   do
     u' <- userQualifiedId <$> randomUser brig
-    bundle <-
+    bundle :: KeyPackageBundle <-
       responseJsonError
         =<< post
           ( brig
@@ -172,7 +172,7 @@ testKeyPackageSelfClaim brig = do
               . zUser (qUnqualified u')
           )
           <!! const 200 === statusCode
-    liftIO $ Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle) @?= Set.fromList [(u, c1), (u, c2)]
+    liftIO $ Set.map (\e -> (e.user, e.client)) bundle.entries @?= Set.fromList [(u, c1), (u, c2)]
 
   -- check package counts again
   for_ [(c1, 2), (c2, 1)] $ \(c, n) -> do
@@ -192,10 +192,10 @@ testKeyPackageRemoteClaim opts brig = do
       (r, kp) <- generateKeyPackage tmp qcid Nothing
       pure $
         KeyPackageBundleEntry
-          { kpbeUser = u,
-            kpbeClient = ciClient qcid,
-            kpbeRef = kp,
-            kpbeKeyPackage = KeyPackageData . rmRaw $ r
+          { user = u,
+            client = ciClient qcid,
+            ref = kp,
+            keyPackage = KeyPackageData . rmRaw $ r
           }
   let mockBundle = KeyPackageBundle (Set.fromList entries)
   (bundle :: KeyPackageBundle, _reqs) <-
@@ -216,15 +216,15 @@ testKeyPackageRemoteClaim opts brig = do
 -- | Check that the package refs are correctly mapped
 checkMapping :: Brig -> Qualified UserId -> KeyPackageBundle -> Http ()
 checkMapping brig u bundle =
-  for_ (kpbEntries bundle) $ \e -> do
+  for_ bundle.entries $ \e -> do
     cid <-
       responseJsonError
-        =<< get (brig . paths ["i", "mls", "key-packages", toHeader (kpbeRef e)])
+        =<< get (brig . paths ["i", "mls", "key-packages", toHeader e.ref])
           <!! const 200 === statusCode
     liftIO $ do
       ciDomain cid @?= qDomain u
       ciUser cid @?= qUnqualified u
-      ciClient cid @?= kpbeClient e
+      ciClient cid @?= e.client
 
 createClient :: Brig -> Qualified UserId -> Int -> Http ClientId
 createClient brig u i =

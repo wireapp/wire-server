@@ -125,9 +125,9 @@ instance SerialiseMLS PreSharedKeyID where
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-8.4-6
 data Resumption = Resumption
-  { resUsage :: Word8,
-    resGroupId :: GroupId,
-    resEpoch :: Word64
+  { usage :: Word8,
+    groupId :: GroupId,
+    epoch :: Word64
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Resumption)
@@ -141,16 +141,16 @@ instance ParseMLS Resumption where
 
 instance SerialiseMLS Resumption where
   serialiseMLS r = do
-    serialiseMLS r.resUsage
-    serialiseMLS r.resGroupId
-    serialiseMLS r.resEpoch
+    serialiseMLS r.usage
+    serialiseMLS r.groupId
+    serialiseMLS r.epoch
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.1.5-2
 data ReInit = ReInit
-  { riGroupId :: GroupId,
-    riProtocolVersion :: ProtocolVersion,
-    riCipherSuite :: CipherSuite,
-    riExtensions :: [Extension]
+  { groupId :: GroupId,
+    protocolVersion :: ProtocolVersion,
+    cipherSuite :: CipherSuite,
+    extensions :: [Extension]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ReInit)
@@ -165,15 +165,15 @@ instance ParseMLS ReInit where
 
 instance SerialiseMLS ReInit where
   serialiseMLS ri = do
-    serialiseMLS ri.riGroupId
-    serialiseMLS ri.riProtocolVersion
-    serialiseMLS ri.riCipherSuite
-    serialiseMLSVector @VarInt serialiseMLS ri.riExtensions
+    serialiseMLS ri.groupId
+    serialiseMLS ri.protocolVersion
+    serialiseMLS ri.cipherSuite
+    serialiseMLSVector @VarInt serialiseMLS ri.extensions
 
 data MessageRange = MessageRange
-  { mrSender :: KeyPackageRef,
-    mrFirstGeneration :: Word32,
-    mrLastGeneration :: Word32
+  { sender :: KeyPackageRef,
+    firstGeneration :: Word32,
+    lastGeneration :: Word32
   }
   deriving stock (Eq, Show)
 
@@ -189,9 +189,9 @@ instance ParseMLS MessageRange where
 
 instance SerialiseMLS MessageRange where
   serialiseMLS MessageRange {..} = do
-    serialiseMLS mrSender
-    serialiseMLS mrFirstGeneration
-    serialiseMLS mrLastGeneration
+    serialiseMLS sender
+    serialiseMLS firstGeneration
+    serialiseMLS lastGeneration
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.4-3
 data ProposalOrRefTag = InlineTag | RefTag

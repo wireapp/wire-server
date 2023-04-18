@@ -426,7 +426,7 @@ testClaimKeyPackages brig fedBrigClient = do
       ClaimKeyPackageRequest (qUnqualified alice) (qUnqualified bob)
 
   liftIO $
-    Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle)
+    Set.map (\e -> (e.user, e.client)) bundle.entries
       @?= Set.fromList [(bob, c) | c <- bobClients]
 
   -- check that we have one fewer key package now
@@ -435,15 +435,15 @@ testClaimKeyPackages brig fedBrigClient = do
     liftIO $ count @?= 1
 
   -- check that the package refs are correctly mapped
-  for_ (kpbEntries bundle) $ \e -> do
+  for_ bundle.entries $ \e -> do
     cid <-
       responseJsonError
-        =<< get (brig . paths ["i", "mls", "key-packages", toHeader (kpbeRef e)])
+        =<< get (brig . paths ["i", "mls", "key-packages", toHeader e.ref])
           <!! const 200 === statusCode
     liftIO $ do
       ciDomain cid @?= qDomain bob
       ciUser cid @?= qUnqualified bob
-      ciClient cid @?= kpbeClient e
+      ciClient cid @?= e.client
 
 testClaimKeyPackagesMLSDisabled :: HasCallStack => Opt.Opts -> Brig -> Http ()
 testClaimKeyPackagesMLSDisabled opts brig = do

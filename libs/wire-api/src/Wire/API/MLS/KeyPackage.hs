@@ -27,7 +27,6 @@ module Wire.API.MLS.KeyPackage
     kpRef',
     KeyPackageTBS (..),
     KeyPackageRef (..),
-    KeyPackageUpdate (..),
   )
 where
 
@@ -56,14 +55,14 @@ import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
 data KeyPackageUpload = KeyPackageUpload
-  {kpuKeyPackages :: [RawMLS KeyPackage]}
+  {keyPackages :: [RawMLS KeyPackage]}
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema KeyPackageUpload
 
 instance ToSchema KeyPackageUpload where
   schema =
     object "KeyPackageUpload" $
       KeyPackageUpload
-        <$> kpuKeyPackages .= field "key_packages" (array rawKeyPackageSchema)
+        <$> keyPackages .= field "key_packages" (array rawKeyPackageSchema)
 
 newtype KeyPackageData = KeyPackageData {kpData :: ByteString}
   deriving stock (Eq, Ord, Show)
@@ -83,10 +82,10 @@ instance Cql KeyPackageData where
   fromCql _ = Left "Expected CqlBlob"
 
 data KeyPackageBundleEntry = KeyPackageBundleEntry
-  { kpbeUser :: Qualified UserId,
-    kpbeClient :: ClientId,
-    kpbeRef :: KeyPackageRef,
-    kpbeKeyPackage :: KeyPackageData
+  { user :: Qualified UserId,
+    client :: ClientId,
+    ref :: KeyPackageRef,
+    keyPackage :: KeyPackageData
   }
   deriving stock (Eq, Ord, Show)
 
@@ -94,12 +93,12 @@ instance ToSchema KeyPackageBundleEntry where
   schema =
     object "KeyPackageBundleEntry" $
       KeyPackageBundleEntry
-        <$> kpbeUser .= qualifiedObjectSchema "user" schema
-        <*> kpbeClient .= field "client" schema
-        <*> kpbeRef .= field "key_package_ref" schema
-        <*> kpbeKeyPackage .= field "key_package" schema
+        <$> (.user) .= qualifiedObjectSchema "user" schema
+        <*> (.client) .= field "client" schema
+        <*> (.ref) .= field "key_package_ref" schema
+        <*> (.keyPackage) .= field "key_package" schema
 
-newtype KeyPackageBundle = KeyPackageBundle {kpbEntries :: Set KeyPackageBundleEntry}
+newtype KeyPackageBundle = KeyPackageBundle {entries :: Set KeyPackageBundleEntry}
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema KeyPackageBundle
 
@@ -107,7 +106,7 @@ instance ToSchema KeyPackageBundle where
   schema =
     object "KeyPackageBundle" $
       KeyPackageBundle
-        <$> kpbEntries .= field "key_packages" (set schema)
+        <$> (.entries) .= field "key_packages" (set schema)
 
 newtype KeyPackageCount = KeyPackageCount {unKeyPackageCount :: Int}
   deriving newtype (Eq, Ord, Num, Show)
@@ -232,10 +231,3 @@ instance SerialiseMLS KeyPackage where
   serialiseMLS kp = do
     serialiseMLS kp.tbs
     serialiseMLSBytes @VarInt kp.signature_
-
---------------------------------------------------------------------------------
-
-data KeyPackageUpdate = KeyPackageUpdate
-  { kpupPrevious :: KeyPackageRef,
-    kpupNext :: KeyPackageRef
-  }

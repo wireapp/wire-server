@@ -686,7 +686,7 @@ claimRemoteKeyPackages brig1 brig2 = do
     for_ bobClients $ \c ->
       uploadKeyPackages brig2 tmp def bob c 5
 
-  bundle <-
+  bundle :: KeyPackageBundle <-
     responseJsonError
       =<< post
         ( brig1
@@ -696,7 +696,7 @@ claimRemoteKeyPackages brig1 brig2 = do
         <!! const 200 === statusCode
 
   liftIO $
-    Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle)
+    Set.map (\e -> (e.user, e.client)) bundle.entries
       @?= Set.fromList [(bob, c) | c <- bobClients]
 
 -- bob creates an MLS conversation on domain 2 with alice on domain 1, then sends a
@@ -719,7 +719,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
   let aliceClientId =
         show (userId alice)
           <> ":"
-          <> T.unpack (client aliceClient)
+          <> T.unpack aliceClient.client
           <> "@"
           <> T.unpack (domainText (qDomain (userQualifiedId alice)))
 
@@ -769,7 +769,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
     let bobClientId =
           show (userId bob)
             <> ":"
-            <> T.unpack (client bobClient)
+            <> T.unpack bobClient.client
             <> "@"
             <> T.unpack (domainText (qDomain (userQualifiedId bob)))
     void . liftIO $ spawn (cli bobClientId tmp ["init", bobClientId]) Nothing
@@ -982,7 +982,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
   let aliceClientId =
         show (userId alice)
           <> ":"
-          <> T.unpack (client aliceClient)
+          <> T.unpack aliceClient.client
           <> "@"
           <> T.unpack (domainText (qDomain (userQualifiedId alice)))
 
@@ -997,7 +997,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
   let bobClientId =
         show (userId bob)
           <> ":"
-          <> T.unpack (client bobClient)
+          <> T.unpack (bobClient.client)
           <> "@"
           <> T.unpack (domainText (qDomain (userQualifiedId bob)))
 

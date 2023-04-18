@@ -48,10 +48,10 @@ import Wire.API.Team.LegalHold
 import Wire.API.User.Client
 
 uploadKeyPackages :: Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
-uploadKeyPackages lusr cid (kpuKeyPackages -> kps) = do
+uploadKeyPackages lusr cid kps = do
   assertMLSEnabled
   let identity = mkClientIdentity (tUntagged lusr) cid
-  kps' <- traverse (validateUploadedKeyPackage identity) kps
+  kps' <- traverse (validateUploadedKeyPackage identity) kps.keyPackages
   lift . wrapClient $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
 
 claimKeyPackages ::
@@ -112,17 +112,16 @@ claimRemoteKeyPackages lusr target = do
         }
 
   -- validate all claimed key packages
-  for_ (kpbEntries bundle) $ \e -> do
-    let cid = mkClientIdentity (kpbeUser e) (kpbeClient e)
+  for_ bundle.entries $ \e -> do
+    let cid = mkClientIdentity e.user e.client
     kpRaw <-
       withExceptT (const . clientDataError $ KeyPackageDecodingError)
         . except
         . decodeMLS'
         . kpData
-        . kpbeKeyPackage
-        $ e
+        $ e.keyPackage
     (refVal, _) <- validateUploadedKeyPackage cid kpRaw
-    unless (refVal == kpbeRef e)
+    unless (refVal == e.ref)
       . throwE
       . clientDataError
       $ InvalidKeyPackageRef

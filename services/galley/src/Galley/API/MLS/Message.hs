@@ -122,10 +122,9 @@ import Wire.API.User.Client
 -- [x] compute new indices for add proposals
 -- [ ] remove prefixes from rmValue and rmRaw
 -- [x] remove PublicGroupState and GroupInfoBundle modules
--- [ ] remove protobuf definitions of CommitBundle
 -- [ ] (?) rename public_group_state field in conversation table
 -- [ ] consider adding more integration tests
--- [ ] remove prefixes from fields in Commit and Proposal
+-- [x] remove prefixes from fields in Commit and Proposal
 
 data IncomingMessage = IncomingMessage
   { epoch :: Epoch,
@@ -200,7 +199,7 @@ incomingMessageAuthenticatedContent pmsg =
 
 mkIncomingBundle :: RawMLS CommitBundle -> Maybe IncomingBundle
 mkIncomingBundle bundle = do
-  imsg <- mkIncomingMessage bundle.rmValue.cbCommitMsg
+  imsg <- mkIncomingMessage bundle.rmValue.commitMsg
   content <- case imsg.content of
     IncomingMessageContentPublic c -> pure c
     _ -> Nothing
@@ -213,9 +212,9 @@ mkIncomingBundle bundle = do
         groupId = imsg.groupId,
         sender = content.sender,
         commit = commit,
-        rawMessage = bundle.rmValue.cbCommitMsg,
-        welcome = bundle.rmValue.cbWelcome,
-        groupInfo = GroupInfoData bundle.rmValue.cbGroupInfo.rmRaw,
+        rawMessage = bundle.rmValue.commitMsg,
+        welcome = bundle.rmValue.welcome,
+        groupInfo = GroupInfoData bundle.rmValue.groupInfo.rmRaw,
         serialized = bundle.rmRaw
       }
 
@@ -387,7 +386,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
         lConvOrSub
         bundle.epoch
         action
-        (cPath bundle.commit.rmValue)
+        bundle.commit.rmValue.path
       pure ([], [])
 
   storeGroupInfo (idForConvOrSub . tUnqualified $ lConvOrSub) bundle.groupInfo
@@ -665,7 +664,7 @@ getCommitData senderIdentity lConvOrSub epoch commit = do
       if epoch == Epoch 0
         then addProposedClient senderIdentity
         else mempty
-    proposals <- traverse (derefProposal groupId epoch) commit.cProposals
+    proposals <- traverse (derefProposal groupId epoch) commit.proposals
     action <- applyProposals mlsMeta groupId proposals
     pure (creatorAction <> action)
 
@@ -687,7 +686,7 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
       curEpoch = cnvmlsEpoch mlsMeta
       groupId = cnvmlsGroupId mlsMeta
   when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
-  proposals <- traverse getInlineProposal commit.cProposals
+  proposals <- traverse getInlineProposal commit.proposals
 
   -- According to the spec, an external commit must contain:
   -- (https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#section-12.2)
@@ -758,7 +757,7 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
 
   -- extract leaf node from update path and validate it
   leafNode <-
-    upLeaf
+    (.leaf)
       <$> note
         (mlsProtocolError "External commits need an update path")
         updatePath
@@ -817,7 +816,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
   withCommitLock (cnvmlsGroupId . mlsMetaConvOrSub $ convOrSub) epoch $ do
     -- check all pending proposals are referenced in the commit
     allPendingProposals <- getAllPendingProposalRefs (cnvmlsGroupId mlsMeta) epoch
-    let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) (cProposals commit)
+    let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) commit.proposals
     unless (all (`Set.member` referencedProposals) allPendingProposals) $
       throwS @'MLSCommitMissingReferences
 

@@ -25,8 +25,8 @@ import Wire.Arbitrary
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.4-3
 data Commit = Commit
-  { cProposals :: [ProposalOrRef],
-    cPath :: Maybe UpdatePath
+  { proposals :: [ProposalOrRef],
+    path :: Maybe UpdatePath
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Commit)
@@ -39,13 +39,13 @@ instance ParseMLS Commit where
 
 instance SerialiseMLS Commit where
   serialiseMLS c = do
-    serialiseMLSVector @VarInt serialiseMLS c.cProposals
-    serialiseMLSOptional serialiseMLS c.cPath
+    serialiseMLSVector @VarInt serialiseMLS c.proposals
+    serialiseMLSOptional serialiseMLS c.path
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.6-2
 data UpdatePath = UpdatePath
-  { upLeaf :: RawMLS LeafNode,
-    upNodes :: [UpdatePathNode]
+  { leaf :: RawMLS LeafNode,
+    nodes :: [UpdatePathNode]
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdatePath)
@@ -55,13 +55,13 @@ instance ParseMLS UpdatePath where
 
 instance SerialiseMLS UpdatePath where
   serialiseMLS up = do
-    serialiseMLS up.upLeaf
-    serialiseMLSVector @VarInt serialiseMLS up.upNodes
+    serialiseMLS up.leaf
+    serialiseMLSVector @VarInt serialiseMLS up.nodes
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.6-2
 data UpdatePathNode = UpdatePathNode
-  { upnPublicKey :: ByteString,
-    upnSecret :: [HPKECiphertext]
+  { publicKey :: ByteString,
+    secret :: [HPKECiphertext]
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdatePathNode)
@@ -71,13 +71,13 @@ instance ParseMLS UpdatePathNode where
 
 instance SerialiseMLS UpdatePathNode where
   serialiseMLS upn = do
-    serialiseMLSBytes @VarInt upn.upnPublicKey
-    serialiseMLSVector @VarInt serialiseMLS upn.upnSecret
+    serialiseMLSBytes @VarInt upn.publicKey
+    serialiseMLSVector @VarInt serialiseMLS upn.secret
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.6-2
 data HPKECiphertext = HPKECiphertext
-  { hcOutput :: ByteString,
-    hcCiphertext :: ByteString
+  { output :: ByteString,
+    ciphertext :: ByteString
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform HPKECiphertext)

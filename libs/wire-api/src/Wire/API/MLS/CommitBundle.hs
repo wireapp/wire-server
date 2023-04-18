@@ -27,16 +27,16 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 
 data CommitBundle = CommitBundle
-  { cbCommitMsg :: RawMLS Message, -- TODO: change this type to Commit
-    cbWelcome :: Maybe (RawMLS Welcome),
-    cbGroupInfo :: RawMLS GroupInfo
+  { commitMsg :: RawMLS Message, -- TODO: change this type to Commit
+    welcome :: Maybe (RawMLS Welcome),
+    groupInfo :: RawMLS GroupInfo
   }
   deriving stock (Eq, Show, Generic)
 
 data CommitBundleF f = CommitBundleF
-  { cbCommitMsg :: f (RawMLS Message),
-    cbWelcome :: f (RawMLS Welcome),
-    cbGroupInfo :: f (RawMLS GroupInfo)
+  { commitMsg :: f (RawMLS Message),
+    welcome :: f (RawMLS Welcome),
+    groupInfo :: f (RawMLS GroupInfo)
   }
 
 deriving instance Show (CommitBundleF [])
@@ -44,9 +44,9 @@ deriving instance Show (CommitBundleF [])
 instance Alternative f => Semigroup (CommitBundleF f) where
   cb1 <> cb2 =
     CommitBundleF
-      (cb1.cbCommitMsg <|> cb2.cbCommitMsg)
-      (cb1.cbWelcome <|> cb2.cbWelcome)
-      (cb1.cbGroupInfo <|> cb2.cbGroupInfo)
+      (cb1.commitMsg <|> cb2.commitMsg)
+      (cb1.welcome <|> cb2.welcome)
+      (cb1.groupInfo <|> cb2.groupInfo)
 
 instance Alternative f => Monoid (CommitBundleF f) where
   mempty = CommitBundleF empty empty empty
@@ -54,9 +54,9 @@ instance Alternative f => Monoid (CommitBundleF f) where
 checkCommitBundleF :: CommitBundleF [] -> Either Text CommitBundle
 checkCommitBundleF cb =
   CommitBundle
-    <$> check "commit" cb.cbCommitMsg
-    <*> checkOpt "welcome" cb.cbWelcome
-    <*> check "group info" cb.cbGroupInfo
+    <$> check "commit" cb.commitMsg
+    <*> checkOpt "welcome" cb.welcome
+    <*> check "group info" cb.groupInfo
   where
     check :: Text -> [a] -> Either Text a
     check _ [x] = pure x
@@ -88,9 +88,9 @@ instance ParseMLS CommitBundle where
 
 instance SerialiseMLS CommitBundle where
   serialiseMLS cb = do
-    serialiseMLS cb.cbCommitMsg
-    traverse_ (serialiseMLS . mkMessage . MessageWelcome) cb.cbWelcome
-    serialiseMLS $ mkMessage (MessageGroupInfo cb.cbGroupInfo)
+    serialiseMLS cb.commitMsg
+    traverse_ (serialiseMLS . mkMessage . MessageWelcome) cb.welcome
+    serialiseMLS $ mkMessage (MessageGroupInfo cb.groupInfo)
 
 instance S.ToSchema CommitBundle where
   declareNamedSchema _ = pure (mlsSwagger "CommitBundle")

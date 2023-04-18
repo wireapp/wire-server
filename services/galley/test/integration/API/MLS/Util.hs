@@ -88,7 +88,7 @@ cid2Str :: ClientIdentity -> String
 cid2Str cid =
   show (ciUser cid)
     <> ":"
-    <> T.unpack (client . ciClient $ cid)
+    <> T.unpack cid.ciClient.client
     <> "@"
     <> T.unpack (domainText (ciDomain cid))
 
@@ -544,10 +544,10 @@ claimRemoteKeyPackages (tUntagged -> qusr) = do
       (kp, ref) <- generateKeyPackage cid
       pure $
         KeyPackageBundleEntry
-          { kpbeUser = qusr,
-            kpbeClient = ciClient cid,
-            kpbeRef = ref,
-            kpbeKeyPackage = KeyPackageData (rmRaw kp)
+          { user = qusr,
+            client = ciClient cid,
+            ref = ref,
+            keyPackage = KeyPackageData (rmRaw kp)
           }
   pure bundle
 
@@ -564,10 +564,10 @@ claimKeyPackages cid qusr = do
 bundleKeyPackages :: KeyPackageBundle -> [(ClientIdentity, ByteString)]
 bundleKeyPackages bundle =
   let getEntry be =
-        ( mkClientIdentity (kpbeUser be) (kpbeClient be),
-          kpData (kpbeKeyPackage be)
+        ( mkClientIdentity be.user be.client,
+          kpData be.keyPackage
         )
-   in map getEntry (toList (kpbEntries bundle))
+   in map getEntry (toList bundle.entries)
 
 -- | Claim keypackages and create a commit/welcome pair on a given client.
 -- Note that this alters the state of the group immediately. If we want to test
