@@ -86,6 +86,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Event.Team
 import Wire.API.Internal.Notification hiding (target)
 import Wire.API.Routes.Internal.Galley.TeamsIntra as TeamsIntra
+import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
@@ -614,9 +615,12 @@ testRemoveBindingTeamMember ownerHasPassword = do
   Util.connectUsers owner (List1.singleton mext)
   cid1 <- Util.createTeamConv owner tid [mem1 ^. userId, mext] (Just "blaa") Nothing Nothing
   when ownerHasPassword $ do
+    -- request to remove a team member is handled by the by the endpoint do remove non-binding team member
+    -- which is not supported from V4 onwards, therefore we need to use API version V3
+    gv3 <- fmap (addPrefixAtVersion V3 .) (view tsUnversionedGalley)
     -- Deleting from a binding team with empty body is invalid
     delete
-      ( g
+      ( gv3
           . paths ["teams", toByteString' tid, "members", toByteString' (mem1 ^. userId)]
           . zUser owner
           . zConn "conn"

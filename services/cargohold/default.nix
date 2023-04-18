@@ -34,6 +34,7 @@
 , http-client-tls
 , http-media
 , http-types
+, http2-manager
 , imports
 , kan-extensions
 , lens
@@ -104,6 +105,7 @@ mkDerivation {
     http-client
     http-client-openssl
     http-types
+    http2-manager
     imports
     kan-extensions
     lens
