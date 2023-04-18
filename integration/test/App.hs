@@ -71,7 +71,7 @@ newtype App a = App {unApp :: ReaderT Env IO a}
 
 instance IsTest (App ()) where
   run opts action _ = do
-    env <- mkEnv (lookupOption opts) (lookupOption opts) (lookupOption opts)
+    env <- mkEnv (lookupOption opts)
     result :: Tasty.Result <-
       (runAppWithEnv env action >> pure (Tasty.testPassed ""))
         `E.catches` [ E.Handler
@@ -83,7 +83,7 @@ instance IsTest (App ()) where
                     ]
     pure result
 
-  testOptions = Tagged [Option (Proxy @ConfigFile), Option (Proxy @ServiceConfigsDir), Option (Proxy @ServicesCwdBase)]
+  testOptions = Tagged [Option (Proxy @ConfigFile)]
 
 data AppFailure = AppFailure String
 
@@ -128,16 +128,12 @@ withModifiedServices services k = do
     liftIO $ BS.hPut fh (Yaml.encode config')
     hClose fh
 
-    cwd <-
+    (cwd, exe) <-
       App $
         asks (.servicesCwdBase) <&> \case
-          NoServicesCwdBase -> Nothing
-          ServicesCwdBase dir -> Just (dir </> srvName)
-
-    let exe =
-          case cwd of
-            Nothing -> srvName
-            Just d -> "../../dist" </> srvName
+          Nothing -> (Nothing, srvName)
+          Just dir ->
+            (Just (dir </> srvName), "./dist" </> srvName)
 
     (port, socket) <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup srv ports)
     liftIO $ N.close socket

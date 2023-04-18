@@ -2,8 +2,13 @@ module Config where
 
 import Data.Aeson
 import qualified Data.Char as C
+import qualified Data.Yaml as Yaml
 import Imports
 import Network.HTTP.Client
+import System.Exit (exitFailure)
+import System.FilePath (joinPath, takeDirectory, (</>))
+import System.FilePath.Posix (splitPath)
+import System.IO (hPutStrLn)
 import Test.Tasty.Options
 
 data Service = Brig | Galley | Cannon
@@ -18,7 +23,7 @@ data Env = Env
     prekeys :: IORef [(Int, String)],
     lastPrekeys :: IORef [String],
     serviceConfigsDir :: FilePath,
-    servicesCwdBase :: ServicesCwdBase
+    servicesCwdBase :: Maybe FilePath
   }
 
 data HostPort = HostPort
@@ -52,25 +57,6 @@ instance IsOption ServiceMap where
   optionName = "config-loaded-from-file"
   optionHelp = "This option can only be provided via the --config flag"
 
-newtype ServiceConfigsDir = ServiceConfigsDir {unServiceConfigsDir :: FilePath}
-
-instance IsOption ServiceConfigsDir where
-  defaultValue = ServiceConfigsDir "/etc/wire"
-  parseValue = Just . ServiceConfigsDir
-  optionName = "service-configs-dir"
-  optionHelp = "Base directory that holds all service's configs. Default value: /etc/wire"
-
-data ServicesCwdBase
-  = NoServicesCwdBase
-  | ServicesCwdBase FilePath
-  deriving (Show, Eq)
-
-instance IsOption ServicesCwdBase where
-  defaultValue = NoServicesCwdBase
-  parseValue = Just . ServicesCwdBase
-  optionName = "services-cwd-base"
-  optionHelp = "Base directory that spawned services will be started in, e.g. for ./services brig will be started in cwd ./services/brig"
-
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
 serviceHostPort m Galley = m.galley
@@ -81,8 +67,27 @@ data Context = Context
     version :: Int
   }
 
-mkEnv :: ServiceMap -> ServiceConfigsDir -> ServicesCwdBase -> IO Env
-mkEnv serviceMap configsDir cwdBase = do
+mkEnv :: ConfigFile -> IO Env
+mkEnv (ConfigFile cfgFile) = do
+  eith <- Yaml.decodeFileEither cfgFile
+  serviceMap <- case eith of
+    Left err -> do
+      hPutStrLn stderr $ "Could not parse " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err
+      exitFailure
+    Right serviceMap -> pure serviceMap
+
+  let devEnvProjectRoot = case splitPath (takeDirectory cfgFile) of
+        [] -> Nothing
+        ps ->
+          if last ps == "services"
+            then Just (joinPath (init ps))
+            else Nothing
+
+  let configsDir =
+        case devEnvProjectRoot of
+          Just root -> root </> "./services/.integration/A/etc/wire/"
+          Nothing -> "/etc/wire"
+
   manager <- newManager defaultManagerSettings
   pks <- newIORef (zip [1 ..] somePrekeys)
   lpks <- newIORef someLastPrekeys
@@ -96,8 +101,8 @@ mkEnv serviceMap configsDir cwdBase = do
         manager = manager,
         prekeys = pks,
         lastPrekeys = lpks,
-        serviceConfigsDir = unServiceConfigsDir configsDir,
-        servicesCwdBase = cwdBase
+        serviceConfigsDir = configsDir,
+        servicesCwdBase = devEnvProjectRoot <&> (</> "services")
       }
 
 somePrekeys :: [String]
