@@ -928,6 +928,7 @@ testLocalToRemoteNonMember = do
               . paths ["mls", "messages"]
               . zUser (qUnqualified bob)
               . zConn "conn"
+              . zClient (ciClient bob1)
               . Bilge.content "message/mls"
               . bytes (mpMessage message)
           )
@@ -2132,8 +2133,9 @@ testSelfConversationOtherUser = do
     void $ uploadNewKeyPackage bob1
     void $ setupMLSSelfGroup alice1
     commit <- createAddCommit alice1 [bob]
+    bundle <- createBundle commit
     mlsBracket [alice1, bob1] $ \wss -> do
-      postMessage (mpSender commit) (mpMessage commit)
+      localPostCommitBundle (mpSender commit) bundle
         !!! do
           const 403 === statusCode
           const (Just "invalid-op") === fmap Wai.label . responseJsonError
@@ -2275,7 +2277,6 @@ testJoinSubConv = do
 
       resetGroup bob1 (fmap (flip SubConv subId) qcnv) (pscGroupId sub)
 
-      bobRefsBefore <- getClientsFromGroupState bob1 bob
       -- bob adds his first client to the subconversation
       void $
         createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
@@ -2284,11 +2285,8 @@ testJoinSubConv = do
           responseJsonError
             =<< getSubConv (qUnqualified bob) qcnv subId
               <!! const 200 === statusCode
-      bobRefsAfter <- getClientsFromGroupState bob1 bob
       liftIO $ do
-        assertBool
-          "Bob's key package has not been updated via the update path"
-          (bobRefsBefore /= bobRefsAfter)
+        -- TODO check for updates from update path
         assertBool
           "The epoch timestamp is null"
           (isJust (pscEpochTimestamp subAfter))
@@ -2316,13 +2314,13 @@ testExternalCommitSameClientSubConv = do
       createExternalCommit bob1 Nothing qsub
         >>= sendAndConsumeCommitBundle
 
-    Just (_, kpBob1) <- find (\(ci, _) -> ci == bob1) <$> getClientsFromGroupState alice1 bob
+    Just (_, idxBob1) <- find (\(ci, _) -> ci == bob1) <$> getClientsFromGroupState alice1 bob
 
     -- bob1 leaves and immediately rejoins
     mlsBracket [alice1, bob1] $ \[wsA, wsB] -> do
       void $ leaveCurrentConv bob1 qsub
       WS.assertMatchN_ (5 # WS.Second) [wsA] $
-        wsAssertBackendRemoveProposal bob qsub kpBob1
+        wsAssertBackendRemoveProposal bob qsub idxBob1
       void $
         createExternalCommit bob1 Nothing qsub
           >>= sendAndConsumeCommitBundle

@@ -204,7 +204,7 @@ type instance MapError 'MLSDuplicatePublicKey = 'StaticError 400 "mls-duplicate-
 
 type instance MapError 'MLSKeyPackageRefNotFound = 'StaticError 404 "mls-key-package-ref-not-found" "A referenced key package could not be mapped to a known client"
 
-type instance MapError 'MLSInvalidLeafNodeIndex = 'StaticError 400 "mls-invalid-leaf-node-index" "A referenced leaf node index points to a black or non-existing node"
+type instance MapError 'MLSInvalidLeafNodeIndex = 'StaticError 400 "mls-invalid-leaf-node-index" "A referenced leaf node index points to a blank or non-existing node"
 
 type instance MapError 'MLSUnsupportedMessage = 'StaticError 422 "mls-unsupported-message" "Attempted to send a message with an unsupported combination of content type and wire format"
 

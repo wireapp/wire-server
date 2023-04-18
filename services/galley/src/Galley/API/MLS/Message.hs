@@ -710,21 +710,18 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   unless (null (Map.keys counts \\ allowedProposals)) $
     throw (mlsProtocolError "Invalid proposal type in an external commit")
 
-  action <-
-    evalState (indexMapConvOrSub convOrSub) $ do
-      -- process optional removal
-      propAction <- applyProposals mlsMeta groupId proposals
-      -- add sender
-      selfAction <- addProposedClient senderIdentity
-      case cmAssocs (paRemove propAction) of
-        [(cid, _)]
-          | cid /= senderIdentity ->
-              throw $ mlsProtocolError "Only the self client can be removed by an external commit"
-        _ -> pure ()
+  evalState (indexMapConvOrSub convOrSub) $ do
+    -- process optional removal
+    propAction <- applyProposals mlsMeta groupId proposals
+    -- add sender
+    selfAction <- addProposedClient senderIdentity
+    case cmAssocs (paRemove propAction) of
+      [(cid, _)]
+        | cid /= senderIdentity ->
+            throw $ mlsProtocolError "Only the self client can be removed by an external commit"
+      _ -> pure ()
 
-      pure $ propAction <> selfAction
-
-  pure action
+    pure $ propAction <> selfAction
   where
     allowedProposals = [ExternalInitProposalTag, RemoveProposalTag, PreSharedKeyProposalTag]
 
@@ -735,22 +732,10 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
 
 processExternalCommit ::
   forall r.
-  ( Member ConversationStore r,
-    Member (Error MLSProtocolError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (Error InternalError) r,
-    Member (ErrorS 'MLSStaleMessage) r,
+  ( Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member ExternalAccess r,
-    Member FederatorAccess r,
-    Member GundeckAccess r,
-    Member (Input Env) r,
-    Member (Input UTCTime) r,
-    Member MemberStore r,
-    Member ProposalStore r,
     Member Resource r,
-    Member SubConversationStore r,
-    Member TinyLog r
+    HasProposalActionEffects r
   ) =>
   ClientIdentity ->
   Local ConvOrSubConv ->
@@ -787,6 +772,9 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
     Right _ -> pure ()
 
   withCommitLock groupId epoch $ do
+    -- no events for external commits
+    void $ executeProposalAction senderIdentity Nothing lConvOrSub action
+
     let remIndices = map snd (cmAssocs (paRemove action))
 
     -- increment epoch number
@@ -836,7 +824,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
       throwS @'MLSCommitMissingReferences
 
     -- process and execute proposals
-    updates <- executeProposalAction (cidQualifiedUser senderIdentity) con lConvOrSub action
+    updates <- executeProposalAction senderIdentity con lConvOrSub action
 
     -- increment epoch number
     for_ lConvOrSub incrementEpoch
@@ -1045,20 +1033,21 @@ type HasProposalActionEffects r =
 executeProposalAction ::
   forall r.
   HasProposalActionEffects r =>
-  Qualified UserId ->
+  ClientIdentity ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
   ProposalAction ->
   Sem r [LocalConversationUpdate]
-executeProposalAction qusr con lconvOrSub action = do
-  let convOrSub = tUnqualified lconvOrSub
+executeProposalAction senderIdentity con lconvOrSub action = do
+  let qusr = cidQualifiedUser senderIdentity
+      convOrSub = tUnqualified lconvOrSub
       mlsMeta = mlsMetaConvOrSub convOrSub
       cm = membersConvOrSub convOrSub
       ss = csSignatureScheme (cnvmlsCipherSuite mlsMeta)
       newUserClients = Map.assocs (paAdd action)
 
   -- no client can be directly added to a subconversation
-  when (is _SubConv convOrSub && not (null newUserClients)) $
+  when (is _SubConv convOrSub && any ((senderIdentity /=) . fst) (cmAssocs (paAdd action))) $
     throw (mlsProtocolError "Add proposals in subconversations are not supported")
 
   -- Note [client removal]
@@ -1178,7 +1167,7 @@ executeProposalAction qusr con lconvOrSub action = do
       when (not isSubConv && clients /= clientsInConv) $ do
         -- FUTUREWORK: turn this error into a proper response
         throwS @'MLSClientMismatch
-      when (qusr == qtarget) $
+      when (cidQualifiedUser senderIdentity == qtarget) $
         throwS @'MLSSelfRemovalNotAllowed
       pure (Just qtarget)
 
