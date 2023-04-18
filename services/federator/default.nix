@@ -178,6 +178,7 @@ mkDerivation {
     http-media
     http-types
     http2
+    http2-manager
     imports
     kan-extensions
     lens
