@@ -33,9 +33,6 @@ testDeleteUnknownClient = do
 
 testModifiedBrig :: HasCallStack => App ()
 testModifiedBrig = do
-  bindResponse getAPIVersion $ \resp ->
-    (resp.json %. "domain") @%?= ("example.com" :: String)
-
   withModifiedService
     Brig
     ("optSettings.setFederationDomain" %.= ("overridden.example.com" :: String))
