@@ -23,6 +23,7 @@ module Wire.API.Routes.Internal.Brig
     TeamsAPI,
     UserAPI,
     AuthAPI,
+    FederationRemotesAPI,
     EJPDRequest,
     GetAccountConferenceCallingConfig,
     PutAccountConferenceCallingConfig,
@@ -38,6 +39,7 @@ where
 import Control.Lens ((.~))
 import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Code as Code
+import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Qualified (Qualified)
 import Data.Schema hiding (swaggerDoc)
@@ -53,6 +55,7 @@ import Wire.API.Error.Brig
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MakesFederatedCall
+import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Brig.OAuth (OAuthAPI)
@@ -327,6 +330,7 @@ type API =
            :<|> UserAPI
            :<|> AuthAPI
            :<|> OAuthAPI
+           :<|> FederationRemotesAPI
        )
 
 type TeamsAPI =
@@ -395,6 +399,28 @@ type AuthAPI =
                :> "reauthenticate"
                :> ReqBody '[JSON] ReAuthUser
                :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "OK")
+           )
+
+-- | This is located in brig, not in federator, because brig has a cassandra instance.  This
+-- is not ideal, but since all services have a local in-ram copy of this table and keep track
+-- of changes via rabbitmq, we argue it's "fine" for federators to ask brig once on startup.
+type FederationRemotesAPI =
+  Named
+    "get-federator-remotes"
+    ( "federator-remotes"
+        :> Get '[JSON] [FederationDomainConfig]
+    )
+    :<|> Named
+           "add-federator-remote"
+           ( "federator-remotes"
+               :> ReqBody '[JSON] FederationDomainConfig
+               :> Post '[JSON] ()
+           )
+    :<|> Named
+           "delete-federator-remote"
+           ( "federator-remotes"
+               :> Capture "domain" Domain
+               :> Delete '[JSON] ()
            )
 
 swaggerDoc :: Swagger
