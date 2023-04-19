@@ -25,6 +25,7 @@ module Federator.Validation
   )
 where
 
+import Control.Lens (over)
 import qualified Data.ByteString.Char8 as B8
 import Data.ByteString.Conversion
 import Data.Domain
@@ -46,6 +47,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Wire.Network.DNS.SRV (SrvTarget (..))
+import Federator.Env (Env, runSettings)
 
 data ValidationError
   = NoClientCertificate
@@ -89,21 +91,47 @@ validationErrorStatus :: ValidationError -> HTTP.Status
 validationErrorStatus (FederationDenied _) = HTTP.status400
 validationErrorStatus _ = HTTP.status403
 
--- | Validates an already-parsed domain against the allowList using the federator
--- startup configuration.
-ensureCanFederateWith ::
-  ( Member (Input RunSettings) r,
-    Member (Error ValidationError) r
-  ) =>
+
+ensureCanFederateWith'
+  :: Member (Error ValidationError) r =>
+  FederationStrategy ->
   Domain ->
   Sem r ()
-ensureCanFederateWith targetDomain = do
-  strategy <- inputs federationStrategy
+ensureCanFederateWith' strategy targetDomain =
   case strategy of
     AllowAll -> pure ()
     AllowList (AllowedDomains domains) ->
       unless (targetDomain `elem` domains) $
         throw (FederationDenied targetDomain)
+
+-- | Validates an already-parsed domain against the allowList using the federator
+-- startup configuration, and can update the allowList from the DB at runtime.
+ensureCanFederateWith ::
+  ( Member (Input RunSettings) r,
+    Member (Error ValidationError) r,
+    Member (Embed IO) r
+  ) =>
+  TVar Env ->
+  Domain ->
+  Sem r ()
+ensureCanFederateWith tvar targetDomain = do
+  strategy <- inputs federationStrategy
+  case strategy of
+    AllowAll -> pure ()
+    AllowList (AllowedDomains domains) ->
+      -- First domain check. If the domain is in this list then we
+      -- can exit early without having to do a bunch of IO
+      unless (targetDomain `elem` domains) $ do
+        -- If the domain is unrecognised, refresh from cassandra, update the TVar, and check again for a final response.
+        -- Shadowing the strategy value above would be nice, but there is no pragma to tell GHC that it is
+        -- ok in this instance. So we just need to be careful to not accidently reuse it.
+        -- TODO: Remove this undefined.
+        strat <- undefined
+        let updateDomains :: Env -> Env
+            updateDomains = over Federator.Env.runSettings (\rs -> rs { federationStrategy = strat })
+        liftIO $ atomically $ modifyTVar tvar $ updateDomains
+        -- Rerun the federation check.
+        ensureCanFederateWith' strat targetDomain
 
 decodeCertificate ::
   Member (Error String) r =>
@@ -142,15 +170,17 @@ validateDomain ::
   ( Member (Input RunSettings) r,
     Member (Error ValidationError) r,
     Member (Error DiscoveryFailure) r,
-    Member DiscoverFederator r
+    Member DiscoverFederator r,
+    Member (Embed IO) r
   ) =>
+  TVar Env ->
   Maybe ByteString ->
   ByteString ->
   Sem r Domain
-validateDomain Nothing _ = throw NoClientCertificate
-validateDomain (Just encodedCertificate) unparsedDomain = do
+validateDomain _ Nothing _ = throw NoClientCertificate
+validateDomain tvar (Just encodedCertificate) unparsedDomain = do
   targetDomain <- parseDomain unparsedDomain
-  ensureCanFederateWith targetDomain
+  ensureCanFederateWith tvar targetDomain
 
   -- run discovery to find the hostname of the client federator
   certificate <-

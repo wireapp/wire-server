@@ -53,9 +53,10 @@ callInward ::
     Member (Error ServerError) r,
     Member (Input RunSettings) r
   ) =>
+  TVar Env ->
   Wai.Request ->
   Sem r Wai.Response
-callInward wreq = do
+callInward tvar wreq = do
   req <- parseRequestData wreq
   Log.debug $
     Log.msg ("Inward Request" :: ByteString)
@@ -63,7 +64,7 @@ callInward wreq = do
       . Log.field "component" (show (rdComponent req))
       . Log.field "rpc" (rdRPC req)
 
-  validatedDomain <- validateDomain (rdCertificate req) (rdOriginDomain req)
+  validatedDomain <- validateDomain tvar (rdCertificate req) (rdOriginDomain req)
 
   let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rdRPC req]))
 
@@ -138,7 +139,7 @@ parseRequestData req = do
 isAllowedRPCChar :: Char -> Bool
 isAllowedRPCChar c = isAsciiLower c || isAsciiUpper c || isNumber c || c == '_' || c == '-'
 
-serveInward :: Env -> Int -> IO ()
+serveInward :: TVar Env -> Int -> IO ()
 serveInward = serve callInward
 
 lookupCertificate :: Wai.Request -> Maybe ByteString

@@ -62,8 +62,10 @@ run opts = do
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
   DNS.withCachingResolver resolvConf $ \res ->
     bracket (newEnv opts res) closeEnv $ \env -> do
-      let externalServer = serveInward env portExternal
-          internalServer = serveOutward env portInternal
+      -- Build a new TVar holding the state we want for the initial environment.
+      tEnv <- newTVarIO env
+      let externalServer = serveInward tEnv portExternal
+          internalServer = serveOutward tEnv portInternal
       withMonitor (env ^. applog) (env ^. sslContext) (optSettings opts) $ do
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer

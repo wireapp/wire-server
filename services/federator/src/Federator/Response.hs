@@ -99,18 +99,19 @@ runWaiError =
       throw e
 
 serve ::
-  (Wai.Request -> Sem AllEffects Wai.Response) ->
-  Env ->
+  (TVar Env -> Wai.Request -> Sem AllEffects Wai.Response) ->
+  TVar Env ->
   Int ->
   IO ()
-serve action env port =
+serve action tvar port = do
+  env <- readTVarIO tvar
   Warp.run port
     . Wai.catchErrors (view applog env) []
     $ app
   where
     app :: Wai.Application
     app req respond =
-      runCodensity (runFederator env (action req)) respond
+      runCodensity (runFederator tvar (action tvar req)) respond
 
 type AllEffects =
   '[ Remote,
@@ -131,9 +132,10 @@ type AllEffects =
 
 -- | Run Sem action containing HTTP handlers. All errors have to been handled
 -- already by this point.
-runFederator :: Env -> Sem AllEffects Wai.Response -> Codensity IO Wai.Response
-runFederator env =
-  runM
+runFederator :: TVar Env -> Sem AllEffects Wai.Response -> Codensity IO Wai.Response
+runFederator tvar resp = do
+  env <- liftIO $ readTVarIO tvar
+  resp & runM
     . runEmbedded @IO @(Codensity IO) liftIO
     . loggerToTinyLogReqId (view requestId env) (view applog env)
     . runWaiErrors
@@ -144,6 +146,7 @@ runFederator env =
         ]
     . runInputConst env
     . runInputSem (embed @IO (readIORef (view sslContext env)))
+    -- This is the point at which federation settings are extracted
     . runInputConst (view runSettings env)
     . interpretServiceHTTP
     . runDNSLookupWithResolver (view dnsResolver env)

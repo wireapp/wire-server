@@ -138,6 +138,7 @@ library
     , retry
     , servant
     , servant-client-core
+    , stm
     , streaming-commons
     , string-conversions
     , text
