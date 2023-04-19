@@ -42,6 +42,8 @@ import TestSetup
 import Util
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Routes.Internal.Galley.TeamsIntra (tdStatus)
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.SearchVisibility
@@ -121,7 +123,15 @@ testDeleteUser = do
     liftIO $ uas @?= []
 
 testSuspendTeam :: TestM ()
-testSuspendTeam = pure ()
+testSuspendTeam = do
+  (_, tid, _) <- createBindingTeamWithNMembers 10
+  do
+    info <- getTeamInfo tid
+    liftIO $ info.tiData.tdStatus @?= Team.Active
+  suspendTeam tid
+  do
+    info <- getTeamInfo tid
+    liftIO $ info.tiData.tdStatus @?= Team.Suspended
 
 testUnsuspendTeam :: TestM ()
 testUnsuspendTeam = pure ()
