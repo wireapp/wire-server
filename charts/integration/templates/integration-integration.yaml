@@ -43,13 +43,13 @@ spec:
       mountPath: "/etc/wire/integration"
 
     - name: "galley-config"
-      mountPath: "/etc/wire/galley/config"
+      mountPath: "/etc/wire/galley/conf"
 
     - name: "galley-secrets"
       mountPath: "/etc/wire/galley/secrets"
 
     - name: "brig-config"
-      mountPath: "/etc/wire/brig/config"
+      mountPath: "/etc/wire/brig/conf"
 
     - name: "brig-secrets"
       mountPath: "/etc/wire/brig/secrets"
