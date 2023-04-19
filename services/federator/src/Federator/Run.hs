@@ -64,6 +64,7 @@ run opts = do
     bracket (newEnv opts res) closeEnv $ \env -> do
       -- Build a new TVar holding the state we want for the initial environment.
       tEnv <- newTVarIO env
+      -- We need a watcher/listener for updating this TVar to flow values through to the handlers.
       let externalServer = serveInward tEnv portExternal
           internalServer = serveOutward tEnv portInternal
       withMonitor (env ^. applog) (env ^. sslContext) (optSettings opts) $ do

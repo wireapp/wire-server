@@ -53,10 +53,9 @@ callInward ::
     Member (Error ServerError) r,
     Member (Input RunSettings) r
   ) =>
-  TVar Env ->
   Wai.Request ->
   Sem r Wai.Response
-callInward tvar wreq = do
+callInward wreq = do
   req <- parseRequestData wreq
   Log.debug $
     Log.msg ("Inward Request" :: ByteString)
@@ -64,7 +63,7 @@ callInward tvar wreq = do
       . Log.field "component" (show (rdComponent req))
       . Log.field "rpc" (rdRPC req)
 
-  validatedDomain <- validateDomain tvar (rdCertificate req) (rdOriginDomain req)
+  validatedDomain <- validateDomain (rdCertificate req) (rdOriginDomain req)
 
   let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rdRPC req]))
 

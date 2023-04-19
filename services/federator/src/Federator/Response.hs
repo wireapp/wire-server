@@ -99,7 +99,7 @@ runWaiError =
       throw e
 
 serve ::
-  (TVar Env -> Wai.Request -> Sem AllEffects Wai.Response) ->
+  (Wai.Request -> Sem AllEffects Wai.Response) ->
   TVar Env ->
   Int ->
   IO ()
@@ -111,7 +111,7 @@ serve action tvar port = do
   where
     app :: Wai.Application
     app req respond =
-      runCodensity (runFederator tvar (action tvar req)) respond
+      runCodensity (runFederator tvar (action req)) respond
 
 type AllEffects =
   '[ Remote,
@@ -147,7 +147,10 @@ runFederator tvar resp = do
     . runInputConst env
     . runInputSem (embed @IO (readIORef (view sslContext env)))
     -- This is the point at which federation settings are extracted
-    . runInputConst (view runSettings env)
+    -- For each request, extract a fresh copy of the runSettings. This allows us
+    -- to independently update the settings and have them be used as requests
+    -- come in.
+    . runInputSem (embed @IO $ fmap (view runSettings) . liftIO $ readTVarIO tvar)
     . interpretServiceHTTP
     . runDNSLookupWithResolver (view dnsResolver env)
     . runFederatorDiscovery

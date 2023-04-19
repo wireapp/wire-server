@@ -84,15 +84,14 @@ callOutward ::
     Member (Error ServerError) r,
     Member (Input RunSettings) r
   ) =>
-  TVar Env ->
   Wai.Request ->
   Sem r Wai.Response
-callOutward tvar req = do
+callOutward req = do
   rd <- parseRequestData req
   domain <- parseDomainText (rdTargetDomain rd)
   -- This call will check for new domains
   -- when it encounters something that it doesn't know about.
-  ensureCanFederateWith tvar domain
+  ensureCanFederateWith domain
   resp <-
     discoverAndCall
       domain
