@@ -72,7 +72,7 @@ spec = do
         echoTest mgr True serverPort `shouldThrow` (\(_ :: SSL.SomeSSLException) -> True)
 
     it "should allow accepting a certificate without a trailing dot" $ do
-      mgr <- setSSLIgnoreTrailingDot True <$> mkTestManager
+      mgr <- setSSLRemoveTrailingDot True <$> mkTestManager
       withTestServer (Just localhostCtx) $ \TestServer {..} ->
         echoTest' "localhost." "/echo" "some body" mgr True serverPort
 

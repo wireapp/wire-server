@@ -53,4 +53,4 @@ onNewSSLContext env ctx =
 
 mkHttp2Manager :: SSLContext -> IO Http2Manager
 mkHttp2Manager sslContext =
-  setSSLIgnoreTrailingDot True <$> http2ManagerWithSSLCtx sslContext
+  setSSLRemoveTrailingDot True <$> http2ManagerWithSSLCtx sslContext

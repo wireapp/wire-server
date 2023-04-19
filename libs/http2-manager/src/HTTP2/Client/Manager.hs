@@ -2,7 +2,7 @@ module HTTP2.Client.Manager
   ( Http2Manager,
     setCacheLimit,
     setSSLContext,
-    setSSLIgnoreTrailingDot,
+    setSSLRemoveTrailingDot,
     TLSEnabled,
     HostName,
     Port,

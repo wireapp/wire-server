@@ -75,7 +75,7 @@ data Http2Manager = Http2Manager
   { connections :: TVar (Map Target HTTP2Conn),
     cacheLimit :: Int,
     sslContext :: SSL.SSLContext,
-    sslIgnoreTrailingDot :: Bool
+    sslRemoveTrailingDot :: Bool
   }
 
 defaultHttp2Manager :: IO Http2Manager
@@ -95,7 +95,7 @@ http2ManagerWithSSLCtx :: SSL.SSLContext -> IO Http2Manager
 http2ManagerWithSSLCtx sslContext = do
   connections <- newTVarIO mempty
   let cacheLimit = 20
-      sslIgnoreTrailingDot = False
+      sslRemoveTrailingDot = False
   pure $ Http2Manager {..}
 
 -- | Warning: This won't affect already established connections
@@ -106,7 +106,7 @@ setCacheLimit cl mgr = mgr {cacheLimit = cl}
 setSSLContext :: SSL.SSLContext -> Http2Manager -> Http2Manager
 setSSLContext ctx mgr = mgr {sslContext = ctx}
 
--- | Ignore Traling dots in hostname while verifying hostname in the certificate
+-- | Remove traling dots in hostname while verifying hostname in the certificate
 -- presented by the server. For instance, when connecting with
 -- 'foo.example.com.' (Note the trailing dot) by default most SSL libraries fail
 -- hostname verification if the server has a certificate for 'foo.example.com'
@@ -119,8 +119,8 @@ setSSLContext ctx mgr = mgr {sslContext = ctx}
 -- https://github.com/openssl/openssl/issues/11560
 --
 -- Warning: This won't affect already established connections
-setSSLIgnoreTrailingDot :: Bool -> Http2Manager -> Http2Manager
-setSSLIgnoreTrailingDot b mgr = mgr {sslIgnoreTrailingDot = b}
+setSSLRemoveTrailingDot :: Bool -> Http2Manager -> Http2Manager
+setSSLRemoveTrailingDot b mgr = mgr {sslRemoveTrailingDot = b}
 
 -- | Does not check whether connection is actually running. Users should use
 -- 'withHTTP2Request'. This function is good for testing.
@@ -182,7 +182,7 @@ getOrMakeConnection mgr@Http2Manager {..} target = do
     connect :: IO HTTP2Conn
     connect = do
       sendReqMVar <- newEmptyMVar
-      thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sslIgnoreTrailingDot sendReqMVar
+      thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sslRemoveTrailingDot sendReqMVar
       let newConn = HTTP2Conn thread (putMVar sendReqMVar CloseConnection) sendReqMVar
       (inserted, finalConn) <- atomically $ insertNewConn newConn
       unless inserted $ do
@@ -260,14 +260,14 @@ startPersistentHTTP2Connection ::
   Target ->
   -- cacheLimit
   Int ->
-  -- ignoreTrailingDot
+  -- sslRemoveTrailingDot
   Bool ->
   -- MVar used to communicate requests or the need to close the connection.  (We could use a
   -- queue here to queue several requests, but since the requestor has to wait for the
   -- response, it might as well block before sending off the request.)
   MVar ConnectionAction ->
   IO ()
-startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl ignoreTrailingDot sendReqMVar = do
+startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailingDot sendReqMVar = do
   liveReqs <- newIORef mempty
   let clientConfig =
         HTTP2.ClientConfig
@@ -301,7 +301,7 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl ignoreTrailin
         void $ async $ race_ (tooLateNotifier e) (threadDelay 1_000_000)
 
       hostnameForTLS =
-        if ignoreTrailingDot
+        if removeTrailingDot
           then fromMaybe hostname (stripSuffix "." hostname)
           else hostname
       transportConfig
