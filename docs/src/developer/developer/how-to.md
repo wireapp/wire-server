@@ -154,9 +154,9 @@ To update the release with brig's local image run
 ```
 
 
-## 3 Run multi-backend tests
+### 3 Run multi-backend tests
 
-### Run all integration tests on kubernetes
+#### Run all integration tests on kubernetes
 
 * takes ~10 minutes to run
 * test output is delayed until all tests have run. You will have to scroll the output to find the relevant multi-backend test output.
@@ -167,7 +167,7 @@ To update the release with brig's local image run
 make kube-integration-test
 ```
 
-### Run only the multi-backend tests
+#### Run only the multi-backend tests
 
 * runs faster (~ half a minute)
 * test output is shown dynamically as tests run
@@ -187,7 +187,7 @@ Note that this runs your *locally* compiled `brig-integration`, so this allows t
 2. recompile: `make -C services/brig fast`
 3. run `./services/brig/federation-tests.sh test-$USER` again.
 
-### Run selected integration tests on kuberentes
+#### Run selected integration tests on kuberentes
 
 To run selective tests from brig-integration:
 
@@ -199,7 +199,7 @@ helm -n $NAMESPACE get hooks $NAMESPACE-wire-server | yq '.' | jq -r 'select(.me
 kubectl apply -n $NAMESPACE -f /tmp/integration-pod
 ```
 
-## 4 Teardown
+### 4 Teardown
 
 To destroy all the resources on the kubernetes cluster that have been created run
 
@@ -208,3 +208,9 @@ To destroy all the resources on the kubernetes cluster that have been created ru
 ```
 
 Note: Simply deleting the namespaces is insufficient, because it leaves some resources (of kind ClusterRole, ClusterRoleBinding) that cause problems when redeploying to the same namespace via helm.
+
+## Manage RabbitMQ
+
+We support two different ways of managing the docker-compose instance of rabbitmq: 
+* A web console interface is available [here](http://localhost:15672) 
+* `rabbitmqadmin` CLI is made avaiable in the dev environment
