@@ -30,4 +30,7 @@ main = do
       exitFailure
     Just act -> do
       ok <- act
+      -- keep process running so we can attach to it
+      -- TODO: remove this
+      void $ forever $ threadDelay 1000000
       if ok then exitSuccess else exitFailure
