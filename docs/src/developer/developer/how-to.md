@@ -42,13 +42,13 @@ The process consists of:
 3. Run multi-backend test half-locally half-on-kubernetes or fully on kubernetes
 4. Teardown
 
-### 1. Inspect/change the multi-backend test code
+### Inspect/change the multi-backend test code
 
 Refer to `services/brig/test/integration/API/Federation/End2End.hs` for the current multi-backend tests.
 
 *Note that they only run if `INTEGRATION_FEDERATION_TESTS` is set to `1`. This is currently configured to be OFF when running regular brig integration tests (e.g. via `make -C services/brig integration`) but is by default ON when running tests on kubernetes or on CI, or when using the `services/brig/federation-tests.sh` script.*
 
-### 2. Deploy two backends to kubernetes cluster
+### Deploy two backends to kubernetes cluster
 
 Decide which code you would like to deploy. The following options are detailed in the subsections below.
 
@@ -56,7 +56,7 @@ Decide which code you would like to deploy. The following options are detailed i
 * 2.2 Deploy code from your pull request
 * 2.3 Deploy your local code to a kind cluster
 
-#### 2.1 Deploy the the latest compiled code from `develop`
+#### Deploy the the latest compiled code from `develop`
 
 First, find the latest CI-compiled code made available as docker images:
 
@@ -92,7 +92,7 @@ This will create two full installations of wire-server on the kubernetes cluster
 
 * maybe CI hasn't finished, or failed. Look at concourse (`kubernetes-dev` pipeline)
 
-#### 2.2 Deploy code from your pull request
+#### Deploy code from your pull request
 
 *Note: CI already runs multi-backend federation integration tests on your PR, so this section may not be often useful in practice. This is still documented for completeness and to help understand the relation between source code and compiled docker images on CI.*
 
@@ -109,7 +109,7 @@ export NAMESPACE="myname"
 make kube-integration-setup
 ```
 
-#### 2.3 Deploy your local code to a kind cluster
+#### Deploy your local code to a kind cluster
 
 This can be useful to get quicker feedback while working on multi-backend code or configuration (e.g. helm charts) than to wait an hour for CI. This allows you to test code without uploading it to github and waiting an hour for CI.
 
@@ -129,7 +129,7 @@ FUTUREWORK: this process is in development (update this section after it's confi
 
 
 
-#### 2.4 Deploy your local code to a kubernetes cluster
+#### Deploy your local code to a kubernetes cluster
 
 This sections describes how partially update a release with a local build of a service, in this example `brig`.
 
@@ -154,7 +154,7 @@ To update the release with brig's local image run
 ```
 
 
-### 3 Run multi-backend tests
+### Run multi-backend tests
 
 #### Run all integration tests on kubernetes
 
@@ -199,7 +199,7 @@ helm -n $NAMESPACE get hooks $NAMESPACE-wire-server | yq '.' | jq -r 'select(.me
 kubectl apply -n $NAMESPACE -f /tmp/integration-pod
 ```
 
-### 4 Teardown
+### Teardown
 
 To destroy all the resources on the kubernetes cluster that have been created run
 
