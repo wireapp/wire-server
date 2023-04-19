@@ -33,12 +33,13 @@ import Data.Qualified
 import Data.Range (Range)
 import qualified Data.Text as T
 import Imports
-import Servant.Client hiding (client)
+import qualified Network.AMQP as Q
 import qualified System.Logger.Class as Log
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
+import Wire.API.Federation.Notifications
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -135,20 +136,15 @@ sendConnectionAction self (tUntagged -> other) action = do
   runBrigFederatorClient (qDomain other) $ fedClient @'Brig @"send-connection-action" req
 
 notifyUserDeleted ::
-  ( MonadReader Env m,
-    MonadIO m,
-    HasFedEndpoint 'Brig api "on-user-deleted-connections",
-    HasClient (FederatorClient 'Brig) api
-  ) =>
+  (MonadReader Env m, MonadIO m) =>
   Local UserId ->
   Remote (Range 1 1000 [UserId]) ->
-  ExceptT FederationError m ()
+  m ()
 notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
-  void $
-    runBrigFederatorClient (tDomain remotes) $
-      fedClient @'Brig @"on-user-deleted-connections" $
-        UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
+  qChan <- readIORef =<< view rabbitMQChannel
+  let notif = OnUserDeletedConnections $ UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
+  liftIO $ enqueue qChan (tDomain remotes) notif Q.Persistent
 
 runBrigFederatorClient ::
   (MonadReader Env m, MonadIO m) =>

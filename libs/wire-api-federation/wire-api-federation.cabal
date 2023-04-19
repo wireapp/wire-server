@@ -26,6 +26,7 @@ library
     Wire.API.Federation.Domain
     Wire.API.Federation.Endpoint
     Wire.API.Federation.Error
+    Wire.API.Federation.Notifications
     Wire.API.Federation.Version
 
   other-modules:      Paths_wire_api_federation
@@ -79,6 +80,8 @@ library
 
   build-depends:
       aeson                  >=2.0.1.0
+    , amqp
+    , async
     , base                   >=4.6     && <5.0
     , bytestring
     , bytestring-conversion
