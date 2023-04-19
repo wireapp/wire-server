@@ -24,7 +24,7 @@ import Data.Aeson
 import Imports
 
 -- | A remote queue that you can publish to and listen from.
-data Queue = StompQueue Text | SqsQueue Text
+data Queue = StompQueue Text | SqsQueue Text | NoQueueOnlyForTesting
   deriving (Eq, Show)
 
 instance FromJSON Queue where
@@ -32,4 +32,5 @@ instance FromJSON Queue where
     o .: "queueType" >>= \case
       "stomp" -> StompQueue <$> o .: "queueName"
       "sqs" -> SqsQueue <$> o .: "queueName"
+      "no-queue-only-for-testing" -> pure NoQueueOnlyForTesting
       other -> fail ("unknown 'queueType': " <> other)
