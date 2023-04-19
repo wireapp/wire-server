@@ -77,6 +77,7 @@ settings:
         status: disabled
         config:
           verificationExpiration: 86400
+          acmeDiscoveryUrl: null
         lockStatus: unlocked
 
 logLevel: Warn

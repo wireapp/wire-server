@@ -92,7 +92,8 @@ config:
         defaults:
           status: disabled
           config:
-            verificationExpiration: null
+            verificationExpiration: 86400
+            acmeDiscoveryUrl: null
           lockStatus: unlocked
 
   aws:
