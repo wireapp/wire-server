@@ -209,7 +209,7 @@ To destroy all the resources on the kubernetes cluster that have been created ru
 
 Note: Simply deleting the namespaces is insufficient, because it leaves some resources (of kind ClusterRole, ClusterRoleBinding) that cause problems when redeploying to the same namespace via helm.
 
-## Manage RabbitMQ
+## How to manage RabbitMQ
 
 We support two different ways of managing the docker-compose instance of rabbitmq: 
 * A web console interface is available [here](http://localhost:15672) 
