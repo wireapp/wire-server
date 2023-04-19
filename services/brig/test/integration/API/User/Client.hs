@@ -60,7 +60,7 @@ import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Text (replace)
 import Data.Text.Ascii (AsciiChars (validate))
-import Data.Time (getCurrentTime)
+import Data.Time.Clock.POSIX
 import qualified Data.Vector as Vec
 import Debug.Trace (traceM)
 import Imports
@@ -1220,7 +1220,7 @@ signAccessToken claims = doSignClaims
     jwkPubKey :: JWK
     jwkPubKey = do
       fromMaybe (error "invalid jwk") . A.decode $
-        "{\"crv\":\"Ed25519\",\"d\":\"UA2fFks0Tin4YPNbNHfCb-_zH_RvFliQLKR7VpNG5xc\",\"kty\":\"OKP\",\"x\":\"CPvhIdimF20tOPjbb-fXJrwS2RKDp7686T90AZ0-Th8\"}"
+        "{\"crv\":\"Ed25519\",\"kty\":\"OKP\",\"x\":\"CPvhIdimF20tOPjbb-fXJrwS2RKDp7686T90AZ0-Th8\"}"
 
 -- {
 --   "iat": 1680707939,
@@ -1243,7 +1243,7 @@ testCreateAccessTokenInvalidValues brig =
     traceM $ "created client: " <> cs (toByteString' cid)
     nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
     let nonceBs = fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
-    now <- liftIO getCurrentTime
+    now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (round <$> getPOSIXTime)
     let claimsSet' =
           emptyClaimsSet
             & claimIat ?~ NumericDate now

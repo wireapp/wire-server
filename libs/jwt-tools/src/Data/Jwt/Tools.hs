@@ -164,7 +164,7 @@ generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpir
   traceM $ "maxExpiration: " <> show maxExpiration
   traceM $ "now: " <> show now
   traceM $ "backendPubkeyBundle: " <> show backendPubkeyBundle
-  traceM "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY INPUT VALUES"
+  traceM "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZz INPUT VALUES"
   dpopProofCStr <- toCStr dpopProof
   uidCStr <- toCStr uid
   domainCStr <- toCStr domain
