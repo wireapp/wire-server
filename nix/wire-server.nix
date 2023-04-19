@@ -391,6 +391,7 @@ in
       pkgs.wget
       pkgs.yq
       pkgs.nginz
+      pkgs.rabbitmqadmin
 
       pkgs.cabal-install
       pkgs.haskellPackages.cabal-plan

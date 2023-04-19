@@ -198,6 +198,18 @@ services:
     networks:
       - demo_wire
 
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3-management-alpine
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    networks:
+      - demo_wire
+
   # FIXME: replace aws_cli with an image that we build.
   aws_cli:
     image: mesosphere/aws-cli:1.14.5
