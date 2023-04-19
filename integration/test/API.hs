@@ -1,7 +1,6 @@
 module API where
 
 import App
-import Config
 import Data.Aeson
 import qualified Data.Array as Array
 import Data.Default
