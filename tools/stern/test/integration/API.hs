@@ -103,10 +103,22 @@ testGetUserMetaInfo = do
   void $ getUserMetaInfo uid
 
 testPutPhone :: TestM ()
-testPutPhone = pure ()
+testPutPhone = do
+  uid <- randomUser
+  phone <- randomPhone
+  -- We simply test that this call returns 200
+  putPhone uid (PhoneUpdate phone)
 
 testDeleteUser :: TestM ()
-testDeleteUser = pure ()
+testDeleteUser = do
+  (uid, email) <- randomEmailUser
+  do
+    [ua] <- getUsersByIds [uid]
+    liftIO $ ua.accountStatus @?= Active
+  deleteUser uid (Left email)
+  do
+    uas <- getUsersByIds [uid]
+    liftIO $ uas @?= []
 
 testSuspendTeam :: TestM ()
 testSuspendTeam = pure ()
