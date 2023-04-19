@@ -315,6 +315,8 @@ expectFailure checkFailure action = do
       checkFailure e
     Right x -> assertFailure "Expected AssertionFailure, but none occured"
 
+-- | How to rember: the "?" is left to "=" the symbol. The "?" represents the
+-- value to be tested and the "=" represents the value it should be equal to.
 (@?=) ::
   (Eq a, Show a, HasCallStack) =>
   -- | The actual value
@@ -325,6 +327,7 @@ expectFailure checkFailure action = do
 a @?= b = unless (a == b) $ do
   assertFailure $ "Expected: " <> show b <> "\n" <> "Actual: " <> show a
 
+-- Like (@?=) but with nicer error message when dealing with json values
 (@%?=) ::
   (ProducesJSON a, ProducesJSON b, HasCallStack) =>
   -- | The actual value
@@ -356,12 +359,12 @@ prettyStack cs =
 -- - SECTION_JSON
 -------------------------------------------------------------------------------
 
--- | All library functions should this typeclass for value arguments wherever
--- possible. This design choice has advantages:
+-- | All library functions should this typeclass for all untyuped value
+-- arguments wherever possible. This design choice has advantages:
 --
 -- No need convert value everywhere, that are essentially different
--- representations. E.g. if a function needs a user id as string eventually, all
--- these inputs types become valid input:
+-- representations. E.g. if a function needs a user id as a string, all these
+-- inputs types become valid input:
 --
 -- - String
 -- - Text
@@ -372,9 +375,8 @@ prettyStack cs =
 --
 -- internally the function calls `asString` to convert to  App String
 --
--- Since we make (App a) values first-class values for functions means we can
--- throw custom useful error message in App when failure to access, convert
--- values without compromising composability or succinctness. E.g.
+-- Since (App a) are treated as first-class values values this means we can
+-- compose operations that might fail without giving up nice error messages:
 --
 -- callMe (response.json %. "user" & "foo.bar.baz" %.= 2)
 --
