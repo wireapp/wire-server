@@ -209,7 +209,7 @@ let
     brig = [ brig-templates ];
     brig-integration = [ brig-templates pkgs.mls-test-cli ];
     galley-integration = [ pkgs.mls-test-cli ];
-    integration = with exes; [ brig cannon cargohold federator galley gundeck proxy spar stern ];
+    integration = with exes; [ brig cannon cargohold federator galley gundeck proxy spar stern brig-templates ];
   };
 
   # useful to poke around a container during a 'kubectl exec'
