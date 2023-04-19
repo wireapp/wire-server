@@ -138,7 +138,7 @@ putUser uid upd = do
         "brig"
         b
         ( method PUT
-            . versionedPath "/self"
+            . versionedPath "self"
             . header "Z-User" (toByteString' uid)
             . header "Z-Connection" (toByteString' "")
             . lbytes (encode upd)
@@ -374,6 +374,7 @@ changeEmail u upd = do
           . Bilge.path "i/self/email"
           . header "Z-User" (toByteString' u)
           . header "Z-Connection" (toByteString' "")
+          . queryItem "validate" "true"
           . lbytes (encode upd)
           . contentJson
           . expect2xx
@@ -388,7 +389,7 @@ changePhone u upd = do
       "brig"
       b
       ( method PUT
-          . versionedPath "/self/phone"
+          . versionedPath "self/phone"
           . header "Z-User" (toByteString' u)
           . header "Z-Connection" (toByteString' "")
           . lbytes (encode upd)
@@ -680,7 +681,7 @@ getUserConsentValue uid = do
         g
         ( method GET
             . header "Z-User" (toByteString' uid)
-            . versionedPath "/self/consent"
+            . versionedPath "self/consent"
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
@@ -732,7 +733,7 @@ getUserCookies uid = do
         g
         ( method GET
             . header "Z-User" (toByteString' uid)
-            . versionedPath "/cookies"
+            . versionedPath "cookies"
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
@@ -777,7 +778,7 @@ getUserClients uid = do
         b
         ( method GET
             . header "Z-User" (toByteString' uid)
-            . versionedPath "/clients"
+            . versionedPath "clients"
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
@@ -794,7 +795,7 @@ getUserProperties uid = do
         b
         ( method GET
             . header "Z-User" (toByteString' uid)
-            . versionedPath "/properties"
+            . versionedPath "properties"
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
@@ -838,7 +839,7 @@ getUserNotifications uid = do
             b
             ( method GET
                 . header "Z-User" (toByteString' uid)
-                . versionedPath "/notifications"
+                . versionedPath "notifications"
                 . queryItem "size" (toByteString' batchSize)
                 . maybe id (queryItem "since" . toByteString') start
                 . expectStatus (`elem` [200, 404])
