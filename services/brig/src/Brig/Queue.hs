@@ -96,6 +96,7 @@ enqueue (SqsQueue queue) message =
   where
     digest :: Digest -> BL.ByteString -> Text
     digest d = T.decodeLatin1 . B16.encode . digestLBS d
+enqueue NoQueueOnlyForTesting _ = pure ()
 
 -- | Forever listen to messages coming from a queue and execute a callback
 -- for each incoming message.
@@ -125,3 +126,4 @@ listen (SqsQueue queue) callback = do
   env <- ask
   throttleMillis <- fromMaybe defSqsThrottleMillis <$> view (settings . sqsThrottleMillis)
   withRunInIO $ \lower -> AWS.execute (env ^. awsEnv) $ AWS.listen throttleMillis queue $ lower . callback
+listen NoQueueOnlyForTesting _ = pure ()
