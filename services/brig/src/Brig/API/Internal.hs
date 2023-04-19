@@ -119,6 +119,7 @@ servantSitemap =
     :<|> userAPI
     :<|> authAPI
     :<|> internalOauthAPI
+    :<|> federationRemotesAPI
 
 ejpdAPI ::
   Member GalleyProvider r =>
@@ -170,6 +171,12 @@ authAPI =
     :<|> Named @"sso-login" (callsFed (exposeAnnotations ssoLogin))
     :<|> Named @"login-code" getLoginCode
     :<|> Named @"reauthenticate" reauthenticate
+
+federationRemotesAPI :: ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
+federationRemotesAPI =
+  Named @"get-federator-remotes" undefined
+    :<|> Named @"add-federator-remote" undefined
+    :<|> Named @"delete-federator-remote" undefined
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
