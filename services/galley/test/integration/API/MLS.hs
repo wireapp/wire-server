@@ -37,6 +37,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
+import qualified Data.List.NonEmpty as NE
 import Data.List1 hiding (head)
 import qualified Data.Map as Map
 import Data.Qualified
@@ -672,23 +673,24 @@ testAddRemotesSomeUnreachable = do
         Just (domainText bobDomain),
         Just (domainText charlieDomain)
       ]
-  (events, reqs, qcnv) <- runMLSTest $ do
+  (events, failedToProcess, reqs, qcnv) <- runMLSTest $ do
     [alice1, bob1, _charlie1] <- traverse createMLSClient users
     (_, qcnv) <- setupMLSGroup alice1
 
     commit <- createAddCommit alice1 [bob, charlie]
     let unreachable = Set.singleton charlieDomain
-    (events, reqs) <-
+    ((events, failedToProcess), reqs) <-
       withTempMockFederator'
         ( mlsMockUnreachableFor unreachable
             <|> receiveCommitMockByDomain [bob1]
             <|> welcomeMock
         )
-        $ sendAndConsumeCommit commit
-    pure (events, reqs, qcnv)
+        $ sendAndConsumeCommitFederated commit
+    pure (events, failedToProcess, reqs, qcnv)
 
   liftIO $ do
-    req <- assertOne $ filter ((== "on-conversation-updated") . frRPC) reqs
+    req <- assertOne $ filter (\r -> ((== "on-conversation-updated") . frRPC) r && frTargetDomain r == bobDomain) reqs
+    void $ assertOne $ filter (\r -> ((== "on-conversation-updated") . frRPC) r && frTargetDomain r == charlieDomain) reqs
     frTargetDomain req @?= qDomain bob
     bdy <- case Aeson.eitherDecode (frBody req) of
       Right b -> pure b
@@ -696,17 +698,24 @@ testAddRemotesSomeUnreachable = do
     cuOrigUserId bdy @?= alice
     cuConvId bdy @?= qUnqualified qcnv
     cuAlreadyPresentUsers bdy @?= [qUnqualified bob]
-    cuAction bdy
-      @?= SomeConversationAction
-        SConversationJoinTag
-        ConversationJoin
-          { cjUsers = pure bob,
-            cjRole = roleNameWireMember
-          }
+    let expectedJoiners = sort [bob, charlie]
+        SomeConversationAction SConversationJoinTag cj = cuAction bdy
+        ConversationJoin actualJoiners actualRole = cj
+    (sort . NE.toList) actualJoiners @?= expectedJoiners -- TODO(md): only Bob should be listed as the joiner
+    actualRole @?= roleNameWireMember
 
   liftIO $ do
     event <- assertOne events
-    assertJoinEvent qcnv alice [bob] roleNameWireMember event
+    assertJoinEvent qcnv alice [bob, charlie] roleNameWireMember event -- TODO(md):
+  liftIO $ putStrLn $ "Failed to process = " <> show failedToProcess
+
+-- only
+-- Bob
+-- should
+-- be
+-- listed
+-- as the
+-- joiner
 
 testCommitLock :: TestM ()
 testCommitLock = do

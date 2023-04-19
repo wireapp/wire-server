@@ -707,7 +707,7 @@ notifyConversationAction ::
   BotsAndMembers ->
   ConversationAction (tag :: ConversationActionTag) ->
   Sem r (LocalConversationUpdate, FailedToProcess)
-notifyConversationAction failEarly tag quid notifyOrigDomain con lconv targets action = do
+notifyConversationAction _failEarly tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap convId lconv
       conv = tUnqualified lconv
@@ -736,21 +736,22 @@ notifyConversationAction failEarly tag quid notifyOrigDomain con lconv targets a
           { nrcConvId = convId conv,
             nrcProtocol = convProtocol conv
           }
-  let errorIntolerant = do
-        E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
-          void $ fedClient @'Galley @"on-new-remote-conversation" nrc
-        update <- fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
-          . E.runFederatedConcurrently (toList (bmRemotes targets))
-          $ \ruids -> do
-            let update = mkUpdate (tUnqualified ruids)
-            -- if notifyOrigDomain is false, filter out user from quid's domain,
-            -- because quid's backend will update local state and notify its users
-            -- itself using the ConversationUpdate returned by this function
-            if notifyOrigDomain || tDomain ruids /= qDomain quid
-              then fedClient @'Galley @"on-conversation-updated" update $> Nothing
-              else pure (Just update)
-        pure (update, mempty)
-      errorTolerant = do
+  -- let _errorIntolerant = do
+  --       -- TODO(md): Get rid of 'errorIntolerant'
+  --       E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
+  --         void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+  --       update <- fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
+  --         . E.runFederatedConcurrently (toList (bmRemotes targets))
+  --         $ \ruids -> do
+  --           let update = mkUpdate (tUnqualified ruids)
+  --           -- if notifyOrigDomain is false, filter out user from quid's domain,
+  --           -- because quid's backend will update local state and notify its users
+  --           -- itself using the ConversationUpdate returned by this function
+  --           if notifyOrigDomain || tDomain ruids /= qDomain quid
+  --             then fedClient @'Galley @"on-conversation-updated" update $> Nothing
+  --             else pure (Just update)
+  --       pure (update, mempty :: FailedToProcess)
+  let errorTolerant = do
         notifyEithers <-
           E.runFederatedConcurrentlyEither (toList newRemotes) $ \_ -> do
             void $ fedClient @'Galley @"on-new-remote-conversation" nrc
@@ -789,7 +790,8 @@ notifyConversationAction failEarly tag quid notifyOrigDomain con lconv targets a
                 <> toFailedToProcess (qualifiedFails failedUpdates)
         pure (update, totalFailedToProcess)
 
-  (update, failedToProcess) <- if failEarly then errorIntolerant else errorTolerant
+  -- traceM $ "In notifyConversationAction: faileEarly = " <> show failEarly
+  (update, failedToProcess) <- errorTolerant
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
