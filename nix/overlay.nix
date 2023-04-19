@@ -59,6 +59,8 @@ self: super: {
   # Named like this so cabal2nix can find it
   rusty_jwt_tools_ffi = self.callPackage ./pkgs/rusty_jwt_tools_ffi { };
 
+  sftd = self.callPackage ./pkgs/sftd { };
+
   nginxModules = super.nginxModules // {
     zauth = {
       name = "zauth";
