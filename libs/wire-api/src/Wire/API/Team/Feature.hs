@@ -96,6 +96,7 @@ import Data.Domain (Domain)
 import Data.Either.Extra (maybeToEither)
 import Data.Id
 import Data.Kind
+import Data.Misc (HttpsUrl)
 import Data.Proxy
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
@@ -891,11 +892,17 @@ instance FeatureTrivialConfig OutlookCalIntegrationConfig where
 ----------------------------------------------------------------------
 -- MlsE2EId
 
-data MlsE2EIdConfig = MlsE2EIdConfig {verificationExpiration :: NominalDiffTime}
+data MlsE2EIdConfig = MlsE2EIdConfig
+  { verificationExpiration :: NominalDiffTime,
+    acmeDiscoveryUrl :: Maybe HttpsUrl
+  }
   deriving stock (Eq, Show, Generic)
 
 instance Arbitrary MlsE2EIdConfig where
-  arbitrary = MlsE2EIdConfig . fromIntegral <$> (arbitrary @Word32)
+  arbitrary =
+    MlsE2EIdConfig
+      <$> (fromIntegral <$> (arbitrary @Word32))
+      <*> arbitrary
 
 instance ToSchema MlsE2EIdConfig where
   schema :: ValueSchema NamedSwaggerDoc MlsE2EIdConfig
@@ -903,6 +910,7 @@ instance ToSchema MlsE2EIdConfig where
     object "MlsE2EIdConfig" $
       MlsE2EIdConfig
         <$> (toSeconds . verificationExpiration) .= fieldWithDocModifier "verificationExpiration" veDesc (fromSeconds <$> schema)
+        <*> acmeDiscoveryUrl .= maybe_ (optField "acmeDiscoveryUrl" schema)
     where
       fromSeconds :: Int -> NominalDiffTime
       fromSeconds = fromIntegral
@@ -923,7 +931,9 @@ instance ToSchema MlsE2EIdConfig where
 
 instance IsFeatureConfig MlsE2EIdConfig where
   type FeatureSymbol MlsE2EIdConfig = "mlsE2EId"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked (MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24))) FeatureTTLUnlimited
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked defValue FeatureTTLUnlimited
+    where
+      defValue = MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24)) Nothing
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------

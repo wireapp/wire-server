@@ -137,6 +137,7 @@ CREATE TABLE galley_test.team_features (
     mls_allowed_ciphersuites set<int>,
     mls_default_ciphersuite int,
     mls_default_protocol int,
+    mls_e2eid_acme_discovery_url blob,
     mls_e2eid_grace_period int,
     mls_e2eid_lock_status int,
     mls_e2eid_status int,

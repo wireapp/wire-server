@@ -28,6 +28,7 @@ migration :: Migration
 migration = Migration 81 "Add feature config for team feature MLS MlsE2EId" $ do
   schema'
     [r| ALTER TABLE team_features ADD (
-          mls_e2eid_grace_period int
+          mls_e2eid_grace_period int,
+          mls_e2eid_acme_discovery_url blob
         )
      |]

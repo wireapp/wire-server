@@ -27,7 +27,9 @@ import Cassandra
 import qualified Cassandra as C
 import Control.Monad.Trans.Maybe
 import Data.Id
+import Data.Misc (HttpsUrl)
 import Data.Proxy
+import Data.Time (NominalDiffTime)
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
 import qualified Galley.Effects.TeamFeatureStore as TFS
@@ -321,26 +323,31 @@ instance FeatureStatusCassandra MlsE2EIdConfig where
     let q = query1 select (params LocalQuorum (Identity tid))
     retry x1 q <&> \case
       Nothing -> Nothing
-      Just (Nothing, _) -> Nothing
-      Just (mStatus, mGracePeriod) ->
-        WithStatusNoLock
-          <$> mStatus
-          <*> maybe (pure $ wsConfig defFeatureStatus) (pure . MlsE2EIdConfig . fromIntegral) mGracePeriod
-          <*> Just FeatureTTLUnlimited
+      Just (Nothing, _, _) -> Nothing
+      Just (Just fs, mGracePeriod, mUrl) ->
+        Just $
+          WithStatusNoLock
+            fs
+            (MlsE2EIdConfig (toGracePeriodOrDefault mGracePeriod) mUrl)
+            FeatureTTLUnlimited
     where
-      select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Int32)
+      toGracePeriodOrDefault :: Maybe Int32 -> NominalDiffTime
+      toGracePeriodOrDefault = maybe (verificationExpiration $ wsConfig defFeatureStatus) fromIntegral
+
+      select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Int32, Maybe HttpsUrl)
       select =
         fromString $
-          "select mls_e2eid_status, mls_e2eid_grace_period from team_features where team_id = ?"
+          "select mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url from team_features where team_id = ?"
 
   setFeatureConfig _ tid status = do
     let statusValue = wssStatus status
-        timeout = verificationExpiration . wssConfig $ status
-    retry x5 $ write insert (params LocalQuorum (tid, statusValue, truncate timeout))
+        vex = verificationExpiration . wssConfig $ status
+        mUrl = acmeDiscoveryUrl . wssConfig $ status
+    retry x5 $ write insert (params LocalQuorum (tid, statusValue, truncate vex, mUrl))
     where
-      insert :: PrepQuery W (TeamId, FeatureStatus, Int32) ()
+      insert :: PrepQuery W (TeamId, FeatureStatus, Int32, Maybe HttpsUrl) ()
       insert =
-        "insert into team_features (team_id, mls_e2eid_status, mls_e2eid_grace_period) values (?, ?, ?)"
+        "insert into team_features (team_id, mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url) values (?, ?, ?, ?)"
 
   getFeatureLockStatus _ = getLockStatusC "mls_e2eid_lock_status"
   setFeatureLockStatus _ = setLockStatusC "mls_e2eid_lock_status"
