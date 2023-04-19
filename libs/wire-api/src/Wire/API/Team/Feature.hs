@@ -104,13 +104,11 @@ import qualified Data.Swagger as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
-import Data.Time (UTCTime)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
+import Data.Time (NominalDiffTime)
 import Deriving.Aeson
 import GHC.TypeLits
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
-import Test.QuickCheck (oneof)
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
@@ -893,34 +891,39 @@ instance FeatureTrivialConfig OutlookCalIntegrationConfig where
 ----------------------------------------------------------------------
 -- MlsE2EId
 
-data MlsE2EIdConfig = MlsE2EIdConfig {verificationExpiration :: Maybe UTCTime}
+data MlsE2EIdConfig = MlsE2EIdConfig {verificationExpiration :: NominalDiffTime}
   deriving stock (Eq, Show, Generic)
 
 instance Arbitrary MlsE2EIdConfig where
-  arbitrary = oneof [pure $ MlsE2EIdConfig Nothing, MlsE2EIdConfig . Just . posixSecondsToUTCTime . fromIntegral <$> (arbitrary @Word32)]
+  arbitrary = MlsE2EIdConfig . fromIntegral <$> (arbitrary @Word32)
 
 instance ToSchema MlsE2EIdConfig where
   schema :: ValueSchema NamedSwaggerDoc MlsE2EIdConfig
   schema =
     object "MlsE2EIdConfig" $
       MlsE2EIdConfig
-        <$> (fmap toSeconds . verificationExpiration) .= maybe_ (optFieldWithDocModifier "verificationExpiration" desc (fromSeconds <$> schema))
+        <$> (toSeconds . verificationExpiration) .= fieldWithDocModifier "verificationExpiration" veDesc (fromSeconds <$> schema)
     where
-      fromSeconds :: Int -> UTCTime
-      fromSeconds = posixSecondsToUTCTime . fromIntegral
+      fromSeconds :: Int -> NominalDiffTime
+      fromSeconds = fromIntegral
 
-      toSeconds :: UTCTime -> Int
-      toSeconds = truncate . utcTimeToPOSIXSeconds
+      toSeconds :: NominalDiffTime -> Int
+      toSeconds = truncate
 
-      desc :: NamedSwaggerDoc -> NamedSwaggerDoc
-      desc =
+      veDesc :: NamedSwaggerDoc -> NamedSwaggerDoc
+      veDesc =
         description
-          ?~ "Unix timestamp (number of seconds that have passed since 00:00:00 UTC on Thursday, 1 January 1970) after which the period for clients to verify their identity expires. \
-             \When the timer goes off, they will be logged out and get the certificate automatically on their devices."
+          ?~ "When a client first tries to fetch or renew a certificate, \
+             \they may need to login to an identity provider (IdP) depending on their IdP domain authentication policy. \
+             \The user may have a grace period during which they can “snooze” this login. \
+             \The duration of this grace period (in seconds) is set in the `verificationDuration` parameter, \
+             \which is enforced separately by each client. \
+             \After the grace period has expired, the client will not allow the user to use the application \
+             \until they have logged to refresh the certificate. The default value is 1 day (86400s)."
 
 instance IsFeatureConfig MlsE2EIdConfig where
   type FeatureSymbol MlsE2EIdConfig = "mlsE2EId"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked (MlsE2EIdConfig Nothing) FeatureTTLUnlimited
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked (MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24))) FeatureTTLUnlimited
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------

@@ -28,7 +28,6 @@ import qualified Cassandra as C
 import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Proxy
-import Data.Time (UTCTime)
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
 import qualified Galley.Effects.TeamFeatureStore as TFS
@@ -323,25 +322,25 @@ instance FeatureStatusCassandra MlsE2EIdConfig where
     retry x1 q <&> \case
       Nothing -> Nothing
       Just (Nothing, _) -> Nothing
-      Just (mStatus, mTimeout) ->
+      Just (mStatus, mGracePeriod) ->
         WithStatusNoLock
           <$> mStatus
-          <*> maybe (pure $ wsConfig defFeatureStatus) (pure . MlsE2EIdConfig) (Just mTimeout)
+          <*> maybe (pure $ wsConfig defFeatureStatus) (pure . MlsE2EIdConfig . fromIntegral) mGracePeriod
           <*> Just FeatureTTLUnlimited
     where
-      select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe UTCTime)
+      select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Int32)
       select =
         fromString $
-          "select mls_e2eid_status, mls_e2eid_ver_exp from team_features where team_id = ?"
+          "select mls_e2eid_status, mls_e2eid_grace_period from team_features where team_id = ?"
 
   setFeatureConfig _ tid status = do
     let statusValue = wssStatus status
         timeout = verificationExpiration . wssConfig $ status
-    retry x5 $ write insert (params LocalQuorum (tid, statusValue, timeout))
+    retry x5 $ write insert (params LocalQuorum (tid, statusValue, truncate timeout))
     where
-      insert :: PrepQuery W (TeamId, FeatureStatus, Maybe UTCTime) ()
+      insert :: PrepQuery W (TeamId, FeatureStatus, Int32) ()
       insert =
-        "insert into team_features (team_id, mls_e2eid_status, mls_e2eid_ver_exp) values (?, ?, ?)"
+        "insert into team_features (team_id, mls_e2eid_status, mls_e2eid_grace_period) values (?, ?, ?)"
 
   getFeatureLockStatus _ = getLockStatusC "mls_e2eid_lock_status"
   setFeatureLockStatus _ = setLockStatusC "mls_e2eid_lock_status"
