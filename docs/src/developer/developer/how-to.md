@@ -187,7 +187,7 @@ Note that this runs your *locally* compiled `brig-integration`, so this allows t
 2. recompile: `make -C services/brig fast`
 3. run `./services/brig/federation-tests.sh test-$USER` again.
 
-#### Run selected integration tests on kuberentes
+#### Run selected integration tests on kubernetes
 
 To run selective tests from brig-integration:
 
@@ -213,4 +213,4 @@ Note: Simply deleting the namespaces is insufficient, because it leaves some res
 
 We support two different ways of managing the docker-compose instance of rabbitmq: 
 * A web console interface is available [here](http://localhost:15672) 
-* `rabbitmqadmin` CLI is made avaiable in the dev environment
+* `rabbitmqadmin` CLI is made available in the dev environment
