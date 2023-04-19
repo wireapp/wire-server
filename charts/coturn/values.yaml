@@ -25,6 +25,7 @@ securityContext:
 coturnTurnListenPort: 3478
 coturnMetricsListenPort: 9641
 coturnTurnTlsListenPort: 5349
+coturnFederationListenPort: 9191
 
 tls:
   enabled: false
@@ -37,6 +38,13 @@ tls:
     repository: quay.io/wire/config-reloader-sidecar
     pullPolicy: IfNotPresent
     tag: 72c3c8434660bd157d42012b0bcd67f338fc5c7a
+
+config:
+  verboseLogging: false
+  federation:
+    enabled: false
+    noDtls: true
+
 
 metrics:
   serviceMonitor:
