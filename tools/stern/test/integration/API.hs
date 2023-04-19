@@ -124,7 +124,7 @@ testDeleteUser = do
 
 testSuspendTeam :: TestM ()
 testSuspendTeam = do
-  (_, tid, _) <- createBindingTeamWithNMembers 10
+  (_, tid, _) <- createTeamWithNMembers 10
   do
     info <- getTeamInfo tid
     liftIO $ info.tiData.tdStatus @?= Team.Active
@@ -134,10 +134,29 @@ testSuspendTeam = do
     liftIO $ info.tiData.tdStatus @?= Team.Suspended
 
 testUnsuspendTeam :: TestM ()
-testUnsuspendTeam = pure ()
+testUnsuspendTeam = do
+  (_, tid, _) <- createTeamWithNMembers 10
+  suspendTeam tid
+  do
+    info <- getTeamInfo tid
+    liftIO $ info.tiData.tdStatus @?= Team.Suspended
+  unsuspendTeam tid
+  do
+    info <- getTeamInfo tid
+    liftIO $ info.tiData.tdStatus @?= Team.Active
 
 testDeleteTeam :: TestM ()
-testDeleteTeam = pure ()
+testDeleteTeam = do
+  (uid, tid, _) <- createTeamWithNMembers 10
+  [ua] <- getUsersByIds [uid]
+  let email = fromMaybe (error "user has no email") $ emailIdentity =<< ua.accountUser.userIdentity
+  do
+    info <- getTeamInfo tid
+    liftIO $ info.tiData.tdStatus @?= Team.Active
+  deleteTeam tid True email
+  eventually $ do
+    info <- getTeamInfo tid
+    liftIO $ assertEqual "team status should be 'Deleted'" Team.Deleted info.tiData.tdStatus
 
 testEjpdInfo :: TestM ()
 testEjpdInfo = pure ()
@@ -276,7 +295,7 @@ testGetUsersByIds = do
 
 testGetTeamInfo :: TestM ()
 testGetTeamInfo = do
-  (_, tid, _) <- createBindingTeamWithNMembers 10
+  (_, tid, _) <- createTeamWithNMembers 10
   info <- getTeamInfo tid
   liftIO $ length info.tiMembers @?= 11
 
