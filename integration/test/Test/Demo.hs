@@ -5,7 +5,6 @@ module Test.Demo where
 
 import API
 import App
-import Config
 import qualified Data.Aeson as A
 import Data.Default
 import Imports

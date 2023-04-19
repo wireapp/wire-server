@@ -82,7 +82,6 @@ library
   exposed-modules:
     API
     App
-    Config
     Run
     RunAllTests
     SetupHelpers
