@@ -88,7 +88,11 @@ tests s =
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage,
       test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted,
-      test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin
+      test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin,
+      test s "POST /federation/on-conversation-updated : Notify local user about conversation rename with an unavailable federator" notifyConvRenameUnavailable,
+      test s "POST /federation/on-conversation-updated : Notify local user about message timer update with an unavailable federator" notifyMessageTimerUnavailable,
+      test s "POST /federation/on-conversation-updated : Notify local user about receipt mode update with an unavailable federator" notifyReceiptModeUnavailable,
+      test s "POST /federation/on-conversation-updated : Notify local user about access update with an unavailable federator" notifyAccessUnavailable
     ]
 
 getConversationsAllFound :: TestM ()
@@ -489,7 +493,7 @@ notifyUpdateUnavailable extras action etype edata = do
       mkMember quid = OtherMember quid Nothing roleNameWireMember
   fedGalleyClient <- view tsFedGalleyClient
 
-  mapM_ (`connectWithRemoteUser` qbob) [alice]
+  connectWithRemoteUser alice qbob
   registerRemoteConv
     qconv
     bob

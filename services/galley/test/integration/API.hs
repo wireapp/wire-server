@@ -1933,8 +1933,6 @@ testAccessUpdateGuestRemovedRemotesUnavailable = do
         <!! const 200 === statusCode
   liftIO $ map omQualifiedId (cmOthers (cnvMembers conv2)) @?= [bob]
 
--- @END
-
 testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved :: TestM ()
 testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved = do
   -- given alice, bob, charlie and dee are in a team
