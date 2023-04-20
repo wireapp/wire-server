@@ -45,6 +45,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra (tdStatus)
 import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Wire.API.Team (teamId)
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.SearchVisibility
@@ -175,10 +176,20 @@ testUserBlacklist = do
   userBlacklistHead (Left email) !!! const 404 === statusCode
 
 testGetTeamInfoByMemberEmail :: TestM ()
-testGetTeamInfoByMemberEmail = pure ()
+testGetTeamInfoByMemberEmail = do
+  (_, tid, member : _) <- createTeamWithNMembers 10
+  [ua] <- getUsersByIds [member]
+  let email = fromMaybe (error "user has no email") $ emailIdentity =<< ua.accountUser.userIdentity
+  info <- getTeamInfoByMemberEmail email
+  liftIO $ (info.tiData.tdTeam ^. teamId) @?= tid
 
 testGetTeamAdminInfo :: TestM ()
-testGetTeamAdminInfo = pure ()
+testGetTeamAdminInfo = do
+  (_, tid, _) <- createTeamWithNMembers 10
+  info <- getTeamAdminInfo tid
+  liftIO $ (info.taData.tdTeam ^. teamId) @?= tid
+  liftIO $ (length info.taOwners) @?= 1
+  liftIO $ info.taMembers @?= 11
 
 testGetLegalholdConfig :: TestM ()
 testGetLegalholdConfig = pure ()
