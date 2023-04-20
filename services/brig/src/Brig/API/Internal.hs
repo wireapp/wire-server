@@ -38,6 +38,7 @@ import qualified Brig.Code as Code
 import Brig.Data.Activation
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
+import qualified Brig.Data.Federation as Data
 import qualified Brig.Data.MLS.KeyPackage as Data
 import qualified Brig.Data.User as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
@@ -89,6 +90,7 @@ import Wire.API.Federation.API
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
+import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
@@ -174,9 +176,9 @@ authAPI =
 
 federationRemotesAPI :: ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
-  Named @"get-federation-remotes" undefined
-    :<|> Named @"add-federation-remotes" undefined
-    :<|> Named @"delete-federation-remotes" undefined
+  Named @"get-federation-remotes" (lift $ FederationDomainConfigs <$> wrapClient Data.getFederationRemotes) -- TODO: get this from TVar!  also merge in config file!
+    :<|> Named @"add-federation-remotes" (lift . wrapClient . Data.addFederationRemote)
+    :<|> Named @"delete-federation-remotes" (lift . wrapClient . Data.deleteFederationRemote)
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
