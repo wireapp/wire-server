@@ -1,9 +1,3 @@
-{- LANGUAGE DeriveAnyClass #-}
-{- LANGUAGE GeneralizedNewtypeDeriving #-}
-{- LANGUAGE TemplateHaskell #-}
--- Disabling to stop errors on Getters
-{- OPTIONS_GHC -Wno-redundant-constraints #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>

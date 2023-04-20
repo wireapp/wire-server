@@ -56,7 +56,6 @@ import Wire.API.Federation.Component
 import Wire.API.Federation.Version
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.User
 import Wire.API.User.Client
