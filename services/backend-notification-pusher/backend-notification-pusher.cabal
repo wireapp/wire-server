@@ -1,0 +1,135 @@
+cabal-version:   1.24
+name:            backend-notification-pusher
+version:         0.1.0.0
+synopsis:        Pushes backend notifications to remote federated backends
+license:         AGPL-3
+license-file:    LICENSE
+author:          Wire Swiss GmbH
+maintainer:      backend@wire.com
+category:        Network
+build-type:      Simple
+extra-doc-files: CHANGELOG.md
+
+library
+  -- cabal-fmt: expand src
+  exposed-modules:
+    Wire.BackendNotificationPusher
+    Wire.BackendNotificationPusher.Env
+    Wire.BackendNotificationPusher.Options
+
+  hs-source-dirs:     src
+  default-language:   Haskell2010
+  build-depends:
+      aeson
+    , amqp
+    , base
+    , bytestring
+    , HsOpenSSL
+    , http-types
+    , http2-manager
+    , imports
+    , text
+    , types-common
+    , wire-api-federation
+    , yaml
+
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+executable backend-notification-pusher
+  main-is:          Main.hs
+  build-depends:    backend-notification-pusher
+  hs-source-dirs:   exec
+  default-language: Haskell2010
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -fplugin=Polysemy.Plugin
+    -fplugin=TransitiveAnns.Plugin -Wredundant-constraints
+
+test-suite backend-notification-pusher-test
+  default-language:   Haskell2010
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Main.hs
+  build-depends:      backend-notification-pusher
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns

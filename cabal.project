@@ -31,6 +31,7 @@ packages:
   , libs/wire-message-proto-lens/
   , libs/zauth/
   , services/brig/
+  , services/backend-notification-pusher/
   , services/cannon/
   , services/cargohold/
   , services/federator/
@@ -64,6 +65,8 @@ package api-simulations
 package assets
     ghc-options: -Werror
 package auto-whitelist
+    ghc-options: -Werror
+package backend-notification-pusher
     ghc-options: -Werror
 package bilge
     ghc-options: -Werror

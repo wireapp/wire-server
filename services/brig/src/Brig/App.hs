@@ -307,7 +307,7 @@ mkRabbitMqChannel (Opt.rabbitMQ -> Opt.RabbitMQOpts {..}) = do
   password <- Text.pack <$> getEnv "RABBITMQ_PASSWORD"
   conn <- Q.openConnection' host (fromIntegral port) vHost username password
   -- TODO: Q.addConnectionClosedHandler
-  -- TODO: Q.addConnectionBlockedHandler
+  -- TODO: Q.addConnectionBlockedHandler (Probably not required: https://www.rabbitmq.com/connection-blocked.html)
   -- TODO: Q.addChannelExceptionHandler
   Q.openChannel conn
 

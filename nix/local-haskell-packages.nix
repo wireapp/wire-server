@@ -34,6 +34,7 @@
   wire-api = hself.callPackage ../libs/wire-api/default.nix { inherit gitignoreSource; };
   wire-message-proto-lens = hself.callPackage ../libs/wire-message-proto-lens/default.nix { inherit gitignoreSource; };
   zauth = hself.callPackage ../libs/zauth/default.nix { inherit gitignoreSource; };
+  backend-notification-pusher = hself.callPackage ../services/backend-notification-pusher/default.nix { inherit gitignoreSource; };
   brig = hself.callPackage ../services/brig/default.nix { inherit gitignoreSource; };
   cannon = hself.callPackage ../services/cannon/default.nix { inherit gitignoreSource; };
   cargohold = hself.callPackage ../services/cargohold/default.nix { inherit gitignoreSource; };

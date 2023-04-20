@@ -30,6 +30,7 @@ enqueue chan domain notif deliveryMode = do
             Q.msgDeliveryMode = Just deliveryMode,
             Q.msgContentType = Just "application/json"
           }
+      -- Empty string means default exchange
       exchange = ""
   ensureQueue chan domain
   void $ Q.publishMsg chan exchange (routingKey domain) msg
@@ -56,8 +57,3 @@ ensureQueue chan domain = do
                   ]
           }
   void $ Q.declareQueue chan opts
-
-connectToRabbitMQ :: String -> Int -> Text -> Text -> Text -> IO Q.Channel
-connectToRabbitMQ hostname port vhost user password = do
-  conn <- Q.openConnection' hostname (fromIntegral port) vhost user password
-  Q.openChannel conn
