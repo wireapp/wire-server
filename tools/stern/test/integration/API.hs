@@ -77,16 +77,15 @@ tests s =
       test s "/users/blacklist" testUserBlacklist,
       test s "GET /teams" testGetTeamInfoByMemberEmail,
       test s "GET /teams/:tid/admins" testGetTeamAdminInfo,
-      test s "GET /teams/:tid/features/legalhold" testGetLegalholdConfig,
-      test s "PUT /teams/:tid/features/legalhold" testPutLegalholdConfig,
+      test s "/teams/:tid/features/legalhold" testLegalholdConfig,
       test s "GET /teams/:tid/features/sso" testGetSSOConfig,
       test s "PUT /teams/:tid/features/sso" testPutSSOConfig,
       test s "PUT /teams/:tid/features/search-visibility-available" testPutSearchVisibilityAvailableConfig,
       test s "PUT /teams/:tid/features/validate-saml-emails" testPutValidateSAMLEmailsConfig,
       test s "PUT /teams/:tid/features/digital-signatures" testPutDigitalSignaturesConfig,
-      test s "PUT /teams/:tid/features/file-sharing" testPutFileSharingConfig,
+      test s "/teams/:tid/features/file-sharing" testFileSharingConfig,
       test s "PUT /teams/:tid/features/conference-calling" testPutConferenceCallingConfig,
-      test s "PUT /teams/:tid/features/:feature" testPutFeatureConfig,
+      test s "PUT /teams/:tid/features/:feature" testputFeatureStatus,
       test s "GET /teams/:tid/search-visibility" testGetSearchVisibility,
       test s "PUT /teams/:tid/search-visibility" testPutSearchVisibility,
       test s "GET /teams/:tid/invoice/:inr" testGetTeamInvoice,
@@ -187,15 +186,18 @@ testGetTeamAdminInfo :: TestM ()
 testGetTeamAdminInfo = do
   (_, tid, _) <- createTeamWithNMembers 10
   info <- getTeamAdminInfo tid
-  liftIO $ (info.taData.tdTeam ^. teamId) @?= tid
-  liftIO $ (length info.taOwners) @?= 1
-  liftIO $ info.taMembers @?= 11
+  liftIO $ do
+    (info.taData.tdTeam ^. teamId) @?= tid
+    (length info.taOwners) @?= 1
+    info.taMembers @?= 11
 
-testGetLegalholdConfig :: TestM ()
-testGetLegalholdConfig = pure ()
-
-testPutLegalholdConfig :: TestM ()
-testPutLegalholdConfig = pure ()
+testLegalholdConfig :: TestM ()
+testLegalholdConfig = do
+  (_, tid, _) <- createTeamWithNMembers 10
+  cfg <- getFeatureConfig @LegalholdConfig tid
+  liftIO $ cfg @?= defFeatureStatus @LegalholdConfig
+  -- Legal hold is enabled for teams via server config and cannot be changed here
+  putFeatureStatus @LegalholdConfig tid FeatureStatusEnabled !!! const 403 === statusCode
 
 testGetSSOConfig :: TestM ()
 testGetSSOConfig = pure ()
@@ -212,14 +214,21 @@ testPutValidateSAMLEmailsConfig = pure ()
 testPutDigitalSignaturesConfig :: TestM ()
 testPutDigitalSignaturesConfig = pure ()
 
-testPutFileSharingConfig :: TestM ()
-testPutFileSharingConfig = pure ()
+testFileSharingConfig :: TestM ()
+testFileSharingConfig = do
+  (_, tid, _) <- createTeamWithNMembers 10
+  cfg <- getFeatureConfig @FileSharingConfig tid
+  liftIO $ cfg @?= defFeatureStatus @FileSharingConfig
+  let newStatus = if wsStatus cfg == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
+  void $ putFeatureStatus @FileSharingConfig tid newStatus
+  cfg' <- getFeatureConfig @FileSharingConfig tid
+  liftIO $ wsStatus cfg' @?= newStatus
 
 testPutConferenceCallingConfig :: TestM ()
 testPutConferenceCallingConfig = pure ()
 
-testPutFeatureConfig :: TestM ()
-testPutFeatureConfig = pure ()
+testputFeatureStatus :: TestM ()
+testputFeatureStatus = pure ()
 
 testGetSearchVisibility :: TestM ()
 testGetSearchVisibility = pure ()
@@ -541,7 +550,7 @@ putConferenceCallingConfig tid cfg ttl = do
   s <- view tsStern
   void $ put (s . paths ["teams", toByteString' tid, "features", "conference-calling"] . queryItem "status" (toByteString' cfg) . queryItem "ttl" (toByteString' ttl) . expect2xx)
 
-putFeatureConfig ::
+putFeatureStatus ::
   forall cfg.
   ( KnownSymbol (FeatureSymbol cfg),
     ToSchema cfg,
@@ -549,11 +558,11 @@ putFeatureConfig ::
     IsFeatureConfig cfg
   ) =>
   TeamId ->
-  WithStatusNoLock cfg ->
-  TestM ()
-putFeatureConfig tid cfg = do
+  FeatureStatus ->
+  TestM ResponseLBS
+putFeatureStatus tid status = do
   s <- view tsStern
-  void $ put (s . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg] . json cfg . expect2xx)
+  put (s . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg] . queryItem "status" (toByteString' status))
 
 getSearchVisibility :: TeamId -> TestM TeamSearchVisibilityView
 getSearchVisibility tid = do
