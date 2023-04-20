@@ -3,30 +3,26 @@
 -- | This module is meant to show how the integration can be used
 module Test.Demo where
 
-import API
-import App
-import qualified Data.Aeson as A
-import Data.Default
+import qualified API
 import Imports
-import SetupHelpers
-import Text.RawString.QQ
+import TestLib.Prelude
 
 -- | Cannot delete a legalhold client
 testCantDeleteLHClient :: HasCallStack => App ()
 testCantDeleteLHClient = do
   user <- randomUser def
-  lhClientId <- bindResponse (addClient user def {ctype = "legalhold", internal = True}) $ \resp -> do
+  lhClientId <- bindResponse (API.addClient user def {API.ctype = "legalhold", API.internal = True}) $ \resp -> do
     resp.status @?= 201
     resp.json %. "id" & asString
 
-  bindResponse (deleteClient user Nothing lhClientId) $ \resp -> do
+  bindResponse (API.deleteClient user Nothing lhClientId) $ \resp -> do
     resp.status @?= 400
 
 testDeleteUnknownClient :: HasCallStack => App ()
 testDeleteUnknownClient = do
   user <- randomUser def
   let fakeClientId :: String = "deadbeefdeadbeef"
-  bindResponse (deleteClient user Nothing fakeClientId) $ \resp -> do
+  bindResponse (API.deleteClient user Nothing fakeClientId) $ \resp -> do
     resp.status @?= 404
     resp.json %. "label" @%?= ("client-not-found" :: String)
 
@@ -50,7 +46,7 @@ testModifiedGalley = do
   (_user, tid) <- createTeam
 
   let getFeatureStatus = do
-        bindResponse (getTeamFeatureInternal "searchVisibility" tid) $ \res -> do
+        bindResponse (API.getTeamFeatureInternal "searchVisibility" tid) $ \res -> do
           res.status @?= 200
           res.json %. "status"
 
@@ -65,13 +61,13 @@ testModifiedGalley = do
       status <- getFeatureStatus
       status @%?= ("enabled" :: String)
 
-json :: HasCallStack => LByteString -> A.Value
-json = fromJust . A.decode
+jsonValue :: HasCallStack => LByteString -> Value
+jsonValue = fromJust . decode
 
 testJSONUpdate :: HasCallStack => App ()
 testJSONUpdate = do
   let before =
-        json
+        jsonValue
           [r|
         {
           "foo" : {
@@ -81,7 +77,7 @@ testJSONUpdate = do
   |]
 
   let expected =
-        json
+        jsonValue
           [r|
         {
           "foo" : {
@@ -95,7 +91,7 @@ testJSONUpdate = do
   -- test case: when last field doesn't exist
 
   let expected2 =
-        json
+        jsonValue
           [r|
         {
           "foo" : {
@@ -110,7 +106,7 @@ testJSONUpdate = do
 testJSONUpdateFailure :: HasCallStack => App ()
 testJSONUpdateFailure = do
   let before =
-        json
+        jsonValue
           [r|
         {
           "foo" : {

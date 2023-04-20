@@ -1,11 +1,11 @@
 module API where
 
-import App
 import Data.Aeson
 import qualified Data.Array as Array
 import Data.Default
 import Imports
 import System.Random (randomRIO)
+import TestLib.App
 
 randomEmail :: App String
 randomEmail = liftIO $ do
@@ -75,17 +75,6 @@ getTeams userId = do
           & zConnection "conn"
           & zType "access"
   submit "GET" req'
-
--- | returns (user, team id)
-createTeam :: App (Value, String)
-createTeam = do
-  res <- createUser def {team = True}
-  user <- res.json
-  tid <- user %. "team" & asString
-  -- TODO
-  -- SQS.assertTeamActivate "create team" tid
-  -- refreshIndex
-  pure (user, tid)
 
 data AddClient = AddClient
   { ctype :: String,
