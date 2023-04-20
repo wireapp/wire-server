@@ -159,7 +159,12 @@ testDeleteTeam = do
     liftIO $ assertEqual "team status should be 'Deleted'" Team.Deleted info.tiData.tdStatus
 
 testEjpdInfo :: TestM ()
-testEjpdInfo = pure ()
+testEjpdInfo = do
+  uid <- randomUser
+  h <- randomHandle
+  void $ setHandle uid h
+  info <- ejpdInfo True [Handle h]
+  liftIO $ fmap (.ejpdResponseHandle) info.ejpdResponseBody @?= [Just (Handle h)]
 
 testUserBlacklistHead :: TestM ()
 testUserBlacklistHead = pure ()
