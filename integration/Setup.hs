@@ -2,7 +2,6 @@
 {-# OPTIONS_GHC -Wall #-}
 
 import Control.Applicative
-import Distribution.Types.Library
 import Control.Monad
 import Data.Bool
 import Data.Foldable
@@ -17,6 +16,7 @@ import Distribution.Simple hiding (Module (..))
 import Distribution.Simple.BuildPaths
 import Distribution.Simple.LocalBuildInfo
 import Distribution.Types.BuildInfo
+import Distribution.Types.Library
 import Distribution.Utils.Path
 import System.Directory
 import System.FilePath
