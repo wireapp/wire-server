@@ -1048,6 +1048,9 @@ executeIntCommitProposalAction senderIdentity con lconvOrSub action = do
       ss = csSignatureScheme (cnvmlsCipherSuite mlsMeta)
       newUserClients = Map.assocs (paAdd action)
 
+  -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
+  foldQualified lconvOrSub (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
+
   -- no client can be directly added to a subconversation
   when (is _SubConv convOrSub && any ((senderIdentity /=) . fst) (cmAssocs (paAdd action))) $
     throw (mlsProtocolError "Add proposals in subconversations are not supported")
@@ -1077,8 +1080,7 @@ executeIntCommitProposalAction senderIdentity con lconvOrSub action = do
           throw ()
         pure (qtarget, clients)
 
-  -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
-  foldQualified lconvOrSub (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
+  membersToRemove <- catMaybes <$> for removedUsers (uncurry (checkRemoval (is _SubConv convOrSub) cm))
 
   -- for each user, we compare their clients with the ones being added to the conversation
   for_ newUserClients $ \(qtarget, newclients) -> case Map.lookup qtarget cm of
@@ -1110,19 +1112,6 @@ executeIntCommitProposalAction senderIdentity con lconvOrSub action = do
           -- FUTUREWORK: turn this error into a proper response
           throwS @'MLSClientMismatch
 
-  membersToRemove <- catMaybes <$> for removedUsers (uncurry (checkRemoval (is _SubConv convOrSub) cm))
-
-  -- add users to the conversation and send events
-  addEvents <-
-    foldMap (addMembers qusr con lconvOrSub)
-      . nonEmpty
-      . map fst
-      $ newUserClients
-
-  -- add clients in the conversation state
-  for_ newUserClients $ \(qtarget, newClients) -> do
-    addMLSClients (cnvmlsGroupId mlsMeta) qtarget (Set.fromList (Map.assocs newClients))
-
   -- remove users from the conversation and send events
   removeEvents <-
     foldMap
@@ -1152,6 +1141,17 @@ executeIntCommitProposalAction senderIdentity con lconvOrSub action = do
               }
       runFederatedConcurrently_ (toList remoteDomains) $ \_ -> do
         void $ fedClient @'Galley @"on-new-remote-subconversation" nrc
+
+  -- add users to the conversation and send events
+  addEvents <-
+    foldMap (addMembers qusr con lconvOrSub)
+      . nonEmpty
+      . map fst
+      $ newUserClients
+
+  -- add clients in the conversation state
+  for_ newUserClients $ \(qtarget, newClients) -> do
+    addMLSClients (cnvmlsGroupId mlsMeta) qtarget (Set.fromList (Map.assocs newClients))
 
   -- TODO: increment epoch here instead of in the calling site
 
