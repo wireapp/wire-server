@@ -1,6 +1,6 @@
 module API where
 
-import Data.Aeson
+import Data.Aeson hiding ((.=))
 import qualified Data.Array as Array
 import Data.Default
 import Imports

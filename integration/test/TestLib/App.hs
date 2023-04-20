@@ -17,7 +17,7 @@ import qualified Control.Exception as E
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
-import Data.Aeson
+import Data.Aeson hiding ((.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.Aeson.Key as KM
@@ -25,6 +25,7 @@ import qualified Data.Aeson.KeyMap as KM
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
+import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as LC8
 import qualified Data.CaseInsensitive as CI
@@ -167,14 +168,14 @@ newtype ConfigFile = ConfigFile {unConfigFile :: FilePath}
 instance IsOption ConfigFile where
   defaultValue = ConfigFile "services/integration.yaml"
   parseValue = Just . ConfigFile
-  optionName = "config"
-  optionHelp = "Configuration file for integration tests. Default: services/integration.yaml"
+  optionName = fromString "config"
+  optionHelp = fromString "Configuration file for integration tests. Default: services/integration.yaml"
 
 instance IsOption ServiceMap where
   defaultValue = error "No Default value"
   parseValue = const Nothing
-  optionName = "config-loaded-from-file"
-  optionHelp = "This option can only be provided via the --config flag"
+  optionName = fromString "config-loaded-from-file"
+  optionHelp = fromString "This option can only be provided via the --config flag"
 
 mkEnv :: ConfigFile -> IO Env
 mkEnv (ConfigFile cfgFile) = do
@@ -327,6 +328,15 @@ expectFailure checkFailure action = do
 a @?= b = unless (a == b) $ do
   assertFailure $ "Expected: " <> show b <> "\n" <> "Actual: " <> show a
 
+shouldMatch ::
+  (Eq a, Show a, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The expected value
+  a ->
+  App ()
+shouldMatch = (@?=)
+
 -- Like (@?=) but with nicer error message when dealing with json values
 (@%?=) ::
   (ProducesJSON a, ProducesJSON b, HasCallStack) =>
@@ -342,6 +352,15 @@ a @%?= b = do
     pa <- prettyJSON xa
     pb <- prettyJSON xb
     assertFailure $ "Expected:\n" <> pb <> "\n" <> "Actual:\n" <> pa
+
+shouldMatchJson ::
+  (ProducesJSON a, ProducesJSON b, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The expected value
+  b ->
+  App ()
+shouldMatchJson = (@%?=)
 
 printFailureDetails :: AssertionFailure -> ResultDetailsPrinter
 printFailureDetails (AssertionFailure stack mbResponse _) = ResultDetailsPrinter $ \testLevel _withFormat -> do
@@ -393,6 +412,9 @@ instance {-# OVERLAPPABLE #-} ToJSON a => ProducesJSON a where
 instance {-# OVERLAPPING #-} ToJSON a => ProducesJSON (App a) where
   prodJSON m = m <&> toJSON
 
+(.=) :: ToJSON a => String -> a -> Aeson.Pair
+(.=) k v = fromString k Aeson..= v
+
 asString :: HasCallStack => ProducesJSON a => a -> App String
 asString x =
   prodJSON x >>= \case
@@ -439,6 +461,9 @@ asBool x =
     Nothing -> assertFailureWithJSON ob $ "Field \"" <> k <> "\" is missing from object:"
     Just v -> pure v
 
+getField :: (HasCallStack, ProducesJSON a) => a -> String -> App Value
+getField = (%.)
+
 (%.?) :: (HasCallStack, ProducesJSON a) => a -> String -> App (Maybe Value)
 (%.?) x k = do
   ob <- asObject x
@@ -457,6 +482,17 @@ asBool x =
   App Value
 (%.=) selector v x = do
   (%.~) @a @Value selector (\_ -> pure (toJSON v)) x
+
+setField ::
+  forall a b.
+  (HasCallStack, ProducesJSON a, ToJSON b) =>
+  -- | Selector, e.g. "id", "user.team.id"
+  String ->
+  -- | The value that should insert or replace the value at the selctor
+  b ->
+  a ->
+  App Value
+setField = (%.=)
 
 -- Update nested fields, using the old value with a stateful action
 (%.~) :: (HasCallStack, ProducesJSON a, ToJSON b) => String -> (Maybe Value -> App b) -> a -> App Value
@@ -477,6 +513,9 @@ asBool x =
       newValue <- go k2 ks val
       ob <- asObject v
       pure $ Object $ KM.insert (KM.fromString k) newValue ob
+
+modifyField :: (HasCallStack, ProducesJSON a, ToJSON b) => String -> (Maybe Value -> App b) -> a -> App Value
+modifyField = (%.~)
 
 assertFailureWithJSON :: HasCallStack => ProducesJSON a => a -> String -> App b
 assertFailureWithJSON v msg = do
@@ -561,9 +600,9 @@ baseRequest service versioned path = do
     let HostPort h p = serviceHostPort ctx.serviceMap service
      in "http://" <> h <> ":" <> show p <> ("/" <> joinHttpPath (pathSegsPrefix <> splitHttpPath path))
 
-submit :: ByteString -> HTTP.Request -> App Response
+submit :: String -> HTTP.Request -> App Response
 submit method req0 = do
-  let req = req0 {HTTP.method = method}
+  let req = req0 {HTTP.method = toByteString' method}
   manager <- getManager
   res <- liftIO $ HTTP.httpLbs req manager
   pure $
@@ -600,7 +639,7 @@ addJSON obj req =
   req
     { HTTP.requestBody = HTTP.RequestBodyLBS (Aeson.encode obj),
       HTTP.requestHeaders =
-        ("Content-Type", "application/json")
+        (fromString "Content-Type", fromString "application/json")
           : HTTP.requestHeaders req
     }
 

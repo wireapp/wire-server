@@ -52,7 +52,6 @@ common common-all
     NamedFieldPuns
     OverloadedLabels
     OverloadedRecordDot
-    OverloadedStrings
     PackageImports
     PatternSynonyms
     PolyKinds

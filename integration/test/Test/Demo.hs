@@ -4,6 +4,7 @@
 module Test.Demo where
 
 import qualified API
+import Data.ByteString.Conversion
 import Imports
 import TestLib.Prelude
 
@@ -13,27 +14,27 @@ testCantDeleteLHClient = do
   user <- randomUser def
   lhClientId <- bindResponse (API.addClient user def {API.ctype = "legalhold", API.internal = True}) $ \resp -> do
     resp.status @?= 201
-    resp.json %. "id" & asString
+    resp.json `getField` "id" & asString
 
   bindResponse (API.deleteClient user Nothing lhClientId) $ \resp -> do
-    resp.status @?= 400
+    resp.status `shouldMatch` 400
 
 testDeleteUnknownClient :: HasCallStack => App ()
 testDeleteUnknownClient = do
   user <- randomUser def
   let fakeClientId :: String = "deadbeefdeadbeef"
   bindResponse (API.deleteClient user Nothing fakeClientId) $ \resp -> do
-    resp.status @?= 404
-    resp.json %. "label" @%?= ("client-not-found" :: String)
+    resp.status @?= 403
+    resp.json `getField` "label" `shouldMatchJson` "client-not-found"
 
 testModifiedBrig :: HasCallStack => App ()
 testModifiedBrig = do
   withModifiedService
     Brig
-    ("optSettings.setFederationDomain" %.= ("overridden.example.com" :: String))
+    (setField "optSettings.setFederationDomain" "overridden.example.com")
     $ bindResponse getAPIVersion
     $ ( \resp ->
-          (resp.json %. "domain") @%?= ("overridden.example.com" :: String)
+          (resp.json %. "domain") `shouldMatchJson` "overridden.example.com"
       )
   where
     getAPIVersion :: App Response
@@ -52,17 +53,17 @@ testModifiedGalley = do
 
   do
     status <- getFeatureStatus
-    status @%?= ("disabled" :: String)
+    status `shouldMatchJson` "disabled"
 
   withModifiedService
     Galley
-    ("settings.featureFlags.teamSearchVisibility" %.= ("enabled-by-default" :: String))
+    (setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
     $ do
       status <- getFeatureStatus
-      status @%?= ("enabled" :: String)
+      status `shouldMatchJson` "enabled"
 
-jsonValue :: HasCallStack => LByteString -> Value
-jsonValue = fromJust . decode
+jsonValue :: HasCallStack => String -> Value
+jsonValue = fromJust . decode . toByteString
 
 testJSONUpdate :: HasCallStack => App ()
 testJSONUpdate = do

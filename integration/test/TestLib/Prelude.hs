@@ -7,7 +7,7 @@ module TestLib.Prelude
   )
 where
 
-import Data.Aeson
+import Data.Aeson hiding ((.=))
 import Data.Default
 import TestLib.App
 import TestLib.SetupHelpers
