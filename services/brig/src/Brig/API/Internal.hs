@@ -174,9 +174,9 @@ authAPI =
 
 federationRemotesAPI :: ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
-  Named @"get-federator-remotes" undefined
-    :<|> Named @"add-federator-remote" undefined
-    :<|> Named @"delete-federator-remote" undefined
+  Named @"get-federation-remotes" undefined
+    :<|> Named @"add-federation-remotes" undefined
+    :<|> Named @"delete-federation-remotes" undefined
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)

@@ -56,6 +56,7 @@ import Wire.API.Federation.Component
 import Wire.API.Federation.Version
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -93,7 +94,7 @@ tests m opts brig cannon fedBrigClient =
 
 allowFullSearch :: Domain -> Opt.Opts -> Opt.Opts
 allowFullSearch domain opts =
-  opts & Opt.optionSettings . Opt.federationDomainConfigs ?~ [Opt.FederationDomainConfig domain FullSearch]
+  opts & Opt.optionSettings . Opt.federationDomainConfigs ?~ [FD.FederationDomainConfig domain FullSearch]
 
 testSearchSuccess :: Opt.Opts -> Brig -> Http ()
 testSearchSuccess opts brig = do
@@ -192,9 +193,9 @@ testSearchRestrictions opts brig = do
   let opts' =
         opts
           & Opt.optionSettings . Opt.federationDomainConfigs
-            ?~ [ Opt.FederationDomainConfig domainNoSearch NoSearch,
-                 Opt.FederationDomainConfig domainExactHandle ExactHandleSearch,
-                 Opt.FederationDomainConfig domainFullSearch FullSearch
+            ?~ [ FD.FederationDomainConfig domainNoSearch NoSearch,
+                 FD.FederationDomainConfig domainExactHandle ExactHandleSearch,
+                 FD.FederationDomainConfig domainFullSearch FullSearch
                ]
 
   let expectSearch :: HasCallStack => Domain -> Text -> [Qualified UserId] -> FederatedUserSearchPolicy -> WaiTest.Session ()
@@ -228,9 +229,9 @@ testGetUserByHandleRestrictions opts brig = do
   let opts' =
         opts
           & Opt.optionSettings . Opt.federationDomainConfigs
-            ?~ [ Opt.FederationDomainConfig domainNoSearch NoSearch,
-                 Opt.FederationDomainConfig domainExactHandle ExactHandleSearch,
-                 Opt.FederationDomainConfig domainFullSearch FullSearch
+            ?~ [ FD.FederationDomainConfig domainNoSearch NoSearch,
+                 FD.FederationDomainConfig domainExactHandle ExactHandleSearch,
+                 FD.FederationDomainConfig domainFullSearch FullSearch
                ]
 
   let expectSearch domain expectedUser = do
