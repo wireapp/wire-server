@@ -744,6 +744,10 @@ processExternalCommit ::
   Maybe UpdatePath ->
   Sem r ()
 processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
+  -- TODO from talk with Stefan M
+  -- [ ] should leaf nodes be calclulated within the commit lock?
+  -- [x] split executeProposalAction for internal and external commits
+
   let convOrSub = tUnqualified lConvOrSub
 
   -- only members can join a subconversation
@@ -772,8 +776,7 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
     Right _ -> pure ()
 
   withCommitLock groupId epoch $ do
-    -- no events for external commits
-    void $ executeProposalAction senderIdentity Nothing lConvOrSub action
+    executeExtCommitProposalAction senderIdentity lConvOrSub action
 
     -- increment epoch number
     lConvOrSub' <- for lConvOrSub incrementEpoch
@@ -823,7 +826,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
       throwS @'MLSCommitMissingReferences
 
     -- process and execute proposals
-    updates <- executeProposalAction senderIdentity con lConvOrSub action
+    updates <- executeIntCommitProposalAction senderIdentity con lConvOrSub action
 
     -- increment epoch number
     for_ lConvOrSub incrementEpoch
@@ -1029,7 +1032,7 @@ type HasProposalActionEffects r =
     Member TinyLog r
   )
 
-executeProposalAction ::
+executeIntCommitProposalAction ::
   forall r.
   HasProposalActionEffects r =>
   ClientIdentity ->
@@ -1037,7 +1040,7 @@ executeProposalAction ::
   Local ConvOrSubConv ->
   ProposalAction ->
   Sem r [LocalConversationUpdate]
-executeProposalAction senderIdentity con lconvOrSub action = do
+executeIntCommitProposalAction senderIdentity con lconvOrSub action = do
   let qusr = cidQualifiedUser senderIdentity
       convOrSub = tUnqualified lconvOrSub
       mlsMeta = mlsMetaConvOrSub convOrSub
@@ -1169,6 +1172,49 @@ executeProposalAction senderIdentity con lconvOrSub action = do
       when (cidQualifiedUser senderIdentity == qtarget) $
         throwS @'MLSSelfRemovalNotAllowed
       pure (Just qtarget)
+
+executeExtCommitProposalAction ::
+  forall r.
+  HasProposalActionEffects r =>
+  ClientIdentity ->
+  Local ConvOrSubConv ->
+  ProposalAction ->
+  Sem r ()
+executeExtCommitProposalAction senderIdentity lconvOrSub action = do
+  let mlsMeta = mlsMetaConvOrSub $ tUnqualified lconvOrSub
+      newCILeaves = cmAssocs (paAdd action)
+      deprecatedCILeaves = cmAssocs (paRemove action)
+
+  -- Adding clients: sender's client must be added and no other other client may
+  -- be added.
+  when (length newCILeaves /= 1 || fst (head newCILeaves) /= senderIdentity) $
+    throw (mlsProtocolError "No add proposals are allowed in external commits")
+
+  -- Client removal: only the sender's client can be removed when rejoining the
+  -- (sub)conversation.
+  when (length deprecatedCILeaves > 1) $
+    throw (mlsProtocolError "Up to one client can be removed in an external commit")
+  for_ (listToMaybe deprecatedCILeaves) $ \ciLeaf -> do
+    when (fst ciLeaf /= senderIdentity) $
+      throw (mlsProtocolError "Only the sender can rejoin in an external commit")
+
+  -- TODO required for external proposals?
+  -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
+  -- foldQualified lconvOrSub (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
+
+  -- Remove deprecated sender client from conversation state.
+  for_ deprecatedCILeaves $ \(ci, _) -> do
+    removeMLSClients
+      (cnvmlsGroupId mlsMeta)
+      (cidQualifiedUser ci)
+      (Set.singleton $ ciClient ci)
+
+  -- Add new sender client to the conversation state.
+  for_ newCILeaves $ \(ci, idx) -> do
+    addMLSClients
+      (cnvmlsGroupId mlsMeta)
+      (cidQualifiedUser ci)
+      (Set.singleton (ciClient ci, idx))
 
 existingLocalMembers :: Local Data.Conversation -> Set (Qualified UserId)
 existingLocalMembers lconv =

@@ -48,6 +48,7 @@ import qualified UnliftIO
 import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.Conversation.Role
 import Wire.API.MLS.Group
+import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.Provider.Service
 
 -- | Add members to a local conversation.
@@ -341,7 +342,7 @@ removeLocalMembersFromRemoteConv (tUntagged -> Qualified conv convDomain) victim
     setConsistency LocalQuorum
     for_ victims $ \u -> addPrepQuery Cql.deleteUserRemoteConv (u, convDomain, conv)
 
-addMLSClients :: GroupId -> Qualified UserId -> Set.Set (ClientId, Word32) -> Client ()
+addMLSClients :: GroupId -> Qualified UserId -> Set.Set (ClientId, LeafIndex) -> Client ()
 addMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
