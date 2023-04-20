@@ -102,7 +102,6 @@ run o = do
   sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
   turnDiscovery <- Calling.startTurnDiscovery (e ^. applog) (e ^. fsWatcher) (e ^. turnEnv)
   authMetrics <- Async.async (runBrigToIO e collectAuthMetrics)
-  -- TODO: add option to not do this
   pendingActivationCleanupAsync <- Async.async (runBrigToIO e pendingActivationCleanup)
 
   runSettingsWithShutdown s app Nothing `finally` do

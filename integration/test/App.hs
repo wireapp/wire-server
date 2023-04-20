@@ -751,7 +751,7 @@ withModifiedServices services k = do
       case eith of
         Left err -> failApp ("Error while parsing " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err)
         Right value -> pure value
-    config' <- updateServiceMapInConfig config >>= modifyConfigBuiltIn srv >>= modifyConfig
+    config' <- updateServiceMapInConfig config >>= modifyConfig
     (tempFile, fh) <- liftIO $ openBinaryTempFile "/tmp" (srvName <> ".yaml")
     liftIO $ BS.hPut fh (Yaml.encode config')
     hClose fh
@@ -813,13 +813,6 @@ withModifiedServices services k = do
             env
             `finally` stopInstances
       )
-  where
-    modifyConfigBuiltIn :: Service -> Value -> App Value
-    modifyConfigBuiltIn Brig v =
-      v & "internalEvents.queueType" %.= ("no-queue-only-for-testing" :: String)
-    modifyConfigBuiltIn Galley v =
-      v & "journal" %.= (Null :: Value)
-    modifyConfigBuiltIn Cannon v = pure v
 
 waitUntilServiceUp :: HasCallStack => Service -> App ()
 waitUntilServiceUp srv = do
