@@ -81,11 +81,12 @@ library
   -- cabal-fmt: expand test
   exposed-modules:
     API
-    App
-    Run
     RunAllTests
-    SetupHelpers
     Test.Demo
+    TestLib.App
+    TestLib.Prelude
+    TestLib.Run
+    TestLib.SetupHelpers
 
   build-depends:
     , aeson

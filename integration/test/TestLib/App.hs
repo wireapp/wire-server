@@ -9,7 +9,7 @@
 -- - SECTION_REQUEST : requests and responses
 -- - SECTION_PRINTING : Terminal and printingmodule App where
 -- - SECTION_MODSERVICE : Start services with modified configuration
-module App where
+module TestLib.App where
 
 import Control.Concurrent.Async (mapConcurrently_)
 import Control.Exception (finally)

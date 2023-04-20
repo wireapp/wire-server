@@ -1,4 +1,4 @@
-module Run (main) where
+module TestLib.Run (main) where
 
 import Imports
 import RunAllTests
