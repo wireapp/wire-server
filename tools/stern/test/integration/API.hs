@@ -23,6 +23,7 @@
 module API where -- todo(leif): export only test
 
 import Bilge
+import Bilge.Assert
 import Brig.Types.Intra
 import Control.Applicative
 import Control.Lens hiding ((.=))
@@ -72,9 +73,7 @@ tests s =
       test s "PUT /teams/:tid/unsuspend" testUnsuspendTeam,
       test s "DELETE /teams/:tid" testDeleteTeam,
       test s "GET /ejpd-info" testEjpdInfo,
-      test s "HEAD /users/blacklist" testUserBlacklistHead,
-      test s "POST /users/blacklist" testPostUserBlacklist,
-      test s "DELETE /users/blacklist" testDeleteUserBlacklist,
+      test s "/users/blacklist" testUserBlacklist,
       test s "GET /teams" testGetTeamInfoByMemberEmail,
       test s "GET /teams/:tid/admins" testGetTeamAdminInfo,
       test s "GET /teams/:tid/features/legalhold" testGetLegalholdConfig,
@@ -166,14 +165,14 @@ testEjpdInfo = do
   info <- ejpdInfo True [Handle h]
   liftIO $ fmap (.ejpdResponseHandle) info.ejpdResponseBody @?= [Just (Handle h)]
 
-testUserBlacklistHead :: TestM ()
-testUserBlacklistHead = pure ()
-
-testPostUserBlacklist :: TestM ()
-testPostUserBlacklist = pure ()
-
-testDeleteUserBlacklist :: TestM ()
-testDeleteUserBlacklist = pure ()
+testUserBlacklist :: TestM ()
+testUserBlacklist = do
+  (_, email) <- randomEmailUser
+  userBlacklistHead (Left email) !!! const 404 === statusCode
+  postUserBlacklist (Left email)
+  userBlacklistHead (Left email) !!! const 200 === statusCode
+  deleteUserBlacklist (Left email)
+  userBlacklistHead (Left email) !!! const 404 === statusCode
 
 testGetTeamInfoByMemberEmail :: TestM ()
 testGetTeamInfoByMemberEmail = pure ()
@@ -449,10 +448,10 @@ ejpdInfo includeContacts handles = do
   r <- get (s . paths ["ejpd-info"] . queryItem "include_contacts" (toByteString' includeContacts) . queryItem "handles" (toByteString' handles) . expect2xx)
   pure $ responseJsonUnsafe r
 
-userBlacklistHead :: Either Email Phone -> TestM ()
+userBlacklistHead :: Either Email Phone -> TestM ResponseLBS
 userBlacklistHead emailOrPhone = do
   s <- view tsStern
-  void $ Bilge.head (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone . expect2xx)
+  Bilge.head (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone)
 
 postUserBlacklist :: Either Email Phone -> TestM ()
 postUserBlacklist emailOrPhone = do
