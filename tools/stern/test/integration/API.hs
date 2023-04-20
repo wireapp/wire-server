@@ -78,16 +78,12 @@ tests s =
       test s "GET /teams" testGetTeamInfoByMemberEmail,
       test s "GET /teams/:tid/admins" testGetTeamAdminInfo,
       test s "/teams/:tid/features/legalhold" testLegalholdConfig,
-      test s "GET /teams/:tid/features/sso" testGetSSOConfig,
-      test s "PUT /teams/:tid/features/sso" testPutSSOConfig,
-      test s "PUT /teams/:tid/features/search-visibility-available" testPutSearchVisibilityAvailableConfig,
-      test s "PUT /teams/:tid/features/validate-saml-emails" testPutValidateSAMLEmailsConfig,
-      test s "PUT /teams/:tid/features/digital-signatures" testPutDigitalSignaturesConfig,
-      test s "/teams/:tid/features/file-sharing" testFileSharingConfig,
-      test s "PUT /teams/:tid/features/conference-calling" testPutConferenceCallingConfig,
-      test s "PUT /teams/:tid/features/:feature" testputFeatureStatus,
-      test s "GET /teams/:tid/search-visibility" testGetSearchVisibility,
-      test s "PUT /teams/:tid/search-visibility" testPutSearchVisibility,
+      test s "/teams/:tid/features/sso" $ testConfig @SSOConfig,
+      test s "/teams/:tid/features/validate-saml-emails" $ testConfig @ValidateSAMLEmailsConfig,
+      test s "/teams/:tid/features/digital-signatures" $ testConfig @ValidateSAMLEmailsConfig,
+      test s "/teams/:tid/features/file-sharing" $ testConfig @FileSharingConfig,
+      test s "/teams/:tid/features/conference-calling" $ testConfigOptTtl @ConferenceCallingConfig (Just FeatureTTLUnlimited),
+      test s "/teams/:tid/search-visibility" $ testConfig @SearchVisibilityAvailableConfig,
       test s "GET /teams/:tid/invoice/:inr" testGetTeamInvoice,
       test s "GET /teams/:tid/billing" testGetTeamBillingInfo,
       test s "PUT /teams/:tid/billing" testPutTeamBillingInfo,
@@ -197,44 +193,39 @@ testLegalholdConfig = do
   cfg <- getFeatureConfig @LegalholdConfig tid
   liftIO $ cfg @?= defFeatureStatus @LegalholdConfig
   -- Legal hold is enabled for teams via server config and cannot be changed here
-  putFeatureStatus @LegalholdConfig tid FeatureStatusEnabled !!! const 403 === statusCode
+  putFeatureStatus @LegalholdConfig tid FeatureStatusEnabled Nothing !!! const 403 === statusCode
 
-testGetSSOConfig :: TestM ()
-testGetSSOConfig = pure ()
+testConfig ::
+  forall cfg.
+  ( KnownSymbol (FeatureSymbol cfg),
+    ToSchema cfg,
+    Typeable cfg,
+    IsFeatureConfig cfg,
+    Eq cfg,
+    Show cfg
+  ) =>
+  TestM ()
+testConfig = testConfigOptTtl @cfg Nothing
 
-testPutSSOConfig :: TestM ()
-testPutSSOConfig = pure ()
-
-testPutSearchVisibilityAvailableConfig :: TestM ()
-testPutSearchVisibilityAvailableConfig = pure ()
-
-testPutValidateSAMLEmailsConfig :: TestM ()
-testPutValidateSAMLEmailsConfig = pure ()
-
-testPutDigitalSignaturesConfig :: TestM ()
-testPutDigitalSignaturesConfig = pure ()
-
-testFileSharingConfig :: TestM ()
-testFileSharingConfig = do
+testConfigOptTtl ::
+  forall cfg.
+  ( KnownSymbol (FeatureSymbol cfg),
+    ToSchema cfg,
+    Typeable cfg,
+    IsFeatureConfig cfg,
+    Eq cfg,
+    Show cfg
+  ) =>
+  Maybe FeatureTTL ->
+  TestM ()
+testConfigOptTtl mTtl = do
   (_, tid, _) <- createTeamWithNMembers 10
-  cfg <- getFeatureConfig @FileSharingConfig tid
-  liftIO $ cfg @?= defFeatureStatus @FileSharingConfig
+  cfg <- getFeatureConfig @cfg tid
+  liftIO $ cfg @?= defFeatureStatus @cfg
   let newStatus = if wsStatus cfg == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
-  void $ putFeatureStatus @FileSharingConfig tid newStatus
-  cfg' <- getFeatureConfig @FileSharingConfig tid
+  void $ putFeatureStatus @cfg tid newStatus mTtl
+  cfg' <- getFeatureConfig @cfg tid
   liftIO $ wsStatus cfg' @?= newStatus
-
-testPutConferenceCallingConfig :: TestM ()
-testPutConferenceCallingConfig = pure ()
-
-testputFeatureStatus :: TestM ()
-testputFeatureStatus = pure ()
-
-testGetSearchVisibility :: TestM ()
-testGetSearchVisibility = pure ()
-
-testPutSearchVisibility :: TestM ()
-testPutSearchVisibility = pure ()
 
 testGetTeamInvoice :: TestM ()
 testGetTeamInvoice = pure ()
@@ -559,10 +550,14 @@ putFeatureStatus ::
   ) =>
   TeamId ->
   FeatureStatus ->
+  Maybe FeatureTTL ->
   TestM ResponseLBS
-putFeatureStatus tid status = do
+putFeatureStatus tid status mTtl = do
   s <- view tsStern
-  put (s . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg] . queryItem "status" (toByteString' status))
+  put (s . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg] . queryItem "status" (toByteString' status) . mkTtlQueryParam mTtl . expect2xx)
+  where
+    mkTtlQueryParam :: Maybe FeatureTTL -> Request -> Request
+    mkTtlQueryParam = maybe id (queryItem "ttl" . toByteString')
 
 getSearchVisibility :: TeamId -> TestM TeamSearchVisibilityView
 getSearchVisibility tid = do
