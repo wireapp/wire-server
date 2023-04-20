@@ -56,6 +56,7 @@ import Wire.API.Federation.Component
 import Wire.API.Federation.Version
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.User
 import Wire.API.User.Client
@@ -89,7 +90,8 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient),
         test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient),
         test m "POST /federation/claim-key-packages : 200" (testClaimKeyPackages brig fedBrigClient),
-        test m "POST /federation/claim-key-packages (MLS disabled) : 200" (testClaimKeyPackagesMLSDisabled opts brig)
+        test m "POST /federation/claim-key-packages (MLS disabled) : 200" (testClaimKeyPackagesMLSDisabled opts brig),
+        test m "CRUD /i/federation/remotes" (crudFederationRemotes opts brig)
       ]
 
 allowFullSearch :: Domain -> Opt.Opts -> Opt.Opts
@@ -458,3 +460,28 @@ testClaimKeyPackagesMLSDisabled opts brig = do
           ClaimKeyPackageRequest (qUnqualified alice) (qUnqualified bob)
 
   liftIO $ mbundle @?= Nothing
+
+crudFederationRemotes :: HasCallStack => Opt.Opts -> Brig -> Http ()
+crudFederationRemotes _opts brig = do
+  resetFederationRemotes brig
+
+  res1 <- getFederationRemotes brig
+  liftIO $ assertEqual "should return nothing" [] res1
+
+  let remote1 = FederationDomainConfig (Domain "good.example.com") NoSearch
+  addFederationRemote brig remote1
+  res2 <- getFederationRemotes brig
+  liftIO $ assertEqual "should return good.example.com" [remote1] res2
+
+  let remote2 = FederationDomainConfig (Domain "evil.example.com") ExactHandleSearch
+  addFederationRemote brig remote2
+  res3 <- getFederationRemotes brig
+  liftIO $ assertEqual "should return {good,evil}.example.com" (sort [remote1, remote2]) (sort res3)
+
+  deleteFederationRemote brig (domain remote1)
+  res4 <- getFederationRemotes brig
+  liftIO $ assertEqual "should return evil.example.com" (sort [remote2]) (sort res4)
+
+  -- TODO: how do we test that the TVar is updated in all services?  some fancy unit test?
+  -- duplicate internal end-point to all services, and implement the hanlers in a library?
+  pure ()

@@ -111,6 +111,7 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
 import Wire.API.Internal.Notification
+import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
@@ -1073,6 +1074,24 @@ withDomainsBlockedForRegistration opts domains sess = do
       blocked = Opts.CustomerExtensions (Opts.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
       unsafeMkDomain = either error id . mkDomain
   withSettingsOverrides opts' sess
+
+getFederationRemotes :: Brig -> Http [FederationDomainConfig]
+getFederationRemotes brig =
+  fromFederationDomainConfigs . responseJsonUnsafe <$> do
+    get (brig . paths ["i", "federation", "remotes"] . contentJson . expect2xx)
+
+addFederationRemote :: Brig -> FederationDomainConfig -> Http ()
+addFederationRemote brig remote =
+  void $ post (brig . paths ["i", "federation", "remotes"] . contentJson . json remote . expect2xx)
+
+deleteFederationRemote :: Brig -> Domain -> Http ()
+deleteFederationRemote brig rdom =
+  void $ delete (brig . paths ["i", "federation", "remotes", toByteString' rdom] . contentJson . expect2xx)
+
+resetFederationRemotes :: Brig -> Http ()
+resetFederationRemotes brig = do
+  rs <- getFederationRemotes brig
+  forM_ rs $ \(FederationDomainConfig rdom _) -> deleteFederationRemote brig rdom
 
 -- | Run a probe several times, until a "good" value materializes or until patience runs out
 aFewTimes ::
