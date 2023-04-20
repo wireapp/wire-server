@@ -83,6 +83,7 @@ library
     RunAllTests
     Test.Demo
     TestLib.App
+    TestLib.Cannon
     TestLib.Prelude
     TestLib.Run
     TestLib.SetupHelpers
@@ -94,9 +95,11 @@ library
     , async
     , base
     , bytestring
+    , bytestring-conversion
     , case-insensitive
     , containers
     , data-default
+    , exceptions
     , filepath
     , http-client
     , http-types
@@ -113,4 +116,6 @@ library
     , tasty
     , text
     , transformers
+    , unliftio
+    , websockets
     , yaml

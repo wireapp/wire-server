@@ -173,31 +173,6 @@ connectR can uid = randomConnId >>= connect can uid
 connectAsClientR :: MonadIO m => Cannon -> UserId -> ClientId -> m WebSocket
 connectAsClientR can uid clientId = randomConnId >>= connectAsClient can uid clientId
 
-bracketR :: (MonadIO m, MonadMask m) => Cannon -> UserId -> (WebSocket -> m a) -> m a
-bracketR can usr f = do
-  cid <- randomConnId
-  bracket can usr cid f
-
-bracketAsClientR :: (MonadIO m, MonadMask m) => Cannon -> UserId -> ClientId -> (WebSocket -> m a) -> m a
-bracketAsClientR can usr clientId f = do
-  connId <- randomConnId
-  bracketAsClient can usr clientId connId f
-
-bracketR2 ::
-  (MonadIO m, MonadMask m) =>
-  Cannon ->
-  UserId ->
-  UserId ->
-  ((WebSocket, WebSocket) -> m a) ->
-  m a
-bracketR2 c u1 u2 f =
-  bracketR c u1 $ \c1 ->
-    bracketR c u2 $ \c2 ->
-      f (c1, c2)
-
-bracketR3 ::
-  (MonadIO m, MonadMask m) =>
-  Cannon ->
   UserId ->
   UserId ->
   UserId ->

@@ -14,6 +14,8 @@ module TestLib.App where
 import Control.Concurrent.Async (mapConcurrently_)
 import Control.Exception (finally)
 import qualified Control.Exception as E
+import Control.Monad.Catch (MonadMask, MonadThrow)
+import Control.Monad.Catch.Pure (MonadCatch)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
@@ -62,7 +64,7 @@ import Test.Tasty.Providers.ConsoleFormat
 -------------------------------------------------------------------------------
 
 newtype App a = App {unApp :: ReaderT Env IO a}
-  deriving (Functor, Applicative, Monad, MonadIO)
+  deriving (Functor, Applicative, Monad, MonadIO, MonadMask, MonadCatch, MonadThrow)
 
 data AppFailure = AppFailure String
 

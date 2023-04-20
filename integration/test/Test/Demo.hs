@@ -25,7 +25,7 @@ testDeleteUnknownClient = do
   let fakeClientId :: String = "deadbeefdeadbeef"
   bindResponse (API.deleteClient user Nothing fakeClientId) $ \resp -> do
     resp.status @?= 403
-    resp.json `getField` "label" `shouldMatchJson` "client-not-found"
+    resp.json %. "label" @%?= ("client-not-found" :: String)
 
 testModifiedBrig :: HasCallStack => App ()
 testModifiedBrig = do
