@@ -1,5 +1,0 @@
-- integration tests on CI will use either the old or the new ingress controller; depending on which kubernetes version they run on.
-- upgrade `kubectl` to default from the nixpkgs channel (currently `1.26`) by removing the manual version pin on 1.19
-- upgrade `helmfile` to default from the nixpkgs channel by removing the manual version pin
-- upgrade `helm` to default from the nixpkgs channel by removing the manual version pin
-- add `kubelogin-oidc` so the kubectl in this environment can also talk to kubernetes clusters using OIDC

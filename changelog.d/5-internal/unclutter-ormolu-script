@@ -1,1 +1,0 @@
-ormolu: don't redundantly add language extensions from dead package-defaults.yaml
