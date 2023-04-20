@@ -825,7 +825,8 @@ waitUntilServiceUp :: HasCallStack => Service -> App ()
 waitUntilServiceUp srv = do
   isUp <-
     retrying
-      (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
+      -- TODO: shorten to a few seconds again
+      (limitRetriesByCumulativeDelay (2 * 60 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
       (\_ isUp -> pure (not isUp))
       ( \_ -> do
           req <- baseRequest srv Unversioned "/i/status"
