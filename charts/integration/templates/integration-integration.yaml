@@ -26,8 +26,8 @@ spec:
         name: "brig"
 
     - name: "brig-secrets"
-      configMap:
-        name: "brig"
+      secret:
+        secretName: "brig"
 
     - name: "turn-servers"
       configMap:
