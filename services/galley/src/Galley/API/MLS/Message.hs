@@ -616,10 +616,10 @@ instance Semigroup ProposalAction where
 instance Monoid ProposalAction where
   mempty = ProposalAction mempty mempty mempty
 
-paAddClient :: ClientIdentity -> Word32 -> ProposalAction
+paAddClient :: ClientIdentity -> LeafIndex -> ProposalAction
 paAddClient cid idx = mempty {paAdd = cmSingleton cid idx}
 
-paRemoveClient :: ClientIdentity -> Word32 -> ProposalAction
+paRemoveClient :: ClientIdentity -> LeafIndex -> ProposalAction
 paRemoveClient cid idx = mempty {paRemove = cmSingleton cid idx}
 
 paExternalInitPresent :: ProposalAction
@@ -694,7 +694,7 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   proposals <- traverse getInlineProposal commit.cProposals
 
   -- According to the spec, an external commit must contain:
-  -- (https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#section-12.2
+  -- (https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#section-12.2)
   --
   -- > Exactly one ExternalInit
   -- > At most one Remove proposal, with which the joiner removes an old
@@ -775,12 +775,11 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
     -- no events for external commits
     void $ executeProposalAction senderIdentity Nothing lConvOrSub action
 
-    let remIndices = map snd (cmAssocs (paRemove action))
-
     -- increment epoch number
     lConvOrSub' <- for lConvOrSub incrementEpoch
 
     -- fetch backend remove proposals of the previous epoch
+    let remIndices = map snd (cmAssocs (paRemove action))
     indicesInRemoveProposals <-
       -- skip remove proposals of already removed by the external commit
       (\\ remIndices)
