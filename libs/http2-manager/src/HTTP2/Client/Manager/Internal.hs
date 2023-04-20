@@ -18,6 +18,7 @@ import qualified Data.ByteString as BS
 import Data.IORef
 import Data.Map
 import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
 import Data.Streaming.Network
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -73,7 +74,8 @@ data Request = Request
 data Http2Manager = Http2Manager
   { connections :: TVar (Map Target HTTP2Conn),
     cacheLimit :: Int,
-    sslContext :: SSL.SSLContext
+    sslContext :: SSL.SSLContext,
+    sslRemoveTrailingDot :: Bool
   }
 
 defaultHttp2Manager :: IO Http2Manager
@@ -93,6 +95,7 @@ http2ManagerWithSSLCtx :: SSL.SSLContext -> IO Http2Manager
 http2ManagerWithSSLCtx sslContext = do
   connections <- newTVarIO mempty
   let cacheLimit = 20
+      sslRemoveTrailingDot = False
   pure $ Http2Manager {..}
 
 -- | Warning: This won't affect already established connections
@@ -102,6 +105,22 @@ setCacheLimit cl mgr = mgr {cacheLimit = cl}
 -- | Warning: This won't affect already established connections
 setSSLContext :: SSL.SSLContext -> Http2Manager -> Http2Manager
 setSSLContext ctx mgr = mgr {sslContext = ctx}
+
+-- | Remove traling dots in hostname while verifying hostname in the certificate
+-- presented by the server. For instance, when connecting with
+-- 'foo.example.com.' (Note the trailing dot) by default most SSL libraries fail
+-- hostname verification if the server has a certificate for 'foo.example.com'
+-- (Note the lack of a trailing dot). Setting this flag makes the hostname
+-- verification succeed for these hosts. However, this will make the hostname
+-- verification fail if the host presents a certificate which does have a
+-- trailing dot.
+--
+-- Discussion about why this is not implemented as a flag on 'SSLContext':
+-- https://github.com/openssl/openssl/issues/11560
+--
+-- Warning: This won't affect already established connections
+setSSLRemoveTrailingDot :: Bool -> Http2Manager -> Http2Manager
+setSSLRemoveTrailingDot b mgr = mgr {sslRemoveTrailingDot = b}
 
 -- | Does not check whether connection is actually running. Users should use
 -- 'withHTTP2Request'. This function is good for testing.
@@ -163,7 +182,7 @@ getOrMakeConnection mgr@Http2Manager {..} target = do
     connect :: IO HTTP2Conn
     connect = do
       sendReqMVar <- newEmptyMVar
-      thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sendReqMVar
+      thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sslRemoveTrailingDot sendReqMVar
       let newConn = HTTP2Conn thread (putMVar sendReqMVar CloseConnection) sendReqMVar
       (inserted, finalConn) <- atomically $ insertNewConn newConn
       unless inserted $ do
@@ -241,12 +260,14 @@ startPersistentHTTP2Connection ::
   Target ->
   -- cacheLimit
   Int ->
+  -- sslRemoveTrailingDot
+  Bool ->
   -- MVar used to communicate requests or the need to close the connection.  (We could use a
   -- queue here to queue several requests, but since the requestor has to wait for the
   -- response, it might as well block before sending off the request.)
   MVar ConnectionAction ->
   IO ()
-startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl sendReqMVar = do
+startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailingDot sendReqMVar = do
   liveReqs <- newIORef mempty
   let clientConfig =
         HTTP2.ClientConfig
@@ -279,8 +300,12 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl sendReqMVar =
         -- as finished.
         void $ async $ race_ (tooLateNotifier e) (threadDelay 1_000_000)
 
+      hostnameForTLS =
+        if removeTrailingDot
+          then fromMaybe hostname (stripSuffix "." hostname)
+          else hostname
       transportConfig
-        | tlsEnabled = Just $ TLSParams ctx hostname
+        | tlsEnabled = Just $ TLSParams ctx hostnameForTLS
         | otherwise = Nothing
 
   handle cleanupThreadsWith $
