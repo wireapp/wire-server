@@ -59,6 +59,7 @@ mkDerivation {
     network-uri
     process
     random
+    raw-strings-qq
     retry
     scientific
     split
@@ -68,7 +69,6 @@ mkDerivation {
     transformers
     yaml
   ];
-  testHaskellDepends = [ aeson base imports raw-strings-qq tasty ];
   license = lib.licenses.agpl3Only;
   mainProgram = "integration";
 }
