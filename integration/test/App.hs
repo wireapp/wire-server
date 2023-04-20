@@ -776,9 +776,9 @@ withModifiedServices services k = do
         Map.foldrWithKey
           ( \srv (newPort, _) sm ->
               case srv of
-                Brig -> sm {brig = sm.brig {port = fromIntegral newPort}}
-                Galley -> sm {galley = sm.galley {port = fromIntegral newPort}}
-                Cannon -> sm {cannon = sm.cannon {port = fromIntegral newPort}}
+                Brig -> sm {brig = sm.brig {host = "127.0.0.1", port = fromIntegral newPort}}
+                Galley -> sm {galley = sm.galley {host = "127.0.0.1", port = fromIntegral newPort}}
+                Cannon -> sm {cannon = sm.cannon {host = "127.0.0.1", port = fromIntegral newPort}}
           )
           serviceMap
           ports
