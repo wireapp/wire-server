@@ -92,8 +92,15 @@ tests s =
       test s "PUT /teams/:tid/billing" testPutTeamBillingInfo,
       test s "POST /teams/:tid/billing" testPostTeamBillingInfo,
       test s "GET /i/consent" testGetConsentLog,
-      test s "GET /teams/:id" testGetTeamInfo
+      test s "GET /teams/:id" testGetTeamInfo,
+      test s "GET i/user/meta-info?id=..." testGetUserMetaInfo
     ]
+
+testGetUserMetaInfo :: TestM ()
+testGetUserMetaInfo = do
+  uid <- randomUser
+  -- Just make sure this returns a 200
+  void $ getUserMetaInfo uid
 
 testPutPhone :: TestM ()
 testPutPhone = pure ()

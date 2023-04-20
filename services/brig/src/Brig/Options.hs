@@ -54,10 +54,10 @@ import Imports
 import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
+import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
-import Wire.API.User.Search (FederatedUserSearchPolicy)
 import Wire.Arbitrary (Arbitrary, arbitrary)
 
 newtype Timeout = Timeout
@@ -400,20 +400,6 @@ instance ToSchema ListAllSFTServers where
           element "disabled" HideAllSFTServers
         ]
 
-data FederationDomainConfig = FederationDomainConfig
-  { domain :: Domain,
-    cfgSearchPolicy :: FederatedUserSearchPolicy
-  }
-  deriving (Show, Generic)
-  deriving (ToJSON, FromJSON) via Schema FederationDomainConfig
-
-instance ToSchema FederationDomainConfig where
-  schema =
-    object "FederationDomainConfig" $
-      FederationDomainConfig
-        <$> domain .= field "domain" schema
-        <*> cfgSearchPolicy .= field "search_policy" schema
-
 -- | Options that are consumed on startup
 data Opts = Opts
   -- services
@@ -562,7 +548,8 @@ data Settings = Settings
     --     - wire.com
     --     - example.com
     setFederationDomain :: !Domain,
-    setFederationDomainConfigs :: !(Maybe [FederationDomainConfig]),
+    setFederationDomainConfigs :: !(Maybe [FederationDomainConfig]), -- TODO: deprecate this in docs and config file samples.
+
     -- | The amount of time in milliseconds to wait after reading from an SQS queue
     -- returns no message, before asking for messages from SQS again.
     -- defaults to 'defSqsThrottleMillis'.

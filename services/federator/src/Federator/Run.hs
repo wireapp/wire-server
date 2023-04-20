@@ -40,6 +40,7 @@ import Control.Lens ((^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Federator.Env
+import Federator.EnvUpdater (envUpdater)
 import Federator.ExternalServer (serveInward)
 import Federator.InternalServer (serveOutward)
 import Federator.Monitor
@@ -68,9 +69,10 @@ run opts = do
       let externalServer = serveInward tEnv portExternal
           internalServer = serveOutward tEnv portInternal
       withMonitor (env ^. applog) (env ^. sslContext) (optSettings opts) $ do
+        envUpdateThread <- async $ envUpdater tEnv
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
-        void $ waitAnyCancel [internalServerThread, externalServerThread]
+        void $ waitAnyCancel [envUpdateThread, internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort

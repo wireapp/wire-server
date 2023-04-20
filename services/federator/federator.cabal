@@ -37,6 +37,7 @@ library
     Federator.App
     Federator.Discovery
     Federator.Env
+    Federator.EnvUpdater
     Federator.Error
     Federator.Error.ServerError
     Federator.ExternalServer
