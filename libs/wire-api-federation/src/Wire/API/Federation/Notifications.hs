@@ -49,7 +49,11 @@ ensureQueue chan domain = do
             Q.queueExclusive = False,
             Q.queueAutoDelete = False,
             Q.queueHeaders =
-              Q.FieldTable $ Map.singleton "x-single-active-consumer" (Q.FVBool True)
+              Q.FieldTable $
+                Map.fromList
+                  [ ("x-single-active-consumer", Q.FVBool True),
+                    ("x-queue-type", Q.FVString "quorum")
+                  ]
           }
   void $ Q.declareQueue chan opts
 
