@@ -16,8 +16,8 @@ import Control.Exception (finally)
 import qualified Control.Exception as E
 import Control.Monad.Catch (MonadMask, MonadThrow)
 import Control.Monad.Catch.Pure (MonadCatch)
+import Control.Monad.Reader
 import Control.Monad.Trans.Maybe (MaybeT (..))
-import Control.Monad.Trans.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
 import qualified Data.Aeson as Aeson
@@ -64,7 +64,16 @@ import Test.Tasty.Providers.ConsoleFormat
 -------------------------------------------------------------------------------
 
 newtype App a = App {unApp :: ReaderT Env IO a}
-  deriving (Functor, Applicative, Monad, MonadIO, MonadMask, MonadCatch, MonadThrow)
+  deriving
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadIO,
+      MonadMask,
+      MonadCatch,
+      MonadThrow,
+      MonadReader Env
+    )
 
 data AppFailure = AppFailure String
 
@@ -79,12 +88,6 @@ failApp msg = throw (AppFailure msg)
 
 runAppWithEnv :: Env -> App a -> IO a
 runAppWithEnv e m = runReaderT (unApp m) e
-
-getContext :: App Context
-getContext = App $ asks (.context)
-
-getManager :: App HTTP.Manager
-getManager = App $ asks (.manager)
 
 getPrekey :: App Value
 getPrekey = App $ do
@@ -616,10 +619,10 @@ data Versioned = Versioned | Unversioned | ExplicitVersion Int
 
 baseRequest :: Service -> Versioned -> String -> App HTTP.Request
 baseRequest service versioned path = do
-  ctx <- getContext
+  ctx <- asks (.context)
   pathSegsPrefix <- case versioned of
     Versioned -> do
-      v <- App $ asks (.context.version)
+      v <- asks (.context.version)
       pure ["v" <> show v]
     Unversioned -> pure []
     ExplicitVersion v -> do
@@ -632,7 +635,7 @@ baseRequest service versioned path = do
 submit :: String -> HTTP.Request -> App Response
 submit method req0 = do
   let req = req0 {HTTP.method = toByteString' method}
-  manager <- getManager
+  manager <- asks (.manager)
   res <- liftIO $ HTTP.httpLbs req manager
   pure $
     Response
@@ -813,7 +816,7 @@ withModifiedServices services k = do
           (Map.assocs ports)
 
   instances <- for (Map.assocs services) $ \(srv, modifyConfig) -> do
-    basedir <- App $ asks (.serviceConfigsDir)
+    basedir <- asks (.serviceConfigsDir)
     let srvName = serviceName srv
         cfgFile = basedir </> srvName </> "conf" </> (srvName <> ".yaml")
     config <- do
@@ -827,11 +830,10 @@ withModifiedServices services k = do
     hClose fh
 
     (cwd, exe) <-
-      App $
-        asks (.servicesCwdBase) <&> \case
-          Nothing -> (Nothing, srvName)
-          Just dir ->
-            (Just (dir </> srvName), "./dist" </> srvName)
+      asks (.servicesCwdBase) <&> \case
+        Nothing -> (Nothing, srvName)
+        Just dir ->
+          (Just (dir </> srvName), "./dist" </> srvName)
 
     (port, socket) <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup srv ports)
     liftIO $ N.close socket

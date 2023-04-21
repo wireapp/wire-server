@@ -98,7 +98,7 @@ clientApp wsChan latch conn = do
 --   for the connection to register with Gundeck, and return the 'Async' thread.
 run :: HasCallStack => WSConnect -> WS.ClientApp () -> App (Async ())
 run wsConnect app = do
-  ctx <- getContext
+  ctx <- asks (.context)
   let HostPort caHost caPort = serviceHostPort ctx.serviceMap Cannon
   latch <- newEmptyMVar
 

@@ -9,17 +9,20 @@
 , async
 , base
 , bytestring
+, bytestring-conversion
 , Cabal
 , case-insensitive
 , containers
 , data-default
 , directory
+, exceptions
 , filepath
 , gitignoreSource
 , http-client
 , http-types
 , imports
 , lib
+, mtl
 , network
 , network-uri
 , process
@@ -32,6 +35,8 @@
 , tasty
 , text
 , transformers
+, unliftio
+, websockets
 , yaml
 }:
 mkDerivation {
@@ -48,13 +53,16 @@ mkDerivation {
     async
     base
     bytestring
+    bytestring-conversion
     case-insensitive
     containers
     data-default
+    exceptions
     filepath
     http-client
     http-types
     imports
+    mtl
     network
     network-uri
     process
@@ -67,6 +75,8 @@ mkDerivation {
     tasty
     text
     transformers
+    unliftio
+    websockets
     yaml
   ];
   license = lib.licenses.agpl3Only;
