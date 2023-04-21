@@ -128,4 +128,4 @@ testWebSockets = do
       resp.status `shouldMatchInt` 201
       resp.json
     n <- awaitMatch 3 (\n -> payload n %. "type" `isEqual` "user.client-add") ws
-    payload n %. "client.id.sdga" `shouldMatch` (client %. "id")
+    payload n %. "client.id" `shouldMatch` (client %. "id")

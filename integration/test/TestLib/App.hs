@@ -372,6 +372,23 @@ prettyStack cs =
     [colored yellow "call stack: "]
       <> (drop 1 . prettyCallStackLines) cs
 
+modifyFailure :: (AssertionFailure -> AssertionFailure) -> App a -> App a
+modifyFailure modifyAssertion action = do
+  env <- App $ ask
+  liftIO
+    ( E.catch
+        (runAppWithEnv env action)
+        ( \(e :: AssertionFailure) ->
+            E.throw (modifyAssertion e)
+        )
+    )
+
+modifyFailureMsg :: (String -> String) -> App a -> App a
+modifyFailureMsg modMessage = modifyFailure (\e -> e {msg = modMessage e.msg})
+
+addFailureContext :: String -> App a -> App a
+addFailureContext msg = modifyFailureMsg (\m -> m <> "\nThis failure happend in this context:\n" <> msg)
+
 -------------------------------------------------------------------------------
 -- - SECTION_JSON
 -------------------------------------------------------------------------------
@@ -456,10 +473,12 @@ asBool x =
 (%.) :: (HasCallStack, ProducesJSON a) => a -> String -> App Value
 (%.) val selector = do
   v <- prodJSON val
-  let keys = splitOn "." selector
-  case keys of
-    (k : ks) -> go k ks v
-    [] -> assertFailure "No key provided"
+  vp <- prettyJSON v
+  addFailureContext ("Getting (nested) field " <> selector <> " of object:\n" <> vp) $ do
+    let keys = splitOn "." selector
+    case keys of
+      (k : ks) -> go k ks v
+      [] -> assertFailure "No key provided"
   where
     go k [] v = l k v
     go k (k2 : ks) v = do
@@ -475,10 +494,12 @@ asBool x =
 lookupField :: (HasCallStack, ProducesJSON a) => a -> String -> App (Maybe Value)
 lookupField val selector = do
   v <- prodJSON val
-  let keys = splitOn "." selector
-  case keys of
-    (k : ks) -> go k ks v
-    [] -> assertFailure "No key provided"
+  vp <- prettyJSON v
+  addFailureContext ("Loooking up (nested) field " <> selector <> " of object:\n" <> vp) $ do
+    let keys = splitOn "." selector
+    case keys of
+      (k : ks) -> go k ks v
+      [] -> assertFailure "No key provided"
   where
     go k [] v = do
       ob <- asObject v
