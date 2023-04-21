@@ -115,16 +115,20 @@ import Wire.API.User.Client
 --   - [ ] ? in the update case (in galley), verify that the encryption_key is different
 -- [ ] validate proposals when processing proposal and commit messages
 -- [x] remove MissingSenderClient error
--- [ ] ? PreSharedKey proposal
 -- [x] remove all key package ref mapping
 -- [x] initialise index maps
--- [ ] newtype for leaf node indices
 -- [x] compute new indices for add proposals
--- [ ] remove prefixes from value and raw
+-- [x] remove prefixes from value and raw
 -- [x] remove PublicGroupState and GroupInfoBundle modules
--- [ ] (?) rename public_group_state field in conversation table
--- [ ] consider adding more integration tests
 -- [x] remove prefixes from fields in Commit and Proposal
+-- [ ] move external commit logic to a separate module and improve types
+-- [ ] check epoch inside commit lock
+-- [x] split executeProposalAction for internal and external commits
+
+-- [ ] ? consider adding more integration tests
+-- [ ] ? rename public_group_state field in conversation table
+-- [ ] ? PreSharedKey proposal
+-- [ ] ? newtype for leaf node indices
 
 data IncomingMessage = IncomingMessage
   { epoch :: Epoch,
@@ -739,10 +743,6 @@ processExternalCommit ::
   Maybe UpdatePath ->
   Sem r ()
 processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
-  -- TODO from talk with Stefan M
-  -- [ ] should leaf nodes be calclulated within the commit lock?
-  -- [x] split executeProposalAction for internal and external commits
-
   let convOrSub = tUnqualified lConvOrSub
 
   -- only members can join a subconversation
