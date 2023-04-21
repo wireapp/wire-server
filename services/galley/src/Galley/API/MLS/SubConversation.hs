@@ -280,9 +280,10 @@ deleteLocalSubConversation ::
 deleteLocalSubConversation qusr lcnvId scnvId dsc = do
   assertMLSEnabled
   let cnvId = tUnqualified lcnvId
+      lConvOrSubId = qualifyAs lcnvId (SubConv cnvId scnvId)
   cnv <- getConversationAndCheckMembership qusr lcnvId
   cs <- cnvmlsCipherSuite <$> noteS @'ConvNotFound (mlsMetadata cnv)
-  (mlsData, oldGid) <- withCommitLock (dscGroupId dsc) (dscEpoch dsc) $ do
+  (mlsData, oldGid) <- withCommitLock lConvOrSubId (dscGroupId dsc) (dscEpoch dsc) $ do
     sconv <-
       Eff.getSubConversation cnvId scnvId
         >>= noteS @'ConvNotFound

@@ -34,6 +34,7 @@ data SubConversationStore m a where
   CreateSubConversation :: ConvId -> SubConvId -> CipherSuiteTag -> Epoch -> GroupId -> Maybe GroupInfoData -> SubConversationStore m ()
   GetSubConversation :: ConvId -> SubConvId -> SubConversationStore m (Maybe SubConversation)
   GetSubConversationGroupInfo :: ConvId -> SubConvId -> SubConversationStore m (Maybe GroupInfoData)
+  GetSubConversationEpoch :: ConvId -> SubConvId -> SubConversationStore m (Maybe Epoch)
   SetSubConversationGroupInfo :: ConvId -> SubConvId -> Maybe GroupInfoData -> SubConversationStore m ()
   SetGroupIdForSubConversation :: GroupId -> Qualified ConvId -> SubConvId -> SubConversationStore m ()
   SetSubConversationEpoch :: ConvId -> SubConvId -> Epoch -> SubConversationStore m ()

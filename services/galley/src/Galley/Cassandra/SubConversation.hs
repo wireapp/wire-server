@@ -79,6 +79,10 @@ selectSubConvGroupInfo :: ConvId -> SubConvId -> Client (Maybe GroupInfoData)
 selectSubConvGroupInfo convId subConvId =
   (runIdentity =<<) <$> retry x5 (query1 Cql.selectSubConvGroupInfo (params LocalQuorum (convId, subConvId)))
 
+selectSubConvEpoch :: ConvId -> SubConvId -> Client (Maybe Epoch)
+selectSubConvEpoch convId subConvId =
+  (runIdentity =<<) <$> retry x5 (query1 Cql.selectSubConvEpoch (params LocalQuorum (convId, subConvId)))
+
 setGroupIdForSubConversation :: GroupId -> Qualified ConvId -> SubConvId -> Client ()
 setGroupIdForSubConversation groupId qconv sconv =
   retry x5 (write Cql.insertGroupIdForSubConversation (params LocalQuorum (groupId, qUnqualified qconv, qDomain qconv, sconv)))
@@ -119,6 +123,7 @@ interpretSubConversationStoreToCassandra = interpret $ \case
     embedClient (insertSubConversation convId subConvId suite epoch groupId mGroupInfo)
   GetSubConversation convId subConvId -> embedClient (selectSubConversation convId subConvId)
   GetSubConversationGroupInfo convId subConvId -> embedClient (selectSubConvGroupInfo convId subConvId)
+  GetSubConversationEpoch convId subConvId -> embedClient (selectSubConvEpoch convId subConvId)
   SetSubConversationGroupInfo convId subConvId mPgs -> embedClient (updateSubConvGroupInfo convId subConvId mPgs)
   SetGroupIdForSubConversation gId cid sconv -> embedClient $ setGroupIdForSubConversation gId cid sconv
   SetSubConversationEpoch cid sconv epoch -> embedClient $ setEpochForSubConversation cid sconv epoch

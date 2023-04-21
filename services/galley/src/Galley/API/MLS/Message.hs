@@ -122,7 +122,7 @@ import Wire.API.User.Client
 -- [x] remove PublicGroupState and GroupInfoBundle modules
 -- [x] remove prefixes from fields in Commit and Proposal
 -- [ ] move external commit logic to a separate module and improve types
--- [ ] check epoch inside commit lock
+-- [x] check epoch inside commit lock
 -- [x] split executeProposalAction for internal and external commits
 
 -- [ ] ? consider adding more integration tests
@@ -770,7 +770,7 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
         mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
     Right _ -> pure ()
 
-  withCommitLock groupId epoch $ do
+  withCommitLock (fmap idForConvOrSub lConvOrSub) groupId epoch $ do
     executeExtCommitProposalAction senderIdentity lConvOrSub action
 
     -- increment epoch number
@@ -813,7 +813,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
   let convOrSub = tUnqualified lConvOrSub
       mlsMeta = mlsMetaConvOrSub convOrSub
 
-  withCommitLock (cnvmlsGroupId . mlsMetaConvOrSub $ convOrSub) epoch $ do
+  withCommitLock (fmap idForConvOrSub lConvOrSub) (cnvmlsGroupId (mlsMetaConvOrSub convOrSub)) epoch $ do
     -- check all pending proposals are referenced in the commit
     allPendingProposals <- getAllPendingProposalRefs (cnvmlsGroupId mlsMeta) epoch
     let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) commit.proposals

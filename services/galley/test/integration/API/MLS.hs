@@ -113,7 +113,7 @@ tests s =
       testGroup
         "External commit"
         [ test s "non-member attempts to join a conversation" testExternalCommitNotMember,
-          test s "join a conversation with the same client XXX" testExternalCommitSameClient,
+          test s "join a conversation with the same client" testExternalCommitSameClient,
           test s "join a conversation with a new client" testExternalCommitNewClient,
           test s "join a conversation with a new client and resend backend proposals" testExternalCommitNewClientResendBackendProposal
         ],

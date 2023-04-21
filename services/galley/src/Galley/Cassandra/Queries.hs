@@ -275,6 +275,9 @@ updateConvName = "update conversation set name = ? where conv = ?"
 updateConvType :: PrepQuery W (ConvType, ConvId) ()
 updateConvType = "update conversation set type = ? where conv = ?"
 
+getConvEpoch :: PrepQuery R (Identity ConvId) (Identity (Maybe Epoch))
+getConvEpoch = "select epoch from conversation where conv = ?"
+
 updateConvEpoch :: PrepQuery W (Epoch, ConvId) ()
 updateConvEpoch = "update conversation set epoch = ? where conv = ?"
 
@@ -339,6 +342,9 @@ updateSubConvGroupInfo = "INSERT INTO subconversation (conv_id, subconv_id, publ
 
 selectSubConvGroupInfo :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe GroupInfoData))
 selectSubConvGroupInfo = "SELECT public_group_state FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
+
+selectSubConvEpoch :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe Epoch))
+selectSubConvEpoch = "SELECT epoch FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
 
 deleteGroupId :: PrepQuery W (Identity GroupId) ()
 deleteGroupId = "DELETE FROM group_id_conv_id WHERE group_id = ?"

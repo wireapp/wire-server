@@ -237,6 +237,13 @@ updateConvReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMo
 updateConvMessageTimer :: ConvId -> Maybe Milliseconds -> Client ()
 updateConvMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params LocalQuorum (mtimer, cid))
 
+getConvEpoch :: ConvId -> Client (Maybe Epoch)
+getConvEpoch cid =
+  (runIdentity =<<)
+    <$> retry
+      x1
+      (query1 Cql.getConvEpoch (params LocalQuorum (Identity cid)))
+
 updateConvEpoch :: ConvId -> Epoch -> Client ()
 updateConvEpoch cid epoch = retry x5 $ write Cql.updateConvEpoch (params LocalQuorum (epoch, cid))
 
@@ -459,6 +466,7 @@ interpretConversationStoreToCassandra = interpret $ \case
   CreateConversation loc nc -> embedClient $ createConversation loc nc
   CreateMLSSelfConversation lusr -> embedClient $ createMLSSelfConversation lusr
   GetConversation cid -> embedClient $ getConversation cid
+  GetConversationEpoch cid -> embedClient $ getConvEpoch cid
   LookupConvByGroupId gId -> embedClient $ lookupConvByGroupId gId
   GetConversations cids -> localConversations cids
   GetConversationMetadata cid -> embedClient $ conversationMeta cid

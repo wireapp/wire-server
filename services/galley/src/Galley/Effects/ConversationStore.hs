@@ -28,6 +28,7 @@ module Galley.Effects.ConversationStore
 
     -- * Read conversation
     getConversation,
+    getConversationEpoch,
     lookupConvByGroupId,
     getConversations,
     getConversationMetadata,
@@ -83,6 +84,7 @@ data ConversationStore m a where
     ConversationStore m Conversation
   DeleteConversation :: ConvId -> ConversationStore m ()
   GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)
+  GetConversationEpoch :: ConvId -> ConversationStore m (Maybe Epoch)
   LookupConvByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvOrSubConvId))
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
