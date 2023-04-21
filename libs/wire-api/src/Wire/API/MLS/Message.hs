@@ -64,6 +64,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.List.NonEmpty
+import qualified Data.List.NonEmpty as NE
 import Data.Qualified
 import Data.Schema
 import Data.Singletons.TH
@@ -332,7 +333,9 @@ instance SerialiseMLS (MessagePayload 'MLSPlainText) where
 newtype UnreachableUsers = UnreachableUsers {unreachableUsers :: NonEmpty (Qualified UserId)}
   deriving stock (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema UnreachableUsers
-  deriving newtype (Semigroup)
+
+instance Semigroup UnreachableUsers where
+  (UnreachableUsers m) <> (UnreachableUsers n) = UnreachableUsers . NE.nub $ m <> n
 
 instance ToSchema UnreachableUsers where
   schema =
@@ -342,7 +345,7 @@ instance ToSchema UnreachableUsers where
           .= nonEmptyArray schema
 
 unreachableFromList :: [Qualified UserId] -> Maybe UnreachableUsers
-unreachableFromList = fmap UnreachableUsers . nonEmpty
+unreachableFromList = fmap (UnreachableUsers . NE.nub) . nonEmpty
 
 -- | A 'mappend'-like operation on two optional values of a type with a
 -- Semigroup instance.

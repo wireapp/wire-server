@@ -20,6 +20,7 @@ module API.MLS.Mocks
     receiveCommitMockByDomain,
     messageSentMock,
     welcomeMock,
+    welcomeMockByDomain,
     sendMessageMock,
     claimKeyPackagesMock,
     queryGroupStateMock,
@@ -54,8 +55,9 @@ receiveCommitMock clients =
 
 receiveCommitMockByDomain :: [ClientIdentity] -> Mock LByteString
 receiveCommitMockByDomain clients = do
-  r <- getRequest
-  let fClients = filter (\c -> frTargetDomain r == ciDomain c) clients
+  domain <- frTargetDomain <$> getRequest
+  guard (domain `elem` (ciDomain <$> clients))
+  let fClients = filter (\c -> domain == ciDomain c) clients
   receiveCommitMock fClients
 
 messageSentMock :: Mock LByteString
@@ -63,6 +65,12 @@ messageSentMock = "on-mls-message-sent" ~> RemoteMLSMessageOk
 
 welcomeMock :: Mock LByteString
 welcomeMock = "mls-welcome" ~> MLSWelcomeSent
+
+welcomeMockByDomain :: [Domain] -> Mock LByteString
+welcomeMockByDomain reachables = do
+  domain <- frTargetDomain <$> getRequest
+  guard (domain `elem` reachables)
+  welcomeMock
 
 sendMessageMock :: Mock LByteString
 sendMessageMock =

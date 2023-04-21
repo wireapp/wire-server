@@ -681,9 +681,9 @@ testAddRemotesSomeUnreachable = do
     let unreachable = Set.singleton charlieDomain
     ((events, failedToProcess), reqs) <-
       withTempMockFederator'
-        ( mlsMockUnreachableFor unreachable
-            <|> receiveCommitMockByDomain [bob1]
-            <|> welcomeMock
+        ( receiveCommitMockByDomain [bob1]
+            <|> mlsMockUnreachableFor unreachable
+            <|> welcomeMockByDomain [bobDomain]
         )
         $ sendAndConsumeCommitFederated commit
     pure (events, failedToProcess, reqs, qcnv)
@@ -707,15 +707,14 @@ testAddRemotesSomeUnreachable = do
   liftIO $ do
     event <- assertOne events
     assertJoinEvent qcnv alice [bob, charlie] roleNameWireMember event -- TODO(md):
+    -- only
+    -- Bob
+    -- should
+    -- be
+    -- listed
+    -- as the
+    -- joiner
   liftIO $ putStrLn $ "Failed to process = " <> show failedToProcess
-
--- only
--- Bob
--- should
--- be
--- listed
--- as the
--- joiner
 
 testCommitLock :: TestM ()
 testCommitLock = do

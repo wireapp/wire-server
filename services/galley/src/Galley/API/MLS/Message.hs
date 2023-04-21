@@ -37,7 +37,6 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import Data.Time
 import Data.Tuple.Extra
-import Debug.Trace
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.Enabled
@@ -319,9 +318,6 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   for_ (cbWelcome bundle) $
     postMLSWelcome lcnv conn
 
-  traceM $
-    "In postMLSCommitBundleToLocalConv: FailedToProcess = "
-      <> show (failedToProcess <> failedToSendMaybe unreachables)
   pure (events, failedToProcess <> failedToSendMaybe unreachables)
 
 postMLSCommitBundleToRemoteConv ::
@@ -500,12 +496,6 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv =
 
       -- forward message
       unreachables <- propagateMessage qusr lconv cm con (rmRaw smsg)
-      traceM $
-        "In postMLSMessageToLocalConv: failedToProcess = "
-          <> show failedToProcess
-      traceM $
-        "In postMLSMessageToLocalConv: FailedToProcess = "
-          <> show (failedToProcess <> failedToSendMaybe unreachables)
       pure (events, failedToProcess <> failedToSendMaybe unreachables)
 
 postMLSMessageToRemoteConv ::
@@ -1121,7 +1111,6 @@ executeProposalAction ::
   ProposalAction ->
   Sem r ([LocalConversationUpdate], FailedToProcess)
 executeProposalAction qusr con lconv mlsMeta cm action = do
-  traceM $ "In executeProposalAction: paAdd action = " <> show (paAdd action)
   let ss = csSignatureScheme (cnvmlsCipherSuite mlsMeta)
       newUserClients = Map.assocs (paAdd action)
 
@@ -1155,17 +1144,15 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
     forM newUserClients $
       \(qtarget, newclients) -> case Map.lookup qtarget cm of
         -- user is already present, skip check in this case
-        Just _ -> pure Nothing
-        -- new user
+        Just _ -> do
+          -- new user
+          pure Nothing
         Nothing -> do
-          traceM $ "In executeProposalAction: new qtarget from newUserClients = " <> show qtarget
           -- final set of clients in the conversation
           let clients = Set.map fst (newclients <> Map.findWithDefault mempty qtarget cm)
           -- get list of mls clients from Brig (local or remote)
           getClientInfo lconv qtarget ss >>= \case
-            Left e -> do
-              traceM $ "In executeProposalAction: received a fed error: " <> show e
-              pure (Just qtarget)
+            Left _e -> pure (Just qtarget)
             Right clientInfo -> do
               let allClients = Set.map ciId clientInfo
               let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
@@ -1187,9 +1174,6 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
                   throwS @'MLSClientMismatch
               pure Nothing
 
-  traceM $
-    "In executeProposalAction: failedAddFetching = "
-      <> show failedAddFetching
   membersToRemove <- catMaybes <$> for removedUsers (uncurry checkRemoval)
 
   -- add users to the conversation and send events
@@ -1205,9 +1189,6 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
                   . fst
                   $ addEvents
               )
-  traceM $
-    "In executeProposalAction: failedAdding = "
-      <> show failedAdding
 
   -- add clients in the conversation state
   for_ newUserClients $ \(qtarget, newClients) -> do

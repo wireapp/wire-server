@@ -209,12 +209,11 @@ mockReply = pure . Aeson.encode
 -- domains.
 mockUnreachableFor :: String -> Set Domain -> Mock LByteString
 mockUnreachableFor msg backends = do
-  r <- getRequest
-  if Set.member (frTargetDomain r) backends
+  target <- frTargetDomain <$> getRequest
+  guard (target `elem` backends)
+  if Set.member target backends
     then throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
-    else do
-      liftIO $ putStrLn $ "In mockUnreachableFor, msg = " <> msg
-      mockReply msg
+    else mockReply msg
 
 -- | Abort the mock with an error.
 mockFail :: Text -> Mock a
