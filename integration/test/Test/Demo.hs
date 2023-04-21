@@ -25,7 +25,7 @@ testDeleteUnknownClient = do
   user <- randomUser def
   let fakeClientId :: String = "deadbeefdeadbeef"
   bindResponse (API.deleteClient user Nothing fakeClientId) $ \resp -> do
-    resp.status `shouldMatchPlain` 403
+    resp.status `shouldMatchPlain` 404
     resp.json %. "label" `shouldMatch` "client-not-found"
 
 testModifiedBrig :: HasCallStack => App ()
