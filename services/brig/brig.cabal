@@ -51,6 +51,7 @@ library
     Brig.Data.Activation
     Brig.Data.Client
     Brig.Data.Connection
+    Brig.Data.Federation
     Brig.Data.Instances
     Brig.Data.LoginCode
     Brig.Data.MLS.KeyPackage

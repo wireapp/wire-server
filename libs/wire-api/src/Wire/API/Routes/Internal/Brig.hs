@@ -406,19 +406,22 @@ type AuthAPI =
 -- of changes via rabbitmq, we argue it's "fine" for federators to ask brig once on startup.
 type FederationRemotesAPI =
   Named
-    "get-federator-remotes"
-    ( "federator-remotes"
-        :> Get '[JSON] [FederationDomainConfig]
+    "get-federation-remotes"
+    ( "federation"
+        :> "remotes"
+        :> Get '[JSON] FederationDomainConfigs
     )
     :<|> Named
-           "add-federator-remote"
-           ( "federator-remotes"
+           "add-federation-remotes"
+           ( "federation"
+               :> "remotes"
                :> ReqBody '[JSON] FederationDomainConfig
                :> Post '[JSON] ()
            )
     :<|> Named
-           "delete-federator-remote"
-           ( "federator-remotes"
+           "delete-federation-remotes"
+           ( "federation"
+               :> "remotes"
                :> Capture "domain" Domain
                :> Delete '[JSON] ()
            )

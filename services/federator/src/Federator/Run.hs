@@ -68,7 +68,7 @@ run opts = do
       -- We need a watcher/listener for updating this TVar to flow values through to the handlers.
       let externalServer = serveInward tEnv portExternal
           internalServer = serveOutward tEnv portInternal
-      withMonitor (env ^. applog) (env ^. sslContext) (optSettings opts) $ do
+      withMonitor (env ^. applog) (onNewSSLContext env) (optSettings opts) $ do
         envUpdateThread <- async $ envUpdater tEnv
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
@@ -102,7 +102,8 @@ newEnv o _dnsResolver = do
       _service Galley = Opt.galley o
       _service Cargohold = Opt.cargohold o
   _httpManager <- initHttpManager
-  _sslContext <- mkTLSSettingsOrThrow _runSettings >>= newIORef
+  sslContext <- mkTLSSettingsOrThrow _runSettings
+  _http2Manager <- newIORef =<< mkHttp2Manager sslContext
   pure Env {..}
 
 closeEnv :: Env -> IO ()

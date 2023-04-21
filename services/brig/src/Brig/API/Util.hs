@@ -64,7 +64,7 @@ import Util.Logging (sha256String)
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Federation.Error
-import Wire.API.Routes.FederationDomainConfig as FederationDomainConfig
+import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
 import qualified Wire.Sem.Concurrency as C
@@ -171,11 +171,11 @@ exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
 lookupDomainConfig :: MonadReader Env m => Domain -> m (Maybe FederationDomainConfig)
 lookupDomainConfig domain = do
   domainConfigs <- fromMaybe [] <$> view (settings . federationDomainConfigs)
-  pure $ find ((== domain) . FederationDomainConfig.domain) domainConfigs
+  pure $ find ((== domain) . FD.domain) domainConfigs
 
 -- | If domain is not configured fall back to `FullSearch`
 lookupSearchPolicy :: MonadReader Env m => Domain -> m FederatedUserSearchPolicy
-lookupSearchPolicy domain = fromMaybe NoSearch <$> (FederationDomainConfig.cfgSearchPolicy <$$> lookupDomainConfig domain)
+lookupSearchPolicy domain = fromMaybe NoSearch <$> (FD.cfgSearchPolicy <$$> lookupDomainConfig domain)
 
 -- | Convert a qualified value into a local one. Throw if the value is not actually local.
 ensureLocal :: Qualified a -> AppT r (Local a)

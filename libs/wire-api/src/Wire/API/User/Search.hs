@@ -307,7 +307,7 @@ data FederatedUserSearchPolicy
   = NoSearch
   | ExactHandleSearch
   | FullSearch
-  deriving (Show, Eq, Generic, Enum, Bounded)
+  deriving (Show, Eq, Ord, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform FederatedUserSearchPolicy)
   deriving (ToJSON, FromJSON) via (Schema FederatedUserSearchPolicy)
 

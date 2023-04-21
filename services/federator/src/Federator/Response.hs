@@ -36,13 +36,13 @@ import Federator.Options
 import Federator.Remote
 import Federator.Service
 import Federator.Validation
+import HTTP2.Client.Manager (Http2Manager)
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Network.Wai.Utilities.Server as Wai
-import OpenSSL.Session (SSLContext)
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
@@ -119,7 +119,7 @@ type AllEffects =
      DNSLookup, -- needed by DiscoverFederator
      ServiceStreaming,
      Input RunSettings,
-     Input SSLContext, -- needed by Remote
+     Input Http2Manager, -- needed by Remote
      Input Env, -- needed by Service
      Error ValidationError,
      Error RemoteError,
@@ -145,7 +145,7 @@ runFederator tvar resp = do
           DiscoveryFailure
         ]
     . runInputConst env
-    . runInputSem (embed @IO (readIORef (view sslContext env)))
+    . runInputSem (embed @IO (readIORef (view http2Manager env)))
     -- This is the point at which federation settings are extracted
     -- For each request, extract a fresh copy of the runSettings. This allows us
     -- to independently update the settings and have them be used as requests
