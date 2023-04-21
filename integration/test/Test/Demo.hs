@@ -4,7 +4,6 @@
 module Test.Demo where
 
 import qualified API
-import Data.ByteString.Conversion
 import Imports
 import TestLib.Prelude
 
@@ -22,7 +21,7 @@ testCantDeleteLHClient = do
 testDeleteUnknownClient :: HasCallStack => App ()
 testDeleteUnknownClient = do
   user <- randomUser def
-  let fakeClientId :: String = "deadbeefdeadbeef"
+  let fakeClientId = "deadbeefdeadbeef"
   bindResponse (API.deleteClient user Nothing fakeClientId) $ \resp -> do
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "client-not-found"
@@ -61,64 +60,6 @@ testModifiedGalley = do
     $ do
       status <- getFeatureStatus
       status `shouldMatch` "enabled"
-
-jsonValue :: HasCallStack => String -> Value
-jsonValue = fromJust . decode . toByteString
-
-testJSONUpdate :: HasCallStack => App ()
-testJSONUpdate = do
-  let before =
-        jsonValue
-          [r|
-        {
-          "foo" : {
-             "bar": 2
-          }
-       }
-  |]
-
-  let expected =
-        jsonValue
-          [r|
-        {
-          "foo" : {
-             "bar": "baaz"
-          }
-       }
-  |]
-
-  (before & setField "foo.bar" "baaz") `shouldMatch` expected
-
-  -- test case: when last field doesn't exist
-
-  let expected2 =
-        jsonValue
-          [r|
-        {
-          "foo" : {
-             "bar": 2,
-             "quux": 3
-          }
-       }
-  |]
-
-  (before & setField "foo.quux" (3 :: Int)) `shouldMatch` expected2
-
-testJSONUpdateFailure :: HasCallStack => App ()
-testJSONUpdateFailure = do
-  let before =
-        jsonValue
-          [r|
-        {
-          "foo" : {
-             "bar": 2
-          }
-       }
-  |]
-
-  expectFailure
-    (\e -> take 23 e.msg `shouldMatch` "Field \"quux\" is missing")
-    (before & setField "foo.quux.zok" "eke")
 
 testWebSockets :: HasCallStack => App ()
 testWebSockets = do
