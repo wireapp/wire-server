@@ -20,13 +20,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API where -- todo(leif): export only test
+module API (tests) where
 
 import Bilge
 import Bilge.Assert
 import Brig.Types.Intra
 import Control.Applicative
 import Control.Lens hiding ((.=))
+import Data.Aeson (ToJSON)
 import Data.ByteString.Conversion
 import Data.Handle
 import Data.Id
@@ -78,20 +79,39 @@ tests s =
       test s "GET /teams" testGetTeamInfoByMemberEmail,
       test s "GET /teams/:tid/admins" testGetTeamAdminInfo,
       test s "/teams/:tid/features/legalhold" testLegalholdConfig,
-      test s "/teams/:tid/features/sso" $ testConfig @SSOConfig,
-      test s "/teams/:tid/features/validate-saml-emails" $ testConfig @ValidateSAMLEmailsConfig,
-      test s "/teams/:tid/features/digital-signatures" $ testConfig @ValidateSAMLEmailsConfig,
-      test s "/teams/:tid/features/file-sharing" $ testConfig @FileSharingConfig,
-      test s "/teams/:tid/features/conference-calling" $ testConfigOptTtl @ConferenceCallingConfig (Just FeatureTTLUnlimited),
-      test s "/teams/:tid/search-visibility" $ testConfig @SearchVisibilityAvailableConfig,
-      test s "GET /teams/:tid/invoice/:inr" testGetTeamInvoice,
-      test s "GET /teams/:tid/billing" testGetTeamBillingInfo,
-      test s "PUT /teams/:tid/billing" testPutTeamBillingInfo,
-      test s "POST /teams/:tid/billing" testPostTeamBillingInfo,
+      test s "/teams/:tid/features/sso" $ testFeatureStatus @SSOConfig,
+      test s "/teams/:tid/features/validateSamlEmails" $ testFeatureStatus @ValidateSAMLEmailsConfig,
+      test s "/teams/:tid/features/digitalSignatures" $ testFeatureStatus @DigitalSignaturesConfig,
+      test s "/teams/:tid/features/fileSharing" $ testFeatureStatus @FileSharingConfig,
+      test s "/teams/:tid/features/conference-calling" $ testFeatureStatusOptTtl @ConferenceCallingConfig (Just FeatureTTLUnlimited),
+      test s "/teams/:tid/searchVisibility" $ testFeatureStatus @SearchVisibilityAvailableConfig,
+      test s "/teams/:tid/features/appLock" $ testFeatureConfig @AppLockConfig,
+      test s "/teams/:tid/features/mls" $ testFeatureConfig @MLSConfig,
+      test s "GET /teams/:tid/features/classifiedDomains" $ testGetFeatureConfig @ClassifiedDomainsConfig (Just FeatureStatusEnabled),
+      test s "GET /teams/:tid/features/outlookCalIntegration" $ testFeatureStatus @OutlookCalIntegrationConfig,
       test s "GET /i/consent" testGetConsentLog,
       test s "GET /teams/:id" testGetTeamInfo,
-      test s "GET i/user/meta-info?id=..." testGetUserMetaInfo
+      test s "GET i/user/meta-info?id=..." testGetUserMetaInfo,
+      test s "/teams/:tid/search-visibility" testSearchVisibility
+      -- The following endpoints can not be tested because they require ibis:
+      -- - `GET /teams/:tid/billing`
+      -- - `GET /teams/:tid/invoice/:inr`
+      -- - `PUT /teams/:tid/billing`
+      -- - `POST /teams/:tid/billing`
     ]
+
+testSearchVisibility :: TestM ()
+testSearchVisibility = do
+  (_, tid, _) <- createTeamWithNMembers 10
+  putFeatureStatus @SearchVisibilityAvailableConfig tid FeatureStatusEnabled Nothing !!! const 200 === statusCode
+  do
+    TeamSearchVisibilityView sv <- getSearchVisibility tid
+    liftIO $ sv @?= SearchVisibilityStandard
+
+  putSearchVisibility tid SearchVisibilityNoNameOutsideTeam
+  do
+    TeamSearchVisibilityView sv <- getSearchVisibility tid
+    liftIO $ sv @?= SearchVisibilityNoNameOutsideTeam
 
 testGetUserMetaInfo :: TestM ()
 testGetUserMetaInfo = do
@@ -195,7 +215,7 @@ testLegalholdConfig = do
   -- Legal hold is enabled for teams via server config and cannot be changed here
   putFeatureStatus @LegalholdConfig tid FeatureStatusEnabled Nothing !!! const 403 === statusCode
 
-testConfig ::
+testFeatureConfig ::
   forall cfg.
   ( KnownSymbol (FeatureSymbol cfg),
     ToSchema cfg,
@@ -205,9 +225,44 @@ testConfig ::
     Show cfg
   ) =>
   TestM ()
-testConfig = testConfigOptTtl @cfg Nothing
+testFeatureConfig = do
+  (_, tid, _) <- createTeamWithNMembers 10
+  cfg <- getFeatureConfig @cfg tid
+  liftIO $ cfg @?= defFeatureStatus @cfg
+  let newStatus = if wsStatus cfg == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
+  putFeatureConfig @cfg tid (setStatus newStatus cfg) !!! const 200 === statusCode
+  cfg' <- getFeatureConfig @cfg tid
+  liftIO $ wsStatus cfg' @?= newStatus
 
-testConfigOptTtl ::
+testGetFeatureConfig ::
+  forall cfg.
+  ( KnownSymbol (FeatureSymbol cfg),
+    ToSchema cfg,
+    Typeable cfg,
+    IsFeatureConfig cfg,
+    Eq cfg,
+    Show cfg
+  ) =>
+  Maybe FeatureStatus ->
+  TestM ()
+testGetFeatureConfig mDef = do
+  (_, tid, _) <- createTeamWithNMembers 10
+  cfg <- getFeatureConfig @cfg tid
+  liftIO $ wsStatus cfg @?= fromMaybe (wsStatus $ defFeatureStatus @cfg) mDef
+
+testFeatureStatus ::
+  forall cfg.
+  ( KnownSymbol (FeatureSymbol cfg),
+    ToSchema cfg,
+    Typeable cfg,
+    IsFeatureConfig cfg,
+    Eq cfg,
+    Show cfg
+  ) =>
+  TestM ()
+testFeatureStatus = testFeatureStatusOptTtl @cfg Nothing
+
+testFeatureStatusOptTtl ::
   forall cfg.
   ( KnownSymbol (FeatureSymbol cfg),
     ToSchema cfg,
@@ -218,29 +273,21 @@ testConfigOptTtl ::
   ) =>
   Maybe FeatureTTL ->
   TestM ()
-testConfigOptTtl mTtl = do
+testFeatureStatusOptTtl mTtl = do
   (_, tid, _) <- createTeamWithNMembers 10
   cfg <- getFeatureConfig @cfg tid
   liftIO $ cfg @?= defFeatureStatus @cfg
+  when (wsLockStatus cfg == LockStatusLocked) $ unlockFeature @cfg tid
   let newStatus = if wsStatus cfg == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
   void $ putFeatureStatus @cfg tid newStatus mTtl
   cfg' <- getFeatureConfig @cfg tid
   liftIO $ wsStatus cfg' @?= newStatus
 
-testGetTeamInvoice :: TestM ()
-testGetTeamInvoice = pure ()
-
-testGetTeamBillingInfo :: TestM ()
-testGetTeamBillingInfo = pure ()
-
-testPutTeamBillingInfo :: TestM ()
-testPutTeamBillingInfo = pure ()
-
-testPostTeamBillingInfo :: TestM ()
-testPostTeamBillingInfo = pure ()
-
 testGetConsentLog :: TestM ()
-testGetConsentLog = pure ()
+testGetConsentLog = do
+  (_, email) <- randomEmailUser
+  -- We cannot access a consent log of an existing user, so we expect a 403
+  getConsentLog email !!! const 403 === statusCode
 
 testGetConnectionsByIds :: TestM ()
 testGetConnectionsByIds = do
@@ -500,47 +547,6 @@ getFeatureConfig tid = do
   r <- get (s . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg] . expect2xx)
   pure $ responseJsonUnsafe r
 
-putLegalholdConfig :: TeamId -> FeatureStatus -> TestM ()
-putLegalholdConfig tid status = do
-  s <- view tsStern
-  void $ put (s . paths ["teams", toByteString' tid, "features", "legalhold"] . queryItem "status" (toByteString' status) . expect2xx)
-
-getSSOConfig :: TeamId -> TestM (WithStatus SSOConfig)
-getSSOConfig tid = do
-  s <- view tsStern
-  r <- get (s . paths ["teams", toByteString' tid, "features", "sso"] . expect2xx)
-  pure $ responseJsonUnsafe r
-
-putSSOConfig :: TeamId -> FeatureStatus -> TestM ()
-putSSOConfig tid cfg = do
-  s <- view tsStern
-  void $ put (s . paths ["teams", toByteString' tid, "features", "sso"] . queryItem "status" (toByteString' cfg) . expect2xx)
-
-putSearchVisibilityAvailableConfig :: TeamId -> FeatureStatus -> TestM ()
-putSearchVisibilityAvailableConfig tid cfg = do
-  s <- view tsStern
-  void $ put (s . paths ["teams", toByteString' tid, "features", "search-visibility-available"] . queryItem "status" (toByteString' cfg) . expect2xx)
-
-putValidateSAMLEmailsConfig :: TeamId -> FeatureStatus -> TestM ()
-putValidateSAMLEmailsConfig tid cfg = do
-  s <- view tsStern
-  void $ put (s . paths ["teams", toByteString' tid, "features", "validate-saml-emails"] . queryItem "status" (toByteString' cfg) . expect2xx)
-
-putDigitalSignaturesConfig :: TeamId -> FeatureStatus -> TestM ()
-putDigitalSignaturesConfig tid cfg = do
-  s <- view tsStern
-  void $ put (s . paths ["teams", toByteString' tid, "features", "digital-signatures"] . queryItem "status" (toByteString' cfg) . expect2xx)
-
-putFileSharingConfig :: TeamId -> FeatureStatus -> TestM ()
-putFileSharingConfig tid cfg = do
-  s <- view tsStern
-  void $ put (s . paths ["teams", toByteString' tid, "features", "file-sharing"] . queryItem "status" (toByteString' cfg) . expect2xx)
-
-putConferenceCallingConfig :: TeamId -> FeatureStatus -> FeatureTTLDays -> TestM ()
-putConferenceCallingConfig tid cfg ttl = do
-  s <- view tsStern
-  void $ put (s . paths ["teams", toByteString' tid, "features", "conference-calling"] . queryItem "status" (toByteString' cfg) . queryItem "ttl" (toByteString' ttl) . expect2xx)
-
 putFeatureStatus ::
   forall cfg.
   ( KnownSymbol (FeatureSymbol cfg),
@@ -554,10 +560,25 @@ putFeatureStatus ::
   TestM ResponseLBS
 putFeatureStatus tid status mTtl = do
   s <- view tsStern
-  put (s . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg] . queryItem "status" (toByteString' status) . mkTtlQueryParam mTtl . expect2xx)
+  put (s . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg] . queryItem "status" (toByteString' status) . mkTtlQueryParam mTtl . contentJson)
   where
     mkTtlQueryParam :: Maybe FeatureTTL -> Request -> Request
     mkTtlQueryParam = maybe id (queryItem "ttl" . toByteString')
+
+putFeatureConfig ::
+  forall cfg.
+  ( KnownSymbol (FeatureSymbol cfg),
+    ToSchema cfg,
+    Typeable cfg,
+    IsFeatureConfig cfg,
+    ToJSON (WithStatus cfg)
+  ) =>
+  TeamId ->
+  WithStatus cfg ->
+  TestM ResponseLBS
+putFeatureConfig tid cfg = do
+  s <- view tsStern
+  put (s . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg] . json cfg . contentJson)
 
 getSearchVisibility :: TeamId -> TestM TeamSearchVisibilityView
 getSearchVisibility tid = do
@@ -570,38 +591,27 @@ putSearchVisibility tid vis = do
   s <- view tsStern
   void $ put (s . paths ["teams", toByteString' tid, "search-visibility"] . json vis . expect2xx)
 
-getTeamInvoice :: TeamId -> InvoiceId -> TestM Text
-getTeamInvoice tid inr = do
-  s <- view tsStern
-  r <- get (s . paths ["teams", toByteString' tid, "invoice", toByteString' inr] . expect2xx)
-  pure $ responseJsonUnsafe r
-
-getTeamBillingInfo :: TeamId -> TestM TeamBillingInfo
-getTeamBillingInfo tid = do
-  s <- view tsStern
-  r <- get (s . paths ["teams", toByteString' tid, "billing"] . expect2xx)
-  pure $ responseJsonUnsafe r
-
-putTeamBillingInfo :: TeamId -> TeamBillingInfoUpdate -> TestM TeamBillingInfo
-putTeamBillingInfo tid upd = do
-  s <- view tsStern
-  r <- put (s . paths ["teams", toByteString' tid, "billing"] . json upd . expect2xx)
-  pure $ responseJsonUnsafe r
-
-postTeamBillingInfo :: TeamId -> TeamBillingInfo -> TestM TeamBillingInfo
-postTeamBillingInfo tid upd = do
-  s <- view tsStern
-  r <- post (s . paths ["teams", toByteString' tid, "billing"] . json upd . expect2xx)
-  pure $ responseJsonUnsafe r
-
-getConsentLog :: Email -> TestM ConsentLogAndMarketo
+getConsentLog :: Email -> TestM ResponseLBS
 getConsentLog email = do
   s <- view tsStern
-  r <- get (s . paths ["i", "consent"] . queryItem "email" (toByteString' email) . expect2xx)
-  pure $ responseJsonUnsafe r
+  get (s . paths ["i", "consent"] . queryItem "email" (toByteString' email))
 
 getUserMetaInfo :: UserId -> TestM UserMetaInfo
 getUserMetaInfo uid = do
   s <- view tsStern
   r <- post (s . paths ["i", "user", "meta-info"] . queryItem "id" (toByteString' uid) . expect2xx)
   pure $ responseJsonUnsafe r
+
+unlockFeature ::
+  forall cfg.
+  ( KnownSymbol (FeatureSymbol cfg),
+    ToSchema cfg,
+    Typeable cfg,
+    IsFeatureConfig cfg,
+    ToJSON (WithStatus cfg)
+  ) =>
+  TeamId ->
+  TestM ()
+unlockFeature tid = do
+  g <- view tsGalley
+  void $ put (g . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg, "unlocked"] . expect2xx)

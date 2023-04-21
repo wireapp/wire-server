@@ -593,6 +593,7 @@ setSearchVisibility tid typ = do
         )
   case statusCode resp of
     200 -> pure ()
+    204 -> pure ()
     403 ->
       throwE $
         mkError

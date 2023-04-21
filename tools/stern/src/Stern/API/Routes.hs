@@ -316,7 +316,7 @@ type SternAPI =
                :> Capture "tid" TeamId
                :> "search-visibility"
                :> ReqBody '[JSON] TeamSearchVisibility
-               :> Get '[JSON] NoContent
+               :> Put '[JSON] NoContent
            )
     :<|> Named "get-route-outlook-cal-config" (MkFeatureGetRoute OutlookCalIntegrationConfig)
     :<|> Named "put-route-outlook-cal-config" (MkFeaturePutRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
