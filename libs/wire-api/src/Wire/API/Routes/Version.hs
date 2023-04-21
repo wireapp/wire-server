@@ -53,6 +53,7 @@ import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Data.Text as Text
 import Data.Text.Encoding as Text
+import GHC.Generics
 import Imports
 import Servant
 import Servant.Swagger
@@ -60,7 +61,23 @@ import Wire.API.Routes.Named
 import Wire.API.VersionInfo
 import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 
-class IsVersion v where
+class
+  ( Eq v,
+    Ord v,
+    Enum v,
+    Bounded v,
+    Show v,
+    Generic v,
+    ToSchema v,
+    ToJSON v,
+    FromJSON v,
+    ToHttpApiData v,
+    FromHttpApiData v,
+    ToByteString v,
+    Arbitrary v
+  ) =>
+  IsVersion v
+  where
   -- | Manual enumeration of version integrals (the `<n>` in the constructor `V<n>`).
   --
   -- This is not the same as 'fromEnum': we will remove unsupported versions in the future,
@@ -68,8 +85,10 @@ class IsVersion v where
   -- a bijection between meaningful integers and versions, but merely as a convenient way to say
   -- `allVersions = [minBound..]`.
   versionInt :: Integral i => v -> i
+
   supportedVersions :: [v]
   developmentVersions :: [v]
+
   versionText :: v -> Text
   versionByteString :: v -> ByteString
 
@@ -87,17 +106,17 @@ data Version = V0 | V1 | V2 | V3 | V4
   deriving (Arbitrary) via (GenericUniform Version)
 
 instance IsVersion Version where
- versionInt V0 = 0
- versionInt V1 = 1
- versionInt V2 = 2
- versionInt V3 = 3
- versionInt V4 = 4
+  versionInt V0 = 0
+  versionInt V1 = 1
+  versionInt V2 = 2
+  versionInt V3 = 3
+  versionInt V4 = 4
 
- supportedVersions = [minBound .. V4]
- developmentVersions = [V4]
+  supportedVersions = [minBound .. V4]
+  developmentVersions = [V4]
 
- versionText = ("v" <>) . toUrlPiece . versionInt @Int
- versionByteString = ("v" <>) . toByteString' . versionInt @Int
+  versionText = ("v" <>) . toUrlPiece . versionInt @Version @Int
+  versionByteString = ("v" <>) . toByteString' . versionInt @Version @Int
 
 instance ToSchema Version where
   schema = enum @Text "Version" . mconcat $ (\v -> element (versionText v) v) <$> [minBound ..]
@@ -118,25 +137,26 @@ instance ToByteString Version where
 -- | Wrapper around 'Version' that serializes to integers `<n>`, as needed in
 -- eg. `VersionInfo`.  See `/libs/wire-api/test/unit/Test/Wire/API/Routes/Version.hs` for
 -- serialization rules.
-newtype IsVersion v => VersionNumber v = VersionNumber {fromVersionNumber :: v}
-  deriving (Eq, Ord, Show, Generic)
+newtype VersionNumber v = VersionNumber {fromVersionNumber :: v}
+  deriving (Eq, Ord, Show)
   deriving newtype (Bounded, Enum)
-  deriving (FromJSON, ToJSON) via (Schema VersionNumber)
-  deriving (Arbitrary) via (GenericUniform Version)
+  deriving (FromJSON, ToJSON) via (Schema (VersionNumber v))
+  deriving (Arbitrary) via (GenericUniform (VersionNumber v))
 
-instance ToSchema v => ToSchema (VersionNumber v) where
+
+instance IsVersion v => ToSchema (VersionNumber v) where
   schema =
     enum @Integer "VersionNumber" . mconcat $ (\v -> element (versionInt v) (VersionNumber v)) <$> [minBound ..]
 
-instance FromHttpApiData v => FromHttpApiData (VersionNumber v) where
+instance IsVersion v => FromHttpApiData (VersionNumber v) where
   parseHeader = first Text.pack . Aeson.eitherDecode . LBS.fromStrict
   parseUrlPiece = parseHeader . Text.encodeUtf8
 
-instance ToHttpApiData v => ToHttpApiData (VersionNumber v) where
+instance IsVersion v => ToHttpApiData (VersionNumber v) where
   toHeader = LBS.toStrict . Aeson.encode
   toUrlPiece = Text.decodeUtf8 . toHeader
 
-instance ToByteString v => ToByteString ( VersionNumber v) where
+instance IsVersion v => ToByteString (VersionNumber v) where
   builder = toEncodedUrlPiece
 
 -- | Information related to the public API version.
@@ -145,7 +165,7 @@ instance ToByteString v => ToByteString ( VersionNumber v) where
 -- domain. Clients should fetch this information early when connecting to a
 -- backend, in order to decide how to form request paths, and how to deal with
 -- federated backends and qualified user IDs.
-data IsVersion v => VersionInfo v = VersionInfo
+data VersionInfo v = VersionInfo
   { vinfoSupported :: [VersionNumber v],
     vinfoDevelopment :: [VersionNumber v],
     vinfoFederation :: Bool,
@@ -153,7 +173,7 @@ data IsVersion v => VersionInfo v = VersionInfo
   }
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema (VersionInfo v))
 
-instance ToSchema v => ToSchema ( VersionInfo v) where
+instance IsVersion v => ToSchema (VersionInfo v) where
   schema =
     objectWithDocModifier "VersionInfo" (S.schema . S.example ?~ toJSON example) $
       VersionInfo
@@ -162,7 +182,7 @@ instance ToSchema v => ToSchema ( VersionInfo v) where
         <*> vinfoFederation .= field "federation" schema
         <*> vinfoDomain .= field "domain" schema
     where
-      example :: VersionInfo
+      example :: VersionInfo v
       example =
         VersionInfo
           { vinfoSupported = VersionNumber <$> supportedVersions,
@@ -177,6 +197,7 @@ type VersionAPI =
     ( "api-version"
         :> Get '[JSON] (VersionInfo Version)
     )
+
 {-
   :<|> Named
     "get-backend-version"
