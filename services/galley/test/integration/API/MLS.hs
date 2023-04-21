@@ -1394,14 +1394,14 @@ propInvalidEpoch = do
     do
       void $ uploadNewKeyPackage dee1
       void $ uploadNewKeyPackage charlie1
-      setClientGroupState alice1 gsBackup
-      void $ createAddCommit alice1 [charlie]
+      setClientGroupState alice1 gsBackup2
+      void $ createAddCommit alice1 [charlie] -- --> epoch 2
       [prop] <- createAddProposals alice1 [dee]
       err <-
         responseJsonError
           =<< postMessage alice1 (mpMessage prop)
-            <!! const 404 === statusCode
-      liftIO $ Wai.label err @?= "mls-key-package-ref-not-found"
+            <!! const 409 === statusCode
+      liftIO $ Wai.label err @?= "mls-stale-message"
       -- remove charlie from users expected to get a welcome message
       State.modify $ \mls -> mls {mlsNewMembers = mempty}
 

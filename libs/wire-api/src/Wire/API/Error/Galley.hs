@@ -72,7 +72,6 @@ data GalleyError
     MLSNotEnabled
   | MLSNonEmptyMemberList
   | MLSDuplicatePublicKey
-  | MLSKeyPackageRefNotFound
   | MLSInvalidLeafNodeIndex
   | MLSUnsupportedMessage
   | MLSProposalNotFound
@@ -200,8 +199,6 @@ type instance
 type instance MapError 'MLSNonEmptyMemberList = 'StaticError 400 "non-empty-member-list" "Attempting to add group members outside MLS"
 
 type instance MapError 'MLSDuplicatePublicKey = 'StaticError 400 "mls-duplicate-public-key" "MLS public key for the given signature scheme already exists"
-
-type instance MapError 'MLSKeyPackageRefNotFound = 'StaticError 404 "mls-key-package-ref-not-found" "A referenced key package could not be mapped to a known client"
 
 type instance MapError 'MLSInvalidLeafNodeIndex = 'StaticError 400 "mls-invalid-leaf-node-index" "A referenced leaf node index points to a blank or non-existing node"
 
