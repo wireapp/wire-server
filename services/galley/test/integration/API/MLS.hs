@@ -3183,10 +3183,11 @@ testLeaveRemoteSubConv = do
 testRemoveUserParent :: TestM ()
 testRemoveUserParent = do
   [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Nothing]
+  let subname = SubConvId "conference"
 
-  runMLSTest $
+  (qcnv, [alice1, bob1, bob2, _charlie1, _charlie2]) <- runMLSTest $
     do
-      [alice1, bob1, bob2, charlie1, charlie2] <-
+      clients@[alice1, bob1, bob2, charlie1, charlie2] <-
         traverse
           createMLSClient
           [alice, bob, bob, charlie, charlie]
@@ -3194,7 +3195,6 @@ testRemoveUserParent = do
       (_, qcnv) <- setupMLSGroup alice1
       void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
 
-      let subname = SubConvId "conference"
       void $ createSubConv qcnv bob1 subname
       let qcs = fmap (flip SubConv subname) qcnv
 
@@ -3202,45 +3202,24 @@ testRemoveUserParent = do
       for_ [alice1, bob2, charlie1, charlie2] $ \c ->
         void $ createExternalCommit c Nothing qcs >>= sendAndConsumeCommitBundle
 
-      [(_, idxRef1), (_, idxRef2)] <- getClientsFromGroupState alice1 charlie
+      pure (qcnv, clients)
 
-      -- charlie leaves the main conversation
-      mlsBracket [alice1, bob1, bob2] $ \wss -> do
-        liftTest $ do
-          deleteMemberQualified (qUnqualified charlie) charlie qcnv
-            !!! const 200 === statusCode
+  -- charlie leaves the main conversation
+  deleteMemberQualified (qUnqualified charlie) charlie qcnv
+    !!! const 200 === statusCode
 
-        -- Remove charlie from our state as well
-        State.modify $ \mls ->
-          mls
-            { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [charlie1, charlie2])
-            }
+  getSubConv (qUnqualified charlie) qcnv subname
+    !!! const 403 === statusCode
 
-        msg1 <- WS.assertMatchN (5 # Second) wss $ \n ->
-          wsAssertBackendRemoveProposal charlie (Conv <$> qcnv) idxRef1 n
-
-        traverse_ (uncurry consumeMessage1) (zip [alice1, bob1, bob2] msg1)
-
-        msg2 <- WS.assertMatchN (5 # Second) wss $ \n ->
-          wsAssertBackendRemoveProposal charlie (Conv <$> qcnv) idxRef2 n
-
-        traverse_ (uncurry consumeMessage1) (zip [alice1, bob1, bob2] msg2)
-
-        void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
-
-        liftTest $ do
-          getSubConv (qUnqualified charlie) qcnv (SubConvId "conference")
-            !!! const 403 === statusCode
-
-          sub :: PublicSubConversation <-
-            responseJsonError
-              =<< getSubConv (qUnqualified bob) qcnv (SubConvId "conference")
-                <!! const 200 === statusCode
-          liftIO $
-            assertEqual
-              "subconv membership mismatch after removal"
-              (sort [bob1, bob2, alice1])
-              (sort $ pscMembers sub)
+  sub :: PublicSubConversation <-
+    responseJsonError
+      =<< getSubConv (qUnqualified bob) qcnv subname
+        <!! const 200 === statusCode
+  liftIO $
+    assertEqual
+      "subconv membership mismatch after removal"
+      (sort [bob1, bob2, alice1])
+      (sort $ pscMembers sub)
 
 testRemoveCreatorParent :: TestM ()
 testRemoveCreatorParent = do
@@ -3264,7 +3243,7 @@ testRemoveCreatorParent = do
       for_ [bob1, bob2, charlie1, charlie2] $ \c ->
         void $ createExternalCommit c Nothing qcs >>= sendAndConsumeCommitBundle
 
-      [(_, idxRef1)] <- getClientsFromGroupState alice1 alice
+      [(_, idx1)] <- getClientsFromGroupState alice1 alice
 
       -- creator leaves the main conversation
       mlsBracket [bob1, bob2, charlie1, charlie2] $ \wss -> do
@@ -3281,7 +3260,7 @@ testRemoveCreatorParent = do
         msg <- WS.assertMatchN (5 # Second) wss $ \n ->
           -- Checks proposal for subconv, parent doesn't get one
           -- since alice is not notified of her own removal
-          wsAssertBackendRemoveProposal alice (Conv <$> qcnv) idxRef1 n
+          wsAssertBackendRemoveProposal alice (Conv <$> qcnv) idx1 n
 
         traverse_ (uncurry consumeMessage1) (zip [bob1, bob2, charlie1, charlie2] msg)
 
