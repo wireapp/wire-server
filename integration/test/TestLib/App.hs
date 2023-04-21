@@ -318,33 +318,30 @@ expectFailure checkFailure action = do
       checkFailure e
     Right x -> assertFailure "Expected AssertionFailure, but none occured"
 
--- | How to rember: the "?" is left to "=" the symbol. The "?" represents the
--- value to be tested and the "=" represents the value it should be equal to.
 shouldMatch ::
-  (Eq a, Show a, HasCallStack) =>
-  -- | The actual value
-  a ->
-  -- | The expected value
-  a ->
-  App ()
-a `shouldMatch` b = unless (a == b) $ do
-  assertFailure $ "Expected: " <> show b <> "\n" <> "Actual: " <> show a
-
--- Like 'shouldMatch' but with nicer error message when dealing with json values
-shouldMatchJson ::
   (ProducesJSON a, ProducesJSON b, HasCallStack) =>
   -- | The actual value
   a ->
   -- | The expected value
   b ->
   App ()
-a `shouldMatchJson` b = do
+a `shouldMatch` b = do
   xa <- prodJSON a
   xb <- prodJSON b
   unless (xa == xb) $ do
     pa <- prettyJSON xa
     pb <- prettyJSON xb
     assertFailure $ "Expected:\n" <> pb <> "\n" <> "Actual:\n" <> pa
+
+shouldMatchPlain ::
+  (Eq a, Show a, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The expected value
+  a ->
+  App ()
+a `shouldMatchPlain` b = unless (a == b) $ do
+  assertFailure $ "Expected: " <> show b <> "\n" <> "Actual: " <> show a
 
 printFailureDetails :: AssertionFailure -> ResultDetailsPrinter
 printFailureDetails (AssertionFailure stack mbResponse _) = ResultDetailsPrinter $ \testLevel _withFormat -> do
