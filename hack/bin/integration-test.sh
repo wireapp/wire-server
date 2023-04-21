@@ -11,9 +11,7 @@ UPLOAD_LOGS=${UPLOAD_LOGS:-0}
 echo "Running integration tests on wire-server with parallelism=${HELM_PARALLELISM} ..."
 
 CHART=wire-server
-# tests=(stern galley cargohold gundeck federator spar brig integration)
-# TODO: revert this to original + integration
-tests=(integration)
+tests=(stern galley cargohold gundeck federator spar brig integration)
 
 cleanup() {
     if (( CLEANUP_LOCAL_FILES > 0 )); then
