@@ -64,7 +64,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base      >=4.6 && <5.0
@@ -130,6 +130,7 @@ test-suite spec
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -rtsopts -with-rtsopts=-N -Wredundant-constraints
+    -Wunused-packages
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
@@ -138,8 +139,5 @@ test-suite spec
     , dns-util
     , hspec
     , imports
-    , iproute
-    , polysemy
-    , random
 
   default-language:   Haskell2010

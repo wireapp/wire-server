@@ -63,7 +63,6 @@
 , text
 , time-manager
 , tinylog
-, tls
 , transformers
 , types-common
 , unix
@@ -132,7 +131,6 @@ mkDerivation {
     text
     time-manager
     tinylog
-    tls
     transformers
     types-common
     unix
@@ -203,7 +201,6 @@ mkDerivation {
     text
     time-manager
     tinylog
-    tls
     types-common
     unix
     uri-bytestring
@@ -272,7 +269,6 @@ mkDerivation {
     text
     time-manager
     tinylog
-    tls
     transformers
     types-common
     unix

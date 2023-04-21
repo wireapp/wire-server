@@ -92,7 +92,6 @@
 , text
 , time
 , tinylog
-, tls
 , transformers
 , types-common
 , types-common-aws
@@ -252,7 +251,6 @@ mkDerivation {
     text
     time
     tinylog
-    tls
     transformers
     types-common
     types-common-aws

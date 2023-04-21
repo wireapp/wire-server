@@ -47,7 +47,6 @@
 , text
 , time
 , time-manager
-, tls
 , transformers
 , types-common
 , uuid
@@ -96,7 +95,6 @@ mkDerivation {
     text
     time
     time-manager
-    tls
     transformers
     types-common
     wai-utilities
@@ -142,7 +140,6 @@ mkDerivation {
     text
     time
     time-manager
-    tls
     transformers
     types-common
     uuid

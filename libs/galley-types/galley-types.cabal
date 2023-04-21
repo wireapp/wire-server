@@ -67,7 +67,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson                  >=2.0.1.0
@@ -76,19 +76,14 @@ library
     , bytestring-conversion
     , containers             >=0.5
     , cryptonite
-    , currency-codes         >=2.0
     , errors
-    , exceptions             >=0.10.0
     , imports
     , lens                   >=4.12
     , memory
     , QuickCheck
     , schema-profunctor
     , string-conversions
-    , swagger2
-    , tagged
     , text                   >=0.11
-    , time                   >=1.4
     , types-common           >=0.16
     , uuid
     , wire-api
@@ -150,6 +145,7 @@ test-suite galley-types-tests
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       aeson
@@ -162,7 +158,6 @@ test-suite galley-types-tests
     , tasty
     , tasty-hunit
     , tasty-quickcheck
-    , types-common
     , wire-api
 
   default-language:   Haskell2010

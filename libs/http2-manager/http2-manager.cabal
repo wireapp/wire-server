@@ -31,6 +31,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       async
@@ -53,7 +54,8 @@ test-suite http2-manager-tests
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints -threaded -with-rtsopts=-N
+    -Wredundant-constraints -Wunused-packages -threaded
+    -with-rtsopts=-N
 
   -- cabal-fmt: expand test
   other-modules:
