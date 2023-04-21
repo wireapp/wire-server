@@ -13,18 +13,18 @@ testCantDeleteLHClient :: HasCallStack => App ()
 testCantDeleteLHClient = do
   user <- randomUser def
   lhClientId <- bindResponse (API.addClient user def {API.ctype = "legalhold", API.internal = True}) $ \resp -> do
-    resp.status `shouldMatchPlain` 201
+    resp.status `shouldMatchInt` 201
     resp.json %. "id"
 
   bindResponse (API.deleteClient user Nothing lhClientId) $ \resp -> do
-    resp.status `shouldMatchPlain` 400
+    resp.status `shouldMatchInt` 400
 
 testDeleteUnknownClient :: HasCallStack => App ()
 testDeleteUnknownClient = do
   user <- randomUser def
   let fakeClientId :: String = "deadbeefdeadbeef"
   bindResponse (API.deleteClient user Nothing fakeClientId) $ \resp -> do
-    resp.status `shouldMatchPlain` 404
+    resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "client-not-found"
 
 testModifiedBrig :: HasCallStack => App ()
@@ -48,7 +48,7 @@ testModifiedGalley = do
 
   let getFeatureStatus = do
         bindResponse (API.getTeamFeatureInternal "searchVisibility" tid) $ \res -> do
-          res.status `shouldMatchPlain` 200
+          res.status `shouldMatchInt` 200
           res.json %. "status"
 
   do
@@ -125,7 +125,7 @@ testWebSockets = do
   user <- randomUser def
   withWebSocket user $ \ws -> do
     client <- bindResponse (API.addClient user def) $ \resp -> do
-      resp.status `shouldMatchPlain` 201
+      resp.status `shouldMatchInt` 201
       resp.json
     n <- awaitMatch 3 (\n -> payload n %. "type" `isEqual` "user.client-add") ws
-    payload n %. "client" %. "id" `shouldMatch` objId client
+    payload n %. "client.id.sdga" `shouldMatch` (client %. "id")

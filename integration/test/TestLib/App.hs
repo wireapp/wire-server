@@ -333,6 +333,17 @@ a `shouldMatch` b = do
     pb <- prettyJSON xb
     assertFailure $ "Expected:\n" <> pb <> "\n" <> "Actual:\n" <> pa
 
+shouldMatchInt ::
+  (ProducesJSON a, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The expected value
+  Int ->
+  App ()
+a `shouldMatchInt` b = do
+  xa <- prodJSON a
+  shouldMatch xa b
+
 liftP2 ::
   (ProducesJSON a, ProducesJSON b, HasCallStack) =>
   (Value -> Value -> c) ->
@@ -348,16 +359,6 @@ isEqual ::
   b ->
   App Bool
 isEqual = liftP2 (==)
-
-shouldMatchPlain ::
-  (Eq a, Show a, HasCallStack) =>
-  -- | The actual value
-  a ->
-  -- | The expected value
-  a ->
-  App ()
-a `shouldMatchPlain` b = unless (a == b) $ do
-  assertFailure $ "Expected: " <> show b <> "\n" <> "Actual: " <> show a
 
 printFailureDetails :: AssertionFailure -> ResultDetailsPrinter
 printFailureDetails (AssertionFailure stack mbResponse _) = ResultDetailsPrinter $ \testLevel _withFormat -> do
@@ -451,19 +452,44 @@ asBool x =
     (Bool b) -> pure b
     v -> assertFailureWithJSON x ("Bool" `typeWasExpectedButGot` v)
 
--- TODO: supported nested accesors, e.g. "user.id"
--- find non-operator name for this, "getField" is already taken by HasField
+-- | Get (nested) field of a JSON value
 (%.) :: (HasCallStack, ProducesJSON a) => a -> String -> App Value
-(%.) x k = do
-  ob <- asObject x
-  case KM.lookup (KM.fromString k) ob of
-    Nothing -> assertFailureWithJSON ob $ "Field \"" <> k <> "\" is missing from object:"
-    Just v -> pure v
+(%.) val selector = do
+  v <- prodJSON val
+  let keys = splitOn "." selector
+  case keys of
+    (k : ks) -> go k ks v
+    [] -> assertFailure "No key provided"
+  where
+    go k [] v = l k v
+    go k (k2 : ks) v = do
+      r <- l k v
+      go k2 ks r
+    l k v = do
+      ob <- asObject v
+      case KM.lookup (KM.fromString k) ob of
+        Nothing -> assertFailureWithJSON ob $ "Field \"" <> k <> "\" is missing from object:"
+        Just x -> pure x
 
+-- | Look up (possibly nested) field of a JSON value
 lookupField :: (HasCallStack, ProducesJSON a) => a -> String -> App (Maybe Value)
-lookupField x k = do
-  ob <- asObject x
-  pure $ KM.lookup (KM.fromString k) ob
+lookupField val selector = do
+  v <- prodJSON val
+  let keys = splitOn "." selector
+  case keys of
+    (k : ks) -> go k ks v
+    [] -> assertFailure "No key provided"
+  where
+    go k [] v = do
+      ob <- asObject v
+      pure (KM.lookup (KM.fromString k) ob)
+    go k (k2 : ks) v = do
+      ob <- asObject v
+      r <-
+        case KM.lookup (KM.fromString k) ob of
+          Nothing -> assertFailureWithJSON ob $ "Field \"" <> k <> "\" is missing from object:"
+          Just x -> pure x
+      go k2 ks r
 
 -- Update nested fields
 -- E.g. ob & "foo.bar.baz" %.= ("quux" :: String)
