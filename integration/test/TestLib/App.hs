@@ -333,6 +333,22 @@ a `shouldMatch` b = do
     pb <- prettyJSON xb
     assertFailure $ "Expected:\n" <> pb <> "\n" <> "Actual:\n" <> pa
 
+liftP2 ::
+  (ProducesJSON a, ProducesJSON b, HasCallStack) =>
+  (Value -> Value -> c) ->
+  a ->
+  b ->
+  App c
+liftP2 f a b = do
+  f <$> prodJSON a <*> prodJSON b
+
+isEqual ::
+  (ProducesJSON a, ProducesJSON b, HasCallStack) =>
+  a ->
+  b ->
+  App Bool
+isEqual = liftP2 (==)
+
 shouldMatchPlain ::
   (Eq a, Show a, HasCallStack) =>
   -- | The actual value

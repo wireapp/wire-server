@@ -21,31 +21,18 @@
 
 module TestLib.Cannon where
 
--- import Bilge.Request (queryItem)
 import Control.Concurrent.Async
--- import Control.Concurrent.Timeout hiding (threadDelay)
-import Control.Exception (asyncExceptionFromException, throwIO)
+import Control.Exception (throwIO)
 import Control.Monad.Catch hiding (bracket)
 import qualified Control.Monad.Catch as Catch
-import Data.Aeson (FromJSON, Value (..), decodeStrict', fromJSON)
-import qualified Data.Aeson as JSON
-import qualified Data.ByteString.Char8 as C
--- import Data.ByteString.Conversion
--- import Data.Id
--- import Data.List1
--- import Data.Timeout (Timeout, TimeoutUnit (..), (#))
-
-import Data.ByteString.Conversion (fromByteString, fromByteString', toByteString, toByteString')
+import Data.Aeson (Value (..), decodeStrict')
+import Data.ByteString.Conversion (fromByteString, toByteString')
 import Imports
-import Network.HTTP.Client
 import qualified Network.HTTP.Client as Http
-import Network.HTTP.Types.Status
 import qualified Network.WebSockets as WS
 import System.Random (randomIO)
+import System.Timeout (timeout)
 import TestLib.App
-
--- import Test.Tasty.HUnit
--- import Wire.API.Internal.Notification
 
 type Cannon = Http.Request -> Http.Request
 
@@ -104,7 +91,7 @@ connect wsConnect = do
   pure $ WebSocket nchan latch wsapp
 
 clientApp :: HasCallStack => TChan Value -> MVar () -> WS.ClientApp ()
-clientApp nchan latch conn = do
+clientApp wsChan latch conn = do
   r <- async wsRead
   w <- async wsWrite
   void $ waitEitherCancel r w
@@ -112,7 +99,7 @@ clientApp nchan latch conn = do
     wsRead = forever $ do
       bs <- WS.receiveData conn
       case decodeStrict' bs of
-        Just n -> atomically $ writeTChan nchan n
+        Just n -> atomically $ writeTChan wsChan n
         Nothing -> putStrLn $ "Failed to decode notification: " ++ show bs
     wsWrite = forever $ do
       takeMVar latch
@@ -192,274 +179,111 @@ withWebSockets twcs k = do
     go [] wss = k (reverse wss)
     go (wc : wcs) wss = withWebSocket wc (\ws -> go wcs (ws : wss))
 
--- bracket ::
---   (MonadIO m, MonadMask m) =>
---   Cannon ->
---   UserId ->
---   ConnId ->
---   (WebSocket -> m a) ->
---   m a
--- bracket can uid conn =
---   Catch.bracket (connect can uid conn) close
+awaitAnyEvent :: MonadIO m => Int -> WebSocket -> m (Maybe Value)
+awaitAnyEvent tSecs = liftIO . timeout (tSecs * 1000 * 1000) . atomically . readTChan . wsChan
 
--- bracketAsClient ::
---   (MonadMask m, MonadIO m) =>
---   Cannon ->
---   UserId ->
---   ClientId ->
---   ConnId ->
---   (WebSocket -> m a) ->
---   m a
--- bracketAsClient can uid client conn =
---   Catch.bracket (connectAsClient can uid client conn) close
+data AwaitResult = AwaitResult
+  { success :: Bool,
+    nMatchesExpected :: Int,
+    matches :: [Value],
+    nonMatches :: [Value]
+  }
 
--- bracketN ::
---   (MonadIO m, MonadMask m) =>
---   Cannon ->
---   [(UserId, ConnId)] ->
---   ([WebSocket] -> m a) ->
---   m a
--- bracketN c us f = go [] us
---   where
---     go wss [] = f (reverse wss)
---     go wss ((x, y) : xs) = bracket c x y (\ws -> go (ws : wss) xs)
+prettyAwaitResult :: AwaitResult -> App String
+prettyAwaitResult r = do
+  matchesS <- for r.matches prettyJSON
+  nonMatchesS <- for r.nonMatches prettyJSON
+  pure $
+    "AwaitResult\n"
+      <> indent
+        4
+        ( unlines
+            [ "success:\n" <> show (r.success),
+              "matches:\n" <> unlines matchesS,
+              "non-matches:\n" <> unlines nonMatchesS
+            ]
+        )
 
--- bracketAsClientN ::
---   (MonadMask m, MonadIO m) =>
---   Cannon ->
---   [(UserId, ClientId, ConnId)] ->
---   ([WebSocket] -> m a) ->
---   m a
--- bracketAsClientN c us f = go [] us
---   where
---     go wss [] = f (reverse wss)
---     go wss ((x, y, z) : xs) = bracketAsClient c x y z (\ws -> go (ws : wss) xs)
+printAwaitResult :: AwaitResult -> App ()
+printAwaitResult = prettyAwaitResult >=> putStrLn
 
--- Random Connection IDs
+-- | 'await' an expected number of notification events on the websocket that
+-- satisfy the provided predicate. If there isn't any new event (matching or
+-- non-matching) for a 'tSecs' seconds then AwaitResult is a failure. This
+-- funciton will never terminate if there is a constant stream of events
+-- received. When this functions retruns it will push any non-matching
+-- events back to the websocket.
+awaitNMatchesResult ::
+  HasCallStack =>
+  -- | Number of matches
+  Int ->
+  -- | Timeout in seconds
+  Int ->
+  -- | Selection function. Exceptions are *not* caught.
+  (Value -> App Bool) ->
+  WebSocket ->
+  App AwaitResult
+awaitNMatchesResult nExpected tSecs checkMatch ws = go nExpected [] []
+  where
+    go 0 nonMatches matches = do
+      refill nonMatches
+      pure $
+        AwaitResult
+          { success = True,
+            nMatchesExpected = nExpected,
+            matches = reverse matches,
+            nonMatches = reverse nonMatches
+          }
+    go nLeft nonMatches matches = do
+      mEvent <- awaitAnyEvent tSecs ws
+      case mEvent of
+        Just event ->
+          do
+            isMatch <- checkMatch event
+            if isMatch
+              then go (nLeft - 1) nonMatches (event : matches)
+              else go nLeft (event : nonMatches) matches
+        Nothing -> do
+          refill nonMatches
+          pure $
+            AwaitResult
+              { success = False,
+                nMatchesExpected = nExpected,
+                matches = reverse matches,
+                nonMatches = reverse nonMatches
+              }
+    refill = mapM_ (liftIO . atomically . writeTChan (wsChan ws))
 
--- connectR :: MonadIO m => Cannon -> UserId -> m WebSocket
--- connectR can uid = randomConnId >>= connect can uid
+awaitNMatches ::
+  HasCallStack =>
+  -- | Number of matches
+  Int ->
+  -- | Timeout in seconds
+  Int ->
+  -- | Selection function. Should not throw any exceptions
+  (Value -> App Bool) ->
+  WebSocket ->
+  App [Value]
+awaitNMatches nExpected tSecs checkMatch ws = do
+  res <- awaitNMatchesResult nExpected tSecs checkMatch ws
+  if res.success
+    then pure res.matches
+    else do
+      let msgHeader = "Expected " <> show nExpected <> " matching events, but got " <> show (length res.matches) <> "."
+      details <- ("Details:\n" <>) <$> prettyAwaitResult res
+      assertFailure $ unlines [msgHeader, details]
 
--- connectAsClientR :: MonadIO m => Cannon -> UserId -> ClientId -> m WebSocket
--- connectAsClientR can uid clientId = randomConnId >>= connectAsClient can uid clientId
+awaitMatch ::
+  HasCallStack =>
+  -- | Timeout in seconds
+  Int ->
+  -- | Selection function. Should not throw any exceptions
+  (Value -> App Bool) ->
+  WebSocket ->
+  App Value
+awaitMatch tSecs checkMatch ws = head <$> awaitNMatches 1 tSecs checkMatch ws
 
--- bracketR :: (MonadIO m, MonadMask m) => Cannon -> UserId -> (WebSocket -> m a) -> m a
--- bracketR can usr f = do
---   cid <- randomConnId
---   bracket can usr cid f
-
--- bracketAsClientR :: (MonadIO m, MonadMask m) => Cannon -> UserId -> ClientId -> (WebSocket -> m a) -> m a
--- bracketAsClientR can usr clientId f = do
---   connId <- randomConnId
---   bracketAsClient can usr clientId connId f
-
--- bracketR2 ::
---   (MonadIO m, MonadMask m) =>
---   Cannon ->
---   UserId ->
---   UserId ->
---   ((WebSocket, WebSocket) -> m a) ->
---   m a
--- bracketR2 c u1 u2 f =
---   bracketR c u1 $ \c1 ->
---     bracketR c u2 $ \c2 ->
---       f (c1, c2)
-
--- bracketR3 ::
---   (MonadIO m, MonadMask m) =>
---   Cannon ->
---   UserId ->
---   UserId ->
---   UserId ->
---   ((WebSocket, WebSocket, WebSocket) -> m a) ->
---   m a
--- bracketR3 c u1 u2 u3 f =
---   bracketR c u1 $ \c1 ->
---     bracketR c u2 $ \c2 ->
---       bracketR c u3 $ \c3 ->
---         f (c1, c2, c3)
-
--- bracketRN ::
---   (MonadIO m, MonadMask m) =>
---   Cannon ->
---   [UserId] ->
---   ([WebSocket] -> m a) ->
---   m a
--- bracketRN c us f = go [] us
---   where
---     go wss [] = f (reverse wss)
---     go wss (x : xs) = bracketR c x (\ws -> go (ws : wss) xs)
-
--- bracketAsClientRN ::
---   (MonadIO m, MonadMask m) =>
---   Cannon ->
---   [(UserId, ClientId)] ->
---   ([WebSocket] -> m a) ->
---   m a
--- bracketAsClientRN can us f = go [] us
---   where
---     go wss [] = f (reverse wss)
---     go wss ((u, c) : xs) = bracketAsClientR can u c (\ws -> go (ws : wss) xs)
-
------------------------------------------------------------------------------
--- Awaiting & Asserting on Notifications
-
--- newtype MatchFailure = MatchFailure SomeException
---   deriving (Typeable)
-
--- instance Exception MatchFailure
-
--- instance Show MatchFailure where
---   show (MatchFailure ex) = case fromException ex of
---     Just (HUnitFailure _src msg) -> msg
---     Nothing -> show ex
-
--- newtype MatchTimeout = MatchTimeout
---   { timeoutFailures :: [MatchFailure]
---   }
---   deriving (Typeable)
-
--- instance Exception MatchTimeout
-
--- instance Show MatchTimeout where
---   showsPrec _ (MatchTimeout mfs) =
---     showString "Timeout: No matching notification received.\n"
---       . showFailures mfs
---     where
---       showFailures [] = id
---       showFailures (e : es) =
---         showString "Match failure: "
---           . shows e
---           . showString "\n"
---           . showFailures es
-
--- newtype RegistrationTimeout = RegistrationTimeout Int
---   deriving (Typeable)
-
--- instance Exception RegistrationTimeout
-
--- instance Show RegistrationTimeout where
---   show (RegistrationTimeout s) =
---     "Failed to find a registration after " ++ show s ++ " retries.\n"
-
--- await :: MonadIO m => Timeout -> WebSocket -> m (Maybe Notification)
--- await t = liftIO . timeout t . atomically . readTChan . wsChan
-
--- -- | 'await' a 'Notification' on the 'WebSocket'.  If it satisfies the 'Assertion', return it.
--- -- Otherwise, collect the 'Notification' and the exception thrown by the 'Assertion', and keep
--- -- 'await'ing.  If 'await' times out or a satisfactory notification is available, fill all
--- -- unsatisfactory notifications back to the web socket.
--- --
--- -- NB: (1) if 'await' receives irrelevant 'Notification's frequently enough, this function will
--- -- never terminate.  The 'Timeout' argument is just passed through to 'await'.  (2) If an
--- -- asynchronous exception is thrown, this drops all collected 'Notification's and exceptions, and
--- -- re-throws.  This may be surprising if you run 'awaitMatch' inside a 'timeout' guard, and want to
--- -- resume testing other things once the timeout triggers.
--- awaitMatch ::
---   (HasCallStack, MonadIO m, MonadCatch m) =>
---   Timeout ->
---   WebSocket ->
---   (Notification -> IO a) ->
---   m (Either MatchTimeout a)
--- awaitMatch t ws match = go [] []
---   where
---     go buf errs = do
---       mn <- await t ws
---       case mn of
---         Just n ->
---           do
---             a <- liftIO (match n)
---             refill buf
---             pure (Right a)
---             `catchAll` \e -> case asyncExceptionFromException e of
---               Just x -> throwM (x :: SomeAsyncException)
---               Nothing ->
---                 let e' = MatchFailure e
---                  in go (n : buf) (e' : errs)
---         Nothing -> do
---           refill buf
---           pure (Left (MatchTimeout errs))
---     refill = mapM_ (liftIO . atomically . writeTChan (wsChan ws))
-
--- awaitMatch_ ::
---   (HasCallStack, MonadIO m, MonadCatch m) =>
---   Timeout ->
---   WebSocket ->
---   (Notification -> Assertion) ->
---   m ()
--- awaitMatch_ t w = void . awaitMatch t w
-
--- assertMatch ::
---   (HasCallStack, MonadIO m, MonadCatch m) =>
---   Timeout ->
---   WebSocket ->
---   (Notification -> IO a) ->
---   m a
--- assertMatch t ws f = awaitMatch t ws f >>= assertSuccess
-
--- assertMatch_ ::
---   (HasCallStack, MonadIO m, MonadCatch m) =>
---   Timeout ->
---   WebSocket ->
---   (Notification -> IO a) ->
---   m ()
--- assertMatch_ t w = void . assertMatch t w
-
--- awaitMatchN ::
---   (HasCallStack, MonadIO m) =>
---   Timeout ->
---   [WebSocket] ->
---   (Notification -> IO a) ->
---   m [Either MatchTimeout a]
--- awaitMatchN t wss f = snd <$$> awaitMatchN' t (((),) <$> wss) f
-
--- awaitMatchN' ::
---   (HasCallStack, MonadIO m) =>
---   Timeout ->
---   [(extra, WebSocket)] ->
---   (Notification -> IO a) ->
---   m [(extra, Either MatchTimeout a)]
--- awaitMatchN' t wss f = liftIO $ mapConcurrently (\(extra, ws) -> (extra,) <$> awaitMatch t ws f) wss
-
--- assertMatchN ::
---   (HasCallStack, MonadIO m, MonadThrow m) =>
---   Timeout ->
---   [WebSocket] ->
---   (Notification -> IO a) ->
---   m [a]
--- assertMatchN t wss f = awaitMatchN t wss f >>= mapM assertSuccess
-
--- assertMatchN_ ::
---   (HasCallStack, MonadIO m, MonadThrow m) =>
---   Timeout ->
---   [WebSocket] ->
---   (Notification -> IO a) ->
---   m ()
--- assertMatchN_ t wss f = void $ assertMatchN t wss f
-
--- assertSuccess :: (HasCallStack, MonadIO m, MonadThrow m) => Either MatchTimeout a -> m a
--- assertSuccess = either throwM pure
-
--- assertNoEvent :: (HasCallStack, MonadIO m) => Timeout -> [WebSocket] -> m ()
--- assertNoEvent t ww = do
---   results <- awaitMatchN' t (zip [(0 :: Int) ..] ww) pure
---   for_ results $ \(ix, result) ->
---     either (const $ pure ()) (liftIO . f ix) result
---   where
---     f ix n = assertFailure $ "unexpected notification received: " ++ show (ix, n)
-
--- -----------------------------------------------------------------------------
--- -- Unpacking Notifications
-
--- unpackPayload :: FromJSON a => Notification -> List1 a
--- unpackPayload = fmap decodeEvent . ntfPayload
---   where
---     decodeEvent o = case fromJSON (Object o) of
---       JSON.Success x -> x
---       JSON.Error e -> error e
-
------------------------------------------------------------------------------
--- Randomness
-
------------------------------------------------------------------------------
--- Internals
+payload :: ProducesJSON a => a -> App Value
+payload event = do
+  payloads <- event %. "payload" & asList
+  assertOne payloads
