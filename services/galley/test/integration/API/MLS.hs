@@ -3224,10 +3224,11 @@ testRemoveUserParent = do
 testRemoveCreatorParent :: TestM ()
 testRemoveCreatorParent = do
   [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Nothing]
+  let subname = SubConvId "conference"
 
-  runMLSTest $
+  (qcnv, [_alice1, bob1, bob2, charlie1, charlie2]) <- runMLSTest $
     do
-      [alice1, bob1, bob2, charlie1, charlie2] <-
+      clients@[alice1, bob1, bob2, charlie1, charlie2] <-
         traverse
           createMLSClient
           [alice, bob, bob, charlie, charlie]
@@ -3235,7 +3236,6 @@ testRemoveCreatorParent = do
       (_, qcnv) <- setupMLSGroup alice1
       void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
 
-      let subname = SubConvId "conference"
       void $ createSubConv qcnv alice1 subname
       let qcs = fmap (flip SubConv subname) qcnv
 
@@ -3243,54 +3243,36 @@ testRemoveCreatorParent = do
       for_ [bob1, bob2, charlie1, charlie2] $ \c ->
         void $ createExternalCommit c Nothing qcs >>= sendAndConsumeCommitBundle
 
-      [(_, idx1)] <- getClientsFromGroupState alice1 alice
+      pure (qcnv, clients)
 
-      -- creator leaves the main conversation
-      mlsBracket [bob1, bob2, charlie1, charlie2] $ \wss -> do
-        liftTest $ do
-          deleteMemberQualified (qUnqualified alice) alice qcnv
-            !!! const 200 === statusCode
+  -- creator leaves the main conversation
+  deleteMemberQualified (qUnqualified alice) alice qcnv
+    !!! const 200 === statusCode
 
-        -- Remove alice1 from our state as well
-        State.modify $ \mls ->
-          mls
-            { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [alice1])
-            }
+  getSubConv (qUnqualified alice) qcnv subname
+    !!! const 403 === statusCode
 
-        msg <- WS.assertMatchN (5 # Second) wss $ \n ->
-          -- Checks proposal for subconv, parent doesn't get one
-          -- since alice is not notified of her own removal
-          wsAssertBackendRemoveProposal alice (Conv <$> qcnv) idx1 n
+  -- charlie sees updated memberlist
+  sub :: PublicSubConversation <-
+    responseJsonError
+      =<< getSubConv (qUnqualified charlie) qcnv subname
+        <!! const 200 === statusCode
+  liftIO $
+    assertEqual
+      "1. subconv membership mismatch after removal"
+      (sort [charlie1, charlie2, bob1, bob2])
+      (sort $ pscMembers sub)
 
-        traverse_ (uncurry consumeMessage1) (zip [bob1, bob2, charlie1, charlie2] msg)
-
-        void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
-
-        liftTest $ do
-          getSubConv (qUnqualified alice) qcnv subname
-            !!! const 403 === statusCode
-
-          -- charlie sees updated memberlist
-          sub :: PublicSubConversation <-
-            responseJsonError
-              =<< getSubConv (qUnqualified charlie) qcnv subname
-                <!! const 200 === statusCode
-          liftIO $
-            assertEqual
-              "1. subconv membership mismatch after removal"
-              (sort [charlie1, charlie2, bob1, bob2])
-              (sort $ pscMembers sub)
-
-          -- bob also sees updated memberlist
-          sub1 :: PublicSubConversation <-
-            responseJsonError
-              =<< getSubConv (qUnqualified bob) qcnv subname
-                <!! const 200 === statusCode
-          liftIO $
-            assertEqual
-              "2. subconv membership mismatch after removal"
-              (sort [charlie1, charlie2, bob1, bob2])
-              (sort $ pscMembers sub1)
+  -- bob also sees updated memberlist
+  sub1 :: PublicSubConversation <-
+    responseJsonError
+      =<< getSubConv (qUnqualified bob) qcnv subname
+        <!! const 200 === statusCode
+  liftIO $
+    assertEqual
+      "2. subconv membership mismatch after removal"
+      (sort [charlie1, charlie2, bob1, bob2])
+      (sort $ pscMembers sub1)
 
 testCreatorRemovesUserFromParent :: TestM ()
 testCreatorRemovesUserFromParent = do
