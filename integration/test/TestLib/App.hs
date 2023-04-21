@@ -634,7 +634,7 @@ onFailureAddResponse r m = App $ do
   liftIO $ E.catch (runAppWithEnv e m) $ \(AssertionFailure stack _ msg) -> do
     E.throw (AssertionFailure stack (Just r) msg)
 
-printResponse :: Response -> IO ()
+printResponse :: MonadIO m => Response -> m ()
 printResponse = putStrLn . prettyReponse
 
 prettyReponse :: Response -> String
