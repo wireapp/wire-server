@@ -29,6 +29,9 @@ import Imports
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.User.Search
 
+maxKnownNodes :: Int
+maxKnownNodes = 10000
+
 getFederationRemotes :: forall m. MonadClient m => m [FederationDomainConfig]
 getFederationRemotes = uncurry FederationDomainConfig <$$> qry
   where
@@ -36,10 +39,12 @@ getFederationRemotes = uncurry FederationDomainConfig <$$> qry
     qry = retry x1 . query get $ params LocalQuorum ()
 
     get :: PrepQuery R () (Domain, FederatedUserSearchPolicy)
-    get = "SELECT domain, search_policy FROM federation_remotes"
+    get = fromString $ "SELECT domain, search_policy FROM federation_remotes LIMIT " <> show maxKnownNodes
 
 addFederationRemote :: MonadClient m => FederationDomainConfig -> m ()
-addFederationRemote (FederationDomainConfig rdom searchpolicy) =
+addFederationRemote (FederationDomainConfig rdom searchpolicy) = do
+  l <- length <$> getFederationRemotes
+  when (l >= maxKnownNodes) $ error "TODO: make this error better"
   retry x5 $ write add (params LocalQuorum (rdom, searchpolicy))
   where
     add :: PrepQuery W (Domain, FederatedUserSearchPolicy) ()
