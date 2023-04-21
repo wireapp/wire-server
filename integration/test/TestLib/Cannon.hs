@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -19,14 +18,27 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module TestLib.Cannon where
+module TestLib.Cannon
+  ( WebSocket (..),
+    WSConnect (..),
+    ToWSConnect (..),
+    withWebSocket,
+    withWebSockets,
+    awaitNMatchesResult,
+    awaitNMatches,
+    awaitMatch,
+    nPayload,
+    printAwaitResult,
+  )
+where
 
 import Control.Concurrent.Async
 import Control.Exception (throwIO)
 import Control.Monad.Catch hiding (bracket)
 import qualified Control.Monad.Catch as Catch
 import Data.Aeson (Value (..), decodeStrict')
-import Data.ByteString.Conversion (fromByteString, toByteString')
+import Data.ByteString.Conversion (fromByteString)
+import Data.ByteString.Conversion.To
 import Imports
 import qualified Network.HTTP.Client as Http
 import qualified Network.WebSockets as WS
@@ -112,7 +124,6 @@ run wsConnect app = do
                  Nothing -> ""
                  Just client -> fromJust . fromByteString $ Http.queryString (Http.setQueryString [("client", Just (toByteString' client))] Http.defaultRequest)
              )
-
       caHdrs =
         [ ("Z-User", toByteString' (wsConnect.user)),
           ("Z-Connection", toByteString' connId)
@@ -272,7 +283,7 @@ awaitMatch ::
   App Value
 awaitMatch tSecs checkMatch ws = head <$> awaitNMatches 1 tSecs checkMatch ws
 
-payload :: ProducesJSON a => a -> App Value
-payload event = do
+nPayload :: ProducesJSON a => a -> App Value
+nPayload event = do
   payloads <- event %. "payload" & asList
   assertOne payloads
