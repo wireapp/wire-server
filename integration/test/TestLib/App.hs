@@ -320,16 +320,6 @@ expectFailure checkFailure action = do
 
 -- | How to rember: the "?" is left to "=" the symbol. The "?" represents the
 -- value to be tested and the "=" represents the value it should be equal to.
-(@?=) ::
-  (Eq a, Show a, HasCallStack) =>
-  -- | The actual value
-  a ->
-  -- | The expected value
-  a ->
-  App ()
-a @?= b = unless (a == b) $ do
-  assertFailure $ "Expected: " <> show b <> "\n" <> "Actual: " <> show a
-
 shouldMatch ::
   (Eq a, Show a, HasCallStack) =>
   -- | The actual value
@@ -337,24 +327,10 @@ shouldMatch ::
   -- | The expected value
   a ->
   App ()
-shouldMatch = (@?=)
+a `shouldMatch` b = unless (a == b) $ do
+  assertFailure $ "Expected: " <> show b <> "\n" <> "Actual: " <> show a
 
--- Like (@?=) but with nicer error message when dealing with json values
-(@%?=) ::
-  (ProducesJSON a, ProducesJSON b, HasCallStack) =>
-  -- | The actual value
-  a ->
-  -- | The expected value
-  b ->
-  App ()
-a @%?= b = do
-  xa <- prodJSON a
-  xb <- prodJSON b
-  unless (xa == xb) $ do
-    pa <- prettyJSON xa
-    pb <- prettyJSON xb
-    assertFailure $ "Expected:\n" <> pb <> "\n" <> "Actual:\n" <> pa
-
+-- Like 'shouldMatch' but with nicer error message when dealing with json values
 shouldMatchJson ::
   (ProducesJSON a, ProducesJSON b, HasCallStack) =>
   -- | The actual value
@@ -362,7 +338,13 @@ shouldMatchJson ::
   -- | The expected value
   b ->
   App ()
-shouldMatchJson = (@%?=)
+a `shouldMatchJson` b = do
+  xa <- prodJSON a
+  xb <- prodJSON b
+  unless (xa == xb) $ do
+    pa <- prettyJSON xa
+    pb <- prettyJSON xb
+    assertFailure $ "Expected:\n" <> pb <> "\n" <> "Actual:\n" <> pa
 
 printFailureDetails :: AssertionFailure -> ResultDetailsPrinter
 printFailureDetails (AssertionFailure stack mbResponse _) = ResultDetailsPrinter $ \testLevel _withFormat -> do
@@ -456,6 +438,8 @@ asBool x =
     (Bool b) -> pure b
     v -> assertFailureWithJSON x ("Bool" `typeWasExpectedButGot` v)
 
+-- TODO: supported nested accesors, e.g. "user.id"
+-- find non-operator name for this, "getField" is already taken by HasField
 (%.) :: (HasCallStack, ProducesJSON a) => a -> String -> App Value
 (%.) x k = do
   ob <- asObject x
@@ -463,28 +447,13 @@ asBool x =
     Nothing -> assertFailureWithJSON ob $ "Field \"" <> k <> "\" is missing from object:"
     Just v -> pure v
 
-getField :: (HasCallStack, ProducesJSON a) => a -> String -> App Value
-getField = (%.)
-
-(%.?) :: (HasCallStack, ProducesJSON a) => a -> String -> App (Maybe Value)
-(%.?) x k = do
+lookupField :: (HasCallStack, ProducesJSON a) => a -> String -> App (Maybe Value)
+lookupField x k = do
   ob <- asObject x
   pure $ KM.lookup (KM.fromString k) ob
 
 -- Update nested fields
 -- E.g. ob & "foo.bar.baz" %.= ("quux" :: String)
-(%.=) ::
-  forall a b.
-  (HasCallStack, ProducesJSON a, ToJSON b) =>
-  -- | Selector, e.g. "id", "user.team.id"
-  String ->
-  -- | The value that should insert or replace the value at the selctor
-  b ->
-  a ->
-  App Value
-(%.=) selector v x = do
-  (%.~) @a @Value selector (\_ -> pure (toJSON v)) x
-
 setField ::
   forall a b.
   (HasCallStack, ProducesJSON a, ToJSON b) =>
@@ -494,11 +463,12 @@ setField ::
   b ->
   a ->
   App Value
-setField = (%.=)
+setField selector v x = do
+  modifyField @a @Value selector (\_ -> pure (toJSON v)) x
 
 -- Update nested fields, using the old value with a stateful action
-(%.~) :: (HasCallStack, ProducesJSON a, ToJSON b) => String -> (Maybe Value -> App b) -> a -> App Value
-(%.~) selector up x = do
+modifyField :: (HasCallStack, ProducesJSON a, ToJSON b) => String -> (Maybe Value -> App b) -> a -> App Value
+modifyField selector up x = do
   v <- prodJSON x
   let keys = splitOn "." selector
   case keys of
@@ -515,9 +485,6 @@ setField = (%.=)
       newValue <- go k2 ks val
       ob <- asObject v
       pure $ Object $ KM.insert (KM.fromString k) newValue ob
-
-modifyField :: (HasCallStack, ProducesJSON a, ToJSON b) => String -> (Maybe Value -> App b) -> a -> App Value
-modifyField = (%.~)
 
 assertFailureWithJSON :: HasCallStack => ProducesJSON a => a -> String -> App b
 assertFailureWithJSON v msg = do
@@ -562,14 +529,14 @@ objQid ob = do
     Just v -> pure v
   where
     select x = runMaybeT $ do
-      vdom <- MaybeT $ x %.? "domain"
+      vdom <- MaybeT $ lookupField x "domain"
       dom <- MaybeT $ asStringM vdom
-      vid <- MaybeT $ x %.? "id"
+      vid <- MaybeT $ lookupField x "id"
       id_ <- MaybeT $ asStringM vid
       pure $ (dom, id_)
 
     inField = do
-      m <- ob %.? "qualified_id"
+      m <- lookupField ob "qualified_id"
       case m of
         Nothing -> pure Nothing
         Just x -> select x
@@ -774,11 +741,13 @@ withModifiedServices services k = do
         foldlM
           ( \c (srv, (port, _)) ->
               c
-                & serviceName srv
-                %.= object
-                  [ "host" .= ("127.0.0.1" :: String),
-                    "port" .= port
-                  ]
+                & setField
+                  (serviceName srv)
+                  ( object
+                      [ "host" .= ("127.0.0.1" :: String),
+                        "port" .= port
+                      ]
+                  )
           )
           config
           (Map.assocs ports)

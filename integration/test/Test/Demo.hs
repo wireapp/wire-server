@@ -6,6 +6,7 @@ module Test.Demo where
 import qualified API
 import Data.ByteString.Conversion
 import Imports
+import TestLib.Cannon (withWebSocket)
 import TestLib.Prelude
 
 -- | Cannot delete a legalhold client
@@ -13,8 +14,8 @@ testCantDeleteLHClient :: HasCallStack => App ()
 testCantDeleteLHClient = do
   user <- randomUser def
   lhClientId <- bindResponse (API.addClient user def {API.ctype = "legalhold", API.internal = True}) $ \resp -> do
-    resp.status @?= 201
-    resp.json `getField` "id" & asString
+    resp.status `shouldMatch` 201
+    resp.json %. "id" & asString
 
   bindResponse (API.deleteClient user Nothing lhClientId) $ \resp -> do
     resp.status `shouldMatch` 400
@@ -24,8 +25,8 @@ testDeleteUnknownClient = do
   user <- randomUser def
   let fakeClientId :: String = "deadbeefdeadbeef"
   bindResponse (API.deleteClient user Nothing fakeClientId) $ \resp -> do
-    resp.status @?= 403
-    resp.json %. "label" @%?= ("client-not-found" :: String)
+    resp.status `shouldMatch` 403
+    resp.json %. "label" `shouldMatchJson` "client-not-found"
 
 testModifiedBrig :: HasCallStack => App ()
 testModifiedBrig = do
@@ -48,7 +49,7 @@ testModifiedGalley = do
 
   let getFeatureStatus = do
         bindResponse (API.getTeamFeatureInternal "searchVisibility" tid) $ \res -> do
-          res.status @?= 200
+          res.status `shouldMatch` 200
           res.json %. "status"
 
   do
@@ -87,7 +88,7 @@ testJSONUpdate = do
        }
   |]
 
-  (before & "foo.bar" %.= ("baaz" :: String)) @%?= expected
+  (before & setField "foo.bar" "baaz") `shouldMatchJson` expected
 
   -- test case: when last field doesn't exist
 
@@ -102,7 +103,7 @@ testJSONUpdate = do
        }
   |]
 
-  (before & "foo.quux" %.= (3 :: Int)) @%?= expected2
+  (before & setField "foo.quux" (3 :: Int)) `shouldMatchJson` expected2
 
 testJSONUpdateFailure :: HasCallStack => App ()
 testJSONUpdateFailure = do
@@ -117,5 +118,12 @@ testJSONUpdateFailure = do
   |]
 
   expectFailure
-    (\e -> take 23 e.msg @?= "Field \"quux\" is missing")
-    (before & "foo.quux.zok" %.= ("eke" :: String))
+    (\e -> take 23 e.msg `shouldMatch` "Field \"quux\" is missing")
+    (before & setField "foo.quux.zok" "eke")
+
+testWebSockets :: HasCallStack => App ()
+testWebSockets = do
+  user <- randomUser def
+  withWebSocket user $ \ws -> do
+    putStrLn "meh"
+  pure ()
