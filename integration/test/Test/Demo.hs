@@ -1,13 +1,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 
--- | This module is meant to show how the integration can be used
+-- | This module is meant to show how TestLib can be used
 module Test.Demo where
 
 import qualified API
 import Imports
 import TestLib.Prelude
 
--- | Cannot delete a legalhold client
 testCantDeleteLHClient :: HasCallStack => App ()
 testCantDeleteLHClient = do
   user <- randomUser def
@@ -68,5 +67,5 @@ testWebSockets = do
     client <- bindResponse (API.addClient user def) $ \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json
-    n <- awaitMatch 3 (\n -> payload n %. "type" `isEqual` "user.client-add") ws
-    payload n %. "client.id" `shouldMatch` (client %. "id")
+    n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "user.client-add") ws
+    nPayload n %. "client.id" `shouldMatch` (client %. "id")
