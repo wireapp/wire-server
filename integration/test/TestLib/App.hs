@@ -312,7 +312,7 @@ assertOne xs = assertFailure ("Expected one, but got " <> show (length xs))
 
 expectFailure :: HasCallStack => (AssertionFailure -> App ()) -> App a -> App ()
 expectFailure checkFailure action = do
-  env <- App $ ask
+  env <- ask
   res :: Either AssertionFailure x <-
     liftIO
       (E.try (runAppWithEnv env action))
@@ -377,7 +377,7 @@ prettyStack cs =
 
 modifyFailure :: (AssertionFailure -> AssertionFailure) -> App a -> App a
 modifyFailure modifyAssertion action = do
-  env <- App $ ask
+  env <- ask
   liftIO
     ( E.catch
         (runAppWithEnv env action)
@@ -865,7 +865,7 @@ withModifiedServices services k = do
           }
 
   let waitForAllServices = do
-        env <- App ask
+        env <- ask
         liftIO $
           mapConcurrently_
             (\srv -> runReaderT (unApp (waitUntilServiceUp srv)) env)
@@ -894,7 +894,7 @@ waitUntilServiceUp srv = do
       (\_ isUp -> pure (not isUp))
       ( \_ -> do
           req <- baseRequest srv Unversioned "/i/status"
-          env <- App ask
+          env <- ask
           eith <-
             liftIO $
               E.try
