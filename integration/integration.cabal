@@ -104,6 +104,7 @@ library
     , http-client
     , http-types
     , imports
+    , mtl
     , network
     , network-uri
     , process
