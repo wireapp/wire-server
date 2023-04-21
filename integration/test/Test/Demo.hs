@@ -6,7 +6,6 @@ module Test.Demo where
 import qualified API
 import Data.ByteString.Conversion
 import Imports
-import TestLib.Cannon (withWebSocket)
 import TestLib.Prelude
 
 -- | Cannot delete a legalhold client
@@ -15,7 +14,7 @@ testCantDeleteLHClient = do
   user <- randomUser def
   lhClientId <- bindResponse (API.addClient user def {API.ctype = "legalhold", API.internal = True}) $ \resp -> do
     resp.status `shouldMatchPlain` 201
-    resp.json %. "id" & asString
+    resp.json %. "id"
 
   bindResponse (API.deleteClient user Nothing lhClientId) $ \resp -> do
     resp.status `shouldMatchPlain` 400
@@ -124,6 +123,9 @@ testJSONUpdateFailure = do
 testWebSockets :: HasCallStack => App ()
 testWebSockets = do
   user <- randomUser def
-  withWebSocket user $ \_ws -> do
-    putStrLn "got websocket"
-  pure ()
+  withWebSocket user $ \ws -> do
+    client <- bindResponse (API.addClient user def) $ \resp -> do
+      resp.status `shouldMatchPlain` 201
+      resp.json
+    n <- awaitMatch 3 (\n -> payload n %. "type" `isEqual` "user.client-add") ws
+    payload n %. "client" %. "id" `shouldMatch` objId client
