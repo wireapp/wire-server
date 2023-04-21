@@ -19,31 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module TestLib.Cannon
-  ( Cannon,
-
-    -- * WebSockets
-    WebSocket,
-    connect,
-    -- connectAsClient,
-    close,
-    bracket,
-    -- bracketAsClient,
-    -- bracketN,
-    -- bracketAsClientN,
-
-    -- ** Random Connection IDs
-
-    -- connectR,
-    -- connectAsClientR,
-    -- bracketR,
-    -- bracketAsClientR,
-    -- bracketR2,
-    -- bracketR3,
-    -- bracketRN,
-    -- bracketAsClientRN
-  )
-where
+module TestLib.Cannon where
 
 -- import Bilge.Request (queryItem)
 import Control.Concurrent.Async
@@ -88,20 +64,46 @@ data WebSocket = WebSocket
 -- connectAsClient :: MonadIO m => Cannon -> UserId -> ClientId -> ConnId -> m WebSocket
 -- connectAsClient can uid client = connectAsMaybeClient can uid (Just client)
 
+-- Specifies how a websocket should be opned
 data WSConnect = WSConnect
   { user :: String,
     client :: Maybe String,
+    -- | If this is Nothing then a random Z-Connection will be used
     conn :: Maybe String
   }
 
-connect :: WSConnect -> App WebSocket
+class ToWSConnect a where
+  toWSConnect :: a -> App WSConnect
+
+instance {-# OVERLAPPING #-} ToWSConnect WSConnect where
+  toWSConnect = pure
+
+instance {-# OVERLAPPABLE #-} (ProducesJSON user) => ToWSConnect user where
+  toWSConnect u = do
+    uid <- objId u & asString
+    pure (WSConnect uid Nothing Nothing)
+
+instance (ProducesJSON user, ProducesJSON conn) => ToWSConnect (user, conn) where
+  toWSConnect (u, c) = do
+    uid <- objId u & asString
+    conn <- prodJSON c & asString
+    pure (WSConnect uid Nothing (Just conn))
+
+instance (ProducesJSON user, ProducesJSON conn, ProducesJSON client) => ToWSConnect (user, conn, client) where
+  toWSConnect (u, c, cl) = do
+    uid <- objId u & asString
+    client <- prodJSON cl & asString
+    conn <- prodJSON c & asString
+    pure (WSConnect uid (Just client) (Just conn))
+
+connect :: HasCallStack => WSConnect -> App WebSocket
 connect wsConnect = do
   nchan <- newTChanIO
   latch <- newEmptyMVar
   wsapp <- run wsConnect (clientApp nchan latch)
   pure $ WebSocket nchan latch wsapp
 
-clientApp :: TChan Value -> MVar () -> WS.ClientApp ()
+clientApp :: HasCallStack => TChan Value -> MVar () -> WS.ClientApp ()
 clientApp nchan latch conn = do
   r <- async wsRead
   w <- async wsWrite
@@ -118,7 +120,7 @@ clientApp nchan latch conn = do
 
 -- | Start a client thread in 'Async' that opens a web socket to a Cannon, wait
 --   for the connection to register with Gundeck, and return the 'Async' thread.
-run :: WSConnect -> WS.ClientApp () -> App (Async ())
+run :: HasCallStack => WSConnect -> WS.ClientApp () -> App (Async ())
 run wsConnect app = do
   ctx <- getContext
   let HostPort caHost caPort = serviceHostPort ctx.serviceMap Cannon
@@ -154,10 +156,11 @@ run wsConnect app = do
           )
           `onException` tryPutMVar latch ()
 
-  let waitForRegistry (0 :: Int) = failApp "Cannon: failed to register presence"
+  let waitForRegistry :: HasCallStack => Int -> App ()
+      waitForRegistry (0 :: Int) = failApp "Cannon: failed to register presence"
       waitForRegistry n = do
         request <- baseRequest Cannon Unversioned ("/i/presences/" <> wsConnect.user <> "/" <> connId)
-        response <- submit "GET" request
+        response <- submit "HEAD" request
         unless (status response == 200) $ do
           threadDelay $ 100 * 1000
           waitForRegistry (n - 1)
@@ -175,8 +178,19 @@ close ws = liftIO $ do
   putMVar (wsCloseLatch ws) ()
   void $ waitCatch (wsAppThread ws)
 
-bracket :: WSConnect -> (WebSocket -> App a) -> App a
-bracket wsConnect = Catch.bracket (connect wsConnect) close
+withWebSocket :: HasCallStack => ToWSConnect w => w -> (WebSocket -> App a) -> App a
+withWebSocket w k = do
+  wsConnect <- toWSConnect w
+  Catch.bracket (connect wsConnect) close k
+
+withWebSockets :: forall a w. (HasCallStack, (ToWSConnect w)) => [w] -> ([WebSocket] -> App a) -> App a
+withWebSockets twcs k = do
+  wcs <- for twcs toWSConnect
+  go wcs []
+  where
+    go :: HasCallStack => [WSConnect] -> [WebSocket] -> App a
+    go [] wss = k (reverse wss)
+    go (wc : wcs) wss = withWebSocket wc (\ws -> go wcs (ws : wss))
 
 -- bracket ::
 --   (MonadIO m, MonadMask m) =>

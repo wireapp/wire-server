@@ -124,6 +124,6 @@ testJSONUpdateFailure = do
 testWebSockets :: HasCallStack => App ()
 testWebSockets = do
   user <- randomUser def
-  withWebSocket user $ \ws -> do
-    putStrLn "meh"
+  withWebSocket user $ \_ws -> do
+    putStrLn "got websocket"
   pure ()
