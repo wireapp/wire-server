@@ -790,7 +790,6 @@ notifyConversationAction _failEarly tag quid notifyOrigDomain con lconv targets 
                 <> toFailedToProcess (qualifiedFails failedUpdates)
         pure (update, totalFailedToProcess)
 
-  -- traceM $ "In notifyConversationAction: faileEarly = " <> show failEarly
   (update, failedToProcess) <- errorTolerant
 
   -- notify local participants and bots
