@@ -34,24 +34,13 @@ import System.Random (randomIO)
 import System.Timeout (timeout)
 import TestLib.App
 
-type Cannon = Http.Request -> Http.Request
-
------------------------------------------------------------------------------
--- WebSockets
-
 data WebSocket = WebSocket
   { wsChan :: TChan Value,
     wsCloseLatch :: MVar (),
     wsAppThread :: Async ()
   }
 
--- connect :: MonadIO m => Cannon -> UserId -> ConnId -> m WebSocket
--- connect can uid = connectAsMaybeClient can uid Nothing
-
--- connectAsClient :: MonadIO m => Cannon -> UserId -> ClientId -> ConnId -> m WebSocket
--- connectAsClient can uid client = connectAsMaybeClient can uid (Just client)
-
--- Specifies how a websocket should be opned
+-- Specifies how a Websocket at cannon should be opened
 data WSConnect = WSConnect
   { user :: String,
     client :: Maybe String,
@@ -179,9 +168,6 @@ withWebSockets twcs k = do
     go [] wss = k (reverse wss)
     go (wc : wcs) wss = withWebSocket wc (\ws -> go wcs (ws : wss))
 
-awaitAnyEvent :: MonadIO m => Int -> WebSocket -> m (Maybe Value)
-awaitAnyEvent tSecs = liftIO . timeout (tSecs * 1000 * 1000) . atomically . readTChan . wsChan
-
 data AwaitResult = AwaitResult
   { success :: Bool,
     nMatchesExpected :: Int,
@@ -206,6 +192,9 @@ prettyAwaitResult r = do
 
 printAwaitResult :: AwaitResult -> App ()
 printAwaitResult = prettyAwaitResult >=> putStrLn
+
+awaitAnyEvent :: MonadIO m => Int -> WebSocket -> m (Maybe Value)
+awaitAnyEvent tSecs = liftIO . timeout (tSecs * 1000 * 1000) . atomically . readTChan . wsChan
 
 -- | 'await' an expected number of notification events on the websocket that
 -- satisfy the provided predicate. If there isn't any new event (matching or
