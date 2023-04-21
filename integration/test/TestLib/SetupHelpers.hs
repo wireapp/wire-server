@@ -8,7 +8,7 @@ import TestLib.App
 
 randomUser :: API.CreateUser -> App Value
 randomUser cu = bindResponse (API.createUser cu) $ \resp -> do
-  resp.status `shouldMatch` 201
+  resp.status `shouldMatchPlain` 201
   resp.json
 
 -- | returns (user, team id)

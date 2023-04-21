@@ -14,19 +14,19 @@ testCantDeleteLHClient :: HasCallStack => App ()
 testCantDeleteLHClient = do
   user <- randomUser def
   lhClientId <- bindResponse (API.addClient user def {API.ctype = "legalhold", API.internal = True}) $ \resp -> do
-    resp.status `shouldMatch` 201
+    resp.status `shouldMatchPlain` 201
     resp.json %. "id" & asString
 
   bindResponse (API.deleteClient user Nothing lhClientId) $ \resp -> do
-    resp.status `shouldMatch` 400
+    resp.status `shouldMatchPlain` 400
 
 testDeleteUnknownClient :: HasCallStack => App ()
 testDeleteUnknownClient = do
   user <- randomUser def
   let fakeClientId :: String = "deadbeefdeadbeef"
   bindResponse (API.deleteClient user Nothing fakeClientId) $ \resp -> do
-    resp.status `shouldMatch` 403
-    resp.json %. "label" `shouldMatchJson` "client-not-found"
+    resp.status `shouldMatchPlain` 403
+    resp.json %. "label" `shouldMatch` "client-not-found"
 
 testModifiedBrig :: HasCallStack => App ()
 testModifiedBrig = do
@@ -35,7 +35,7 @@ testModifiedBrig = do
     (setField "optSettings.setFederationDomain" "overridden.example.com")
     $ bindResponse getAPIVersion
     $ ( \resp ->
-          (resp.json %. "domain") `shouldMatchJson` "overridden.example.com"
+          (resp.json %. "domain") `shouldMatch` "overridden.example.com"
       )
   where
     getAPIVersion :: App Response
@@ -49,19 +49,19 @@ testModifiedGalley = do
 
   let getFeatureStatus = do
         bindResponse (API.getTeamFeatureInternal "searchVisibility" tid) $ \res -> do
-          res.status `shouldMatch` 200
+          res.status `shouldMatchPlain` 200
           res.json %. "status"
 
   do
     status <- getFeatureStatus
-    status `shouldMatchJson` "disabled"
+    status `shouldMatch` "disabled"
 
   withModifiedService
     Galley
     (setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
     $ do
       status <- getFeatureStatus
-      status `shouldMatchJson` "enabled"
+      status `shouldMatch` "enabled"
 
 jsonValue :: HasCallStack => String -> Value
 jsonValue = fromJust . decode . toByteString
@@ -88,7 +88,7 @@ testJSONUpdate = do
        }
   |]
 
-  (before & setField "foo.bar" "baaz") `shouldMatchJson` expected
+  (before & setField "foo.bar" "baaz") `shouldMatch` expected
 
   -- test case: when last field doesn't exist
 
@@ -103,7 +103,7 @@ testJSONUpdate = do
        }
   |]
 
-  (before & setField "foo.quux" (3 :: Int)) `shouldMatchJson` expected2
+  (before & setField "foo.quux" (3 :: Int)) `shouldMatch` expected2
 
 testJSONUpdateFailure :: HasCallStack => App ()
 testJSONUpdateFailure = do
