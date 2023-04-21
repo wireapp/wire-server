@@ -41,7 +41,7 @@ import Wire.Arbitrary
 data Proposal
   = AddProposal (RawMLS KeyPackage)
   | UpdateProposal (RawMLS LeafNode)
-  | RemoveProposal Word32
+  | RemoveProposal LeafIndex
   | PreSharedKeyProposal (RawMLS PreSharedKeyID)
   | ReInitProposal (RawMLS ReInit)
   | ExternalInitProposal ByteString

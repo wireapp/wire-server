@@ -77,6 +77,7 @@ import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -913,7 +914,7 @@ mlsBracket clients k = do
   c <- view tsCannon
   WS.bracketAsClientRN c (map (ciUser &&& ciClient) clients) k
 
-readGroupState :: ByteString -> [(ClientIdentity, Word32)]
+readGroupState :: ByteString -> [(ClientIdentity, LeafIndex)]
 readGroupState j = do
   (node, n) <- zip (j ^.. key "group" . key "public_group" . key "treesync" . key "tree" . key "leaf_nodes" . _Array . traverse . key "node") [0 ..]
   case node ^? key "leaf_node" of
@@ -929,7 +930,7 @@ readGroupState j = do
 getClientsFromGroupState ::
   ClientIdentity ->
   Qualified UserId ->
-  MLSTest [(ClientIdentity, Word32)]
+  MLSTest [(ClientIdentity, LeafIndex)]
 getClientsFromGroupState cid u = do
   groupState <- readGroupState <$> getClientGroupState cid
   pure $ filter (\(cid', _) -> cidQualifiedUser cid' == u) groupState
