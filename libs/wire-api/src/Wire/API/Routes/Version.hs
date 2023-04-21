@@ -141,8 +141,50 @@ newtype VersionNumber v = VersionNumber {fromVersionNumber :: v}
   deriving (Eq, Ord, Show)
   deriving newtype (Bounded, Enum)
   deriving (FromJSON, ToJSON) via (Schema (VersionNumber v))
-  deriving (Arbitrary) via (GenericUniform (VersionNumber v))
 
+--  deriving (Arbitrary) via (GenericUniform v)
+
+-- Can't derive this because of v's class context.
+instance (Generic v, IsVersion v) => Generic (VersionNumber v) where
+  type Rep (VersionNumber v) = Rep v
+  from (VersionNumber v) = from v -- (T x) = from (x, undefined)
+  to r = VersionNumber (to r) -- rep = T (fst (to rep))
+
+{-
+  instance GHC.Generics.Generic Wire.API.Routes.Version.Version where
+    GHC.Generics.from x_aGix
+      = GHC.Generics.M1
+          (case x_aGix of
+             Wire.API.Routes.Version.V0
+               -> GHC.Generics.L1
+                    (GHC.Generics.L1 (GHC.Generics.M1 GHC.Generics.U1))
+             Wire.API.Routes.Version.V1
+               -> GHC.Generics.L1
+                    (GHC.Generics.R1 (GHC.Generics.M1 GHC.Generics.U1))
+             Wire.API.Routes.Version.V2
+               -> GHC.Generics.R1
+                    (GHC.Generics.L1 (GHC.Generics.M1 GHC.Generics.U1))
+             Wire.API.Routes.Version.V3
+               -> GHC.Generics.R1
+                    (GHC.Generics.R1
+                       (GHC.Generics.L1 (GHC.Generics.M1 GHC.Generics.U1)))
+             Wire.API.Routes.Version.V4
+               -> GHC.Generics.R1
+                    (GHC.Generics.R1
+                       (GHC.Generics.R1 (GHC.Generics.M1 GHC.Generics.U1))))
+    GHC.Generics.to (GHC.Generics.M1 x_aGiy)
+      = case x_aGiy of
+          (GHC.Generics.L1 (GHC.Generics.L1 (GHC.Generics.M1 GHC.Generics.U1)))
+            -> Wire.API.Routes.Version.V0
+          (GHC.Generics.L1 (GHC.Generics.R1 (GHC.Generics.M1 GHC.Generics.U1)))
+            -> Wire.API.Routes.Version.V1
+          (GHC.Generics.R1 (GHC.Generics.L1 (GHC.Generics.M1 GHC.Generics.U1)))
+            -> Wire.API.Routes.Version.V2
+          (GHC.Generics.R1 (GHC.Generics.R1 (GHC.Generics.L1 (GHC.Generics.M1 GHC.Generics.U1))))
+            -> Wire.API.Routes.Version.V3
+          (GHC.Generics.R1 (GHC.Generics.R1 (GHC.Generics.R1 (GHC.Generics.M1 GHC.Generics.U1))))
+            -> Wire.API.Routes.Version.V4
+-}
 
 instance IsVersion v => ToSchema (VersionNumber v) where
   schema =
