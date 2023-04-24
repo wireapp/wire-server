@@ -139,10 +139,10 @@ notifyUserDeleted ::
   (MonadReader Env m, MonadIO m) =>
   Local UserId ->
   Remote (Range 1 1000 [UserId]) ->
-  m ()
+  ExceptT FederationError m ()
 notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
-  qChan <- readIORef =<< view rabbitMQChannel
+  qChan <- readIORef =<< maybe (throwE FederationNotConfigured) pure =<< view rabbitMqChannel
   let notif = OnUserDeletedConnections $ UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
   liftIO $ enqueue qChan (tDomain remotes) notif Q.Persistent
 

@@ -61,7 +61,7 @@ module Brig.App
     emailSender,
     randomPrekeyLocalLock,
     keyPackageLocalLock,
-    rabbitMQChannel,
+    rabbitMqChannel,
     fsWatcher,
 
     -- * App Monad
@@ -195,7 +195,7 @@ data Env = Env
     _indexEnv :: IndexEnv,
     _randomPrekeyLocalLock :: Maybe (MVar ()),
     _keyPackageLocalLock :: MVar (),
-    _rabbitMQChannel :: IORef Q.Channel
+    _rabbitMqChannel :: Maybe (IORef Q.Channel)
   }
 
 makeLenses ''Env
@@ -248,7 +248,7 @@ newEnv o = do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
-  rabbitChan <- newIORef =<< mkRabbitMqChannel o
+  rabbitChan <- traverse newIORef =<< mkRabbitMqChannel o
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -285,7 +285,7 @@ newEnv o = do
         _indexEnv = mkIndexEnv o lgr mgr mtr (Opt.galley o),
         _randomPrekeyLocalLock = prekeyLocalLock,
         _keyPackageLocalLock = kpLock,
-        _rabbitMQChannel = rabbitChan
+        _rabbitMqChannel = rabbitChan
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)
@@ -301,15 +301,16 @@ newEnv o = do
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
 
-mkRabbitMqChannel :: Opts -> IO Q.Channel
-mkRabbitMqChannel (Opt.rabbitMQ -> Opt.RabbitMQOpts {..}) = do
+mkRabbitMqChannel :: Opts -> IO (Maybe Q.Channel)
+mkRabbitMqChannel (Opt.rabbitMq -> Nothing) = pure Nothing
+mkRabbitMqChannel (Opt.rabbitMq -> Just Opt.RabbitMqOpts {..}) = do
   username <- Text.pack <$> getEnv "RABBITMQ_USERNAME"
   password <- Text.pack <$> getEnv "RABBITMQ_PASSWORD"
   conn <- Q.openConnection' host (fromIntegral port) vHost username password
   -- TODO: Q.addConnectionClosedHandler
   -- TODO: Q.addConnectionBlockedHandler (Probably not required: https://www.rabbitmq.com/connection-blocked.html)
   -- TODO: Q.addChannelExceptionHandler
-  Q.openChannel conn
+  Just <$> Q.openChannel conn
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
 mkIndexEnv o lgr mgr mtr galleyEndpoint =
