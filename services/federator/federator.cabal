@@ -102,7 +102,6 @@ library
 
   build-depends:
       aeson
-    , amqp
     , async
     , base
     , bilge
@@ -139,6 +138,7 @@ library
     , polysemy-wire-zoo
     , retry
     , servant
+    , servant-client
     , servant-client-core
     , stm
     , streaming-commons

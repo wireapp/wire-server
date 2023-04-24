@@ -52,8 +52,12 @@ import qualified System.Logger.Extended as LogExt
 import Util.Options
 import Wire.API.Federation.Component
 import qualified Wire.Network.DNS.Helper as DNS
-import Network.AMQP (openConnection, closeChannel, closeConnection, openChannel, consumeMsgs, Ack (Ack), Envelope, Message (msgBody), ackEnv)
-import Data.MessageQueue
+import qualified Wire.API.Routes.Internal.Brig as IAPI
+import Servant.Client
+import Wire.API.Routes.FederationDomainConfig
+import Network.HTTP.Client
+import Data.Text
+import Wire.API.Routes.Named
 
 ------------------------------------------------------------------------------
 -- run/app
@@ -64,27 +68,31 @@ run opts = do
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
   DNS.withCachingResolver resolvConf $ \res ->
     bracket (newEnv opts res) closeEnv $ \env -> do
-      let MessageQueueSettings {mqHost, mqVHost, mqUser, mqPass, mqQueue} = mqSettings opts
-      bracket (openConnection mqHost mqVHost mqUser mqPass) closeConnection $ \amqpConn -> do
-        bracket (openChannel amqpConn) closeChannel $ \amqpChan -> do
-          -- Build a new TVar holding the state we want for the initial environment.
-          tEnv <- newTVarIO env
-          let
-              callback :: (Message, Envelope) -> IO ()
-              callback (message, envelope) = do
-                -- TODO: parse out the message body and update the tEnv
-                strat <- undefined $ msgBody message
-                atomically $ modifyTVar tEnv (Federator.Env.runSettings %~ \s -> s { federationStrategy = strat })
-                ackEnv envelope
-          -- We need a watcher/listener for updating this TVar to flow values through to the handlers.
-          let externalServer = serveInward tEnv portExternal
-              internalServer = serveOutward tEnv portInternal
-          withMonitor (env ^. applog) (onNewSSLContext env) (optSettings opts) $ do
-            envUpdateThread <- async . void $ consumeMsgs amqpChan mqQueue Ack callback
-            internalServerThread <- async internalServer
-            externalServerThread <- async externalServer
-            void $ waitAnyCancel [envUpdateThread, internalServerThread, externalServerThread]
+      -- Build a new TVar holding the state we want for the initial environment.
+      -- This needs to contact Brig before accepting other requests
+      manager <- newManager defaultManagerSettings
+      let Endpoint host port = brig opts
+          baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
+          clientEnv = ClientEnv manager baseUrl Nothing defaultMakeClientRequest
+      -- Explode if things went sideways. TODO make better
+      fedStrat <- either (error . show) pure =<< runClientM getFedRemotes clientEnv
+      tEnv <- newTVarIO $ updateFedStrat fedStrat env
+      let
+          callback :: FederationDomainConfigs -> IO ()
+          callback strat = do
+            atomically $ modifyTVar tEnv $ updateFedStrat strat
+      -- We need a watcher/listener for updating this TVar to flow values through to the handlers.
+      let externalServer = serveInward tEnv portExternal
+          internalServer = serveOutward tEnv portInternal
+      withMonitor (env ^. applog) (onNewSSLContext env) (optSettings opts) $ do
+        envUpdateThread <- async $ updateDomains clientEnv callback
+        internalServerThread <- async internalServer
+        externalServerThread <- async externalServer
+        void $ waitAnyCancel [envUpdateThread, internalServerThread, externalServerThread]
   where
+    updateFedStrat :: FederationDomainConfigs -> Env -> Env
+    updateFedStrat fedDomConfigs = Federator.Env.runSettings %~ \s -> s { federationStrategy = AllowList $ AllowedDomains $ domain <$> fromFederationDomainConfigs fedDomConfigs }
+
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort
 
@@ -99,6 +107,19 @@ run opts = do
         (Just host, Just port) ->
           conf {DNS.resolvInfo = DNS.RCHostPort host (fromIntegral port)}
         (_, _) -> conf
+
+    getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
+
+    updateDomains :: ClientEnv -> (FederationDomainConfigs -> IO ()) -> IO ()
+    updateDomains clientEnv update = forever $ do
+      strat <- runClientM getFedRemotes clientEnv
+      either
+        print
+        update
+        strat
+      threadDelay $ domainUpdateInterval opts
+        
+        
 
 -------------------------------------------------------------------------------
 -- Environment

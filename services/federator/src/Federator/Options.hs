@@ -25,7 +25,6 @@ import Data.Domain (Domain ())
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
-import Data.MessageQueue
 
 newtype AllowedDomains = AllowedDomains {allowedDomains :: [Domain]}
   deriving (Eq, Show, Generic)
@@ -94,8 +93,8 @@ data Opts = Opts
     logFormat :: !(Maybe (Last LogFormat)),
     -- | Runtime settings
     optSettings :: !RunSettings,
-    -- | Message Queue settings
-    mqSettings :: !MessageQueueSettings
+    -- | Domain update interval (microseconds)
+    domainUpdateInterval :: Int
   }
   deriving (Show, Generic)
 
