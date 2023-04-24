@@ -8,17 +8,20 @@ import Imports
 import qualified Network.AMQP as Q
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
+import Util.Options
 import Wire.BackendNotificationPusher.Options
 
 data Env = Env
   { http2Manager :: Http2Manager,
-    rabbitMqConnection :: Q.Channel
+    rabbitMqChannel :: IORef Q.Channel,
+    federatorInternal :: Endpoint
   }
 
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
   http2Manager <- initHttp2Manager
-  rabbitMqConnection <- initRabbitMq opts.rabbitMq
+  rabbitMqChannel <- newIORef =<< initRabbitMq opts.rabbitMq
+  let federatorInternal = opts.federatorInternal
   pure Env {..}
 
 initHttp2Manager = do

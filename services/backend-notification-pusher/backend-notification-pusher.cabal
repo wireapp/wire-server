@@ -79,7 +79,9 @@ executable backend-notification-pusher
   main-is:            Main.hs
   build-depends:
       backend-notification-pusher
+    , HsOpenSSL
     , imports
+    , types-common
 
   hs-source-dirs:     exec
   default-language:   Haskell2010

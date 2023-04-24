@@ -1,0 +1,11 @@
+federatorInternal:
+  host: 127.0.0.1
+  port: 8097
+
+rabbitMq:
+  host: 127.0.0.1
+  port: 5672
+  vHost: /
+
+remoteDomains:
+  - b.example.com

@@ -8,7 +8,7 @@ import Util.Options
 data Opts = Opts
   { federatorInternal :: !Endpoint,
     rabbitMq :: !RabbitMqOpts,
-    remoteBackends :: [Domain]
+    remoteDomains :: [Domain]
   }
   deriving (Show, Generic)
 
