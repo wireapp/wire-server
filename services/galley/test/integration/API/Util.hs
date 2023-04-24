@@ -2948,7 +2948,7 @@ wsAssertAddProposal fromUser convId n = do
   let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' @Message bs
   liftIO $ case msg.content of
     MessagePublic pmsg -> do
-      pmsg.content.value.sender @?= SenderExternal 0
+      pmsg.content.value.sender @?= SenderNewMemberProposal
       case pmsg.content.value.content of
         FramedContentProposal prop -> case prop.value of
           AddProposal _ -> pure ()

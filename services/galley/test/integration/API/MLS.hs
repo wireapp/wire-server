@@ -1009,7 +1009,7 @@ testExternalCommitNewClientResendBackendProposal = do
     forM_ [bob1, bob2] uploadNewKeyPackage
     (_, qcnv) <- setupMLSGroup alice1
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-    Just (_, kpBob2) <- find (\(ci, _) -> ci == bob2) <$> getClientsFromGroupState alice1 bob
+    Just (_, bobIdx2) <- find (\(ci, _) -> ci == bob2) <$> getClientsFromGroupState alice1 bob
 
     mlsBracket [alice1, bob1] $ \[wsA, wsB] -> do
       liftTest $
@@ -1024,7 +1024,7 @@ testExternalCommitNewClientResendBackendProposal = do
           }
 
       WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $
-        wsAssertBackendRemoveProposalWithEpoch bob qcnv kpBob2 (Epoch 1)
+        wsAssertBackendRemoveProposalWithEpoch bob qcnv bobIdx2 (Epoch 1)
 
       [bob3, bob4] <- for [bob, bob] $ \qusr' -> do
         ci <- createMLSClient qusr'
@@ -1035,6 +1035,7 @@ testExternalCommitNewClientResendBackendProposal = do
       void $
         createExternalAddProposal bob3
           >>= sendAndConsumeMessage
+
       WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $
         void . wsAssertAddProposal bob qcnv
 
@@ -1042,6 +1043,7 @@ testExternalCommitNewClientResendBackendProposal = do
       ecEvents <- sendAndConsumeCommitBundle mp
       liftIO $
         assertBool "No events after external commit expected" (null ecEvents)
+
       WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $
         wsAssertMLSMessage (fmap Conv qcnv) bob (mpMessage mp)
 
@@ -1049,7 +1051,7 @@ testExternalCommitNewClientResendBackendProposal = do
       -- proposal for bob3 has to replayed by the client and is thus not found
       -- here.
       WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $
-        wsAssertBackendRemoveProposalWithEpoch bob qcnv kpBob2 (Epoch 2)
+        wsAssertBackendRemoveProposalWithEpoch bob qcnv bobIdx2 (Epoch 2)
       WS.assertNoEvent (2 # WS.Second) [wsA, wsB]
 
 testAppMessage :: TestM ()
