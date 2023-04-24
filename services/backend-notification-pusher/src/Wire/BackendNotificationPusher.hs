@@ -36,6 +36,7 @@ pushNotification env targetDomain (msg, envelope) = do
                   }
           liftIO (sendNotification fcEnv notif.content)
             >>= either throwIO pure
+          Q.ackEnv envelope
         _ -> undefined
 
 run :: Opts -> IO ()
