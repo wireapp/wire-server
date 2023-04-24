@@ -395,7 +395,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
   storeGroupInfo (idForConvOrSub . tUnqualified $ lConvOrSub) bundle.groupInfo
 
   let cm = membersConvOrSub (tUnqualified lConvOrSub)
-  unreachables <- propagateMessage qusr lConvOrSub conn bundle.commit.raw cm
+  unreachables <- propagateMessage qusr lConvOrSub conn bundle.rawMessage cm
   traverse_ (sendWelcomes lConvOrSub conn newClients) bundle.welcome
   pure (events, unreachables)
 
@@ -527,7 +527,7 @@ postMLSMessageToLocalConv qusr c con msg convOrSubId = do
     IncomingMessageContentPrivate -> pure mempty
 
   let cm = membersConvOrSub (tUnqualified lConvOrSub)
-  unreachables <- propagateMessage qusr lConvOrSub con msg.rawMessage.raw cm
+  unreachables <- propagateMessage qusr lConvOrSub con msg.rawMessage cm
   pure (events, unreachables)
 
 postMLSMessageToRemoteConv ::
@@ -964,11 +964,14 @@ checkExternalProposalSignature ::
   IncomingPublicMessageContent ->
   RawMLS Proposal ->
   Sem r ()
-checkExternalProposalSignature msg prop = case value prop of
+checkExternalProposalSignature _msg prop = case value prop of
   AddProposal kp -> do
-    let pubkey = kp.value.leafNode.signatureKey
-        ctx = error "TODO: get group context"
-    unless (verifyMessageSignature ctx msg.framedContent msg.authData pubkey) $ throwS @'MLSUnsupportedProposal
+    let _pubkey = kp.value.leafNode.signatureKey
+        _ctx = error "TODO: get group context"
+    -- TODO
+    unless True $
+      -- unless (verifyMessageSignature ctx msg.framedContent msg.authData pubkey) $
+      throwS @'MLSUnsupportedProposal
   _ -> pure () -- FUTUREWORK: check signature of other proposals as well
 
 -- check owner/subject of the key package exists and belongs to the user

@@ -89,15 +89,14 @@ createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
                 (cnvmlsGroupId meta)
                 (cnvmlsEpoch meta)
                 (FramedContentProposal proposal)
-            msg = mkMessage (MessagePublic pmsg)
-            msgEncoded = encodeMLS' msg
+            msg = mkRawMLS (mkMessage (MessagePublic pmsg))
         storeProposal
           (cnvmlsGroupId meta)
           (cnvmlsEpoch meta)
           (publicMessageRef (cnvmlsCipherSuite meta) pmsg)
           ProposalOriginBackend
           proposal
-        propagateMessage qusr lConvOrSubConv Nothing msgEncoded cm
+        propagateMessage qusr lConvOrSubConv Nothing msg cm
 
 removeClientsWithClientMapRecursively ::
   ( Members

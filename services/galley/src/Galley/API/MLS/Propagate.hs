@@ -44,6 +44,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.Message
+import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
 
@@ -58,10 +59,10 @@ propagateMessage ::
   Qualified UserId ->
   Local ConvOrSubConv ->
   Maybe ConnId ->
-  ByteString ->
+  RawMLS Message ->
   ClientMap ->
   Sem r UnreachableUsers
-propagateMessage qusr lConvOrSub con raw cm = do
+propagateMessage qusr lConvOrSub con msg cm = do
   now <- input @UTCTime
   let mlsConv = convOfConvOrSub <$> lConvOrSub
       lmems = mcLocalMembers . tUnqualified $ mlsConv
@@ -77,7 +78,7 @@ propagateMessage qusr lConvOrSub con raw cm = do
           SubConv c s -> (mcId c, Just (scSubConvId s))
       qcnv = fst <$> qt
       sconv = snd (qUnqualified qt)
-      e = Event qcnv sconv qusr now $ EdMLSMessage raw
+      e = Event qcnv sconv qusr now $ EdMLSMessage msg.raw
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
       mkPush u c = newMessagePush mlsConv botMap con mm (u, c) e
   runMessagePush mlsConv (Just qcnv) $
@@ -95,7 +96,7 @@ propagateMessage qusr lConvOrSub con raw cm = do
             rmmMetadata = mm,
             rmmConversation = qUnqualified qcnv,
             rmmRecipients = rs >>= remoteMemberMLSClients,
-            rmmMessage = Base64ByteString raw
+            rmmMessage = Base64ByteString msg.raw
           }
   where
     localMemberMLSClients :: Local x -> LocalMember -> [(UserId, ClientId)]
