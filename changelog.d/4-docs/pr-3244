@@ -1,0 +1,2 @@
+Change the default for `acmeDiscoveryUrl` to null
+Add description of `acmeDiscoveryUrl`
