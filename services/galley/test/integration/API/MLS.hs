@@ -1164,12 +1164,11 @@ testAppMessage2 = do
 
 testAppMessageSomeReachable :: TestM ()
 testAppMessageSomeReachable = do
+  let bobDomain = Domain "bob.example.com"
+      charlieDomain = Domain "charlie.example.com"
   users@[_alice, bob, charlie] <-
-    createAndConnectUsers
-      [ Nothing,
-        Just "bob.example.com",
-        Just "charlie.example.com"
-      ]
+    createAndConnectUsers $
+      domainText <$$> [Nothing, Just bobDomain, Just charlieDomain]
 
   void $ runMLSTest $ do
     [alice1, bob1, charlie1] <-
@@ -1178,15 +1177,20 @@ testAppMessageSomeReachable = do
     void $ setupMLSGroup alice1
     commit <- createAddCommit alice1 [bob, charlie]
 
-    let mocks =
+    let commitMocks =
           receiveCommitMockByDomain [bob1, charlie1]
             <|> welcomeMock
-    ([event], _) <-
-      withTempMockFederator' mocks $ do
-        sendAndConsumeCommit commit
+    (([event], ftpCommit), _) <-
+      withTempMockFederator' commitMocks $ do
+        sendAndConsumeCommitFederated commit
+    liftIO $ ftpCommit @?= mempty
 
     let unreachables = Set.singleton (Domain "charlie.example.com")
-    withTempMockFederator' (mlsMockUnreachableFor unreachables) $ do
+    let sendMocks =
+          messageSentMockByDomain [bobDomain]
+            <|> mlsMockUnreachableFor unreachables
+
+    withTempMockFederator' sendMocks $ do
       message <- createApplicationMessage alice1 "hi, bob!"
       (_, ftp) <- sendAndConsumeMessage message
       liftIO $ do
