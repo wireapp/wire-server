@@ -47,6 +47,7 @@ import Polysemy.Input
 import qualified UnliftIO
 import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.Conversation.Role
+import Wire.API.MLS.Credential
 import Wire.API.MLS.Group
 import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.Provider.Service
@@ -350,14 +351,14 @@ addMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
     addPrepQuery Cql.addMLSClient (groupId, domain, usr, c, fromIntegral idx)
 
 -- TODO Could (and should) we use batch instead?
-planMLSClientRemoval :: GroupId -> Qualified UserId -> Set.Set ClientId -> Client ()
-planMLSClientRemoval groupId (Qualified usr domain) cs = for_ cs $ \c -> do
+planMLSClientRemoval :: Foldable f => GroupId -> f ClientIdentity -> Client ()
+planMLSClientRemoval groupId cids = for_ cids $ \cid -> do
   retry x5 $
     trans
       Cql.planMLSClientRemoval
       ( params
           LocalQuorum
-          (groupId, domain, usr, c)
+          (groupId, ciDomain cid, ciUser cid, ciClient cid)
       )
 
 removeMLSClients :: GroupId -> Qualified UserId -> Set.Set ClientId -> Client ()
@@ -396,7 +397,7 @@ interpretMemberStoreToCassandra = interpret $ \case
     embedClient $
       removeLocalMembersFromRemoteConv rcnv uids
   AddMLSClients lcnv quid cs -> embedClient $ addMLSClients lcnv quid cs
-  PlanClientRemoval lcnv quid cs -> embedClient $ planMLSClientRemoval lcnv quid cs
+  PlanClientRemoval lcnv cids -> embedClient $ planMLSClientRemoval lcnv cids
   RemoveMLSClients lcnv quid cs -> embedClient $ removeMLSClients lcnv quid cs
   RemoveAllMLSClients gid -> embedClient $ removeAllMLSClients gid
   LookupMLSClients lcnv -> embedClient $ lookupMLSClients lcnv

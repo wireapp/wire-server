@@ -22,6 +22,7 @@ module Galley.API.MLS.Removal
   )
 where
 
+import Data.Bifunctor
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
@@ -111,31 +112,35 @@ removeClientsWithClientMapRecursively ::
          Input Env
        ]
       r,
+    Functor f,
     Foldable f
   ) =>
   Local MLSConversation ->
-  (ConvOrSubConv -> f LeafIndex) ->
+  (ConvOrSubConv -> f (ClientIdentity, LeafIndex)) ->
+  -- | Originating user. The resulting proposals will appear to be sent by this user.
   Qualified UserId ->
   Sem r ()
-removeClientsWithClientMapRecursively lMlsConv getIndices qusr = do
+removeClientsWithClientMapRecursively lMlsConv getClients qusr = do
   let mainConv = fmap Conv lMlsConv
       cm = mcMembers (tUnqualified lMlsConv)
-      cs = foldMap Map.keysSet $ Map.lookup qusr cm
-      gid = cnvmlsGroupId . mcMLSData . tUnqualified $ lMlsConv
+  do
+    let gid = cnvmlsGroupId . mcMLSData . tUnqualified $ lMlsConv
+        clients = getClients (tUnqualified mainConv)
 
-  planClientRemoval gid qusr cs
-  createAndSendRemoveProposals mainConv (getIndices (tUnqualified mainConv)) qusr cm
+    planClientRemoval gid (fmap fst clients)
+    createAndSendRemoveProposals mainConv (fmap snd clients) qusr cm
 
   -- remove this client from all subconversations
   subs <- listSubConversations' (mcId (tUnqualified lMlsConv))
   for_ subs $ \sub -> do
     let subConv = fmap (flip SubConv sub) lMlsConv
         sgid = cnvmlsGroupId . scMLSData $ sub
+        clients = getClients (tUnqualified subConv)
 
-    planClientRemoval sgid qusr cs
+    planClientRemoval sgid (fmap fst clients)
     createAndSendRemoveProposals
       subConv
-      (getIndices (tUnqualified subConv))
+      (fmap snd clients)
       qusr
       cm
 
@@ -155,11 +160,12 @@ removeClient ::
   Qualified UserId ->
   ClientId ->
   Sem r ()
-removeClient lc qusr cid = do
+removeClient lc qusr c = do
   mMlsConv <- mkMLSConversation (tUnqualified lc)
   for_ mMlsConv $ \mlsConv -> do
-    let getIndices = cmLookupIndex (mkClientIdentity qusr cid) . membersConvOrSub
-    removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getIndices qusr
+    let cid = mkClientIdentity qusr c
+    let getClients = fmap (cid,) . cmLookupIndex cid . membersConvOrSub
+    removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getClients qusr
 
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::
@@ -179,8 +185,13 @@ removeUser ::
 removeUser lc qusr = do
   mMlsConv <- mkMLSConversation (tUnqualified lc)
   for_ mMlsConv $ \mlsConv -> do
-    let getKPs = Map.findWithDefault mempty qusr . membersConvOrSub
-    removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getKPs qusr
+    let getClients :: ConvOrSubConv -> [(ClientIdentity, LeafIndex)]
+        getClients =
+          map (first (mkClientIdentity qusr))
+            . Map.assocs
+            . Map.findWithDefault mempty qusr
+            . membersConvOrSub
+    removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getClients qusr
 
 -- | Convert cassandra subconv maps into SubConversations
 listSubConversations' ::

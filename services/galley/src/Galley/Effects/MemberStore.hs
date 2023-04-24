@@ -62,6 +62,7 @@ import Galley.Types.UserList
 import Imports
 import Polysemy
 import Wire.API.Conversation.Member hiding (Member)
+import Wire.API.MLS.Credential
 import Wire.API.MLS.Group
 import Wire.API.MLS.LeafNode
 import Wire.API.Provider.Service
@@ -81,7 +82,7 @@ data MemberStore m a where
   DeleteMembers :: ConvId -> UserList UserId -> MemberStore m ()
   DeleteMembersInRemoteConversation :: Remote ConvId -> [UserId] -> MemberStore m ()
   AddMLSClients :: GroupId -> Qualified UserId -> Set (ClientId, LeafIndex) -> MemberStore m ()
-  PlanClientRemoval :: GroupId -> Qualified UserId -> Set ClientId -> MemberStore m ()
+  PlanClientRemoval :: Foldable f => GroupId -> f ClientIdentity -> MemberStore m ()
   RemoveMLSClients :: GroupId -> Qualified UserId -> Set ClientId -> MemberStore m ()
   RemoveAllMLSClients :: GroupId -> MemberStore m ()
   LookupMLSClients :: GroupId -> MemberStore m ClientMap

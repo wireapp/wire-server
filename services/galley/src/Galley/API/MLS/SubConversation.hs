@@ -35,7 +35,6 @@ import Control.Arrow
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
-import qualified Data.Set as Set
 import Data.Time.Clock
 import Galley.API.MLS
 import Galley.API.MLS.Conversation
@@ -430,7 +429,7 @@ leaveLocalSubConversation cid lcnv sub = do
       cmLookupIndex cid (scMembers subConv)
   let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData subConv)
   -- plan to remove the leaver from the member list
-  Eff.planClientRemoval gid (cidQualifiedUser cid) . Set.singleton . ciClient $ cid
+  Eff.planClientRemoval gid (Identity cid)
   let cm = cmRemoveClient cid (scMembers subConv)
   if Map.null cm
     then do
