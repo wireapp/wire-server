@@ -36,7 +36,7 @@ where
 
 import Control.Concurrent.Async
 import Control.Exception (bracket)
-import Control.Lens ((^.), (.~), (%~))
+import Control.Lens ((^.), (%~))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Federator.Env
@@ -63,12 +63,7 @@ run opts = do
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
   DNS.withCachingResolver resolvConf $ \res ->
     bracket (newEnv opts res) closeEnv $ \env -> do
-      -- TODO pull these values from Env
-      let host = undefined
-          vhost = undefined
-          user = undefined
-          pass = undefined
-          queue = undefined
+      let MessageQueueSettings {host, vhost, user, pass, queue} = mqSettings opts
       bracket (openConnection host vhost user pass) closeConnection $ \amqpConn -> do
         bracket (openChannel amqpConn) closeChannel $ \amqpChan -> do
           -- Build a new TVar holding the state we want for the initial environment.

@@ -72,6 +72,16 @@ data RunSettings = RunSettings
 
 instance FromJSON RunSettings
 
+-- | Options for connecting to the message queue system
+data MessageQueueSettings = MessageQueueSettings
+  { host  :: String
+  , vhost :: Text
+  , user  :: Text
+  , pass  :: Text
+  , queue :: Text
+  } deriving (Show, Generic)
+instance FromJSON MessageQueueSettings
+
 data Opts = Opts
   { -- | Host and port for endpoint reachable only by other wire-server
     -- components in the same private network
@@ -92,7 +102,9 @@ data Opts = Opts
     -- | Logformat to use
     logFormat :: !(Maybe (Last LogFormat)),
     -- | Runtime settings
-    optSettings :: !RunSettings
+    optSettings :: !RunSettings,
+    -- | Message Queue settings
+    mqSettings :: !MessageQueueSettings
   }
   deriving (Show, Generic)
 
