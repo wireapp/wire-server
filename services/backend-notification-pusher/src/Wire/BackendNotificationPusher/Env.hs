@@ -18,7 +18,7 @@ data Env = Env
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
   http2Manager <- initHttp2Manager
-  rabbitMqConnection <- initRabbitMq opts.rabbitMQ
+  rabbitMqConnection <- initRabbitMq opts.rabbitMq
   pure Env {..}
 
 initHttp2Manager = do
@@ -32,7 +32,7 @@ initHttp2Manager = do
   SSL.contextSetDefaultVerifyPaths ctx
   http2ManagerWithSSLCtx ctx
 
-initRabbitMq :: RabbitMQOpts -> IO Q.Channel
+initRabbitMq :: RabbitMqOpts -> IO Q.Channel
 initRabbitMq opts = do
   username <- Text.pack <$> getEnv "RABBITMQ_USERNAME"
   password <- Text.pack <$> getEnv "RABBITMQ_PASSWORD"

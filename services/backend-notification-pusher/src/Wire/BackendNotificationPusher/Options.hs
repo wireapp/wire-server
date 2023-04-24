@@ -7,18 +7,18 @@ import Util.Options
 
 data Opts = Opts
   { federatorInternal :: !Endpoint,
-    rabbitMQ :: !RabbitMQOpts,
+    rabbitMq :: !RabbitMqOpts,
     remoteBackends :: [Domain]
   }
   deriving (Show, Generic)
 
 instance FromJSON Opts
 
-data RabbitMQOpts = RabbitMQOpts
+data RabbitMqOpts = RabbitMqOpts
   { host :: !String,
     port :: !Int,
     vHost :: !Text
   }
   deriving (Show, Generic)
 
-instance FromJSON RabbitMQOpts
+instance FromJSON RabbitMqOpts
