@@ -36,11 +36,10 @@ where
 
 import Control.Concurrent.Async
 import Control.Exception (bracket)
-import Control.Lens ((^.))
+import Control.Lens ((^.), (.~), (%~))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Federator.Env
-import Federator.EnvUpdater (envUpdater)
 import Federator.ExternalServer (serveInward)
 import Federator.InternalServer (serveOutward)
 import Federator.Monitor
@@ -53,6 +52,7 @@ import qualified System.Logger.Extended as LogExt
 import Util.Options
 import Wire.API.Federation.Component
 import qualified Wire.Network.DNS.Helper as DNS
+import Network.AMQP (openConnection, closeChannel, closeConnection, openChannel, consumeMsgs, Ack (Ack), Envelope, Message (msgBody), ackEnv)
 
 ------------------------------------------------------------------------------
 -- run/app
@@ -63,16 +63,31 @@ run opts = do
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
   DNS.withCachingResolver resolvConf $ \res ->
     bracket (newEnv opts res) closeEnv $ \env -> do
-      -- Build a new TVar holding the state we want for the initial environment.
-      tEnv <- newTVarIO env
-      -- We need a watcher/listener for updating this TVar to flow values through to the handlers.
-      let externalServer = serveInward tEnv portExternal
-          internalServer = serveOutward tEnv portInternal
-      withMonitor (env ^. applog) (onNewSSLContext env) (optSettings opts) $ do
-        envUpdateThread <- async $ envUpdater tEnv
-        internalServerThread <- async internalServer
-        externalServerThread <- async externalServer
-        void $ waitAnyCancel [envUpdateThread, internalServerThread, externalServerThread]
+      -- TODO pull these values from Env
+      let host = undefined
+          vhost = undefined
+          user = undefined
+          pass = undefined
+          queue = undefined
+      bracket (openConnection host vhost user pass) closeConnection $ \amqpConn -> do
+        bracket (openChannel amqpConn) closeChannel $ \amqpChan -> do
+          -- Build a new TVar holding the state we want for the initial environment.
+          tEnv <- newTVarIO env
+          let
+              callback :: (Message, Envelope) -> IO ()
+              callback (message, envelope) = do
+                -- TODO: parse out the message body and update the tEnv
+                strat <- undefined $ msgBody message
+                atomically $ modifyTVar tEnv (Federator.Env.runSettings %~ \s -> s { federationStrategy = strat })
+                ackEnv envelope
+          -- We need a watcher/listener for updating this TVar to flow values through to the handlers.
+          let externalServer = serveInward tEnv portExternal
+              internalServer = serveOutward tEnv portInternal
+          withMonitor (env ^. applog) (onNewSSLContext env) (optSettings opts) $ do
+            envUpdateThread <- async . void $ consumeMsgs amqpChan queue Ack callback
+            internalServerThread <- async internalServer
+            externalServerThread <- async externalServer
+            void $ waitAnyCancel [envUpdateThread, internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort
