@@ -1,6 +1,6 @@
 {
     "config": {
-        "verificationExpiration": 1676377048
+        "verificationExpiration": 86400
     },
     "lockStatus": "locked",
     "status": "enabled",
