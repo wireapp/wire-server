@@ -4,23 +4,15 @@
 # dependencies are added or removed.
 { mkDerivation
 , base
-, base64-bytestring
-, bytestring
 , bytestring-conversion
-, either
-, extra
 , gitignoreSource
 , hspec
 , http-types
 , imports
 , lib
-, QuickCheck
 , rusty_jwt_tools_ffi
 , string-conversions
-, text
 , transformers
-, unliftio
-, uuid
 }:
 mkDerivation {
   pname = "jwt-tools";
@@ -28,32 +20,18 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     base
-    base64-bytestring
-    bytestring
     bytestring-conversion
     http-types
     imports
-    QuickCheck
     string-conversions
     transformers
-    unliftio
   ];
   librarySystemDepends = [ rusty_jwt_tools_ffi ];
   testHaskellDepends = [
-    base
-    base64-bytestring
-    bytestring
-    bytestring-conversion
-    either
-    extra
     hspec
-    http-types
     imports
-    QuickCheck
     string-conversions
-    text
     transformers
-    uuid
   ];
   description = "FFI to rusty-jwt-tools";
   license = lib.licenses.agpl3Only;
