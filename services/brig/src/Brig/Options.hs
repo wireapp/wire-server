@@ -59,6 +59,7 @@ import Wire.API.Routes.Version
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.Arbitrary (Arbitrary, arbitrary)
+import Data.MessageQueue
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime
@@ -458,7 +459,9 @@ data Opts = Opts
     -- | SFT Settings
     sft :: !(Maybe SFTOptions),
     -- | Runtime settings
-    optSettings :: !Settings
+    optSettings :: !Settings,
+    -- | Message Queue settings
+    mqSettings :: !MessageQueueSettings
   }
   deriving (Show, Generic)
 

@@ -22,6 +22,7 @@ library
     Data.Json.Util
     Data.LegalHold
     Data.List1
+    Data.MessageQueue
     Data.Misc
     Data.Nonce
     Data.PEMKeys

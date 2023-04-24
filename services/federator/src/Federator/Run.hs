@@ -53,6 +53,7 @@ import Util.Options
 import Wire.API.Federation.Component
 import qualified Wire.Network.DNS.Helper as DNS
 import Network.AMQP (openConnection, closeChannel, closeConnection, openChannel, consumeMsgs, Ack (Ack), Envelope, Message (msgBody), ackEnv)
+import Data.MessageQueue
 
 ------------------------------------------------------------------------------
 -- run/app
@@ -63,8 +64,8 @@ run opts = do
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
   DNS.withCachingResolver resolvConf $ \res ->
     bracket (newEnv opts res) closeEnv $ \env -> do
-      let MessageQueueSettings {host, vhost, user, pass, queue} = mqSettings opts
-      bracket (openConnection host vhost user pass) closeConnection $ \amqpConn -> do
+      let MessageQueueSettings {mqHost, mqVHost, mqUser, mqPass, mqQueue} = mqSettings opts
+      bracket (openConnection mqHost mqVHost mqUser mqPass) closeConnection $ \amqpConn -> do
         bracket (openChannel amqpConn) closeChannel $ \amqpChan -> do
           -- Build a new TVar holding the state we want for the initial environment.
           tEnv <- newTVarIO env
@@ -79,7 +80,7 @@ run opts = do
           let externalServer = serveInward tEnv portExternal
               internalServer = serveOutward tEnv portInternal
           withMonitor (env ^. applog) (onNewSSLContext env) (optSettings opts) $ do
-            envUpdateThread <- async . void $ consumeMsgs amqpChan queue Ack callback
+            envUpdateThread <- async . void $ consumeMsgs amqpChan mqQueue Ack callback
             internalServerThread <- async internalServer
             externalServerThread <- async externalServer
             void $ waitAnyCancel [envUpdateThread, internalServerThread, externalServerThread]

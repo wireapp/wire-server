@@ -42,9 +42,9 @@ optSettings:
   dnsPort: 9053
 
 mqSettings:
-  host: "some.mq.host"
+  mqHost: "some.mq.host"
   # https://www.rabbitmq.com/vhosts.html
-  vhost: "some.mq.host"
-  user: "username"
-  pass: "password"
-  queue: "queue name"
+  mqVHost: "some.mq.host"
+  mqUser: "username"
+  mqPass: "password"
+  mqQueue: "queue name"

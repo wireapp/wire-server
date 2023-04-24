@@ -25,6 +25,7 @@ import Data.Domain (Domain ())
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
+import Data.MessageQueue
 
 newtype AllowedDomains = AllowedDomains {allowedDomains :: [Domain]}
   deriving (Eq, Show, Generic)
@@ -71,16 +72,6 @@ data RunSettings = RunSettings
   deriving (Eq, Show, Generic)
 
 instance FromJSON RunSettings
-
--- | Options for connecting to the message queue system
-data MessageQueueSettings = MessageQueueSettings
-  { host  :: String
-  , vhost :: Text
-  , user  :: Text
-  , pass  :: Text
-  , queue :: Text
-  } deriving (Show, Generic)
-instance FromJSON MessageQueueSettings
 
 data Opts = Opts
   { -- | Host and port for endpoint reachable only by other wire-server

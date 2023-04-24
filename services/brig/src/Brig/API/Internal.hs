@@ -101,6 +101,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
+import Data.Domain (Domain)
 
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
@@ -176,9 +177,19 @@ authAPI =
 
 federationRemotesAPI :: ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
-  Named @"get-federation-remotes" (lift $ FederationDomainConfigs <$> wrapClient Data.getFederationRemotes) -- TODO: get this from TVar!  also merge in config file!
-    :<|> Named @"add-federation-remotes" (lift . wrapClient . Data.addFederationRemote)
-    :<|> Named @"delete-federation-remotes" (lift . wrapClient . Data.deleteFederationRemote)
+  Named @"get-federation-remotes" getFederationRemotes -- TODO: get this from TVar!  also merge in config file!
+    :<|> Named @"add-federation-remotes" addFederationRemote
+    :<|> Named @"delete-federation-remotes" deleteFederationRemotes
+
+addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+addFederationRemote fedDomConf = do
+  lift . wrapClient $ Data.addFederationRemote fedDomConf
+
+getFederationRemotes :: ExceptT Brig.API.Error.Error (AppT r) FederationDomainConfigs
+getFederationRemotes = lift $ FederationDomainConfigs <$> wrapClient Data.getFederationRemotes
+
+deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
+deleteFederationRemotes = lift . wrapClient . Data.deleteFederationRemote
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
