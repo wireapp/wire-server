@@ -6,21 +6,36 @@ import qualified Data.Map as Map
 import Imports
 import qualified Network.AMQP as Q
 import qualified Network.AMQP.Types as Q
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
-import Wire.API.Federation.Component
+import Wire.API.Federation.Client
+import Wire.API.Federation.Error
 
-data BackendNotification
+data BackendNotificationContent
   = OnUserDeletedConnections UserDeletedConnectionsNotification
+  deriving (Generic)
 
-instance ToJSON BackendNotification where
-  toJSON (OnUserDeletedConnections userDeleteConns) =
-    object
-      [ "type" .= String "OnUserDeletedConnections",
-        "notification" .= toJSON userDeleteConns
-      ]
+-- TODO: use schema-profunctor, or not, who cares what this serialized to
+instance ToJSON BackendNotificationContent
 
-notificationTarget :: BackendNotification -> Component
+instance FromJSON BackendNotificationContent
+
+data BackendNotification = BackendNotification
+  { ownDomain :: Domain,
+    content :: BackendNotificationContent
+  }
+  deriving (Generic)
+
+instance ToJSON BackendNotification
+
+instance FromJSON BackendNotification
+
+notificationTarget :: BackendNotificationContent -> Component
 notificationTarget (OnUserDeletedConnections _) = Brig
+
+sendNotification :: FederatorClientEnv -> BackendNotificationContent -> IO (Either FederatorClientError ())
+sendNotification env (OnUserDeletedConnections notif) = do
+  runFederatorClient env $ void $ fedClient @'Brig @"on-user-deleted-connections" notif
 
 enqueue :: Q.Channel -> Domain -> BackendNotification -> Q.DeliveryMode -> IO ()
 enqueue chan domain notif deliveryMode = do

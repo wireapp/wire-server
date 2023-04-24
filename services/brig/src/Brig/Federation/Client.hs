@@ -144,7 +144,8 @@ notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
   qChan <- readIORef =<< maybe (throwE FederationNotConfigured) pure =<< view rabbitMqChannel
   let notif = OnUserDeletedConnections $ UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
-  liftIO $ enqueue qChan (tDomain remotes) notif Q.Persistent
+  ownDomain <- viewFederationDomain
+  liftIO $ enqueue qChan (tDomain remotes) (BackendNotification ownDomain notif) Q.Persistent
 
 runBrigFederatorClient ::
   (MonadReader Env m, MonadIO m) =>
