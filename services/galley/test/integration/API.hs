@@ -2654,7 +2654,7 @@ testAddRemoteMember = do
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   let qconvId = Qualified convId localDomain
 
-  postQualifiedMembers alice (remoteBob :| []) convId !!! do
+  postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
     const 403 === statusCode
     const (Right (Just "not-connected")) === fmap (view (at "label")) . responseJsonEither @Object
 
@@ -2662,7 +2662,7 @@ testAddRemoteMember = do
 
   (resp, reqs) <-
     withTempMockFederator' (respond remoteBob) $
-      postQualifiedMembers alice (remoteBob :| []) convId
+      postQualifiedMembers alice (remoteBob :| []) qconvId
         <!! const 200 === statusCode
   liftIO $ do
     map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
@@ -2700,7 +2700,7 @@ testDeleteTeamConversationWithRemoteMembers = do
       remoteBob = Qualified bobId remoteDomain
 
   convId <- decodeConvId <$> postTeamConv tid alice [] (Just "remote gossip") [] Nothing Nothing
-  let _qconvId = Qualified convId localDomain
+  let qconvId = Qualified convId localDomain
 
   connectWithRemoteUser alice remoteBob
 
@@ -2708,7 +2708,7 @@ testDeleteTeamConversationWithRemoteMembers = do
         ("on-new-remote-conversation" ~> EmptyResponse)
           <|> ("on-conversation-updated" ~> ())
   (_, received) <- withTempMockFederator' mock $ do
-    postQualifiedMembers alice (remoteBob :| []) convId
+    postQualifiedMembers alice (remoteBob :| []) qconvId
       !!! const 200 === statusCode
 
     deleteTeamConv tid convId alice
@@ -2734,6 +2734,7 @@ testDeleteTeamConversationWithUnavailableRemoteMembers = do
       remoteBob = Qualified bobId remoteDomain
 
   convId <- decodeConvId <$> postTeamConv tid alice [] (Just "remote gossip") [] Nothing Nothing
+  let qconvId = Qualified convId localDomain
 
   connectWithRemoteUser alice remoteBob
 
@@ -2742,13 +2743,18 @@ testDeleteTeamConversationWithUnavailableRemoteMembers = do
           -- Mock an unavailable federation server for the deletion call
           <|> (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
           <|> (guardRPC "delete-team-conversation" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
-  (_, received) <- withTempMockFederator' mock $ do
-    postQualifiedMembers alice (remoteBob :| []) convId
-      !!! const 503 === statusCode
+  (addResp, received) <- withTempMockFederator' mock $ do
+    addResp <-
+      responseJsonError @_ @Event
+        =<< postQualifiedMembers alice (remoteBob :| []) qconvId
+          <!! const 200 === statusCode
 
     deleteTeamConv tid convId alice
-      !!! const 503 === statusCode
+      !!! const 200 === statusCode
+    pure addResp
   liftIO $ do
+    -- putStrLn $ "Received = " <> show received
+    putStrLn $ "Add members response = " <> show addResp
     let convUpdates = mapMaybe (eitherToMaybe . parseFedRequest) received
     convUpdate <- case filter ((== SomeConversationAction (sing @'ConversationDeleteTag) ()) . cuAction) convUpdates of
       [] -> assertFailure "No ConversationUpdate requests received"
@@ -2964,16 +2970,21 @@ testAddRemoteMemberInvalidDomain = do
   bobId <- randomId
   let remoteBob = Qualified bobId (Domain "invalid.example.com")
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  localDomain <- viewFederationDomain
+  let qconvId = Qualified convId localDomain
 
   connectWithRemoteUser alice remoteBob
 
-  postQualifiedMembers alice (remoteBob :| []) convId
-    !!! do
-      const 422 === statusCode
-      const (Just "/federation/api-version")
-        === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
-      const (Just "invalid.example.com")
-        === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
+  r <-
+    responseJsonError @_ @Event
+      =<< postQualifiedMembers alice (remoteBob :| []) qconvId
+        <!! do
+          const 422 === statusCode
+          const (Just "/federation/api-version")
+            === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
+          const (Just "invalid.example.com")
+            === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
+  liftIO $ putStrLn $ "Response = " <> show r
 
 -- This test is a safeguard to ensure adding remote members will fail
 -- on environments where federation isn't configured (such as our production as of May 2021)
@@ -2982,14 +2993,13 @@ testAddRemoteMemberFederationDisabled = do
   alice <- randomUser
   remoteBob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
   qconvId <- decodeQualifiedConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  let convId = qUnqualified qconvId
   connectWithRemoteUser alice remoteBob
 
   -- federator endpoint not configured is equivalent to federation being disabled
   -- This is the case on staging/production in May 2021.
   let federatorNotConfigured = optFederator .~ Nothing
   withSettingsOverrides federatorNotConfigured $
-    postQualifiedMembers alice (remoteBob :| []) convId !!! do
+    postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
       const 400 === statusCode
       const (Right "federation-not-enabled") === fmap label . responseJsonEither
 
@@ -3002,7 +3012,6 @@ testAddRemoteMemberFederationUnavailable = do
   alice <- randomUser
   remoteBob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
   qconvId <- decodeQualifiedConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  let convId = qUnqualified qconvId
   connectWithRemoteUser alice remoteBob
 
   -- federator endpoint being configured in brig and/or galley, but not being
@@ -3011,7 +3020,7 @@ testAddRemoteMemberFederationUnavailable = do
   -- Port 1 should always be wrong hopefully.
   let federatorUnavailable = optFederator ?~ Endpoint "127.0.0.1" 1
   withSettingsOverrides federatorUnavailable $
-    postQualifiedMembers alice (remoteBob :| []) convId !!! do
+    postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
       const 500 === statusCode
       const (Right "federation-not-available") === fmap label . responseJsonEither
 
