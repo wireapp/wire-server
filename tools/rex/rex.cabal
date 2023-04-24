@@ -38,6 +38,7 @@ executable rex
 
   ghc-options:
     -Wall -O1 -funbox-small-strict-fields -Wredundant-constraints
+    -Wunused-packages
 
   if flag(static)
     ld-options: -static

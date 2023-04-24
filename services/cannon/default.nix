@@ -31,7 +31,6 @@
 , random
 , retry
 , safe-exceptions
-, servant
 , servant-conduit
 , servant-server
 , strict
@@ -47,9 +46,7 @@
 , vector
 , wai
 , wai-extra
-, wai-predicates
 , wai-utilities
-, wai-websockets
 , warp
 , websockets
 , wire-api
@@ -84,7 +81,6 @@ mkDerivation {
     mwc-random
     retry
     safe-exceptions
-    servant
     servant-conduit
     servant-server
     strict
@@ -93,24 +89,19 @@ mkDerivation {
     types-common
     unix
     unliftio
-    uuid
     vector
     wai
     wai-extra
-    wai-predicates
     wai-utilities
-    wai-websockets
     warp
     websockets
     wire-api
   ];
-  executableHaskellDepends = [ base extended imports types-common ];
+  executableHaskellDepends = [ base imports types-common ];
   testHaskellDepends = [
     async
     base
     bytestring
-    criterion
-    extended
     imports
     metrics-wai
     QuickCheck
@@ -120,26 +111,9 @@ mkDerivation {
     tasty-quickcheck
     types-common
     uuid
-    wai-utilities
     wire-api
   ];
-  benchmarkHaskellDepends = [
-    async
-    base
-    bytestring
-    criterion
-    extended
-    imports
-    metrics-wai
-    QuickCheck
-    random
-    tasty
-    tasty-hunit
-    tasty-quickcheck
-    types-common
-    uuid
-    wai-utilities
-  ];
+  benchmarkHaskellDepends = [ async base criterion imports uuid ];
   description = "Push Notification API";
   license = lib.licenses.agpl3Only;
   mainProgram = "cannon";

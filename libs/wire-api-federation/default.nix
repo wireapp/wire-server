@@ -5,14 +5,10 @@
 { mkDerivation
 , aeson
 , aeson-pretty
-, async
 , base
 , bytestring
 , bytestring-conversion
-, case-insensitive
 , containers
-, either
-, errors
 , exceptions
 , gitignoreSource
 , HsOpenSSL
@@ -27,12 +23,9 @@
 , kan-extensions
 , lens
 , lib
-, lifted-base
 , metrics-wai
 , mtl
-, network
 , QuickCheck
-, retry
 , schema-profunctor
 , servant
 , servant-client
@@ -40,14 +33,9 @@
 , servant-server
 , singletons
 , singletons-th
-, sop-core
-, streaming-commons
 , swagger2
-, template-haskell
 , text
 , time
-, time-manager
-, tls
 , transformers
 , types-common
 , uuid
@@ -60,14 +48,10 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
-    async
     base
     bytestring
     bytestring-conversion
-    case-insensitive
     containers
-    either
-    errors
     exceptions
     HsOpenSSL
     http-media
@@ -77,26 +61,18 @@ mkDerivation {
     imports
     kan-extensions
     lens
-    lifted-base
     metrics-wai
     mtl
-    network
     QuickCheck
     schema-profunctor
     servant
     servant-client
     servant-client-core
     servant-server
-    singletons
     singletons-th
-    sop-core
-    streaming-commons
     swagger2
-    template-haskell
     text
     time
-    time-manager
-    tls
     transformers
     types-common
     wai-utilities
@@ -105,48 +81,16 @@ mkDerivation {
   testHaskellDepends = [
     aeson
     aeson-pretty
-    async
     base
     bytestring
-    bytestring-conversion
-    case-insensitive
     containers
-    either
-    errors
-    exceptions
     hspec
-    http-media
-    http-types
-    http2
     HUnit
     imports
-    kan-extensions
-    lens
-    lifted-base
-    metrics-wai
-    mtl
-    network
     QuickCheck
-    retry
-    schema-profunctor
-    servant
-    servant-client
-    servant-client-core
-    servant-server
     singletons
-    singletons-th
-    sop-core
-    streaming-commons
-    swagger2
-    template-haskell
-    text
-    time
-    time-manager
-    tls
-    transformers
     types-common
     uuid
-    wai-utilities
     wire-api
   ];
   testToolDepends = [ hspec-discover ];
