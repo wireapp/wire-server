@@ -45,7 +45,7 @@ import Wire.API.MLS.Group
 import Wire.API.MLS.SubConversation
 import Wire.Arbitrary
 
-data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag
+data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag | ProtocolMixedTag
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via GenericUniform ProtocolTag
 
@@ -94,6 +94,7 @@ instance ToSchema ConversationMLSData where
 data Protocol
   = ProtocolProteus
   | ProtocolMLS ConversationMLSData
+  | ProtocolMixed ConversationMLSData
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform Protocol
 
@@ -102,6 +103,7 @@ $(makePrisms ''Protocol)
 protocolTag :: Protocol -> ProtocolTag
 protocolTag ProtocolProteus = ProtocolProteusTag
 protocolTag (ProtocolMLS _) = ProtocolMLSTag
+protocolTag (ProtocolMixed _) = ProtocolMixedTag
 
 -- | Certain actions need to be performed at the level of the underlying
 -- protocol (MLS, mostly) before being applied to conversations. This function
@@ -114,13 +116,19 @@ protocolValidAction (ProtocolMLS _) ConversationLeaveTag = True
 protocolValidAction (ProtocolMLS _) ConversationRemoveMembersTag = False
 protocolValidAction (ProtocolMLS _) ConversationDeleteTag = True
 protocolValidAction (ProtocolMLS _) _ = True
+protocolValidAction (ProtocolMixed _) ConversationJoinTag = error "TODO"
+protocolValidAction (ProtocolMixed _) ConversationLeaveTag = error "TODO"
+protocolValidAction (ProtocolMixed _) ConversationRemoveMembersTag = error "TODO"
+protocolValidAction (ProtocolMixed _) ConversationDeleteTag = error "TODO"
+protocolValidAction (ProtocolMixed _) _ = error "TODO"
 
 instance ToSchema ProtocolTag where
   schema =
     enum @Text "Protocol" $
       mconcat
         [ element "proteus" ProtocolProteusTag,
-          element "mls" ProtocolMLSTag
+          element "mls" ProtocolMLSTag,
+          element "mixed" ProtocolMLSTag
         ]
 
 protocolTagSchema :: ObjectSchema SwaggerDoc ProtocolTag
@@ -144,3 +152,4 @@ deriving via (Schema Protocol) instance ToJSON Protocol
 protocolDataSchema :: ProtocolTag -> ObjectSchema SwaggerDoc Protocol
 protocolDataSchema ProtocolProteusTag = tag _ProtocolProteus (pure ())
 protocolDataSchema ProtocolMLSTag = tag _ProtocolMLS mlsDataSchema
+protocolDataSchema ProtocolMixedTag = tag _ProtocolMLS mlsDataSchema
