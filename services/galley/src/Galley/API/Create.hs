@@ -312,7 +312,7 @@ createProteusSelfConversation lusr = do
             NewConversation
               { ncMetadata = (defConversationMetadata (tUnqualified lusr)) {cnvmType = SelfConv},
                 ncUsers = ulFromLocals [toUserRole (tUnqualified lusr)],
-                ncProtocol = ProtocolProteusTag
+                ncProtocol = ProtocolCreateProteusTag
               }
       c <- E.createConversation lcnv nc
       conversationCreated lusr c
@@ -407,7 +407,7 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   let nc =
         NewConversation
           { ncUsers = ulFromLocals (map (toUserRole . tUnqualified) [self, other]),
-            ncProtocol = ProtocolProteusTag,
+            ncProtocol = ProtocolCreateProteusTag,
             ncMetadata = meta
           }
   mc <- E.getConversation (tUnqualified lcnv)
@@ -472,7 +472,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
             NewConversation
               { ncMetadata = meta,
                 ncUsers = fmap toUserRole (toUserList lcnv [tUntagged self, other]),
-                ncProtocol = ProtocolProteusTag
+                ncProtocol = ProtocolCreateProteusTag
               }
       c <- E.createConversation lcnv nc
       void $ notifyCreatedConversation self (Just zcon) c
@@ -521,7 +521,7 @@ createConnectConversation lusr conn j = do
           { -- We add only one member, second one gets added later,
             -- when the other user accepts the connection request.
             ncUsers = ulFromLocals (map (toUserRole . tUnqualified) [lusr]),
-            ncProtocol = ProtocolProteusTag,
+            ncProtocol = ProtocolCreateProteusTag,
             ncMetadata = meta
           }
   E.getConversation (tUnqualified lcnv)
@@ -613,7 +613,7 @@ newRegularConversation lusr newConv = do
                   cnvmTeam = fmap cnvTeamId (newConvTeam newConv)
                 },
             ncUsers = ulAddLocal (toUserRole (tUnqualified lusr)) (fmap (,newConvUsersRole newConv) (fromConvSize users)),
-            ncProtocol = newConvProtocol newConv
+            ncProtocol = protocolCreateToProtocolTag (newConvProtocol newConv)
           }
   pure (nc, users)
 

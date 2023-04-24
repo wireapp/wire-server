@@ -41,7 +41,7 @@ data Conversation = Conversation
 data NewConversation = NewConversation
   { ncMetadata :: ConversationMetadata,
     ncUsers :: UserList (UserId, RoleName),
-    ncProtocol :: ProtocolTag
+    ncProtocol :: ProtocolCreateTag
   }
 
 mlsMetadata :: Conversation -> Maybe ConversationMLSData
@@ -49,3 +49,4 @@ mlsMetadata conv =
   case convProtocol conv of
     ProtocolProteus -> Nothing
     ProtocolMLS meta -> pure meta
+    ProtocolMixed meta -> pure meta

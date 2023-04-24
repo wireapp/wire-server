@@ -72,7 +72,7 @@ createMLSSelfConversation lusr = do
           { ncMetadata =
               (defConversationMetadata usr) {cnvmType = SelfConv},
             ncUsers = ulFromLocals [toUserRole usr],
-            ncProtocol = ProtocolMLSTag
+            ncProtocol = ProtocolCreateMLSTag
           }
       meta = ncMetadata nc
       gid = convToGroupId . qualifyAs lusr $ cnv
@@ -123,8 +123,8 @@ createConversation :: Local ConvId -> NewConversation -> Client Conversation
 createConversation lcnv nc = do
   let meta = ncMetadata nc
       (proto, mgid, mep, mcs) = case ncProtocol nc of
-        ProtocolProteusTag -> (ProtocolProteus, Nothing, Nothing, Nothing)
-        ProtocolMLSTag ->
+        ProtocolCreateProteusTag -> (ProtocolProteus, Nothing, Nothing, Nothing)
+        ProtocolCreateMLSTag ->
           let gid = convToGroupId lcnv
               ep = Epoch 0
               cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
@@ -158,7 +158,7 @@ createConversation lcnv nc = do
         cnvmTeam meta,
         cnvmMessageTimer meta,
         cnvmReceiptMode meta,
-        ncProtocol nc,
+        protocolCreateToProtocolTag (ncProtocol nc),
         mgid,
         mep,
         mcs
@@ -337,7 +337,11 @@ toProtocol ::
   Maybe Protocol
 toProtocol Nothing _ _ _ _ = Just ProtocolProteus
 toProtocol (Just ProtocolProteusTag) _ _ _ _ = Just ProtocolProteus
-toProtocol (Just ProtocolMLSTag) mgid mepoch mtimestamp mcs =
+toProtocol (Just ProtocolMLSTag) mgid mepoch mtimestamp mcs = toMLSProtocol mgid mepoch mtimestamp mcs
+toProtocol (Just ProtocolMixedTag) mgid mepoch mtimestamp mcs = toMLSProtocol mgid mepoch mtimestamp mcs
+
+toMLSProtocol :: Maybe GroupId -> Maybe Epoch -> Maybe UTCTime -> Maybe CipherSuiteTag -> Maybe Protocol
+toMLSProtocol mgid mepoch mtimestamp mcs =
   ProtocolMLS
     <$> ( ConversationMLSData
             <$> mgid
