@@ -24,7 +24,6 @@ module Wire.API.MLS.AuthenticatedContent
 where
 
 import Crypto.PubKey.Ed25519
-import qualified Data.ByteArray as BA
 import Imports
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Context
@@ -85,7 +84,7 @@ mkSignedPublicMessage priv pub gid epoch payload =
             content = framedContent,
             groupContext = Nothing
           }
-      sig = BA.convert $ sign priv pub (encodeMLS' tbs)
+      sig = signWithLabel "FramedContentTBS" priv pub (mkRawMLS tbs)
    in PublicMessage
         { content = framedContent,
           authData = mkRawMLS (FramedContentAuthData sig Nothing),

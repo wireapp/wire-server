@@ -36,6 +36,7 @@ module Wire.API.MLS.CipherSuite
     csHash,
     csVerifySignatureWithLabel,
     csVerifySignature,
+    signWithLabel,
   )
 where
 
@@ -50,6 +51,7 @@ import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteArray hiding (index)
+import qualified Data.ByteArray as BA
 import Data.Proxy
 import Data.Schema
 import qualified Data.Swagger as S
@@ -149,6 +151,10 @@ csVerifySignatureWithLabel ::
   Bool
 csVerifySignatureWithLabel cs pub label x sig =
   csVerifySignature cs pub (mkRawMLS (mkSignContent label x)) sig
+
+-- FUTUREWORK: generalise to arbitrary ciphersuites
+signWithLabel :: ByteString -> Ed25519.SecretKey -> Ed25519.PublicKey -> RawMLS a -> ByteString
+signWithLabel sigLabel priv pub x = BA.convert $ Ed25519.sign priv pub (encodeMLS' (mkSignContent sigLabel x))
 
 csSignatureScheme :: CipherSuiteTag -> SignatureSchemeTag
 csSignatureScheme MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = Ed25519
