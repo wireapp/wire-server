@@ -471,7 +471,17 @@ resetGroup cid qcs gid = do
 
 resetClientGroup :: ClientIdentity -> GroupId -> MLSTest ()
 resetClientGroup cid gid = do
-  groupJSON <- mlscli cid ["group", "create", T.unpack (toBase64Text (unGroupId gid))] Nothing
+  bd <- State.gets mlsBaseDir
+  groupJSON <-
+    mlscli
+      cid
+      [ "group",
+        "create",
+        "--removal-key",
+        bd </> "removal.key",
+        T.unpack (toBase64Text (unGroupId gid))
+      ]
+      Nothing
   setClientGroupState cid groupJSON
 
 getConvId :: MLSTest (Qualified ConvOrSubConvId)
@@ -836,8 +846,7 @@ consumeMessage msg = do
     consumeMessage1 cid (mpMessage msg)
 
 consumeMessage1 :: HasCallStack => ClientIdentity -> ByteString -> MLSTest ()
-consumeMessage1 cid msg = do
-  bd <- State.gets mlsBaseDir
+consumeMessage1 cid msg =
   void $
     mlscli
       cid
@@ -846,8 +855,6 @@ consumeMessage1 cid msg = do
         "<group-in>",
         "--group-out",
         "<group-out>",
-        "--signer-key",
-        bd </> "removal.key",
         "-"
       ]
       (Just msg)
@@ -916,8 +923,8 @@ mlsBracket clients k = do
 
 readGroupState :: ByteString -> [(ClientIdentity, LeafIndex)]
 readGroupState j = do
-  (node, n) <- zip (j ^.. key "group" . key "public_group" . key "treesync" . key "tree" . key "leaf_nodes" . _Array . traverse . key "node") [0 ..]
-  case node ^? key "leaf_node" of
+  (node, n) <- zip (j ^.. key "group" . key "public_group" . key "treesync" . key "tree" . key "leaf_nodes" . _Array . traverse) [0 ..]
+  case node ^? key "node" of
     Just leafNode -> do
       identityBytes <- leafNode ^.. key "payload" . key "credential" . key "credential" . key "Basic" . key "identity" . key "vec"
       let identity = BS.pack (identityBytes ^.. _Array . traverse . _Integer . to fromIntegral)

@@ -248,7 +248,7 @@ tests s =
               test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv,
               test s "delete subconversation as a remote member" (testRemoteMemberDeleteSubConv True),
               test s "delete subconversation as a remote non-member" (testRemoteMemberDeleteSubConv False),
-              test s "delete parent conversation of a remote subconveration" testDeleteRemoteParentOfSubConv
+              test s "delete parent conversation of a remote subconversation" testDeleteRemoteParentOfSubConv
             ]
         ],
       testGroup
