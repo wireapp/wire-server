@@ -33,6 +33,11 @@ config:
   randomPrekeys: true
   useSES: true
   enableFederation: false # keep enableFederation default in sync with galley and cargohold chart's config.enableFederation as well as wire-server chart's tags.federation
+  # Not used if enableFederation is false
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    vHost: /
   emailSMS:
     general:
       templateBranding:
