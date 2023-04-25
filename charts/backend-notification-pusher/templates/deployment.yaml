@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-notification-pusher
+  labels:
+    app: backend-notification-pusher
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  # TODO: Review this
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: backend-notification-pusher
+  template:
+    metadata:
+      labels:
+        app: backend-notification-pusher
+        release: {{ .Release.Name }}
+      annotations:
+        # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
+        checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
+        fluentbit.io/parser: json
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      volumes:
+        - name: "backend-notification-pusher-config"
+          configMap:
+            name: "backend-notification-pusher"
+        - name: "backend-notification-pusher-secrets"
+          secret:
+            secretName: "backend-notification-pusher"
+      containers:
+        - name: backend-notification-pusher
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          volumeMounts:
+          - name: "backend-notification-pusher-config"
+            mountPath: "/etc/wire/backend-notification-pusher/conf"
+          env:
+          - name: RABBITMQ_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: backend-notification-pusher
+                key: rabbitmqUsername
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: backend-notification-pusher
+                key: rabbitmqPassword
+          resources:
+{{ toYaml .Values.resources | indent 12 }}

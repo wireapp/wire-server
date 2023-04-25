@@ -1,0 +1,35 @@
+replicaCount: 1
+image:
+  repository: quay.io/wire/backend-notification-pusher
+  tag: do-not-use
+# FUTUREWORK: Review these values when we have some experience
+resources:
+  requests:
+    memory: "200Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+# TODO: Create issue for a metrics endpoint
+# metrics:
+#   serviceMonitor:
+#     enabled: false
+config:
+  # TODO: Proper logging
+  logLevel: Info
+  logFormat: StructuredJSON
+  rabbitMq:
+    host: rabbitmq
+    port: 5672
+    vHost: /
+  remoteDomains: []
+
+serviceAccount:
+  # When setting this to 'false', either make sure that a service account named
+  # 'backend-notification-pusher' exists or change the 'name' field to 'default'
+  create: true
+  name: backend-notification-pusher
+  annotations: {}
+  automountServiceAccountToken: true
+
+
+secrets: {}

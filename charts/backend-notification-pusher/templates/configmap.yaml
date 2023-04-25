@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "backend-notification-pusher"
+  labels:
+    app: backend-notification-pusher
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  {{- with .Values.config }}
+  backend-notification-pusher.yaml: |
+    logFormat: {{ .logFormat }}
+    logLevel: {{ .logLevel }}
+
+    federatorInternal:
+      host: federator
+      port: 8080
+    rabbitMq: 
+{{toYaml .rabbitMq | indent 6 }}
+    remoteDomains: 
+{{toYaml .remoteDomains | indent 6 }}
+  {{- end }}

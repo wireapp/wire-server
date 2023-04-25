@@ -1,0 +1,3 @@
+The tag 'federator' on the wire-server helm chart has been renamed to 
+'federation'. If a deployment had federation enabled using the 'federator' tag,
+it must now enable 'federation' instead.
