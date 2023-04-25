@@ -1064,19 +1064,26 @@ executeIntCommitProposalAction senderIdentity con lconvOrSub action = do
   -- Furthermore, subconversation clients can be removed arbitrarily, so this
   -- processing is only necessary for main conversations. In the
   -- subconversation case, an empty list is returned.
-  removedUsers <- case convOrSub of
+  membersToRemove <- case convOrSub of
     SubConv _ _ -> pure []
     Conv _ -> mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
       \(qtarget, Map.keysSet -> clients) -> runError @() $ do
-        -- fetch clients from brig
-        clientInfo <- Set.map ciId <$> getClientInfo lconvOrSub qtarget ss
-        -- if the clients being removed don't exist, consider this as a removal of
-        -- type 2, and skip it
-        when (Set.null (clientInfo `Set.intersection` clients)) $
-          throw ()
-        pure (qtarget, clients)
+        let clientsInConv = Map.keysSet (Map.findWithDefault mempty qtarget cm)
+        let removedClients = Set.intersection clients clientsInConv
 
-  membersToRemove <- catMaybes <$> for removedUsers (uncurry (checkRemoval (is _SubConv convOrSub) cm))
+        -- ignore user if none of their clients are being removed
+        when (Set.null removedClients) $ throw ()
+
+        -- return error if the user is trying to remove themself
+        when (cidQualifiedUser senderIdentity == qtarget) $
+          throwS @'MLSSelfRemovalNotAllowed
+
+        -- FUTUREWORK: add tests against this situation for conv v subconv
+        when (not (is _SubConv convOrSub) && removedClients /= clientsInConv) $ do
+          -- FUTUREWORK: turn this error into a proper response
+          throwS @'MLSClientMismatch
+
+        pure qtarget
 
   -- for each user, we compare their clients with the ones being added to the conversation
   for_ newUserClients $ \(qtarget, newclients) -> case Map.lookup qtarget cm of
@@ -1152,22 +1159,6 @@ executeIntCommitProposalAction senderIdentity con lconvOrSub action = do
   -- TODO: increment epoch here instead of in the calling site
 
   pure (addEvents <> removeEvents)
-  where
-    checkRemoval ::
-      Bool ->
-      ClientMap ->
-      Qualified UserId ->
-      Set ClientId ->
-      Sem r (Maybe (Qualified UserId))
-    checkRemoval isSubConv cm qtarget clients = do
-      let clientsInConv = Map.keysSet (Map.findWithDefault mempty qtarget cm)
-      -- FUTUREWORK: add tests against this situation for conv v subconv
-      when (not isSubConv && clients /= clientsInConv) $ do
-        -- FUTUREWORK: turn this error into a proper response
-        throwS @'MLSClientMismatch
-      when (cidQualifiedUser senderIdentity == qtarget) $
-        throwS @'MLSSelfRemovalNotAllowed
-      pure (Just qtarget)
 
 executeExtCommitProposalAction ::
   forall r.

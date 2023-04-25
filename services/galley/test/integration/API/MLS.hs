@@ -1609,6 +1609,8 @@ testBackendRemoveProposalRecreateClient = do
 
     alice2 <- createMLSClient alice
     proposal <- mlsBracket [alice2] $ \[wsA] -> do
+      -- alice2 joins the conversation, causing the external remove proposal to
+      -- be re-established
       void $
         createExternalCommit alice2 Nothing cnv
           >>= sendAndConsumeCommitBundle

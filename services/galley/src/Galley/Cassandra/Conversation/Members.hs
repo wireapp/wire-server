@@ -401,5 +401,4 @@ interpretMemberStoreToCassandra = interpret $ \case
   RemoveMLSClients lcnv quid cs -> embedClient $ removeMLSClients lcnv quid cs
   RemoveAllMLSClients gid -> embedClient $ removeAllMLSClients gid
   LookupMLSClients lcnv -> embedClient $ lookupMLSClients lcnv
-  LookupMLSLeafIndices lcnv -> embedClient $ lookupMLSLeafIndices lcnv
   LookupMLSClientLeafIndices lcnv -> embedClient $ lookupMLSClientLeafIndices lcnv

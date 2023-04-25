@@ -43,7 +43,6 @@ module Galley.Effects.MemberStore
     removeMLSClients,
     removeAllMLSClients,
     lookupMLSClients,
-    lookupMLSLeafIndices,
     lookupMLSClientLeafIndices,
 
     -- * Delete members
@@ -86,7 +85,6 @@ data MemberStore m a where
   RemoveMLSClients :: GroupId -> Qualified UserId -> Set ClientId -> MemberStore m ()
   RemoveAllMLSClients :: GroupId -> MemberStore m ()
   LookupMLSClients :: GroupId -> MemberStore m ClientMap
-  LookupMLSLeafIndices :: GroupId -> MemberStore m IndexMap
   LookupMLSClientLeafIndices :: GroupId -> MemberStore m (ClientMap, IndexMap)
 
 makeSem ''MemberStore

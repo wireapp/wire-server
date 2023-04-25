@@ -19,7 +19,6 @@ module Galley.Cassandra.Conversation.MLS
   ( acquireCommitLock,
     releaseCommitLock,
     lookupMLSClients,
-    lookupMLSLeafIndices,
     lookupMLSClientLeafIndices,
   )
 where
@@ -71,6 +70,3 @@ lookupMLSClientLeafIndices groupId = do
 
 lookupMLSClients :: GroupId -> Client ClientMap
 lookupMLSClients = fmap fst . lookupMLSClientLeafIndices
-
-lookupMLSLeafIndices :: GroupId -> Client IndexMap
-lookupMLSLeafIndices = fmap snd . lookupMLSClientLeafIndices
