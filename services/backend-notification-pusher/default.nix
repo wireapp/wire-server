@@ -6,17 +6,14 @@
 , aeson
 , amqp
 , base
-, bytestring
 , gitignoreSource
 , HsOpenSSL
-, http-types
 , http2-manager
 , imports
 , lib
 , text
 , types-common
 , wire-api-federation
-, yaml
 }:
 mkDerivation {
   pname = "backend-notification-pusher";
@@ -28,18 +25,15 @@ mkDerivation {
     aeson
     amqp
     base
-    bytestring
     HsOpenSSL
-    http-types
     http2-manager
     imports
     text
     types-common
     wire-api-federation
-    yaml
   ];
   executableHaskellDepends = [ HsOpenSSL imports types-common ];
-  testHaskellDepends = [ base imports ];
+  testHaskellDepends = [ imports ];
   description = "Pushes backend notifications to remote federated backends";
   license = lib.licenses.agpl3Only;
   mainProgram = "backend-notification-pusher";
