@@ -128,7 +128,7 @@ instance ToSchema ProtocolTag where
       mconcat
         [ element "proteus" ProtocolProteusTag,
           element "mls" ProtocolMLSTag,
-          element "mixed" ProtocolMLSTag
+          element "mixed" ProtocolMixedTag
         ]
 
 protocolTagSchema :: ObjectSchema SwaggerDoc ProtocolTag
@@ -152,4 +152,4 @@ deriving via (Schema Protocol) instance ToJSON Protocol
 protocolDataSchema :: ProtocolTag -> ObjectSchema SwaggerDoc Protocol
 protocolDataSchema ProtocolProteusTag = tag _ProtocolProteus (pure ())
 protocolDataSchema ProtocolMLSTag = tag _ProtocolMLS mlsDataSchema
-protocolDataSchema ProtocolMixedTag = tag _ProtocolMLS mlsDataSchema
+protocolDataSchema ProtocolMixedTag = tag _ProtocolMixed mlsDataSchema
