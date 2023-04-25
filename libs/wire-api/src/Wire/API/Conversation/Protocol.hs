@@ -49,9 +49,6 @@ data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag | ProtocolMixedTag
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via GenericUniform ProtocolTag
 
-data ProtocolCreateTag = ProtocolCreateProteusTag | ProtocolCreateMLSTag
-  deriving stock (Eq, Show, Enum, Bounded, Generic)
-
 data ConversationMLSData = ConversationMLSData
   { -- | The MLS group ID associated to the conversation.
     cnvmlsGroupId :: GroupId,

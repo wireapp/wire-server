@@ -203,12 +203,12 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
   ensureNoLegalholdConflicts allUsers
 
   case newConvProtocol newConv of
-    ProtocolMLSTag -> do
+    ProtocolCreateMLSTag -> do
       -- Here we fail early in order to notify users of this misconfiguration
       assertMLSEnabled
       unlessM (isJust <$> getMLSRemovalKey) $
         throw (InternalErrorWithDescription "No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Refusing to create MLS conversation.")
-    ProtocolProteusTag -> pure ()
+    ProtocolCreateProteusTag -> pure ()
 
   lcnv <- traverse (const E.createConversationId) lusr
   -- FUTUREWORK: Invoke the creating a conversation action only once
@@ -224,6 +224,7 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
       (ProtocolMLS mlsMeta, Just c) ->
         E.addMLSClients (cnvmlsGroupId mlsMeta) (tUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
       (ProtocolMLS _mlsMeta, Nothing) -> throwS @'MLSMissingSenderClient
+      (ProtocolMixed _mlsMeta, _) -> pure ()
 
     -- NOTE: We only send (conversation) events to members of the conversation
     failedToNotify <- notifyCreatedConversation lusr conn conv
@@ -595,8 +596,8 @@ newRegularConversation lusr newConv = do
   o <- input
   let uncheckedUsers = newConvMembers lusr newConv
   users <- case newConvProtocol newConv of
-    ProtocolProteusTag -> checkedConvSize o uncheckedUsers
-    ProtocolMLSTag -> do
+    ProtocolCreateProteusTag -> checkedConvSize o uncheckedUsers
+    ProtocolCreateMLSTag -> do
       unless (null uncheckedUsers) $ throwS @'MLSNonEmptyMemberList
       pure mempty
   let nc =
@@ -613,7 +614,7 @@ newRegularConversation lusr newConv = do
                   cnvmTeam = fmap cnvTeamId (newConvTeam newConv)
                 },
             ncUsers = ulAddLocal (toUserRole (tUnqualified lusr)) (fmap (,newConvUsersRole newConv) (fromConvSize users)),
-            ncProtocol = protocolCreateToProtocolTag (newConvProtocol newConv)
+            ncProtocol = newConvProtocol newConv
           }
   pure (nc, users)
 
