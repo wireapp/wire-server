@@ -281,7 +281,7 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
           Nothing
           Nothing
           roleNameWireAdmin
-          ProtocolProteusTag
+          ProtocolCreateProteusTag
   convId <-
     fmap cnvQualifiedId . responseJsonError
       =<< post
@@ -803,6 +803,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
     groupId <- case cnvProtocol conv of
       ProtocolMLS p -> pure (unGroupId (cnvmlsGroupId p))
       ProtocolProteus -> liftIO $ assertFailure "Expected MLS conversation"
+      ProtocolMixed _ -> liftIO $ assertFailure "Expected MLS conversation"
     let qconvId = cnvQualifiedId conv
     groupJSON <-
       liftIO $
@@ -1066,6 +1067,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
     groupId <- case cnvProtocol conv of
       ProtocolMLS p -> pure (unGroupId (cnvmlsGroupId p))
       ProtocolProteus -> liftIO $ assertFailure "Expected MLS conversation"
+      ProtocolMixed _ -> liftIO $ assertFailure "Expected MLS conversation"
     let qconvId = cnvQualifiedId conv
     groupJSON <-
       liftIO $

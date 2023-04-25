@@ -107,7 +107,6 @@ import Util.Options
 import Web.Internal.HttpApiData
 import Wire.API.Connection
 import Wire.API.Conversation
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
@@ -735,7 +734,7 @@ createMLSConversation galley zusr c = do
           Nothing
           Nothing
           roleNameWireAdmin
-          ProtocolMLSTag
+          ProtocolCreateMLSTag
   post $
     galley
       . path "/conversations"
@@ -776,7 +775,7 @@ createConversation galley zusr usersToAdd = do
           Nothing
           Nothing
           roleNameWireAdmin
-          ProtocolProteusTag
+          ProtocolCreateProteusTag
   post $
     galley
       . path "/conversations"

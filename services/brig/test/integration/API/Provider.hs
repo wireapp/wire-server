@@ -84,7 +84,6 @@ import Wire.API.Asset hiding (Asset)
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Bot
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.Internal.Notification
@@ -1415,7 +1414,7 @@ createConvWithAccessRoles ars g u us =
       . contentJson
       . body (RequestBodyLBS (encode conv))
   where
-    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin ProtocolCreateProteusTag
 
 postMessage ::
   Galley ->

@@ -53,10 +53,9 @@ import Text.RawString.QQ
 import URI.ByteString
 import Util
 import Web.FormUrlEncoded
-import Wire.API.Conversation (Access (..), Conversation (cnvQualifiedId))
+import Wire.API.Conversation (Access (..), Conversation (cnvQualifiedId), ProtocolCreateTag (..))
 import qualified Wire.API.Conversation as Conv
 import Wire.API.Conversation.Code (CreateConversationCodeRequest (CreateConversationCodeRequest))
-import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
 import qualified Wire.API.Conversation.Role as Role
 import Wire.API.OAuth
 import Wire.API.Routes.Bearer (Bearer (Bearer, unBearer))
@@ -703,7 +702,7 @@ createTeamConv ::
   Http ResponseLBS
 createTeamConv svc mkHeader token tid name = do
   let tinfo = Conv.ConvTeamInfo tid
-  let conv = Conv.NewConv [] [] (checked name) (Set.fromList [CodeAccess]) Nothing (Just tinfo) Nothing Nothing Role.roleNameWireAdmin ProtocolProteusTag
+  let conv = Conv.NewConv [] [] (checked name) (Set.fromList [CodeAccess]) Nothing (Just tinfo) Nothing Nothing Role.roleNameWireAdmin ProtocolCreateProteusTag
   post $
     svc
       . path "conversations"

@@ -40,7 +40,6 @@ import Test.Tasty.HUnit
 import Util
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Conversation
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Team hiding (newTeam)
@@ -235,7 +234,7 @@ createTeamConvWithRole role g tid u us mtimer = do
           mtimer
           Nothing
           role
-          ProtocolProteusTag
+          ProtocolCreateProteusTag
   r <-
     post
       ( g
