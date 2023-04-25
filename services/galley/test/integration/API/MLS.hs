@@ -1833,7 +1833,7 @@ testBackendRemoveProposalLocalConvLocalClient = do
     void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
     Just (_, idxBob1) <- find (\(ci, _) -> ci == bob1) <$> getClientsFromGroupState alice1 bob
 
-    mlsBracket [alice1, bob1] $ \[wsA, wsB] -> do
+    mlsBracket [alice1, bob1, charlie1] $ \[wsA, wsB, wsC] -> do
       liftTest $
         deleteClient (ciUser bob1) (ciClient bob1) (Just defPassword)
           !!! statusCode === const 200
@@ -1855,7 +1855,7 @@ testBackendRemoveProposalLocalConvLocalClient = do
       mp <- createPendingProposalCommit charlie1
       events <- sendAndConsumeCommitBundle mp
       liftIO $ events @?= []
-      WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $ \n -> do
+      WS.assertMatchN_ (5 # WS.Second) [wsA, wsC] $ \n -> do
         wsAssertMLSMessage (Conv <$> qcnv) charlie (mpMessage mp) n
 
 testBackendRemoveProposalLocalConvRemoteClient :: TestM ()
