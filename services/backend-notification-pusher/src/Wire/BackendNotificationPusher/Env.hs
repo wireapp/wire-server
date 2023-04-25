@@ -13,14 +13,14 @@ import Wire.BackendNotificationPusher.Options
 
 data Env = Env
   { http2Manager :: Http2Manager,
-    rabbitMqChannel :: IORef Q.Channel,
+    rabbitmqChannel :: IORef Q.Channel,
     federatorInternal :: Endpoint
   }
 
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
   http2Manager <- initHttp2Manager
-  rabbitMqChannel <- newIORef =<< initRabbitMq opts.rabbitMq
+  rabbitmqChannel <- newIORef =<< initRabbitMq opts.rabbitmq
   let federatorInternal = opts.federatorInternal
   pure Env {..}
 

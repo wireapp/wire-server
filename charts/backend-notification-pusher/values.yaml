@@ -17,7 +17,7 @@ config:
   # TODO: Proper logging
   logLevel: Info
   logFormat: StructuredJSON
-  rabbitMq:
+  rabbitmq:
     host: rabbitmq
     port: 5672
     vHost: /

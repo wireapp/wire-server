@@ -61,7 +61,7 @@ module Brig.App
     emailSender,
     randomPrekeyLocalLock,
     keyPackageLocalLock,
-    rabbitMqChannel,
+    rabbitmqChannel,
     fsWatcher,
 
     -- * App Monad
@@ -195,7 +195,7 @@ data Env = Env
     _indexEnv :: IndexEnv,
     _randomPrekeyLocalLock :: Maybe (MVar ()),
     _keyPackageLocalLock :: MVar (),
-    _rabbitMqChannel :: Maybe (IORef Q.Channel)
+    _rabbitmqChannel :: Maybe (IORef Q.Channel)
   }
 
 makeLenses ''Env
@@ -285,7 +285,7 @@ newEnv o = do
         _indexEnv = mkIndexEnv o lgr mgr mtr (Opt.galley o),
         _randomPrekeyLocalLock = prekeyLocalLock,
         _keyPackageLocalLock = kpLock,
-        _rabbitMqChannel = rabbitChan
+        _rabbitmqChannel = rabbitChan
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)
@@ -302,8 +302,8 @@ newEnv o = do
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
 
 mkRabbitMqChannel :: Opts -> IO (Maybe Q.Channel)
-mkRabbitMqChannel (Opt.rabbitMq -> Nothing) = pure Nothing
-mkRabbitMqChannel (Opt.rabbitMq -> Just Opt.RabbitMqOpts {..}) = do
+mkRabbitMqChannel (Opt.rabbitmq -> Nothing) = pure Nothing
+mkRabbitMqChannel (Opt.rabbitmq -> Just Opt.RabbitMqOpts {..}) = do
   username <- Text.pack <$> getEnv "RABBITMQ_USERNAME"
   password <- Text.pack <$> getEnv "RABBITMQ_PASSWORD"
   conn <- Q.openConnection' host (fromIntegral port) vHost username password

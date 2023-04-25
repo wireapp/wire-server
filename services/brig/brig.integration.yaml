@@ -13,7 +13,7 @@ elasticsearch:
   url: http://127.0.0.1:9200
   index: directory_test
 
-rabbitMq:
+rabbitmq:
   host: 127.0.0.1
   port: 5672
   vHost: /

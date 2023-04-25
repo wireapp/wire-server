@@ -142,7 +142,7 @@ notifyUserDeleted ::
   ExceptT FederationError m ()
 notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
-  qChan <- readIORef =<< maybe (throwE FederationNotConfigured) pure =<< view rabbitMqChannel
+  qChan <- readIORef =<< maybe (throwE FederationNotConfigured) pure =<< view rabbitmqChannel
   let notif = OnUserDeletedConnections $ UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
   ownDomain <- viewFederationDomain
   liftIO $ enqueue qChan (tDomain remotes) (BackendNotification ownDomain notif) Q.Persistent

@@ -18,7 +18,7 @@ startPushingNotifications ::
   Domain ->
   ReaderT Env IO Q.ConsumerTag
 startPushingNotifications domain = do
-  chan <- readIORef =<< asks rabbitMqChannel
+  chan <- readIORef =<< asks rabbitmqChannel
   lift $ ensureQueue chan domain
   env <- ask
   lift $ Q.consumeMsgs chan (routingKey domain) Q.Ack (pushNotification env domain)

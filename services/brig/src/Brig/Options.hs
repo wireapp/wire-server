@@ -443,7 +443,7 @@ data Opts = Opts
     -- | ElasticSearch settings
     elasticsearch :: !ElasticSearchOpts,
     -- | RabbitMQ settings
-    rabbitMq :: !(Maybe RabbitMqOpts),
+    rabbitmq :: !(Maybe RabbitMqOpts),
     -- | AWS settings
     aws :: !AWSOpts,
     -- | Enable Random Prekey Strategy
