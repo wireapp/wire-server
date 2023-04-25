@@ -14,22 +14,14 @@ helmDefaults:
 environments:
   default:
     values:
-      - namespace: {{ requiredEnv "NAMESPACE_1" }}
-      - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
-      - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
-      - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
-      - ingressChart: {{ requiredEnv "INGRESS_CHART" }}
+      - ./helm_vars/common.yaml.gotmpl
       - imagePullPolicy: Always
-      - redisStorageClass: hcloud-volumes
+      - storageClass: hcloud-volumes
   kind:
     values:
-      - namespace: {{ requiredEnv "NAMESPACE_1" }}
-      - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
-      - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
-      - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
-      - ingressChart: {{ requiredEnv "INGRESS_CHART" }}
+      - ./helm_vars/common.yaml.gotmpl
       - imagePullPolicy: Never
-      - redisStorageClass: standard
+      - storageClass: standard
 
 repositories:
   - name: stable
