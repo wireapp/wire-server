@@ -251,7 +251,6 @@ mkDerivation {
     schema-profunctor
     scientific
     servant
-    servant-client
     servant-server
     servant-swagger
     servant-swagger-ui

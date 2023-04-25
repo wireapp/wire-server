@@ -6,7 +6,6 @@
 , aeson
 , aeson-pretty
 , amqp
-, async
 , base
 , bytestring
 , bytestring-conversion
@@ -39,6 +38,7 @@
 , text
 , time
 , transformers
+, transitive-anns
 , types-common
 , uuid
 , wai-utilities
@@ -51,7 +51,6 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
-    async
     base
     bytestring
     bytestring-conversion
@@ -78,6 +77,7 @@ mkDerivation {
     text
     time
     transformers
+    transitive-anns
     types-common
     wai-utilities
     wire-api

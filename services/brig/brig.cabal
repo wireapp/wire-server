@@ -270,7 +270,6 @@ library
     , schema-profunctor
     , scientific                 >=0.3.4
     , servant
-    , servant-client
     , servant-server
     , servant-swagger
     , servant-swagger-ui

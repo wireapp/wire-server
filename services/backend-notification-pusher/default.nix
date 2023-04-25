@@ -4,13 +4,18 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, amqp
 , base
 , bytestring
 , gitignoreSource
 , HsOpenSSL
 , http-types
 , http2-manager
+, imports
 , lib
+, text
+, types-common
+, wire-api-federation
 , yaml
 }:
 mkDerivation {
@@ -21,13 +26,20 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson
+    amqp
     base
     bytestring
     HsOpenSSL
     http-types
     http2-manager
+    imports
+    text
+    types-common
+    wire-api-federation
     yaml
   ];
+  executableHaskellDepends = [ HsOpenSSL imports types-common ];
+  testHaskellDepends = [ base imports ];
   description = "Pushes backend notifications to remote federated backends";
   license = lib.licenses.agpl3Only;
   mainProgram = "backend-notification-pusher";
