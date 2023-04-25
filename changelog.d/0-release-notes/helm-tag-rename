@@ -1,3 +1,33 @@
-The tag 'federator' on the wire-server helm chart has been renamed to 
-'federation'. If a deployment had federation enabled using the 'federator' tag,
-it must now enable 'federation' instead.
+A few helm values related to federation have been renamed, no action is required if federation was disabled. 
+If federation was enabled these values must be renamed in the wire-server chart:
+- tags.federator -> tags.federation
+- brig.enableFederator -> brig.enableFederation
+- galley.enableFederator -> galley.enableFederation
+- cargohold.enableFederator -> galley.enableFederation
+
+So, an old config which looked like this:
+
+```yaml
+tags:
+  federator: true
+brig:
+  enableFederator: true
+galley:
+  enableFederator: true
+cargohold:
+  enableFederator: true
+```
+
+would now look like this:
+
+```yaml
+tags:
+  federation: true
+brig:
+  enableFederation: true
+galley:
+  enableFederation: true
+cargohold:
+  enableFederation: true
+```
+

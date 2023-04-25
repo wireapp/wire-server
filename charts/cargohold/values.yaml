@@ -18,7 +18,7 @@ config:
   logLevel: Info
   logFormat: StructuredJSON
   logNetStrings: false
-  enableFederator: false # keep enableFederator default in sync with brig and galley chart's config.enableFederator as well as wire-server chart's tag.federator
+  enableFederation: false # keep enableFederation default in sync with brig and galley chart's config.enableFederation as well as wire-server chart's tags.federation
   aws:
     region: "eu-west-1"
     s3Bucket: assets
