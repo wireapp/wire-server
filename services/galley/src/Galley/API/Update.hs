@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Update
@@ -39,6 +39,7 @@ module Galley.API.Update
     updateConversationAccess,
     deleteLocalConversation,
     updateRemoteConversation,
+    updateConversationProtocolWithLocalUser,
 
     -- * Managing Members
     addMembersUnqualified,
@@ -123,6 +124,7 @@ import System.Logger (Msg)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
+import Wire.API.Conversation.Protocol (ProtocolUpdate (ProtocolUpdate))
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Error
@@ -678,6 +680,44 @@ checkReusableCode convCode = do
   conv <- E.getConversation (codeConversation code) >>= noteS @'ConvNotFound
   mapErrorS @'GuestLinksDisabled @'CodeNotFound $
     Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
+
+updateConversationProtocolWithLocalUser ::
+  forall r.
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvInvalidProtocolTransition) r,
+    Member (ErrorS 'ConvMemberNotFound) r,
+    Member (Error FederationError) r,
+    Member ConversationStore r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  ProtocolUpdate ->
+  Sem r ()
+updateConversationProtocolWithLocalUser lusr conn qcnv update =
+  foldQualified
+    lusr
+    (\lcnv -> updateLocalConversationProtocol (tUntagged lusr) (Just conn) lcnv update)
+    (\_rcnv -> throw FederationNotImplemented)
+    qcnv
+
+updateLocalConversationProtocol ::
+  forall r.
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvInvalidProtocolTransition) r,
+    Member (ErrorS 'ConvMemberNotFound) r,
+    Member ConversationStore r
+  ) =>
+  Qualified UserId ->
+  Maybe ConnId ->
+  Local ConvId ->
+  ProtocolUpdate ->
+  Sem r ()
+updateLocalConversationProtocol qusr _mconn lcnv (ProtocolUpdate newProtocol) = do
+  conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+  void $ ensureOtherMember lcnv qusr conv
+  case (convProtocol conv, newProtocol) of
+    (_, _) -> throwS @'ConvInvalidProtocolTransition
 
 joinConversationByReusableCode ::
   forall db r.
