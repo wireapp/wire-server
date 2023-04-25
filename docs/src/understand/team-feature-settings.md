@@ -90,6 +90,8 @@ The MLS end-to-end identity team feature adds an extra level of security and pra
 
 When a client first tries to fetch or renew a certificate, they may need to login to an identity provider (IdP) depending on their IdP domain authentication policy. The user may have a grace period during which they can “snooze” this login. The duration of this grace period (in seconds) is set in the `verificationDuration` parameter, which is enforced separately by each client. After the grace period has expired, the client will not allow the user to use the application until they have logged to refresh the certificate. The default value is 1 day (86400s).
 
+The client enrolls using the Automatic Certificate Management Environment (ACME) protocol [RFC 8555](https://www.rfc-editor.org/rfc/rfc8555.html). The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for this team. It is of the form "https://acme.{backendDomain}/acme/{provisionerName}/discovery". For example: `https://acme.example.com/acme/provisioner1/discovery`.
+
 ```yaml
 galley:
   # ...
@@ -104,6 +106,6 @@ galley:
             status: disabled
             config:
               verificationExpiration: 86400
-              acmeDiscoveryUrl: https://acme.example.com/acme/provisioner1/discovery
+              acmeDiscoveryUrl: null
             lockStatus: unlocked
 ```
