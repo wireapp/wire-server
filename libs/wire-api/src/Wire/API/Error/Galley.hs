@@ -67,6 +67,7 @@ data GalleyError
   | InvalidTarget
   | ConvNotFound
   | ConvAccessDenied
+  | ConvInvalidProtocolTransition
   | -- MLS Errors
     MLSNotEnabled
   | MLSNonEmptyMemberList
@@ -184,6 +185,8 @@ type instance MapError 'InvalidTarget = 'StaticError 403 "invalid-op" "Invalid t
 type instance MapError 'ConvNotFound = 'StaticError 404 "no-conversation" "Conversation not found"
 
 type instance MapError 'ConvAccessDenied = 'StaticError 403 "access-denied" "Conversation access denied"
+
+type instance MapError 'ConvInvalidProtocolTransition = 'StaticError 403 "invalid-protocol-transition" "Protocol transition is invalid"
 
 type instance MapError 'InvalidTeamNotificationId = 'StaticError 400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
 

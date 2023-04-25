@@ -27,6 +27,7 @@ import Servant hiding (WithStatus)
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Code
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Error
@@ -1246,6 +1247,24 @@ type ConversationAPI =
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "self"
                :> ReqBody '[JSON] MemberUpdate
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    '[RespondEmpty 200 "Update successful"]
+                    ()
+           )
+    :<|> Named
+           "update-conversation-protocol"
+           ( Summary "Update the protocol of the conversation"
+               :> Description "**Note**: Only proteus->mixed upgrade is supported."
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvInvalidProtocolTransition
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "protocol"
+               :> ReqBody '[JSON] ProtocolUpdate
                :> MultiVerb
                     'PUT
                     '[JSON]

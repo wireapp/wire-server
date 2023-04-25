@@ -29,6 +29,7 @@ module Wire.API.Conversation.Protocol
     _ProtocolProteus,
     protocolSchema,
     ConversationMLSData (..),
+    ProtocolUpdate (..),
   )
 where
 
@@ -36,6 +37,7 @@ import Control.Arrow
 import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
+import qualified Data.Swagger as S
 import Data.Time.Clock
 import Imports
 import Wire.API.Conversation.Action.Tag
@@ -153,3 +155,14 @@ protocolDataSchema :: ProtocolTag -> ObjectSchema SwaggerDoc Protocol
 protocolDataSchema ProtocolProteusTag = tag _ProtocolProteus (pure ())
 protocolDataSchema ProtocolMLSTag = tag _ProtocolMLS mlsDataSchema
 protocolDataSchema ProtocolMixedTag = tag _ProtocolMixed mlsDataSchema
+
+newtype ProtocolUpdate = ProtocolUpdate {unProtocolUpdate :: ProtocolTag}
+
+instance ToSchema ProtocolUpdate where
+  schema = ProtocolUpdate <$> unProtocolUpdate .= object "Protocol" protocolTagSchema
+
+deriving via (Schema ProtocolUpdate) instance FromJSON ProtocolUpdate
+
+deriving via (Schema ProtocolUpdate) instance ToJSON ProtocolUpdate
+
+deriving via (Schema ProtocolUpdate) instance S.ToSchema ProtocolUpdate
