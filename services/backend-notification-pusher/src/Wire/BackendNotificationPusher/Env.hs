@@ -24,6 +24,7 @@ mkEnv opts = do
   let federatorInternal = opts.federatorInternal
   pure Env {..}
 
+initHttp2Manager :: IO Http2Manager
 initHttp2Manager = do
   ctx <- SSL.context
   SSL.contextAddOption ctx SSL_OP_NO_SSLv2

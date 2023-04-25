@@ -19,19 +19,21 @@ library
 
   hs-source-dirs:     src
   default-language:   Haskell2010
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -Wredundant-constraints -Wunused-packages
+
   build-depends:
       aeson
     , amqp
     , base
-    , bytestring
     , HsOpenSSL
-    , http-types
     , http2-manager
     , imports
     , text
     , types-common
     , wire-api-federation
-    , yaml
 
   default-extensions:
     NoImplicitPrelude
@@ -88,7 +90,7 @@ executable backend-notification-pusher
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields -Wredundant-constraints
+    -funbox-strict-fields -Wredundant-constraints -Wunused-packages
 
   default-extensions:
     NoImplicitPrelude
@@ -137,11 +139,13 @@ test-suite backend-notification-pusher-test
   type:               exitcode-stdio-1.0
   hs-source-dirs:     test
   main-is:            Main.hs
-  build-depends:
-      backend-notification-pusher
-    , base
-    , imports
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -threaded -with-rtsopts=-N
+    -Wredundant-constraints -Wunused-packages
 
+  build-depends:      imports
   default-extensions:
     NoImplicitPrelude
     AllowAmbiguousTypes
