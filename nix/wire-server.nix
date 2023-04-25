@@ -315,7 +315,6 @@ let
     pkgs.cfssl
     pkgs.awscli2
     (hlib.justStaticExecutables pkgs.haskellPackages.cabal-fmt)
-    (hlib.justStaticExecutables pkgs.haskellPackages.amqp-utils)
   ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.skopeo
   ];
