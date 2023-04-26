@@ -7,7 +7,7 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana sftd restund coturn
+CHARTS_INTEGRATION    := ingress-nginx-controller nginx-ingress-services
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
@@ -408,8 +408,8 @@ guard-tag:
 .PHONY: chart-%
 chart-%:
 	./hack/bin/copy-charts.sh $(*)
-	./hack/bin/set-wire-server-image-version.sh $(DOCKER_TAG)
-	./hack/bin/set-helm-chart-version.sh "$*" $(HELM_SEMVER)
+	# ./hack/bin/set-wire-server-image-version.sh $(DOCKER_TAG)
+	# ./hack/bin/set-helm-chart-version.sh "$*" $(HELM_SEMVER)
 
 # Usecase for this make target:
 #  * for local integration testing of wire-server inside kubernetes

@@ -25,22 +25,6 @@ repositories:
     url: 'https://charts.bitnami.com/bitnami'
 
 releases:
-  - name: '{{ .Values.namespace }}-fake-aws'
-    namespace: '{{ .Values.namespace }}'
-    chart: '../.local/charts/fake-aws'
-    values:
-      - './helm_vars/fake-aws/values.yaml'
-
-  - name: '{{ .Values.namespace }}-databases-ephemeral'
-    namespace: '{{ .Values.namespace }}'
-    chart: '../.local/charts/databases-ephemeral'
-
-  - name: '{{ .Values.namespace }}-redis-cluster'
-    namespace: '{{ .Values.namespace }}'
-    chart: '../.local/charts/redis-cluster'
-    values:
-      - './helm_vars/redis-cluster/values.yaml.gotmpl'
-
   - name: '{{ .Values.namespace }}-ic'
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/{{ .Values.ingressChart }}'
@@ -61,21 +45,3 @@ releases:
         value: {{ .Values.federationDomain }}
     needs:
       - '{{ .Values.namespace }}-ic'
-
-  # Note that wire-server depends on databases-ephemeral being up; and in some
-  # cases on nginx-ingress also being up. If installing helm charts in a
-  # parallel way, it's expected to see some wire-server pods (namely the
-  # cassandra-migration one) fail and get restarted a few times)
-  - name: '{{ .Values.namespace }}-wire-server'
-    namespace: '{{ .Values.namespace }}'
-    chart: '../.local/charts/wire-server'
-    values:
-      - './helm_vars/wire-server/values.yaml.gotmpl'
-      - './helm_vars/wire-server/certificates-namespace1.yaml'
-    set:
-      - name: brig.config.optSettings.setFederationDomain
-        value: {{ .Values.federationDomain }}
-      - name: galley.config.settings.federationDomain
-        value: {{ .Values.federationDomain }}
-      - name: cargohold.config.settings.federationDomain
-        value: {{ .Values.federationDomain }}
