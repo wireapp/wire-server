@@ -2975,16 +2975,13 @@ testAddRemoteMemberInvalidDomain = do
 
   connectWithRemoteUser alice remoteBob
 
-  r <-
-    responseJsonError @_ @Event
-      =<< postQualifiedMembers alice (remoteBob :| []) qconvId
-        <!! do
-          const 422 === statusCode
-          const (Just "/federation/api-version")
-            === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
-          const (Just "invalid.example.com")
-            === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
-  liftIO $ putStrLn $ "Response = " <> show r
+  postQualifiedMembers alice (remoteBob :| []) qconvId
+    !!! do
+      const 422 === statusCode
+      const (Just "/federation/api-version")
+        === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
+      const (Just "invalid.example.com")
+        === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
 
 -- This test is a safeguard to ensure adding remote members will fail
 -- on environments where federation isn't configured (such as our production as of May 2021)

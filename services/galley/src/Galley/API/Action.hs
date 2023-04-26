@@ -78,6 +78,8 @@ import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
 import Imports
+import qualified Network.HTTP.Types.Status as Wai
+import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -291,7 +293,8 @@ ensureAllowed tag loc action conv origUser = do
 -- and also returns the (possible modified) action that was performed
 performAction ::
   forall tag r.
-  ( HasConversationActionEffects tag r
+  ( HasConversationActionEffects tag r,
+    Member (Error FederationError) r
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -422,7 +425,8 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       ensureConnectedToRemotes lusr remotes
 
     checkLHPolicyConflictsLocal ::
-      ( Member (Error InternalError) r,
+      ( Member (Error FederationError) r,
+        Member (Error InternalError) r,
         Member (ErrorS 'MissingLegalholdConsent) r,
         Member ExternalAccess r,
         Member FederatorAccess r,
@@ -477,7 +481,8 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
     checkLHPolicyConflictsRemote _remotes = pure ()
 
 performConversationAccessData ::
-  ( HasConversationActionEffects 'ConversationAccessDataTag r
+  ( HasConversationActionEffects 'ConversationAccessDataTag r,
+    Member (Error FederationError) r
   ) =>
   Qualified UserId ->
   Local Conversation ->
@@ -564,6 +569,7 @@ data LocalConversationUpdate = LocalConversationUpdate
 updateLocalConversation ::
   forall tag r.
   ( Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -603,6 +609,7 @@ updateLocalConversation lcnv qusr con action = do
 updateLocalConversationUnchecked ::
   forall tag r.
   ( SingI tag,
+    Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -692,7 +699,8 @@ addMembersToLocalConversation lcnv users role = do
 
 notifyConversationAction ::
   forall tag r.
-  ( Member FederatorAccess r,
+  ( Member (Error FederationError) r,
+    Member FederatorAccess r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -758,6 +766,10 @@ notifyConversationAction _failEarly tag quid notifyOrigDomain con lconv targets 
         -- For now these users will not be able to join the conversation until
         -- queueing and retrying is implemented.
         let failedNotifies = lefts notifyEithers
+        for_ failedNotifies $ \case
+          -- rethrow invalid-domain errors
+          (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 422 _) _ _ _)))) -> throw ex
+          _ -> pure ()
         for_ failedNotifies $
           logError
             "on-new-remote-conversation"
@@ -856,7 +868,8 @@ notifyRemoteConversationAction loc rconvUpdate con = do
 -- leave, but then sends notifications as if the user was removed by someone
 -- else.
 kickMember ::
-  ( Member (Error InternalError) r,
+  ( Member (Error FederationError) r,
+    Member (Error InternalError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,

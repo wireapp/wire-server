@@ -675,6 +675,7 @@ joinConversationByReusableCode ::
   ( Member BrigAccess r,
     Member CodeStore r,
     Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -709,6 +710,7 @@ joinConversationById ::
   ( Member BrigAccess r,
     Member FederatorAccess r,
     Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -734,6 +736,7 @@ joinConversation ::
   forall r.
   ( Member BrigAccess r,
     Member FederatorAccess r,
+    Member (Error FederationError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -950,6 +953,7 @@ updateUnqualifiedSelfMember lusr zcon cnv update = do
 
 updateOtherMemberLocalConv ::
   ( Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
     Member (ErrorS 'InvalidTarget) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -976,6 +980,7 @@ updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult
 
 updateOtherMemberUnqualified ::
   ( Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
     Member (ErrorS 'InvalidTarget) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -1036,6 +1041,7 @@ updateOtherMemberRemoteConv _ _ _ _ _ = throw FederationNotImplemented
 
 removeMemberUnqualified ::
   ( Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -1061,6 +1067,7 @@ removeMemberUnqualified lusr con cnv victim = do
 
 removeMemberQualified ::
   ( Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -1127,6 +1134,7 @@ removeMemberFromRemoteConv cnv lusr victim
 -- | Remove a member from a local conversation.
 removeMemberFromLocalConv ::
   ( Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
@@ -1339,6 +1347,7 @@ updateConversationName lusr zcon qcnv convRename = do
 
 updateUnqualifiedConversationName ::
   ( Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -1360,6 +1369,7 @@ updateUnqualifiedConversationName lusr zcon cnv rename = do
 
 updateLocalConversationName ::
   ( Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
     Member (ErrorS 'ConvNotFound) r,

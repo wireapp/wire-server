@@ -353,6 +353,10 @@ leaveConversation requestingDomain lc = do
       . mapToRuntimeError @('ActionDenied 'LeaveConversation) F.RemoveFromConversationErrorRemovalNotAllowed
       . mapToRuntimeError @'InvalidOperation F.RemoveFromConversationErrorRemovalNotAllowed
       . mapError @NoChanges (const F.RemoveFromConversationErrorUnchanged)
+      -- As of Apr 25, 2023, a remote member cannot be a conversation admin so
+      -- the case where the local backend tries to resolve an invalid remote
+      -- domain is impossible and an internal error is thrown.
+      . mapError @FederationError (const BadMemberState)
       $ do
         (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound leaver lcnv
         update <-
@@ -371,15 +375,19 @@ leaveConversation requestingDomain lc = do
       let remotes = filter ((== qDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
       (_, notifyFailedToProcess) <-
-        notifyConversationAction
-          False
-          SConversationLeaveTag
-          leaver
-          False
-          Nothing
-          (qualifyAs lcnv conv)
-          botsAndMembers
-          ()
+        -- As of Apr 25, 2023, a remote member cannot be a conversation admin so
+        -- the case where the local backend tries to resolve an invalid remote
+        -- domain is impossible and an internal error is thrown.
+        mapError @FederationError (const BadMemberState) $
+          notifyConversationAction
+            False
+            SConversationLeaveTag
+            leaver
+            False
+            Nothing
+            (qualifyAs lcnv conv)
+            botsAndMembers
+            ()
 
       pure . F.LeaveConversationResponse . Right $
         updateFailedToProcess <> notifyFailedToProcess
@@ -461,6 +469,7 @@ sendMessage originDomain msr = do
 
 onUserDeleted ::
   ( Member ConversationStore r,
+    Member (Error InternalError) r,
     Member FederatorAccess r,
     Member FireAndForget r,
     Member ExternalAccess r,
@@ -500,15 +509,19 @@ onUserDeleted origDomain udcn = do
               let botsAndMembers = convBotsAndMembers conv
               removeUser (qualifyAs lc conv) (tUntagged deletedUser)
               void $
-                notifyConversationAction
-                  False
-                  (sing @'ConversationLeaveTag)
-                  untaggedDeletedUser
-                  False
-                  Nothing
-                  (qualifyAs lc conv)
-                  botsAndMembers
-                  ()
+                -- As of Apr 25, 2023, a remote member cannot be a conversation admin so
+                -- the case where the local backend tries to resolve an invalid remote
+                -- domain is impossible and an internal error is thrown.
+                mapError @FederationError (const BadMemberState) $
+                  notifyConversationAction
+                    False
+                    (sing @'ConversationLeaveTag)
+                    untaggedDeletedUser
+                    False
+                    Nothing
+                    (qualifyAs lc conv)
+                    botsAndMembers
+                    ()
   pure EmptyResponse
 
 updateConversation ::
