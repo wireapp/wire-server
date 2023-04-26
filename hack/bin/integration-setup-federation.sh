@@ -49,7 +49,7 @@ export FEDERATION_DOMAIN_2="federation-test-helper.$FEDERATION_DOMAIN_BASE"
 
 echo "Installing charts..."
 
-helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml" sync
+helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml" sync --skip-deps
 
 # wait for fakeSNS to create resources. TODO, cleaner: make initiate-fake-aws-sns a post hook. See cassandra-migrations chart for an example.
 resourcesReady() {
