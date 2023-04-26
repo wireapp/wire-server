@@ -353,10 +353,7 @@ leaveConversation requestingDomain lc = do
       . mapToRuntimeError @('ActionDenied 'LeaveConversation) F.RemoveFromConversationErrorRemovalNotAllowed
       . mapToRuntimeError @'InvalidOperation F.RemoveFromConversationErrorRemovalNotAllowed
       . mapError @NoChanges (const F.RemoveFromConversationErrorUnchanged)
-      -- As of Apr 25, 2023, a remote member cannot be a conversation admin so
-      -- the case where the local backend tries to resolve an invalid remote
-      -- domain is impossible and an internal error is thrown.
-      . mapError @FederationError (const BadMemberState)
+      . mapError mapFederationError
       $ do
         (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound leaver lcnv
         update <-
@@ -375,10 +372,7 @@ leaveConversation requestingDomain lc = do
       let remotes = filter ((== qDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
       (_, notifyFailedToProcess) <-
-        -- As of Apr 25, 2023, a remote member cannot be a conversation admin so
-        -- the case where the local backend tries to resolve an invalid remote
-        -- domain is impossible and an internal error is thrown.
-        mapError @FederationError (const BadMemberState) $
+        mapError mapFederationError $
           notifyConversationAction
             False
             SConversationLeaveTag
@@ -509,10 +503,7 @@ onUserDeleted origDomain udcn = do
               let botsAndMembers = convBotsAndMembers conv
               removeUser (qualifyAs lc conv) (tUntagged deletedUser)
               void $
-                -- As of Apr 25, 2023, a remote member cannot be a conversation admin so
-                -- the case where the local backend tries to resolve an invalid remote
-                -- domain is impossible and an internal error is thrown.
-                mapError @FederationError (const BadMemberState) $
+                mapError mapFederationError $
                   notifyConversationAction
                     False
                     (sing @'ConversationLeaveTag)
@@ -844,3 +835,15 @@ onTypingIndicatorUpdated origDomain TypingDataUpdated {..} = do
   let qcnv = Qualified tudConvId origDomain
   pushTypingIndicatorEvents tudOrigUserId tudTime tudUsersInConv Nothing qcnv tudTypingStatus
   pure EmptyResponse
+
+--------------------------------------------------------------------------------
+-- Utilities
+--------------------------------------------------------------------------------
+
+-- | Map a subset of federation errors to internal errors as these errors are
+-- impossible and do not ever occur. Note this is not a general function to be
+-- used in places other than in this module.
+mapFederationError :: FederationError -> InternalError
+mapFederationError (FederationCallFailure e) =
+  InternalErrorWithDescription . LT.pack . displayException $ e
+mapFederationError e = InternalErrorWithDescription . LT.pack . show $ e

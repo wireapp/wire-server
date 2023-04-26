@@ -767,8 +767,9 @@ notifyConversationAction _failEarly tag quid notifyOrigDomain con lconv targets 
         -- queueing and retrying is implemented.
         let failedNotifies = lefts notifyEithers
         for_ failedNotifies $ \case
-          -- rethrow invalid-domain errors
+          -- rethrow invalid-domain errors and mis-configured federation errors
           (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 422 _) _ _ _)))) -> throw ex
+          (_, ex@(FederationCallFailure (FederatorClientHTTP2Error (FederatorClientConnectionError _)))) -> throw ex
           _ -> pure ()
         for_ failedNotifies $
           logError
