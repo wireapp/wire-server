@@ -294,3 +294,16 @@ federator:
       federationStrategy:
         allowAll: true
       useSystemCAStore: false
+
+background-worker:
+  replicaCount: 1
+  resources:
+    requests: {}
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
+  config:
+    # TODO: Put correct value here
+    remoteDomains: []
+  secrets:
+    rabbitmq:
+      username: {{ .Values.rabbitmqUser }}
+      password: {{ .Values.rabbitmqPassword }}
