@@ -107,6 +107,9 @@ import Util.Options
 import Wire.API.Error
 import Wire.API.Federation.Error
 import qualified Wire.Sem.Logger
+import qualified Servant.Client as SC
+import qualified Wire.API.Routes.Internal.Brig as IAPI
+import Wire.API.Routes.Named (namedClient)
 
 -- Effects needed by the interpretation of other effects
 type GalleyEffects0 =
@@ -156,11 +159,24 @@ createEnv m o = do
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   validateOptions l o
-  Env def m o l mgr h2mgr (o ^. optFederator) (o ^. optBrig) cass
+  
+  -- Fetch the initial federation domain list so we always start with
+  -- a known update to date dataset.
+  
+  let brigEndpoint = o ^. optBrig
+      Endpoint h p = brigEndpoint
+      baseUrl = SC.BaseUrl SC.Http (unpack h) (fromIntegral p) ""
+      clientEnv = SC.ClientEnv mgr baseUrl Nothing SC.defaultMakeClientRequest
+      getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
+  strat <- either fedDomainError pure =<< SC.runClientM getFedRemotes clientEnv
+  Env def m o l mgr h2mgr (o ^. optFederator) brigEndpoint cass
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
     <*> loadAllMLSKeys (fold (o ^. optSettings . setMlsPrivateKeyPaths))
+    <*> newTVarIO strat
+  where
+    fedDomainError e = error $ "Could not retrieve the latest list of federation domains from Brig: " <> show e
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do

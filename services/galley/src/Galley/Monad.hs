@@ -32,7 +32,7 @@ import Polysemy.Input
 import System.Logger
 import qualified System.Logger.Class as LC
 
-newtype App a = App {unApp :: ReaderT Env IO a}
+newtype App a = App {unApp ::ReaderT Env IO a}
   deriving
     ( Functor,
       Applicative,

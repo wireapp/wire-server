@@ -48,6 +48,7 @@ import Galley.App
 import qualified Galley.App as App
 import Galley.Aws (awsEnv)
 import Galley.Cassandra
+import Galley.Env (fedDomains)
 import Galley.Monad
 import Galley.Options
 import qualified Galley.Queue as Q
@@ -59,11 +60,21 @@ import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
 import Servant hiding (route)
+import Servant.Client
+  ( BaseUrl (BaseUrl),
+    ClientEnv (ClientEnv),
+    Scheme (Http),
+    defaultMakeClientRequest,
+    runClientM,
+  )
 import qualified System.Logger as Log
 import Util.Options
 import Wire.API.Routes.API
+import qualified Wire.API.Routes.Internal.Brig as IAPI
+import Wire.API.Routes.Named (namedClient)
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
+import qualified System.Logger.Class as L
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
@@ -79,8 +90,10 @@ run opts = lowerCodensity $ do
 
   forM_ (env ^. aEnv) $ \aws ->
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
+  void $ Codensity $ Async.withAsync $ runApp env updateFedDomains
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
+  void $ Codensity $ Async.withAsync $ runApp env undefined
   lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
 
 mkApp :: Opts -> Codensity IO (Application, Env)
@@ -168,3 +181,27 @@ collectAuthMetrics m env = do
       mbRemaining <- readAuthExpiration env
       gaugeTokenRemaing m mbRemaining
       threadDelay 1_000_000
+
+updateFedDomains :: App ()
+updateFedDomains = do
+  updateInterval <- view $ options . optDomainUpdateInterval
+  tvar <- view fedDomains
+  manager' <- view manager
+  Endpoint host port <- view brig
+  let baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
+      clientEnv = ClientEnv manager' baseUrl Nothing defaultMakeClientRequest
+  forever $ do
+    previous <- liftIO $ readTVarIO tvar
+    strat <- liftIO $ runClientM getFedRemotes clientEnv
+    case strat of
+      Left e -> L.err . L.msg $ "Could not retrieve federation domains from brig: " <> show e
+      Right s -> when (s /= previous) $ do
+        -- Perform updates before rewriting the tvar
+        -- This means that if the update fails on a
+        -- particular invocation, it can be run again
+        -- on the next firing as it isn't likely that
+        -- the domain list is changing frequently.
+        liftIO $ atomically $ writeTVar tvar s
+    threadDelay updateInterval
+  where
+    getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"

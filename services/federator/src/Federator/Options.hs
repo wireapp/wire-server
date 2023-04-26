@@ -94,7 +94,7 @@ data Opts = Opts
     -- | Runtime settings
     optSettings :: !RunSettings,
     -- | Domain update interval (microseconds)
-    domainUpdateInterval :: Int
+    domainUpdateInterval :: !Int
   }
   deriving (Show, Generic)
 

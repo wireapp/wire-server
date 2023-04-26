@@ -45,7 +45,7 @@ instance ToSchema FederationDomainConfig where
 
 newtype FederationDomainConfigs = FederationDomainConfigs
   {fromFederationDomainConfigs :: [FederationDomainConfig]}
-  deriving (Show, Generic)
+  deriving (Show, Generic, Eq)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema FederationDomainConfigs
 
 instance ToSchema FederationDomainConfigs where
