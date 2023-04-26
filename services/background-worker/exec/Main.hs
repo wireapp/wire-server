@@ -3,7 +3,7 @@ module Main where
 import Imports
 import OpenSSL (withOpenSSL)
 import Util.Options
-import Wire.BackendNotificationPusher
+import Wire.BackgroundWorker
 
 main :: IO ()
 main = withOpenSSL $ do
