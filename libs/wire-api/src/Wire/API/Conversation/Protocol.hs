@@ -133,6 +133,10 @@ instance ToSchema ProtocolTag where
           element "mixed" ProtocolMixedTag
         ]
 
+deriving via (Schema ProtocolTag) instance FromJSON ProtocolTag
+
+deriving via (Schema ProtocolTag) instance ToJSON ProtocolTag
+
 protocolTagSchema :: ObjectSchema SwaggerDoc ProtocolTag
 protocolTagSchema = fmap (fromMaybe ProtocolProteusTag) (optField "protocol" schema)
 
