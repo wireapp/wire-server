@@ -1,4 +1,4 @@
-module Wire.BackendNotificationPusher.Options where
+module Wire.BackgroundWorker.Options where
 
 import Data.Aeson
 import Data.Domain

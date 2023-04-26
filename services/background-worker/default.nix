@@ -16,7 +16,7 @@
 , wire-api-federation
 }:
 mkDerivation {
-  pname = "backend-notification-pusher";
+  pname = "background-worker";
   version = "0.1.0.0";
   src = gitignoreSource ./.;
   isLibrary = true;
@@ -34,7 +34,7 @@ mkDerivation {
   ];
   executableHaskellDepends = [ HsOpenSSL imports types-common ];
   testHaskellDepends = [ imports ];
-  description = "Pushes backend notifications to remote federated backends";
+  description = "Runs background work";
   license = lib.licenses.agpl3Only;
-  mainProgram = "backend-notification-pusher";
+  mainProgram = "background-worker";
 }

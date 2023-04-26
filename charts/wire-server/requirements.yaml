@@ -111,11 +111,11 @@ dependencies:
     - federation
     - haskellServices
     - services
-- name: backend-notification-pusher
+- name: background-worker
   version: "0.0.42"
-  repository: "file://../backend-notification-pusher"
+  repository: "file://../background-worker"
   tags:
-    - backend-notification-pusher
+    - background-worker
     - federation
     - haskellServices
     - services

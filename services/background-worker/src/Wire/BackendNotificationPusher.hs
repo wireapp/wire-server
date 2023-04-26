@@ -8,8 +8,8 @@ import qualified Network.AMQP as Q
 import Wire.API.Federation.API
 import Wire.API.Federation.Client
 import Wire.API.Federation.Notifications
-import Wire.BackendNotificationPusher.Env
-import Wire.BackendNotificationPusher.Options
+import Wire.BackgroundWorker.Env
+import Wire.BackgroundWorker.Options
 
 -- TODO: This calls the callback for next notification even if one fails,
 -- implement some sort of blocking, which causes push back so memory doesn't

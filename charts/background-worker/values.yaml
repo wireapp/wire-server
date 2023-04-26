@@ -1,6 +1,6 @@
 replicaCount: 1
 image:
-  repository: quay.io/wire/backend-notification-pusher
+  repository: quay.io/wire/background-worker
   tag: do-not-use
 # FUTUREWORK: Review these values when we have some experience
 resources:
@@ -25,9 +25,9 @@ config:
 
 serviceAccount:
   # When setting this to 'false', either make sure that a service account named
-  # 'backend-notification-pusher' exists or change the 'name' field to 'default'
+  # 'background-worker' exists or change the 'name' field to 'default'
   create: true
-  name: backend-notification-pusher
+  name: background-worker
   annotations: {}
   automountServiceAccountToken: true
 

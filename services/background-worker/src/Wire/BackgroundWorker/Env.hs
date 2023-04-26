@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Wire.BackendNotificationPusher.Env where
+module Wire.BackgroundWorker.Env where
 
 import qualified Data.Text as Text
 import HTTP2.Client.Manager
@@ -9,7 +9,7 @@ import qualified Network.AMQP as Q
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import Util.Options
-import Wire.BackendNotificationPusher.Options
+import Wire.BackgroundWorker.Options
 
 data Env = Env
   { http2Manager :: Http2Manager,
