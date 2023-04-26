@@ -79,14 +79,19 @@ library
 
   -- cabal-fmt: expand test
   exposed-modules:
-    API
+    API.Brig
+    API.BrigInternal
+    API.Common
+    API.Galley
+    API.GalleyInternal
     RunAllTests
+    SetupHelpers
+    Test.Brig
     Test.Demo
-    TestLib.App
-    TestLib.Cannon
-    TestLib.Prelude
-    TestLib.Run
-    TestLib.SetupHelpers
+    Testlib.App
+    Testlib.Cannon
+    Testlib.Prelude
+    Testlib.Run
 
   build-depends:
     , aeson
@@ -113,6 +118,7 @@ library
     , retry
     , scientific
     , split
+    , string-conversions
     , tagged
     , tasty
     , text

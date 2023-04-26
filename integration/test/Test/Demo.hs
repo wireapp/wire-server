@@ -1,27 +1,29 @@
 {-# LANGUAGE FlexibleContexts #-}
 
--- | This module is meant to show how TestLib can be used
+-- | This module is meant to show how Testlib can be used
 module Test.Demo where
 
-import qualified API
+import qualified API.Brig as Public
+import qualified API.GalleyInternal as Internal
 import Imports
-import TestLib.Prelude
+import SetupHelpers
+import Testlib.Prelude
 
 testCantDeleteLHClient :: HasCallStack => App ()
 testCantDeleteLHClient = do
   user <- randomUser def
-  lhClientId <- bindResponse (API.addClient user def {API.ctype = "legalhold", API.internal = True}) $ \resp -> do
+  lhClientId <- bindResponse (Public.addClient user def {Public.ctype = "legalhold", Public.internal = True}) $ \resp -> do
     resp.status `shouldMatchInt` 201
     resp.json %. "id"
 
-  bindResponse (API.deleteClient user Nothing lhClientId) $ \resp -> do
+  bindResponse (Public.deleteClient user Nothing lhClientId) $ \resp -> do
     resp.status `shouldMatchInt` 400
 
 testDeleteUnknownClient :: HasCallStack => App ()
 testDeleteUnknownClient = do
   user <- randomUser def
   let fakeClientId = "deadbeefdeadbeef"
-  bindResponse (API.deleteClient user Nothing fakeClientId) $ \resp -> do
+  bindResponse (Public.deleteClient user Nothing fakeClientId) $ \resp -> do
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "client-not-found"
 
@@ -45,7 +47,7 @@ testModifiedGalley = do
   (_user, tid) <- createTeam
 
   let getFeatureStatus = do
-        bindResponse (API.getTeamFeatureInternal "searchVisibility" tid) $ \res -> do
+        bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
           res.status `shouldMatchInt` 200
           res.json %. "status"
 
@@ -64,7 +66,7 @@ testWebSockets :: HasCallStack => App ()
 testWebSockets = do
   user <- randomUser def
   withWebSocket user $ \ws -> do
-    client <- bindResponse (API.addClient user def) $ \resp -> do
+    client <- bindResponse (Public.addClient user def) $ \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json
     n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "user.client-add") ws
