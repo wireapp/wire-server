@@ -84,6 +84,18 @@ spec:
     - name: INTEGRATION_FEDERATION_TESTS
       value: "1"
     {{- end }}
+    {{- if .Values.config.enableFederation }}
+          - name: RABBITMQ_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: brig
+                key: rabbitmqUsername
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: brig
+                key: rabbitmqPassword
+    {{- end }}
     resources:
       requests:
         memory: "512Mi"
