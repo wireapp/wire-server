@@ -31,7 +31,8 @@ data CreateUser = CreateUser
   { email :: Maybe String,
     password :: Maybe String,
     name :: Maybe String,
-    team :: Bool
+    team :: Bool,
+    teamPermissions :: Maybe String
   }
 
 instance Default CreateUser where
@@ -40,7 +41,8 @@ instance Default CreateUser where
       { email = Nothing,
         password = Nothing,
         name = Nothing,
-        team = False
+        team = False,
+        teamPermissions = Nothing
       }
 
 createUser :: CreateUser -> App Response
@@ -49,22 +51,42 @@ createUser cu = do
   let password = fromMaybe defPassword cu.password
       name = fromMaybe email cu.name
   req <- baseRequest Brig Unversioned "/i/users"
-  submit "POST" $
-    addJSONObject
-      ( [ "email" .= email,
-          "name" .= name,
-          "password" .= password,
-          "icon" .= ("default" :: String)
-        ]
-          <> [ "team"
-                 .= object
-                   [ "name" .= ("integration test team" :: String),
-                     "icon" .= ("default" :: String)
-                   ]
-               | cu.team
-             ]
-      )
-      req
+  resp <-
+    submit "POST" $
+      addJSONObject
+        ( [ "email" .= email,
+            "name" .= name,
+            "password" .= password,
+            "icon" .= ("default" :: String)
+          ]
+            <> [ "team"
+                   .= object
+                     [ "name" .= ("integration test team" :: String),
+                       "icon" .= ("default" :: String)
+                     ]
+                 | cu.team
+               ]
+        )
+        req
+  _ <- case cu.teamPermissions of
+    Nothing -> pure ()
+    Just perms -> do
+      uid <- resp.json %. "id" & asString
+      tid <- resp.json %. "team" & asString
+      req2 <- baseRequest Galley Unversioned ("/i/team/" <> tid <> "/members")
+      let call2 =
+            submit "PUT" $
+              addJSONObject
+                [ "user" .= uid,
+                  "permissions" .= ["self" .= perms, "copy" .= perms]
+                ]
+                req2
+      bindResponse call2 $ \resp2 -> resp2.status `shouldMatchInt` 200
+  pure resp
+
+searchContact :: String -> String -> App Response
+searchContact searchingUserId searchTerm = do
+  undefined searchingUserId searchTerm
 
 getTeams :: String -> App Response
 getTeams userId = do

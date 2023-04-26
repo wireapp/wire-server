@@ -69,3 +69,11 @@ testWebSockets = do
       resp.json
     n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "user.client-add") ws
     nPayload n %. "client.id" `shouldMatch` (client %. "id")
+
+testSearchContactForExternalUsers :: HasCallStack => App ()
+testSearchContactForExternalUsers = do
+  user <- randomUser def {API.teamPermissions = Just "asdf"}
+  pprintJSON user
+  error
+    "create user to be searched and a team user with role `partner`.  the team user should not\
+    \be allowed to call /search/contacts (insufficient permissions)."
