@@ -180,8 +180,7 @@ instance Arbitrary TestCommitBundle where
         mkRawMLS . unMessageGenerator @(FramedContentGenerator Sender CommitPayload)
           <$> arbitrary
       welcome <- arbitrary
-      gi <- arbitrary
-      pure $ CommitBundle commitMsg welcome gi
+      CommitBundle commitMsg welcome <$> arbitrary
 
 newtype CommitPayload = CommitPayload {unCommitPayload :: RawMLS Commit}
   deriving newtype (Arbitrary)

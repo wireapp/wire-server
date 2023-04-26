@@ -549,7 +549,7 @@ getUserClients qusr = do
 claimRemoteKeyPackages :: HasCallStack => Remote UserId -> MLSTest KeyPackageBundle
 claimRemoteKeyPackages (tUntagged -> qusr) = do
   clients <- getUserClients qusr
-  bundle <- fmap (KeyPackageBundle . Set.fromList) $
+  fmap (KeyPackageBundle . Set.fromList) $
     for clients $ \cid -> do
       (kp, ref) <- generateKeyPackage cid
       pure $
@@ -559,7 +559,6 @@ claimRemoteKeyPackages (tUntagged -> qusr) = do
             ref = ref,
             keyPackage = KeyPackageData (raw kp)
           }
-  pure bundle
 
 -- | Claim key package for a local user, or generate and map key packages for remote ones.
 claimKeyPackages ::

@@ -116,7 +116,7 @@ validateSource t s = do
         "Expected '"
           <> t.name
           <> "' source, got '"
-          <> (leafNodeSourceTag s).name
+          <> t'.name
           <> "'"
 
 validateCapabilities :: Capabilities -> Either Text ()
