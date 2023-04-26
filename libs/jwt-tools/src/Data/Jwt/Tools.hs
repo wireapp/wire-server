@@ -146,7 +146,7 @@ generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpir
   methodCStr <- liftIO $ newCString $ cs $ methodToBS method
   backendPubkeyBundleCStr <- toCStr backendPubkeyBundle
 
-  let before = do
+  let before =
         generateDpopAccessTokenFfi
           dpopProofCStr
           uidCStr
