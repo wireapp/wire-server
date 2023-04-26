@@ -13,6 +13,8 @@ import Wire.BackgroundWorker.Options
 
 data Env = Env
   { http2Manager :: Http2Manager,
+    -- TODO: Find out if there are benefits of having one channel for everything
+    -- or should we create more channels?
     rabbitmqChannel :: IORef Q.Channel,
     federatorInternal :: Endpoint
   }
