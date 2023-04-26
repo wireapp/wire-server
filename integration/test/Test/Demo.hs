@@ -72,8 +72,7 @@ testWebSockets = do
 
 testSearchContactForExternalUsers :: HasCallStack => App ()
 testSearchContactForExternalUsers = do
-  user <- randomUser def {API.teamPermissions = Just "asdf"}
-  pprintJSON user
-  error
-    "create user to be searched and a team user with role `partner`.  the team user should not\
-    \be allowed to call /search/contacts (insufficient permissions)."
+  owner <- randomUser def {API.team = True}
+  partner <- randomUser def {API.team = True, API.teamPermissions = Just API.teamRolePartner}
+  bindResponse (API.searchContact (partner %. "id" & asString) (owner %. "displayName" & asString)) $ \resp ->
+    resp.status `shouldMatchInt` 403

@@ -32,7 +32,7 @@ data CreateUser = CreateUser
     password :: Maybe String,
     name :: Maybe String,
     team :: Bool,
-    teamPermissions :: Maybe String
+    teamPermissions :: Maybe Int
   }
 
 instance Default CreateUser where
@@ -44,6 +44,18 @@ instance Default CreateUser where
         team = False,
         teamPermissions = Nothing
       }
+
+teamRolePartner :: Int
+teamRolePartner = 1025
+
+teamRoleMember :: Int
+teamRoleMember = 1587
+
+teamRoleAdmin :: Int
+teamRoleAdmin = 5951
+
+teamRoleOwner :: Int
+teamRoleOwner = 8191
 
 createUser :: CreateUser -> App Response
 createUser cu = do
@@ -78,14 +90,14 @@ createUser cu = do
             submit "PUT" $
               addJSONObject
                 [ "user" .= uid,
-                  "permissions" .= ["self" .= perms, "copy" .= perms]
+                  "permissions" .= ["self" .= show perms, "copy" .= show perms]
                 ]
                 req2
       bindResponse call2 $ \resp2 -> resp2.status `shouldMatchInt` 200
   pure resp
 
-searchContact :: String -> String -> App Response
-searchContact searchingUserId searchTerm = do
+searchContact :: (ProducesJSON s1, ProducesJSON s2) => s1 -> s2 -> App Response
+searchContact (asString -> searchingUserId) (asString -> searchTerm) = do
   undefined searchingUserId searchTerm
 
 getTeams :: String -> App Response
