@@ -11,6 +11,7 @@ license-file:  LICENSE
 build-type:    Simple
 
 library
+  -- cabal-fmt: expand src
   exposed-modules:
     Galley.Types
     Galley.Types.Bot
@@ -19,7 +20,6 @@ library
     Galley.Types.Conversations.One2One
     Galley.Types.Conversations.Roles
     Galley.Types.Teams
-
   other-modules:      Paths_galley_types
   hs-source-dirs:     src
   default-extensions:
@@ -98,8 +98,10 @@ library
 test-suite galley-types-tests
   type:               exitcode-stdio-1.0
   main-is:            Main.hs
+  -- cabal-fmt: expand test
   other-modules:
     Paths_galley_types
+    Test.Galley.Permissions
     Test.Galley.Roundtrip
     Test.Galley.Types
 
