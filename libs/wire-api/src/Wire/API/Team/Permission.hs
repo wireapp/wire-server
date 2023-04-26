@@ -66,10 +66,10 @@ data Permissions = Permissions
   deriving stock (Eq, Ord, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Permissions)
 
-permissionsSchema :: ValueSchemaP NamedSwaggerDoc Permissions (Set Perm, Set Perm)
+permissionsSchema :: ValueSchema NamedSwaggerDoc Permissions
 permissionsSchema =
   objectWithDocModifier "Permissions" (description ?~ docs) $
-    (,)
+    Permissions
       <$> (permsToInt . _self) .= field "self" (intToPerms <$> schema)
       <*> (permsToInt . _copy) .= field "copy" (intToPerms <$> schema)
   where
@@ -81,7 +81,7 @@ permissionsSchema =
       \list."
 
 instance ToSchema Permissions where
-  schema = withParser permissionsSchema $ \(s, d) ->
+  schema = withParser permissionsSchema $ \(Permissions s d) ->
     case newPermissions s d of
       Nothing -> fail "invalid permissions"
       Just ps -> pure ps
