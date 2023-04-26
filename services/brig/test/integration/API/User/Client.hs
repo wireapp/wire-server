@@ -36,13 +36,7 @@ import qualified Brig.Options as Opt
 import qualified Cassandra as DB
 import Control.Lens hiding (Wrapped, (#))
 import Crypto.JWT hiding (Ed25519, header, params)
-import Data.Aeson
-  ( Object,
-    Result (Success),
-    Value (Number, Object, String),
-    encode,
-    fromJSON,
-  )
+import Data.Aeson hiding (json)
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as M
 import Data.Aeson.Lens
@@ -352,7 +346,7 @@ testListClients brig = do
   let pks = Map.fromList [(Ed25519, "random")]
   void $ putClient brig uid (clientId c1) pks
   let c1' = c1 {clientMLSPublicKeys = pks}
-  let cs' = sortBy (compare `on` clientId) [c1', c2, c3]
+  let clients = sortBy (compare `on` clientId) [c1', c2, c3]
 
   get
     ( brig
@@ -361,7 +355,7 @@ testListClients brig = do
     )
     !!! do
       const 200 === statusCode
-      const (Just cs') === responseJsonMaybe
+      const (Just clients) === responseJsonMaybe
 
 testMLSClient :: Brig -> Http ()
 testMLSClient brig = do
