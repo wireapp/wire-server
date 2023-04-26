@@ -133,15 +133,17 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
     decodeMLSError <$> spawn (cli qcid2 tmp ["key-package", "create"]) Nothing
   BS.writeFile (tmp </> qcid2) (raw kp)
 
+  secretKey <- Ed25519.generateSecretKey
   let groupFilename = "group"
-  let gid = GroupId "abcd"
-  createGroup tmp qcid groupFilename gid
+      gid = GroupId "abcd"
+      signerKeyFilename = "signer-key.bin"
+      publicKey = Ed25519.toPublic secretKey
+  BS.writeFile (tmp </> signerKeyFilename) (convert publicKey)
+  createGroup tmp qcid groupFilename signerKeyFilename gid
 
   void $ spawn (cli qcid tmp ["member", "add", "--group", tmp </> groupFilename, "--in-place", tmp </> qcid2]) Nothing
 
-  secretKey <- Ed25519.generateSecretKey
-  let publicKey = Ed25519.toPublic secretKey
-      proposal = mkRawMLS (RemoveProposal 1)
+  let proposal = mkRawMLS (RemoveProposal 1)
       pmessage =
         mkSignedPublicMessage
           secretKey
@@ -153,8 +155,6 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
       messageFilename = "signed-message.mls"
 
   BS.writeFile (tmp </> messageFilename) (raw (mkRawMLS message))
-  let signerKeyFilename = "signer-key.bin"
-  BS.writeFile (tmp </> signerKeyFilename) (convert publicKey)
 
   void $
     spawn
@@ -164,22 +164,25 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
           [ "consume",
             "--group",
             tmp </> groupFilename,
-            "--signer-key",
-            tmp </> signerKeyFilename,
             tmp </> messageFilename
           ]
       )
       Nothing
 
-createGroup :: FilePath -> String -> String -> GroupId -> IO ()
-createGroup tmp store groupName gid = do
+createGroup :: FilePath -> String -> String -> String -> GroupId -> IO ()
+createGroup tmp store groupName removalKey gid = do
   groupJSON <-
     liftIO $
       spawn
         ( cli
             store
             tmp
-            ["group", "create", T.unpack (toBase64Text (unGroupId gid))]
+            [ "group",
+              "create",
+              "--removal-key",
+              tmp </> removalKey,
+              T.unpack (toBase64Text (unGroupId gid))
+            ]
         )
         Nothing
   liftIO $ BS.writeFile (tmp </> groupName) groupJSON
