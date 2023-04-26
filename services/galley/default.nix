@@ -319,7 +319,6 @@ mkDerivation {
     containers
     extra
     galley-types
-    http-types
     imports
     lens
     polysemy
@@ -330,8 +329,6 @@ mkDerivation {
     tasty-quickcheck
     types-common
     uuid-types
-    wai
-    wai-predicates
     wire-api
     wire-api-federation
   ];
