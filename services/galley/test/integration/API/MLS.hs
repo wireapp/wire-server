@@ -261,7 +261,7 @@ tests s =
             ]
         ],
       testGroup
-        "Mixed protocol"
+        "MixedProtocol"
         [ test s "Upgrading works" testMixedUpgrade
         ]
     ]
