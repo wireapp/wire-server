@@ -25,6 +25,7 @@ securityContext:
 coturnTurnListenPort: 3478
 coturnMetricsListenPort: 9641
 coturnTurnTlsListenPort: 5349
+coturnFederationListenPort: 9191
 
 tls:
   enabled: false
@@ -40,6 +41,10 @@ tls:
 
 config:
   verboseLogging: false
+  federation:
+    enabled: false
+    noDtls: true
+
 
 metrics:
   serviceMonitor:

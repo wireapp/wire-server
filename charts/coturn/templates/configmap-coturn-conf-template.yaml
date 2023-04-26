@@ -43,6 +43,21 @@ data:
     verbose
     {{- end }}
 
+    {{- if .Values.config.federation.enabled }}
+    ## federation setup
+    federation-listening-ip=__COTURN_EXT_IP__
+    federation-listening-port={{ .Values.coturnFederationListenPort }}
+    federation-no-dtls={{ .Values.config.federation.noDtls }}
+    federation-cert=federation_cert.pem
+    federation-pkey=federation_pkey.pem
+    federation-pkey-pwd=
+    # list of host/ip/cert common names / subject alt names, and optional issuer
+    # names to accept DTLS connections from. There can be multiple entries, each
+    # entry is formated as:
+    # <hostname>[,<issuer>]
+    # federation-remote-whitelist=
+    {{- end }}
+
     ## access control settings.
     # the address ranges listed here are reserved for special use according
     # to the iana registries for special-purposes ipv4 and ipv6 addresses. note
