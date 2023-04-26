@@ -2980,3 +2980,14 @@ createAndConnectUsers domains = do
       (False, True) -> connectWithRemoteUser (qUnqualified b) a
       (False, False) -> pure ()
   pure users
+
+putConversationProtocol :: HasCallStack => UserId -> Qualified ConvId -> ProtocolTag -> TestM ResponseLBS
+putConversationProtocol uid (Qualified conv domain) protocol = do
+  galley <- viewGalley
+  put
+    ( galley
+        . paths ["conversations", toByteString' domain, toByteString' conv, "protocol"]
+        . zUser uid
+        . zConn "conn"
+        . Bilge.json (object ["protocol" .= protocol])
+    )

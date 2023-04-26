@@ -259,6 +259,10 @@ tests s =
               test s "delete subconversation as a remote non-member" (testRemoteMemberDeleteSubConv False),
               test s "delete parent conversation of a remote subconveration" testDeleteRemoteParentOfSubConv
             ]
+        ],
+      testGroup
+        "Mixed protocol"
+        [ test s "Upgrading works" testMixedUpgrade
         ]
     ]
 
@@ -3526,3 +3530,20 @@ testCreatorRemovesUserFromParent = do
               )
               (sort [alice1, charlie1, charlie2])
               (sort $ pscMembers sub2)
+
+testMixedUpgrade :: TestM ()
+testMixedUpgrade = do
+  [alice, _bob] <- createAndConnectUsers (replicate 2 Nothing)
+  convId <- decodeConvId <$> postConv (qUnqualified alice) [] (Just "watercooler") [] Nothing Nothing
+  localDomain <- viewFederationDomain
+  let qcnv = Qualified convId localDomain
+  putConversationProtocol (qUnqualified alice) qcnv ProtocolMixedTag
+    !!! const 200 === statusCode
+  conv <-
+    responseJsonError
+      =<< getConvQualified (qUnqualified alice) qcnv
+        <!! const 200 === statusCode
+  mlsData <- case cnvProtocol conv of
+    ProtocolMixed mlsData -> pure mlsData
+    _ -> liftIO $ assertFailure "Unexpected protocol"
+  liftIO $ assertEqual "" (cnvmlsEpoch mlsData) (Epoch 0)
