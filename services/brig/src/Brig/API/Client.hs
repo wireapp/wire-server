@@ -86,7 +86,6 @@ import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
-import Debug.Trace (traceM)
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
@@ -445,7 +444,6 @@ createAccessToken uid cid method link proof = do
   httpsUrl <- do
     let urlBs = "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
     maybe (throwE MisconfiguredRequestUrl) pure $ fromByteString $ urlBs
-  traceM $ "httpsUrl: " ++ cs (toByteString' httpsUrl)
   maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> view settings
   expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> view settings
   now <- fromUTCTime <$> lift (liftSem Now.get)

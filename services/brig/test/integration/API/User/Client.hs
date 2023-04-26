@@ -46,11 +46,11 @@ import Data.Aeson
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as M
 import Data.Aeson.Lens
-import qualified Data.ByteString.Base64 as B64
+import qualified Data.ByteString.Base64.URL as B64
 import Data.ByteString.Conversion
 import Data.Default
 import Data.Domain (Domain (..))
-import Data.Id hiding (client)
+import Data.Id
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
 import Data.Nonce (isValidBase64UrlEncodedUUID)
@@ -62,7 +62,6 @@ import Data.Text (replace)
 import Data.Text.Ascii (AsciiChars (validate))
 import Data.Time.Clock.POSIX
 import qualified Data.Vector as Vec
-import Debug.Trace (traceM)
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import qualified System.Logger as Log
@@ -135,7 +134,7 @@ tests _cl _at opts p db b c g =
       test p "get/head nonce/clients" $ testNewNonce b,
       testGroup
         "post /clients/:cid/access-token"
-        [ test p "invalid values" $ testCreateAccessTokenInvalidValues b,
+        [ test p "success" $ testCreateAccessToken b,
           test p "proof missing" $ testCreateAccessTokenMissingProof b,
           test p "no nonce" $ testCreateAccessTokenNoNonce b
         ]
@@ -1200,11 +1199,35 @@ instance A.ToJSON DPoPClaimsSet where
       ins k v (Object o) = Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
 
-signAccessToken :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
-signAccessToken claims = doSignClaims
+testCreateAccessToken :: Brig -> Http ()
+testCreateAccessToken brig =
+  recoverN 10 $ do
+    uid <- userId <$> randomUser brig
+    let uidb64 = B64.encodeUnpadded $ cs $ replace "-" "" $ cs (toByteString' uid)
+    cid <- createClientForUser brig uid
+    nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
+    let nonceBs = fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
+    now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (round <$> getPOSIXTime)
+    let clientIdentity :: Text = "im:wireapp=" <> cs uidb64 <> "/" <> cs (toByteString' cid) <> "@example.com"
+    let claimsSet' =
+          emptyClaimsSet
+            & claimIat ?~ NumericDate now
+            & claimExp ?~ NumericDate now
+            & claimNbf ?~ NumericDate now
+            & claimSub ?~ fromMaybe (error "invalid sub claim") (clientIdentity ^? stringOrUri)
+            & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
+    let dpopClaims = DPoPClaimsSet claimsSet' (cs nonceBs) "POST" ("https://example.com/clients/" <> cs (toByteString' cid) <> "/access-token") "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+    signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
+    case signedOrError of
+      Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
+      Right signed -> do
+        let proof = Just $ Proof (cs signed)
+        response <- Util.createAccessToken brig uid cid proof
+        accessToken <- responseJsonError response
+        liftIO $ datrType accessToken @?= DPoP
   where
-    doSignClaims :: IO (Either JWTError SignedJWT)
-    doSignClaims = runJOSE $ do
+    signAccessToken :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
+    signAccessToken claims = runJOSE $ do
       algo <- bestJWSAlg jwkKey
       let h =
             newJWSHeader ((), algo)
@@ -1215,50 +1238,12 @@ signAccessToken claims = doSignClaims
     jwkKey :: JWK
     jwkKey = do
       fromMaybe (error "invalid jwk") . A.decode $
-        "{\"crv\":\"Ed25519\",\"d\":\"UA2fFks0Tin4YPNbNHfCb-_zH_RvFliQLKR7VpNG5xc\",\"kty\":\"OKP\",\"x\":\"CPvhIdimF20tOPjbb-fXJrwS2RKDp7686T90AZ0-Th8\"}"
+        "{\"kty\":\"OKP\",\"d\":\"9RVey-A7ENCO5e9fDiPf8An1gkVBmAhFgu4WZMVwS-A\",\"crv\":\"Ed25519\",\"x\":\"nLJGN-Oa6Jsq3KclZggLl7UvAVdmB0Q6C3N5BCgphHw\"}"
 
     jwkPubKey :: JWK
     jwkPubKey = do
       fromMaybe (error "invalid jwk") . A.decode $
-        "{\"crv\":\"Ed25519\",\"kty\":\"OKP\",\"x\":\"CPvhIdimF20tOPjbb-fXJrwS2RKDp7686T90AZ0-Th8\"}"
-
--- {
---   "iat": 1680707939,
---   "exp": 1688483939,
---   "nbf": 1680707939,
---   "sub": "im:wireapp=YTM0NjEyODNmZGE2NGQzNmE4MTc4ZTZjNWMxNWM0MDU/ebfb7769766d4d10@staging.zinfra.io",
---   "jti": "6fc59e7f-b666-4ffc-b738-4f4760c884ca",
---   "nonce": "dE1bEcU1TySsa97QzuMJPg==",
---   "htm": "POST",
---   "htu": "https://staging-nginz-https.zinfra.io/v4/clients/ebfb7769766d4d10/access-token",
---   "chal": "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
--- }
-
-testCreateAccessTokenInvalidValues :: Brig -> Http ()
-testCreateAccessTokenInvalidValues brig =
-  do
-    uid <- userId <$> randomUser brig
-    let uidb64 = replace "-" "" $ cs $ B64.encode (toByteString' uid)
-    cid <- createClientForUser brig uid
-    traceM $ "created client: " <> cs (toByteString' cid)
-    nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
-    let nonceBs = fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
-    now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (round <$> getPOSIXTime)
-    let claimsSet' =
-          emptyClaimsSet
-            & claimIat ?~ NumericDate now
-            & claimExp ?~ NumericDate now
-            & claimNbf ?~ NumericDate now
-            & claimSub ?~ fromMaybe (error "") (("im:wireapp=" <> cs uidb64 <> "/" <> cs (toByteString' cid) <> "@example.com" :: Text) ^? stringOrUri)
-            & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
-    let dpopClaims = DPoPClaimsSet claimsSet' (cs nonceBs) "POST" ("https://example.com/clients/" <> cs (toByteString' cid) <> "/access-token") "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
-    signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
-    case signedOrError of
-      Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
-      Right signed -> do
-        let proof = Just $ Proof (cs signed)
-        response <- Util.createAccessToken brig uid cid proof
-        print response
+        "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"nLJGN-Oa6Jsq3KclZggLl7UvAVdmB0Q6C3N5BCgphHw\"}"
 
 testCreateAccessTokenMissingProof :: Brig -> Http ()
 testCreateAccessTokenMissingProof brig = do
