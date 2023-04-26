@@ -15,9 +15,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Galley.Permissions where -- TODO: add better swagger for Permissions (something with enum)
+module Test.Galley.Permissions where
 
-import Data.Aeson
 import Galley.Types.Teams
 import Imports
 import Test.Tasty
@@ -28,9 +27,9 @@ import Wire.API.Team.Role
 tests :: TestTree
 tests =
   testGroup
-    "bla"
-    [ testCase "" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleExternalPartner) 1025,
-      testCase "" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleMember) 1587,
-      testCase "" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleAdmin) 5951,
-      testCase "" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleOwner) 8191
+    "permsToInt"
+    [ testCase "partner" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleExternalPartner) 1025,
+      testCase "member" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleMember) 1587,
+      testCase "admin" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleAdmin) 5951,
+      testCase "owner" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleOwner) 8191
     ]
