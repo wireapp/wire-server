@@ -66,6 +66,18 @@ releases:
     values:
       - './helm_vars/redis-cluster/values.yaml.gotmpl'
 
+  - name: 'rabbitmq'
+    namespace: '{{ .Values.namespace }}'
+    chart: '../.local/charts/rabbitmq'
+    values:
+      - './helm_vars/rabbitmq/values.yaml.gotmpl'
+
+  - name: 'rabbitmq'
+    namespace: '{{ .Values.namespaceFed2 }}'
+    chart: '../.local/charts/rabbitmq'
+    values:
+      - './helm_vars/rabbitmq/values.yaml.gotmpl'
+
   - name: '{{ .Values.namespace }}-ic'
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/{{ .Values.ingressChart }}'

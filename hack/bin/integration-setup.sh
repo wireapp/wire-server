@@ -14,7 +14,7 @@ HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 "${DIR}/integration-cleanup.sh"
 
 echo "updating recursive dependencies ..."
-charts=(fake-aws databases-ephemeral redis-cluster wire-server ingress-nginx-controller nginx-ingress-controller nginx-ingress-services)
+charts=(fake-aws databases-ephemeral redis-cluster rabbitmq wire-server ingress-nginx-controller nginx-ingress-controller nginx-ingress-services)
 mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${charts[@]}" | parallel -P "${HELM_PARALLELISM}" "$DIR/update.sh" "$CHARTS_DIR/{}"
 
