@@ -75,8 +75,10 @@ brig:
       setMaxConvAndTeamSize: 16
       setMaxTeamSize: 32
       setMaxConvSize: 16
+      # See helmfile for the real value
       setFederationDomain: integration.example.com
       setFederationDomainConfigs:
+        # See helmfile for the real value
         - domain: integration.example.com
           search_policy: full_search
         - domain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
@@ -158,6 +160,9 @@ cargohold:
       s3Bucket: dummy-bucket
       s3Endpoint: http://fake-aws-s3:9000
     enableFederation: true # keep in sync with brig.config.enableFederation, galley.config.enableFederation and tags.federator!
+    settings:
+      # See helmfile for the real value
+      federationDomain: integration.example.com
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
@@ -176,6 +181,7 @@ galley:
       maxConvSize: 16
       conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/conversation-join/
       enableIndexedBillingTeamMembers: true
+      # See helmfile for the real value
       federationDomain: integration.example.com
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.

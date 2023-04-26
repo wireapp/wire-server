@@ -1,4 +1,5 @@
 ingress-nginx:
+  fullnameOverride: "{{ .Release.Namespace }}-nginx-ingress"
   controller:
     ingressClassResource:
         name: "nginx-{{ .Release.Namespace }}"
