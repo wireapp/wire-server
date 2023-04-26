@@ -48,7 +48,7 @@ import qualified Wire.Sem.Logger.TinyLog as Log
 
 data Monitor = Monitor
   { monINotify :: INotify,
-    monTLS :: IORef SSLContext,
+    monOnNewContext :: SSLContext -> IO (),
     monWatches :: IORef Watches,
     monSettings :: RunSettings,
     monHandler :: WatchedPath -> Event -> IO (),
@@ -153,10 +153,10 @@ mkMonitor ::
     Member (Polysemy.Error FederationSetupError) r1
   ) =>
   (Sem r1 () -> IO ()) ->
-  IORef SSLContext ->
+  (SSLContext -> IO ()) ->
   RunSettings ->
   Sem r Monitor
-mkMonitor runSem tlsVar rs = do
+mkMonitor runSem onNewContext rs = do
   inotify <- embed initINotify
   Log.trace $
     Log.msg ("inotify initialized" :: Text)
@@ -168,7 +168,7 @@ mkMonitor runSem tlsVar rs = do
   let monitor =
         Monitor
           { monINotify = inotify,
-            monTLS = tlsVar,
+            monOnNewContext = onNewContext,
             monWatches = watchesVar,
             monSettings = rs,
             monHandler = handleEvent runSem monitor,
@@ -226,7 +226,7 @@ applyAction ::
 applyAction monitor ReloadSettings = do
   sslCtx' <- mkSSLContext (monSettings monitor)
   Log.info $ Log.msg ("updating TLS settings" :: Text)
-  embed @IO $ atomicWriteIORef (monTLS monitor) sslCtx'
+  embed @IO $ monOnNewContext monitor sslCtx'
 applyAction monitor (ReplaceWatch path) = do
   watches <- readIORef (monWatches monitor)
   case Map.lookup path watches of

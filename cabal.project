@@ -11,6 +11,7 @@ packages:
   , libs/galley-types/
   , libs/gundeck-types/
   , libs/hscim/
+  , libs/http2-manager/
   , libs/imports/
   , libs/jwt-tools/
   , libs/metrics-core/
@@ -99,6 +100,8 @@ package gundeck
 package gundeck-types
     ghc-options: -Werror
 package hscim
+    ghc-options: -Werror
+package http2-manager
     ghc-options: -Werror
 package imports
     ghc-options: -Werror

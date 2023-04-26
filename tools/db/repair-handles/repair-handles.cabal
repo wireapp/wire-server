@@ -63,7 +63,7 @@ executable repair-handles
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base

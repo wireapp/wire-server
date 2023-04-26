@@ -79,7 +79,7 @@ let
     gundeck = [ "gundeck" "gundeck-integration" "gundeck-schema" ];
     proxy = [ "proxy" ];
     spar = [ "spar" "spar-integration" "spar-schema" "spar-migrate-data" ];
-    stern = [ "stern" "stern-integration"];
+    stern = [ "stern" "stern-integration" ];
 
     billing-team-member-backfill = [ "billing-team-member-backfill" ];
     inconsistencies = [ "inconsistencies" ];
@@ -375,11 +375,23 @@ in
       pkgs.netcat
       pkgs.niv
       (pkgs.python3.withPackages
-        (ps: with ps; [ pyyaml ipdb requests ]))
+        (ps: with ps; [
+          black
+          bokeh
+          flake8
+          ipdb
+          ipython
+          protobuf
+          pylint
+          pyyaml
+          requests
+          websockets
+        ]))
       pkgs.rsync
       pkgs.wget
       pkgs.yq
       pkgs.nginz
+      pkgs.rabbitmqadmin
 
       pkgs.cabal-install
       pkgs.haskellPackages.cabal-plan

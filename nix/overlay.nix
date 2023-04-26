@@ -100,4 +100,6 @@ self: super: {
 
     inherit (super) stdenv fetchurl;
   };
+
+  rabbitmqadmin = super.callPackage ./pkgs/rabbitmqadmin {};
 }

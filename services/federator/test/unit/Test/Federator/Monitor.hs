@@ -119,7 +119,7 @@ withSilentMonitor reloads settings = do
   tlsVar <- liftIO $ newIORef (error "TLSSettings not updated before being read")
   void . ContT $
     bracket
-      (runSem (mkMonitor runSemE tlsVar settings))
+      (runSem (mkMonitor runSemE (atomicWriteIORef tlsVar) settings))
       (runSem . delMonitor)
   pure tlsVar
   where
