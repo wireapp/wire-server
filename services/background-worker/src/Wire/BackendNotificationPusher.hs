@@ -9,7 +9,6 @@ import Wire.API.Federation.API
 import Wire.API.Federation.Client
 import Wire.API.Federation.Notifications
 import Wire.BackgroundWorker.Env
-import Wire.BackgroundWorker.Options
 
 -- TODO: This calls the callback for next notification even if one fails,
 -- implement some sort of blocking, which causes push back so memory doesn't
@@ -43,9 +42,8 @@ pushNotification env targetDomain (msg, envelope) = do
           Q.ackEnv envelope
         _ -> undefined
 
-run :: Opts -> IO ()
-run opts = do
-  env <- mkEnv opts
+startWorker :: Env -> [Domain] -> IO ()
+startWorker env remoteDomains = do
   -- TODO: Watch these and respawn if needed
-  flip runReaderT env $ mapM_ startPushingNotifications opts.remoteDomains
+  flip runReaderT env $ mapM_ startPushingNotifications remoteDomains
   forever $ threadDelay maxBound
