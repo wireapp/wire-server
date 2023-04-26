@@ -48,6 +48,7 @@ module Galley.Effects.ConversationStore
     deleteGroupIdForConversation,
     setPublicGroupState,
     deleteGroupIds,
+    updateToMixedProtocol,
 
     -- * Delete conversation
     deleteConversation,
@@ -69,6 +70,7 @@ import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.MLS.CipherSuite (CipherSuiteTag)
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.SubConversation
@@ -108,6 +110,7 @@ data ConversationStore m a where
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
   DeleteGroupIds :: [GroupId] -> ConversationStore m ()
+  UpdateToMixedProtocol :: ConvId -> GroupId -> CipherSuiteTag -> ConversationStore m ()
 
 makeSem ''ConversationStore
 

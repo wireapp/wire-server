@@ -433,6 +433,19 @@ deleteGroupIds ::
 deleteGroupIds =
   embedClient . UnliftIO.pooledMapConcurrentlyN_ 8 deleteGroupIdForConversation
 
+updateToMixedProtocol ::
+  Members
+    '[ Embed IO,
+       Input ClientState
+     ]
+    r =>
+  ConvId ->
+  GroupId ->
+  CipherSuiteTag ->
+  Sem r ()
+updateToMixedProtocol conv gid cs =
+  embedClient $ retry x5 $ write Cql.updateToMixedConv (params LocalQuorum (conv, ProtocolMixedTag, gid, Epoch 0, cs))
+
 interpretConversationStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
@@ -465,3 +478,4 @@ interpretConversationStoreToCassandra = interpret $ \case
   AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl
   ReleaseCommitLock gId epoch -> embedClient $ releaseCommitLock gId epoch
   DeleteGroupIds gIds -> deleteGroupIds gIds
+  UpdateToMixedProtocol cid gId cs -> updateToMixedProtocol cid gId cs

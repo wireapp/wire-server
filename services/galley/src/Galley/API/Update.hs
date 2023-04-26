@@ -124,7 +124,7 @@ import System.Logger (Msg)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
-import Wire.API.Conversation.Protocol (ProtocolUpdate (ProtocolUpdate))
+import Wire.API.Conversation.Protocol (ProtocolTag (..), ProtocolUpdate (ProtocolUpdate), protocolTag)
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Error
@@ -133,6 +133,8 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Group
 import Wire.API.Message
 import Wire.API.Password (mkSafePassword)
 import Wire.API.Provider.Service (ServiceRef)
@@ -716,7 +718,9 @@ updateLocalConversationProtocol ::
 updateLocalConversationProtocol qusr _mconn lcnv (ProtocolUpdate newProtocol) = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
   void $ ensureOtherMember lcnv qusr conv
-  case (convProtocol conv, newProtocol) of
+  case (protocolTag (convProtocol conv), newProtocol) of
+    (ProtocolProteusTag, ProtocolMixedTag) ->
+      E.updateToMixedProtocol (tUnqualified lcnv) (convToGroupId lcnv) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
     (_, _) -> throwS @'ConvInvalidProtocolTransition
 
 joinConversationByReusableCode ::
