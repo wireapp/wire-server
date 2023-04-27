@@ -1,3 +1,5 @@
+-- | This module should only contain low-level API functions
+-- High-level setup function for e.g. creating users should live in SetupHelpers
 module API where
 
 import Data.Aeson hiding ((.=))
@@ -31,8 +33,7 @@ data CreateUser = CreateUser
   { email :: Maybe String,
     password :: Maybe String,
     name :: Maybe String,
-    team :: Bool,
-    teamPermissions :: Maybe Int
+    team :: Bool
   }
 
 instance Default CreateUser where
@@ -41,8 +42,7 @@ instance Default CreateUser where
       { email = Nothing,
         password = Nothing,
         name = Nothing,
-        team = False,
-        teamPermissions = Nothing
+        team = False
       }
 
 teamRolePartner :: Int
@@ -63,9 +63,9 @@ createUser cu = do
   let password = fromMaybe defPassword cu.password
       name = fromMaybe email cu.name
   req <- baseRequest Brig Unversioned "/i/users"
-  resp <-
-    submit "POST" $
-      addJSONObject
+  submit "POST" $
+    req
+      & addJSONObject
         ( [ "email" .= email,
             "name" .= name,
             "password" .= password,
@@ -79,29 +79,6 @@ createUser cu = do
                  | cu.team
                ]
         )
-        req
-  _ <- case cu.teamPermissions of
-    Nothing -> pure ()
-    Just perms -> do
-      uid <- resp.json %. "id" & asString
-      tid <- resp.json %. "team" & asString
-      req2 <- baseRequest Galley Unversioned ("/i/teams/" <> tid <> "/members")
-      let call2 =
-            submit "PUT" $
-              addJSONObject
-                [ "member"
-                    .= object
-                      [ "user" .= uid,
-                        "permissions"
-                          .= object
-                            [ "self" .= perms,
-                              "copy" .= perms
-                            ]
-                      ]
-                ]
-                req2
-      bindResponse call2 $ \resp2 -> resp2.status `shouldMatchInt` 200
-  pure resp
 
 searchContacts :: (ProducesJSON s1, ProducesJSON s2) => s1 -> s2 -> App Response
 searchContacts searchingUserId searchTerm = do

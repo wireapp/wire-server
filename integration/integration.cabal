@@ -80,6 +80,7 @@ library
   -- cabal-fmt: expand test
   exposed-modules:
     API
+    API.GalleyInternal
     RunAllTests
     Test.Demo
     TestLib.App

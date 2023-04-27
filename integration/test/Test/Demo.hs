@@ -4,6 +4,7 @@
 module Test.Demo where
 
 import qualified API
+import qualified API.GalleyInternal as Internal
 import Imports
 import TestLib.Prelude
 
@@ -73,6 +74,10 @@ testWebSockets = do
 testSearchContactForExternalUsers :: HasCallStack => App ()
 testSearchContactForExternalUsers = do
   owner <- randomUser def {API.team = True}
-  partner <- randomUser def {API.team = True, API.teamPermissions = Just API.teamRolePartner}
+  partner <- randomUser def {API.team = True}
+
+  bindResponse (Internal.putTeamMember (partner %. "id") (partner %. "team") API.teamRolePartner) $ \resp ->
+    resp.status `shouldMatchInt` 200
+
   bindResponse (API.searchContacts (partner %. "id") (owner %. "name")) $ \resp ->
     resp.status `shouldMatchInt` 200
