@@ -67,6 +67,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Util.Options (Endpoint (..), epHost)
 import Wire.API.Internal.Notification
 import Wire.API.MLS.Credential
 import qualified Wire.API.Team.Feature as Public
@@ -79,8 +80,8 @@ import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> TestTree
-tests _cl _at opts p db b c g =
+tests :: Endpoint -> ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> TestTree
+tests e _cl _at opts p db b c g =
   testGroup
     "client"
     [ test p "delete /clients/:client 403 - can't delete legalhold clients" $
@@ -132,7 +133,7 @@ tests _cl _at opts p db b c g =
       test p "get/head nonce/clients" $ testNewNonce b,
       testGroup
         "post /clients/:cid/access-token"
-        [ test p "success" $ testCreateAccessToken b,
+        [ test p "success" $ testCreateAccessToken e b,
           test p "proof missing" $ testCreateAccessTokenMissingProof b,
           test p "no nonce" $ testCreateAccessTokenNoNonce b
         ]
@@ -1419,16 +1420,17 @@ instance A.ToJSON DPoPClaimsSet where
       ins k v (Object o) = Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
 
-testCreateAccessToken :: Brig -> Http ()
-testCreateAccessToken brig =
+testCreateAccessToken :: Endpoint -> Brig -> Http ()
+testCreateAccessToken ep brig =
   recoverN 10 $ do
+    let h = ep ^. epHost
     uid <- userId <$> randomUser brig
     let uidb64 = B64.encodeUnpadded $ cs $ replace "-" "" $ cs (toByteString' uid)
     cid <- createClientForUser brig uid
     nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
     let nonceBs = fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
     now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (round <$> getPOSIXTime)
-    let clientIdentity :: Text = "im:wireapp=" <> cs uidb64 <> "/" <> cs (toByteString' cid) <> "@127.0.0.1"
+    let clientIdentity :: Text = "im:wireapp=" <> cs uidb64 <> "/" <> cs (toByteString' cid) <> "@" <> h
     let claimsSet' =
           emptyClaimsSet
             & claimIat ?~ NumericDate now
@@ -1436,7 +1438,7 @@ testCreateAccessToken brig =
             & claimNbf ?~ NumericDate now
             & claimSub ?~ fromMaybe (error "invalid sub claim") (clientIdentity ^? stringOrUri)
             & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
-    let dpopClaims = DPoPClaimsSet claimsSet' (cs nonceBs) "POST" ("https://127.0.0.1/clients/" <> cs (toByteString' cid) <> "/access-token") "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+    let dpopClaims = DPoPClaimsSet claimsSet' (cs nonceBs) "POST" ("https://" <> h <> "/clients/" <> cs (toByteString' cid) <> "/access-token") "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
     signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
     case signedOrError of
       Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
