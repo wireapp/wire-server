@@ -2743,7 +2743,7 @@ testDeleteTeamConversationWithUnavailableRemoteMembers = do
           -- Mock an unavailable federation server for the deletion call
           <|> (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
           <|> (guardRPC "delete-team-conversation" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
-  (addResp, received) <- withTempMockFederator' mock $ do
+  (_, received) <- withTempMockFederator' mock $ do
     addResp <-
       responseJsonError @_ @Event
         =<< postQualifiedMembers alice (remoteBob :| []) qconvId
@@ -2753,8 +2753,6 @@ testDeleteTeamConversationWithUnavailableRemoteMembers = do
       !!! const 200 === statusCode
     pure addResp
   liftIO $ do
-    -- putStrLn $ "Received = " <> show received
-    putStrLn $ "Add members response = " <> show addResp
     let convUpdates = mapMaybe (eitherToMaybe . parseFedRequest) received
     convUpdate <- case filter ((== SomeConversationAction (sing @'ConversationDeleteTag) ()) . cuAction) convUpdates of
       [] -> assertFailure "No ConversationUpdate requests received"
