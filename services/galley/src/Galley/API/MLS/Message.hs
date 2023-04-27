@@ -23,7 +23,6 @@ module Galley.API.MLS.Message
     postMLSCommitBundle,
     postMLSCommitBundleFromLocalUser,
     postMLSMessageFromLocalUser,
-    postMLSMessageFromLocalUserV1,
     postMLSMessage,
     MLSMessageStaticErrors,
     MLSBundleStaticErrors,
@@ -40,7 +39,6 @@ import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
-import qualified Data.Text as T
 import Data.Time
 import Data.Tuple.Extra
 import GHC.Records
@@ -79,7 +77,6 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
@@ -113,7 +110,7 @@ import Wire.API.User.Client
 --   - [ ] ? verify capabilities
 --   - [ ] verify that all extensions are present in the capabilities
 --   - [ ] ? in the update case (in galley), verify that the encryption_key is different
--- [ ] validate proposals when processing proposal and commit messages
+-- [x] validate proposals when processing proposal and commit messages
 -- [x] remove MissingSenderClient error
 -- [x] remove all key package ref mapping
 -- [x] initialise index maps
@@ -245,36 +242,6 @@ type MLSBundleStaticErrors =
   Append
     MLSMessageStaticErrors
     '[ErrorS 'MLSWelcomeMismatch]
-
-postMLSMessageFromLocalUserV1 ::
-  ( HasProposalEffects r,
-    Member (Error FederationError) r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSGroupConversationMismatch) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSUnsupportedMessage) r,
-    Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member SubConversationStore r
-  ) =>
-  Local UserId ->
-  ClientId ->
-  ConnId ->
-  RawMLS Message ->
-  Sem r [Event]
-postMLSMessageFromLocalUserV1 lusr c conn smsg = do
-  assertMLSEnabled
-  imsg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage smsg
-  cnvOrSub <- lookupConvByGroupId imsg.groupId >>= noteS @'ConvNotFound
-  map lcuEvent . fst
-    <$> postMLSMessage lusr (tUntagged lusr) c cnvOrSub (Just conn) imsg
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
@@ -666,7 +633,7 @@ getCommitData senderIdentity lConvOrSub epoch commit = do
       if epoch == Epoch 0
         then addProposedClient senderIdentity
         else mempty
-    proposals <- traverse (derefProposal groupId epoch) commit.proposals
+    proposals <- traverse (derefOrCheckProposal mlsMeta groupId epoch) commit.proposals
     action <- applyProposals mlsMeta groupId proposals
     pure (creatorAction <> action)
 
@@ -826,18 +793,48 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
 
     pure updates
 
-derefProposal ::
-  ( Member ProposalStore r,
+derefOrCheckProposal ::
+  ( Member (Error MLSProtocolError) r,
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member ProposalStore r,
+    Member (State IndexMap) r,
     Member (ErrorS 'MLSProposalNotFound) r
   ) =>
+  ConversationMLSData ->
   GroupId ->
   Epoch ->
   ProposalOrRef ->
   Sem r Proposal
-derefProposal groupId epoch (Ref ref) = do
+derefOrCheckProposal _mlsMeta groupId epoch (Ref ref) = do
   p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
   pure p.value
-derefProposal _ _ (Inline p) = pure p
+derefOrCheckProposal mlsMeta _ _ (Inline p) = do
+  im <- get
+  checkProposal mlsMeta im p
+  pure p
+
+checkProposal ::
+  ( Member (Error MLSProtocolError) r,
+    Member (ErrorS 'MLSInvalidLeafNodeIndex) r
+  ) =>
+  ConversationMLSData ->
+  IndexMap ->
+  Proposal ->
+  Sem r ()
+checkProposal mlsMeta im p =
+  case p of
+    AddProposal kp -> do
+      (cs, _lifetime) <-
+        either
+          (\msg -> throw (mlsProtocolError ("Invalid key package in Add proposal: " <> msg)))
+          pure
+          $ validateKeyPackage Nothing kp.value
+      -- we are not checking lifetime constraints here
+      unless (mlsMeta.cnvmlsCipherSuite == cs) $
+        throw (mlsProtocolError "Key package ciphersuite does not match conversation")
+    RemoveProposal idx -> do
+      void $ noteS @'MLSInvalidLeafNodeIndex $ imLookup im idx
+    _ -> pure ()
 
 addProposedClient :: Member (State IndexMap) r => ClientIdentity -> Sem r ProposalAction
 addProposedClient cid = do
@@ -893,24 +890,6 @@ applyProposal _mlsMeta _groupId (ExternalInitProposal _) =
   pure paExternalInitPresent
 applyProposal _mlsMeta _groupId _ = pure mempty
 
-checkProposalCipherSuite ::
-  Member (Error MLSProtocolError) r =>
-  CipherSuiteTag ->
-  Proposal ->
-  Sem r ()
-checkProposalCipherSuite suite (AddProposal kpRaw) = do
-  let kp = value kpRaw
-  unless (kp.cipherSuite == tagCipherSuite suite)
-    . throw
-    . mlsProtocolError
-    . T.pack
-    $ "The group's cipher suite "
-      <> show (cipherSuiteNumber (tagCipherSuite suite))
-      <> " and the cipher suite of the proposal's key package "
-      <> show (cipherSuiteNumber kp.cipherSuite)
-      <> " do not match."
-checkProposalCipherSuite _suite _prop = pure ()
-
 processProposal ::
   HasProposalEffects r =>
   ( Member (ErrorS 'ConvNotFound) r,
@@ -927,52 +906,17 @@ processProposal qusr lConvOrSub msg pub prop = do
   checkEpoch msg.epoch mlsMeta
   checkGroup msg.groupId mlsMeta
   let suiteTag = cnvmlsCipherSuite mlsMeta
-  let cid = mcId . convOfConvOrSub . tUnqualified $ lConvOrSub
-
-  -- validate the proposal
-  --
-  -- is the user a member of the conversation?
-  loc <- qualifyLocal ()
-  isMember' <-
-    foldQualified
-      loc
-      ( fmap isJust
-          . getLocalMember cid
-          . tUnqualified
-      )
-      ( fmap isJust
-          . getRemoteMember cid
-      )
-      qusr
-  unless isMember' $ throwS @'ConvNotFound
 
   -- FUTUREWORK: validate the member's conversation role
-  let propValue = value prop
-  checkProposalCipherSuite suiteTag propValue
-  when (isExternal pub.sender) $ do
-    checkExternalProposalSignature pub prop
-    checkExternalProposalUser qusr propValue
+  let im = indexMapConvOrSub $ tUnqualified lConvOrSub
+  checkProposal mlsMeta im prop.value
+  when (isExternal pub.sender) $ checkExternalProposalUser qusr prop.value
   let propRef = authContentRef suiteTag (incomingMessageAuthenticatedContent pub)
   storeProposal msg.groupId msg.epoch propRef ProposalOriginClient prop
 
 isExternal :: Sender -> Bool
 isExternal (SenderMember _) = False
 isExternal _ = True
-
-checkExternalProposalSignature ::
-  Member (ErrorS 'MLSUnsupportedProposal) r =>
-  IncomingPublicMessageContent ->
-  RawMLS Proposal ->
-  Sem r ()
-checkExternalProposalSignature _msg prop = case value prop of
-  AddProposal kp -> do
-    let _pubkey = kp.value.leafNode.signatureKey
-        _ctx = error "TODO: get group context"
-    -- TODO
-    unless True $
-      -- unless (verifyMessageSignature ctx msg.framedContent msg.authData pubkey) $
-      throwS @'MLSUnsupportedProposal
-  _ -> pure () -- FUTUREWORK: check signature of other proposals as well
 
 -- check owner/subject of the key package exists and belongs to the user
 checkExternalProposalUser ::

@@ -21,7 +21,6 @@ module Galley.API.MLS
     postMLSMessage,
     postMLSCommitBundleFromLocalUser,
     postMLSMessageFromLocalUser,
-    postMLSMessageFromLocalUserV1,
     getMLSPublicKeys,
   )
 where
