@@ -337,19 +337,17 @@ toProtocol ::
   Maybe Protocol
 toProtocol Nothing _ _ _ _ = Just ProtocolProteus
 toProtocol (Just ProtocolProteusTag) _ _ _ _ = Just ProtocolProteus
-toProtocol (Just ProtocolMLSTag) mgid mepoch mtimestamp mcs = toMLSProtocol mgid mepoch mtimestamp mcs
-toProtocol (Just ProtocolMixedTag) mgid mepoch mtimestamp mcs = toMLSProtocol mgid mepoch mtimestamp mcs
+toProtocol (Just ProtocolMLSTag) mgid mepoch mtimestamp mcs = ProtocolMLS <$> toConversationMLSData mgid mepoch mtimestamp mcs
+toProtocol (Just ProtocolMixedTag) mgid mepoch mtimestamp mcs = ProtocolMixed <$> toConversationMLSData mgid mepoch mtimestamp mcs
 
-toMLSProtocol :: Maybe GroupId -> Maybe Epoch -> Maybe UTCTime -> Maybe CipherSuiteTag -> Maybe Protocol
-toMLSProtocol mgid mepoch mtimestamp mcs =
-  ProtocolMLS
-    <$> ( ConversationMLSData
-            <$> mgid
-            -- If there is no epoch in the database, assume the epoch is 0
-            <*> (mepoch <|> Just (Epoch 0))
-            <*> pure (mepoch `toTimestamp` mtimestamp)
-            <*> mcs
-        )
+toConversationMLSData :: Maybe GroupId -> Maybe Epoch -> Maybe UTCTime -> Maybe CipherSuiteTag -> Maybe ConversationMLSData
+toConversationMLSData mgid mepoch mtimestamp mcs =
+  ConversationMLSData
+    <$> mgid
+    -- If there is no epoch in the database, assume the epoch is 0
+    <*> (mepoch <|> Just (Epoch 0))
+    <*> pure (mepoch `toTimestamp` mtimestamp)
+    <*> mcs
   where
     toTimestamp :: Maybe Epoch -> Maybe UTCTime -> Maybe UTCTime
     toTimestamp Nothing _ = Nothing
