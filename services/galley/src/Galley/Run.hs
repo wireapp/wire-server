@@ -75,6 +75,7 @@ import Wire.API.Routes.Named (namedClient)
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
 import qualified System.Logger.Class as L
+import qualified Data.Set as Set
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
@@ -193,14 +194,19 @@ updateFedDomains = do
   forever $ do
     previous <- liftIO $ readTVarIO tvar
     strat <- liftIO $ runClientM getFedRemotes clientEnv
+    let domainListsEqual s =
+          Set.fromList (fromFederationDomainConfigs s) ==
+          Set.fromList (fromFederationDomainConfigs previous)
     case strat of
       Left e -> L.err . L.msg $ "Could not retrieve federation domains from brig: " <> show e
-      Right s -> when (s /= previous) $ do
+      -- Using Set to do the comparison, as it will handle the lists being in different orders.
+      Right s -> unless (domainListsEqual s) $ do
         -- Perform updates before rewriting the tvar
         -- This means that if the update fails on a
         -- particular invocation, it can be run again
         -- on the next firing as it isn't likely that
         -- the domain list is changing frequently.
+        -- FS-1179 is handling this part.
         liftIO $ atomically $ writeTVar tvar s
     threadDelay updateInterval
   where
