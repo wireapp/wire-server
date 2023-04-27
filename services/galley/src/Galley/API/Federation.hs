@@ -374,7 +374,6 @@ leaveConversation requestingDomain lc = do
       (_, notifyFailedToProcess) <-
         mapError mapFederationError $
           notifyConversationAction
-            False
             SConversationLeaveTag
             leaver
             False
@@ -505,7 +504,6 @@ onUserDeleted origDomain udcn = do
               void $
                 mapError mapFederationError $
                   notifyConversationAction
-                    False
                     (sing @'ConversationLeaveTag)
                     untaggedDeletedUser
                     False

@@ -640,11 +640,6 @@ updateLocalConversationUnchecked lconv qusr con action = do
   (extraTargets, action') <- performAction tag qusr lconv action
 
   notifyConversationAction
-    -- Removing members should be fault tolerant.
-    ( case tag of
-        SConversationRemoveMembersTag -> False
-        _ -> True
-    )
     (sing @tag)
     qusr
     False
@@ -706,7 +701,6 @@ notifyConversationAction ::
     Member (Input UTCTime) r,
     Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
-  Bool ->
   Sing tag ->
   Qualified UserId ->
   Bool ->
@@ -715,7 +709,7 @@ notifyConversationAction ::
   BotsAndMembers ->
   ConversationAction (tag :: ConversationActionTag) ->
   Sem r (LocalConversationUpdate, FailedToProcess)
-notifyConversationAction _failEarly tag quid notifyOrigDomain con lconv targets action = do
+notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap convId lconv
       conv = tUnqualified lconv
@@ -744,66 +738,49 @@ notifyConversationAction _failEarly tag quid notifyOrigDomain con lconv targets 
           { nrcConvId = convId conv,
             nrcProtocol = convProtocol conv
           }
-  -- let _errorIntolerant = do
-  --       -- TODO(md): Get rid of 'errorIntolerant'
-  --       E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
-  --         void $ fedClient @'Galley @"on-new-remote-conversation" nrc
-  --       update <- fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
-  --         . E.runFederatedConcurrently (toList (bmRemotes targets))
-  --         $ \ruids -> do
-  --           let update = mkUpdate (tUnqualified ruids)
-  --           -- if notifyOrigDomain is false, filter out user from quid's domain,
-  --           -- because quid's backend will update local state and notify its users
-  --           -- itself using the ConversationUpdate returned by this function
-  --           if notifyOrigDomain || tDomain ruids /= qDomain quid
-  --             then fedClient @'Galley @"on-conversation-updated" update $> Nothing
-  --             else pure (Just update)
-  --       pure (update, mempty :: FailedToProcess)
-  let errorTolerant = do
-        notifyEithers <-
-          E.runFederatedConcurrentlyEither (toList newRemotes) $ \_ -> do
-            void $ fedClient @'Galley @"on-new-remote-conversation" nrc
-        -- For now these users will not be able to join the conversation until
-        -- queueing and retrying is implemented.
-        let failedNotifies = lefts notifyEithers
-        for_ failedNotifies $ \case
-          -- rethrow invalid-domain errors and mis-configured federation errors
-          (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 422 _) _ _ _)))) -> throw ex
-          (_, ex@(FederationCallFailure (FederatorClientHTTP2Error (FederatorClientConnectionError _)))) -> throw ex
-          _ -> pure ()
-        for_ failedNotifies $
-          logError
-            "on-new-remote-conversation"
-            "An error occurred while communicating with federated server: "
-        updates <-
-          E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
-            \ruids -> do
-              let update = mkUpdate (tUnqualified ruids)
-              -- if notifyOrigDomain is false, filter out user from quid's domain,
-              -- because quid's backend will update local state and notify its users
-              -- itself using the ConversationUpdate returned by this function
-              if notifyOrigDomain || tDomain ruids /= qDomain quid
-                then fedClient @'Galley @"on-conversation-updated" update $> Nothing
-                else pure (Just update)
-        let f = fromMaybe (mkUpdate []) . asum . map tUnqualified . rights
-            update = f updates
-            failedUpdates = lefts updates
-            toFailedToProcess :: [Qualified UserId] -> FailedToProcess
-            toFailedToProcess us = case tag of
-              SConversationJoinTag -> failedToAdd us
-              SConversationLeaveTag -> failedToRemove us
-              SConversationRemoveMembersTag -> failedToRemove us
-              _ -> mempty
-        for_ failedUpdates $
-          logError
-            "on-conversation-updated"
-            "An error occurred while communicating with federated server: "
-        let totalFailedToProcess =
-              failedToAdd (qualifiedFails failedNotifies)
-                <> toFailedToProcess (qualifiedFails failedUpdates)
-        pure (update, totalFailedToProcess)
-
-  (update, failedToProcess) <- errorTolerant
+  (update, failedToProcess) <- do
+    notifyEithers <-
+      E.runFederatedConcurrentlyEither (toList newRemotes) $ \_ -> do
+        void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+    -- For now these users will not be able to join the conversation until
+    -- queueing and retrying is implemented.
+    let failedNotifies = lefts notifyEithers
+    for_ failedNotifies $ \case
+      -- rethrow invalid-domain errors and mis-configured federation errors
+      (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 422 _) _ _ _)))) -> throw ex
+      (_, ex@(FederationCallFailure (FederatorClientHTTP2Error (FederatorClientConnectionError _)))) -> throw ex
+      _ -> pure ()
+    for_ failedNotifies $
+      logError
+        "on-new-remote-conversation"
+        "An error occurred while communicating with federated server: "
+    updates <-
+      E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
+        \ruids -> do
+          let update = mkUpdate (tUnqualified ruids)
+          -- if notifyOrigDomain is false, filter out user from quid's domain,
+          -- because quid's backend will update local state and notify its users
+          -- itself using the ConversationUpdate returned by this function
+          if notifyOrigDomain || tDomain ruids /= qDomain quid
+            then fedClient @'Galley @"on-conversation-updated" update $> Nothing
+            else pure (Just update)
+    let f = fromMaybe (mkUpdate []) . asum . map tUnqualified . rights
+        update = f updates
+        failedUpdates = lefts updates
+        toFailedToProcess :: [Qualified UserId] -> FailedToProcess
+        toFailedToProcess us = case tag of
+          SConversationJoinTag -> failedToAdd us
+          SConversationLeaveTag -> failedToRemove us
+          SConversationRemoveMembersTag -> failedToRemove us
+          _ -> mempty
+    for_ failedUpdates $
+      logError
+        "on-conversation-updated"
+        "An error occurred while communicating with federated server: "
+    let totalFailedToProcess =
+          failedToAdd (qualifiedFails failedNotifies)
+            <> toFailedToProcess (qualifiedFails failedUpdates)
+    pure (update, totalFailedToProcess)
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
@@ -893,7 +870,6 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
       lconv
       ()
   notifyConversationAction
-    False
     (sing @'ConversationRemoveMembersTag)
     qusr
     True

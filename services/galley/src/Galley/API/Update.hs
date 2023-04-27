@@ -769,7 +769,6 @@ joinConversation lusr zcon conv access = do
       addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
     (lcuEvent . fst)
       <$> notifyConversationAction
-        False
         (sing @'ConversationJoinTag)
         (tUntagged lusr)
         False
