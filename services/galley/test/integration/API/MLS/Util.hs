@@ -864,8 +864,8 @@ sendAndConsumeCommit ::
 sendAndConsumeCommit = fmap fst . sendAndConsumeCommitFederated
 
 -- | Send an MLS commit message, simulate clients receiving it, and update the
--- test state accordingly. Also return lists of federated users that could not
--- be send a message to.
+-- test state accordingly. Also return lists of federated users that a message
+-- could not be sent to.
 sendAndConsumeCommitFederated ::
   HasCallStack =>
   MessagePackage ->
