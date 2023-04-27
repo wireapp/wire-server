@@ -54,7 +54,7 @@ import System.FilePath (joinPath, takeDirectory, (</>))
 import System.FilePath.Posix (splitPath)
 import System.IO (hPutStrLn, openBinaryTempFile)
 import qualified System.IO.Error as Error
-import System.Process (CreateProcess (..), createProcess, proc, terminateProcess, waitForProcess)
+import System.Process (CreateProcess (..), createProcess, proc, terminateProcess)
 import Test.Tasty.Options
 import Test.Tasty.Providers
 import qualified Test.Tasty.Providers as Tasty
@@ -847,7 +847,9 @@ withModifiedServices services k = do
 
   let stopInstances = liftIO $ do
         for_ instances terminateProcess
-        for_ instances waitForProcess
+        -- when running from repl this hangs for 30 seconds
+        -- for_ instances waitForProcess
+        pure ()
 
   let updateServiceMap serviceMap =
         Map.foldrWithKey
