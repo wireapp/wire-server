@@ -40,6 +40,17 @@ The list of TLS ciphers for incoming SFT requests (and metrics) are defined in a
 SFTD deployed via kubernetes uses `kubernetes.io/ingress` for ingress traffic, configured in [ingress.yaml](https://github.com/wireapp/wire-server/blob/develop/charts/sftd/templates/ingress.yaml).
 Kubernetes based deployments make use of the settings from {ref}`ingress-traffic`.
 
+## Coturn (kubernetes)
+
+The list of TLS ciphers for "TLS over TCP" TURN are defined in the [coturn helm chart](https://github.com/wireapp/wire-server/blob/master/charts/coturn/)
+
+```{eval-rst}
+.. grepinclude:: ../charts/coturn/values.yaml ciphers:
+   :lines-before: 3
+   :lines-after: 0
+   :language: yaml
+```
+
 ## Restund (ansible)
 
 The list of TLS ciphers for "TLS over TCP" TURN (and metrics) are defined in ansible templates [nginx-stream.conf.j2](https://github.com/wireapp/ansible-restund/blob/master/templates/nginx-stream.conf.j2#L25) and [nginx-metrics.conf.j2](https://github.com/wireapp/ansible-restund/blob/master/templates/nginx-metrics.conf.j2#L15).
