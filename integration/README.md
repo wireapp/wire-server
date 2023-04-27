@@ -1,3 +1,17 @@
+How to use:
+
+To run the whole testsuite:
+
+1. `make c` - build the whole project without unit test
+2. `make ci package=integration` - build test suite, start services and run test suite
+
+
+To interactively develop and run tests:
+
+1. `make cr` - build the whole project and start all services
+2. `make devtest test=TESTNAME` to start a ghcid that re-runs the test after each succesful build
+
+
 Original design guidelines / goals:
 
 - Don't import `wire-api` or any other internal Haskell libraries. This goal of this test suite is test against the public API interface.

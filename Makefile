@@ -91,6 +91,19 @@ endif
 ci: c db-migrate
 	./hack/bin/cabal-run-integration.sh $(package)
 
+
+# Compile and run services
+# Usage: make crun `OR` make crun package=galley
+.PHONY: cr
+cr: c db-migrate
+	./services/run-services
+
+# Run integration from new test suite
+# Usage: make devtest test=TESTNAME
+.PHONY: devtest
+devtest:
+	ghcid --height=1000 --command 'cabal repl integration' --test='Testlib.Run.runITest "$(test)"'
+
 .PHONY: sanitize-pr
 sanitize-pr:
 	./hack/bin/generate-local-nix-packages.sh
