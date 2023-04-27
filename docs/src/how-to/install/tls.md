@@ -44,11 +44,12 @@ Kubernetes based deployments make use of the settings from {ref}`ingress-traffic
 
 The list of TLS ciphers for "TLS over TCP" TURN are defined in the [coturn helm chart](https://github.com/wireapp/wire-server/blob/master/charts/coturn/)
 
-```{eval-rst}
-.. grepinclude:: ../charts/coturn/values.yaml ciphers:
-   :lines-before: 3
-   :lines-after: 0
-   :language: yaml
+```{grepinclude} ../charts/coturn/values.yaml ciphers:
+---
+lines-before: 3
+lines-after: 0
+language: yaml
+---
 ```
 
 ## Restund (ansible)

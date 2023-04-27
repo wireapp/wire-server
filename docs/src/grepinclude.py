@@ -6,6 +6,16 @@ import re
 # A bit like 'literalinclude', but using a keyword to highlight some code so as
 # to be a little more resilient to code moving lines with time.
 # Usage:
+# ```{grepinclude} ../charts/coturn/values.yaml ciphers:
+# ---
+# lines-before: 3
+# lines-after: 0
+# language: yaml
+# ---
+# ```
+#
+# or alternatively
+#
 # ```{eval-rst}
 # .. grepinclude:: ../charts/coturn/values.yaml ciphers:
 #    :lines-before: 3
