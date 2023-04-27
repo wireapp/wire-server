@@ -24,7 +24,7 @@ import Prelude
 
 collectTests :: [FilePath] -> IO [(String, String, String, String)]
 collectTests roots = do
-  concat <$> traverse findAllTests (map (<> "/Test") roots)
+  concat <$> traverse (findAllTests . (<> "/Test")) roots
   where
     findAllTests :: FilePath -> IO [(String, String, String, String)]
     findAllTests root = do
@@ -49,7 +49,7 @@ collectTests roots = do
       if isDir
         then do
           entries <- listDirectory d
-          concat <$> traverse findPaths (map (d </>) entries)
+          concat <$> traverse (findPaths . (d </>)) entries
         else pure [d]
 
 contexts :: [a] -> [([a], a)]
@@ -82,7 +82,7 @@ collectTestsInModule fn = do
   s <- readFile fn
   let xs = contexts (lines s)
   pure $ flip mapMaybe xs $ \(previousLines, line) -> do
-    case (words line) of
+    case words line of
       (name@('t' : 'e' : 's' : 't' : _) : "::" : _) -> do
         let (summary, fullDesc) = collectDescription previousLines
         pure (name, summary, fullDesc)
@@ -117,7 +117,7 @@ testHooks hooks =
                   "allTests :: [(String, String, String, String, App ())]",
                   "allTests =",
                   "  [",
-                  "    " <> intercalate ",\n    " (map (\(m, n, s, f) -> "(" <> (intercalate ", " [show m, show n, show s, show f, (m <> "." <> n)]) <> ")") tests),
+                  "    " <> intercalate ",\n    " (map (\(m, n, s, f) -> "(" <> intercalate ", " [show m, show n, show s, show f, (m <> "." <> n)] <> ")") tests),
                   "  ]"
                 ]
             )
