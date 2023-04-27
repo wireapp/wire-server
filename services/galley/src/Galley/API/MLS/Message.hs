@@ -1177,7 +1177,12 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
   membersToRemove <- catMaybes <$> for removedUsers (uncurry checkRemoval)
 
   -- add users to the conversation and send events
-  addEvents <- foldMap addMembers . nonEmpty . map fst $ newUserClients
+  addEvents <-
+    foldMap addMembers
+      . nonEmpty
+      . filter (\u -> u `notElem` failedAddFetching)
+      . fmap fst
+      $ newUserClients
   let failedAdding =
         Set.toList $
           Set.fromList (fst <$> newUserClients)

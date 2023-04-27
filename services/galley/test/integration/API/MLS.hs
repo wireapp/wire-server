@@ -688,9 +688,16 @@ testAddRemotesSomeUnreachable = do
         $ sendAndConsumeCommitFederated commit
     pure (events, failedToProcess, reqs, qcnv)
 
+  let expectedJoiners = [bob]
   liftIO $ do
-    req <- assertOne $ filter (\r -> ((== "on-conversation-updated") . frRPC) r && frTargetDomain r == bobDomain) reqs
-    void $ assertOne $ filter (\r -> ((== "on-conversation-updated") . frRPC) r && frTargetDomain r == charlieDomain) reqs
+    req <-
+      assertOne $
+        filter
+          ( \r ->
+              ((== "on-conversation-updated") . frRPC) r
+                && frTargetDomain r == bobDomain
+          )
+          reqs
     frTargetDomain req @?= qDomain bob
     bdy <- case Aeson.eitherDecode (frBody req) of
       Right b -> pure b
@@ -698,23 +705,20 @@ testAddRemotesSomeUnreachable = do
     cuOrigUserId bdy @?= alice
     cuConvId bdy @?= qUnqualified qcnv
     cuAlreadyPresentUsers bdy @?= [qUnqualified bob]
-    let expectedJoiners = sort [bob, charlie]
-        SomeConversationAction SConversationJoinTag cj = cuAction bdy
+    failedToProcess
+      @?= FailedToProcess
+        { send = Nothing,
+          add = Just (UnreachableUsers (pure charlie)),
+          remove = Nothing
+        }
+    let SomeConversationAction SConversationJoinTag cj = cuAction bdy
         ConversationJoin actualJoiners actualRole = cj
-    (sort . NE.toList) actualJoiners @?= expectedJoiners -- TODO(md): only Bob should be listed as the joiner
+    (sort . NE.toList) actualJoiners @?= expectedJoiners
     actualRole @?= roleNameWireMember
 
   liftIO $ do
     event <- assertOne events
-    assertJoinEvent qcnv alice [bob, charlie] roleNameWireMember event -- TODO(md):
-    -- only
-    -- Bob
-    -- should
-    -- be
-    -- listed
-    -- as the
-    -- joiner
-  liftIO $ putStrLn $ "Failed to process = " <> show failedToProcess
+    assertJoinEvent qcnv alice expectedJoiners roleNameWireMember event
 
 testCommitLock :: TestM ()
 testCommitLock = do
