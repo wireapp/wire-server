@@ -4,7 +4,7 @@ import qualified API.BrigInternal as Internal
 import Data.Aeson
 import Data.Default
 import Imports
-import TestLib.App
+import Testlib.App
 
 randomUser :: Internal.CreateUser -> App Value
 randomUser cu = bindResponse (Internal.createUser cu) $ \resp -> do

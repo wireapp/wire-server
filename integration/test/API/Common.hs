@@ -3,7 +3,7 @@ module API.Common where
 import qualified Data.Array as Array
 import Imports
 import System.Random (randomRIO)
-import TestLib.Prelude
+import Testlib.Prelude
 
 teamRolePartner :: Int
 teamRolePartner = 1025

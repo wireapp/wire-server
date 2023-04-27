@@ -111,7 +111,7 @@ testHooks hooks =
             dest
             ( unlines
                 [ "module RunAllTests where",
-                  "import TestLib.App",
+                  "import Testlib.App",
                   "import Prelude",
                   unlines (map ("import qualified " <>) modules),
                   "allTests :: [(String, String, String, String, App ())]",

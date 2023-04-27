@@ -1,13 +1,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 
--- | This module is meant to show how TestLib can be used
+-- | This module is meant to show how Testlib can be used
 module Test.Demo where
 
 import qualified API.Brig as Public
 import qualified API.GalleyInternal as Internal
 import Imports
 import SetupHelpers
-import TestLib.Prelude
+import Testlib.Prelude
 
 testCantDeleteLHClient :: HasCallStack => App ()
 testCantDeleteLHClient = do

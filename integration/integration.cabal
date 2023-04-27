@@ -88,10 +88,10 @@ library
     SetupHelpers
     Test.Brig
     Test.Demo
-    TestLib.App
-    TestLib.Cannon
-    TestLib.Prelude
-    TestLib.Run
+    Testlib.App
+    Testlib.Cannon
+    Testlib.Prelude
+    Testlib.Run
 
   build-depends:
     , aeson

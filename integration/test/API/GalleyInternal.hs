@@ -1,7 +1,7 @@
 module API.GalleyInternal where
 
 import Imports
-import TestLib.Prelude
+import Testlib.Prelude
 
 putTeamMember :: (HasCallStack, ProducesJSON user, ProducesJSON team) => user -> team -> Int -> App Response
 putTeamMember user team perms = do

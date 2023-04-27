@@ -6,7 +6,7 @@ import qualified API.Common as API
 import qualified API.GalleyInternal as Internal
 import Imports
 import SetupHelpers
-import TestLib.Prelude
+import Testlib.Prelude
 
 testSearchContactForExternalUsers :: HasCallStack => App ()
 testSearchContactForExternalUsers = do

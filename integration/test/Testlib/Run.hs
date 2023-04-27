@@ -1,4 +1,4 @@
-module TestLib.Run (main, runI, runITest) where
+module Testlib.Run (main, runI, runITest) where
 
 import Imports
 import RunAllTests
@@ -41,6 +41,6 @@ runI args = do
       main
 
 -- | Use this to run test from a repl
--- e.g. ghcid --command 'cabal repl integration' --test='TestLib.Run.runITest "<TESTNAME>"'
+-- e.g. ghcid --command 'cabal repl integration' --test='Testlib.Run.runITest "<TESTNAME>"'
 runITest :: String -> IO ()
 runITest testName = runI ["-p", testName]

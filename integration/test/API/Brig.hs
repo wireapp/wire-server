@@ -2,7 +2,7 @@ module API.Brig where
 
 import API.Common
 import Imports
-import TestLib.Prelude
+import Testlib.Prelude
 
 data AddClient = AddClient
   { ctype :: String,

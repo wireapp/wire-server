@@ -2,7 +2,7 @@ module API.BrigInternal where
 
 import API.Common
 import Imports
-import TestLib.Prelude
+import Testlib.Prelude
 
 data CreateUser = CreateUser
   { email :: Maybe String,

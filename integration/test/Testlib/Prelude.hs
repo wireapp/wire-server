@@ -1,6 +1,6 @@
-module TestLib.Prelude
-  ( module TestLib.App,
-    module TestLib.Cannon,
+module Testlib.Prelude
+  ( module Testlib.App,
+    module Testlib.Cannon,
     module Text.RawString.QQ,
     module Data.Aeson,
     Default (..),
@@ -9,6 +9,6 @@ where
 
 import Data.Aeson hiding ((.=))
 import Data.Default
-import TestLib.App
-import TestLib.Cannon
+import Testlib.App
+import Testlib.Cannon
 import Text.RawString.QQ

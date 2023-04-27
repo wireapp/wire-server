@@ -18,7 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module TestLib.Cannon
+module Testlib.Cannon
   ( WebSocket (..),
     WSConnect (..),
     ToWSConnect (..),
@@ -44,7 +44,7 @@ import qualified Network.HTTP.Client as Http
 import qualified Network.WebSockets as WS
 import System.Random (randomIO)
 import System.Timeout (timeout)
-import TestLib.App
+import Testlib.App
 
 data WebSocket = WebSocket
   { wsChan :: TChan Value,
