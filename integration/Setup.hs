@@ -117,7 +117,7 @@ testHooks hooks =
                   "allTests :: [(String, String, String, String, App ())]",
                   "allTests =",
                   "  [",
-                  "    " <> intercalate ",\n    " (map (\(m, n, s, f) -> "(" <> intercalate ", " [show m, show n, show s, show f, (m <> "." <> n)] <> ")") tests),
+                  "    " <> intercalate ",\n    " (map (\(m, n, s, f) -> "(" <> intercalate ", " [show m, show n, show s, show f, m <> "." <> n] <> ")") tests),
                   "  ]"
                 ]
             )
