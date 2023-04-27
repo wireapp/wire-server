@@ -47,14 +47,12 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO.Temporary
 import Util
-import Web.HttpApiData
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import qualified Wire.API.Federation.API.Brig as S
 import Wire.API.Federation.Component
 import Wire.API.Federation.Version
-import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.User
 import Wire.API.User.Client
@@ -433,17 +431,6 @@ testClaimKeyPackages brig fedBrigClient = do
   for_ bobClients $ \c -> do
     count <- getKeyPackageCount brig bob c
     liftIO $ count @?= 1
-
-  -- check that the package refs are correctly mapped
-  for_ bundle.entries $ \e -> do
-    cid <-
-      responseJsonError
-        =<< get (brig . paths ["i", "mls", "key-packages", toHeader e.ref])
-          <!! const 200 === statusCode
-    liftIO $ do
-      ciDomain cid @?= qDomain bob
-      ciUser cid @?= qUnqualified bob
-      ciClient cid @?= e.client
 
 testClaimKeyPackagesMLSDisabled :: HasCallStack => Opt.Opts -> Brig -> Http ()
 testClaimKeyPackagesMLSDisabled opts brig = do

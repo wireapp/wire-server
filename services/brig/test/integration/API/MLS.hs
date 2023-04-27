@@ -35,7 +35,6 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import UnliftIO.Temporary
 import Util
-import Web.HttpApiData
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
@@ -116,7 +115,7 @@ testKeyPackageClaim brig = do
 
   -- claim packages for both clients of u
   u' <- userQualifiedId <$> randomUser brig
-  bundle <-
+  bundle :: KeyPackageBundle <-
     responseJsonError
       =<< post
         ( brig
@@ -126,7 +125,6 @@ testKeyPackageClaim brig = do
         <!! const 200 === statusCode
 
   liftIO $ Set.map (\e -> (e.user, e.client)) bundle.entries @?= Set.fromList [(u, c1), (u, c2)]
-  checkMapping brig u bundle
 
   -- check that we have one fewer key package now
   for_ [c1, c2] $ \c -> do
@@ -213,22 +211,8 @@ testKeyPackageRemoteClaim opts brig = do
 
   liftIO $ bundle @?= mockBundle
   traceM "fun"
-  checkMapping brig u bundle
 
 --------------------------------------------------------------------------------
-
--- | Check that the package refs are correctly mapped
-checkMapping :: Brig -> Qualified UserId -> KeyPackageBundle -> Http ()
-checkMapping brig u bundle =
-  for_ bundle.entries $ \e -> do
-    cid <-
-      responseJsonError
-        =<< get (brig . paths ["i", "mls", "key-packages", toHeader e.ref])
-          <!! const 200 === statusCode
-    liftIO $ do
-      ciDomain cid @?= qDomain u
-      ciUser cid @?= qUnqualified u
-      ciClient cid @?= e.client
 
 createClient :: Brig -> Qualified UserId -> Int -> Http ClientId
 createClient brig u i =
