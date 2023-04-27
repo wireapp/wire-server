@@ -93,6 +93,10 @@ search ::
   Maybe (Range 1 500 Int32) ->
   (Handler r) (Public.SearchResult Public.Contact)
 search searcherId searchTerm maybeDomain maybeMaxResults = do
+  -- FUTUREWORK(fisx): to reduce cassandra traffic, 'ensurePermissionsOrPersonalUser' could be
+  -- run from `searchLocally` and `searchRemotely`, resp., where the team id is already
+  -- available (at least in the local case) and can be passed as an argument rather than
+  -- looked up again.
   ensurePermissionsOrPersonalUser searcherId [SearchContacts]
   federationDomain <- viewFederationDomain
   let queryDomain = fromMaybe federationDomain maybeDomain
