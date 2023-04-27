@@ -202,13 +202,11 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
   checkCreateConvPermissions lusr newConv tinfo allUsers
   ensureNoLegalholdConflicts allUsers
 
-  case newConvProtocol newConv of
-    ProtocolMLSTag -> do
-      -- Here we fail early in order to notify users of this misconfiguration
-      assertMLSEnabled
-      unlessM (isJust <$> getMLSRemovalKey) $
-        throw (InternalErrorWithDescription "No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Refusing to create MLS conversation.")
-    ProtocolProteusTag -> pure ()
+  when (newConvProtocol newConv == ProtocolMLSTag) $ do
+    -- Here we fail early in order to notify users of this misconfiguration
+    assertMLSEnabled
+    unlessM (isJust <$> getMLSRemovalKey) $
+      throw (InternalErrorWithDescription "No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Refusing to create MLS conversation.")
 
   lcnv <- traverse (const E.createConversationId) lusr
   -- FUTUREWORK: Invoke the creating a conversation action only once
@@ -222,7 +220,10 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
     case (convProtocol conv, mCreatorClient) of
       (ProtocolProteus, _) -> pure ()
       (ProtocolMLS mlsMeta, Just c) ->
-        E.addMLSClients (cnvmlsGroupId mlsMeta) (tUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
+        E.addMLSClients
+          (cnvmlsGroupId mlsMeta)
+          (tUntagged lusr)
+          (Set.singleton (c, nullKeyPackageRef))
       (ProtocolMLS _mlsMeta, Nothing) -> throwS @'MLSMissingSenderClient
 
     -- NOTE: We only send (conversation) events to members of the conversation
