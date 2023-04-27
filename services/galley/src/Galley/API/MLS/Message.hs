@@ -107,9 +107,7 @@ import Wire.API.User.Client
 --   - [x] validate lifetime and public key consistency only on brig
 --   - [x] check that ciphersuite matches conversation on galley
 --   - [x] check the signature on the LeafNode
---   - [ ] ? verify capabilities
---   - [ ] verify that all extensions are present in the capabilities
---   - [ ] ? in the update case (in galley), verify that the encryption_key is different
+--   - [ ] verify that capabilities include basic credentials
 -- [x] validate proposals when processing proposal and commit messages
 -- [x] remove MissingSenderClient error
 -- [x] remove all key package ref mapping
@@ -118,14 +116,16 @@ import Wire.API.User.Client
 -- [x] remove prefixes from value and raw
 -- [x] remove PublicGroupState and GroupInfoBundle modules
 -- [x] remove prefixes from fields in Commit and Proposal
--- [ ] move external commit logic to a separate module and improve types
 -- [x] check epoch inside commit lock
 -- [x] split executeProposalAction for internal and external commits
+-- [ ] add nonce to PreSharedKeyID
+-- [ ] move external commit logic to a separate module and improve types
 
--- [ ] ? consider adding more integration tests
--- [ ] ? rename public_group_state field in conversation table
--- [ ] ? PreSharedKey proposal
--- [ ] ? newtype for leaf node indices
+-- FUTUREWORK
+-- - Check that the capabilities of a leaf node in an add proposal contains all
+--   the required_capabilities of the group context. This would require fetching
+--   the group info from the DB in order to read the group context.
+-- - Verify message signature, this also requires the group context. (see above)
 
 data IncomingMessage = IncomingMessage
   { epoch :: Epoch,
