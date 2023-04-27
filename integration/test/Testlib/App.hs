@@ -556,8 +556,8 @@ assertFailureWithJSON v msg = do
   assertFailure msg'
 
 -- | Useful for debugging
-pprintJSON :: ProducesJSON a => a -> App ()
-pprintJSON = prettyJSON >=> putStrLn
+printJSON :: ProducesJSON a => a -> App ()
+printJSON = prettyJSON >=> putStrLn
 
 prettyJSON :: ProducesJSON a => a -> App String
 prettyJSON x =
