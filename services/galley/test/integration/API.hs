@@ -2744,14 +2744,11 @@ testDeleteTeamConversationWithUnavailableRemoteMembers = do
           <|> (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
           <|> (guardRPC "delete-team-conversation" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
   (_, received) <- withTempMockFederator' mock $ do
-    addResp <-
-      responseJsonError @_ @Event
-        =<< postQualifiedMembers alice (remoteBob :| []) qconvId
-          <!! const 200 === statusCode
+    postQualifiedMembers alice (remoteBob :| []) qconvId
+      !!! const 200 === statusCode
 
     deleteTeamConv tid convId alice
       !!! const 200 === statusCode
-    pure addResp
   liftIO $ do
     let convUpdates = mapMaybe (eitherToMaybe . parseFedRequest) received
     convUpdate <- case filter ((== SomeConversationAction (sing @'ConversationDeleteTag) ()) . cuAction) convUpdates of

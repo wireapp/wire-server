@@ -668,11 +668,9 @@ testAddRemotesSomeUnreachable = do
   let bobDomain = Domain "bob.example.com"
       charlieDomain = Domain "charlie.example.com"
   users@[alice, bob, charlie] <-
-    createAndConnectUsers
-      [ Nothing,
-        Just (domainText bobDomain),
-        Just (domainText charlieDomain)
-      ]
+    createAndConnectUsers $
+      domainText
+        <$$> [Nothing, Just bobDomain, Just charlieDomain]
   (events, failedToProcess, reqs, qcnv) <- runMLSTest $ do
     [alice1, bob1, _charlie1] <- traverse createMLSClient users
     (_, qcnv) <- setupMLSGroup alice1
