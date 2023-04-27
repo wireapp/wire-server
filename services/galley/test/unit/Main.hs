@@ -21,7 +21,6 @@ module Main
 where
 
 import Imports
-import qualified Test.Galley.API
 import qualified Test.Galley.API.Message
 import qualified Test.Galley.API.One2One
 import qualified Test.Galley.Intra.User
@@ -33,8 +32,7 @@ main =
   defaultMain $
     testGroup
       "Tests"
-      [ Test.Galley.API.tests,
-        Test.Galley.API.Message.tests,
+      [ Test.Galley.API.Message.tests,
         Test.Galley.API.One2One.tests,
         Test.Galley.Intra.User.tests,
         Test.Galley.Mapping.tests

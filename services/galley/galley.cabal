@@ -729,7 +729,6 @@ test-suite galley-tests
   main-is:            Main.hs
   other-modules:
     Paths_galley
-    Test.Galley.API
     Test.Galley.API.Message
     Test.Galley.API.One2One
     Test.Galley.Intra.User
@@ -790,7 +789,6 @@ test-suite galley-tests
     , extra                >=1.3
     , galley
     , galley-types
-    , http-types
     , imports
     , lens
     , polysemy
@@ -801,8 +799,6 @@ test-suite galley-tests
     , tasty-quickcheck
     , types-common
     , uuid-types
-    , wai
-    , wai-predicates
     , wire-api
     , wire-api-federation
 
