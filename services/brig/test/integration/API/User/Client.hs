@@ -1428,7 +1428,7 @@ testCreateAccessToken brig =
     nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
     let nonceBs = fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
     now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (round <$> getPOSIXTime)
-    let clientIdentity :: Text = "im:wireapp=" <> cs uidb64 <> "/" <> cs (toByteString' cid) <> "@example.com"
+    let clientIdentity :: Text = "im:wireapp=" <> cs uidb64 <> "/" <> cs (toByteString' cid) <> "@127.0.0.1"
     let claimsSet' =
           emptyClaimsSet
             & claimIat ?~ NumericDate now
@@ -1436,7 +1436,7 @@ testCreateAccessToken brig =
             & claimNbf ?~ NumericDate now
             & claimSub ?~ fromMaybe (error "invalid sub claim") (clientIdentity ^? stringOrUri)
             & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
-    let dpopClaims = DPoPClaimsSet claimsSet' (cs nonceBs) "POST" ("https://example.com/clients/" <> cs (toByteString' cid) <> "/access-token") "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+    let dpopClaims = DPoPClaimsSet claimsSet' (cs nonceBs) "POST" ("https://127.0.0.1/clients/" <> cs (toByteString' cid) <> "/access-token") "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
     signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
     case signedOrError of
       Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err

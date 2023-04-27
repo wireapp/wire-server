@@ -797,6 +797,7 @@ type CreateAccessToken =
         :> CaptureClientId "cid"
         :> "access-token"
         :> Header' '[Required, Strict] "DPoP" Proof
+        :> Header "Host" Text
         :> MultiVerb1
              'POST
              '[JSON]
