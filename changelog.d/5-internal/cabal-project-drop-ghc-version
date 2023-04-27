@@ -1,1 +1,0 @@
-We don't explicitly set with-compiler inside the cabal.project file anymore, because the version of GHC is controlled by Nix, and our nixpkgs pin.

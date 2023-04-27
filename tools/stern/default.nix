@@ -10,20 +10,26 @@
 , bytestring
 , bytestring-conversion
 , containers
+, cookie
 , data-default
 , errors
 , exceptions
 , extended
+, extra
 , galley-types
 , gitignoreSource
-, gundeck-types
+, HsOpenSSL
 , http-client
+, http-client-tls
 , http-types
 , imports
 , lens
+, lens-aeson
 , lib
 , metrics-wai
 , mtl
+, optparse-applicative
+, random
 , retry
 , schema-profunctor
 , servant
@@ -33,6 +39,7 @@
 , split
 , string-conversions
 , swagger2
+, tagged
 , tasty
 , tasty-hunit
 , text
@@ -40,14 +47,11 @@
 , transformers
 , types-common
 , unliftio
-, unordered-containers
 , uuid
 , wai
-, wai-extra
 , wai-predicates
 , wai-routing
 , wai-utilities
-, warp
 , wire-api
 , yaml
 }:
@@ -70,14 +74,12 @@ mkDerivation {
     exceptions
     extended
     galley-types
-    gundeck-types
     http-client
     http-types
     imports
     lens
     metrics-wai
     mtl
-    retry
     schema-profunctor
     servant
     servant-server
@@ -91,25 +93,45 @@ mkDerivation {
     transformers
     types-common
     unliftio
-    unordered-containers
     uuid
     wai
-    wai-extra
     wai-predicates
     wai-routing
     wai-utilities
-    warp
     wire-api
     yaml
   ];
   executableHaskellDepends = [
+    aeson
     base
-    extended
+    bilge
+    brig-types
+    bytestring-conversion
+    containers
+    cookie
+    exceptions
+    extra
+    HsOpenSSL
+    http-client
+    http-client-tls
     imports
+    lens
+    lens-aeson
+    optparse-applicative
+    random
+    retry
+    schema-profunctor
+    string-conversions
+    tagged
+    tasty
+    tasty-hunit
+    text
+    tinylog
     types-common
-    unliftio
+    uuid
+    wire-api
+    yaml
   ];
   testHaskellDepends = [ base tasty tasty-hunit wire-api ];
   license = lib.licenses.agpl3Only;
-  mainProgram = "stern";
 }

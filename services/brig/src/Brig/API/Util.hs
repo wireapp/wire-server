@@ -22,7 +22,8 @@ module Brig.API.Util
     logInvitationCode,
     validateHandle,
     logEmail,
-    traverseConcurrently,
+    traverseConcurrentlyAppT,
+    traverseConcurrentlySem,
     traverseConcurrentlyWithErrors,
     traverseConcurrentlyWithErrorsSem,
     traverseConcurrentlyWithErrorsAppT,
@@ -99,12 +100,12 @@ logInvitationCode :: InvitationCode -> (Msg -> Msg)
 logInvitationCode code = Log.field "invitation_code" (toText $ fromInvitationCode code)
 
 -- | Traverse concurrently and collect errors.
-traverseConcurrently ::
+traverseConcurrentlyAppT ::
   (Traversable t, Member (C.Concurrency 'C.Unsafe) r) =>
   (a -> ExceptT e (AppT r) b) ->
   t a ->
   AppT r [Either (a, e) b]
-traverseConcurrently f t = do
+traverseConcurrentlyAppT f t = do
   env <- temporaryGetEnv
   AppT $
     lift $
@@ -125,6 +126,14 @@ traverseConcurrentlyWithErrors f =
     . ( traverse (either throwIO pure)
           <=< pooledMapConcurrentlyN 8 (runExceptT . f)
       )
+
+traverseConcurrentlySem ::
+  (Traversable t, MonadUnliftIO m) =>
+  (a -> ExceptT e m b) ->
+  t a ->
+  m (t (Either (a, e) b))
+traverseConcurrentlySem f =
+  pooledMapConcurrentlyN 8 $ \a -> first (a,) <$> runExceptT (f a)
 
 -- | Traverse concurrently and fail on first error.
 traverseConcurrentlyWithErrorsSem ::

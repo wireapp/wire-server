@@ -17,16 +17,12 @@
 
 module Galley.API.Public
   ( sitemap,
-    filterMissing, -- for tests
     continueE,
   )
 where
 
-import Data.ByteString.Conversion (fromByteString, fromList)
 import Data.Id
-import qualified Data.Predicate as P
 import Data.Qualified
-import qualified Data.Set as Set
 import qualified Galley.API.Query as Query
 import qualified Galley.API.Teams.Features as Features
 import Galley.App
@@ -36,11 +32,8 @@ import qualified Galley.Effects as E
 import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import Galley.Options
 import Imports hiding (head)
-import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, or, result, setStatus)
-import qualified Network.Wai.Predicate as P
-import Network.Wai.Predicate.Request (HasQuery)
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
 import Polysemy
@@ -51,7 +44,6 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.Team as Public ()
-import qualified Wire.API.Message as Public
 import Wire.API.Routes.API
 import Wire.API.Team.Feature
 
@@ -126,28 +118,3 @@ getBotConversationH arg@(bid ::: cid ::: _) =
   Features.guardSecondFactorDisabled @db (botUserId bid) cid (Query.getBotConversationH arg)
 
 type JSON = Media "application" "json"
-
--- FUTUREWORK: Maybe would be better to move it to wire-api?
-filterMissing :: HasQuery r => Predicate r P.Error Public.OtrFilterMissing
-filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
-  where
-    go (Left ign) = case fromByteString ign of
-      Just True -> pure Public.OtrIgnoreAllMissing
-      Just False -> pure Public.OtrReportAllMissing
-      Nothing -> Public.OtrIgnoreMissing <$> users "ignore_missing" ign
-    go (Right rep) = case fromByteString rep of
-      Just True -> pure Public.OtrReportAllMissing
-      Just False -> pure Public.OtrIgnoreAllMissing
-      Nothing -> Public.OtrReportMissing <$> users "report_missing" rep
-    users :: ByteString -> ByteString -> P.Result P.Error (Set UserId)
-    users src bs = case fromByteString bs of
-      Nothing ->
-        P.Fail $
-          P.setMessage "Boolean or list of user IDs expected." $
-            P.setReason P.TypeError $
-              P.setSource src $
-                P.err status400
-      -- NB. 'fromByteString' parses a comma-separated list ('List') of
-      -- user IDs, and then 'fromList' unwraps it; took me a while to
-      -- understand this
-      Just l -> P.Okay 0 (Set.fromList (fromList l))

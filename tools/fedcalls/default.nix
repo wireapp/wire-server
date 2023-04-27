@@ -12,7 +12,6 @@
 , language-dot
 , lib
 , swagger2
-, text
 , wire-api
 }:
 mkDerivation {
@@ -29,7 +28,6 @@ mkDerivation {
     insert-ordered-containers
     language-dot
     swagger2
-    text
     wire-api
   ];
   description = "Generate a dot file from swagger docs representing calls to federated instances";

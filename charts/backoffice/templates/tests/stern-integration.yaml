@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-stern-integration"
+  annotations:
+    "helm.sh/hook": test
+  labels:
+    app: stern-integration
+    release: {{ .Release.Name }}
+spec:
+  volumes:
+    - name: "stern-integration"
+      configMap:
+        name: "stern-integration"
+  containers:
+  - name: integration
+    image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    volumeMounts:
+    - name: "stern-integration"
+      mountPath: "/etc/wire/integration"
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "1"
+  restartPolicy: Never

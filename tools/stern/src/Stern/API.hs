@@ -60,6 +60,7 @@ import Stern.Types
 import System.Logger.Class hiding (Error, name, trace, (.=))
 import Util.Options
 import Wire.API.Connection
+import Wire.API.Internal.Notification (QueuedNotification)
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
@@ -215,8 +216,8 @@ searchOnBehalf
 revokeIdentity :: Maybe Email -> Maybe Phone -> Handler NoContent
 revokeIdentity mbe mbp = NoContent <$ (Intra.revokeIdentity =<< doubleMaybeToEither "email, phone" mbe mbp)
 
-changeEmail :: UserId -> Maybe Bool -> EmailUpdate -> Handler NoContent
-changeEmail = undefined --  uid validate upd = NoContent <$ Intra.changeEmail uid (fromMaybe False upd) validate
+changeEmail :: UserId -> EmailUpdate -> Handler NoContent
+changeEmail uid upd = NoContent <$ Intra.changeEmail uid upd
 
 changePhone :: UserId -> PhoneUpdate -> Handler NoContent
 changePhone uid upd = NoContent <$ Intra.changePhone uid upd
@@ -397,7 +398,7 @@ getUserData uid = do
   conns <- Intra.getUserConnections uid
   convs <- Intra.getUserConversations uid
   clts <- Intra.getUserClients uid
-  notfs <- Intra.getUserNotifications uid
+  notfs <- (Intra.getUserNotifications uid <&> toJSON @[QueuedNotification]) `catchE` (pure . String . cs . show)
   consent <- (Intra.getUserConsentValue uid <&> toJSON @ConsentValue) `catchE` (pure . String . cs . show)
   consentLog <- (Intra.getUserConsentLog uid <&> toJSON @ConsentLog) `catchE` (pure . String . cs . show)
   cookies <- Intra.getUserCookies uid

@@ -10,14 +10,11 @@
 , bytestring-conversion
 , cassandra-util
 , containers
-, deriving-swagger2
 , gitignoreSource
 , imports
 , lib
 , QuickCheck
 , schema-profunctor
-, servant-server
-, servant-swagger
 , string-conversions
 , swagger2
 , tasty
@@ -27,7 +24,6 @@
 , time
 , tinylog
 , types-common
-, unordered-containers
 , wire-api
 }:
 mkDerivation {
@@ -42,39 +38,27 @@ mkDerivation {
     bytestring-conversion
     cassandra-util
     containers
-    deriving-swagger2
     imports
     QuickCheck
     schema-profunctor
-    servant-server
-    servant-swagger
     string-conversions
     swagger2
     text
     time
     tinylog
     types-common
-    unordered-containers
     wire-api
   ];
   testHaskellDepends = [
     aeson
-    attoparsec
     base
-    bytestring
     bytestring-conversion
-    containers
     imports
     QuickCheck
     swagger2
     tasty
     tasty-hunit
     tasty-quickcheck
-    text
-    time
-    tinylog
-    types-common
-    unordered-containers
     wire-api
   ];
   description = "User Service";

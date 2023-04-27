@@ -274,20 +274,6 @@ deleteTeam g tid u = do
     !!! const 202
       === statusCode
 
-getTeams ::
-  (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) =>
-  UserId ->
-  Galley ->
-  m TeamList
-getTeams u galley =
-  responseJsonError
-    =<< get
-      ( galley
-          . paths ["teams"]
-          . zAuthAccess u "conn"
-          . expect2xx
-      )
-
 newTeam :: BindingNewTeam
 newTeam = BindingNewTeam $ newNewTeam (unsafeRange "teamName") DefaultIcon
 
@@ -414,7 +400,7 @@ unsuspendTeam brig t =
       . paths ["i", "teams", toByteString' t, "unsuspend"]
       . contentJson
 
-getTeam :: HasCallStack => Galley -> TeamId -> Http Team.TeamData
+getTeam :: (HasCallStack, MonadIO m, MonadHttp m, HasCallStack, MonadCatch m) => Galley -> TeamId -> m Team.TeamData
 getTeam galley t =
   responseJsonError =<< get (galley . paths ["i", "teams", toByteString' t])
 

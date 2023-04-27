@@ -5,7 +5,6 @@
 { mkDerivation
 , aeson
 , amazonka
-, amazonka-core
 , amazonka-s3
 , attoparsec
 , auto-update
@@ -18,7 +17,6 @@
 , case-insensitive
 , conduit
 , conduit-extra
-, containers
 , cryptonite
 , data-default
 , errors
@@ -27,13 +25,13 @@
 , federator
 , gitignoreSource
 , HsOpenSSL
-, HsOpenSSL-x509-system
 , http-api-data
 , http-client
 , http-client-openssl
 , http-client-tls
 , http-media
 , http-types
+, http2-manager
 , imports
 , kan-extensions
 , lens
@@ -46,10 +44,8 @@
 , optparse-applicative
 , resourcet
 , retry
-, safe
 , servant
 , servant-client
-, servant-client-core
 , servant-server
 , tagged
 , tasty
@@ -80,7 +76,6 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amazonka
-    amazonka-core
     amazonka-s3
     attoparsec
     auto-update
@@ -93,27 +88,24 @@ mkDerivation {
     case-insensitive
     conduit
     conduit-extra
-    containers
     cryptonite
     data-default
     errors
     exceptions
     extended
     HsOpenSSL
-    HsOpenSSL-x509-system
     http-client
     http-client-openssl
     http-types
+    http2-manager
     imports
     kan-extensions
     lens
     metrics-core
     metrics-wai
     mime
-    optparse-applicative
     resourcet
     retry
-    safe
     servant
     servant-server
     text
@@ -136,18 +128,12 @@ mkDerivation {
   executableHaskellDepends = [
     aeson
     base
-    base64-bytestring
     bilge
     bytestring
     bytestring-conversion
     cargohold-types
     conduit
-    containers
     cryptonite
-    data-default
-    errors
-    exceptions
-    extended
     federator
     HsOpenSSL
     http-api-data
@@ -162,9 +148,7 @@ mkDerivation {
     mmorph
     mtl
     optparse-applicative
-    safe
     servant-client
-    servant-client-core
     tagged
     tasty
     tasty-hunit
@@ -172,7 +156,6 @@ mkDerivation {
     time
     types-common
     uuid
-    wai
     wai-utilities
     wire-api
     wire-api-federation

@@ -42,6 +42,7 @@ import qualified Data.Aeson.KeyMap as M
 import Data.Aeson.Lens
 import qualified Data.ByteString.Base64.URL as B64
 import Data.ByteString.Conversion
+import Data.Coerce (coerce)
 import Data.Default
 import Data.Domain (Domain (..))
 import Data.Id
@@ -95,9 +96,12 @@ tests _cl _at opts p db b c g =
       test p "get /users/<localdomain>/:uid/prekeys/:client - 200" $ testGetClientPrekeyQualified b opts,
       test p "post /users/prekeys" $ testMultiUserGetPrekeys b,
       test p "post /users/list-prekeys" $ testMultiUserGetPrekeysQualified b opts,
+      test p "post /users/list-prekeys@v4" $ testMultiUserGetPrekeysQualifiedV4 b opts,
       test p "post /users/list-clients - 200" $ testListClientsBulk opts b,
       test p "post /users/list-clients/v2 - 200" $ testListClientsBulkV2 opts b,
       test p "post /users/list-prekeys - clients without prekeys" $ testClientsWithoutPrekeys b c db opts,
+      test p "post /users/list-prekeys@v4 - clients without prekeys" $ testClientsWithoutPrekeysV4 b c db opts,
+      test p "post /users/list-prekeys@v4 - clients without prekeys fail to list" $ testClientsWithoutPrekeysFailToListV4 b c db opts,
       test p "post /clients - 201 (pwd)" $ testAddGetClient def {addWithPassword = True} b c,
       test p "post /clients - 201 (no pwd)" $ testAddGetClient def {addWithPassword = False} b c,
       testGroup
@@ -448,7 +452,8 @@ testClientsWithoutPrekeys brig cannon db opts = do
       const 200 === statusCode
 
     post
-      ( brig
+      ( apiVersion "v3"
+          . brig
           . paths ["users", "list-prekeys"]
           . contentJson
           . body (RequestBodyLBS $ encode userClients)
@@ -478,7 +483,8 @@ testClientsWithoutPrekeys brig cannon db opts = do
         @?= Just (clientId c11)
 
   post
-    ( brig
+    ( apiVersion "v3"
+        . brig
         . paths ["users", "list-prekeys"]
         . contentJson
         . body (RequestBodyLBS $ encode userClients)
@@ -504,6 +510,187 @@ testClientsWithoutPrekeys brig cannon db opts = do
           mkUserClientPrekeyMap $
             Map.singleton u $
               Map.fromList xs
+
+testClientsWithoutPrekeysV4 :: Brig -> Cannon -> DB.ClientState -> Opt.Opts -> Http ()
+testClientsWithoutPrekeysV4 brig cannon db opts = do
+  uid1 <- userId <$> randomUser brig
+  let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
+  c11 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
+  let (pk12, lk12) = (somePrekeys !! 1, someLastPrekeys !! 1)
+  c12 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
+
+  -- Simulating loss of all prekeys from c11 (due e.g. DB problems, business
+  -- logic prevents this from happening)
+  let removeClientKeys :: DB.PrepQuery DB.W (UserId, ClientId) ()
+      removeClientKeys = "DELETE FROM prekeys where user = ? and client = ?"
+  liftIO $
+    DB.runClient db $
+      DB.write removeClientKeys (DB.params DB.LocalQuorum (uid1, clientId c11))
+
+  uid2 <- userId <$> randomUser brig
+
+  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+
+  let userClients =
+        QualifiedUserClients $
+          Map.singleton domain $
+            Map.singleton uid1 $
+              Set.fromList [clientId c11, clientId c12]
+
+  WS.bracketR cannon uid1 $ \ws -> do
+    getClient brig uid1 (clientId c11) !!! do
+      const 200 === statusCode
+
+    post
+      ( brig
+          . paths ["users", "list-prekeys"]
+          . contentJson
+          . body (RequestBodyLBS $ encode userClients)
+          . zUser uid2
+      )
+      !!! do
+        const 200 === statusCode
+        const
+          ( Right $
+              expectedClientMapClientsWithoutPrekeys
+                domain
+                uid1
+                [ (clientId c11, Nothing),
+                  (clientId c12, Just pk12)
+                ]
+                Nothing
+          )
+          === responseJsonEither
+
+    getClient brig uid1 (clientId c11) !!! do
+      const 404 === statusCode
+
+    liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
+      let ob = Object $ List1.head (ntfPayload n)
+      ob ^? key "type" . _String
+        @?= Just "user.client-remove"
+      fmap ClientId (ob ^? key "client" . key "id" . _String)
+        @?= Just (clientId c11)
+
+  post
+    ( brig
+        . paths ["users", "list-prekeys"]
+        . contentJson
+        . body (RequestBodyLBS $ encode userClients)
+        . zUser uid2
+    )
+    !!! do
+      const 200 === statusCode
+      const
+        ( Right $
+            expectedClientMapClientsWithoutPrekeys
+              domain
+              uid1
+              [ (clientId c11, Nothing),
+                (clientId c12, Just (unpackLastPrekey lk12))
+              ]
+              Nothing
+        )
+        === responseJsonEither
+
+expectedClientMapClientsWithoutPrekeys :: Domain -> UserId -> [(ClientId, Maybe Prekey)] -> Maybe [Qualified UserId] -> QualifiedUserClientPrekeyMapV4
+expectedClientMapClientsWithoutPrekeys domain u xs failed =
+  QualifiedUserClientPrekeyMapV4
+    { qualifiedUserClientPrekeys =
+        coerce $
+          mkQualifiedUserClientPrekeyMap $
+            Map.singleton domain $
+              mkUserClientPrekeyMap $
+                Map.singleton u $
+                  Map.fromList xs,
+      failedToList = failed
+    }
+
+testClientsWithoutPrekeysFailToListV4 :: Brig -> Cannon -> DB.ClientState -> Opt.Opts -> Http ()
+testClientsWithoutPrekeysFailToListV4 brig cannon db opts = do
+  uid1 <- userId <$> randomUser brig
+  let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
+  c11 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
+  let (pk12, lk12) = (somePrekeys !! 1, someLastPrekeys !! 1)
+  c12 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
+
+  -- Simulating loss of all prekeys from c11 (due e.g. DB problems, business
+  -- logic prevents this from happening)
+  let removeClientKeys :: DB.PrepQuery DB.W (UserId, ClientId) ()
+      removeClientKeys = "DELETE FROM prekeys where user = ? and client = ?"
+  liftIO $
+    DB.runClient db $
+      DB.write removeClientKeys (DB.params DB.LocalQuorum (uid1, clientId c11))
+
+  uid2 <- fakeRemoteUser
+
+  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+
+  let userClients1 =
+        QualifiedUserClients $
+          Map.singleton domain $
+            Map.singleton uid1 $
+              Set.fromList [clientId c11, clientId c12]
+      userClients2 =
+        QualifiedUserClients $
+          Map.fromList
+            [ ( qDomain uid2,
+                Map.singleton (qUnqualified uid2) mempty
+              )
+            ]
+
+  WS.bracketR cannon uid1 $ \ws -> do
+    getClient brig uid1 (clientId c11) !!! do
+      const 200 === statusCode
+
+    post
+      ( brig
+          . paths ["users", "list-prekeys"]
+          . contentJson
+          . body (RequestBodyLBS $ encode userClients1)
+          . zUser (qUnqualified uid2)
+      )
+      !!! do
+        const 200 === statusCode
+        const
+          ( Right $
+              expectedClientMapClientsWithoutPrekeys
+                domain
+                uid1
+                [ (clientId c11, Nothing),
+                  (clientId c12, Just pk12)
+                ]
+                Nothing
+          )
+          === responseJsonEither
+
+    getClient brig uid1 (clientId c11) !!! do
+      const 404 === statusCode
+
+    liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
+      let ob = Object $ List1.head (ntfPayload n)
+      ob ^? key "type" . _String
+        @?= Just "user.client-remove"
+      fmap ClientId (ob ^? key "client" . key "id" . _String)
+        @?= Just (clientId c11)
+
+  post
+    ( brig
+        . paths ["users", "list-prekeys"]
+        . contentJson
+        . body (RequestBodyLBS $ encode userClients2)
+        . zUser (qUnqualified uid2)
+    )
+    !!! do
+      const 200 === statusCode
+      const
+        ( Right $
+            QualifiedUserClientPrekeyMapV4
+              { qualifiedUserClientPrekeys = QualifiedUserClientMap Map.empty,
+                failedToList = pure [uid2]
+              }
+        )
+        === responseJsonEither
 
 testListClientsBulkV2 :: Opt.Opts -> Brig -> Http ()
 testListClientsBulkV2 opts brig = do
@@ -662,6 +849,45 @@ testMultiUserGetPrekeysQualified brig opts = do
               Map.fromList $
                 xs <&> \(uid', c, _lpk, cpk) ->
                   (uid', Map.singleton (clientId c) (Just (prekeyData cpk)))
+
+  post
+    ( apiVersion "v2"
+        . brig
+        . paths ["users", "list-prekeys"]
+        . contentJson
+        . body (RequestBodyLBS $ encode userClients)
+        . zUser uid
+    )
+    !!! do
+      const 200 === statusCode
+      const (Right $ expectedUserClientMap) === responseJsonEither
+
+testMultiUserGetPrekeysQualifiedV4 :: Brig -> Opt.Opts -> Http ()
+testMultiUserGetPrekeysQualifiedV4 brig opts = do
+  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+
+  xs <- generateClients 3 brig
+  let userClients =
+        QualifiedUserClients $
+          Map.singleton domain $
+            Map.fromList $
+              xs <&> \(uid, c, _lpk, _cpk) ->
+                (uid, Set.fromList [clientId c])
+
+  uid <- userId <$> randomUser brig
+
+  let expectedUserClientMap =
+        QualifiedUserClientPrekeyMapV4
+          { qualifiedUserClientPrekeys =
+              coerce $
+                mkQualifiedUserClientPrekeyMap $
+                  Map.singleton domain $
+                    mkUserClientPrekeyMap $
+                      Map.fromList $
+                        xs <&> \(uid', c, _lpk, cpk) ->
+                          (uid', Map.singleton (clientId c) (Just (prekeyData cpk))),
+            failedToList = Nothing
+          }
 
   post
     ( brig
