@@ -31,6 +31,7 @@
 , retry
 , scientific
 , split
+, string-conversions
 , tagged
 , tasty
 , text
@@ -71,6 +72,7 @@ mkDerivation {
     retry
     scientific
     split
+    string-conversions
     tagged
     tasty
     text
