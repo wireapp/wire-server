@@ -419,7 +419,7 @@ updateConversationMessageTimer lusr zcon qcnv update =
     foldQualified
       lusr
       ( \lcnv ->
-          (lcuEvent . fst)
+          lcuEvent . fst
             <$> updateLocalConversation
               @'ConversationMessageTimerUpdateTag
               lcnv
@@ -767,7 +767,7 @@ joinConversation lusr zcon conv access = do
     let users = filter (notIsConvMember lusr conv) [tUnqualified lusr]
     (extraTargets, action) <-
       addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
-    (lcuEvent . fst)
+    lcuEvent . fst
       <$> notifyConversationAction
         (sing @'ConversationJoinTag)
         (tUntagged lusr)
