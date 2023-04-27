@@ -69,12 +69,12 @@ createUser cu = do
         ( [ "email" .= email,
             "name" .= name,
             "password" .= password,
-            "icon" .= ("default" :: String)
+            "icon" .= "default"
           ]
             <> [ "team"
                    .= object
-                     [ "name" .= ("integration test team" :: String),
-                       "icon" .= ("default" :: String)
+                     [ "name" .= "integration test team",
+                       "icon" .= "default"
                      ]
                  | cu.team
                ]
@@ -85,20 +85,35 @@ createUser cu = do
     Just perms -> do
       uid <- resp.json %. "id" & asString
       tid <- resp.json %. "team" & asString
-      req2 <- baseRequest Galley Unversioned ("/i/team/" <> tid <> "/members")
+      req2 <- baseRequest Galley Unversioned ("/i/teams/" <> tid <> "/members")
       let call2 =
             submit "PUT" $
               addJSONObject
-                [ "user" .= uid,
-                  "permissions" .= ["self" .= show perms, "copy" .= show perms]
+                [ "member"
+                    .= object
+                      [ "user" .= uid,
+                        "permissions"
+                          .= object
+                            [ "self" .= perms,
+                              "copy" .= perms
+                            ]
+                      ]
                 ]
                 req2
       bindResponse call2 $ \resp2 -> resp2.status `shouldMatchInt` 200
   pure resp
 
-searchContact :: (ProducesJSON s1, ProducesJSON s2) => s1 -> s2 -> App Response
-searchContact (asString -> searchingUserId) (asString -> searchTerm) = do
-  undefined searchingUserId searchTerm
+searchContacts :: (ProducesJSON s1, ProducesJSON s2) => s1 -> s2 -> App Response
+searchContacts searchingUserId searchTerm = do
+  req <- baseRequest Brig Versioned "/search/contacts"
+  q <- searchTerm & asString
+  uid <- searchingUserId & asString
+  submit
+    "GET"
+    ( req
+        & addQueryParams [("q", q)]
+        & zUser uid
+    )
 
 getTeams :: String -> App Response
 getTeams userId = do

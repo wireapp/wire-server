@@ -74,5 +74,5 @@ testSearchContactForExternalUsers :: HasCallStack => App ()
 testSearchContactForExternalUsers = do
   owner <- randomUser def {API.team = True}
   partner <- randomUser def {API.team = True, API.teamPermissions = Just API.teamRolePartner}
-  bindResponse (API.searchContact (partner %. "id" & asString) (owner %. "displayName" & asString)) $ \resp ->
-    resp.status `shouldMatchInt` 403
+  bindResponse (API.searchContacts (partner %. "id") (owner %. "name")) $ \resp ->
+    resp.status `shouldMatchInt` 200

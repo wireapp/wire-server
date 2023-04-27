@@ -113,6 +113,7 @@ library
     , retry
     , scientific
     , split
+    , string-conversions
     , tagged
     , tasty
     , text

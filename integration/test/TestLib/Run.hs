@@ -1,7 +1,8 @@
-module TestLib.Run (main) where
+module TestLib.Run (main, runI, runITest) where
 
 import Imports
 import RunAllTests
+import System.Environment
 import System.Exit (exitFailure, exitSuccess)
 import System.IO (hPutStrLn)
 import Test.Tasty (testGroup)
@@ -31,3 +32,15 @@ main = do
     Just act -> do
       ok <- act
       if ok then exitSuccess else exitFailure
+
+runI :: [String] -> IO ()
+runI args = do
+  let projectRoot = "../"
+  withArgs args $
+    withCurrentDirectory projectRoot $
+      main
+
+-- | Use this to run test from a repl
+-- e.g. ghcid --command 'cabal repl integration' --test='TestLib.Run.runITest "<TESTNAME>"'
+runITest :: String -> IO ()
+runITest testName = runI ["-p", testName]

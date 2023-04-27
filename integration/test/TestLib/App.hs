@@ -36,6 +36,7 @@ import Data.List.Split (splitOn)
 import qualified Data.Map.Strict as Map
 import Data.Proxy (Proxy (Proxy))
 import qualified Data.Scientific as Sci
+import Data.String.Conversions (cs)
 import Data.Tagged
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -317,7 +318,7 @@ expectFailure checkFailure action = do
     liftIO
       (E.try (runAppWithEnv env action))
   case res of
-    Left e@(AssertionFailure cs mr msg) ->
+    Left e@(AssertionFailure callstack mr msg) ->
       checkFailure e
     Right x -> assertFailure "Expected AssertionFailure, but none occured"
 
@@ -370,10 +371,10 @@ printFailureDetails (AssertionFailure stack mbResponse _) = ResultDetailsPrinter
   for_ mbResponse $ \r -> putStrLn (indent nindent (prettyReponse r))
 
 prettyStack :: CallStack -> String
-prettyStack cs =
+prettyStack cstack =
   intercalate "\n" $
     [colored yellow "call stack: "]
-      <> (drop 1 . prettyCallStackLines) cs
+      <> (drop 1 . prettyCallStackLines) cstack
 
 modifyFailure :: (AssertionFailure -> AssertionFailure) -> App a -> App a
 modifyFailure modifyAssertion action = do
@@ -678,6 +679,10 @@ addJSON obj req =
 addHeader :: String -> String -> HTTP.Request -> HTTP.Request
 addHeader name value req =
   req {HTTP.requestHeaders = (CI.mk . C8.pack $ name, C8.pack value) : HTTP.requestHeaders req}
+
+addQueryParams :: [(String, String)] -> HTTP.Request -> HTTP.Request
+addQueryParams params req =
+  HTTP.setQueryString (map (\(k, v) -> (cs k, Just (cs v))) params) req
 
 zUser :: String -> HTTP.Request -> HTTP.Request
 zUser = addHeader "Z-User"
