@@ -27,3 +27,8 @@ putTeamMember user team perms = do
             ]
       ]
       req
+
+getTeamFeature :: HasCallStack => String -> String -> App Response
+getTeamFeature featureName tid = do
+  req <- baseRequest Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
+  submit "GET" $ req

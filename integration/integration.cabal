@@ -79,15 +79,19 @@ library
 
   -- cabal-fmt: expand test
   exposed-modules:
-    API
+    API.Brig
+    API.BrigInternal
+    API.Common
+    API.Galley
     API.GalleyInternal
     RunAllTests
+    SetupHelpers
+    Test.Brig
     Test.Demo
     TestLib.App
     TestLib.Cannon
     TestLib.Prelude
     TestLib.Run
-    TestLib.SetupHelpers
 
   build-depends:
     , aeson

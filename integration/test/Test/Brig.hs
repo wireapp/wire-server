@@ -1,0 +1,20 @@
+module Test.Brig where
+
+import qualified API.Brig as Public
+import qualified API.BrigInternal as Internal
+import qualified API.Common as API
+import qualified API.GalleyInternal as Internal
+import Imports
+import SetupHelpers
+import TestLib.Prelude
+
+testSearchContactForExternalUsers :: HasCallStack => App ()
+testSearchContactForExternalUsers = do
+  owner <- randomUser def {Internal.team = True}
+  partner <- randomUser def {Internal.team = True}
+
+  bindResponse (Internal.putTeamMember (partner %. "id") (partner %. "team") API.teamRolePartner) $ \resp ->
+    resp.status `shouldMatchInt` 200
+
+  bindResponse (Public.searchContacts (partner %. "id") (owner %. "name")) $ \resp ->
+    resp.status `shouldMatchInt` 200

@@ -1,20 +1,20 @@
-module TestLib.SetupHelpers where
+module SetupHelpers where
 
-import qualified API
+import qualified API.BrigInternal as Internal
 import Data.Aeson
 import Data.Default
 import Imports
 import TestLib.App
 
-randomUser :: API.CreateUser -> App Value
-randomUser cu = bindResponse (API.createUser cu) $ \resp -> do
+randomUser :: Internal.CreateUser -> App Value
+randomUser cu = bindResponse (Internal.createUser cu) $ \resp -> do
   resp.status `shouldMatchInt` 201
   resp.json
 
 -- | returns (user, team id)
 createTeam :: App (Value, String)
 createTeam = do
-  res <- API.createUser def {API.team = True}
+  res <- Internal.createUser def {Internal.team = True}
   user <- res.json
   tid <- user %. "team" & asString
   -- TODO
