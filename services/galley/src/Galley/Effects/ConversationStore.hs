@@ -110,7 +110,7 @@ data ConversationStore m a where
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
   DeleteGroupIds :: [GroupId] -> ConversationStore m ()
-  UpdateToMixedProtocol :: ConvId -> GroupId -> CipherSuiteTag -> ConversationStore m ()
+  UpdateToMixedProtocol :: Local ConvId -> CipherSuiteTag -> ConversationStore m ()
 
 makeSem ''ConversationStore
 

@@ -437,12 +437,16 @@ updateToMixedProtocol ::
        Input ClientState
      ]
     r =>
-  ConvId ->
-  GroupId ->
+  Local ConvId ->
   CipherSuiteTag ->
   Sem r ()
-updateToMixedProtocol conv gid cs =
-  embedClient $ retry x5 $ write Cql.updateToMixedConv (params LocalQuorum (conv, ProtocolMixedTag, gid, Epoch 0, cs))
+updateToMixedProtocol lcnv cs =
+  embedClient . retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    let gid = convToGroupId lcnv
+    addPrepQuery Cql.insertGroupIdForConversation (gid, tUnqualified lcnv, tDomain lcnv)
+    addPrepQuery Cql.updateToMixedConv (tUnqualified lcnv, ProtocolMixedTag, gid, Epoch 0, cs)
 
 interpretConversationStoreToCassandra ::
   ( Member (Embed IO) r,
@@ -476,4 +480,4 @@ interpretConversationStoreToCassandra = interpret $ \case
   AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl
   ReleaseCommitLock gId epoch -> embedClient $ releaseCommitLock gId epoch
   DeleteGroupIds gIds -> deleteGroupIds gIds
-  UpdateToMixedProtocol cid gId cs -> updateToMixedProtocol cid gId cs
+  UpdateToMixedProtocol cid cs -> updateToMixedProtocol cid cs

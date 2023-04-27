@@ -86,6 +86,7 @@ import Data.Time
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.Federation (onConversationUpdated)
+import Galley.API.MLS.KeyPackage (nullKeyPackageRef)
 import Galley.API.Mapping
 import Galley.API.Message
 import qualified Galley.API.Query as Query
@@ -689,17 +690,19 @@ updateConversationProtocolWithLocalUser ::
     Member (ErrorS 'ConvInvalidProtocolTransition) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member (Error FederationError) r,
+    Member MemberStore r,
     Member ConversationStore r
   ) =>
   Local UserId ->
+  ClientId ->
   ConnId ->
   Qualified ConvId ->
   ProtocolUpdate ->
   Sem r ()
-updateConversationProtocolWithLocalUser lusr conn qcnv update =
+updateConversationProtocolWithLocalUser lusr client conn qcnv update =
   foldQualified
     lusr
-    (\lcnv -> updateLocalConversationProtocol (tUntagged lusr) (Just conn) lcnv update)
+    (\lcnv -> updateLocalConversationProtocol (tUntagged lusr) client (Just conn) lcnv update)
     (\_rcnv -> throw FederationNotImplemented)
     qcnv
 
@@ -708,19 +711,22 @@ updateLocalConversationProtocol ::
   ( Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvInvalidProtocolTransition) r,
     Member (ErrorS 'ConvMemberNotFound) r,
+    Member MemberStore r,
     Member ConversationStore r
   ) =>
   Qualified UserId ->
+  ClientId ->
   Maybe ConnId ->
   Local ConvId ->
   ProtocolUpdate ->
   Sem r ()
-updateLocalConversationProtocol qusr _mconn lcnv (ProtocolUpdate newProtocol) = do
+updateLocalConversationProtocol qusr client _mconn lcnv (ProtocolUpdate newProtocol) = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
   void $ ensureOtherMember lcnv qusr conv
   case (protocolTag (convProtocol conv), newProtocol) of
-    (ProtocolProteusTag, ProtocolMixedTag) ->
-      E.updateToMixedProtocol (tUnqualified lcnv) (convToGroupId lcnv) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+    (ProtocolProteusTag, ProtocolMixedTag) -> do
+      E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+      E.addMLSClients (convToGroupId lcnv) qusr (Set.singleton (client, nullKeyPackageRef))
     (ProtocolMixedTag, ProtocolMixedTag) ->
       pure ()
     (_, _) -> throwS @'ConvInvalidProtocolTransition

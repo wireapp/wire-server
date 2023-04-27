@@ -481,7 +481,6 @@ setupMLSGroupWithConv convAction creator = do
                 preview (to cnvProtocol . _ProtocolMixed . to cnvmlsGroupId) conv
               ]
           )
-
   let qcnv = cnvQualifiedId conv
   createGroup creator (fmap Conv qcnv) groupId
   pure (groupId, qcnv)

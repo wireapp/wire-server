@@ -1261,6 +1261,7 @@ type ConversationAPI =
                :> CanThrow 'ConvInvalidProtocolTransition
                :> CanThrow 'ConvMemberNotFound
                :> ZLocalUser
+               :> ZClient
                :> ZConn
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId

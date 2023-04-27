@@ -3535,43 +3535,50 @@ testCreatorRemovesUserFromParent = do
 testMixedUpgrade :: TestM ()
 testMixedUpgrade = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
-  convId <- decodeConvId <$> postConv (qUnqualified alice) [qUnqualified bob] (Just "watercooler") [] Nothing Nothing
-  localDomain <- viewFederationDomain
-  let qcnv = Qualified convId localDomain
-  putConversationProtocol (qUnqualified alice) qcnv ProtocolMixedTag
-    !!! const 200 === statusCode
 
-  conv <-
-    responseJsonError
-      =<< getConvQualified (qUnqualified alice) qcnv
-        <!! const 200 === statusCode
-  mlsData <- case cnvProtocol conv of
-    ProtocolMixed mlsData -> pure mlsData
-    _ -> liftIO $ assertFailure "Unexpected protocol"
-  liftIO $ assertEqual "" (cnvmlsEpoch mlsData) (Epoch 0)
+  runMLSTest $ do
+    [alice1] <- traverse createMLSClient [alice]
 
-  putConversationProtocol (qUnqualified alice) qcnv ProtocolMixedTag
-    !!! const 200 === statusCode
+    convId <- decodeConvId <$> liftTest (postConv (qUnqualified alice) [qUnqualified bob] (Just "watercooler") [] Nothing Nothing)
+    localDomain <- liftTest viewFederationDomain
+    let qcnv = Qualified convId localDomain
+    liftTest $
+      putConversationProtocol (qUnqualified alice) (ciClient alice1) qcnv ProtocolMixedTag
+        !!! const 200 === statusCode
+
+    conv <-
+      responseJsonError
+        =<< getConvQualified (qUnqualified alice) qcnv
+          <!! const 200 === statusCode
+    mlsData <- case cnvProtocol conv of
+      ProtocolMixed mlsData -> pure mlsData
+      _ -> liftIO $ assertFailure "Unexpected protocol"
+    liftIO $ assertEqual "" (cnvmlsEpoch mlsData) (Epoch 0)
+
+    liftTest $
+      putConversationProtocol (qUnqualified alice) (ciClient alice1) qcnv ProtocolMixedTag
+        !!! const 200 === statusCode
 
 testMixedAddClients :: TestM ()
 testMixedAddClients = do
   [alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
-  convId <- decodeConvId <$> postConv (qUnqualified alice) [qUnqualified bob, qUnqualified charlie] (Just "watercooler") [] Nothing Nothing
   localDomain <- viewFederationDomain
-  let qcnv = Qualified convId localDomain
-  putConversationProtocol (qUnqualified alice) qcnv ProtocolMixedTag
-    !!! const 200 === statusCode
-
-  conv <-
-    responseJsonError
-      =<< getConvQualified (qUnqualified alice) qcnv
-        <!! const 200 === statusCode
-  _mlsData <- case cnvProtocol conv of
-    ProtocolMixed mlsData -> pure mlsData
-    _ -> liftIO $ assertFailure "Unexpected protocol"
-
   runMLSTest $ do
     clients@[alice1, bob1, _charlie1] <- traverse createMLSClient [alice, bob, charlie]
+    convId <- decodeConvId <$> liftTest (postConv (qUnqualified alice) [qUnqualified bob, qUnqualified charlie] (Just "watercooler") [] Nothing Nothing)
+    let qcnv = Qualified convId localDomain
+    liftTest $
+      putConversationProtocol (qUnqualified alice) (ciClient alice1) qcnv ProtocolMixedTag
+        !!! const 200 === statusCode
+
+    conv <-
+      responseJsonError
+        =<< getConvQualified (qUnqualified alice) qcnv
+          <!! const 200 === statusCode
+    _mlsData <- case cnvProtocol conv of
+      ProtocolMixed mlsData -> pure mlsData
+      _ -> liftIO $ assertFailure "Unexpected protocol"
+
     (_gid, _) <- setupMLSGroupWithConv (pure conv) alice1
 
     traverse_ uploadNewKeyPackage clients
