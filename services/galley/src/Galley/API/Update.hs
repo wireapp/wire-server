@@ -721,6 +721,8 @@ updateLocalConversationProtocol qusr _mconn lcnv (ProtocolUpdate newProtocol) = 
   case (protocolTag (convProtocol conv), newProtocol) of
     (ProtocolProteusTag, ProtocolMixedTag) ->
       E.updateToMixedProtocol (tUnqualified lcnv) (convToGroupId lcnv) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+    (ProtocolMixedTag, ProtocolMixedTag) ->
+      pure ()
     (_, _) -> throwS @'ConvInvalidProtocolTransition
 
 joinConversationByReusableCode ::

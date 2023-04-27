@@ -262,7 +262,8 @@ tests s =
         ],
       testGroup
         "MixedProtocol"
-        [ test s "Upgrading works" testMixedUpgrade
+        [ test s "Upgrade a conv from proteus to mixed" testMixedUpgrade,
+          test s "Add clients to a mixed conversation" testMixedAddClients
         ]
     ]
 
@@ -3533,12 +3534,13 @@ testCreatorRemovesUserFromParent = do
 
 testMixedUpgrade :: TestM ()
 testMixedUpgrade = do
-  [alice, _bob] <- createAndConnectUsers (replicate 2 Nothing)
-  convId <- decodeConvId <$> postConv (qUnqualified alice) [] (Just "watercooler") [] Nothing Nothing
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  convId <- decodeConvId <$> postConv (qUnqualified alice) [qUnqualified bob] (Just "watercooler") [] Nothing Nothing
   localDomain <- viewFederationDomain
   let qcnv = Qualified convId localDomain
   putConversationProtocol (qUnqualified alice) qcnv ProtocolMixedTag
     !!! const 200 === statusCode
+
   conv <-
     responseJsonError
       =<< getConvQualified (qUnqualified alice) qcnv
@@ -3547,3 +3549,38 @@ testMixedUpgrade = do
     ProtocolMixed mlsData -> pure mlsData
     _ -> liftIO $ assertFailure "Unexpected protocol"
   liftIO $ assertEqual "" (cnvmlsEpoch mlsData) (Epoch 0)
+
+  putConversationProtocol (qUnqualified alice) qcnv ProtocolMixedTag
+    !!! const 200 === statusCode
+
+testMixedAddClients :: TestM ()
+testMixedAddClients = do
+  [alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
+  convId <- decodeConvId <$> postConv (qUnqualified alice) [qUnqualified bob, qUnqualified charlie] (Just "watercooler") [] Nothing Nothing
+  localDomain <- viewFederationDomain
+  let qcnv = Qualified convId localDomain
+  putConversationProtocol (qUnqualified alice) qcnv ProtocolMixedTag
+    !!! const 200 === statusCode
+
+  conv <-
+    responseJsonError
+      =<< getConvQualified (qUnqualified alice) qcnv
+        <!! const 200 === statusCode
+  _mlsData <- case cnvProtocol conv of
+    ProtocolMixed mlsData -> pure mlsData
+    _ -> liftIO $ assertFailure "Unexpected protocol"
+
+  runMLSTest $ do
+    clients@[alice1, bob1, _charlie1] <- traverse createMLSClient [alice, bob, charlie]
+    (_gid, _) <- setupMLSGroupWithConv (pure conv) alice1
+
+    traverse_ uploadNewKeyPackage clients
+    commit <- createAddCommit alice1 [bob]
+    welcome <- assertJust (mpWelcome commit)
+
+    _events <- mlsBracket [bob1] $ \wss -> do
+      _events <- sendAndConsumeCommitBundle commit
+      for_ (zip [bob1] wss) $ \(c, ws) ->
+        WS.assertMatch (5 # Second) ws $
+          wsAssertMLSWelcome (cidQualifiedUser c) welcome
+    pure ()

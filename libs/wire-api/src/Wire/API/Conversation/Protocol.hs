@@ -26,6 +26,7 @@ module Wire.API.Conversation.Protocol
     Epoch (..),
     Protocol (..),
     _ProtocolMLS,
+    _ProtocolMixed,
     _ProtocolProteus,
     protocolSchema,
     ConversationMLSData (..),
