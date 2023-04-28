@@ -846,7 +846,8 @@ withModifiedServices services k = do
     pure ph
 
   let stopInstances = liftIO $ do
-        -- when running from repl this hangs for 30 seconds
+        -- Running waitForProcess would hang for 30 seconds when the test suite
+        -- is run from within ghci, so we don't wait here.
         for_ instances terminateProcess
 
   let updateServiceMap serviceMap =
