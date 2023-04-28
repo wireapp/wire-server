@@ -596,7 +596,8 @@ pushConversationEvent conn e lusers bots = do
 verifyReusableCode ::
   ( Member CodeStore r,
     Member (ErrorS 'CodeNotFound) r,
-    Member (ErrorS 'InvalidConversationPassword) r
+    Member (ErrorS 'InvalidConversationPassword) r,
+    Member (ErrorS 'ConversationPasswordMissing) r
   ) =>
   Bool ->
   Maybe PlainTextPassword8 ->
@@ -612,7 +613,7 @@ verifyReusableCode checkPw mPtpw convCode = do
     (True, Just ptpw, Just pw) ->
       unless (verifyPassword ptpw pw) $ throwS @'InvalidConversationPassword
     (True, Nothing, Just _) ->
-      throwS @'InvalidConversationPassword
+      throwS @'ConversationPasswordMissing
     (_, _, _) -> pure ()
   pure c
 

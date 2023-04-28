@@ -351,6 +351,7 @@ type ConversationAPI =
            ( Summary "Get limited conversation information by key/code pair"
                :> CanThrow 'CodeNotFound
                :> CanThrow 'InvalidConversationPassword
+               :> CanThrow 'ConversationPasswordMissing
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'GuestLinksDisabled
@@ -614,6 +615,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> CanThrow 'CodeNotFound
                :> CanThrow 'InvalidConversationPassword
+               :> CanThrow 'ConversationPasswordMissing
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
@@ -636,6 +638,7 @@ type ConversationAPI =
                :> CanThrow 'CodeNotFound
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidConversationPassword
+               :> CanThrow 'ConversationPasswordMissing
                :> "conversations"
                :> "code-check"
                :> ReqBody '[Servant.JSON] ConversationCode

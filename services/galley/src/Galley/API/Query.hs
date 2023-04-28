@@ -626,6 +626,7 @@ getConversationByReusableCode ::
     Member ConversationStore r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
+    Member (ErrorS 'ConversationPasswordMissing) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'GuestLinksDisabled) r,

@@ -94,6 +94,7 @@ data GalleyError
   | GuestLinksDisabled
   | CodeNotFound
   | InvalidConversationPassword
+  | ConversationPasswordMissing
   | CreateConversationCodeConflict
   | InvalidPermissions
   | InvalidTeamStatusUpdate
@@ -238,6 +239,8 @@ type instance MapError 'GuestLinksDisabled = 'StaticError 409 "guest-links-disab
 type instance MapError 'CodeNotFound = 'StaticError 404 "no-conversation-code" "Conversation code not found"
 
 type instance MapError 'InvalidConversationPassword = 'StaticError 403 "invalid-conversation-password" "Invalid conversation password"
+
+type instance MapError 'ConversationPasswordMissing = 'StaticError 403 "conversation-password-missing" "Conversation password missing"
 
 type instance MapError 'CreateConversationCodeConflict = 'StaticError 409 "create-conv-code-conflict" "Conversation code already exists with a different password setting than the requested one."
 

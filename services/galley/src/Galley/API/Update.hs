@@ -659,6 +659,7 @@ checkReusableCode ::
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
+    Member (ErrorS 'ConversationPasswordMissing) r,
     Member (Input Opts) r,
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
@@ -677,6 +678,7 @@ joinConversationByReusableCode ::
     Member ConversationStore r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
+    Member (ErrorS 'ConversationPasswordMissing) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,

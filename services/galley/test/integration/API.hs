@@ -1618,9 +1618,13 @@ postJoinCodeConvWithPassword = do
     const (Right (ConversationCoverView conv (Just "gossip") True)) === responseJsonEither
     const 200 === statusCode
   -- join without password should fail
-  postJoinCodeConv' Nothing bob cCode !!! const 403 === statusCode
+  postJoinCodeConv' Nothing bob cCode !!! do
+    const 403 === statusCode
+    const (Just "conversation-password-missing") === fmap label . responseJsonUnsafe
   -- join with wrong password should fail
-  postJoinCodeConv' (Just (plainTextPassword8Unsafe "wrong-password")) bob cCode !!! const 403 === statusCode
+  postJoinCodeConv' (Just (plainTextPassword8Unsafe "wrong-password")) bob cCode !!! do
+    const 403 === statusCode
+    const (Just "invalid-conversation-password") === fmap label . responseJsonUnsafe
   -- join with correct password should succeed
   postJoinCodeConv' (Just pw) bob cCode !!! const 200 === statusCode
 
