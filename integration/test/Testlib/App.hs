@@ -397,12 +397,11 @@ addFailureContext msg = modifyFailureMsg (\m -> m <> "\nThis failure happend in 
 -- - SECTION_JSON
 -------------------------------------------------------------------------------
 
--- | All library functions should this typeclass for all untyuped value
+-- | All library functions should use this typeclass for all untyped value
 -- arguments wherever possible. This design choice has advantages:
 --
--- No need convert value everywhere, that are essentially different
--- representations. E.g. if a function needs a user id as a string, all these
--- inputs types become valid input:
+-- No need convert value between different representations. E.g. if a function
+-- needs a user id as a string, all these input types become valid input:
 --
 -- - String
 -- - Text
@@ -411,7 +410,7 @@ addFailureContext msg = modifyFailureMsg (\m -> m <> "\nThis failure happend in 
 -- - App String
 -- - App Value
 --
--- internally the function calls `asString` to convert to  App String
+-- Internally the function calls `asString` to convert to App String
 --
 -- Since (App a) are treated as first-class values values this means we can
 -- compose operations that might fail without giving up nice error messages:
