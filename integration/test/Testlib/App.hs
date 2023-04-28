@@ -331,6 +331,7 @@ a `shouldMatch` b = do
     pb <- prettyJSON xb
     assertFailure $ "Expected:\n" <> pb <> "\n" <> "Actual:\n" <> pa
 
+-- | Specialized variant of `shouldMatch` to avoid the need for type annotations.
 shouldMatchInt ::
   (ProducesJSON a, HasCallStack) =>
   -- | The actual value
@@ -338,9 +339,7 @@ shouldMatchInt ::
   -- | The expected value
   Int ->
   App ()
-a `shouldMatchInt` b = do
-  xa <- prodJSON a
-  shouldMatch xa b
+shouldMatchInt = shouldMatch
 
 liftP2 ::
   (ProducesJSON a, ProducesJSON b, HasCallStack) =>
