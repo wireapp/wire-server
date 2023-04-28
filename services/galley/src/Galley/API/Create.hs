@@ -209,10 +209,6 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
       throw (InternalErrorWithDescription "No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Refusing to create MLS conversation.")
 
   lcnv <- traverse (const E.createConversationId) lusr
-  -- FUTUREWORK: Invoke the creating a conversation action only once
-  -- protocol-specific validation is successful. Otherwise we might write the
-  -- conversation to the database, and throw a validation error when the
-  -- conversation is already in the database.
   failedToNotify <- do
     conv <- E.createConversation lcnv nc
 
