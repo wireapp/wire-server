@@ -350,16 +350,15 @@ addMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
   for_ cs $ \(c, idx) ->
     addPrepQuery Cql.addMLSClient (groupId, domain, usr, c, fromIntegral idx)
 
--- TODO Could (and should) we use batch instead?
 planMLSClientRemoval :: Foldable f => GroupId -> f ClientIdentity -> Client ()
-planMLSClientRemoval groupId cids = for_ cids $ \cid -> do
-  retry x5 $
-    trans
-      Cql.planMLSClientRemoval
-      ( params
-          LocalQuorum
-          (groupId, ciDomain cid, ciUser cid, ciClient cid)
-      )
+planMLSClientRemoval groupId cids =
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    for_ cids $ \cid -> do
+      addPrepQuery
+        Cql.planMLSClientRemoval
+        (groupId, ciDomain cid, ciUser cid, ciClient cid)
 
 removeMLSClients :: GroupId -> Qualified UserId -> Set.Set ClientId -> Client ()
 removeMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do

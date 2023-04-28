@@ -73,8 +73,8 @@ import Wire.API.MLS.SubConversation
 
 -- TODO:
 -- [ ] restore deleted MLS unit tests
--- [ ] pass groupId and epoch to processProposal instead of the whole IncomingMessage
--- [ ] remove LWT in planMLSClientRemoval
+-- [x] pass groupId and epoch to processProposal instead of the whole IncomingMessage
+-- [x] remove LWT in planMLSClientRemoval
 -- [ ] restore unsupported proposal integration test
 
 -- FUTUREWORK

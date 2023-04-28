@@ -470,8 +470,8 @@ rmMemberClient c =
 addMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId, Int32) ()
 addMLSClient = "insert into mls_group_member_client (group_id, user_domain, user, client, leaf_node_index, removal_pending) values (?, ?, ?, ?, ?, false)"
 
-planMLSClientRemoval :: PrepQuery W (GroupId, Domain, UserId, ClientId) Row
-planMLSClientRemoval = "update mls_group_member_client set removal_pending = true where group_id = ? and user_domain = ? and user = ? and client = ? if exists"
+planMLSClientRemoval :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
+planMLSClientRemoval = "update mls_group_member_client set removal_pending = true where group_id = ? and user_domain = ? and user = ? and client = ?"
 
 removeMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
 removeMLSClient = "delete from mls_group_member_client where group_id = ? and user_domain = ? and user = ? and client = ?"
