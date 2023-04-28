@@ -2290,7 +2290,6 @@ testJoinSubConv = do
             =<< getSubConv (qUnqualified bob) qcnv subId
               <!! const 200 === statusCode
       liftIO $ do
-        -- TODO check for updates from update path
         assertBool
           "The epoch timestamp is null"
           (isJust (pscEpochTimestamp subAfter))

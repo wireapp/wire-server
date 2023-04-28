@@ -71,6 +71,12 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 
+-- TODO:
+-- [ ] replace commit message in CommitBundle with a Commit object
+-- [ ] restore deleted MLS unit tests
+-- [ ] pass groupId and epoch to processProposal instead of the whole IncomingMessage
+-- [ ] remove LWT in planMLSClientRemoval
+
 -- FUTUREWORK
 -- - Check that the capabilities of a leaf node in an add proposal contains all
 --   the required_capabilities of the group context. This would require fetching
