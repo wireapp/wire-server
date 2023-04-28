@@ -27,7 +27,6 @@ import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Tuple.Extra
-import Galley.API.Error
 import Galley.API.MLS.Commit.Core
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Removal
@@ -52,6 +51,11 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Validation
 
+data ExternalCommitAction = ExternalCommitAction
+  { add :: (ClientIdentity, LeafIndex),
+    remove :: Maybe (ClientIdentity, LeafIndex)
+  }
+
 getExternalCommitData ::
   forall r.
   ( Member (Error MLSProtocolError) r,
@@ -63,7 +67,7 @@ getExternalCommitData ::
   Local ConvOrSubConv ->
   Epoch ->
   Commit ->
-  Sem r ProposalAction
+  Sem r ExternalCommitAction
 getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   let convOrSub = tUnqualified lConvOrSub
       mlsMeta = mlsMetaConvOrSub convOrSub
@@ -84,23 +88,28 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
 
   unless (Map.lookup ExternalInitProposalTag counts == Just 1) $
     throw (mlsProtocolError "External commits must contain exactly one ExternalInit proposal")
-  unless (Map.findWithDefault 0 RemoveProposalTag counts <= 1) $
-    throw (mlsProtocolError "External commits must contain at most one Remove proposal")
   unless (null (Map.keys counts \\ allowedProposals)) $
     throw (mlsProtocolError "Invalid proposal type in an external commit")
 
   evalState (indexMapConvOrSub convOrSub) $ do
     -- process optional removal
     propAction <- applyProposals mlsMeta groupId proposals
-    -- add sender
-    selfAction <- addProposedClient senderIdentity
-    case cmAssocs (paRemove propAction) of
-      [(cid, _)]
+    removedClient <- case cmAssocs (paRemove propAction) of
+      [(cid, idx)]
         | cid /= senderIdentity ->
             throw $ mlsProtocolError "Only the self client can be removed by an external commit"
-      _ -> pure ()
+        | otherwise -> pure (Just (cid, idx))
+      [] -> pure Nothing
+      _ -> throw (mlsProtocolError "External commits must contain at most one Remove proposal")
 
-    pure $ propAction <> selfAction
+    -- add sender client
+    addedIndex <- gets imNextIndex
+
+    pure
+      ExternalCommitAction
+        { add = (senderIdentity, addedIndex),
+          remove = removedClient
+        }
   where
     allowedProposals = [ExternalInitProposalTag, RemoveProposalTag, PreSharedKeyProposalTag]
 
@@ -119,7 +128,7 @@ processExternalCommit ::
   ClientIdentity ->
   Local ConvOrSubConv ->
   Epoch ->
-  ProposalAction ->
+  ExternalCommitAction ->
   Maybe UpdatePath ->
   Sem r ()
 processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
@@ -130,11 +139,6 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
     unless (isClientMember senderIdentity (mcMembers mlsConv)) $
       throwS @'MLSSubConvClientNotInParent
 
-  -- get index of the newly added client, as calculated when processing proposals
-  idx <- case cmAssocs (paAdd action) of
-    [(cid, idx)] | cid == senderIdentity -> pure idx
-    _ -> throw (InternalErrorWithDescription "Unexpected Add action for external commit")
-
   -- extract leaf node from update path and validate it
   leafNode <-
     (.leaf)
@@ -143,7 +147,7 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
         updatePath
   let cs = cnvmlsCipherSuite (mlsMetaConvOrSub (tUnqualified lConvOrSub))
   let groupId = cnvmlsGroupId (mlsMetaConvOrSub convOrSub)
-  let extra = LeafNodeTBSExtraCommit groupId idx
+  let extra = LeafNodeTBSExtraCommit groupId (snd action.add)
   case validateLeafNode cs (Just senderIdentity) extra leafNode.value of
     Left errMsg ->
       throw $
@@ -151,16 +155,15 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
     Right _ -> pure ()
 
   withCommitLock (fmap idForConvOrSub lConvOrSub) groupId epoch $ do
-    executeExtCommitProposalAction senderIdentity lConvOrSub action
+    executeExternalCommitAction lConvOrSub action
 
     -- increment epoch number
     lConvOrSub' <- for lConvOrSub incrementEpoch
 
     -- fetch backend remove proposals of the previous epoch
-    let remIndices = map snd (cmAssocs (paRemove action))
     indicesInRemoveProposals <-
       -- skip remove proposals of already removed by the external commit
-      (\\ remIndices)
+      (\\ toList (fmap snd action.remove))
         <$> getPendingBackendRemoveProposals groupId epoch
 
     -- requeue backend remove proposals for the current epoch
@@ -171,41 +174,26 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
       (cidQualifiedUser senderIdentity)
       cm
 
-executeExtCommitProposalAction ::
+executeExternalCommitAction ::
   forall r.
   HasProposalActionEffects r =>
-  ClientIdentity ->
   Local ConvOrSubConv ->
-  ProposalAction ->
+  ExternalCommitAction ->
   Sem r ()
-executeExtCommitProposalAction senderIdentity lconvOrSub action = do
+executeExternalCommitAction lconvOrSub action = do
   let mlsMeta = mlsMetaConvOrSub $ tUnqualified lconvOrSub
-      newCILeaves = cmAssocs (paAdd action)
-      deprecatedCILeaves = cmAssocs (paRemove action)
-
-  -- Adding clients: sender's client must be added and no other other client may
-  -- be added.
-  when (length newCILeaves /= 1 || fst (head newCILeaves) /= senderIdentity) $
-    throw (mlsProtocolError "No add proposals are allowed in external commits")
-
-  -- Client removal: only the sender's client can be removed when rejoining the
-  -- (sub)conversation.
-  when (length deprecatedCILeaves > 1) $
-    throw (mlsProtocolError "Up to one client can be removed in an external commit")
-  for_ (listToMaybe deprecatedCILeaves) $ \ciLeaf -> do
-    when (fst ciLeaf /= senderIdentity) $
-      throw (mlsProtocolError "Only the sender can rejoin in an external commit")
 
   -- Remove deprecated sender client from conversation state.
-  for_ deprecatedCILeaves $ \(ci, _) -> do
+  for_ action.remove $ \(cid, _) ->
     removeMLSClients
       (cnvmlsGroupId mlsMeta)
-      (cidQualifiedUser ci)
-      (Set.singleton $ ciClient ci)
+      (cidQualifiedUser cid)
+      (Set.singleton (ciClient cid))
 
   -- Add new sender client to the conversation state.
-  for_ newCILeaves $ \(ci, idx) -> do
+  do
+    let (cid, idx) = action.add
     addMLSClients
       (cnvmlsGroupId mlsMeta)
-      (cidQualifiedUser ci)
-      (Set.singleton (ciClient ci, idx))
+      (cidQualifiedUser cid)
+      (Set.singleton (ciClient cid, idx))
