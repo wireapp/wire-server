@@ -263,7 +263,7 @@ tests s =
       testGroup
         "MixedProtocol"
         [ test s "Upgrade a conv from proteus to mixed" testMixedUpgrade,
-          test s "Add clients to a mixed conversation" testMixedAddClients
+          test s "Add clients to a mixed conversation and send proteus message" testMixedAddClients
         ]
     ]
 
@@ -3539,55 +3539,70 @@ testMixedUpgrade = do
   runMLSTest $ do
     [alice1] <- traverse createMLSClient [alice]
 
-    convId <- decodeConvId <$> liftTest (postConv (qUnqualified alice) [qUnqualified bob] (Just "watercooler") [] Nothing Nothing)
-    localDomain <- liftTest viewFederationDomain
-    let qcnv = Qualified convId localDomain
-    liftTest $
-      putConversationProtocol (qUnqualified alice) (ciClient alice1) qcnv ProtocolMixedTag
-        !!! const 200 === statusCode
+    qcnv <-
+      cnvQualifiedId
+        <$> liftTest
+          ( postConvQualified (qUnqualified alice) Nothing defNewProteusConv {newConvQualifiedUsers = [bob]}
+              >>= responseJsonError
+          )
+
+    putConversationProtocol (qUnqualified alice) (ciClient alice1) qcnv ProtocolMixedTag
+      !!! const 200 === statusCode
 
     conv <-
       responseJsonError
         =<< getConvQualified (qUnqualified alice) qcnv
           <!! const 200 === statusCode
-    mlsData <- case cnvProtocol conv of
-      ProtocolMixed mlsData -> pure mlsData
-      _ -> liftIO $ assertFailure "Unexpected protocol"
+
+    mlsData <- assertMixedProtocol conv
+
     liftIO $ assertEqual "" (cnvmlsEpoch mlsData) (Epoch 0)
 
-    liftTest $
-      putConversationProtocol (qUnqualified alice) (ciClient alice1) qcnv ProtocolMixedTag
-        !!! const 200 === statusCode
+    putConversationProtocol (qUnqualified alice) (ciClient alice1) qcnv ProtocolMixedTag
+      !!! const 200 === statusCode
 
 testMixedAddClients :: TestM ()
 testMixedAddClients = do
   [alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
-  localDomain <- viewFederationDomain
+
   runMLSTest $ do
-    clients@[alice1, bob1, _charlie1] <- traverse createMLSClient [alice, bob, charlie]
-    convId <- decodeConvId <$> liftTest (postConv (qUnqualified alice) [qUnqualified bob, qUnqualified charlie] (Just "watercooler") [] Nothing Nothing)
-    let qcnv = Qualified convId localDomain
-    liftTest $
-      putConversationProtocol (qUnqualified alice) (ciClient alice1) qcnv ProtocolMixedTag
-        !!! const 200 === statusCode
+    clients@[alice1, bob1, charlie1] <- traverse createMLSClient [alice, bob, charlie]
+    traverse_ uploadNewKeyPackage clients
+
+    -- alice creates conv
+    qcnv <-
+      cnvQualifiedId
+        <$> liftTest
+          ( postConvQualified (qUnqualified alice) Nothing defNewProteusConv {newConvQualifiedUsers = [bob, charlie]}
+              >>= responseJsonError
+          )
+
+    -- bob upgrades to mixed
+    putConversationProtocol (qUnqualified bob) (ciClient bob1) qcnv ProtocolMixedTag
+      !!! const 200 === statusCode
 
     conv <-
       responseJsonError
         =<< getConvQualified (qUnqualified alice) qcnv
           <!! const 200 === statusCode
-    _mlsData <- case cnvProtocol conv of
-      ProtocolMixed mlsData -> pure mlsData
-      _ -> liftIO $ assertFailure "Unexpected protocol"
+    void $ assertMixedProtocol conv
 
-    (_gid, _) <- setupMLSGroupWithConv (pure conv) alice1
-
-    traverse_ uploadNewKeyPackage clients
-    commit <- createAddCommit alice1 [bob]
+    -- bob adds all client of alice and charlie
+    (_gid, _) <- setupMLSGroupWithConv (pure conv) bob1
+    commit <- createAddCommit bob1 [alice, charlie]
     welcome <- assertJust (mpWelcome commit)
-
-    _events <- mlsBracket [bob1] $ \wss -> do
-      _events <- sendAndConsumeCommitBundle commit
-      for_ (zip [bob1] wss) $ \(c, ws) ->
+    mlsBracket [alice1, charlie1] $ \wss -> do
+      void $ sendAndConsumeCommitBundle commit
+      for_ (zip [alice1, charlie1] wss) $ \(c, ws) ->
         WS.assertMatch (5 # Second) ws $
           wsAssertMLSWelcome (cidQualifiedUser c) welcome
-    pure ()
+
+    -- charlie sends a Proteus message
+    let msgs =
+          [ (qUnqualified alice, ciClient alice1, toBase64Text "ciphertext-to-alice"),
+            (qUnqualified bob, ciClient bob1, toBase64Text "ciphertext-to-bob")
+          ]
+    liftTest $
+      postOtrMessage id (qUnqualified charlie) (ciClient charlie1) (qUnqualified qcnv) msgs !!! do
+        const 201 === statusCode
+        assertMismatch [] [] []

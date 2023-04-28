@@ -2981,7 +2981,7 @@ createAndConnectUsers domains = do
       (False, False) -> pure ()
   pure users
 
-putConversationProtocol :: HasCallStack => UserId -> ClientId -> Qualified ConvId -> ProtocolTag -> TestM ResponseLBS
+putConversationProtocol :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ClientId -> Qualified ConvId -> ProtocolTag -> m ResponseLBS
 putConversationProtocol uid client (Qualified conv domain) protocol = do
   galley <- viewGalley
   put
@@ -2992,3 +2992,9 @@ putConversationProtocol uid client (Qualified conv domain) protocol = do
         . zClient client
         . Bilge.json (object ["protocol" .= protocol])
     )
+
+assertMixedProtocol :: (MonadIO m, HasCallStack) => Conversation -> m ConversationMLSData
+assertMixedProtocol conv = do
+  case cnvProtocol conv of
+    ProtocolMixed mlsData -> pure mlsData
+    _ -> liftIO $ assertFailure "Unexpected protocol"
