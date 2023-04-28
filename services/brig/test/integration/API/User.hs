@@ -40,10 +40,12 @@ import Imports
 import Test.Tasty hiding (Timeout)
 import Util
 import Util.AWS (UserJournalWatcher)
+import Util.Options (Endpoint)
 import Util.Options.Common
 import Wire.API.Federation.Component
 
 tests ::
+  Endpoint ->
   Opt.Opts ->
   FedClient 'Brig ->
   FedClient 'Galley ->
@@ -57,14 +59,14 @@ tests ::
   DB.ClientState ->
   UserJournalWatcher ->
   IO TestTree
-tests conf fbc fgc p b c ch g n aws db userJournalWatcher = do
+tests e conf fbc fgc p b c ch g n aws db userJournalWatcher = do
   let cl = ConnectionLimit $ Opt.setUserMaxConnections (Opt.optSettings conf)
   let at = Opt.setActivationTimeout (Opt.optSettings conf)
   z <- mkZAuthEnv (Just conf)
   pure $
     testGroup
       "user"
-      [ API.User.Client.tests cl at conf p db b c g,
+      [ API.User.Client.tests e cl at conf p db b c g,
         API.User.Account.tests cl at conf p b c ch g aws userJournalWatcher,
         API.User.Auth.tests conf p z db b g n,
         API.User.Connection.tests cl at conf p b c g fbc fgc db,

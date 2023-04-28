@@ -77,7 +77,7 @@ import Control.Error
 import Control.Lens (view)
 import Data.ByteString.Conversion
 import Data.Code as Code
-import Data.Domain (Domain)
+import Data.Domain (Domain (Domain))
 import Data.IP (IP)
 import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
@@ -87,6 +87,7 @@ import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
+import qualified Data.Text as Text
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
@@ -485,9 +486,10 @@ createAccessToken ::
   StdMethod ->
   Link ->
   Proof ->
+  Maybe Text ->
   ExceptT CertEnrollmentError (AppT r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken uid cid method link proof = do
-  domain <- Opt.setFederationDomain <$> view settings
+createAccessToken uid cid method link proof mHostHeader = do
+  domain <- maybe (throwE MisconfiguredRequestUrl) (pure . Domain) $ mHostHeader <&> Text.splitOn ":" >>= headMay
   nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
   httpsUrl <- do
     let urlBs = "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)

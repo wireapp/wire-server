@@ -610,10 +610,11 @@ createAccessToken ::
   UserId ->
   ClientId ->
   Proof ->
+  Maybe Text ->
   (Handler r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken method uid cid proof = do
+createAccessToken method uid cid proof mHost = do
   let link = safeLink (Proxy @api) (Proxy @endpoint) cid
-  API.createAccessToken uid cid method link proof !>> certEnrollmentError
+  API.createAccessToken uid cid method link proof mHost !>> certEnrollmentError
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::
