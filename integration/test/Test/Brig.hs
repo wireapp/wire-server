@@ -17,4 +17,4 @@ testSearchContactForExternalUsers = do
     resp.status `shouldMatchInt` 200
 
   bindResponse (Public.searchContacts (partner %. "id") (owner %. "name")) $ \resp ->
-    resp.status `shouldMatchInt` 200
+    resp.status `shouldMatchInt` 403
