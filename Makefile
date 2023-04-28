@@ -89,8 +89,14 @@ endif
 # If you want to pass arguments to the test-suite call the script directly.
 .PHONY: ci
 ci: c db-migrate
+ifeq ($(new), 1)
+ifneq ($(package), "integration")
+	make c package=integration
+endif
+	./hack/bin/cabal-run-integration.sh integration
+else
 	./hack/bin/cabal-run-integration.sh $(package)
-
+endif
 
 # Compile and run services
 # Usage: make crun `OR` make crun package=galley
@@ -102,7 +108,7 @@ cr: c db-migrate
 # Usage: make devtest test=TESTNAME
 .PHONY: devtest
 devtest:
-	ghcid --command 'cabal repl integration' --test='Testlib.Run.runITest "$(test)"'
+	./hack/bin/run-integration-ghcid.py -p "$(test)"
 
 .PHONY: sanitize-pr
 sanitize-pr:

@@ -1,16 +1,15 @@
 How to use:
 
-To run the whole testsuite:
+- `make ci` - build all services and run all test suites suites, including this one
+- `make ci new=1` - build all services and run only this test suite
+- `make ci package=galley new=1` - build only galley then run only this test suite
 
-1. `make c` - build the whole project without unit test
-2. `make ci package=integration` - build test suite, start services and run test suite
+To develop a new test in a fast-loading ghci session:
 
-
-To interactively develop and run tests:
-
-1. `make cr` - build the whole project and start all services
-2. `make devtest test=TESTNAME` to start a ghcid that re-runs the test after each succesful build
-
+1. Run `make cr` to build the whole project and start all services
+   OR run `make cr package=galley` to build galley and start all services
+   OR run `./services/run-services` to just start all services without rebuilding
+2. `make devtest test=TESTNAME` to start a ghcid session that re-runs the test after each succesful build of the test suite
 
 Original design guidelines / goals:
 

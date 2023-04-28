@@ -1,4 +1,4 @@
-module Testlib.Run (main, runI, runITest) where
+module Testlib.Run (main, mainI) where
 
 import Imports
 import RunAllTests
@@ -33,14 +33,10 @@ main = do
       ok <- act
       if ok then exitSuccess else exitFailure
 
-runI :: [String] -> IO ()
-runI args = do
+-- like `main` but meant to run from a repl
+mainI :: [String] -> IO ()
+mainI args = do
   let projectRoot = "../"
   withArgs args $
     withCurrentDirectory projectRoot $
       main
-
--- | Use this to run test from a repl
--- e.g. ghcid --command 'cabal repl integration' --test='Testlib.Run.runITest "<TESTNAME>"'
-runITest :: String -> IO ()
-runITest testName = runI ["-p", testName]
