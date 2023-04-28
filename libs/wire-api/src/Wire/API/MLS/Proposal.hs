@@ -104,24 +104,39 @@ instance SerialiseMLS PreSharedKeyTag where
   serialiseMLS = serialiseMLSEnum @Word8
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-8.4-6
-data PreSharedKeyID = ExternalKeyID ByteString | ResumptionKeyID Resumption
+data PreSharedKeyIDCore = ExternalKeyID ByteString | ResumptionKeyID Resumption
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform PreSharedKeyID)
+  deriving (Arbitrary) via (GenericUniform PreSharedKeyIDCore)
 
-instance ParseMLS PreSharedKeyID where
+instance ParseMLS PreSharedKeyIDCore where
   parseMLS = do
     t <- parseMLS
     case t of
       ExternalKeyTag -> ExternalKeyID <$> parseMLSBytes @VarInt
       ResumptionKeyTag -> ResumptionKeyID <$> parseMLS
 
-instance SerialiseMLS PreSharedKeyID where
+instance SerialiseMLS PreSharedKeyIDCore where
   serialiseMLS (ExternalKeyID bs) = do
     serialiseMLS ExternalKeyTag
     serialiseMLSBytes @VarInt bs
   serialiseMLS (ResumptionKeyID r) = do
     serialiseMLS ResumptionKeyTag
     serialiseMLS r
+
+data PreSharedKeyID = PreSharedKeyID
+  { core :: PreSharedKeyIDCore,
+    nonce :: ByteString
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PreSharedKeyID)
+
+instance ParseMLS PreSharedKeyID where
+  parseMLS = PreSharedKeyID <$> parseMLS <*> parseMLSBytes @VarInt
+
+instance SerialiseMLS PreSharedKeyID where
+  serialiseMLS psk = do
+    serialiseMLS psk.core
+    serialiseMLSBytes @VarInt psk.nonce
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-8.4-6
 data Resumption = Resumption

@@ -102,7 +102,7 @@ import Wire.API.User.Client
 
 -- TODO:
 -- [x] replace ref with index in remove proposals
--- [ ] validate leaf nodes and key packages locally on galley
+-- [x] validate leaf nodes and key packages locally on galley
 --   - [x] extract validation function to wire-api
 --   - [x] validate lifetime and public key consistency only on brig
 --   - [x] check that ciphersuite matches conversation on galley
@@ -118,7 +118,7 @@ import Wire.API.User.Client
 -- [x] remove prefixes from fields in Commit and Proposal
 -- [x] check epoch inside commit lock
 -- [x] split executeProposalAction for internal and external commits
--- [ ] add nonce to PreSharedKeyID
+-- [x] add nonce to PreSharedKeyID
 -- [ ] move external commit logic to a separate module and improve types
 
 -- FUTUREWORK
