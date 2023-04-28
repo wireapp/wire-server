@@ -195,7 +195,7 @@ prettyAwaitResult r = do
       <> indent
         4
         ( unlines
-            [ "success:\n" <> show (r.success),
+            [ "success: " <> show (r.success),
               "matches:\n" <> unlines matchesS,
               "non-matches:\n" <> unlines nonMatchesS
             ]
