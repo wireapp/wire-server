@@ -102,7 +102,7 @@ cr: c db-migrate
 # Usage: make devtest test=TESTNAME
 .PHONY: devtest
 devtest:
-	ghcid --height=1000 --command 'cabal repl integration' --test='Testlib.Run.runITest "$(test)"'
+	ghcid --command 'cabal repl integration' --test='Testlib.Run.runITest "$(test)"'
 
 .PHONY: sanitize-pr
 sanitize-pr:
