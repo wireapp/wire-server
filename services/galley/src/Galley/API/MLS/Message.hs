@@ -72,10 +72,10 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 
 -- TODO:
--- [ ] replace commit message in CommitBundle with a Commit object
 -- [ ] restore deleted MLS unit tests
 -- [ ] pass groupId and epoch to processProposal instead of the whole IncomingMessage
 -- [ ] remove LWT in planMLSClientRemoval
+-- [ ] restore unsupported proposal integration test
 
 -- FUTUREWORK
 -- - Check that the capabilities of a leaf node in an add proposal contains all
@@ -354,7 +354,7 @@ postMLSMessageToLocalConv qusr c con msg convOrSubId = do
       FramedContentCommit _commit -> throwS @'MLSUnsupportedMessage
       FramedContentApplicationData _ -> throwS @'MLSUnsupportedMessage
       FramedContentProposal prop ->
-        processProposal qusr lConvOrSub msg pub prop $> mempty
+        processProposal qusr lConvOrSub msg.groupId msg.epoch pub prop $> mempty
     IncomingMessageContentPrivate -> pure mempty
 
   let cm = membersConvOrSub (tUnqualified lConvOrSub)

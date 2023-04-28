@@ -27,7 +27,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 
 data CommitBundle = CommitBundle
-  { commitMsg :: RawMLS Message, -- TODO: change this type to Commit
+  { commitMsg :: RawMLS Message,
     welcome :: Maybe (RawMLS Welcome),
     groupInfo :: RawMLS GroupInfo
   }

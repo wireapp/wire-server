@@ -245,16 +245,17 @@ processProposal ::
   ) =>
   Qualified UserId ->
   Local ConvOrSubConv ->
-  IncomingMessage -> -- TODO: just pass header?
+  GroupId ->
+  Epoch ->
   IncomingPublicMessageContent ->
   RawMLS Proposal ->
   Sem r ()
-processProposal qusr lConvOrSub msg pub prop = do
+processProposal qusr lConvOrSub groupId epoch pub prop = do
   let mlsMeta = mlsMetaConvOrSub (tUnqualified lConvOrSub)
   -- Check if the epoch number matches that of a conversation
-  unless (msg.epoch == cnvmlsEpoch mlsMeta) $ throwS @'MLSStaleMessage
+  unless (epoch == cnvmlsEpoch mlsMeta) $ throwS @'MLSStaleMessage
   -- Check if the group ID matches that of a conversation
-  unless (msg.groupId == cnvmlsGroupId mlsMeta) $ throwS @'ConvNotFound
+  unless (groupId == cnvmlsGroupId mlsMeta) $ throwS @'ConvNotFound
   let suiteTag = cnvmlsCipherSuite mlsMeta
 
   -- FUTUREWORK: validate the member's conversation role
@@ -262,7 +263,7 @@ processProposal qusr lConvOrSub msg pub prop = do
   checkProposal mlsMeta im prop.value
   when (isExternal pub.sender) $ checkExternalProposalUser qusr prop.value
   let propRef = authContentRef suiteTag (incomingMessageAuthenticatedContent pub)
-  storeProposal msg.groupId msg.epoch propRef ProposalOriginClient prop
+  storeProposal groupId epoch propRef ProposalOriginClient prop
 
 getKeyPackageIdentity ::
   Member (ErrorS 'MLSUnsupportedProposal) r =>
