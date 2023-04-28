@@ -48,3 +48,4 @@ mqSettings:
   mqUser: "username"
   mqPass: "password"
   mqQueue: "queue name"
+domainUpdateInterval: 1000000

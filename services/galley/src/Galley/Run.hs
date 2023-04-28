@@ -76,6 +76,7 @@ import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
 import qualified System.Logger.Class as L
 import qualified Data.Set as Set
+import Wire.API.Routes.FederationDomainConfig
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
@@ -192,6 +193,7 @@ updateFedDomains = do
   let baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
       clientEnv = ClientEnv manager' baseUrl Nothing defaultMakeClientRequest
   forever $ do
+    threadDelay updateInterval
     previous <- liftIO $ readTVarIO tvar
     strat <- liftIO $ runClientM getFedRemotes clientEnv
     let domainListsEqual s =
@@ -208,6 +210,5 @@ updateFedDomains = do
         -- the domain list is changing frequently.
         -- FS-1179 is handling this part.
         liftIO $ atomically $ writeTVar tvar s
-    threadDelay updateInterval
   where
     getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"

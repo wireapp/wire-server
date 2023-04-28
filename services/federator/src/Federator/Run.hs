@@ -74,13 +74,22 @@ run opts = do
       let Endpoint host port = brig opts
           baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
           clientEnv = ClientEnv manager baseUrl Nothing defaultMakeClientRequest
-      -- Explode if things went sideways. TODO make better
-      fedStrat <- either (error . show) pure =<< runClientM getFedRemotes clientEnv
+          -- Loop the request until we get an answer. This is helpful during integration
+          -- tests where services are being brought up in parallel.
+          getInitialFedDomains = do
+            runClientM getFedRemotes clientEnv >>= \case
+              Right s -> pure s
+              Left e -> do
+                print $ "Could not retrieve the latest list of federation domains from Brig: " <> show e
+                threadDelay $ domainUpdateInterval opts
+                getInitialFedDomains
+      fedStrat <- getInitialFedDomains
       tEnv <- newTVarIO $ updateFedStrat fedStrat env
       let
           callback :: FederationDomainConfigs -> IO ()
           callback strat = do
             atomically $ modifyTVar tEnv $ updateFedStrat strat
+            print strat
       -- We need a watcher/listener for updating this TVar to flow values through to the handlers.
       let externalServer = serveInward tEnv portExternal
           internalServer = serveOutward tEnv portInternal
@@ -112,12 +121,12 @@ run opts = do
 
     updateDomains :: ClientEnv -> (FederationDomainConfigs -> IO ()) -> IO ()
     updateDomains clientEnv update = forever $ do
+      threadDelay $ domainUpdateInterval opts
       strat <- runClientM getFedRemotes clientEnv
       either
         print
         update
-        strat
-      threadDelay $ domainUpdateInterval opts
+        strat      
         
         
 

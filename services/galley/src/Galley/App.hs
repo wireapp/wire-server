@@ -1,4 +1,5 @@
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE LambdaCase #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -168,15 +169,22 @@ createEnv m o = do
       baseUrl = SC.BaseUrl SC.Http (unpack h) (fromIntegral p) ""
       clientEnv = SC.ClientEnv mgr baseUrl Nothing SC.defaultMakeClientRequest
       getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
-  strat <- either fedDomainError pure =<< SC.runClientM getFedRemotes clientEnv
+      -- Loop the request until we get an answer. This is helpful during integration
+      -- tests where services are being brought up in parallel.
+      getInitalFedDomains = do
+        SC.runClientM getFedRemotes clientEnv >>= \case
+          Right s -> pure s
+          Left e -> do
+            print $ "Could not retrieve the latest list of federation domains from Brig: " <> show e
+            threadDelay $ o ^. optDomainUpdateInterval
+            getInitalFedDomains
+  strat <- getInitalFedDomains
   Env def m o l mgr h2mgr (o ^. optFederator) brigEndpoint cass
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
     <*> loadAllMLSKeys (fold (o ^. optSettings . setMlsPrivateKeyPaths))
     <*> newTVarIO strat
-  where
-    fedDomainError e = error $ "Could not retrieve the latest list of federation domains from Brig: " <> show e
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
