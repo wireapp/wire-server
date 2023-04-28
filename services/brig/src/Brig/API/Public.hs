@@ -89,6 +89,7 @@ import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
 import Data.Qualified
 import Data.Range
+import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
@@ -185,7 +186,27 @@ versionedSwaggerDocsAPI (Just (VersionNumber V0)) = swaggerPregenUIServer $(preg
 versionedSwaggerDocsAPI (Just (VersionNumber V1)) = swaggerPregenUIServer $(pregenSwagger V1)
 versionedSwaggerDocsAPI (Just (VersionNumber V2)) = swaggerPregenUIServer $(pregenSwagger V2)
 versionedSwaggerDocsAPI (Just (VersionNumber V3)) = swaggerPregenUIServer $(pregenSwagger V3)
-versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
+versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
+  where
+    allroutes ::
+      (forall a. Servant.Handler a) ->
+      Servant.Server (SwaggerSchemaUI "swagger-ui" "swagger.json")
+    allroutes action =
+      -- why?  see 'SwaggerSchemaUI' type.
+      action :<|> action :<|> action :<|> error (cs listAllVersionsHTML)
+
+    listAllVersionsResp :: ServerError
+    listAllVersionsResp = ServerError 200 mempty listAllVersionsHTML [("Content-Type", "text/html;charset=utf-8")]
+
+    listAllVersionsHTML :: LByteString
+    listAllVersionsHTML =
+      "<html><head></head><body><h2>please pick an api version</h2>"
+        <> mconcat
+          [ let url = "/" <> toQueryParam v <> "/api/swagger-ui/"
+             in "<a href=\"" <> cs url <> "\">" <> cs url <> "</a><br>"
+            | v <- [minBound :: Version ..]
+          ]
+        <> "</body>"
 
 -- | Serves Swagger docs for internal endpoints
 --
