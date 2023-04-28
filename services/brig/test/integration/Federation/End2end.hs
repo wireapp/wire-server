@@ -1354,7 +1354,3 @@ testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do
     checkEvent wsAlice bob StartedTyping
     isTyping galley2 bob StoppedTyping
     checkEvent wsAlice bob StoppedTyping
-
-testMixedProtocolUpgrade :: Http ()
-testMixedProtocolUpgrade = do
-  error "TODO"
