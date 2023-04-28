@@ -5,17 +5,12 @@ import Imports
 import System.Random (randomRIO)
 import Testlib.Prelude
 
-teamRolePartner :: Int
-teamRolePartner = 1025
-
-teamRoleMember :: Int
-teamRoleMember = 1587
-
-teamRoleAdmin :: Int
-teamRoleAdmin = 5951
-
-teamRoleOwner :: Int
-teamRoleOwner = 8191
+teamRole :: String -> Int
+teamRole "partner" = 1025
+teamRole "member" = 1587
+teamRole "admin" = 5951
+teamRole "owner" = 8191
+teamRole bad = error $ "unknown team role: " <> bad
 
 defPassword :: String
 defPassword = "hunter2!"
