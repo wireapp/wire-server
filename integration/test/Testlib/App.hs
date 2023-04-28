@@ -370,22 +370,34 @@ printFailureDetails (AssertionFailure stack mbResponse _) = ResultDetailsPrinter
 
 prettierCallStack :: CallStack -> IO String
 prettierCallStack cstack = do
-  sl <- undefined
+  sl <- prettierCallStackLines cstack
   d <- getCurrentDirectory
   pure $
     intercalate "\n" $
-      [colored yellow "call stack: ", sl, "current dir: " <> d]
+      [colored yellow "call stack: ", sl]
 
--- prettierCallStackLines :: CallStack -> IO String
--- prettierCallStackLines cstack =
---   intercalate "\n" <$> mapM prettyCallSite (Stack.getCallStack cstack)
---   where
---     prettyCallSite (f, SrcLoc {..}) = do
---       s <- tryReadFile srcLocFile srcLocStartLine
---       pure $ f <> " at " <> concat ([srcLocFile, ":", show srcLocStartLine, show srcLocPackage] <> (maybe [] (: []) s))
-
-meh :: String
-meh = __GLASGOW_HASKELL_FULL_VERSION__
+prettierCallStackLines :: CallStack -> IO String
+prettierCallStackLines cstack =
+  go Map.empty "" (Stack.getCallStack cstack) (1 :: Int)
+  where
+    go cache s [] i = pure s
+    go cache s ((funName, SrcLoc {..}) : rest) i = do
+      (cache', mSrcDir) <- getSourceDirCached cache srcLocPackage
+      mLine <- case mSrcDir of
+        Nothing -> pure Nothing
+        Just srcDir -> do
+          mSrc <- tryReadFile (srcDir </> srcLocFile)
+          case mSrc of
+            Just src ->
+              case getLineNumber srcLocStartLine src of
+                Just line -> pure (Just (dropWhile isSpace line))
+                Nothing -> pure Nothing
+            Nothing -> pure Nothing
+      let s' = s <> show i <> ". " <> funName <> " at " <> srcLocFile <> ":" <> colored yellow (show srcLocStartLine) <> "\n"
+      let s'' = case mLine of
+            Just line -> s' <> colored blue ("     " <> line <> "\n")
+            Nothing -> s'
+      go cache' (s'' <> "\n") rest (i + 1)
 
 getSourceDir :: String -> IO (Maybe FilePath)
 getSourceDir packageId = do
@@ -397,8 +409,7 @@ getSourceDir packageId = do
   where
     packagedbFile :: String -> FilePath
     packagedbFile pkgId =
-      -- TOODO: replace .. with .
-      let root = "../dist-newstyle/packagedb/ghc-" <> __GLASGOW_HASKELL_FULL_VERSION__
+      let root = "./dist-newstyle/packagedb/ghc-" <> __GLASGOW_HASKELL_FULL_VERSION__
        in root </> (pkgId <> ".conf")
 
     extractDataDir :: String -> Maybe String
@@ -426,6 +437,12 @@ tryReadFile p = do
   pure $ case eith of
     Left (e :: SomeException) -> Nothing
     Right s -> Just s
+
+getLineNumber :: Int -> String -> Maybe String
+getLineNumber lineNo s =
+  case drop (lineNo - 1) (lines s) of
+    [] -> Nothing
+    (l : _) -> pure l
 
 modifyFailure :: (AssertionFailure -> AssertionFailure) -> App a -> App a
 modifyFailure modifyAssertion action = do
