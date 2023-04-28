@@ -29,7 +29,7 @@ import Util
 
 tests :: Manager -> Opts -> Brig -> TestTree
 tests p _opts brigNoImplicitVersion =
-  testGroup "version" $
+  testGroup "swagger" $
     [ testGroup "public" $
         [ test p "GET /api/swagger.json" $ testSwaggerJson brigNoImplicitVersion "",
           test p "GET /api/swagger-ui" $ testSwaggerUI brigNoImplicitVersion "",
