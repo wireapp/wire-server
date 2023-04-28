@@ -278,6 +278,20 @@ someLastPrekeys =
     "pQABARn//wKhAFggQeUPM119c+6zRsEupA8zshTfrZiLpXx1Ji0UMMumq9IDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
   ]
 
+readServiceConfig :: Service -> App Value
+readServiceConfig srv = do
+  basedir <- asks (.serviceConfigsDir)
+  let srvName = serviceName srv
+      cfgFile = basedir </> srvName </> "conf" </> (srvName <> ".yaml")
+  eith <- liftIO (Yaml.decodeFileEither cfgFile)
+  case eith of
+    Left err -> failApp ("Error while parsing " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err)
+    Right value -> pure value
+
+viewFederationDomain :: App String
+viewFederationDomain = do
+  readServiceConfig Brig %. "optSettings.setFederationDomain" & asString
+
 -------------------------------------------------------------------------------
 -- - SECTION_ASSERTIONS
 -------------------------------------------------------------------------------
@@ -905,14 +919,8 @@ withModifiedServices services k = do
           (Map.assocs ports)
 
   instances <- for (Map.assocs services) $ \(srv, modifyConfig) -> do
-    basedir <- asks (.serviceConfigsDir)
     let srvName = serviceName srv
-        cfgFile = basedir </> srvName </> "conf" </> (srvName <> ".yaml")
-    config <- do
-      eith <- liftIO (Yaml.decodeFileEither cfgFile)
-      case eith of
-        Left err -> failApp ("Error while parsing " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err)
-        Right value -> pure value
+    config <- readServiceConfig srv
     config' <- updateServiceMapInConfig config >>= modifyConfig
     (tempFile, fh) <- liftIO $ openBinaryTempFile "/tmp" (srvName <> ".yaml")
     liftIO $ BS.hPut fh (Yaml.encode config')

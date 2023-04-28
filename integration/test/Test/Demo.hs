@@ -71,3 +71,7 @@ testWebSockets = do
       resp.json
     n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "user.client-add") ws
     nPayload n %. "client.id" `shouldMatch` (client %. "id")
+
+testFederationDomain :: App ()
+testFederationDomain =
+  void $ viewFederationDomain
