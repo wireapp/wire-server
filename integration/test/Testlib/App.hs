@@ -846,10 +846,8 @@ withModifiedServices services k = do
     pure ph
 
   let stopInstances = liftIO $ do
-        for_ instances terminateProcess
         -- when running from repl this hangs for 30 seconds
-        -- for_ instances waitForProcess
-        pure ()
+        for_ instances terminateProcess
 
   let updateServiceMap serviceMap =
         Map.foldrWithKey
