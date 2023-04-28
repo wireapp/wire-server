@@ -465,8 +465,14 @@ asBool x =
     (Bool b) -> pure b
     v -> assertFailureWithJSON x ("Bool" `typeWasExpectedButGot` v)
 
--- | Get (nested) field of a JSON value
-(%.) :: (HasCallStack, ProducesJSON a) => a -> String -> App Value
+-- | Get a (nested) field of a JSON object
+-- Raise an AssertionFailure if the field at the (nested) key is missing.
+(%.) ::
+  (HasCallStack, ProducesJSON a) =>
+  a ->
+  -- | A plain key, e.g. "id", or a nested key "user.profile.id"
+  String ->
+  App Value
 (%.) val selector = do
   v <- prodJSON val
   vp <- prettyJSON v
@@ -486,8 +492,21 @@ asBool x =
         Nothing -> assertFailureWithJSON ob $ "Field \"" <> k <> "\" is missing from object:"
         Just x -> pure x
 
--- | Look up (possibly nested) field of a JSON value
-lookupField :: (HasCallStack, ProducesJSON a) => a -> String -> App (Maybe Value)
+-- | Look up (nested) field of a JSON object
+--
+-- If the field key has no dots then returns Nothing if the key is missing from the
+-- object.
+--
+-- If the field key has dots (describes a nested lookuyp) then returns Nothing
+-- if the last component of the key field selector is missing from nested
+-- object. If any other component is missing this function raises an
+-- AssertionFailure.
+lookupField ::
+  (HasCallStack, ProducesJSON a) =>
+  a ->
+  -- | A plain key, e.g. "id", or a nested key "user.profile.id"
+  String ->
+  App (Maybe Value)
 lookupField val selector = do
   v <- prodJSON val
   vp <- prettyJSON v
