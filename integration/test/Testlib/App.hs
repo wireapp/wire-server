@@ -177,12 +177,6 @@ instance IsOption ConfigFile where
   optionName = fromString "config"
   optionHelp = fromString "Configuration file for integration tests. Default: services/integration.yaml"
 
-instance IsOption ServiceMap where
-  defaultValue = error "No Default value"
-  parseValue = const Nothing
-  optionName = fromString "config-loaded-from-file"
-  optionHelp = fromString "This option can only be provided via the --config flag"
-
 mkEnv :: ConfigFile -> IO Env
 mkEnv (ConfigFile cfgFile) = do
   eith <- Yaml.decodeFileEither cfgFile
