@@ -84,12 +84,18 @@ library
     Galley.API.Mapping
     Galley.API.Message
     Galley.API.MLS
+    Galley.API.MLS.Commit
+    Galley.API.MLS.Commit.Core
+    Galley.API.MLS.Commit.ExternalCommit
+    Galley.API.MLS.Commit.InternalCommit
     Galley.API.MLS.Conversation
     Galley.API.MLS.Enabled
     Galley.API.MLS.GroupInfo
+    Galley.API.MLS.IncomingMessage
     Galley.API.MLS.Keys
     Galley.API.MLS.Message
     Galley.API.MLS.Propagate
+    Galley.API.MLS.Proposal
     Galley.API.MLS.Removal
     Galley.API.MLS.SubConversation
     Galley.API.MLS.Types
