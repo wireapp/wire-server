@@ -107,7 +107,7 @@ import Wire.API.User.Client
 --   - [x] validate lifetime and public key consistency only on brig
 --   - [x] check that ciphersuite matches conversation on galley
 --   - [x] check the signature on the LeafNode
---   - [ ] verify that capabilities include basic credentials
+--   - [x] verify that capabilities include basic credentials
 -- [x] validate proposals when processing proposal and commit messages
 -- [x] remove MissingSenderClient error
 -- [x] remove all key package ref mapping

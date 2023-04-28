@@ -120,4 +120,6 @@ validateSource t s = do
           <> "'"
 
 validateCapabilities :: Capabilities -> Either Text ()
-validateCapabilities _ = pure () -- TODO
+validateCapabilities caps =
+  unless (BasicCredentialTag `elem` caps.credentials) $
+    Left "missing BasicCredential capability"
