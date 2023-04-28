@@ -66,22 +66,22 @@ class ToWSConnect a where
 instance {-# OVERLAPPING #-} ToWSConnect WSConnect where
   toWSConnect = pure
 
-instance {-# OVERLAPPABLE #-} (ProducesJSON user) => ToWSConnect user where
+instance {-# OVERLAPPABLE #-} (MakesValue user) => ToWSConnect user where
   toWSConnect u = do
     uid <- objId u & asString
     pure (WSConnect uid Nothing Nothing)
 
-instance (ProducesJSON user, ProducesJSON conn) => ToWSConnect (user, conn) where
+instance (MakesValue user, MakesValue conn) => ToWSConnect (user, conn) where
   toWSConnect (u, c) = do
     uid <- objId u & asString
-    conn <- prodJSON c & asString
+    conn <- make c & asString
     pure (WSConnect uid Nothing (Just conn))
 
-instance (ProducesJSON user, ProducesJSON conn, ProducesJSON client) => ToWSConnect (user, conn, client) where
+instance (MakesValue user, MakesValue conn, MakesValue client) => ToWSConnect (user, conn, client) where
   toWSConnect (u, c, cl) = do
     uid <- objId u & asString
-    client <- prodJSON cl & asString
-    conn <- prodJSON c & asString
+    client <- make cl & asString
+    conn <- make c & asString
     pure (WSConnect uid (Just client) (Just conn))
 
 connect :: HasCallStack => WSConnect -> App WebSocket
@@ -283,7 +283,7 @@ awaitMatch ::
   App Value
 awaitMatch tSecs checkMatch ws = head <$> awaitNMatches 1 tSecs checkMatch ws
 
-nPayload :: ProducesJSON a => a -> App Value
+nPayload :: MakesValue a => a -> App Value
 nPayload event = do
   payloads <- event %. "payload" & asList
   assertOne payloads

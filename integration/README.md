@@ -15,7 +15,7 @@ To interactively develop and run tests:
 Original design guidelines / goals:
 
 - Don't import `wire-api` or any other internal Haskell libraries. This goal of this test suite is test against the public API interface.
-- Make input of functions as generic as possible, i.e. use `ProducesJSON` as much as possible. That way users can provide values without binding or converting.
+- Make input of functions as generic as possible, i.e. use `MakesValue` as much as possible. That way users can provide values without binding or converting.
 - Make it as easy to debug tests as possible
   * Add the `HasCallStack` constraint to any function
   * Prefer to make a function monadic and throw a helpful error message rather than keeping it pure (purity has little value in tests)

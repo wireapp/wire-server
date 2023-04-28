@@ -3,7 +3,7 @@ module API.GalleyInternal where
 import Imports
 import Testlib.Prelude
 
-putTeamMember :: (HasCallStack, ProducesJSON user, ProducesJSON team) => user -> team -> Int -> App Response
+putTeamMember :: (HasCallStack, MakesValue user, MakesValue team) => user -> team -> Int -> App Response
 putTeamMember user team perms = do
   uid <- asString user
   tid <- asString team

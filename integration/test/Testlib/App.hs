@@ -317,15 +317,15 @@ expectFailure checkFailure action = do
     Right x -> assertFailure "Expected AssertionFailure, but none occured"
 
 shouldMatch ::
-  (ProducesJSON a, ProducesJSON b, HasCallStack) =>
+  (MakesValue a, MakesValue b, HasCallStack) =>
   -- | The actual value
   a ->
   -- | The expected value
   b ->
   App ()
 a `shouldMatch` b = do
-  xa <- prodJSON a
-  xb <- prodJSON b
+  xa <- make a
+  xb <- make b
   unless (xa == xb) $ do
     pa <- prettyJSON xa
     pb <- prettyJSON xb
@@ -333,7 +333,7 @@ a `shouldMatch` b = do
 
 -- | Specialized variant of `shouldMatch` to avoid the need for type annotations.
 shouldMatchInt ::
-  (ProducesJSON a, HasCallStack) =>
+  (MakesValue a, HasCallStack) =>
   -- | The actual value
   a ->
   -- | The expected value
@@ -342,16 +342,16 @@ shouldMatchInt ::
 shouldMatchInt = shouldMatch
 
 liftP2 ::
-  (ProducesJSON a, ProducesJSON b, HasCallStack) =>
+  (MakesValue a, MakesValue b, HasCallStack) =>
   (Value -> Value -> c) ->
   a ->
   b ->
   App c
 liftP2 f a b = do
-  f <$> prodJSON a <*> prodJSON b
+  f <$> make a <*> make b
 
 isEqual ::
-  (ProducesJSON a, ProducesJSON b, HasCallStack) =>
+  (MakesValue a, MakesValue b, HasCallStack) =>
   a ->
   b ->
   App Bool
@@ -414,67 +414,67 @@ addFailureContext msg = modifyFailureMsg (\m -> m <> "\nThis failure happend in 
 -- 1. the response is not application/json
 -- 2. has no "user" field
 -- 3. the nested update fails
-class ProducesJSON a where
-  prodJSON :: HasCallStack => a -> App Value
+class MakesValue a where
+  make :: HasCallStack => a -> App Value
 
-instance {-# OVERLAPPABLE #-} ToJSON a => ProducesJSON a where
-  prodJSON = pure . toJSON
+instance {-# OVERLAPPABLE #-} ToJSON a => MakesValue a where
+  make = pure . toJSON
 
-instance {-# OVERLAPPING #-} ToJSON a => ProducesJSON (App a) where
-  prodJSON m = m <&> toJSON
+instance {-# OVERLAPPING #-} ToJSON a => MakesValue (App a) where
+  make m = m <&> toJSON
 
 (.=) :: ToJSON a => String -> a -> Aeson.Pair
 (.=) k v = fromString k Aeson..= v
 
-asString :: HasCallStack => ProducesJSON a => a -> App String
+asString :: HasCallStack => MakesValue a => a -> App String
 asString x =
-  prodJSON x >>= \case
+  make x >>= \case
     (String s) -> pure (T.unpack s)
     v -> assertFailureWithJSON x ("String" `typeWasExpectedButGot` v)
 
-asStringM :: HasCallStack => ProducesJSON a => a -> App (Maybe String)
+asStringM :: HasCallStack => MakesValue a => a -> App (Maybe String)
 asStringM x =
-  prodJSON x >>= \case
+  make x >>= \case
     (String s) -> pure (Just (T.unpack s))
     _ -> pure Nothing
 
-asObject :: HasCallStack => ProducesJSON a => a -> App Object
+asObject :: HasCallStack => MakesValue a => a -> App Object
 asObject x =
-  prodJSON x >>= \case
+  make x >>= \case
     (Object o) -> pure o
     v -> assertFailureWithJSON x ("Object" `typeWasExpectedButGot` v)
 
-asInt :: HasCallStack => ProducesJSON a => a -> App Int
+asInt :: HasCallStack => MakesValue a => a -> App Int
 asInt x =
-  prodJSON x >>= \case
+  make x >>= \case
     (Number n) ->
       case Sci.floatingOrInteger n of
         Left (_ :: Double) -> assertFailure "Expected an integral, but got a floating point"
         Right i -> pure i
     v -> assertFailureWithJSON x ("Number" `typeWasExpectedButGot` v)
 
-asList :: HasCallStack => ProducesJSON a => a -> App [Value]
+asList :: HasCallStack => MakesValue a => a -> App [Value]
 asList x =
-  prodJSON x >>= \case
+  make x >>= \case
     (Array arr) -> pure (toList arr)
     v -> assertFailureWithJSON x ("Array" `typeWasExpectedButGot` v)
 
-asBool :: HasCallStack => ProducesJSON a => a -> App Bool
+asBool :: HasCallStack => MakesValue a => a -> App Bool
 asBool x =
-  prodJSON x >>= \case
+  make x >>= \case
     (Bool b) -> pure b
     v -> assertFailureWithJSON x ("Bool" `typeWasExpectedButGot` v)
 
 -- | Get a (nested) field of a JSON object
 -- Raise an AssertionFailure if the field at the (nested) key is missing.
 (%.) ::
-  (HasCallStack, ProducesJSON a) =>
+  (HasCallStack, MakesValue a) =>
   a ->
   -- | A plain key, e.g. "id", or a nested key "user.profile.id"
   String ->
   App Value
 (%.) val selector = do
-  v <- prodJSON val
+  v <- make val
   vp <- prettyJSON v
   addFailureContext ("Getting (nested) field " <> selector <> " of object:\n" <> vp) $ do
     let keys = splitOn "." selector
@@ -502,13 +502,13 @@ asBool x =
 -- object. If any other component is missing this function raises an
 -- AssertionFailure.
 lookupField ::
-  (HasCallStack, ProducesJSON a) =>
+  (HasCallStack, MakesValue a) =>
   a ->
   -- | A plain key, e.g. "id", or a nested key "user.profile.id"
   String ->
   App (Maybe Value)
 lookupField val selector = do
-  v <- prodJSON val
+  v <- make val
   vp <- prettyJSON v
   addFailureContext ("Loooking up (nested) field " <> selector <> " of object:\n" <> vp) $ do
     let keys = splitOn "." selector
@@ -531,7 +531,7 @@ lookupField val selector = do
 -- E.g. ob & "foo.bar.baz" %.= ("quux" :: String)
 setField ::
   forall a b.
-  (HasCallStack, ProducesJSON a, ToJSON b) =>
+  (HasCallStack, MakesValue a, ToJSON b) =>
   -- | Selector, e.g. "id", "user.team.id"
   String ->
   -- | The value that should insert or replace the value at the selctor
@@ -542,9 +542,9 @@ setField selector v x = do
   modifyField @a @Value selector (\_ -> pure (toJSON v)) x
 
 -- Update nested fields, using the old value with a stateful action
-modifyField :: (HasCallStack, ProducesJSON a, ToJSON b) => String -> (Maybe Value -> App b) -> a -> App Value
+modifyField :: (HasCallStack, MakesValue a, ToJSON b) => String -> (Maybe Value -> App b) -> a -> App Value
 modifyField selector up x = do
-  v <- prodJSON x
+  v <- make x
   let keys = splitOn "." selector
   case keys of
     (k : ks) -> go k ks v
@@ -561,18 +561,18 @@ modifyField selector up x = do
       ob <- asObject v
       pure $ Object $ KM.insert (KM.fromString k) newValue ob
 
-assertFailureWithJSON :: HasCallStack => ProducesJSON a => a -> String -> App b
+assertFailureWithJSON :: HasCallStack => MakesValue a => a -> String -> App b
 assertFailureWithJSON v msg = do
   msg' <- ((msg <> "\n") <>) <$> prettyJSON v
   assertFailure msg'
 
 -- | Useful for debugging
-printJSON :: ProducesJSON a => a -> App ()
+printJSON :: MakesValue a => a -> App ()
 printJSON = prettyJSON >=> putStrLn
 
-prettyJSON :: ProducesJSON a => a -> App String
+prettyJSON :: MakesValue a => a -> App String
 prettyJSON x =
-  prodJSON x <&> Aeson.encodePretty <&> LC8.unpack
+  make x <&> Aeson.encodePretty <&> LC8.unpack
 
 constrName :: Value -> String
 constrName (Object _) = "Object"
@@ -586,16 +586,16 @@ typeWasExpectedButGot :: String -> Value -> String
 typeWasExpectedButGot expectedType x = "Expected " <> expectedType <> " but got " <> constrName x <> ":"
 
 -- Get "id" field or - if already string-like return String
-objId :: ProducesJSON a => a -> App String
+objId :: MakesValue a => a -> App String
 objId x = do
-  v <- prodJSON x
+  v <- make x
   case v of
     Object ob -> ob %. "id" & asString
     String t -> pure (T.unpack t)
     other -> assertFailureWithJSON other (typeWasExpectedButGot "Object or String" other)
 
 -- Get "qualified_id" field as (domain, id) or - if already is a qualified id object - return that
-objQid :: ProducesJSON a => a -> App (String, String)
+objQid :: MakesValue a => a -> App (String, String)
 objQid ob = do
   m <- firstSuccess [select ob, inField]
   case m of

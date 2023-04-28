@@ -27,7 +27,7 @@ instance Default AddClient where
       }
 
 addClient ::
-  (HasCallStack, ProducesJSON user) =>
+  (HasCallStack, MakesValue user) =>
   user ->
   AddClient ->
   App Response
@@ -48,7 +48,7 @@ addClient user args = do
         ]
 
 deleteClient ::
-  (HasCallStack, ProducesJSON user, ProducesJSON client) =>
+  (HasCallStack, MakesValue user, MakesValue client) =>
   user ->
   Maybe String ->
   client ->
@@ -66,7 +66,7 @@ deleteClient user mconn client = do
         [ "password" .= defPassword
         ]
 
-searchContacts :: (ProducesJSON s1, ProducesJSON s2) => s1 -> s2 -> App Response
+searchContacts :: (MakesValue s1, MakesValue s2) => s1 -> s2 -> App Response
 searchContacts searchingUserId searchTerm = do
   req <- baseRequest Brig Versioned "/search/contacts"
   q <- searchTerm & asString
