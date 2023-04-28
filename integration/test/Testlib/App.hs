@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 
 -- |
@@ -12,7 +14,7 @@
 module Testlib.App where
 
 import Control.Concurrent.Async (mapConcurrently_)
-import Control.Exception (finally)
+import Control.Exception (finally, try)
 import qualified Control.Exception as E
 import Control.Monad.Catch (MonadMask, MonadThrow)
 import Control.Monad.Catch.Pure (MonadCatch)
@@ -44,6 +46,7 @@ import qualified Data.Yaml as Yaml
 import GHC.Exception
 import GHC.Records
 import GHC.Stack
+import qualified GHC.Stack as Stack
 import Imports hiding (ask, asks, local)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
@@ -360,14 +363,69 @@ isEqual = liftP2 (==)
 printFailureDetails :: AssertionFailure -> ResultDetailsPrinter
 printFailureDetails (AssertionFailure stack mbResponse _) = ResultDetailsPrinter $ \testLevel _withFormat -> do
   let nindent = 2 * testLevel + 2
-  putStrLn (indent nindent (prettyStack stack))
+  s <- indent nindent <$> prettierCallStack stack
+  putStrLn ""
+  putStrLn s
   for_ mbResponse $ \r -> putStrLn (indent nindent (prettyReponse r))
 
-prettyStack :: CallStack -> String
-prettyStack cstack =
-  intercalate "\n" $
-    [colored yellow "call stack: "]
-      <> (drop 1 . prettyCallStackLines) cstack
+prettierCallStack :: CallStack -> IO String
+prettierCallStack cstack = do
+  sl <- undefined
+  d <- getCurrentDirectory
+  pure $
+    intercalate "\n" $
+      [colored yellow "call stack: ", sl, "current dir: " <> d]
+
+-- prettierCallStackLines :: CallStack -> IO String
+-- prettierCallStackLines cstack =
+--   intercalate "\n" <$> mapM prettyCallSite (Stack.getCallStack cstack)
+--   where
+--     prettyCallSite (f, SrcLoc {..}) = do
+--       s <- tryReadFile srcLocFile srcLocStartLine
+--       pure $ f <> " at " <> concat ([srcLocFile, ":", show srcLocStartLine, show srcLocPackage] <> (maybe [] (: []) s))
+
+meh :: String
+meh = __GLASGOW_HASKELL_FULL_VERSION__
+
+getSourceDir :: String -> IO (Maybe FilePath)
+getSourceDir packageId = do
+  ms <- tryReadFile (packagedbFile packageId)
+  case ms of
+    Nothing -> pure Nothing
+    Just s ->
+      pure (extractDataDir s)
+  where
+    packagedbFile :: String -> FilePath
+    packagedbFile pkgId =
+      -- TOODO: replace .. with .
+      let root = "../dist-newstyle/packagedb/ghc-" <> __GLASGOW_HASKELL_FULL_VERSION__
+       in root </> (pkgId <> ".conf")
+
+    extractDataDir :: String -> Maybe String
+    extractDataDir s = go (lines s)
+      where
+        go [] = Nothing
+        go (line : otherlines) =
+          case stripPrefix "data-dir:" line of
+            Just rest -> Just $ dropWhile isSpace rest
+            Nothing -> go otherlines
+
+type SourceDirCache = Map String (Maybe FilePath)
+
+getSourceDirCached :: SourceDirCache -> String -> IO (SourceDirCache, Maybe FilePath)
+getSourceDirCached cache packageId =
+  case Map.lookup packageId cache of
+    Just hit -> pure (cache, hit)
+    Nothing -> do
+      v <- getSourceDir packageId
+      pure (Map.insert packageId v cache, v)
+
+tryReadFile :: FilePath -> IO (Maybe String)
+tryReadFile p = do
+  eith <- try (readFile p)
+  pure $ case eith of
+    Left (e :: SomeException) -> Nothing
+    Right s -> Just s
 
 modifyFailure :: (AssertionFailure -> AssertionFailure) -> App a -> App a
 modifyFailure modifyAssertion action = do
@@ -723,8 +781,7 @@ prettyReponse :: Response -> String
 prettyReponse r =
   unlines $
     concat
-      [ pure hline,
-        pure $ colored yellow "request: \n" <> showRequest r.request,
+      [ pure $ colored yellow "request: \n" <> showRequest r.request,
         pure $ colored yellow "request headers: \n" <> showHeaders (HTTP.requestHeaders r.request),
         case getRequestBody r.request of
           Nothing -> []
@@ -741,8 +798,7 @@ prettyReponse r =
               case r.jsonBody of
                 Just b -> L.toStrict (Aeson.encodePretty b)
                 Nothing -> r.body
-          ),
-        pure hline
+          )
       ]
 
 getRequestBody :: HTTP.Request -> Maybe ByteString
