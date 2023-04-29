@@ -25,6 +25,7 @@
 , mtl
 , network
 , network-uri
+, optparse-applicative
 , process
 , random
 , raw-strings-qq
@@ -66,6 +67,7 @@ mkDerivation {
     mtl
     network
     network-uri
+    optparse-applicative
     process
     random
     raw-strings-qq
