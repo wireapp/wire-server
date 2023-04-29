@@ -90,6 +90,7 @@ library
     Test.Demo
     Testlib.App
     Testlib.Cannon
+    Testlib.Options
     Testlib.Prelude
     Testlib.Run
 
@@ -112,6 +113,7 @@ library
     , mtl
     , network
     , network-uri
+    , optparse-applicative
     , process
     , random
     , raw-strings-qq

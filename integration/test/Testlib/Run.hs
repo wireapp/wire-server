@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
+
 module Testlib.Run (main, mainI) where
 
 import Imports
@@ -6,8 +8,10 @@ import System.Environment
 import System.Exit (exitFailure, exitSuccess)
 import System.IO (hPutStrLn)
 import Test.Tasty (testGroup)
+import Test.Tasty.Options (lookupOption, setOption)
 import Test.Tasty.Providers (singleTest)
-import Test.Tasty.Runners (consoleTestReporter, listingTests, parseOptions, tryIngredients)
+import Test.Tasty.Runners (TestPattern (..), consoleTestReporter, listingTests, parseOptions, tryIngredients)
+import Testlib.Options
 
 main :: IO ()
 main = do
@@ -23,7 +27,12 @@ main = do
 
   optsCLI <- parseOptions ingredients tree
 
-  case tryIngredients ingredients optsCLI tree of
+  let sel :: TestSelection = lookupOption optsCLI
+  let optsCLI' = case convertToAwk sel of
+        Nothing -> optsCLI
+        Just expr -> setOption (TestPattern (Just expr)) optsCLI
+
+  case tryIngredients ingredients optsCLI' tree of
     Nothing -> do
       hPutStrLn
         stderr

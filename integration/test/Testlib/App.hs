@@ -62,6 +62,7 @@ import Test.Tasty.Options
 import Test.Tasty.Providers
 import qualified Test.Tasty.Providers as Tasty
 import Test.Tasty.Providers.ConsoleFormat
+import Testlib.Options
 
 -------------------------------------------------------------------------------
 -- - SECTION_APP : App, Env, ServiceMap, Context
@@ -128,7 +129,11 @@ instance IsTest (App ()) where
                     ]
     pure result
 
-  testOptions = Tagged [Option (Proxy @ConfigFile)]
+  testOptions =
+    Tagged
+      [ Option (Proxy @ConfigFile),
+        Option (Proxy @TestSelection)
+      ]
 
 data Env = Env
   { context :: Context,
