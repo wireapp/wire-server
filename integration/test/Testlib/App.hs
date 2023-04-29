@@ -136,17 +136,13 @@ instance IsTest (App ()) where
       ]
 
 data Env = Env
-  { context :: Context,
+  { serviceMap :: ServiceMap,
+    defaultAPIVersion :: Int,
     manager :: HTTP.Manager,
     prekeys :: IORef [(Int, String)],
     lastPrekeys :: IORef [String],
     serviceConfigsDir :: FilePath,
     servicesCwdBase :: Maybe FilePath
-  }
-
-data Context = Context
-  { serviceMap :: ServiceMap,
-    version :: Int
   }
 
 data ServiceMap = ServiceMap
@@ -211,11 +207,8 @@ mkEnv (ConfigFile cfgFile) = do
   lpks <- newIORef someLastPrekeys
   pure
     Env
-      { context =
-          Context
-            { serviceMap = serviceMap,
-              version = 4
-            },
+      { serviceMap = serviceMap,
+        defaultAPIVersion = 4,
         manager = manager,
         prekeys = pks,
         lastPrekeys = lpks,
@@ -725,17 +718,17 @@ data Versioned = Versioned | Unversioned | ExplicitVersion Int
 
 baseRequest :: Service -> Versioned -> String -> App HTTP.Request
 baseRequest service versioned path = do
-  ctx <- asks (.context)
   pathSegsPrefix <- case versioned of
     Versioned -> do
-      v <- asks (.context.version)
+      v <- asks (.defaultAPIVersion)
       pure ["v" <> show v]
     Unversioned -> pure []
     ExplicitVersion v -> do
       pure ["v" <> show v]
 
+  env <- ask
   liftIO . HTTP.parseRequest $
-    let HostPort h p = serviceHostPort ctx.serviceMap service
+    let HostPort h p = serviceHostPort env.serviceMap service
      in "http://" <> h <> ":" <> show p <> ("/" <> joinHttpPath (pathSegsPrefix <> splitHttpPath path))
 
 submit :: String -> HTTP.Request -> App Response
@@ -960,11 +953,7 @@ withModifiedServices services k = do
 
   let modifyEnv env =
         env
-          { context =
-              env.context
-                { serviceMap =
-                    updateServiceMap env.context.serviceMap
-                }
+          { serviceMap = updateServiceMap env.serviceMap
           }
 
   let waitForAllServices = do
