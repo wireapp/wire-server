@@ -105,10 +105,11 @@ cr: c db-migrate
 	./services/run-services
 
 # Run integration from new test suite
-# Usage: make devtest test=TESTNAME
+# Usage: make devtest
+# Usage: TASTY_MATCH=test1,test2 make devtest
 .PHONY: devtest
 devtest:
-	./hack/bin/run-integration-ghcid.py -p "$(test)"
+	ghcid --command 'cabal repl integration' --test='Testlib.Run.mainI []'
 
 .PHONY: sanitize-pr
 sanitize-pr:

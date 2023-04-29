@@ -1,5 +1,6 @@
 module Testlib.Options where
 
+import Data.List.Split
 import Data.Tagged (Tagged (Tagged))
 import Imports
 import Options.Applicative (Alternative (some), help, long, metavar, option, short, str)
@@ -13,19 +14,19 @@ data TestSelection
 
 instance IsOption TestSelection where
   defaultValue = NoSelection
-  parseValue = const Nothing
+  parseValue s = Just (SelectMany [s])
   optionHelp = Tagged ""
   showDefaultValue = const Nothing
-  optionName = Tagged ""
+  optionName = Tagged "match"
   optionCLParser =
     SelectMany
       <$> some
         ( option
             str
             ( long "match"
-                <> metavar "SUBSTRING"
+                <> metavar "SUBSTRINGS"
                 <> short 'm'
-                <> help "!!!! Select only tests that contain the substring in their full name. Can be specified multiple times. Use this to select multiple tests, e.g. -m test1 -m test2."
+                <> help "Select only tests that contain any of the comma-separated SUBSTRINGS in their full name. Can be specified multiple times, e.g. -m test1 -m test2 is the same as -m test1,test2. The variable TASTY_MATCH can be used to pass this option."
             )
         )
 
@@ -38,4 +39,8 @@ convertToAwk (SelectMany (m : ms)) =
     go n [] = match n
     go n (n2 : ns) = Or (match n) (go n2 ns)
     match :: String -> Expr
-    match s = Match (Field (IntLit 0)) s
+    match s =
+      case splitOn "," s of
+        [] -> error "impossible"
+        [n] -> Match (Field (IntLit 0)) n
+        (n : n2 : ns) -> Or (Match (Field (IntLit 0)) n) (go n2 ns)
