@@ -39,7 +39,9 @@ data:
 
     ## logs
     log-file=stdout
+    {{- if .Values.config.verboseLogging }}
     verbose
+    {{- end }}
 
     ## access control settings.
     # the address ranges listed here are reserved for special use according

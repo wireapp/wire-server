@@ -38,6 +38,9 @@ tls:
     pullPolicy: IfNotPresent
     tag: 72c3c8434660bd157d42012b0bcd67f338fc5c7a
 
+config:
+  verboseLogging: false
+
 metrics:
   serviceMonitor:
     enabled: false

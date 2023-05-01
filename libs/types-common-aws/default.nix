@@ -8,17 +8,13 @@
 , amazonka-sqs
 , base
 , base64-bytestring
-, exceptions
 , gitignoreSource
 , imports
 , lens
 , lib
-, monad-control
 , proto-lens
 , resourcet
 , safe
-, tasty
-, tasty-hunit
 , text
 , time
 , unliftio
@@ -33,15 +29,11 @@ mkDerivation {
     amazonka-sqs
     base
     base64-bytestring
-    exceptions
     imports
     lens
-    monad-control
     proto-lens
     resourcet
     safe
-    tasty
-    tasty-hunit
     text
     time
     unliftio

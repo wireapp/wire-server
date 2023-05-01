@@ -53,14 +53,11 @@ mkDerivation {
     api-client
     base
     bytestring
-    bytestring-conversion
-    containers
     exceptions
     extended
     http-client
     http-client-tls
     imports
-    lens
     metrics-core
     mime
     mwc-random

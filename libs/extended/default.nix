@@ -56,24 +56,10 @@ mkDerivation {
   testHaskellDepends = [
     aeson
     base
-    bytestring
-    cassandra-util
-    containers
-    errors
-    exceptions
-    extra
     hspec
-    http-types
     imports
-    metrics-wai
-    optparse-applicative
-    servant
-    servant-server
-    servant-swagger
     string-conversions
     temporary
-    tinylog
-    wai
   ];
   testToolDepends = [ hspec-discover ];
   description = "Extended versions of common modules";
