@@ -15,6 +15,6 @@ Helm </understand/helm.rst>
 Federation </understand/federation/index.rst>
 Connecting Wire Clients <associate/index>
 Client API documentation <api-client-perspective/index>
-Sources of randomness <sources-of-randomness>
+Crypto libraries and sources of randomness <crypto-libs>
 *
 ```
