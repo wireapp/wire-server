@@ -144,7 +144,7 @@ runTests iConf brigOpts otherArgs = do
   emailAWSOpts <- parseEmailAWSOpts
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
   mUserJournalWatcher <- for (view AWS.userJournalQueue awsEnv) $ SQS.watchSQSQueue (view AWS.amazonkaEnv awsEnv)
-  userApi <- User.tests brigOpts fedBrigClient fedGalleyClient mg b c ch g n awsEnv db mUserJournalWatcher
+  userApi <- User.tests (brig iConf) brigOpts fedBrigClient fedGalleyClient mg b c ch g n awsEnv db mUserJournalWatcher
   providerApi <- Provider.tests localDomain (provider iConf) mg db b c g
   searchApis <- Search.tests brigOpts mg g b
   teamApis <- Team.tests brigOpts mg n b c g mUserJournalWatcher
