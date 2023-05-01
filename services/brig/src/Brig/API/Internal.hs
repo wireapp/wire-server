@@ -66,6 +66,7 @@ import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
+import Data.Domain (Domain)
 import Data.Handle
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
@@ -101,7 +102,6 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
-import Data.Domain (Domain)
 
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
@@ -177,7 +177,7 @@ authAPI =
 
 federationRemotesAPI :: ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
-  Named @"get-federation-remotes" getFederationRemotes -- TODO: get this from TVar!  also merge in config file!
+  Named @"get-federation-remotes" getFederationRemotes -- TODO: get this from TVar!
     :<|> Named @"add-federation-remotes" addFederationRemote
     :<|> Named @"delete-federation-remotes" deleteFederationRemotes
 
@@ -186,7 +186,12 @@ addFederationRemote fedDomConf = do
   lift . wrapClient $ Data.addFederationRemote fedDomConf
 
 getFederationRemotes :: ExceptT Brig.API.Error.Error (AppT r) FederationDomainConfigs
-getFederationRemotes = lift $ FederationDomainConfigs <$> wrapClient Data.getFederationRemotes
+getFederationRemotes = lift $ do
+  db <- wrapClient Data.getFederationRemotes
+  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
+  -- FUTUREWORK: we should solely rely on `db` in the future; `cfg` is just for an easier,
+  -- more robust migration path.
+  pure . FederationDomainConfigs . nub $ db <> cfg
 
 deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemotes = lift . wrapClient . Data.deleteFederationRemote
