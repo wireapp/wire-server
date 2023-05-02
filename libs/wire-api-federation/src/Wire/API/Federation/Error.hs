@@ -149,7 +149,10 @@ data FederationError
     -- indicate a bug in either backend, or an incompatibility in the
     -- server-to-server API.
     FederationUnexpectedBody Text
-  | -- | Federator client got an unexpected error response from remote backend
+  | -- | Federator client got an unexpected error response from remote backend.
+    -- Also used for error conditions that will go away in a future release,
+    -- like "can't delete remote domains from config file", which is only
+    -- needed until we start disregarding the config file.
     FederationUnexpectedError Text
   deriving (Show, Typeable)
 
