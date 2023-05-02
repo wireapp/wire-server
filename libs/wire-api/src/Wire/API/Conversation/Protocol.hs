@@ -160,7 +160,7 @@ protocolDataSchema ProtocolMixedTag = tag _ProtocolMixed mlsDataSchema
 newtype ProtocolUpdate = ProtocolUpdate {unProtocolUpdate :: ProtocolTag}
 
 instance ToSchema ProtocolUpdate where
-  schema = ProtocolUpdate <$> unProtocolUpdate .= object "Protocol" protocolTagSchema
+  schema = object "ProtocolUpdate" (ProtocolUpdate <$> unProtocolUpdate .= protocolTagSchema)
 
 deriving via (Schema ProtocolUpdate) instance FromJSON ProtocolUpdate
 
