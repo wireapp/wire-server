@@ -136,6 +136,7 @@ sanitize-pr:
 	./hack/bin/generate-local-nix-packages.sh
 	make formatf
 	make hlint-inplace-pr
+	make hlint-check-pr  # sometimes inplace has been observed not to do its job very well.
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
 	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
