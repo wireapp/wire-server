@@ -150,6 +150,7 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
           publicKey
           gid
           (Epoch 1)
+          (TaggedSenderExternal 0)
           (FramedContentProposal proposal)
       message = mkMessage $ MessagePublic pmessage
       messageFilename = "signed-message.mls"

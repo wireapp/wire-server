@@ -88,6 +88,7 @@ createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
                 pubKey
                 (cnvmlsGroupId meta)
                 (cnvmlsEpoch meta)
+                (TaggedSenderExternal 0)
                 (FramedContentProposal proposal)
             msg = mkRawMLS (mkMessage (MessagePublic pmsg))
         storeProposal

@@ -17,6 +17,7 @@
 
 module Wire.API.MLS.AuthenticatedContent
   ( AuthenticatedContent (..),
+    TaggedSender (..),
     authContentRef,
     publicMessageRef,
     mkSignedPublicMessage,
@@ -29,6 +30,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Context
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.ProtocolVersion
@@ -64,16 +66,33 @@ authContentRef cs = ProposalRef . csHash cs proposalContext . mkRawMLS
 publicMessageRef :: CipherSuiteTag -> PublicMessage -> ProposalRef
 publicMessageRef cs = authContentRef cs . msgAuthContent
 
+-- | Sender, plus with a membership tag in the case of a member sender.
+data TaggedSender
+  = TaggedSenderMember LeafIndex ByteString
+  | TaggedSenderExternal Word32
+  | TaggedSenderNewMemberProposal
+  | TaggedSenderNewMemberCommit
+
+taggedSenderToSender :: TaggedSender -> Sender
+taggedSenderToSender (TaggedSenderMember i _) = SenderMember i
+taggedSenderToSender (TaggedSenderExternal n) = SenderExternal n
+taggedSenderToSender TaggedSenderNewMemberProposal = SenderNewMemberProposal
+taggedSenderToSender TaggedSenderNewMemberCommit = SenderNewMemberCommit
+
+taggedSenderMembershipTag :: TaggedSender -> Maybe ByteString
+taggedSenderMembershipTag (TaggedSenderMember _ t) = Just t
+taggedSenderMembershipTag _ = Nothing
+
 -- | Craft a message with the backend itself as a sender. Return the message and its ref.
 mkSignedPublicMessage ::
-  SecretKey -> PublicKey -> GroupId -> Epoch -> FramedContentData -> PublicMessage
-mkSignedPublicMessage priv pub gid epoch payload =
+  SecretKey -> PublicKey -> GroupId -> Epoch -> TaggedSender -> FramedContentData -> PublicMessage
+mkSignedPublicMessage priv pub gid epoch sender payload =
   let framedContent =
         mkRawMLS
           FramedContent
             { groupId = gid,
               epoch = epoch,
-              sender = SenderExternal 0,
+              sender = taggedSenderToSender sender,
               content = payload,
               authenticatedData = mempty
             }
@@ -88,5 +107,5 @@ mkSignedPublicMessage priv pub gid epoch payload =
    in PublicMessage
         { content = framedContent,
           authData = mkRawMLS (FramedContentAuthData sig Nothing),
-          membershipTag = Nothing
+          membershipTag = taggedSenderMembershipTag sender
         }

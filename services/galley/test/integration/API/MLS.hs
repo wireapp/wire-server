@@ -29,6 +29,8 @@ import Control.Exception (throw)
 import Control.Lens (view)
 import Control.Lens.Extras
 import qualified Control.Monad.State as State
+import Crypto.Error
+import qualified Crypto.PubKey.Ed25519 as Ed25519
 import qualified Data.Aeson as Aeson
 import Data.Domain
 import Data.Id
@@ -60,10 +62,12 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
+import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
+import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
@@ -1583,8 +1587,37 @@ testPublicKeys = do
       )
       @?= [Ed25519]
 
+--- | The test manually reads from mls-test-cli's store and extracts a private
+--- key. The key is needed for signing an unsupported proposal, which is then
+-- forwarded by the backend without being inspected.
 propUnsupported :: TestM ()
-propUnsupported = pure () -- TODO (app ack does not exist anymore)
+propUnsupported = do
+  users@[_alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    void $ uploadNewKeyPackage bob1
+    (gid, _) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+    (priv, pub) <- clientKeyPair alice1
+    pmsg <-
+      liftIO . throwCryptoErrorIO $
+        mkSignedPublicMessage
+          <$> Ed25519.secretKey priv
+          <*> Ed25519.publicKey pub
+          <*> pure gid
+          <*> pure (Epoch 1)
+          <*> pure (TaggedSenderMember 0 "foo")
+          <*> pure
+            ( FramedContentProposal
+                (mkRawMLS (GroupContextExtensionsProposal []))
+            )
+
+    let msg = mkMessage (MessagePublic pmsg)
+    let msgData = encodeMLS' msg
+
+    -- we cannot consume this message, because the membership tag is fake
+    postMessage alice1 msgData !!! const 201 === statusCode
 
 testBackendRemoveProposalRecreateClient :: TestM ()
 testBackendRemoveProposalRecreateClient = do

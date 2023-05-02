@@ -35,6 +35,7 @@ import Control.Monad.Trans.Maybe
 import Data.Aeson.Lens
 import Data.Bifunctor
 import Data.Binary.Builder (toLazyByteString)
+import Data.Binary.Get
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64.URL as B64U
@@ -239,7 +240,8 @@ liftTest = MLSTest . lift
 
 runMLSTest :: MLSTest a -> TestM a
 runMLSTest (MLSTest m) =
-  withSystemTempDirectory "mls" $ \tmp -> do
+  withSystemTempDirectory "mls" $ \_tmp -> do
+    let tmp = "/tmp/mls"
     saveRemovalKey (tmp </> "removal.key")
     evalStateT
       m
@@ -947,11 +949,11 @@ clientKeyPair cid = do
   credential <-
     liftIO . BS.readFile $
       bd </> cid2Str cid </> "store" </> T.unpack (T.decodeUtf8 (B64U.encode "self"))
-  let s =
-        credential ^.. key "signature_private_key" . key "value" . _Array . traverse . _Integer
-          & fmap fromIntegral
-          & BS.pack
-  pure $ BS.splitAt 32 s
+  case runGetOrFail
+    ((,) <$> parseMLSBytes @VarInt <*> parseMLSBytes @VarInt)
+    (LBS.fromStrict credential) of
+    Left (_, _, msg) -> liftIO $ assertFailure msg
+    Right (_, _, keys) -> pure keys
 
 receiveNewRemoteConv ::
   (MonadReader TestSetup m, MonadIO m) =>
