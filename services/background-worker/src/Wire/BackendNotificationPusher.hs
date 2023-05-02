@@ -6,8 +6,8 @@ import Data.Domain
 import Imports
 import qualified Network.AMQP as Q
 import Wire.API.Federation.API
-import Wire.API.Federation.Client
 import Wire.API.Federation.BackendNotifications
+import Wire.API.Federation.Client
 import Wire.BackgroundWorker.Env
 
 -- TODO: This calls the callback for next notification even if one fails,
