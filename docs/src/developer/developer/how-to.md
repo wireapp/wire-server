@@ -16,7 +16,7 @@ Terminal 1:
 
 Terminal 2:
 * Compile all services: `make c`
-* Run services including nginz: `./services/start-services-only.sh`.
+* Run services including nginz: `./services/run-services`.
 
 Open your browser at:
 [http://localhost:8080/api/swagger-ui](http://localhost:8080/api/swagger-ui) for
