@@ -55,9 +55,9 @@ deleteClient ::
   App Response
 deleteClient user mconn client = do
   let conn = fromMaybe "0" mconn
-  uid <- user & objId
-  cid <- client & asString
-  req <- baseRequest Brig Unversioned $ "/clients/" <> cid
+  uid <- objId user
+  cid <- objId client
+  req <- baseRequest Brig Versioned $ "/clients/" <> cid
   submit "DELETE" $
     req
       & zUser uid
@@ -66,11 +66,17 @@ deleteClient user mconn client = do
         [ "password" .= defPassword
         ]
 
-searchContacts :: (MakesValue s1, MakesValue s2) => s1 -> s2 -> App Response
+searchContacts ::
+  ( MakesValue searchingUserId,
+    MakesValue searchTerm
+  ) =>
+  searchingUserId ->
+  searchTerm ->
+  App Response
 searchContacts searchingUserId searchTerm = do
   req <- baseRequest Brig Versioned "/search/contacts"
-  q <- searchTerm & asString
-  uid <- searchingUserId & asString
+  q <- asString searchTerm
+  uid <- objId searchingUserId
   submit
     "GET"
     ( req

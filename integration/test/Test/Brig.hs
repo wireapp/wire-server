@@ -13,8 +13,8 @@ testSearchContactForExternalUsers = do
   owner <- randomUser def {Internal.team = True}
   partner <- randomUser def {Internal.team = True}
 
-  bindResponse (Internal.putTeamMember (partner %. "id") (partner %. "team") (API.teamRole "partner")) $ \resp ->
+  bindResponse (Internal.putTeamMember partner (partner %. "team") (API.teamRole "partner")) $ \resp ->
     resp.status `shouldMatchInt` 200
 
-  bindResponse (Public.searchContacts (partner %. "id") (owner %. "name")) $ \resp ->
+  bindResponse (Public.searchContacts partner (owner %. "name")) $ \resp ->
     resp.status `shouldMatchInt` 403

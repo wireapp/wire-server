@@ -5,7 +5,7 @@ import Testlib.Prelude
 
 putTeamMember :: (HasCallStack, MakesValue user, MakesValue team) => user -> team -> Int -> App Response
 putTeamMember user team perms = do
-  uid <- asString user
+  uid <- objId user
   tid <- asString team
   req <-
     baseRequest

@@ -563,7 +563,7 @@ asBool x =
 (%.) val selector = do
   v <- make val
   vp <- prettyJSON v
-  addFailureContext ("Getting (nested) field " <> selector <> " of object:\n" <> vp) $ do
+  addFailureContext ("Getting (nested) field \"" <> selector <> "\" of object:\n" <> vp) $ do
     let keys = splitOn "." selector
     case keys of
       (k : ks) -> go k ks v
@@ -756,6 +756,9 @@ data Response = Response
 instance HasField "json" Response (App Aeson.Value) where
   getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody
 
+instance MakesValue Response where
+  make r = r.json
+
 splitHttpPath :: String -> [String]
 splitHttpPath path = filter (not . null) (splitOn "/" path)
 
@@ -793,6 +796,9 @@ zType = addHeader "Z-Type"
 
 bindResponse :: HasCallStack => App Response -> (Response -> App a) -> App a
 bindResponse m k = m >>= \r -> withResponse r k
+
+bindResponseR :: HasCallStack => App Response -> (Response -> App a) -> App Response
+bindResponseR m k = m >>= \r -> withResponse r k >> pure r
 
 withResponse :: HasCallStack => Response -> (Response -> App a) -> App a
 withResponse r k = onFailureAddResponse r (k r)
