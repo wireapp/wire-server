@@ -88,6 +88,7 @@ import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.API
+import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
@@ -197,7 +198,7 @@ deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemotes dom = do
   cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
   when (dom `elem` (domain <$> cfg)) $ do
-    throwStd . fedError . FederationUnexpectedError $
+    throwError . fedError . FederationUnexpectedError $
       "keeping track of remote domains in the brig config file is deprecated, but as long as we \
       \do that, removing items listed in the config file is not allowed."
   -- FUTUREWORK: see 'getFederationRemotes'.
