@@ -1,13 +1,13 @@
-cabal-version:   1.24
-name:            background-worker
-version:         0.1.0.0
-synopsis:        Runs background work
-license:         AGPL-3
-license-file:    LICENSE
-author:          Wire Swiss GmbH
-maintainer:      backend@wire.com
-category:        Network
-build-type:      Simple
+cabal-version: 1.24
+name:          background-worker
+version:       0.1.0.0
+synopsis:      Runs background work
+license:       AGPL-3
+license-file:  LICENSE
+author:        Wire Swiss GmbH
+maintainer:    backend@wire.com
+category:      Network
+build-type:    Simple
 
 library
   -- cabal-fmt: expand src
