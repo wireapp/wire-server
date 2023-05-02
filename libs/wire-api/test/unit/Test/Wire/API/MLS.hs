@@ -19,34 +19,38 @@ module Test.Wire.API.MLS where
 
 import Control.Concurrent.Async
 import qualified Crypto.PubKey.Ed25519 as Ed25519
-import Data.ByteArray
+import Data.ByteArray hiding (length)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as B8
 import Data.Domain
 import Data.Id
 import Data.Json.Util (toBase64Text)
 import Data.Qualified
 import qualified Data.Text as T
 import qualified Data.Text as Text
-import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import Imports
 import System.Exit
 import System.FilePath ((</>))
 import System.Process
+import System.Random
 import Test.Tasty
 import Test.Tasty.HUnit
 import UnliftIO (withSystemTempDirectory)
 import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.HPKEPublicKey
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Welcome
 
 tests :: TestTree
 tests =
@@ -54,15 +58,15 @@ tests =
     [ testCase "parse key package" testParseKeyPackage,
       testCase "parse commit message" testParseCommit,
       testCase "parse application message" testParseApplication,
-      testCase "parse welcome message" testParseWelcome,
+      testCase "parse welcome and groupinfo message" testParseWelcomeAndGroupInfo,
       testCase "key package ref" testKeyPackageRef,
-      testCase "validate message signature" testVerifyMLSPlainTextWithKey,
       testCase "create signed remove proposal" testRemoveProposalMessageSignature
     ]
 
 testParseKeyPackage :: IO ()
 testParseKeyPackage = do
-  let qcid = "b455a431-9db6-4404-86e7-6a3ebe73fcaf:3ae58155@mls.example.com"
+  alice <- randomIdentity
+  let qcid = B8.unpack (encodeMLS' alice)
   kpData <- withSystemTempDirectory "mls" $ \tmp -> do
     void $ spawn (cli qcid tmp ["init", qcid]) Nothing
     spawn (cli qcid tmp ["key-package", "create"]) Nothing
@@ -77,29 +81,106 @@ testParseKeyPackage = do
 
   case keyPackageIdentity kp of
     Left err -> assertFailure $ "Failed to parse identity: " <> T.unpack err
-    Right identity ->
-      identity
-        @?= ClientIdentity
-          { ciDomain = Domain "mls.example.com",
-            ciUser = Id (fromJust (UUID.fromString "b455a431-9db6-4404-86e7-6a3ebe73fcaf")),
-            ciClient = newClientId 0x3ae58155
-          }
+    Right identity -> identity @?= alice
 
--- TODO
 testParseCommit :: IO ()
-testParseCommit = pure ()
+testParseCommit = do
+  qcid <- B8.unpack . encodeMLS' <$> randomIdentity
+  commitData <- withSystemTempDirectory "mls" $ \tmp -> do
+    void $ spawn (cli qcid tmp ["init", qcid]) Nothing
+    groupJSON <- spawn (cli qcid tmp ["group", "create", "Zm9v"]) Nothing
+    spawn (cli qcid tmp ["commit", "--group", "-"]) (Just groupJSON)
 
--- TODO
+  msg <- case decodeMLS' @Message commitData of
+    Left err -> assertFailure (T.unpack err)
+    Right x -> pure x
+
+  pvTag (msg.protocolVersion) @?= Just ProtocolMLS10
+
+  pmsg <- case msg.content of
+    MessagePublic x -> pure x
+    _ -> assertFailure "expected public message"
+
+  pmsg.content.value.sender @?= SenderMember 0
+
+  commit <- case pmsg.content.value.content of
+    FramedContentCommit c -> pure c
+    _ -> assertFailure "expected commit"
+
+  commit.value.proposals @?= []
+
 testParseApplication :: IO ()
-testParseApplication = pure ()
+testParseApplication = do
+  qcid <- B8.unpack . encodeMLS' <$> randomIdentity
+  msgData <- withSystemTempDirectory "mls" $ \tmp -> do
+    void $ spawn (cli qcid tmp ["init", qcid]) Nothing
+    groupJSON <- spawn (cli qcid tmp ["group", "create", "Zm9v"]) Nothing
+    spawn (cli qcid tmp ["message", "--group", "-", "hello"]) (Just groupJSON)
 
--- TODO
-testParseWelcome :: IO ()
-testParseWelcome = pure ()
+  msg <- case decodeMLS' @Message msgData of
+    Left err -> assertFailure (T.unpack err)
+    Right x -> pure x
 
--- TODO
-testParseGroupInfo :: IO ()
-testParseGroupInfo = pure ()
+  pvTag (msg.protocolVersion) @?= Just ProtocolMLS10
+
+  pmsg <- case msg.content of
+    MessagePrivate x -> pure x.value
+    _ -> assertFailure "expected private message"
+
+  pmsg.groupId @?= GroupId "foo"
+  pmsg.epoch @?= Epoch 0
+
+testParseWelcomeAndGroupInfo :: IO ()
+testParseWelcomeAndGroupInfo = do
+  qcid <- B8.unpack . encodeMLS' <$> randomIdentity
+  qcid2 <- B8.unpack . encodeMLS' <$> randomIdentity
+  (welData, giData) <- withSystemTempDirectory "mls" $ \tmp -> do
+    void $ spawn (cli qcid tmp ["init", qcid]) Nothing
+    void $ spawn (cli qcid2 tmp ["init", qcid2]) Nothing
+    groupJSON <- spawn (cli qcid tmp ["group", "create", "Zm9v"]) Nothing
+    kp <- spawn (cli qcid2 tmp ["key-package", "create"]) Nothing
+    BS.writeFile (tmp </> "kp") kp
+    void $
+      spawn
+        ( cli
+            qcid
+            tmp
+            [ "member",
+              "add",
+              "--group",
+              "-",
+              tmp </> "kp",
+              "--welcome-out",
+              tmp </> "welcome",
+              "--group-info-out",
+              tmp </> "gi"
+            ]
+        )
+        (Just groupJSON)
+    (,)
+      <$> BS.readFile (tmp </> "welcome")
+      <*> BS.readFile (tmp </> "gi")
+
+  do
+    welcomeMsg <- case decodeMLS' @Message welData of
+      Left err -> assertFailure (T.unpack err)
+      Right x -> pure x
+
+    pvTag (welcomeMsg.protocolVersion) @?= Just ProtocolMLS10
+
+    wel <- case welcomeMsg.content of
+      MessageWelcome x -> pure x.value
+      _ -> assertFailure "expected welcome message"
+
+    length (wel.welSecrets) @?= 1
+
+  do
+    gi <- case decodeMLS' @GroupInfo giData of
+      Left err -> assertFailure (T.unpack err)
+      Right x -> pure x
+
+    gi.groupContext.groupId @?= GroupId "foo"
+    gi.groupContext.epoch @?= Epoch 1
 
 testKeyPackageRef :: IO ()
 testKeyPackageRef = do
@@ -111,10 +192,6 @@ testKeyPackageRef = do
     pure (kpData, KeyPackageRef ref)
 
   kpRef MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 (KeyPackageData kpData) @?= ref
-
--- TODO
-testVerifyMLSPlainTextWithKey :: IO ()
-testVerifyMLSPlainTextWithKey = pure ()
 
 testRemoveProposalMessageSignature :: IO ()
 testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
@@ -222,3 +299,9 @@ cli :: String -> FilePath -> [String] -> CreateProcess
 cli store tmp args =
   proc "mls-test-cli" $
     ["--store", tmp </> (store <> ".db")] <> args
+
+randomIdentity :: IO ClientIdentity
+randomIdentity = do
+  uid <- Id <$> UUID.nextRandom
+  c <- newClientId <$> randomIO
+  pure $ ClientIdentity (Domain "mls.example.com") uid c

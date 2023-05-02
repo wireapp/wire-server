@@ -71,12 +71,6 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 
--- TODO:
--- [ ] restore deleted MLS unit tests
--- [x] pass groupId and epoch to processProposal instead of the whole IncomingMessage
--- [x] remove LWT in planMLSClientRemoval
--- [x] restore unsupported proposal integration test
-
 -- FUTUREWORK
 -- - Check that the capabilities of a leaf node in an add proposal contains all
 --   the required_capabilities of the group context. This would require fetching

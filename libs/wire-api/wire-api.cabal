@@ -687,6 +687,7 @@ test-suite wire-api-tests
     , process
     , proto-lens
     , QuickCheck
+    , random
     , saml2-web-sso
     , schema-profunctor
     , servant
