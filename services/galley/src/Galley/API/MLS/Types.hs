@@ -32,6 +32,15 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
 
+-- | A map of leaf index to members.
+--
+-- This is used to reconstruct client
+-- identities from leaf indices in remove proposals, as well as to allocate new
+-- indices for added clients.
+--
+-- Note that clients that are in the process of being removed from a group
+-- (i.e. there is a pending remove proposals for them) are included in this
+-- mapping.
 newtype IndexMap = IndexMap {unIndexMap :: IntMap ClientIdentity}
   deriving (Eq, Show)
   deriving newtype (Semigroup, Monoid)
@@ -58,6 +67,14 @@ imRemoveClient im idx = do
   cid <- imLookup im idx
   pure (cid, IndexMap . IntMap.delete (fromIntegral idx) $ unIndexMap im)
 
+-- | A two-level map of users to clients to leaf indices.
+--
+-- This is used to keep track of the state of an MLS group for e.g. propagating
+-- a message to all the clients that are supposed to receive it.
+--
+-- Note that clients that are in the process of being removed from a group
+-- (i.e. there is a pending remove proposals for them) are __not__ included in
+-- this mapping.
 type ClientMap = Map (Qualified UserId) (Map ClientId LeafIndex)
 
 mkClientMap :: [(Domain, UserId, ClientId, Int32, Bool)] -> ClientMap
