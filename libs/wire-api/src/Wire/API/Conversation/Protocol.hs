@@ -114,16 +114,12 @@ protocolTag (ProtocolMixed _) = ProtocolMixedTag
 -- with the given protocol.
 protocolValidAction :: Protocol -> ConversationActionTag -> Bool
 protocolValidAction ProtocolProteus _ = True
+protocolValidAction (ProtocolMixed _) _ = True
 protocolValidAction (ProtocolMLS _) ConversationJoinTag = False
 protocolValidAction (ProtocolMLS _) ConversationLeaveTag = True
 protocolValidAction (ProtocolMLS _) ConversationRemoveMembersTag = False
 protocolValidAction (ProtocolMLS _) ConversationDeleteTag = True
 protocolValidAction (ProtocolMLS _) _ = True
-protocolValidAction (ProtocolMixed _) ConversationJoinTag = error "TODO"
-protocolValidAction (ProtocolMixed _) ConversationLeaveTag = error "TODO"
-protocolValidAction (ProtocolMixed _) ConversationRemoveMembersTag = error "TODO"
-protocolValidAction (ProtocolMixed _) ConversationDeleteTag = error "TODO"
-protocolValidAction (ProtocolMixed _) _ = error "TODO"
 
 instance ToSchema ProtocolTag where
   schema =
