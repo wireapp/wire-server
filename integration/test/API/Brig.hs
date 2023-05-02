@@ -83,3 +83,8 @@ searchContacts searchingUserId searchTerm = do
         & addQueryParams [("q", q)]
         & zUser uid
     )
+
+getAPIVersion :: App Response
+getAPIVersion = do
+  req <- baseRequest Brig Unversioned $ "/api-version"
+  submit "GET" req

@@ -137,6 +137,7 @@ instance IsTest (App ()) where
 
 data Env = Env
   { serviceMap :: ServiceMap,
+    serviceMapBackendTwo :: ServiceMap,
     defaultAPIVersion :: Int,
     manager :: HTTP.Manager,
     prekeys :: IORef [(Int, String)],
@@ -145,10 +146,27 @@ data Env = Env
     servicesCwdBase :: Maybe FilePath
   }
 
+data IntegrationConfig = IntegrationConfig
+  { backendOne :: ServiceMap,
+    backendTwo :: ServiceMap
+  }
+
+instance FromJSON IntegrationConfig where
+  parseJSON v =
+    IntegrationConfig
+      <$> parseJSON v
+      <*> withObject "ServiceMap at backendTwo" (Aeson..: fromString "backendTwo") v
+
 data ServiceMap = ServiceMap
   { brig :: HostPort,
+    cannon :: HostPort,
+    cargohold :: HostPort,
+    federatorInternal :: HostPort,
+    federatorExternal :: HostPort,
     galley :: HostPort,
-    cannon :: HostPort
+    gundeck :: HostPort,
+    nginz :: HostPort,
+    spar :: HostPort
   }
   deriving (Show, Generic)
 
@@ -184,11 +202,11 @@ instance IsOption ConfigFile where
 mkEnv :: ConfigFile -> IO Env
 mkEnv (ConfigFile cfgFile) = do
   eith <- Yaml.decodeFileEither cfgFile
-  serviceMap <- case eith of
+  intConfig <- case eith of
     Left err -> do
       hPutStrLn stderr $ "Could not parse " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err
       exitFailure
-    Right serviceMap -> pure serviceMap
+    Right (intConfig :: IntegrationConfig) -> pure intConfig
 
   let devEnvProjectRoot = case splitPath (takeDirectory cfgFile) of
         [] -> Nothing
@@ -207,7 +225,8 @@ mkEnv (ConfigFile cfgFile) = do
   lpks <- newIORef someLastPrekeys
   pure
     Env
-      { serviceMap = serviceMap,
+      { serviceMap = intConfig.backendOne,
+        serviceMapBackendTwo = intConfig.backendTwo,
         defaultAPIVersion = 4,
         manager = manager,
         prekeys = pks,
@@ -215,6 +234,9 @@ mkEnv (ConfigFile cfgFile) = do
         serviceConfigsDir = configsDir,
         servicesCwdBase = devEnvProjectRoot <&> (</> "services")
       }
+
+withTwo :: App a -> App a
+withTwo = local (\env -> env {serviceMap = env.serviceMapBackendTwo})
 
 somePrekeys :: [String]
 somePrekeys =
@@ -345,6 +367,26 @@ a `shouldMatch` b = do
     pa <- prettyJSON xa
     pb <- prettyJSON xb
     assertFailure $ "Expected:\n" <> pb <> "\n" <> "Actual:\n" <> pa
+
+shouldNotMatch ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The un-expected value
+  b ->
+  App ()
+a `shouldNotMatch` b = do
+  xa <- make a
+  xb <- make b
+
+  unless (jsonType xa == jsonType xb) $ do
+    pa <- prettyJSON xa
+    pb <- prettyJSON xb
+    assertFailure $ "Compared values are not of the same type:\n" <> "Left side:\n" <> pa <> "Right side:\n" <> pa
+
+  when (xa == xb) $ do
+    pa <- prettyJSON xa
+    assertFailure $ "Expected different value but got twice:\n" <> pa
 
 -- | Specialized variant of `shouldMatch` to avoid the need for type annotations.
 shouldMatchInt ::
@@ -661,16 +703,16 @@ prettyJSON :: MakesValue a => a -> App String
 prettyJSON x =
   make x <&> Aeson.encodePretty <&> LC8.unpack
 
-constrName :: Value -> String
-constrName (Object _) = "Object"
-constrName (Array _) = "Array"
-constrName (String _) = "String"
-constrName (Number _) = "Number"
-constrName (Bool _) = "Bool"
-constrName Null = "Null"
+jsonType :: Value -> String
+jsonType (Object _) = "Object"
+jsonType (Array _) = "Array"
+jsonType (String _) = "String"
+jsonType (Number _) = "Number"
+jsonType (Bool _) = "Bool"
+jsonType Null = "Null"
 
 typeWasExpectedButGot :: String -> Value -> String
-typeWasExpectedButGot expectedType x = "Expected " <> expectedType <> " but got " <> constrName x <> ":"
+typeWasExpectedButGot expectedType x = "Expected " <> expectedType <> " but got " <> jsonType x <> ":"
 
 -- Get "id" field or - if already string-like return String
 objId :: MakesValue a => a -> App String

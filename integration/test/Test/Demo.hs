@@ -29,15 +29,10 @@ testModifiedBrig = do
   withModifiedService
     Brig
     (setField "optSettings.setFederationDomain" "overridden.example.com")
-    $ bindResponse getAPIVersion
+    $ bindResponse Public.getAPIVersion
     $ ( \resp ->
           (resp %. "domain") `shouldMatch` "overridden.example.com"
       )
-  where
-    getAPIVersion :: App Response
-    getAPIVersion = do
-      req <- baseRequest Brig Unversioned $ "/api-version"
-      submit "GET" req
 
 testModifiedGalley :: HasCallStack => App ()
 testModifiedGalley = do
@@ -69,3 +64,9 @@ testWebSockets = do
 testFederationDomain :: App ()
 testFederationDomain =
   void $ viewFederationDomain
+
+testBackendTwo :: App ()
+testBackendTwo = do
+  domain1 <- bindResponse Public.getAPIVersion (%. "domain")
+  domain2 <- bindResponse (withTwo Public.getAPIVersion) (%. "domain")
+  domain1 `shouldNotMatch` domain2

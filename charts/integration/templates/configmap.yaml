@@ -15,32 +15,67 @@ data:
       host: cannon.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080
 
-    galley:
-      host: galley.{{ .Release.Namespace }}.svc.cluster.local
-      port: 8080
-
     cargohold:
       host: cargohold.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
+    federatorInternal:
+      host: federator.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
+    federatorExternal:
+      host: federator.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8081
+
+    galley:
+      host: galley.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080
 
     gundeck:
       host: gundeck.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080
 
+    nginz:
+      host: nginz-integration-http.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
     spar:
       host: spar.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080
 
-    # not sure if this is correct
-    federatorInternal:
-      host: federator.{{ .Release.Namespace }}.svc.cluster.local
-      port: 8080
+    backendTwo:
+      brig:
+        host: brig.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
 
-    # not sure if this is correct
-    federatorExternal:
-      host: federator.{{ .Release.Namespace }}.svc.cluster.local
-      port: 8081
+      cannon:
+        host: cannon.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
 
-    nginz:
-      host: nginz-integration-http.{{ .Release.Namespace }}.svc.cluster.local
-      port: 8080
+      cargohold:
+        host: cargohold.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
+      federatorInternal:
+        host: federator.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
+      federatorExternal:
+        host: federator.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8081
+
+      galley:
+        host: galley.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
+      gundeck:
+        host: gundeck.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
+      nginz:
+        host: nginz-integration-http.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
+      spar:
+        host: cannon.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
