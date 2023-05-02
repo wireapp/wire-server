@@ -36,9 +36,10 @@ where
 
 import Control.Concurrent.Async
 import Control.Exception (bracket)
-import Control.Lens ((^.), (%~))
+import Control.Lens ((%~), (^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
+import Data.Text
 import Federator.Env
 import Federator.ExternalServer (serveInward)
 import Federator.InternalServer (serveOutward)
@@ -46,18 +47,17 @@ import Federator.Monitor
 import Federator.Options as Opt
 import Imports
 import qualified Network.DNS as DNS
+import Network.HTTP.Client
 import qualified Network.HTTP.Client as HTTP
+import Servant.Client
 import qualified System.Logger.Class as Log
 import qualified System.Logger.Extended as LogExt
 import Util.Options
 import Wire.API.Federation.Component
-import qualified Wire.Network.DNS.Helper as DNS
-import qualified Wire.API.Routes.Internal.Brig as IAPI
-import Servant.Client
 import Wire.API.Routes.FederationDomainConfig
-import Network.HTTP.Client
-import Data.Text
+import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Named
+import qualified Wire.Network.DNS.Helper as DNS
 
 ------------------------------------------------------------------------------
 -- run/app
@@ -85,8 +85,7 @@ run opts = do
                 getInitialFedDomains
       fedStrat <- getInitialFedDomains
       tEnv <- newTVarIO $ updateFedStrat fedStrat env
-      let
-          callback :: FederationDomainConfigs -> IO ()
+      let callback :: FederationDomainConfigs -> IO ()
           callback strat = do
             atomically $ modifyTVar tEnv $ updateFedStrat strat
             print strat
@@ -100,7 +99,7 @@ run opts = do
         void $ waitAnyCancel [envUpdateThread, internalServerThread, externalServerThread]
   where
     updateFedStrat :: FederationDomainConfigs -> Env -> Env
-    updateFedStrat fedDomConfigs = Federator.Env.runSettings %~ \s -> s { federationStrategy = AllowList $ AllowedDomains $ domain <$> fromFederationDomainConfigs fedDomConfigs }
+    updateFedStrat fedDomConfigs = Federator.Env.runSettings %~ \s -> s {federationStrategy = AllowList $ AllowedDomains $ domain <$> fromFederationDomainConfigs fedDomConfigs}
 
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort
@@ -126,9 +125,7 @@ run opts = do
       either
         print
         update
-        strat      
-        
-        
+        strat
 
 -------------------------------------------------------------------------------
 -- Environment

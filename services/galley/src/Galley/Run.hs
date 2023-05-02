@@ -39,6 +39,7 @@ import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
+import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import qualified Galley.API as API
@@ -68,15 +69,14 @@ import Servant.Client
     runClientM,
   )
 import qualified System.Logger as Log
+import qualified System.Logger.Class as L
 import Util.Options
 import Wire.API.Routes.API
+import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Named (namedClient)
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
-import qualified System.Logger.Class as L
-import qualified Data.Set as Set
-import Wire.API.Routes.FederationDomainConfig
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
@@ -197,8 +197,8 @@ updateFedDomains = do
     previous <- liftIO $ readTVarIO tvar
     strat <- liftIO $ runClientM getFedRemotes clientEnv
     let domainListsEqual s =
-          Set.fromList (fromFederationDomainConfigs s) ==
-          Set.fromList (fromFederationDomainConfigs previous)
+          Set.fromList (fromFederationDomainConfigs s)
+            == Set.fromList (fromFederationDomainConfigs previous)
     case strat of
       Left e -> L.err . L.msg $ "Could not retrieve federation domains from brig: " <> show e
       -- Using Set to do the comparison, as it will handle the lists being in different orders.

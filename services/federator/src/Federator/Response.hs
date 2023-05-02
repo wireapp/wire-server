@@ -135,26 +135,27 @@ type AllEffects =
 runFederator :: TVar Env -> Sem AllEffects Wai.Response -> Codensity IO Wai.Response
 runFederator tvar resp = do
   env <- liftIO $ readTVarIO tvar
-  resp & runM
-    . runEmbedded @IO @(Codensity IO) liftIO
-    . loggerToTinyLogReqId (view requestId env) (view applog env)
-    . runWaiErrors
-      @'[ ValidationError,
-          RemoteError,
-          ServerError,
-          DiscoveryFailure
-        ]
-    . runInputConst env
-    . runInputSem (embed @IO (readIORef (view http2Manager env)))
-    -- This is the point at which federation settings are extracted
-    -- For each request, extract a fresh copy of the runSettings. This allows us
-    -- to independently update the settings and have them be used as requests
-    -- come in.
-    . runInputSem (embed @IO $ fmap (view runSettings) . liftIO $ readTVarIO tvar)
-    . interpretServiceHTTP
-    . runDNSLookupWithResolver (view dnsResolver env)
-    . runFederatorDiscovery
-    . interpretRemote
+  resp
+    & runM
+      . runEmbedded @IO @(Codensity IO) liftIO
+      . loggerToTinyLogReqId (view requestId env) (view applog env)
+      . runWaiErrors
+        @'[ ValidationError,
+            RemoteError,
+            ServerError,
+            DiscoveryFailure
+          ]
+      . runInputConst env
+      . runInputSem (embed @IO (readIORef (view http2Manager env)))
+      -- This is the point at which federation settings are extracted
+      -- For each request, extract a fresh copy of the runSettings. This allows us
+      -- to independently update the settings and have them be used as requests
+      -- come in.
+      . runInputSem (embed @IO $ fmap (view runSettings) . liftIO $ readTVarIO tvar)
+      . interpretServiceHTTP
+      . runDNSLookupWithResolver (view dnsResolver env)
+      . runFederatorDiscovery
+      . interpretRemote
 
 streamingResponseToWai :: StreamingResponse -> Wai.Response
 streamingResponseToWai resp =

@@ -2969,7 +2969,7 @@ testAddRemoteMemberInvalidDomain = do
 
   postQualifiedMembers alice (remoteBob :| []) convId
     !!! do
-      const 422 === statusCode
+      const 400 === statusCode
       const (Just "/federation/api-version")
         === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
       const (Just "invalid.example.com")

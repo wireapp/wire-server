@@ -40,8 +40,8 @@ import System.Logger
 import Util.Options
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
-import Wire.API.Team.Member
 import Wire.API.Routes.FederationDomainConfig (FederationDomainConfigs)
+import Wire.API.Team.Member
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
   deriving (Eq, Ord, Show)

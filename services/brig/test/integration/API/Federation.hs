@@ -461,26 +461,31 @@ testClaimKeyPackagesMLSDisabled opts brig = do
   liftIO $ mbundle @?= Nothing
 
 crudFederationRemotes :: HasCallStack => Opt.Opts -> Brig -> Http ()
-crudFederationRemotes _opts brig = do
+crudFederationRemotes opts brig = do
+  -- Delete the remotes from the database
+  -- This doesn't do anything with the remotes
+  -- defined in config files.
   resetFederationRemotes brig
 
   res1 <- getFederationRemotes brig
-  liftIO $ assertEqual "should return nothing" [] res1
+  liftIO $ assertEqual "should return config values" cfgRemotes res1
 
   let remote1 = FederationDomainConfig (Domain "good.example.com") NoSearch
   addFederationRemote brig remote1
   res2 <- getFederationRemotes brig
-  liftIO $ assertEqual "should return good.example.com" [remote1] res2
+  liftIO $ assertEqual "should return config values and good.example.com" (nub $ sort $ cfgRemotes <> [remote1]) (sort res2)
 
   let remote2 = FederationDomainConfig (Domain "evil.example.com") ExactHandleSearch
   addFederationRemote brig remote2
   res3 <- getFederationRemotes brig
-  liftIO $ assertEqual "should return {good,evil}.example.com" (sort [remote1, remote2]) (sort res3)
+  liftIO $ assertEqual "should return config values and {good,evil}.example.com" (nub $ sort $ cfgRemotes <> [remote1, remote2]) (sort res3)
 
   deleteFederationRemote brig (domain remote1)
   res4 <- getFederationRemotes brig
-  liftIO $ assertEqual "should return evil.example.com" (sort [remote2]) (sort res4)
+  liftIO $ assertEqual "should return config values and evil.example.com" (nub $ sort $ cfgRemotes <> [remote2]) (sort res4)
 
   -- TODO: how do we test that the TVar is updated in all services?  some fancy unit test?
   -- duplicate internal end-point to all services, and implement the hanlers in a library?
   pure ()
+  where
+    cfgRemotes = fromMaybe [] . Opt.setFederationDomainConfigs $ Opt.optSettings opts

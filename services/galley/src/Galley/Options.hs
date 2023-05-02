@@ -52,7 +52,7 @@ module Galley.Options
     optLogLevel,
     optLogNetStrings,
     optLogFormat,
-    optDomainUpdateInterval
+    optDomainUpdateInterval,
   )
 where
 

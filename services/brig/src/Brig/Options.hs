@@ -39,6 +39,7 @@ import qualified Data.Code as Code
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
+import Data.MessageQueue
 import Data.Misc (HttpsUrl)
 import Data.Nonce
 import Data.Range
@@ -59,7 +60,6 @@ import Wire.API.Routes.Version
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.Arbitrary (Arbitrary, arbitrary)
-import Data.MessageQueue
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime

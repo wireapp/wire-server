@@ -192,7 +192,6 @@ library
     , amazonka-dynamodb          >=2
     , amazonka-ses               >=2
     , amazonka-sqs               >=2
-    , amqp
     , async                      >=2.1
     , auto-update                >=0.1
     , base                       >=4       && <5

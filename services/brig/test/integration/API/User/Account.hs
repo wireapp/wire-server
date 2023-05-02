@@ -124,7 +124,7 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "post /activate - 200/204 + expiry" $ testActivateWithExpiry opts b at,
       test p "get /users/:uid - 404" $ testNonExistingUserUnqualified b,
       test p "get /users/<localdomain>/:uid - 404" $ testNonExistingUser b,
-      test p "get /users/:domain/:uid - 422" $ testUserInvalidDomain b,
+      test p "get /users/:domain/:uid - 400" $ testUserInvalidDomain b,
       test p "get /users/:uid - 200" $ testExistingUserUnqualified b,
       test p "get /users/<localdomain>/:uid - 200" $ testExistingUser b,
       test p "get /users?:id=.... - 200" $ testMultipleUsersUnqualified b,
@@ -637,7 +637,7 @@ testUserInvalidDomain brig = do
   let uid = qUnqualified qself
   get (brig . paths ["users", "invalid.example.com", toByteString' uid] . zUser uid)
     !!! do
-      const 422 === statusCode
+      const 400 === statusCode
       const (Just "/federation/api-version")
         === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
       const (Just "invalid.example.com")

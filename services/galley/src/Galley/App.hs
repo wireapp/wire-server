@@ -1,5 +1,5 @@
-{-# LANGUAGE StrictData #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -99,6 +99,7 @@ import Polysemy.Internal (Append)
 import Polysemy.Resource
 import qualified Polysemy.TinyLog as P
 import qualified Servant
+import qualified Servant.Client as SC
 import Ssl.Util
 import qualified System.Logger as Log
 import System.Logger.Class
@@ -107,10 +108,9 @@ import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
 import Wire.API.Error
 import Wire.API.Federation.Error
-import qualified Wire.Sem.Logger
-import qualified Servant.Client as SC
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Named (namedClient)
+import qualified Wire.Sem.Logger
 
 -- Effects needed by the interpretation of other effects
 type GalleyEffects0 =
@@ -160,10 +160,10 @@ createEnv m o = do
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   validateOptions l o
-  
+
   -- Fetch the initial federation domain list so we always start with
   -- a known update to date dataset.
-  
+
   let brigEndpoint = o ^. optBrig
       Endpoint h p = brigEndpoint
       baseUrl = SC.BaseUrl SC.Http (unpack h) (fromIntegral p) ""

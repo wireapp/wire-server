@@ -106,6 +106,7 @@ mkDerivation {
     polysemy
     polysemy-wire-zoo
     servant
+    servant-client
     servant-client-core
     string-conversions
     text
@@ -116,6 +117,7 @@ mkDerivation {
     wai
     wai-utilities
     warp
+    wire-api
     wire-api-federation
     x509
     x509-validation

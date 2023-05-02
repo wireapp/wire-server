@@ -722,7 +722,7 @@ testConnectFederationNotAvailable :: Brig -> Http ()
 testConnectFederationNotAvailable brig = do
   (uid1, quid2) <- localAndRemoteUser brig
   postConnectionQualified brig uid1 quid2
-    !!! const 422 === statusCode
+    !!! const 400 === statusCode
 
 testConnectOK :: Brig -> Galley -> FedClient 'Brig -> Http ()
 testConnectOK brig galley fedBrigClient = do

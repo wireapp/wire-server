@@ -1,18 +1,21 @@
 module Data.MessageQueue
-  ( MessageQueueSettings (..)
-  ) where
+  ( MessageQueueSettings (..),
+  )
+where
 
-import Prelude (Show, String)
-import Data.Text (Text)
 import Data.Aeson (FromJSON)
+import Data.Text (Text)
 import GHC.Generics (Generic)
+import Prelude (Show, String)
 
 -- | Options for connecting to the message queue system
 data MessageQueueSettings = MessageQueueSettings
-  { mqHost  :: String
-  , mqVHost :: Text
-  , mqUser  :: Text
-  , mqPass  :: Text
-  , mqQueue :: Text
-  } deriving (Show, Generic)
+  { mqHost :: String,
+    mqVHost :: Text,
+    mqUser :: Text,
+    mqPass :: Text,
+    mqQueue :: Text
+  }
+  deriving (Show, Generic)
+
 instance FromJSON MessageQueueSettings
