@@ -207,9 +207,9 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
         & copyObject_metadataDirective ?~ MetadataDirective_REPLACE
         & copyObject_metadata .~ metaHeaders tok prc
 
-signedURL :: (ToByteString p) => p -> ExceptT Error App URI
-signedURL path = do
-  e <- view aws
+signedURL :: (ToByteString p) => p -> Maybe Text -> ExceptT Error App URI
+signedURL path mbHost = do
+  e <- awsEnvForHost mbHost
   let b = view AWS.s3Bucket e
   now <- liftIO getCurrentTime
   ttl <- view (settings . setDownloadLinkTTL)
@@ -226,6 +226,17 @@ signedURL path = do
             ~~ msg (show e)
         throwE serverError
       Right u -> pure u
+
+    awsEnvForHost :: Maybe Text -> ExceptT Error App AWS.Env
+    awsEnvForHost Nothing = view aws
+    awsEnvForHost (Just host) = do
+      Log.debug $
+        "host" .= host
+          ~~ msg (val "awsEnvForHost")
+      mbEnv <- view (multiIngress . at (Text.unpack host))
+      case mbEnv of
+        Nothing -> Imports.error $ "No env found for " ++ Text.unpack host
+        Just e -> pure e
 
 mkKey :: V3.AssetKey -> S3AssetKey
 mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key

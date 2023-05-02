@@ -99,6 +99,7 @@ library
     , case-insensitive       >=1.0
     , conduit                >=1.2
     , conduit-extra          >=1.1.5
+    , containers
     , cryptonite             >=0.20
     , data-default           >=0.5
     , errors                 >=1.4

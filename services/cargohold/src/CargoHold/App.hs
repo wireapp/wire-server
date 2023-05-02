@@ -26,6 +26,7 @@ module CargoHold.App
     newEnv,
     closeEnv,
     aws,
+    multiIngress,
     httpManager,
     http2Manager,
     metrics,
@@ -59,6 +60,7 @@ import Control.Lens (Lens', makeLenses, view, (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Data.Default (def)
+import qualified Data.Map as Map
 import Data.Metrics.Middleware (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Qualified
@@ -83,7 +85,8 @@ data Env = Env
     _http2Manager :: Http2Manager,
     _requestId :: RequestId,
     _options :: Opt.Opts,
-    _localUnit :: Local ()
+    _localUnit :: Local (),
+    _multiIngress :: Map String AWS.Env
   }
 
 makeLenses ''Env
@@ -98,8 +101,9 @@ newEnv o = do
   mgr <- initHttpManager (o ^. optAws . awsS3Compatibility)
   h2mgr <- initHttp2Manager
   ama <- initAws (o ^. optAws) lgr mgr
+  multiIngresses <- mapM (\(k, v) -> initAws v lgr mgr >>= \v' -> pure (k, v')) $ Map.assocs (o ^. Opt.optMultiIngress)
   let loc = toLocalUnsafe (o ^. optSettings . Opt.setFederationDomain) ()
-  pure $ Env ama met lgr mgr h2mgr def o loc
+  pure $ Env ama met lgr mgr h2mgr def o loc (Map.fromList multiIngresses)
 
 initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
 initAws o l = AWS.mkEnv l (o ^. awsS3Endpoint) addrStyle downloadEndpoint (o ^. awsS3Bucket) (o ^. awsCloudFront)
