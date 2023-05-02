@@ -21,12 +21,12 @@ library
     Wire.API.Federation.API.Cargohold
     Wire.API.Federation.API.Common
     Wire.API.Federation.API.Galley
+    Wire.API.Federation.BackendNotifications
     Wire.API.Federation.Client
     Wire.API.Federation.Component
     Wire.API.Federation.Domain
     Wire.API.Federation.Endpoint
     Wire.API.Federation.Error
-    Wire.API.Federation.Notifications
     Wire.API.Federation.Version
 
   other-modules:      Paths_wire_api_federation

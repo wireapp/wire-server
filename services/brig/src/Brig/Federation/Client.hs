@@ -39,7 +39,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
-import Wire.API.Federation.Notifications
+import Wire.API.Federation.BackendNotifications
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey

@@ -1,4 +1,4 @@
-module Wire.API.Federation.Notifications where
+module Wire.API.Federation.BackendNotifications where
 
 import Data.Aeson
 import Data.Domain
