@@ -26,9 +26,11 @@ module Wire.API.Conversation.Protocol
     Epoch (..),
     Protocol (..),
     _ProtocolMLS,
+    _ProtocolMixed,
     _ProtocolProteus,
     protocolSchema,
     ConversationMLSData (..),
+    ProtocolUpdate (..),
   )
 where
 
@@ -36,6 +38,7 @@ import Control.Arrow
 import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
+import qualified Data.Swagger as S
 import Data.Time.Clock
 import Imports
 import Wire.API.Conversation.Action.Tag
@@ -45,7 +48,7 @@ import Wire.API.MLS.Group
 import Wire.API.MLS.SubConversation
 import Wire.Arbitrary
 
-data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag
+data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag | ProtocolMixedTag
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via GenericUniform ProtocolTag
 
@@ -94,6 +97,7 @@ instance ToSchema ConversationMLSData where
 data Protocol
   = ProtocolProteus
   | ProtocolMLS ConversationMLSData
+  | ProtocolMixed ConversationMLSData
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform Protocol
 
@@ -102,6 +106,7 @@ $(makePrisms ''Protocol)
 protocolTag :: Protocol -> ProtocolTag
 protocolTag ProtocolProteus = ProtocolProteusTag
 protocolTag (ProtocolMLS _) = ProtocolMLSTag
+protocolTag (ProtocolMixed _) = ProtocolMixedTag
 
 -- | Certain actions need to be performed at the level of the underlying
 -- protocol (MLS, mostly) before being applied to conversations. This function
@@ -109,6 +114,7 @@ protocolTag (ProtocolMLS _) = ProtocolMLSTag
 -- with the given protocol.
 protocolValidAction :: Protocol -> ConversationActionTag -> Bool
 protocolValidAction ProtocolProteus _ = True
+protocolValidAction (ProtocolMixed _) _ = True
 protocolValidAction (ProtocolMLS _) ConversationJoinTag = False
 protocolValidAction (ProtocolMLS _) ConversationLeaveTag = True
 protocolValidAction (ProtocolMLS _) ConversationRemoveMembersTag = False
@@ -120,8 +126,13 @@ instance ToSchema ProtocolTag where
     enum @Text "Protocol" $
       mconcat
         [ element "proteus" ProtocolProteusTag,
-          element "mls" ProtocolMLSTag
+          element "mls" ProtocolMLSTag,
+          element "mixed" ProtocolMixedTag
         ]
+
+deriving via (Schema ProtocolTag) instance FromJSON ProtocolTag
+
+deriving via (Schema ProtocolTag) instance ToJSON ProtocolTag
 
 protocolTagSchema :: ObjectSchema SwaggerDoc ProtocolTag
 protocolTagSchema = fmap (fromMaybe ProtocolProteusTag) (optField "protocol" schema)
@@ -144,3 +155,15 @@ deriving via (Schema Protocol) instance ToJSON Protocol
 protocolDataSchema :: ProtocolTag -> ObjectSchema SwaggerDoc Protocol
 protocolDataSchema ProtocolProteusTag = tag _ProtocolProteus (pure ())
 protocolDataSchema ProtocolMLSTag = tag _ProtocolMLS mlsDataSchema
+protocolDataSchema ProtocolMixedTag = tag _ProtocolMixed mlsDataSchema
+
+newtype ProtocolUpdate = ProtocolUpdate {unProtocolUpdate :: ProtocolTag}
+
+instance ToSchema ProtocolUpdate where
+  schema = object "ProtocolUpdate" (ProtocolUpdate <$> unProtocolUpdate .= protocolTagSchema)
+
+deriving via (Schema ProtocolUpdate) instance FromJSON ProtocolUpdate
+
+deriving via (Schema ProtocolUpdate) instance ToJSON ProtocolUpdate
+
+deriving via (Schema ProtocolUpdate) instance S.ToSchema ProtocolUpdate

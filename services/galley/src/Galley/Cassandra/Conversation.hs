@@ -72,7 +72,7 @@ createMLSSelfConversation lusr = do
           { ncMetadata =
               (defConversationMetadata usr) {cnvmType = SelfConv},
             ncUsers = ulFromLocals [toUserRole usr],
-            ncProtocol = ProtocolMLSTag
+            ncProtocol = ProtocolCreateMLSTag
           }
       meta = ncMetadata nc
       gid = convToGroupId . qualifyAs lusr $ cnv
@@ -123,8 +123,8 @@ createConversation :: Local ConvId -> NewConversation -> Client Conversation
 createConversation lcnv nc = do
   let meta = ncMetadata nc
       (proto, mgid, mep, mcs) = case ncProtocol nc of
-        ProtocolProteusTag -> (ProtocolProteus, Nothing, Nothing, Nothing)
-        ProtocolMLSTag ->
+        ProtocolCreateProteusTag -> (ProtocolProteus, Nothing, Nothing, Nothing)
+        ProtocolCreateMLSTag ->
           let gid = convToGroupId lcnv
               ep = Epoch 0
               cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
@@ -158,7 +158,7 @@ createConversation lcnv nc = do
         cnvmTeam meta,
         cnvmMessageTimer meta,
         cnvmReceiptMode meta,
-        ncProtocol nc,
+        protocolCreateToProtocolTag (ncProtocol nc),
         mgid,
         mep,
         mcs
@@ -337,15 +337,17 @@ toProtocol ::
   Maybe Protocol
 toProtocol Nothing _ _ _ _ = Just ProtocolProteus
 toProtocol (Just ProtocolProteusTag) _ _ _ _ = Just ProtocolProteus
-toProtocol (Just ProtocolMLSTag) mgid mepoch mtimestamp mcs =
-  ProtocolMLS
-    <$> ( ConversationMLSData
-            <$> mgid
-            -- If there is no epoch in the database, assume the epoch is 0
-            <*> (mepoch <|> Just (Epoch 0))
-            <*> pure (mepoch `toTimestamp` mtimestamp)
-            <*> mcs
-        )
+toProtocol (Just ProtocolMLSTag) mgid mepoch mtimestamp mcs = ProtocolMLS <$> toConversationMLSData mgid mepoch mtimestamp mcs
+toProtocol (Just ProtocolMixedTag) mgid mepoch mtimestamp mcs = ProtocolMixed <$> toConversationMLSData mgid mepoch mtimestamp mcs
+
+toConversationMLSData :: Maybe GroupId -> Maybe Epoch -> Maybe UTCTime -> Maybe CipherSuiteTag -> Maybe ConversationMLSData
+toConversationMLSData mgid mepoch mtimestamp mcs =
+  ConversationMLSData
+    <$> mgid
+    -- If there is no epoch in the database, assume the epoch is 0
+    <*> (mepoch <|> Just (Epoch 0))
+    <*> pure (mepoch `toTimestamp` mtimestamp)
+    <*> mcs
   where
     toTimestamp :: Maybe Epoch -> Maybe UTCTime -> Maybe UTCTime
     toTimestamp Nothing _ = Nothing
@@ -429,6 +431,23 @@ deleteGroupIds ::
 deleteGroupIds =
   embedClient . UnliftIO.pooledMapConcurrentlyN_ 8 deleteGroupIdForConversation
 
+updateToMixedProtocol ::
+  Members
+    '[ Embed IO,
+       Input ClientState
+     ]
+    r =>
+  Local ConvId ->
+  CipherSuiteTag ->
+  Sem r ()
+updateToMixedProtocol lcnv cs =
+  embedClient . retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    let gid = convToGroupId lcnv
+    addPrepQuery Cql.insertGroupIdForConversation (gid, tUnqualified lcnv, tDomain lcnv)
+    addPrepQuery Cql.updateToMixedConv (tUnqualified lcnv, ProtocolMixedTag, gid, Epoch 0, cs)
+
 interpretConversationStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
@@ -461,3 +480,4 @@ interpretConversationStoreToCassandra = interpret $ \case
   AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl
   ReleaseCommitLock gId epoch -> embedClient $ releaseCommitLock gId epoch
   DeleteGroupIds gIds -> deleteGroupIds gIds
+  UpdateToMixedProtocol cid cs -> updateToMixedProtocol cid cs

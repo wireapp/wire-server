@@ -427,6 +427,9 @@ nginx_conf:
       - all
       max_body_size: 40m
       body_buffer_size: 256k
+    - path: /conversations/([^/]*)/([^/]*)/protocol
+      envs:
+      - all
     - path: /broadcast
       envs:
       - all

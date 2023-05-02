@@ -35,7 +35,6 @@ import Galley.Types.UserList
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Internal.Galley.ConversationsIntra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
 
 newConnectConversationWithRemote ::
@@ -49,7 +48,7 @@ newConnectConversationWithRemote creator users =
           { cnvmType = One2OneConv
           },
       ncUsers = fmap toUserRole users,
-      ncProtocol = ProtocolProteusTag
+      ncProtocol = ProtocolCreateProteusTag
     }
 
 iUpsertOne2OneConversation ::

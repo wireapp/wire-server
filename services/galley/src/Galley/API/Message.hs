@@ -393,7 +393,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
       let senderClient = qualifiedNewOtrSender msg
 
       conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-      unless (protocolTag (convProtocol conv) == ProtocolProteusTag) $
+      unless (protocolTag (convProtocol conv) `elem` [ProtocolProteusTag, ProtocolMixedTag]) $
         throwS @'InvalidOperation
 
       let localMemberIds = lmId <$> convLocalMembers conv

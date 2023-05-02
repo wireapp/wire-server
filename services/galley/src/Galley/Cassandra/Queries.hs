@@ -256,6 +256,11 @@ insertMLSSelfConv =
       <> show (fromEnum ProtocolMLSTag)
       <> ", ?, ?)"
 
+updateToMixedConv :: PrepQuery W (ConvId, ProtocolTag, GroupId, Epoch, CipherSuiteTag) ()
+updateToMixedConv =
+  fromString $
+    "insert into conversation (conv, protocol, group_id, epoch, cipher_suite) values (?, ?, ?, ?, ?)"
+
 updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRole, ConvId) ()
 updateConvAccess = "update conversation set access = ?, access_roles_v2 = ? where conv = ?"
 

@@ -476,8 +476,11 @@ setupMLSGroupWithConv convAction creator = do
   conv <- convAction
   let groupId =
         fromJust
-          (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv)
-
+          ( asum
+              [ preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv,
+                preview (to cnvProtocol . _ProtocolMixed . to cnvmlsGroupId) conv
+              ]
+          )
   let qcnv = cnvQualifiedId conv
   createGroup creator (fmap Conv qcnv) groupId
   pure (groupId, qcnv)
