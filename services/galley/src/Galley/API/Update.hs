@@ -727,7 +727,11 @@ updateLocalConversationProtocol qusr client _mconn lcnv (ProtocolUpdate newProto
     (ProtocolProteusTag, ProtocolMixedTag) -> do
       E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
       E.addMLSClients (convToGroupId lcnv) qusr (Set.singleton (client, nullKeyPackageRef))
+    (ProtocolProteusTag, ProtocolProteusTag) ->
+      pure ()
     (ProtocolMixedTag, ProtocolMixedTag) ->
+      pure ()
+    (ProtocolMLSTag, ProtocolMLSTag) ->
       pure ()
     (_, _) -> throwS @'ConvInvalidProtocolTransition
 
