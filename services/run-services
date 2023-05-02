@@ -141,7 +141,7 @@ class Instance:
 
     def spawn(self, service_map, environment, suffix, domain, backend_name):
         try:
-            config_file = self.modified_config_file(service_map, suffix, domain)
+            config_file = self.modified_config_file(service_map, suffix, domain, backend_name)
             sub = self.service.spawn(config_file, environment)
             t = threading.Thread(target=lambda: color_output(sub, self.service, backend_name))
             t.start()
@@ -149,7 +149,7 @@ class Instance:
         except Exception as e:
             return Instance(self.service, self.port, exception=e)
 
-    def modified_config_file(self, service_map, suffix, domain):
+    def modified_config_file(self, service_map, suffix, domain, backend_name):
         """Overwrite port configuration on this service using the provided
         service_map.
 
@@ -188,8 +188,7 @@ class Instance:
 
         self.set_own_port(data)
 
-        # write modified config file to pipe
-        return make_pipe(yaml.dump(data).encode('utf-8'))
+        return save_config(backend_name, self.service.name, self.service.config, yaml.dump(data))
 
     def set_own_port(self, data):
         # spar's own port is in a different place
@@ -202,7 +201,7 @@ class DummyInstance(Instance):
     def spawn(self, service_map, environment, suffix, domain, backend_name):
         return self
 
-    def modified_config_file(self, service_map, suffix, domain):
+    def modified_config_file(self, service_map, suffix, domain, backend_name):
         return ""
 
     def check_status(self):
@@ -225,7 +224,7 @@ class NginzInstance(Instance):
         self.fed_port = fed_port
         super().__init__(NGINZ, local_port)
 
-    def modified_config_file(self, service_map, suffix, domain):
+    def modified_config_file(self, service_map, suffix, domain, backend_name):
         # Create a whole temporary directory and copy all nginx's config files.
         # This is necessary because nginx assumes local imports are relative to
         # the location of the main configuration file.
@@ -297,11 +296,13 @@ def find_root(base):
         root = p
     return root
 
-def make_pipe(data):
-    (r, w) = os.pipe()
-    os.write(w, data)
-    os.close(w)
-    return f"/proc/{os.getpid()}/fd/{r}"
+def save_config(backend_name, service_name, service_config, config):
+    config_file_base = service_config or service_name
+    p = os.path.join(ROOT, 'services', '.integration', backend_name, 'etc', 'wire', service_name, 'conf', f'{config_file_base}.yaml')
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, 'w', encoding='utf8') as f:
+        f.write(config)
+    return p
 
 def cleanup_instances(instances):
     for instance in instances:

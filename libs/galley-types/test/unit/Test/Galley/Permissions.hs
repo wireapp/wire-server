@@ -15,21 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
-  )
-where
+module Test.Galley.Permissions where
 
+import Galley.Types.Teams
 import Imports
-import qualified Test.Galley.Permissions
-import qualified Test.Galley.Types
 import Test.Tasty
+import Test.Tasty.HUnit
+import Wire.API.Team.Permission
+import Wire.API.Team.Role
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Galley.Types.tests,
-        Test.Galley.Permissions.tests
-      ]
+tests :: TestTree
+tests =
+  testGroup
+    "permsToInt"
+    [ testCase "partner" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleExternalPartner) 1025,
+      testCase "member" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleMember) 1587,
+      testCase "admin" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleAdmin) 5951,
+      testCase "owner" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleOwner) 8191
+    ]
