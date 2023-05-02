@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-integration-integration"
+  annotations:
+    "helm.sh/hook": test
+  labels:
+    app: integration-integration
+    release: {{ .Release.Name }}
+spec:
+  volumes:
+    - name: "integration-config"
+      configMap:
+        name: "integration-config"
+
+    - name: "galley-config"
+      configMap:
+        name: "galley"
+
+    - name: "galley-secrets"
+      secret:
+        secretName: "galley"
+
+    - name: "brig-config"
+      configMap:
+        name: "brig"
+
+    - name: "brig-secrets"
+      secret:
+        secretName: "brig"
+
+    - name: "turn-servers"
+      configMap:
+        name: "turn"
+
+  restartPolicy: Never
+  containers:
+  - name: integration
+    image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+    command: [ "integration", "--config", "/etc/wire/integration/integration.yaml" ]
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "2"
+    volumeMounts:
+
+    - name: "integration-config"
+      mountPath: "/etc/wire/integration"
+
+    - name: "galley-config"
+      mountPath: "/etc/wire/galley/conf"
+
+    - name: "galley-secrets"
+      mountPath: "/etc/wire/galley/secrets"
+
+    - name: "brig-config"
+      mountPath: "/etc/wire/brig/conf"
+
+    - name: "brig-secrets"
+      mountPath: "/etc/wire/brig/secrets"
+
+    - name: "turn-servers"
+      mountPath: "/etc/wire/brig/turn"
+
+    env:
+    # these dummy values are necessary for Amazonka's "Discover"
+    - name: AWS_ACCESS_KEY_ID
+      value: "dummy"
+    - name: AWS_SECRET_ACCESS_KEY
+      value: "dummy"
+    - name: AWS_REGION
+      value: "eu-west-1"

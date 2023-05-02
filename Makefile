@@ -84,18 +84,59 @@ ifeq ($(test), 1)
 endif
 	./hack/bin/cabal-install-artefacts.sh $(package)
 
-# ci here doesn't refer to continuous integration, but to cabal-integration
-# Usage: make ci package=brig test=1
-# If you want to pass arguments to the test-suite call the script directly.
+# ci here doesn't refer to continuous integration, but to cabal-run-integration.sh
+# Usage: make ci                        - build & run all tests
+#        make ci package=brig           - build brig & run "brig-integration" and "integration"
+#        make ci package=brig suite=old - build brig & run "brig-integration"
+#        make ci package=brig suite=new - build brig & run "integration"
+#        make ci package=integration    - build & run "integration"
+#
+# You can pass environment variables to all the suites, like so
+# TASTY_PATTERN=".."  make ci package=brig
+#
+# If you want to pass arguments to the test-suite call cabal-run-integration.sh directly.
 .PHONY: ci
 ci: c db-migrate
+ifeq ("$(package)", "all")
 	./hack/bin/cabal-run-integration.sh $(package)
+else
+  ifeq ("$(package)", "integration")
+	./hack/bin/cabal-run-integration.sh integration
+  else
+    ifeq ("$(suite)", "old")
+		./hack/bin/cabal-run-integration.sh $(package)
+    else
+      ifeq ("$(suite)", "new")
+		make c package=integration
+		./hack/bin/cabal-run-integration.sh integration
+      else
+		make c package=integration
+		./hack/bin/cabal-run-integration.sh $(package)
+		./hack/bin/cabal-run-integration.sh integration
+      endif
+    endif
+  endif
+endif
+
+# Compile and run services
+# Usage: make crun `OR` make crun package=galley
+.PHONY: cr
+cr: c db-migrate
+	./services/run-services
+
+# Run integration from new test suite
+# Usage: make devtest
+# Usage: TASTY_MATCH=test1,test2 make devtest
+.PHONY: devtest
+devtest:
+	ghcid --command 'cabal repl integration' --test='Testlib.Run.mainI []'
 
 .PHONY: sanitize-pr
 sanitize-pr:
 	./hack/bin/generate-local-nix-packages.sh
 	make formatf
 	make hlint-inplace-pr
+	make hlint-check-pr  # sometimes inplace has been observed not to do its job very well.
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
 	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )

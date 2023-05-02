@@ -1,5 +1,6 @@
 packages:
-    libs/api-bot/
+    integration
+  , libs/api-bot/
   , libs/api-client/
   , libs/bilge/
   , libs/brig-types/

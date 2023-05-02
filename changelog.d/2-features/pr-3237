@@ -1,1 +1,1 @@
-`MlsE2EIdConfig` does now contain an optional ACME discovery URL and `verificationExpiration` is now a duration
+`MlsE2EIdConfig` does now contain an ACME discovery URL and `verificationExpiration` is now a duration. (#3237, #3244)
