@@ -84,18 +84,38 @@ ifeq ($(test), 1)
 endif
 	./hack/bin/cabal-install-artefacts.sh $(package)
 
-# ci here doesn't refer to continuous integration, but to cabal-integration
-# Usage: make ci package=brig test=1
-# If you want to pass arguments to the test-suite call the script directly.
+# ci here doesn't refer to continuous integration, but to cabal-run-integration.sh
+# Usage: make ci                        - build & run all tests
+#        make ci package=brig           - build brig & run "brig-integration" and "integration"
+#        make ci package=brig suite=old - build brig & run "brig-integration"
+#        make ci package=brig suite=new - build brig & run "integration"
+#        make ci package=integration    - build & run "integration"
+#
+# You can pass environment variables to all the suites, like so
+# TASTY_PATTERN=".."  make ci package=brig
+#
+# If you want to pass arguments to the test-suite call cabal-run-integration.sh directly.
 .PHONY: ci
 ci: c db-migrate
-ifeq ($(new), 1)
-ifneq ($(package), "integration")
-	make c package=integration
-endif
-	./hack/bin/cabal-run-integration.sh integration
-else
+ifeq ("$(package)", "all")
 	./hack/bin/cabal-run-integration.sh $(package)
+else
+  ifeq ("$(package)", "integration")
+	./hack/bin/cabal-run-integration.sh integration
+  else
+    ifeq ("$(suite)", "old")
+		./hack/bin/cabal-run-integration.sh $(package)
+    else
+      ifeq ("$(suite)", "new")
+		make c package=integration
+		./hack/bin/cabal-run-integration.sh integration
+      else
+		make c package=integration
+		./hack/bin/cabal-run-integration.sh $(package)
+		./hack/bin/cabal-run-integration.sh integration
+      endif
+    endif
+  endif
 endif
 
 # Compile and run services

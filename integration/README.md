@@ -1,10 +1,12 @@
 How to use:
 
-- `make ci` - build all services and run all test suites suites, including this one
-- `make ci new=1` - build all services and run only this test suite
-- `make ci package=galley new=1` - build only galley then run only this test suite
+- `make ci suite=new ` - build all services and run only this test suite
+- `make ci package=galley suite=new` - build only galley then run only this test suite
 
-You can use `TASTY_MATCH` (see --help option) to select one or multiple tests. `TASTY_PATTERN` works too.
+See Makefile for full docs on `make ci`.
+
+You can use `TASTY_MATCH` (see --help) to select one or multiple tests.
+`TASTY_PATTERN` works too, but is more complicated than `TASY_MATCH`.
 
 To develop a new test in a fast-loading ghci session:
 
