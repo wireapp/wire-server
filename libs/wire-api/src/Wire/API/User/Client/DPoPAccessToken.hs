@@ -22,13 +22,13 @@ module Wire.API.User.Client.DPoPAccessToken where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), fromByteString', toByteString')
-import Data.Json.Util (base64Schema)
 import Data.SOP
 import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import Data.Swagger.ParamSchema (ToParamSchema (..))
 import Data.Text as T
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 
@@ -51,7 +51,7 @@ newtype DPoPAccessToken = DPoPAccessToken {unDPoPAccessToken :: ByteString}
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema DPoPAccessToken)
 
 instance ToSchema DPoPAccessToken where
-  schema = named "DPoPAccessToken" $ unDPoPAccessToken .= fmap DPoPAccessToken base64Schema
+  schema = (decodeUtf8 . unDPoPAccessToken) .= fmap (DPoPAccessToken . encodeUtf8) (text "DPoPAccessToken")
 
 instance ToParamSchema DPoPAccessToken where
   toParamSchema _ = toParamSchema (Proxy @Text)
