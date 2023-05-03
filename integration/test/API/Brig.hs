@@ -88,3 +88,50 @@ getAPIVersion :: App Response
 getAPIVersion = do
   req <- baseRequest Brig Unversioned $ "/api-version"
   submit "GET" req
+
+postConnection ::
+  ( HasCallStack,
+    MakesValue userFrom,
+    MakesValue userTo
+  ) =>
+  userFrom ->
+  userTo ->
+  App Response
+postConnection userFrom userTo = do
+  uidFrom <- objId userFrom
+  (userToDomain, userToId) <- objQid userTo
+  req <-
+    baseRequest Brig Versioned $
+      joinHttpPath ["/connections", userToDomain, userToId]
+  submit
+    "POST"
+    ( req
+        & zUser uidFrom
+        & zConnection "conn"
+    )
+
+putConnection ::
+  ( HasCallStack,
+    MakesValue userFrom,
+    MakesValue userTo,
+    MakesValue status
+  ) =>
+  userFrom ->
+  userTo ->
+  status ->
+  App Response
+putConnection userFrom userTo status = do
+  uidFrom <- objId userFrom
+  (userToDomain, userToId) <- objQid userTo
+  req <-
+    baseRequest Brig Versioned $
+      joinHttpPath ["/connections", userToDomain, userToId]
+  statusS <- asString status
+  submit
+    "POST"
+    ( req
+        & zUser uidFrom
+        & zConnection "conn"
+        & contentTypeJSON
+        & addJSONObject ["status" .= statusS]
+    )

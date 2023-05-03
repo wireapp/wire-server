@@ -86,6 +86,7 @@ library
     API.GalleyInternal
     RunAllTests
     SetupHelpers
+    Test.B2B
     Test.Brig
     Test.Demo
     Testlib.App

@@ -836,6 +836,9 @@ zConnection = addHeader "Z-Connection"
 zType :: String -> HTTP.Request -> HTTP.Request
 zType = addHeader "Z-Type"
 
+contentTypeJSON :: HTTP.Request -> HTTP.Request
+contentTypeJSON = addHeader "Content-Type" "application/json"
+
 bindResponse :: HasCallStack => App Response -> (Response -> App a) -> App a
 bindResponse m k = m >>= \r -> withResponse r k
 

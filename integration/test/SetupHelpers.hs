@@ -1,5 +1,6 @@
 module SetupHelpers where
 
+import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import Data.Aeson
 import Data.Default
@@ -21,3 +22,15 @@ createTeam = do
   -- SQS.assertTeamActivate "create team" tid
   -- refreshIndex
   pure (user, tid)
+
+connectUsersB2B ::
+  ( HasCallStack,
+    MakesValue alice,
+    MakesValue bob
+  ) =>
+  alice ->
+  bob ->
+  App ()
+connectUsersB2B alice bob = do
+  bindResponse (Public.postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
+  bindResponse (withTwo (Public.putConnection bob alice "accepted")) (\resp -> resp.status `shouldMatchInt` 200)
