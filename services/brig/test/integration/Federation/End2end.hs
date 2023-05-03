@@ -834,6 +834,8 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
                 tmp </> "group.json",
                 "--welcome-out",
                 tmp </> "welcome",
+                "--group-info-out",
+                tmp </> "groupinfo.mls",
                 tmp </> aliceClientId
               ]
           )
@@ -873,31 +875,14 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
 
     -- send welcome, commit and dove
     WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
-      post
-        ( galley2
-            . paths
-              ["mls", "messages"]
-            . zUser (userId bob)
-            . zClient bobClient
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . content "message/mls"
-            . bytes commit
-        )
-        !!! const 201 === statusCode
-
-      post
-        ( unversioned
-            . galley2
-            . paths ["v2", "mls", "welcome"]
-            . zUser (userId bob)
-            . zClient bobClient
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . content "message/mls"
-            . bytes welcome
-        )
-        !!! const 201 === statusCode
+      sendCommitBundle
+        tmp
+        "groupinfo.mls"
+        (Just "welcome")
+        galley2
+        (userId bob)
+        bobClient
+        commit
 
       post
         ( galley2
@@ -1098,6 +1083,8 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
                 tmp </> "group.json",
                 "--welcome-out",
                 tmp </> "welcome",
+                "--group-info-out",
+                tmp </> "groupinfo.mls",
                 tmp </> aliceClientId
               ]
           )
@@ -1106,32 +1093,14 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
 
     -- send welcome and commit
     WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
-      post
-        ( galley2
-            . paths
-              ["mls", "messages"]
-            . zUser (userId bob)
-            . zClient bobClient
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . content "message/mls"
-            . bytes commit
-        )
-        !!! const 201 === statusCode
-
-      post
-        ( unversioned
-            . galley2
-            . paths
-              ["v2", "mls", "welcome"]
-            . zUser (userId bob)
-            . zClient bobClient
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . content "message/mls"
-            . bytes welcome
-        )
-        !!! const 201 === statusCode
+      sendCommitBundle
+        tmp
+        "groupinfo.mls"
+        (Just "welcome")
+        galley2
+        (userId bob)
+        bobClient
+        commit
 
       -- verify that alice receives the welcome message
       WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
@@ -1198,7 +1167,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
                   "--in-place",
                   "--group",
                   tmp </> "subgroup.json",
-                  "--group-state-out",
+                  "--group-info-out",
                   tmp </> "subgroupstate.mls"
                 ]
             )
@@ -1206,6 +1175,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
       sendCommitBundle
         tmp
         "subgroupstate.mls"
+        Nothing
         galley2
         (userId bob)
         bobClient
@@ -1222,9 +1192,9 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
                 [ "external-commit",
                   "--group-out",
                   tmp </> "subgroupA.json",
-                  "--group-state-in",
+                  "--group-info-in",
                   tmp </> "subgroupstate.mls",
-                  "--group-state-out",
+                  "--group-info-out",
                   tmp </> "subgroupstateA.mls"
                 ]
             )
@@ -1232,6 +1202,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
       sendCommitBundle
         tmp
         "subgroupstateA.mls"
+        Nothing
         galley1
         (userId alice)
         aliceClient

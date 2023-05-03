@@ -67,6 +67,7 @@ import Wire.API.Conversation (Conversation (cnvMembers))
 import Wire.API.Conversation.Member (OtherMember (OtherMember), cmOthers)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.MLS.CommitBundle
+import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.Team.Feature (FeatureStatus (..))
 import Wire.API.User
@@ -117,12 +118,22 @@ connectUsersEnd2End brig1 brig2 quid1 quid2 = do
   putConnectionQualified brig2 (qUnqualified quid2) quid1 Accepted
     !!! const 200 === statusCode
 
-sendCommitBundle :: FilePath -> FilePath -> Galley -> UserId -> ClientId -> ByteString -> Http ()
-sendCommitBundle tmp subGroupStateFn galley uid cid commit = do
+sendCommitBundle :: HasCallStack => FilePath -> FilePath -> Maybe FilePath -> Galley -> UserId -> ClientId -> ByteString -> Http ()
+sendCommitBundle tmp subGroupStateFn welcomeFn galley uid cid commit = do
   subGroupStateRaw <- liftIO $ BS.readFile $ tmp </> subGroupStateFn
   subGroupState <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ subGroupStateRaw
   subCommit <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ commit
-  let subGroupBundle = CommitBundle subCommit Nothing subGroupState
+  mbWelcome <-
+    for
+      welcomeFn
+      $ \fn -> do
+        bs <- liftIO $ BS.readFile $ tmp </> fn
+        msg :: Message <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ bs
+        case msg.content of
+          MessageWelcome welcome -> pure welcome
+          _ -> liftIO . assertFailure $ "Expected a welcome"
+
+  let subGroupBundle = CommitBundle subCommit mbWelcome subGroupState
   post
     ( galley
         . paths
@@ -131,7 +142,7 @@ sendCommitBundle tmp subGroupStateFn galley uid cid commit = do
         . zClient cid
         . zConn "conn"
         . header "Z-Type" "access"
-        . content "message/mls"
+        . Bilge.content "message/mls"
         . lbytes (encodeMLS subGroupBundle)
     )
     !!! const 201 === statusCode

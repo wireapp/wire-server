@@ -189,7 +189,7 @@ def add_member(state, kpfiles):
         "<group-in>",
         "--welcome-out",
         welcome_file,
-        "--group-state-out",
+        "--group-info-out",
         pgs_file,
         "--group-out",
         "<group-out>",
