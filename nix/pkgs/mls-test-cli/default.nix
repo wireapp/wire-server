@@ -13,8 +13,8 @@ let
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "mls-test-cli";
-    rev = "f539bcc60ab3f7e2303742a37aa17b281b44bf3a";
-    sha256 = "sha256-oyf+sot/aVnfoodecPGxTDxqNGk/KCX24LG7W9uP8mI=";
+    rev = "29109bd32cedae64bdd9a47ef373710fad477590";
+    sha256 = "sha256-1GMiEMkzcKPOd5AsQkQTSMLDkNqy3yjCC03K20vyFVY=";
   };
   cargoLockFile = builtins.toFile "cargo.lock" (builtins.readFile "${src}/Cargo.lock");
 in rustPlatform.buildRustPackage rec {
