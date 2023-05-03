@@ -87,7 +87,6 @@ import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
-import qualified Data.Text as Text
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
@@ -486,10 +485,10 @@ createAccessToken ::
   StdMethod ->
   Link ->
   Proof ->
-  Maybe Text ->
+  Text ->
   ExceptT CertEnrollmentError (AppT r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken uid cid method link proof mHostHeader = do
-  domain <- maybe (throwE MisconfiguredRequestUrl) (pure . Domain) $ mHostHeader <&> Text.splitOn ":" >>= headMay
+createAccessToken uid cid method link proof host = do
+  let domain = Domain host
   nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
   httpsUrl <- do
     let urlBs = "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
