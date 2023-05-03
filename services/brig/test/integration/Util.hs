@@ -29,6 +29,7 @@ import Brig.AWS.Types
 import Brig.App (applog, fsWatcher, sftEnv, turnEnv)
 import Brig.Calling as Calling
 import qualified Brig.Code as Code
+import Brig.Options (Opts)
 import qualified Brig.Options as Opt
 import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
@@ -1088,10 +1089,15 @@ deleteFederationRemote :: Brig -> Domain -> Http ()
 deleteFederationRemote brig rdom =
   void $ delete (brig . paths ["i", "federation", "remotes", toByteString' rdom] . contentJson . expect2xx)
 
-resetFederationRemotes :: Brig -> Http ()
-resetFederationRemotes brig = do
+resetFederationRemotes :: Opts -> Brig -> Http ()
+resetFederationRemotes opts brig = do
   rs <- getFederationRemotes brig
-  forM_ rs $ \(FederationDomainConfig rdom _) -> deleteFederationRemote brig rdom
+  -- Filter out domains that are in the config file.
+  -- These values can't be deleted yet, so don't even try.
+  forM_ (notCfgRemotes rs) $ \(FederationDomainConfig rdom _) -> deleteFederationRemote brig rdom
+  where
+    cfgRemotes = fromMaybe [] . Opt.setFederationDomainConfigs $ Opt.optSettings opts
+    notCfgRemotes = filter (`notElem` cfgRemotes)
 
 -- | Run a probe several times, until a "good" value materializes or until patience runs out
 aFewTimes ::

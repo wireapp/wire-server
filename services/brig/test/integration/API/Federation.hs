@@ -465,7 +465,7 @@ crudFederationRemotes opts brig = do
   -- Delete the remotes from the database
   -- This doesn't do anything with the remotes
   -- defined in config files.
-  resetFederationRemotes brig
+  resetFederationRemotes opts brig
 
   res1 <- getFederationRemotes brig
   liftIO $ assertEqual "should return config values" cfgRemotes res1
@@ -479,7 +479,7 @@ crudFederationRemotes opts brig = do
   addFederationRemote brig remote2
   res3 <- getFederationRemotes brig
   liftIO $ assertEqual "should return config values and {good,evil}.example.com" (nub $ sort $ cfgRemotes <> [remote1, remote2]) (sort res3)
- 
+
   deleteFederationRemote brig (domain remote1)
   res4 <- getFederationRemotes brig
   liftIO $ assertEqual "should return config values and evil.example.com" (nub $ sort $ cfgRemotes <> [remote2]) (sort res4)
