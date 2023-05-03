@@ -33,29 +33,39 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as LC8
 import qualified Data.CaseInsensitive as CI
+import Data.Char
 import qualified Data.Char as C
+import Data.Foldable
+import Data.Function
+import Data.Functor
+import Data.IORef
+import Data.List
 import Data.List.Split (splitOn)
 import qualified Data.Map.Strict as Map
 import Data.Proxy (Proxy (Proxy))
 import qualified Data.Scientific as Sci
+import Data.String
 import Data.String.Conversions (cs)
 import Data.Tagged
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import Data.Traversable
+import Data.Word
 import qualified Data.Yaml as Yaml
 import GHC.Exception
+import GHC.Generics
 import GHC.Records
 import GHC.Stack
 import qualified GHC.Stack as Stack
-import Imports hiding (ask, asks, local)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Socket as N
 import Network.URI (uriToString)
+import System.Directory
 import System.Exit (exitFailure)
 import System.FilePath (joinPath, takeDirectory, (</>))
 import System.FilePath.Posix (splitPath)
-import System.IO (hPutStrLn, openBinaryTempFile)
+import System.IO
 import qualified System.IO.Error as Error
 import System.Process (CreateProcess (..), createProcess, proc, terminateProcess)
 import Test.Tasty.Options
@@ -97,7 +107,7 @@ runAppWithEnv e m = runReaderT (unApp m) e
 getPrekey :: App Value
 getPrekey = App $ do
   pks <- asks (.prekeys)
-  (i, pk) <- atomicModifyIORef pks getPK
+  (i, pk) <- liftIO $ atomicModifyIORef pks getPK
   pure $ object ["id" .= i, "key" .= pk]
   where
     getPK [] = error "Out of prekeys"
@@ -106,7 +116,7 @@ getPrekey = App $ do
 getLastPrekey :: App Value
 getLastPrekey = App $ do
   pks <- asks (.lastPrekeys)
-  lpk <- atomicModifyIORef pks getPK
+  lpk <- liftIO $ atomicModifyIORef pks getPK
   pure $ object ["id" .= lastPrekeyId, "key" .= lpk]
   where
     getPK [] = error "Out of prekeys"
@@ -330,9 +340,12 @@ instance Exception AssertionFailure where
 
 assertFailure :: HasCallStack => String -> App a
 assertFailure msg =
-  deepseq msg $
+  forceList msg $
     liftIO $
       E.throw (AssertionFailure callStack Nothing msg)
+  where
+    forceList [] y = y
+    forceList (x : xs) y = seq x (forceList xs y)
 
 assertBool :: HasCallStack => String -> Bool -> App ()
 assertBool _ True = pure ()
@@ -475,7 +488,7 @@ getSourceDir packageId = do
             Just rest -> Just $ dropWhile isSpace rest
             Nothing -> go otherlines
 
-type SourceDirCache = Map String (Maybe FilePath)
+type SourceDirCache = Map.Map String (Maybe FilePath)
 
 getSourceDirCached :: SourceDirCache -> String -> IO (SourceDirCache, Maybe FilePath)
 getSourceDirCached cache packageId =
@@ -697,7 +710,7 @@ assertFailureWithJSON v msg = do
 
 -- | Useful for debugging
 printJSON :: MakesValue a => a -> App ()
-printJSON = prettyJSON >=> putStrLn
+printJSON = prettyJSON >=> liftIO . putStrLn
 
 prettyJSON :: MakesValue a => a -> App String
 prettyJSON x =
@@ -789,7 +802,7 @@ submit method req0 = do
 
 data Response = Response
   { jsonBody :: Maybe Aeson.Value,
-    body :: ByteString,
+    body :: BS.ByteString,
     status :: Int,
     headers :: [HTTP.Header],
     request :: HTTP.Request
@@ -855,7 +868,7 @@ onFailureAddResponse r m = App $ do
     E.throw (AssertionFailure stack (Just r) msg)
 
 printResponse :: MonadIO m => Response -> m ()
-printResponse = putStrLn . prettyReponse
+printResponse = liftIO . putStrLn . prettyReponse
 
 prettyReponse :: Response -> String
 prettyReponse r =
@@ -881,7 +894,7 @@ prettyReponse r =
           )
       ]
 
-getRequestBody :: HTTP.Request -> Maybe ByteString
+getRequestBody :: HTTP.Request -> Maybe BS.ByteString
 getRequestBody req = case HTTP.requestBody req of
   HTTP.RequestBodyLBS lbs -> pure (L.toStrict lbs)
   HTTP.RequestBodyBS bs -> pure bs
@@ -947,7 +960,7 @@ withModifiedService ::
 withModifiedService srv modConfig k = do
   withModifiedServices (Map.singleton srv modConfig) k
 
-withModifiedServices :: Map Service (Value -> App Value) -> App a -> App a
+withModifiedServices :: Map.Map Service (Value -> App Value) -> App a -> App a
 withModifiedServices services k = do
   ports <- Map.traverseWithKey (\_ _ -> liftIO openFreePort) services
 
@@ -973,7 +986,7 @@ withModifiedServices services k = do
     config' <- updateServiceMapInConfig config >>= modifyConfig
     (tempFile, fh) <- liftIO $ openBinaryTempFile "/tmp" (srvName <> ".yaml")
     liftIO $ BS.hPut fh (Yaml.encode config')
-    hClose fh
+    liftIO $ hClose fh
 
     (cwd, exe) <-
       asks (.servicesCwdBase) <&> \case

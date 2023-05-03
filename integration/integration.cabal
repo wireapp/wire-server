@@ -25,7 +25,6 @@ common common-all
     -optP-Wno-nonportable-include-path
 
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -106,11 +105,11 @@ library
     , case-insensitive
     , containers
     , data-default
+    , directory
     , exceptions
     , filepath
     , http-client
     , http-types
-    , imports
     , mtl
     , network
     , network-uri
@@ -121,6 +120,7 @@ library
     , retry
     , scientific
     , split
+    , stm
     , string-conversions
     , tagged
     , tasty

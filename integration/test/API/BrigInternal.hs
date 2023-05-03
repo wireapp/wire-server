@@ -1,7 +1,8 @@
 module API.BrigInternal where
 
 import API.Common
-import Imports
+import Data.Function
+import Data.Maybe
 import Testlib.Prelude
 
 data CreateUser = CreateUser

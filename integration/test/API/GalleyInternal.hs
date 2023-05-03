@@ -1,6 +1,6 @@
 module API.GalleyInternal where
 
-import Imports
+import GHC.Stack
 import Testlib.Prelude
 
 putTeamMember :: (HasCallStack, MakesValue user, MakesValue team) => user -> team -> Int -> App Response

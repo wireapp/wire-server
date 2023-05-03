@@ -3,7 +3,8 @@ module Test.Demo where
 
 import qualified API.Brig as Public
 import qualified API.GalleyInternal as Internal
-import Imports
+import Data.Functor
+import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
 

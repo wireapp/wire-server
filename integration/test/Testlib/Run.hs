@@ -2,15 +2,17 @@
 
 module Testlib.Run (main, mainI) where
 
-import Imports
+import Data.Functor
+import Data.List
 import RunAllTests
+import System.Directory
 import System.Environment
 import System.Exit (exitFailure, exitSuccess)
-import System.IO (hPutStrLn)
+import System.IO
 import Test.Tasty (testGroup)
 import Test.Tasty.Options (lookupOption, setOption)
 import Test.Tasty.Providers (singleTest)
-import Test.Tasty.Runners (TestPattern (..), consoleTestReporter, listingTests, parseOptions, tryIngredients)
+import Test.Tasty.Runners
 import Testlib.Options
 
 main :: IO ()

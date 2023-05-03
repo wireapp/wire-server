@@ -2,7 +2,6 @@ module Testlib.Options where
 
 import Data.List.Split
 import Data.Tagged (Tagged (Tagged))
-import Imports
 import Options.Applicative (Alternative (some), help, long, metavar, option, short, str)
 import Test.Tasty.Options (IsOption (..))
 import Test.Tasty.Patterns.Types (Expr (..))
