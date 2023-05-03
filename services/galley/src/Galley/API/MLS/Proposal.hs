@@ -27,7 +27,6 @@ module Galley.API.MLS.Proposal
     -- * Proposal actions
     paAddClient,
     paRemoveClient,
-    paExternalInitPresent,
 
     -- * Types
     ProposalAction (..),
@@ -71,31 +70,24 @@ import Wire.API.Message
 
 data ProposalAction = ProposalAction
   { paAdd :: ClientMap,
-    paRemove :: ClientMap,
-    -- The backend does not process external init proposals, but still it needs
-    -- to know if a commit has one when processing external commits
-    paExternalInit :: Any
+    paRemove :: ClientMap
   }
   deriving (Show)
 
 instance Semigroup ProposalAction where
-  ProposalAction add1 rem1 init1 <> ProposalAction add2 rem2 init2 =
+  ProposalAction add1 rem1 <> ProposalAction add2 rem2 =
     ProposalAction
       (Map.unionWith mappend add1 add2)
       (Map.unionWith mappend rem1 rem2)
-      (init1 <> init2)
 
 instance Monoid ProposalAction where
-  mempty = ProposalAction mempty mempty mempty
+  mempty = ProposalAction mempty mempty
 
 paAddClient :: ClientIdentity -> LeafIndex -> ProposalAction
 paAddClient cid idx = mempty {paAdd = cmSingleton cid idx}
 
 paRemoveClient :: ClientIdentity -> LeafIndex -> ProposalAction
 paRemoveClient cid idx = mempty {paRemove = cmSingleton cid idx}
-
-paExternalInitPresent :: ProposalAction
-paExternalInitPresent = mempty {paExternalInit = Any True}
 
 -- | This is used to sort proposals into the correct processing order, as defined by the spec
 data ProposalProcessingStage
@@ -232,10 +224,6 @@ applyProposal _mlsMeta _groupId (RemoveProposal idx) = do
   (cid, im') <- noteS @'MLSInvalidLeafNodeIndex $ imRemoveClient im idx
   put im'
   pure (paRemoveClient cid idx)
-applyProposal _mlsMeta _groupId (ExternalInitProposal _) =
-  -- only record the fact there was an external init proposal, but do not
-  -- process it in any way.
-  pure paExternalInitPresent
 applyProposal _mlsMeta _groupId _ = pure mempty
 
 processProposal ::
