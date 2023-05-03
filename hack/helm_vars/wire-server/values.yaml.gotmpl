@@ -136,7 +136,7 @@ brig:
         "d": "R8-pV2-sPN7dykV8HFJ73S64F3kMHTNnJiSN8UdWk_o"
       }
     rabbitmq:
-      username: {{ .Values.rabbitmqUser }}
+      username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
   tests:
     enableFederationTests: true
@@ -311,5 +311,5 @@ background-worker:
     remoteDomains: []
   secrets:
     rabbitmq:
-      username: {{ .Values.rabbitmqUser }}
+      username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
