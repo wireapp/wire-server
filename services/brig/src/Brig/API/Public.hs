@@ -628,14 +628,13 @@ createAccessToken ::
     MkLink endpoint Link ~ (ClientId -> Link)
   ) =>
   StdMethod ->
-  UserId ->
-  Text ->
+  Local UserId ->
   ClientId ->
   Proof ->
   (Handler r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken method uid host cid proof = do
+createAccessToken method luid cid proof = do
   let link = safeLink (Proxy @api) (Proxy @endpoint) cid
-  API.createAccessToken uid cid method link proof host !>> certEnrollmentError
+  API.createAccessToken luid cid method link proof !>> certEnrollmentError
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::
