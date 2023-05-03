@@ -28,6 +28,9 @@ set -euo pipefail
 # If you're not sure what test suite is being used call for help
 # ./cabal-run-integration.sh spar --help
 
+export RABBITMQ_USERNAME=guest
+export RABBITMQ_PASSWORD=alpaca-grapefruit
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TOP_LEVEL="$(cd "$DIR/../.." && pwd)"
 
