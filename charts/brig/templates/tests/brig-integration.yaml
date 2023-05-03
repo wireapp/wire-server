@@ -86,15 +86,9 @@ spec:
     {{- end }}
     {{- if .Values.config.enableFederation }}
     - name: RABBITMQ_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: brig
-          key: rabbitmqUsername
+      value: "guest"
     - name: RABBITMQ_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: brig
-          key: rabbitmqPassword
+      value: "guest"
     {{- end }}
     resources:
       requests:

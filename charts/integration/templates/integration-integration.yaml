@@ -70,3 +70,7 @@ spec:
       value: "dummy"
     - name: AWS_REGION
       value: "eu-west-1"
+    - name: RABBITMQ_USERNAME
+      value: "guest"
+    - name: RABBITMQ_PASSWORD
+      value: "guest"
