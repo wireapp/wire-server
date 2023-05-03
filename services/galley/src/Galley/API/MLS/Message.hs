@@ -343,17 +343,17 @@ postMLSMessageToLocalConv qusr c con msg convOrSubId = do
     void $ getSenderIdentity qusr c sender lConvOrSub
 
   -- validate message
-  events <- case msg.content of
+  case msg.content of
     IncomingMessageContentPublic pub -> case pub.content of
       FramedContentCommit _commit -> throwS @'MLSUnsupportedMessage
       FramedContentApplicationData _ -> throwS @'MLSUnsupportedMessage
       FramedContentProposal prop ->
-        processProposal qusr lConvOrSub msg.groupId msg.epoch pub prop $> mempty
-    IncomingMessageContentPrivate -> pure mempty
+        processProposal qusr lConvOrSub msg.groupId msg.epoch pub prop
+    IncomingMessageContentPrivate -> pure ()
 
   let cm = membersConvOrSub (tUnqualified lConvOrSub)
   unreachables <- propagateMessage qusr lConvOrSub con msg.rawMessage cm
-  pure (events, unreachables)
+  pure ([], unreachables)
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
