@@ -792,8 +792,7 @@ type CreateAccessToken =
              ( "Create an JWT DPoP access token for the client CSR, given a JWT DPoP proof, specified in the `DPoP` header. \
                \The access token will be returned as JWT DPoP token in the `DPoP` header."
              )
-        :> ZUser
-        :> ZHost
+        :> ZLocalUser
         :> "clients"
         :> CaptureClientId "cid"
         :> "access-token"
