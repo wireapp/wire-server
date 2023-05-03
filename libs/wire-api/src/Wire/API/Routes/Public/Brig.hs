@@ -793,11 +793,11 @@ type CreateAccessToken =
                \The access token will be returned as JWT DPoP token in the `DPoP` header."
              )
         :> ZUser
+        :> ZHost
         :> "clients"
         :> CaptureClientId "cid"
         :> "access-token"
         :> Header' '[Required, Strict] "DPoP" Proof
-        :> Header "Host" Text
         :> MultiVerb1
              'POST
              '[JSON]

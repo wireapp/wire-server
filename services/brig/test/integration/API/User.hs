@@ -66,7 +66,7 @@ tests e conf fbc fgc p b c ch g n aws db userJournalWatcher = do
   pure $
     testGroup
       "user"
-      [ API.User.Client.tests e cl at conf p db b c g,
+      [ API.User.Client.tests e cl at conf p db n b c g,
         API.User.Account.tests cl at conf p b c ch g aws userJournalWatcher,
         API.User.Auth.tests conf p z db b g n,
         API.User.Connection.tests cl at conf p b c g fbc fgc db,

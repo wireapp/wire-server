@@ -115,3 +115,8 @@ dependencies:
   repository: "file://../sftd"
   tags:
     - sftd
+- name: integration
+  version: "0.0.42"
+  repository: "file://../integration"
+  tags:
+    - integration
