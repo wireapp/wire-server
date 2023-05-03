@@ -207,9 +207,9 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
         & copyObject_metadataDirective ?~ MetadataDirective_REPLACE
         & copyObject_metadata .~ metaHeaders tok prc
 
-signedURL :: (ToByteString p) => p -> Maybe Text -> ExceptT Error App URI
-signedURL path mbHost = do
-  e <- awsEnvForHost mbHost
+signedURL :: (ToByteString p) => p -> Text -> ExceptT Error App URI
+signedURL path hostHeader = do
+  e <- awsEnvForHost
   let b = view AWS.s3Bucket e
   now <- liftIO getCurrentTime
   ttl <- view (settings . setDownloadLinkTTL)
@@ -227,15 +227,21 @@ signedURL path mbHost = do
         throwE serverError
       Right u -> pure u
 
-    awsEnvForHost :: Maybe Text -> ExceptT Error App AWS.Env
-    awsEnvForHost Nothing = view aws
-    awsEnvForHost (Just host) = do
+    awsEnvForHost :: ExceptT Error App AWS.Env
+    awsEnvForHost = do
       Log.debug $
-        "host" .= host
-          ~~ msg (val "awsEnvForHost")
-      mbEnv <- view (multiIngress . at (Text.unpack host))
+        "host" .= hostHeader
+          ~~ msg (val "awsEnvForHost - Looking up multiIngress config")
+      mbEnv <-
+        if Text.null hostHeader
+          then Just <$> view aws
+          else view (multiIngress . at (Text.unpack hostHeader))
       case mbEnv of
-        Nothing -> Imports.error $ "No env found for " ++ Text.unpack host
+        Nothing -> do
+          Log.warn $
+            "host" .= hostHeader
+              ~~ msg (val "awsEnvForHost - Lookup failed")
+          Imports.error $ "No env found for " ++ Text.unpack hostHeader
         Just e -> pure e
 
 mkKey :: V3.AssetKey -> S3AssetKey

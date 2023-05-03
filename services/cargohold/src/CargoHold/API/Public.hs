@@ -146,10 +146,10 @@ downloadAssetV3 ::
   AssetKey ->
   Maybe AssetToken ->
   Maybe AssetToken ->
-  Maybe Text ->
+  Text ->
   Handler (Maybe (AssetLocation Absolute))
-downloadAssetV3 usr key tok1 tok2 host = do
-  AssetLocation <$$> V3.download (mkPrincipal usr) key (tok1 <|> tok2) host
+downloadAssetV3 usr key tok1 tok2 hostHeader = do
+  AssetLocation <$$> V3.download (mkPrincipal usr) key (tok1 <|> tok2) hostHeader
 
 downloadAssetV4 ::
   () =>
@@ -157,15 +157,15 @@ downloadAssetV4 ::
   Qualified AssetKey ->
   Maybe AssetToken ->
   Maybe AssetToken ->
-  Maybe Text ->
+  Text ->
   Handler (Maybe LocalOrRemoteAsset)
-downloadAssetV4 usr qkey tok1 tok2 host =
+downloadAssetV4 usr qkey tok1 tok2 hostHeader =
   let tok = tok1 <|> tok2
    in foldQualified
         usr
         ( \lkey ->
             LocalAsset . AssetLocation
-              <$$> V3.download (mkPrincipal usr) (tUnqualified lkey) tok host
+              <$$> V3.download (mkPrincipal usr) (tUnqualified lkey) tok hostHeader
         )
         ( \rkey ->
             RemoteAsset
