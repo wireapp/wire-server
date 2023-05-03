@@ -125,7 +125,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
             throwS @'MLSSelfRemovalNotAllowed
 
           -- FUTUREWORK: add tests against this situation for conv v subconv
-          when (not (is _SubConv convOrSub) && removedClients /= clientsInConv) $ do
+          when (removedClients /= clientsInConv) $ do
             -- FUTUREWORK: turn this error into a proper response
             throwS @'MLSClientMismatch
 
