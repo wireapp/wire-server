@@ -31,6 +31,7 @@ module Wire.API.Routes.Public
     ZConversation,
     ZProvider,
     DescriptionOAuthScope,
+    ZHost,
   )
 where
 
@@ -43,7 +44,7 @@ import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.String.Conversions
-import Data.Swagger
+import Data.Swagger hiding (Header)
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (All, head)
@@ -52,6 +53,7 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Modifiers
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
+import Servant.Server.Internal.Router (Router)
 import Servant.Swagger (HasSwagger (toSwagger))
 import qualified Wire.API.OAuth as OAuth
 
@@ -186,6 +188,14 @@ type ZOptClient = ZAuthServant 'ZAuthClient '[Servant.Optional, Servant.Strict]
 
 type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict]
 
+data ZHost
+
+type ZHostHeader =
+  Header' '[Required, Strict] "Z-Host" Text
+
+instance HasSwagger api => HasSwagger (ZHost :> api) where
+  toSwagger _ = toSwagger (Proxy @api)
+
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) where
   toSwagger _ =
     toSwagger (Proxy @api)
@@ -201,8 +211,8 @@ instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) whe
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZLocalAuthUser opts :> api) where
   toSwagger _ = toSwagger (Proxy @(ZAuthServant 'ZAuthUser opts :> api))
 
-instance HasLink endpoint => HasLink (ZAuthServant usr opts :> endpoint) where
-  type MkLink (ZAuthServant _ _ :> endpoint) a = MkLink endpoint a
+instance HasLink endpoint => HasLink (ZAuthServant usr opts :> ZHost :> endpoint) where
+  type MkLink (ZAuthServant _ _ :> ZHost :> endpoint) a = MkLink endpoint a
   toLink toA _ = toLink toA (Proxy @endpoint)
 
 instance
@@ -211,6 +221,21 @@ instance
   HasSwagger (ZAuthServant ztype _opts :> api)
   where
   toSwagger _ = toSwagger (Proxy @api)
+
+instance
+  ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+    HasServer api ctx
+  ) =>
+  HasServer (ZHost :> api) ctx
+  where
+  type ServerT (ZHost :> api) m = Text -> ServerT api m
+  route ::
+    Proxy (ZHost :> api) ->
+    Context ctx ->
+    Delayed env (Server (ZHost :> api)) ->
+    Router env
+  route _ = route (Proxy @(ZHostHeader :> api))
+  hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
 instance
   ( IsZType ztype ctx,
@@ -250,6 +275,9 @@ instance
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
 instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts :> api) where
+  getRoutes = getRoutes @api
+
+instance RoutesToPaths api => RoutesToPaths (ZHost :> api) where
   getRoutes = getRoutes @api
 
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
