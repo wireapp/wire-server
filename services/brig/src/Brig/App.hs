@@ -307,9 +307,9 @@ mkRabbitMqChannel (Opt.rabbitmq -> Just Opt.RabbitMqOpts {..}) = do
   username <- Text.pack <$> getEnv "RABBITMQ_USERNAME"
   password <- Text.pack <$> getEnv "RABBITMQ_PASSWORD"
   conn <- Q.openConnection' host (fromIntegral port) vHost username password
-  -- TODO: Q.addConnectionClosedHandler
-  -- TODO: Q.addConnectionBlockedHandler (Probably not required: https://www.rabbitmq.com/connection-blocked.html)
-  -- TODO: Q.addChannelExceptionHandler
+  -- TODO(elland): Q.addConnectionClosedHandler
+  -- TODO(elland): Q.addConnectionBlockedHandler (Probably not required: https://www.rabbitmq.com/connection-blocked.html)
+  -- TODO(elland): Q.addChannelExceptionHandler
   Just <$> Q.openChannel conn
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv

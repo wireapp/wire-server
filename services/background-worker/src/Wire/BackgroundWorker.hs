@@ -5,7 +5,7 @@ import qualified Wire.BackendNotificationPusher as BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 
--- TODO: Start an http service with status and metrics endpoints
+-- TODO(elland): Start an http service with status and metrics endpoints
 run :: Opts -> IO ()
 run opts = do
   env <- mkEnv opts

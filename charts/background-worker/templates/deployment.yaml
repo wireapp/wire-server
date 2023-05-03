@@ -9,7 +9,7 @@ metadata:
     heritage: {{ .Release.Service }}
 spec:
   replicas: {{ .Values.replicaCount }}
-  # TODO: Review this
+  # TODO(elland): Review this
   strategy:
     type: RollingUpdate
     rollingUpdate:

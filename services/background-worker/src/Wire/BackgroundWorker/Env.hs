@@ -13,7 +13,7 @@ import Wire.BackgroundWorker.Options
 
 data Env = Env
   { http2Manager :: Http2Manager,
-    -- TODO: Find out if there are benefits of having one channel for everything
+    -- TODO(elland): Find out if there are benefits of having one channel for everything
     -- or should we create more channels?
     rabbitmqChannel :: IORef Q.Channel,
     federatorInternal :: Endpoint
@@ -43,7 +43,7 @@ initRabbitMq opts = do
   username <- Text.pack <$> getEnv "RABBITMQ_USERNAME"
   password <- Text.pack <$> getEnv "RABBITMQ_PASSWORD"
   conn <- Q.openConnection' opts.host (fromIntegral opts.port) opts.vHost username password
-  -- TODO: Q.addConnectionClosedHandler
-  -- TODO: Q.addConnectionBlockedHandler (Probably not required: https://www.rabbitmq.com/connection-blocked.html)
-  -- TODO: Q.addChannelExceptionHandler
+  -- TODO(elland): Q.addConnectionClosedHandler
+  -- TODO(elland): Q.addConnectionBlockedHandler (Probably not required: https://www.rabbitmq.com/connection-blocked.html)
+  -- TODO(elland): Q.addChannelExceptionHandler
   Q.openChannel conn

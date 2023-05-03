@@ -15,7 +15,7 @@ data BackendNotificationContent
   = OnUserDeletedConnections UserDeletedConnectionsNotification
   deriving (Generic)
 
--- TODO: use schema-profunctor, or not, who cares what this serialized to
+-- TODO(elland): use schema-profunctor, or not, who cares what this serialized touse schema
 instance ToJSON BackendNotificationContent
 
 instance FromJSON BackendNotificationContent

@@ -10,7 +10,7 @@ import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.BackgroundWorker.Env
 
--- TODO: This calls the callback for next notification even if one fails,
+-- TODO(elland): This calls the callback for next notification even if one fails,
 -- implement some sort of blocking, which causes push back so memory doesn't
 -- blow up.
 startPushingNotifications ::
@@ -37,13 +37,13 @@ pushNotification env targetDomain (msg, envelope) = do
                     ceHttp2Manager = env.http2Manager
                   }
           liftIO (sendNotification fcEnv notif.content)
-            -- TODO: Deal with this error
+            -- TODO(elland): Deal with this error
             >>= either throwIO pure
           Q.ackEnv envelope
         _ -> undefined
 
 startWorker :: Env -> [Domain] -> IO ()
 startWorker env remoteDomains = do
-  -- TODO: Watch these and respawn if needed
+  -- TODO(elland): Watch these and respawn if needed
   flip runReaderT env $ mapM_ startPushingNotifications remoteDomains
   forever $ threadDelay maxBound
