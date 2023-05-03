@@ -121,7 +121,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Internal.Notification hiding (target)
-import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
@@ -2899,32 +2899,33 @@ wsAssertConvReceiptModeUpdate conv usr new n = do
   evtFrom e @?= usr
   evtData e @?= EdConvReceiptModeUpdate (ConversationReceiptModeUpdate new)
 
-wsAssertBackendRemoveProposalWithEpoch :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Epoch -> Notification -> IO ByteString
-wsAssertBackendRemoveProposalWithEpoch fromUser convId kpref epoch n = do
-  bs <- wsAssertBackendRemoveProposal fromUser (Conv <$> convId) kpref n
-  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' @(Message 'MLSPlainText) bs
-  let tbs = rmValue . msgTBS $ msg
-  tbsMsgEpoch tbs @?= epoch
+wsAssertBackendRemoveProposalWithEpoch :: HasCallStack => Qualified UserId -> Qualified ConvId -> LeafIndex -> Epoch -> Notification -> IO ByteString
+wsAssertBackendRemoveProposalWithEpoch fromUser convId idx epoch n = do
+  bs <- wsAssertBackendRemoveProposal fromUser (Conv <$> convId) idx n
+  let msg = fromRight (error "Failed to parse Message") $ decodeMLS' @Message bs
+  case msg.content of
+    MessagePublic pmsg -> liftIO $ pmsg.content.value.epoch @?= epoch
+    _ -> assertFailure "unexpected message content"
   pure bs
 
-wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvOrSubConvId -> KeyPackageRef -> Notification -> IO ByteString
-wsAssertBackendRemoveProposal fromUser cnvOrSubCnv kpref n = do
+wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvOrSubConvId -> LeafIndex -> Notification -> IO ByteString
+wsAssertBackendRemoveProposal fromUser cnvOrSubCnv idx n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= convOfConvOrSub <$> cnvOrSubCnv
   evtType e @?= MLSMessageAdd
   evtFrom e @?= fromUser
   let bs = getMLSMessageData (evtData e)
-  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' bs
-  let tbs = rmValue . msgTBS $ msg
-  tbsMsgSender tbs @?= PreconfiguredSender 0
-  case tbsMsgPayload tbs of
-    ProposalMessage rp ->
-      case rmValue rp of
-        RemoveProposal kpRefRemove ->
-          kpRefRemove @?= kpref
-        otherProp -> assertFailure $ "Expected RemoveProposal but got " <> show otherProp
-    otherPayload -> assertFailure $ "Expected ProposalMessage but got " <> show otherPayload
+  let msg = fromRight (error "Failed to parse Message") $ decodeMLS' @Message bs
+  liftIO $ case msg.content of
+    MessagePublic pmsg -> do
+      pmsg.content.value.sender @?= SenderExternal 0
+      case pmsg.content.value.content of
+        FramedContentProposal prop -> case prop.value of
+          RemoveProposal removedIdx -> removedIdx @?= idx
+          otherProp -> assertFailure $ "Expected RemoveProposal but got " <> show otherProp
+        otherPayload -> assertFailure $ "Expected ProposalMessage but got " <> show otherPayload
+    _ -> assertFailure $ "Expected PublicMessage"
   pure bs
   where
     getMLSMessageData :: Conv.EventData -> ByteString
@@ -2944,19 +2945,16 @@ wsAssertAddProposal fromUser convId n = do
   evtType e @?= MLSMessageAdd
   evtFrom e @?= fromUser
   let bs = getMLSMessageData (evtData e)
-  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' bs
-  let tbs = rmValue . msgTBS $ msg
-  tbsMsgSender tbs @?= NewMemberSender
-  case tbsMsgPayload tbs of
-    ProposalMessage rp ->
-      case rmValue rp of
-        AddProposal _ -> pure ()
-        otherProp ->
-          assertFailure $
-            "Expected AddProposal but got " <> show otherProp
-    otherPayload ->
-      assertFailure $
-        "Expected ProposalMessage but got " <> show otherPayload
+  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' @Message bs
+  liftIO $ case msg.content of
+    MessagePublic pmsg -> do
+      pmsg.content.value.sender @?= SenderNewMemberProposal
+      case pmsg.content.value.content of
+        FramedContentProposal prop -> case prop.value of
+          AddProposal _ -> pure ()
+          otherProp -> assertFailure $ "Expected AddProposal but got " <> show otherProp
+        otherPayload -> assertFailure $ "Expected ProposalMessage but got " <> show otherPayload
+    _ -> assertFailure $ "Expected PublicMessage"
   pure bs
   where
     getMLSMessageData :: Conv.EventData -> ByteString

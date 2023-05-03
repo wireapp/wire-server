@@ -444,6 +444,8 @@ CREATE TABLE galley_test.mls_group_member_client (
     user uuid,
     client text,
     key_package_ref blob,
+    leaf_node_index int,
+    removal_pending boolean,
     PRIMARY KEY (group_id, user_domain, user, client)
 ) WITH CLUSTERING ORDER BY (user_domain ASC, user ASC, client ASC)
     AND bloom_filter_fp_chance = 0.01

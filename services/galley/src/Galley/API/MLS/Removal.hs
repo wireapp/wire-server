@@ -22,6 +22,7 @@ module Galley.API.MLS.Removal
   )
 where
 
+import Data.Bifunctor
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
@@ -32,9 +33,9 @@ import Galley.API.MLS.Propagate
 import Galley.API.MLS.Types
 import qualified Galley.Data.Conversation.Types as Data
 import Galley.Effects
+import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Galley.Effects.SubConversationStore
-import qualified Galley.Effects.SubConversationStore as E
 import Galley.Env
 import Imports
 import Polysemy
@@ -42,8 +43,9 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
 import Wire.API.Conversation.Protocol
+import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
@@ -61,7 +63,7 @@ createAndSendRemoveProposals ::
     Foldable t
   ) =>
   Local ConvOrSubConv ->
-  t KeyPackageRef ->
+  t LeafIndex ->
   Qualified UserId ->
   -- | The client map that has all the recipients of the message. This is an
   -- argument, and not constructed within the function, because of a special
@@ -71,24 +73,31 @@ createAndSendRemoveProposals ::
   -- conversation/subconversation client maps.
   ClientMap ->
   Sem r ()
-createAndSendRemoveProposals lConvOrSubConv cs qusr cm = do
+createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
   let meta = mlsMetaConvOrSub (tUnqualified lConvOrSubConv)
   mKeyPair <- getMLSRemovalKey
   case mKeyPair of
     Nothing -> do
       warn $ Log.msg ("No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Not able to remove client from MLS conversation." :: Text)
     Just (secKey, pubKey) -> do
-      for_ cs $ \kpref -> do
-        let proposal = mkRemoveProposal kpref
-            msg = mkSignedMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) (ProposalMessage proposal)
-            msgEncoded = encodeMLS' msg
+      for_ indices $ \idx -> do
+        let proposal = mkRawMLS (RemoveProposal idx)
+            pmsg =
+              mkSignedPublicMessage
+                secKey
+                pubKey
+                (cnvmlsGroupId meta)
+                (cnvmlsEpoch meta)
+                (TaggedSenderExternal 0)
+                (FramedContentProposal proposal)
+            msg = mkRawMLS (mkMessage (MessagePublic pmsg))
         storeProposal
           (cnvmlsGroupId meta)
           (cnvmlsEpoch meta)
-          (proposalRef (cnvmlsCipherSuite meta) proposal)
+          (publicMessageRef (cnvmlsCipherSuite meta) pmsg)
           ProposalOriginBackend
           proposal
-        propagateMessage qusr lConvOrSubConv Nothing msgEncoded cm
+        propagateMessage qusr lConvOrSubConv Nothing msg cm
 
 removeClientsWithClientMapRecursively ::
   ( Members
@@ -97,30 +106,41 @@ removeClientsWithClientMapRecursively ::
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
+         MemberStore,
          ProposalStore,
          SubConversationStore,
          Input Env
        ]
       r,
+    Functor f,
     Foldable f
   ) =>
   Local MLSConversation ->
-  (ConvOrSubConv -> f KeyPackageRef) ->
+  (ConvOrSubConv -> f (ClientIdentity, LeafIndex)) ->
+  -- | Originating user. The resulting proposals will appear to be sent by this user.
   Qualified UserId ->
   Sem r ()
-removeClientsWithClientMapRecursively lMlsConv getKPs qusr = do
+removeClientsWithClientMapRecursively lMlsConv getClients qusr = do
   let mainConv = fmap Conv lMlsConv
       cm = mcMembers (tUnqualified lMlsConv)
-  createAndSendRemoveProposals mainConv (getKPs (tUnqualified mainConv)) qusr cm
+  do
+    let gid = cnvmlsGroupId . mcMLSData . tUnqualified $ lMlsConv
+        clients = getClients (tUnqualified mainConv)
+
+    planClientRemoval gid (fmap fst clients)
+    createAndSendRemoveProposals mainConv (fmap snd clients) qusr cm
 
   -- remove this client from all subconversations
   subs <- listSubConversations' (mcId (tUnqualified lMlsConv))
   for_ subs $ \sub -> do
     let subConv = fmap (flip SubConv sub) lMlsConv
+        sgid = cnvmlsGroupId . scMLSData $ sub
+        clients = getClients (tUnqualified subConv)
 
+    planClientRemoval sgid (fmap fst clients)
     createAndSendRemoveProposals
       subConv
-      (getKPs (tUnqualified subConv))
+      (fmap snd clients)
       qusr
       cm
 
@@ -140,11 +160,12 @@ removeClient ::
   Qualified UserId ->
   ClientId ->
   Sem r ()
-removeClient lc qusr cid = do
+removeClient lc qusr c = do
   mMlsConv <- mkMLSConversation (tUnqualified lc)
   for_ mMlsConv $ \mlsConv -> do
-    let getKPs = cmLookupRef (mkClientIdentity qusr cid) . membersConvOrSub
-    removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getKPs qusr
+    let cid = mkClientIdentity qusr c
+    let getClients = fmap (cid,) . cmLookupIndex cid . membersConvOrSub
+    removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getClients qusr
 
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::
@@ -164,8 +185,13 @@ removeUser ::
 removeUser lc qusr = do
   mMlsConv <- mkMLSConversation (tUnqualified lc)
   for_ mMlsConv $ \mlsConv -> do
-    let getKPs = Map.findWithDefault mempty qusr . membersConvOrSub
-    removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getKPs qusr
+    let getClients :: ConvOrSubConv -> [(ClientIdentity, LeafIndex)]
+        getClients =
+          map (first (mkClientIdentity qusr))
+            . Map.assocs
+            . Map.findWithDefault mempty qusr
+            . membersConvOrSub
+    removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getClients qusr
 
 -- | Convert cassandra subconv maps into SubConversations
 listSubConversations' ::
@@ -173,7 +199,7 @@ listSubConversations' ::
   ConvId ->
   Sem r [SubConversation]
 listSubConversations' cid = do
-  subs <- E.listSubConversations cid
+  subs <- listSubConversations cid
   msubs <- for (Map.assocs subs) $ \(subId, _) -> do
     getSubConversation cid subId
   pure (catMaybes msubs)

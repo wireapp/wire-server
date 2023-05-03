@@ -22,12 +22,7 @@ module Galley.Intra.Client
     addLegalHoldClientToUser,
     removeLegalHoldClientFromUser,
     getLegalHoldAuthToken,
-    getClientByKeyPackageRef,
     getLocalMLSClients,
-    addKeyPackageRef,
-    updateKeyPackageRef,
-    validateAndAddKeyPackageRef,
-    deleteKeyPackageRefs,
   )
 where
 
@@ -35,14 +30,12 @@ import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
-import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Misc
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Text.Encoding
-import Data.Text.Lazy (toStrict)
 import Galley.API.Error
 import Galley.Effects
 import Galley.Env
@@ -50,22 +43,16 @@ import Galley.External.LegalHoldService.Types
 import Galley.Intra.Util
 import Galley.Monad
 import Imports
-import qualified Network.HTTP.Client as Rq
-import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error hiding (Error)
-import qualified Network.Wai.Utilities.Error as Error
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
-import Servant
 import qualified System.Logger.Class as Logger
 import Wire.API.Error.Galley
-import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
-import Wire.API.Routes.Internal.Brig
+import Wire.API.MLS.CipherSuite
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -183,18 +170,6 @@ brigAddClient uid connId client = do
     then Right <$> parseResponse (mkError status502 "server-error") r
     else pure (Left ReAuthFailed)
 
--- | Calls 'Brig.API.Internal.getClientByKeyPackageRef'.
-getClientByKeyPackageRef :: KeyPackageRef -> App (Maybe ClientIdentity)
-getClientByKeyPackageRef ref = do
-  r <-
-    call Brig $
-      method GET
-        . paths ["i", "mls", "key-packages", toHeader ref]
-        . expectStatus (flip elem [200, 404])
-  if statusCode (responseStatus r) == 200
-    then Just <$> parseResponse (mkError status502 "server-error") r
-    else pure Nothing
-
 -- | Calls 'Brig.API.Internal.getMLSClients'.
 getLocalMLSClients :: Local UserId -> SignatureSchemeTag -> App (Set ClientInfo)
 getLocalMLSClients lusr ss =
@@ -211,53 +186,3 @@ getLocalMLSClients lusr ss =
         . expect2xx
     )
     >>= parseResponse (mkError status502 "server-error")
-
-deleteKeyPackageRefs :: [KeyPackageRef] -> App ()
-deleteKeyPackageRefs refs =
-  void $
-    call
-      Brig
-      ( method DELETE
-          . paths ["i", "mls", "key-packages"]
-          . json (DeleteKeyPackageRefsRequest refs)
-          . expect2xx
-      )
-
-addKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> App ()
-addKeyPackageRef ref qusr cl qcnv =
-  void $
-    call
-      Brig
-      ( method PUT
-          . paths ["i", "mls", "key-packages", toHeader ref]
-          . json (NewKeyPackageRef qusr cl qcnv)
-          . expect2xx
-      )
-
-updateKeyPackageRef :: KeyPackageUpdate -> App ()
-updateKeyPackageRef keyPackageRef =
-  void $
-    call
-      Brig
-      ( method POST
-          . paths ["i", "mls", "key-packages", toHeader $ kpupPrevious keyPackageRef]
-          . json (kpupNext keyPackageRef)
-          . expect2xx
-      )
-
-validateAndAddKeyPackageRef :: NewKeyPackage -> App (Either Text NewKeyPackageResult)
-validateAndAddKeyPackageRef nkp = do
-  res <-
-    call
-      Brig
-      ( method PUT
-          . paths ["i", "mls", "key-package-add"]
-          . json nkp
-      )
-  let statusCode = HTTP.statusCode (Rq.responseStatus res)
-  if
-      | statusCode `div` 100 == 2 -> Right <$> parseResponse (mkError status502 "server-error") res
-      | statusCode `div` 100 == 4 -> do
-          err <- parseResponse (mkError status502 "server-error") res
-          pure (Left ("Error validating keypackage: " <> toStrict (Error.label err) <> ": " <> toStrict (Error.message err)))
-      | otherwise -> throwM (mkError status502 "server-error" "Unexpected http status returned from /i/mls/key-packages/add")

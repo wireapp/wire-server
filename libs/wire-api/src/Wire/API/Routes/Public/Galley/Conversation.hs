@@ -33,7 +33,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Servant
 import Wire.API.MLS.SubConversation
 import Wire.API.MakesFederatedCall
@@ -213,7 +213,7 @@ type ConversationAPI =
                     ( Respond
                         200
                         "The group information"
-                        OpaquePublicGroupState
+                        GroupInfoData
                     )
            )
     :<|> Named
@@ -371,7 +371,6 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> Until 'V3
                :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'NotConnected
@@ -380,7 +379,6 @@ type ConversationAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
-               :> ZOptClient
                :> ZOptConn
                :> "conversations"
                :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
@@ -394,7 +392,6 @@ type ConversationAPI =
                :> From 'V3
                :> Until 'V4
                :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'NotConnected
@@ -403,7 +400,6 @@ type ConversationAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
-               :> ZOptClient
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
@@ -415,7 +411,6 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> From 'V4
                :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'NotConnected
@@ -424,7 +419,6 @@ type ConversationAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
-               :> ZOptClient
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
@@ -551,7 +545,7 @@ type ConversationAPI =
                     ( Respond
                         200
                         "The group information"
-                        OpaquePublicGroupState
+                        GroupInfoData
                     )
            )
     -- This endpoint can lead to the following events being sent:
@@ -1261,7 +1255,6 @@ type ConversationAPI =
                :> CanThrow 'ConvInvalidProtocolTransition
                :> CanThrow 'ConvMemberNotFound
                :> ZLocalUser
-               :> ZClient
                :> ZConn
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId

@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,25 +17,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
-  )
-where
+module Wire.API.MLS.HPKEPublicKey where
 
 import Imports
-import Test.Tasty
-import qualified Test.Wire.API.Golden.FromJSON as Golden.FromJSON
-import qualified Test.Wire.API.Golden.Generated as Golden.Generated
-import qualified Test.Wire.API.Golden.Manual as Golden.Manual
-import qualified Test.Wire.API.Golden.Protobuf as Golden.Protobuf
+import Test.QuickCheck
+import Wire.API.MLS.Serialisation
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Golden.Generated.tests,
-        Golden.Manual.tests,
-        Golden.FromJSON.tests,
-        Golden.Protobuf.tests
-      ]
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-5.1.1-2
+newtype HPKEPublicKey = HPKEPublicKey {unHPKEPublicKey :: ByteString}
+  deriving (Show, Eq, Arbitrary)
+
+instance ParseMLS HPKEPublicKey where
+  parseMLS = HPKEPublicKey <$> parseMLSBytes @VarInt
+
+instance SerialiseMLS HPKEPublicKey where
+  serialiseMLS = serialiseMLSBytes @VarInt . unHPKEPublicKey

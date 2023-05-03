@@ -1,7 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneKindSignatures #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -19,52 +15,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.MLS.Extension
-  ( -- * Extensions
-    Extension (..),
-    decodeExtension,
-    parseExtension,
-    ExtensionTag (..),
-    CapabilitiesExtensionTagSym0,
-    LifetimeExtensionTagSym0,
-    SExtensionTag (..),
-    SomeExtension (..),
-    Capabilities (..),
-    Lifetime (..),
-
-    -- * Other types
-    Timestamp (..),
-    ProtocolVersion (..),
-    ProtocolVersionTag (..),
-
-    -- * Utilities
-    pvTag,
-    tsPOSIX,
-  )
-where
+module Wire.API.MLS.Extension where
 
 import Data.Binary
-import Data.Kind
-import Data.Singletons.TH
-import Data.Time.Clock.POSIX
 import Imports
-import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
-newtype ProtocolVersion = ProtocolVersion {pvNumber :: Word8}
-  deriving newtype (Eq, Ord, Show, Binary, Arbitrary, ParseMLS, SerialiseMLS)
-
-data ProtocolVersionTag = ProtocolMLS10 | ProtocolMLSDraft11
-  deriving stock (Bounded, Enum, Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform ProtocolVersionTag
-
-pvTag :: ProtocolVersion -> Maybe ProtocolVersionTag
-pvTag (ProtocolVersion v) = case v of
-  1 -> pure ProtocolMLS10
-  200 -> pure ProtocolMLSDraft11
-  _ -> Nothing
-
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.2-2
 data Extension = Extension
   { extType :: Word16,
     extData :: ByteString
@@ -73,78 +31,9 @@ data Extension = Extension
   deriving (Arbitrary) via GenericUniform Extension
 
 instance ParseMLS Extension where
-  parseMLS = Extension <$> parseMLS <*> parseMLSBytes @Word32
+  parseMLS = Extension <$> parseMLS <*> parseMLSBytes @VarInt
 
 instance SerialiseMLS Extension where
   serialiseMLS (Extension ty d) = do
     serialiseMLS ty
-    serialiseMLSBytes @Word32 d
-
-data ExtensionTag
-  = CapabilitiesExtensionTag
-  | LifetimeExtensionTag
-  deriving (Bounded, Enum)
-
-$(genSingletons [''ExtensionTag])
-
-type family ExtensionType (t :: ExtensionTag) :: Type where
-  ExtensionType 'CapabilitiesExtensionTag = Capabilities
-  ExtensionType 'LifetimeExtensionTag = Lifetime
-
-parseExtension :: Sing t -> Get (ExtensionType t)
-parseExtension SCapabilitiesExtensionTag = parseMLS
-parseExtension SLifetimeExtensionTag = parseMLS
-
-data SomeExtension where
-  SomeExtension :: Sing t -> ExtensionType t -> SomeExtension
-
-instance Eq SomeExtension where
-  SomeExtension SCapabilitiesExtensionTag caps1 == SomeExtension SCapabilitiesExtensionTag caps2 = caps1 == caps2
-  SomeExtension SLifetimeExtensionTag lt1 == SomeExtension SLifetimeExtensionTag lt2 = lt1 == lt2
-  _ == _ = False
-
-instance Show SomeExtension where
-  show (SomeExtension SCapabilitiesExtensionTag caps) = show caps
-  show (SomeExtension SLifetimeExtensionTag lt) = show lt
-
-decodeExtension :: Extension -> Either Text (Maybe SomeExtension)
-decodeExtension e = do
-  case toMLSEnum' (extType e) of
-    Left MLSEnumUnknown -> pure Nothing
-    Left MLSEnumInvalid -> Left "Invalid extension type"
-    Right t -> withSomeSing t $ \st ->
-      Just <$> decodeMLSWith' (SomeExtension st <$> parseExtension st) (extData e)
-
-data Capabilities = Capabilities
-  { capVersions :: [ProtocolVersion],
-    capCiphersuites :: [CipherSuite],
-    capExtensions :: [Word16],
-    capProposals :: [Word16]
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform Capabilities)
-
-instance ParseMLS Capabilities where
-  parseMLS =
-    Capabilities
-      <$> parseMLSVector @Word8 parseMLS
-      <*> parseMLSVector @Word8 parseMLS
-      <*> parseMLSVector @Word8 parseMLS
-      <*> parseMLSVector @Word8 parseMLS
-
--- | Seconds since the UNIX epoch.
-newtype Timestamp = Timestamp {timestampSeconds :: Word64}
-  deriving newtype (Eq, Show, Arbitrary, ParseMLS)
-
-tsPOSIX :: Timestamp -> POSIXTime
-tsPOSIX = fromIntegral . timestampSeconds
-
-data Lifetime = Lifetime
-  { ltNotBefore :: Timestamp,
-    ltNotAfter :: Timestamp
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform Lifetime
-
-instance ParseMLS Lifetime where
-  parseMLS = Lifetime <$> parseMLS <*> parseMLS
+    serialiseMLSBytes @VarInt d

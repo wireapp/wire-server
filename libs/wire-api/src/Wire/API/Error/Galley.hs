@@ -72,7 +72,7 @@ data GalleyError
     MLSNotEnabled
   | MLSNonEmptyMemberList
   | MLSDuplicatePublicKey
-  | MLSKeyPackageRefNotFound
+  | MLSInvalidLeafNodeIndex
   | MLSUnsupportedMessage
   | MLSProposalNotFound
   | MLSUnsupportedProposal
@@ -85,7 +85,6 @@ data GalleyError
   | MLSClientSenderUserMismatch
   | MLSWelcomeMismatch
   | MLSMissingGroupInfo
-  | MLSMissingSenderClient
   | MLSUnexpectedSenderClient
   | MLSSubConvUnsupportedConvType
   | MLSSubConvClientNotInParent
@@ -201,7 +200,7 @@ type instance MapError 'MLSNonEmptyMemberList = 'StaticError 400 "non-empty-memb
 
 type instance MapError 'MLSDuplicatePublicKey = 'StaticError 400 "mls-duplicate-public-key" "MLS public key for the given signature scheme already exists"
 
-type instance MapError 'MLSKeyPackageRefNotFound = 'StaticError 404 "mls-key-package-ref-not-found" "A referenced key package could not be mapped to a known client"
+type instance MapError 'MLSInvalidLeafNodeIndex = 'StaticError 400 "mls-invalid-leaf-node-index" "A referenced leaf node index points to a blank or non-existing node"
 
 type instance MapError 'MLSUnsupportedMessage = 'StaticError 422 "mls-unsupported-message" "Attempted to send a message with an unsupported combination of content type and wire format"
 
@@ -226,8 +225,6 @@ type instance MapError 'MLSClientSenderUserMismatch = 'StaticError 400 "mls-clie
 type instance MapError 'MLSWelcomeMismatch = 'StaticError 400 "mls-welcome-mismatch" "The list of targets of a welcome message does not match the list of new clients in a group"
 
 type instance MapError 'MLSMissingGroupInfo = 'StaticError 404 "mls-missing-group-info" "The conversation has no group information"
-
-type instance MapError 'MLSMissingSenderClient = 'StaticError 403 "mls-missing-sender-client" "The client has to refresh their access token and provide their client ID"
 
 type instance MapError 'MLSSubConvUnsupportedConvType = 'StaticError 403 "mls-subconv-unsupported-convtype" "MLS subconversations are only supported for regular conversations"
 

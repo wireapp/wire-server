@@ -26,6 +26,7 @@ import Cassandra.Schema
 import Imports
 import Text.RawString.QQ
 
+-- FUTUREWORK: remove this table
 migration :: Migration
 migration =
   Migration 69 "Add key package ref mapping" $

@@ -43,7 +43,6 @@ import Data.Time
 import qualified Data.UUID.Tagged as U
 import Galley.API.Error
 import Galley.API.MLS
-import Galley.API.MLS.KeyPackage (nullKeyPackageRef)
 import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.Mapping
 import Galley.API.One2One
@@ -70,7 +69,6 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import Wire.API.Conversation hiding (Conversation, Member)
-import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -90,7 +88,6 @@ import Wire.API.Team.Permission hiding (self)
 createGroupConversationUpToV3 ::
   ( Member BrigAccess r,
     Member ConversationStore r,
-    Member MemberStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -100,7 +97,6 @@ createGroupConversationUpToV3 ::
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -108,18 +104,17 @@ createGroupConversationUpToV3 ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
+    Member MemberStore r,
     Member TeamStore r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Maybe ClientId ->
   Maybe ConnId ->
   NewConv ->
   Sem r ConversationResponse
-createGroupConversationUpToV3 lusr mCreatorClient conn newConv =
+createGroupConversationUpToV3 lusr conn newConv =
   createGroupConversationGeneric
     lusr
-    mCreatorClient
     conn
     newConv
     (const conversationCreated)
@@ -129,7 +124,6 @@ createGroupConversationUpToV3 lusr mCreatorClient conn newConv =
 createGroupConversation ::
   ( Member BrigAccess r,
     Member ConversationStore r,
-    Member MemberStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -139,7 +133,6 @@ createGroupConversation ::
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -147,18 +140,17 @@ createGroupConversation ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
+    Member MemberStore r,
     Member TeamStore r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Maybe ClientId ->
   Maybe ConnId ->
   NewConv ->
   Sem r CreateGroupConversationResponse
-createGroupConversation lusr mCreatorClient conn newConv =
+createGroupConversation lusr conn newConv =
   createGroupConversationGeneric
     lusr
-    mCreatorClient
     conn
     newConv
     groupConversationCreated
@@ -176,7 +168,6 @@ createGroupConversationGeneric ::
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -188,7 +179,6 @@ createGroupConversationGeneric ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Maybe ClientId ->
   Maybe ConnId ->
   NewConv ->
   -- | The function that incorporates the failed to add remote users in the
@@ -196,7 +186,7 @@ createGroupConversationGeneric ::
   -- ignores the first argument.
   (Set (Remote UserId) -> Local UserId -> Conversation -> Sem r resp) ->
   Sem r resp
-createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
+createGroupConversationGeneric lusr conn newConv convCreated = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   let tinfo = newConvTeam newConv
   checkCreateConvPermissions lusr newConv tinfo allUsers
@@ -217,14 +207,6 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
   -- conversation is already in the database.
   failedToNotify <- do
     conv <- E.createConversation lcnv nc
-
-    -- set creator client for MLS conversations
-    case (convProtocol conv, mCreatorClient) of
-      (ProtocolProteus, _) -> pure ()
-      (ProtocolMLS mlsMeta, Just c) ->
-        E.addMLSClients (cnvmlsGroupId mlsMeta) (tUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
-      (ProtocolMLS _mlsMeta, Nothing) -> throwS @'MLSMissingSenderClient
-      (ProtocolMixed _mlsMeta, _) -> pure ()
 
     -- NOTE: We only send (conversation) events to members of the conversation
     failedToNotify <- notifyCreatedConversation lusr conn conv

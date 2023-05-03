@@ -61,7 +61,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Internal.Notification (ntfTransient)
-import Wire.API.MLS.Credential
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -686,7 +686,7 @@ claimRemoteKeyPackages brig1 brig2 = do
     for_ bobClients $ \c ->
       uploadKeyPackages brig2 tmp def bob c 5
 
-  bundle <-
+  bundle :: KeyPackageBundle <-
     responseJsonError
       =<< post
         ( brig1
@@ -696,7 +696,7 @@ claimRemoteKeyPackages brig1 brig2 = do
         <!! const 200 === statusCode
 
   liftIO $
-    Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle)
+    Set.map (\e -> (e.user, e.client)) bundle.entries
       @?= Set.fromList [(bob, c) | c <- bobClients]
 
 -- bob creates an MLS conversation on domain 2 with alice on domain 1, then sends a
@@ -719,7 +719,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
   let aliceClientId =
         show (userId alice)
           <> ":"
-          <> T.unpack (client aliceClient)
+          <> T.unpack aliceClient.client
           <> "@"
           <> T.unpack (domainText (qDomain (userQualifiedId alice)))
 
@@ -737,7 +737,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
             { updateClientMLSPublicKeys =
                 Map.singleton
                   Ed25519
-                  (bcSignatureKey (kpCredential (rmValue aliceKP)))
+                  aliceKP.value.leafNode.signatureKey
             }
     put
       ( brig1
@@ -769,7 +769,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
     let bobClientId =
           show (userId bob)
             <> ":"
-            <> T.unpack (client bobClient)
+            <> T.unpack bobClient.client
             <> "@"
             <> T.unpack (domainText (qDomain (userQualifiedId bob)))
     void . liftIO $ spawn (cli bobClientId tmp ["init", bobClientId]) Nothing
@@ -820,7 +820,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
     liftIO $ BS.writeFile (tmp </> "group.json") groupJSON
 
     -- invite alice
-    liftIO $ BS.writeFile (tmp </> aliceClientId) (rmRaw aliceKP)
+    liftIO $ BS.writeFile (tmp </> aliceClientId) (raw aliceKP)
     commit <-
       liftIO $
         spawn
@@ -834,6 +834,8 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
                 tmp </> "group.json",
                 "--welcome-out",
                 tmp </> "welcome",
+                "--group-info-out",
+                tmp </> "groupinfo.mls",
                 tmp </> aliceClientId
               ]
           )
@@ -873,31 +875,14 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
 
     -- send welcome, commit and dove
     WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
-      post
-        ( galley2
-            . paths
-              ["mls", "messages"]
-            . zUser (userId bob)
-            . zClient bobClient
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . content "message/mls"
-            . bytes commit
-        )
-        !!! const 201 === statusCode
-
-      post
-        ( unversioned
-            . galley2
-            . paths ["v2", "mls", "welcome"]
-            . zUser (userId bob)
-            . zClient bobClient
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . content "message/mls"
-            . bytes welcome
-        )
-        !!! const 201 === statusCode
+      sendCommitBundle
+        tmp
+        "groupinfo.mls"
+        (Just "welcome")
+        galley2
+        (userId bob)
+        bobClient
+        commit
 
       post
         ( galley2
@@ -982,7 +967,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
   let aliceClientId =
         show (userId alice)
           <> ":"
-          <> T.unpack (client aliceClient)
+          <> T.unpack aliceClient.client
           <> "@"
           <> T.unpack (domainText (qDomain (userQualifiedId alice)))
 
@@ -997,7 +982,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
   let bobClientId =
         show (userId bob)
           <> ":"
-          <> T.unpack (client bobClient)
+          <> T.unpack (bobClient.client)
           <> "@"
           <> T.unpack (domainText (qDomain (userQualifiedId bob)))
 
@@ -1015,7 +1000,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
             { updateClientMLSPublicKeys =
                 Map.singleton
                   Ed25519
-                  (bcSignatureKey (kpCredential (rmValue aliceKP)))
+                  aliceKP.value.leafNode.signatureKey
             }
     put
       ( brig1
@@ -1084,7 +1069,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
     liftIO $ BS.writeFile (tmp </> "group.json") groupJSON
 
     -- invite alice
-    liftIO $ BS.writeFile (tmp </> aliceClientId) (rmRaw aliceKP)
+    liftIO $ BS.writeFile (tmp </> aliceClientId) (raw aliceKP)
     commit <-
       liftIO $
         spawn
@@ -1098,6 +1083,8 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
                 tmp </> "group.json",
                 "--welcome-out",
                 tmp </> "welcome",
+                "--group-info-out",
+                tmp </> "groupinfo.mls",
                 tmp </> aliceClientId
               ]
           )
@@ -1106,32 +1093,14 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
 
     -- send welcome and commit
     WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
-      post
-        ( galley2
-            . paths
-              ["mls", "messages"]
-            . zUser (userId bob)
-            . zClient bobClient
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . content "message/mls"
-            . bytes commit
-        )
-        !!! const 201 === statusCode
-
-      post
-        ( unversioned
-            . galley2
-            . paths
-              ["v2", "mls", "welcome"]
-            . zUser (userId bob)
-            . zClient bobClient
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . content "message/mls"
-            . bytes welcome
-        )
-        !!! const 201 === statusCode
+      sendCommitBundle
+        tmp
+        "groupinfo.mls"
+        (Just "welcome")
+        galley2
+        (userId bob)
+        bobClient
+        commit
 
       -- verify that alice receives the welcome message
       WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
@@ -1198,7 +1167,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
                   "--in-place",
                   "--group",
                   tmp </> "subgroup.json",
-                  "--group-state-out",
+                  "--group-info-out",
                   tmp </> "subgroupstate.mls"
                 ]
             )
@@ -1206,6 +1175,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
       sendCommitBundle
         tmp
         "subgroupstate.mls"
+        Nothing
         galley2
         (userId bob)
         bobClient
@@ -1222,9 +1192,9 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
                 [ "external-commit",
                   "--group-out",
                   tmp </> "subgroupA.json",
-                  "--group-state-in",
+                  "--group-info-in",
                   tmp </> "subgroupstate.mls",
-                  "--group-state-out",
+                  "--group-info-out",
                   tmp </> "subgroupstateA.mls"
                 ]
             )
@@ -1232,6 +1202,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
       sendCommitBundle
         tmp
         "subgroupstateA.mls"
+        Nothing
         galley1
         (userId alice)
         aliceClient

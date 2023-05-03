@@ -21,14 +21,13 @@ import qualified Data.Swagger as S
 import Imports
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
-import Wire.API.MLS.Extension
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.4.3.1-5
 data Welcome = Welcome
-  { welProtocolVersion :: ProtocolVersion,
-    welCipherSuite :: CipherSuite,
+  { welCipherSuite :: CipherSuite,
     welSecrets :: [GroupSecrets],
     welGroupInfo :: ByteString
   }
@@ -41,18 +40,17 @@ instance S.ToSchema Welcome where
 instance ParseMLS Welcome where
   parseMLS =
     Welcome
-      <$> parseMLS @ProtocolVersion
-      <*> parseMLS
-      <*> parseMLSVector @Word32 parseMLS
-      <*> parseMLSBytes @Word32
+      <$> parseMLS
+      <*> parseMLSVector @VarInt parseMLS
+      <*> parseMLSBytes @VarInt
 
 instance SerialiseMLS Welcome where
-  serialiseMLS (Welcome pv cs ss gi) = do
-    serialiseMLS pv
+  serialiseMLS (Welcome cs ss gi) = do
     serialiseMLS cs
-    serialiseMLSVector @Word32 serialiseMLS ss
-    serialiseMLSBytes @Word32 gi
+    serialiseMLSVector @VarInt serialiseMLS ss
+    serialiseMLSBytes @VarInt gi
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.4.3.1-5
 data GroupSecrets = GroupSecrets
   { gsNewMember :: KeyPackageRef,
     gsSecrets :: HPKECiphertext

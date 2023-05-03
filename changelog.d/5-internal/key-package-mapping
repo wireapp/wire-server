@@ -1,0 +1,1 @@
+Brig does not perform key package ref mapping anymore. Claimed key packages are simply removed from the `mls_key_packages` table. The `mls_key_package_refs` table is now unused, and will be removed in the future.

@@ -61,7 +61,7 @@ import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.Internal.Notification
-import Wire.API.MLS.Credential
+import Wire.API.MLS.CipherSuite
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import qualified Wire.API.User as Public

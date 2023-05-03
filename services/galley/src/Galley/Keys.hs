@@ -33,6 +33,7 @@ import qualified Data.Map as Map
 import Data.PEM
 import Data.X509
 import Imports
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 

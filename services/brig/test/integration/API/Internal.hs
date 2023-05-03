@@ -36,26 +36,21 @@ import qualified Cassandra as Cass
 import Cassandra.Util
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens ((^.), (^?!))
-import Data.Aeson (decode)
 import qualified Data.Aeson.Lens as Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Default
 import Data.Id
-import Data.Qualified (Qualified (qDomain, qUnqualified))
+import Data.Qualified
 import qualified Data.Set as Set
 import GHC.TypeLits (KnownSymbol)
 import Imports
-import Servant.API (ToHttpApiData (toUrlPiece))
-import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
 import Test.Tasty.HUnit
 import UnliftIO (withSystemTempDirectory)
 import Util
 import Util.Options (Endpoint)
 import qualified Wire.API.Connection as Conn
-import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as ApiFt
@@ -74,14 +69,6 @@ tests opts mgr db brig brigep gundeck galley = do
         test mgr "suspend non existing user and verify no db entry" $
           testSuspendNonExistingUser db brig,
         test mgr "mls/clients" $ testGetMlsClients brig,
-        testGroup
-          "mls/key-packages"
-          $ [ test mgr "fresh get" $ testKpcFreshGet brig,
-              test mgr "put,get" $ testKpcPutGet brig,
-              test mgr "get,get" $ testKpcGetGet brig,
-              test mgr "put,put" $ testKpcPutPut brig,
-              test mgr "add key package ref" $ testAddKeyPackageRef brig
-            ],
         test mgr "writetimeToInt64" $ testWritetimeRepresentation opts mgr db brig brigep galley
       ]
 
@@ -255,118 +242,6 @@ testGetMlsClients brig = do
             . queryItem "sig_scheme" "ed25519"
         )
   liftIO $ toList cs1 @?= [ClientInfo c True]
-
-keyPackageCreate :: HasCallStack => Brig -> Http KeyPackageRef
-keyPackageCreate brig = do
-  uid <- userQualifiedId <$> randomUser brig
-  clid <- createClient brig uid 0
-  withSystemTempDirectory "mls" $ \tmp ->
-    uploadKeyPackages brig tmp def uid clid 2
-
-  uid2 <- userQualifiedId <$> randomUser brig
-  claimResp <-
-    post
-      ( brig
-          . paths
-            [ "mls",
-              "key-packages",
-              "claim",
-              toByteString' (qDomain uid),
-              toByteString' (qUnqualified uid)
-            ]
-          . zUser (qUnqualified uid2)
-          . contentJson
-      )
-  liftIO $
-    assertEqual "POST mls/key-packages/claim/:domain/:user failed" 200 (statusCode claimResp)
-  case responseBody claimResp >>= decode of
-    Nothing -> liftIO $ assertFailure "Claim response empty"
-    Just bundle -> case toList $ kpbEntries bundle of
-      [] -> liftIO $ assertFailure "Claim response held no bundles"
-      (h : _) -> pure $ kpbeRef h
-
-kpcPut :: HasCallStack => Brig -> KeyPackageRef -> Qualified ConvId -> Http ()
-kpcPut brig ref qConv = do
-  resp <-
-    put
-      ( brig
-          . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref, "conversation"]
-          . contentJson
-          . json qConv
-      )
-  liftIO $ assertEqual "PUT i/mls/key-packages/:ref/conversation failed" 204 (statusCode resp)
-
-kpcGet :: HasCallStack => Brig -> KeyPackageRef -> Http (Maybe (Qualified ConvId))
-kpcGet brig ref = do
-  resp <-
-    get (brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref, "conversation"])
-  liftIO $ case statusCode resp of
-    404 -> pure Nothing
-    200 -> pure $ responseBody resp >>= decode
-    _ -> assertFailure "GET i/mls/key-packages/:ref/conversation failed"
-
-testKpcFreshGet :: Brig -> Http ()
-testKpcFreshGet brig = do
-  ref <- keyPackageCreate brig
-  mqConv <- kpcGet brig ref
-  liftIO $ assertEqual "(fresh) Get ~= Nothing" Nothing mqConv
-
-testKpcPutGet :: Brig -> Http ()
-testKpcPutGet brig = do
-  ref <- keyPackageCreate brig
-  qConv <- liftIO $ generate arbitrary
-  kpcPut brig ref qConv
-  mqConv <- kpcGet brig ref
-  liftIO $ assertEqual "Put x; Get ~= x" (Just qConv) mqConv
-
-testKpcGetGet :: Brig -> Http ()
-testKpcGetGet brig = do
-  ref <- keyPackageCreate brig
-  liftIO (generate arbitrary) >>= kpcPut brig ref
-  mqConv1 <- kpcGet brig ref
-  mqConv2 <- kpcGet brig ref
-  liftIO $ assertEqual "Get; Get ~= Get" mqConv1 mqConv2
-
-testKpcPutPut :: Brig -> Http ()
-testKpcPutPut brig = do
-  ref <- keyPackageCreate brig
-  qConv <- liftIO $ generate arbitrary
-  qConv2 <- liftIO $ generate arbitrary
-  kpcPut brig ref qConv
-  kpcPut brig ref qConv2
-  mqConv <- kpcGet brig ref
-  liftIO $ assertEqual "Put x; Put y ~= Put y" (Just qConv2) mqConv
-
-testAddKeyPackageRef :: Brig -> Http ()
-testAddKeyPackageRef brig = do
-  ref <- keyPackageCreate brig
-  qcnv <- liftIO $ generate arbitrary
-  qusr <- liftIO $ generate arbitrary
-  c <- liftIO $ generate arbitrary
-  put
-    ( brig
-        . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref]
-        . json
-          NewKeyPackageRef
-            { nkprUserId = qusr,
-              nkprClientId = c,
-              nkprConversation = qcnv
-            }
-    )
-    !!! const 201 === statusCode
-  ci <-
-    responseJsonError
-      =<< get (brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref])
-        <!! const 200 === statusCode
-  liftIO $ do
-    fmap ciDomain ci @?= Just (qDomain qusr)
-    fmap ciUser ci @?= Just (qUnqualified qusr)
-    fmap ciClient ci @?= Just c
-  mqcnv <-
-    responseJsonError
-      =<< get (brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref, "conversation"])
-        <!! const 200 === statusCode
-  liftIO $ mqcnv @?= Just qcnv
 
 getFeatureConfig :: forall cfg m. (MonadHttp m, HasCallStack, KnownSymbol (ApiFt.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS
 getFeatureConfig galley uid = do

@@ -1,3 +1,6 @@
+{-# LANGUAGE BinaryLiterals #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -18,6 +21,9 @@
 module Wire.API.MLS.Serialisation
   ( ParseMLS (..),
     SerialiseMLS (..),
+    VarInt (..),
+    parseMLSStream,
+    serialiseMLSStream,
     parseMLSVector,
     serialiseMLSVector,
     parseMLSBytes,
@@ -42,6 +48,7 @@ module Wire.API.MLS.Serialisation
     mlsSwagger,
     parseRawMLS,
     mkRawMLS,
+    traceMLS,
   )
 where
 
@@ -52,9 +59,10 @@ import Data.Aeson (FromJSON (..))
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor
 import Data.Binary
-import Data.Binary.Builder
+import Data.Binary.Builder (toLazyByteString)
 import Data.Binary.Get
 import Data.Binary.Put
+import Data.Bits
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Json.Util
@@ -63,7 +71,9 @@ import Data.Proxy
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
+import Debug.Trace
 import Imports
+import Test.QuickCheck (Arbitrary (..), chooseInt)
 
 -- | Parse a value encoded using the "TLS presentation" format.
 class ParseMLS a where
@@ -72,6 +82,55 @@ class ParseMLS a where
 -- | Convert a value to "TLS presentation" format.
 class SerialiseMLS a where
   serialiseMLS :: a -> Put
+
+-- | An integer value serialised with a variable-size encoding.
+--
+-- The underlying Word32 must be strictly less than 2^30.
+newtype VarInt = VarInt {unVarInt :: Word32}
+  deriving newtype (Eq, Ord, Num, Enum, Integral, Real, Show)
+
+instance Arbitrary VarInt where
+  arbitrary = fromIntegral <$> chooseInt (0, 1073741823)
+
+-- From the MLS spec:
+--
+-- Prefix | Length | Usable Bits | Min | Max
+-- -------+--------+-------------+-----+---------
+-- 00       1        6             0     63
+-- 01       2        14            64    16383
+-- 10       4        30            16384 1073741823
+-- 11       invalid  -             -     -
+--
+instance Binary VarInt where
+  put :: VarInt -> Put
+  put (VarInt w)
+    | w < 64 = putWord8 (fromIntegral w)
+    | w < 16384 = putWord16be (0x4000 .|. fromIntegral w)
+    | w < 1073741824 = putWord32be (0x80000000 .|. w)
+    | otherwise = error "invalid VarInt"
+
+  get :: Get VarInt
+  get = do
+    w <- lookAhead getWord8
+    case shiftR (w .&. 0xc0) 6 of
+      0b00 -> VarInt . fromIntegral <$> getWord8
+      0b01 -> VarInt . (.&. 0x3fff) . fromIntegral <$> getWord16be
+      0b10 -> VarInt . (.&. 0x3fffffff) . fromIntegral <$> getWord32be
+      _ -> fail "invalid VarInt prefix"
+
+instance SerialiseMLS VarInt where serialiseMLS = put
+
+instance ParseMLS VarInt where parseMLS = get
+
+parseMLSStream :: Get a -> Get [a]
+parseMLSStream p = do
+  e <- isEmpty
+  if e
+    then pure []
+    else (:) <$> p <*> parseMLSStream p
+
+serialiseMLSStream :: (a -> Put) -> [a] -> Put
+serialiseMLSStream = traverse_
 
 parseMLSVector :: forall w a. (Binary w, Integral w) => Get a -> Get [a]
 parseMLSVector getItem = do
@@ -139,19 +198,19 @@ serialiseMLSEnum ::
   Put
 serialiseMLSEnum = put . fromMLSEnum @w
 
-data MLSEnumError = MLSEnumUnknown | MLSEnumInvalid
+data MLSEnumError = MLSEnumUnknown Int | MLSEnumInvalid
 
 toMLSEnum' :: forall a w. (Bounded a, Enum a, Integral w) => w -> Either MLSEnumError a
 toMLSEnum' w = case fromIntegral w - 1 of
   n
     | n < 0 -> Left MLSEnumInvalid
-    | n < fromEnum @a minBound || n > fromEnum @a maxBound -> Left MLSEnumUnknown
+    | n < fromEnum @a minBound || n > fromEnum @a maxBound -> Left (MLSEnumUnknown n)
     | otherwise -> pure (toEnum n)
 
 toMLSEnum :: forall a w f. (Bounded a, Enum a, MonadFail f, Integral w) => String -> w -> f a
 toMLSEnum name = either err pure . toMLSEnum'
   where
-    err MLSEnumUnknown = fail $ "Unknown " <> name
+    err (MLSEnumUnknown value) = fail $ "Unknown " <> name <> ": " <> show value
     err MLSEnumInvalid = fail $ "Invalid " <> name
 
 fromMLSEnum :: (Integral w, Enum a) => a -> w
@@ -205,10 +264,13 @@ decodeMLSWith' p = decodeMLSWith p . LBS.fromStrict
 -- retain the original serialised bytes (e.g. for signature verification, or to
 -- forward them verbatim).
 data RawMLS a = RawMLS
-  { rmRaw :: ByteString,
-    rmValue :: a
+  { raw :: ByteString,
+    value :: a
   }
   deriving stock (Eq, Show, Foldable)
+
+instance (Arbitrary a, SerialiseMLS a) => Arbitrary (RawMLS a) where
+  arbitrary = mkRawMLS <$> arbitrary
 
 -- | A schema for a raw MLS object.
 --
@@ -219,7 +281,7 @@ data RawMLS a = RawMLS
 -- Note that a 'ValueSchema' for the underlying type @a@ is /not/ required.
 rawMLSSchema :: Text -> (ByteString -> Either Text a) -> ValueSchema NamedSwaggerDoc (RawMLS a)
 rawMLSSchema name p =
-  (toBase64Text . rmRaw)
+  (toBase64Text . raw)
     .= parsedText name (rawMLSFromText p)
 
 mlsSwagger :: Text -> S.NamedSchema
@@ -260,7 +322,15 @@ instance ParseMLS a => ParseMLS (RawMLS a) where
   parseMLS = parseRawMLS parseMLS
 
 instance SerialiseMLS (RawMLS a) where
-  serialiseMLS = putByteString . rmRaw
+  serialiseMLS = putByteString . raw
 
 mkRawMLS :: SerialiseMLS a => a -> RawMLS a
 mkRawMLS x = RawMLS (LBS.toStrict (runPut (serialiseMLS x))) x
+
+traceMLS :: Show a => String -> Get a -> Get a
+traceMLS l g = do
+  begin <- bytesRead
+  r <- g
+  end <- bytesRead
+  traceM $ l <> " " <> show begin <> ":" <> show end <> " " <> show r
+  pure r

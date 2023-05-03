@@ -19,11 +19,13 @@ module Galley.Cassandra.Conversation.MLS
   ( acquireCommitLock,
     releaseCommitLock,
     lookupMLSClients,
+    lookupMLSClientLeafIndices,
   )
 where
 
 import Cassandra
 import Cassandra.Settings (fromRow)
+import Control.Arrow
 import Data.Time
 import Galley.API.MLS.Types
 import qualified Galley.Cassandra.Queries as Cql
@@ -61,9 +63,10 @@ checkTransSuccess :: [Row] -> Bool
 checkTransSuccess [] = False
 checkTransSuccess (row : _) = either (const False) (fromMaybe False) $ fromRow 0 row
 
+lookupMLSClientLeafIndices :: GroupId -> Client (ClientMap, IndexMap)
+lookupMLSClientLeafIndices groupId = do
+  entries <- retry x5 (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
+  pure $ (mkClientMap &&& mkIndexMap) entries
+
 lookupMLSClients :: GroupId -> Client ClientMap
-lookupMLSClients groupId =
-  mkClientMap
-    <$> retry
-      x5
-      (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
+lookupMLSClients = fmap fst . lookupMLSClientLeafIndices

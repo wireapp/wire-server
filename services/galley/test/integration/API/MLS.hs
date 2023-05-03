@@ -32,8 +32,6 @@ import qualified Control.Monad.State as State
 import Crypto.Error
 import qualified Crypto.PubKey.Ed25519 as Ed25519
 import qualified Data.Aeson as Aeson
-import Data.Binary.Put
-import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
@@ -64,13 +62,14 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
+import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
+import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
-import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
@@ -88,10 +87,7 @@ tests s =
       testGroup
         "Welcome"
         [ test s "local welcome" testLocalWelcome,
-          test s "local welcome (client with no public key)" testWelcomeNoKey,
-          test s "remote welcome" testRemoteWelcome,
-          test s "post a remote MLS welcome message" sendRemoteMLSWelcome,
-          test s "post a remote MLS welcome message (key package ref not found)" sendRemoteMLSWelcomeKPNotFound
+          test s "post a remote MLS welcome message" sendRemoteMLSWelcome
         ],
       testGroup
         "Creation"
@@ -100,12 +96,11 @@ tests s =
         ],
       testGroup
         "Deletion"
-        [ test s "delete a MLS conversation" testDeleteMLSConv
+        [ test s "delete an MLS conversation" testDeleteMLSConv
         ],
       testGroup
         "Commit"
         [ test s "add user to a conversation" testAddUser,
-          test s "add user with an incomplete welcome" testAddUserWithBundleIncompleteWelcome,
           test s "add user (not connected)" testAddUserNotConnected,
           test s "add user (partial client list)" testAddUserPartial,
           test s "add client of existing user" testAddClientPartial,
@@ -257,7 +252,7 @@ tests s =
               test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv,
               test s "delete subconversation as a remote member" (testRemoteMemberDeleteSubConv True),
               test s "delete subconversation as a remote non-member" (testRemoteMemberDeleteSubConv False),
-              test s "delete parent conversation of a remote subconveration" testDeleteRemoteParentOfSubConv
+              test s "delete parent conversation of a remote subconversation" testDeleteRemoteParentOfSubConv
             ]
         ],
       testGroup
@@ -342,7 +337,7 @@ testLocalWelcome = do
       Nothing -> assertFailure "Expected welcome message"
       Just w -> pure w
     events <- mlsBracket [bob1] $ \wss -> do
-      es <- sendAndConsumeCommit commit
+      es <- sendAndConsumeCommitBundle commit
 
       WS.assertMatchN_ (5 # Second) wss $
         wsAssertMLSWelcome (cidQualifiedUser bob1) welcome
@@ -351,50 +346,6 @@ testLocalWelcome = do
 
     event <- assertOne events
     liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
-
-testWelcomeNoKey :: TestM ()
-testWelcomeNoKey = do
-  users <- createAndConnectUsers [Nothing, Nothing]
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient users
-    void $ setupMLSGroup alice1
-
-    -- add bob using an "out-of-band" key package
-    (_, ref) <- generateKeyPackage bob1
-    kp <- keyPackageFile bob1 ref
-    commit <- createAddCommitWithKeyPackages alice1 [(bob1, kp)]
-    welcome <- liftIO $ case mpWelcome commit of
-      Nothing -> assertFailure "Expected welcome message"
-      Just w -> pure w
-
-    err <-
-      responseJsonError
-        =<< postWelcome (ciUser alice1) welcome
-          <!! do
-            const 404 === statusCode
-    liftIO $ Wai.label err @?= "mls-key-package-ref-not-found"
-
-testRemoteWelcome :: TestM ()
-testRemoteWelcome = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
-
-  runMLSTest $ do
-    alice1 <- createMLSClient alice
-    _bob1 <- createFakeMLSClient bob
-
-    void $ setupMLSGroup alice1
-    commit <- createAddCommit alice1 [bob]
-    welcome <- liftIO $ case mpWelcome commit of
-      Nothing -> assertFailure "Expected welcome message"
-      Just w -> pure w
-    (_, reqs) <-
-      withTempMockFederator' welcomeMock $
-        postWelcome (ciUser (mpSender commit)) welcome
-          !!! const 201 === statusCode
-    consumeWelcome welcome
-    fedWelcome <- assertOne (filter ((== "mls-welcome") . frRPC) reqs)
-    let req :: Maybe MLSWelcomeRequest = Aeson.decode (frBody fedWelcome)
-    liftIO $ req @?= (Just . MLSWelcomeRequest . Base64ByteString) welcome
 
 testAddUserWithBundle :: TestM ()
 testAddUserWithBundle = do
@@ -426,35 +377,8 @@ testAddUserWithBundle = do
       (qcnv `elem` map cnvQualifiedId convs)
 
   returnedGS <- getGroupInfo alice (fmap Conv qcnv)
-  liftIO $ assertBool "Commit does not contain a public group State" (isJust (mpPublicGroupState commit))
-  liftIO $ mpPublicGroupState commit @?= Just returnedGS
-
-testAddUserWithBundleIncompleteWelcome :: TestM ()
-testAddUserWithBundleIncompleteWelcome = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
-
-  runMLSTest $ do
-    (alice1 : bobClients) <- traverse createMLSClient [alice, bob, bob]
-    traverse_ uploadNewKeyPackage bobClients
-    void $ setupMLSGroup alice1
-
-    -- create commit, but remove first recipient from welcome message
-    commit <- do
-      commit <- createAddCommit alice1 [bob]
-      liftIO $ do
-        welcome <- assertJust (mpWelcome commit)
-        w <- either (assertFailure . T.unpack) pure $ decodeMLS' welcome
-        let w' = w {welSecrets = take 1 (welSecrets w)}
-            welcome' = encodeMLS' w'
-            commit' = commit {mpWelcome = Just welcome'}
-        pure commit'
-
-    bundle <- createBundle commit
-    err <-
-      responseJsonError
-        =<< localPostCommitBundle (mpSender commit) bundle
-          <!! const 400 === statusCode
-    liftIO $ Wai.label err @?= "mls-welcome-mismatch"
+  liftIO $ assertBool "Commit does not contain a public group State" (isJust (mpGroupInfo commit))
+  liftIO $ mpGroupInfo commit @?= Just returnedGS
 
 testAddUser :: TestM ()
 testAddUser = do
@@ -462,9 +386,11 @@ testAddUser = do
 
   qcnv <- runMLSTest $ do
     [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+
     traverse_ uploadNewKeyPackage [bob1, bob2]
+
     (_, qcnv) <- setupMLSGroup alice1
-    events <- createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    events <- createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
     event <- assertOne events
     liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
     pure qcnv
@@ -486,10 +412,11 @@ testAddUserNotConnected = do
     void $ setupMLSGroup alice1
     -- add unconnected user with a commit
     commit <- createAddCommit alice1 [bob]
+    bundle <- createBundle commit
     err <- mlsBracket [alice1, bob1] $ \wss -> do
       err <-
         responseJsonError
-          =<< postMessage (mpSender commit) (mpMessage commit)
+          =<< localPostCommitBundle (mpSender commit) bundle
             <!! const 403 === statusCode
       void . liftIO $ WS.assertNoEvent (1 # WS.Second) wss
       pure err
@@ -497,7 +424,7 @@ testAddUserNotConnected = do
 
     -- now connect and retry
     liftTest $ connectUsers (qUnqualified alice) (pure (qUnqualified bob))
-    void $ sendAndConsumeCommit commit
+    void $ sendAndConsumeCommitBundle commit
 
 testAddUserWithProteusClients :: TestM ()
 testAddUserWithProteusClients = do
@@ -511,7 +438,7 @@ testAddUserWithProteusClients = do
     _bob3 <- createWireClient bob
 
     void $ setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
 testAddUserPartial :: TestM ()
 testAddUserPartial = do
@@ -534,9 +461,10 @@ testAddUserPartial = do
     void $ uploadNewKeyPackage bob3
 
     -- alice sends a commit now, and should get a conflict error
+    bundle <- createBundle commit
     err <-
       responseJsonError
-        =<< postMessage (mpSender commit) (mpMessage commit)
+        =<< localPostCommitBundle (mpSender commit) bundle
           <!! const 409 === statusCode
     liftIO $ Wai.label err @?= "mls-client-mismatch"
 
@@ -551,14 +479,14 @@ testAddClientPartial = do
 
     -- alice1 creates a group with bob1
     void $ setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
     -- now bob2 and bob3 upload key packages, and alice adds bob2 only
-    kp <- uploadNewKeyPackage bob2 >>= keyPackageFile bob2
+    kp <- uploadNewKeyPackage bob2
     void $ uploadNewKeyPackage bob3
     void $
-      createAddCommitWithKeyPackages alice1 [(bob2, kp)]
-        >>= sendAndConsumeCommit
+      createAddCommitWithKeyPackages alice1 [(bob2, kp.raw)]
+        >>= sendAndConsumeCommitBundle
 
 testSendAnotherUsersCommit :: TestM ()
 testSendAnotherUsersCommit = do
@@ -573,7 +501,7 @@ testSendAnotherUsersCommit = do
 
     -- create group with alice1 and bob1
     void $ setupMLSGroup alice1
-    createAddCommit alice1 [bob] >>= void . sendAndConsumeCommit
+    createAddCommit alice1 [bob] >>= void . sendAndConsumeCommitBundle
 
     -- Alice creates a commit that adds bob2
     bob2 <- createMLSClient bob
@@ -583,7 +511,7 @@ testSendAnotherUsersCommit = do
     -- and the corresponding commit is sent from Bob instead of Alice
     err <-
       responseJsonError
-        =<< postMessage bob1 (mpMessage mp)
+        =<< (localPostCommitBundle bob1 =<< createBundle mp)
           <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-client-sender-user-mismatch"
 
@@ -596,9 +524,10 @@ testAddUsersToProteus = do
     void $ uploadNewKeyPackage bob1
     void $ setupFakeMLSGroup alice1
     mp <- createAddCommit alice1 [bob]
+    bundle <- createBundle mp
     err <-
       responseJsonError
-        =<< postMessage alice1 (mpMessage mp) <!! const 404 === statusCode
+        =<< localPostCommitBundle alice1 bundle <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "no-conversation"
 
 testAddUsersDirectly :: TestM ()
@@ -609,7 +538,7 @@ testAddUsersDirectly = do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
     qcnv <- snd <$> setupMLSGroup alice1
-    createAddCommit alice1 [bob] >>= void . sendAndConsumeCommit
+    createAddCommit alice1 [bob] >>= void . sendAndConsumeCommitBundle
     e <-
       responseJsonError
         =<< postMembers
@@ -626,7 +555,7 @@ testRemoveUsersDirectly = do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
     qcnv <- snd <$> setupMLSGroup alice1
-    createAddCommit alice1 [bob] >>= void . sendAndConsumeCommit
+    createAddCommit alice1 [bob] >>= void . sendAndConsumeCommitBundle
     e <-
       responseJsonError
         =<< deleteMemberQualified
@@ -643,7 +572,7 @@ testProteusMessage = do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
     qcnv <- snd <$> setupMLSGroup alice1
-    createAddCommit alice1 [bob] >>= void . sendAndConsumeCommit
+    createAddCommit alice1 [bob] >>= void . sendAndConsumeCommitBundle
     e <-
       responseJsonError
         =<< postProteusMessageQualified
@@ -669,15 +598,16 @@ testStaleCommit = do
     gsBackup <- getClientGroupState alice1
 
     -- add the first batch of users to the conversation
-    void $ createAddCommit alice1 users1 >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 users1 >>= sendAndConsumeCommitBundle
 
     -- now roll back alice1 and try to add the second batch of users
     setClientGroupState alice1 gsBackup
 
     commit <- createAddCommit alice1 users2
+    bundle <- createBundle commit
     err <-
       responseJsonError
-        =<< postMessage (mpSender commit) (mpMessage commit)
+        =<< localPostCommitBundle (mpSender commit) bundle
           <!! const 409 === statusCode
     liftIO $ Wai.label err @?= "mls-stale-message"
 
@@ -691,7 +621,7 @@ testAddRemoteUser = do
     commit <- createAddCommit alice1 [bob]
     (events, reqs) <-
       withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
-        sendAndConsumeCommit commit
+        sendAndConsumeCommitBundle commit
     pure (events, reqs, qcnv)
 
   liftIO $ do
@@ -725,10 +655,10 @@ testCommitLock = do
     traverse_ uploadNewKeyPackage [bob1, charlie1, dee1]
 
     -- alice adds add bob
-    void $ createAddCommit alice1 [cidQualifiedUser bob1] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [cidQualifiedUser bob1] >>= sendAndConsumeCommitBundle
 
     -- alice adds charlie
-    void $ createAddCommit alice1 [cidQualifiedUser charlie1] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [cidQualifiedUser charlie1] >>= sendAndConsumeCommitBundle
 
     -- simulate concurrent commit by blocking epoch
     casClient <- view tsCass
@@ -737,9 +667,10 @@ testCommitLock = do
     -- commit should fail due to competing lock
     do
       commit <- createAddCommit alice1 [cidQualifiedUser dee1]
+      bundle <- createBundle commit
       err <-
         responseJsonError
-          =<< postMessage alice1 (mpMessage commit)
+          =<< localPostCommitBundle alice1 bundle
             <!! const 409 === statusCode
       liftIO $ Wai.label err @?= "mls-stale-message"
   where
@@ -767,7 +698,7 @@ testAddUserBareProposalCommit = do
       >>= traverse_ sendAndConsumeMessage
     commit <- createPendingProposalCommit alice1
     void $ assertJust (mpWelcome commit)
-    void $ sendAndConsumeCommit commit
+    void $ sendAndConsumeCommitBundle commit
 
     -- check that bob can now see the conversation
     liftTest $ do
@@ -790,9 +721,10 @@ testUnknownProposalRefCommit = do
     commit <- createPendingProposalCommit alice1
 
     -- send commit before proposal
+    bundle <- createBundle commit
     err <-
       responseJsonError
-        =<< postMessage alice1 (mpMessage commit)
+        =<< localPostCommitBundle alice1 bundle
           <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "mls-proposal-not-found"
 
@@ -816,9 +748,10 @@ testCommitNotReferencingAllProposals = do
     commit <- createPendingProposalCommit alice1
 
     -- send commit and expect and error
+    bundle <- createBundle commit
     err <-
       responseJsonError
-        =<< postMessage alice1 (mpMessage commit)
+        =<< localPostCommitBundle alice1 bundle
           <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-commit-missing-references"
 
@@ -830,8 +763,8 @@ testAdminRemovesUserFromConv = do
     void $ createWireClient bob -- also create one extra non-MLS client
     traverse_ uploadNewKeyPackage [bob1, bob2]
     (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
-    events <- createRemoveCommit alice1 [bob1, bob2] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+    events <- createRemoveCommit alice1 [bob1, bob2] >>= sendAndConsumeCommitBundle
     pure (qcnv, events)
 
   liftIO $ assertOne events >>= assertLeaveEvent qcnv alice [bob]
@@ -855,12 +788,13 @@ testRemoveClientsIncomplete = do
     [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
     traverse_ uploadNewKeyPackage [bob1, bob2]
     void $ setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
     commit <- createRemoveCommit alice1 [bob1]
 
+    bundle <- createBundle commit
     err <-
       responseJsonError
-        =<< postMessage alice1 (mpMessage commit)
+        =<< localPostCommitBundle alice1 bundle
           <!! statusCode === const 409
     liftIO $ Wai.label err @?= "mls-client-mismatch"
 
@@ -876,7 +810,7 @@ testRemoteAppMessage = do
     let mock = receiveCommitMock [bob1] <|> messageSentMock <|> welcomeMock
 
     ((message, events), reqs) <- withTempMockFederator' mock $ do
-      void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+      void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
       message <- createApplicationMessage alice1 "hello"
       (events, _) <- sendAndConsumeMessage message
       pure (message, events)
@@ -998,7 +932,8 @@ testLocalToRemoteNonMember = do
               . paths ["mls", "messages"]
               . zUser (qUnqualified bob)
               . zConn "conn"
-              . content "message/mls"
+              . zClient (ciClient bob1)
+              . Bilge.content "message/mls"
               . bytes (mpMessage message)
           )
           !!! do
@@ -1078,7 +1013,7 @@ testExternalCommitNewClientResendBackendProposal = do
     forM_ [bob1, bob2] uploadNewKeyPackage
     (_, qcnv) <- setupMLSGroup alice1
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-    Just (_, kpBob2) <- find (\(ci, _) -> ci == bob2) <$> getClientsFromGroupState alice1 bob
+    Just (_, bobIdx2) <- find (\(ci, _) -> ci == bob2) <$> getClientsFromGroupState alice1 bob
 
     mlsBracket [alice1, bob1] $ \[wsA, wsB] -> do
       liftTest $
@@ -1093,7 +1028,7 @@ testExternalCommitNewClientResendBackendProposal = do
           }
 
       WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $
-        wsAssertBackendRemoveProposalWithEpoch bob qcnv kpBob2 (Epoch 1)
+        wsAssertBackendRemoveProposalWithEpoch bob qcnv bobIdx2 (Epoch 1)
 
       [bob3, bob4] <- for [bob, bob] $ \qusr' -> do
         ci <- createMLSClient qusr'
@@ -1104,6 +1039,7 @@ testExternalCommitNewClientResendBackendProposal = do
       void $
         createExternalAddProposal bob3
           >>= sendAndConsumeMessage
+
       WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $
         void . wsAssertAddProposal bob qcnv
 
@@ -1111,6 +1047,7 @@ testExternalCommitNewClientResendBackendProposal = do
       ecEvents <- sendAndConsumeCommitBundle mp
       liftIO $
         assertBool "No events after external commit expected" (null ecEvents)
+
       WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $
         wsAssertMLSMessage (fmap Conv qcnv) bob (mpMessage mp)
 
@@ -1118,7 +1055,7 @@ testExternalCommitNewClientResendBackendProposal = do
       -- proposal for bob3 has to replayed by the client and is thus not found
       -- here.
       WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $
-        wsAssertBackendRemoveProposalWithEpoch bob qcnv kpBob2 (Epoch 2)
+        wsAssertBackendRemoveProposalWithEpoch bob qcnv bobIdx2 (Epoch 2)
       WS.assertNoEvent (2 # WS.Second) [wsA, wsB]
 
 testAppMessage :: TestM ()
@@ -1129,7 +1066,7 @@ testAppMessage = do
     clients@(alice1 : _) <- traverse createMLSClient users
     traverse_ uploadNewKeyPackage (tail clients)
     (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 (tail users) >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 (tail users) >>= sendAndConsumeCommitBundle
     message <- createApplicationMessage alice1 "some text"
 
     mlsBracket clients $ \wss -> do
@@ -1154,7 +1091,7 @@ testAppMessage2 = do
     -- create group with alice1 and other clients
     conversation <- snd <$> setupMLSGroup alice1
     mp <- createAddCommit alice1 [bob, charlie]
-    void $ sendAndConsumeCommit mp
+    void $ sendAndConsumeCommitBundle mp
 
     traverse_ consumeWelcome (mpWelcome mp)
 
@@ -1191,7 +1128,7 @@ testAppMessageSomeReachable = do
             <|> welcomeMock
     ([event], _) <-
       withTempMockFederator' mocks $ do
-        sendAndConsumeCommit commit
+        sendAndConsumeCommitBundle commit
 
     let unreachables = Set.singleton (Domain "charlie.example.com")
     withTempMockFederator' (mockUnreachableFor unreachables) $ do
@@ -1222,7 +1159,7 @@ testAppMessageUnreachable = do
     commit <- createAddCommit alice1 [bob]
     ([event], _) <-
       withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
-        sendAndConsumeCommit commit
+        sendAndConsumeCommitBundle commit
 
     message <- createApplicationMessage alice1 "hi, bob!"
     (_, us) <- sendAndConsumeMessage message
@@ -1310,7 +1247,7 @@ testRemoteToLocal = do
 
     let mock = receiveCommitMock [bob1] <|> welcomeMock <|> claimKeyPackagesMock kpb
     void . withTempMockFederator' mock $
-      sendAndConsumeCommit mp
+      sendAndConsumeCommitBundle mp
 
     traverse_ consumeWelcome (mpWelcome mp)
     message <- createApplicationMessage bob1 "hello from another backend"
@@ -1355,7 +1292,7 @@ testRemoteToLocalWrongConversation = do
     mp <- createAddCommit alice1 [bob]
 
     let mock = receiveCommitMock [bob1] <|> welcomeMock
-    void . withTempMockFederator' mock $ sendAndConsumeCommit mp
+    void . withTempMockFederator' mock $ sendAndConsumeCommitBundle mp
     traverse_ consumeWelcome (mpWelcome mp)
     message <- createApplicationMessage bob1 "hello from another backend"
 
@@ -1445,7 +1382,7 @@ propInvalidEpoch = do
     -- Add bob -> epoch 1
     void $ uploadNewKeyPackage bob1
     gsBackup <- getClientGroupState alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
     gsBackup2 <- getClientGroupState alice1
 
     -- try to send a proposal from an old epoch (0)
@@ -1463,14 +1400,14 @@ propInvalidEpoch = do
     do
       void $ uploadNewKeyPackage dee1
       void $ uploadNewKeyPackage charlie1
-      setClientGroupState alice1 gsBackup
-      void $ createAddCommit alice1 [charlie]
+      setClientGroupState alice1 gsBackup2
+      void $ createAddCommit alice1 [charlie] -- --> epoch 2
       [prop] <- createAddProposals alice1 [dee]
       err <-
         responseJsonError
           =<< postMessage alice1 (mpMessage prop)
-            <!! const 404 === statusCode
-      liftIO $ Wai.label err @?= "mls-key-package-ref-not-found"
+            <!! const 409 === statusCode
+      liftIO $ Wai.label err @?= "mls-stale-message"
       -- remove charlie from users expected to get a welcome message
       State.modify $ \mls -> mls {mlsNewMembers = mempty}
 
@@ -1478,7 +1415,7 @@ propInvalidEpoch = do
     void $ uploadNewKeyPackage dee1
     setClientGroupState alice1 gsBackup2
     createAddProposals alice1 [dee] >>= traverse_ sendAndConsumeMessage
-    void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommit
+    void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
 
 -- scenario:
 -- alice1 creates a group and adds bob1
@@ -1505,7 +1442,7 @@ testExternalAddProposal = do
     (_, qcnv) <- setupMLSGroup alice1
     void $
       createAddCommit alice1 [bob]
-        >>= sendAndConsumeCommit
+        >>= sendAndConsumeCommitBundle
 
     -- bob joins with an external proposal
     bob2 <- createMLSClient bob
@@ -1519,7 +1456,7 @@ testExternalAddProposal = do
 
     void $
       createPendingProposalCommit alice1
-        >>= sendAndConsumeCommit
+        >>= sendAndConsumeCommitBundle
 
     -- alice sends a message
     do
@@ -1538,7 +1475,7 @@ testExternalAddProposal = do
       qcnv
       !!! const 200 === statusCode
     createAddCommit bob2 [charlie]
-      >>= sendAndConsumeCommit
+      >>= sendAndConsumeCommitBundle
 
 testExternalAddProposalNonAdminCommit :: TestM ()
 testExternalAddProposalNonAdminCommit = do
@@ -1560,7 +1497,7 @@ testExternalAddProposalNonAdminCommit = do
     (_, qcnv) <- setupMLSGroup alice1
     void $
       createAddCommit alice1 [bob]
-        >>= sendAndConsumeCommit
+        >>= sendAndConsumeCommitBundle
 
     -- bob joins with an external proposal
     mlsBracket [alice1, bob1] $ \wss -> do
@@ -1574,7 +1511,7 @@ testExternalAddProposalNonAdminCommit = do
     -- bob1 commits
     void $
       createPendingProposalCommit bob1
-        >>= sendAndConsumeCommit
+        >>= sendAndConsumeCommitBundle
 
 -- scenario:
 -- alice adds bob and charlie
@@ -1596,7 +1533,7 @@ testExternalAddProposalWrongClient = do
     void $ setupMLSGroup alice1
     void $
       createAddCommit alice1 [bob, charlie]
-        >>= sendAndConsumeCommit
+        >>= sendAndConsumeCommitBundle
 
     prop <- createExternalAddProposal bob2
     postMessage charlie1 (mpMessage prop)
@@ -1619,7 +1556,7 @@ testExternalAddProposalWrongUser = do
     void $ setupMLSGroup alice1
     void $
       createAddCommit alice1 [bob]
-        >>= sendAndConsumeCommit
+        >>= sendAndConsumeCommitBundle
 
     prop <- createExternalAddProposal charlie1
     postMessage charlie1 (mpMessage prop)
@@ -1650,10 +1587,9 @@ testPublicKeys = do
       )
       @?= [Ed25519]
 
--- | The test manually reads from mls-test-cli's store and extracts a private
--- key. The key is needed for signing an AppAck proposal, which as of August 24,
--- 2022 only gets forwarded by the backend, i.e., there's no action taken by the
--- backend.
+--- | The test manually reads from mls-test-cli's store and extracts a private
+--- key. The key is needed for signing an unsupported proposal, which is then
+-- forwarded by the backend without being inspected.
 propUnsupported :: TestM ()
 propUnsupported = do
   users@[_alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
@@ -1661,26 +1597,26 @@ propUnsupported = do
     [alice1, bob1] <- traverse createMLSClient users
     void $ uploadNewKeyPackage bob1
     (gid, _) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
-    mems <- readGroupState <$> getClientGroupState alice1
-
-    (_, ref) <- assertJust $ find ((== alice1) . fst) mems
     (priv, pub) <- clientKeyPair alice1
-    msg <-
-      assertJust $
-        maybeCryptoError $
-          mkAppAckProposalMessage
-            gid
-            (Epoch 1)
-            ref
-            []
-            <$> Ed25519.secretKey priv
-            <*> Ed25519.publicKey pub
-    let msgData = LBS.toStrict (runPut (serialiseMLS msg))
+    pmsg <-
+      liftIO . throwCryptoErrorIO $
+        mkSignedPublicMessage
+          <$> Ed25519.secretKey priv
+          <*> Ed25519.publicKey pub
+          <*> pure gid
+          <*> pure (Epoch 1)
+          <*> pure (TaggedSenderMember 0 "foo")
+          <*> pure
+            ( FramedContentProposal
+                (mkRawMLS (GroupContextExtensionsProposal []))
+            )
 
-    -- we cannot use sendAndConsumeMessage here, because openmls does not yet
-    -- support AppAck proposals
+    let msg = mkMessage (MessagePublic pmsg)
+    let msgData = encodeMLS' msg
+
+    -- we cannot consume this message, because the membership tag is fake
     postMessage alice1 msgData !!! const 201 === statusCode
 
 testBackendRemoveProposalRecreateClient :: TestM ()
@@ -1694,7 +1630,7 @@ testBackendRemoveProposalRecreateClient = do
 
     void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
 
-    (_, ref) <- assertOne =<< getClientsFromGroupState alice1 alice
+    (_, idx) <- assertOne =<< getClientsFromGroupState alice1 alice
 
     liftTest $
       deleteClient (qUnqualified alice) (ciClient alice1) (Just defPassword)
@@ -1706,11 +1642,13 @@ testBackendRemoveProposalRecreateClient = do
 
     alice2 <- createMLSClient alice
     proposal <- mlsBracket [alice2] $ \[wsA] -> do
+      -- alice2 joins the conversation, causing the external remove proposal to
+      -- be re-established
       void $
         createExternalCommit alice2 Nothing cnv
           >>= sendAndConsumeCommitBundle
       WS.assertMatch (5 # WS.Second) wsA $
-        wsAssertBackendRemoveProposal alice (Conv <$> qcnv) ref
+        wsAssertBackendRemoveProposal alice (Conv <$> qcnv) idx
 
     consumeMessage1 alice2 proposal
     void $ createPendingProposalCommit alice2 >>= sendAndConsumeCommitBundle
@@ -1724,7 +1662,7 @@ testBackendRemoveProposalLocalConvLocalUser = do
     [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
     traverse_ uploadNewKeyPackage [bob1, bob2]
     (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
     bobClients <- getClientsFromGroupState alice1 bob
     mlsBracket [alice1] $ \wss -> void $ do
@@ -1735,13 +1673,13 @@ testBackendRemoveProposalLocalConvLocalUser = do
           { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [bob1, bob2])
           }
 
-      for bobClients $ \(_, ref) -> do
+      for bobClients $ \(_, idx) -> do
         [msg] <- WS.assertMatchN (5 # Second) wss $ \n ->
-          wsAssertBackendRemoveProposal bob (Conv <$> qcnv) ref n
+          wsAssertBackendRemoveProposal bob (Conv <$> qcnv) idx n
         consumeMessage1 alice1 msg
 
     -- alice commits the external proposals
-    events <- createPendingProposalCommit alice1 >>= sendAndConsumeCommit
+    events <- createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
     liftIO $ events @?= []
 
 testBackendRemoveProposalLocalConvRemoteUser :: TestM ()
@@ -1755,7 +1693,7 @@ testBackendRemoveProposalLocalConvRemoteUser = do
     let mock = receiveCommitMock [bob1, bob2] <|> welcomeMock <|> messageSentMock
     void . withTempMockFederator' mock $ do
       mlsBracket [alice1] $ \[wsA] -> do
-        void $ sendAndConsumeCommit commit
+        void $ sendAndConsumeCommitBundle commit
 
         bobClients <- getClientsFromGroupState alice1 bob
         fedGalleyClient <- view tsFedGalleyClient
@@ -1770,19 +1708,20 @@ testBackendRemoveProposalLocalConvRemoteUser = do
                 }
             )
 
-        for_ bobClients $ \(_, ref) ->
+        for_ bobClients $ \(_, idx) ->
           WS.assertMatch (5 # WS.Second) wsA $
-            wsAssertBackendRemoveProposal bob (Conv <$> qcnv) ref
+            wsAssertBackendRemoveProposal bob (Conv <$> qcnv) idx
 
 sendRemoteMLSWelcome :: TestM ()
 sendRemoteMLSWelcome = do
   -- Alice is from the originating domain and Bob is local, i.e., on the receiving domain
   [alice, bob] <- createAndConnectUsers [Just "alice.example.com", Nothing]
-  commit <- runMLSTest $ do
+  (commit, bob1) <- runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ setupFakeMLSGroup alice1
     void $ uploadNewKeyPackage bob1
-    createAddCommit alice1 [bob]
+    commit <- createAddCommit alice1 [bob]
+    pure (commit, bob1)
 
   welcome <- assertJust (mpWelcome commit)
 
@@ -1795,34 +1734,12 @@ sendRemoteMLSWelcome = do
       runFedClient @"mls-welcome" fedGalleyClient (qDomain alice) $
         MLSWelcomeRequest
           (Base64ByteString welcome)
+          [qUnqualified (cidQualifiedClient bob1)]
 
     -- check that the corresponding event is received
     liftIO $ do
       WS.assertMatch_ (5 # WS.Second) wsB $
         wsAssertMLSWelcome bob welcome
-
-sendRemoteMLSWelcomeKPNotFound :: TestM ()
-sendRemoteMLSWelcomeKPNotFound = do
-  [alice, bob] <- createAndConnectUsers [Just "alice.example.com", Nothing]
-  commit <- runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient [alice, bob]
-    void $ setupFakeMLSGroup alice1
-    kp <- generateKeyPackage bob1 >>= keyPackageFile bob1 . snd
-    createAddCommitWithKeyPackages alice1 [(bob1, kp)]
-  welcome <- assertJust (mpWelcome commit)
-
-  fedGalleyClient <- view tsFedGalleyClient
-  cannon <- view tsCannon
-  WS.bracketR cannon (qUnqualified bob) $ \wsB -> do
-    -- send welcome message
-    void $
-      runFedClient @"mls-welcome" fedGalleyClient (qDomain alice) $
-        MLSWelcomeRequest
-          (Base64ByteString welcome)
-
-    liftIO $ do
-      -- check that no event is received
-      WS.assertNoEvent (1 # Second) [wsB]
 
 testBackendRemoveProposalLocalConvLocalLeaverCreator :: TestM ()
 testBackendRemoveProposalLocalConvLocalLeaverCreator = do
@@ -1832,7 +1749,7 @@ testBackendRemoveProposalLocalConvLocalLeaverCreator = do
     [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
     traverse_ uploadNewKeyPackage [bob1, bob2]
     (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
     aliceClients <- getClientsFromGroupState alice1 alice
     mlsBracket [alice1, bob1, bob2] $ \wss -> void $ do
@@ -1845,10 +1762,10 @@ testBackendRemoveProposalLocalConvLocalLeaverCreator = do
           { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [alice1])
           }
 
-      for_ aliceClients $ \(_, ref) -> do
+      for_ aliceClients $ \(_, idx) -> do
         -- only bob's clients should receive the external proposals
         msgs <- WS.assertMatchN (5 # Second) (drop 1 wss) $ \n ->
-          wsAssertBackendRemoveProposal alice (Conv <$> qcnv) ref n
+          wsAssertBackendRemoveProposal alice (Conv <$> qcnv) idx n
         traverse_ (uncurry consumeMessage1) (zip [bob1, bob2] msgs)
 
       -- but everyone should receive leave events
@@ -1860,7 +1777,7 @@ testBackendRemoveProposalLocalConvLocalLeaverCreator = do
       WS.assertNoEvent (1 # WS.Second) wss
 
     -- bob commits the external proposals
-    events <- createPendingProposalCommit bob1 >>= sendAndConsumeCommit
+    events <- createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
     liftIO $ events @?= []
 
 testBackendRemoveProposalLocalConvLocalLeaverCommitter :: TestM ()
@@ -1871,13 +1788,13 @@ testBackendRemoveProposalLocalConvLocalLeaverCommitter = do
     [alice1, bob1, bob2, charlie1] <- traverse createMLSClient [alice, bob, bob, charlie]
     traverse_ uploadNewKeyPackage [bob1, bob2, charlie1]
     (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
     -- promote bob
     putOtherMemberQualified (ciUser alice1) bob (OtherMemberUpdate (Just roleNameWireAdmin)) qcnv
       !!! const 200 === statusCode
 
-    void $ createAddCommit bob1 [charlie] >>= sendAndConsumeCommit
+    void $ createAddCommit bob1 [charlie] >>= sendAndConsumeCommitBundle
 
     bobClients <- getClientsFromGroupState alice1 bob
     mlsBracket [alice1, charlie1, bob1, bob2] $ \wss -> void $ do
@@ -1890,10 +1807,10 @@ testBackendRemoveProposalLocalConvLocalLeaverCommitter = do
           { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [bob1, bob2])
           }
 
-      for_ bobClients $ \(_, ref) -> do
+      for_ bobClients $ \(_, idx) -> do
         -- only alice and charlie should receive the external proposals
         msgs <- WS.assertMatchN (5 # Second) (take 2 wss) $ \n ->
-          wsAssertBackendRemoveProposal bob (Conv <$> qcnv) ref n
+          wsAssertBackendRemoveProposal bob (Conv <$> qcnv) idx n
         traverse_ (uncurry consumeMessage1) (zip [alice1, charlie1] msgs)
 
       -- but everyone should receive leave events
@@ -1905,7 +1822,7 @@ testBackendRemoveProposalLocalConvLocalLeaverCommitter = do
       WS.assertNoEvent (1 # WS.Second) wss
 
     -- alice commits the external proposals
-    events <- createPendingProposalCommit alice1 >>= sendAndConsumeCommit
+    events <- createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
     liftIO $ events @?= []
 
 testBackendRemoveProposalLocalConvRemoteLeaver :: TestM ()
@@ -1921,7 +1838,7 @@ testBackendRemoveProposalLocalConvRemoteLeaver = do
     bobClients <- getClientsFromGroupState alice1 bob
     void . withTempMockFederator' mock $ do
       mlsBracket [alice1] $ \[wsA] -> void $ do
-        void $ sendAndConsumeCommit commit
+        void $ sendAndConsumeCommitBundle commit
         fedGalleyClient <- view tsFedGalleyClient
         void $
           runFedClient
@@ -1934,9 +1851,9 @@ testBackendRemoveProposalLocalConvRemoteLeaver = do
                 curAction = SomeConversationAction SConversationLeaveTag ()
               }
 
-        for_ bobClients $ \(_, ref) ->
+        for_ bobClients $ \(_, idx) ->
           WS.assertMatch_ (5 # WS.Second) wsA $
-            wsAssertBackendRemoveProposal bob (Conv <$> qcnv) ref
+            wsAssertBackendRemoveProposal bob (Conv <$> qcnv) idx
 
 testBackendRemoveProposalLocalConvLocalClient :: TestM ()
 testBackendRemoveProposalLocalConvLocalClient = do
@@ -1946,10 +1863,10 @@ testBackendRemoveProposalLocalConvLocalClient = do
     [alice1, bob1, bob2, charlie1] <- traverse createMLSClient [alice, bob, bob, charlie]
     traverse_ uploadNewKeyPackage [bob1, bob2, charlie1]
     (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
-    Just (_, kpBob1) <- find (\(ci, _) -> ci == bob1) <$> getClientsFromGroupState alice1 bob
+    void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
+    Just (_, idxBob1) <- find (\(ci, _) -> ci == bob1) <$> getClientsFromGroupState alice1 bob
 
-    mlsBracket [alice1, bob1] $ \[wsA, wsB] -> do
+    mlsBracket [alice1, bob1, charlie1] $ \[wsA, wsB, wsC] -> do
       liftTest $
         deleteClient (ciUser bob1) (ciClient bob1) (Just defPassword)
           !!! statusCode === const 200
@@ -1963,15 +1880,15 @@ testBackendRemoveProposalLocalConvLocalClient = do
         wsAssertClientRemoved (ciClient bob1)
 
       msg <- WS.assertMatch (5 # WS.Second) wsA $ \notification -> do
-        wsAssertBackendRemoveProposal bob (Conv <$> qcnv) kpBob1 notification
+        wsAssertBackendRemoveProposal bob (Conv <$> qcnv) idxBob1 notification
 
       for_ [alice1, bob2, charlie1] $
         flip consumeMessage1 msg
 
       mp <- createPendingProposalCommit charlie1
-      events <- sendAndConsumeCommit mp
+      events <- sendAndConsumeCommitBundle mp
       liftIO $ events @?= []
-      WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $ \n -> do
+      WS.assertMatchN_ (5 # WS.Second) [wsA, wsC] $ \n -> do
         wsAssertMLSMessage (Conv <$> qcnv) charlie (mpMessage mp) n
 
 testBackendRemoveProposalLocalConvRemoteClient :: TestM ()
@@ -1983,11 +1900,11 @@ testBackendRemoveProposalLocalConvRemoteClient = do
     (_, qcnv) <- setupMLSGroup alice1
     commit <- createAddCommit alice1 [bob]
 
-    [(_, bob1KP)] <- getClientsFromGroupState alice1 bob
+    [(_, idxBob1)] <- getClientsFromGroupState alice1 bob
     let mock = receiveCommitMock [bob1] <|> welcomeMock <|> messageSentMock
     void . withTempMockFederator' mock $ do
       mlsBracket [alice1] $ \[wsA] -> void $ do
-        void $ sendAndConsumeCommit commit
+        void $ sendAndConsumeCommitBundle commit
 
         fedGalleyClient <- view tsFedGalleyClient
         void $
@@ -1999,7 +1916,7 @@ testBackendRemoveProposalLocalConvRemoteClient = do
 
         WS.assertMatch_ (5 # WS.Second) wsA $
           \notification ->
-            void $ wsAssertBackendRemoveProposal bob (Conv <$> qcnv) bob1KP notification
+            void $ wsAssertBackendRemoveProposal bob (Conv <$> qcnv) idxBob1 notification
 
 testGetGroupInfoOfLocalConv :: TestM ()
 testGetGroupInfoOfLocalConv = do
@@ -2014,7 +1931,7 @@ testGetGroupInfoOfLocalConv = do
     void $ sendAndConsumeCommitBundle commit
 
     -- check the group info matches
-    gs <- assertJust (mpPublicGroupState commit)
+    gs <- assertJust (mpGroupInfo commit)
     returnedGS <- liftTest $ getGroupInfo alice (fmap Conv qcnv)
     liftIO $ gs @=? returnedGS
 
@@ -2057,7 +1974,7 @@ testFederatedGetGroupInfo = do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     (_, qcnv) <- setupMLSGroup alice1
     commit <- createAddCommit alice1 [bob]
-    groupState <- assertJust (mpPublicGroupState commit)
+    groupState <- assertJust (mpGroupInfo commit)
 
     let mock = receiveCommitMock [bob1] <|> welcomeMock
     void . withTempMockFederator' mock $ do
@@ -2165,7 +2082,7 @@ testRemoteUserPostsCommitBundle = do
     void $ do
       let mock = receiveCommitMock [bob1] <|> welcomeMock
       withTempMockFederator' mock $ do
-        void $ sendAndConsumeCommit commit
+        void $ sendAndConsumeCommitBundle commit
         putOtherMemberQualified (qUnqualified alice) bob (OtherMemberUpdate (Just roleNameWireAdmin)) qcnv
           !!! const 200 === statusCode
 
@@ -2253,8 +2170,9 @@ testSelfConversationOtherUser = do
     void $ uploadNewKeyPackage bob1
     void $ setupMLSSelfGroup alice1
     commit <- createAddCommit alice1 [bob]
+    bundle <- createBundle commit
     mlsBracket [alice1, bob1] $ \wss -> do
-      postMessage (mpSender commit) (mpMessage commit)
+      localPostCommitBundle (mpSender commit) bundle
         !!! do
           const 403 === statusCode
           const (Just "invalid-op") === fmap Wai.label . responseJsonError
@@ -2267,7 +2185,7 @@ testSelfConversationLeave = do
     clients@(creator : others) <- traverse createMLSClient (replicate 3 alice)
     traverse_ uploadNewKeyPackage others
     (_, qcnv) <- setupMLSSelfGroup creator
-    void $ createAddCommit creator [alice] >>= sendAndConsumeCommit
+    void $ createAddCommit creator [alice] >>= sendAndConsumeCommitBundle
     mlsBracket clients $ \wss -> do
       liftTest $
         deleteMemberQualified (qUnqualified alice) alice qcnv
@@ -2299,8 +2217,9 @@ postMLSMessageDisabled = do
     void $ uploadNewKeyPackage bob1
     void $ setupMLSGroup alice1
     mp <- createAddCommit alice1 [bob]
+    bundle <- createBundle mp
     withMLSDisabled $
-      postMessage (mpSender mp) (mpMessage mp)
+      localPostCommitBundle (mpSender mp) bundle
         !!! assertMLSNotEnabled
 
 postMLSBundleDisabled :: TestM ()
@@ -2323,7 +2242,7 @@ getGroupInfoDisabled = do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
     (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
     withMLSDisabled $
       localGetGroupInfo (qUnqualified alice) (fmap Conv qcnv)
@@ -2384,7 +2303,7 @@ testJoinSubConv = do
       [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
       traverse_ uploadNewKeyPackage [bob1, bob2]
       (_, qcnv) <- setupMLSGroup alice1
-      void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+      void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
       let subId = SubConvId "conference"
       sub <-
@@ -2395,7 +2314,6 @@ testJoinSubConv = do
 
       resetGroup bob1 (fmap (flip SubConv subId) qcnv) (pscGroupId sub)
 
-      bobRefsBefore <- getClientsFromGroupState bob1 bob
       -- bob adds his first client to the subconversation
       void $
         createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
@@ -2404,11 +2322,7 @@ testJoinSubConv = do
           responseJsonError
             =<< getSubConv (qUnqualified bob) qcnv subId
               <!! const 200 === statusCode
-      bobRefsAfter <- getClientsFromGroupState bob1 bob
       liftIO $ do
-        assertBool
-          "Bob's key package has not been updated via the update path"
-          (bobRefsBefore /= bobRefsAfter)
         assertBool
           "The epoch timestamp is null"
           (isJust (pscEpochTimestamp subAfter))
@@ -2436,13 +2350,13 @@ testExternalCommitSameClientSubConv = do
       createExternalCommit bob1 Nothing qsub
         >>= sendAndConsumeCommitBundle
 
-    Just (_, kpBob1) <- find (\(ci, _) -> ci == bob1) <$> getClientsFromGroupState alice1 bob
+    Just (_, idxBob1) <- find (\(ci, _) -> ci == bob1) <$> getClientsFromGroupState alice1 bob
 
     -- bob1 leaves and immediately rejoins
     mlsBracket [alice1, bob1] $ \[wsA, wsB] -> do
       void $ leaveCurrentConv bob1 qsub
       WS.assertMatchN_ (5 # WS.Second) [wsA] $
-        wsAssertBackendRemoveProposal bob qsub kpBob1
+        wsAssertBackendRemoveProposal bob qsub idxBob1
       void $
         createExternalCommit bob1 Nothing qsub
           >>= sendAndConsumeCommitBundle
@@ -2457,7 +2371,7 @@ testJoinSubNonMemberClient = do
       traverse createMLSClient [alice, alice, bob]
     traverse_ uploadNewKeyPackage [bob1, alice2]
     (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [alice] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [alice] >>= sendAndConsumeCommitBundle
 
     qcs <- createSubConv qcnv alice1 (SubConvId "conference")
 
@@ -2474,7 +2388,7 @@ testAddClientSubConvFailure = do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
     (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
     let subId = SubConvId "conference"
     void $ createSubConv qcnv alice1 subId
@@ -2534,7 +2448,7 @@ testJoinRemoteSubConv = do
     receiveNewRemoteConv qcs subGroupId
 
     -- bob joins subconversation
-    let pgs = mpPublicGroupState initialCommit
+    let pgs = mpGroupInfo initialCommit
     let mock =
           ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers []))
             <|> queryGroupStateMock (fold pgs) bob
@@ -2597,7 +2511,7 @@ testRemoteUserJoinSubConv = do
     void $ do
       commit <- createAddCommit alice1 [bob]
       withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
-        sendAndConsumeCommit commit
+        sendAndConsumeCommitBundle commit
 
     let mock =
           asum
@@ -2650,7 +2564,7 @@ testSendMessageSubConv = do
     [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
     traverse_ uploadNewKeyPackage [bob1, bob2]
     (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
     qcs <- createSubConv qcnv bob1 (SubConvId "conference")
 
@@ -2716,7 +2630,7 @@ testRemoteMemberGetSubConv isAMember = do
 
     let mock = receiveCommitMock [bob1] <|> welcomeMock <|> claimKeyPackagesMock kpb
     void . withTempMockFederator' mock $
-      sendAndConsumeCommit mp
+      sendAndConsumeCommitBundle mp
 
     let subconv = SubConvId "conference"
 
@@ -2765,7 +2679,7 @@ testRemoteMemberDeleteSubConv isAMember = do
     mp <- createAddCommit alice1 [bob]
 
     let mock = receiveCommitMock [bob1] <|> welcomeMock
-    void . withTempMockFederator' mock . sendAndConsumeCommit $ mp
+    void . withTempMockFederator' mock . sendAndConsumeCommitBundle $ mp
 
     sub <-
       liftTest $
@@ -2953,7 +2867,7 @@ testDeleteParentOfSubConv = do
     (parentGroupId, qcnv) <- setupMLSGroup alice1
 
     (qcs, _) <- withTempMockFederator' (receiveCommitMock [bob1]) $ do
-      void $ createAddCommit alice1 [arthur, bob] >>= sendAndConsumeCommit
+      void $ createAddCommit alice1 [arthur, bob] >>= sendAndConsumeCommitBundle
       createSubConv qcnv alice1 sconv
 
     subGid <- getCurrentGroupId
@@ -3014,7 +2928,7 @@ testDeleteRemoteParentOfSubConv = do
     -- inform backend about the subconversation
     receiveNewRemoteConv qcs subGroupId
 
-    let pgs = mpPublicGroupState initialCommit
+    let pgs = mpGroupInfo initialCommit
     let mock =
           ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers []))
             <|> queryGroupStateMock (fold pgs) bob
@@ -3134,7 +3048,7 @@ testLeaveSubConv isSubConvCreator = do
           <|> ("on-mls-message-sent" ~> RemoteMLSMessageOk)
       )
       $ do
-        void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
+        void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
 
         qsub <- createSubConv qcnv bob1 subId
         void $ createExternalCommit alice1 Nothing qsub >>= sendAndConsumeCommitBundle
@@ -3144,7 +3058,7 @@ testLeaveSubConv isSubConvCreator = do
 
     let firstLeaver = if isSubConvCreator then bob1 else alice1
     -- a member leaves the subconversation
-    [firstLeaverKP] <-
+    [idxFirstLeaver] <-
       map snd . filter (\(cid, _) -> cid == firstLeaver)
         <$> getClientsFromGroupState
           alice1
@@ -3169,7 +3083,7 @@ testLeaveSubConv isSubConvCreator = do
           wsAssertBackendRemoveProposal
             (cidQualifiedUser firstLeaver)
             (Conv <$> qcnv)
-            firstLeaverKP
+            idxFirstLeaver
       traverse_ (uncurry consumeMessage1) (zip others msgs)
       -- assert the leaver gets no proposal or event
       void . liftIO $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
@@ -3178,7 +3092,7 @@ testLeaveSubConv isSubConvCreator = do
     do
       leaveCommit <- createPendingProposalCommit (head others)
       mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
-        events <- sendAndConsumeCommit leaveCommit
+        events <- sendAndConsumeCommitBundle leaveCommit
         liftIO $ events @?= []
         WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
           wsAssertMLSMessage qsub (cidQualifiedUser . head $ others) (mpMessage leaveCommit) n
@@ -3205,7 +3119,7 @@ testLeaveSubConv isSubConvCreator = do
       liftIO $ length (pscMembers psc) @?= 3
 
     -- charlie1 leaves
-    [charlie1KP] <-
+    [idxCharlie1] <-
       map snd . filter (\(cid, _) -> cid == charlie1)
         <$> getClientsFromGroupState (head others) charlie
     mlsBracket others $ \wss -> do
@@ -3213,7 +3127,7 @@ testLeaveSubConv isSubConvCreator = do
 
       msgs <-
         WS.assertMatchN (5 # WS.Second) wss $
-          wsAssertBackendRemoveProposal charlie (Conv <$> qcnv) charlie1KP
+          wsAssertBackendRemoveProposal charlie (Conv <$> qcnv) idxCharlie1
       traverse_ (uncurry consumeMessage1) (zip others msgs)
 
     -- a member commits the pending proposal
@@ -3239,7 +3153,7 @@ testLeaveSubConvNonMember = do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
     (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
     let subId = SubConvId "conference"
     _qsub <- createSubConv qcnv bob1 subId
@@ -3284,7 +3198,7 @@ testLeaveRemoteSubConv = do
     -- inform backend about the subconversation
     receiveNewRemoteConv qcs subGroupId
 
-    let pgs = mpPublicGroupState initialCommit
+    let pgs = mpGroupInfo initialCommit
     let mock =
           ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers []))
             <|> queryGroupStateMock (fold pgs) bob
@@ -3305,18 +3219,18 @@ testLeaveRemoteSubConv = do
 testRemoveUserParent :: TestM ()
 testRemoveUserParent = do
   [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Nothing]
+  let subname = SubConvId "conference"
 
-  runMLSTest $
+  (qcnv, [alice1, bob1, bob2, _charlie1, _charlie2]) <- runMLSTest $
     do
-      [alice1, bob1, bob2, charlie1, charlie2] <-
+      clients@[alice1, bob1, bob2, charlie1, charlie2] <-
         traverse
           createMLSClient
           [alice, bob, bob, charlie, charlie]
       traverse_ uploadNewKeyPackage [bob1, bob2, charlie1, charlie2]
       (_, qcnv) <- setupMLSGroup alice1
-      void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
+      void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
 
-      let subname = SubConvId "conference"
       void $ createSubConv qcnv bob1 subname
       let qcs = fmap (flip SubConv subname) qcnv
 
@@ -3324,61 +3238,40 @@ testRemoveUserParent = do
       for_ [alice1, bob2, charlie1, charlie2] $ \c ->
         void $ createExternalCommit c Nothing qcs >>= sendAndConsumeCommitBundle
 
-      [(_, kpref1), (_, kpref2)] <- getClientsFromGroupState alice1 charlie
+      pure (qcnv, clients)
 
-      -- charlie leaves the main conversation
-      mlsBracket [alice1, bob1, bob2] $ \wss -> do
-        liftTest $ do
-          deleteMemberQualified (qUnqualified charlie) charlie qcnv
-            !!! const 200 === statusCode
+  -- charlie leaves the main conversation
+  deleteMemberQualified (qUnqualified charlie) charlie qcnv
+    !!! const 200 === statusCode
 
-        -- Remove charlie from our state as well
-        State.modify $ \mls ->
-          mls
-            { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [charlie1, charlie2])
-            }
+  getSubConv (qUnqualified charlie) qcnv subname
+    !!! const 403 === statusCode
 
-        msg1 <- WS.assertMatchN (5 # Second) wss $ \n ->
-          wsAssertBackendRemoveProposal charlie (Conv <$> qcnv) kpref1 n
-
-        traverse_ (uncurry consumeMessage1) (zip [alice1, bob1, bob2] msg1)
-
-        msg2 <- WS.assertMatchN (5 # Second) wss $ \n ->
-          wsAssertBackendRemoveProposal charlie (Conv <$> qcnv) kpref2 n
-
-        traverse_ (uncurry consumeMessage1) (zip [alice1, bob1, bob2] msg2)
-
-        void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
-
-        liftTest $ do
-          getSubConv (qUnqualified charlie) qcnv (SubConvId "conference")
-            !!! const 403 === statusCode
-
-          sub :: PublicSubConversation <-
-            responseJsonError
-              =<< getSubConv (qUnqualified bob) qcnv (SubConvId "conference")
-                <!! const 200 === statusCode
-          liftIO $
-            assertEqual
-              "subconv membership mismatch after removal"
-              (sort [bob1, bob2, alice1])
-              (sort $ pscMembers sub)
+  sub :: PublicSubConversation <-
+    responseJsonError
+      =<< getSubConv (qUnqualified bob) qcnv subname
+        <!! const 200 === statusCode
+  liftIO $
+    assertEqual
+      "subconv membership mismatch after removal"
+      (sort [bob1, bob2, alice1])
+      (sort $ pscMembers sub)
 
 testRemoveCreatorParent :: TestM ()
 testRemoveCreatorParent = do
   [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Nothing]
+  let subname = SubConvId "conference"
 
-  runMLSTest $
+  (qcnv, [_alice1, bob1, bob2, charlie1, charlie2]) <- runMLSTest $
     do
-      [alice1, bob1, bob2, charlie1, charlie2] <-
+      clients@[alice1, bob1, bob2, charlie1, charlie2] <-
         traverse
           createMLSClient
           [alice, bob, bob, charlie, charlie]
       traverse_ uploadNewKeyPackage [bob1, bob2, charlie1, charlie2]
       (_, qcnv) <- setupMLSGroup alice1
-      void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
+      void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
 
-      let subname = SubConvId "conference"
       void $ createSubConv qcnv alice1 subname
       let qcs = fmap (flip SubConv subname) qcnv
 
@@ -3386,54 +3279,36 @@ testRemoveCreatorParent = do
       for_ [bob1, bob2, charlie1, charlie2] $ \c ->
         void $ createExternalCommit c Nothing qcs >>= sendAndConsumeCommitBundle
 
-      [(_, kpref1)] <- getClientsFromGroupState alice1 alice
+      pure (qcnv, clients)
 
-      -- creator leaves the main conversation
-      mlsBracket [bob1, bob2, charlie1, charlie2] $ \wss -> do
-        liftTest $ do
-          deleteMemberQualified (qUnqualified alice) alice qcnv
-            !!! const 200 === statusCode
+  -- creator leaves the main conversation
+  deleteMemberQualified (qUnqualified alice) alice qcnv
+    !!! const 200 === statusCode
 
-        -- Remove alice1 from our state as well
-        State.modify $ \mls ->
-          mls
-            { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [alice1])
-            }
+  getSubConv (qUnqualified alice) qcnv subname
+    !!! const 403 === statusCode
 
-        msg <- WS.assertMatchN (5 # Second) wss $ \n ->
-          -- Checks proposal for subconv, parent doesn't get one
-          -- since alice is not notified of her own removal
-          wsAssertBackendRemoveProposal alice (Conv <$> qcnv) kpref1 n
+  -- charlie sees updated memberlist
+  sub :: PublicSubConversation <-
+    responseJsonError
+      =<< getSubConv (qUnqualified charlie) qcnv subname
+        <!! const 200 === statusCode
+  liftIO $
+    assertEqual
+      "1. subconv membership mismatch after removal"
+      (sort [charlie1, charlie2, bob1, bob2])
+      (sort $ pscMembers sub)
 
-        traverse_ (uncurry consumeMessage1) (zip [bob1, bob2, charlie1, charlie2] msg)
-
-        void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
-
-        liftTest $ do
-          getSubConv (qUnqualified alice) qcnv subname
-            !!! const 403 === statusCode
-
-          -- charlie sees updated memberlist
-          sub :: PublicSubConversation <-
-            responseJsonError
-              =<< getSubConv (qUnqualified charlie) qcnv subname
-                <!! const 200 === statusCode
-          liftIO $
-            assertEqual
-              "1. subconv membership mismatch after removal"
-              (sort [charlie1, charlie2, bob1, bob2])
-              (sort $ pscMembers sub)
-
-          -- bob also sees updated memberlist
-          sub1 :: PublicSubConversation <-
-            responseJsonError
-              =<< getSubConv (qUnqualified bob) qcnv subname
-                <!! const 200 === statusCode
-          liftIO $
-            assertEqual
-              "2. subconv membership mismatch after removal"
-              (sort [charlie1, charlie2, bob1, bob2])
-              (sort $ pscMembers sub1)
+  -- bob also sees updated memberlist
+  sub1 :: PublicSubConversation <-
+    responseJsonError
+      =<< getSubConv (qUnqualified bob) qcnv subname
+        <!! const 200 === statusCode
+  liftIO $
+    assertEqual
+      "2. subconv membership mismatch after removal"
+      (sort [charlie1, charlie2, bob1, bob2])
+      (sort $ pscMembers sub1)
 
 testCreatorRemovesUserFromParent :: TestM ()
 testCreatorRemovesUserFromParent = do
@@ -3447,7 +3322,7 @@ testCreatorRemovesUserFromParent = do
           [alice, bob, bob, charlie, charlie]
       traverse_ uploadNewKeyPackage [bob1, bob2, charlie1, charlie2]
       (_, qcnv) <- setupMLSGroup alice1
-      void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
+      void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
 
       stateParent <- State.get
 
@@ -3474,13 +3349,13 @@ testCreatorRemovesUserFromParent = do
 
         State.put stateSub
         -- Get client state for alice and fetch bob client identities
-        [(_, kprefBob1), (_, kprefBob2)] <- getClientsFromGroupState alice1 bob
+        [(_, idxBob1), (_, idxBob2)] <- getClientsFromGroupState alice1 bob
 
         -- handle bob1 removal
         msgs <- WS.assertMatchN (5 # Second) wss $ \n -> do
           -- it was an alice proposal for the parent,
           -- but it's a backend proposal for the sub
-          wsAssertBackendRemoveProposal bob qcs kprefBob1 n
+          wsAssertBackendRemoveProposal bob qcs idxBob1 n
 
         traverse_ (uncurry consumeMessage1) (zip [alice1, charlie1, charlie2] msgs)
 
@@ -3488,7 +3363,7 @@ testCreatorRemovesUserFromParent = do
         msgs2 <- WS.assertMatchN (5 # Second) wss $ \n -> do
           -- it was an alice proposal for the parent,
           -- but it's a backend proposal for the sub
-          wsAssertBackendRemoveProposal bob qcs kprefBob2 n
+          wsAssertBackendRemoveProposal bob qcs idxBob2 n
 
         traverse_ (uncurry consumeMessage1) (zip [alice1, charlie1, charlie2] msgs2)
 

@@ -21,7 +21,7 @@ module Test.Wire.API.Golden.Generated.UpdateClient_user where
 
 import qualified Data.Map as Map
 import Imports
-import Wire.API.MLS.Credential
+import Wire.API.MLS.CipherSuite
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 

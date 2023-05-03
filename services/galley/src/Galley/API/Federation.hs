@@ -46,7 +46,6 @@ import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.GroupInfo
-import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Message
 import Galley.API.MLS.Removal
 import Galley.API.MLS.SubConversation hiding (leaveSubConversation)
@@ -93,13 +92,11 @@ import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
-import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Message
-import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
-import Wire.API.MLS.Welcome
+-- import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named (Named (Named))
@@ -667,18 +664,21 @@ sendMLSCommitBundle remoteDomain msr =
       assertMLSEnabled
       loc <- qualifyLocal ()
       let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
-      bundle <- either (throw . mlsProtocolError) pure $ deserializeCommitBundle (fromBase64ByteString (F.mmsrRawMessage msr))
-      let msg = rmValue (cbCommitMsg bundle)
-      qConvOrSub <- E.lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+      bundle <-
+        either (throw . mlsProtocolError) pure $
+          decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
+
+      ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
+      qConvOrSub <- E.lookupConvByGroupId ibundle.groupId >>= noteS @'ConvNotFound
       when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
       uncurry F.MLSMessageResponseUpdates . first (map lcuUpdate)
         <$> postMLSCommitBundle
           loc
           (tUntagged sender)
-          (Just (mmsrSenderClient msr))
+          (mmsrSenderClient msr)
           qConvOrSub
           Nothing
-          bundle
+          ibundle
 
 sendMLSMessage ::
   ( Member BrigAccess r,
@@ -694,7 +694,6 @@ sendMLSMessage ::
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member MemberStore r,
-    Member Resource r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member ProposalStore r,
@@ -716,22 +715,20 @@ sendMLSMessage remoteDomain msr =
       loc <- qualifyLocal ()
       let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
       raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
-      case rmValue raw of
-        SomeMessage _ msg -> do
-          qConvOrSub <- E.lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-          when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
-          uncurry F.MLSMessageResponseUpdates . first (map lcuUpdate)
-            <$> postMLSMessage
-              loc
-              (tUntagged sender)
-              (Just (mmsrSenderClient msr))
-              qConvOrSub
-              Nothing
-              raw
+      msg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage raw
+      qConvOrSub <- E.lookupConvByGroupId msg.groupId >>= noteS @'ConvNotFound
+      when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
+      uncurry F.MLSMessageResponseUpdates . first (map lcuUpdate)
+        <$> postMLSMessage
+          loc
+          (tUntagged sender)
+          (mmsrSenderClient msr)
+          qConvOrSub
+          Nothing
+          msg
 
 mlsSendWelcome ::
-  ( Member BrigAccess r,
-    Member (Error InternalError) r,
+  ( Member (Error InternalError) r,
     Member GundeckAccess r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
@@ -740,26 +737,17 @@ mlsSendWelcome ::
   Domain ->
   F.MLSWelcomeRequest ->
   Sem r F.MLSWelcomeResponse
-mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawWelcome) =
+mlsSendWelcome _origDomain req =
   fmap (either (const MLSWelcomeMLSNotEnabled) (const MLSWelcomeSent))
     . runError @(Tagged 'MLSNotEnabled ())
     $ do
       assertMLSEnabled
       loc <- qualifyLocal ()
       now <- input
-      welcome <- either (throw . InternalErrorWithDescription . LT.fromStrict) pure $ decodeMLS' rawWelcome
-      -- Extract only recipients local to this backend
-      rcpts <-
-        fmap catMaybes
-          $ traverse
-            ( fmap (fmap cidQualifiedClient . hush)
-                . runError @(Tagged 'MLSKeyPackageRefNotFound ())
-                . derefKeyPackage
-                . gsNewMember
-            )
-          $ welSecrets welcome
-      let lrcpts = qualifyAs loc $ fst $ partitionQualified loc rcpts
-      sendLocalWelcomes Nothing now rawWelcome lrcpts
+      welcome <-
+        either (throw . InternalErrorWithDescription . LT.fromStrict) pure $
+          decodeMLS' (fromBase64ByteString req.welcomeMessage)
+      sendLocalWelcomes Nothing now welcome (qualifyAs loc req.recipients)
 
 onMLSMessageSent ::
   ( Member ExternalAccess r,
@@ -829,7 +817,7 @@ queryGroupInfo origDomain req =
           getSubConversationGroupInfoFromLocalConv (tUntagged sender) subConvId lconvId
       pure
         . Base64ByteString
-        . unOpaquePublicGroupState
+        . unGroupInfoData
         $ state
 
 updateTypingIndicator ::

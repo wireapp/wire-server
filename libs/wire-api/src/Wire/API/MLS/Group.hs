@@ -39,10 +39,10 @@ instance IsString GroupId where
   fromString = GroupId . fromString
 
 instance ParseMLS GroupId where
-  parseMLS = GroupId <$> parseMLSBytes @Word8
+  parseMLS = GroupId <$> parseMLSBytes @VarInt
 
 instance SerialiseMLS GroupId where
-  serialiseMLS (GroupId gid) = serialiseMLSBytes @Word8 gid
+  serialiseMLS (GroupId gid) = serialiseMLSBytes @VarInt gid
 
 instance ToSchema GroupId where
   schema =

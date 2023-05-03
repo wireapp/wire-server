@@ -27,6 +27,7 @@ import Galley.Effects
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
+import Galley.Effects.SubConversationStore
 import Imports
 import Polysemy
 import Polysemy.Resource (Resource, bracket)
@@ -37,9 +38,10 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
-import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 
 getLocalConvForUser ::
   ( Member (ErrorS 'ConvNotFound) r,
@@ -72,15 +74,15 @@ getPendingBackendRemoveProposals ::
   ) =>
   GroupId ->
   Epoch ->
-  Sem r [KeyPackageRef]
+  Sem r [LeafIndex]
 getPendingBackendRemoveProposals gid epoch = do
   proposals <- getAllPendingProposals gid epoch
   catMaybes
     <$> for
       proposals
       ( \case
-          (Just ProposalOriginBackend, proposal) -> case rmValue proposal of
-            RemoveProposal kp -> pure . Just $ kp
+          (Just ProposalOriginBackend, proposal) -> case value proposal of
+            RemoveProposal i -> pure (Just i)
             _ -> pure Nothing
           (Just ProposalOriginClient, _) -> pure Nothing
           (Nothing, _) -> do
@@ -93,15 +95,17 @@ withCommitLock ::
   ( Members
       '[ Resource,
          ConversationStore,
-         ErrorS 'MLSStaleMessage
+         ErrorS 'MLSStaleMessage,
+         SubConversationStore
        ]
       r
   ) =>
+  Local ConvOrSubConvId ->
   GroupId ->
   Epoch ->
   Sem r a ->
   Sem r a
-withCommitLock gid epoch action =
+withCommitLock lConvOrSubId gid epoch action =
   bracket
     ( acquireCommitLock gid epoch ttl >>= \lockAcquired ->
         when (lockAcquired == NotAcquired) $
@@ -109,7 +113,11 @@ withCommitLock gid epoch action =
     )
     (const $ releaseCommitLock gid epoch)
     $ \_ -> do
-      -- FUTUREWORK: fetch epoch again and check that is matches
+      actualEpoch <-
+        fromMaybe (Epoch 0) <$> case tUnqualified lConvOrSubId of
+          Conv cnv -> getConversationEpoch cnv
+          SubConv cnv sub -> getSubConversationEpoch cnv sub
+      unless (actualEpoch == epoch) $ throwS @'MLSStaleMessage
       action
   where
     ttl = fromIntegral (600 :: Int) -- 10 minutes

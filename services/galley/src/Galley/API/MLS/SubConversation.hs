@@ -35,7 +35,6 @@ import Control.Arrow
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
-import qualified Data.Set as Set
 import Data.Time.Clock
 import Galley.API.MLS
 import Galley.API.MLS.Conversation
@@ -69,7 +68,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
-import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 
 type MLSGetSubConvStaticErrors =
@@ -142,7 +141,8 @@ getLocalSubConversation qusr lconv sconv = do
                       cnvmlsEpochTimestamp = Nothing,
                       cnvmlsCipherSuite = suite
                     },
-                scMembers = mkClientMap []
+                scMembers = mkClientMap [],
+                scIndexMap = mempty
               }
       pure sub
     Just sub -> pure sub
@@ -192,7 +192,7 @@ getSubConversationGroupInfo ::
   Local UserId ->
   Qualified ConvId ->
   SubConvId ->
-  Sem r OpaquePublicGroupState
+  Sem r GroupInfoData
 getSubConversationGroupInfo lusr qcnvId subconv = do
   assertMLSEnabled
   foldQualified
@@ -212,10 +212,10 @@ getSubConversationGroupInfoFromLocalConv ::
   Qualified UserId ->
   SubConvId ->
   Local ConvId ->
-  Sem r OpaquePublicGroupState
+  Sem r GroupInfoData
 getSubConversationGroupInfoFromLocalConv qusr subConvId lcnvId = do
   void $ getLocalConvForUser qusr lcnvId
-  Eff.getSubConversationPublicGroupState (tUnqualified lcnvId) subConvId
+  Eff.getSubConversationGroupInfo (tUnqualified lcnvId) subConvId
     >>= noteS @'MLSMissingGroupInfo
 
 type MLSDeleteSubConvStaticErrors =
@@ -279,9 +279,10 @@ deleteLocalSubConversation ::
 deleteLocalSubConversation qusr lcnvId scnvId dsc = do
   assertMLSEnabled
   let cnvId = tUnqualified lcnvId
+      lConvOrSubId = qualifyAs lcnvId (SubConv cnvId scnvId)
   cnv <- getConversationAndCheckMembership qusr lcnvId
   cs <- cnvmlsCipherSuite <$> noteS @'ConvNotFound (mlsMetadata cnv)
-  (mlsData, oldGid) <- withCommitLock (dscGroupId dsc) (dscEpoch dsc) $ do
+  (mlsData, oldGid) <- withCommitLock lConvOrSubId (dscGroupId dsc) (dscEpoch dsc) $ do
     sconv <-
       Eff.getSubConversation cnvId scnvId
         >>= noteS @'ConvNotFound
@@ -423,12 +424,12 @@ leaveLocalSubConversation cid lcnv sub = do
   subConv <-
     noteS @'ConvNotFound
       =<< Eff.getSubConversation (tUnqualified lcnv) sub
-  kp <-
+  idx <-
     note (mlsProtocolError "Client is not a member of the subconversation") $
-      cmLookupRef cid (scMembers subConv)
-  -- remove the leaver from the member list
+      cmLookupIndex cid (scMembers subConv)
   let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData subConv)
-  Eff.removeMLSClients gid (cidQualifiedUser cid) . Set.singleton . ciClient $ cid
+  -- plan to remove the leaver from the member list
+  Eff.planClientRemoval gid (Identity cid)
   let cm = cmRemoveClient cid (scMembers subConv)
   if Map.null cm
     then do
@@ -440,7 +441,7 @@ leaveLocalSubConversation cid lcnv sub = do
     else
       createAndSendRemoveProposals
         (qualifyAs lcnv (SubConv mlsConv subConv))
-        (Identity kp)
+        (Identity idx)
         (cidQualifiedUser cid)
         cm
 

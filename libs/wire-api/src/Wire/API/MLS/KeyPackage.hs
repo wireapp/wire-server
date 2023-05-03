@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -24,17 +22,11 @@ module Wire.API.MLS.KeyPackage
     KeyPackageCount (..),
     KeyPackageData (..),
     KeyPackage (..),
-    kpProtocolVersion,
-    kpCipherSuite,
-    kpInitKey,
-    kpCredential,
-    kpExtensions,
-    kpIdentity,
+    keyPackageIdentity,
     kpRef,
     kpRef',
     KeyPackageTBS (..),
     KeyPackageRef (..),
-    KeyPackageUpdate (..),
   )
 where
 
@@ -42,16 +34,13 @@ import Cassandra.CQL hiding (Set)
 import Control.Applicative
 import Control.Lens hiding (set, (.=))
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Binary
-import Data.Binary.Get
-import Data.Binary.Put
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LBS
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
+import GHC.Records
 import Imports
 import Test.QuickCheck
 import Web.HttpApiData
@@ -59,18 +48,21 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Context
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Extension
+import Wire.API.MLS.HPKEPublicKey
+import Wire.API.MLS.LeafNode
+import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
 data KeyPackageUpload = KeyPackageUpload
-  {kpuKeyPackages :: [RawMLS KeyPackage]}
+  {keyPackages :: [RawMLS KeyPackage]}
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema KeyPackageUpload
 
 instance ToSchema KeyPackageUpload where
   schema =
     object "KeyPackageUpload" $
       KeyPackageUpload
-        <$> kpuKeyPackages .= field "key_packages" (array rawKeyPackageSchema)
+        <$> keyPackages .= field "key_packages" (array rawKeyPackageSchema)
 
 newtype KeyPackageData = KeyPackageData {kpData :: ByteString}
   deriving stock (Eq, Ord, Show)
@@ -90,10 +82,10 @@ instance Cql KeyPackageData where
   fromCql _ = Left "Expected CqlBlob"
 
 data KeyPackageBundleEntry = KeyPackageBundleEntry
-  { kpbeUser :: Qualified UserId,
-    kpbeClient :: ClientId,
-    kpbeRef :: KeyPackageRef,
-    kpbeKeyPackage :: KeyPackageData
+  { user :: Qualified UserId,
+    client :: ClientId,
+    ref :: KeyPackageRef,
+    keyPackage :: KeyPackageData
   }
   deriving stock (Eq, Ord, Show)
 
@@ -101,12 +93,12 @@ instance ToSchema KeyPackageBundleEntry where
   schema =
     object "KeyPackageBundleEntry" $
       KeyPackageBundleEntry
-        <$> kpbeUser .= qualifiedObjectSchema "user" schema
-        <*> kpbeClient .= field "client" schema
-        <*> kpbeRef .= field "key_package_ref" schema
-        <*> kpbeKeyPackage .= field "key_package" schema
+        <$> (.user) .= qualifiedObjectSchema "user" schema
+        <*> (.client) .= field "client" schema
+        <*> (.ref) .= field "key_package_ref" schema
+        <*> (.keyPackage) .= field "key_package" schema
 
-newtype KeyPackageBundle = KeyPackageBundle {kpbEntries :: Set KeyPackageBundleEntry}
+newtype KeyPackageBundle = KeyPackageBundle {entries :: Set KeyPackageBundleEntry}
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema KeyPackageBundle
 
@@ -114,7 +106,7 @@ instance ToSchema KeyPackageBundle where
   schema =
     object "KeyPackageBundle" $
       KeyPackageBundle
-        <$> kpbEntries .= field "key_packages" (set schema)
+        <$> (.entries) .= field "key_packages" (set schema)
 
 newtype KeyPackageCount = KeyPackageCount {unKeyPackageCount :: Int}
   deriving newtype (Eq, Ord, Num, Show)
@@ -129,18 +121,16 @@ newtype KeyPackageRef = KeyPackageRef {unKeyPackageRef :: ByteString}
   deriving stock (Eq, Ord, Show)
   deriving (FromHttpApiData, ToHttpApiData, S.ToParamSchema) via Base64ByteString
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema KeyPackageRef)
-
-instance Arbitrary KeyPackageRef where
-  arbitrary = KeyPackageRef . B.pack <$> vectorOf 16 arbitrary
+  deriving newtype (Arbitrary)
 
 instance ToSchema KeyPackageRef where
   schema = named "KeyPackageRef" $ unKeyPackageRef .= fmap KeyPackageRef base64Schema
 
 instance ParseMLS KeyPackageRef where
-  parseMLS = KeyPackageRef <$> getByteString 16
+  parseMLS = KeyPackageRef <$> parseMLSBytes @VarInt
 
 instance SerialiseMLS KeyPackageRef where
-  serialiseMLS = putByteString . unKeyPackageRef
+  serialiseMLS = serialiseMLSBytes @VarInt . unKeyPackageRef
 
 instance Cql KeyPackageRef where
   ctype = Tagged BlobColumn
@@ -153,6 +143,7 @@ kpRef :: CipherSuiteTag -> KeyPackageData -> KeyPackageRef
 kpRef cs =
   KeyPackageRef
     . csHash cs keyPackageContext
+    . flip RawMLS ()
     . kpData
 
 -- | Compute ref of a key package. Return 'Nothing' if the key package cipher
@@ -160,17 +151,18 @@ kpRef cs =
 kpRef' :: RawMLS KeyPackage -> Maybe KeyPackageRef
 kpRef' kp =
   kpRef
-    <$> cipherSuiteTag (kpCipherSuite (rmValue kp))
-    <*> pure (KeyPackageData (rmRaw kp))
+    <$> cipherSuiteTag (kp.value.cipherSuite)
+    <*> pure (KeyPackageData (raw kp))
 
 --------------------------------------------------------------------------------
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-10-6
 data KeyPackageTBS = KeyPackageTBS
-  { kpuProtocolVersion :: ProtocolVersion,
-    kpuCipherSuite :: CipherSuite,
-    kpuInitKey :: ByteString,
-    kpuCredential :: Credential,
-    kpuExtensions :: [Extension]
+  { protocolVersion :: ProtocolVersion,
+    cipherSuite :: CipherSuite,
+    initKey :: HPKEPublicKey,
+    leafNode :: LeafNode,
+    extensions :: [Extension]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform KeyPackageTBS
@@ -180,36 +172,46 @@ instance ParseMLS KeyPackageTBS where
     KeyPackageTBS
       <$> parseMLS
       <*> parseMLS
-      <*> parseMLSBytes @Word16
       <*> parseMLS
-      <*> parseMLSVector @Word32 parseMLS
+      <*> parseMLS
+      <*> parseMLSVector @VarInt parseMLS
 
+instance SerialiseMLS KeyPackageTBS where
+  serialiseMLS tbs = do
+    serialiseMLS tbs.protocolVersion
+    serialiseMLS tbs.cipherSuite
+    serialiseMLS tbs.initKey
+    serialiseMLS tbs.leafNode
+    serialiseMLSVector @VarInt serialiseMLS tbs.extensions
+
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-10-6
 data KeyPackage = KeyPackage
-  { kpTBS :: RawMLS KeyPackageTBS,
-    kpSignature :: ByteString
+  { tbs :: RawMLS KeyPackageTBS,
+    signature_ :: ByteString
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform KeyPackage)
 
 instance S.ToSchema KeyPackage where
   declareNamedSchema _ = pure (mlsSwagger "KeyPackage")
 
-kpProtocolVersion :: KeyPackage -> ProtocolVersion
-kpProtocolVersion = kpuProtocolVersion . rmValue . kpTBS
+instance HasField "protocolVersion" KeyPackage ProtocolVersion where
+  getField = (.tbs.value.protocolVersion)
 
-kpCipherSuite :: KeyPackage -> CipherSuite
-kpCipherSuite = kpuCipherSuite . rmValue . kpTBS
+instance HasField "cipherSuite" KeyPackage CipherSuite where
+  getField = (.tbs.value.cipherSuite)
 
-kpInitKey :: KeyPackage -> ByteString
-kpInitKey = kpuInitKey . rmValue . kpTBS
+instance HasField "initKey" KeyPackage HPKEPublicKey where
+  getField = (.tbs.value.initKey)
 
-kpCredential :: KeyPackage -> Credential
-kpCredential = kpuCredential . rmValue . kpTBS
+instance HasField "extensions" KeyPackage [Extension] where
+  getField = (.tbs.value.extensions)
 
-kpExtensions :: KeyPackage -> [Extension]
-kpExtensions = kpuExtensions . rmValue . kpTBS
+instance HasField "leafNode" KeyPackage LeafNode where
+  getField = (.tbs.value.leafNode)
 
-kpIdentity :: KeyPackage -> Either Text ClientIdentity
-kpIdentity = decodeMLS' @ClientIdentity . bcIdentity . kpCredential
+keyPackageIdentity :: KeyPackage -> Either Text ClientIdentity
+keyPackageIdentity = decodeMLS' @ClientIdentity . (.leafNode.credential.identityData)
 
 rawKeyPackageSchema :: ValueSchema NamedSwaggerDoc (RawMLS KeyPackage)
 rawKeyPackageSchema =
@@ -223,11 +225,9 @@ instance ParseMLS KeyPackage where
   parseMLS =
     KeyPackage
       <$> parseRawMLS parseMLS
-      <*> parseMLSBytes @Word16
+      <*> parseMLSBytes @VarInt
 
---------------------------------------------------------------------------------
-
-data KeyPackageUpdate = KeyPackageUpdate
-  { kpupPrevious :: KeyPackageRef,
-    kpupNext :: KeyPackageRef
-  }
+instance SerialiseMLS KeyPackage where
+  serialiseMLS kp = do
+    serialiseMLS kp.tbs
+    serialiseMLSBytes @VarInt kp.signature_

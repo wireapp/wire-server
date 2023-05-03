@@ -28,10 +28,11 @@ module Galley.Effects.ConversationStore
 
     -- * Read conversation
     getConversation,
+    getConversationEpoch,
     lookupConvByGroupId,
     getConversations,
     getConversationMetadata,
-    getPublicGroupState,
+    getGroupInfo,
     isConversationAlive,
     getRemoteConversationStatus,
     selectConversations,
@@ -46,7 +47,7 @@ module Galley.Effects.ConversationStore
     acceptConnectConversation,
     setGroupIdForConversation,
     deleteGroupIdForConversation,
-    setPublicGroupState,
+    setGroupInfo,
     deleteGroupIds,
     updateToMixedProtocol,
 
@@ -72,7 +73,7 @@ import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.MLS.CipherSuite (CipherSuiteTag)
 import Wire.API.MLS.Epoch
-import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 
 data ConversationStore m a where
@@ -83,12 +84,11 @@ data ConversationStore m a where
     ConversationStore m Conversation
   DeleteConversation :: ConvId -> ConversationStore m ()
   GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)
+  GetConversationEpoch :: ConvId -> ConversationStore m (Maybe Epoch)
   LookupConvByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvOrSubConvId))
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
-  GetPublicGroupState ::
-    ConvId ->
-    ConversationStore m (Maybe OpaquePublicGroupState)
+  GetGroupInfo :: ConvId -> ConversationStore m (Maybe GroupInfoData)
   IsConversationAlive :: ConvId -> ConversationStore m Bool
   GetRemoteConversationStatus ::
     UserId ->
@@ -103,10 +103,7 @@ data ConversationStore m a where
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
   SetGroupIdForConversation :: GroupId -> Qualified ConvId -> ConversationStore m ()
   DeleteGroupIdForConversation :: GroupId -> ConversationStore m ()
-  SetPublicGroupState ::
-    ConvId ->
-    OpaquePublicGroupState ->
-    ConversationStore m ()
+  SetGroupInfo :: ConvId -> GroupInfoData -> ConversationStore m ()
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
   DeleteGroupIds :: [GroupId] -> ConversationStore m ()

@@ -15,65 +15,82 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.MLS.CommitBundle where
+module Wire.API.MLS.CommitBundle (CommitBundle (..)) where
 
-import Control.Lens (view, (.~), (?~))
-import Data.Bifunctor (first)
-import qualified Data.ByteString as BS
-import Data.ProtoLens (decodeMessage, encodeMessage)
-import qualified Data.ProtoLens (Message (defMessage))
+import Control.Applicative
 import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Imports
-import qualified Proto.Mls
-import qualified Proto.Mls_Fields as Proto.Mls
-import Wire.API.ConverProtoLens
-import Wire.API.MLS.GroupInfoBundle
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 
 data CommitBundle = CommitBundle
-  { cbCommitMsg :: RawMLS (Message 'MLSPlainText),
-    cbWelcome :: Maybe (RawMLS Welcome),
-    cbGroupInfoBundle :: GroupInfoBundle
+  { commitMsg :: RawMLS Message,
+    welcome :: Maybe (RawMLS Welcome),
+    groupInfo :: RawMLS GroupInfo
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
-instance ConvertProtoLens Proto.Mls.CommitBundle CommitBundle where
-  fromProtolens protoBundle = protoLabel "CommitBundle" $ do
-    CommitBundle
-      <$> protoLabel "commit" (decodeMLS' (view Proto.Mls.commit protoBundle))
-      <*> protoLabel
-        "welcome"
-        ( let bs = view Proto.Mls.welcome protoBundle
-           in if BS.length bs == 0
-                then pure Nothing
-                else Just <$> decodeMLS' bs
-        )
-      <*> protoLabel "group_info_bundle" (fromProtolens (view Proto.Mls.groupInfoBundle protoBundle))
-  toProtolens bundle =
-    let commitData = rmRaw (cbCommitMsg bundle)
-        welcomeData = foldMap rmRaw (cbWelcome bundle)
-        groupInfoData = toProtolens (cbGroupInfoBundle bundle)
-     in ( Data.ProtoLens.defMessage
-            & Proto.Mls.commit .~ commitData
-            & Proto.Mls.welcome .~ welcomeData
-            & Proto.Mls.groupInfoBundle .~ groupInfoData
-        )
+data CommitBundleF f = CommitBundleF
+  { commitMsg :: f (RawMLS Message),
+    welcome :: f (RawMLS Welcome),
+    groupInfo :: f (RawMLS GroupInfo)
+  }
+
+deriving instance Show (CommitBundleF [])
+
+instance Alternative f => Semigroup (CommitBundleF f) where
+  cb1 <> cb2 =
+    CommitBundleF
+      (cb1.commitMsg <|> cb2.commitMsg)
+      (cb1.welcome <|> cb2.welcome)
+      (cb1.groupInfo <|> cb2.groupInfo)
+
+instance Alternative f => Monoid (CommitBundleF f) where
+  mempty = CommitBundleF empty empty empty
+
+checkCommitBundleF :: CommitBundleF [] -> Either Text CommitBundle
+checkCommitBundleF cb =
+  CommitBundle
+    <$> check "commit" cb.commitMsg
+    <*> checkOpt "welcome" cb.welcome
+    <*> check "group info" cb.groupInfo
+  where
+    check :: Text -> [a] -> Either Text a
+    check _ [x] = pure x
+    check name [] = Left ("Missing " <> name)
+    check name _ = Left ("Redundant occurrence of " <> name)
+
+    checkOpt :: Text -> [a] -> Either Text (Maybe a)
+    checkOpt _ [] = pure Nothing
+    checkOpt _ [x] = pure (Just x)
+    checkOpt name _ = Left ("Redundant occurrence of " <> name)
+
+findMessageInStream :: Alternative f => RawMLS Message -> Either Text (CommitBundleF f)
+findMessageInStream msg = case msg.value.content of
+  MessagePublic mp -> case mp.content.value.content of
+    FramedContentCommit _ -> pure (CommitBundleF (pure msg) empty empty)
+    _ -> Left "unexpected public message"
+  MessageWelcome w -> pure (CommitBundleF empty (pure w) empty)
+  MessageGroupInfo gi -> pure (CommitBundleF empty empty (pure gi))
+  _ -> Left "unexpected message type"
+
+findMessagesInStream :: Alternative f => [RawMLS Message] -> Either Text (CommitBundleF f)
+findMessagesInStream = getAp . foldMap (Ap . findMessageInStream)
+
+instance ParseMLS CommitBundle where
+  parseMLS = do
+    msgs <- parseMLSStream parseMLS
+    either (fail . T.unpack) pure $
+      findMessagesInStream msgs >>= checkCommitBundleF
+
+instance SerialiseMLS CommitBundle where
+  serialiseMLS cb = do
+    serialiseMLS cb.commitMsg
+    traverse_ (serialiseMLS . mkMessage . MessageWelcome) cb.welcome
+    serialiseMLS $ mkMessage (MessageGroupInfo cb.groupInfo)
 
 instance S.ToSchema CommitBundle where
-  declareNamedSchema _ =
-    pure $
-      S.NamedSchema (Just "CommitBundle") $
-        mempty
-          & S.description
-            ?~ "A protobuf-serialized object. See wireapp/generic-message-proto for the definition."
-
-deserializeCommitBundle :: ByteString -> Either Text CommitBundle
-deserializeCommitBundle b = do
-  protoCommitBundle :: Proto.Mls.CommitBundle <- first (("Parsing protobuf failed: " <>) . T.pack) (decodeMessage b)
-  first ("Converting from protobuf failed: " <>) (fromProtolens protoCommitBundle)
-
-serializeCommitBundle :: CommitBundle -> ByteString
-serializeCommitBundle = encodeMessage . (toProtolens @Proto.Mls.CommitBundle @CommitBundle)
+  declareNamedSchema _ = pure (mlsSwagger "CommitBundle")

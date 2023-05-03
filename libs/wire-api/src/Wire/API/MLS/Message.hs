@@ -1,7 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneKindSignatures #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -20,224 +16,193 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.MLS.Message
-  ( Message (..),
-    msgGroupId,
-    msgEpoch,
-    msgSender,
-    msgPayload,
-    MessageTBS (..),
-    MessageExtraFields (..),
+  ( -- * MLS Message types
     WireFormatTag (..),
-    SWireFormatTag (..),
-    SomeMessage (..),
-    ContentType (..),
-    MessagePayload (..),
+    Message (..),
+    mkMessage,
+    MessageContent (..),
+    PublicMessage (..),
+    PrivateMessage (..),
+    FramedContent (..),
+    FramedContentData (..),
+    FramedContentDataTag (..),
+    FramedContentTBS (..),
+    FramedContentAuthData (..),
     Sender (..),
-    MLSPlainTextSym0,
-    MLSCipherTextSym0,
-    MLSMessageSendingStatus (..),
-    KnownFormatTag (..),
     UnreachableUsers (..),
+
+    -- * Utilities
     verifyMessageSignature,
-    mkSignedMessage,
+
+    -- * Servant types
+    MLSMessageSendingStatus (..),
   )
 where
 
 import Control.Lens ((?~))
-import Crypto.PubKey.Ed25519
 import qualified Data.Aeson as A
 import Data.Binary
-import Data.Binary.Get
-import Data.Binary.Put
-import qualified Data.ByteArray as BA
 import Data.Id
 import Data.Json.Util
-import Data.Kind
 import Data.Qualified
 import Data.Schema
-import Data.Singletons.TH
 import qualified Data.Swagger as S
+import GHC.Records
 import Imports
-import Test.QuickCheck hiding (label)
 import Wire.API.Event.Conversation
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal
+import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
-import Wire.Arbitrary (GenericUniform (..))
+import Wire.API.MLS.Welcome
+import Wire.Arbitrary
 
-data WireFormatTag = MLSPlainText | MLSCipherText
-  deriving (Bounded, Enum, Eq, Show)
-
-$(genSingletons [''WireFormatTag])
+data WireFormatTag
+  = WireFormatPublicTag
+  | WireFormatPrivateTag
+  | WireFormatWelcomeTag
+  | WireFormatGroupInfoTag
+  | WireFormatKeyPackageTag
+  deriving (Enum, Bounded, Eq, Show)
 
 instance ParseMLS WireFormatTag where
-  parseMLS = parseMLSEnum @Word8 "wire format"
+  parseMLS = parseMLSEnum @Word16 "wire format"
 
-data family MessageExtraFields (tag :: WireFormatTag) :: Type
+instance SerialiseMLS WireFormatTag where
+  serialiseMLS = serialiseMLSEnum @Word16
 
-data instance MessageExtraFields 'MLSPlainText = MessageExtraFields
-  { msgSignature :: ByteString,
-    msgConfirmation :: Maybe ByteString,
-    msgMembership :: Maybe ByteString
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
+data Message = Message
+  { protocolVersion :: ProtocolVersion,
+    content :: MessageContent
   }
-  deriving (Generic)
-  deriving (Arbitrary) via (GenericUniform (MessageExtraFields 'MLSPlainText))
-
-instance ParseMLS (MessageExtraFields 'MLSPlainText) where
-  parseMLS =
-    MessageExtraFields
-      <$> label "msgSignature" (parseMLSBytes @Word16)
-      <*> label "msgConfirmation" (parseMLSOptional (parseMLSBytes @Word8))
-      <*> label "msgMembership" (parseMLSOptional (parseMLSBytes @Word8))
-
-instance SerialiseMLS (MessageExtraFields 'MLSPlainText) where
-  serialiseMLS (MessageExtraFields sig mconf mmemb) = do
-    serialiseMLSBytes @Word16 sig
-    serialiseMLSOptional (serialiseMLSBytes @Word8) mconf
-    serialiseMLSOptional (serialiseMLSBytes @Word8) mmemb
-
-data instance MessageExtraFields 'MLSCipherText = NoExtraFields
-
-instance ParseMLS (MessageExtraFields 'MLSCipherText) where
-  parseMLS = pure NoExtraFields
-
-deriving instance Eq (MessageExtraFields 'MLSPlainText)
-
-deriving instance Eq (MessageExtraFields 'MLSCipherText)
-
-deriving instance Show (MessageExtraFields 'MLSPlainText)
-
-deriving instance Show (MessageExtraFields 'MLSCipherText)
-
-data Message (tag :: WireFormatTag) = Message
-  { msgTBS :: RawMLS (MessageTBS tag),
-    msgExtraFields :: MessageExtraFields tag
-  }
-
-deriving instance Eq (Message 'MLSPlainText)
-
-deriving instance Eq (Message 'MLSCipherText)
-
-deriving instance Show (Message 'MLSPlainText)
-
-deriving instance Show (Message 'MLSCipherText)
-
-instance ParseMLS (Message 'MLSPlainText) where
-  parseMLS = Message <$> label "tbs" parseMLS <*> label "MessageExtraFields" parseMLS
-
-instance SerialiseMLS (Message 'MLSPlainText) where
-  serialiseMLS (Message msgTBS msgExtraFields) = do
-    putByteString (rmRaw msgTBS)
-    serialiseMLS msgExtraFields
-
-instance ParseMLS (Message 'MLSCipherText) where
-  parseMLS = Message <$> parseMLS <*> parseMLS
-
--- | This corresponds to the format byte at the beginning of a message.
--- It does not convey any information, but it needs to be present in
--- order for signature verification to work.
-data KnownFormatTag (tag :: WireFormatTag) = KnownFormatTag
-
-instance ParseMLS (KnownFormatTag tag) where
-  parseMLS = parseMLS @WireFormatTag $> KnownFormatTag
-
-instance SerialiseMLS (KnownFormatTag 'MLSPlainText) where
-  serialiseMLS _ = put (fromMLSEnum @Word8 MLSPlainText)
-
-instance SerialiseMLS (KnownFormatTag 'MLSCipherText) where
-  serialiseMLS _ = put (fromMLSEnum @Word8 MLSCipherText)
-
-deriving instance Eq (KnownFormatTag 'MLSPlainText)
-
-deriving instance Eq (KnownFormatTag 'MLSCipherText)
-
-deriving instance Show (KnownFormatTag 'MLSPlainText)
-
-deriving instance Show (KnownFormatTag 'MLSCipherText)
-
-data MessageTBS (tag :: WireFormatTag) = MessageTBS
-  { tbsMsgFormat :: KnownFormatTag tag,
-    tbsMsgGroupId :: GroupId,
-    tbsMsgEpoch :: Epoch,
-    tbsMsgAuthData :: ByteString,
-    tbsMsgSender :: Sender tag,
-    tbsMsgPayload :: MessagePayload tag
-  }
-
-msgGroupId :: Message tag -> GroupId
-msgGroupId = tbsMsgGroupId . rmValue . msgTBS
-
-msgEpoch :: Message tag -> Epoch
-msgEpoch = tbsMsgEpoch . rmValue . msgTBS
-
-msgSender :: Message tag -> Sender tag
-msgSender = tbsMsgSender . rmValue . msgTBS
-
-msgPayload :: Message tag -> MessagePayload tag
-msgPayload = tbsMsgPayload . rmValue . msgTBS
-
-instance ParseMLS (MessageTBS 'MLSPlainText) where
-  parseMLS = do
-    f <- parseMLS
-    g <- parseMLS
-    e <- parseMLS
-    s <- parseMLS
-    d <- parseMLSBytes @Word32
-    MessageTBS f g e d s <$> parseMLS
-
-instance ParseMLS (MessageTBS 'MLSCipherText) where
-  parseMLS = do
-    f <- parseMLS
-    g <- parseMLS
-    e <- parseMLS
-    ct <- parseMLS
-    d <- parseMLSBytes @Word32
-    s <- parseMLS
-    p <- parseMLSBytes @Word32
-    pure $ MessageTBS f g e d s (CipherText ct p)
-
-instance SerialiseMLS (MessageTBS 'MLSPlainText) where
-  serialiseMLS (MessageTBS f g e d s p) = do
-    serialiseMLS f
-    serialiseMLS g
-    serialiseMLS e
-    serialiseMLS s
-    serialiseMLSBytes @Word32 d
-    serialiseMLS p
-
-deriving instance Eq (MessageTBS 'MLSPlainText)
-
-deriving instance Eq (MessageTBS 'MLSCipherText)
-
-deriving instance Show (MessageTBS 'MLSPlainText)
-
-deriving instance Show (MessageTBS 'MLSCipherText)
-
-data SomeMessage where
-  SomeMessage :: Sing tag -> Message tag -> SomeMessage
-
-instance S.ToSchema SomeMessage where
-  declareNamedSchema _ = pure (mlsSwagger "MLSMessage")
-
-instance ParseMLS SomeMessage where
-  parseMLS =
-    lookAhead parseMLS >>= \case
-      MLSPlainText -> SomeMessage SMLSPlainText <$> parseMLS
-      MLSCipherText -> SomeMessage SMLSCipherText <$> parseMLS
-
-data family Sender (tag :: WireFormatTag) :: Type
-
-data instance Sender 'MLSCipherText = EncryptedSender {esData :: ByteString}
   deriving (Eq, Show)
 
-instance ParseMLS (Sender 'MLSCipherText) where
-  parseMLS = EncryptedSender <$> parseMLSBytes @Word8
+mkMessage :: MessageContent -> Message
+mkMessage = Message defaultProtocolVersion
 
-data SenderTag = MemberSenderTag | PreconfiguredSenderTag | NewMemberSenderTag
+instance ParseMLS Message where
+  parseMLS =
+    Message
+      <$> parseMLS
+      <*> parseMLS
+
+instance SerialiseMLS Message where
+  serialiseMLS msg = do
+    serialiseMLS msg.protocolVersion
+    serialiseMLS msg.content
+
+instance HasField "wireFormat" Message WireFormatTag where
+  getField = (.content.wireFormat)
+
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
+data MessageContent
+  = MessagePrivate (RawMLS PrivateMessage)
+  | MessagePublic PublicMessage
+  | MessageWelcome (RawMLS Welcome)
+  | MessageGroupInfo (RawMLS GroupInfo)
+  | MessageKeyPackage (RawMLS KeyPackage)
+  deriving (Eq, Show)
+
+instance HasField "wireFormat" MessageContent WireFormatTag where
+  getField (MessagePrivate _) = WireFormatPrivateTag
+  getField (MessagePublic _) = WireFormatPublicTag
+  getField (MessageWelcome _) = WireFormatWelcomeTag
+  getField (MessageGroupInfo _) = WireFormatGroupInfoTag
+  getField (MessageKeyPackage _) = WireFormatKeyPackageTag
+
+instance ParseMLS MessageContent where
+  parseMLS =
+    parseMLS >>= \case
+      WireFormatPrivateTag -> MessagePrivate <$> parseMLS
+      WireFormatPublicTag -> MessagePublic <$> parseMLS
+      WireFormatWelcomeTag -> MessageWelcome <$> parseMLS
+      WireFormatGroupInfoTag -> MessageGroupInfo <$> parseMLS
+      WireFormatKeyPackageTag -> MessageKeyPackage <$> parseMLS
+
+instance SerialiseMLS MessageContent where
+  serialiseMLS (MessagePrivate msg) = do
+    serialiseMLS WireFormatPrivateTag
+    serialiseMLS msg
+  serialiseMLS (MessagePublic msg) = do
+    serialiseMLS WireFormatPublicTag
+    serialiseMLS msg
+  serialiseMLS (MessageWelcome welcome) = do
+    serialiseMLS WireFormatWelcomeTag
+    serialiseMLS welcome
+  serialiseMLS (MessageGroupInfo gi) = do
+    serialiseMLS WireFormatGroupInfoTag
+    serialiseMLS gi
+  serialiseMLS (MessageKeyPackage kp) = do
+    serialiseMLS WireFormatKeyPackageTag
+    serialiseMLS kp
+
+instance S.ToSchema Message where
+  declareNamedSchema _ = pure (mlsSwagger "MLSMessage")
+
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.2-2
+data PublicMessage = PublicMessage
+  { content :: RawMLS FramedContent,
+    authData :: RawMLS FramedContentAuthData,
+    -- Present iff content.value.sender is of type Member.
+    -- https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.2-4
+    membershipTag :: Maybe ByteString
+  }
+  deriving (Eq, Show)
+
+instance ParseMLS PublicMessage where
+  parseMLS = do
+    content <- parseMLS
+    authData <- parseRawMLS (parseFramedContentAuthData (framedContentDataTag (content.value.content)))
+    membershipTag <- case content.value.sender of
+      SenderMember _ -> Just <$> parseMLSBytes @VarInt
+      _ -> pure Nothing
+    pure
+      PublicMessage
+        { content = content,
+          authData = authData,
+          membershipTag = membershipTag
+        }
+
+instance SerialiseMLS PublicMessage where
+  serialiseMLS msg = do
+    serialiseMLS msg.content
+    serialiseMLS msg.authData
+    traverse_ (serialiseMLSBytes @VarInt) msg.membershipTag
+
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.3.1-2
+data PrivateMessage = PrivateMessage
+  { groupId :: GroupId,
+    epoch :: Epoch,
+    tag :: FramedContentDataTag,
+    authenticatedData :: ByteString,
+    encryptedSenderData :: ByteString,
+    ciphertext :: ByteString
+  }
+  deriving (Eq, Show)
+
+instance ParseMLS PrivateMessage where
+  parseMLS =
+    PrivateMessage
+      <$> parseMLS
+      <*> parseMLS
+      <*> parseMLS
+      <*> parseMLSBytes @VarInt
+      <*> parseMLSBytes @VarInt
+      <*> parseMLSBytes @VarInt
+
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
+data SenderTag
+  = SenderMemberTag
+  | SenderExternalTag
+  | SenderNewMemberProposalTag
+  | SenderNewMemberCommitTag
   deriving (Bounded, Enum, Show, Eq)
 
 instance ParseMLS SenderTag where
@@ -246,77 +211,170 @@ instance ParseMLS SenderTag where
 instance SerialiseMLS SenderTag where
   serialiseMLS = serialiseMLSEnum @Word8
 
--- NOTE: according to the spec, the preconfigured sender case contains a
--- bytestring, not a u32. However, as of 2022-08-02, the openmls fork used by
--- the clients is using a u32 here.
-data instance Sender 'MLSPlainText
-  = MemberSender KeyPackageRef
-  | PreconfiguredSender Word32
-  | NewMemberSender
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
+data Sender
+  = SenderMember LeafIndex
+  | SenderExternal Word32
+  | SenderNewMemberProposal
+  | SenderNewMemberCommit
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Sender)
 
-instance ParseMLS (Sender 'MLSPlainText) where
+instance ParseMLS Sender where
   parseMLS =
     parseMLS >>= \case
-      MemberSenderTag -> MemberSender <$> parseMLS
-      PreconfiguredSenderTag -> PreconfiguredSender <$> get
-      NewMemberSenderTag -> pure NewMemberSender
+      SenderMemberTag -> SenderMember <$> parseMLS
+      SenderExternalTag -> SenderExternal <$> parseMLS
+      SenderNewMemberProposalTag -> pure SenderNewMemberProposal
+      SenderNewMemberCommitTag -> pure SenderNewMemberCommit
 
-instance SerialiseMLS (Sender 'MLSPlainText) where
-  serialiseMLS (MemberSender r) = do
-    serialiseMLS MemberSenderTag
-    serialiseMLS r
-  serialiseMLS (PreconfiguredSender x) = do
-    serialiseMLS PreconfiguredSenderTag
-    put x
-  serialiseMLS NewMemberSender = serialiseMLS NewMemberSenderTag
+instance SerialiseMLS Sender where
+  serialiseMLS (SenderMember i) = do
+    serialiseMLS SenderMemberTag
+    serialiseMLS i
+  serialiseMLS (SenderExternal w) = do
+    serialiseMLS SenderExternalTag
+    serialiseMLS w
+  serialiseMLS SenderNewMemberProposal =
+    serialiseMLS SenderNewMemberProposalTag
+  serialiseMLS SenderNewMemberCommit =
+    serialiseMLS SenderNewMemberCommitTag
 
-data family MessagePayload (tag :: WireFormatTag) :: Type
+needsGroupContext :: Sender -> Bool
+needsGroupContext (SenderMember _) = True
+needsGroupContext (SenderExternal _) = True
+needsGroupContext _ = False
 
-deriving instance Eq (MessagePayload 'MLSPlainText)
-
-deriving instance Eq (MessagePayload 'MLSCipherText)
-
-deriving instance Show (MessagePayload 'MLSPlainText)
-
-deriving instance Show (MessagePayload 'MLSCipherText)
-
-data instance MessagePayload 'MLSCipherText = CipherText
-  { msgContentType :: Word8,
-    msgCipherText :: ByteString
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
+data FramedContent = FramedContent
+  { groupId :: GroupId,
+    epoch :: Epoch,
+    sender :: Sender,
+    authenticatedData :: ByteString,
+    content :: FramedContentData
   }
+  deriving (Eq, Show)
 
-data ContentType
-  = ApplicationMessageTag
-  | ProposalMessageTag
-  | CommitMessageTag
-  deriving (Bounded, Enum, Eq, Show)
-
-instance ParseMLS ContentType where
-  parseMLS = parseMLSEnum @Word8 "content type"
-
-data instance MessagePayload 'MLSPlainText
-  = ApplicationMessage ByteString
-  | ProposalMessage (RawMLS Proposal)
-  | CommitMessage Commit
-
-instance ParseMLS (MessagePayload 'MLSPlainText) where
+instance ParseMLS FramedContent where
   parseMLS =
-    parseMLS >>= \case
-      ApplicationMessageTag -> ApplicationMessage <$> parseMLSBytes @Word32
-      ProposalMessageTag -> ProposalMessage <$> parseMLS
-      CommitMessageTag -> CommitMessage <$> parseMLS
+    FramedContent
+      <$> parseMLS
+      <*> parseMLS
+      <*> parseMLS
+      <*> parseMLSBytes @VarInt
+      <*> parseMLS
 
-instance SerialiseMLS ContentType where
+instance SerialiseMLS FramedContent where
+  serialiseMLS fc = do
+    serialiseMLS fc.groupId
+    serialiseMLS fc.epoch
+    serialiseMLS fc.sender
+    serialiseMLSBytes @VarInt fc.authenticatedData
+    serialiseMLS fc.content
+
+data FramedContentDataTag
+  = FramedContentApplicationDataTag
+  | FramedContentProposalTag
+  | FramedContentCommitTag
+  deriving (Enum, Bounded, Eq, Ord, Show)
+
+instance ParseMLS FramedContentDataTag where
+  parseMLS = parseMLSEnum @Word8 "ContentType"
+
+instance SerialiseMLS FramedContentDataTag where
   serialiseMLS = serialiseMLSEnum @Word8
 
-instance SerialiseMLS (MessagePayload 'MLSPlainText) where
-  serialiseMLS (ProposalMessage raw) = do
-    serialiseMLS ProposalMessageTag
-    putByteString (rmRaw raw)
-  -- We do not need to serialise Commit and Application messages,
-  -- so the next case is left as a stub
-  serialiseMLS _ = pure ()
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
+data FramedContentData
+  = FramedContentApplicationData ByteString
+  | FramedContentProposal (RawMLS Proposal)
+  | FramedContentCommit (RawMLS Commit)
+  deriving (Eq, Show)
+
+framedContentDataTag :: FramedContentData -> FramedContentDataTag
+framedContentDataTag (FramedContentApplicationData _) = FramedContentApplicationDataTag
+framedContentDataTag (FramedContentProposal _) = FramedContentProposalTag
+framedContentDataTag (FramedContentCommit _) = FramedContentCommitTag
+
+instance ParseMLS FramedContentData where
+  parseMLS =
+    parseMLS >>= \case
+      FramedContentApplicationDataTag ->
+        FramedContentApplicationData <$> parseMLSBytes @VarInt
+      FramedContentProposalTag -> FramedContentProposal <$> parseMLS
+      FramedContentCommitTag -> FramedContentCommit <$> parseMLS
+
+instance SerialiseMLS FramedContentData where
+  serialiseMLS (FramedContentApplicationData bs) = do
+    serialiseMLS FramedContentApplicationDataTag
+    serialiseMLSBytes @VarInt bs
+  serialiseMLS (FramedContentProposal prop) = do
+    serialiseMLS FramedContentProposalTag
+    serialiseMLS prop
+  serialiseMLS (FramedContentCommit commit) = do
+    serialiseMLS FramedContentCommitTag
+    serialiseMLS commit
+
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.1-2
+data FramedContentTBS = FramedContentTBS
+  { protocolVersion :: ProtocolVersion,
+    wireFormat :: WireFormatTag,
+    content :: RawMLS FramedContent,
+    groupContext :: Maybe (RawMLS GroupContext)
+  }
+  deriving (Eq, Show)
+
+instance SerialiseMLS FramedContentTBS where
+  serialiseMLS tbs = do
+    serialiseMLS tbs.protocolVersion
+    serialiseMLS tbs.wireFormat
+    serialiseMLS tbs.content
+    traverse_ serialiseMLS tbs.groupContext
+
+framedContentTBS :: RawMLS GroupContext -> RawMLS FramedContent -> FramedContentTBS
+framedContentTBS ctx msgContent =
+  FramedContentTBS
+    { protocolVersion = defaultProtocolVersion,
+      wireFormat = WireFormatPublicTag,
+      content = msgContent,
+      groupContext = guard (needsGroupContext msgContent.value.sender) $> ctx
+    }
+
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.1-2
+data FramedContentAuthData = FramedContentAuthData
+  { signature_ :: ByteString,
+    -- Present iff it is part of a commit.
+    confirmationTag :: Maybe ByteString
+  }
+  deriving (Eq, Show)
+
+parseFramedContentAuthData :: FramedContentDataTag -> Get FramedContentAuthData
+parseFramedContentAuthData t = do
+  sig <- parseMLSBytes @VarInt
+  confirmationTag <- case t of
+    FramedContentCommitTag -> Just <$> parseMLSBytes @VarInt
+    _ -> pure Nothing
+  pure (FramedContentAuthData sig confirmationTag)
+
+instance SerialiseMLS FramedContentAuthData where
+  serialiseMLS ad = do
+    serialiseMLSBytes @VarInt ad.signature_
+    traverse_ (serialiseMLSBytes @VarInt) ad.confirmationTag
+
+verifyMessageSignature ::
+  RawMLS GroupContext ->
+  RawMLS FramedContent ->
+  RawMLS FramedContentAuthData ->
+  ByteString ->
+  Bool
+verifyMessageSignature ctx msgContent authData pubkey = isJust $ do
+  let tbs = mkRawMLS (framedContentTBS ctx msgContent)
+      sig = authData.value.signature_
+  cs <- cipherSuiteTag ctx.value.cipherSuite
+  guard $ csVerifySignature cs pubkey tbs sig
+
+--------------------------------------------------------------------------------
+-- Servant
 
 newtype UnreachableUsers = UnreachableUsers {unreachableUsers :: [Qualified UserId]}
   deriving stock (Eq, Show)
@@ -357,28 +415,3 @@ instance ToSchema MLSMessageSendingStatus where
             "failed_to_send"
             (description ?~ "List of federated users who could not be reached and did not receive the message")
             schema
-
-verifyMessageSignature :: CipherSuiteTag -> Message 'MLSPlainText -> ByteString -> Bool
-verifyMessageSignature cs msg pubkey =
-  csVerifySignature cs pubkey (rmRaw (msgTBS msg)) (msgSignature (msgExtraFields msg))
-
-mkSignedMessage ::
-  SecretKey ->
-  PublicKey ->
-  GroupId ->
-  Epoch ->
-  MessagePayload 'MLSPlainText ->
-  Message 'MLSPlainText
-mkSignedMessage priv pub gid epoch payload =
-  let tbs =
-        mkRawMLS $
-          MessageTBS
-            { tbsMsgFormat = KnownFormatTag,
-              tbsMsgGroupId = gid,
-              tbsMsgEpoch = epoch,
-              tbsMsgAuthData = mempty,
-              tbsMsgSender = PreconfiguredSender 0,
-              tbsMsgPayload = payload
-            }
-      sig = BA.convert $ sign priv pub (rmRaw tbs)
-   in Message tbs (MessageExtraFields sig Nothing Nothing)

@@ -26,8 +26,8 @@ import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
 import Data.Time.Clock
-import Galley.API.MLS.Types (SubConversation (..))
-import Galley.Cassandra.Conversation.MLS (lookupMLSClients)
+import Galley.API.MLS.Types
+import Galley.Cassandra.Conversation.MLS
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store (embedClient)
 import Galley.Effects.SubConversationStore (SubConversationStore (..))
@@ -37,14 +37,14 @@ import Polysemy.Input
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group
-import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 
 selectSubConversation :: ConvId -> SubConvId -> Client (Maybe SubConversation)
 selectSubConversation convId subConvId = do
   m <- retry x5 (query1 Cql.selectSubConversation (params LocalQuorum (convId, subConvId)))
   for m $ \(suite, epoch, epochWritetime, groupId) -> do
-    cm <- lookupMLSClients groupId
+    (cm, im) <- lookupMLSClientLeafIndices groupId
     pure $
       SubConversation
         { scParentConvId = convId,
@@ -56,20 +56,32 @@ selectSubConversation convId subConvId = do
                 cnvmlsEpochTimestamp = epochTimestamp epoch epochWritetime,
                 cnvmlsCipherSuite = suite
               },
-          scMembers = cm
+          scMembers = cm,
+          scIndexMap = im
         }
 
-insertSubConversation :: ConvId -> SubConvId -> CipherSuiteTag -> Epoch -> GroupId -> Maybe OpaquePublicGroupState -> Client ()
-insertSubConversation convId subConvId suite epoch groupId mPgs =
-  retry x5 (write Cql.insertSubConversation (params LocalQuorum (convId, subConvId, suite, epoch, groupId, mPgs)))
+insertSubConversation ::
+  ConvId ->
+  SubConvId ->
+  CipherSuiteTag ->
+  Epoch ->
+  GroupId ->
+  Maybe GroupInfoData ->
+  Client ()
+insertSubConversation convId subConvId suite epoch groupId mGroupInfo =
+  retry x5 (write Cql.insertSubConversation (params LocalQuorum (convId, subConvId, suite, epoch, groupId, mGroupInfo)))
 
-updateSubConvPublicGroupState :: ConvId -> SubConvId -> Maybe OpaquePublicGroupState -> Client ()
-updateSubConvPublicGroupState convId subConvId mPgs =
-  retry x5 (write Cql.updateSubConvPublicGroupState (params LocalQuorum (convId, subConvId, mPgs)))
+updateSubConvGroupInfo :: ConvId -> SubConvId -> Maybe GroupInfoData -> Client ()
+updateSubConvGroupInfo convId subConvId mGroupInfo =
+  retry x5 (write Cql.updateSubConvGroupInfo (params LocalQuorum (convId, subConvId, mGroupInfo)))
 
-selectSubConvPublicGroupState :: ConvId -> SubConvId -> Client (Maybe OpaquePublicGroupState)
-selectSubConvPublicGroupState convId subConvId =
-  (runIdentity =<<) <$> retry x5 (query1 Cql.selectSubConvPublicGroupState (params LocalQuorum (convId, subConvId)))
+selectSubConvGroupInfo :: ConvId -> SubConvId -> Client (Maybe GroupInfoData)
+selectSubConvGroupInfo convId subConvId =
+  (runIdentity =<<) <$> retry x5 (query1 Cql.selectSubConvGroupInfo (params LocalQuorum (convId, subConvId)))
+
+selectSubConvEpoch :: ConvId -> SubConvId -> Client (Maybe Epoch)
+selectSubConvEpoch convId subConvId =
+  (runIdentity =<<) <$> retry x5 (query1 Cql.selectSubConvEpoch (params LocalQuorum (convId, subConvId)))
 
 setGroupIdForSubConversation :: GroupId -> Qualified ConvId -> SubConvId -> Client ()
 setGroupIdForSubConversation groupId qconv sconv =
@@ -107,10 +119,12 @@ interpretSubConversationStoreToCassandra ::
   Sem (SubConversationStore ': r) a ->
   Sem r a
 interpretSubConversationStoreToCassandra = interpret $ \case
-  CreateSubConversation convId subConvId suite epoch groupId mPgs -> embedClient (insertSubConversation convId subConvId suite epoch groupId mPgs)
+  CreateSubConversation convId subConvId suite epoch groupId mGroupInfo ->
+    embedClient (insertSubConversation convId subConvId suite epoch groupId mGroupInfo)
   GetSubConversation convId subConvId -> embedClient (selectSubConversation convId subConvId)
-  GetSubConversationPublicGroupState convId subConvId -> embedClient (selectSubConvPublicGroupState convId subConvId)
-  SetSubConversationPublicGroupState convId subConvId mPgs -> embedClient (updateSubConvPublicGroupState convId subConvId mPgs)
+  GetSubConversationGroupInfo convId subConvId -> embedClient (selectSubConvGroupInfo convId subConvId)
+  GetSubConversationEpoch convId subConvId -> embedClient (selectSubConvEpoch convId subConvId)
+  SetSubConversationGroupInfo convId subConvId mPgs -> embedClient (updateSubConvGroupInfo convId subConvId mPgs)
   SetGroupIdForSubConversation gId cid sconv -> embedClient $ setGroupIdForSubConversation gId cid sconv
   SetSubConversationEpoch cid sconv epoch -> embedClient $ setEpochForSubConversation cid sconv epoch
   DeleteGroupIdForSubConversation groupId -> embedClient $ deleteGroupId groupId

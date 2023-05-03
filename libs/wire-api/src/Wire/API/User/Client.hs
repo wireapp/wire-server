@@ -100,8 +100,8 @@ import Deriving.Swagger
     StripPrefix,
   )
 import Imports
-import Wire.API.MLS.Credential
-import Wire.API.User.Auth (CookieLabel)
+import Wire.API.MLS.CipherSuite
+import Wire.API.User.Auth
 import Wire.API.User.Client.Prekey as Prekey
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), generateExample, mapOf', setOf')
 

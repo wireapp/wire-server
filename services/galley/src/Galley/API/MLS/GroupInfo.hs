@@ -36,7 +36,7 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 
 type MLSGroupInfoStaticErrors =
@@ -55,7 +55,7 @@ getGroupInfo ::
   Members MLSGroupInfoStaticErrors r =>
   Local UserId ->
   Qualified ConvId ->
-  Sem r OpaquePublicGroupState
+  Sem r GroupInfoData
 getGroupInfo lusr qcnvId = do
   assertMLSEnabled
   foldQualified
@@ -71,10 +71,10 @@ getGroupInfoFromLocalConv ::
   Members MLSGroupInfoStaticErrors r =>
   Qualified UserId ->
   Local ConvId ->
-  Sem r OpaquePublicGroupState
+  Sem r GroupInfoData
 getGroupInfoFromLocalConv qusr lcnvId = do
   void $ getLocalConvForUser qusr lcnvId
-  E.getPublicGroupState (tUnqualified lcnvId)
+  E.getGroupInfo (tUnqualified lcnvId)
     >>= noteS @'MLSMissingGroupInfo
 
 getGroupInfoFromRemoteConv ::
@@ -84,7 +84,7 @@ getGroupInfoFromRemoteConv ::
   Members MLSGroupInfoStaticErrors r =>
   Local UserId ->
   Remote ConvOrSubConvId ->
-  Sem r OpaquePublicGroupState
+  Sem r GroupInfoData
 getGroupInfoFromRemoteConv lusr rcnv = do
   let getRequest =
         GetGroupInfoRequest
@@ -96,6 +96,6 @@ getGroupInfoFromRemoteConv lusr rcnv = do
     GetGroupInfoResponseError e -> rethrowErrors @MLSGroupInfoStaticErrors e
     GetGroupInfoResponseState s ->
       pure
-        . OpaquePublicGroupState
+        . GroupInfoData
         . fromBase64ByteString
         $ s

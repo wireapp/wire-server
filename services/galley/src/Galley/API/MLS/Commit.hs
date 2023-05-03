@@ -15,24 +15,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.KeyPackage where
+module Galley.API.MLS.Commit
+  ( getCommitData,
+    getExternalCommitData,
+    processInternalCommit,
+    processExternalCommit,
+  )
+where
 
-import qualified Data.ByteString as BS
-import Galley.Effects.BrigAccess
-import Imports
-import Polysemy
-import Wire.API.Error
-import Wire.API.Error.Galley
-import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
-
-nullKeyPackageRef :: KeyPackageRef
-nullKeyPackageRef = KeyPackageRef (BS.replicate 16 0)
-
-derefKeyPackage ::
-  ( Member BrigAccess r,
-    Member (ErrorS 'MLSKeyPackageRefNotFound) r
-  ) =>
-  KeyPackageRef ->
-  Sem r ClientIdentity
-derefKeyPackage = noteS @'MLSKeyPackageRefNotFound <=< getClientByKeyPackageRef
+import Galley.API.MLS.Commit.Core
+import Galley.API.MLS.Commit.ExternalCommit
+import Galley.API.MLS.Commit.InternalCommit
