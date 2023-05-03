@@ -37,7 +37,7 @@ import Data.Metrics.Middleware (gaugeSet, path)
 import qualified Data.Metrics.Middleware as Middleware
 import Data.Metrics.Servant
 import Data.Proxy
-import Data.Text (pack, strip)
+import Data.Text (pack, strip, unpack)
 import Data.Text.Encoding (encodeUtf8)
 import Imports hiding (head)
 import qualified Network.Wai as Wai
@@ -45,6 +45,7 @@ import Network.Wai.Handler.Warp hiding (run)
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import Network.Wai.Utilities.Server
 import Servant
+import Servant.Client
 import qualified System.IO.Strict as Strict
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as L
@@ -52,7 +53,10 @@ import System.Posix.Signals
 import qualified System.Posix.Signals as Signals
 import System.Random.MWC (createSystemRandom)
 import UnliftIO.Concurrent (myThreadId, throwTo)
+import Wire.API.Routes.FederationDomainConfig
+import qualified Wire.API.Routes.Internal.Brig as IAPI
 import qualified Wire.API.Routes.Internal.Cannon as Internal
+import Wire.API.Routes.Named (namedClient)
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version.Wai
 
@@ -75,6 +79,27 @@ run o = do
       <*> mkClock
   refreshMetricsThread <- Async.async $ runCannon' e refreshMetrics
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) m (Just idleTimeout)
+
+  -- Get the federaion domain list from Brig and start the updater loop
+  manager <- newManager defaultManagerSettings
+  let Brig bh bp = o ^. brig
+      baseUrl = BaseUrl Http (unpack bh) (fromIntegral bp) ""
+      clientEnv = ClientEnv manager baseUrl Nothing defaultMakeClientRequest
+      -- Loop the request until we get an answer. This is helpful during integration
+      -- tests where services are being brought up in parallel.
+      getInitialFedDomains = do
+        runClientM getFedRemotes clientEnv >>= \case
+          Right strat -> pure strat
+          Left err -> do
+            print $ "Could not retrieve the latest list of federation domains from Brig: " <> show err
+            threadDelay $ o ^. domainUpdateInterval
+            getInitialFedDomains
+  fedStrat <- getInitialFedDomains
+  tEnv <- newTVarIO fedStrat
+  let callback :: FederationDomainConfigs -> IO ()
+      callback = atomically . writeTVar tEnv
+  updateDomainsThread <- Async.async $ updateDomains clientEnv callback
+
   let middleware :: Wai.Middleware
       middleware =
         versionMiddleware (fold (o ^. disabledAPIVersions))
@@ -96,6 +121,7 @@ run o = do
     -- the same time and then calling the drain script. I suspect this might be due to some
     -- cleanup in wai.  this needs to be tested very carefully when touched.
     Async.cancel refreshMetricsThread
+    Async.cancel updateDomainsThread
     L.close (applog e)
   where
     idleTimeout = fromIntegral $ maxPingInterval + 3
@@ -107,6 +133,17 @@ run o = do
       maybe (readExternal extFile) (pure . encodeUtf8) (o ^. cannon . externalHost)
     readExternal :: FilePath -> IO ByteString
     readExternal f = encodeUtf8 . strip . pack <$> Strict.readFile f
+
+    getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
+
+    updateDomains :: ClientEnv -> (FederationDomainConfigs -> IO ()) -> IO ()
+    updateDomains clientEnv update = forever $ do
+      threadDelay $ o ^. domainUpdateInterval
+      strat <- runClientM getFedRemotes clientEnv
+      either
+        print
+        update
+        strat
 
 signalHandler :: Env -> ThreadId -> Signals.Handler
 signalHandler e mainThread = CatchOnce $ do

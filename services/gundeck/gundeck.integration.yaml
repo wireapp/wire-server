@@ -2,6 +2,10 @@ gundeck:
   host: 0.0.0.0
   port: 8086
 
+brig:
+  host: 0.0.0.0
+  port: 8082
+
 cassandra:
   endpoint:
     host: 127.0.0.1
@@ -36,6 +40,8 @@ settings:
   maxConcurrentNativePushes:
     hard: 30  # more than this number of threads will not be allowed
     soft: 10  # more than this number of threads will be warned about
+
+domainUpdateInterval: 1000000
 
 logLevel: Warn
 logNetStrings: false

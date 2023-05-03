@@ -16,6 +16,11 @@ gundeck:
   host: 127.0.0.1
   port: 8086
 
+brig:
+  host: 0.0.0.0
+  port: 8082
+domainUpdateInterval: 1000000
+
 drainOpts:
   gracePeriodSeconds: 1
   millisecondsBetweenBatches: 5

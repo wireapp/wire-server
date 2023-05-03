@@ -56,6 +56,7 @@
 , safe
 , safe-exceptions
 , scientific
+, servant-client
 , servant-server
 , string-conversions
 , tagged
@@ -123,6 +124,7 @@ mkDerivation {
     resourcet
     retry
     safe-exceptions
+    servant-client
     servant-server
     text
     time

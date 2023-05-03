@@ -86,9 +86,7 @@ run opts = do
       fedStrat <- getInitialFedDomains
       tEnv <- newTVarIO $ updateFedStrat fedStrat env
       let callback :: FederationDomainConfigs -> IO ()
-          callback strat = do
-            atomically $ modifyTVar tEnv $ updateFedStrat strat
-            print strat
+          callback = atomically . modifyTVar tEnv . updateFedStrat
       -- We need a watcher/listener for updating this TVar to flow values through to the handlers.
       let externalServer = serveInward tEnv portExternal
           internalServer = serveOutward tEnv portInternal
