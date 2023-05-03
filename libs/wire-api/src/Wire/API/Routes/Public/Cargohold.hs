@@ -148,7 +148,7 @@ type BaseAPIv3 (tag :: PrincipalTag) =
              :> Capture "key" AssetKey
              :> Header "Asset-Token" AssetToken
              :> QueryParam "asset_token" AssetToken
-             :> Header "Host" Text
+             :> Header "Ingress-Host" Text
              :> GetAsset
          )
     :<|> ( Summary "Delete an asset"
@@ -180,7 +180,7 @@ type QualifiedAPI =
       :> QualifiedCapture "key" AssetKey
       :> Header "Asset-Token" AssetToken
       :> QueryParam "asset_token" AssetToken
-      :> Header "Host" Text
+      :> Header "Ingress-Host" Text
       :> MultiVerb
            'GET
            '()
@@ -289,7 +289,7 @@ type MainAPI =
              :> QualifiedCapture "key" AssetKey
              :> Header "Asset-Token" AssetToken
              :> QueryParam "asset_token" AssetToken
-             :> Header "Host" Text
+             :> Header "Ingress-Host" Text
              :> MultiVerb
                   'GET
                   '()
