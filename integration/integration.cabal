@@ -82,6 +82,7 @@ library
   exposed-modules:
     API.Brig
     API.BrigInternal
+    API.Cargohold
     API.Common
     API.Galley
     API.GalleyInternal
@@ -90,6 +91,7 @@ library
     SetupHelpers
     Test.B2B
     Test.Brig
+    Test.Cargohold
     Test.Demo
     Test.User
     Testlib.App

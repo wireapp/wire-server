@@ -34,11 +34,14 @@ addJSONObject :: [Aeson.Pair] -> HTTP.Request -> HTTP.Request
 addJSONObject = addJSON . Aeson.object
 
 addJSON :: Aeson.ToJSON a => a -> HTTP.Request -> HTTP.Request
-addJSON obj req =
+addJSON obj = addBody (HTTP.RequestBodyLBS (Aeson.encode obj)) "application/json"
+
+addBody :: HTTP.RequestBody -> String -> HTTP.Request -> HTTP.Request
+addBody body contentType req =
   req
-    { HTTP.requestBody = HTTP.RequestBodyLBS (Aeson.encode obj),
+    { HTTP.requestBody = body,
       HTTP.requestHeaders =
-        (fromString "Content-Type", fromString "application/json")
+        (fromString "Content-Type", fromString contentType)
           : HTTP.requestHeaders req
     }
 
@@ -61,6 +64,9 @@ addQueryParams params req =
 
 zType :: String -> HTTP.Request -> HTTP.Request
 zType = addHeader "Z-Type"
+
+zHost :: String -> HTTP.Request -> HTTP.Request
+zHost = addHeader "Z-Host"
 
 contentTypeJSON :: HTTP.Request -> HTTP.Request
 contentTypeJSON = addHeader "Content-Type" "application/json"
