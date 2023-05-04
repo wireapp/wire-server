@@ -92,6 +92,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.Internal.Brig
+import Wire.API.Unreachable
 import Wire.API.User.Client
 
 type MLSMessageStaticErrors =

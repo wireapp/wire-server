@@ -24,6 +24,7 @@ import Data.Qualified
 import qualified Data.UUID as UUID
 import Imports
 import Wire.API.MLS.Message
+import Wire.API.Unreachable
 
 testObject_MLSMessageSendingStatus1 :: MLSMessageSendingStatus
 testObject_MLSMessageSendingStatus1 =

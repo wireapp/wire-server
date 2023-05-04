@@ -78,6 +78,7 @@ import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.API.Unreachable
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 

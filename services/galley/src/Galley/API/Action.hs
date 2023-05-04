@@ -97,9 +97,9 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API (Component (Galley), fedClient)
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.Message
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
+import Wire.API.Unreachable
 import qualified Wire.API.User as User
 
 data NoChanges = NoChanges
