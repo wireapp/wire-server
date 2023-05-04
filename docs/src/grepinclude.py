@@ -1,28 +1,34 @@
+import re
 from docutils import nodes
 from sphinx.util.docutils import SphinxDirective
 from sphinx.directives.code import container_wrapper
-import re
+from sphinx.util import logging
 
-# A bit like 'literalinclude', but using a keyword to highlight some code so as
-# to be a little more resilient to code moving lines with time.
-# Usage:
-# ```{grepinclude} ../charts/coturn/values.yaml ciphers:
-# ---
-# lines-before: 3
-# lines-after: 0
-# language: yaml
-# ---
-# ```
-#
-# or alternatively
-#
-# ```{eval-rst}
-# .. grepinclude:: ../charts/coturn/values.yaml ciphers:
-#    :lines-before: 3
-#    :lines-after: 0
-#    :language: yaml
-# ```
+logger = logging.getLogger(__name__)
+
+
 class GrepInclude(SphinxDirective):
+    """
+    A bit like 'literalinclude', but using a keyword to highlight some code so
+    as to be a little more resilient to code moving lines with time.
+    Usage:
+    ```{grepinclude} ../charts/coturn/values.yaml ciphers:
+    ---
+    lines-before: 3
+    lines-after: 0
+    language: yaml
+    ---
+    ```
+
+    or alternatively
+
+    ```{eval-rst}
+    .. grepinclude:: ../charts/coturn/values.yaml ciphers:
+       :lines-before: 3
+       :lines-after: 0
+       :language: yaml
+    ```
+    """
     required_arguments = 2
     optional_arguments = 0
     final_argument_whitespace = True
@@ -42,8 +48,15 @@ class GrepInclude(SphinxDirective):
             with open(file_path, 'r') as f:
                 content = f.readlines()
         except FileNotFoundError:
+            source, line = self.state_machine.get_source_and_line()
+            err = f"""
+            Unable to open file {file_path}
+            GrepInclude called on line {line} in {source}
+            """
+            logger.error(err)
             return [nodes.error(
-                None, nodes.paragraph(text="Unable to open file: %s" % file_path)
+                None, nodes.paragraph(
+                    text=f"Unable to open file: {file_path}")
             )]
 
         filtered_lines = []
@@ -53,6 +66,19 @@ class GrepInclude(SphinxDirective):
                 end = min(len(content), i + 1 + lines_after)
                 filtered_lines.extend(content[start:end])
 
+        if len(filtered_lines) == 0:
+            source, line = self.state_machine.get_source_and_line()
+            err = f"""Unable to find substring '{keyword}'
+            in file {file_path}".
+            GrepInclude called on line {line}
+            in {source}
+            """
+            logger.error(err)
+            return [nodes.error(
+                None, nodes.paragraph(
+                    text=err)
+            )]
+
         text = ''.join(filtered_lines)
         code_node = nodes.literal_block(text, text)
         code_node['language'] = language
@@ -61,6 +87,7 @@ class GrepInclude(SphinxDirective):
         self.add_name(code_node)
 
         return [code_node]
+
 
 def setup(app):
     app.add_directive('grepinclude', GrepInclude)
