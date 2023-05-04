@@ -1,0 +1,35 @@
+replicaCount: 1
+image:
+  repository: quay.io/wire/background-worker
+  tag: do-not-use
+# FUTUREWORK: Review these values when we have some experience
+resources:
+  requests:
+    memory: "200Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+# TODO(elland): Create issue for a metrics endpoint
+# metrics:
+#   serviceMonitor:
+#     enabled: false
+config:
+  # TODO(elland): Proper logging
+  logLevel: Info
+  logFormat: StructuredJSON
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    vHost: /
+  remoteDomains: []
+
+serviceAccount:
+  # When setting this to 'false', either make sure that a service account named
+  # 'background-worker' exists or change the 'name' field to 'default'
+  create: true
+  name: background-worker
+  annotations: {}
+  automountServiceAccountToken: true
+
+
+secrets: {}

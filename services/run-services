@@ -139,9 +139,9 @@ class Instance:
         except Exception as e:
             return False
 
-    def spawn(self, service_map, environment, suffix, domain, backend_name):
+    def spawn(self, service_map, environment, suffix, domain, remoteDomains, backend_name):
         try:
-            config_file = self.modified_config_file(service_map, suffix, domain, backend_name)
+            config_file = self.modified_config_file(service_map, suffix, domain, remoteDomains, backend_name)
             sub = self.service.spawn(config_file, environment)
             t = threading.Thread(target=lambda: color_output(sub, self.service, backend_name))
             t.start()
@@ -149,7 +149,7 @@ class Instance:
         except Exception as e:
             return Instance(self.service, self.port, exception=e)
 
-    def modified_config_file(self, service_map, suffix, domain, backend_name):
+    def modified_config_file(self, service_map, suffix, domain, remoteDomains, backend_name):
         """Overwrite port configuration on this service using the provided
         service_map.
 
@@ -179,6 +179,9 @@ class Instance:
         elif 'settings' in data:
             data['settings']['federationDomain'] = domain
 
+        if 'remoteDomains' in data:
+            data['remoteDomains'] = remoteDomains
+
         # set log level
         if self.service.level is not None:
             if 'logLevel' in data:
@@ -198,10 +201,10 @@ class Instance:
             data[self.service.name]['port'] = self.port
 
 class DummyInstance(Instance):
-    def spawn(self, service_map, environment, suffix, domain, backend_name):
+    def spawn(self, service_map, environment, suffix, domain, remoteDomains, backend_name):
         return self
 
-    def modified_config_file(self, service_map, suffix, domain, backend_name):
+    def modified_config_file(self, service_map, suffix, domain, remoteDomains, backend_name):
         return ""
 
     def check_status(self):
@@ -224,7 +227,7 @@ class NginzInstance(Instance):
         self.fed_port = fed_port
         super().__init__(NGINZ, local_port)
 
-    def modified_config_file(self, service_map, suffix, domain, backend_name):
+    def modified_config_file(self, service_map, suffix, domain, remoteDomains, backend_name):
         # Create a whole temporary directory and copy all nginx's config files.
         # This is necessary because nginx assumes local imports are relative to
         # the location of the main configuration file.
@@ -245,11 +248,12 @@ class NginzInstance(Instance):
         # override upstreams
         with open(os.path.join(self.tmpdir.name, "upstreams"), 'w') as f:
             for service, port in service_map.items():
-                print(f"upstream {service.internal_name} {{", file=f)
-                print(f"  least_conn;", file=f)
-                print(f"  keepalive 32;", file=f)
-                print(f"  server 127.0.0.1:{port} max_fails=3 weight=1;", file=f)
-                print("}", file=f)
+                if port != 0:
+                    print(f"upstream {service.internal_name} {{", file=f)
+                    print(f"  least_conn;", file=f)
+                    print(f"  keepalive 32;", file=f)
+                    print(f"  server 127.0.0.1:{port} max_fails=3 weight=1;", file=f)
+                    print("}", file=f)
             print("upstream federator_external {", file=f)
             print(f"  server 127.0.0.1:{self.fed_port} max_fails=3 weight=1;", file=f)
             print("}", file=f)
@@ -322,17 +326,16 @@ def cleanup_instances(instances):
             instance.process.send_signal(signal.SIGKILl)
             instance.thread.join()
 
-def start_backend(services, suffix, domain, backend_name):
+def start_backend(services, suffix, domain, remoteDomains, backend_name):
     # build a service map by choosing an arbitrary instance of each service
     service_map = dict((s.service, s.port) for s in services)
 
     instances = set()
     for blueprint in services:
-        instances.add(blueprint.spawn(service_map, environment, suffix, domain, backend_name))
+        instances.add(blueprint.spawn(service_map, environment, suffix, domain, remoteDomains, backend_name))
 
     failed_instances = [instance for instance in instances
                         if instance.exception is not None]
-
     # check instances
     to_be_checked = [instance for instance in instances
                      if instance.exception is None]
@@ -395,7 +398,9 @@ if __name__ == '__main__':
     environment = {
         'AWS_REGION': "eu-west-1",
         'AWS_ACCESS_KEY_ID': "dummykey",
-        'AWS_SECRET_ACCESS_KEY': "dummysecret"
+        'AWS_SECRET_ACCESS_KEY': "dummysecret",
+        'RABBITMQ_USERNAME': 'guest',
+        'RABBITMQ_PASSWORD': 'alpaca-grapefruit'
     }
 
     backend_a = [
@@ -437,9 +442,9 @@ if __name__ == '__main__':
 
     try:
         instances = set()
-        instances |= start_backend(backend_a, "", "example.com", "A")
+        instances |= start_backend(backend_a, "", "example.com", ["b.example.com"], "A")
         if ENABLE_FEDERATION:
-            instances |= start_backend(backend_b, "2", "b.example.com", "B")
+            instances |= start_backend(backend_b, "2", "b.example.com", ["example.com"], "B")
 
         # run main script or just wait forever
         if len(sys.argv) == 1:

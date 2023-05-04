@@ -108,6 +108,7 @@ dependencies:
   repository: "file://../federator"
   tags:
     - federator
+    - federation
     - haskellServices
     - services
 - name: sftd
