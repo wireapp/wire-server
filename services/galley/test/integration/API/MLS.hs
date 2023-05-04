@@ -258,6 +258,10 @@ tests s =
               test s "delete subconversation as a remote member" (testRemoteMemberDeleteSubConv True),
               test s "delete subconversation as a remote non-member" (testRemoteMemberDeleteSubConv False),
               test s "delete parent conversation of a remote subconveration" testDeleteRemoteParentOfSubConv
+            ],
+          testGroup
+            "Remote Sender/Remote SubConversation"
+            [ test s "on-mls-message-sent in subconversation" testRemoteToRemoteInSub
             ]
         ],
       testGroup
@@ -1281,6 +1285,62 @@ testRemoteToRemote = do
       -- alice should receive the message on her first client
       WS.assertMatch_ (5 # Second) wsA1 $ \n -> wsAssertMLSMessage (fmap Conv qconv) qbob txt n
       WS.assertMatch_ (5 # Second) wsA2 $ \n -> wsAssertMLSMessage (fmap Conv qconv) qbob txt n
+
+      -- eve should not receive the message
+      WS.assertNoEvent (1 # Second) [wsE]
+
+testRemoteToRemoteInSub :: TestM ()
+testRemoteToRemoteInSub = do
+  localDomain <- viewFederationDomain
+  c <- view tsCannon
+  alice <- randomUser
+  eve <- randomUser
+  bob <- randomId
+  conv <- randomId
+  let subConvId = SubConvId "conference"
+      aliceC1 = newClientId 0
+      aliceC2 = newClientId 1
+      eveC = newClientId 0
+      bdom = Domain "bob.example.com"
+      qconv = Qualified conv bdom
+      qbob = Qualified bob bdom
+      qalice = Qualified alice localDomain
+  now <- liftIO getCurrentTime
+  fedGalleyClient <- view tsFedGalleyClient
+
+  -- only add alice to the remote conversation
+  connectWithRemoteUser alice qbob
+  let cu =
+        ConversationUpdate
+          { cuTime = now,
+            cuOrigUserId = qbob,
+            cuConvId = conv,
+            cuAlreadyPresentUsers = [],
+            cuAction =
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
+          }
+  runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
+
+  let txt = "Hello from another backend"
+      rcpts = [(alice, aliceC1), (alice, aliceC2), (eve, eveC)]
+      rm =
+        RemoteMLSMessage
+          { rmmTime = now,
+            rmmMetadata = defMessageMetadata,
+            rmmSender = qbob,
+            rmmConversation = conv,
+            rmmSubConversation = Just subConvId,
+            rmmRecipients = rcpts,
+            rmmMessage = Base64ByteString txt
+          }
+
+  -- send message to alice and check reception
+  WS.bracketAsClientRN c [(alice, aliceC1), (alice, aliceC2), (eve, eveC)] $ \[wsA1, wsA2, wsE] -> do
+    void $ runFedClient @"on-mls-message-sent" fedGalleyClient bdom rm
+    liftIO $ do
+      -- alice should receive the message on her first client
+      WS.assertMatch_ (5 # Second) wsA1 $ \n -> wsAssertMLSMessage (fmap (flip SubConv subConvId) qconv) qbob txt n
+      WS.assertMatch_ (5 # Second) wsA2 $ \n -> wsAssertMLSMessage (fmap (flip SubConv subConvId) qconv) qbob txt n
 
       -- eve should not receive the message
       WS.assertNoEvent (1 # Second) [wsE]
