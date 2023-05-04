@@ -197,7 +197,9 @@ getFederationRemotes = lift $ do
   db <- wrapClient Data.getFederationRemotes
   cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
   -- FUTUREWORK: we should solely rely on `db` in the future; `cfg` is just for an easier,
-  -- more robust migration path.
+  -- more robust migration path.  See
+  -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
+  -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
   pure . FederationDomainConfigs . nub $ db <> cfg
 
 deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()

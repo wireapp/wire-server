@@ -77,6 +77,9 @@ brig:
       setMaxConvSize: 16
       setFederationDomain: integration.example.com
       setFederationDomainConfigs:
+        # 'setFederationDomainConfigs' is deprecated as of release 4.36.0.  See
+        # https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+        # for details.
         - domain: integration.example.com
           search_policy: full_search
         - domain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
@@ -132,7 +135,7 @@ brig:
         "crv": "Ed25519",
         "x": "mhP-NgFw3ifIXGZqJVB0kemt9L3BtD5P8q4Gah4Iklc",
         "d": "R8-pV2-sPN7dykV8HFJ73S64F3kMHTNnJiSN8UdWk_o"
-      }    
+      }
   tests:
     enableFederationTests: true
 cannon:
@@ -245,7 +248,7 @@ nginz:
           "kty": "OKP",
           "crv": "Ed25519",
           "x": "mhP-NgFw3ifIXGZqJVB0kemt9L3BtD5P8q4Gah4Iklc"
-        }       
+        }
 proxy:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}

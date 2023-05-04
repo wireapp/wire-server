@@ -611,6 +611,11 @@ any key package whose expiry date is set further than 15 days after upload time 
 
 
 ### Federated domain specific configuration settings
+
+**This section is deprecated as of Release 4.36.0.  See
+https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+for details.**
+
 #### Restrict user search
 
 The lookup and search of users on a wire instance can be configured. This can be done per federated domain.

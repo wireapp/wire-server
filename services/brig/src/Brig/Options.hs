@@ -551,8 +551,10 @@ data Settings = Settings
     --     - wire.com
     --     - example.com
     setFederationDomain :: !Domain,
-    setFederationDomainConfigs :: !(Maybe [FederationDomainConfig]), -- TODO: deprecate this in docs and config file samples.
-
+    -- | 'setFederationDomainConfigs' is deprecated as of release 4.36.0.  See
+    -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+    -- for details.
+    setFederationDomainConfigs :: !(Maybe [FederationDomainConfig]),
     -- | The amount of time in milliseconds to wait after reading from an SQS queue
     -- returns no message, before asking for messages from SQS again.
     -- defaults to 'defSqsThrottleMillis'.
