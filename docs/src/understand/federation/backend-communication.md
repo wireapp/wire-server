@@ -153,3 +153,39 @@ search request from *Alice*, one of its clients.
 :width: 100%
 :align: center
 ```
+
+(configuring-remote-connections)=
+
+## Configuring Remote Connections
+
+Up to release 4.36.0, the config file statically contains information
+about the remote connections in the configs of all services that need
+to know.  **TODO: elaborate.  also, this has probably been documented
+elsewhere?  maybe move this section there, or at least link?**
+
+Since release 4.36.0, there is an internal REST API for adding remote
+wire-server instances:
+
+* [get](TODO: swagger urls...)
+* [post](TODO: swagger urls...)
+* [delete](TODO: swagger urls...)
+
+Changing the configuration of existing edges is not implemented at the
+moment.
+
+See /developer/developer/federation-design-aspects.html for details
+See {ref}`configuring-remote-connections-dev-perspective` for the
+developer's point of view on this topic.
+
+### Transitioning from config file to database state
+
+As of release 4.36.0, federation config file info about remote
+backends are ignored, and brig info is used instead.  For a transition
+period, brig reports with the union of its config file data and
+cassandra data.  It is not allowed to dynamically delete a remote
+backend that is contained in the config file.
+
+In the future, wire-server will stop honoring the config file data at
+all, and solely rely on the cassandra data.  From that point onward,
+you can delete any connection.  Watch out for the release notes for
+when this happens.
