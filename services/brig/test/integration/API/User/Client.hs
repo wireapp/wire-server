@@ -33,6 +33,7 @@ import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opt
+import qualified Brig.Options as Opts
 import qualified Cassandra as DB
 import Control.Lens hiding (Wrapped, (#))
 import Crypto.JWT hiding (Ed25519, header, params)
@@ -67,7 +68,6 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
-import Util.Options (Endpoint (..), epHost)
 import Wire.API.Internal.Notification
 import Wire.API.MLS.Credential
 import qualified Wire.API.Team.Feature as Public
@@ -80,8 +80,8 @@ import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
 
-tests :: Endpoint -> ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Nginz -> Brig -> Cannon -> Galley -> TestTree
-tests e _cl _at opts p db n b c g =
+tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Nginz -> Brig -> Cannon -> Galley -> TestTree
+tests _cl _at opts p db n b c g =
   testGroup
     "client"
     [ test p "delete /clients/:client 403 - can't delete legalhold clients" $
@@ -133,7 +133,7 @@ tests e _cl _at opts p db n b c g =
       test p "get/head nonce/clients" $ testNewNonce b,
       testGroup
         "post /clients/:cid/access-token"
-        [ test p "success" $ testCreateAccessToken e n b,
+        [ test p "success" $ testCreateAccessToken opts n b,
           test p "proof missing" $ testCreateAccessTokenMissingProof b,
           test p "no nonce" $ testCreateAccessTokenNoNonce b
         ]
@@ -1420,9 +1420,9 @@ instance A.ToJSON DPoPClaimsSet where
       ins k v (Object o) = Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
 
-testCreateAccessToken :: Endpoint -> Nginz -> Brig -> Http ()
-testCreateAccessToken ep n brig = do
-  let h = ep ^. epHost
+testCreateAccessToken :: Opts.Opts -> Nginz -> Brig -> Http ()
+testCreateAccessToken opts n brig = do
+  let localDomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
   u <- randomUser brig
   let uid = userId u
   let email = fromMaybe (error "invalid email") $ userEmail u
@@ -1433,17 +1433,18 @@ testCreateAccessToken ep n brig = do
   let uidb64 = B64.encodeUnpadded $ cs $ replace "-" "" $ cs (toByteString' uid)
   cid <- createClientForUser brig uid
   nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
-  let nonceBs = fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
+  let nonceBs = cs $ fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
   now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (floor <$> getPOSIXTime)
-  let clientIdentity :: Text = "im:wireapp=" <> cs uidb64 <> "/" <> cs (toByteString' cid) <> "@" <> h
+  let clientIdentity = cs $ "im:wireapp=" <> uidb64 <> "/" <> toByteString' cid <> "@" <> toByteString' localDomain
+  let httpsUrl = cs $ "https://" <> toByteString' localDomain <> "/clients/" <> toByteString' cid <> "/access-token"
   let claimsSet' =
         emptyClaimsSet
           & claimIat ?~ NumericDate now
           & claimExp ?~ NumericDate now
           & claimNbf ?~ NumericDate now
-          & claimSub ?~ fromMaybe (error "invalid sub claim") (clientIdentity ^? stringOrUri)
+          & claimSub ?~ fromMaybe (error "invalid sub claim") ((clientIdentity :: Text) ^? stringOrUri)
           & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
-  let dpopClaims = DPoPClaimsSet claimsSet' (cs nonceBs) "POST" ("https://" <> h <> "/clients/" <> cs (toByteString' cid) <> "/access-token") "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+  let dpopClaims = DPoPClaimsSet claimsSet' nonceBs "POST" httpsUrl "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
   signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
   case signedOrError of
     Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
