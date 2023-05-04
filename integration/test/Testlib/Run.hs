@@ -1,23 +1,24 @@
 module Testlib.Run (main, mainI) where
 
-import Control.Concurrent.Async
+import Control.Concurrent
 import Control.Concurrent.Chan
 import Control.Monad
 import Data.Foldable
 import Data.Functor
 import Data.List
 import Data.Time.Clock
-import Data.Traversable
 import RunAllTests
 import System.Directory
 import System.Environment
+import System.IO
 import Testlib.App
 import Testlib.Options
 import Text.Printf
+import UnliftIO.Async
 
 -- TODO
 --
--- [ ] Limit concurrency to the number of capabilities
+-- [x] Limit concurrency to the number of capabilities
 -- [x] Parse configuration before running tests
 -- [x] Add -c option for the configuration directory
 -- [ ] Clean up temporary files
@@ -96,7 +97,7 @@ main = do
   env <- mkGlobalEnv cfg
 
   withAsync displayOutput $ \displayThread -> do
-    report <- fmap mconcat $ for tests $ \(name, action) -> do
+    report <- fmap mconcat $ pooledForConcurrently tests $ \(name, action) -> do
       if (f name)
         then do
           (mErr, tm) <- withTime (runTest env action)
