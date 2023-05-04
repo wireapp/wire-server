@@ -1,8 +1,8 @@
 module Testlib.Run (main, mainI) where
 
 import Control.Concurrent
-import Control.Concurrent.Chan
 import Control.Monad
+import Data.Char
 import Data.Foldable
 import Data.Functor
 import Data.List
@@ -10,7 +10,6 @@ import Data.Time.Clock
 import RunAllTests
 import System.Directory
 import System.Environment
-import System.IO
 import Testlib.App
 import Testlib.Options
 import Text.Printf
@@ -114,7 +113,7 @@ main = do
                   <> "\n"
               pure (TestReport 1 [name])
             Nothing -> do
-              writeOutput $ name <> colored green " \x2713" <> " (" <> printTime tm <> ")" <> "\n"
+              writeOutput $ name <> " " <> colored green [chr 0x2713] <> " (" <> printTime tm <> ")" <> "\n"
               pure (TestReport 1 [])
         else pure (TestReport 0 [])
     writeChan output Nothing
