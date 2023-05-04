@@ -124,6 +124,7 @@ library
     , string-conversions
     , tagged
     , text
+    , time
     , transformers
     , unliftio
     , websockets

@@ -6,11 +6,13 @@ import Control.Monad
 import Data.Foldable
 import Data.Functor
 import Data.List
+import Data.Time.Clock
 import RunAllTests
 import System.Directory
 import System.Environment
 import Testlib.App
 import Testlib.Options
+import Text.Printf
 
 data TestReport = TestReport
   { count :: Int,
@@ -42,6 +44,22 @@ testFilter opts n = included n && not (excluded n)
         else any (\x -> isInfixOf x name) opts.includeTests
     excluded name = any (\x -> isInfixOf x name) opts.excludeTests
 
+withTime :: IO a -> IO (a, NominalDiffTime)
+withTime action = do
+  tm0 <- getCurrentTime
+  a <- action
+  tm1 <- getCurrentTime
+  pure (a, diffUTCTime tm1 tm0)
+
+printTime :: NominalDiffTime -> String
+printTime =
+  printf "%.02f s"
+    . (/ 100.0)
+    . (fromIntegral :: Integer -> Float)
+    . truncate
+    . (* 100)
+    . nominalDiffTimeToSeconds
+
 main :: IO ()
 main = do
   let tests =
@@ -65,14 +83,21 @@ main = do
     report <- fmap mconcat $ forConcurrently tests $ \(name, action) -> do
       if (f name)
         then do
-          mErr <- runTest cfg action
+          (mErr, tm) <- withTime (runTest cfg action)
           case mErr of
             Just err -> do
               writeOutput $
-                "----- " <> name <> colored red " FAIL" <> " -----\n" <> err <> "\n"
+                "----- "
+                  <> name
+                  <> colored red " FAIL"
+                  <> " ("
+                  <> printTime tm
+                  <> ") -----\n"
+                  <> err
+                  <> "\n"
               pure (TestReport 1 [name])
             Nothing -> do
-              writeOutput $ name <> colored green " \x2713" <> "\n"
+              writeOutput $ name <> colored green " \x2713" <> " (" <> printTime tm <> ")" <> "\n"
               pure (TestReport 1 [])
         else pure (TestReport 0 [])
     writeChan output Nothing
