@@ -42,11 +42,9 @@ import Data.IORef
 import Data.List
 import Data.List.Split (splitOn)
 import qualified Data.Map.Strict as Map
-import Data.Proxy (Proxy (Proxy))
 import qualified Data.Scientific as Sci
 import Data.String
 import Data.String.Conversions (cs)
-import Data.Tagged
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Traversable
@@ -68,11 +66,6 @@ import System.FilePath.Posix (splitPath)
 import System.IO
 import qualified System.IO.Error as Error
 import System.Process (CreateProcess (..), createProcess, proc, terminateProcess)
-import Test.Tasty.Options
-import Test.Tasty.Providers
-import qualified Test.Tasty.Providers as Tasty
-import Test.Tasty.Providers.ConsoleFormat
-import Testlib.Options
 
 -------------------------------------------------------------------------------
 -- - SECTION_APP : App, Env, ServiceMap, Context
@@ -125,25 +118,19 @@ getLastPrekey = App $ do
     lastPrekeyId :: Int
     lastPrekeyId = 65535
 
-instance IsTest (App ()) where
-  run opts action _ = do
-    env <- mkEnv (lookupOption opts)
-    result :: Tasty.Result <-
-      (runAppWithEnv env action >> pure (Tasty.testPassed ""))
-        `E.catches` [ E.Handler
-                        ( \(e :: AssertionFailure) -> do
-                            pure (testFailedDetails (displayException e) (printFailureDetails e))
-                        ),
-                      E.Handler
-                        (\(ex :: SomeException) -> pure (testFailed (show ex)))
-                    ]
-    pure result
-
-  testOptions =
-    Tagged
-      [ Option (Proxy @ConfigFile),
-        Option (Proxy @TestSelection)
-      ]
+runTest :: FilePath -> App () -> IO (Maybe String)
+runTest cfg action = do
+  env <- mkEnv cfg
+  (runAppWithEnv env action $> Nothing)
+    `E.catches` [ E.Handler
+                    ( \(e :: AssertionFailure) -> do
+                        Just <$> printFailureDetails e
+                    ),
+                  E.Handler
+                    ( \(e :: SomeException) -> do
+                        pure (Just (colored yellow (displayException e)))
+                    )
+                ]
 
 data Env = Env
   { serviceMap :: ServiceMap,
@@ -201,16 +188,8 @@ serviceHostPort m Brig = m.brig
 serviceHostPort m Galley = m.galley
 serviceHostPort m Cannon = m.cannon
 
-newtype ConfigFile = ConfigFile {unConfigFile :: FilePath}
-
-instance IsOption ConfigFile where
-  defaultValue = ConfigFile "services/integration.yaml"
-  parseValue = Just . ConfigFile
-  optionName = fromString "config"
-  optionHelp = fromString "Configuration file for integration tests. Default: services/integration.yaml"
-
-mkEnv :: ConfigFile -> IO Env
-mkEnv (ConfigFile cfgFile) = do
+mkEnv :: FilePath -> IO Env
+mkEnv cfgFile = do
   eith <- Yaml.decodeFileEither cfgFile
   intConfig <- case eith of
     Left err -> do
@@ -427,21 +406,18 @@ isEqual ::
   App Bool
 isEqual = liftP2 (==)
 
-printFailureDetails :: AssertionFailure -> ResultDetailsPrinter
-printFailureDetails (AssertionFailure stack mbResponse _) = ResultDetailsPrinter $ \testLevel _withFormat -> do
-  let nindent = 2 * testLevel + 2
-  s <- indent nindent <$> prettierCallStack stack
-  putStrLn ""
-  putStrLn s
-  for_ mbResponse $ \r -> putStrLn (indent nindent (prettyReponse r))
+printFailureDetails :: AssertionFailure -> IO String
+printFailureDetails (AssertionFailure stack mbResponse _) = do
+  s <- prettierCallStack stack
+  pure . unlines $
+    "\n" <> s
+      : toList (fmap prettyResponse mbResponse)
 
 prettierCallStack :: CallStack -> IO String
 prettierCallStack cstack = do
   sl <- prettierCallStackLines cstack
   d <- getCurrentDirectory
-  pure $
-    intercalate "\n" $
-      [colored yellow "call stack: ", sl]
+  pure $ unlines [colored yellow "call stack: ", sl]
 
 prettierCallStackLines :: CallStack -> IO String
 prettierCallStackLines cstack =
@@ -867,11 +843,8 @@ onFailureAddResponse r m = App $ do
   liftIO $ E.catch (runAppWithEnv e m) $ \(AssertionFailure stack _ msg) -> do
     E.throw (AssertionFailure stack (Just r) msg)
 
-printResponse :: MonadIO m => Response -> m ()
-printResponse = liftIO . putStrLn . prettyReponse
-
-prettyReponse :: Response -> String
-prettyReponse r =
+prettyResponse :: Response -> String
+prettyResponse r =
   unlines $
     concat
       [ pure $ colored yellow "request: \n" <> showRequest r.request,
@@ -929,7 +902,10 @@ orange :: String
 orange = "\x1b[38;5;3m"
 
 red :: String
-red = "\x1b[38;5;1m"
+red = "\x1b[38;5;9m"
+
+green :: String
+green = "\x1b[32m"
 
 resetColor :: String
 resetColor = "\x1b[0m"
