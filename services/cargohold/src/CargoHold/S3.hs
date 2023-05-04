@@ -48,7 +48,7 @@ import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
 import Conduit
-import Control.Error (ExceptT, throwE)
+import Control.Error (ExceptT, succeed, throwE)
 import Control.Lens hiding (parts, (.=), (:<), (:>))
 import Data.Bifunctor (first)
 import Data.ByteString.Builder (toLazyByteString)
@@ -231,18 +231,19 @@ signedURL path hostHeader = do
     awsEnvForHost = do
       Log.debug $
         "host" .= hostHeader
-          ~~ msg (val "awsEnvForHost - Looking up multiIngress config")
-      mbEnv <-
-        if Text.null hostHeader
-          then Just <$> view aws
-          else view (multiIngress . at (Text.unpack hostHeader))
-      case mbEnv of
+          ~~ msg (val "awsEnvForHost - Looking up multiIngress config.")
+      mbHostAwsEnv <- view (multiIngress . at (Text.unpack hostHeader))
+      case mbHostAwsEnv of
         Nothing -> do
-          Log.warn $
+          Log.debug $
             "host" .= hostHeader
-              ~~ msg (val "awsEnvForHost - Lookup failed")
-          Imports.error $ "No env found for " ++ Text.unpack hostHeader
-        Just e -> pure e
+              ~~ msg (val "awsEnvForHost - multiIngress lookup failed, using default.")
+          view aws
+        Just hostAwsEnv -> do
+          Log.debug $
+            "host" .= hostHeader
+              ~~ msg (val "awsEnvForHost - multiIngress lookup succeed, using specific env.")
+          pure hostAwsEnv
 
 mkKey :: V3.AssetKey -> S3AssetKey
 mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key

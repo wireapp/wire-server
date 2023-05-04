@@ -56,7 +56,7 @@ import qualified CargoHold.AWS as AWS
 import CargoHold.Options as Opt
 import Control.Error (ExceptT, exceptT)
 import Control.Exception (throw)
-import Control.Lens (Lens', makeLenses, view, (^.))
+import Control.Lens (Lens', makeLenses, view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Data.Default (def)
@@ -73,6 +73,7 @@ import OpenSSL.Session (SSLContext, SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import System.Logger.Class hiding (settings)
 import qualified System.Logger.Extended as Log
+import Util.Options
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -101,9 +102,21 @@ newEnv o = do
   mgr <- initHttpManager (o ^. optAws . awsS3Compatibility)
   h2mgr <- initHttp2Manager
   ama <- initAws (o ^. optAws) lgr mgr
-  multiIngresses <- mapM (\(k, v) -> initAws v lgr mgr >>= \v' -> pure (k, v')) $ Map.assocs (o ^. Opt.optMultiIngress)
+  multiIngressAWS <- initMultiIngressAWS lgr mgr
   let loc = toLocalUnsafe (o ^. optSettings . Opt.setFederationDomain) ()
-  pure $ Env ama met lgr mgr h2mgr def o loc (Map.fromList multiIngresses)
+  pure $ Env ama met lgr mgr h2mgr def o loc multiIngressAWS
+  where
+    initMultiIngressAWS :: Logger -> Manager -> IO (Map String AWS.Env)
+    initMultiIngressAWS lgr mgr =
+      Map.fromList
+        <$> mapM
+          ( \(k, v) ->
+              initAws (patchS3Endpoint v) lgr mgr >>= \v' -> pure (k, v')
+          )
+          (Map.assocs (o ^. Opt.optMultiIngress))
+
+    patchS3Endpoint :: AWSEndpoint -> AWSOpts
+    patchS3Endpoint endpoint = (o ^. optAws) & awsS3Endpoint .~ endpoint
 
 initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
 initAws o l = AWS.mkEnv l (o ^. awsS3Endpoint) addrStyle downloadEndpoint (o ^. awsS3Bucket) (o ^. awsCloudFront)
