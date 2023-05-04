@@ -1,12 +1,15 @@
 module Test.MLS where
 
+import SetupHelpers (createAndConnectUsers)
 import Testlib.Prelude
 
 -- TODO
 testMixedUpgrade :: App ()
 testMixedUpgrade = do
-  -- [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
-
+  own <- ownDomain
+  [alice, bob] <- createAndConnectUsers [own, own]
+  printJSON alice
+  printJSON bob
   pure ()
 
 -- testMixedUpgrade :: TestM ()

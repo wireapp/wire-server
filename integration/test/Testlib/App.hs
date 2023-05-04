@@ -1106,7 +1106,7 @@ withModifiedServices services k = do
 
 waitUntilServiceUp :: HasCallStack => Service -> App ()
 waitUntilServiceUp srv = do
-  d <- asks (.domain1)
+  d <- ownDomain
   isUp <-
     retrying
       (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))

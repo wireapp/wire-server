@@ -7,6 +7,7 @@ import Data.Default
 import Data.Function
 import GHC.Stack
 import Testlib.App
+import Testlib.Prelude
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> Internal.CreateUser -> App Value
 randomUser domain cu = bindResponse (Internal.createUser domain cu) $ \resp -> do
@@ -36,6 +37,13 @@ connectUsers alice bob = do
   bindResponse (Public.postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
   bindResponse (Public.putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
 
--- createAndConnectUsers :: HasCallStack => [String] -> App [Value]
--- createAndConnectUsers domains = do
---   pure (error "TODO")
+createAndConnectUsers :: HasCallStack => [String] -> App [Value]
+createAndConnectUsers domains = do
+  users <- for domains (flip randomUser def)
+  let userPairs = do
+        t <- tails users
+        (a, others) <- maybeToList (uncons t)
+        b <- others
+        pure (a, b)
+  for_ userPairs (uncurry connectUsers)
+  pure users
