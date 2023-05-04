@@ -113,7 +113,7 @@ main = do
                   <> "\n"
               pure (TestReport 1 [name])
             Nothing -> do
-              writeOutput $ name <> " " <> colored green [chr 0x2713] <> " (" <> printTime tm <> ")" <> "\n"
+              writeOutput $ name <> colored green " OK" <> " (" <> printTime tm <> ")" <> "\n"
               pure (TestReport 1 [])
         else pure (TestReport 0 [])
     writeChan output Nothing
