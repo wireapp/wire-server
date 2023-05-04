@@ -21,7 +21,6 @@ library
     Wire.API.Federation.API.Cargohold
     Wire.API.Federation.API.Common
     Wire.API.Federation.API.Galley
-    Wire.API.Federation.BackendNotifications
     Wire.API.Federation.Client
     Wire.API.Federation.Component
     Wire.API.Federation.Domain
@@ -81,7 +80,6 @@ library
 
   build-depends:
       aeson                  >=2.0.1.0
-    , amqp
     , base                   >=4.6     && <5.0
     , bytestring
     , bytestring-conversion

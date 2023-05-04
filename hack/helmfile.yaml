@@ -141,9 +141,6 @@ releases:
         value: {{ .Values.federationDomain1 }}
       - name: brig.config.optSettings.setFederationDomainConfigs[0].domain
         value: {{ .Values.federationDomain2 }}
-      - name: background-worker.config.remoteDomains
-        values:
-        - {{ .Values.federationDomain2 }}
     needs:
       - 'databases-ephemeral'
 
@@ -162,8 +159,5 @@ releases:
         value: {{ .Values.federationDomain2 }}
       - name: brig.config.optSettings.setFederationDomainConfigs[0].domain
         value: {{ .Values.federationDomain1 }}
-      - name: background-worker.config.remoteDomains
-        values:
-        - {{ .Values.federationDomain1 }}
     needs:
       - 'databases-ephemeral'

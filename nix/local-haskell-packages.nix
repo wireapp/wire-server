@@ -35,7 +35,6 @@
   wire-api = hself.callPackage ../libs/wire-api/default.nix { inherit gitignoreSource; };
   wire-message-proto-lens = hself.callPackage ../libs/wire-message-proto-lens/default.nix { inherit gitignoreSource; };
   zauth = hself.callPackage ../libs/zauth/default.nix { inherit gitignoreSource; };
-  background-worker = hself.callPackage ../services/background-worker/default.nix { inherit gitignoreSource; };
   brig = hself.callPackage ../services/brig/default.nix { inherit gitignoreSource; };
   cannon = hself.callPackage ../services/cannon/default.nix { inherit gitignoreSource; };
   cargohold = hself.callPackage ../services/cargohold/default.nix { inherit gitignoreSource; };

@@ -31,7 +31,6 @@ packages:
   , libs/wire-api-federation/
   , libs/wire-message-proto-lens/
   , libs/zauth/
-  , services/background-worker/
   , services/brig/
   , services/cannon/
   , services/cargohold/
@@ -66,8 +65,6 @@ package api-simulations
 package assets
     ghc-options: -Werror
 package auto-whitelist
-    ghc-options: -Werror
-package background-worker
     ghc-options: -Werror
 package bilge
     ghc-options: -Werror
