@@ -706,7 +706,7 @@ testAddRemotesSomeUnreachable = do
     failedToProcess
       @?= FailedToProcess
         { send = Nothing,
-          add = Just (UnreachableUsers (pure charlie)),
+          add = unreachableFromList [charlie],
           remove = Nothing
         }
     let SomeConversationAction SConversationJoinTag cj = cuAction bdy

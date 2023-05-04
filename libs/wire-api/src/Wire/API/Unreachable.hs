@@ -19,7 +19,7 @@
 -- various kinds of messages.
 module Wire.API.Unreachable
   ( -- * Failed to process
-    UnreachableUsers (UnreachableUsers),
+    UnreachableUsers (unreachableUsers),
     unreachableFromList,
     FailedToProcess (..),
     failedToProcessObjectSchema,
