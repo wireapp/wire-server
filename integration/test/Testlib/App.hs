@@ -407,17 +407,29 @@ isEqual ::
 isEqual = liftP2 (==)
 
 printFailureDetails :: AssertionFailure -> IO String
-printFailureDetails (AssertionFailure stack mbResponse _) = do
+printFailureDetails (AssertionFailure stack mbResponse msg) = do
   s <- prettierCallStack stack
   pure . unlines $
-    "\n" <> s
+    colored yellow "assertion failure:"
+      : colored red msg
+      : "\n" <> s
       : toList (fmap prettyResponse mbResponse)
 
 prettierCallStack :: CallStack -> IO String
 prettierCallStack cstack = do
-  sl <- prettierCallStackLines cstack
+  sl <-
+    prettierCallStackLines
+      . Stack.fromCallSiteList
+      . filter (not . isTestlibEntry)
+      . Stack.getCallStack
+      $ cstack
   d <- getCurrentDirectory
   pure $ unlines [colored yellow "call stack: ", sl]
+  where
+    isTestlibEntry :: (String, SrcLoc) -> Bool
+    isTestlibEntry (_, SrcLoc {..}) =
+      isInfixOf "/Testlib/" srcLocFile
+        || isInfixOf "RunAllTests.hs" srcLocFile
 
 prettierCallStackLines :: CallStack -> IO String
 prettierCallStackLines cstack =
