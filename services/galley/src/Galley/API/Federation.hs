@@ -25,6 +25,7 @@ import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
+import Data.Either.Combinators
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty (..))
@@ -353,37 +354,49 @@ leaveConversation requestingDomain lc = do
       . mapToRuntimeError @('ActionDenied 'LeaveConversation) F.RemoveFromConversationErrorRemovalNotAllowed
       . mapToRuntimeError @'InvalidOperation F.RemoveFromConversationErrorRemovalNotAllowed
       . mapError @NoChanges (const F.RemoveFromConversationErrorUnchanged)
-      . mapError mapFederationError
       $ do
         (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound leaver lcnv
-        update <-
-          first lcuUpdate
-            <$> updateLocalConversation
-              @'ConversationLeaveTag
-              lcnv
-              leaver
-              Nothing
-              ()
-        pure (update, conv)
+        outcome <-
+          runError @FederationError $
+            first lcuUpdate
+              <$> updateLocalConversation
+                @'ConversationLeaveTag
+                lcnv
+                leaver
+                Nothing
+                ()
+        case outcome of
+          Left e -> do
+            logFederationError lcnv e
+            throw . internalErr $ e
+          Right update -> pure (update, conv)
 
   case res of
     Left e -> pure $ F.LeaveConversationResponse (Left e)
     Right ((_update, updateFailedToProcess), conv) -> do
       let remotes = filter ((== qDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
-      (_, notifyFailedToProcess) <-
-        mapError mapFederationError $
-          notifyConversationAction
-            SConversationLeaveTag
-            leaver
-            False
-            Nothing
-            (qualifyAs lcnv conv)
-            botsAndMembers
-            ()
+      (_, notifyFailedToProcess) <- do
+        outcome <-
+          runError @FederationError $
+            notifyConversationAction
+              SConversationLeaveTag
+              leaver
+              False
+              Nothing
+              (qualifyAs lcnv conv)
+              botsAndMembers
+              ()
+        case outcome of
+          Left e -> do
+            logFederationError lcnv e
+            throw . internalErr $ e
+          Right v -> pure v
 
       pure . F.LeaveConversationResponse . Right $
         updateFailedToProcess <> notifyFailedToProcess
+  where
+    internalErr = InternalErrorWithDescription . LT.pack . displayException
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
@@ -462,7 +475,6 @@ sendMessage originDomain msr = do
 
 onUserDeleted ::
   ( Member ConversationStore r,
-    Member (Error InternalError) r,
     Member FederatorAccess r,
     Member FireAndForget r,
     Member ExternalAccess r,
@@ -501,8 +513,8 @@ onUserDeleted origDomain udcn = do
             Public.RegularConv -> do
               let botsAndMembers = convBotsAndMembers conv
               removeUser (qualifyAs lc conv) (tUntagged deletedUser)
-              void $
-                mapError mapFederationError $
+              outcome <-
+                runError @FederationError $
                   notifyConversationAction
                     (sing @'ConversationLeaveTag)
                     untaggedDeletedUser
@@ -511,6 +523,7 @@ onUserDeleted origDomain udcn = do
                     (qualifyAs lc conv)
                     botsAndMembers
                     ()
+              whenLeft outcome . logFederationError $ lc
   pure EmptyResponse
 
 updateConversation ::
@@ -838,10 +851,19 @@ onTypingIndicatorUpdated origDomain TypingDataUpdated {..} = do
 -- Utilities
 --------------------------------------------------------------------------------
 
--- | Map a subset of federation errors to internal errors as these errors are
--- impossible and do not ever occur. Note this is not a general function to be
--- used in places other than in this module.
-mapFederationError :: FederationError -> InternalError
-mapFederationError (FederationCallFailure e) =
-  InternalErrorWithDescription . LT.pack . displayException $ e
-mapFederationError e = InternalErrorWithDescription . LT.pack . show $ e
+-- | Log a federation error that is impossible in processing a remote request
+-- for a local conversation.
+logFederationError ::
+  Member P.TinyLog r =>
+  Local ConvId ->
+  FederationError ->
+  Sem r ()
+logFederationError lc e =
+  P.warn $
+    Log.field "conversation" (toByteString' (tUnqualified lc))
+      Log.~~ Log.field "domain" (toByteString' (tDomain lc))
+      Log.~~ Log.msg
+        ( "An impossible federation error occurred when deleting\
+          \ a user from a local conversation: "
+            <> displayException e
+        )
