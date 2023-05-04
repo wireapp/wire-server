@@ -18,7 +18,7 @@ import Text.Printf
 -- TODO
 --
 -- [ ] Limit concurrency to the number of capabilities
--- [ ] Parse configuration before running tests
+-- [x] Parse configuration before running tests
 -- [x] Add -c option for the configuration directory
 -- [ ] Clean up temporary files
 
@@ -93,11 +93,13 @@ main = do
   let f = testFilter opts
       cfg = opts.configFile
 
+  env <- mkGlobalEnv cfg
+
   withAsync displayOutput $ \displayThread -> do
     report <- fmap mconcat $ for tests $ \(name, action) -> do
       if (f name)
         then do
-          (mErr, tm) <- withTime (runTest cfg action)
+          (mErr, tm) <- withTime (runTest env action)
           case mErr of
             Just err -> do
               writeOutput $

@@ -118,9 +118,9 @@ getLastPrekey = App $ do
     lastPrekeyId :: Int
     lastPrekeyId = 65535
 
-runTest :: FilePath -> App () -> IO (Maybe String)
-runTest cfg action = do
-  env <- mkEnv cfg
+runTest :: GlobalEnv -> App () -> IO (Maybe String)
+runTest ge action = do
+  env <- mkEnv ge
   (runAppWithEnv env action $> Nothing)
     `E.catches` [ E.Handler
                     ( \(e :: AssertionFailure) -> do
@@ -128,19 +128,31 @@ runTest cfg action = do
                     ),
                   E.Handler
                     ( \(e :: SomeException) -> do
+                        putStrLn "exception handler"
                         pure (Just (colored yellow (displayException e)))
                     )
                 ]
 
+-- | Initialised once per test.
 data Env = Env
   { serviceMap :: ServiceMap,
     serviceMapBackendTwo :: ServiceMap,
     defaultAPIVersion :: Int,
     manager :: HTTP.Manager,
-    prekeys :: IORef [(Int, String)],
-    lastPrekeys :: IORef [String],
     serviceConfigsDir :: FilePath,
-    servicesCwdBase :: Maybe FilePath
+    servicesCwdBase :: Maybe FilePath,
+    prekeys :: IORef [(Int, String)],
+    lastPrekeys :: IORef [String]
+  }
+
+-- | Initialised once per testsuite.
+data GlobalEnv = GlobalEnv
+  { gServiceMap :: ServiceMap,
+    gServiceMapBackendTwo :: ServiceMap,
+    gDefaultAPIVersion :: Int,
+    gManager :: HTTP.Manager,
+    gServiceConfigsDir :: FilePath,
+    gServicesCwdBase :: Maybe FilePath
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -188,8 +200,8 @@ serviceHostPort m Brig = m.brig
 serviceHostPort m Galley = m.galley
 serviceHostPort m Cannon = m.cannon
 
-mkEnv :: FilePath -> IO Env
-mkEnv cfgFile = do
+mkGlobalEnv :: FilePath -> IO GlobalEnv
+mkGlobalEnv cfgFile = do
   eith <- Yaml.decodeFileEither cfgFile
   intConfig <- case eith of
     Left err -> do
@@ -210,18 +222,30 @@ mkEnv cfgFile = do
           Nothing -> "/etc/wire"
 
   manager <- HTTP.newManager HTTP.defaultManagerSettings
+  pure
+    GlobalEnv
+      { gServiceMap = intConfig.backendOne,
+        gServiceMapBackendTwo = intConfig.backendTwo,
+        gDefaultAPIVersion = 4,
+        gManager = manager,
+        gServiceConfigsDir = configsDir,
+        gServicesCwdBase = devEnvProjectRoot <&> (</> "services")
+      }
+
+mkEnv :: GlobalEnv -> IO Env
+mkEnv ge = do
   pks <- newIORef (zip [1 ..] somePrekeys)
   lpks <- newIORef someLastPrekeys
   pure
     Env
-      { serviceMap = intConfig.backendOne,
-        serviceMapBackendTwo = intConfig.backendTwo,
-        defaultAPIVersion = 4,
-        manager = manager,
+      { serviceMap = gServiceMap ge,
+        serviceMapBackendTwo = gServiceMapBackendTwo ge,
+        defaultAPIVersion = gDefaultAPIVersion ge,
+        manager = gManager ge,
+        serviceConfigsDir = gServiceConfigsDir ge,
+        servicesCwdBase = gServicesCwdBase ge,
         prekeys = pks,
-        lastPrekeys = lpks,
-        serviceConfigsDir = configsDir,
-        servicesCwdBase = devEnvProjectRoot <&> (</> "services")
+        lastPrekeys = lpks
       }
 
 withTwo :: App a -> App a
@@ -1004,7 +1028,7 @@ withModifiedServices services k = do
           ports
 
   let modifyEnv env =
-        env
+        (env :: Env)
           { serviceMap = updateServiceMap env.serviceMap
           }
 
