@@ -5,7 +5,6 @@
 { mkDerivation
 , aeson
 , aeson-pretty
-, amqp
 , base
 , bytestring
 , bytestring-conversion
@@ -50,7 +49,6 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
-    amqp
     base
     bytestring
     bytestring-conversion
