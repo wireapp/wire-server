@@ -111,14 +111,6 @@ dependencies:
     - federation
     - haskellServices
     - services
-- name: background-worker
-  version: "0.0.42"
-  repository: "file://../background-worker"
-  tags:
-    - background-worker
-    - federation
-    - haskellServices
-    - services
 - name: sftd
   version: "0.0.42"
   repository: "file://../sftd"
