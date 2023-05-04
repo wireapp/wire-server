@@ -48,7 +48,7 @@ import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
 import Conduit
-import Control.Error (ExceptT, succeed, throwE)
+import Control.Error (ExceptT, throwE)
 import Control.Lens hiding (parts, (.=), (:<), (:>))
 import Data.Bifunctor (first)
 import Data.ByteString.Builder (toLazyByteString)
