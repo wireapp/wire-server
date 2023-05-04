@@ -10,6 +10,7 @@ import RunAllTests
 import System.Directory
 import System.Environment
 import Testlib.App
+import Testlib.Options
 
 data TestReport = TestReport
   { count :: Int,
@@ -25,11 +26,21 @@ instance Monoid TestReport where
 
 printReport :: TestReport -> IO ()
 printReport report = do
-  putStrLn $ "----------"
-  putStrLn $ show report.count <> " tests run\n"
-  putStrLn $ colored red "Failed tests: "
-  for_ report.failures $ \name ->
-    putStrLn $ " - " <> name
+  unless (null report.failures) $ putStrLn $ "----------"
+  putStrLn $ show report.count <> " tests run"
+  unless (null report.failures) $ do
+    putStrLn $ colored red "\nFailed tests: "
+    for_ report.failures $ \name ->
+      putStrLn $ " - " <> name
+
+testFilter :: TestOptions -> String -> Bool
+testFilter opts n = included n && not (excluded n)
+  where
+    included name =
+      if null opts.includeTests
+        then True
+        else any (\x -> isInfixOf x name) opts.includeTests
+    excluded name = any (\x -> isInfixOf x name) opts.excludeTests
 
 main :: IO ()
 main = do
@@ -43,21 +54,29 @@ main = do
              in (qualifiedName, action)
       cfg = "services/integration.yaml"
   output <- newChan
-  let displayOutput = forever $ do
-        x <- readChan output
-        putStr x
+  let displayOutput =
+        readChan output >>= \case
+          Just x -> putStr x *> displayOutput
+          Nothing -> pure ()
+  let writeOutput = writeChan output . Just
+
+  f <- testFilter <$> getOptions
   withAsync displayOutput $ \displayThread -> do
     report <- fmap mconcat $ forConcurrently tests $ \(name, action) -> do
-      mErr <- runTest cfg action
-      case mErr of
-        Just err -> do
-          writeChan output $
-            "----- " <> name <> colored red " FAIL" <> " -----\n" <> err <> "\n"
-          pure (TestReport 1 [name])
-        Nothing -> do
-          writeChan output $ name <> colored green " \x2713" <> "\n"
-          pure (TestReport 1 [])
-    cancel displayThread
+      if (f name)
+        then do
+          mErr <- runTest cfg action
+          case mErr of
+            Just err -> do
+              writeOutput $
+                "----- " <> name <> colored red " FAIL" <> " -----\n" <> err <> "\n"
+              pure (TestReport 1 [name])
+            Nothing -> do
+              writeOutput $ name <> colored green " \x2713" <> "\n"
+              pure (TestReport 1 [])
+        else pure (TestReport 0 [])
+    writeChan output Nothing
+    wait displayThread
     printReport report
 
 -- like `main` but meant to run from a repl
