@@ -26,10 +26,14 @@ instance Semigroup TestReport where
 instance Monoid TestReport where
   mempty = TestReport 0 mempty
 
+pluralise :: Int -> String -> String
+pluralise 1 x = x
+pluralise _ x = x <> "s"
+
 printReport :: TestReport -> IO ()
 printReport report = do
   unless (null report.failures) $ putStrLn $ "----------"
-  putStrLn $ show report.count <> " tests run"
+  putStrLn $ show report.count <> " " <> pluralise report.count "test" <> " run."
   unless (null report.failures) $ do
     putStrLn $ colored red "\nFailed tests: "
     for_ report.failures $ \name ->
