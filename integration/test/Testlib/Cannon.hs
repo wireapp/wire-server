@@ -40,7 +40,6 @@ import Control.Monad
 import Control.Monad.Catch hiding (bracket)
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.IO.Class
-import Control.Monad.Reader
 import Control.Monad.STM
 import Data.Aeson (Value (..), decodeStrict')
 import Data.ByteString (ByteString)
@@ -121,8 +120,10 @@ clientApp wsChan latch conn = do
 --   for the connection to register with Gundeck, and return the 'Async' thread.
 run :: HasCallStack => WSConnect -> WS.ClientApp () -> App (Async ())
 run wsConnect app = do
-  env <- ask
-  let HostPort caHost caPort = serviceHostPort env.serviceMap Cannon
+  domain <- ownDomain
+  serviceMap <- getServiceMap domain
+
+  let HostPort caHost caPort = serviceHostPort serviceMap Cannon
   latch <- liftIO newEmptyMVar
 
   connId <- case wsConnect.conn of
@@ -157,7 +158,7 @@ run wsConnect app = do
   let waitForRegistry :: HasCallStack => Int -> App ()
       waitForRegistry (0 :: Int) = failApp "Cannon: failed to register presence"
       waitForRegistry n = do
-        request <- baseRequest Cannon Unversioned ("/i/presences/" <> wsConnect.user <> "/" <> connId)
+        request <- baseRequest ownDomain Cannon Unversioned ("/i/presences/" <> wsConnect.user <> "/" <> connId)
         response <- submit "HEAD" request
         unless (status response == 200) $ do
           liftIO $ threadDelay $ 100 * 1000

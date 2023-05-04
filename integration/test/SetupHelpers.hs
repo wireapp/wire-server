@@ -8,15 +8,15 @@ import Data.Function
 import GHC.Stack
 import Testlib.App
 
-randomUser :: Internal.CreateUser -> App Value
-randomUser cu = bindResponse (Internal.createUser cu) $ \resp -> do
+randomUser :: (HasCallStack, MakesValue domain) => domain -> Internal.CreateUser -> App Value
+randomUser domain cu = bindResponse (Internal.createUser domain cu) $ \resp -> do
   resp.status `shouldMatchInt` 201
   resp.json
 
 -- | returns (user, team id)
-createTeam :: App (Value, String)
-createTeam = do
-  res <- Internal.createUser def {Internal.team = True}
+createTeam :: (HasCallStack, MakesValue domain) => domain -> App (Value, String)
+createTeam domain = do
+  res <- Internal.createUser domain def {Internal.team = True}
   user <- res.json
   tid <- user %. "team" & asString
   -- TODO
@@ -24,7 +24,7 @@ createTeam = do
   -- refreshIndex
   pure (user, tid)
 
-connectUsersB2B ::
+connectUsers ::
   ( HasCallStack,
     MakesValue alice,
     MakesValue bob
@@ -32,6 +32,10 @@ connectUsersB2B ::
   alice ->
   bob ->
   App ()
-connectUsersB2B alice bob = do
+connectUsers alice bob = do
   bindResponse (Public.postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
-  bindResponse (withTwo (Public.putConnection bob alice "accepted")) (\resp -> resp.status `shouldMatchInt` 200)
+  bindResponse (Public.putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
+
+-- createAndConnectUsers :: HasCallStack => [String] -> App [Value]
+-- createAndConnectUsers domains = do
+--   pure (error "TODO")

@@ -41,6 +41,7 @@ import Data.Functor
 import Data.IORef
 import Data.List
 import Data.List.Split (splitOn)
+import Data.Map (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Scientific as Sci
 import Data.String
@@ -91,6 +92,9 @@ instance Show AppFailure where
 instance Exception AppFailure where
   displayException (AppFailure msg) = msg
 
+instance MonadFail App where
+  fail msg = assertFailure ("Pattern matching failure: " <> msg)
+
 failApp :: String -> App a
 failApp msg = throw (AppFailure msg)
 
@@ -135,8 +139,9 @@ runTest ge action = do
 
 -- | Initialised once per test.
 data Env = Env
-  { serviceMap :: ServiceMap,
-    serviceMapBackendTwo :: ServiceMap,
+  { serviceMap :: Map String ServiceMap,
+    domain1 :: String,
+    domain2 :: String,
     defaultAPIVersion :: Int,
     manager :: HTTP.Manager,
     serviceConfigsDir :: FilePath,
@@ -147,8 +152,9 @@ data Env = Env
 
 -- | Initialised once per testsuite.
 data GlobalEnv = GlobalEnv
-  { gServiceMap :: ServiceMap,
-    gServiceMapBackendTwo :: ServiceMap,
+  { gServiceMap :: Map String ServiceMap,
+    gDomain1 :: String,
+    gDomain2 :: String,
     gDefaultAPIVersion :: Int,
     gManager :: HTTP.Manager,
     gServiceConfigsDir :: FilePath,
@@ -156,8 +162,8 @@ data GlobalEnv = GlobalEnv
   }
 
 data IntegrationConfig = IntegrationConfig
-  { backendOne :: ServiceMap,
-    backendTwo :: ServiceMap
+  { backendOne :: BackendConfig,
+    backendTwo :: BackendConfig
   }
 
 instance FromJSON IntegrationConfig where
@@ -180,6 +186,18 @@ data ServiceMap = ServiceMap
   deriving (Show, Generic)
 
 instance FromJSON ServiceMap
+
+data BackendConfig = BackendConfig
+  { beServiceMap :: ServiceMap,
+    originDomain :: String
+  }
+  deriving (Show)
+
+instance FromJSON BackendConfig where
+  parseJSON v =
+    BackendConfig
+      <$> parseJSON v
+      <*> withObject "BackendConfig" (\ob -> ob .: fromString "originDomain") v
 
 data HostPort = HostPort
   { host :: String,
@@ -224,8 +242,13 @@ mkGlobalEnv cfgFile = do
   manager <- HTTP.newManager HTTP.defaultManagerSettings
   pure
     GlobalEnv
-      { gServiceMap = intConfig.backendOne,
-        gServiceMapBackendTwo = intConfig.backendTwo,
+      { gServiceMap =
+          Map.fromList
+            [ (intConfig.backendOne.originDomain, intConfig.backendOne.beServiceMap),
+              (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap)
+            ],
+        gDomain1 = intConfig.backendOne.originDomain,
+        gDomain2 = intConfig.backendTwo.originDomain,
         gDefaultAPIVersion = 4,
         gManager = manager,
         gServiceConfigsDir = configsDir,
@@ -239,7 +262,8 @@ mkEnv ge = do
   pure
     Env
       { serviceMap = gServiceMap ge,
-        serviceMapBackendTwo = gServiceMapBackendTwo ge,
+        domain1 = gDomain1 ge,
+        domain2 = gDomain2 ge,
         defaultAPIVersion = gDefaultAPIVersion ge,
         manager = gManager ge,
         serviceConfigsDir = gServiceConfigsDir ge,
@@ -247,9 +271,6 @@ mkEnv ge = do
         prekeys = pks,
         lastPrekeys = lpks
       }
-
-withTwo :: App a -> App a
-withTwo = local (\env -> env {serviceMap = env.serviceMapBackendTwo})
 
 somePrekeys :: [String]
 somePrekeys =
@@ -321,9 +342,16 @@ readServiceConfig srv = do
     Left err -> failApp ("Error while parsing " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err)
     Right value -> pure value
 
-viewFederationDomain :: App String
-viewFederationDomain = do
-  readServiceConfig Brig %. "optSettings.setFederationDomain" & asString
+ownDomain :: App String
+ownDomain = asks (.domain1)
+
+otherDomain :: App String
+otherDomain = asks (.domain2)
+
+getServiceMap :: String -> App ServiceMap
+getServiceMap fedDomain = do
+  env <- ask
+  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain (env.serviceMap))
 
 -------------------------------------------------------------------------------
 -- - SECTION_ASSERTIONS
@@ -353,6 +381,10 @@ assertFailure msg =
 assertBool :: HasCallStack => String -> Bool -> App ()
 assertBool _ True = pure ()
 assertBool msg False = assertFailure msg
+
+assertJust :: HasCallStack => String -> Maybe a -> App a
+assertJust _ (Just x) = pure x
+assertJust msg Nothing = assertFailure msg
 
 assertOne :: HasCallStack => [a] -> App a
 assertOne [x] = pure x
@@ -777,14 +809,23 @@ objQid ob = do
         Nothing -> firstSuccess xs
         Just y -> pure (Just y)
 
+-- Get "domain" field or - if already string-like return String
+objDomain :: MakesValue a => a -> App String
+objDomain x = do
+  v <- make x
+  case v of
+    Object ob -> fst <$> objQid v
+    String t -> pure (T.unpack t)
+    other -> assertFailureWithJSON other (typeWasExpectedButGot "Object or String" other)
+
 -------------------------------------------------------------------------------
 -- - SECTION_REQUEST : requests and responses
 -------------------------------------------------------------------------------
 
 data Versioned = Versioned | Unversioned | ExplicitVersion Int
 
-baseRequest :: Service -> Versioned -> String -> App HTTP.Request
-baseRequest service versioned path = do
+baseRequest :: (HasCallStack, MakesValue domain) => domain -> Service -> Versioned -> String -> App HTTP.Request
+baseRequest domain service versioned path = do
   pathSegsPrefix <- case versioned of
     Versioned -> do
       v <- asks (.defaultAPIVersion)
@@ -794,8 +835,11 @@ baseRequest service versioned path = do
       pure ["v" <> show v]
 
   env <- ask
+  domainV <- objDomain domain
+  serviceMap <- getServiceMap domainV
+
   liftIO . HTTP.parseRequest $
-    let HostPort h p = serviceHostPort env.serviceMap service
+    let HostPort h p = serviceHostPort serviceMap service
      in "http://" <> h <> ":" <> show p <> ("/" <> joinHttpPath (pathSegsPrefix <> splitHttpPath path))
 
 submit :: String -> HTTP.Request -> App Response
@@ -1027,9 +1071,16 @@ withModifiedServices services k = do
           serviceMap
           ports
 
+  defaultDomain <- asks (.domain1)
+
   let modifyEnv env =
-        (env :: Env)
-          { serviceMap = updateServiceMap env.serviceMap
+        env
+          { serviceMap =
+              ( Map.adjust
+                  updateServiceMap
+                  defaultDomain
+                  env.serviceMap
+              )
           }
 
   let waitForAllServices = do
@@ -1056,12 +1107,13 @@ withModifiedServices services k = do
 
 waitUntilServiceUp :: HasCallStack => Service -> App ()
 waitUntilServiceUp srv = do
+  d <- asks (.domain1)
   isUp <-
     retrying
       (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
       (\_ isUp -> pure (not isUp))
       ( \_ -> do
-          req <- baseRequest srv Unversioned "/i/status"
+          req <- baseRequest d srv Unversioned "/i/status"
           env <- ask
           eith <-
             liftIO $

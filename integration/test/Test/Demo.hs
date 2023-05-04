@@ -3,14 +3,13 @@ module Test.Demo where
 
 import qualified API.Brig as Public
 import qualified API.GalleyInternal as Internal
-import Data.Functor
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
 
 testCantDeleteLHClient :: HasCallStack => App ()
 testCantDeleteLHClient = do
-  user <- randomUser def
+  user <- randomUser ownDomain def
   client <- bindResponseR (Public.addClient user def {Public.ctype = "legalhold", Public.internal = True}) $ \resp -> do
     resp.status `shouldMatchInt` 201
 
@@ -19,7 +18,7 @@ testCantDeleteLHClient = do
 
 testDeleteUnknownClient :: HasCallStack => App ()
 testDeleteUnknownClient = do
-  user <- randomUser def
+  user <- randomUser ownDomain def
   let fakeClientId = "deadbeefdeadbeef"
   bindResponse (Public.deleteClient user Nothing fakeClientId) $ \resp -> do
     resp.status `shouldMatchInt` 404
@@ -30,14 +29,14 @@ testModifiedBrig = do
   withModifiedService
     Brig
     (setField "optSettings.setFederationDomain" "overridden.example.com")
-    $ bindResponse Public.getAPIVersion
+    $ bindResponse (Public.getAPIVersion ownDomain)
     $ ( \resp ->
           (resp %. "domain") `shouldMatch` "overridden.example.com"
       )
 
 testModifiedGalley :: HasCallStack => App ()
 testModifiedGalley = do
-  (_user, tid) <- createTeam
+  (_user, tid) <- createTeam ownDomain
 
   let getFeatureStatus = do
         bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
@@ -55,19 +54,17 @@ testModifiedGalley = do
 
 testWebSockets :: HasCallStack => App ()
 testWebSockets = do
-  user <- randomUser def
+  user <- randomUser ownDomain def
   withWebSocket user $ \ws -> do
     client <- bindResponseR (Public.addClient user def) $ \resp -> do
       resp.status `shouldMatchInt` 201
     n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "user.client-add") ws
     nPayload n %. "client.id" `shouldMatch` (client %. "id")
 
-testFederationDomain :: App ()
-testFederationDomain =
-  void $ viewFederationDomain
-
-testBackendTwo :: App ()
-testBackendTwo = do
-  domain1 <- bindResponse Public.getAPIVersion (%. "domain")
-  domain2 <- bindResponse (withTwo Public.getAPIVersion) (%. "domain")
-  domain1 `shouldNotMatch` domain2
+testMultipleBackends :: App ()
+testMultipleBackends = do
+  ownDomainRes <- bindResponse (Public.getAPIVersion ownDomain) (%. "domain")
+  otherDomainRes <- bindResponse (Public.getAPIVersion otherDomain) (%. "domain")
+  ownDomainRes `shouldMatch` ownDomain
+  otherDomainRes `shouldMatch` otherDomain
+  ownDomain `shouldNotMatch` otherDomain

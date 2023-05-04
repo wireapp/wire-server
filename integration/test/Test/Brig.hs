@@ -10,8 +10,8 @@ import Testlib.Prelude
 
 testSearchContactForExternalUsers :: HasCallStack => App ()
 testSearchContactForExternalUsers = do
-  owner <- randomUser def {Internal.team = True}
-  partner <- randomUser def {Internal.team = True}
+  owner <- randomUser ownDomain def {Internal.team = True}
+  partner <- randomUser ownDomain def {Internal.team = True}
 
   bindResponse (Internal.putTeamMember partner (partner %. "team") (API.teamRole "partner")) $ \resp ->
     resp.status `shouldMatchInt` 200

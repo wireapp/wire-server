@@ -35,7 +35,7 @@ addClient ::
   App Response
 addClient user args = do
   uid <- objId user
-  req <- baseRequest Brig Unversioned $ "/i/clients/" <> uid
+  req <- baseRequest user Brig Unversioned $ "/i/clients/" <> uid
   pks <- maybe (fmap pure getPrekey) pure args.prekeys
   lpk <- maybe getLastPrekey pure args.lastPrekey
   submit "POST" $
@@ -59,7 +59,7 @@ deleteClient user mconn client = do
   let conn = fromMaybe "0" mconn
   uid <- objId user
   cid <- objId client
-  req <- baseRequest Brig Versioned $ "/clients/" <> cid
+  req <- baseRequest user Brig Versioned $ "/clients/" <> cid
   submit "DELETE" $
     req
       & zUser uid
@@ -76,7 +76,7 @@ searchContacts ::
   searchTerm ->
   App Response
 searchContacts searchingUserId searchTerm = do
-  req <- baseRequest Brig Versioned "/search/contacts"
+  req <- baseRequest searchingUserId Brig Versioned "/search/contacts"
   q <- asString searchTerm
   uid <- objId searchingUserId
   submit
@@ -86,9 +86,9 @@ searchContacts searchingUserId searchTerm = do
         & zUser uid
     )
 
-getAPIVersion :: App Response
-getAPIVersion = do
-  req <- baseRequest Brig Unversioned $ "/api-version"
+getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
+getAPIVersion domain = do
+  req <- baseRequest domain Brig Unversioned $ "/api-version"
   submit "GET" req
 
 postConnection ::
@@ -103,7 +103,7 @@ postConnection userFrom userTo = do
   uidFrom <- objId userFrom
   (userToDomain, userToId) <- objQid userTo
   req <-
-    baseRequest Brig Versioned $
+    baseRequest userFrom Brig Versioned $
       joinHttpPath ["/connections", userToDomain, userToId]
   submit
     "POST"
@@ -126,7 +126,7 @@ putConnection userFrom userTo status = do
   uidFrom <- objId userFrom
   (userToDomain, userToId) <- objQid userTo
   req <-
-    baseRequest Brig Versioned $
+    baseRequest userFrom Brig Versioned $
       joinHttpPath ["/connections", userToDomain, userToId]
   statusS <- asString status
   submit
