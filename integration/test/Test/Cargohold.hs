@@ -9,5 +9,12 @@ testUploadAsset :: HasCallStack => App ()
 testUploadAsset = do
   user <- randomUser ownDomain def
 
-  void . bindResponse (uploadAsset user) $ \resp -> do
+  key <- bindResponse (uploadAsset user) $ \resp -> do
     resp.status `shouldMatchInt` 201
+    resp.json %. "key"
+
+  void . bindResponse (downloadAsset user key) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    assertBool
+      ("Expect 'Hello World!' as text asset content. Got: " ++ show resp.body)
+      (resp.body == fromString "Hello World!")

@@ -72,3 +72,13 @@ buildMultipartBody header body bodyMimeType =
     -- via 'beginMultipartBody'.
     endMultipartBody :: Builder
     endMultipartBody = stringUtf8 "\r\n--frontier--\r\n"
+
+downloadAsset :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> App Response
+downloadAsset user key = do
+  uid <- user & objId
+  key' <- key & asString
+  req <- baseRequest user Cargohold Versioned $ "/assets/example.com/" ++ key'
+  submit "GET" $
+    req
+      & zUser uid
+      & zHost "nginz-https.example.com"
