@@ -184,7 +184,13 @@ federationRemotesAPI =
 
 addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 addFederationRemote fedDomConf = do
-  lift . wrapClient $ Data.addFederationRemote fedDomConf
+  result <- lift . wrapClient $ Data.addFederationRemote fedDomConf
+  case result of
+    Data.AddFederationRemoteSuccess -> pure ()
+    Data.AddFederationRemoteMaxRemotesReached ->
+      throwError . fedError . FederationUnexpectedError $
+        "Maximum number of remote backends reached.  If you need to create more connections, \
+        \please contact wire.com."
 
 getFederationRemotes :: ExceptT Brig.API.Error.Error (AppT r) FederationDomainConfigs
 getFederationRemotes = lift $ do

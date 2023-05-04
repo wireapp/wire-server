@@ -19,6 +19,7 @@ module Brig.Data.Federation
   ( getFederationRemotes,
     addFederationRemote,
     deleteFederationRemote,
+    AddFederationRemoteResult (..),
   )
 where
 
@@ -41,11 +42,14 @@ getFederationRemotes = uncurry FederationDomainConfig <$$> qry
     get :: PrepQuery R () (Domain, FederatedUserSearchPolicy)
     get = fromString $ "SELECT domain, search_policy FROM federation_remotes LIMIT " <> show maxKnownNodes
 
-addFederationRemote :: MonadClient m => FederationDomainConfig -> m ()
+data AddFederationRemoteResult = AddFederationRemoteSuccess | AddFederationRemoteMaxRemotesReached
+
+addFederationRemote :: MonadClient m => FederationDomainConfig -> m AddFederationRemoteResult
 addFederationRemote (FederationDomainConfig rdom searchpolicy) = do
   l <- length <$> getFederationRemotes
-  when (l >= maxKnownNodes) $ error "TODO: make this error better"
-  retry x5 $ write add (params LocalQuorum (rdom, searchpolicy))
+  if l >= maxKnownNodes
+    then pure AddFederationRemoteMaxRemotesReached
+    else AddFederationRemoteSuccess <$ retry x5 (write add (params LocalQuorum (rdom, searchpolicy)))
   where
     add :: PrepQuery W (Domain, FederatedUserSearchPolicy) ()
     add = "INSERT INTO federation_remotes (domain, search_policy) VALUES (?, ?)"
