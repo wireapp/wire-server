@@ -4,7 +4,8 @@ import Options.Applicative
 
 data TestOptions = TestOptions
   { includeTests :: [String],
-    excludeTests :: [String]
+    excludeTests :: [String],
+    configFile :: String
   }
 
 parser :: Parser TestOptions
@@ -26,6 +27,14 @@ parser =
               <> help "Exclude tests matching PATTERN"
           )
       )
+    <*> ( strOption
+            ( long "config"
+                <> short 'c'
+                <> metavar "FILE"
+                <> help "Use configuration FILE"
+                <> value "services/integration.yaml"
+            )
+        )
 
 optInfo :: ParserInfo TestOptions
 optInfo =

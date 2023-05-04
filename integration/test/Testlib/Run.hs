@@ -7,12 +7,20 @@ import Data.Foldable
 import Data.Functor
 import Data.List
 import Data.Time.Clock
+import Data.Traversable
 import RunAllTests
 import System.Directory
 import System.Environment
 import Testlib.App
 import Testlib.Options
 import Text.Printf
+
+-- TODO
+--
+-- [ ] Limit concurrency to the number of capabilities
+-- [ ] Parse configuration before running tests
+-- [x] Add -c option for the configuration directory
+-- [ ] Clean up temporary files
 
 data TestReport = TestReport
   { count :: Int,
@@ -74,7 +82,6 @@ main = do
                   _ -> module_
                 qualifiedName = module0 <> "." <> name
              in (qualifiedName, action)
-      cfg = "services/integration.yaml"
   output <- newChan
   let displayOutput =
         readChan output >>= \case
@@ -82,9 +89,12 @@ main = do
           Nothing -> pure ()
   let writeOutput = writeChan output . Just
 
-  f <- testFilter <$> getOptions
+  opts <- getOptions
+  let f = testFilter opts
+      cfg = opts.configFile
+
   withAsync displayOutput $ \displayThread -> do
-    report <- fmap mconcat $ forConcurrently tests $ \(name, action) -> do
+    report <- fmap mconcat $ for tests $ \(name, action) -> do
       if (f name)
         then do
           (mErr, tm) <- withTime (runTest cfg action)
