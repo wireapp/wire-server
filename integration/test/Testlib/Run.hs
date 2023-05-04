@@ -51,10 +51,8 @@ testFilter :: TestOptions -> String -> Bool
 testFilter opts n = included n && not (excluded n)
   where
     included name =
-      if null opts.includeTests
-        then True
-        else any (\x -> isInfixOf x name) opts.includeTests
-    excluded name = any (\x -> isInfixOf x name) opts.excludeTests
+      (null opts.includeTests) || any (\x -> x `isInfixOf` name) opts.includeTests
+    excluded name = any (\x -> x `isInfixOf` name) opts.excludeTests
 
 withTime :: IO a -> IO (a, NominalDiffTime)
 withTime action = do
@@ -97,7 +95,7 @@ main = do
 
   withAsync displayOutput $ \displayThread -> do
     report <- fmap mconcat $ pooledForConcurrently tests $ \(name, action) -> do
-      if (f name)
+      if f name
         then do
           (mErr, tm) <- withTime (runTest env action)
           case mErr of

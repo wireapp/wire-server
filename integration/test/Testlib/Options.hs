@@ -27,14 +27,13 @@ parser =
               <> help "Exclude tests matching PATTERN"
           )
       )
-    <*> ( strOption
+    <*> strOption
             ( long "config"
                 <> short 'c'
                 <> metavar "FILE"
                 <> help "Use configuration FILE"
                 <> value "services/integration.yaml"
             )
-        )
 
 optInfo :: ParserInfo TestOptions
 optInfo =

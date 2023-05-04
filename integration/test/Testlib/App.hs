@@ -794,7 +794,7 @@ objQid ob = do
       dom <- MaybeT $ asStringM vdom
       vid <- MaybeT $ lookupField x "id"
       id_ <- MaybeT $ asStringM vid
-      pure $ (dom, id_)
+      pure (dom, id_)
 
     inField = do
       m <- lookupField ob "qualified_id"
@@ -1076,11 +1076,10 @@ withModifiedServices services k = do
   let modifyEnv env =
         env
           { serviceMap =
-              ( Map.adjust
-                  updateServiceMap
-                  defaultDomain
-                  env.serviceMap
-              )
+              Map.adjust
+                updateServiceMap
+                defaultDomain
+                env.serviceMap
           }
 
   let waitForAllServices = do
