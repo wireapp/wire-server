@@ -1269,6 +1269,7 @@ testRemoteToRemote = do
             rmmMetadata = defMessageMetadata,
             rmmSender = qbob,
             rmmConversation = conv,
+            rmmSubConversation = Nothing,
             rmmRecipients = rcpts,
             rmmMessage = Base64ByteString txt
           }

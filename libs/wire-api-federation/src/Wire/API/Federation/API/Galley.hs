@@ -353,6 +353,7 @@ data RemoteMLSMessage = RemoteMLSMessage
     rmmMetadata :: MessageMetadata,
     rmmSender :: Qualified UserId,
     rmmConversation :: ConvId,
+    rmmSubConversation :: Maybe SubConvId,
     rmmRecipients :: [(UserId, ClientId)],
     rmmMessage :: Base64ByteString
   }

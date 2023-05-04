@@ -795,7 +795,7 @@ onMLSMessageSent domain rmm =
       let recipients = filter (\(u, _) -> Set.member u members) (F.rmmRecipients rmm)
       -- FUTUREWORK: support local bots
       let e =
-            Event (tUntagged rcnv) Nothing (F.rmmSender rmm) (F.rmmTime rmm) $
+            Event (tUntagged rcnv) (F.rmmSubConversation rmm) (F.rmmSender rmm) (F.rmmTime rmm) $
               EdMLSMessage (fromBase64ByteString (F.rmmMessage rmm))
       let mkPush :: (UserId, ClientId) -> MessagePush 'NormalMessage
           mkPush uc = newMessagePush loc mempty Nothing (F.rmmMetadata rmm) uc e
