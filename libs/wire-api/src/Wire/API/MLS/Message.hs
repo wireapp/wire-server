@@ -347,12 +347,6 @@ instance ToSchema UnreachableUsers where
 unreachableFromList :: [Qualified UserId] -> Maybe UnreachableUsers
 unreachableFromList = fmap (UnreachableUsers . NE.nub) . nonEmpty
 
--- | A 'mappend'-like operation on two optional values of a type with a
--- Semigroup instance.
-(<\>) :: Semigroup a => Maybe a -> Maybe a -> Maybe a
-(Just a) <\> (Just b) = Just (a <> b)
-m <\> n = m <|> n
-
 -- | Lists of remote users that could not be processed in a federated action,
 -- e.g., a message could not be sent to these remote users.
 data FailedToProcess = FailedToProcess
@@ -366,9 +360,9 @@ data FailedToProcess = FailedToProcess
 instance Semigroup FailedToProcess where
   ftp1 <> ftp2 =
     FailedToProcess
-      { send = send ftp1 <\> send ftp2,
-        add = add ftp1 <\> add ftp2,
-        remove = remove ftp1 <\> remove ftp2
+      { send = send ftp1 <> send ftp2,
+        add = add ftp1 <> add ftp2,
+        remove = remove ftp1 <> remove ftp2
       }
 
 instance Monoid FailedToProcess where
