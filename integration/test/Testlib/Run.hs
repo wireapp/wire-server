@@ -14,13 +14,6 @@ import Testlib.Options
 import Text.Printf
 import UnliftIO.Async
 
--- TODO
---
--- [x] Limit concurrency to the number of capabilities
--- [x] Parse configuration before running tests
--- [x] Add -c option for the configuration directory
--- [ ] Clean up temporary files
-
 data TestReport = TestReport
   { count :: Int,
     failures :: [String]

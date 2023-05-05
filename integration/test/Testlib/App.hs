@@ -1053,12 +1053,14 @@ withModifiedServices services k = do
     (port, socket) <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup srv ports)
     liftIO $ N.close socket
     (_, _, _, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd}
-    pure ph
+    pure (ph, tempFile)
 
   let stopInstances = liftIO $ do
         -- Running waitForProcess would hang for 30 seconds when the test suite
         -- is run from within ghci, so we don't wait here.
-        for_ instances terminateProcess
+        for_ instances $ \(ph, tmpfile) -> do
+          terminateProcess ph
+          removeFile tmpfile
 
   let updateServiceMap serviceMap =
         Map.foldrWithKey
