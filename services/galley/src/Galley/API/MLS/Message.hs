@@ -1185,16 +1185,14 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
       . fmap fst
       $ newUserClients
   let failedAdding =
-        Set.toList $
-          Set.fromList (fst <$> newUserClients)
-            `Set.difference` Set.fromList
-              ( ulAll lconv
-                  . ulNewMembers lconv (tUnqualified lconv)
-                  . toUserList lconv
-                  . foldMap (onlyJoining . lcuEvent)
-                  . fst
-                  $ addEvents
-              )
+        ulAll lconv $
+          ulDiff
+            (toUserList lconv $ fst <$> newUserClients)
+            ( toUserList lconv
+                . foldMap (onlyJoining . lcuEvent)
+                . fst
+                $ addEvents
+            )
 
   -- add clients in the conversation state
   for_ newUserClients $ \(qtarget, newClients) -> do
