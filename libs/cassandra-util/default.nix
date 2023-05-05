@@ -6,7 +6,6 @@
 , aeson
 , base
 , conduit
-, containers
 , cql
 , cql-io
 , cql-io-tinylog
@@ -33,7 +32,6 @@ mkDerivation {
     aeson
     base
     conduit
-    containers
     cql
     cql-io
     cql-io-tinylog

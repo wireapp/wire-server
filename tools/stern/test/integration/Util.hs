@@ -26,7 +26,7 @@ import Bilge.Assert
 import Control.Applicative
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
-import Control.Retry
+import Control.Retry (constantDelay, exponentialBackoff, retrying)
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -44,6 +44,7 @@ import Imports
 import System.Random
 import Test.Tasty.HUnit
 import TestSetup
+import UnliftIO.Retry (limitRetries, recoverAll)
 import Web.Cookie
 import Wire.API.Team
 import Wire.API.Team.Invitation
@@ -52,8 +53,11 @@ import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Role
 import Wire.API.User
 
-createBindingTeamWithNMembers :: HasCallStack => Int -> TestM (UserId, TeamId, [UserId])
-createBindingTeamWithNMembers n = do
+eventually :: (MonadIO m, MonadMask m, MonadUnliftIO m) => m a -> m a
+eventually = recoverAll (limitRetries 7 <> exponentialBackoff 50000) . const
+
+createTeamWithNMembers :: HasCallStack => Int -> TestM (UserId, TeamId, [UserId])
+createTeamWithNMembers n = do
   (owner, tid) <- createBindingTeam
   mems <- replicateM n $ do
     mem <- addUserToTeam owner tid

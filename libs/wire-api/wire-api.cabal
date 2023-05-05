@@ -252,7 +252,6 @@ library
     , extended
     , extra
     , filepath
-    , generic-random             >=1.2
     , generics-sop
     , ghc-prim
     , hashable
@@ -292,7 +291,6 @@ library
     , servant-multipart
     , servant-server
     , servant-swagger
-    , servant-swagger-ui
     , singletons
     , singletons-base
     , singletons-th
@@ -579,44 +577,26 @@ test-suite wire-api-golden-tests
   build-depends:
     , aeson                    >=2.0.1.0
     , aeson-pretty
-    , aeson-qq
     , base
     , bytestring
     , bytestring-conversion
-    , case-insensitive
-    , cassava
     , containers               >=0.5
     , currency-codes
-    , directory
     , either
-    , filepath
-    , hscim
     , imports
     , iso3166-country-codes
     , iso639
     , lens
-    , metrics-wai
-    , mime
     , pem
     , pretty
     , proto-lens
-    , QuickCheck
-    , saml2-web-sso
-    , servant
-    , servant-swagger-ui
-    , string-conversions
-    , swagger2
     , tasty
-    , tasty-expected-failure
     , tasty-hunit
-    , tasty-quickcheck
     , text
     , time
     , types-common             >=0.16
-    , unordered-containers
     , uri-bytestring
     , uuid
-    , vector
     , wire-api
     , wire-message-proto-lens
 
@@ -654,7 +634,6 @@ test-suite wire-api-tests
   hs-source-dirs: test/unit
   build-depends:
     , aeson                    >=2.0.1.0
-    , aeson-pretty
     , aeson-qq
     , async
     , base
@@ -662,12 +641,9 @@ test-suite wire-api-tests
     , bytestring
     , bytestring-arbitrary     >=0.1.3
     , bytestring-conversion
-    , case-insensitive
     , cassava
     , containers               >=0.5
     , cryptonite
-    , currency-codes
-    , directory
     , either
     , filepath
     , hex
@@ -676,36 +652,24 @@ test-suite wire-api-tests
     , hspec-wai
     , http-types
     , imports
-    , iso3166-country-codes
-    , iso639
-    , lens
     , memory
     , metrics-wai
-    , mime
-    , pem
-    , pretty
     , process
-    , proto-lens
     , QuickCheck
     , random
     , saml2-web-sso
     , schema-profunctor
     , servant
     , servant-server
-    , servant-swagger-ui
     , string-conversions
     , swagger2
     , tasty
-    , tasty-expected-failure
     , tasty-hspec
     , tasty-hunit
     , tasty-quickcheck
     , text
-    , time
     , types-common             >=0.16
     , unliftio
-    , unordered-containers
-    , uri-bytestring
     , uuid
     , vector
     , wai

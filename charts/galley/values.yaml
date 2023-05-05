@@ -22,7 +22,7 @@ config:
   cassandra:
     host: aws-cassandra
     replicaCount: 3
-  enableFederator: false # keep enableFederator default in sync with brig and cargohold chart's config.enableFederator as well as wire-server chart's tag.federator
+  enableFederation: false # keep enableFederation default in sync with brig and cargohold chart's config.enableFederation as well as wire-server chart's tags.federation
   settings:
     httpPoolSize: 128
     maxTeamSize: 10000
@@ -92,7 +92,8 @@ config:
         defaults:
           status: disabled
           config:
-            verificationExpiration: null
+            verificationExpiration: 86400
+            acmeDiscoveryUrl: null
           lockStatus: unlocked
 
   aws:

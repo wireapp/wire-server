@@ -370,7 +370,7 @@ certificate.
 
 Read {ref}`choose-backend-domain` again, then
 set the backend domain three times to the same value in the subcharts
-cargohold, galley and brig. You also need to set `enableFederator` to
+cargohold, galley and brig. You also need to set `enableFederation` to
 `true`.
 
 ``` yaml
@@ -378,19 +378,19 @@ cargohold, galley and brig. You also need to set `enableFederator` to
 # (e.g. under ./helm_vars/wire-server/values.yaml)
 galley:
   config:
-    enableFederator: true
+    enableFederation: true
     settings:
       federationDomain: example.com # your chosen "backend domain"
 
 brig:
   config:
-    enableFederator: true
+    enableFederation: true
     optSettings:
       setFederationDomain: example.com # your chosen "backend domain"
 
 cargohold:
   config:
-    enableFederator: true
+    enableFederation: true
     settings:
       federationDomain: example.com # your chosen "backend domain"
 ```

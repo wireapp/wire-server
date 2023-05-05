@@ -15,28 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V81_MLSSubconversation (migration) where
+module Test.Galley.Permissions where
 
-import Cassandra.Schema
+import Galley.Types.Teams
 import Imports
-import Text.RawString.QQ
+import Test.Tasty
+import Test.Tasty.HUnit
+import Wire.API.Team.Permission
+import Wire.API.Team.Role
 
-migration :: Migration
-migration =
-  Migration 81 "Add the MLS subconversation tables" $ do
-    schema'
-      [r| CREATE TABLE subconversation (
-            conv_id uuid,
-            subconv_id text,
-            group_id blob,
-            cipher_suite int,
-            public_group_state blob,
-            epoch bigint,
-            PRIMARY KEY (conv_id, subconv_id)
-          );
-        |]
-    schema'
-      [r| ALTER TABLE group_id_conv_id ADD (
-            subconv_id text
-          );
-        |]
+tests :: TestTree
+tests =
+  testGroup
+    "permsToInt"
+    [ testCase "partner" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleExternalPartner) 1025,
+      testCase "member" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleMember) 1587,
+      testCase "admin" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleAdmin) 5951,
+      testCase "owner" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleOwner) 8191
+    ]

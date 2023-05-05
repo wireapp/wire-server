@@ -33,22 +33,30 @@ import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opt
+import qualified Brig.Options as Opts
 import qualified Cassandra as DB
-import Control.Lens (at, preview, (?~), (^.), (^?))
+import Control.Lens hiding (Wrapped, (#))
+import Crypto.JWT hiding (Ed25519, header, params)
 import Data.Aeson hiding (json)
+import qualified Data.Aeson as A
+import qualified Data.Aeson.KeyMap as M
 import Data.Aeson.Lens
+import qualified Data.ByteString.Base64.URL as B64
 import Data.ByteString.Conversion
 import Data.Coerce (coerce)
 import Data.Default
 import Data.Domain (Domain (..))
-import Data.Id hiding (client)
+import Data.Id
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
 import Data.Nonce (isValidBase64UrlEncodedUUID)
 import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
+import Data.Text (replace)
 import Data.Text.Ascii (AsciiChars (validate))
+import Data.Time.Clock.POSIX
 import qualified Data.Vector as Vec
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
@@ -72,8 +80,8 @@ import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> TestTree
-tests _cl _at opts p db b c g =
+tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Nginz -> Brig -> Cannon -> Galley -> TestTree
+tests _cl _at opts p db n b c g =
   testGroup
     "client"
     [ test p "delete /clients/:client 403 - can't delete legalhold clients" $
@@ -125,7 +133,7 @@ tests _cl _at opts p db b c g =
       test p "get/head nonce/clients" $ testNewNonce b,
       testGroup
         "post /clients/:cid/access-token"
-        [ test p "invalid values" $ testCreateAccessTokenInvalidValues b,
+        [ test p "success" $ testCreateAccessToken opts n b,
           test p "proof missing" $ testCreateAccessTokenMissingProof b,
           test p "no nonce" $ testCreateAccessTokenNoNonce b
         ]
@@ -343,7 +351,7 @@ testListClients brig = do
   let pks = Map.fromList [(Ed25519, "random")]
   void $ putClient brig uid (clientId c1) pks
   let c1' = c1 {clientMLSPublicKeys = pks}
-  let cs = sortBy (compare `on` clientId) [c1', c2, c3]
+  let clients = sortBy (compare `on` clientId) [c1', c2, c3]
 
   get
     ( brig
@@ -352,7 +360,7 @@ testListClients brig = do
     )
     !!! do
       const 200 === statusCode
-      const (Just cs) === responseJsonMaybe
+      const (Just clients) === responseJsonMaybe
 
 testMLSClient :: Brig -> Http ()
 testMLSClient brig = do
@@ -1381,23 +1389,96 @@ testNewNonce brig = do
         Just "no-store" @=? getHeader "Cache-Control" response
       pure nonceBs
 
-testCreateAccessTokenInvalidValues :: Brig -> Http ()
-testCreateAccessTokenInvalidValues brig =
-  do
-    uid <- userId <$> randomUser brig
-    cid <- createClientForUser brig uid
-    n <- Util.headNonce brig uid cid <!! const 200 === statusCode
-    let proof _nonce = Just $ Proof "xxxx.yyyy.zzzz"
-    Util.createAccessToken brig uid cid (proof n)
-      !!! do
-        const 400 === statusCode
+data DPoPClaimsSet = DPoPClaimsSet
+  { jwtClaims :: ClaimsSet,
+    claimNonce :: Text,
+    claimHtm :: Text,
+    claimHtu :: Text,
+    claimChal :: Text
+  }
+  deriving (Eq, Show, Generic)
+
+instance HasClaimsSet DPoPClaimsSet where
+  claimsSet f s = fmap (\a' -> s {jwtClaims = a'}) (f (jwtClaims s))
+
+instance A.FromJSON DPoPClaimsSet where
+  parseJSON = A.withObject "OAuthClaimsSet" $ \o ->
+    DPoPClaimsSet
+      <$> A.parseJSON (A.Object o)
+      <*> o A..: "nonce"
+      <*> o A..: "htm"
+      <*> o A..: "htu"
+      <*> o A..: "chal"
+
+instance A.ToJSON DPoPClaimsSet where
+  toJSON s =
+    ins "nonce" (claimNonce s) (A.toJSON (jwtClaims s))
+      & ins "htm" (claimHtm s)
+      & ins "htu" (claimHtu s)
+      & ins "chal" (claimChal s)
+    where
+      ins k v (Object o) = Object $ M.insert k (A.toJSON v) o
+      ins _ _ a = a
+
+testCreateAccessToken :: Opts.Opts -> Nginz -> Brig -> Http ()
+testCreateAccessToken opts n brig = do
+  let localDomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  u <- randomUser brig
+  let uid = userId u
+  let email = fromMaybe (error "invalid email") $ userEmail u
+  rs <-
+    login n (defEmailLogin email) PersistentCookie
+      <!! const 200 === statusCode
+  let t = decodeToken rs
+  let uidb64 = B64.encodeUnpadded $ cs $ replace "-" "" $ cs (toByteString' uid)
+  cid <- createClientForUser brig uid
+  nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
+  let nonceBs = cs $ fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
+  now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (floor <$> getPOSIXTime)
+  let clientIdentity = cs $ "im:wireapp=" <> uidb64 <> "/" <> toByteString' cid <> "@" <> toByteString' localDomain
+  let httpsUrl = cs $ "https://" <> toByteString' localDomain <> "/clients/" <> toByteString' cid <> "/access-token"
+  let claimsSet' =
+        emptyClaimsSet
+          & claimIat ?~ NumericDate now
+          & claimExp ?~ NumericDate now
+          & claimNbf ?~ NumericDate now
+          & claimSub ?~ fromMaybe (error "invalid sub claim") ((clientIdentity :: Text) ^? stringOrUri)
+          & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
+  let dpopClaims = DPoPClaimsSet claimsSet' nonceBs "POST" httpsUrl "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+  signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
+  case signedOrError of
+    Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
+    Right signed -> do
+      let proof = Just $ Proof (cs signed)
+      response <- Util.createAccessTokenNginz n t cid proof
+      accessToken <- responseJsonError response
+      liftIO $ datrType accessToken @?= DPoP
+  where
+    signAccessToken :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
+    signAccessToken claims = runJOSE $ do
+      algo <- bestJWSAlg jwkKey
+      let h =
+            newJWSHeader ((), algo)
+              & (jwk ?~ HeaderParam () jwkPubKey)
+              & (typ ?~ HeaderParam () "dpop+jwt")
+      signJWT jwkKey h claims
+
+    jwkKey :: JWK
+    jwkKey = do
+      fromMaybe (error "invalid jwk") . A.decode $
+        "{\"kty\":\"OKP\",\"d\":\"9RVey-A7ENCO5e9fDiPf8An1gkVBmAhFgu4WZMVwS-A\",\"crv\":\"Ed25519\",\"x\":\"nLJGN-Oa6Jsq3KclZggLl7UvAVdmB0Q6C3N5BCgphHw\"}"
+
+    jwkPubKey :: JWK
+    jwkPubKey = do
+      fromMaybe (error "invalid jwk") . A.decode $
+        "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"nLJGN-Oa6Jsq3KclZggLl7UvAVdmB0Q6C3N5BCgphHw\"}"
 
 testCreateAccessTokenMissingProof :: Brig -> Http ()
 testCreateAccessTokenMissingProof brig = do
   uid <- userId <$> randomUser brig
   cid <- createClientForUser brig uid
   let mProof = Nothing
-  Util.createAccessToken brig uid cid mProof
+  Util.createAccessToken brig uid "some_host_name" cid mProof
     !!! do
       const 400 === statusCode
 
@@ -1405,7 +1486,7 @@ testCreateAccessTokenNoNonce :: Brig -> Http ()
 testCreateAccessTokenNoNonce brig = do
   uid <- userId <$> randomUser brig
   cid <- createClientForUser brig uid
-  Util.createAccessToken brig uid cid (Just $ Proof "xxxx.yyyy.zzzz")
+  Util.createAccessToken brig uid "some_host_name" cid (Just $ Proof "xxxx.yyyy.zzzz")
     !!! do
       const 400 === statusCode
       const (Just "client-token-bad-nonce") === fmap Error.label . responseJsonMaybe

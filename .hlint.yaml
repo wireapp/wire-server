@@ -1,5 +1,5 @@
 # We need quasi quotes support.
-- arguments: [ -XQuasiQuotes, --color ]
+- arguments: [ -XQuasiQuotes, -XOverloadedRecordDot, --color ]
 
 # Used to enforce ormolu styling. Can be revisited if we change formatters.
 - ignore: { name: Redundant $ }

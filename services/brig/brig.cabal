@@ -190,7 +190,8 @@ library
   hs-source-dirs:   src
   ghc-options:
     -funbox-strict-fields -fplugin=Polysemy.Plugin
-    -fplugin=TransitiveAnns.Plugin
+    -fplugin=TransitiveAnns.Plugin -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
     , aeson                      >=2.0.1.0
@@ -200,9 +201,8 @@ library
     , amazonka-ses               >=2
     , amazonka-sqs               >=2
     , async                      >=2.1
-    , attoparsec                 >=0.12
     , auto-update                >=0.1
-    , base                       >=4        && <5
+    , base                       >=4       && <5
     , base-prelude
     , base16-bytestring          >=0.1
     , base64-bytestring          >=1.0
@@ -239,9 +239,7 @@ library
     , HaskellNet                 >=0.3
     , HaskellNet-SSL             >=0.3
     , HsOpenSSL                  >=0.10
-    , HsOpenSSL-x509-system      >=0.1
     , html-entities              >=1.1
-    , http-api-data
     , http-client                >=0.5
     , http-client-openssl        >=0.2
     , http-media
@@ -266,7 +264,6 @@ library
     , network                    >=2.4
     , network-conduit-tls
     , optparse-applicative       >=0.11
-    , pem                        >=0.2
     , polysemy
     , polysemy-plugin
     , polysemy-wire-zoo
@@ -276,15 +273,12 @@ library
     , resourcet                  >=1.1
     , retry                      >=0.7
     , ropes                      >=0.4.20
-    , safe                       >=0.3
     , safe-exceptions            >=0.1
     , saml2-web-sso
     , schema-profunctor
     , scientific                 >=0.3.4
-    , scrypt                     >=0.5
     , servant
     , servant-client
-    , servant-client-core
     , servant-server
     , servant-swagger
     , servant-swagger-ui
@@ -295,7 +289,6 @@ library
     , stomp-queue                >=0.3
     , string-conversions
     , swagger2
-    , tagged
     , template                   >=0.2
     , template-haskell
     , text                       >=0.11
@@ -320,7 +313,6 @@ library
     , wai-predicates             >=0.8
     , wai-routing                >=0.12
     , wai-utilities              >=0.16
-    , warp                       >=3.0.12.1
     , wire-api
     , wire-api-federation
     , yaml                       >=0.8.22
@@ -334,14 +326,13 @@ executable brig
   other-modules:    Paths_brig
   ghc-options:
     -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
-    -rtsopts
+    -rtsopts -Wredundant-constraints -Wunused-packages
 
   build-depends:
     , base
     , brig
     , HsOpenSSL
     , imports
-    , optparse-applicative  >=0.10
     , types-common
 
   default-language: Haskell2010
@@ -419,7 +410,6 @@ executable brig-integration
     , brig-types
     , bytestring             >=0.9
     , bytestring-conversion
-    , cargohold-types
     , case-insensitive
     , cassandra-util
     , containers
@@ -432,7 +422,6 @@ executable brig-integration
     , federator
     , filepath               >=1.4
     , galley-types
-    , gundeck-types
     , hscim
     , HsOpenSSL
     , http-api-data
@@ -550,13 +539,10 @@ executable brig-schema
   default-extensions: TemplateHaskell
   build-depends:
     , base
-    , cassandra-util        >=0.12
+    , cassandra-util  >=0.12
     , extended
     , imports
-    , optparse-applicative  >=0.10
-    , raw-strings-qq        >=1.0
-    , text
-    , tinylog
+    , raw-strings-qq  >=1.0
     , types-common
 
   default-language:   Haskell2010
@@ -581,7 +567,6 @@ test-suite brig-tests
     , aeson
     , base
     , binary
-    , bloodhound
     , brig
     , brig-types
     , bytestring
@@ -590,16 +575,11 @@ test-suite brig-tests
     , dns
     , dns-util
     , exceptions
-    , HsOpenSSL            >=0.10
-    , http-types
+    , HsOpenSSL          >=0.10
     , imports
     , lens
     , polysemy
     , polysemy-wire-zoo
-    , QuickCheck
-    , retry
-    , servant-client-core
-    , string-conversions
     , tasty
     , tasty-hunit
     , tasty-quickcheck
@@ -609,8 +589,6 @@ test-suite brig-tests
     , unliftio
     , uri-bytestring
     , uuid
-    , wai-utilities
     , wire-api
-    , wire-api-federation
 
   default-language: Haskell2010

@@ -11,7 +11,7 @@ UPLOAD_LOGS=${UPLOAD_LOGS:-0}
 echo "Running integration tests on wire-server with parallelism=${HELM_PARALLELISM} ..."
 
 CHART=wire-server
-tests=(stern galley cargohold gundeck federator spar brig)
+tests=(stern galley cargohold gundeck federator spar brig integration)
 
 cleanup() {
     if (( CLEANUP_LOCAL_FILES > 0 )); then
@@ -56,10 +56,10 @@ summary() {
 mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${tests[@]}" | parallel echo "Running helm tests for {}..."
 printf '%s\n' "${tests[@]}" | parallel -P "${HELM_PARALLELISM}" \
-    helm test -n "${NAMESPACE}" "${NAMESPACE}-${CHART}" --timeout 900s --filter name="${NAMESPACE}-${CHART}-{}-integration" '> logs-{};' \
+    helm test -n "${NAMESPACE}" "${CHART}" --timeout 900s --filter name="${CHART}-{}-integration" '> logs-{};' \
     echo '$? > stat-{};' \
     echo "==== Done testing {}. ====" '};' \
-    kubectl -n "${NAMESPACE}" logs "${NAMESPACE}-${CHART}-{}-integration" '>> logs-{};'
+    kubectl -n "${NAMESPACE}" logs "${CHART}-{}-integration" '>> logs-{};'
 
 summary
 

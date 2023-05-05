@@ -28,14 +28,12 @@
 , currency-codes
 , deriving-aeson
 , deriving-swagger2
-, directory
 , either
 , email-validate
 , errors
 , extended
 , extra
 , filepath
-, generic-random
 , generics-sop
 , ghc-prim
 , gitignoreSource
@@ -82,7 +80,6 @@
 , servant-multipart
 , servant-server
 , servant-swagger
-, servant-swagger-ui
 , singletons
 , singletons-base
 , singletons-th
@@ -91,7 +88,6 @@
 , swagger2
 , tagged
 , tasty
-, tasty-expected-failure
 , tasty-hspec
 , tasty-hunit
 , tasty-quickcheck
@@ -146,7 +142,6 @@ mkDerivation {
     extended
     extra
     filepath
-    generic-random
     generics-sop
     ghc-prim
     hashable
@@ -186,7 +181,6 @@ mkDerivation {
     servant-multipart
     servant-server
     servant-swagger
-    servant-swagger-ui
     singletons
     singletons-base
     singletons-th
@@ -222,12 +216,10 @@ mkDerivation {
     bytestring
     bytestring-arbitrary
     bytestring-conversion
-    case-insensitive
     cassava
     containers
     cryptonite
     currency-codes
-    directory
     either
     filepath
     hex
@@ -241,7 +233,6 @@ mkDerivation {
     lens
     memory
     metrics-wai
-    mime
     pem
     pretty
     process
@@ -252,11 +243,9 @@ mkDerivation {
     schema-profunctor
     servant
     servant-server
-    servant-swagger-ui
     string-conversions
     swagger2
     tasty
-    tasty-expected-failure
     tasty-hspec
     tasty-hunit
     tasty-quickcheck
@@ -264,7 +253,6 @@ mkDerivation {
     time
     types-common
     unliftio
-    unordered-containers
     uri-bytestring
     uuid
     vector

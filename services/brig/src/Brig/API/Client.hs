@@ -77,7 +77,7 @@ import Control.Error
 import Control.Lens (view)
 import Data.ByteString.Conversion
 import Data.Code as Code
-import Data.Domain (Domain)
+import Data.Domain
 import Data.IP (IP)
 import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
@@ -480,14 +480,15 @@ removeLegalHoldClient uid = do
 
 createAccessToken ::
   (Member JwtTools r, Member Now r, Member PublicKeyBundle r) =>
-  UserId ->
+  Local UserId ->
   ClientId ->
   StdMethod ->
   Link ->
   Proof ->
   ExceptT CertEnrollmentError (AppT r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken uid cid method link proof = do
-  domain <- Opt.setFederationDomain <$> view settings
+createAccessToken luid cid method link proof = do
+  let domain = tDomain luid
+  let uid = tUnqualified luid
   nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
   httpsUrl <- do
     let urlBs = "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)

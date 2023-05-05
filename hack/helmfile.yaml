@@ -1,3 +1,4 @@
+---
 # This helfile is used for the setup of two ephemeral backends on kubernetes
 # during integration testing (including federation integration tests spanning
 # over 2 backends)
@@ -14,23 +15,15 @@ helmDefaults:
 environments:
   default:
     values:
-      - namespace: {{ requiredEnv "NAMESPACE_1" }}
-      - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
-      - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
-      - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
-      - ingressChart: {{ requiredEnv "INGRESS_CHART" }}
+      - ./helm_vars/common.yaml.gotmpl
       - imagePullPolicy: Always
-      - redisStorageClass: hcloud-volumes
+      - storageClass: hcloud-volumes
   kind:
     values:
-      - namespace: {{ requiredEnv "NAMESPACE_1" }}
-      - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
-      - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
-      - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
-      - ingressChart: {{ requiredEnv "INGRESS_CHART" }}
+      - ./helm_vars/common.yaml.gotmpl
       - imagePullPolicy: Never
-      - redisStorageClass: standard
-
+      - storageClass: standard
+---
 repositories:
   - name: stable
     url: 'https://charts.helm.sh/stable'
@@ -42,52 +35,64 @@ repositories:
     url: 'https://kubernetes.github.io/ingress-nginx'
 
 releases:
-  - name: '{{ .Values.namespace }}-fake-aws'
-    namespace: '{{ .Values.namespace }}'
+  - name: 'fake-aws'
+    namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/fake-aws'
     values:
       - './helm_vars/fake-aws/values.yaml'
 
-  - name: '{{ .Values.namespace }}-fake-aws-2'
-    namespace: '{{ .Values.namespaceFed2 }}'
+  - name: 'fake-aws'
+    namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/fake-aws'
     values:
       - './helm_vars/fake-aws/values.yaml'
 
-  - name: '{{ .Values.namespace }}-databases-ephemeral'
-    namespace: '{{ .Values.namespace }}'
+  - name: 'databases-ephemeral'
+    namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/databases-ephemeral'
 
-  - name: '{{ .Values.namespace }}-databases-ephemeral-2'
-    namespace: '{{ .Values.namespaceFed2 }}'
+  - name: 'databases-ephemeral'
+    namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/databases-ephemeral'
 
-  - name: '{{ .Values.namespace }}-redis-cluster'
-    namespace: '{{ .Values.namespace }}'
+  - name: 'redis-cluster'
+    namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/redis-cluster'
     values:
       - './helm_vars/redis-cluster/values.yaml.gotmpl'
 
-  - name: '{{ .Values.namespace }}-redis-cluster-2'
-    namespace: '{{ .Values.namespaceFed2 }}'
+  - name: 'redis-cluster'
+    namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/redis-cluster'
     values:
       - './helm_vars/redis-cluster/values.yaml.gotmpl'
 
-  - name: '{{ .Values.namespace }}-ic'
-    namespace: '{{ .Values.namespace }}'
+  - name: 'rabbitmq'
+    namespace: '{{ .Values.namespace1 }}'
+    chart: '../.local/charts/rabbitmq'
+    values:
+      - './helm_vars/rabbitmq/values.yaml.gotmpl'
+
+  - name: 'rabbitmq'
+    namespace: '{{ .Values.namespace2 }}'
+    chart: '../.local/charts/rabbitmq'
+    values:
+      - './helm_vars/rabbitmq/values.yaml.gotmpl'
+
+  - name: 'ingress'
+    namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/{{ .Values.ingressChart }}'
     values:
       - './helm_vars/{{ .Values.ingressChart }}/values.yaml.gotmpl'
 
-  - name: '{{ .Values.namespace }}-ic2'
-    namespace: '{{ .Values.namespaceFed2 }}'
+  - name: 'ingress'
+    namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/{{ .Values.ingressChart }}'
     values:
       - './helm_vars/{{ .Values.ingressChart }}/values.yaml.gotmpl'
 
-  - name: '{{ .Values.namespace }}-i'
-    namespace: '{{ .Values.namespace }}'
+  - name: 'ingress-svc'
+    namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/nginx-ingress-services'
     values:
       - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
@@ -97,12 +102,12 @@ releases:
       # federation-test-helper service. Maybe we can find a way to make these
       # differ, so we don't make any silly assumptions in the code.
       - name: config.dns.federator
-        value: {{ .Values.federationDomain }}
+        value: '{{ .Values.federationDomain1 }}'
     needs:
-      - '{{ .Values.namespace }}-ic'
+      - 'ingress'
 
-  - name: '{{ .Values.namespace }}-i2'
-    namespace: '{{ .Values.namespaceFed2 }}'
+  - name: 'ingress-svc'
+    namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/nginx-ingress-services'
     values:
       - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
@@ -112,47 +117,47 @@ releases:
       # federation-test-helper service. Maybe we can find a way to make these
       # differ, so we don't make any silly assumptions in the code.
       - name: config.dns.federator
-        value: {{ .Values.federationDomainFed2 }}
+        value: '{{ .Values.federationDomain2 }}'
     needs:
-      - '{{ .Values.namespace }}-ic2'
+      - 'ingress'
 
   # Note that wire-server depends on databases-ephemeral being up; and in some
   # cases on nginx-ingress also being up. If installing helm charts in a
   # parallel way, it's expected to see some wire-server pods (namely the
   # cassandra-migration one) fail and get restarted a few times)
 
-  - name: '{{ .Values.namespace }}-wire-server'
-    namespace: '{{ .Values.namespace }}'
+  - name: 'wire-server'
+    namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/wire-server'
     values:
       - './helm_vars/wire-server/values.yaml.gotmpl'
       - './helm_vars/wire-server/certificates-namespace1.yaml'
     set:
       - name: brig.config.optSettings.setFederationDomain
-        value: {{ .Values.federationDomain }}
+        value: {{ .Values.federationDomain1 }}
       - name: galley.config.settings.federationDomain
-        value: {{ .Values.federationDomain }}
+        value: {{ .Values.federationDomain1 }}
       - name: cargohold.config.settings.federationDomain
-        value: {{ .Values.federationDomain }}
+        value: {{ .Values.federationDomain1 }}
       - name: brig.config.optSettings.setFederationDomainConfigs[0].domain
-        value: {{ .Values.federationDomainFed2 }}
+        value: {{ .Values.federationDomain2 }}
     needs:
-      - '{{ .Values.namespace }}-databases-ephemeral'
+      - 'databases-ephemeral'
 
-  - name: '{{ .Values.namespace }}-wire-server-2'
-    namespace: '{{ .Values.namespaceFed2 }}'
+  - name: 'wire-server'
+    namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/wire-server'
     values:
       - './helm_vars/wire-server/values.yaml.gotmpl'
       - './helm_vars/wire-server/certificates-namespace2.yaml'
     set:
       - name: brig.config.optSettings.setFederationDomain
-        value: {{ .Values.federationDomainFed2 }}
+        value: {{ .Values.federationDomain2 }}
       - name: galley.config.settings.federationDomain
-        value: {{ .Values.federationDomainFed2 }}
+        value: {{ .Values.federationDomain2 }}
       - name: cargohold.config.settings.federationDomain
-        value: {{ .Values.federationDomainFed2 }}
+        value: {{ .Values.federationDomain2 }}
       - name: brig.config.optSettings.setFederationDomainConfigs[0].domain
-        value: {{ .Values.federationDomain }}
+        value: {{ .Values.federationDomain1 }}
     needs:
-      - '{{ .Values.namespace }}-databases-ephemeral-2'
+      - 'databases-ephemeral'

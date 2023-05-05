@@ -549,6 +549,7 @@ setTeamFeatureFlag tid status = do
   case statusCode resp of
     200 -> pure ()
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
+    403 -> throwE (mkError status403 "bad-upstream" "legal hold config cannot be changed")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
   where
     checkDaysLimit :: FeatureTTL -> Handler ()
@@ -592,6 +593,7 @@ setSearchVisibility tid typ = do
         )
   case statusCode resp of
     200 -> pure ()
+    204 -> pure ()
     403 ->
       throwE $
         mkError

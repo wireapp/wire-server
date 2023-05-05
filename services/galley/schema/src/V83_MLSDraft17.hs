@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V82_MLSDraft17 (migration) where
+module V83_MLSDraft17 (migration) where
 
 import Cassandra.Schema
 import Imports
@@ -23,7 +23,7 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 82 "Upgrade to MLS draft 17 structures" $ do
+  Migration 83 "Upgrade to MLS draft 17 structures" $ do
     schema'
       [r| ALTER TABLE mls_group_member_client
             ADD (leaf_node_index int,

@@ -23,7 +23,6 @@
 , tinylog
 , transformers-base
 , types-common
-, unliftio
 , uri-bytestring
 , wai
 , wai-extra
@@ -51,7 +50,6 @@ mkDerivation {
     tinylog
     transformers-base
     types-common
-    unliftio
     uri-bytestring
     wai
     wai-extra
