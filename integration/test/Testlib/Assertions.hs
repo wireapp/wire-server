@@ -115,8 +115,7 @@ prettierCallStack cstack = do
   where
     isTestlibEntry :: (String, SrcLoc) -> Bool
     isTestlibEntry (_, SrcLoc {..}) =
-      isInfixOf "/Testlib/" srcLocFile
-        || isInfixOf "RunAllTests.hs" srcLocFile
+      "RunAllTests.hs" `isInfixOf` srcLocFile
 
 prettierCallStackLines :: CallStack -> IO String
 prettierCallStackLines cstack =

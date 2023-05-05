@@ -3,7 +3,7 @@ module Testlib.JSON where
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
-import Data.Aeson
+import Data.Aeson hiding ((.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.Aeson.Key as KM
@@ -56,8 +56,15 @@ instance {-# OVERLAPPING #-} ToJSON a => MakesValue (App a) where
 instance MakesValue Response where
   make r = r.json
 
+-- use this to provide Nothing for MakesValue a => (Maybe a) values.
+noValue :: Maybe Value
+noValue = Nothing
+
 (.=) :: ToJSON a => String -> a -> Aeson.Pair
 (.=) k v = fromString k Aeson..= v
+
+(.=?) :: ToJSON a => String -> Maybe a -> Maybe Aeson.Pair
+(.=?) k v = (Aeson..=) (fromString k) <$> v
 
 asString :: HasCallStack => MakesValue a => a -> App String
 asString x =
@@ -219,7 +226,7 @@ typeWasExpectedButGot :: String -> Value -> String
 typeWasExpectedButGot expectedType x = "Expected " <> expectedType <> " but got " <> jsonType x <> ":"
 
 -- Get "id" field or - if already string-like return String
-objId :: MakesValue a => a -> App String
+objId :: HasCallStack => MakesValue a => a -> App String
 objId x = do
   v <- make x
   case v of
@@ -228,7 +235,7 @@ objId x = do
     other -> assertFailureWithJSON other (typeWasExpectedButGot "Object or String" other)
 
 -- Get "qualified_id" field as (domain, id) or - if already is a qualified id object - return that
-objQid :: MakesValue a => a -> App (String, String)
+objQid :: HasCallStack => MakesValue a => a -> App (String, String)
 objQid ob = do
   m <- firstSuccess [select ob, inField]
   case m of
@@ -256,8 +263,14 @@ objQid ob = do
         Nothing -> firstSuccess xs
         Just y -> pure (Just y)
 
+-- Get "qualified_id" field as {"id": _, "domain": _} object or - if already is a qualified id object - return that
+objQidObject :: HasCallStack => MakesValue a => a -> App Value
+objQidObject o = do
+  (domain, id_) <- objQid o
+  pure $ object ["domain" .= domain, "id" .= id_]
+
 -- Get "domain" field or - if already string-like return String
-objDomain :: MakesValue a => a -> App String
+objDomain :: (HasCallStack, MakesValue a) => a -> App String
 objDomain x = do
   v <- make x
   case v of

@@ -77,7 +77,7 @@ data WSConnect = WSConnect
   }
 
 class ToWSConnect a where
-  toWSConnect :: a -> App WSConnect
+  toWSConnect :: HasCallStack => a -> App WSConnect
 
 instance {-# OVERLAPPING #-} ToWSConnect WSConnect where
   toWSConnect = pure
@@ -183,7 +183,7 @@ close ws = liftIO $ do
   putMVar (wsCloseLatch ws) ()
   void $ waitCatch (wsAppThread ws)
 
-withWebSocket :: HasCallStack => ToWSConnect w => w -> (WebSocket -> App a) -> App a
+withWebSocket :: (HasCallStack, ToWSConnect w) => w -> (WebSocket -> App a) -> App a
 withWebSocket w k = do
   wsConnect <- toWSConnect w
   Catch.bracket (connect wsConnect) close k
