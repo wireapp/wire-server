@@ -33,36 +33,40 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as LC8
 import qualified Data.CaseInsensitive as CI
+import Data.Char
 import qualified Data.Char as C
+import Data.Foldable
+import Data.Function
+import Data.Functor
+import Data.IORef
+import Data.List
 import Data.List.Split (splitOn)
+import Data.Map (Map)
 import qualified Data.Map.Strict as Map
-import Data.Proxy (Proxy (Proxy))
 import qualified Data.Scientific as Sci
+import Data.String
 import Data.String.Conversions (cs)
-import Data.Tagged
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import Data.Traversable
+import Data.Word
 import qualified Data.Yaml as Yaml
 import GHC.Exception
+import GHC.Generics
 import GHC.Records
 import GHC.Stack
 import qualified GHC.Stack as Stack
-import Imports hiding (ask, asks, local)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Socket as N
 import Network.URI (uriToString)
+import System.Directory
 import System.Exit (exitFailure)
 import System.FilePath (joinPath, takeDirectory, (</>))
 import System.FilePath.Posix (splitPath)
-import System.IO (hPutStrLn, openBinaryTempFile)
+import System.IO
 import qualified System.IO.Error as Error
 import System.Process (CreateProcess (..), createProcess, proc, terminateProcess)
-import Test.Tasty.Options
-import Test.Tasty.Providers
-import qualified Test.Tasty.Providers as Tasty
-import Test.Tasty.Providers.ConsoleFormat
-import Testlib.Options
 
 -------------------------------------------------------------------------------
 -- - SECTION_APP : App, Env, ServiceMap, Context
@@ -88,6 +92,9 @@ instance Show AppFailure where
 instance Exception AppFailure where
   displayException (AppFailure msg) = msg
 
+instance MonadFail App where
+  fail msg = assertFailure ("Pattern matching failure: " <> msg)
+
 failApp :: String -> App a
 failApp msg = throw (AppFailure msg)
 
@@ -97,7 +104,7 @@ runAppWithEnv e m = runReaderT (unApp m) e
 getPrekey :: App Value
 getPrekey = App $ do
   pks <- asks (.prekeys)
-  (i, pk) <- atomicModifyIORef pks getPK
+  (i, pk) <- liftIO $ atomicModifyIORef pks getPK
   pure $ object ["id" .= i, "key" .= pk]
   where
     getPK [] = error "Out of prekeys"
@@ -106,7 +113,7 @@ getPrekey = App $ do
 getLastPrekey :: App Value
 getLastPrekey = App $ do
   pks <- asks (.lastPrekeys)
-  lpk <- atomicModifyIORef pks getPK
+  lpk <- liftIO $ atomicModifyIORef pks getPK
   pure $ object ["id" .= lastPrekeyId, "key" .= lpk]
   where
     getPK [] = error "Out of prekeys"
@@ -115,44 +122,82 @@ getLastPrekey = App $ do
     lastPrekeyId :: Int
     lastPrekeyId = 65535
 
-instance IsTest (App ()) where
-  run opts action _ = do
-    env <- mkEnv (lookupOption opts)
-    result :: Tasty.Result <-
-      (runAppWithEnv env action >> pure (Tasty.testPassed ""))
-        `E.catches` [ E.Handler
-                        ( \(e :: AssertionFailure) -> do
-                            pure (testFailedDetails (displayException e) (printFailureDetails e))
-                        ),
-                      E.Handler
-                        (\(ex :: SomeException) -> pure (testFailed (show ex)))
-                    ]
-    pure result
+runTest :: GlobalEnv -> App () -> IO (Maybe String)
+runTest ge action = do
+  env <- mkEnv ge
+  (runAppWithEnv env action $> Nothing)
+    `E.catches` [ E.Handler
+                    ( \(e :: AssertionFailure) -> do
+                        Just <$> printFailureDetails e
+                    ),
+                  E.Handler
+                    ( \(e :: SomeException) -> do
+                        putStrLn "exception handler"
+                        pure (Just (colored yellow (displayException e)))
+                    )
+                ]
 
-  testOptions =
-    Tagged
-      [ Option (Proxy @ConfigFile),
-        Option (Proxy @TestSelection)
-      ]
-
+-- | Initialised once per test.
 data Env = Env
-  { serviceMap :: ServiceMap,
+  { serviceMap :: Map String ServiceMap,
+    domain1 :: String,
+    domain2 :: String,
     defaultAPIVersion :: Int,
     manager :: HTTP.Manager,
-    prekeys :: IORef [(Int, String)],
-    lastPrekeys :: IORef [String],
     serviceConfigsDir :: FilePath,
-    servicesCwdBase :: Maybe FilePath
+    servicesCwdBase :: Maybe FilePath,
+    prekeys :: IORef [(Int, String)],
+    lastPrekeys :: IORef [String]
   }
+
+-- | Initialised once per testsuite.
+data GlobalEnv = GlobalEnv
+  { gServiceMap :: Map String ServiceMap,
+    gDomain1 :: String,
+    gDomain2 :: String,
+    gDefaultAPIVersion :: Int,
+    gManager :: HTTP.Manager,
+    gServiceConfigsDir :: FilePath,
+    gServicesCwdBase :: Maybe FilePath
+  }
+
+data IntegrationConfig = IntegrationConfig
+  { backendOne :: BackendConfig,
+    backendTwo :: BackendConfig
+  }
+
+instance FromJSON IntegrationConfig where
+  parseJSON v =
+    IntegrationConfig
+      <$> parseJSON v
+      <*> withObject "ServiceMap at backendTwo" (Aeson..: fromString "backendTwo") v
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
+    cannon :: HostPort,
+    cargohold :: HostPort,
+    federatorInternal :: HostPort,
+    federatorExternal :: HostPort,
     galley :: HostPort,
-    cannon :: HostPort
+    gundeck :: HostPort,
+    nginz :: HostPort,
+    spar :: HostPort
   }
   deriving (Show, Generic)
 
 instance FromJSON ServiceMap
+
+data BackendConfig = BackendConfig
+  { beServiceMap :: ServiceMap,
+    originDomain :: String
+  }
+  deriving (Show)
+
+instance FromJSON BackendConfig where
+  parseJSON v =
+    BackendConfig
+      <$> parseJSON v
+      <*> withObject "BackendConfig" (\ob -> ob .: fromString "originDomain") v
 
 data HostPort = HostPort
   { host :: String,
@@ -173,22 +218,14 @@ serviceHostPort m Brig = m.brig
 serviceHostPort m Galley = m.galley
 serviceHostPort m Cannon = m.cannon
 
-newtype ConfigFile = ConfigFile {unConfigFile :: FilePath}
-
-instance IsOption ConfigFile where
-  defaultValue = ConfigFile "services/integration.yaml"
-  parseValue = Just . ConfigFile
-  optionName = fromString "config"
-  optionHelp = fromString "Configuration file for integration tests. Default: services/integration.yaml"
-
-mkEnv :: ConfigFile -> IO Env
-mkEnv (ConfigFile cfgFile) = do
+mkGlobalEnv :: FilePath -> IO GlobalEnv
+mkGlobalEnv cfgFile = do
   eith <- Yaml.decodeFileEither cfgFile
-  serviceMap <- case eith of
+  intConfig <- case eith of
     Left err -> do
       hPutStrLn stderr $ "Could not parse " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err
       exitFailure
-    Right serviceMap -> pure serviceMap
+    Right (intConfig :: IntegrationConfig) -> pure intConfig
 
   let devEnvProjectRoot = case splitPath (takeDirectory cfgFile) of
         [] -> Nothing
@@ -203,17 +240,36 @@ mkEnv (ConfigFile cfgFile) = do
           Nothing -> "/etc/wire"
 
   manager <- HTTP.newManager HTTP.defaultManagerSettings
+  pure
+    GlobalEnv
+      { gServiceMap =
+          Map.fromList
+            [ (intConfig.backendOne.originDomain, intConfig.backendOne.beServiceMap),
+              (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap)
+            ],
+        gDomain1 = intConfig.backendOne.originDomain,
+        gDomain2 = intConfig.backendTwo.originDomain,
+        gDefaultAPIVersion = 4,
+        gManager = manager,
+        gServiceConfigsDir = configsDir,
+        gServicesCwdBase = devEnvProjectRoot <&> (</> "services")
+      }
+
+mkEnv :: GlobalEnv -> IO Env
+mkEnv ge = do
   pks <- newIORef (zip [1 ..] somePrekeys)
   lpks <- newIORef someLastPrekeys
   pure
     Env
-      { serviceMap = serviceMap,
-        defaultAPIVersion = 4,
-        manager = manager,
+      { serviceMap = gServiceMap ge,
+        domain1 = gDomain1 ge,
+        domain2 = gDomain2 ge,
+        defaultAPIVersion = gDefaultAPIVersion ge,
+        manager = gManager ge,
+        serviceConfigsDir = gServiceConfigsDir ge,
+        servicesCwdBase = gServicesCwdBase ge,
         prekeys = pks,
-        lastPrekeys = lpks,
-        serviceConfigsDir = configsDir,
-        servicesCwdBase = devEnvProjectRoot <&> (</> "services")
+        lastPrekeys = lpks
       }
 
 somePrekeys :: [String]
@@ -286,9 +342,16 @@ readServiceConfig srv = do
     Left err -> failApp ("Error while parsing " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err)
     Right value -> pure value
 
-viewFederationDomain :: App String
-viewFederationDomain = do
-  readServiceConfig Brig %. "optSettings.setFederationDomain" & asString
+ownDomain :: App String
+ownDomain = asks (.domain1)
+
+otherDomain :: App String
+otherDomain = asks (.domain2)
+
+getServiceMap :: String -> App ServiceMap
+getServiceMap fedDomain = do
+  env <- ask
+  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain (env.serviceMap))
 
 -------------------------------------------------------------------------------
 -- - SECTION_ASSERTIONS
@@ -308,13 +371,20 @@ instance Exception AssertionFailure where
 
 assertFailure :: HasCallStack => String -> App a
 assertFailure msg =
-  deepseq msg $
+  forceList msg $
     liftIO $
       E.throw (AssertionFailure callStack Nothing msg)
+  where
+    forceList [] y = y
+    forceList (x : xs) y = seq x (forceList xs y)
 
 assertBool :: HasCallStack => String -> Bool -> App ()
 assertBool _ True = pure ()
 assertBool msg False = assertFailure msg
+
+assertJust :: HasCallStack => String -> Maybe a -> App a
+assertJust _ (Just x) = pure x
+assertJust msg Nothing = assertFailure msg
 
 assertOne :: HasCallStack => [a] -> App a
 assertOne [x] = pure x
@@ -346,6 +416,26 @@ a `shouldMatch` b = do
     pb <- prettyJSON xb
     assertFailure $ "Expected:\n" <> pb <> "\n" <> "Actual:\n" <> pa
 
+shouldNotMatch ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The un-expected value
+  b ->
+  App ()
+a `shouldNotMatch` b = do
+  xa <- make a
+  xb <- make b
+
+  unless (jsonType xa == jsonType xb) $ do
+    pa <- prettyJSON xa
+    pb <- prettyJSON xb
+    assertFailure $ "Compared values are not of the same type:\n" <> "Left side:\n" <> pa <> "Right side:\n" <> pa
+
+  when (xa == xb) $ do
+    pa <- prettyJSON xa
+    assertFailure $ "Expected different value but got twice:\n" <> pa
+
 -- | Specialized variant of `shouldMatch` to avoid the need for type annotations.
 shouldMatchInt ::
   (MakesValue a, HasCallStack) =>
@@ -372,21 +462,30 @@ isEqual ::
   App Bool
 isEqual = liftP2 (==)
 
-printFailureDetails :: AssertionFailure -> ResultDetailsPrinter
-printFailureDetails (AssertionFailure stack mbResponse _) = ResultDetailsPrinter $ \testLevel _withFormat -> do
-  let nindent = 2 * testLevel + 2
-  s <- indent nindent <$> prettierCallStack stack
-  putStrLn ""
-  putStrLn s
-  for_ mbResponse $ \r -> putStrLn (indent nindent (prettyReponse r))
+printFailureDetails :: AssertionFailure -> IO String
+printFailureDetails (AssertionFailure stack mbResponse msg) = do
+  s <- prettierCallStack stack
+  pure . unlines $
+    colored yellow "assertion failure:"
+      : colored red msg
+      : "\n" <> s
+      : toList (fmap prettyResponse mbResponse)
 
 prettierCallStack :: CallStack -> IO String
 prettierCallStack cstack = do
-  sl <- prettierCallStackLines cstack
+  sl <-
+    prettierCallStackLines
+      . Stack.fromCallSiteList
+      . filter (not . isTestlibEntry)
+      . Stack.getCallStack
+      $ cstack
   d <- getCurrentDirectory
-  pure $
-    intercalate "\n" $
-      [colored yellow "call stack: ", sl]
+  pure $ unlines [colored yellow "call stack: ", sl]
+  where
+    isTestlibEntry :: (String, SrcLoc) -> Bool
+    isTestlibEntry (_, SrcLoc {..}) =
+      isInfixOf "/Testlib/" srcLocFile
+        || isInfixOf "RunAllTests.hs" srcLocFile
 
 prettierCallStackLines :: CallStack -> IO String
 prettierCallStackLines cstack =
@@ -433,7 +532,7 @@ getSourceDir packageId = do
             Just rest -> Just $ dropWhile isSpace rest
             Nothing -> go otherlines
 
-type SourceDirCache = Map String (Maybe FilePath)
+type SourceDirCache = Map.Map String (Maybe FilePath)
 
 getSourceDirCached :: SourceDirCache -> String -> IO (SourceDirCache, Maybe FilePath)
 getSourceDirCached cache packageId =
@@ -563,7 +662,7 @@ asBool x =
 (%.) val selector = do
   v <- make val
   vp <- prettyJSON v
-  addFailureContext ("Getting (nested) field " <> selector <> " of object:\n" <> vp) $ do
+  addFailureContext ("Getting (nested) field \"" <> selector <> "\" of object:\n" <> vp) $ do
     let keys = splitOn "." selector
     case keys of
       (k : ks) -> go k ks v
@@ -655,22 +754,22 @@ assertFailureWithJSON v msg = do
 
 -- | Useful for debugging
 printJSON :: MakesValue a => a -> App ()
-printJSON = prettyJSON >=> putStrLn
+printJSON = prettyJSON >=> liftIO . putStrLn
 
 prettyJSON :: MakesValue a => a -> App String
 prettyJSON x =
   make x <&> Aeson.encodePretty <&> LC8.unpack
 
-constrName :: Value -> String
-constrName (Object _) = "Object"
-constrName (Array _) = "Array"
-constrName (String _) = "String"
-constrName (Number _) = "Number"
-constrName (Bool _) = "Bool"
-constrName Null = "Null"
+jsonType :: Value -> String
+jsonType (Object _) = "Object"
+jsonType (Array _) = "Array"
+jsonType (String _) = "String"
+jsonType (Number _) = "Number"
+jsonType (Bool _) = "Bool"
+jsonType Null = "Null"
 
 typeWasExpectedButGot :: String -> Value -> String
-typeWasExpectedButGot expectedType x = "Expected " <> expectedType <> " but got " <> constrName x <> ":"
+typeWasExpectedButGot expectedType x = "Expected " <> expectedType <> " but got " <> jsonType x <> ":"
 
 -- Get "id" field or - if already string-like return String
 objId :: MakesValue a => a -> App String
@@ -695,7 +794,7 @@ objQid ob = do
       dom <- MaybeT $ asStringM vdom
       vid <- MaybeT $ lookupField x "id"
       id_ <- MaybeT $ asStringM vid
-      pure $ (dom, id_)
+      pure (dom, id_)
 
     inField = do
       m <- lookupField ob "qualified_id"
@@ -710,14 +809,23 @@ objQid ob = do
         Nothing -> firstSuccess xs
         Just y -> pure (Just y)
 
+-- Get "domain" field or - if already string-like return String
+objDomain :: MakesValue a => a -> App String
+objDomain x = do
+  v <- make x
+  case v of
+    Object ob -> fst <$> objQid v
+    String t -> pure (T.unpack t)
+    other -> assertFailureWithJSON other (typeWasExpectedButGot "Object or String" other)
+
 -------------------------------------------------------------------------------
 -- - SECTION_REQUEST : requests and responses
 -------------------------------------------------------------------------------
 
 data Versioned = Versioned | Unversioned | ExplicitVersion Int
 
-baseRequest :: Service -> Versioned -> String -> App HTTP.Request
-baseRequest service versioned path = do
+baseRequest :: (HasCallStack, MakesValue domain) => domain -> Service -> Versioned -> String -> App HTTP.Request
+baseRequest domain service versioned path = do
   pathSegsPrefix <- case versioned of
     Versioned -> do
       v <- asks (.defaultAPIVersion)
@@ -727,8 +835,11 @@ baseRequest service versioned path = do
       pure ["v" <> show v]
 
   env <- ask
+  domainV <- objDomain domain
+  serviceMap <- getServiceMap domainV
+
   liftIO . HTTP.parseRequest $
-    let HostPort h p = serviceHostPort env.serviceMap service
+    let HostPort h p = serviceHostPort serviceMap service
      in "http://" <> h <> ":" <> show p <> ("/" <> joinHttpPath (pathSegsPrefix <> splitHttpPath path))
 
 submit :: String -> HTTP.Request -> App Response
@@ -747,7 +858,7 @@ submit method req0 = do
 
 data Response = Response
   { jsonBody :: Maybe Aeson.Value,
-    body :: ByteString,
+    body :: BS.ByteString,
     status :: Int,
     headers :: [HTTP.Header],
     request :: HTTP.Request
@@ -755,6 +866,9 @@ data Response = Response
 
 instance HasField "json" Response (App Aeson.Value) where
   getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody
+
+instance MakesValue Response where
+  make r = r.json
 
 splitHttpPath :: String -> [String]
 splitHttpPath path = filter (not . null) (splitOn "/" path)
@@ -791,8 +905,14 @@ zConnection = addHeader "Z-Connection"
 zType :: String -> HTTP.Request -> HTTP.Request
 zType = addHeader "Z-Type"
 
+contentTypeJSON :: HTTP.Request -> HTTP.Request
+contentTypeJSON = addHeader "Content-Type" "application/json"
+
 bindResponse :: HasCallStack => App Response -> (Response -> App a) -> App a
 bindResponse m k = m >>= \r -> withResponse r k
+
+bindResponseR :: HasCallStack => App Response -> (Response -> App a) -> App Response
+bindResponseR m k = m >>= \r -> withResponse r k >> pure r
 
 withResponse :: HasCallStack => Response -> (Response -> App a) -> App a
 withResponse r k = onFailureAddResponse r (k r)
@@ -803,11 +923,8 @@ onFailureAddResponse r m = App $ do
   liftIO $ E.catch (runAppWithEnv e m) $ \(AssertionFailure stack _ msg) -> do
     E.throw (AssertionFailure stack (Just r) msg)
 
-printResponse :: MonadIO m => Response -> m ()
-printResponse = putStrLn . prettyReponse
-
-prettyReponse :: Response -> String
-prettyReponse r =
+prettyResponse :: Response -> String
+prettyResponse r =
   unlines $
     concat
       [ pure $ colored yellow "request: \n" <> showRequest r.request,
@@ -830,7 +947,7 @@ prettyReponse r =
           )
       ]
 
-getRequestBody :: HTTP.Request -> Maybe ByteString
+getRequestBody :: HTTP.Request -> Maybe BS.ByteString
 getRequestBody req = case HTTP.requestBody req of
   HTTP.RequestBodyLBS lbs -> pure (L.toStrict lbs)
   HTTP.RequestBodyBS bs -> pure bs
@@ -865,7 +982,10 @@ orange :: String
 orange = "\x1b[38;5;3m"
 
 red :: String
-red = "\x1b[38;5;1m"
+red = "\x1b[38;5;9m"
+
+green :: String
+green = "\x1b[32m"
 
 resetColor :: String
 resetColor = "\x1b[0m"
@@ -896,7 +1016,7 @@ withModifiedService ::
 withModifiedService srv modConfig k = do
   withModifiedServices (Map.singleton srv modConfig) k
 
-withModifiedServices :: Map Service (Value -> App Value) -> App a -> App a
+withModifiedServices :: Map.Map Service (Value -> App Value) -> App a -> App a
 withModifiedServices services k = do
   ports <- Map.traverseWithKey (\_ _ -> liftIO openFreePort) services
 
@@ -922,7 +1042,7 @@ withModifiedServices services k = do
     config' <- updateServiceMapInConfig config >>= modifyConfig
     (tempFile, fh) <- liftIO $ openBinaryTempFile "/tmp" (srvName <> ".yaml")
     liftIO $ BS.hPut fh (Yaml.encode config')
-    hClose fh
+    liftIO $ hClose fh
 
     (cwd, exe) <-
       asks (.servicesCwdBase) <&> \case
@@ -933,12 +1053,14 @@ withModifiedServices services k = do
     (port, socket) <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup srv ports)
     liftIO $ N.close socket
     (_, _, _, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd}
-    pure ph
+    pure (ph, tempFile)
 
   let stopInstances = liftIO $ do
         -- Running waitForProcess would hang for 30 seconds when the test suite
         -- is run from within ghci, so we don't wait here.
-        for_ instances terminateProcess
+        for_ instances $ \(ph, tmpfile) -> do
+          terminateProcess ph
+          removeFile tmpfile
 
   let updateServiceMap serviceMap =
         Map.foldrWithKey
@@ -951,9 +1073,15 @@ withModifiedServices services k = do
           serviceMap
           ports
 
+  defaultDomain <- asks (.domain1)
+
   let modifyEnv env =
         env
-          { serviceMap = updateServiceMap env.serviceMap
+          { serviceMap =
+              Map.adjust
+                updateServiceMap
+                defaultDomain
+                env.serviceMap
           }
 
   let waitForAllServices = do
@@ -980,12 +1108,13 @@ withModifiedServices services k = do
 
 waitUntilServiceUp :: HasCallStack => Service -> App ()
 waitUntilServiceUp srv = do
+  d <- ownDomain
   isUp <-
     retrying
       (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
       (\_ isUp -> pure (not isUp))
       ( \_ -> do
-          req <- baseRequest srv Unversioned "/i/status"
+          req <- baseRequest d srv Unversioned "/i/status"
           env <- ask
           eith <-
             liftIO $

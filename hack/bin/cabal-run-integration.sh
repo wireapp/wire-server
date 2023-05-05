@@ -62,8 +62,6 @@ run_integration_tests() {
 }
 
 run_all_integration_tests() {
-  run_integration_tests "integration"
-
   for d in "$TOP_LEVEL/services/"*/; do
     package=$(basename "$d")
     service_dir="$TOP_LEVEL/services/$package"

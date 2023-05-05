@@ -1,46 +1,61 @@
-module Testlib.Options where
+module Testlib.Options (getOptions, TestOptions (..)) where
 
-import Data.List.Split
-import Data.Tagged (Tagged (Tagged))
-import Imports
-import Options.Applicative (Alternative (some), help, long, metavar, option, short, str)
-import Test.Tasty.Options (IsOption (..))
-import Test.Tasty.Patterns.Types (Expr (..))
+import Data.List.Split (splitOn)
+import Options.Applicative
+import System.Environment (lookupEnv)
 
-data TestSelection
-  = NoSelection
-  | SelectMany [String]
-  deriving (Show)
+data TestOptions = TestOptions
+  { includeTests :: [String],
+    excludeTests :: [String],
+    configFile :: String
+  }
 
-instance IsOption TestSelection where
-  defaultValue = NoSelection
-  parseValue s = Just (SelectMany [s])
-  optionHelp = Tagged ""
-  showDefaultValue = const Nothing
-  optionName = Tagged "match"
-  optionCLParser =
-    SelectMany
-      <$> some
-        ( option
-            str
-            ( long "match"
-                <> metavar "SUBSTRINGS"
-                <> short 'm'
-                <> help "Select only tests that contain any of the comma-separated SUBSTRINGS in their full name. Can be specified multiple times, e.g. -m test1 -m test2 is the same as -m test1,test2. The variable TASTY_MATCH can be used to pass this option."
-            )
-        )
+parser :: Parser TestOptions
+parser =
+  TestOptions
+    <$> many
+      ( strOption
+          ( long "include"
+              <> short 'i'
+              <> metavar "PATTERN"
+              <> help "Include tests matching PATTERN (simple substring match). This flag can be provided multiple times. This flag can also be provided via the TEST_INCLUDE environment variable."
+          )
+      )
+    <*> many
+      ( strOption
+          ( long "exclude"
+              <> short 'x'
+              <> metavar "PATTERN"
+              <> help "Exclude tests matching PATTERN (simple substring match). This flag can be provided multiple times. This flag can also be provided via the TEST_EXCLUDE environment variable."
+          )
+      )
+    <*> strOption
+      ( long "config"
+          <> short 'c'
+          <> metavar "FILE"
+          <> help "Use configuration FILE"
+          <> value "services/integration.yaml"
+      )
 
-convertToAwk :: TestSelection -> Maybe Expr
-convertToAwk NoSelection = Nothing
-convertToAwk (SelectMany []) = Nothing
-convertToAwk (SelectMany (m : ms)) =
-  Just (go m ms)
+optInfo :: ParserInfo TestOptions
+optInfo =
+  info
+    (parser <**> helper)
+    ( fullDesc
+        <> progDesc "Run integration tests"
+        <> header "integration - wire-server integration test suite"
+    )
+
+getOptions :: IO TestOptions
+getOptions = do
+  defaultsInclude <- maybe [] (splitOn ",") <$> lookupEnv "TEST_INCLUDE"
+  defaultsExclude <- maybe [] (splitOn ",") <$> lookupEnv "TEST_EXCLUDE"
+  opts <- execParser optInfo
+  pure
+    opts
+      { includeTests = includeTests opts `orFromEnv` defaultsInclude,
+        excludeTests = excludeTests opts `orFromEnv` defaultsExclude
+      }
   where
-    go n [] = match n
-    go n (n2 : ns) = Or (match n) (go n2 ns)
-    match :: String -> Expr
-    match s =
-      case splitOn "," s of
-        [] -> error "impossible"
-        [n] -> Match (Field (IntLit 0)) n
-        (n : n2 : ns) -> Or (Match (Field (IntLit 0)) n) (go n2 ns)
+    orFromEnv [] fromEnv = fromEnv
+    orFromEnv patterns _ = patterns

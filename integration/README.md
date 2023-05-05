@@ -5,15 +5,16 @@ How to use:
 
 See Makefile for full docs on `make ci`.
 
-You can use `TASTY_MATCH` (see --help) to select one or multiple tests.
-`TASTY_PATTERN` works too, but is more complicated than `TASY_MATCH`.
+You can use `--include PATTERN` to only include tests that contain the substring `PATTERN`. This flag can be specified multiple times. The argument can also be provided with the `TEST_INCLUDE` env vars, where multiple values are comma-separated.
+
+You can use `--exclude PATTERN` to exclude all tests that contain the substring `PATTERN`. This flag can be specified multiple times. The argument can also be provided with the `TEST_EXCLUDE` env vars, where multiple values are comma-separated.
 
 To develop a new test in a fast-loading ghci session:
 
 1. Run `make cr` to build the whole project and start all services
    OR run `make cr package=galley` to build galley and start all services
    OR run `./services/run-services` to just start all services without rebuilding
-2.`TASTY_MATCH=testFederationDomain make devtest` to start a ghcid session that re-runs the test after each succesful build of the test suite
+2.`TEST_INCLUDE=testFederationDomain make devtest` to start a ghcid session that re-runs the test after each succesful build of the test suite
 
 Original design guidelines / goals:
 

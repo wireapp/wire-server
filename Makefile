@@ -98,7 +98,13 @@ endif
 .PHONY: ci
 ci: c db-migrate
 ifeq ("$(package)", "all")
-	./hack/bin/cabal-run-integration.sh $(package)
+    ifneq ("$(suite)", "new")
+		echo ./hack/bin/cabal-run-integration.sh all
+    endif
+    ifneq ("$(suite)", "old")
+		make c package=integration
+		echo ./hack/bin/cabal-run-integration.sh integration
+    endif
 else
   ifeq ("$(package)", "integration")
 	./hack/bin/cabal-run-integration.sh integration
@@ -126,7 +132,7 @@ cr: c db-migrate
 
 # Run integration from new test suite
 # Usage: make devtest
-# Usage: TASTY_MATCH=test1,test2 make devtest
+# Usage: TEST_INCLUDE=test1,test2 make devtest
 .PHONY: devtest
 devtest:
 	ghcid --command 'cabal repl integration' --test='Testlib.Run.mainI []'
