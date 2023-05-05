@@ -18,7 +18,7 @@ parser =
           ( long "include"
               <> short 'i'
               <> metavar "PATTERN"
-              <> help "Include tests matching PATTERN (simple substring match). This arg can be provided multiple times. This flag can also be provided via the TEST_INCLUDE environment variable."
+              <> help "Include tests matching PATTERN (simple substring match). This flag can be provided multiple times. This flag can also be provided via the TEST_INCLUDE environment variable."
           )
       )
     <*> many
@@ -26,7 +26,7 @@ parser =
           ( long "exclude"
               <> short 'x'
               <> metavar "PATTERN"
-              <> help "Exclude tests matching PATTERN (simple substring match). This arg can be provided multiple times. This flag can also be provided via the TEST_EXCLUDE environment variable."
+              <> help "Exclude tests matching PATTERN (simple substring match). This flag can be provided multiple times. This flag can also be provided via the TEST_EXCLUDE environment variable."
           )
       )
     <*> strOption
