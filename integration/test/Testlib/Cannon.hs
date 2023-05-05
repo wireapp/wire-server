@@ -55,6 +55,7 @@ import qualified Network.WebSockets as WS
 import System.Random (randomIO)
 import System.Timeout (timeout)
 import Testlib.App
+import Testlib.Env
 
 data WebSocket = WebSocket
   { wsChan :: TChan Value,

@@ -10,6 +10,7 @@ import RunAllTests
 import System.Directory
 import System.Environment
 import Testlib.App
+import Testlib.Env
 import Testlib.Options
 import Text.Printf
 import UnliftIO.Async

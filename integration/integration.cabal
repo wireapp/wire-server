@@ -93,6 +93,8 @@ library
     Testlib.Options
     Testlib.Prelude
     Testlib.Run
+    Testlib.Env
+    Testlib.Prekeys
 
   build-depends:
     , aeson

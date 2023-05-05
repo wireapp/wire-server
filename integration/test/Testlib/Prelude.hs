@@ -1,5 +1,6 @@
 module Testlib.Prelude
   ( module Testlib.App,
+    module Testlib.Env,
     module Testlib.Cannon,
     module Text.RawString.QQ,
     module Data.Aeson,
@@ -77,6 +78,7 @@ import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 import Testlib.App
 import Testlib.Cannon
+import Testlib.Env
 import Text.RawString.QQ
 -- Permissions is common in Galley
 import UnliftIO.Exception
