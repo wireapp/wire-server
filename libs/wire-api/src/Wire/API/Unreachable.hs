@@ -29,6 +29,7 @@ module Wire.API.Unreachable
     failedToAddMaybe,
     failedToRemove,
     failedToRemoveMaybe,
+    UnreachabilityEvent (..),
   )
 where
 
@@ -41,6 +42,7 @@ import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
 import Imports
+import Wire.API.Event.Conversation
 
 newtype UnreachableUsers = UnreachableUsers {unreachableUsers :: NonEmpty (Qualified UserId)}
   deriving stock (Eq, Show)
@@ -125,3 +127,22 @@ failedToRemove = failedToRemoveMaybe . unreachableFromList
 
 failedToRemoveMaybe :: Maybe UnreachableUsers -> FailedToProcess
 failedToRemoveMaybe us = mempty {remove = us}
+
+data UnreachabilityEvent = UnreachabilityEvent
+  { event :: Event,
+    failedToProcess :: FailedToProcess
+  }
+  deriving (Eq, Show)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema UnreachabilityEvent
+
+instance ToSchema UnreachabilityEvent where
+  schema =
+    objectWithDocModifier
+      "UnreachabilityEvent"
+      ( description
+          ?~ "A conversation event combined with information on\
+             \ failed-to-process entities due to unreachable backends"
+      )
+      $ UnreachabilityEvent
+        <$> event .= field "event" schema
+        <*> failedToProcess .= failedToProcessObjectSchema
