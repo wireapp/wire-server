@@ -37,7 +37,6 @@ module Wire.API.MLS.Message
     MLSCipherTextSym0,
     MLSMessageSendingStatus (..),
     KnownFormatTag (..),
-    UnreachableUsers (..),
     verifyMessageSignature,
     mkSignedMessage,
   )
@@ -50,10 +49,8 @@ import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteArray as BA
-import Data.Id
 import Data.Json.Util
 import Data.Kind
-import Data.Qualified
 import Data.Schema
 import Data.Singletons.TH
 import qualified Data.Swagger as S
@@ -67,6 +64,7 @@ import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.API.Unreachable
 import Wire.Arbitrary (GenericUniform (..))
 
 data WireFormatTag = MLSPlainText | MLSCipherText
@@ -318,22 +316,10 @@ instance SerialiseMLS (MessagePayload 'MLSPlainText) where
   -- so the next case is left as a stub
   serialiseMLS _ = pure ()
 
-newtype UnreachableUsers = UnreachableUsers {unreachableUsers :: [Qualified UserId]}
-  deriving stock (Eq, Show)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema UnreachableUsers
-  deriving newtype (Semigroup, Monoid)
-
-instance ToSchema UnreachableUsers where
-  schema =
-    named "UnreachableUsers" $
-      UnreachableUsers
-        <$> unreachableUsers
-          .= array schema
-
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],
     mmssTime :: UTCTimeMillis,
-    mmssUnreachableUsers :: UnreachableUsers
+    mmssFailedToProcess :: FailedToProcess
   }
   deriving (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema MLSMessageSendingStatus
@@ -352,11 +338,7 @@ instance ToSchema MLSMessageSendingStatus where
             "time"
             (description ?~ "The time of sending the message.")
             schema
-        <*> mmssUnreachableUsers
-          .= fieldWithDocModifier
-            "failed_to_send"
-            (description ?~ "List of federated users who could not be reached and did not receive the message")
-            schema
+        <*> mmssFailedToProcess .= failedToProcessObjectSchema
 
 verifyMessageSignature :: CipherSuiteTag -> Message 'MLSPlainText -> ByteString -> Bool
 verifyMessageSignature cs msg pubkey =

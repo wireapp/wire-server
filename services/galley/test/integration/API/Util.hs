@@ -1142,17 +1142,22 @@ listRemoteConvs remoteDomain uid = do
   pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
 
 postQualifiedMembers ::
-  (MonadReader TestSetup m, MonadHttp m) =>
+  (MonadReader TestSetup m, MonadHttp m, HasGalley m) =>
   UserId ->
   NonEmpty (Qualified UserId) ->
-  ConvId ->
+  Qualified ConvId ->
   m ResponseLBS
 postQualifiedMembers zusr invitees conv = do
-  g <- view tsUnversionedGalley
+  g <- viewGalley
   let invite = InviteQualified invitees roleNameWireAdmin
   post $
     g
-      . paths ["v1", "conversations", toByteString' conv, "members", "v2"]
+      . paths
+        [ "conversations",
+          toByteString' . qDomain $ conv,
+          toByteString' . qUnqualified $ conv,
+          "members"
+        ]
       . zUser zusr
       . zConn "conn"
       . zType "access"
@@ -2309,8 +2314,8 @@ assertMismatchQualified ::
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
   Assertions ()
-assertMismatchQualified failedToSend missing redundant deleted = do
-  assertExpected "failed to send" failedToSend (fmap mssFailedToSend . responseJsonMaybe)
+assertMismatchQualified failureToSend missing redundant deleted = do
+  assertExpected "failed to send" failureToSend (fmap mssFailedToSend . responseJsonMaybe)
   assertExpected "missing" missing (fmap mssMissingClients . responseJsonMaybe)
   assertExpected "redundant" redundant (fmap mssRedundantClients . responseJsonMaybe)
   assertExpected "deleted" deleted (fmap mssDeletedClients . responseJsonMaybe)

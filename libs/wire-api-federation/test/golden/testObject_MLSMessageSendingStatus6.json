@@ -1,0 +1,20 @@
+{
+    "events": [],
+    "failed_to_add": [
+        {
+            "domain": "offline.example.com",
+            "id": "00000000-0000-0000-0000-000200000008"
+        }
+    ],
+    "failed_to_remove": [
+        {
+            "domain": "golden.example.com",
+            "id": "00000000-0000-0000-0000-000200000008"
+        },
+        {
+            "domain": "golden.example.com",
+            "id": "00000000-0000-0000-0000-000100000007"
+        }
+    ],
+    "time": "1905-04-12T12:22:43.673Z"
+}
