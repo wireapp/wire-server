@@ -89,8 +89,6 @@ callOutward ::
 callOutward req = do
   rd <- parseRequestData req
   domain <- parseDomainText (rdTargetDomain rd)
-  -- This call will check for new domains
-  -- when it encounters something that it doesn't know about.
   ensureCanFederateWith domain
   resp <-
     discoverAndCall
