@@ -551,7 +551,7 @@ data Settings = Settings
     --     - wire.com
     --     - example.com
     setFederationDomain :: !Domain,
-    -- | 'setFederationDomainConfigs' is deprecated as of release 4.36.0.  See
+    -- | 'setFederationDomainConfigs' is deprecated as of https://github.com/wireapp/wire-server/pull/3260.  See
     -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
     -- for details.
     setFederationDomainConfigs :: !(Maybe [FederationDomainConfig]),

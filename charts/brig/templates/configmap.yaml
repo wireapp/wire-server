@@ -248,7 +248,7 @@ data:
       setDeleteThrottleMillis: {{ .setDeleteThrottleMillis }}
       setFederationDomain: {{ .setFederationDomain }}
       {{- if .setFederationDomainConfigs }}
-      # 'setFederationDomainConfigs' is deprecated as of release 4.36.0.  See
+      # 'setFederationDomainConfigs' is deprecated as of https://github.com/wireapp/wire-server/pull/3260.  See
       # https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
       # for details.
       setFederationDomainConfigs: {{ toYaml .setFederationDomainConfigs | nindent 8 }}

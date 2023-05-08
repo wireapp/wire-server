@@ -612,7 +612,7 @@ any key package whose expiry date is set further than 15 days after upload time 
 
 ### Federated domain specific configuration settings
 
-**This section is deprecated as of Release 4.36.0.  See
+**This section is deprecated as of https://github.com/wireapp/wire-server/pull/3260.  See
 https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
 for details.**
 
