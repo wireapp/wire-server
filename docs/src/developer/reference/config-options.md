@@ -621,7 +621,10 @@ for details.**
 TODO: deprecate this, also rename this section.  it's about federation now.
 
 TODO: should we consider the federation strategy from federator in the
-union returned by brig for a transition period as well?
+union returned by brig for a transition period as well?  (if not, we
+need to insist on updating brig's config before this upgrade.  no
+remote backend may be unlisted and use the search policy default.  we
+should also crash on startup when somebody tries that.)
 
 The lookup and search of users on a wire instance can be configured. This can be done per federated domain.
 
