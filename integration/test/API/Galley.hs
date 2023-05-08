@@ -116,3 +116,43 @@ getConversation user qcnv = do
     ( req
         & zUser uid
     )
+
+data ListConversationIds = ListConversationIds {pagingState :: Maybe String, size :: Maybe Int}
+
+instance Default ListConversationIds where
+  def = ListConversationIds Nothing Nothing
+
+listConversationIds :: MakesValue user => user -> ListConversationIds -> App Response
+listConversationIds user args = do
+  req <- baseRequest user Galley Versioned "/conversations/list-ids"
+  uid <- objId user
+  submit "POST" $
+    req
+      & zUser uid
+      & addJSONObject
+        ( ["paging_state" .= s | s <- toList args.pagingState]
+            <> ["size" .= s | s <- toList args.size]
+        )
+
+listConversations :: MakesValue user => user -> [Value] -> App Response
+listConversations user cnvs = do
+  req <- baseRequest user Galley Versioned "/conversations/list"
+  uid <- objId user
+  submit "POST" $
+    req
+      & zUser uid
+      & addJSONObject ["qualified_ids" .= cnvs]
+
+postMLSMessage :: HasCallStack => ClientIdentity -> ByteString -> App Response
+postMLSMessage cid msg = do
+  req <- baseRequest cid Galley Versioned "/mls/messages"
+  uid <- objId cid
+  c <- cid %. "client" & asString
+  submit "POST" (addMLS msg req & zUser uid & zClient c & zConnection "conn")
+
+postMLSCommitBundle :: HasCallStack => ClientIdentity -> ByteString -> App Response
+postMLSCommitBundle cid msg = do
+  req <- baseRequest cid Galley Versioned "/mls/commit-bundles"
+  uid <- objId cid
+  c <- cid %. "client_id" & asString
+  submit "POST" (addMLS msg req & zUser uid & zClient c & zConnection "conn")

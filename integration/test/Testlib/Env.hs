@@ -1,12 +1,16 @@
 module Testlib.Env where
 
+import Control.Monad.Codensity
+import Control.Monad.IO.Class
 import Data.Aeson hiding ((.=))
 import qualified Data.Aeson as Aeson
+import Data.ByteString (ByteString)
 import Data.Char
 import Data.Functor
 import Data.IORef
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Set (Set)
 import Data.String
 import Data.Word
 import qualified Data.Yaml as Yaml
@@ -15,6 +19,7 @@ import qualified Network.HTTP.Client as HTTP
 import System.Exit
 import System.FilePath
 import System.IO
+import System.IO.Temp
 import Testlib.Prekeys
 
 -- | Initialised once per test.
@@ -27,7 +32,8 @@ data Env = Env
     serviceConfigsDir :: FilePath,
     servicesCwdBase :: Maybe FilePath,
     prekeys :: IORef [(Int, String)],
-    lastPrekeys :: IORef [String]
+    lastPrekeys :: IORef [String],
+    mls :: IORef MLSState
   }
 
 -- | Initialised once per testsuite.
@@ -135,10 +141,11 @@ mkGlobalEnv cfgFile = do
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services")
       }
 
-mkEnv :: GlobalEnv -> IO Env
+mkEnv :: GlobalEnv -> Codensity IO Env
 mkEnv ge = do
-  pks <- newIORef (zip [1 ..] somePrekeys)
-  lpks <- newIORef someLastPrekeys
+  pks <- liftIO $ newIORef (zip [1 ..] somePrekeys)
+  lpks <- liftIO $ newIORef someLastPrekeys
+  mls <- liftIO . newIORef =<< mkMLSState
   pure
     Env
       { serviceMap = gServiceMap ge,
@@ -149,5 +156,38 @@ mkEnv ge = do
         serviceConfigsDir = gServiceConfigsDir ge,
         servicesCwdBase = gServicesCwdBase ge,
         prekeys = pks,
-        lastPrekeys = lpks
+        lastPrekeys = lpks,
+        mls = mls
       }
+
+data MLSState = MLSState
+  { baseDir :: FilePath,
+    members :: Set ClientIdentity,
+    -- | users expected to receive a welcome message after the next commit
+    newMembers :: Set ClientIdentity,
+    groupId :: Maybe String,
+    convId :: Maybe String,
+    clientGroupState :: Map ClientIdentity ByteString,
+    epoch :: Word64
+  }
+
+mkMLSState :: Codensity IO MLSState
+mkMLSState = Codensity $ \k ->
+  withSystemTempDirectory "mls" $ \_tmp -> do
+    k
+      MLSState
+        { baseDir = "/tmp/mls",
+          members = mempty,
+          newMembers = mempty,
+          groupId = Nothing,
+          convId = Nothing,
+          clientGroupState = mempty,
+          epoch = 0
+        }
+
+data ClientIdentity = ClientIdentity
+  { domain :: String,
+    user :: String,
+    client :: String
+  }
+  deriving (Eq, Ord)

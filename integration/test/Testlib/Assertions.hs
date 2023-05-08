@@ -46,7 +46,7 @@ a `shouldMatch` b = do
   unless (xa == xb) $ do
     pa <- prettyJSON xa
     pb <- prettyJSON xb
-    assertFailure $ "Expected:\n" <> pb <> "\n" <> "Actual:\n" <> pa
+    assertFailure $ "Actual:\n" <> pa <> "\nExpected:\n" <> pb
 
 shouldNotMatch ::
   (MakesValue a, MakesValue b, HasCallStack) =>
@@ -102,6 +102,13 @@ printFailureDetails (AssertionFailure stack mbResponse msg) = do
       : colored red msg
       : "\n" <> s
       : toList (fmap prettyResponse mbResponse)
+
+printExceptionDetails :: SomeException -> IO String
+printExceptionDetails e = do
+  pure . unlines $
+    [ colored yellow "exception:",
+      colored red (displayException e)
+    ]
 
 prettierCallStack :: CallStack -> IO String
 prettierCallStack cstack = do

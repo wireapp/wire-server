@@ -1,8 +1,11 @@
 module API.Brig where
 
 import API.Common
+import qualified Data.ByteString.Base64 as Base64
+import Data.Foldable
 import Data.Function
 import Data.Maybe
+import qualified Data.Text.Encoding as T
 import GHC.Stack
 import Testlib.Prelude
 
@@ -48,6 +51,42 @@ addClient user args = do
           "model" .= args.model,
           "password" .= args.password
         ]
+
+data UpdateClient = UpdateClient
+  { prekeys :: [Value],
+    lastPrekey :: Maybe Value,
+    label :: Maybe String,
+    capabilities :: Maybe [Value],
+    mlsPublicKeys :: Maybe Value
+  }
+
+instance Default UpdateClient where
+  def =
+    UpdateClient
+      { prekeys = [],
+        lastPrekey = Nothing,
+        label = Nothing,
+        capabilities = Nothing,
+        mlsPublicKeys = Nothing
+      }
+
+updateClient ::
+  HasCallStack =>
+  ClientIdentity ->
+  UpdateClient ->
+  App Response
+updateClient cid args = do
+  uid <- objId cid
+  req <- baseRequest cid Brig Versioned $ "/clients/" <> cid.client
+  submit "PUT" . zUser uid $
+    addJSONObject
+      ( ["prekeys" .= args.prekeys]
+          <> ["lastkey" .= k | k <- toList args.lastPrekey]
+          <> ["label" .= l | l <- toList args.label]
+          <> ["capabilities" .= c | c <- toList args.capabilities]
+          <> ["mls_public_keys" .= k | k <- toList args.mlsPublicKeys]
+      )
+      req
 
 deleteClient ::
   (HasCallStack, MakesValue user, MakesValue client) =>
@@ -137,3 +176,25 @@ putConnection userFrom userTo status = do
         & contentTypeJSON
         & addJSONObject ["status" .= statusS]
     )
+
+uploadKeyPackage :: ClientIdentity -> ByteString -> App Response
+uploadKeyPackage cid kp = do
+  req <-
+    baseRequest cid Brig Versioned $
+      "/mls/key-packages/self/" <> cid.client
+  uid <- objId cid
+  submit
+    "POST"
+    ( req
+        & zUser uid
+        & addJSONObject ["key_packages" .= [T.decodeUtf8 (Base64.encode kp)]]
+    )
+
+claimKeyPackages :: (MakesValue u, MakesValue v) => u -> v -> App Response
+claimKeyPackages u v = do
+  (targetDom, targetUid) <- objQid v
+  req <-
+    baseRequest u Brig Versioned $
+      "/mls/key-packages/claim/" <> targetDom <> "/" <> targetUid
+  uid <- objId u
+  submit "POST" (req & zUser uid)

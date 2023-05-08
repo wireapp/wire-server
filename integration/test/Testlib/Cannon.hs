@@ -138,7 +138,7 @@ run wsConnect app = do
 
   let path =
         "/await"
-          <> ( case client wsConnect of
+          <> ( case wsConnect.client of
                  Nothing -> ""
                  Just client -> fromJust . fromByteString $ Http.queryString (Http.setQueryString [("client", Just (toByteString' client))] Http.defaultRequest)
              )

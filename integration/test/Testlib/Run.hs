@@ -3,6 +3,8 @@ module Testlib.Run (main, mainI) where
 import Control.Concurrent
 import Control.Exception as E
 import Control.Monad
+import Control.Monad.Codensity
+import Control.Monad.IO.Class
 import Data.Foldable
 import Data.Functor
 import Data.List
@@ -31,19 +33,17 @@ instance Monoid TestReport where
   mempty = TestReport 0 mempty
 
 runTest :: GlobalEnv -> App () -> IO (Maybe String)
-runTest ge action = do
+runTest ge action = lowerCodensity $ do
   env <- mkEnv ge
-  (runAppWithEnv env action $> Nothing)
-    `E.catches` [ E.Handler
-                    ( \(e :: AssertionFailure) -> do
-                        Just <$> printFailureDetails e
-                    ),
-                  E.Handler
-                    ( \(e :: SomeException) -> do
-                        putStrLn "exception handler"
-                        pure (Just (colored yellow (displayException e)))
-                    )
-                ]
+  liftIO $
+    (runAppWithEnv env action $> Nothing)
+      `E.catches` [ E.Handler
+                      ( \(e :: AssertionFailure) -> do
+                          Just <$> printFailureDetails e
+                      ),
+                    E.Handler
+                      (\e -> Just <$> printExceptionDetails e)
+                  ]
 
 pluralise :: Int -> String -> String
 pluralise 1 x = x
@@ -54,7 +54,9 @@ printReport report = do
   unless (null report.failures) $ putStrLn $ "----------"
   putStrLn $ show report.count <> " " <> pluralise report.count "test" <> " run."
   unless (null report.failures) $ do
-    putStrLn $ colored red "\nFailed tests: "
+    putStrLn ""
+    let numFailures = length report.failures
+    putStrLn $ colored red (show numFailures <> " failed " <> pluralise numFailures "test" <> ": ")
     for_ report.failures $ \name ->
       putStrLn $ " - " <> name
 

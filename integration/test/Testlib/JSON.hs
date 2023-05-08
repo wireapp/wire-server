@@ -18,6 +18,7 @@ import qualified Data.Scientific as Sci
 import Data.String
 import qualified Data.Text as T
 import GHC.Stack
+import Testlib.Env
 import Testlib.Types
 
 -- | All library functions should use this typeclass for all untyped value
@@ -277,3 +278,12 @@ objDomain x = do
     Object _ob -> fst <$> objQid v
     String t -> pure (T.unpack t)
     other -> assertFailureWithJSON other (typeWasExpectedButGot "Object or String" other)
+
+instance MakesValue ClientIdentity where
+  make cid =
+    pure $
+      object
+        [ "domain" .= cid.domain,
+          "id" .= cid.user,
+          "client_id" .= cid.client
+        ]
