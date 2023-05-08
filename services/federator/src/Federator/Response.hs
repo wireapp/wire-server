@@ -132,30 +132,33 @@ type AllEffects =
 
 -- | Run Sem action containing HTTP handlers. All errors have to been handled
 -- already by this point.
+--
+-- The `Env` is extracted from the `TVar` for each request.  This allows us to independently
+-- update the settings and have them be used as requests come in.
 runFederator :: TVar Env -> Sem AllEffects Wai.Response -> Codensity IO Wai.Response
-runFederator tvar resp = do
-  env <- liftIO $ readTVarIO tvar
-  resp
-    & runM
-      . runEmbedded @IO @(Codensity IO) liftIO
-      . loggerToTinyLogReqId (view requestId env) (view applog env)
-      . runWaiErrors
-        @'[ ValidationError,
-            RemoteError,
-            ServerError,
-            DiscoveryFailure
-          ]
-      . runInputConst env
-      . runInputSem (embed @IO (readIORef (view http2Manager env)))
-      -- This is the point at which federation settings are extracted
-      -- For each request, extract a fresh copy of the runSettings. This allows us
-      -- to independently update the settings and have them be used as requests
-      -- come in.
-      . runInputSem (embed @IO $ fmap (view runSettings) . liftIO $ readTVarIO tvar)
-      . interpretServiceHTTP
-      . runDNSLookupWithResolver (view dnsResolver env)
-      . runFederatorDiscovery
-      . interpretRemote
+runFederator tvar =
+  runM
+    . runEmbedded @IO @(Codensity IO) liftIO
+    . f tvar (\env -> loggerToTinyLogReqId (view requestId env) (view applog env))
+    . runWaiErrors
+      @'[ ValidationError,
+          RemoteError,
+          ServerError,
+          DiscoveryFailure
+        ]
+    . f tvar runInputConst
+    . f tvar (\env -> runInputSem (embed @IO (readIORef (view http2Manager env))))
+    . f tvar (runInputConst . view runSettings)
+    . interpretServiceHTTP
+    . f tvar (runDNSLookupWithResolver . view dnsResolver)
+    . runFederatorDiscovery
+    . interpretRemote
+
+f ::
+  TVar Env ->
+  (Env -> Sem r1 Wai.Response -> Sem r2 Wai.Response) ->
+  (Sem r1 Wai.Response -> Sem r2 Wai.Response)
+f = undefined
 
 streamingResponseToWai :: StreamingResponse -> Wai.Response
 streamingResponseToWai resp =
