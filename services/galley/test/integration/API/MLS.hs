@@ -25,7 +25,6 @@ import API.Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra hiding (Set)
-import Control.Exception (throw)
 import Control.Lens (view)
 import Control.Lens.Extras
 import qualified Control.Monad.State as State
@@ -38,6 +37,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
+import qualified Data.List.NonEmpty as NE
 import Data.List1 hiding (head)
 import qualified Data.Map as Map
 import Data.Qualified
@@ -49,7 +49,6 @@ import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
-import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
@@ -67,13 +66,13 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
-import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
+import Wire.API.Unreachable
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -111,6 +110,7 @@ tests s =
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "send a stale commit" testStaleCommit,
           test s "add remote user to a conversation" testAddRemoteUser,
+          test s "add remote users to a conversation (some unreachable)" testAddRemotesSomeUnreachable,
           test s "return error when commit is locked" testCommitLock,
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
           test s "post commit that references an unknown proposal" testUnknownProposalRefCommit,
@@ -663,6 +663,61 @@ testAddRemoteUser = do
     event <- assertOne events
     assertJoinEvent qcnv alice [bob] roleNameWireMember event
 
+testAddRemotesSomeUnreachable :: TestM ()
+testAddRemotesSomeUnreachable = do
+  let bobDomain = Domain "bob.example.com"
+      charlieDomain = Domain "charlie.example.com"
+  users@[alice, bob, charlie] <-
+    createAndConnectUsers $
+      domainText
+        <$$> [Nothing, Just bobDomain, Just charlieDomain]
+  (events, failedToProcess, reqs, qcnv) <- runMLSTest $ do
+    [alice1, bob1, _charlie1] <- traverse createMLSClient users
+    (_, qcnv) <- setupMLSGroup alice1
+
+    commit <- createAddCommit alice1 [bob, charlie]
+    let unreachable = Set.singleton charlieDomain
+    ((events, failedToProcess), reqs) <-
+      withTempMockFederator'
+        ( receiveCommitMockByDomain [bob1]
+            <|> mlsMockUnreachableFor unreachable
+            <|> welcomeMockByDomain [bobDomain]
+        )
+        $ sendAndConsumeCommitFederated commit
+    pure (events, failedToProcess, reqs, qcnv)
+
+  let expectedJoiners = [bob]
+  liftIO $ do
+    req <-
+      assertOne $
+        filter
+          ( \r ->
+              ((== "on-conversation-updated") . frRPC) r
+                && frTargetDomain r == bobDomain
+          )
+          reqs
+    frTargetDomain req @?= qDomain bob
+    bdy <- case Aeson.eitherDecode (frBody req) of
+      Right b -> pure b
+      Left e -> assertFailure $ "Could not parse on-conversation-updated request body: " <> e
+    cuOrigUserId bdy @?= alice
+    cuConvId bdy @?= qUnqualified qcnv
+    cuAlreadyPresentUsers bdy @?= [qUnqualified bob]
+    failedToProcess
+      @?= FailedToProcess
+        { send = Nothing,
+          add = unreachableFromList [charlie],
+          remove = Nothing
+        }
+    let SomeConversationAction SConversationJoinTag cj = cuAction bdy
+        ConversationJoin actualJoiners actualRole = cj
+    (sort . NE.toList) actualJoiners @?= expectedJoiners
+    actualRole @?= roleNameWireMember
+
+  liftIO $ do
+    event <- assertOne events
+    assertJoinEvent qcnv alice expectedJoiners roleNameWireMember event
+
 testCommitLock :: TestM ()
 testCommitLock = do
   users <- createAndConnectUsers (replicate 4 Nothing)
@@ -1111,12 +1166,11 @@ testAppMessage2 = do
 
 testAppMessageSomeReachable :: TestM ()
 testAppMessageSomeReachable = do
+  let bobDomain = Domain "bob.example.com"
+      charlieDomain = Domain "charlie.example.com"
   users@[_alice, bob, charlie] <-
-    createAndConnectUsers
-      [ Nothing,
-        Just "bob.example.com",
-        Just "charlie.example.com"
-      ]
+    createAndConnectUsers $
+      domainText <$$> [Nothing, Just bobDomain, Just charlieDomain]
 
   void $ runMLSTest $ do
     [alice1, bob1, charlie1] <-
@@ -1125,27 +1179,25 @@ testAppMessageSomeReachable = do
     void $ setupMLSGroup alice1
     commit <- createAddCommit alice1 [bob, charlie]
 
-    let mocks =
+    let commitMocks =
           receiveCommitMockByDomain [bob1, charlie1]
             <|> welcomeMock
-    ([event], _) <-
-      withTempMockFederator' mocks $ do
-        sendAndConsumeCommit commit
+    (([event], ftpCommit), _) <-
+      withTempMockFederator' commitMocks $ do
+        sendAndConsumeCommitFederated commit
+    liftIO $ ftpCommit @?= mempty
 
     let unreachables = Set.singleton (Domain "charlie.example.com")
-    withTempMockFederator' (mockUnreachableFor unreachables) $ do
+    let sendMocks =
+          messageSentMockByDomain [bobDomain]
+            <|> mlsMockUnreachableFor unreachables
+
+    withTempMockFederator' sendMocks $ do
       message <- createApplicationMessage alice1 "hi, bob!"
-      (_, us) <- sendAndConsumeMessage message
+      (_, ftp) <- sendAndConsumeMessage message
       liftIO $ do
         assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-        us @?= UnreachableUsers [charlie]
-  where
-    mockUnreachableFor :: Set Domain -> Mock LByteString
-    mockUnreachableFor backends = do
-      r <- getRequest
-      if Set.member (frTargetDomain r) backends
-        then throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
-        else mockReply ("RemoteMLSMessageOk" :: String)
+        ftp @?= failedToSend [charlie]
 
 testAppMessageUnreachable :: TestM ()
 testAppMessageUnreachable = do
@@ -1164,10 +1216,10 @@ testAppMessageUnreachable = do
         sendAndConsumeCommit commit
 
     message <- createApplicationMessage alice1 "hi, bob!"
-    (_, us) <- sendAndConsumeMessage message
+    (_, ftp) <- sendAndConsumeMessage message
     liftIO $ do
       assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-      us @?= UnreachableUsers [bob]
+      ftp @?= failedToSend [bob]
 
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do
@@ -2038,7 +2090,7 @@ testAddUserToRemoteConvWithBundle = do
     commit <- createAddCommit bob1 [charlie]
     commitBundle <- createBundle commit
 
-    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers [])
+    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] mempty
     (_, reqs) <- withTempMockFederator' mock $ do
       void $ sendAndConsumeCommitBundle commit
 

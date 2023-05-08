@@ -72,6 +72,7 @@ import Wire.API.Conversation (ConvType (..))
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Federation.Error
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.LegalHold
@@ -184,6 +185,7 @@ removeSettingsInternalPaging ::
     Member CodeStore r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -226,6 +228,7 @@ removeSettings ::
       Member CodeStore r,
       Member ConversationStore r,
       Member (Error AuthenticationError) r,
+      Member (Error FederationError) r,
       Member (Error InternalError) r,
       Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
       Member (ErrorS 'InvalidOperation) r,
@@ -287,6 +290,7 @@ removeSettings' ::
       Member BrigAccess r,
       Member CodeStore r,
       Member ConversationStore r,
+      Member (Error FederationError) r,
       Member (Error InternalError) r,
       Member (Error AuthenticationError) r,
       Member (ErrorS 'NotATeamMember) r,
@@ -376,6 +380,7 @@ getUserStatus _lzusr tid uid = do
 grantConsent ::
   ( Member BrigAccess r,
     Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
@@ -412,6 +417,7 @@ requestDevice ::
   forall db r.
   ( Member BrigAccess r,
     Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
@@ -491,6 +497,7 @@ approveDevice ::
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
@@ -569,6 +576,7 @@ disableForUser ::
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
@@ -624,6 +632,7 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
 changeLegalholdStatus ::
   ( Member BrigAccess r,
     Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
@@ -739,6 +748,7 @@ unsetTeamLegalholdWhitelistedH tid = do
 -- one from the database.
 handleGroupConvPolicyConflicts ::
   ( Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member ExternalAccess r,
