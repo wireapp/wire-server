@@ -662,7 +662,7 @@ notifyCreatedConversation lusr conn c = do
   now <- input
   -- Ask remote server to store conversation membership and notify remote users
   -- of being added to a conversation
-  failedToNotify <- registerRemoteConversationMemberships now (tDomain lusr) c
+  failedToNotify <- registerRemoteConversationMemberships now (qualifyAs lusr c)
   let allRemotes = Data.convRemoteMembers c
       notifiedRemotes =
         filter

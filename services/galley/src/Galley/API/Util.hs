@@ -53,7 +53,7 @@ import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import Galley.Intra.Push
 import Galley.Options
-import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), localMemberToOther, remoteMemberToOther)
+import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), localMemberToOther, remoteMemberQualify, remoteMemberToOther)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.UserList
@@ -666,35 +666,28 @@ runLocalInput = runInputConst . void
 toConversationCreated ::
   -- | The time stamp the conversation was created at
   UTCTime ->
-  -- | The domain of the user that created the conversation
-  Domain ->
   -- | The conversation to convert for sending to a remote Galley
   Data.Conversation ->
   -- | The resulting information to be sent to a remote Galley
   ConversationCreated ConvId
-toConversationCreated now localDomain Data.Conversation {convMetadata = ConversationMetadata {..}, ..} =
-  ConversationCreated
-    { ccTime = now,
-      ccOrigUserId = cnvmCreator,
-      ccCnvId = convId,
-      ccCnvType = cnvmType,
-      ccCnvAccess = cnvmAccess,
-      ccCnvAccessRoles = cnvmAccessRoles,
-      ccCnvName = cnvmName,
-      ccNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= cnvmCreator) convLocalMembers) convRemoteMembers,
-      ccMessageTimer = cnvmMessageTimer,
-      ccReceiptMode = cnvmReceiptMode,
-      ccProtocol = convProtocol
-    }
-  where
-    toMembers ::
-      [LocalMember] ->
-      [RemoteMember] ->
-      Set OtherMember
-    toMembers ls rs =
-      Set.fromList $
-        map (localMemberToOther localDomain) ls
-          <> map remoteMemberToOther rs
+toConversationCreated
+  now
+  Data.Conversation {convMetadata = ConversationMetadata {..}, ..} = do
+    ConversationCreated
+      { ccTime = now,
+        ccOrigUserId = cnvmCreator,
+        ccCnvId = convId,
+        ccCnvType = cnvmType,
+        ccCnvAccess = cnvmAccess,
+        ccCnvAccessRoles = cnvmAccessRoles,
+        ccCnvName = cnvmName,
+        -- non-creator members are a function of the remote backend and will be
+        -- overridden when fanning out the notification to remote backends.
+        ccNonCreatorMembers = Set.empty,
+        ccMessageTimer = cnvmMessageTimer,
+        ccReceiptMode = cnvmReceiptMode,
+        ccProtocol = convProtocol
+      }
 
 -- | The function converts a 'ConversationCreated' value to a
 -- 'Wire.API.Conversation.Conversation' value for each user that is on the given
@@ -765,19 +758,36 @@ registerRemoteConversationMemberships ::
   (Member FederatorAccess r) =>
   -- | The time stamp when the conversation was created
   UTCTime ->
-  -- | The domain of the user that created the conversation
-  Domain ->
-  Data.Conversation ->
+  Local Data.Conversation ->
   Sem r (Set (Remote UserId))
-registerRemoteConversationMemberships now localDomain c = do
-  let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
-      rc = toConversationCreated now localDomain c
-  fmap toSet $ runFederatedConcurrentlyEither allRemoteMembers $ \_ ->
-    fedClient @'Galley @"on-conversation-created" rc
+registerRemoteConversationMemberships now lc = do
+  let c = tUnqualified lc
+      allRemoteMembers = nubOrd (Data.convRemoteMembers c)
+      rc = toConversationCreated now c
+  fmap (Set.map (fmap (tUnqualified . rmId)) . toSet) $
+    runFederatedConcurrentlyEither (remoteMemberQualify <$> allRemoteMembers) $
+      \rrms ->
+        fedClient @'Galley @"on-conversation-created" $
+          ( rc
+              { ccNonCreatorMembers =
+                  toMembers (tUnqualified rrms)
+              }
+          )
   where
     toSet :: forall a x e. Ord x => [Either (Remote [x], e) a] -> Set (Remote x)
     toSet =
       Set.fromList . foldMap (either (sequenceA . fst) mempty)
+    creator = cnvmCreator . DataTypes.convMetadata . tUnqualified $ lc
+    localNonCreators =
+      fmap (localMemberToOther . tDomain $ lc)
+        . filter (\lm -> lmId lm /= creator)
+        . Data.convLocalMembers
+        . tUnqualified
+        $ lc
+    toMembers ::
+      [RemoteMember] ->
+      Set OtherMember
+    toMembers rs = Set.fromList $ localNonCreators <> fmap remoteMemberToOther rs
 
 --------------------------------------------------------------------------------
 -- Legalhold
