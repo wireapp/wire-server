@@ -94,6 +94,7 @@ propagateMessage qusr lConvOrSub con raw cm = do
             rmmSender = qusr,
             rmmMetadata = mm,
             rmmConversation = qUnqualified qcnv,
+            rmmSubConversation = sconv,
             rmmRecipients = rs >>= remoteMemberMLSClients,
             rmmMessage = Base64ByteString raw
           }
