@@ -91,8 +91,8 @@ validationErrorStatus :: ValidationError -> HTTP.Status
 validationErrorStatus (FederationDenied _) = HTTP.status400
 validationErrorStatus _ = HTTP.status403
 
--- | Validates an already-parsed domain against the allowList using the federator
--- startup configuration, and can update the allowList from the DB at runtime.
+-- | Validates an already-parsed domain against the allowList (stored in
+-- `brig.federation_remotes`, cached in `Env`).
 ensureCanFederateWith ::
   ( Member (Input Env) r,
     Member (Error ValidationError) r
