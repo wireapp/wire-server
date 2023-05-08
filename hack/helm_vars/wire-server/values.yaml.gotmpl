@@ -56,7 +56,7 @@ brig:
       setActivationTimeout: 10
       setVerificationTimeout: 10
       # keep this in sync with brigSettingsTeamInvitationTimeout in spar/templates/tests/configmap.yaml
-      setTeamInvitationTimeout: 10
+      setTeamInvitationTimeout: 5
       setExpiredUserCleanupTimeout: 1
       setUserMaxConnections: 16
       setCookieInsecure: true
@@ -300,3 +300,16 @@ federator:
       federationStrategy:
         allowAll: true
       useSystemCAStore: false
+
+background-worker:
+  replicaCount: 1
+  resources:
+    requests: {}
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
+  config:
+    # See helmfile for the real value
+    remoteDomains: []
+  secrets:
+    rabbitmq:
+      username: {{ .Values.rabbitmqUsername }}
+      password: {{ .Values.rabbitmqPassword }}

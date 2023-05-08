@@ -20,4 +20,4 @@ data:
       port: 8080
 
     # Keep this in sync with brigs setTeamInvitationTimeout
-    brigSettingsTeamInvitationTimeout: 10
+    brigSettingsTeamInvitationTimeout: 5

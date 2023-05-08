@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 -- FUTUREWORK: Get rid of this option once Polysemy is fully introduced to Brig
@@ -60,6 +61,7 @@ module Brig.App
     emailSender,
     randomPrekeyLocalLock,
     keyPackageLocalLock,
+    rabbitMQChannel,
     fsWatcher,
 
     -- * App Monad
@@ -132,6 +134,7 @@ import Data.Yaml (FromJSON)
 import qualified Database.Bloodhound as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports
+import qualified Network.AMQP as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
@@ -191,7 +194,8 @@ data Env = Env
     _digestMD5 :: Digest,
     _indexEnv :: IndexEnv,
     _randomPrekeyLocalLock :: Maybe (MVar ()),
-    _keyPackageLocalLock :: MVar ()
+    _keyPackageLocalLock :: MVar (),
+    _rabbitMQChannel :: IORef Q.Channel
   }
 
 makeLenses ''Env
@@ -244,6 +248,7 @@ newEnv o = do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
+  rabbitChan <- newIORef =<< mkRabbitMqChannel o
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -279,7 +284,8 @@ newEnv o = do
         _digestSHA256 = sha256,
         _indexEnv = mkIndexEnv o lgr mgr mtr (Opt.galley o),
         _randomPrekeyLocalLock = prekeyLocalLock,
-        _keyPackageLocalLock = kpLock
+        _keyPackageLocalLock = kpLock,
+        _rabbitMQChannel = rabbitChan
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)
@@ -294,6 +300,16 @@ newEnv o = do
       smtp <- SMTP.initSMTP lgr host port smtpCredentials (Opt.smtpConnType s)
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
+
+mkRabbitMqChannel :: Opts -> IO Q.Channel
+mkRabbitMqChannel (Opt.rabbitMQ -> Opt.RabbitMQOpts {..}) = do
+  username <- Text.pack <$> getEnv "RABBITMQ_USERNAME"
+  password <- Text.pack <$> getEnv "RABBITMQ_PASSWORD"
+  conn <- Q.openConnection' host (fromIntegral port) vHost username password
+  -- TODO(elland): Q.addConnectionClosedHandler
+  -- TODO(elland): Q.addConnectionBlockedHandler
+  -- TODO(elland): Q.addChannelExceptionHandler
+  Q.openChannel conn
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
 mkIndexEnv o lgr mgr mtr galleyEndpoint =

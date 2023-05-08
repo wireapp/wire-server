@@ -67,7 +67,7 @@ provider:
 
 # Used by spar integration tests
 # Keep this in sync with setTeamInvitationTimeout from brig
-brigSettingsTeamInvitationTimeout: 10
+brigSettingsTeamInvitationTimeout: 5
 
 # Used by brig-integration (Federation subfolder)
 backendTwo:

@@ -361,8 +361,8 @@ testInvitationTooManyPending opts brig (TeamSizeLimit limit) = do
   email <- randomEmail
   -- If this test takes longer to run than `team-invitation-timeout`, then some of the
   -- invitations have likely expired already and this test will actually _fail_
-  -- therefore we increase the timeout from default 10 to 300 seconds
-  let longerTimeout = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setTeamInvitationTimeout = 300}}
+  -- therefore we increase the timeout from default to 100 seconds
+  let longerTimeout = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setTeamInvitationTimeout = 100}}
   withSettingsOverrides longerTimeout $ do
     forM_ emails $ postInvitation brig tid inviter . stdInvitationRequest
   postInvitation brig tid inviter (stdInvitationRequest email) !!! do

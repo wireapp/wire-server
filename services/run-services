@@ -400,7 +400,7 @@ if __name__ == '__main__':
         'AWS_ACCESS_KEY_ID': "dummykey",
         'AWS_SECRET_ACCESS_KEY': "dummysecret",
         'RABBITMQ_USERNAME': 'guest',
-        'RABBITMQ_PASSWORD': 'alpaca-grapefruit'
+        'RABBITMQ_PASSWORD': 'guest'
     }
 
     backend_a = [

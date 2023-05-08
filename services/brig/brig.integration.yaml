@@ -13,7 +13,7 @@ elasticsearch:
   url: http://127.0.0.1:9200
   index: directory_test
 
-rabbitmq:
+rabbitMQ:
   host: 127.0.0.1
   port: 5672
   vHost: /
@@ -145,7 +145,7 @@ turn:
 optSettings:
   setActivationTimeout: 10
   setVerificationTimeout: 10
-  setTeamInvitationTimeout: 10
+  setTeamInvitationTimeout: 5
   setExpiredUserCleanupTimeout: 1
   setTwilio: test/resources/twilio-credentials.yaml
   setNexmo: test/resources/nexmo-credentials.yaml

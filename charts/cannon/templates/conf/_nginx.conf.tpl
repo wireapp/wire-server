@@ -333,6 +333,7 @@ http {
         proxy_set_header   Z-Bot          $zauth_bot;
         proxy_set_header   Z-Conversation $zauth_conversation;
         proxy_set_header   Request-Id     $request_id;
+        proxy_set_header   Z-Host         $host;
 
             {{- if ($location.allow_credentials) }}
         more_set_headers 'Access-Control-Allow-Credentials: true';
