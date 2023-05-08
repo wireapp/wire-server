@@ -479,7 +479,7 @@ crudFederationRemotes opts brig = do
   addFederationRemote brig remote1
   res2' <- getFederationRemotes brig
   liftIO $ assertEqual "should return config values and good.example.com" (nub $ sort $ cfgRemotes <> [remote1]) (sort res2')
-  
+
   let remote2 = FederationDomainConfig (Domain "evil.example.com") ExactHandleSearch
   addFederationRemote brig remote2
   res3 <- getFederationRemotes brig
@@ -488,6 +488,9 @@ crudFederationRemotes opts brig = do
   deleteFederationRemote brig (domain remote1)
   res4 <- getFederationRemotes brig
   liftIO $ assertEqual "should return config values and evil.example.com" (nub $ sort $ cfgRemotes <> [remote2]) (sort res4)
+
+  -- deleting from the config file triggers an error
+  deleteFederationRemote' id brig (domain $ head $ cfgRemotes) !!! const 533 === statusCode
 
   -- TODO: how do we test that the TVar is updated in all services?  some fancy unit test?
   -- duplicate internal end-point to all services, and implement the hanlers in a library?

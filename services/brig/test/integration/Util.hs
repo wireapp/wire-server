@@ -1087,7 +1087,11 @@ addFederationRemote brig remote =
 
 deleteFederationRemote :: Brig -> Domain -> Http ()
 deleteFederationRemote brig rdom =
-  void $ delete (brig . paths ["i", "federation", "remotes", toByteString' rdom] . contentJson . expect2xx)
+  void $ deleteFederationRemote' expect2xx brig rdom
+
+deleteFederationRemote' :: (Request -> Request) -> Brig -> Domain -> Http ResponseLBS
+deleteFederationRemote' mods brig rdom =
+  delete (brig . paths ["i", "federation", "remotes", toByteString' rdom] . contentJson . mods)
 
 resetFederationRemotes :: Opts -> Brig -> Http ()
 resetFederationRemotes opts brig = do
