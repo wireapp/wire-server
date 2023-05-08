@@ -7,13 +7,13 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana sftd restund coturn
+CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana sftd restund coturn
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster databases-ephemeral	\
+CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster rabbitmq databases-ephemeral	\
 fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
@@ -98,7 +98,13 @@ endif
 .PHONY: ci
 ci: c db-migrate
 ifeq ("$(package)", "all")
-	./hack/bin/cabal-run-integration.sh $(package)
+    ifneq ("$(suite)", "new")
+		echo ./hack/bin/cabal-run-integration.sh all
+    endif
+    ifneq ("$(suite)", "old")
+		make c package=integration
+		echo ./hack/bin/cabal-run-integration.sh integration
+    endif
 else
   ifeq ("$(package)", "integration")
 	./hack/bin/cabal-run-integration.sh integration
@@ -126,7 +132,7 @@ cr: c db-migrate
 
 # Run integration from new test suite
 # Usage: make devtest
-# Usage: TASTY_MATCH=test1,test2 make devtest
+# Usage: TEST_INCLUDE=test1,test2 make devtest
 .PHONY: devtest
 devtest:
 	ghcid --command 'cabal repl integration' --test='Testlib.Run.mainI []'

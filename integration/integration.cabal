@@ -25,7 +25,6 @@ common common-all
     -optP-Wno-nonportable-include-path
 
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -70,7 +69,7 @@ common common-all
 executable integration
   import:        common-all
   main-is:       ./main.hs
-  ghc-options:   -threaded
+  ghc-options:   -threaded -with-rtsopts=-N
   build-depends: integration
 
 library
@@ -86,6 +85,7 @@ library
     API.GalleyInternal
     RunAllTests
     SetupHelpers
+    Test.B2B
     Test.Brig
     Test.Demo
     Testlib.App
@@ -105,11 +105,11 @@ library
     , case-insensitive
     , containers
     , data-default
+    , directory
     , exceptions
     , filepath
     , http-client
     , http-types
-    , imports
     , mtl
     , network
     , network-uri
@@ -120,10 +120,11 @@ library
     , retry
     , scientific
     , split
+    , stm
     , string-conversions
     , tagged
-    , tasty
     , text
+    , time
     , transformers
     , unliftio
     , websockets

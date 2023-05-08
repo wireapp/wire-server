@@ -32,14 +32,24 @@ module Testlib.Cannon
   )
 where
 
+import Control.Concurrent
 import Control.Concurrent.Async
+import Control.Concurrent.STM.TChan
 import Control.Exception (throwIO)
+import Control.Monad
 import Control.Monad.Catch hiding (bracket)
 import qualified Control.Monad.Catch as Catch
+import Control.Monad.IO.Class
+import Control.Monad.STM
 import Data.Aeson (Value (..), decodeStrict')
+import Data.ByteString (ByteString)
 import Data.ByteString.Conversion (fromByteString)
 import Data.ByteString.Conversion.To
-import Imports
+import Data.Function
+import Data.Maybe
+import Data.Traversable
+import Data.Word
+import GHC.Stack
 import qualified Network.HTTP.Client as Http
 import qualified Network.WebSockets as WS
 import System.Random (randomIO)
@@ -86,8 +96,8 @@ instance (MakesValue user, MakesValue conn, MakesValue client) => ToWSConnect (u
 
 connect :: HasCallStack => WSConnect -> App WebSocket
 connect wsConnect = do
-  nchan <- newTChanIO
-  latch <- newEmptyMVar
+  nchan <- liftIO newTChanIO
+  latch <- liftIO newEmptyMVar
   wsapp <- run wsConnect (clientApp nchan latch)
   pure $ WebSocket nchan latch wsapp
 
@@ -110,9 +120,11 @@ clientApp wsChan latch conn = do
 --   for the connection to register with Gundeck, and return the 'Async' thread.
 run :: HasCallStack => WSConnect -> WS.ClientApp () -> App (Async ())
 run wsConnect app = do
-  env <- ask
-  let HostPort caHost caPort = serviceHostPort env.serviceMap Cannon
-  latch <- newEmptyMVar
+  domain <- ownDomain
+  serviceMap <- getServiceMap domain
+
+  let HostPort caHost caPort = serviceHostPort serviceMap Cannon
+  latch <- liftIO newEmptyMVar
 
   connId <- case wsConnect.conn of
     Just c -> pure c
@@ -146,13 +158,13 @@ run wsConnect app = do
   let waitForRegistry :: HasCallStack => Int -> App ()
       waitForRegistry (0 :: Int) = failApp "Cannon: failed to register presence"
       waitForRegistry n = do
-        request <- baseRequest Cannon Unversioned ("/i/presences/" <> wsConnect.user <> "/" <> connId)
+        request <- baseRequest ownDomain Cannon Unversioned ("/i/presences/" <> wsConnect.user <> "/" <> connId)
         response <- submit "HEAD" request
         unless (status response == 200) $ do
-          threadDelay $ 100 * 1000
+          liftIO $ threadDelay $ 100 * 1000
           waitForRegistry (n - 1)
 
-  takeMVar latch
+  liftIO $ takeMVar latch
   stat <- liftIO $ poll wsapp
   case stat of
     Just (Left ex) -> liftIO $ throwIO ex
@@ -202,7 +214,7 @@ prettyAwaitResult r = do
         )
 
 printAwaitResult :: AwaitResult -> App ()
-printAwaitResult = prettyAwaitResult >=> putStrLn
+printAwaitResult = prettyAwaitResult >=> liftIO . putStrLn
 
 awaitAnyEvent :: MonadIO m => Int -> WebSocket -> m (Maybe Value)
 awaitAnyEvent tSecs = liftIO . timeout (tSecs * 1000 * 1000) . atomically . readTChan . wsChan

@@ -48,7 +48,7 @@ data:
       host: gundeck
       port: 8080
 
-    {{- if .enableFederator }}
+    {{- if .enableFederation }}
     # TODO remove this
     federator:
       host: federator
@@ -57,6 +57,8 @@ data:
     federatorInternal:
       host: federator
       port: 8080
+    rabbitmq:
+{{ toYaml .rabbitmq | indent 6}}
     {{- end }}
 
     {{- with .aws }}

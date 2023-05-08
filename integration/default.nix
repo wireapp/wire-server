@@ -20,7 +20,6 @@
 , gitignoreSource
 , http-client
 , http-types
-, imports
 , lib
 , mtl
 , network
@@ -32,10 +31,11 @@
 , retry
 , scientific
 , split
+, stm
 , string-conversions
 , tagged
-, tasty
 , text
+, time
 , transformers
 , unliftio
 , websockets
@@ -59,11 +59,11 @@ mkDerivation {
     case-insensitive
     containers
     data-default
+    directory
     exceptions
     filepath
     http-client
     http-types
-    imports
     mtl
     network
     network-uri
@@ -74,10 +74,11 @@ mkDerivation {
     retry
     scientific
     split
+    stm
     string-conversions
     tagged
-    tasty
     text
+    time
     transformers
     unliftio
     websockets

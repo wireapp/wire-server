@@ -37,6 +37,7 @@
 , text
 , time
 , transformers
+, transitive-anns
 , types-common
 , uuid
 , wai-utilities
@@ -74,6 +75,7 @@ mkDerivation {
     text
     time
     transformers
+    transitive-anns
     types-common
     wai-utilities
     wire-api

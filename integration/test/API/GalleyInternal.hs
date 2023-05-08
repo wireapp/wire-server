@@ -1,14 +1,15 @@
 module API.GalleyInternal where
 
-import Imports
+import GHC.Stack
 import Testlib.Prelude
 
 putTeamMember :: (HasCallStack, MakesValue user, MakesValue team) => user -> team -> Int -> App Response
 putTeamMember user team perms = do
-  uid <- asString user
+  uid <- objId user
   tid <- asString team
   req <-
     baseRequest
+      ownDomain
       Galley
       Unversioned
       ("/i/teams/" <> tid <> "/members")
@@ -30,5 +31,5 @@ putTeamMember user team perms = do
 
 getTeamFeature :: HasCallStack => String -> String -> App Response
 getTeamFeature featureName tid = do
-  req <- baseRequest Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
+  req <- baseRequest ownDomain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
   submit "GET" $ req
