@@ -139,26 +139,30 @@ runFederator :: TVar Env -> Sem AllEffects Wai.Response -> Codensity IO Wai.Resp
 runFederator tvar =
   runM
     . runEmbedded @IO @(Codensity IO) liftIO
-    . f tvar (\env -> loggerToTinyLogReqId (view requestId env) (view applog env))
+    . withEnv tvar (\env -> loggerToTinyLogReqId (view requestId env) (view applog env))
     . runWaiErrors
       @'[ ValidationError,
           RemoteError,
           ServerError,
           DiscoveryFailure
         ]
-    . f tvar runInputConst
-    . f tvar (\env -> runInputSem (embed @IO (readIORef (view http2Manager env))))
-    . f tvar (runInputConst . view runSettings)
+    . withEnv tvar runInputConst
+    . withEnv tvar (\env -> runInputSem (embed @IO (readIORef (view http2Manager env))))
+    . withEnv tvar (runInputConst . view runSettings)
     . interpretServiceHTTP
-    . f tvar (runDNSLookupWithResolver . view dnsResolver)
+    . withEnv tvar (runDNSLookupWithResolver . view dnsResolver)
     . runFederatorDiscovery
     . interpretRemote
 
-f ::
+withEnv ::
+  forall r1 r2.
+  Member (Embed IO) r2 =>
   TVar Env ->
   (Env -> Sem r1 Wai.Response -> Sem r2 Wai.Response) ->
   (Sem r1 Wai.Response -> Sem r2 Wai.Response)
-f = undefined
+withEnv tvar action cont = do
+  env <- embed @IO (liftIO (readTVarIO tvar))
+  action env cont
 
 streamingResponseToWai :: StreamingResponse -> Wai.Response
 streamingResponseToWai resp =
