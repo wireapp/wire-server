@@ -295,6 +295,7 @@ mkDerivation {
     attoparsec
     base
     base16-bytestring
+    base64-bytestring
     bilge
     bloodhound
     brig-types

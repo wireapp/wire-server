@@ -84,6 +84,12 @@ spec:
     - name: INTEGRATION_FEDERATION_TESTS
       value: "1"
     {{- end }}
+    {{- if .Values.config.enableFederation }}
+    - name: RABBITMQ_USERNAME
+      value: "guest"
+    - name: RABBITMQ_PASSWORD
+      value: "guest"
+    {{- end }}
     resources:
       requests:
         memory: "512Mi"

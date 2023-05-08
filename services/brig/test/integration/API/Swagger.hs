@@ -21,30 +21,46 @@ import Bilge
 import Brig.Options
 import Control.Lens
 import Data.Aeson.Lens
+import Data.ByteString.Conversion (toByteString')
 import Data.String.Conversions
 import Imports
+import Servant.API (toQueryParam)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
+import Wire.API.Routes.Version (Version)
 
 tests :: Manager -> Opts -> Brig -> TestTree
 tests p _opts brigNoImplicitVersion =
-  testGroup "version" $
+  testGroup "swagger" $
     [ testGroup "public" $
-        [ test p "GET /api/swagger.json" $ testSwaggerJson brigNoImplicitVersion "",
-          test p "GET /api/swagger-ui" $ testSwaggerUI brigNoImplicitVersion "",
-          test p "GET /v2/api/swagger.json" $ testSwaggerJson brigNoImplicitVersion "/v2",
-          test p "GET /v2/api/swagger-ui" $ testSwaggerUI brigNoImplicitVersion "/v2"
-        ],
+        join
+          [ [ test p ("GET /" <> show v <> "/api/swagger.json") $ testSwaggerJson brigNoImplicitVersion (toByteString' v),
+              test p ("GET /" <> show v <> "/api/swagger-ui") $ testSwaggerUI brigNoImplicitVersion (toByteString' v)
+            ]
+            | v <- [minBound :: Version ..]
+          ],
       testGroup "internal" $
         [ test p "GET /v2/api-internal/swagger-ui/brig" $ void (get (brigNoImplicitVersion . path "/v2/api-internal/swagger-ui/brig" . expect4xx)),
           test p "GET /v2/api-internal/swagger-ui/gundeck" $ void (get (brigNoImplicitVersion . path "/v2/api-internal/swagger-ui/gundeck" . expect4xx)),
           test p "GET /v2/i/status" $ void (get (brigNoImplicitVersion . path "/v2/i/status" . expect4xx))
+        ],
+      testGroup "toc" $
+        [ test p "toc" $ do
+            forM_ ["/api/swagger-ui", "/api/swagger-ui/index.html", "/api/swagger.json"] $ \pth -> do
+              r <- get (brigNoImplicitVersion . path pth . expect2xx)
+              liftIO $ assertEqual "toc is intact" (responseBody r) (Just "<html><head></head><body><h2>please pick an api version</h2><a href=\"/v0/api/swagger-ui/\">/v0/api/swagger-ui/</a><br><a href=\"/v1/api/swagger-ui/\">/v1/api/swagger-ui/</a><br><a href=\"/v2/api/swagger-ui/\">/v2/api/swagger-ui/</a><br><a href=\"/v3/api/swagger-ui/\">/v3/api/swagger-ui/</a><br><a href=\"/v4/api/swagger-ui/\">/v4/api/swagger-ui/</a><br></body>")
+              -- are all versions listed?
+              forM_ [minBound :: Version ..] $ \v -> liftIO $ assertBool (show v) ((cs (toQueryParam v) :: String) `isInfixOf` (cs . fromJust . responseBody $ r))
+              -- FUTUREWORK: maybe test that no invalid versions are listed?  (that wouldn't
+              -- be too terrible, though, just some dead links that aren't supposed to be
+              -- there to begin with)
         ]
     ]
 
 testSwaggerJson :: Brig -> ByteString -> Http ()
 testSwaggerJson brig version = do
+  -- if you change the request paths here, make sure to change test group "toc" below to contain live links!
   r <- get (brig . path (version <> "/api/swagger.json") . expect2xx)
   liftIO $ assertBool "json body" (isJust $ ((^? _Object) <=< responseBody) r)
 

@@ -3,6 +3,7 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { gitignoreSource }: hsuper: hself: {
+  integration = hself.callPackage ../integration/default.nix { inherit gitignoreSource; };
   api-bot = hself.callPackage ../libs/api-bot/default.nix { inherit gitignoreSource; };
   api-client = hself.callPackage ../libs/api-client/default.nix { inherit gitignoreSource; };
   bilge = hself.callPackage ../libs/bilge/default.nix { inherit gitignoreSource; };

@@ -130,7 +130,19 @@ spec:
           - name: NO_PROXY
             value: {{ join "," .noProxyList | quote }}
           {{- end }}
-          {{- end }} 
+          {{- end }}
+          {{- if .Values.config.enableFederation }}
+          - name: RABBITMQ_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: brig
+                key: rabbitmqUsername
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: brig
+                key: rabbitmqPassword
+          {{- end }}
           ports:
             - containerPort: {{ .Values.service.internalPort }}
           startupProbe:

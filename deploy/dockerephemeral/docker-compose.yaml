@@ -202,8 +202,8 @@ services:
     container_name: rabbitmq
     image: rabbitmq:3-management-alpine
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=alpaca-grapefruit
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USERNAME}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
     ports:
       - '127.0.0.1:5672:5672'
       - '127.0.0.1:15672:15672'
