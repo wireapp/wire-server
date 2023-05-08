@@ -21,20 +21,15 @@
 module Federator.Options where
 
 import Data.Aeson
-import Data.Domain (Domain ())
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 
-newtype AllowedDomains = AllowedDomains {allowedDomains :: [Domain]}
-  deriving (Eq, Show, Generic)
-  deriving newtype (FromJSON, ToJSON)
-
 data FederationStrategy
   = -- | This backend allows federating with any other Wire-Server backend
     AllowAll
-  | -- | Any backend explicitly configured in a FederationAllowList
-    AllowList AllowedDomains
+  | -- | Any backend explicitly configured in table `brig.federation_remotes`.
+    AllowList
   deriving (Eq, Show, Generic)
 
 instance ToJSON FederationStrategy where
@@ -42,19 +37,21 @@ instance ToJSON FederationStrategy where
     object
       [ "allowAll" .= object []
       ]
-  toJSON (AllowList domains) =
+  toJSON AllowList =
     object
-      [ "allowedDomains" .= domains
+      [ "allowedDomains" .= object []
       ]
 
+-- | This parser is a bit odd: for historical reasons, we support a list of sub-items (for
+-- allowlist), but we don't keep that any more.
 instance FromJSON FederationStrategy where
   parseJSON = withObject "FederationStrategy" $ \o -> do
     -- Only inspect field content once we committed to one, for better error messages.
     allowAll :: Maybe Value <- o .:! "allowAll"
     allowList :: Maybe Value <- o .:! "allowedDomains"
     case (allowAll, allowList) of
-      (Just _, Nothing) -> pure AllowAll -- accept any content
-      (Nothing, Just l) -> AllowList <$> parseJSON l
+      (Just _, Nothing) -> pure AllowAll
+      (Nothing, Just _) -> pure AllowList
       _ -> fail "invalid FederationStrategy: expected either allowAll or allowedDomains"
 
 -- | Options that persist as runtime settings.

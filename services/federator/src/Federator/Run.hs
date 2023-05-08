@@ -36,7 +36,7 @@ where
 
 import Control.Concurrent.Async
 import Control.Exception (bracket)
-import Control.Lens ((%~), (^.))
+import Control.Lens ((.~), (^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Text
@@ -65,26 +65,27 @@ import qualified Wire.Network.DNS.Helper as DNS
 -- FUTUREWORK(federation): Add metrics and status endpoints
 run :: Opts -> IO ()
 run opts = do
+  manager <- newManager defaultManagerSettings
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
-  DNS.withCachingResolver resolvConf $ \res ->
-    bracket (newEnv opts res) closeEnv $ \env -> do
       -- Build a new TVar holding the state we want for the initial environment.
       -- This needs to contact Brig before accepting other requests
-      manager <- newManager defaultManagerSettings
-      let Endpoint host port = brig opts
-          baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
-          clientEnv = ClientEnv manager baseUrl Nothing defaultMakeClientRequest
-          -- Loop the request until we get an answer. This is helpful during integration
-          -- tests where services are being brought up in parallel.
-          getInitialFedDomains = do
-            runClientM getFedRemotes clientEnv >>= \case
-              Right s -> pure s
-              Left e -> do
-                print $ "Could not retrieve the latest list of federation domains from Brig: " <> show e
-                threadDelay $ domainUpdateInterval opts
-                getInitialFedDomains
-      fedStrat <- getInitialFedDomains
-      tEnv <- newTVarIO $ updateFedStrat fedStrat env
+      Endpoint host port = brig opts
+      baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
+      clientEnv = ClientEnv manager baseUrl Nothing defaultMakeClientRequest
+      getInitialFedDomains = do
+        runClientM getFedRemotes clientEnv >>= \case
+          Right s -> pure s
+          Left e -> do
+            print $ "Could not retrieve the latest list of federation domains from Brig: " <> show e
+            threadDelay $ domainUpdateInterval opts
+            getInitialFedDomains
+  okRemoteDomains <- (AllowedDomains . fmap domain . fromFederationDomainConfigs) <$> getInitialFedDomains
+
+  DNS.withCachingResolver resolvConf $ \res ->
+    bracket (newEnv opts res okRemoteDomains) closeEnv $ \env -> do
+      -- Loop the request until we get an answer. This is helpful during integration
+      -- tests where services are being brought up in parallel.
+      tEnv <- newTVarIO env
       let callback :: FederationDomainConfigs -> IO ()
           callback = atomically . modifyTVar tEnv . updateFedStrat
       -- We need a watcher/listener for updating this TVar to flow values through to the handlers.
@@ -97,7 +98,7 @@ run opts = do
         void $ waitAnyCancel [envUpdateThread, internalServerThread, externalServerThread]
   where
     updateFedStrat :: FederationDomainConfigs -> Env -> Env
-    updateFedStrat fedDomConfigs = Federator.Env.runSettings %~ \s -> s {federationStrategy = AllowList $ AllowedDomains $ domain <$> fromFederationDomainConfigs fedDomConfigs}
+    updateFedStrat fedDomConfigs = Federator.Env.allowedRemoteDomains .~ AllowedDomains (domain <$> fromFederationDomainConfigs fedDomConfigs)
 
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort
@@ -128,8 +129,8 @@ run opts = do
 -------------------------------------------------------------------------------
 -- Environment
 
-newEnv :: Opts -> DNS.Resolver -> IO Env
-newEnv o _dnsResolver = do
+newEnv :: Opts -> DNS.Resolver -> AllowedDomains -> IO Env
+newEnv o _dnsResolver _allowedRemoteDomains = do
   _metrics <- Metrics.metrics
   _applog <- LogExt.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def

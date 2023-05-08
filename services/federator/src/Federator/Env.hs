@@ -23,6 +23,8 @@ module Federator.Env where
 
 import Bilge (RequestId)
 import Control.Lens (makeLenses)
+import Data.Aeson (FromJSON, ToJSON)
+import Data.Domain (Domain ())
 import Data.Metrics (Metrics)
 import Federator.Options (RunSettings)
 import HTTP2.Client.Manager
@@ -34,12 +36,17 @@ import qualified System.Logger.Class as LC
 import Util.Options
 import Wire.API.Federation.Component
 
+newtype AllowedDomains = AllowedDomains {allowedDomains :: [Domain]}
+  deriving (Eq, Show, Generic)
+  deriving newtype (FromJSON, ToJSON)
+
 data Env = Env
   { _metrics :: Metrics,
     _applog :: LC.Logger,
     _requestId :: RequestId,
     _dnsResolver :: Resolver,
     _runSettings :: RunSettings,
+    _allowedRemoteDomains :: AllowedDomains,
     _service :: Component -> Endpoint,
     _httpManager :: HTTP.Manager,
     _http2Manager :: IORef Http2Manager
