@@ -475,6 +475,11 @@ crudFederationRemotes opts brig = do
   res2 <- getFederationRemotes brig
   liftIO $ assertEqual "should return config values and good.example.com" (nub $ sort $ cfgRemotes <> [remote1]) (sort res2)
 
+  -- idempotency
+  addFederationRemote brig remote1
+  res2' <- getFederationRemotes brig
+  liftIO $ assertEqual "should return config values and good.example.com" (nub $ sort $ cfgRemotes <> [remote1]) (sort res2')
+  
   let remote2 = FederationDomainConfig (Domain "evil.example.com") ExactHandleSearch
   addFederationRemote brig remote2
   res3 <- getFederationRemotes brig
