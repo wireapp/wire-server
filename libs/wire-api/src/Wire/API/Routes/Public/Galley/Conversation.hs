@@ -1260,9 +1260,5 @@ type ConversationAPI =
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "protocol"
                :> ReqBody '[JSON] ProtocolUpdate
-               :> MultiVerb
-                    'PUT
-                    '[JSON]
-                    '[RespondEmpty 200 "Update successful"]
-                    ()
+               :> MultiVerb 'PUT '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
            )

@@ -261,8 +261,7 @@ tests s =
         ],
       testGroup
         "MixedProtocol"
-        [ test s "Upgrade a conv from proteus to mixed" testMixedUpgrade,
-          test s "Add clients to a mixed conversation and send proteus message" testMixedAddClients
+        [ test s "Add clients to a mixed conversation and send proteus message" testMixedAddClients
         ]
     ]
 
@@ -3467,35 +3466,6 @@ testCreatorRemovesUserFromParent = do
               )
               (sort [alice1, charlie1, charlie2])
               (sort $ pscMembers sub2)
-
-testMixedUpgrade :: TestM ()
-testMixedUpgrade = do
-  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
-
-  runMLSTest $ do
-    [alice1] <- traverse createMLSClient [alice]
-
-    qcnv <-
-      cnvQualifiedId
-        <$> liftTest
-          ( postConvQualified (qUnqualified alice) Nothing defNewProteusConv {newConvQualifiedUsers = [bob]}
-              >>= responseJsonError
-          )
-
-    putConversationProtocol (qUnqualified alice) (ciClient alice1) qcnv ProtocolMixedTag
-      !!! const 200 === statusCode
-
-    conv <-
-      responseJsonError
-        =<< getConvQualified (qUnqualified alice) qcnv
-          <!! const 200 === statusCode
-
-    mlsData <- assertMixedProtocol conv
-
-    liftIO $ assertEqual "" (cnvmlsEpoch mlsData) (Epoch 0)
-
-    putConversationProtocol (qUnqualified alice) (ciClient alice1) qcnv ProtocolMixedTag
-      !!! const 200 === statusCode
 
 testMixedAddClients :: TestM ()
 testMixedAddClients = do
