@@ -158,34 +158,52 @@ search request from *Alice*, one of its clients.
 
 ## Configuring Remote Connections
 
-Up to release 4.36.0, the config file statically contains information
-about the remote connections in the configs of all services that need
-to know.  **TODO: elaborate.  also, this has probably been documented
-elsewhere?  maybe move this section there, or at least link?**
+Up to the release containing
+[PR#3260](https://github.com/wireapp/wire-server/pull/3260), the
+config file statically contains information about the remote
+connections in the configs of all services that need to know.  Since
+then, there is an internal REST API for adding remote wire-server
+instances:
 
-Since release 4.36.0, there is an internal REST API for adding remote
-wire-server instances:
+* [`GET`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_federation_remotes)
+* [`POST`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_federation_remotes)
+* [`DELETE`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/delete_i_federation_remotes__domain_)
 
-* [get](TODO: swagger urls...)
-* [post](TODO: swagger urls...)
-* [delete](TODO: swagger urls...)
+Changing the configuration of existing edges via `PUT` is not
+implemented at the moment, if you need to do that, delete the
+connection and add it again.
 
-Changing the configuration of existing edges is not implemented at the
-moment.
+If you delete a connection, all users from that remote will be removed
+from local conversations, and all conversations hosted by that remote
+will be removed from the local backend.  Connections between local and
+remote users that are removed will be archived, and can be
+re-established should you decide to add the same backend later.
 
-See /developer/developer/federation-design-aspects.html for details
 See {ref}`configuring-remote-connections-dev-perspective` for the
 developer's point of view on this topic.
 
 ### Transitioning from config file to database state
 
-As of release 4.36.0, federation config file info about remote
-backends are ignored, and brig info is used instead.  For a transition
-period, brig reports with the union of its config file data and
-cassandra data.  It is not allowed to dynamically delete a remote
-backend that is contained in the config file.
+As of the release containing
+[PR#3260](https://github.com/wireapp/wire-server/pull/3260),
+[`federationStrategy`](https://github.com/wireapp/wire-server/blob/4a4ba8dd54586e1d85fe4af609990d79ae3d8cc2/charts/federator/values.yaml#L44-L45)
+in the federation config file is ignored, and brig's cassandra is used
+instead.  Furthermore, for a transition period,
+[`setFederationDomainConfigs`](https://github.com/wireapp/wire-server/blob/4a4ba8dd54586e1d85fe4af609990d79ae3d8cc2/charts/brig/templates/configmap.yaml#L250-L252)
+from the brig config file also remains being honored.  Attempting to
+delete entries that occur in the config file will trigger an error;
+delete from the config file first, then from cassandra.
 
-In the future, wire-server will stop honoring the config file data at
-all, and solely rely on the cassandra data.  From that point onward,
-you can delete any connection.  Watch out for the release notes for
-when this happens.
+In the future, wire-server will stop honoring the config file data,
+and solely rely on brig's cassandra.  From that point onward, you can
+delete any connection, whether listed in the config file or not.
+Watch out for the release notes to learn when this will happen.
+(Something like *"[Federation only] support for remote configuration
+in config file is discontinued.  Before upgrading to this release,
+upgrade to the release containing
+[PR#3260](https://github.com/wireapp/wire-server/pull/3260) first.
+After upgrading to this release, `setFederationDomainConfigs` in brig's
+config file will be ignored, and you should remove it at your
+convenience.  See
+[docs](https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections)
+for details."*)

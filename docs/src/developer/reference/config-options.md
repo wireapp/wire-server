@@ -618,6 +618,11 @@ for details.**
 
 #### Restrict user search
 
+TODO: deprecate this, also rename this section.  it's about federation now.
+
+TODO: should we consider the federation strategy from federator in the
+union returned by brig for a transition period as well?
+
 The lookup and search of users on a wire instance can be configured. This can be done per federated domain.
 
 ```yaml

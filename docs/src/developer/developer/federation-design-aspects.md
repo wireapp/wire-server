@@ -13,18 +13,14 @@ end-points).
 
 This secion elaborates on the implementation.  See
 {ref}`configuring-remote-connections` for the administrator's point of
-view.
+view.  Go read that section now!
 
 The state is persistent in cassandra table `brig.federation_remotes`
 brig itself for performance keeps a `TVar` that it updates at regular
 intervals.  Plus provides the contents of the `TVar` via an internal
-[CRUD API](TODO: swagger docs).
+CRUD API (see {ref}`configuring-remote-connections` for the links).
 
-Update intervals could be made configurable in config files, but we
-chose to hard-wire this for now: values are [TODO].
+Update intervals are currently hard-wired into the code.
 
-Transition from config file to cassandra table: we consider the union
-for now, and don't allow removing remote hosts that are (also) given
-in the config file.  A future release will stop honoring the config
-file altogether.  By then you'll have to be done getting the data into
-cassandra.
+Introduced in
+[PR#3260](https://github.com/wireapp/wire-server/pull/3260).

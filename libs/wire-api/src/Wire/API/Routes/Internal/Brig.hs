@@ -407,24 +407,35 @@ type AuthAPI =
 type FederationRemotesAPI =
   Named
     "get-federation-remotes"
-    ( "federation"
+    ( Description FederationRemotesAPIDescription
+        :> "federation"
         :> "remotes"
         :> Get '[JSON] FederationDomainConfigs
     )
     :<|> Named
            "add-federation-remotes"
-           ( "federation"
+           ( Description FederationRemotesAPIDescription
+               :> "federation"
                :> "remotes"
                :> ReqBody '[JSON] FederationDomainConfig
                :> Post '[JSON] ()
            )
     :<|> Named
            "delete-federation-remotes"
-           ( "federation"
+           ( Description FederationRemotesAPIDeleteDescription
+               :> "federation"
                :> "remotes"
                :> Capture "domain" Domain
                :> Delete '[JSON] ()
            )
+
+type FederationRemotesAPIDescription =
+  "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background."
+
+type FederationRemotesAPIDeleteDescription =
+  "WARNING!  If you remove a remote connection, all users from that remote will be removed from local conversations, and all \
+  \group conversations hosted by that remote will be removed from the local backend.  This cannot be reverted!  See \
+  \https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background."
 
 swaggerDoc :: Swagger
 swaggerDoc =
