@@ -6,7 +6,6 @@ import Data.Aeson
 import Data.Default
 import Data.Function
 import GHC.Stack
-import Testlib.App
 import Testlib.Prelude
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> Internal.CreateUser -> App Value
