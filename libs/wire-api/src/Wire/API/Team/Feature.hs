@@ -35,6 +35,8 @@ module Wire.API.Team.Feature
     setStatus,
     setLockStatus,
     setConfig,
+    setConfig',
+    setTTL,
     setWsTTL,
     WithStatusPatch,
     wsPatch,
@@ -76,6 +78,7 @@ module Wire.API.Team.Feature
     FileSharingConfig (..),
     MLSConfig (..),
     OutlookCalIntegrationConfig (..),
+    MlsE2EIdConfig (..),
     AllFeatureConfigs (..),
     unImplicitLockStatus,
     ImplicitLockStatus (..),
@@ -93,6 +96,7 @@ import Data.Domain (Domain)
 import Data.Either.Extra (maybeToEither)
 import Data.Id
 import Data.Kind
+import Data.Misc (HttpsUrl)
 import Data.Proxy
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
@@ -101,6 +105,7 @@ import qualified Data.Swagger as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
+import Data.Time (NominalDiffTime)
 import Deriving.Aeson
 import GHC.TypeLits
 import Imports
@@ -138,10 +143,9 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- because the lockstatus is checked in 'setFeatureStatus' before which is the public API for setting the feature status.
 --
 -- 6. Add public routes to Wire.API.Routes.Public.Galley.Feature: 'FeatureStatusGet',
--- 'FeatureStatusPut' (optional) and by by user: 'FeatureConfigGet'. Then
--- implement them in Galley.API.Public.Feature.
+-- 'FeatureStatusPut' (optional). Then implement them in Galley.API.Public.Feature.
 --
--- 7. Add internal routes in Galley.API.Internal
+-- 7. Add internal routes in Wire.API.Routes.Internal.Galley
 --
 -- 8. If the feature should be configurable via Stern add routes to Stern.API.
 -- Manually check that the swagger looks okay and works.
@@ -219,10 +223,16 @@ setLockStatus :: LockStatus -> WithStatus cfg -> WithStatus cfg
 setLockStatus ls (WithStatusBase s _ c ttl) = WithStatusBase s (Identity ls) c ttl
 
 setConfig :: cfg -> WithStatus cfg -> WithStatus cfg
-setConfig c (WithStatusBase s ls _ ttl) = WithStatusBase s ls (Identity c) ttl
+setConfig = setConfig'
+
+setConfig' :: forall (m :: Type -> Type) (cfg :: Type). Applicative m => cfg -> WithStatusBase m cfg -> WithStatusBase m cfg
+setConfig' c (WithStatusBase s ls _ ttl) = WithStatusBase s ls (pure c) ttl
+
+setTTL :: forall (m :: Type -> Type) (cfg :: Type). Applicative m => FeatureTTL -> WithStatusBase m cfg -> WithStatusBase m cfg
+setTTL ttl (WithStatusBase s ls c _) = WithStatusBase s ls c (pure ttl)
 
 setWsTTL :: FeatureTTL -> WithStatus cfg -> WithStatus cfg
-setWsTTL ttl (WithStatusBase s ls c _) = WithStatusBase s ls c (Identity ttl)
+setWsTTL = setTTL
 
 type WithStatus (cfg :: Type) = WithStatusBase Identity cfg
 
@@ -469,6 +479,8 @@ instance ToSchema LockStatus where
           element "unlocked" LockStatusUnlocked
         ]
 
+instance S.ToParamSchema LockStatus
+
 instance ToByteString LockStatus where
   builder LockStatusLocked = "locked"
   builder LockStatusUnlocked = "unlocked"
@@ -689,6 +701,7 @@ instance FeatureTrivialConfig SndFactorPasswordChallengeConfig where
 data SearchVisibilityInboundConfig = SearchVisibilityInboundConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SearchVisibilityInboundConfig)
+  deriving (S.ToSchema) via Schema SearchVisibilityInboundConfig
 
 instance IsFeatureConfig SearchVisibilityInboundConfig where
   type FeatureSymbol SearchVisibilityInboundConfig = "searchVisibilityInbound"
@@ -877,6 +890,57 @@ instance FeatureTrivialConfig OutlookCalIntegrationConfig where
   trivialConfig = OutlookCalIntegrationConfig
 
 ----------------------------------------------------------------------
+-- MlsE2EId
+
+data MlsE2EIdConfig = MlsE2EIdConfig
+  { verificationExpiration :: NominalDiffTime,
+    acmeDiscoveryUrl :: Maybe HttpsUrl
+  }
+  deriving stock (Eq, Show, Generic)
+
+instance Arbitrary MlsE2EIdConfig where
+  arbitrary =
+    MlsE2EIdConfig
+      <$> (fromIntegral <$> (arbitrary @Word32))
+      <*> arbitrary
+
+instance ToSchema MlsE2EIdConfig where
+  schema :: ValueSchema NamedSwaggerDoc MlsE2EIdConfig
+  schema =
+    object "MlsE2EIdConfig" $
+      MlsE2EIdConfig
+        <$> (toSeconds . verificationExpiration) .= fieldWithDocModifier "verificationExpiration" veDesc (fromSeconds <$> schema)
+        <*> acmeDiscoveryUrl .= maybe_ (optField "acmeDiscoveryUrl" schema)
+    where
+      fromSeconds :: Int -> NominalDiffTime
+      fromSeconds = fromIntegral
+
+      toSeconds :: NominalDiffTime -> Int
+      toSeconds = truncate
+
+      veDesc :: NamedSwaggerDoc -> NamedSwaggerDoc
+      veDesc =
+        description
+          ?~ "When a client first tries to fetch or renew a certificate, \
+             \they may need to login to an identity provider (IdP) depending on their IdP domain authentication policy. \
+             \The user may have a grace period during which they can “snooze” this login. \
+             \The duration of this grace period (in seconds) is set in the `verificationDuration` parameter, \
+             \which is enforced separately by each client. \
+             \After the grace period has expired, the client will not allow the user to use the application \
+             \until they have logged to refresh the certificate. The default value is 1 day (86400s). \
+             \The client enrolls using the Automatic Certificate Management Environment (ACME) protocol. \
+             \The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for \
+             \this team. It is of the form \"https://acme.{backendDomain}/acme/{provisionerName}/discovery\". For example: \
+             \`https://acme.example.com/acme/provisioner1/discovery`."
+
+instance IsFeatureConfig MlsE2EIdConfig where
+  type FeatureSymbol MlsE2EIdConfig = "mlsE2EId"
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked defValue FeatureTTLUnlimited
+    where
+      defValue = MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24)) Nothing
+  objectSchema = field "config" schema
+
+----------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -951,7 +1015,8 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
     afcMLS :: WithStatus MLSConfig,
     afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig,
-    afcOutlookCalIntegration :: WithStatus OutlookCalIntegrationConfig
+    afcOutlookCalIntegration :: WithStatus OutlookCalIntegrationConfig,
+    afcMlsE2EId :: WithStatus MlsE2EIdConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -976,6 +1041,7 @@ instance ToSchema AllFeatureConfigs where
         <*> afcMLS .= featureField
         <*> afcExposeInvitationURLsToTeamAdmin .= featureField
         <*> afcOutlookCalIntegration .= featureField
+        <*> afcMlsE2EId .= featureField
     where
       featureField ::
         forall cfg.
@@ -987,6 +1053,7 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

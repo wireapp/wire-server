@@ -1,4 +1,3 @@
-{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -70,7 +69,6 @@ import Polysemy.Error (Error, fromExceptionSem, runError, throw, try)
 import Polysemy.Input (Input)
 import qualified SAML2.WebSSO as SAML
 import Servant
-import Servant.API.Generic
 import Servant.Server.Generic (AsServerT)
 import Spar.App (sparToServerErrorWithLogging, throwSparSem)
 import Spar.Error
@@ -111,25 +109,26 @@ configuration = Scim.Meta.empty
 
 apiScim ::
   forall r.
-  Members
-    '[ Random,
-       Input Opts,
-       Logger (Msg -> Msg),
-       Logger String,
-       Now,
-       Error SparError,
-       GalleyAccess,
-       BrigAccess,
-       ScimExternalIdStore,
-       ScimUserTimesStore,
-       ScimTokenStore,
-       Reporter,
-       IdPConfigStore,
-       -- TODO(sandy): Only necessary for 'fromExceptionSem'. But can these errors even happen?
-       Final IO,
-       SAMLUserStore
-     ]
-    r =>
+  ( Member Random r,
+    Member (Input Opts) r,
+    Member (Logger (Msg -> Msg)) r,
+    Member (Logger String) r,
+    Member Now r,
+    Member (Error SparError) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimExternalIdStore r,
+    Member ScimUserTimesStore r,
+    Member ScimTokenStore r,
+    Member Reporter r,
+    Member IdPConfigStore r,
+    Member
+      ( -- TODO(sandy): Only necessary for 'fromExceptionSem'. But can these errors even happen?
+        Final IO
+      )
+      r,
+    Member SAMLUserStore r
+  ) =>
   ServerT APIScim (Sem r)
 apiScim =
   hoistScim (toServant (server configuration))

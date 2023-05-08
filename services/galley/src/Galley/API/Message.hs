@@ -31,6 +31,7 @@ module Galley.API.Message
     QualifiedMismatch (..),
     mkQualifiedUserClients,
     clientMismatchStrategyApply,
+    collectFailedToSend,
   )
 where
 
@@ -77,6 +78,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
@@ -214,21 +216,23 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
       )
 
 getRemoteClients ::
-  (Member FederatorAccess r, CallsFed 'Brig "get-user-clients") =>
+  (Member FederatorAccess r) =>
   [RemoteMember] ->
-  Sem r (Map (Domain, UserId) (Set ClientId))
+  Sem r [Either (Remote [UserId], FederationError) (Map (Domain, UserId) (Set ClientId))]
 getRemoteClients remoteMembers =
   -- concatenating maps is correct here, because their sets of keys are disjoint
-  mconcat . map tUnqualified
-    <$> runFederatedConcurrently (map rmId remoteMembers) getRemoteClientsFromDomain
+  -- Use runFederatedConcurrentlyEither so we can catch federation errors and report to clients
+  -- which domains and users aren't contactable at the moment.
+  tUnqualified <$$$> runFederatedConcurrentlyEither (map rmId remoteMembers) getRemoteClientsFromDomain
   where
+    getRemoteClientsFromDomain :: Remote [UserId] -> FederatorClient 'Brig (Map (Domain, UserId) (Set ClientId))
     getRemoteClientsFromDomain (tUntagged -> Qualified uids domain) =
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap
         <$> fedClient @'Brig @"get-user-clients" (GetUserClients uids)
 
 -- FUTUREWORK: sender should be Local UserId
 postRemoteOtrMessage ::
-  (Members '[FederatorAccess] r, CallsFed 'Galley "send-message") =>
+  (Member FederatorAccess r) =>
   Qualified UserId ->
   Remote ConvId ->
   ByteString ->
@@ -244,19 +248,17 @@ postRemoteOtrMessage sender conv rawMsg = do
   msResponse <$> runFederated conv rpc
 
 postBroadcast ::
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       ErrorS 'TeamNotFound,
-       ErrorS 'NonBindingTeam,
-       ErrorS 'BroadcastLimitExceeded,
-       GundeckAccess,
-       Input Opts,
-       Input UTCTime,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member ClientStore r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'NonBindingTeam) r,
+    Member (ErrorS 'BroadcastLimitExceeded) r,
+    Member GundeckAccess r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   Maybe ConnId ->
   QualifiedNewOtrMessage ->
@@ -334,7 +336,9 @@ postBroadcast lusr con msg = runError $ do
   pure otrResult {mssFailedToSend = failedToSend}
   where
     maybeFetchLimitedTeamMemberList ::
-      Members '[ErrorS 'BroadcastLimitExceeded, TeamStore] r =>
+      ( Member (ErrorS 'BroadcastLimitExceeded) r,
+        Member TeamStore r
+      ) =>
       Int ->
       TeamId ->
       [UserId] ->
@@ -347,7 +351,9 @@ postBroadcast lusr con msg = runError $ do
         throwS @'BroadcastLimitExceeded
       selectTeamMembers tid localUserIdsToLookup
     maybeFetchAllMembersInTeam ::
-      Members '[ErrorS 'BroadcastLimitExceeded, TeamStore] r =>
+      ( Member (ErrorS 'BroadcastLimitExceeded) r,
+        Member TeamStore r
+      ) =>
       TeamId ->
       Sem r [TeamMember]
     maybeFetchAllMembersInTeam tid = do
@@ -357,23 +363,16 @@ postBroadcast lusr con msg = runError $ do
       pure (mems ^. teamMembers)
 
 postQualifiedOtrMessage ::
-  ( Members
-      '[ BrigAccess,
-         ClientStore,
-         ConversationStore,
-         FederatorAccess,
-         GundeckAccess,
-         ExternalAccess,
-         Input (Local ()), -- FUTUREWORK: remove this
-         Input Opts,
-         Input UTCTime,
-         MemberStore,
-         TeamStore,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "on-message-sent",
-    CallsFed 'Brig "get-user-clients"
+  ( Member BrigAccess r,
+    Member ClientStore r,
+    Member ConversationStore r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member TeamStore r,
+    Member P.TinyLog r
   ) =>
   UserType ->
   Qualified UserId ->
@@ -427,8 +426,19 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
 
       -- get remote clients
       qualifiedRemoteClients <- getRemoteClients (convRemoteMembers conv)
-      let qualifiedClients = qualifiedLocalClients <> qualifiedRemoteClients
-
+      let qualifiedClients = qualifiedLocalClients <> qualifiedRemoteClients'
+          -- concatenating maps is correct here, because their sets of keys are disjoint
+          qualifiedRemoteClients' = mconcat $ rights qualifiedRemoteClients
+          -- Collect the list of users and their domains that we weren't able to fetch clients for.
+          failedToSendFetchingClients :: QualifiedUserClients
+          failedToSendFetchingClients =
+            QualifiedUserClients . mconcat $ extractUserMap . fst <$> lefts qualifiedRemoteClients
+            where
+              extractUserMap :: Remote [UserId] -> Map Domain (Map UserId (Set ClientId))
+              extractUserMap l = Map.singleton domain $ Map.fromList $ (,mempty) <$> users
+                where
+                  domain = qDomain $ tUntagged l
+                  users = tUnqualified l
       -- check if the sender client exists (as one of the clients in the conversation)
       unless
         ( Set.member
@@ -455,7 +465,6 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
             . runError @LegalholdConflicts
             $ guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
         throw e
-
       failedToSend <-
         sendMessages @'NormalMessage
           now
@@ -466,7 +475,49 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           botMap
           (qualifiedNewOtrMetadata msg)
           validMessages
-      pure otrResult {mssFailedToSend = failedToSend}
+
+      let -- List of the clients that are initially flagged as redundant.
+          redundant' = toDomUserClient $ qualifiedUserClients $ mssRedundantClients otrResult
+          -- List of users that we couldn't fetch clients for. Used to get their "redundant"
+          -- clients for reporting as failedToSend.
+          failed' = toDomUserClient $ qualifiedUserClients failedToSendFetchingClients
+          -- failedToSendFetchingClients doesn't contain client IDs, so those need to be excluded
+          -- from the filter search. We have to focus on only the domain and user. These clients
+          -- should be listed in the failedToSend field however, as tracking these clients is an
+          -- important part of the proteus protocol.
+          predicate (d, (u, _)) = any (\(d', (u', _)) -> d == d' && u == u') failed'
+          -- Failed users/clients aren't redundant
+          (failed, redundant) = partition predicate redundant'
+      pure
+        otrResult
+          { mssFailedToSend =
+              QualifiedUserClients $
+                collectFailedToSend
+                  [ qualifiedUserClients failedToSend,
+                    qualifiedUserClients failedToSendFetchingClients,
+                    fromDomUserClient failed
+                  ],
+            mssRedundantClients = QualifiedUserClients $ fromDomUserClient redundant
+          }
+  where
+    -- Get the triples for domains, users, and clients so we can easily filter
+    -- out the values from redundant clients that should be in failed to send.
+    toDomUserClient :: Map Domain (Map UserId (Set ClientId)) -> [(Domain, (UserId, Set ClientId))]
+    toDomUserClient m = do
+      (d, m') <- Map.assocs m
+      (d,) <$> Map.assocs m'
+    -- Rebuild the map, concatenating results along the way.
+    fromDomUserClient :: [(Domain, (UserId, Set ClientId))] -> Map Domain (Map UserId (Set ClientId))
+    fromDomUserClient = foldr buildUserClientMap mempty
+      where
+        buildUserClientMap :: (Domain, (UserId, Set ClientId)) -> Map Domain (Map UserId (Set ClientId)) -> Map Domain (Map UserId (Set ClientId))
+        buildUserClientMap (d, (u, c)) m = Map.alter (pure . Map.alter (pure . Set.union c . fromMaybe mempty) u . fromMaybe mempty) d m
+
+collectFailedToSend ::
+  Foldable f =>
+  f (Map Domain (Map UserId (Set ClientId))) ->
+  Map Domain (Map UserId (Set ClientId))
+collectFailedToSend = foldr (Map.unionWith (Map.unionWith Set.union)) mempty
 
 makeUserMap :: Set UserId -> Map UserId (Set ClientId) -> Map UserId (Set ClientId)
 makeUserMap keys = (<> Map.fromSet (const mempty) keys)
@@ -476,8 +527,11 @@ makeUserMap keys = (<> Map.fromSet (const mempty) keys)
 sendMessages ::
   forall t r.
   ( t ~ 'NormalMessage,
-    Members '[GundeckAccess, ExternalAccess, FederatorAccess, P.TinyLog] r,
-    CallsFed 'Galley "on-message-sent"
+    ( Member GundeckAccess r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member P.TinyLog r
+    )
   ) =>
   UTCTime ->
   Qualified UserId ->
@@ -499,7 +553,7 @@ sendMessages now sender senderClient mconn lcnv botMap metadata messages = do
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
 
 sendBroadcastMessages ::
-  Members '[GundeckAccess, P.TinyLog] r =>
+  Member GundeckAccess r =>
   Local x ->
   UTCTime ->
   Qualified UserId ->
@@ -558,7 +612,9 @@ sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMe
 -- failure, the empty set is returned.
 sendRemoteMessages ::
   forall r x.
-  (Members '[FederatorAccess, P.TinyLog] r, CallsFed 'Galley "on-message-sent") =>
+  ( Member FederatorAccess r,
+    Member P.TinyLog r
+  ) =>
   Remote x ->
   UTCTime ->
   Qualified UserId ->

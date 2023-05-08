@@ -33,6 +33,7 @@ executable inconsistencies
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -44,6 +45,7 @@ executable inconsistencies
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -64,7 +66,7 @@ executable inconsistencies
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
-    -rtsopts -Wredundant-constraints
+    -rtsopts -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson
@@ -72,28 +74,17 @@ executable inconsistencies
     , brig
     , brig-types
     , bytestring
-    , case-insensitive
     , cassandra-util
     , conduit
-    , containers
     , extended
     , extra
-    , galley-types
-    , HsOpenSSL
-    , http-client
     , imports
-    , lens
-    , multihash
     , optparse-applicative
-    , saml2-web-sso
     , string-conversions
     , text
-    , time
     , tinylog
     , types-common
     , unliftio
-    , uri-bytestring
-    , uuid
     , wire-api
 
   default-language:   Haskell2010

@@ -55,16 +55,12 @@ import Wire.API.MLS.Welcome
 import Wire.API.Message
 
 postMLSWelcome ::
-  ( Members
-      '[ BrigAccess,
-         FederatorAccess,
-         GundeckAccess,
-         ErrorS 'MLSKeyPackageRefNotFound,
-         Input UTCTime,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "mls-welcome"
+  ( Member BrigAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (ErrorS 'MLSKeyPackageRefNotFound) r,
+    Member (Input UTCTime) r,
+    Member P.TinyLog r
   ) =>
   Local x ->
   Maybe ConnId ->
@@ -78,18 +74,14 @@ postMLSWelcome loc con wel = do
   sendRemoteWelcomes (rmRaw wel) remotes
 
 postMLSWelcomeFromLocalUser ::
-  ( Members
-      '[ BrigAccess,
-         FederatorAccess,
-         GundeckAccess,
-         ErrorS 'MLSKeyPackageRefNotFound,
-         ErrorS 'MLSNotEnabled,
-         Input UTCTime,
-         Input Env,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "mls-welcome"
+  ( Member BrigAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (ErrorS 'MLSKeyPackageRefNotFound) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (Input UTCTime) r,
+    Member (Input Env) r,
+    Member P.TinyLog r
   ) =>
   Local x ->
   ConnId ->
@@ -100,11 +92,9 @@ postMLSWelcomeFromLocalUser loc con wel = do
   postMLSWelcome loc (Just con) wel
 
 welcomeRecipients ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'MLSKeyPackageRefNotFound
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'MLSKeyPackageRefNotFound) r
+  ) =>
   Welcome ->
   Sem r [Qualified (UserId, ClientId)]
 welcomeRecipients =
@@ -116,7 +106,7 @@ welcomeRecipients =
     . welSecrets
 
 sendLocalWelcomes ::
-  Members '[GundeckAccess] r =>
+  Member GundeckAccess r =>
   Maybe ConnId ->
   UTCTime ->
   ByteString ->
@@ -135,12 +125,8 @@ sendLocalWelcomes con now rawWelcome lclients = do
        in newMessagePush lclients mempty con defMessageMetadata (u, c) e
 
 sendRemoteWelcomes ::
-  ( Members
-      '[ FederatorAccess,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "mls-welcome"
+  ( Member FederatorAccess r,
+    Member P.TinyLog r
   ) =>
   ByteString ->
   [Remote (UserId, ClientId)] ->

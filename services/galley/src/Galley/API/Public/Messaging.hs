@@ -25,7 +25,7 @@ import Wire.API.Routes.Public.Galley.Messaging
 
 messagingAPI :: API MessagingAPI GalleyEffects
 messagingAPI =
-  mkNamedAPI @"post-otr-message-unqualified" (callsFed postOtrMessageUnqualified)
+  mkNamedAPI @"post-otr-message-unqualified" (callsFed (exposeAnnotations postOtrMessageUnqualified))
     <@> mkNamedAPI @"post-otr-broadcast-unqualified" postOtrBroadcastUnqualified
-    <@> mkNamedAPI @"post-proteus-message" (callsFed postProteusMessage)
+    <@> mkNamedAPI @"post-proteus-message" (callsFed (exposeAnnotations postProteusMessage))
     <@> mkNamedAPI @"post-proteus-broadcast" postProteusBroadcast

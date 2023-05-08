@@ -34,7 +34,7 @@ data:
       host: spar
       port: 8080
 
-    {{- if .enableFederator }}
+    {{- if .enableFederation }}
     federator:
       host: federator
       port: 8080
@@ -118,6 +118,10 @@ data:
         {{- if .settings.featureFlags.outlookCalIntegration }}
         outlookCalIntegration:
           {{- toYaml .settings.featureFlags.outlookCalIntegration | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.mlsE2EId }}
+        mlsE2EId:
+          {{- toYaml .settings.featureFlags.mlsE2EId | nindent 10 }}
         {{- end }}
       {{- end }}
   {{- end }}

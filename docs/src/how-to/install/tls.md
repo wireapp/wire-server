@@ -25,7 +25,7 @@ Therefore it is not necessary to add them to openssl based configurations.
 
 ## Ingress Traffic (wire-server)
 
-The list of TLS ciphers for incoming requests is limited by default to the [following](https://github.com/wireapp/wire-server/blob/master/charts/nginx-ingress-controller/values.yaml#L7) (for general server-certificates, both for federation and client API), and can be overridden on your installation if needed.
+The list of TLS ciphers for incoming requests is limited by default to the [following](https://github.com/wireapp/wire-server/blob/master/charts/ingress-nginx-controller/values.yaml#L41-45) (for general server-certificates, both for federation and client API), and can be overridden on your installation if needed.
 
 ## Egress Traffic (wire-server/federation)
 
@@ -39,6 +39,18 @@ The list of TLS ciphers for incoming SFT requests (and metrics) are defined in a
 
 SFTD deployed via kubernetes uses `kubernetes.io/ingress` for ingress traffic, configured in [ingress.yaml](https://github.com/wireapp/wire-server/blob/develop/charts/sftd/templates/ingress.yaml).
 Kubernetes based deployments make use of the settings from {ref}`ingress-traffic`.
+
+## Coturn (kubernetes)
+
+The list of TLS ciphers for "TLS over TCP" TURN are defined in the [coturn helm chart](https://github.com/wireapp/wire-server/blob/master/charts/coturn/)
+
+```{grepinclude} ../charts/coturn/values.yaml ciphers:
+---
+lines-before: 3
+lines-after: 0
+language: yaml
+---
+```
 
 ## Restund (ansible)
 

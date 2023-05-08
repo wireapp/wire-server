@@ -6,17 +6,29 @@ NAMESPACE=${NAMESPACE:-test-integration}
 # set to 1 to disable running helm tests in parallel
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 CLEANUP_LOCAL_FILES=${CLEANUP_LOCAL_FILES:-1} # set to 0 to keep files
+UPLOAD_LOGS=${UPLOAD_LOGS:-0}
 
 echo "Running integration tests on wire-server with parallelism=${HELM_PARALLELISM} ..."
 
 CHART=wire-server
-tests=(galley cargohold gundeck federator spar brig)
+tests=(stern galley cargohold gundeck federator spar brig integration)
 
 cleanup() {
     if (( CLEANUP_LOCAL_FILES > 0 )); then
         for t in "${tests[@]}"; do
             rm -f "stat-$t"
             rm -f "logs-$t"
+        done
+    fi
+}
+
+# Copy to the concourse output (indetified by $OUTPUT_DIR) for propagation to
+# following steps.
+copyToAwsS3(){
+    if (( UPLOAD_LOGS > 0 )); then
+        for t in "${tests[@]}"; do
+            echo "Copy logs-$t to s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION.log"
+            aws s3 cp "logs-$t" "s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION.log"
         done
     fi
 }
@@ -44,10 +56,10 @@ summary() {
 mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${tests[@]}" | parallel echo "Running helm tests for {}..."
 printf '%s\n' "${tests[@]}" | parallel -P "${HELM_PARALLELISM}" \
-    helm test -n "${NAMESPACE}" "${NAMESPACE}-${CHART}" --timeout 900s --filter name="${NAMESPACE}-${CHART}-{}-integration" '> logs-{};' \
+    helm test -n "${NAMESPACE}" "${CHART}" --timeout 900s --filter name="${CHART}-{}-integration" '> logs-{};' \
     echo '$? > stat-{};' \
     echo "==== Done testing {}. ====" '};' \
-    kubectl -n "${NAMESPACE}" logs "${NAMESPACE}-${CHART}-{}-integration" '>> logs-{};'
+    kubectl -n "${NAMESPACE}" logs "${CHART}-{}-integration" '>> logs-{};'
 
 summary
 
@@ -83,6 +95,7 @@ if ((exit_code > 0)); then
     summary
 fi
 
+copyToAwsS3
 cleanup
 
 if ((exit_code > 0)); then

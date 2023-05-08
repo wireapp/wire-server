@@ -53,14 +53,13 @@ import Data.Qualified
 import Data.Range
 import qualified Data.UUID.V4 as UUID
 import Imports
-import Polysemy (Members)
+import Polysemy (Member)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import Wire.API.Connection hiding (relationWithHistory)
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
-import Wire.API.Federation.API
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
 ensureIsActivated :: Local UserId -> MaybeT (AppT r) ()
@@ -68,7 +67,7 @@ ensureIsActivated lusr = do
   active <- lift . wrapClient $ Data.isActivated (tUnqualified lusr)
   guard active
 
-ensureNotSameTeam :: Members '[GalleyProvider] r => Local UserId -> Local UserId -> (ConnectionM r) ()
+ensureNotSameTeam :: Member GalleyProvider r => Local UserId -> Local UserId -> (ConnectionM r) ()
 ensureNotSameTeam self target = do
   selfTeam <- lift $ liftSem $ GalleyProvider.getTeamId (tUnqualified self)
   targetTeam <- lift $ liftSem $ GalleyProvider.getTeamId (tUnqualified target)
@@ -76,7 +75,7 @@ ensureNotSameTeam self target = do
     throwE ConnectSameBindingTeamUsers
 
 createConnection ::
-  (Members '[GalleyProvider] r, CallsFed 'Brig "send-connection-action") =>
+  (Member GalleyProvider r) =>
   Local UserId ->
   ConnId ->
   Qualified UserId ->
@@ -96,7 +95,7 @@ createConnection self con target = do
     target
 
 createConnectionToLocalUser ::
-  Members '[GalleyProvider] r =>
+  Member GalleyProvider r =>
   Local UserId ->
   ConnId ->
   Local UserId ->
@@ -185,7 +184,7 @@ createConnectionToLocalUser self conn target = do
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.
 checkLegalholdPolicyConflict ::
-  Members '[GalleyProvider] r =>
+  Member GalleyProvider r =>
   UserId ->
   UserId ->
   ExceptT ConnectionError (AppT r) ()
@@ -211,7 +210,6 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   oneway status2 status1
 
 updateConnection ::
-  CallsFed 'Brig "send-connection-action" =>
   Local UserId ->
   Qualified UserId ->
   Relation ->

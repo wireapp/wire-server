@@ -1,3 +1,277 @@
+# [2023-04-17] (Chart Release 4.35.0)
+
+## Release notes
+
+
+* Wire cloud operators only: Before deploying apply the changes from https://github.com/zinfra/cailleach/pull/1586 to production as well. (#3146)
+
+* New 'ingress-nginx-controller' wrapper chart compatible with kubernetes versions [1.23 - 1.26]. The old one 'nginx-ingress-controller' (compatible only up to k8s 1.19) is now DEPRECATED.
+  We advise to upgrade your version of kubernetes in use to 1.23 or higher (we tested on kubernetes version 1.26), and to make use of the new ingress controller chart. Main features:
+  - up-to-date nginx version ('1.21.6')
+  - TLS 1.3 support (including allowing specifying which cipher suites to use)
+  - security fixes
+  - no more accidental logging of Wire access tokens under specific circumstances
+
+  The 'kind: Ingress' resources installed via 'nginx-ingress-services' chart remain compatible with both the old and the new ingress controller, and k8s versions [1.18 - 1.26]. In case you upgrade an existing kubernetes cluster (not recommended), you may need to first uninstall the old controller before installing the new controller chart.
+
+  In case you have custom overrides, you need to modify the directory name and top-level configuration key:
+
+  ```diff
+  # If you have overrides for the controller chart (such as cipher suites), ensure to rename file and top-level key:
+  -# nginx-ingress-controller/values.yaml
+  +# ingress-nginx-controller/values.yaml
+  -nginx-ingress:
+  +ingress-nginx:
+     controller:
+       # ...
+  ```
+
+  and double-check if all overrides you use are indeed provided under the same name by the upstream chart. See also the default overrides in [the default values.yaml](https://github.com/wireapp/wire-server/blob/develop/charts/ingress-nginx-controller/values.yaml).
+
+  In case you use helmfile change your ingress controller like this:
+
+  ```diff
+  # helmfile.yaml
+  releases:
+  -  - name: 'nginx-ingress-controller'
+  +  - name: 'ingress-nginx-controller'
+       namespace: 'wire'
+  -    chart: 'wire/nginx-ingress-controller'
+  +    chart: 'wire/ingress-nginx-controller'
+       version: 'CHANGE_ME'
+  ```
+
+  For more information read the documentation under https://docs.wire.com/how-to/install/ingress.html (or go to https://docs.wire.com and search for "ingress-nginx-controller") (#3140)
+
+* If you are using OAuth (`optSettings.setOAuthEnabled: true` in brig config): before the deployment of wire-server the private and public keys for OAuth have to be provided for `brig` and `nginz` (see `docs/src/developer/reference/oauth.md` for more information) (#2989)
+
+* Upgrade webapp version to 2023-04-11-production.0-v0.31.13-0-bb91157 (#2302)
+
+
+## API changes
+
+
+* Adding a new version of /list-users that allows for partial success. (#3117)
+
+* Added a `failed_to_send` field to response when sending mls messages. (#3081)
+
+* List failed-to-add remote users in response to `POST /conversations` (#3150)
+
+* Updating the V4 version of /users/list-prekeys to return partial successes, listing users that could not be listed. (#3108)
+
+* Non-binding team endpoints are removed from API version V4 (#3213)
+
+
+## Features
+
+
+* Add TLS and basic authentication to the inbucket (fake webmailer) ingress. (#3161)
+
+* OAuth support for authorization of a curated list of 3rd party applications (see <https://docs.wire.com/developer/reference/oauth.html> for details) (#2989)
+
+* Enforce a minimum length of 8 characters when setting a new password (#3137)
+
+* Optional password for guest links (#3149)
+
+* Authorization Code Flow with PKCE support (#3165)
+
+* `conversations/join` endpoint rate limited per IP address (#3202)
+
+
+## Bug fixes and other updates
+
+
+* coturn helm chart: use a memory-backed folder to store sqllite DB to improve performance (#3220)
+
+* Coturn helm chart: Increase the default timeout of liveness/readiness probe and make it configurable (#3218)
+
+* When using the (now deprecated) ingress controller on older versions of kubernetes, ensure query parameters are not logged in the ingress logs (#3139)
+
+* Fix version parsing in swagger-ui end-points (#3152)
+
+* Fix a rate-limit exemption whereby authenticated endpoints did not get the unlimited_requests_endpoint, if set, applied. This is a concern for the webapp and calls to /assets, which can happen in larger numbers on initial loading. A previous change in [this PR](https://github.com/wireapp/wire-server/pull/2786) had no effect. This PR also increases default rate limits, to compensate for [new ingress controller chart](https://github.com/wireapp/wire-server/pull/3140)'s default topologyAwareRouting. (#3138, #3201)
+
+
+## Documentation
+
+
+* Add a client API version bump checklist (#3135)
+
+* Fix the Swagger documentation for the failed_to_send field in the response of the Proteus message sending endpoint (#3223)
+
+* Extend docs to support render plantuml directly, rewrote the saml flow diagram in plantuml (#3226)
+
+* Allow swagger on disabled versions. (#3196)
+
+* Documentation of setting up SSO integration with Okta was outdated with images from Okta Classic UI, the new version was updated using Oktas latest design. (#3175)
+
+
+## Internal changes
+
+
+* When sending a push message, stop deleting the push token and start recreating
+  ARN when ARN is reported as invalid on AWS, but push token still is present in
+  Cassandra. This allows on-demand migrations from one AWS account used for push
+  notifications to another one. (#3162)
+
+* We don't explicitly set with-compiler inside the cabal.project file anymore, because the version of GHC is controlled by Nix, and our nixpkgs pin. (#3209)
+
+* - integration tests on CI will use either the old or the new ingress controller; depending on which kubernetes version they run on.
+  - upgrade `kubectl` to default from the nixpkgs channel (currently `1.26`) by removing the manual version pin on 1.19
+  - upgrade `helmfile` to default from the nixpkgs channel by removing the manual version pin
+  - upgrade `helm` to default from the nixpkgs channel by removing the manual version pin
+  - add `kubelogin-oidc` so the kubectl in this environment can also talk to kubernetes clusters using OIDC (#3140)
+
+* Make new record syntax a language default (#3192)
+
+* nixpkgs has been bumped to a more recent checkout (8c619a1f3cedd16ea172146e30645e703d21bfc1 -> 402cc3633cc60dfc50378197305c984518b30773, 2023-02-12 -> 2023-03-28). (#3206)
+
+* Introduce VersionNumber newtype (see `/libs/wire-api/src/Wire/API/Routes/Version.hs` for explanation) (#3075)
+
+* Fix a memory leak in `gundeck` when Redis is offline (#3136)
+
+* Rust library `rusty-jwt-tools` upgraded to latest version (#3142)
+
+* Updated rusty-jwt-tools to version 0.3.4 (#3194)
+
+* Integration tests for backoffice/stern (#3216)
+
+* ormolu: don't redundantly add language extensions from dead package-defaults.yaml (#3193)
+
+* Stop support for versions on internal APIs (#3200)
+
+* helm charts: bump kubectl docker images from 1.19.7 to 1.24.12 (#3221)
+
+* Add an option (`UPLOAD_LOGS`) to upload integration test logs to AWS S3. (#3169)
+
+
+## Federation changes
+
+
+* Do not cause denial of service when creating a conversation with users from an unreachable backend (#3150)
+
+* Report federated Proteus message sending errors to clients (#3097)
+
+* Fix bug with asset downloads and large federated responses (#3154)
+
+
+# [2023-03-06] (Chart Release 4.34.0)
+
+## Release notes
+
+
+* In (the unlikely) case your server config file contains `setWhitelist:`, you need to change this before the upgrade!  It used to refer to a whitelisting service, which is now replaced with a local list of allowed domains and phone numbers.  See [docs](https://docs.wire.com/developer/reference/user/activation.html?highlight=whitelist#phone-email-whitelist) for details.  Migration path: add new config fields; upgrade, remove old config fields. (#3043)
+
+* The coturn Helm chart has been promoted to *beta* level stability. (#3078)
+
+
+## API changes
+
+
+* API v3 is now supported. The new MLS endpoints introduced in API v3 have been removed, and are now only available under v4. (#3122)
+
+
+## Features
+
+
+* Add internal endpoints of `cargohold`, `galley`, `legalhold` and `spar` to the Swagger docs for internal endpoints. (#3007)
+
+* The coturn container image included in the coturn Helm chart was updated to
+  version `4.6.0-wireapp.4`.
+
+  With this version of coturn, the Prometheus metrics endpoint has been
+  updated, and the `turn_active_allocations` metric label has been *renamed* to
+  `turn_total_allocations`. (#3078)
+
+* Better error message for invalid ID in a credential when uploading MLS key packages (#3102)
+
+* Add Swagger documentation for internal endpoints. It's reachable at the path `/v<n>/api-internal/swagger{-ui,.json}`. (#3003)
+
+* Render one Swagger page per internal endpoint. This superseeds the previous Swagger docs page for all internal endpoints. (#3094)
+
+* Feature flag for Outlook calendar integration (#3025)
+
+* Team feature setting for MLS end-to-end identity was added and server setting `setEnableMls` is exposed via new authorized endpoint `GET /system/settings` (#3082)
+
+
+## Bug fixes and other updates
+
+
+* The container image used for handling online TLS certificate updates in the
+  coturn Helm chart was updated to a version with metadata compatible with
+  containerd. (#3078)
+
+* Fix a bug in the helm chart's nginx-ingress-services / federator Ingress resource introduced in the last release. (#3034)
+
+* Remove overly restricte api check (#3131)
+
+* Typing indicators not working accross federated backends (#3118)
+
+
+## Documentation
+
+
+* Extend the docs on the federation error type (#3045)
+
+* Update SAML/SCIM docs (#3038)
+
+
+## Internal changes
+
+
+* - use exponential backoff for retrying requests to Amazon
+  - also retry in case of server-side rate limiting by Amazon (#3121)
+
+* Also run the 'backoffice' pod in CI (to test it can successfully start) (#3130)
+
+* Make brig-schema a little faster by merging the first 34 schema migrations on fresh installations. (#3099)
+
+* Deflake integration test: metrics (#3053)
+
+* Lower the log level of federator inotify (#3056)
+
+* use Wai's settings for graceful shutdown (#3069)
+
+* CI integration setup time should be reduced: tweak the way cassandra-ephemeral is started (#3052)
+
+* charts: Mark all service/secret/configmap test resources to be re-created by defining them as helm hooks (#3037, #3049)
+
+* New integration test script with support for running end2end tests locally (#3062)
+
+* Bump nixpkgs to latest commit on nixpkgs-unstable branch (#3084)
+
+* Add config to allow to run helm tests for different services in parallel; improve integration test output logs (#3040)
+
+*  Run brig and galley integration tests concurrently (#2825)
+
+* Add wrapper for bitnami/postgresql chart. (#3012)
+
+* Branch on performAction tags for finer-grained CallsFed constraints (#3030)
+
+* Fixed broken stern endpoint `POST i/user/meta-info` (#3035)
+
+* Make stern fail on startup if supported backend api version needs bumping (#3035)
+
+* Automatically track CallsFed constraints via a GHC plugin (#3083)
+
+* Rust library `rusty-jwt-tools` upgraded to latest version (#3112)
+
+* Fixed test of jwt-tools Rust FFI (#3125)
+
+* Enabling warnings for redundant constraints and removing the redundant
+  constraints. (#3009)
+
+* Migrate `/teams/notifications` to use the Servant library. (#3020)
+
+* Split polysemy `Members` constraints into multiple `Member` constraints (#3093)
+
+
+## Federation changes
+
+
+* Use `HsOpenSSL` instead of `tls` for federation communication. (#3051)
+
+
 # [2023-01-26] (Chart Release 4.31.0)
 
 ## Release notes
@@ -323,7 +597,7 @@
 
 * Fix copyright date on docs.wire.com (#2792)
 
-* Improve and cross-link documentation on SNS / push notifications. (#PR_NOT_FOUND)
+* Improve and cross-link documentation on SNS / push notifications. (#2781)
 
 * Add extension sphinx-reredirects and configuration to generate simple JavaScript based redirects to new locations of previously inconsistently named files/URLs. (#2811)
 

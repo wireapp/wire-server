@@ -1,3 +1,19 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 
 module Brig.Effects.GalleyProvider.RPC where
@@ -21,7 +37,6 @@ import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
 import Data.Range
 import qualified Galley.Types.Teams as Team
-import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
@@ -31,6 +46,7 @@ import Polysemy.Error
 import Servant.API (toHeader)
 import System.Logger (Msg, field, msg, val)
 import Wire.API.Conversation hiding (Member)
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
 import qualified Wire.API.Team.Conversation as Conv
@@ -42,12 +58,10 @@ import Wire.API.Team.SearchVisibility
 import Wire.Sem.Logger
 
 interpretGalleyProviderToRPC ::
-  Members
-    '[ Error ParseException,
-       ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (Error ParseException) r,
+    Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   Sem (GalleyProvider ': r) a ->
   Sem r a
 interpretGalleyProviderToRPC = interpret $ \case
@@ -73,11 +87,9 @@ interpretGalleyProviderToRPC = interpret $ \case
 
 -- | Calls 'Galley.API.createSelfConversationH'.
 createSelfConv ::
-  Members
-    '[ ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   UserId ->
   Sem r ()
 createSelfConv u = do
@@ -87,18 +99,16 @@ createSelfConv u = do
   void $ ServiceRPC.request @'Galley POST req
   where
     req =
-      paths ["v" <> toHeader (maxBound :: Version), "conversations", "self"]
+      paths [toHeader (maxBound :: Version), "conversations", "self"]
         . zUser u
         . expect2xx
 
 -- | Calls 'Galley.API.getConversationH'.
 getConv ::
-  Members
-    '[ Error ParseException,
-       ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (Error ParseException) r,
+    Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   UserId ->
   Local ConvId ->
   Sem r (Maybe Conversation)
@@ -115,7 +125,7 @@ getConv usr lcnv = do
   where
     req =
       paths
-        [ "v" <> toHeader (maxBound :: Version),
+        [ toHeader (maxBound :: Version),
           "conversations",
           toByteString' (tDomain lcnv),
           toByteString' (tUnqualified lcnv)
@@ -125,12 +135,10 @@ getConv usr lcnv = do
 
 -- | Calls 'Galley.API.getTeamConversationH'.
 getTeamConv ::
-  Members
-    '[ Error ParseException,
-       ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (Error ParseException) r,
+    Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   UserId ->
   TeamId ->
   ConvId ->
@@ -147,7 +155,7 @@ getTeamConv usr tid cnv = do
   where
     req =
       paths
-        [ "v" <> toHeader (maxBound :: Version),
+        [ toHeader (maxBound :: Version),
           "teams",
           toByteString' tid,
           "conversations",
@@ -158,11 +166,9 @@ getTeamConv usr tid cnv = do
 
 -- | Calls 'Galley.API.addClientH'.
 newClient ::
-  Members
-    '[ ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   UserId ->
   ClientId ->
   Sem r ()
@@ -177,11 +183,9 @@ newClient u c = do
 
 -- | Calls 'Galley.API.canUserJoinTeamH'.
 checkUserCanJoinTeam ::
-  Members
-    '[ ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   TeamId ->
   Sem r (Maybe Wai.Error)
 checkUserCanJoinTeam tid = do
@@ -201,11 +205,9 @@ checkUserCanJoinTeam tid = do
 
 -- | Calls 'Galley.API.uncheckedAddTeamMemberH'.
 addTeamMember ::
-  Members
-    '[ ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   UserId ->
   TeamId ->
   (Maybe (UserId, UTCTimeMillis), Role) ->
@@ -230,11 +232,9 @@ addTeamMember u tid (minvmeta, role) = do
 
 -- | Calls 'Galley.API.createBindingTeamH'.
 createTeam ::
-  Members
-    '[ ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   UserId ->
   BindingNewTeam ->
   TeamId ->
@@ -259,12 +259,10 @@ createTeam u t@(BindingNewTeam bt) teamid = do
 
 -- | Calls 'Galley.API.uncheckedGetTeamMemberH'.
 getTeamMember ::
-  Members
-    '[ Error ParseException,
-       ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (Error ParseException) r,
+    Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   UserId ->
   TeamId ->
   Sem r (Maybe Team.TeamMember)
@@ -288,12 +286,10 @@ getTeamMember u tid = do
 -- means that only the first 2000 members of a team (according to some arbitrary order) will
 -- be suspended, and the rest will remain active.
 getTeamMembers ::
-  Members
-    '[ Error ParseException,
-       ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (Error ParseException) r,
+    Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   TeamId ->
   Sem r Team.TeamMemberList
 getTeamMembers tid = do
@@ -305,11 +301,7 @@ getTeamMembers tid = do
         . expect2xx
 
 memberIsTeamOwner ::
-  Members
-    '[ ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  Member (ServiceRPC 'Galley) r =>
   TeamId ->
   UserId ->
   Sem r Bool
@@ -321,12 +313,10 @@ memberIsTeamOwner tid uid = do
 
 -- | Calls 'Galley.API.getBindingTeamIdH'.
 getTeamId ::
-  Members
-    '[ Error ParseException,
-       ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (Error ParseException) r,
+    Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   UserId ->
   Sem r (Maybe TeamId)
 getTeamId u = do
@@ -342,12 +332,10 @@ getTeamId u = do
 
 -- | Calls 'Galley.API.getTeamInternalH'.
 getTeam ::
-  Members
-    '[ Error ParseException,
-       ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (Error ParseException) r,
+    Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   TeamId ->
   Sem r Team.TeamData
 getTeam tid = do
@@ -360,12 +348,10 @@ getTeam tid = do
 
 -- | Calls 'Galley.API.getTeamInternalH'.
 getTeamName ::
-  Members
-    '[ Error ParseException,
-       ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (Error ParseException) r,
+    Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   TeamId ->
   Sem r Team.TeamName
 getTeamName tid = do
@@ -378,12 +364,10 @@ getTeamName tid = do
 
 -- | Calls 'Galley.API.getTeamFeatureStatusH'.
 getTeamLegalHoldStatus ::
-  Members
-    '[ Error ParseException,
-       ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (Error ParseException) r,
+    Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   TeamId ->
   Sem r (WithStatus LegalholdConfig)
 getTeamLegalHoldStatus tid = do
@@ -396,12 +380,10 @@ getTeamLegalHoldStatus tid = do
 
 -- | Calls 'Galley.API.getSearchVisibilityInternalH'.
 getTeamSearchVisibility ::
-  Members
-    '[ Error ParseException,
-       ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (Error ParseException) r,
+    Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   TeamId ->
   Sem r TeamSearchVisibility
 getTeamSearchVisibility tid =
@@ -414,12 +396,10 @@ getTeamSearchVisibility tid =
         . expect2xx
 
 getVerificationCodeEnabled ::
-  Members
-    '[ Error ParseException,
-       ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (Error ParseException) r,
+    Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   TeamId ->
   Sem r Bool
 getVerificationCodeEnabled tid = do
@@ -447,11 +427,7 @@ decodeBodyMaybe :: (Typeable a, FromJSON a) => Text -> Response (Maybe BL.ByteSt
 decodeBodyMaybe t r = hush $ decodeBody t r
 
 getAllFeatureConfigsForUser ::
-  Members
-    '[ ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  Member (ServiceRPC 'Galley) r =>
   Maybe UserId ->
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForUser mbUserId =
@@ -464,11 +440,9 @@ getAllFeatureConfigsForUser mbUserId =
 
 -- | Calls 'Galley.API.updateTeamStatusH'.
 changeTeamStatus ::
-  Members
-    '[ ServiceRPC 'Galley,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (ServiceRPC 'Galley) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   TeamId ->
   Team.TeamStatus ->
   Maybe Currency.Alpha ->
@@ -484,12 +458,10 @@ changeTeamStatus tid s cur = do
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
 
 getTeamExposeInvitationURLsToTeamAdmin ::
-  Members
-    '[ ServiceRPC 'Galley,
-       Error ParseException,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member (ServiceRPC 'Galley) r,
+    Member (Error ParseException) r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   TeamId ->
   Sem r ShowOrHideInvitationUrl
 getTeamExposeInvitationURLsToTeamAdmin tid = do

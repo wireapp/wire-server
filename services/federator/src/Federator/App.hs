@@ -82,7 +82,12 @@ instance MonadIO m => MonadHttp (AppT m) where
 runAppT :: forall m a. Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e
 
-embedApp :: Members '[Embed m, Input Env] r => AppT m a -> Sem r a
+embedApp ::
+  ( Member (Embed m) r,
+    Member (Input Env) r
+  ) =>
+  AppT m a ->
+  Sem r a
 embedApp (AppT action) = do
   env <- input
   embed $ runReaderT action env

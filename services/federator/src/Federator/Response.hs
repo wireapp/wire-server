@@ -36,6 +36,7 @@ import Federator.Options
 import Federator.Remote
 import Federator.Service
 import Federator.Validation
+import HTTP2.Client.Manager (Http2Manager)
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
@@ -87,7 +88,12 @@ runWaiError =
     . mapError toWai
     . raiseUnder
   where
-    logError :: Members '[Error Wai.Error, TinyLog] r => Wai.Error -> Sem r a
+    logError ::
+      ( Member (Error Wai.Error) r,
+        Member TinyLog r
+      ) =>
+      Wai.Error ->
+      Sem r a
     logError e = do
       err $ Wai.logErrorMsg e
       throw e
@@ -112,7 +118,7 @@ type AllEffects =
      DNSLookup, -- needed by DiscoverFederator
      ServiceStreaming,
      Input RunSettings,
-     Input TLSSettings, -- needed by Remote
+     Input Http2Manager, -- needed by Remote
      Input Env, -- needed by Service
      Error ValidationError,
      Error RemoteError,
@@ -137,7 +143,7 @@ runFederator env =
           DiscoveryFailure
         ]
     . runInputConst env
-    . runInputSem (embed @IO (readIORef (view tls env)))
+    . runInputSem (embed @IO (readIORef (view http2Manager env)))
     . runInputConst (view runSettings env)
     . interpretServiceHTTP
     . runDNSLookupWithResolver (view dnsResolver env)

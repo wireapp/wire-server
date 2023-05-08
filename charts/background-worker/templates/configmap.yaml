@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "background-worker"
+  labels:
+    app: background-worker
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  {{- with .Values.config }}
+  background-worker.yaml: |
+    logFormat: {{ .logFormat }}
+    logLevel: {{ .logLevel }}
+
+    federatorInternal:
+      host: federator
+      port: 8080
+    rabbitmq:
+{{toYaml .rabbitmq | indent 6 }}
+    remoteDomains:
+{{toYaml .remoteDomains | indent 6 }}
+  {{- end }}

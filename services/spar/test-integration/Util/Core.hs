@@ -156,7 +156,7 @@ import qualified Data.ByteString.Base64.Lazy as EL
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
 import Data.Id
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword6, plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Range
 import Data.String.Conversions
@@ -691,8 +691,8 @@ postUser name haveEmail ssoid teamid brig_ = do
             ]
   post (brig_ . path "/i/users" . contentJson . body p)
 
-defPassword :: PlainTextPassword
-defPassword = PlainTextPassword "secret"
+defPassword :: PlainTextPassword6
+defPassword = plainTextPassword6Unsafe "topsecretdefaultpassword"
 
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"
@@ -1350,7 +1350,7 @@ checkChangeRoleOfTeamMember tid adminId targetId = forM_ [minBound ..] $ \role -
   liftIO $ (member' ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just role
 
 eventually :: HasCallStack => TestSpar a -> TestSpar a
-eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
+eventually = recoverAll (limitRetries 3 <> exponentialBackoff 100000) . const
 
 getIdPByIssuer :: HasCallStack => Issuer -> TeamId -> TestSpar (Maybe IdP)
 getIdPByIssuer issuer tid = do

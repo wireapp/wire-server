@@ -118,7 +118,7 @@ ignoringState f = fmap snd . f
 
 mockBrig ::
   forall (r :: EffectRow) a.
-  Members '[Embed IO] r =>
+  Member (Embed IO) r =>
   (UserId -> Maybe UserAccount) ->
   DeleteUserResult ->
   Sem (BrigAccess ': r) a ->

@@ -85,6 +85,7 @@ import Galley.Options
 import Galley.Queue
 import qualified Galley.Queue as Q
 import qualified Galley.Types.Teams as Teams
+import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (forkIO)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -153,8 +154,9 @@ createEnv m o = do
   l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
   cass <- initCassandra o l
   mgr <- initHttpManager o
+  h2mgr <- initHttp2Manager
   validateOptions l o
-  Env def m o l mgr (o ^. optFederator) (o ^. optBrig) cass
+  Env def m o l mgr h2mgr (o ^. optFederator) (o ^. optBrig) cass
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
@@ -197,8 +199,20 @@ initHttpManager o = do
         managerIdleConnectionCount = 3 * (o ^. optSettings . setHttpPoolSize)
       }
 
+initHttp2Manager :: IO Http2Manager
+initHttp2Manager = do
+  ctx <- Ssl.context
+  Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
+  Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
+  Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
+  Ssl.contextSetCiphers ctx rsaCiphers
+  Ssl.contextSetVerificationMode ctx $
+    Ssl.VerifyPeer True True Nothing
+  Ssl.contextSetDefaultVerifyPaths ctx
+  http2ManagerWithSSLCtx ctx
+
 interpretTinyLog ::
-  Members '[Embed IO] r =>
+  Member (Embed IO) r =>
   Env ->
   Sem (P.TinyLog ': r) a ->
   Sem r a

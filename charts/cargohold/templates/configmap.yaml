@@ -12,7 +12,7 @@ data:
       host: 0.0.0.0
       port: {{ .Values.service.internalPort }}
 
-    {{- if .Values.config.enableFederator }}
+    {{- if .Values.config.enableFederation }}
     federator:
       host: federator
       port: 8080

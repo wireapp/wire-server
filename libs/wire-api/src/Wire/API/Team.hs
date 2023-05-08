@@ -75,7 +75,7 @@ import Data.Attoparsec.Combinator (choice)
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import Data.Id (TeamId, UserId)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword6)
 import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S
@@ -107,16 +107,35 @@ newTeam tid uid nme ico tb = Team tid uid nme ico Nothing tb DefaultIcon
 
 instance ToSchema Team where
   schema =
-    object "Team" $
+    objectWithDocModifier "Team" desc $
       Team
         <$> _teamId .= field "id" schema
         <*> _teamCreator .= field "creator" schema
         <*> _teamName .= field "name" schema
         <*> _teamIcon .= field "icon" schema
         <*> _teamIconKey .= maybe_ (optField "icon_key" schema)
-        <*> _teamBinding .= (fromMaybe Binding <$> optField "binding" schema)
+        <*> _teamBinding .= (fromMaybe Binding <$> optFieldWithDocModifier "binding" bindingDesc schema)
         <*> _teamSplashScreen .= (fromMaybe DefaultIcon <$> optField "splash_screen" schema)
+    where
+      desc = description ?~ "`binding` is deprecated, and should be ignored. The non-binding teams API is not used (and will not be supported from API version V4 onwards), and `binding` will always be `true`."
+      bindingDesc = description ?~ "Deprecated, please ignore."
 
+-- | How a team "binds" its members (users)
+--
+-- A `Binding` team is the normal team which we see in the UI. A user is
+-- on-boarded as part of the team. If the team gets deleted/suspended the user
+-- gets deleted/suspended.
+--
+-- A `NonBinding` team is a concept only in the backend. It is a team someone
+-- can create and someone who has an account on Wire can join that team. This
+-- way, in theory, one person can join many teams. This concept never made it as
+-- a concept of product, but got used a lot of writing integration tests. Newer
+-- features don't really work well with this and sometimes we have to rewrite
+-- parts of the tests to use `Binding` teams.
+--
+-- Please try to not use `NonBinding` teams in tests anymore. In future, we
+-- would like it to be deleted, but it is hard to delete because it requires a
+-- bunch of tests to be rewritten.
 data TeamBinding
   = Binding
   | NonBinding
@@ -274,7 +293,7 @@ instance ToSchema TeamUpdateData where
 -- TeamDeleteData
 
 data TeamDeleteData = TeamDeleteData
-  { _tdAuthPassword :: Maybe PlainTextPassword,
+  { _tdAuthPassword :: Maybe PlainTextPassword6,
     _tdVerificationCode :: Maybe Code.Value
   }
   deriving stock (Eq, Show)
@@ -283,10 +302,10 @@ data TeamDeleteData = TeamDeleteData
 instance Arbitrary TeamDeleteData where
   arbitrary = TeamDeleteData <$> arbitrary <*> arbitrary
 
-newTeamDeleteData :: Maybe PlainTextPassword -> TeamDeleteData
+newTeamDeleteData :: Maybe PlainTextPassword6 -> TeamDeleteData
 newTeamDeleteData = flip TeamDeleteData Nothing
 
-newTeamDeleteDataWithCode :: Maybe PlainTextPassword -> Maybe Code.Value -> TeamDeleteData
+newTeamDeleteDataWithCode :: Maybe PlainTextPassword6 -> Maybe Code.Value -> TeamDeleteData
 newTeamDeleteDataWithCode = TeamDeleteData
 
 instance ToSchema TeamDeleteData where

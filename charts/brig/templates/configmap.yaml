@@ -48,7 +48,7 @@ data:
       host: gundeck
       port: 8080
 
-    {{- if .enableFederator }}
+    {{- if .enableFederation }}
     # TODO remove this
     federator:
       host: federator
@@ -57,6 +57,8 @@ data:
     federatorInternal:
       host: federator
       port: 8080
+    rabbitmq:
+{{ toYaml .rabbitmq | indent 6}}
     {{- end }}
 
     {{- with .aws }}
@@ -270,8 +272,11 @@ data:
       {{- if .setSftListAllServers }}
       setSftListAllServers: {{ .setSftListAllServers }}
       {{- end }}
-      {{- if .setWhitelist }}
-      setWhitelist: {{ toYaml .setWhitelist | nindent 8 }}
+      {{- if .setAllowlistEmailDomains }}
+      setAllowlistEmailDomains: {{ toYaml .setAllowlistEmailDomains | nindent 8 }}
+      {{- end }}
+      {{- if .setAllowlistPhonePrefixes }}
+      setAllowlistPhonePrefixes: {{ toYaml .setAllowlistPhonePrefixes | nindent 8 }}
       {{- end }}
       {{- if .setFeatureFlags }}
       setFeatureFlags: {{ toYaml .setFeatureFlags | nindent 8 }}
@@ -299,8 +304,26 @@ data:
       {{- if .setEnableMLS }}
       setEnableMLS: {{ .setEnableMLS }}
       {{- end }}
+      {{- if $.Values.secrets.oauthJwkKeyPair }}
+      setOAuthJwkKeyPair: /etc/wire/brig/secrets/oauth_ed25519.jwk
+      {{- end }}
+      {{- if .setOAuthAuthCodeExpirationTimeSecs }}
+      setOAuthAuthCodeExpirationTimeSecs: {{ .setOAuthAuthCodeExpirationTimeSecs }}
+      {{- end }}
+      {{- if .setOAuthAccessTokenExpirationTimeSecs }}
+      setOAuthAccessTokenExpirationTimeSecs: {{ .setOAuthAccessTokenExpirationTimeSecs }}
+      {{- end }}
+      {{- if .setOAuthEnabled }}
+      setOAuthEnabled: {{ .setOAuthEnabled }}
+      {{- end }}
       {{- if .setDisabledAPIVersions }}
       setDisabledAPIVersions: {{ .setDisabledAPIVersions }}
+      {{- end }}
+      {{- if .setOAuthRefreshTokenExpirationTimeSecs }}
+      setOAuthRefreshTokenExpirationTimeSecs: {{ .setOAuthRefreshTokenExpirationTimeSecs }}
+      {{- end }}
+      {{- if .setOAuthMaxActiveRefreshTokens }}
+      setOAuthMaxActiveRefreshTokens: {{ .setOAuthMaxActiveRefreshTokens }}
       {{- end }}
     {{- end }}
   {{- end }}

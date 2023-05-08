@@ -27,11 +27,13 @@ import Test.Wire.API.Golden.Manual.ConversationCoverView
 import Test.Wire.API.Golden.Manual.ConversationEvent
 import Test.Wire.API.Golden.Manual.ConversationPagingState
 import Test.Wire.API.Golden.Manual.ConversationsResponse
+import Test.Wire.API.Golden.Manual.CreateGroupConversation
 import Test.Wire.API.Golden.Manual.CreateScimToken
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.GroupId
 import Test.Wire.API.Golden.Manual.ListConversations
+import Test.Wire.API.Golden.Manual.ListUsersById
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.SearchResultContact
 import Test.Wire.API.Golden.Manual.TeamSize
@@ -144,5 +146,17 @@ tests =
           [ (testObject_TeamSize_1, "testObject_TeamSize_1.json"),
             (testObject_TeamSize_2, "testObject_TeamSize_2.json"),
             (testObject_TeamSize_3, "testObject_TeamSize_3.json")
+          ],
+      testGroup "ListUsersById" $
+        testObjects
+          [ (testObject_ListUsersById_user_1, "testObject_ListUsersById_user_1.json"),
+            (testObject_ListUsersById_user_2, "testObject_ListUsersById_user_2.json"),
+            (testObject_ListUsersById_user_3, "testObject_ListUsersById_user_3.json")
+          ],
+      testGroup "CreateGroupConversation" $
+        testObjects
+          [ (testObject_CreateGroupConversation_1, "testObject_CreateGroupConversation_1.json"),
+            (testObject_CreateGroupConversation_2, "testObject_CreateGroupConversation_2.json"),
+            (testObject_CreateGroupConversation_3, "testObject_CreateGroupConversation_3.json")
           ]
     ]

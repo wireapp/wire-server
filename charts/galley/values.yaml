@@ -22,7 +22,7 @@ config:
   cassandra:
     host: aws-cassandra
     replicaCount: 3
-  enableFederator: false # keep enableFederator default in sync with brig and cargohold chart's config.enableFederator as well as wire-server chart's tag.federator
+  enableFederation: false # keep enableFederation default in sync with brig and cargohold chart's config.enableFederation as well as wire-server chart's tags.federation
   settings:
     httpPoolSize: 128
     maxTeamSize: 10000
@@ -34,7 +34,7 @@ config:
     indexedBillingTeamMember: false
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
-    # disabledAPIVersions: [ 3 ]
+    # disabledAPIVersions: [ v3 ]
     featureFlags:  # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
       appLock:
         defaults:
@@ -88,6 +88,13 @@ config:
         defaults:
           status: disabled
           lockStatus: locked
+      mlsE2EId:
+        defaults:
+          status: disabled
+          config:
+            verificationExpiration: 86400
+            acmeDiscoveryUrl: null
+          lockStatus: unlocked
 
   aws:
     region: "eu-west-1"

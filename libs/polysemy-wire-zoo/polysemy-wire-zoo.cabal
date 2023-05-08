@@ -18,6 +18,7 @@ library
     Wire.Sem.Concurrency.IO
     Wire.Sem.Concurrency.Sequential
     Wire.Sem.FromUTC
+    Wire.Sem.Jwk
     Wire.Sem.Logger
     Wire.Sem.Logger.Level
     Wire.Sem.Logger.TinyLog
@@ -45,6 +46,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -56,6 +58,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -75,19 +78,23 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      base             >=4.6 && <5.0
+      aeson
+    , base                >=4.6 && <5.0
+    , bytestring
     , cassandra-util
     , HsOpenSSL
     , hspec
     , imports
+    , jose
     , polysemy
     , polysemy-check
     , polysemy-plugin
     , QuickCheck
     , saml2-web-sso
+    , string-conversions
     , time
     , tinylog
     , types-common
@@ -118,6 +125,7 @@ test-suite spec
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -129,6 +137,7 @@ test-suite spec
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -149,7 +158,7 @@ test-suite spec
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j
     -Wno-redundant-constraints -Werror -threaded -rtsopts
-    -with-rtsopts=-N -Wredundant-constraints
+    -with-rtsopts=-N -Wredundant-constraints -Wunused-packages
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
@@ -158,7 +167,6 @@ test-suite spec
     , hspec
     , imports
     , polysemy
-    , polysemy-check     >=0.9
     , polysemy-plugin
     , polysemy-wire-zoo
     , unliftio

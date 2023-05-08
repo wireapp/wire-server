@@ -116,8 +116,9 @@ tests s =
         ],
       testGroup
         "Websocket pingpong"
-        [ test s "pings produce pongs" testPingPong,
-          test s "non-pings are ignored" testNoPingNoPong
+        [ test s "data-level pings produce pongs" testDataPingPong,
+          test s "control pings with payload produce pongs with the same payload" testControlPingPongWithData,
+          test s "data non-pings are ignored" testNoPingNoPong
         ],
       testGroup
         "Redis migration"
@@ -840,8 +841,8 @@ testUnregisterPushToken = do
   void $ retryWhileN 12 (not . null) (listPushTokens uid)
   unregisterPushToken uid (tkn ^. token) !!! const 404 === statusCode
 
-testPingPong :: TestM ()
-testPingPong = do
+testDataPingPong :: TestM ()
+testDataPingPong = do
   ca <- view tsCannon
   uid :: UserId <- randomId
   connid :: ConnId <- randomConnId
@@ -851,6 +852,21 @@ testPingPong = do
     atomically $ writeTChan chwrite "ping"
     msg <- waitForMessage chread
     assertBool "no pong" $ msg == Just "pong"
+
+testControlPingPongWithData :: TestM ()
+testControlPingPongWithData = do
+  ca <- view tsCannon
+  uid :: UserId <- randomId
+  connid :: ConnId <- randomConnId
+  [(_, [(chread, chPingWrite)] :: [(TChan WS.Message, TChan ByteString)])] <-
+    connectUsersAndDevicesWithSendingClientsRaw ca [(uid, [connid])]
+  liftIO $ do
+    let pingPayload = "pi 3e4ac0590d55a24af7298b po"
+    atomically $ writeTChan chPingWrite pingPayload
+    _msg <- waitForMessageRaw chread -- this is a server-sent ping; we'll ignore this
+    msg <- waitForMessageRaw chread
+    let expected = Just (WS.ControlMessage $ WS.Pong $ fromStrict pingPayload)
+    assertBool "no pong with the same payload" $ msg == expected
 
 testNoPingNoPong :: TestM ()
 testNoPingNoPong = do
@@ -997,15 +1013,39 @@ connectUsersAndDevicesWithSendingClients ::
   [(UserId, [ConnId])] ->
   TestM [(UserId, [(TChan ByteString, TChan ByteString)])]
 connectUsersAndDevicesWithSendingClients ca uidsAndConnIds = do
-  chs <- forM uidsAndConnIds $ \(uid, conns) ->
-    (uid,) <$> do
-      forM conns $ \conn -> do
-        chread <- liftIO $ atomically newTChan
-        chwrite <- liftIO $ atomically newTChan
-        _ <- wsRun ca uid conn (wsReaderWriter chread chwrite)
-        pure (chread, chwrite)
-  (\(uid, conns) -> wsAssertPresences uid (length conns)) `mapM_` uidsAndConnIds
-  pure chs
+  forM uidsAndConnIds $ \(uid, conns) -> do
+    chs <-
+      (uid,) <$> do
+        forM conns $ \conn -> do
+          chread <- liftIO $ atomically newTChan
+          chwrite <- liftIO $ atomically newTChan
+          _ <- wsRun ca uid conn (wsReaderWriter chread chwrite)
+          pure (chread, chwrite)
+    assertPresences (uid, conns)
+    pure chs
+
+-- similar to the function above, but hooks
+-- in a Ping Writer and gives access to 'WS.Message's
+-- this can be used to test Ping/Pong behaviour on the control channel
+connectUsersAndDevicesWithSendingClientsRaw ::
+  HasCallStack =>
+  CannonR ->
+  [(UserId, [ConnId])] ->
+  TestM [(UserId, [(TChan WS.Message, TChan ByteString)])]
+connectUsersAndDevicesWithSendingClientsRaw ca uidsAndConnIds = do
+  forM uidsAndConnIds $ \(uid, conns) -> do
+    chs <-
+      (uid,) <$> do
+        forM conns $ \conn -> do
+          chread <- liftIO $ atomically newTChan
+          chwrite <- liftIO $ atomically newTChan
+          _ <- wsRun ca uid conn (wsReaderWriterPing chread chwrite)
+          pure (chread, chwrite)
+    assertPresences (uid, conns)
+    pure chs
+
+assertPresences :: (UserId, [ConnId]) -> TestM ()
+assertPresences (uid, conns) = wsAssertPresences uid (length conns)
 
 -- | Sort 'PushToken's based on the actual 'token' values.
 sortPushTokens :: [PushToken] -> [PushToken]
@@ -1037,6 +1077,12 @@ wsReaderWriter chread chwrite conn =
     (forever $ WS.receiveData conn >>= atomically . writeTChan chread)
     (forever $ WS.sendTextData conn =<< atomically (readTChan chwrite))
 
+wsReaderWriterPing :: TChan WS.Message -> TChan ByteString -> WS.ClientApp ()
+wsReaderWriterPing chread chwrite conn =
+  concurrently_
+    (forever $ WS.receive conn >>= atomically . writeTChan chread)
+    (forever $ WS.sendPing conn =<< atomically (readTChan chwrite))
+
 retryWhile :: (MonadIO m) => (a -> Bool) -> m a -> m a
 retryWhile = retryWhileN 10
 
@@ -1047,10 +1093,13 @@ retryWhileN n f m =
     (const (pure . f))
     (const m)
 
-waitForMessage :: TChan ByteString -> IO (Maybe ByteString)
+waitForMessageRaw :: TChan WS.Message -> IO (Maybe WS.Message)
+waitForMessageRaw = System.Timeout.timeout 3000000 . liftIO . atomically . readTChan
+
+waitForMessage :: ToByteString a => TChan a -> IO (Maybe a)
 waitForMessage = waitForMessage' 1000000
 
-waitForMessage' :: Int -> TChan ByteString -> IO (Maybe ByteString)
+waitForMessage' :: ToByteString a => Int -> TChan a -> IO (Maybe a)
 waitForMessage' musecs = System.Timeout.timeout musecs . liftIO . atomically . readTChan
 
 unregisterClient :: GundeckR -> UserId -> ClientId -> TestM (Response (Maybe BL.ByteString))
@@ -1197,7 +1246,7 @@ randomUser = do
         object
           [ "name" .= e,
             "email" .= e,
-            "password" .= ("secret" :: Text)
+            "password" .= ("secret-8-chars-long-at-least" :: Text)
           ]
   r <- post (runBrigR br . path "/i/users" . json p)
   pure

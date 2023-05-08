@@ -79,7 +79,7 @@ import Imports
 import qualified Test.QuickCheck as QC
 import URI.ByteString ()
 import Wire.API.Conversation
-import Wire.API.Conversation.Code (ConversationCode (..))
+import Wire.API.Conversation.Code (ConversationCode (..), ConversationCodeInfo)
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.MLS.SubConversation
@@ -167,7 +167,7 @@ data EventData
   | EdConvDelete
   | EdConvAccessUpdate ConversationAccessData
   | EdConvMessageTimerUpdate ConversationMessageTimerUpdate
-  | EdConvCodeUpdate ConversationCode
+  | EdConvCodeUpdate ConversationCodeInfo
   | EdConvCodeDelete
   | EdMemberUpdate MemberUpdateData
   | EdConversation Conversation
@@ -320,7 +320,7 @@ memberUpdateDataObjectSchema =
 
 data AddCodeResult
   = CodeAdded Event
-  | CodeAlreadyExisted ConversationCode
+  | CodeAlreadyExisted ConversationCodeInfo
 
 data OtrMessage = OtrMessage
   { otrSender :: ClientId,
@@ -441,7 +441,7 @@ instance ToJSONObject Event where
 -- MultiVerb instances
 
 instance
-  (ResponseType r1 ~ ConversationCode, ResponseType r2 ~ Event) =>
+  (ResponseType r1 ~ ConversationCodeInfo, ResponseType r2 ~ Event) =>
   AsUnion '[r1, r2] AddCodeResult
   where
   toUnion (CodeAlreadyExisted c) = Z (I c)

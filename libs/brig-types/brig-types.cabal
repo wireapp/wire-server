@@ -40,6 +40,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -51,6 +52,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -70,7 +72,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields -Wredundant-constraints
+    -funbox-strict-fields -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson                  >=2.0.1.0
@@ -80,19 +82,15 @@ library
     , bytestring-conversion  >=0.2
     , cassandra-util
     , containers             >=0.5
-    , deriving-swagger2      >=0.1.0
     , imports
     , QuickCheck             >=2.9
     , schema-profunctor
-    , servant-server         >=0.18.2
-    , servant-swagger        >=1.1.10
     , string-conversions
     , swagger2               >=2.5
     , text                   >=0.11
     , time                   >=1.1
     , tinylog
     , types-common           >=0.16
-    , unordered-containers   >=0.2
     , wire-api
 
   default-language:   Haskell2010
@@ -121,6 +119,7 @@ test-suite brig-types-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -132,6 +131,7 @@ test-suite brig-types-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -152,26 +152,19 @@ test-suite brig-types-tests
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       aeson                  >=2.0.1.0
-    , attoparsec             >=0.10
     , base                   >=4       && <5
     , brig-types
-    , bytestring
     , bytestring-conversion  >=0.3.1
-    , containers             >=0.5
     , imports
     , QuickCheck             >=2.9
     , swagger2               >=2.5
     , tasty
     , tasty-hunit
     , tasty-quickcheck
-    , text                   >=0.11
-    , time                   >=1.1
-    , tinylog
-    , types-common           >=0.16
-    , unordered-containers   >=0.2
     , wire-api
 
   default-language:   Haskell2010

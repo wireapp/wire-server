@@ -28,7 +28,7 @@ import Brig.Effects.CodeStore
 import Brig.Effects.CodeStore.Cassandra
 import Brig.Options (Opts)
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
-import qualified Brig.ZAuth
+import Brig.ZAuth (Token)
 import qualified Cassandra as DB
 import qualified Codec.MIME.Type as MIME
 import Control.Lens (preview, (^?))
@@ -44,9 +44,10 @@ import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import Data.Kind
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc
 import Data.Qualified
 import Data.Range (unsafeRange)
+import Data.String.Conversions (cs)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
 import qualified Data.ZAuth.Token as ZAuth
@@ -210,9 +211,9 @@ preparePasswordReset ::
   DB.ClientState ->
   Email ->
   UserId ->
-  PlainTextPassword ->
+  PlainTextPassword8 ->
   m CompletePasswordReset
-preparePasswordReset brig cs email uid newpw = do
+preparePasswordReset brig cState email uid newpw = do
   let qry = queryItem "email" (toByteString' email)
   r <- get $ brig . path "/i/users/password-reset-code" . qry
   let lbs = fromMaybe "" $ responseBody r
@@ -221,7 +222,7 @@ preparePasswordReset brig cs email uid newpw = do
   let complete = CompletePasswordReset ident pwcode newpw
   pure complete
   where
-    runSem = liftIO . runFinal @IO . interpretClientToIO cs . codeStoreToCassandra @DB.Client
+    runSem = liftIO . runFinal @IO . interpretClientToIO cState . codeStoreToCassandra @DB.Client
 
 completePasswordReset :: Brig -> CompletePasswordReset -> MonadHttp m => m ResponseLBS
 completePasswordReset brig passwordResetData =
@@ -583,11 +584,20 @@ nonce m brig uid cid =
         . zUser uid
     )
 
-createAccessToken :: (MonadHttp m, HasCallStack) => Brig -> UserId -> ClientId -> Maybe Proof -> m ResponseLBS
-createAccessToken brig uid cid mProof =
-  post
-    ( brig
-        . paths ["clients", toByteString' cid, "access-token"]
-        . zUser uid
-        . maybe id (header "DPoP" . toByteString') mProof
-    )
+createAccessToken :: (MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> ClientId -> Maybe Proof -> m ResponseLBS
+createAccessToken brig uid h cid mProof =
+  post $
+    brig
+      . paths ["clients", toByteString' cid, "access-token"]
+      . zUser uid
+      . header "Z-Host" (cs h)
+      . maybe id (header "DPoP" . toByteString') mProof
+
+createAccessTokenNginz :: (MonadHttp m, HasCallStack) => Nginz -> ZAuth.Token ZAuth.Access -> ClientId -> Maybe Proof -> m ResponseLBS
+createAccessTokenNginz n t cid mProof =
+  post $
+    unversioned
+      . n
+      . paths ["clients", toByteString' cid, "access-token"]
+      . header "Authorization" ("Bearer " <> toByteString' t)
+      . maybe id (header "DPoP" . toByteString') mProof

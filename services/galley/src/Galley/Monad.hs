@@ -68,7 +68,9 @@ instance LC.MonadLogger App where
     log (env ^. applog) lvl (reqIdMsg (env ^. reqId) . m)
 
 embedApp ::
-  Members '[Embed IO, Input Env] r =>
+  ( Member (Embed IO) r,
+    Member (Input Env) r
+  ) =>
   App a ->
   Sem r a
 embedApp action = do

@@ -14,7 +14,7 @@ galley:
   host: 0.0.0.0
   port: 8085
 
-logLevel: Debug
+logLevel: Warn
 logNetStrings: false
 
 optSettings:

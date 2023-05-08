@@ -33,6 +33,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -44,6 +45,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -64,12 +66,11 @@ library
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
-    -rtsopts -Wredundant-constraints
+    -rtsopts -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson
     , base
-    , brig-types
     , bytestring
     , cassandra-util
     , conduit
@@ -111,6 +112,7 @@ executable move-team
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -122,6 +124,7 @@ executable move-team
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -142,34 +145,19 @@ executable move-team
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
-    -rtsopts -Wredundant-constraints
+    -rtsopts -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson
-    , base
-    , brig-types
-    , bytestring
+      base
     , cassandra-util
-    , conduit
-    , containers
-    , filepath
-    , galley
     , imports
-    , iproute
     , lens
-    , megaparsec
     , move-team
     , optparse-applicative
     , process
-    , raw-strings-qq
-    , stache
-    , text
-    , time
     , tinylog
     , types-common
     , uuid
-    , vector
-    , wire-api
 
   default-language:   Haskell2010
 
@@ -190,6 +178,7 @@ executable move-team-generate
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -201,6 +190,7 @@ executable move-team-generate
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -221,33 +211,10 @@ executable move-team-generate
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
-    -rtsopts -Wredundant-constraints
+    -rtsopts -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson
-    , base
-    , brig-types
-    , bytestring
-    , cassandra-util
-    , conduit
-    , containers
-    , filepath
-    , galley
-    , imports
-    , iproute
-    , lens
-    , megaparsec
+      base
     , move-team
-    , optparse-applicative
-    , process
-    , raw-strings-qq
-    , stache
-    , text
-    , time
-    , tinylog
-    , types-common
-    , uuid
-    , vector
-    , wire-api
 
   default-language:   Haskell2010

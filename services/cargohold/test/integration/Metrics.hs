@@ -31,7 +31,7 @@ tests s = testGroup "Metrics" [test s "prometheus" testPrometheusMetrics]
 
 testPrometheusMetrics :: TestM ()
 testPrometheusMetrics = do
-  cargohold <- viewCargohold
+  cargohold <- viewUnversionedCargohold
   get (cargohold . path "/i/metrics") !!! do
     const 200 === statusCode
     -- Should contain the request duration metric in its output

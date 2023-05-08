@@ -22,7 +22,6 @@
 , brig-types
 , bytestring
 , bytestring-conversion
-, cargohold-types
 , case-insensitive
 , cassandra-util
 , comonad
@@ -56,7 +55,6 @@
 , HaskellNet-SSL
 , hscim
 , HsOpenSSL
-, HsOpenSSL-x509-system
 , html-entities
 , http-api-data
 , http-client
@@ -65,10 +63,12 @@
 , http-media
 , http-reverse-proxy
 , http-types
+, http2-manager
 , imports
 , insert-ordered-containers
 , iproute
 , iso639
+, jose
 , jwt-tools
 , lens
 , lens-aeson
@@ -80,10 +80,10 @@
 , mmorph
 , MonadRandom
 , mtl
-, multihash
 , mwc-random
 , network
 , network-conduit-tls
+, network-uri
 , optparse-applicative
 , pem
 , pipes
@@ -106,7 +106,6 @@
 , saml2-web-sso
 , schema-profunctor
 , scientific
-, scrypt
 , servant
 , servant-client
 , servant-client-core
@@ -122,7 +121,6 @@
 , streaming-commons
 , string-conversions
 , swagger2
-, tagged
 , tasty
 , tasty-cannon
 , tasty-hunit
@@ -137,6 +135,7 @@
 , time-units
 , tinylog
 , transformers
+, transitive-anns
 , types-common
 , types-common-aws
 , types-common-journal
@@ -173,7 +172,6 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     async
-    attoparsec
     auto-update
     base
     base-prelude
@@ -212,16 +210,17 @@ mkDerivation {
     HaskellNet
     HaskellNet-SSL
     HsOpenSSL
-    HsOpenSSL-x509-system
     html-entities
     http-client
     http-client-openssl
     http-media
     http-types
+    http2-manager
     imports
     insert-ordered-containers
     iproute
     iso639
+    jose
     jwt-tools
     lens
     lens-aeson
@@ -232,12 +231,10 @@ mkDerivation {
     mmorph
     MonadRandom
     mtl
-    multihash
     mwc-random
     network
     network-conduit-tls
     optparse-applicative
-    pem
     polysemy
     polysemy-plugin
     polysemy-wire-zoo
@@ -247,15 +244,12 @@ mkDerivation {
     resourcet
     retry
     ropes
-    safe
     safe-exceptions
     saml2-web-sso
     schema-profunctor
     scientific
-    scrypt
     servant
     servant-client
-    servant-client-core
     servant-server
     servant-swagger
     servant-swagger-ui
@@ -266,7 +260,6 @@ mkDerivation {
     stomp-queue
     string-conversions
     swagger2
-    tagged
     template
     template-haskell
     text
@@ -276,6 +269,7 @@ mkDerivation {
     time-units
     tinylog
     transformers
+    transitive-anns
     types-common
     types-common-aws
     types-common-journal
@@ -290,7 +284,6 @@ mkDerivation {
     wai-predicates
     wai-routing
     wai-utilities
-    warp
     wire-api
     wire-api-federation
     yaml
@@ -308,7 +301,6 @@ mkDerivation {
     brig-types
     bytestring
     bytestring-conversion
-    cargohold-types
     case-insensitive
     cassandra-util
     containers
@@ -322,7 +314,6 @@ mkDerivation {
     federator
     filepath
     galley-types
-    gundeck-types
     hscim
     HsOpenSSL
     http-api-data
@@ -332,6 +323,7 @@ mkDerivation {
     http-reverse-proxy
     http-types
     imports
+    jose
     lens
     lens-aeson
     metrics-wai
@@ -340,6 +332,7 @@ mkDerivation {
     MonadRandom
     mtl
     network
+    network-uri
     optparse-applicative
     pem
     pipes
@@ -393,7 +386,6 @@ mkDerivation {
     aeson
     base
     binary
-    bloodhound
     brig-types
     bytestring
     containers
@@ -402,15 +394,10 @@ mkDerivation {
     dns-util
     exceptions
     HsOpenSSL
-    http-types
     imports
     lens
     polysemy
     polysemy-wire-zoo
-    QuickCheck
-    retry
-    servant-client-core
-    string-conversions
     tasty
     tasty-hunit
     tasty-quickcheck
@@ -420,9 +407,7 @@ mkDerivation {
     unliftio
     uri-bytestring
     uuid
-    wai-utilities
     wire-api
-    wire-api-federation
   ];
   description = "User Service";
   license = lib.licenses.agpl3Only;

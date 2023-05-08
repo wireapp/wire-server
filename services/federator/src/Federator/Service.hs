@@ -42,7 +42,6 @@ import Network.HTTP.Client
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
 import Polysemy.Input
-import Polysemy.TinyLog
 import qualified Servant.Client.Core as Servant
 import Servant.Types.SourceT
 import Util.Options
@@ -76,7 +75,9 @@ bodyReaderToStreamT action = fromStepT go
 -- FUTUREWORK: unify this interpretation with similar ones in Galley
 --
 interpretServiceHTTP ::
-  Members '[Embed (Codensity IO), Input Env, TinyLog] r =>
+  ( Member (Embed (Codensity IO)) r,
+    Member (Input Env) r
+  ) =>
   Sem (ServiceStreaming ': r) a ->
   Sem r a
 interpretServiceHTTP = interpret $ \case

@@ -24,22 +24,22 @@ module Brig.API.Handler
     -- * Utilities
     JSON,
     parseJsonBody,
-    checkWhitelist,
-    checkWhitelistWithError,
-    isWhiteListed,
+    checkAllowlist,
+    checkAllowlistWithError,
+    isAllowlisted,
     UserNotAllowedToJoinTeam (..),
   )
 where
 
-import Bilge (MonadHttp, RequestId (..))
+import Bilge (RequestId (..))
 import Brig.API.Error
 import qualified Brig.AWS as AWS
+import qualified Brig.Allowlists as Allowlists
 import Brig.App
 import Brig.CanonicalInterpreter (BrigCanonicalEffects, runBrigToIO)
 import Brig.Email (Email)
-import Brig.Options (setWhitelist)
+import Brig.Options (setAllowlistEmailDomains, setAllowlistPhonePrefixes)
 import Brig.Phone (Phone, PhoneException (..))
-import qualified Brig.Whitelist as Whitelist
 import Control.Error
 import Control.Exception (throwIO)
 import Control.Lens (set, view)
@@ -167,18 +167,17 @@ type JSON = Media "application" "json"
 parseJsonBody :: (FromJSON a, MonadIO m) => JsonRequest a -> ExceptT Error m a
 parseJsonBody req = parseBody req !>> StdError . badRequest
 
--- | If a whitelist is configured, consult it, otherwise a no-op. {#RefActivationWhitelist}
-checkWhitelist :: Either Email Phone -> (Handler r) ()
-checkWhitelist = wrapHttpClientE . checkWhitelistWithError (StdError whitelistError)
+-- | If an Allowlist is configured, consult it, otherwise a no-op. {#RefActivationAllowlist}
+checkAllowlist :: Either Email Phone -> (Handler r) ()
+checkAllowlist = wrapHttpClientE . checkAllowlistWithError (StdError allowlistError)
 
-checkWhitelistWithError :: (MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m, MonadError e m) => e -> Either Email Phone -> m ()
-checkWhitelistWithError e key = do
-  ok <- isWhiteListed key
+-- checkAllowlistWithError :: (MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m, MonadError e m) => e -> Either Email Phone -> m ()
+checkAllowlistWithError :: (MonadReader Env m, MonadError e m) => e -> Either Email Phone -> m ()
+checkAllowlistWithError e key = do
+  ok <- isAllowlisted key
   unless ok (throwError e)
 
-isWhiteListed :: (MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m) => Either Email Phone -> m Bool
-isWhiteListed key = do
-  eb <- setWhitelist <$> view settings
-  case eb of
-    Nothing -> pure True
-    Just b -> Whitelist.verify b key
+isAllowlisted :: (MonadReader Env m) => Either Email Phone -> m Bool
+isAllowlisted key = do
+  env <- view settings
+  pure $ Allowlists.verify (setAllowlistEmailDomains env) (setAllowlistPhonePrefixes env) key

@@ -30,20 +30,21 @@ module Wire.API.Routes.Public
     ZBot,
     ZConversation,
     ZProvider,
-
-    -- * Swagger combinators
-    OmitDocs,
+    DescriptionOAuthScope,
+    ZHost,
   )
 where
 
-import Control.Lens ((<>~))
+import Control.Lens ((%~), (<>~))
+import Data.ByteString.Conversion (toByteString)
 import Data.Domain
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
 import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
-import Data.Swagger
+import Data.String.Conversions
+import Data.Swagger hiding (Header)
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (All, head)
@@ -52,7 +53,9 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Modifiers
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
+import Servant.Server.Internal.Router (Router)
 import Servant.Swagger (HasSwagger (toSwagger))
+import qualified Wire.API.OAuth as OAuth
 
 mapRequestArgument ::
   forall mods a b.
@@ -185,6 +188,14 @@ type ZOptClient = ZAuthServant 'ZAuthClient '[Servant.Optional, Servant.Strict]
 
 type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict]
 
+data ZHost
+
+type ZHostHeader =
+  Header' '[Required, Strict] "Z-Host" Text
+
+instance HasSwagger api => HasSwagger (ZHost :> api) where
+  toSwagger _ = toSwagger (Proxy @api)
+
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) where
   toSwagger _ =
     toSwagger (Proxy @api)
@@ -210,6 +221,21 @@ instance
   HasSwagger (ZAuthServant ztype _opts :> api)
   where
   toSwagger _ = toSwagger (Proxy @api)
+
+instance
+  ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+    HasServer api ctx
+  ) =>
+  HasServer (ZHost :> api) ctx
+  where
+  type ServerT (ZHost :> api) m = Text -> ServerT api m
+  route ::
+    Proxy (ZHost :> api) ->
+    Context ctx ->
+    Delayed env (Server (ZHost :> api)) ->
+    Router env
+  route _ = route (Proxy @(ZHostHeader :> api))
+  hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
 instance
   ( IsZType ztype ctx,
@@ -251,28 +277,26 @@ instance
 instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts :> api) where
   getRoutes = getRoutes @api
 
+instance RoutesToPaths api => RoutesToPaths (ZHost :> api) where
+  getRoutes = getRoutes @api
+
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
 instance ToSchema a => ToSchema (Headers ls a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @a)
 
--- | A type-level tag that lets us omit any branch from Swagger docs.
---
--- Those are likely to be:
---
---   * Endpoints for which we can't generate Swagger docs.
---   * The endpoint that serves Swagger docs.
---   * Internal endpoints.
-data OmitDocs
+data DescriptionOAuthScope (scope :: OAuth.OAuthScope)
 
-instance HasSwagger (OmitDocs :> a) where
-  toSwagger _ = mempty
+instance (HasSwagger api, OAuth.IsOAuthScope scope) => HasSwagger (DescriptionOAuthScope scope :> api) where
+  toSwagger _ = toSwagger (Proxy @api) & addScopeDescription
+    where
+      addScopeDescription :: Swagger -> Swagger
+      addScopeDescription = allOperations . description %~ Just . (<> "\nOAuth scope: `" <> cs (toByteString (OAuth.toOAuthScope @scope)) <> "`") . fold
 
-instance HasServer api ctx => HasServer (OmitDocs :> api) ctx where
-  type ServerT (OmitDocs :> api) m = ServerT api m
+instance (HasServer api ctx) => HasServer (DescriptionOAuthScope scope :> api) ctx where
+  type ServerT (DescriptionOAuthScope scope :> api) m = ServerT api m
 
-  route _ = route (Proxy :: Proxy api)
-  hoistServerWithContext _ pc nt s =
-    hoistServerWithContext (Proxy :: Proxy api) pc nt s
+  route _ = route (Proxy @api)
+  hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
 
-instance RoutesToPaths api => RoutesToPaths (OmitDocs :> api) where
+instance RoutesToPaths api => RoutesToPaths (DescriptionOAuthScope scope :> api) where
   getRoutes = getRoutes @api

@@ -47,7 +47,6 @@ import Data.Time (addUTCTime, getCurrentTime)
 import qualified Data.UUID as UUID (fromString)
 import qualified Data.UUID.V4 as UUID
 import qualified Galley.Types.Teams as Team
-import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
@@ -64,6 +63,7 @@ import Util.AWS as Util
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Asset
 import Wire.API.Connection
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
@@ -96,7 +96,7 @@ tests conf m n b c g aws = do
             test m "post /teams/:tid/invitations - email lookup nginz" $ testInvitationEmailLookupNginz b n,
             test m "post /teams/:tid/invitations - email lookup register" $ testInvitationEmailLookupRegister b,
             test m "post /teams/:tid/invitations - 403 no permission" $ testInvitationNoPermission b,
-            test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b tl,
+            test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending conf b tl,
             test m "post /teams/:tid/invitations - roles" $ testInvitationRoles b g,
             test m "post /register - 201 accepted" $ testInvitationEmailAccepted b g,
             test m "post /register - 201 accepted (with domain blocking customer extension)" $ testInvitationEmailAcceptedInBlockedDomain conf b g,
@@ -354,14 +354,17 @@ headInvitationByEmail service email expectedCode =
   Bilge.head (service . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
     !!! const expectedCode === statusCode
 
-testInvitationTooManyPending :: Brig -> TeamSizeLimit -> Http ()
-testInvitationTooManyPending brig (TeamSizeLimit limit) = do
+testInvitationTooManyPending :: Opt.Opts -> Brig -> TeamSizeLimit -> Http ()
+testInvitationTooManyPending opts brig (TeamSizeLimit limit) = do
   (inviter, tid) <- createUserWithTeam brig
   emails <- replicateConcurrently (fromIntegral limit) randomEmail
-  pooledForConcurrentlyN_ 16 emails $ postInvitation brig tid inviter . stdInvitationRequest
   email <- randomEmail
-  -- TODO: If this test takes longer to run than `team-invitation-timeout`, then some of the
-  --       invitations have likely expired already and this test will actually _fail_
+  -- If this test takes longer to run than `team-invitation-timeout`, then some of the
+  -- invitations have likely expired already and this test will actually _fail_
+  -- therefore we increase the timeout from default 10 to 300 seconds
+  let longerTimeout = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setTeamInvitationTimeout = 300}}
+  withSettingsOverrides longerTimeout $ do
+    forM_ emails $ postInvitation brig tid inviter . stdInvitationRequest
   postInvitation brig tid inviter (stdInvitationRequest email) !!! do
     const 403 === statusCode
     const (Just "too-many-team-invitations") === fmap Error.label . responseJsonMaybe
@@ -528,10 +531,8 @@ testCreateTeam brig galley userJournalWatcher = do
   email <- randomEmail
   usr <- responseJsonError =<< register email newTeam brig
   let uid = userId usr
-  -- Verify that the user is part of exactly one (binding) team
-  teams <- view teamListTeams <$> getTeams uid galley
-  liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
-  let team = fromMaybe (error "No team??") $ listToMaybe teams
+  let tid = fromMaybe (error "No team??") $ userTeam usr
+  team <- Team.tdTeam <$> getTeam galley tid
   mem <- getTeamMember uid (team ^. teamId) galley
   liftIO $ assertBool "Member not part of the team" (uid == mem ^. Member.userId)
   -- Verify that the user cannot send invitations before activating their account
@@ -562,9 +563,8 @@ testCreateTeamPreverified brig galley userJournalWatcher = do
       usr <- responseJsonError =<< register' email newTeam c brig <!! const 201 === statusCode
       let uid = userId usr
       Util.assertUserActivateJournaled userJournalWatcher usr "user activate"
-      teams <- view teamListTeams <$> getTeams uid galley
-      liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
-      let team = fromMaybe (error "No team??") $ listToMaybe teams
+      let tid = fromMaybe (error "No team??") $ userTeam usr
+      team <- Team.tdTeam <$> getTeam galley tid
       mem <- getTeamMember uid (team ^. teamId) galley
       liftIO $ assertBool "Member not part of the team" (uid == mem ^. Member.userId)
       team2 <- getTeam galley (team ^. teamId)

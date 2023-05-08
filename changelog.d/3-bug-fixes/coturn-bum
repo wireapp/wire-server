@@ -1,0 +1,1 @@
+Bump coturn default image to upstream coturn 4.6.2 + custom Wire code including a bugfix for a bug that resulted in unstable operation during higher load.

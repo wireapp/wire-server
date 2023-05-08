@@ -28,6 +28,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -39,6 +40,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -58,19 +60,15 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base
-    , base64-bytestring
-    , bytestring
     , bytestring-conversion
     , http-types
     , imports
-    , QuickCheck
     , string-conversions
     , transformers
-    , unliftio
 
   default-language:   Haskell2010
   other-extensions:   ForeignFunctionInterface
@@ -82,28 +80,18 @@ test-suite jwt-tools-tests
   main-is:            Spec.hs
   type:               exitcode-stdio-1.0
   build-depends:
-      base
-    , base64-bytestring
-    , bytestring
-    , bytestring-conversion
-    , either
-    , extra
-    , hspec
-    , http-types
+      hspec
     , imports
     , jwt-tools
-    , QuickCheck
     , string-conversions
-    , text
     , transformers
-    , uuid
 
   hs-source-dirs:     test
   default-language:   Haskell2010
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   default-extensions:
     NoImplicitPrelude
@@ -118,6 +106,7 @@ test-suite jwt-tools-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -129,6 +118,7 @@ test-suite jwt-tools-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms

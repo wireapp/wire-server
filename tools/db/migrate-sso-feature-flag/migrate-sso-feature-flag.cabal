@@ -32,6 +32,7 @@ executable migrate-sso-feature-flag
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -43,6 +44,7 @@ executable migrate-sso-feature-flag
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -63,11 +65,10 @@ executable migrate-sso-feature-flag
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
-    -rtsopts -Wredundant-constraints
+    -rtsopts -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base
-    , brig-types
     , cassandra-util
     , conduit
     , galley

@@ -42,6 +42,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -53,6 +54,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -72,7 +74,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson                  >=2.0.1.0
@@ -98,7 +100,6 @@ library
     , mwc-random             >=0.13
     , retry                  >=0.7
     , safe-exceptions
-    , servant
     , servant-conduit
     , servant-server
     , strict                 >=0.3.2
@@ -107,13 +108,10 @@ library
     , types-common           >=0.16
     , unix
     , unliftio
-    , uuid                   >=1.3
     , vector                 >=0.10
     , wai                    >=3.0
     , wai-extra              >=3.0
-    , wai-predicates         >=0.8
     , wai-utilities          >=0.11
-    , wai-websockets         >=3.0
     , warp                   >=3.0
     , websockets             >=0.11.2
     , wire-api
@@ -136,6 +134,7 @@ executable cannon
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -147,6 +146,7 @@ executable cannon
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -168,11 +168,11 @@ executable cannon
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -rtsopts -with-rtsopts=-N -with-rtsopts=-T
     -with-rtsopts=-M1g -with-rtsopts=-ki4k -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       base
     , cannon
-    , extended
     , imports
     , types-common
 
@@ -202,6 +202,7 @@ test-suite cannon-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -213,6 +214,7 @@ test-suite cannon-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -233,14 +235,13 @@ test-suite cannon-tests
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       async
     , base
     , bytestring
     , cannon
-    , criterion         >=1.0
-    , extended
     , imports
     , metrics-wai
     , QuickCheck        >=2.7
@@ -250,7 +251,6 @@ test-suite cannon-tests
     , tasty-quickcheck  >=0.8
     , types-common
     , uuid
-    , wai-utilities
     , wire-api
 
   default-language:   Haskell2010
@@ -276,6 +276,7 @@ benchmark cannon-bench
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -287,6 +288,7 @@ benchmark cannon-bench
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -307,23 +309,14 @@ benchmark cannon-bench
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       async
     , base
-    , bytestring
     , cannon
-    , criterion         >=1.0
-    , extended
+    , criterion  >=1.0
     , imports
-    , metrics-wai
-    , QuickCheck        >=2.7
-    , random            >=1.0
-    , tasty             >=0.8
-    , tasty-hunit       >=0.8
-    , tasty-quickcheck  >=0.8
-    , types-common
     , uuid
-    , wai-utilities
 
   default-language:   Haskell2010

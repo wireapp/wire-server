@@ -27,7 +27,6 @@ import Data.Misc
 import qualified Data.Text.Lazy as LT
 import Galley.Cassandra.Instances ()
 import Galley.Data.Scope
-import Galley.Types.Teams.Intra
 import Imports
 import Text.RawString.QQ
 import Wire.API.Conversation
@@ -37,8 +36,10 @@ import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.PublicGroupState
+import Wire.API.Password (Password)
 import Wire.API.Provider
 import Wire.API.Provider.Service
+import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Permission
 import Wire.API.Team.SearchVisibility
@@ -285,11 +286,11 @@ updatePublicGroupState = "update conversation set public_group_state = ? where c
 
 -- Conversations accessible by code -----------------------------------------
 
-insertCode :: PrepQuery W (Key, Value, ConvId, Scope, Int32) ()
-insertCode = "INSERT INTO conversation_codes (key, value, conversation, scope) VALUES (?, ?, ?, ?) USING TTL ?"
+insertCode :: PrepQuery W (Key, Value, ConvId, Scope, Maybe Password, Int32) ()
+insertCode = "INSERT INTO conversation_codes (key, value, conversation, scope, password) VALUES (?, ?, ?, ?, ?) USING TTL ?"
 
-lookupCode :: PrepQuery R (Key, Scope) (Value, Int32, ConvId)
-lookupCode = "SELECT value, ttl(value), conversation FROM conversation_codes WHERE key = ? AND scope = ?"
+lookupCode :: PrepQuery R (Key, Scope) (Value, Int32, ConvId, Maybe Password)
+lookupCode = "SELECT value, ttl(value), conversation, password FROM conversation_codes WHERE key = ? AND scope = ?"
 
 deleteCode :: PrepQuery W (Key, Scope) ()
 deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"

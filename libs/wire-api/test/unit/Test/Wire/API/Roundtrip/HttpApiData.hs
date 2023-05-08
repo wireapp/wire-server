@@ -22,6 +22,7 @@ import Servant.API
 import qualified Test.Tasty as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)
+import qualified Wire.API.Routes.Version
 import qualified Wire.API.User
 import qualified Wire.API.User.Search
 import qualified Wire.Arbitrary as Arbitrary ()
@@ -30,7 +31,9 @@ tests :: T.TestTree
 tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "HttpApiData roundtrip tests" $
     [ testRoundTrip @Wire.API.User.InvitationCode,
-      testRoundTrip @Wire.API.User.Search.PagingState
+      testRoundTrip @Wire.API.User.Search.PagingState,
+      testRoundTrip @Wire.API.Routes.Version.Version,
+      testRoundTrip @Wire.API.Routes.Version.VersionNumber
     ]
 
 testRoundTrip ::

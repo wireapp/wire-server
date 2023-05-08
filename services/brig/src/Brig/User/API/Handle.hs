@@ -39,14 +39,13 @@ import Imports
 import Network.Wai.Utilities ((!>>))
 import Polysemy
 import qualified System.Logger.Class as Log
-import Wire.API.Federation.API
 import Wire.API.User
 import qualified Wire.API.User as Public
 import Wire.API.User.Search
 import qualified Wire.API.User.Search as Public
 
 getHandleInfo ::
-  (Members '[GalleyProvider] r, CallsFed 'Brig "get-user-by-handle", CallsFed 'Brig "get-users-by-ids") =>
+  (Member GalleyProvider r) =>
   UserId ->
   Qualified Handle ->
   (Handler r) (Maybe Public.UserProfile)
@@ -58,7 +57,7 @@ getHandleInfo self handle = do
     getRemoteHandleInfo
     handle
 
-getRemoteHandleInfo :: CallsFed 'Brig "get-user-by-handle" => Remote Handle -> (Handler r) (Maybe Public.UserProfile)
+getRemoteHandleInfo :: Remote Handle -> (Handler r) (Maybe Public.UserProfile)
 getRemoteHandleInfo handle = do
   lift . Log.info $
     Log.msg (Log.val "getHandleInfo - remote lookup")
@@ -66,7 +65,7 @@ getRemoteHandleInfo handle = do
   Federation.getUserHandleInfo handle !>> fedError
 
 getLocalHandleInfo ::
-  (Members '[GalleyProvider] r, CallsFed 'Brig "get-users-by-ids") =>
+  (Member GalleyProvider r) =>
   Local UserId ->
   Handle ->
   (Handler r) (Maybe Public.UserProfile)

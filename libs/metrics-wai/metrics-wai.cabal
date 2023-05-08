@@ -34,6 +34,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -45,6 +46,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -64,7 +66,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   ghc-prof-options:   -fprof-auto
   build-depends:
@@ -106,6 +108,7 @@ test-suite unit
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -117,6 +120,7 @@ test-suite unit
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -137,24 +141,14 @@ test-suite unit
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N -Wredundant-constraints
+    -Wunused-packages
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
-      base                       >=4    && <5
-    , bytestring                 >=0.10
+      base         >=4 && <5
     , containers
     , hspec
-    , http-types                 >=0.8
     , imports
-    , metrics-core               >=0.3
     , metrics-wai
-    , servant
-    , servant-multipart
-    , string-conversions
-    , text                       >=0.11
-    , wai                        >=3
-    , wai-middleware-prometheus
-    , wai-route                  >=0.3
-    , wai-routing
 
   default-language:   Haskell2010

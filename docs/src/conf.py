@@ -10,26 +10,18 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
-import datetime
-import requests
+import os
+import sys
+
+# unset SOURCE_DATE_EPOCH to aviod side effects caused by sphinx
+if 'SOURCE_DATE_EPOCH' in os.environ:
+    del os.environ['SOURCE_DATE_EPOCH']
 
 # -- Project information -----------------------------------------------------
 
 project = 'Wire'
 author = 'Wire Swiss GmbH'
-# Since nix has an old timestamp it operates under for reproducability, get
-# current date from the internet.
-try:
-    r = requests.get("https://worldtimeapi.org/api/timezone/Europe/Berlin").json()
-    today_year = r['datetime'][:4]
-    # the first commit of wire-docs was in 2019.
-    copyright = f'2019 - {today_year}, ' + author
-except:
-    print("Error in getting online date, fallback to potentially out-of-date year")
-    copyright = f'2019 - 2022, Wire Swiss GmbH'
+copyright = f'2019 - 2023, Wire Swiss GmbH'
 version = '0.0.4'
 # the 'release' variable is used in latex-based PDF generation
 release = version
@@ -37,16 +29,20 @@ release = version
 
 # -- General configuration ---------------------------------------------------
 
+sys.path.insert(0, os.path.abspath('.')) # for local extensions like grepinclude
+
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
     'sphinxcontrib.kroki',
+    'sphinxcontrib.plantuml',
     "myst_parser",
     'rst2pdf.pdfbuilder',
     'sphinx_multiversion',
     'sphinx_reredirects',
     'sphinx_copybutton',
+    'grepinclude',
 ]
 
 # Grouping the document tree into PDF files. List of tuples

@@ -34,7 +34,6 @@ import Data.Misc (Milliseconds)
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as T
-import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty.HUnit
@@ -43,6 +42,7 @@ import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature (FeatureStatus (..))
 import qualified Wire.API.Team.Feature as Public
@@ -150,7 +150,10 @@ createUserWithTeam' brig = do
               "password" .= defPassword,
               "team" .= newTeam
             ]
-  user <- responseJsonError =<< post (brig . path "/i/users" . contentJson . body p)
+  user <-
+    responseJsonError
+      =<< post (brig . path "/i/users" . contentJson . body p)
+        <!! const 201 === statusCode
   let Just tid = userTeam user
   selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId user)
   liftIO $ assertBool "Team ID in self profile and team table do not match" (selfTeam == Just tid)
@@ -233,7 +236,6 @@ createTeamConvWithRole role g tid u us mtimer = do
           Nothing
           role
           ProtocolProteusTag
-          Nothing
   r <-
     post
       ( g
@@ -271,20 +273,6 @@ deleteTeam g tid u = do
     )
     !!! const 202
       === statusCode
-
-getTeams ::
-  (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) =>
-  UserId ->
-  Galley ->
-  m TeamList
-getTeams u galley =
-  responseJsonError
-    =<< get
-      ( galley
-          . paths ["teams"]
-          . zAuthAccess u "conn"
-          . expect2xx
-      )
 
 newTeam :: BindingNewTeam
 newTeam = BindingNewTeam $ newNewTeam (unsafeRange "teamName") DefaultIcon
@@ -412,7 +400,7 @@ unsuspendTeam brig t =
       . paths ["i", "teams", toByteString' t, "unsuspend"]
       . contentJson
 
-getTeam :: HasCallStack => Galley -> TeamId -> Http Team.TeamData
+getTeam :: (HasCallStack, MonadIO m, MonadHttp m, HasCallStack, MonadCatch m) => Galley -> TeamId -> m Team.TeamData
 getTeam galley t =
   responseJsonError =<< get (galley . paths ["i", "teams", toByteString' t])
 

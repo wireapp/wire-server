@@ -49,6 +49,8 @@ module Data.Id
     RequestId (..),
     BotId (..),
     NoId,
+    OAuthClientId,
+    OAuthRefreshTokenId,
   )
 where
 
@@ -70,6 +72,7 @@ import qualified Data.Char as Char
 import Data.Default (Default (..))
 import Data.Hashable (Hashable)
 import Data.ProtocolBuffers.Internal
+import Data.Proxy
 import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
@@ -96,6 +99,8 @@ data IdTag
   | Service
   | Team
   | ScimToken
+  | OAuthClient
+  | OAuthRefreshToken
 
 idTagName :: IdTag -> Text
 idTagName Asset = "Asset"
@@ -106,6 +111,8 @@ idTagName Provider = "Provider"
 idTagName Service = "Service"
 idTagName Team = "Team"
 idTagName ScimToken = "ScimToken"
+idTagName OAuthClient = "OAuthClient"
+idTagName OAuthRefreshToken = "OAuthRefreshToken"
 
 class KnownIdTag (t :: IdTag) where
   idTagValue :: IdTag
@@ -126,6 +133,10 @@ instance KnownIdTag 'Team where idTagValue = Team
 
 instance KnownIdTag 'ScimToken where idTagValue = ScimToken
 
+instance KnownIdTag 'OAuthClient where idTagValue = OAuthClient
+
+instance KnownIdTag 'OAuthRefreshToken where idTagValue = OAuthRefreshToken
+
 type AssetId = Id 'Asset
 
 type InvitationId = Id 'Invitation
@@ -143,6 +154,10 @@ type ServiceId = Id 'Service
 type TeamId = Id 'Team
 
 type ScimTokenId = Id 'ScimToken
+
+type OAuthClientId = Id 'OAuthClient
+
+type OAuthRefreshTokenId = Id 'OAuthRefreshToken
 
 -- Id -------------------------------------------------------------------------
 
@@ -273,12 +288,13 @@ newtype ConnId = ConnId
       NFData,
       Generic
     )
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConnId
 
-instance ToJSON ConnId where
-  toJSON (ConnId c) = A.String (decodeUtf8 c)
+instance ToSchema ConnId where
+  schema = (decodeUtf8 . fromConnId) .= fmap (ConnId . encodeUtf8) (text "ConnId")
 
-instance FromJSON ConnId where
-  parseJSON x = ConnId . encodeUtf8 <$> A.withText "ConnId" pure x
+instance S.ToParamSchema ConnId where
+  toParamSchema _ = S.toParamSchema (Proxy @Text)
 
 instance FromHttpApiData ConnId where
   parseUrlPiece = Right . ConnId . encodeUtf8

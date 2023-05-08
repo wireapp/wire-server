@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,13 +19,27 @@
 
 module Wire.API.RawJson where
 
+import Control.Lens
+import qualified Data.Swagger as Swagger
 import Imports
 import Servant
+import Test.QuickCheck
+import Test.QuickCheck.Instances ()
 
 -- | Wrap json content as plain 'LByteString'
--- This type is intented to be used to receive json content as 'LByteString'.
+-- This type is intended to be used to receive json content as 'LText'.
 -- Warning: There is no validation of the json content. It may be any string.
 newtype RawJson = RawJson {rawJsonBytes :: LByteString}
+  deriving (Eq, Show)
+  deriving newtype (Arbitrary)
 
 instance {-# OVERLAPPING #-} MimeUnrender JSON RawJson where
   mimeUnrender _ = pure . RawJson
+
+instance Swagger.ToSchema RawJson where
+  declareNamedSchema _ =
+    pure . Swagger.NamedSchema (Just "RawJson") $
+      mempty
+        & Swagger.type_ ?~ Swagger.SwaggerObject
+        & Swagger.description
+          ?~ "Any JSON as plain string. The object structure is not specified in this schema."

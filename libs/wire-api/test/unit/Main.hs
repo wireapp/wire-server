@@ -21,10 +21,13 @@ module Main
 where
 
 import Imports
+import System.IO.Unsafe (unsafePerformIO)
 import Test.Tasty
 import qualified Test.Wire.API.Call.Config as Call.Config
 import qualified Test.Wire.API.Conversation as Conversation
 import qualified Test.Wire.API.MLS as MLS
+import qualified Test.Wire.API.OAuth as OAuth
+import qualified Test.Wire.API.RawJson as RawJson
 import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
 import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
 import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
@@ -32,6 +35,7 @@ import qualified Test.Wire.API.Roundtrip.HttpApiData as Roundtrip.HttpApiData
 import qualified Test.Wire.API.Roundtrip.MLS as Roundtrip.MLS
 import qualified Test.Wire.API.Routes as Routes
 import qualified Test.Wire.API.Routes.Version as Routes.Version
+import qualified Test.Wire.API.Routes.Version.Wai as Routes.Version.Wai
 import qualified Test.Wire.API.Swagger as Swagger
 import qualified Test.Wire.API.Team.Export as Team.Export
 import qualified Test.Wire.API.Team.Member as Team.Member
@@ -61,5 +65,8 @@ main =
         Routes.tests,
         Conversation.tests,
         MLS.tests,
-        Routes.Version.tests
+        Routes.Version.tests,
+        unsafePerformIO Routes.Version.Wai.tests,
+        RawJson.tests,
+        OAuth.tests
       ]

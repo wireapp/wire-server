@@ -77,7 +77,6 @@ where
 import Brig.App (Env, currentTime, settings, viewFederationDomain, zauthEnv)
 import Brig.Data.Instances ()
 import Brig.Options
-import Brig.Password
 import Brig.Types.Intra
 import Brig.Types.User (HavePendingInvitations (NoPendingInvitations, WithPendingInvitations))
 import qualified Brig.ZAuth as ZAuth
@@ -89,12 +88,13 @@ import Data.Domain
 import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc
 import Data.Qualified
 import Data.Range (fromRange)
 import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Imports
+import Wire.API.Password
 import Wire.API.Provider.Service
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
@@ -185,7 +185,7 @@ newAccountInviteViaScim uid tid locale name email = do
         ManagedByScim
 
 -- | Mandatory password authentication.
-authenticate :: MonadClient m => UserId -> PlainTextPassword -> ExceptT AuthError m ()
+authenticate :: MonadClient m => UserId -> PlainTextPassword6 -> ExceptT AuthError m ()
 authenticate u pw =
   lift (lookupAuth u) >>= \case
     Nothing -> throwE AuthInvalidUser
@@ -201,7 +201,7 @@ authenticate u pw =
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password, or is an SSO user, and no password is given,
 -- reauthentication is a no-op.
-reauthenticate :: (MonadClient m, MonadReader Env m) => UserId -> Maybe PlainTextPassword -> ExceptT ReAuthError m ()
+reauthenticate :: (MonadClient m, MonadReader Env m) => UserId -> Maybe PlainTextPassword6 -> ExceptT ReAuthError m ()
 reauthenticate u pw =
   lift (lookupAuth u) >>= \case
     Nothing -> throwE (ReAuthError AuthInvalidUser)
@@ -313,7 +313,7 @@ updateManagedBy u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (
 updateHandle :: MonadClient m => UserId -> Handle -> m ()
 updateHandle u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h, u))
 
-updatePassword :: MonadClient m => UserId -> PlainTextPassword -> m ()
+updatePassword :: MonadClient m => UserId -> PlainTextPassword8 -> m ()
 updatePassword u t = do
   p <- liftIO $ mkSafePassword t
   retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))

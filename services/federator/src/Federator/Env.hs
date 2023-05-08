@@ -24,20 +24,15 @@ module Federator.Env where
 import Bilge (RequestId)
 import Control.Lens (makeLenses)
 import Data.Metrics (Metrics)
-import Data.X509.CertificateStore
 import Federator.Options (RunSettings)
+import HTTP2.Client.Manager
 import Imports
 import Network.DNS.Resolver (Resolver)
 import qualified Network.HTTP.Client as HTTP
-import qualified Network.TLS as TLS
+import OpenSSL.Session (SSLContext)
 import qualified System.Logger.Class as LC
 import Util.Options
 import Wire.API.Federation.Component
-
-data TLSSettings = TLSSettings
-  { _caStore :: CertificateStore,
-    _creds :: TLS.Credential
-  }
 
 data Env = Env
   { _metrics :: Metrics,
@@ -47,8 +42,15 @@ data Env = Env
     _runSettings :: RunSettings,
     _service :: Component -> Endpoint,
     _httpManager :: HTTP.Manager,
-    _tls :: IORef TLSSettings
+    _http2Manager :: IORef Http2Manager
   }
 
-makeLenses ''TLSSettings
 makeLenses ''Env
+
+onNewSSLContext :: Env -> SSLContext -> IO ()
+onNewSSLContext env ctx =
+  atomicModifyIORef' (_http2Manager env) $ \mgr -> (setSSLContext ctx mgr, ())
+
+mkHttp2Manager :: SSLContext -> IO Http2Manager
+mkHttp2Manager sslContext =
+  setSSLRemoveTrailingDot True <$> http2ManagerWithSSLCtx sslContext

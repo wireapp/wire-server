@@ -33,7 +33,9 @@ import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 
 interpretFederatorAccess ::
-  Members '[Embed IO, Input Env] r =>
+  ( Member (Embed IO) r,
+    Member (Input Env) r
+  ) =>
   Sem (FederatorAccess ': r) a ->
   Sem r a
 interpretFederatorAccess = interpret $ \case
@@ -52,6 +54,7 @@ runFederatedEither ::
 runFederatedEither (tDomain -> remoteDomain) rpc = do
   ownDomain <- view (options . optSettings . setFederationDomain)
   mfedEndpoint <- view federator
+  mgr <- view http2Manager
   case mfedEndpoint of
     Nothing -> pure (Left FederationNotConfigured)
     Just fedEndpoint -> do
@@ -59,7 +62,8 @@ runFederatedEither (tDomain -> remoteDomain) rpc = do
             FederatorClientEnv
               { ceOriginDomain = ownDomain,
                 ceTargetDomain = remoteDomain,
-                ceFederator = fedEndpoint
+                ceFederator = fedEndpoint,
+                ceHttp2Manager = mgr
               }
       liftIO . fmap (first FederationCallFailure) $ runFederatorClient ce rpc
 

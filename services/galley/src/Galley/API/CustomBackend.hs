@@ -41,7 +41,9 @@ import Wire.API.Error.Galley
 -- PUBLIC ---------------------------------------------------------------------
 
 getCustomBackendByDomain ::
-  Members '[CustomBackendStore, ErrorS 'CustomBackendNotFound] r =>
+  ( Member CustomBackendStore r,
+    Member (ErrorS 'CustomBackendNotFound) r
+  ) =>
   Domain ->
   Sem r Public.CustomBackend
 getCustomBackendByDomain domain =
@@ -52,7 +54,9 @@ getCustomBackendByDomain domain =
 -- INTERNAL -------------------------------------------------------------------
 
 internalPutCustomBackendByDomainH ::
-  Members '[CustomBackendStore, WaiRoutes] r =>
+  ( Member CustomBackendStore r,
+    Member WaiRoutes r
+  ) =>
   Domain ::: JsonRequest CustomBackend ->
   Sem r Response
 internalPutCustomBackendByDomainH (domain ::: req) = do

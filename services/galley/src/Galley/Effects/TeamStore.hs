@@ -80,12 +80,12 @@ import Data.Id
 import Data.Range
 import Galley.Effects.ListItems
 import Galley.Types.Teams
-import Galley.Types.Teams.Intra
 import Imports
 import Polysemy
 import qualified Proto.TeamEvents as E
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember, TeamMemberList)
@@ -139,12 +139,10 @@ listTeams ::
 listTeams = listItems
 
 lookupBindingTeam ::
-  Members
-    '[ ErrorS 'TeamNotFound,
-       ErrorS 'NonBindingTeam,
-       TeamStore
-     ]
-    r =>
+  ( Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'NonBindingTeam) r,
+    Member TeamStore r
+  ) =>
   UserId ->
   Sem r TeamId
 lookupBindingTeam zusr = do

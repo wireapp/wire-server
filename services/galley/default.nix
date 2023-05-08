@@ -14,7 +14,6 @@
 , base64-bytestring
 , bilge
 , binary
-, blake2
 , brig-types
 , bytestring
 , bytestring-conversion
@@ -45,15 +44,14 @@
 , gundeck-types
 , hex
 , HsOpenSSL
-, HsOpenSSL-x509-system
 , hspec
 , http-client
 , http-client-openssl
 , http-client-tls
 , http-media
 , http-types
+, http2-manager
 , imports
-, insert-ordered-containers
 , kan-extensions
 , lens
 , lens-aeson
@@ -63,6 +61,7 @@
 , metrics-wai
 , mtl
 , network
+, network-uri
 , optparse-applicative
 , pem
 , polysemy
@@ -76,7 +75,6 @@
 , raw-strings-qq
 , resourcet
 , retry
-, safe
 , safe-exceptions
 , saml2-web-sso
 , schema-profunctor
@@ -85,8 +83,6 @@
 , servant-client
 , servant-client-core
 , servant-server
-, servant-swagger
-, servant-swagger-ui
 , singletons
 , singletons-th
 , sop-core
@@ -95,11 +91,9 @@
 , stm
 , streaming-commons
 , string-conversions
-, swagger2
 , tagged
 , tasty
 , tasty-cannon
-, tasty-hspec
 , tasty-hunit
 , tasty-quickcheck
 , temporary
@@ -108,6 +102,7 @@
 , tinylog
 , tls
 , transformers
+, transitive-anns
 , types-common
 , types-common-aws
 , types-common-journal
@@ -116,6 +111,7 @@
 , unordered-containers
 , uri-bytestring
 , uuid
+, uuid-types
 , vector
 , wai
 , wai-extra
@@ -127,7 +123,6 @@
 , warp-tls
 , wire-api
 , wire-api-federation
-, wire-message-proto-lens
 , x509
 , yaml
 }:
@@ -147,8 +142,6 @@ mkDerivation {
     base
     base64-bytestring
     bilge
-    binary
-    blake2
     brig-types
     bytestring
     bytestring-conversion
@@ -172,71 +165,57 @@ mkDerivation {
     gundeck-types
     hex
     HsOpenSSL
-    HsOpenSSL-x509-system
     http-client
     http-client-openssl
-    http-client-tls
     http-media
     http-types
+    http2-manager
     imports
-    insert-ordered-containers
     kan-extensions
     lens
-    memory
     metrics-core
     metrics-wai
     mtl
-    optparse-applicative
     pem
     polysemy
     polysemy-wire-zoo
     proto-lens
     protobuf
-    QuickCheck
-    random
     raw-strings-qq
     resourcet
     retry
-    safe
     safe-exceptions
     saml2-web-sso
     schema-profunctor
     semigroups
     servant
     servant-client
-    servant-client-core
     servant-server
-    servant-swagger
-    servant-swagger-ui
     singletons
     singletons-th
-    sop-core
     split
     ssl-util
     stm
     string-conversions
-    swagger2
     tagged
     text
     time
     tinylog
     tls
     transformers
+    transitive-anns
     types-common
     types-common-aws
     types-common-journal
     unliftio
-    unordered-containers
     uri-bytestring
     uuid
-    vector
     wai
     wai-extra
     wai-middleware-gunzip
     wai-predicates
     wai-routing
     wai-utilities
-    warp
     wire-api
     wire-api-federation
     x509
@@ -244,8 +223,6 @@ mkDerivation {
   executableHaskellDepends = [
     aeson
     aeson-qq
-    amazonka
-    amazonka-sqs
     async
     base
     base64-bytestring
@@ -259,7 +236,6 @@ mkDerivation {
     cassandra-util
     cassava
     cereal
-    comonad
     conduit
     containers
     cookie
@@ -275,10 +251,8 @@ mkDerivation {
     federator
     filepath
     galley-types
-    gundeck-types
     hex
     HsOpenSSL
-    HsOpenSSL-x509-system
     hspec
     http-client
     http-client-openssl
@@ -293,6 +267,7 @@ mkDerivation {
     metrics-wai
     mtl
     network
+    network-uri
     optparse-applicative
     pem
     process
@@ -303,16 +278,12 @@ mkDerivation {
     random
     raw-strings-qq
     retry
-    safe
     saml2-web-sso
     schema-profunctor
-    servant
     servant-client
     servant-client-core
     servant-server
-    servant-swagger
     singletons
-    singletons-th
     sop-core
     ssl-util
     streaming-commons
@@ -325,7 +296,6 @@ mkDerivation {
     text
     time
     tinylog
-    tls
     transformers
     types-common
     types-common-aws
@@ -333,7 +303,6 @@ mkDerivation {
     unix
     unliftio
     unordered-containers
-    uri-bytestring
     uuid
     vector
     wai
@@ -343,37 +312,23 @@ mkDerivation {
     warp-tls
     wire-api
     wire-api-federation
-    wire-message-proto-lens
     yaml
   ];
   testHaskellDepends = [
     base
-    case-insensitive
     containers
-    extended
     extra
     galley-types
-    http-types
     imports
     lens
     polysemy
     polysemy-wire-zoo
     QuickCheck
-    raw-strings-qq
-    safe
-    saml2-web-sso
-    servant-client
-    servant-swagger
-    ssl-util
-    tagged
     tasty
-    tasty-hspec
     tasty-hunit
     tasty-quickcheck
-    transformers
     types-common
-    wai
-    wai-predicates
+    uuid-types
     wire-api
     wire-api-federation
   ];

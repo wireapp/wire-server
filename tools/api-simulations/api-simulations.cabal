@@ -30,6 +30,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -41,6 +42,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -60,7 +62,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       api-bot
@@ -98,6 +100,7 @@ executable api-loadtest
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -109,6 +112,7 @@ executable api-loadtest
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -129,28 +133,27 @@ executable api-loadtest
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N -with-rtsopts=-T -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       api-bot
     , api-client
     , api-simulations
     , base
-    , bytestring             >=0.10
-    , bytestring-conversion  >=0.3
-    , containers             >=0.5
-    , exceptions             >=0.8
+    , bytestring       >=0.10
+    , exceptions       >=0.8
     , extended
-    , http-client            >=0.4
-    , http-client-tls        >=0.2
+    , http-client      >=0.4
+    , http-client-tls  >=0.2
     , imports
-    , metrics-core           >=0.1
-    , mime                   >=0.4
-    , mwc-random             >=0.13
-    , text                   >=1.2
-    , tinylog                >=0.14
-    , types-common           >=0.11
-    , unliftio               >=0.2.10
-    , uuid                   >=1.3
+    , metrics-core     >=0.1
+    , mime             >=0.4
+    , mwc-random       >=0.13
+    , text             >=1.2
+    , tinylog          >=0.14
+    , types-common     >=0.11
+    , unliftio         >=0.2.10
+    , uuid             >=1.3
 
   default-language:   Haskell2010
 
@@ -174,6 +177,7 @@ executable api-smoketest
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -185,6 +189,7 @@ executable api-smoketest
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -205,25 +210,21 @@ executable api-smoketest
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N -with-rtsopts=-T -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       api-bot
     , api-client
     , api-simulations
     , base
-    , bytestring             >=0.10
-    , bytestring-conversion  >=0.3
-    , containers             >=0.5
-    , exceptions             >=0.8
-    , http-client            >=0.4
-    , http-client-tls        >=0.2
+    , bytestring            >=0.10
+    , http-client           >=0.4
+    , http-client-tls       >=0.2
     , imports
-    , lens                   >=4.1
-    , mime                   >=0.4
-    , optparse-applicative   >=0.11
-    , text                   >=1.2
-    , tinylog                >=0.14
-    , types-common           >=0.11
+    , mime                  >=0.4
+    , optparse-applicative  >=0.11
+    , tinylog               >=0.14
+    , types-common          >=0.11
     , unliftio
 
   default-language:   Haskell2010

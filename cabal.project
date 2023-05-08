@@ -1,7 +1,6 @@
-with-compiler: ghc-9.2.4
-
 packages:
-    libs/api-bot/
+    integration
+  , libs/api-bot/
   , libs/api-client/
   , libs/bilge/
   , libs/brig-types/
@@ -13,6 +12,7 @@ packages:
   , libs/galley-types/
   , libs/gundeck-types/
   , libs/hscim/
+  , libs/http2-manager/
   , libs/imports/
   , libs/jwt-tools/
   , libs/metrics-core/
@@ -101,6 +101,8 @@ package gundeck
 package gundeck-types
     ghc-options: -Werror
 package hscim
+    ghc-options: -Werror
+package http2-manager
     ghc-options: -Werror
 package imports
     ghc-options: -Werror

@@ -7,18 +7,18 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster fake-aws nginx-ingress-controller nginx-ingress-services fluent-bit kibana sftd restund coturn
+CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana sftd restund coturn
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster databases-ephemeral	\
+CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster rabbitmq databases-ephemeral	\
 fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
-nginx-ingress-controller nginx-ingress-services reaper sftd restund coturn		\
-inbucket k8ssandra-test-cluster
+nginx-ingress-controller ingress-nginx-controller nginx-ingress-services reaper sftd restund coturn		\
+inbucket k8ssandra-test-cluster postgresql
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
 
@@ -84,12 +84,73 @@ ifeq ($(test), 1)
 endif
 	./hack/bin/cabal-install-artefacts.sh $(package)
 
-# ci here doesn't refer to continuous integration, but to cabal-integration
-# Usage: make ci package=brig test=1
-# If you want to pass arguments to the test-suite call the script directly.
+# ci here doesn't refer to continuous integration, but to cabal-run-integration.sh
+# Usage: make ci                        - build & run all tests
+#        make ci package=brig           - build brig & run "brig-integration" and "integration"
+#        make ci package=brig suite=old - build brig & run "brig-integration"
+#        make ci package=brig suite=new - build brig & run "integration"
+#        make ci package=integration    - build & run "integration"
+#
+# You can pass environment variables to all the suites, like so
+# TASTY_PATTERN=".."  make ci package=brig
+#
+# If you want to pass arguments to the test-suite call cabal-run-integration.sh directly.
 .PHONY: ci
 ci: c db-migrate
-	./hack/bin/cabal-run-integration.sh $(package)
+ifeq ("$(package)", "all")
+    ifneq ("$(suite)", "new")
+		echo ./hack/bin/cabal-run-integration.sh all
+    endif
+    ifneq ("$(suite)", "old")
+		make c package=integration
+		echo ./hack/bin/cabal-run-integration.sh integration
+    endif
+else
+  ifeq ("$(package)", "integration")
+	./hack/bin/cabal-run-integration.sh integration
+  else
+    ifeq ("$(suite)", "old")
+		./hack/bin/cabal-run-integration.sh $(package)
+    else
+      ifeq ("$(suite)", "new")
+		make c package=integration
+		./hack/bin/cabal-run-integration.sh integration
+      else
+		make c package=integration
+		./hack/bin/cabal-run-integration.sh $(package)
+		./hack/bin/cabal-run-integration.sh integration
+      endif
+    endif
+  endif
+endif
+
+# Compile and run services
+# Usage: make crun `OR` make crun package=galley
+.PHONY: cr
+cr: c db-migrate
+	./services/run-services
+
+# Run integration from new test suite
+# Usage: make devtest
+# Usage: TEST_INCLUDE=test1,test2 make devtest
+.PHONY: devtest
+devtest:
+	ghcid --command 'cabal repl integration' --test='Testlib.Run.mainI []'
+
+.PHONY: sanitize-pr
+sanitize-pr:
+	./hack/bin/generate-local-nix-packages.sh
+	make formatf
+	make hlint-inplace-pr
+	make hlint-check-pr  # sometimes inplace has been observed not to do its job very well.
+	make git-add-cassandra-schema
+	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
+	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
+	make list-flaky-tests
+
+list-flaky-tests:
+	@echo -e "\n\nif you want to run these, set RUN_FLAKY_TESTS=1\n\n"
+	@git grep -Hn '\bflakyTestCase \"'
 
 .PHONY: cabal-fmt
 cabal-fmt:
@@ -150,7 +211,7 @@ services: init install
 format:
 	./tools/ormolu.sh
 
-# formats all Haskell files even if local changes are not committed to git
+# formats all Haskell files changed in this PR, even if local changes are not committed to git
 .PHONY: formatf
 formatf:
 	./tools/ormolu.sh -f pr
@@ -207,15 +268,11 @@ upload-hoogle-image:
 ## cassandra management
 
 .PHONY: git-add-cassandra-schema
-git-add-cassandra-schema: db-reset git-add-cassandra-schema-impl
+git-add-cassandra-schema: db-migrate git-add-cassandra-schema-impl
 
 .PHONY: git-add-cassandra-schema-impl
 git-add-cassandra-schema-impl:
-	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
-	( echo '-- automatically generated with `make git-add-cassandra-schema`'; \
-      docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) \
-    | sed "s/CREATE TABLE galley_test.member_client/-- NOTE: this table is unused. It was replaced by mls_group_member_client\nCREATE TABLE galley_test.member_client/g" \
-      > ./cassandra-schema.cql
+	./hack/bin/cassandra_dump_schema > ./cassandra-schema.cql
 	git add ./cassandra-schema.cql
 
 .PHONY: cqlsh
@@ -236,11 +293,11 @@ db-migrate-package:
 
 # Usage:
 #
-# Reset all keyspaces and reset the ES index
-# make db-reset
+# Migrate all keyspaces and reset the ES index
+# make db-migrate
 #
-# Reset keyspace for only one service, say galley:
-# make db-reset package=galley
+# Migrate keyspace for only one service, say galley:
+# make db-migrate package=galley
 .PHONY: db-reset
 db-reset: c
 	@echo "Make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
@@ -249,10 +306,20 @@ ifeq ($(package), all)
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --reset
 	./dist/spar-schema --keyspace spar_test --replication-factor 1 --reset
+ifeq ($(INTEGRATION_FEDERATION_TESTS), 1)
+	./dist/brig-schema --keyspace brig_test2 --replication-factor 1 --reset
+	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 --reset
+	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 --reset
+	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 --reset
+endif
 else
 	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1 --reset
+ifeq ($(INTEGRATION_FEDERATION_TESTS), 1)
+	$(EXE_SCHEMA) --keyspace $(package)_test2 --replication-factor 1 --reset
 endif
-	./dist/brig-index reset --elasticsearch-server http://localhost:9200 > /dev/null
+endif
+	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 > /dev/null
+	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 > /dev/null
 
 # Usage:
 #
@@ -267,7 +334,14 @@ db-migrate: c
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 > /dev/null
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 > /dev/null
 	./dist/spar-schema --keyspace spar_test --replication-factor 1 > /dev/null
-	./dist/brig-index reset --elasticsearch-server http://localhost:9200 > /dev/null
+ifeq ($(INTEGRATION_FEDERATION_TESTS), 1)
+	./dist/brig-schema --keyspace brig_test2 --replication-factor 1 > /dev/null
+	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 > /dev/null
+	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 > /dev/null
+	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 > /dev/null
+endif
+	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 > /dev/null
+	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 > /dev/null
 
 #################################
 ## dependencies
@@ -314,7 +388,11 @@ kube-integration-setup: charts-integration
 
 .PHONY: kube-integration-test
 kube-integration-test:
-	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-test.sh
+	export NAMESPACE=$(NAMESPACE); \
+	export HELM_PARALLELISM=$(HELM_PARALLELISM); \
+	export VERSION=${DOCKER_TAG}; \
+	export UPLOAD_LOGS=${UPLOAD_LOGS}; \
+	./hack/bin/integration-test.sh
 
 .PHONY: kube-integration-teardown
 kube-integration-teardown:

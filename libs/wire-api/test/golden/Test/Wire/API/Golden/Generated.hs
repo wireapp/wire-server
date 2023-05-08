@@ -154,6 +154,7 @@ import qualified Test.Wire.API.Golden.Generated.PubClient_user
 import qualified Test.Wire.API.Golden.Generated.PushTokenList_user
 import qualified Test.Wire.API.Golden.Generated.PushToken_user
 import qualified Test.Wire.API.Golden.Generated.Push_2eToken_2eTransport_user
+import qualified Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user
 import qualified Test.Wire.API.Golden.Generated.QueuedNotificationList_user
 import qualified Test.Wire.API.Golden.Generated.QueuedNotification_user
 import qualified Test.Wire.API.Golden.Generated.RTCConfiguration_user
@@ -1278,6 +1279,10 @@ tests =
         testObjects
           [ (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_17, "testObject_WithStatus_team_17.json")
           ],
+      testGroup "Golden: WithStatus_team 12" $
+        testObjects
+          [ (Test.Wire.API.Golden.Generated.WithStatus_team.testObject_WithStatus_team_18, "testObject_WithStatus_team_18.json")
+          ],
       testGroup "Golden: InvitationRequest_team" $
         testObjects [(Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_1, "testObject_InvitationRequest_team_1.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_2, "testObject_InvitationRequest_team_2.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_3, "testObject_InvitationRequest_team_3.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_4, "testObject_InvitationRequest_team_4.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_5, "testObject_InvitationRequest_team_5.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_6, "testObject_InvitationRequest_team_6.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_7, "testObject_InvitationRequest_team_7.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_8, "testObject_InvitationRequest_team_8.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_9, "testObject_InvitationRequest_team_9.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_10, "testObject_InvitationRequest_team_10.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_11, "testObject_InvitationRequest_team_11.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_12, "testObject_InvitationRequest_team_12.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_13, "testObject_InvitationRequest_team_13.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_14, "testObject_InvitationRequest_team_14.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_15, "testObject_InvitationRequest_team_15.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_16, "testObject_InvitationRequest_team_16.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_17, "testObject_InvitationRequest_team_17.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_18, "testObject_InvitationRequest_team_18.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_19, "testObject_InvitationRequest_team_19.json"), (Test.Wire.API.Golden.Generated.InvitationRequest_team.testObject_InvitationRequest_team_20, "testObject_InvitationRequest_team_20.json")],
       testGroup "Golden: Invitation_team" $
@@ -1434,5 +1439,11 @@ tests =
             (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_9, "testObject_Event_conversation_9.json"),
             (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_11, "testObject_Event_conversation_11.json"),
             (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_10, "testObject_Event_conversation_10.json")
+          ],
+      testGroup "Golden: QualifiedUserClientPrekeyMapV4" $
+        testObjects
+          [ (Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user.testObject_QualifiedUserClientPrekeyMapV4_user_1, "testObject_QualifiedUserClientPrekeyMapV4_1.json"),
+            (Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user.testObject_QualifiedUserClientPrekeyMapV4_user_2, "testObject_QualifiedUserClientPrekeyMapV4_2.json"),
+            (Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user.testObject_QualifiedUserClientPrekeyMapV4_user_3, "testObject_QualifiedUserClientPrekeyMapV4_3.json")
           ]
     ]

@@ -335,6 +335,24 @@ mls:
 
 This default configuration can be overriden on a per-team basis through the [feature config API](../developer/features.md)
 
+### MLS End-to-End Identity
+
+The MLS end-to-end identity team feature adds an extra level of security and practicability. If turned on, automatic device authentication ensures that team members know they are communicating with people using authenticated devices. Team members get a certificate on all their devices.
+
+When a client first tries to fetch or renew a certificate, they may need to login to an identity provider (IdP) depending on their IdP domain authentication policy. The user may have a grace period during which they can “snooze” this login. The duration of this grace period (in seconds) is set in the `verificationDuration` parameter, which is enforced separately by each client. After the grace period has expired, the client will not allow the user to use the application until they have logged to refresh the certificate. The default value is 1 day (86400s).
+
+The client enrolls using the Automatic Certificate Management Environment (ACME) protocol [RFC 8555](https://www.rfc-editor.org/rfc/rfc8555.html). The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for this team. It is of the form "https://acme.{backendDomain}/acme/{provisionerName}/discovery". For example: `https://acme.example.com/acme/provisioner1/discovery`.
+
+```yaml
+# galley.yaml
+mlsE2EId:
+  defaults:
+    status: disabled
+    config:
+      verificationExpiration: 86400
+      acmeDiscoveryUrl: null
+    lockStatus: unlocked
+```
 
 ### Federation Domain
 
@@ -618,36 +636,89 @@ If there is no configuration for a domain, it's defaulted to `no_search`.
 
 This options determines whether development versions should be enabled. If set to `False`, all development versions are removed from the `supported` field of the `/api-version` endpoint. Note that they are still listed in the `development` field, and continue to work normally.
 
+### OAuth
+
+For more information on OAuth please refer to <https://docs.wire.com/developer/reference/oauth.html>.
+
+En-/Disable OAuth as follows (if not set the default is disabled):
+
+```yaml
+# [brig.yaml]
+optSettings:
+  # ...
+  setOAuthEnabled: [true|false]
+```
+
+#### JWK
+
+The JSON Web Keys in `test/resources/oauth/` are used to sign and verify OAuth access tokens in the local integration tests.
+The path to the JWK can be configured in `brig.integration.yaml` as follows:
+
+```yaml
+# [brig.yaml]
+optSettings:
+  # ...
+  setOAuthJwkKeyPair: test/resources/oauth/ed25519.jwk
+```
+
+A JWK can be generated with `didkit` e.g. Run `cargo install didkit-cli` to install and `didkit generate-ed25519-key` to generate a JWK.
+
+#### Expiration time
+
+Optionally, configure the OAuth authorization code, access token, and refresh token expiration time in seconds with the following settings:
+
+```yaml
+# [brig.yaml]
+optSettings:
+  # ...
+  setOAuthAuthCodeExpirationTimeSecs: 300 # 5 minutes
+  setOAuthAccessTokenExpirationTimeSecs: 300 # 5 minutes
+  setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
+```
+
+For more information on what these settings mean in particular, please refer to <https://docs.wire.com/developer/reference/oauth.html>.
+
+#### Max number of active refresh tokens
+
+The maximum number of active OAuth refresh tokens a user is allowed to have.  Built-in default:
+
+```yaml
+# [brig.yaml]
+optSettings:
+  # ...
+  setOAuthMaxActiveRefreshTokens: 10
+```
+
 #### Disabling API versions
 
 It is possible to disable one ore more API versions. When an API version is disabled it won't be advertised on the `GET /api-version` endpoint, neither in the `supported`, nor in the `development` section. Requests made to any endpoint of a disabled API version will result in the same error response as a request made to an API version that does not exist.
 
-Each of the services brig, cannon, cargohold, galley, gundeck, proxy, spar should to be configured with the same set of disable API versions in each service's values.yaml config files. 
+Each of the services brig, cannon, cargohold, galley, gundeck, proxy, spar should to be configured with the same set of disable API versions in each service's values.yaml config files.
 
 
 For example to disable API version v3, you need to configure:
 
 ```
 # brig's values.yaml
-config.optSettings.setDisabledAPIVersions: [ 3 ]
+config.optSettings.setDisabledAPIVersions: [ v3 ]
 
 # cannon's values.yaml
-config.disabledAPIVersions: [ 3 ]
+config.disabledAPIVersions: [ v3 ]
 
 # cargohold's values.yaml
-config.settings.disabledAPIVersions: [ 3 ]
+config.settings.disabledAPIVersions: [ v3 ]
 
 # galley's values.yaml
-config.settings.disabledAPIVersions: [ 3 ]
+config.settings.disabledAPIVersions: [ v3 ]
 
 # gundecks' values.yaml
-config.disabledAPIVersions: [ 3 ]
+config.disabledAPIVersions: [ v3 ]
 
 # proxy's values.yaml
-config.disabledAPIVersions: [ 3 ]
+config.disabledAPIVersions: [ v3 ]
 
 # spar's values.yaml
-config.disabledAPIVersions: [ 3 ]
+config.disabledAPIVersions: [ v3 ]
 ```
 
 The default setting is that no API version is disabled.

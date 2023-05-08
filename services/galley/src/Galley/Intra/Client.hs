@@ -110,9 +110,13 @@ notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do
 
 -- | Calls 'Brig.User.API.Auth.legalHoldLoginH'.
 getLegalHoldAuthToken ::
-  Members '[Embed IO, Error InternalError, P.TinyLog, Input Env] r =>
+  ( Member (Embed IO) r,
+    Member (Error InternalError) r,
+    Member P.TinyLog r,
+    Member (Input Env) r
+  ) =>
   UserId ->
-  Maybe PlainTextPassword ->
+  Maybe PlainTextPassword6 ->
   Sem r OpaqueAuthToken
 getLegalHoldAuthToken uid pw = do
   r <-

@@ -85,6 +85,15 @@ impl FromStr for TokenType {
     }
 }
 
+// Token Verification ////////////////////////////////////////////////////////
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TokenVerification {
+    Verified,
+    Invalid,
+    Pending
+}
+
 // Token ////////////////////////////////////////////////////////////////////
 
 // Used when parsing tokens.
@@ -103,14 +112,15 @@ macro_rules! to_field {
 
 #[derive(Debug)]
 pub struct Token<'r> {
-    pub signature:  Signature,
-    pub version:    u8,
-    pub key_idx:    usize,
-    pub timestamp:  i64,
-    pub token_type: TokenType,
-    pub token_tag:  Option<&'r str>,
-    meta:           HashMap<char, &'r str>,
-    data:           &'r [u8]
+    pub signature:    Signature,
+    pub version:      u8,
+    pub key_idx:      usize,
+    pub timestamp:    i64,
+    pub token_type:   TokenType,
+    pub token_tag:    Option<&'r str>,
+    pub verification: TokenVerification,
+    meta:             HashMap<char, &'r str>,
+    data:             &'r [u8]
 }
 
 impl<'r> Token<'r> {
@@ -141,14 +151,15 @@ impl<'r> Token<'r> {
 
         Ok(Token {
             signature,
-            version:    to_field!(meta.remove(&'v'), "version"),
-            key_idx:    to_field!(meta.remove(&'k'), "key index"),
-            timestamp:  to_field!(meta.remove(&'d'), "timestamp"),
-            token_type: to_field!(meta.remove(&'t'), "type"),
-            token_tag:  meta.remove(&'l')
+            version:      to_field!(meta.remove(&'v'), "version"),
+            key_idx:      to_field!(meta.remove(&'k'), "key index"),
+            timestamp:    to_field!(meta.remove(&'d'), "timestamp"),
+            token_type:   to_field!(meta.remove(&'t'), "type"),
+            token_tag:    meta.remove(&'l')
                             .and_then(|t| if t == "" { None } else { Some(t) }),
+            verification: TokenVerification::Pending,
             meta,
-            data:       data[1..].as_bytes()
+            data:         data[1..].as_bytes()
         })
     }
 

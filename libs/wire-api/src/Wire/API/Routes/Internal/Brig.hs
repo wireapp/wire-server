@@ -27,7 +27,6 @@ module Wire.API.Routes.Internal.Brig
     GetAccountConferenceCallingConfig,
     PutAccountConferenceCallingConfig,
     DeleteAccountConferenceCallingConfig,
-    SwaggerDocsAPI,
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
     NewKeyPackageRef (..),
@@ -48,7 +47,6 @@ import Imports hiding (head)
 import Servant hiding (Handler, WithStatus, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Servant.Swagger.UI
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
@@ -57,6 +55,7 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
+import Wire.API.Routes.Internal.Brig.OAuth (OAuthAPI)
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -327,6 +326,7 @@ type API =
            :<|> TeamsAPI
            :<|> UserAPI
            :<|> AuthAPI
+           :<|> OAuthAPI
        )
 
 type TeamsAPI =
@@ -397,9 +397,7 @@ type AuthAPI =
                :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "OK")
            )
 
-type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
-
 swaggerDoc :: Swagger
 swaggerDoc =
   toSwagger (Proxy @API)
-    & info . title .~ "Wire-Server API as Swagger 2.0 (internal end-points; incomplete) "
+    & info . title .~ "Wire-Server internal brig API"

@@ -31,6 +31,7 @@ library
     Data.SizedHashMap
     Data.Text.Ascii
     Data.UUID.Tagged
+    Test.Tasty.Pending
     Util.Attoparsec
     Util.Logging
     Util.Options
@@ -53,6 +54,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -64,6 +66,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -83,7 +86,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   ghc-prof-options:   -fprof-auto-exported
   build-depends:
@@ -120,12 +123,12 @@ library
     , quickcheck-instances   >=0.3.16
     , random                 >=1.1
     , schema-profunctor
-    , scientific             >=0.3.4
     , servant-server
     , string-conversions
     , swagger2
     , tagged                 >=0.8
     , tasty                  >=0.11
+    , tasty-hunit
     , text                   >=0.11
     , time                   >=1.6
     , time-locale-compat     >=0.1
@@ -134,7 +137,6 @@ library
     , unordered-containers   >=0.2
     , uri-bytestring         >=0.2
     , uuid                   >=1.3.11
-    , vector                 >=0.11
     , yaml                   >=0.8.22
 
   default-language:   Haskell2010
@@ -165,6 +167,7 @@ test-suite tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -176,6 +179,7 @@ test-suite tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -195,19 +199,16 @@ test-suite tests
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -Wredundant-constraints
+    -threaded -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson
     , base
-    , base16-bytestring
-    , base64-bytestring
     , bytestring
     , bytestring-conversion
     , cereal
     , imports
     , protobuf
-    , QuickCheck
     , string-conversions
     , tasty
     , tasty-hunit

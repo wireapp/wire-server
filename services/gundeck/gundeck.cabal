@@ -63,6 +63,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -74,6 +75,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -93,7 +95,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson                  >=2.0.1.0
@@ -117,7 +119,6 @@ library
     , extra                  >=1.1
     , gundeck-types          >=1.0
     , hedis                  >=0.14.0
-    , HsOpenSSL              >=0.11
     , http-client            >=0.4
     , http-client-tls        >=0.2.2
     , http-types             >=0.8
@@ -127,18 +128,12 @@ library
     , metrics-core           >=0.2.1
     , metrics-wai            >=0.5.7
     , mtl                    >=2.2
-    , network
     , network-uri            >=2.6
-    , optparse-applicative   >=0.10
     , psqueues               >=0.2.2
     , resourcet              >=1.1
     , retry                  >=0.5
     , safe-exceptions
-    , servant
     , servant-server
-    , servant-swagger
-    , servant-swagger-ui
-    , swagger2
     , text                   >=1.1
     , time                   >=1.4
     , tinylog                >=0.10
@@ -175,6 +170,7 @@ executable gundeck
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -186,6 +182,7 @@ executable gundeck
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -206,18 +203,14 @@ executable gundeck
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -rtsopts -with-rtsopts=-T -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       base
-    , extended
     , gundeck
-    , gundeck-types
     , HsOpenSSL
     , imports
-    , lens
-    , metrics-wai
     , types-common
-    , uuid
 
   if flag(static)
     ld-options: -static
@@ -247,6 +240,7 @@ executable gundeck-integration
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -258,6 +252,7 @@ executable gundeck-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -277,7 +272,7 @@ executable gundeck-integration
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -Wredundant-constraints
+    -threaded -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson
@@ -301,28 +296,20 @@ executable gundeck-integration
     , lens
     , lens-aeson
     , metrics-wai
-    , mtl
     , network
     , network-uri
     , optparse-applicative
     , random
     , retry
     , safe
-    , streaming-commons
     , tagged
     , tasty                  >=1.0
     , tasty-hunit            >=0.9
     , text
-    , time
     , tinylog
     , types-common
-    , unix
-    , unordered-containers
     , uuid
-    , wai
     , wai-utilities
-    , warp
-    , warp-tls
     , websockets             >=0.8
     , wire-api
     , yaml
@@ -357,6 +344,7 @@ executable gundeck-schema
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -368,6 +356,7 @@ executable gundeck-schema
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -387,17 +376,14 @@ executable gundeck-schema
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -Wredundant-constraints
+    -threaded -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base
     , cassandra-util
     , extended
     , imports
-    , optparse-applicative
     , raw-strings-qq
-    , text
-    , tinylog
     , types-common
 
   if flag(static)
@@ -432,6 +418,7 @@ test-suite gundeck-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -443,6 +430,7 @@ test-suite gundeck-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -462,7 +450,7 @@ test-suite gundeck-tests
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -Wredundant-constraints
+    -threaded -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson
@@ -470,10 +458,8 @@ test-suite gundeck-tests
     , amazonka
     , async
     , base
-    , bytestring
     , containers
     , exceptions
-    , extended
     , gundeck
     , gundeck-types
     , HsOpenSSL
@@ -495,10 +481,7 @@ test-suite gundeck-tests
     , text
     , time
     , tinylog
-    , tree-diff
     , types-common
-    , unordered-containers
-    , uuid
     , wai-utilities
     , wire-api
 
@@ -522,6 +505,7 @@ benchmark gundeck-bench
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -533,6 +517,7 @@ benchmark gundeck-bench
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -552,15 +537,12 @@ benchmark gundeck-bench
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson
-    , amazonka
+      amazonka
     , base
-    , bytestring
     , criterion
-    , extended
     , gundeck
     , gundeck-types
     , HsOpenSSL
@@ -568,9 +550,7 @@ benchmark gundeck-bench
     , lens
     , random
     , text
-    , time
     , types-common
-    , unordered-containers
     , uuid
 
   default-language:   Haskell2010

@@ -162,9 +162,7 @@ http {
   limit_req_log_level warn;
   limit_conn_log_level warn;
 
-  # Limit by $zauth_user if present and not part of rate limit exemptions
-  limit_req zone=reqs_per_user burst=20;
-  limit_conn conns_per_user 25;
+  limit_conn conns_per_user 75;
 
   #
   #  Proxied Upstream Services
@@ -193,6 +191,7 @@ http {
 
     zauth_keystore {{ .Values.nginx_conf.zauth_keystore }};
     zauth_acl      {{ .Values.nginx_conf.zauth_acl }};
+    oauth_pub_key  {{ .Values.nginx_conf.oauth_pub_key }};
 
     location /status {
         zauth off;
@@ -256,6 +255,16 @@ http {
         limit_conn conns_per_addr 20;
                 {{- end }}
               {{- end }}
+            {{- else }}
+              {{- if ($location.unlimited_requests_endpoint) }}
+                 # Note that this endpoint has no rate limit per user for authenticated requests
+              {{- else }}
+        limit_req zone=reqs_per_user burst=20 nodelay;
+              {{- end }}
+            {{- end }}
+
+            {{- if ($location.oauth_scope) }}
+        oauth_scope {{ $location.oauth_scope }};
             {{- end }}
 
             {{- if hasKey $location "specific_user_rate_limit" }}
@@ -301,6 +310,7 @@ http {
         proxy_set_header   Z-Bot          $zauth_bot;
         proxy_set_header   Z-Conversation $zauth_conversation;
         proxy_set_header   Request-Id     $request_id;
+        proxy_set_header   Z-Host         $host;
 
             {{- if ($location.allow_credentials) }}
         more_set_headers 'Access-Control-Allow-Credentials: true';
@@ -345,6 +355,7 @@ http {
     # we need to specify zauth_keystore etc.
     zauth_keystore {{ .Values.nginx_conf.zauth_keystore }};
     zauth_acl      {{ .Values.nginx_conf.zauth_acl }};
+    oauth_pub_key  {{ .Values.nginx_conf.oauth_pub_key }};
 
     listen {{ .Values.config.http.metricsPort }};
 

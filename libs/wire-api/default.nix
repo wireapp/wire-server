@@ -28,14 +28,12 @@
 , currency-codes
 , deriving-aeson
 , deriving-swagger2
-, directory
 , either
 , email-validate
 , errors
 , extended
 , extra
 , filepath
-, generic-random
 , generics-sop
 , ghc-prim
 , gitignoreSource
@@ -43,6 +41,9 @@
 , hex
 , hostname-validate
 , hscim
+, HsOpenSSL
+, hspec
+, hspec-wai
 , http-api-data
 , http-media
 , http-types
@@ -51,6 +52,7 @@
 , iproute
 , iso3166-country-codes
 , iso639
+, jose
 , lens
 , lib
 , memory
@@ -70,6 +72,7 @@
 , saml2-web-sso
 , schema-profunctor
 , scientific
+, scrypt
 , servant
 , servant-client
 , servant-client-core
@@ -77,7 +80,6 @@
 , servant-multipart
 , servant-server
 , servant-swagger
-, servant-swagger-ui
 , singletons
 , singletons-base
 , singletons-th
@@ -86,11 +88,12 @@
 , swagger2
 , tagged
 , tasty
-, tasty-expected-failure
+, tasty-hspec
 , tasty-hunit
 , tasty-quickcheck
 , text
 , time
+, transitive-anns
 , types-common
 , unliftio
 , unordered-containers
@@ -139,12 +142,12 @@ mkDerivation {
     extended
     extra
     filepath
-    generic-random
     generics-sop
     ghc-prim
     hashable
     hostname-validate
     hscim
+    HsOpenSSL
     http-api-data
     http-media
     http-types
@@ -153,6 +156,7 @@ mkDerivation {
     iproute
     iso3166-country-codes
     iso639
+    jose
     lens
     memory
     metrics-wai
@@ -169,6 +173,7 @@ mkDerivation {
     saml2-web-sso
     schema-profunctor
     scientific
+    scrypt
     servant
     servant-client
     servant-client-core
@@ -176,7 +181,6 @@ mkDerivation {
     servant-multipart
     servant-server
     servant-swagger
-    servant-swagger-ui
     singletons
     singletons-base
     singletons-th
@@ -186,6 +190,7 @@ mkDerivation {
     tagged
     text
     time
+    transitive-anns
     types-common
     unordered-containers
     uri-bytestring
@@ -211,46 +216,45 @@ mkDerivation {
     bytestring
     bytestring-arbitrary
     bytestring-conversion
-    case-insensitive
     cassava
     containers
     cryptonite
     currency-codes
-    directory
     either
     filepath
     hex
     hscim
+    hspec
+    hspec-wai
+    http-types
     imports
     iso3166-country-codes
     iso639
     lens
     memory
     metrics-wai
-    mime
     pem
     pretty
     process
     proto-lens
     QuickCheck
-    saml2-web-sso
     schema-profunctor
     servant
-    servant-swagger-ui
+    servant-server
     string-conversions
     swagger2
     tasty
-    tasty-expected-failure
+    tasty-hspec
     tasty-hunit
     tasty-quickcheck
     text
     time
     types-common
     unliftio
-    unordered-containers
     uri-bytestring
     uuid
     vector
+    wai
     wire-message-proto-lens
   ];
   license = lib.licenses.agpl3Only;

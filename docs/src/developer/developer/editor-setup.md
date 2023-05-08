@@ -92,19 +92,18 @@ or check the entire repository.  This takes about 10 seconds.
 Vim integration is [linked
 here](https://github.com/tweag/ormolu#editor-integration).
 
-If you use sdiehl's module, you you need to collect the language extensions from `package-defaults.yaml`:
+If you use sdiehl's module, you may need to collect the language extensions from a cabal file:
 
 ```
-    let g:ormolu_options = ["--ghc-opt -XAllowAmbiguousTypes --ghc-opt -XBangPatterns --ghc-opt -XConstraintKinds --ghc-opt -XDataKinds --ghc-opt -XDefaultSignatures --ghc-opt -XDerivingStrategies --ghc-opt -XDeriveFunctor --ghc-opt -XDeriveGeneric --ghc-opt -XDeriveLift --ghc-opt -XDeriveTraversable --ghc-opt -XEmptyCase --ghc-opt -XFlexibleContexts --ghc-opt -XFlexibleInstances --ghc-opt -XFunctionalDependencies --ghc-opt -XGADTs --ghc-opt -XInstanceSigs --ghc-opt -XKindSignatures --ghc-opt -XLambdaCase --ghc-opt -XMultiParamTypeClasses --ghc-opt -XMultiWayIf --ghc-opt -XNamedFieldPuns --ghc-opt -XNoImplicitPrelude --ghc-opt -XOverloadedStrings --ghc-opt -XPackageImports --ghc-opt -XPatternSynonyms --ghc-opt -XPolyKinds --ghc-opt -XQuasiQuotes --ghc-opt -XRankNTypes --ghc-opt -XScopedTypeVariables --ghc-opt -XStandaloneDeriving --ghc-opt -XTemplateHaskell --ghc-opt -XTupleSections --ghc-opt -XTypeApplications --ghc-opt -XTypeFamilies --ghc-opt -XTypeFamilyDependencies --ghc-opt -XTypeOperators --ghc-opt -XUndecidableInstances --ghc-opt -XViewPatterns"]
+    let g:ormolu_options = ["--ghc-opt -XAllowAmbiguousTypes --ghc-opt -XBangPatterns --ghc-opt -XConstraintKinds --ghc-opt -XDataKinds --ghc-opt -XDefaultSignatures --ghc-opt -XDerivingStrategies --ghc-opt -XDeriveFunctor --ghc-opt -XDeriveGeneric --ghc-opt -XDeriveLift --ghc-opt -XDeriveTraversable --ghc-opt -XDuplicateRecordFields --ghc-opt -XEmptyCase --ghc-opt -XFlexibleContexts --ghc-opt -XFlexibleInstances --ghc-opt -XFunctionalDependencies --ghc-opt -XGADTs --ghc-opt -XInstanceSigs --ghc-opt -XKindSignatures --ghc-opt -XLambdaCase --ghc-opt -XMultiParamTypeClasses --ghc-opt -XMultiWayIf --ghc-opt -XNamedFieldPuns --ghc-opt -XNoImplicitPrelude --ghc-opt -XOverloadedRecordDot --ghc-opt -XOverloadedStrings --ghc-opt -XPackageImports --ghc-opt -XPatternSynonyms --ghc-opt -XPolyKinds --ghc-opt -XQuasiQuotes --ghc-opt -XRankNTypes --ghc-opt -XScopedTypeVariables --ghc-opt -XStandaloneDeriving --ghc-opt -XTemplateHaskell --ghc-opt -XTupleSections --ghc-opt -XTypeApplications --ghc-opt -XTypeFamilies --ghc-opt -XTypeFamilyDependencies --ghc-opt -XTypeOperators --ghc-opt -XUndecidableInstances --ghc-opt -XViewPatterns"]
 ```
 
-If you want to be playful, you can look at how `tools/ormolu.sh`
-collects the language extensions automatically and see if you can get
-it to work here.
+**EDIT:** this may no longer be necessary, as the ormolu version we
+  use consults the cabal files for enabled language extensions.
 
 ## VSCode
 
-The project can be loaded into the [Haskell Language Server](https://github.com/haskell/haskell-language-server). 
+The project can be loaded into the [Haskell Language Server](https://github.com/haskell/haskell-language-server).
 This gives type checking, code completion, HLint hints, formatting with Ormolu, lookup of definitions and references, etc..
 All needed dependencies (like the `haskell-language-server` and `stack` binaries) are provided by `shell.nix`.
 
@@ -115,5 +114,23 @@ Setup steps:
 - Reload the window as proposed by the `Nix Environment Selector` plugin
 
 An alternative way to make these dependencies accessible to VSCode is to start it in the `direnv` environment.
-I.e. from a shell that's current working directory is in the project. The drawbacks of this approach are 
+I.e. from a shell that's current working directory is in the project. The drawbacks of this approach are
 that it only works locally (not on a remote connection) and one VSCode process needs to be started per project.
+
+## Python
+
+If you develop Python scripts in `hack/bin` and `./hack/python/wire/` make use
+of `flake8`, `pylint` for linting and `black` for autoformatting.
+
+If you are using emacs user linting can be configured by adding
+
+```
+(
+ (python-mode . ((flycheck-python-flake8-executable . "/home/pythoneer/repos/wire-server/hack/bin/python3.sh")
+                 (flycheck-python-pylint-executable . "/home/pythoneer/repos/wire-server/hack/bin/python3.sh")
+                 (flycheck-python-pycompile-executable . "/home/pythoneer/repos/wire-server/hack/bin/python3.sh")
+                 (python-shell-interpreter . "/home/pythoneer/repos/wire-server/hack/bin/python3.sh")
+                 ))
+)
+```
+to `.dir-locals.el` .

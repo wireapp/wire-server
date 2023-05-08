@@ -117,6 +117,7 @@ type SternAPI =
     :<|> Named
            "get-user-connections"
            ( Summary "Displays user's connections"
+               :> Description "[Deprecated] This is using API version V1 and will be removed in the future."
                :> "users"
                :> Capture "uid" UserId
                :> "connections"
@@ -162,7 +163,6 @@ type SternAPI =
                :> "users"
                :> Capture "uid" UserId
                :> "email"
-               :> QueryParam' [Optional, Strict, Description "If set to true, a validation email will be sent to the new email address"] "validate" Bool
                :> Servant.ReqBody '[JSON] EmailUpdate
                :> Put '[JSON] NoContent
            )
@@ -316,7 +316,7 @@ type SternAPI =
                :> Capture "tid" TeamId
                :> "search-visibility"
                :> ReqBody '[JSON] TeamSearchVisibility
-               :> Get '[JSON] NoContent
+               :> Put '[JSON] NoContent
            )
     :<|> Named "get-route-outlook-cal-config" (MkFeatureGetRoute OutlookCalIntegrationConfig)
     :<|> Named "put-route-outlook-cal-config" (MkFeaturePutRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)

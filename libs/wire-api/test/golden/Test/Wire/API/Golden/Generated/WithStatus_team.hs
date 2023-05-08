@@ -75,5 +75,15 @@ testObject_WithStatus_team_16 = withStatus FeatureStatusDisabled LockStatusUnloc
 testObject_WithStatus_team_17 :: WithStatus SearchVisibilityInboundConfig
 testObject_WithStatus_team_17 = withStatus FeatureStatusEnabled LockStatusUnlocked SearchVisibilityInboundConfig
 
+testObject_WithStatus_team_18 :: WithStatus MlsE2EIdConfig
+testObject_WithStatus_team_18 =
+  withStatus
+    FeatureStatusEnabled
+    LockStatusLocked
+    ( MlsE2EIdConfig
+        (fromIntegral @Int (60 * 60 * 24))
+        Nothing
+    )
+
 withStatus :: FeatureStatus -> LockStatus -> cfg -> WithStatus cfg
 withStatus fs ls cfg = F.withStatus fs ls cfg FeatureTTLUnlimited

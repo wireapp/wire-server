@@ -201,4 +201,3 @@ deriving via (Schema Event) instance (A.ToJSON Event)
 deriving via (Schema Event) instance (A.FromJSON Event)
 
 deriving via (Schema Event) instance (S.ToSchema Event)
-

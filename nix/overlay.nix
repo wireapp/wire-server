@@ -61,6 +61,7 @@ self: super: {
 
   nginxModules = super.nginxModules // {
     zauth = {
+      name = "zauth";
       src = ../services/nginz/third_party/nginx-zauth-module;
       inputs = [ self.pkg-config self.zauth ];
     };
@@ -87,36 +88,6 @@ self: super: {
     inherit (super) stdenv fetchurl;
   };
 
-  helm = super.callPackage ./pkgs/helm {};
-
-  helmfile = staticBinary {
-    pname = "helmfile";
-    version = "0.141.0";
-
-    darwinAmd64Url = "https://github.com/roboll/helmfile/releases/download/v0.141.0/helmfile_darwin_amd64";
-    darwinAmd64Sha256 = "0szfd3vy6fzd5657079hz5vii86f9xkg3bdzp3g4knkcw5x1kpxy";
-
-    linuxAmd64Url = "https://github.com/roboll/helmfile/releases/download/v0.141.0/helmfile_linux_amd64";
-    linuxAmd64Sha256 = "0f5d9w3qjvwip4qn79hsigwp8nbjpj58p289hww503j43wjyxx8r";
-
-    inherit (super) stdenv fetchurl;
-  };
-
-  kubectl = staticBinaryInTarball {
-    pname = "kubectl";
-    version = "1.19.8";
-
-    darwinAmd64Url = "https://dl.k8s.io/v1.19.8/kubernetes-client-darwin-amd64.tar.gz";
-    darwinAmd64Sha256 = "23b847bb8b545c748e9078e7660c654eef74d15ccab8696d294f3d6c619c788e";
-
-    linuxAmd64Url = "https://dl.k8s.io/v1.19.8/kubernetes-client-linux-amd64.tar.gz";
-    linuxAmd64Sha256 = "8388ff8b5c676bdbb8fe07ef7077de937b0bf60154f302df5f248f38f95122aa";
-
-    binPath = "client/bin/kubectl";
-
-    inherit (super) stdenv fetchurl;
-  };
-
   kind = staticBinary {
     pname = "kind";
     version = "0.11.0";
@@ -130,7 +101,5 @@ self: super: {
     inherit (super) stdenv fetchurl;
   };
 
-  # This is to match the ormolu version that ships with HLS.
-  # This doesn't compile with ghc8107 howerver, so we use ghc92
-  ormolu = super.haskell.lib.justStaticExecutables (super.haskell.lib.doJailbreak super.haskell.packages.ghc92.ormolu_0_5_0_1);
+  rabbitmqadmin = super.callPackage ./pkgs/rabbitmqadmin {};
 }

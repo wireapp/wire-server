@@ -40,12 +40,10 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 
 getLocalConvForUser ::
-  Members
-    '[ ErrorS 'ConvNotFound,
-       ConversationStore,
-       MemberStore
-     ]
-    r =>
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member ConversationStore r,
+    Member MemberStore r
+  ) =>
   Qualified UserId ->
   Local ConvId ->
   Sem r Data.Conversation
@@ -53,13 +51,23 @@ getLocalConvForUser qusr lcnv = do
   conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
 
   -- check that sender is part of conversation
-  isMember' <- foldQualified lcnv (fmap isJust . getLocalMember (convId conv) . tUnqualified) (fmap isJust . getRemoteMember (convId conv)) qusr
+  isMember' <-
+    foldQualified
+      lcnv
+      ( fmap isJust
+          . getLocalMember (convId conv)
+          . tUnqualified
+      )
+      (fmap isJust . getRemoteMember (convId conv))
+      qusr
   unless isMember' $ throwS @'ConvNotFound
 
   pure conv
 
 getPendingBackendRemoveProposals ::
-  Members '[ProposalStore, TinyLog] r =>
+  ( Member ProposalStore r,
+    Member TinyLog r
+  ) =>
   GroupId ->
   Epoch ->
   Sem r [KeyPackageRef]

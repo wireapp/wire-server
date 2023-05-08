@@ -13,6 +13,11 @@ elasticsearch:
   url: http://127.0.0.1:9200
   index: directory_test
 
+rabbitmq:
+  host: 127.0.0.1
+  port: 5672
+  vHost: /
+
 cargohold:
   host: 127.0.0.1
   port: 8084
@@ -193,8 +198,19 @@ optSettings:
   setDpopTokenExpirationTimeSecs: 300 # 5 minutes
   setPublicKeyBundle: test/resources/jwt/ed25519_bundle.pem
   setEnableMLS: true
+  # To only allow specific email address domains to register, uncomment and update the setting below
+  # setAllowlistEmailDomains:
+  #   - wire.com
+  # To only allow specific phone number prefixes to register uncomment and update the settings below
+  # setAllowlistPhonePrefixes:
+  #   - "+1555555"
+  # needs to be kept in sync with services/nginz/integration-test/resources/oauth/ed25519_public.jwk
+  setOAuthJwkKeyPair: test/resources/oauth/ed25519.jwk
+  setOAuthAuthCodeExpirationTimeSecs: 3 # 3 secs
+  setOAuthAccessTokenExpirationTimeSecs: 3 # 3 secs
+  setOAuthEnabled: true
+  setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
+  setOAuthMaxActiveRefreshTokens: 10
 
 logLevel: Warn
-# ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests
-#   produces too many logs, hence this is set to Warn.
 logNetStrings: false

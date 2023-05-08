@@ -167,9 +167,10 @@ deprecatedSchema :: S.HasDescription doc (Maybe Text) => Text -> ValueSchema doc
 deprecatedSchema new = doc . description ?~ ("Deprecated, use " <> new)
 
 qualifiedSchema ::
+  HasSchemaRef doc =>
   Text ->
   Text ->
-  ValueSchema NamedSwaggerDoc a ->
+  ValueSchema doc a ->
   ValueSchema NamedSwaggerDoc (Qualified a)
 qualifiedSchema name fieldName sch =
   object ("Qualified_" <> name) $

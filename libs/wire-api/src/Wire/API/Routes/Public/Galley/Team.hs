@@ -26,6 +26,7 @@ import Wire.API.Error.Galley
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Permission
 
@@ -33,7 +34,7 @@ type TeamAPI =
   Named
     "create-non-binding-team"
     ( Summary "Create a new non binding team"
-        -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
+        :> Until 'V4
         :> ZUser
         :> ZConn
         :> CanThrow 'NotConnected
@@ -69,7 +70,7 @@ type TeamAPI =
     :<|> Named
            "get-teams"
            ( Summary "Get teams (deprecated); use `GET /teams/:tid`"
-               -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
+               :> Until 'V4
                :> ZUser
                :> "teams"
                :> Get '[JSON] TeamList

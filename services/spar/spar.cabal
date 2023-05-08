@@ -92,6 +92,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -103,6 +104,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -123,15 +125,13 @@ library
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j
     -Wno-redundant-constraints -Werror -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       aeson
-    , aeson-qq
-    , attoparsec
     , base
     , base64-bytestring
     , bilge
-    , binary
     , brig-types
     , bytestring
     , bytestring-conversion
@@ -141,47 +141,34 @@ library
     , cookie
     , cryptonite
     , data-default
-    , email-validate
     , exceptions
     , extended
     , galley-types
-    , ghc-prim
     , hscim
-    , HsOpenSSL
     , hspec
-    , http-api-data
-    , http-client
-    , http-media
     , http-types
     , imports
-    , insert-ordered-containers
     , lens
-    , memory
     , metrics-wai
     , mtl
     , network-uri
     , optparse-applicative
     , polysemy
-    , polysemy-check             >=0.9
+    , polysemy-check         >=0.9
     , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
     , raw-strings-qq
-    , retry
-    , saml2-web-sso              >=0.19
-    , servant
+    , saml2-web-sso          >=0.19
     , servant-multipart
     , servant-server
-    , servant-swagger
     , string-conversions
-    , swagger2
     , text
     , text-latin1
     , time
     , tinylog
     , transformers
     , types-common
-    , unordered-containers
     , uri-bytestring
     , uuid
     , wai
@@ -189,7 +176,6 @@ library
     , warp
     , wire-api
     , x509
-    , xml-conduit
     , yaml
 
   default-language:   Haskell2010
@@ -211,6 +197,7 @@ executable spar
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -222,6 +209,7 @@ executable spar
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -243,75 +231,12 @@ executable spar
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j
     -Wno-redundant-constraints -Werror -threaded -rtsopts
     -with-rtsopts=-N -with-rtsopts=-T -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
-      aeson
-    , aeson-qq
-    , attoparsec
-    , base
-    , base64-bytestring
-    , bilge
-    , binary
-    , brig-types
-    , bytestring
-    , bytestring-conversion
-    , case-insensitive
-    , cassandra-util
-    , containers
-    , cookie
-    , cryptonite
-    , data-default
-    , email-validate
-    , exceptions
-    , extended
-    , galley-types
-    , ghc-prim
-    , hscim
-    , HsOpenSSL
-    , hspec
-    , http-api-data
-    , http-client
-    , http-media
-    , http-types
+      base
     , imports
-    , insert-ordered-containers
-    , lens
-    , memory
-    , metrics-wai
-    , mtl
-    , network-uri
-    , optparse-applicative
-    , polysemy
-    , polysemy-check             >=0.9
-    , polysemy-plugin
-    , polysemy-wire-zoo
-    , QuickCheck
-    , raw-strings-qq
-    , retry
-    , saml2-web-sso              >=0.19
-    , servant
-    , servant-multipart
-    , servant-server
-    , servant-swagger
     , spar
-    , string-conversions
-    , swagger2
-    , text
-    , text-latin1
-    , time
-    , tinylog
-    , transformers
-    , types-common
-    , unordered-containers
-    , uri-bytestring
-    , uuid
-    , wai
-    , wai-utilities
-    , warp
-    , wire-api
-    , x509
-    , xml-conduit
-    , yaml
 
   default-language:   Haskell2010
 
@@ -350,6 +275,7 @@ executable spar-integration
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -361,6 +287,7 @@ executable spar-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -381,85 +308,67 @@ executable spar-integration
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j
     -Wno-redundant-constraints -Werror -threaded -rtsopts
-    -with-rtsopts=-N -Wredundant-constraints
+    -with-rtsopts=-N -Wredundant-constraints -Wunused-packages
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
       aeson
     , aeson-qq
-    , attoparsec
     , base
     , base64-bytestring
     , bilge
-    , binary
     , brig-types
     , bytestring
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
     , cassava
-    , containers
     , cookie
     , cryptonite
-    , data-default
     , email-validate
     , exceptions
     , extended
     , galley-types
-    , ghc-prim
     , hscim
     , HsOpenSSL
     , hspec
     , hspec-wai
     , http-api-data
     , http-client
-    , http-media
     , http-types
     , imports
-    , insert-ordered-containers
-    , iso639                     >=0.1
+    , iso639                 >=0.1
     , lens
     , lens-aeson
-    , memory
-    , metrics-wai
     , MonadRandom
     , mtl
-    , network-uri
     , optparse-applicative
     , polysemy
-    , polysemy-check             >=0.9
     , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
     , random
     , raw-strings-qq
     , retry
-    , saml2-web-sso              >=0.19
+    , saml2-web-sso          >=0.19
     , servant
-    , servant-multipart
     , servant-server
-    , servant-swagger
     , silently
     , spar
     , string-conversions
-    , swagger2
     , tasty-hunit
     , text
-    , text-latin1
     , time
     , tinylog
     , transformers
     , types-common
-    , unordered-containers
     , uri-bytestring
     , uuid
     , vector
-    , wai
     , wai-extra
     , wai-utilities
     , warp
     , wire-api
-    , x509
     , xml-conduit
     , yaml
     , zauth
@@ -490,6 +399,7 @@ executable spar-migrate-data
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -501,6 +411,7 @@ executable spar-migrate-data
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -521,77 +432,25 @@ executable spar-migrate-data
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j
     -Wno-redundant-constraints -Werror -threaded -rtsopts
-    -with-rtsopts=-N -Wredundant-constraints
+    -with-rtsopts=-N -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson
-    , aeson-qq
-    , attoparsec
-    , base
-    , base64-bytestring
-    , bilge
-    , binary
-    , brig-types
-    , bytestring
-    , bytestring-conversion
-    , case-insensitive
+      base
     , cassandra-util
     , conduit
     , containers
-    , cookie
-    , cryptonite
-    , data-default
-    , email-validate
     , exceptions
-    , extended
-    , galley-types
-    , ghc-prim
-    , hscim
-    , HsOpenSSL
-    , hspec
-    , http-api-data
-    , http-client
-    , http-media
-    , http-types
     , imports
-    , insert-ordered-containers
     , lens
-    , memory
-    , metrics-wai
-    , mtl
-    , network-uri
     , optparse-applicative
-    , polysemy
-    , polysemy-check             >=0.9
-    , polysemy-plugin
-    , polysemy-wire-zoo
-    , QuickCheck
-    , raw-strings-qq
-    , retry
-    , saml2-web-sso              >=0.19
-    , servant
-    , servant-multipart
-    , servant-server
-    , servant-swagger
+    , saml2-web-sso         >=0.19
     , spar
     , string-conversions
-    , swagger2
     , text
-    , text-latin1
     , time
     , tinylog
-    , transformers
     , types-common
-    , unordered-containers
     , uri-bytestring
-    , uuid
-    , wai
-    , wai-utilities
-    , warp
-    , wire-api
-    , x509
-    , xml-conduit
-    , yaml
 
   default-language:   Haskell2010
 
@@ -634,6 +493,7 @@ executable spar-schema
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -645,6 +505,7 @@ executable spar-schema
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -665,76 +526,15 @@ executable spar-schema
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j
     -Wno-redundant-constraints -Werror -threaded -rtsopts
-    -with-rtsopts=-N -Wredundant-constraints
+    -with-rtsopts=-N -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson
-    , aeson-qq
-    , attoparsec
-    , base
-    , base64-bytestring
-    , bilge
-    , binary
-    , brig-types
-    , bytestring
-    , bytestring-conversion
-    , case-insensitive
+      base
     , cassandra-util
-    , containers
-    , cookie
-    , cryptonite
-    , data-default
-    , email-validate
-    , exceptions
     , extended
-    , galley-types
-    , ghc-prim
-    , hscim
-    , HsOpenSSL
-    , hspec
-    , http-api-data
-    , http-client
-    , http-media
-    , http-types
     , imports
-    , insert-ordered-containers
-    , lens
-    , memory
-    , metrics-wai
-    , mtl
-    , network-uri
-    , optparse-applicative
-    , polysemy
-    , polysemy-check             >=0.9
-    , polysemy-plugin
-    , polysemy-wire-zoo
-    , QuickCheck
     , raw-strings-qq
-    , retry
-    , saml2-web-sso              >=0.19
-    , servant
-    , servant-multipart
-    , servant-server
-    , servant-swagger
-    , spar
-    , string-conversions
-    , swagger2
-    , text
-    , text-latin1
-    , time
-    , tinylog
-    , transformers
     , types-common
-    , unordered-containers
-    , uri-bytestring
-    , uuid
-    , wai
-    , wai-utilities
-    , warp
-    , wire-api
-    , x509
-    , xml-conduit
-    , yaml
 
   default-language:   Haskell2010
 
@@ -770,6 +570,7 @@ test-suite spec
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -781,6 +582,7 @@ test-suite spec
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -801,77 +603,39 @@ test-suite spec
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j
     -Wno-redundant-constraints -Werror -threaded -rtsopts
-    -with-rtsopts=-N -Wredundant-constraints
+    -with-rtsopts=-N -Wredundant-constraints -Wunused-packages
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
       aeson
     , aeson-qq
-    , attoparsec
     , base
-    , base64-bytestring
-    , bilge
-    , binary
     , brig-types
-    , bytestring
     , bytestring-conversion
-    , case-insensitive
-    , cassandra-util
-    , containers
     , cookie
-    , cryptonite
-    , data-default
-    , email-validate
-    , exceptions
-    , extended
-    , galley-types
-    , ghc-prim
     , hscim
-    , HsOpenSSL
     , hspec
-    , http-api-data
-    , http-client
-    , http-media
-    , http-types
     , imports
-    , insert-ordered-containers
     , lens
     , lens-aeson
-    , memory
     , metrics-wai
     , mtl
     , network-uri
-    , optparse-applicative
     , polysemy
-    , polysemy-check             >=0.9
     , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
-    , raw-strings-qq
-    , retry
-    , saml2-web-sso              >=0.19
+    , saml2-web-sso          >=0.19
     , servant
-    , servant-multipart
-    , servant-server
     , servant-swagger
     , spar
     , string-conversions
     , swagger2
-    , text
-    , text-latin1
     , time
     , tinylog
-    , transformers
     , types-common
-    , unordered-containers
     , uri-bytestring
     , uuid
-    , wai
-    , wai-utilities
-    , warp
     , wire-api
-    , x509
-    , xml-conduit
-    , yaml
 
   default-language:   Haskell2010

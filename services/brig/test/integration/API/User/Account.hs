@@ -49,9 +49,11 @@ import Data.Domain
 import Data.Handle
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
+import Data.LegalHold
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 (singleton)
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Qualified
 import Data.Range
@@ -130,13 +132,15 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "head /users/:uid - 404" $ testUserDoesNotExistUnqualified b,
       test p "head /users/:domain/:uid - 200" $ testUserExists b,
       test p "head /users/:domain/:uid - 404" $ testUserDoesNotExist b,
-      test p "post /list-users - 200" $ testMultipleUsers b,
+      test p "post /list-users@v3 - 200" $ testMultipleUsersV3 b,
+      test p "post /list-users - 200" $ testMultipleUsers opts b,
       test p "put /self - 200" $ testUserUpdate b c userJournalWatcher,
       test p "put /access/self/email - 2xx" $ testEmailUpdate b userJournalWatcher,
       test p "put /self/phone - 202" $ testPhoneUpdate b,
       test p "put /self/phone - 403" $ testPhoneUpdateBlacklisted b,
       test p "put /self/phone - 409" $ testPhoneUpdateConflict b,
       test p "head /self/password - 200/404" $ testPasswordSet b,
+      test p "put /self/password - 400" $ testPasswordSetInvalidPasswordLength b,
       test p "put /self/password - 200" $ testPasswordChange b,
       test p "put /self/locale - 200" $ testUserLocaleUpdate b userJournalWatcher,
       test p "post /activate/send - 200" $ testSendActivationCode opts b,
@@ -759,8 +763,8 @@ testMultipleUsersUnqualified brig = do
     field :: FromJSON a => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
-testMultipleUsers :: Brig -> Http ()
-testMultipleUsers brig = do
+testMultipleUsersV3 :: Brig -> Http ()
+testMultipleUsersV3 brig = do
   u1 <- randomUser brig
   u2 <- randomUser brig
   u3 <- createAnonUser "a" brig
@@ -773,7 +777,8 @@ testMultipleUsers brig = do
             (Just $ userDisplayName u3, Nothing)
           ]
   post
-    ( brig
+    ( apiVersion "v3"
+        . brig
         . zUser (userId u1)
         . contentJson
         . path "list-users"
@@ -789,6 +794,73 @@ testMultipleUsers brig = do
         <$> responseJsonMaybe r
     field :: FromJSON a => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
+
+testMultipleUsers :: Opt.Opts -> Brig -> Http ()
+testMultipleUsers opts brig = do
+  u1 <- randomUser brig
+  u2 <- randomUser brig
+  u3 <- createAnonUser "a" brig
+  -- A remote user that can't be listed
+  u4 <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+  -- A remote user that can be listed
+  let evenFurtherAway = Domain "even-further-away.example.com"
+  u5 <- Qualified <$> randomId <*> pure evenFurtherAway
+  let u5Profile =
+        UserProfile
+          { profileQualifiedId = u5,
+            profileName = Name "u5",
+            profilePict = Pict [],
+            profileAssets = [],
+            profileAccentId = ColourId 0,
+            profileDeleted = False,
+            profileService = Nothing,
+            profileHandle = Nothing,
+            profileExpire = Nothing,
+            profileTeam = Nothing,
+            profileEmail = Nothing,
+            profileLegalholdStatus = UserLegalHoldDisabled
+          }
+      users = [u1, u2, u3]
+      q = ListUsersByIds $ u5 : u4 : map userQualifiedId users
+      expected =
+        Set.fromList
+          [ (Just $ userDisplayName u1, Nothing :: Maybe Email),
+            (Just $ userDisplayName u2, Nothing),
+            (Just $ userDisplayName u3, Nothing),
+            (Just $ profileName u5Profile, profileEmail u5Profile)
+          ]
+      expectedFailed = Set.fromList [u4]
+
+  let fedMockResponse req = do
+        -- Check that our allowed remote user is being asked for
+        if frTargetDomain req == evenFurtherAway
+          then -- Return the data for u5
+            pure $ encode [u5Profile]
+          else -- Otherwise mock an unavailable federation server
+            throw $ MockErrorResponse Http.status500 "Down for maintenance"
+      -- Galley isn't needed, but this is what mock federators are available.
+      galleyHandler _ = error "not mocked"
+  (response, _rpcCalls, _galleyCalls) <- liftIO $
+    withMockedFederatorAndGalley opts (Domain "example.com") fedMockResponse galleyHandler $ do
+      post
+        ( brig
+            . zUser (userId u1)
+            . contentJson
+            . path "list-users"
+            . body (RequestBodyLBS (Aeson.encode q))
+        )
+
+  pure response !!! do
+    const 200 === statusCode
+    const (Just expected) === result
+    const (pure $ pure expectedFailed) === resultFailed
+  where
+    result r =
+      Set.fromList
+        . map (\u -> (pure $ profileName u, profileEmail u))
+        . listUsersByIdFound
+        <$> responseJsonMaybe r
+    resultFailed r = fmap (Set.fromList . NonEmpty.toList) . listUsersByIdFailed <$> responseJsonMaybe r
 
 testCreateUserAnonExpiry :: Brig -> Http ()
 testCreateUserAnonExpiry b = do
@@ -1096,6 +1168,28 @@ testPasswordSet brig = do
           [ "new_password" .= ("a_very_long_password" :: Text)
           ]
 
+testPasswordSetInvalidPasswordLength :: Brig -> Http ()
+testPasswordSetInvalidPasswordLength brig = do
+  p <- randomPhone
+  let newUser =
+        RequestBodyLBS . encode $
+          object
+            [ "name" .= ("Alice" :: Text),
+              "phone" .= fromPhone p
+            ]
+  rs <-
+    post (brig . path "/i/users" . contentJson . body newUser)
+      <!! const 201 === statusCode
+  let Just uid = userId <$> responseJsonMaybe rs
+  put (brig . path "/self/password" . contentJson . zUser uid . body shortPassword)
+    !!! const 400 === statusCode
+  where
+    shortPassword =
+      RequestBodyLBS . encode $
+        object
+          [ "new_password" .= ("secret" :: Text)
+          ]
+
 testPasswordChange :: Brig -> Http ()
 testPasswordChange brig = do
   (uid, Just email) <- (userId &&& userEmail) <$> randomUser brig
@@ -1115,7 +1209,7 @@ testPasswordChange brig = do
   put (brig . path "/self/password" . contentJson . zUser uid2 . body pwSet)
     !!! (const 403 === statusCode)
   where
-    newPass = PlainTextPassword "topsecret"
+    newPass = plainTextPassword6Unsafe "topsecret"
     pwChange =
       RequestBodyLBS . encode $
         object
@@ -1554,7 +1648,7 @@ testRestrictedUserCreation opts brig = do
             [ "name" .= Name "Alice",
               "email" .= fromEmail e,
               "email_code" .= ("123456" :: Text),
-              "password" .= PlainTextPassword "123123123"
+              "password" .= plainTextPassword6Unsafe "123123123"
             ]
     postUserRegister' regularUser brig !!! do
       const 403 === statusCode
@@ -1564,7 +1658,7 @@ testRestrictedUserCreation opts brig = do
           object
             [ "name" .= Name "Alice",
               "email" .= fromEmail e,
-              "password" .= PlainTextPassword "123123123"
+              "password" .= plainTextPassword6Unsafe "123123123"
             ]
     postUserRegister' regularUserNotPreActivated brig !!! do
       const 403 === statusCode
@@ -1576,7 +1670,7 @@ testRestrictedUserCreation opts brig = do
               "email" .= fromEmail e,
               "email_code" .= ("123456" :: Text),
               "team" .= object ["name" .= ("Alice team" :: Text), "icon" .= ("default" :: Text), "binding" .= True],
-              "password" .= PlainTextPassword "123123123"
+              "password" .= plainTextPassword6Unsafe "123123123"
             ]
     postUserRegister' teamCreator brig !!! do
       const 403 === statusCode

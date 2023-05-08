@@ -8,30 +8,19 @@
 , brig
 , brig-types
 , bytestring
-, case-insensitive
 , cassandra-util
 , conduit
-, containers
 , extended
 , extra
-, galley-types
 , gitignoreSource
-, HsOpenSSL
-, http-client
 , imports
-, lens
 , lib
-, multihash
 , optparse-applicative
-, saml2-web-sso
 , string-conversions
 , text
-, time
 , tinylog
 , types-common
 , unliftio
-, uri-bytestring
-, uuid
 , wire-api
 }:
 mkDerivation {
@@ -46,28 +35,17 @@ mkDerivation {
     brig
     brig-types
     bytestring
-    case-insensitive
     cassandra-util
     conduit
-    containers
     extended
     extra
-    galley-types
-    HsOpenSSL
-    http-client
     imports
-    lens
-    multihash
     optparse-applicative
-    saml2-web-sso
     string-conversions
     text
-    time
     tinylog
     types-common
     unliftio
-    uri-bytestring
-    uuid
     wire-api
   ];
   description = "Find handles which belong to deleted users";

@@ -17,6 +17,7 @@ extra-source-files:
 library
   -- cabal-fmt: expand src
   exposed-modules:
+    Brig.Allowlists
     Brig.API
     Brig.API.Auth
     Brig.API.Client
@@ -30,6 +31,7 @@ library
     Brig.API.MLS.KeyPackages
     Brig.API.MLS.KeyPackages.Validation
     Brig.API.MLS.Util
+    Brig.API.OAuth
     Brig.API.Properties
     Brig.API.Public
     Brig.API.Public.Swagger
@@ -90,7 +92,6 @@ library
     Brig.IO.Journal
     Brig.Locale
     Brig.Options
-    Brig.Password
     Brig.Phone
     Brig.Provider.API
     Brig.Provider.DB
@@ -130,7 +131,6 @@ library
     Brig.User.Search.TeamUserSearch
     Brig.User.Template
     Brig.Version
-    Brig.Whitelist
     Brig.ZAuth
 
   other-modules:      Paths_brig
@@ -148,6 +148,7 @@ library
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -159,6 +160,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -179,7 +181,8 @@ library
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -fplugin=Polysemy.Plugin
-    -Wredundant-constraints
+    -fplugin=TransitiveAnns.Plugin -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       aeson                      >=2.0.1.0
@@ -189,9 +192,8 @@ library
     , amazonka-ses               >=2
     , amazonka-sqs               >=2
     , async                      >=2.1
-    , attoparsec                 >=0.12
     , auto-update                >=0.1
-    , base                       >=4        && <5
+    , base                       >=4       && <5
     , base-prelude
     , base16-bytestring          >=0.1
     , base64-bytestring          >=1.0
@@ -228,16 +230,17 @@ library
     , HaskellNet                 >=0.3
     , HaskellNet-SSL             >=0.3
     , HsOpenSSL                  >=0.10
-    , HsOpenSSL-x509-system      >=0.1
     , html-entities              >=1.1
     , http-client                >=0.5
     , http-client-openssl        >=0.2
     , http-media
     , http-types                 >=0.8
+    , http2-manager
     , imports
     , insert-ordered-containers
     , iproute                    >=1.5
     , iso639                     >=0.1
+    , jose
     , jwt-tools
     , lens                       >=3.8
     , lens-aeson                 >=1.0
@@ -248,12 +251,10 @@ library
     , mmorph
     , MonadRandom                >=0.5
     , mtl                        >=2.1
-    , multihash                  >=0.1.3
     , mwc-random
     , network                    >=2.4
     , network-conduit-tls
     , optparse-applicative       >=0.11
-    , pem                        >=0.2
     , polysemy
     , polysemy-plugin
     , polysemy-wire-zoo
@@ -263,15 +264,12 @@ library
     , resourcet                  >=1.1
     , retry                      >=0.7
     , ropes                      >=0.4.20
-    , safe                       >=0.3
     , safe-exceptions            >=0.1
     , saml2-web-sso
     , schema-profunctor
     , scientific                 >=0.3.4
-    , scrypt                     >=0.5
     , servant
     , servant-client
-    , servant-client-core
     , servant-server
     , servant-swagger
     , servant-swagger-ui
@@ -282,7 +280,6 @@ library
     , stomp-queue                >=0.3
     , string-conversions
     , swagger2
-    , tagged
     , template                   >=0.2
     , template-haskell
     , text                       >=0.11
@@ -292,6 +289,7 @@ library
     , time-units
     , tinylog                    >=0.10
     , transformers               >=0.3
+    , transitive-anns
     , types-common               >=0.16
     , types-common-aws
     , types-common-journal       >=0.1
@@ -306,7 +304,6 @@ library
     , wai-predicates             >=0.8
     , wai-routing                >=0.12
     , wai-utilities              >=0.16
-    , warp                       >=3.0.12.1
     , wire-api
     , wire-api-federation
     , yaml                       >=0.8.22
@@ -330,6 +327,7 @@ executable brig
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -341,6 +339,7 @@ executable brig
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -361,14 +360,13 @@ executable brig
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
-    -rtsopts -Wredundant-constraints
+    -rtsopts -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base
     , brig
     , HsOpenSSL
     , imports
-    , optparse-applicative  >=0.10
     , types-common
 
   default-language:   Haskell2010
@@ -389,6 +387,7 @@ executable brig-index
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -400,6 +399,7 @@ executable brig-index
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -420,7 +420,7 @@ executable brig-index
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base
@@ -443,11 +443,13 @@ executable brig-integration
     API.Metrics
     API.MLS
     API.MLS.Util
+    API.OAuth
     API.Provider
     API.RichInfo.Util
     API.Search
     API.Search.Util
     API.Settings
+    API.Swagger
     API.SystemSettings
     API.Team
     API.Team.Util
@@ -486,6 +488,7 @@ executable brig-integration
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -497,6 +500,7 @@ executable brig-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -517,7 +521,7 @@ executable brig-integration
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson
@@ -532,7 +536,6 @@ executable brig-integration
     , brig-types
     , bytestring             >=0.9
     , bytestring-conversion
-    , cargohold-types
     , case-insensitive
     , cassandra-util
     , containers
@@ -545,7 +548,6 @@ executable brig-integration
     , federator
     , filepath               >=1.4
     , galley-types
-    , gundeck-types
     , hscim
     , HsOpenSSL
     , http-api-data
@@ -555,6 +557,7 @@ executable brig-integration
     , http-reverse-proxy
     , http-types
     , imports
+    , jose
     , lens                   >=3.9
     , lens-aeson
     , metrics-wai
@@ -563,6 +566,7 @@ executable brig-integration
     , MonadRandom            >=0.5
     , mtl
     , network
+    , network-uri
     , optparse-applicative
     , pem
     , pipes
@@ -620,37 +624,6 @@ executable brig-schema
   -- cabal-fmt: expand schema/src
   other-modules:
     Main
-    V10
-    V11
-    V12
-    V13
-    V14
-    V15
-    V16
-    V17
-    V18
-    V19
-    V20
-    V21
-    V22
-    V23
-    V24
-    V25
-    V28
-    V29
-    V30
-    V31
-    V32
-    V33
-    V34
-    V35
-    V36
-    V37
-    V38
-    V39
-    V40
-    V41
-    V42
     V43
     V44
     V45
@@ -682,7 +655,8 @@ executable brig-schema
     V71_AddTableVCodesThrottle
     V72_AddNonceTable
     V73_ReplaceNonceTable
-    V9
+    V74_AddOAuthTables
+    V75_AddOAuthCodeChallenge
     V_FUTUREWORK
 
   hs-source-dirs:     schema/src
@@ -699,6 +673,7 @@ executable brig-schema
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -710,6 +685,7 @@ executable brig-schema
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -729,17 +705,14 @@ executable brig-schema
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields -Wredundant-constraints
+    -funbox-strict-fields -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base
-    , cassandra-util        >=0.12
+    , cassandra-util  >=0.12
     , extended
     , imports
-    , optparse-applicative  >=0.10
-    , raw-strings-qq        >=1.0
-    , text
-    , tinylog
+    , raw-strings-qq  >=1.0
     , types-common
 
   default-language:   Haskell2010
@@ -773,6 +746,7 @@ test-suite brig-tests
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
@@ -784,6 +758,7 @@ test-suite brig-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -804,13 +779,12 @@ test-suite brig-tests
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson
     , base
     , binary
-    , bloodhound
     , brig
     , brig-types
     , bytestring
@@ -819,16 +793,11 @@ test-suite brig-tests
     , dns
     , dns-util
     , exceptions
-    , HsOpenSSL            >=0.10
-    , http-types
+    , HsOpenSSL          >=0.10
     , imports
     , lens
     , polysemy
     , polysemy-wire-zoo
-    , QuickCheck
-    , retry
-    , servant-client-core
-    , string-conversions
     , tasty
     , tasty-hunit
     , tasty-quickcheck
@@ -838,8 +807,6 @@ test-suite brig-tests
     , unliftio
     , uri-bytestring
     , uuid
-    , wai-utilities
     , wire-api
-    , wire-api-federation
 
   default-language:   Haskell2010

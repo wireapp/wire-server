@@ -18,7 +18,7 @@ config:
   logLevel: Info
   logFormat: StructuredJSON
   logNetStrings: false
-  enableFederator: false # keep enableFederator default in sync with brig and galley chart's config.enableFederator as well as wire-server chart's tag.federator
+  enableFederation: false # keep enableFederation default in sync with brig and galley chart's config.enableFederation as well as wire-server chart's tags.federation
   aws:
     region: "eu-west-1"
     s3Bucket: assets
@@ -28,7 +28,7 @@ config:
     downloadLinkTTL: 300 # Seconds
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
-    # disabledAPIVersions: [ 3 ]
+    # disabledAPIVersions: [ v3 ]
 
 serviceAccount:
   # When setting this to 'false', either make sure that a service account named

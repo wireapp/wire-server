@@ -42,6 +42,7 @@ module Brig.App
     templateBranding,
     requestId,
     httpManager,
+    http2Manager,
     extGetManager,
     nexmoCreds,
     twilioCreds,
@@ -129,6 +130,7 @@ import qualified Data.Text.IO as Text
 import Data.Time.Clock
 import Data.Yaml (FromJSON)
 import qualified Database.Bloodhound as ES
+import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -146,10 +148,11 @@ import System.Logger.Class hiding (Settings, settings)
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
-import Wire.API.User
+import Wire.API.User.Identity (Email)
+import Wire.API.User.Profile (Locale)
 
 schemaVersion :: Int32
-schemaVersion = 73
+schemaVersion = 75
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -173,6 +176,7 @@ data Env = Env
     _tmTemplates :: Localised TeamTemplates,
     _templateBranding :: TemplateBranding,
     _httpManager :: Manager,
+    _http2Manager :: Http2Manager,
     _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
     _settings :: Settings,
     _nexmoCreds :: Nexmo.Credentials,
@@ -201,6 +205,7 @@ newEnv o = do
   lgr <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   cas <- initCassandra o lgr
   mgr <- initHttpManager
+  h2Mgr <- initHttp2Manager
   ext <- initExtGetManager
   utp <- loadUserTemplates o
   ptp <- loadProviderTemplates o
@@ -259,6 +264,7 @@ newEnv o = do
         _tmTemplates = ttp,
         _templateBranding = branding,
         _httpManager = mgr,
+        _http2Manager = h2Mgr,
         _extGetManager = ext,
         _settings = sett,
         _nexmoCreds = nxm,
@@ -352,6 +358,18 @@ initHttpManager = do
         managerIdleConnectionCount = 4096,
         managerResponseTimeout = responseTimeoutMicro 10000000
       }
+
+initHttp2Manager :: IO Http2Manager
+initHttp2Manager = do
+  ctx <- SSL.context
+  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
+  SSL.contextAddOption ctx SSL_OP_NO_SSLv3
+  SSL.contextAddOption ctx SSL_OP_NO_TLSv1
+  SSL.contextSetCiphers ctx "HIGH"
+  SSL.contextSetVerificationMode ctx $
+    SSL.VerifyPeer True True Nothing
+  SSL.contextSetDefaultVerifyPaths ctx
+  http2ManagerWithSSLCtx ctx
 
 -- Note [SSL context]
 -- ~~~~~~~~~~~~
