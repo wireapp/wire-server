@@ -56,6 +56,7 @@ common common-all
     PolyKinds
     QuasiQuotes
     RankNTypes
+    RecordWildCards
     ScopedTypeVariables
     StandaloneDeriving
     TupleSections
@@ -89,12 +90,18 @@ library
     Test.Brig
     Test.Demo
     Testlib.App
+    Testlib.Assertions
     Testlib.Cannon
-    Testlib.Options
-    Testlib.Prelude
-    Testlib.Run
     Testlib.Env
+    Testlib.HTTP
+    Testlib.JSON
+    Testlib.ModService
+    Testlib.Options
     Testlib.Prekeys
+    Testlib.Prelude
+    Testlib.Printing
+    Testlib.Run
+    Testlib.Types
 
   build-depends:
     , aeson
