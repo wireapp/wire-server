@@ -98,7 +98,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson
@@ -108,56 +108,42 @@ library
     , binary
     , bytestring
     , bytestring-conversion
-    , constraints
     , containers
     , data-default
     , dns
     , dns-util
-    , either
     , exceptions
     , extended
     , filepath
     , hinotify
     , HsOpenSSL
     , http-client
-    , http-client-openssl
     , http-media
     , http-types
     , http2
+    , http2-manager
     , imports
     , kan-extensions
     , lens
     , metrics-core
     , metrics-wai
     , mtl
-    , network
-    , network-uri
     , pem
     , polysemy
     , polysemy-wire-zoo
-    , retry
     , servant
     , servant-client-core
-    , streaming-commons
     , string-conversions
     , text
-    , time-manager
     , tinylog
-    , tls
     , transformers
     , types-common
     , unix
-    , uri-bytestring
-    , uuid
     , wai
     , wai-utilities
     , warp
-    , warp-tls
-    , wire-api
     , wire-api-federation
     , x509
-    , x509-store
-    , x509-system
     , x509-validation
 
   default-language:   Haskell2010
@@ -212,7 +198,7 @@ executable federator
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base
@@ -278,77 +264,43 @@ executable federator-integration
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints -threaded -with-rtsopts=-N1
+    -Wredundant-constraints -Wunused-packages -threaded
+    -with-rtsopts=-N1
 
   build-depends:
       aeson
-    , async
     , base
     , bilge
     , binary
     , bytestring
     , bytestring-conversion
     , connection
-    , constraints
-    , containers
     , cryptonite
-    , data-default
-    , dns
     , dns-util
-    , either
-    , errors
     , exceptions
-    , extended
     , federator
-    , filepath
-    , hinotify
     , HsOpenSSL
     , hspec
-    , http-client
-    , http-client-openssl
     , http-client-tls
-    , http-media
     , http-types
-    , http2
+    , http2-manager
     , imports
     , kan-extensions
     , lens
-    , metrics-core
-    , metrics-wai
     , mtl
-    , network
-    , network-uri
     , optparse-applicative
-    , pem
     , polysemy
-    , polysemy-wire-zoo
     , QuickCheck
     , random
-    , retry
-    , servant
     , servant-client-core
-    , streaming-commons
     , string-conversions
-    , tasty
     , tasty-hunit
     , text
-    , time-manager
-    , tinylog
-    , tls
     , types-common
-    , unix
-    , uri-bytestring
     , uuid
-    , wai
     , wai-utilities
-    , warp
-    , warp-tls
     , wire-api
     , wire-api-federation
-    , x509
-    , x509-store
-    , x509-system
-    , x509-validation
     , yaml
 
   default-language:   Haskell2010
@@ -415,65 +367,42 @@ test-suite federator-tests
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       aeson
-    , async
     , base
-    , bilge
-    , binary
     , bytestring
     , bytestring-conversion
-    , constraints
     , containers
     , data-default
-    , directory
-    , dns
     , dns-util
-    , either
-    , exceptions
-    , extended
     , federator
     , filepath
-    , hinotify
     , HsOpenSSL
-    , http-client
-    , http-client-openssl
     , http-media
     , http-types
     , http2
+    , http2-manager
     , imports
     , interpolate
     , kan-extensions
-    , lens
-    , metrics-core
-    , metrics-wai
     , mtl
-    , network
-    , network-uri
-    , pem
     , polysemy
     , polysemy-wire-zoo
     , QuickCheck
-    , retry
     , servant
     , servant-client
     , servant-client-core
-    , streaming-commons
     , string-conversions
     , tasty
     , tasty-hunit
     , tasty-quickcheck
     , temporary
     , text
-    , time-manager
-    , tinylog
-    , tls
     , transformers
     , types-common
     , unix
-    , uri-bytestring
-    , uuid
     , wai
     , wai-extra
     , wai-utilities
@@ -481,9 +410,6 @@ test-suite federator-tests
     , warp-tls
     , wire-api
     , wire-api-federation
-    , x509
-    , x509-store
-    , x509-system
     , x509-validation
     , yaml
 

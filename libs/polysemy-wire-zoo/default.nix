@@ -60,7 +60,6 @@ mkDerivation {
     hspec
     imports
     polysemy
-    polysemy-check
     polysemy-plugin
     unliftio
   ];

@@ -66,7 +66,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields -Wredundant-constraints
+    -funbox-strict-fields -Wredundant-constraints -Wunused-packages
 
   build-depends:
       attoparsec             >=0.11
@@ -136,7 +136,7 @@ executable zauth
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base
@@ -207,13 +207,11 @@ test-suite zauth-unit
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base
-    , bytestring
     , bytestring-conversion
-    , errors
     , imports
     , lens
     , sodium-crypto-sign

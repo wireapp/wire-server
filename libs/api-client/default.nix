@@ -27,7 +27,6 @@
 , transformers
 , types-common
 , unliftio
-, unordered-containers
 , uuid
 , websockets
 , wire-api
@@ -59,7 +58,6 @@ mkDerivation {
     transformers
     types-common
     unliftio
-    unordered-containers
     uuid
     websockets
     wire-api

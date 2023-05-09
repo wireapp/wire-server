@@ -75,47 +75,38 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
+    -fplugin=TransitiveAnns.Plugin
 
   build-depends:
       aeson                  >=2.0.1.0
-    , async
     , base                   >=4.6     && <5.0
     , bytestring
     , bytestring-conversion
-    , case-insensitive
     , containers
-    , either
-    , errors
     , exceptions
     , HsOpenSSL
     , http-media
     , http-types
     , http2
+    , http2-manager
     , imports
     , kan-extensions
     , lens
-    , lifted-base
     , metrics-wai
     , mtl
-    , network
     , QuickCheck             >=2.13
     , schema-profunctor
     , servant                >=0.16
     , servant-client
     , servant-client-core
     , servant-server
-    , singletons
     , singletons-th
-    , sop-core
-    , streaming-commons
     , swagger2
-    , template-haskell
     , text                   >=0.11
     , time                   >=1.8
-    , time-manager
-    , tls
     , transformers
+    , transitive-anns
     , types-common
     , wai-utilities
     , wire-api
@@ -188,53 +179,22 @@ test-suite spec
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -rtsopts -with-rtsopts=-N -Wredundant-constraints
+    -Wunused-packages
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
-      aeson                  >=2.0.1.0
+      aeson                >=2.0.1.0
     , aeson-pretty
-    , async
-    , base                   >=4.6     && <5.0
+    , base                 >=4.6     && <5.0
     , bytestring
-    , bytestring-conversion
-    , case-insensitive
     , containers
-    , either
-    , errors
-    , exceptions
     , hspec
-    , http-media
-    , http-types
-    , http2
     , HUnit
     , imports
-    , kan-extensions
-    , lens
-    , lifted-base
-    , metrics-wai
-    , mtl
-    , network
-    , QuickCheck             >=2.13
-    , retry
-    , schema-profunctor
-    , servant                >=0.16
-    , servant-client
-    , servant-client-core
-    , servant-server
+    , QuickCheck           >=2.13
     , singletons
-    , singletons-th
-    , sop-core
-    , streaming-commons
-    , swagger2
-    , template-haskell
-    , text                   >=0.11
-    , time                   >=1.8
-    , time-manager
-    , tls
-    , transformers
     , types-common
     , uuid
-    , wai-utilities
     , wire-api
     , wire-api-federation
 

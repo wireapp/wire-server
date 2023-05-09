@@ -56,13 +56,8 @@
 , safe
 , safe-exceptions
 , scientific
-, servant
 , servant-server
-, servant-swagger
-, servant-swagger-ui
-, streaming-commons
 , string-conversions
-, swagger2
 , tagged
 , tasty
 , tasty-hunit
@@ -71,10 +66,8 @@
 , time
 , tinylog
 , tls
-, tree-diff
 , types-common
 , types-common-aws
-, unix
 , unliftio
 , unordered-containers
 , uuid
@@ -84,8 +77,6 @@
 , wai-predicates
 , wai-routing
 , wai-utilities
-, warp
-, warp-tls
 , websockets
 , wire-api
 , yaml
@@ -118,7 +109,6 @@ mkDerivation {
     extra
     gundeck-types
     hedis
-    HsOpenSSL
     http-client
     http-client-tls
     http-types
@@ -128,18 +118,12 @@ mkDerivation {
     metrics-core
     metrics-wai
     mtl
-    network
     network-uri
-    optparse-applicative
     psqueues
     resourcet
     retry
     safe-exceptions
-    servant
     servant-server
-    servant-swagger
-    servant-swagger-ui
-    swagger2
     text
     time
     tinylog
@@ -179,7 +163,6 @@ mkDerivation {
     lens
     lens-aeson
     metrics-wai
-    mtl
     network
     network-uri
     optparse-applicative
@@ -187,21 +170,14 @@ mkDerivation {
     raw-strings-qq
     retry
     safe
-    streaming-commons
     tagged
     tasty
     tasty-hunit
     text
-    time
     tinylog
     types-common
-    unix
-    unordered-containers
     uuid
-    wai
     wai-utilities
-    warp
-    warp-tls
     websockets
     wire-api
     yaml
@@ -212,10 +188,8 @@ mkDerivation {
     amazonka
     async
     base
-    bytestring
     containers
     exceptions
-    extended
     gundeck-types
     HsOpenSSL
     imports
@@ -236,29 +210,21 @@ mkDerivation {
     text
     time
     tinylog
-    tree-diff
     types-common
-    unordered-containers
-    uuid
     wai-utilities
     wire-api
   ];
   benchmarkHaskellDepends = [
-    aeson
     amazonka
     base
-    bytestring
     criterion
-    extended
     gundeck-types
     HsOpenSSL
     imports
     lens
     random
     text
-    time
     types-common
-    unordered-containers
     uuid
   ];
   description = "Push Notification Hub";

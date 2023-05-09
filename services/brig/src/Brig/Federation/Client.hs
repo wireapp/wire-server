@@ -158,11 +158,13 @@ runBrigFederatorClient ::
 runBrigFederatorClient targetDomain action = do
   ownDomain <- viewFederationDomain
   endpoint <- view federator >>= maybe (throwE FederationNotConfigured) pure
+  mgr <- view http2Manager
   let env =
         FederatorClientEnv
           { ceOriginDomain = ownDomain,
             ceTargetDomain = targetDomain,
-            ceFederator = endpoint
+            ceFederator = endpoint,
+            ceHttp2Manager = mgr
           }
   liftIO (runFederatorClient env action)
     >>= either (throwE . FederationCallFailure) pure

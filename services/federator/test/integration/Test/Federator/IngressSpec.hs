@@ -31,6 +31,7 @@ import Federator.Discovery
 import Federator.Monitor (FederationSetupError)
 import Federator.Monitor.Internal (mkSSLContextWithoutCert)
 import Federator.Remote
+import HTTP2.Client.Manager (http2ManagerWithSSLCtx)
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import OpenSSL.Session (SSLContext)
@@ -148,8 +149,9 @@ inwardBrigCallViaIngressWithSettings sslCtx requestPath payload =
     originDomain <- cfgOriginDomain . view teTstOpts <$> input
     let target = SrvTarget (cs ingressHost) ingressPort
         headers = [(originDomainHeaderName, Text.encodeUtf8 originDomain)]
+    mgr <- liftToCodensity . liftIO $ http2ManagerWithSSLCtx sslCtx
     liftToCodensity
-      . runInputConst sslCtx
+      . runInputConst mgr
       . assertNoError @DiscoveryFailure
       . discoverConst target
       . interpretRemote

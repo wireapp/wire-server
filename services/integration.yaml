@@ -74,21 +74,33 @@ backendTwo:
   brig:
     host: 127.0.0.1 # in kubernetes, brig.<NAMESPACE>.svc.cluster.local
     port: 9082
-  galley:
-    host: 127.0.0.1 # in kubernetes, galley.<NAMESPACE>.svc.cluster.local
-    port: 9085
+  cannon:
+    host: 127.0.0.1
+    port: 9083
+  cargohold:
+    host: 127.0.0.1
+    port: 9084
   federatorInternal:
     host: 127.0.0.1 # in kubernetes, federator.<NAMESPACE>.svc.cluster.local
     port: 9097
   federatorExternal:
     host: 127.0.0.1 # in kubernetes, federator.<NAMESPACE>.svc.cluster.local
     port: 9097
-  cargohold:
+  galley:
+    host: 127.0.0.1 # in kubernetes, galley.<NAMESPACE>.svc.cluster.local
+    port: 9085
+  gundeck:
     host: 127.0.0.1
-    port: 9084
-  cannon:
+    port: 9086
+  nginz:
     host: 127.0.0.1
-    port: 9083
+    port: 9080
+  spar:
+    host: 127.0.0.1
+    port: 9088
+
+  originDomain: b.example.com
+
 
 redis2:
   host: 127.0.0.1

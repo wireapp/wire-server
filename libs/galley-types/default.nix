@@ -9,9 +9,7 @@
 , bytestring-conversion
 , containers
 , cryptonite
-, currency-codes
 , errors
-, exceptions
 , gitignoreSource
 , imports
 , lens
@@ -20,13 +18,10 @@
 , QuickCheck
 , schema-profunctor
 , string-conversions
-, swagger2
-, tagged
 , tasty
 , tasty-hunit
 , tasty-quickcheck
 , text
-, time
 , types-common
 , uuid
 , wire-api
@@ -42,19 +37,14 @@ mkDerivation {
     bytestring-conversion
     containers
     cryptonite
-    currency-codes
     errors
-    exceptions
     imports
     lens
     memory
     QuickCheck
     schema-profunctor
     string-conversions
-    swagger2
-    tagged
     text
-    time
     types-common
     uuid
     wire-api
@@ -69,7 +59,6 @@ mkDerivation {
     tasty
     tasty-hunit
     tasty-quickcheck
-    types-common
     wire-api
   ];
   license = lib.licenses.agpl3Only;

@@ -31,20 +31,13 @@ docs.
 - Version `v2`:
     - [**public**
     endpoints](https://staging-nginz-https.zinfra.io/v2/api/swagger-ui/)
-- Version `v3`:
-    - [**public**
-    endpoints](https://staging-nginz-https.zinfra.io/v3/api/swagger-ui/)
-- Unversioned:
-    - [**public**
-    endpoints](https://staging-nginz-https.zinfra.io/api/swagger-ui/)
+- ...
 
-The first part of the URL's path is the version. No specified version means
-Swagger docs of the *latest* API version. This differs from other API endpoints
-where no version means `v0`!
+The first part of the URL's path is the version.
 
 New versions are added from time to time. If you
 would like to look at the docs of another version (which did not exist at the
-time of writing): Just update the first path element of an existing link.
+time of writing this): Just update the first path element of an existing link.
 The URL pattern is `https://<nginz-host>/v<version>/api/swagger-ui/`. To figure
 out which versions are supported by your backend, query
 `https://<nginz-host>/<version>/api-version`.
@@ -63,11 +56,11 @@ supports, execute:
 
 ```sh
 curl https://staging-nginz-https.zinfra.io/api-version
-{"development":[3],"domain":"staging.zinfra.io","federation":false,"supported":[0,1,2]}
+{"development":[4],"domain":"staging.zinfra.io","federation":false,"supported":[0,1,2]}
 ```
 
-The URL to open in your browser for the development version `3` is
-`https://staging-nginz-https.zinfra.io/v3/api/swagger-ui/`.
+The URL to open in your browser for the development version `4` is
+`https://staging-nginz-https.zinfra.io/v4/api/swagger-ui/`.
 
 ### Internal endpoints
 

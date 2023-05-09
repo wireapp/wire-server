@@ -1,0 +1,140 @@
+cabal-version: 3.0
+name:          integration
+version:       0.1.0
+description:   Wire integration tests
+category:      Network
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2023 Wire Swiss GmbH
+license:       AGPL-3.0-only
+license-file:  LICENSE
+build-type:    Custom
+
+custom-setup
+  setup-depends:
+    , base
+    , Cabal
+    , containers
+    , directory
+    , filepath
+
+common common-all
+  default-language:   Haskell2010
+  ghc-options:
+    -Wall -Wpartial-fields -fwarn-tabs
+    -optP-Wno-nonportable-include-path
+
+  default-extensions:
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedLabels
+    OverloadedRecordDot
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    RecordWildCards
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+executable integration
+  import:        common-all
+  main-is:       ./main.hs
+  ghc-options:   -threaded -with-rtsopts=-N
+  build-depends: integration
+
+library
+  import:          common-all
+  hs-source-dirs:  test
+
+  -- cabal-fmt: expand test
+  exposed-modules:
+    API.Brig
+    API.BrigInternal
+    API.Common
+    API.Galley
+    API.GalleyInternal
+    RunAllTests
+    SetupHelpers
+    Test.B2B
+    Test.Brig
+    Test.Demo
+    Testlib.App
+    Testlib.Assertions
+    Testlib.Cannon
+    Testlib.Env
+    Testlib.HTTP
+    Testlib.JSON
+    Testlib.ModService
+    Testlib.Options
+    Testlib.Prekeys
+    Testlib.Prelude
+    Testlib.Printing
+    Testlib.Run
+    Testlib.Types
+
+  build-depends:
+    , aeson
+    , aeson-pretty
+    , array
+    , async
+    , base
+    , bytestring
+    , bytestring-conversion
+    , case-insensitive
+    , containers
+    , data-default
+    , directory
+    , exceptions
+    , filepath
+    , http-client
+    , http-types
+    , mtl
+    , network
+    , network-uri
+    , optparse-applicative
+    , process
+    , random
+    , raw-strings-qq
+    , retry
+    , scientific
+    , split
+    , stm
+    , string-conversions
+    , tagged
+    , text
+    , time
+    , transformers
+    , unliftio
+    , websockets
+    , yaml
