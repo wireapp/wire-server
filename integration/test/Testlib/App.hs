@@ -52,10 +52,10 @@ otherDomain :: App String
 otherDomain = asks (.domain2)
 
 -- | Run an action, `recoverAll`ing with exponential backoff (min step 8ms, total timeout
--- ~30s).  Search this package for examples how to use it.
+-- ~15s).  Search this package for examples how to use it.
 --
 -- Ideally, this will be the only thing you'll ever need from the retry package when writing
 -- integration tests.  If you are unhappy with it,, please consider fixing it so everybody can
 -- benefit.
 unrace :: App a -> App a
-unrace action = Retry.recoverAll (Retry.exponentialBackoff 8000 <> Retry.limitRetries 11) (const action)
+unrace action = Retry.recoverAll (Retry.exponentialBackoff 8000 <> Retry.limitRetries 10) (const action)
