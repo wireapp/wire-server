@@ -46,7 +46,7 @@ data Env = Env
     _requestId :: RequestId,
     _dnsResolver :: Resolver,
     _runSettings :: RunSettings,
-    _allowedRemoteDomains :: AllowedDomains,
+    _allowedRemoteDomains :: IORef AllowedDomains,
     _service :: Component -> Endpoint,
     _httpManager :: HTTP.Manager,
     _http2Manager :: IORef Http2Manager

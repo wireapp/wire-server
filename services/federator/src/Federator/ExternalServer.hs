@@ -25,6 +25,7 @@ import qualified Data.Text as Text
 import Federator.Discovery
 import Federator.Env
 import Federator.Error.ServerError
+import Federator.Options (RunSettings)
 import Federator.Response
 import Federator.Service
 import Federator.Validation
@@ -50,7 +51,8 @@ callInward ::
     Member (Error ValidationError) r,
     Member (Error DiscoveryFailure) r,
     Member (Error ServerError) r,
-    Member (Input Env) r
+    Member (Input RunSettings) r,
+    Member (Input AllowedDomains) r
   ) =>
   Wai.Request ->
   Sem r Wai.Response
@@ -137,7 +139,7 @@ parseRequestData req = do
 isAllowedRPCChar :: Char -> Bool
 isAllowedRPCChar c = isAsciiLower c || isAsciiUpper c || isNumber c || c == '_' || c == '-'
 
-serveInward :: TVar Env -> Int -> IO ()
+serveInward :: Env -> Int -> IO ()
 serveInward = serve callInward
 
 lookupCertificate :: Wai.Request -> Maybe ByteString

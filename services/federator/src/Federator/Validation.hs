@@ -25,7 +25,6 @@ module Federator.Validation
   )
 where
 
-import Control.Lens (view)
 import qualified Data.ByteString.Char8 as B8
 import Data.ByteString.Conversion
 import Data.Domain
@@ -94,17 +93,18 @@ validationErrorStatus _ = HTTP.status403
 -- | Validates an already-parsed domain against the allowList (stored in
 -- `brig.federation_remotes`, cached in `Env`).
 ensureCanFederateWith ::
-  ( Member (Input Env) r,
+  ( Member (Input AllowedDomains) r,
+    Member (Input RunSettings) r,
     Member (Error ValidationError) r
   ) =>
   Domain ->
   Sem r ()
 ensureCanFederateWith targetDomain = do
-  strategy <- inputs (federationStrategy . view runSettings)
+  strategy <- inputs federationStrategy
   case strategy of
     AllowAll -> pure ()
     AllowList -> do
-      AllowedDomains domains <- inputs (view allowedRemoteDomains)
+      AllowedDomains domains <- input
       unless (targetDomain `elem` domains) $
         throw (FederationDenied targetDomain)
 
@@ -142,7 +142,8 @@ parseDomainText domain =
 -- federator startup configuration and checks that it matches the names reported
 -- by the client certificate
 validateDomain ::
-  ( Member (Input Env) r,
+  ( Member (Input RunSettings) r,
+    Member (Input AllowedDomains) r,
     Member (Error ValidationError) r,
     Member (Error DiscoveryFailure) r,
     Member DiscoverFederator r

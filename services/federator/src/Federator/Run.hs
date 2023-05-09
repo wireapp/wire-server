@@ -36,7 +36,7 @@ where
 
 import Control.Concurrent.Async
 import Control.Exception (bracket)
-import Control.Lens ((.~), (^.))
+import Control.Lens (view, (^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Text
@@ -67,39 +67,42 @@ run :: Opts -> IO ()
 run opts = do
   manager <- newManager defaultManagerSettings
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
-      -- Build a new TVar holding the state we want for the initial environment.
-      -- This needs to contact Brig before accepting other requests
-      Endpoint host port = brig opts
+  let Endpoint host port = brig opts
       baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
       clientEnv = ClientEnv manager baseUrl Nothing defaultMakeClientRequest
-      getInitialFedDomains = do
-        runClientM getFedRemotes clientEnv >>= \case
-          Right s -> pure s
-          Left e -> do
-            print $ "Could not retrieve the latest list of federation domains from Brig: " <> show e
-            threadDelay $ domainUpdateInterval opts
-            getInitialFedDomains
-  okRemoteDomains <- (AllowedDomains . fmap domain . fromFederationDomainConfigs) <$> getInitialFedDomains
+
+      getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
+
+      getAllowedDomainsOnce :: IO AllowedDomains
+      getAllowedDomainsOnce =
+        (AllowedDomains . fmap domain . fromFederationDomainConfigs)
+          <$> let go :: IO FederationDomainConfigs
+                  go = do
+                    runClientM getFedRemotes clientEnv >>= \case
+                      Right s -> pure s
+                      Left e -> do
+                        print $ "Could not retrieve the latest list of federation domains from Brig: " <> show e -- TODO: log error or critical!
+                        threadDelay $ domainUpdateInterval opts
+                        go
+               in go
+
+      getAllowedDomainsLoop :: Env -> IO ()
+      getAllowedDomainsLoop env = forever $ do
+        threadDelay $ domainUpdateInterval opts
+        atomicWriteIORef (view allowedRemoteDomains env) =<< getAllowedDomainsOnce
+
+  okRemoteDomains <- getAllowedDomainsOnce
 
   DNS.withCachingResolver resolvConf $ \res ->
     bracket (newEnv opts res okRemoteDomains) closeEnv $ \env -> do
-      -- Loop the request until we get an answer. This is helpful during integration
-      -- tests where services are being brought up in parallel.
-      tEnv <- newTVarIO env
-      let callback :: FederationDomainConfigs -> IO ()
-          callback = atomically . modifyTVar tEnv . updateFedStrat
-      -- We need a watcher/listener for updating this TVar to flow values through to the handlers.
-      let externalServer = serveInward tEnv portExternal
-          internalServer = serveOutward tEnv portInternal
+      let externalServer = serveInward env portExternal
+          internalServer = serveOutward env portInternal
       withMonitor (env ^. applog) (onNewSSLContext env) (optSettings opts) $ do
-        envUpdateThread <- async $ updateDomains clientEnv callback
+        updateAllowedDomainsThread <- async (getAllowedDomainsLoop env)
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
-        void $ waitAnyCancel [envUpdateThread, internalServerThread, externalServerThread]
+        void $ waitAnyCancel [updateAllowedDomainsThread, internalServerThread, externalServerThread]
   where
-    updateFedStrat :: FederationDomainConfigs -> Env -> Env
-    updateFedStrat fedDomConfigs = Federator.Env.allowedRemoteDomains .~ AllowedDomains (domain <$> fromFederationDomainConfigs fedDomConfigs)
-
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort
 
@@ -115,22 +118,11 @@ run opts = do
           conf {DNS.resolvInfo = DNS.RCHostPort host (fromIntegral port)}
         (_, _) -> conf
 
-    getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
-
-    updateDomains :: ClientEnv -> (FederationDomainConfigs -> IO ()) -> IO ()
-    updateDomains clientEnv update = forever $ do
-      threadDelay $ domainUpdateInterval opts
-      strat <- runClientM getFedRemotes clientEnv
-      either
-        print
-        update
-        strat
-
 -------------------------------------------------------------------------------
 -- Environment
 
 newEnv :: Opts -> DNS.Resolver -> AllowedDomains -> IO Env
-newEnv o _dnsResolver _allowedRemoteDomains = do
+newEnv o _dnsResolver okRemoteDomains = do
   _metrics <- Metrics.metrics
   _applog <- LogExt.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def
@@ -139,6 +131,7 @@ newEnv o _dnsResolver _allowedRemoteDomains = do
       _service Galley = Opt.galley o
       _service Cargohold = Opt.cargohold o
   _httpManager <- initHttpManager
+  _allowedRemoteDomains <- newIORef okRemoteDomains
   sslContext <- mkTLSSettingsOrThrow _runSettings
   _http2Manager <- newIORef =<< mkHttp2Manager sslContext
   pure Env {..}

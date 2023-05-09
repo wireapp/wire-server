@@ -100,18 +100,17 @@ runWaiError =
 
 serve ::
   (Wai.Request -> Sem AllEffects Wai.Response) ->
-  TVar Env ->
+  Env ->
   Int ->
   IO ()
-serve action tvar port = do
-  env <- readTVarIO tvar
+serve action env port =
   Warp.run port
     . Wai.catchErrors (view applog env) []
     $ app
   where
     app :: Wai.Application
     app req respond =
-      runCodensity (runFederator tvar (action req)) respond
+      runCodensity (runFederator env (action req)) respond
 
 type AllEffects =
   '[ Remote,
@@ -120,6 +119,7 @@ type AllEffects =
      ServiceStreaming,
      Input RunSettings,
      Input Http2Manager, -- needed by Remote
+     Input AllowedDomains, -- needed for `FederationStrategy` `AllowList`.
      Input Env, -- needed by Service
      Error ValidationError,
      Error RemoteError,
@@ -132,37 +132,25 @@ type AllEffects =
 
 -- | Run Sem action containing HTTP handlers. All errors have to been handled
 -- already by this point.
---
--- The `Env` is extracted from the `TVar` for each request.  This allows us to independently
--- update the settings and have them be used as requests come in.
-runFederator :: TVar Env -> Sem AllEffects Wai.Response -> Codensity IO Wai.Response
-runFederator tvar =
+runFederator :: Env -> Sem AllEffects Wai.Response -> Codensity IO Wai.Response
+runFederator env =
   runM
     . runEmbedded @IO @(Codensity IO) liftIO
-    . withEnv tvar (\env -> loggerToTinyLogReqId (view requestId env) (view applog env))
+    . loggerToTinyLogReqId (view requestId env) (view applog env)
     . runWaiErrors
       @'[ ValidationError,
           RemoteError,
           ServerError,
           DiscoveryFailure
         ]
-    . withEnv tvar runInputConst
-    . withEnv tvar (\env -> runInputSem (embed @IO (readIORef (view http2Manager env))))
-    . withEnv tvar (runInputConst . view runSettings)
+    . runInputConst env
+    . runInputSem (embed @IO (readIORef (view allowedRemoteDomains env)))
+    . runInputSem (embed @IO (readIORef (view http2Manager env)))
+    . runInputConst (view runSettings env)
     . interpretServiceHTTP
-    . withEnv tvar (runDNSLookupWithResolver . view dnsResolver)
+    . runDNSLookupWithResolver (view dnsResolver env)
     . runFederatorDiscovery
     . interpretRemote
-
-withEnv ::
-  forall r1 r2.
-  Member (Embed IO) r2 =>
-  TVar Env ->
-  (Env -> Sem r1 Wai.Response -> Sem r2 Wai.Response) ->
-  (Sem r1 Wai.Response -> Sem r2 Wai.Response)
-withEnv tvar action cont = do
-  env <- embed @IO (liftIO (readTVarIO tvar))
-  action env cont
 
 streamingResponseToWai :: StreamingResponse -> Wai.Response
 streamingResponseToWai resp =
