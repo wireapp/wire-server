@@ -423,7 +423,7 @@ data MLSMessageResponse
   = MLSMessageResponseError GalleyError
   | MLSMessageResponseProtocolError Text
   | MLSMessageResponseProposalFailure Wai.Error
-  | MLSMessageResponseUpdates [ConversationUpdate] FailedToProcess
+  | MLSMessageResponseUpdates [ConversationUpdate] (Maybe UnreachableUsers)
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
 

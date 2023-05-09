@@ -27,6 +27,7 @@ module Galley.API.MLS.Message
 where
 
 import Control.Comonad
+import Control.Error.Util (hush)
 import Control.Lens (preview)
 import Data.Id
 import Data.Json.Util
@@ -59,7 +60,6 @@ import Galley.Effects.ProposalStore
 import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
-import Galley.Types.UserList
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -217,7 +217,7 @@ postMLSCommitBundle ::
   Qualified ConvId ->
   Maybe ConnId ->
   CommitBundle ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSCommitBundle loc qusr mc qcnv conn rawBundle =
   foldQualified
     loc
@@ -275,7 +275,7 @@ postMLSCommitBundleToLocalConv ::
   Maybe ConnId ->
   CommitBundle ->
   Local ConvId ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   let msg = rmValue (cbCommitMsg bundle)
   conv <- getLocalConvForUser qusr lcnv
@@ -286,7 +286,7 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
 
   senderClient <- fmap ciClient <$> getSenderIdentity qusr mc SMLSPlainText msg
 
-  (events, failedToProcess) <- case msgPayload msg of
+  events <- case msgPayload msg of
     CommitMessage commit ->
       do
         action <- getCommitData lconv mlsMeta (msgEpoch msg) commit
@@ -297,7 +297,7 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
                 /= Set.fromList (map (snd . snd) (cmAssocs (paAdd action)))
             )
             $ throwS @'MLSWelcomeMismatch
-        (updates, failedToProcess) <-
+        updates <-
           processCommitWithAction
             qusr
             senderClient
@@ -310,7 +310,7 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
             (msgSender msg)
             commit
         storeGroupInfoBundle lconv (cbGroupInfoBundle bundle)
-        pure (updates, failedToProcess)
+        pure updates
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     ProposalMessage _ -> throwS @'MLSUnsupportedMessage
 
@@ -319,7 +319,7 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   for_ (cbWelcome bundle) $
     postMLSWelcome lcnv conn
 
-  pure (events, failedToProcess <> failedToSendMaybe unreachables)
+  pure (events, unreachables)
 
 postMLSCommitBundleToRemoteConv ::
   ( Members MLSBundleStaticErrors r,
@@ -338,7 +338,7 @@ postMLSCommitBundleToRemoteConv ::
   Maybe ConnId ->
   CommitBundle ->
   Remote ConvId ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
@@ -392,7 +392,7 @@ postMLSMessage ::
   Qualified ConvId ->
   Maybe ConnId ->
   RawMLS SomeMessage ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSMessage loc qusr mc qcnv con smsg =
   case rmValue smsg of
     SomeMessage tag msg -> do
@@ -470,7 +470,7 @@ postMLSMessageToLocalConv ::
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Local ConvId ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSMessageToLocalConv qusr senderClient con smsg lcnv =
   case rmValue smsg of
     SomeMessage tag msg -> do
@@ -482,13 +482,13 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv =
       let lconv = qualifyAs lcnv conv
 
       -- validate message
-      (events, failedToProcess) <- case tag of
+      events <- case tag of
         SMLSPlainText -> case msgPayload msg of
           CommitMessage c ->
             processCommit qusr senderClient con lconv mlsMeta cm (msgEpoch msg) (msgSender msg) c
           ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
           ProposalMessage prop ->
-            processProposal qusr conv mlsMeta msg prop $> (mempty, mempty)
+            processProposal qusr conv mlsMeta msg prop $> mempty
         SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
           Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
           Right ProposalMessageTag -> throwS @'MLSUnsupportedMessage
@@ -497,7 +497,7 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv =
 
       -- forward message
       unreachables <- propagateMessage qusr lconv cm con (rmRaw smsg)
-      pure (events, failedToProcess <> failedToSendMaybe unreachables)
+      pure (events, unreachables)
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
@@ -512,7 +512,7 @@ postMLSMessageToRemoteConv ::
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Remote ConvId ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
@@ -631,7 +631,7 @@ processCommit ::
   Epoch ->
   Sender 'MLSPlainText ->
   Commit ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r [LocalConversationUpdate]
 processCommit qusr senderClient con lconv mlsMeta cm epoch sender commit = do
   action <- getCommitData lconv mlsMeta epoch commit
   processCommitWithAction qusr senderClient con lconv mlsMeta cm epoch action sender commit
@@ -766,13 +766,11 @@ processCommitWithAction ::
   ProposalAction ->
   Sender 'MLSPlainText ->
   Commit ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r [LocalConversationUpdate]
 processCommitWithAction qusr senderClient con lconv mlsMeta cm epoch action sender commit =
   case sender of
     MemberSender ref -> processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action ref commit
-    NewMemberSender ->
-      processExternalCommit qusr senderClient lconv mlsMeta cm epoch action (cPath commit)
-        $> (mempty, mempty)
+    NewMemberSender -> processExternalCommit qusr senderClient lconv mlsMeta cm epoch action (cPath commit) $> []
     _ -> throw (mlsProtocolError "Unexpected sender")
 
 processInternalCommit ::
@@ -796,7 +794,7 @@ processInternalCommit ::
   ProposalAction ->
   KeyPackageRef ->
   Commit ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r [LocalConversationUpdate]
 processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action senderRef commit = do
   self <- noteS @'ConvNotFound $ getConvMember lconv (tUnqualified lconv) qusr
 
@@ -1110,7 +1108,7 @@ executeProposalAction ::
   ConversationMLSData ->
   ClientMap ->
   ProposalAction ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r [LocalConversationUpdate]
 executeProposalAction qusr con lconv mlsMeta cm action = do
   let ss = csSignatureScheme (cnvmlsCipherSuite mlsMeta)
       newUserClients = Map.assocs (paAdd action)
@@ -1124,71 +1122,53 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
   -- Type 2 requires no special processing on the backend, so here we filter
   -- out all removals of that type, so that further checks and processing can
   -- be applied only to type 1 removals.
-  (failedRemoveFetching, removedUsers) <-
-    fmap partitionEithers $ forM (Map.assocs (paRemove action)) $ \(qtarget, Set.map fst -> clients) -> do
+  removedUsers <- mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
+    \(qtarget, Set.map fst -> clients) -> runError @() $ do
       -- fetch clients from brig
-      Set.map ciId <$$> getClientInfo lconv qtarget ss >>= \case
-        Left _ -> pure . Left $ qtarget
-        Right clientInfo -> do
-          -- if the clients being removed don't exist, consider this as a removal of
-          -- type 2, and skip it
-          pure $
-            if Set.null (clientInfo `Set.intersection` clients)
-              then Left qtarget
-              else Right (qtarget, clients)
+      clientInfo <- Set.map ciId <$> getClientInfo lconv qtarget ss
+      -- if the clients being removed don't exist, consider this as a removal of
+      -- type 2, and skip it
+      when (Set.null (clientInfo `Set.intersection` clients)) $
+        throw ()
+      pure (qtarget, clients)
 
   -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
   foldQualified lconv (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
 
   -- for each user, we compare their clients with the ones being added to the conversation
-  failedAddFetching <- fmap catMaybes $
-    forM newUserClients $
-      \(qtarget, newclients) -> case Map.lookup qtarget cm of
-        -- user is already present, skip check in this case
-        Just _ -> do
-          -- new user
-          pure Nothing
-        Nothing -> do
-          -- final set of clients in the conversation
-          let clients = Set.map fst (newclients <> Map.findWithDefault mempty qtarget cm)
-          -- get list of mls clients from Brig (local or remote)
-          getClientInfo lconv qtarget ss >>= \case
-            Left _e -> pure (Just qtarget)
-            Right clientInfo -> do
-              let allClients = Set.map ciId clientInfo
-              let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
-              -- We check the following condition:
-              --   allMLSClients ⊆ clients ⊆ allClients
-              -- i.e.
-              -- - if a client has at least 1 key package, it has to be added
-              -- - if a client is being added, it has to still exist
-              --
-              -- The reason why we can't simply check that clients == allMLSClients is
-              -- that a client with no remaining key packages might be added by a user
-              -- who just fetched its last key package.
-              unless
-                ( Set.isSubsetOf allMLSClients clients
-                    && Set.isSubsetOf clients allClients
-                )
-                $ do
-                  -- FUTUREWORK: turn this error into a proper response
-                  throwS @'MLSClientMismatch
-              pure Nothing
+  for_ newUserClients $ \(qtarget, newclients) -> case Map.lookup qtarget cm of
+    -- user is already present, skip check in this case
+    Just _ -> pure ()
+    -- new user
+    Nothing -> do
+      -- final set of clients in the conversation
+      let clients = Set.map fst (newclients <> Map.findWithDefault mempty qtarget cm)
+      -- get list of mls clients from brig
+      clientInfo <- getClientInfo lconv qtarget ss
+      let allClients = Set.map ciId clientInfo
+      let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
+      -- We check the following condition:
+      --   allMLSClients ⊆ clients ⊆ allClients
+      -- i.e.
+      -- - if a client has at least 1 key package, it has to be added
+      -- - if a client is being added, it has to still exist
+      --
+      -- The reason why we can't simply check that clients == allMLSClients is
+      -- that a client with no remaining key packages might be added by a user
+      -- who just fetched its last key package.
+      unless
+        ( Set.isSubsetOf allMLSClients clients
+            && Set.isSubsetOf clients allClients
+        )
+        $ do
+          -- unless (Set.isSubsetOf allClients clients) $ do
+          -- FUTUREWORK: turn this error into a proper response
+          throwS @'MLSClientMismatch
 
   membersToRemove <- catMaybes <$> for removedUsers (uncurry checkRemoval)
 
   -- add users to the conversation and send events
-  addEvents <-
-    foldMap addMembers
-      . nonEmpty
-      . filter (\u -> u `notElem` failedAddFetching)
-      . fmap fst
-      $ newUserClients
-  let failedAdding =
-        ulAll lconv . uncurry ulDiff . both (toUserList lconv) $
-          ( fst <$> newUserClients,
-            foldMap (onlyJoining . lcuEvent) . fst $ addEvents
-          )
+  addEvents <- foldMap addMembers . nonEmpty . map fst $ newUserClients
 
   -- add clients in the conversation state
   for_ newUserClients $ \(qtarget, newClients) -> do
@@ -1202,17 +1182,8 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
   for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
     removeMLSClients (cnvmlsGroupId mlsMeta) qtarget (Set.map fst clients)
 
-  let failedToProcess =
-        failedToAdd (failedAddFetching <> failedAdding)
-          <> snd addEvents
-          <> failedToRemove failedRemoveFetching
-          <> snd removeEvents
-  pure (fst addEvents <> fst removeEvents, failedToProcess)
+  pure (addEvents <> removeEvents)
   where
-    onlyJoining :: Event -> [Qualified UserId]
-    onlyJoining (evtData -> EdMembersJoin ms) = smQualifiedId <$> mMembers ms
-    onlyJoining _ = []
-
     checkRemoval ::
       Qualified UserId ->
       Set ClientId ->
@@ -1238,13 +1209,13 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
     existingMembers :: Set (Qualified UserId)
     existingMembers = existingLocalMembers <> existingRemoteMembers
 
-    addMembers :: NonEmpty (Qualified UserId) -> Sem r ([LocalConversationUpdate], FailedToProcess)
+    addMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
     addMembers =
       -- FUTUREWORK: update key package ref mapping to reflect conversation membership
       foldMap
         ( handleNoChanges
             . handleMLSProposalFailures @ProposalErrors
-            . fmap (first pure)
+            . fmap (pure . fst)
             . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
             . flip ConversationJoin roleNameWireMember
         )
@@ -1252,12 +1223,12 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
         . filter (flip Set.notMember existingMembers)
         . toList
 
-    removeMembers :: NonEmpty (Qualified UserId) -> Sem r ([LocalConversationUpdate], FailedToProcess)
+    removeMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
     removeMembers =
       foldMap
         ( handleNoChanges
             . handleMLSProposalFailures @ProposalErrors
-            . fmap (first pure)
+            . fmap (pure . fst)
             . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
         )
         . nonEmpty
@@ -1274,18 +1245,17 @@ getClientInfo ::
   Local x ->
   Qualified UserId ->
   SignatureSchemeTag ->
-  Sem r (Either FederationError (Set ClientInfo))
-getClientInfo loc =
-  foldQualified loc (\lusr -> fmap Right . getLocalMLSClients lusr) getRemoteMLSClients
+  Sem r (Set ClientInfo)
+getClientInfo loc = foldQualified loc getLocalMLSClients getRemoteMLSClients
 
 getRemoteMLSClients ::
   ( Member FederatorAccess r
   ) =>
   Remote UserId ->
   SignatureSchemeTag ->
-  Sem r (Either FederationError (Set ClientInfo))
+  Sem r (Set ClientInfo)
 getRemoteMLSClients rusr ss = do
-  runFederatedEither rusr $
+  runFederated rusr $
     fedClient @'Brig @"get-mls-clients" $
       MLSClientsRequest
         { mcrUserId = tUnqualified rusr,

@@ -1,6 +1,6 @@
 {
     "events": [],
-    "failed_to_remove": [
+    "failed_to_send": [
         {
             "domain": "golden.example.com",
             "id": "00000000-0000-0000-0000-000200000008"

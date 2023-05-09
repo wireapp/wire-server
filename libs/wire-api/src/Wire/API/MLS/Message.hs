@@ -319,7 +319,7 @@ instance SerialiseMLS (MessagePayload 'MLSPlainText) where
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],
     mmssTime :: UTCTimeMillis,
-    mmssFailedToProcess :: FailedToProcess
+    mmssUnreachableUsers :: Maybe UnreachableUsers
   }
   deriving (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema MLSMessageSendingStatus
@@ -338,7 +338,13 @@ instance ToSchema MLSMessageSendingStatus where
             "time"
             (description ?~ "The time of sending the message.")
             schema
-        <*> mmssFailedToProcess .= failedToProcessObjectSchema
+        <*> mmssUnreachableUsers
+          .= maybe_
+            ( optFieldWithDocModifier
+                "failed_to_send"
+                (description ?~ "List of federated users who could not be reached and did not receive the message")
+                schema
+            )
 
 verifyMessageSignature :: CipherSuiteTag -> Message 'MLSPlainText -> ByteString -> Bool
 verifyMessageSignature cs msg pubkey =

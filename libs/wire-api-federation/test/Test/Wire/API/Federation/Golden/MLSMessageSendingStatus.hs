@@ -31,7 +31,7 @@ testObject_MLSMessageSendingStatus1 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "1864-04-12 12:22:43.673 UTC"),
-      mmssFailedToProcess = mempty
+      mmssUnreachableUsers = mempty
     }
 
 testObject_MLSMessageSendingStatus2 :: MLSMessageSendingStatus
@@ -39,7 +39,7 @@ testObject_MLSMessageSendingStatus2 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "2001-04-12 12:22:43.673 UTC"),
-      mmssFailedToProcess = failedToSend failed1
+      mmssUnreachableUsers = unreachableFromList failed1
     }
 
 testObject_MLSMessageSendingStatus3 :: MLSMessageSendingStatus
@@ -47,7 +47,7 @@ testObject_MLSMessageSendingStatus3 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "1999-04-12 12:22:43.673 UTC"),
-      mmssFailedToProcess = failedToSend failed2
+      mmssUnreachableUsers = unreachableFromList failed2
     }
 
 testObject_MLSMessageSendingStatus4 :: MLSMessageSendingStatus
@@ -55,7 +55,7 @@ testObject_MLSMessageSendingStatus4 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "2023-04-12 12:22:43.673 UTC"),
-      mmssFailedToProcess = failedToAdd failed1
+      mmssUnreachableUsers = unreachableFromList failed1
     }
 
 testObject_MLSMessageSendingStatus5 :: MLSMessageSendingStatus
@@ -63,7 +63,7 @@ testObject_MLSMessageSendingStatus5 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "1901-04-12 12:22:43.673 UTC"),
-      mmssFailedToProcess = failedToRemove failed2
+      mmssUnreachableUsers = unreachableFromList failed2
     }
 
 testObject_MLSMessageSendingStatus6 :: MLSMessageSendingStatus
@@ -71,7 +71,7 @@ testObject_MLSMessageSendingStatus6 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "1905-04-12 12:22:43.673 UTC"),
-      mmssFailedToProcess = failedToAdd failed1 <> failedToRemove failed2
+      mmssUnreachableUsers = unreachableFromList failed1 <> unreachableFromList failed2
     }
 
 failed1 :: [Qualified UserId]
