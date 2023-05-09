@@ -2654,7 +2654,7 @@ testAddRemoteMember = do
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   let qconvId = Qualified convId localDomain
 
-  postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
+  postQualifiedMembers alice (remoteBob :| []) convId !!! do
     const 403 === statusCode
     const (Right (Just "not-connected")) === fmap (view (at "label")) . responseJsonEither @Object
 
@@ -2662,7 +2662,7 @@ testAddRemoteMember = do
 
   (resp, reqs) <-
     withTempMockFederator' (respond remoteBob) $
-      postQualifiedMembers alice (remoteBob :| []) qconvId
+      postQualifiedMembers alice (remoteBob :| []) convId
         <!! const 200 === statusCode
   liftIO $ do
     map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
@@ -2700,7 +2700,7 @@ testDeleteTeamConversationWithRemoteMembers = do
       remoteBob = Qualified bobId remoteDomain
 
   convId <- decodeConvId <$> postTeamConv tid alice [] (Just "remote gossip") [] Nothing Nothing
-  let qconvId = Qualified convId localDomain
+  let _qconvId = Qualified convId localDomain
 
   connectWithRemoteUser alice remoteBob
 
@@ -2708,7 +2708,7 @@ testDeleteTeamConversationWithRemoteMembers = do
         ("on-new-remote-conversation" ~> EmptyResponse)
           <|> ("on-conversation-updated" ~> ())
   (_, received) <- withTempMockFederator' mock $ do
-    postQualifiedMembers alice (remoteBob :| []) qconvId
+    postQualifiedMembers alice (remoteBob :| []) convId
       !!! const 200 === statusCode
 
     deleteTeamConv tid convId alice
@@ -2734,7 +2734,6 @@ testDeleteTeamConversationWithUnavailableRemoteMembers = do
       remoteBob = Qualified bobId remoteDomain
 
   convId <- decodeConvId <$> postTeamConv tid alice [] (Just "remote gossip") [] Nothing Nothing
-  let qconvId = Qualified convId localDomain
 
   connectWithRemoteUser alice remoteBob
 
@@ -2744,11 +2743,11 @@ testDeleteTeamConversationWithUnavailableRemoteMembers = do
           <|> (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
           <|> (guardRPC "delete-team-conversation" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
   (_, received) <- withTempMockFederator' mock $ do
-    postQualifiedMembers alice (remoteBob :| []) qconvId
-      !!! const 200 === statusCode
+    postQualifiedMembers alice (remoteBob :| []) convId
+      !!! const 503 === statusCode
 
     deleteTeamConv tid convId alice
-      !!! const 200 === statusCode
+      !!! const 503 === statusCode
   liftIO $ do
     let convUpdates = mapMaybe (eitherToMaybe . parseFedRequest) received
     convUpdate <- case filter ((== SomeConversationAction (sing @'ConversationDeleteTag) ()) . cuAction) convUpdates of
@@ -2965,12 +2964,10 @@ testAddRemoteMemberInvalidDomain = do
   bobId <- randomId
   let remoteBob = Qualified bobId (Domain "invalid.example.com")
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  localDomain <- viewFederationDomain
-  let qconvId = Qualified convId localDomain
 
   connectWithRemoteUser alice remoteBob
 
-  postQualifiedMembers alice (remoteBob :| []) qconvId
+  postQualifiedMembers alice (remoteBob :| []) convId
     !!! do
       const 422 === statusCode
       const (Just "/federation/api-version")
@@ -2985,13 +2982,14 @@ testAddRemoteMemberFederationDisabled = do
   alice <- randomUser
   remoteBob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
   qconvId <- decodeQualifiedConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  let convId = qUnqualified qconvId
   connectWithRemoteUser alice remoteBob
 
   -- federator endpoint not configured is equivalent to federation being disabled
   -- This is the case on staging/production in May 2021.
   let federatorNotConfigured = optFederator .~ Nothing
   withSettingsOverrides federatorNotConfigured $
-    postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
+    postQualifiedMembers alice (remoteBob :| []) convId !!! do
       const 400 === statusCode
       const (Right "federation-not-enabled") === fmap label . responseJsonEither
 
@@ -3004,6 +3002,7 @@ testAddRemoteMemberFederationUnavailable = do
   alice <- randomUser
   remoteBob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
   qconvId <- decodeQualifiedConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  let convId = qUnqualified qconvId
   connectWithRemoteUser alice remoteBob
 
   -- federator endpoint being configured in brig and/or galley, but not being
@@ -3012,7 +3011,7 @@ testAddRemoteMemberFederationUnavailable = do
   -- Port 1 should always be wrong hopefully.
   let federatorUnavailable = optFederator ?~ Endpoint "127.0.0.1" 1
   withSettingsOverrides federatorUnavailable $
-    postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
+    postQualifiedMembers alice (remoteBob :| []) convId !!! do
       const 500 === statusCode
       const (Right "federation-not-available") === fmap label . responseJsonEither
 
@@ -3349,7 +3348,7 @@ leaveRemoteConvQualifiedOk = do
       qBob = Qualified bob remoteDomain
   let mockedFederatedGalleyResponse = do
         guardComponent Galley
-        mockReply (F.LeaveConversationResponse (Right mempty))
+        mockReply (F.LeaveConversationResponse (Right ()))
       mockResponses =
         mockedFederatedBrigResponse [(qBob, "Bob")]
           <|> mockedFederatedGalleyResponse
@@ -3962,7 +3961,7 @@ putRemoteReceiptModeOk = do
             cuAction =
               SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action
           }
-  let mockResponse = mockReply (ConversationUpdateResponseUpdate (responseConvUpdate, mempty))
+  let mockResponse = mockReply (ConversationUpdateResponseUpdate responseConvUpdate)
 
   WS.bracketR c adam $ \wsAdam -> do
     (res, federatedRequests) <- withTempMockFederator' mockResponse $ do
@@ -4238,7 +4237,7 @@ removeUser = do
               do
                 guard (d `elem` [bDomain, cDomain])
                 asum
-                  [ "leave-conversation" ~> F.LeaveConversationResponse (Right mempty),
+                  [ "leave-conversation" ~> F.LeaveConversationResponse (Right ()),
                     "on-conversation-updated" ~> ()
                   ]
             ]

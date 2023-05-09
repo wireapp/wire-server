@@ -78,7 +78,6 @@ import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
-import Wire.API.Unreachable
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
@@ -840,10 +839,10 @@ consumeMessage1 cid msg = do
 
 -- | Send an MLS message and simulate clients receiving it. If the message is a
 -- commit, the 'sendAndConsumeCommit' function should be used instead.
-sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], FailedToProcess)
+sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], UnreachableUsers)
 sendAndConsumeMessage mp = do
   res <-
-    fmap (mmssEvents Tuple.&&& mmssFailedToProcess) $
+    fmap (mmssEvents Tuple.&&& mmssUnreachableUsers) $
       responseJsonError
         =<< postMessage (mpSender mp) (mpMessage mp)
           <!! const 201 === statusCode
@@ -862,17 +861,8 @@ sendAndConsumeCommit ::
   HasCallStack =>
   MessagePackage ->
   MLSTest [Event]
-sendAndConsumeCommit = fmap fst . sendAndConsumeCommitFederated
-
--- | Send an MLS commit message, simulate clients receiving it, and update the
--- test state accordingly. Also return lists of federated users that a message
--- could not be sent to.
-sendAndConsumeCommitFederated ::
-  HasCallStack =>
-  MessagePackage ->
-  MLSTest ([Event], FailedToProcess)
-sendAndConsumeCommitFederated mp = do
-  resp <- sendAndConsumeMessage mp
+sendAndConsumeCommit mp = do
+  (events, _) <- sendAndConsumeMessage mp
 
   -- increment epoch and add new clients
   State.modify $ \mls ->
@@ -882,7 +872,7 @@ sendAndConsumeCommitFederated mp = do
         mlsNewMembers = mempty
       }
 
-  pure resp
+  pure events
 
 mkBundle :: MessagePackage -> Either Text CommitBundle
 mkBundle mp = do

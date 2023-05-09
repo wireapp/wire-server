@@ -1,1 +1,0 @@
-Several federation Galley endpoints have a breaking change in their response types: "leave-conversation", "update-conversation", "send-mls-message" and "send-mls-commit-bundle".

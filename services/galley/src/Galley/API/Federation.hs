@@ -25,7 +25,6 @@ import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
-import Data.Either.Combinators
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty (..))
@@ -345,7 +344,7 @@ leaveConversation ::
   F.LeaveConversationRequest ->
   Sem r F.LeaveConversationResponse
 leaveConversation requestingDomain lc = do
-  let leaver = Qualified (F.lcLeaver lc) requestingDomain
+  let leaver :: Remote UserId = qTagUnsafe $ Qualified (F.lcLeaver lc) requestingDomain
   lcnv <- qualifyLocal (F.lcConvId lc)
 
   res <-
@@ -355,48 +354,34 @@ leaveConversation requestingDomain lc = do
       . mapToRuntimeError @'InvalidOperation F.RemoveFromConversationErrorRemovalNotAllowed
       . mapError @NoChanges (const F.RemoveFromConversationErrorUnchanged)
       $ do
-        (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound leaver lcnv
-        outcome <-
-          runError @FederationError $
-            first lcuUpdate
-              <$> updateLocalConversation
-                @'ConversationLeaveTag
-                lcnv
-                leaver
-                Nothing
-                ()
-        case outcome of
-          Left e -> do
-            logFederationError lcnv e
-            throw . internalErr $ e
-          Right update -> pure (update, conv)
+        (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound (tUntagged leaver) lcnv
+        update <-
+          lcuUpdate
+            <$> updateLocalConversation
+              @'ConversationLeaveTag
+              lcnv
+              (tUntagged leaver)
+              Nothing
+              ()
+        pure (update, conv)
 
   case res of
     Left e -> pure $ F.LeaveConversationResponse (Left e)
-    Right ((_update, updateFailedToProcess), conv) -> do
-      let remotes = filter ((== qDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
+    Right (_update, conv) -> do
+      let remotes = filter ((== tDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
-      (_, notifyFailedToProcess) <- do
-        outcome <-
-          runError @FederationError $
-            notifyConversationAction
-              SConversationLeaveTag
-              leaver
-              False
-              Nothing
-              (qualifyAs lcnv conv)
-              botsAndMembers
-              ()
-        case outcome of
-          Left e -> do
-            logFederationError lcnv e
-            throw . internalErr $ e
-          Right v -> pure v
+      _ <-
+        notifyConversationAction
+          False
+          SConversationLeaveTag
+          (tUntagged leaver)
+          False
+          Nothing
+          (qualifyAs lcnv conv)
+          botsAndMembers
+          ()
 
-      pure . F.LeaveConversationResponse . Right $
-        updateFailedToProcess <> notifyFailedToProcess
-  where
-    internalErr = InternalErrorWithDescription . LT.pack . displayException
+      pure $ F.LeaveConversationResponse (Right ())
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
@@ -513,17 +498,16 @@ onUserDeleted origDomain udcn = do
             Public.RegularConv -> do
               let botsAndMembers = convBotsAndMembers conv
               removeUser (qualifyAs lc conv) (tUntagged deletedUser)
-              outcome <-
-                runError @FederationError $
-                  notifyConversationAction
-                    (sing @'ConversationLeaveTag)
-                    untaggedDeletedUser
-                    False
-                    Nothing
-                    (qualifyAs lc conv)
-                    botsAndMembers
-                    ()
-              whenLeft outcome . logFederationError $ lc
+              void $
+                notifyConversationAction
+                  False
+                  (sing @'ConversationLeaveTag)
+                  untaggedDeletedUser
+                  False
+                  Nothing
+                  (qualifyAs lc conv)
+                  botsAndMembers
+                  ()
   pure EmptyResponse
 
 updateConversation ::
@@ -561,46 +545,46 @@ updateConversation origDomain updateRequest = do
     SomeConversationAction tag action -> case tag of
       SConversationJoinTag ->
         mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationJoinTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationJoinTag lcnv (tUntagged rusr) Nothing action
       SConversationLeaveTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationLeaveTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationLeaveTag lcnv (tUntagged rusr) Nothing action
       SConversationRemoveMembersTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationRemoveMembersTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationRemoveMembersTag lcnv (tUntagged rusr) Nothing action
       SConversationMemberUpdateTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationMemberUpdateTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationMemberUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationDeleteTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationDeleteTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationDeleteTag lcnv (tUntagged rusr) Nothing action
       SConversationRenameTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationRenameTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationRenameTag lcnv (tUntagged rusr) Nothing action
       SConversationMessageTimerUpdateTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationMessageTimerUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationReceiptModeUpdateTag ->
         mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationReceiptModeUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationAccessDataTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged rusr) Nothing action
   where
     mkResponse = fmap toResponse . runError @GalleyError . runError @NoChanges
@@ -846,24 +830,3 @@ onTypingIndicatorUpdated origDomain TypingDataUpdated {..} = do
   let qcnv = Qualified tudConvId origDomain
   pushTypingIndicatorEvents tudOrigUserId tudTime tudUsersInConv Nothing qcnv tudTypingStatus
   pure EmptyResponse
-
---------------------------------------------------------------------------------
--- Utilities
---------------------------------------------------------------------------------
-
--- | Log a federation error that is impossible in processing a remote request
--- for a local conversation.
-logFederationError ::
-  Member P.TinyLog r =>
-  Local ConvId ->
-  FederationError ->
-  Sem r ()
-logFederationError lc e =
-  P.warn $
-    Log.field "conversation" (toByteString' (tUnqualified lc))
-      Log.~~ Log.field "domain" (toByteString' (tDomain lc))
-      Log.~~ Log.msg
-        ( "An impossible federation error occurred when deleting\
-          \ a user from a local conversation: "
-            <> displayException e
-        )

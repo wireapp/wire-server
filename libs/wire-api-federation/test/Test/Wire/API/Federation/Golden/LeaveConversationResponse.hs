@@ -21,7 +21,7 @@ import Imports
 import Wire.API.Federation.API.Galley
 
 testObject_LeaveConversationResponse1 :: LeaveConversationResponse
-testObject_LeaveConversationResponse1 = LeaveConversationResponse $ Right mempty
+testObject_LeaveConversationResponse1 = LeaveConversationResponse $ Right ()
 
 testObject_LeaveConversationResponse2 :: LeaveConversationResponse
 testObject_LeaveConversationResponse2 = LeaveConversationResponse $ Left RemoveFromConversationErrorRemovalNotAllowed
