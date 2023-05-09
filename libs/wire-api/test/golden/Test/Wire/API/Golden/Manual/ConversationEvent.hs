@@ -23,6 +23,7 @@ import Data.Qualified (Qualified (..))
 import Data.Time
 import qualified Data.UUID as UUID
 import Imports
+import qualified Wire.API.Conversation.Protocol as P
 import Wire.API.Event.Conversation
 import Wire.API.MLS.SubConversation
 
@@ -34,4 +35,14 @@ testObject_Event_conversation_manual_1 =
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "n8nl6tp.h5"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
       evtData = EdConvCodeDelete
+    }
+
+testObject_Event_conversation_manual_2 :: Event
+testObject_Event_conversation_manual_2 =
+  Event
+    { evtConv = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "example.com"}},
+      evtSubConv = Nothing,
+      evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "a471447c-aa30-4592-81b0-dec6c1c02bca")), qDomain = Domain {_domainText = "example.com"}},
+      evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
+      evtData = EdProtocolUpdate (P.ProtocolUpdate P.ProtocolMixedTag)
     }

@@ -158,6 +158,8 @@ protocolDataSchema ProtocolMLSTag = tag _ProtocolMLS mlsDataSchema
 protocolDataSchema ProtocolMixedTag = tag _ProtocolMixed mlsDataSchema
 
 newtype ProtocolUpdate = ProtocolUpdate {unProtocolUpdate :: ProtocolTag}
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via GenericUniform ProtocolUpdate
 
 instance ToSchema ProtocolUpdate where
   schema = object "ProtocolUpdate" (ProtocolUpdate <$> unProtocolUpdate .= protocolTagSchema)

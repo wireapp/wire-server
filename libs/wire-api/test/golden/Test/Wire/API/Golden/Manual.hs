@@ -73,7 +73,8 @@ tests =
           ],
       testGroup "ConversationEvent" $
         testObjects
-          [ (testObject_Event_conversation_manual_1, "testObject_Event_conversation_manual_1.json")
+          [ (testObject_Event_conversation_manual_1, "testObject_Event_conversation_manual_1.json"),
+            (testObject_Event_conversation_manual_2, "testObject_Event_conversation_manual_2.json")
           ],
       testGroup "GetPaginatedConversationIds" $
         testObjects

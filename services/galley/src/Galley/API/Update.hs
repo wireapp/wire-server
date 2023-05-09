@@ -124,7 +124,8 @@ import System.Logger (Msg)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
-import Wire.API.Conversation.Protocol (ProtocolTag (..), ProtocolUpdate (ProtocolUpdate), protocolTag)
+import Wire.API.Conversation.Protocol (ProtocolTag (..), protocolTag)
+import qualified Wire.API.Conversation.Protocol as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Error
@@ -688,17 +689,20 @@ updateConversationProtocolWithLocalUser ::
     Member (ErrorS 'ConvInvalidProtocolTransition) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member (Error FederationError) r,
+    Member (Input UTCTime) r,
+    Member GundeckAccess r,
+    Member ExternalAccess r,
     Member ConversationStore r
   ) =>
   Local UserId ->
   ConnId ->
   Qualified ConvId ->
-  ProtocolUpdate ->
-  Sem r ()
-updateConversationProtocolWithLocalUser lusr _conn qcnv update =
+  P.ProtocolUpdate ->
+  Sem r (UpdateResult Event)
+updateConversationProtocolWithLocalUser lusr conn qcnv update =
   foldQualified
     lusr
-    (\lcnv -> updateLocalConversationProtocol (tUntagged lusr) lcnv update)
+    (\lcnv -> updateLocalConversationProtocol (tUntagged lusr) (Just conn) lcnv update)
     (\_rcnv -> throw FederationNotImplemented)
     qcnv
 
@@ -707,24 +711,33 @@ updateLocalConversationProtocol ::
   ( Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvInvalidProtocolTransition) r,
     Member (ErrorS 'ConvMemberNotFound) r,
+    Member (Input UTCTime) r,
+    Member GundeckAccess r,
+    Member ExternalAccess r,
     Member ConversationStore r
   ) =>
   Qualified UserId ->
+  Maybe ConnId ->
   Local ConvId ->
-  ProtocolUpdate ->
-  Sem r ()
-updateLocalConversationProtocol qusr lcnv (ProtocolUpdate newProtocol) = do
+  P.ProtocolUpdate ->
+  Sem r (UpdateResult Event)
+updateLocalConversationProtocol qusr mconn lcnv protocolUpdate@(P.ProtocolUpdate newProtocol) = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
   void $ ensureOtherMember lcnv qusr conv
   case (protocolTag (convProtocol conv), newProtocol) of
-    (ProtocolProteusTag, ProtocolMixedTag) ->
+    (ProtocolProteusTag, ProtocolMixedTag) -> do
       E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+      let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
+      now <- input
+      let e = Event (tUntagged lcnv) Nothing qusr now (EdProtocolUpdate protocolUpdate)
+      pushConversationEvent mconn e (qualifyAs lcnv (map lmId users)) bots
+      pure (Updated e)
     (ProtocolProteusTag, ProtocolProteusTag) ->
-      pure ()
+      pure Unchanged
     (ProtocolMixedTag, ProtocolMixedTag) ->
-      pure ()
+      pure Unchanged
     (ProtocolMLSTag, ProtocolMLSTag) ->
-      pure ()
+      pure Unchanged
     (_, _) -> throwS @'ConvInvalidProtocolTransition
 
 joinConversationByReusableCode ::
