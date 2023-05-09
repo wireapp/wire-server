@@ -29,6 +29,9 @@ import GHC.Generics
 import Imports
 import Wire.API.User.Search (FederatedUserSearchPolicy)
 
+-- | Everything we need to know about a remote instance in order to federate with it.  Comes
+-- in `AllowedDomains` if `AllowStrategy` is `AllowList`.  If `AllowAll`, we still use this
+-- information for search policy.
 data FederationDomainConfig = FederationDomainConfig
   { domain :: Domain,
     cfgSearchPolicy :: FederatedUserSearchPolicy

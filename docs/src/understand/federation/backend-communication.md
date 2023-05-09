@@ -160,29 +160,47 @@ search request from *Alice*, one of its clients.
 
 Up to the release containing
 [PR#3260](https://github.com/wireapp/wire-server/pull/3260), the
-config file statically contains information about the remote
-connections in the configs of all services that need to know.  Since
-then, there is an internal REST API for adding remote wire-server
-instances:
+config files of the individual services statically contained
+information about the remote connections.  Starting with this release,
+this information is stored in the database, and there is an internal
+REST API for adding and removing remotes:
 
 * [`GET`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_federation_remotes)
 * [`POST`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_federation_remotes)
 * [`DELETE`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/delete_i_federation_remotes__domain_)
 
+**WARNING:** If you delete a connection, all users from that remote
+will be removed from local conversations, and all conversations hosted
+by that remote will be removed from the local backend.  Connections
+between local and remote users that are removed will be archived, and
+can be re-established should you decide to add the same backend later.
+
 Changing the configuration of existing edges via `PUT` is not
 implemented at the moment, if you need to do that, delete the
 connection and add it again.
 
-If you delete a connection, all users from that remote will be removed
-from local conversations, and all conversations hosted by that remote
-will be removed from the local backend.  Connections between local and
-remote users that are removed will be archived, and can be
-re-established should you decide to add the same backend later.
+{-
+TODO: this paragraph still annoys me.  move strategy to brig, too?  or
+at least to a different syntax, and force admin to use both old and
+new syntax until transition period is over?  just to avoid the
+confusing bogus `:` at the end of the flag.
+
+The federation strategy (allow all or allow list) is still configured
+in federator, only the list of allowed hosts is ignored; if you select
+"allow all" (or if you disable federation), the list of known backends
+maintained by brig is mostly ignored, but e.g., search policy is still
+considered by brig itself.
+-}
 
 See {ref}`configuring-remote-connections-dev-perspective` for the
 developer's point of view on this topic.
 
 ### Transitioning from config file to database state
+
+TODO: you need to update config files!
+  - complete list of search policies, no more defaults
+  - new fed strategy syntax (keep the old, just copy)
+  - later, remove the old syntax in brig, federator.
 
 As of the release containing
 [PR#3260](https://github.com/wireapp/wire-server/pull/3260),
