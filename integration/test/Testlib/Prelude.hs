@@ -1,6 +1,12 @@
 module Testlib.Prelude
   ( module Testlib.App,
+    module Testlib.Env,
     module Testlib.Cannon,
+    module Testlib.Assertions,
+    module Testlib.Types,
+    module Testlib.ModService,
+    module Testlib.HTTP,
+    module Testlib.JSON,
     module Text.RawString.QQ,
     module Data.Aeson,
     module Prelude,
@@ -76,7 +82,13 @@ import Data.Word
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 import Testlib.App
+import Testlib.Assertions
 import Testlib.Cannon
+import Testlib.Env
+import Testlib.HTTP
+import Testlib.JSON
+import Testlib.ModService
+import Testlib.Types
 import Text.RawString.QQ
 -- Permissions is common in Galley
 import UnliftIO.Exception

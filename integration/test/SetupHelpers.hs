@@ -6,7 +6,6 @@ import Data.Aeson
 import Data.Default
 import Data.Function
 import GHC.Stack
-import Testlib.App
 import Testlib.Prelude
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> Internal.CreateUser -> App Value
@@ -37,7 +36,7 @@ connectUsers alice bob = do
   bindResponse (Public.postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
   bindResponse (Public.putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
 
-createAndConnectUsers :: HasCallStack => [String] -> App [Value]
+createAndConnectUsers :: (HasCallStack, MakesValue domain) => [domain] -> App [Value]
 createAndConnectUsers domains = do
   users <- for domains (flip randomUser def)
   let userPairs = do
