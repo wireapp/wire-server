@@ -513,7 +513,6 @@ notifyUpdateUnavailable extras action etype edata = do
     ((), _fedRequests) <-
       withTempMockFederator' (throw $ MockErrorResponse Http.status500 "Down for maintenance") $
         runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
-    putStrLn $ "on-conversation-updated: " <> show _fedRequests
     liftIO $ do
       WS.assertMatch_ (5 # Second) wsA $ \n -> do
         let e = List1.head (WS.unpackPayload n)
