@@ -80,8 +80,8 @@ import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
 
-tests :: Endpoint -> ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> TestTree
-tests e _cl _at opts p db b c g =
+tests :: Endpoint -> ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Nginz -> Brig -> Cannon -> Galley -> TestTree
+tests e _cl _at opts p db n b c g =
   testGroup
     "client"
     [ test p "delete /clients/:client 403 - can't delete legalhold clients" $
@@ -133,7 +133,7 @@ tests e _cl _at opts p db b c g =
       test p "get/head nonce/clients" $ testNewNonce b,
       testGroup
         "post /clients/:cid/access-token"
-        [ test p "success" $ testCreateAccessToken e b,
+        [ test p "success" $ testCreateAccessToken e n b,
           test p "proof missing" $ testCreateAccessTokenMissingProof b,
           test p "no nonce" $ testCreateAccessTokenNoNonce b
         ]
@@ -1306,6 +1306,7 @@ testMissingClient brig = do
 -- again.  (NB: temp clients replace each other, there can always be
 -- at most one per account.)
 testAddMultipleTemporary :: HasCallStack => Brig -> Galley -> Cannon -> Http ()
+---
 testAddMultipleTemporary brig galley cannon = do
   uid <- userId <$> randomUser brig
   let clt1 =
@@ -1420,33 +1421,38 @@ instance A.ToJSON DPoPClaimsSet where
       ins k v (Object o) = Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
 
-testCreateAccessToken :: Endpoint -> Brig -> Http ()
-testCreateAccessToken ep brig =
-  recoverN 10 $ do
-    let h = ep ^. epHost
-    uid <- userId <$> randomUser brig
-    let uidb64 = B64.encodeUnpadded $ cs $ replace "-" "" $ cs (toByteString' uid)
-    cid <- createClientForUser brig uid
-    nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
-    let nonceBs = fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
-    now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (round <$> getPOSIXTime)
-    let clientIdentity :: Text = "im:wireapp=" <> cs uidb64 <> "/" <> cs (toByteString' cid) <> "@" <> h
-    let claimsSet' =
-          emptyClaimsSet
-            & claimIat ?~ NumericDate now
-            & claimExp ?~ NumericDate now
-            & claimNbf ?~ NumericDate now
-            & claimSub ?~ fromMaybe (error "invalid sub claim") (clientIdentity ^? stringOrUri)
-            & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
-    let dpopClaims = DPoPClaimsSet claimsSet' (cs nonceBs) "POST" ("https://" <> h <> "/clients/" <> cs (toByteString' cid) <> "/access-token") "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
-    signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
-    case signedOrError of
-      Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
-      Right signed -> do
-        let proof = Just $ Proof (cs signed)
-        response <- Util.createAccessToken brig uid h cid proof
-        accessToken <- responseJsonError response
-        liftIO $ datrType accessToken @?= DPoP
+testCreateAccessToken :: Endpoint -> Nginz -> Brig -> Http ()
+testCreateAccessToken ep n brig = do
+  let h = ep ^. epHost
+  u <- randomUser brig
+  let uid = userId u
+  let email = fromMaybe (error "invalid email") $ userEmail u
+  rs <-
+    login n (defEmailLogin email) PersistentCookie
+      <!! const 200 === statusCode
+  let t = decodeToken rs
+  let uidb64 = B64.encodeUnpadded $ cs $ replace "-" "" $ cs (toByteString' uid)
+  cid <- createClientForUser brig uid
+  nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
+  let nonceBs = fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
+  now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (floor <$> getPOSIXTime)
+  let clientIdentity :: Text = "im:wireapp=" <> cs uidb64 <> "/" <> cs (toByteString' cid) <> "@" <> h
+  let claimsSet' =
+        emptyClaimsSet
+          & claimIat ?~ NumericDate now
+          & claimExp ?~ NumericDate now
+          & claimNbf ?~ NumericDate now
+          & claimSub ?~ fromMaybe (error "invalid sub claim") (clientIdentity ^? stringOrUri)
+          & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
+  let dpopClaims = DPoPClaimsSet claimsSet' (cs nonceBs) "POST" ("https://" <> h <> "/clients/" <> cs (toByteString' cid) <> "/access-token") "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+  signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
+  case signedOrError of
+    Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
+    Right signed -> do
+      let proof = Just $ Proof (cs signed)
+      response <- Util.createAccessTokenNginz n t cid proof
+      accessToken <- responseJsonError response
+      liftIO $ datrType accessToken @?= DPoP
   where
     signAccessToken :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
     signAccessToken claims = runJOSE $ do

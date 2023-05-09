@@ -15,7 +15,7 @@ data BackendNotificationContent
   = OnUserDeletedConnections UserDeletedConnectionsNotification
   deriving (Generic)
 
--- TODO(elland): use schema-profunctor, or not, who cares what this serialized touse schema
+-- TODO(elland): use schema-profunctor, or not, who cares what this serialises to?
 instance ToJSON BackendNotificationContent
 
 instance FromJSON BackendNotificationContent
@@ -53,7 +53,8 @@ enqueue chan domain notif deliveryMode = do
 routingKey :: Domain -> Text
 routingKey d = "backend-notifications." <> domainText d
 
--- | If you ever change this function, know that it will start failing in the
+-- | If you ever change this function and modify
+-- queue parameters, know that it will start failing in the
 -- next release! So be prepared to write migrations.
 ensureQueue :: Q.Channel -> Domain -> IO ()
 ensureQueue chan domain = do

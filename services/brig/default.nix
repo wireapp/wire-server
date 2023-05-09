@@ -9,6 +9,7 @@
 , amazonka-dynamodb
 , amazonka-ses
 , amazonka-sqs
+, amqp
 , async
 , attoparsec
 , auto-update
@@ -171,6 +172,7 @@ mkDerivation {
     amazonka-dynamodb
     amazonka-ses
     amazonka-sqs
+    amqp
     async
     auto-update
     base
@@ -249,7 +251,6 @@ mkDerivation {
     schema-profunctor
     scientific
     servant
-    servant-client
     servant-server
     servant-swagger
     servant-swagger-ui
