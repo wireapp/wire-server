@@ -29,7 +29,7 @@ joinHttpPath = intercalate "/"
 addJSONObject :: [Aeson.Pair] -> HTTP.Request -> HTTP.Request
 addJSONObject = addJSON . Aeson.object
 
-addJSON :: Aeson.Value -> HTTP.Request -> HTTP.Request
+addJSON :: Aeson.ToJSON a => a -> HTTP.Request -> HTTP.Request
 addJSON obj req =
   req
     { HTTP.requestBody = HTTP.RequestBodyLBS (Aeson.encode obj),
@@ -51,6 +51,9 @@ zUser = addHeader "Z-User"
 
 zConnection :: String -> HTTP.Request -> HTTP.Request
 zConnection = addHeader "Z-Connection"
+
+zClient :: String -> HTTP.Request -> HTTP.Request
+zClient = addHeader "Z-Client"
 
 zType :: String -> HTTP.Request -> HTTP.Request
 zType = addHeader "Z-Type"
