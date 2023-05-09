@@ -68,3 +68,13 @@ testMultipleBackends = do
   ownDomainRes `shouldMatch` ownDomain
   otherDomainRes `shouldMatch` otherDomain
   ownDomain `shouldNotMatch` otherDomain
+
+testUnrace :: App ()
+testUnrace = do
+  {-
+  -- the following would retry for ~30s and only then fail
+  unrace $ do
+    True `shouldMatch` True
+    True `shouldMatch` False
+  -}
+  unrace $ True `shouldMatch` True
