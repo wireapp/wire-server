@@ -77,16 +77,16 @@ putConversationProtocol ::
   ( HasCallStack,
     MakesValue user,
     MakesValue qcnv,
-    MakesValue conn,
+    MakesValue client,
     MakesValue protocol
   ) =>
   user ->
   qcnv ->
-  Maybe conn ->
+  Maybe client ->
   protocol ->
   App Response
-putConversationProtocol user qcnv mconn protocol = do
-  mconn' <- for mconn asString
+putConversationProtocol user qcnv mclient protocol = do
+  mclientId <- for mclient objId
   (domain, cnv) <- objQid qcnv
   p <- asString protocol
   uid <- objId user
@@ -95,7 +95,8 @@ putConversationProtocol user qcnv mconn protocol = do
     "PUT"
     ( req
         & zUser uid
-        & zConnection (fromMaybe "conn" mconn')
+        & zConnection "conn"
+        & maybe id zClient mclientId
         & addJSONObject ["protocol" .= p]
     )
 

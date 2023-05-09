@@ -89,6 +89,7 @@ library
     Test.B2B
     Test.Brig
     Test.Demo
+    Test.MLS
     Testlib.App
     Testlib.Assertions
     Testlib.Cannon
