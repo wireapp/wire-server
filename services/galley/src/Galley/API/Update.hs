@@ -44,6 +44,7 @@ module Galley.API.Update
     -- * Managing Members
     addMembersUnqualified,
     addMembersUnqualifiedV2,
+    addMembersV2,
     addMembers,
     updateUnqualifiedSelfMember,
     updateSelfMember,
@@ -72,6 +73,7 @@ module Galley.API.Update
   )
 where
 
+import Control.Arrow
 import Control.Error.Util (hush)
 import Control.Lens
 import Control.Monad.State
@@ -149,6 +151,7 @@ import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.Member
+import Wire.API.Unreachable
 import Wire.API.User.Client
 
 acceptConvH ::
@@ -810,10 +813,10 @@ addMembers ::
   ConnId ->
   Qualified ConvId ->
   InviteQualified ->
-  Sem r (UpdateResult Event)
+  Sem r (UpdateResult UnreachabilityEvent)
 addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
-  getUpdateResult . fmap (lcuEvent . fst) $
+  getUpdateResult . fmap (uncurry UnreachabilityEvent . first lcuEvent) $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
       ConversationJoin users role
 
@@ -887,7 +890,41 @@ addMembersUnqualified ::
   Sem r (UpdateResult Event)
 addMembersUnqualified lusr zcon cnv (Invite users role) = do
   let qusers = fmap (tUntagged . qualifyAs lusr) (toNonEmpty users)
-  addMembers lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
+  addMembersV2 lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
+
+addMembersV2 ::
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
+    Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TooManyMembers) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member LegalHoldStore r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member TeamStore r,
+    Member TinyLog r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  InviteQualified ->
+  Sem r (UpdateResult Event)
+addMembersV2 lusr zcon qcnv invite =
+  event <$$> addMembers lusr zcon qcnv invite
 
 updateSelfMember ::
   ( Member ConversationStore r,
