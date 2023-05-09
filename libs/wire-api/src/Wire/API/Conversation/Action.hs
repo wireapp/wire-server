@@ -46,6 +46,7 @@ import Data.Time.Clock
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Action.Tag
+import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.MLS.SubConversation
@@ -63,6 +64,7 @@ type family ConversationAction (tag :: ConversationActionTag) :: Type where
   ConversationAction 'ConversationReceiptModeUpdateTag = ConversationReceiptModeUpdate
   ConversationAction 'ConversationAccessDataTag = ConversationAccessData
   ConversationAction 'ConversationRemoveMembersTag = NonEmptyList.NonEmpty (Qualified UserId)
+  ConversationAction 'ConversationUpdateProtocolTag = ProtocolTag
 
 data SomeConversationAction where
   SomeConversationAction :: Sing tag -> ConversationAction tag -> SomeConversationAction
@@ -105,6 +107,7 @@ conversationActionSchema SConversationRenameTag = schema
 conversationActionSchema SConversationMessageTimerUpdateTag = schema
 conversationActionSchema SConversationReceiptModeUpdateTag = schema
 conversationActionSchema SConversationAccessDataTag = schema
+conversationActionSchema SConversationUpdateProtocolTag = schema
 
 instance FromJSON SomeConversationAction where
   parseJSON = A.withObject "SomeConversationAction" $ \ob -> do
@@ -136,6 +139,7 @@ $( singletons
        conversationActionPermission ConversationMessageTimerUpdateTag = ModifyConversationMessageTimer
        conversationActionPermission ConversationReceiptModeUpdateTag = ModifyConversationReceiptMode
        conversationActionPermission ConversationAccessDataTag = ModifyConversationAccess
+       conversationActionPermission ConversationUpdateProtocolTag = ModifyConversationProtocol
        |]
  )
 
@@ -166,4 +170,5 @@ conversationActionToEvent tag now quid qcnv subconv action =
         SConversationMessageTimerUpdateTag -> EdConvMessageTimerUpdate action
         SConversationReceiptModeUpdateTag -> EdConvReceiptModeUpdate action
         SConversationAccessDataTag -> EdConvAccessUpdate action
+        SConversationUpdateProtocolTag -> EdProtocolUpdate action
    in Event qcnv subconv quid now edata

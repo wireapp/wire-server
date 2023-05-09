@@ -81,6 +81,7 @@ import qualified Test.QuickCheck as QC
 import URI.ByteString ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Code (ConversationCode (..), ConversationCodeInfo)
+import Wire.API.Conversation.Protocol (ProtocolUpdate (unProtocolUpdate))
 import qualified Wire.API.Conversation.Protocol as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -179,7 +180,7 @@ data EventData
   | EdOtrMessage OtrMessage
   | EdMLSMessage ByteString
   | EdMLSWelcome ByteString
-  | EdProtocolUpdate P.ProtocolUpdate
+  | EdProtocolUpdate P.ProtocolTag
   deriving stock (Eq, Show, Generic)
 
 genEventData :: EventType -> QC.Gen EventData
@@ -400,7 +401,7 @@ taggedEventDataSchema =
       Typing -> tag _EdTyping (unnamed schema)
       ConvCodeDelete -> tag _EdConvCodeDelete null_
       ConvDelete -> tag _EdConvDelete null_
-      ProtocolUpdate -> tag _EdProtocolUpdate (unnamed schema)
+      ProtocolUpdate -> tag _EdProtocolUpdate (unnamed (unProtocolUpdate <$> P.ProtocolUpdate .= schema))
 
 instance ToSchema Event where
   schema = object "Event" eventObjectSchema

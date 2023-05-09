@@ -93,6 +93,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Error
+import Wire.API.MLS.CipherSuite
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API (Component (Galley), fedClient)
@@ -209,6 +210,12 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     ( Member ConversationStore r,
       Member (Error NoChanges) r
     )
+  HasConversationActionEffects 'ConversationUpdateProtocolTag r =
+    (
+      Member ConversationStore r,
+      Member (ErrorS 'ConvInvalidProtocolTransition) r,
+      Member (Error NoChanges) r
+    )
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
   HasConversationActionGalleyErrors 'ConversationJoinTag =
@@ -265,6 +272,12 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'InvalidOperation,
        ErrorS 'InvalidTargetAccess,
        ErrorS 'ConvNotFound
+     ]
+  HasConversationActionGalleyErrors 'ConversationUpdateProtocolTag =
+    '[ ErrorS ('ActionDenied 'ModifyConversationProtocol),
+       ErrorS 'InvalidOperation,
+       ErrorS 'ConvNotFound,
+       ErrorS 'ConvInvalidProtocolTransition
      ]
 
 noChanges :: Member (Error NoChanges) r => Sem r a
@@ -384,6 +397,18 @@ performAction tag origUser lconv action = do
     SConversationAccessDataTag -> do
       (bm, act) <- performConversationAccessData origUser lconv action
       pure (bm, act)
+    SConversationUpdateProtocolTag -> do
+      case (protocolTag (convProtocol (tUnqualified lconv)), action) of
+        (ProtocolProteusTag, ProtocolMixedTag) -> do
+          E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+          pure (mempty, action)
+        (ProtocolProteusTag, ProtocolProteusTag) ->
+          noChanges
+        (ProtocolMixedTag, ProtocolMixedTag) ->
+          noChanges
+        (ProtocolMLSTag, ProtocolMLSTag) ->
+          noChanges
+        (_, _) -> throwS @'ConvInvalidProtocolTransition
 
 performConversationJoin ::
   ( HasConversationActionEffects 'ConversationJoinTag r

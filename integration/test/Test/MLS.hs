@@ -10,19 +10,29 @@ import SetupHelpers
 import Testlib.Prelude
 
 testMixedProtocolUpgrade :: HasCallStack => App ()
-testMixedProtocolUpgrade = do
-  [alice, bob] <- createAndConnectUsers [ownDomain, ownDomain]
+testMixedProtocolUpgrade = ptestMixedProtocolUpgrade ownDomain
+
+testMixedProtocolUpgradeFed :: HasCallStack => App ()
+testMixedProtocolUpgradeFed = ptestMixedProtocolUpgrade otherDomain
+
+ptestMixedProtocolUpgrade :: (HasCallStack, MakesValue domain) => domain -> App ()
+ptestMixedProtocolUpgrade secondDomain = do
+  [alice, bob, charlie] <- do
+    d <- ownDomain
+    d2 <- secondDomain & asString
+    createAndConnectUsers [d, d2, d2]
 
   qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
 
-  withWebSocket alice $ \wsAlice -> do
+  withWebSockets [alice, charlie] $ \websockets -> do
     bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "conversation" `shouldMatch` (qcnv %. "id")
       resp.json %. "data.protocol" `shouldMatch` "mixed"
 
-    n <- awaitMatch 3 (\value -> nPayload value %. "type" `isEqual` "conversation.protocol-update") wsAlice
-    nPayload n %. "data.protocol" `shouldMatch` "mixed"
+    for_ websockets $ \ws -> do
+      n <- awaitMatch 3 (\value -> nPayload value %. "type" `isEqual` "conversation.protocol-update") ws
+      nPayload n %. "data.protocol" `shouldMatch` "mixed"
 
   bindResponse (getConversation alice qcnv) $ \resp -> do
     resp.status `shouldMatchInt` 200

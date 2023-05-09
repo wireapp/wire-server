@@ -133,7 +133,6 @@ import Wire.API.Connection (Relation (Accepted))
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
-import Wire.API.Conversation.Protocol (ProtocolTag (..), protocolTag)
 import qualified Wire.API.Conversation.Protocol as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -144,7 +143,6 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
-import Wire.API.MLS.CipherSuite
 import Wire.API.Message
 import Wire.API.Password (mkSafePassword)
 import Wire.API.Provider.Service (ServiceRef)
@@ -355,7 +353,9 @@ updateConversationReceiptMode lusr zcon qcnv update =
             (Just zcon)
             update
     )
-    (\rcnv -> updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr zcon update)
+    ( \rcnv ->
+        updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr zcon update
+    )
     qcnv
 
 updateRemoteConversation ::
@@ -367,7 +367,7 @@ updateRemoteConversation ::
     Member (Input (Local ())) r,
     Member MemberStore r,
     Member TinyLog r,
-    RethrowErrors (HasConversationActionGalleyErrors tag) (Error NoChanges : r),
+    RethrowErrors (HasConversationActionGalleyErrors tag) r,
     SingI tag
   ) =>
   Remote ConvId ->
@@ -385,7 +385,7 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
   response <- E.runFederated rcnv (fedClient @'Galley @"update-conversation" updateRequest)
   convUpdate <- case response of
     ConversationUpdateResponseNoChanges -> throw NoChanges
-    ConversationUpdateResponseError err' -> rethrowErrors @(HasConversationActionGalleyErrors tag) err'
+    ConversationUpdateResponseError err' -> raise $ rethrowErrors @(HasConversationActionGalleyErrors tag) err'
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
 
   updateLocalStateOfRemoteConv (tDomain rcnv) convUpdate
@@ -697,11 +697,18 @@ updateConversationProtocolWithLocalUser ::
   forall r.
   ( Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvInvalidProtocolTransition) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
+    Member (ErrorS ('ActionDenied 'ModifyConversationProtocol)) r,
+    Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
     Member (Input UTCTime) r,
+    Member (Input (Local ())) r,
+    Member BrigAccess r,
+    Member MemberStore r,
+    Member TinyLog r,
     Member GundeckAccess r,
     Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member SubConversationStore r,
     Member ConversationStore r
   ) =>
   Local UserId ->
@@ -709,46 +716,20 @@ updateConversationProtocolWithLocalUser ::
   Qualified ConvId ->
   P.ProtocolUpdate ->
   Sem r (UpdateResult Event)
-updateConversationProtocolWithLocalUser lusr conn qcnv update =
+updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProtocol) =
   foldQualified
     lusr
-    (\lcnv -> updateLocalConversationProtocol (tUntagged lusr) (Just conn) lcnv update)
-    (\_rcnv -> throw FederationNotImplemented)
+    ( \lcnv -> do
+        (fmap (maybe Unchanged (Updated . lcuEvent) . hush))
+          . runError @NoChanges
+          . updateLocalConversation @'ConversationUpdateProtocolTag lcnv (tUntagged lusr) (Just conn)
+          $ newProtocol
+    )
+    ( \rcnv ->
+        updateRemoteConversation @'ConversationUpdateProtocolTag rcnv lusr conn $
+          newProtocol
+    )
     qcnv
-
-updateLocalConversationProtocol ::
-  forall r.
-  ( Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvInvalidProtocolTransition) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
-    Member (Input UTCTime) r,
-    Member GundeckAccess r,
-    Member ExternalAccess r,
-    Member ConversationStore r
-  ) =>
-  Qualified UserId ->
-  Maybe ConnId ->
-  Local ConvId ->
-  P.ProtocolUpdate ->
-  Sem r (UpdateResult Event)
-updateLocalConversationProtocol qusr mconn lcnv protocolUpdate@(P.ProtocolUpdate newProtocol) = do
-  conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-  void $ ensureOtherMember lcnv qusr conv
-  case (protocolTag (convProtocol conv), newProtocol) of
-    (ProtocolProteusTag, ProtocolMixedTag) -> do
-      E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-      let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
-      now <- input
-      let e = Event (tUntagged lcnv) Nothing qusr now (EdProtocolUpdate protocolUpdate)
-      pushConversationEvent mconn e (qualifyAs lcnv (map lmId users)) bots
-      pure (Updated e)
-    (ProtocolProteusTag, ProtocolProteusTag) ->
-      pure Unchanged
-    (ProtocolMixedTag, ProtocolMixedTag) ->
-      pure Unchanged
-    (ProtocolMLSTag, ProtocolMLSTag) ->
-      pure Unchanged
-    (_, _) -> throwS @'ConvInvalidProtocolTransition
 
 joinConversationByReusableCode ::
   forall db r.
@@ -1750,6 +1731,7 @@ updateLocalStateOfRemoteConv requestingDomain cu = do
       SConversationMessageTimerUpdateTag -> pure (Just sca, [])
       SConversationReceiptModeUpdateTag -> pure (Just sca, [])
       SConversationAccessDataTag -> pure (Just sca, [])
+      SConversationUpdateProtocolTag -> pure (Just sca, [])
 
   unless allUsersArePresent $
     P.warn $
