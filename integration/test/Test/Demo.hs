@@ -3,6 +3,8 @@ module Test.Demo where
 
 import qualified API.Brig as Public
 import qualified API.GalleyInternal as Internal
+import Control.Concurrent
+import Control.Retry
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
@@ -77,4 +79,5 @@ testUnrace = do
     True `shouldMatch` True
     True `shouldMatch` False
   -}
+  () <- undefined (recovering @IO) threadDelay
   unrace $ True `shouldMatch` True
