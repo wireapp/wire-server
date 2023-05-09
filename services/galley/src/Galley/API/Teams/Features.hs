@@ -76,7 +76,6 @@ import Wire.API.Conversation.Role (Action (RemoveConversationMember))
 import Wire.API.Error (ErrorS, throwS)
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.FeatureConfig as Event
-import Wire.API.Federation.Error
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -698,7 +697,6 @@ instance SetFeatureConfig db LegalholdConfig where
           Member CodeStore r,
           Member ConversationStore r,
           Member (Error AuthenticationError) r,
-          Member (Error FederationError) r,
           Member (Error InternalError) r,
           Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
           Member (ErrorS 'CannotEnableLegalHoldServiceLargeTeam) r,

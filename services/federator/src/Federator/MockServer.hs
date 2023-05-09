@@ -28,7 +28,6 @@ module Federator.MockServer
     Mock,
     runMock,
     mockReply,
-    mockUnreachableFor,
     mockFail,
     guardRPC,
     guardComponent,
@@ -46,7 +45,6 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import qualified Data.Aeson as Aeson
 import Data.Domain (Domain)
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
 import Federator.Error
@@ -204,16 +202,6 @@ guardComponent c = do
 -- | Serialise and return a response.
 mockReply :: Aeson.ToJSON a => a -> Mock LByteString
 mockReply = pure . Aeson.encode
-
--- | Provide a mock reply simulating unreachable backends given by their
--- domains.
-mockUnreachableFor :: String -> Set Domain -> Mock LByteString
-mockUnreachableFor msg backends = do
-  target <- frTargetDomain <$> getRequest
-  guard (target `elem` backends)
-  if Set.member target backends
-    then throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
-    else mockReply msg
 
 -- | Abort the mock with an error.
 mockFail :: Text -> Mock a
