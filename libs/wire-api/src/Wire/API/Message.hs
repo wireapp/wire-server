@@ -50,7 +50,6 @@ module Wire.API.Message
     UserClientMap (..),
 
     -- * Mismatch
-    OtrFilterMissing (..),
     ClientMismatch (..),
     ClientMismatchStrategy (..),
     MessageSendingStatus (..),
@@ -416,22 +415,6 @@ parseMap keyParser valueParser xs = Map.fromList <$> traverse (\x -> (,) <$> key
 
 --------------------------------------------------------------------------------
 -- Filter
-
--- | A setting for choosing what to do when a message has not been encrypted
--- for all recipients.
-data OtrFilterMissing
-  = -- | Pretend everything is okay
-    OtrIgnoreAllMissing
-  | -- | Complain (default)
-    OtrReportAllMissing
-  | -- | Complain only about missing
-    --      recipients who are /not/ on this list
-    OtrIgnoreMissing (Set UserId)
-  | -- | Complain only about missing
-    --      recipients who /are/ on this list
-    OtrReportMissing (Set UserId)
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform OtrFilterMissing)
 
 data ClientMismatchStrategy
   = MismatchReportAll

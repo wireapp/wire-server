@@ -1350,7 +1350,7 @@ checkChangeRoleOfTeamMember tid adminId targetId = forM_ [minBound ..] $ \role -
   liftIO $ (member' ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just role
 
 eventually :: HasCallStack => TestSpar a -> TestSpar a
-eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
+eventually = recoverAll (limitRetries 3 <> exponentialBackoff 100000) . const
 
 getIdPByIssuer :: HasCallStack => Issuer -> TeamId -> TestSpar (Maybe IdP)
 getIdPByIssuer issuer tid = do

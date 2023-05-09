@@ -123,7 +123,7 @@ data Transport
 
 instance ToSchema Transport where
   schema =
-    enum @Text "Access" $
+    enum @Text "Transport" $
       mconcat
         [ element "GCM" GCM,
           element "APNS" APNS,

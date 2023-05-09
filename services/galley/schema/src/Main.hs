@@ -83,7 +83,8 @@ import qualified V77_MLSGroupMemberClient
 import qualified V78_TeamFeatureOutlookCalIntegration
 import qualified V79_TeamFeatureMlsE2EId
 import qualified V80_AddConversationCodePassword
-import qualified V81_MLSSubconversation
+import qualified V81_TeamFeatureMlsE2EIdUpdate
+import qualified V82_MLSSubconversation
 
 main :: IO ()
 main = do
@@ -153,7 +154,8 @@ main = do
       V78_TeamFeatureOutlookCalIntegration.migration,
       V79_TeamFeatureMlsE2EId.migration,
       V80_AddConversationCodePassword.migration,
-      V81_MLSSubconversation.migration
+      V81_TeamFeatureMlsE2EIdUpdate.migration,
+      V82_MLSSubconversation.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Cassandra
       -- (see also docs/developer/cassandra-interaction.md)

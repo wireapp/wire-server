@@ -30,7 +30,7 @@ import Brig.Effects.GalleyProvider (GalleyProvider)
 import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import qualified Brig.Federation.Client as Federation
 import qualified Brig.Options as Opts
-import Brig.Team.Util (ensurePermissions)
+import Brig.Team.Util (ensurePermissions, ensurePermissionsOrPersonalUser)
 import Brig.Types.Search as Search
 import qualified Brig.User.API.Handle as HandleAPI
 import Brig.User.Search.Index
@@ -42,6 +42,7 @@ import Data.Handle (parseHandle)
 import Data.Id
 import Data.Predicate
 import Data.Range
+import Galley.Types.Teams (HiddenPerm (SearchContacts))
 import Imports
 import Network.Wai.Routing
 import Network.Wai.Utilities ((!>>))
@@ -92,6 +93,11 @@ search ::
   Maybe (Range 1 500 Int32) ->
   (Handler r) (Public.SearchResult Public.Contact)
 search searcherId searchTerm maybeDomain maybeMaxResults = do
+  -- FUTUREWORK(fisx): to reduce cassandra traffic, 'ensurePermissionsOrPersonalUser' could be
+  -- run from `searchLocally` and `searchRemotely`, resp., where the team id is already
+  -- available (at least in the local case) and can be passed as an argument rather than
+  -- looked up again.
+  ensurePermissionsOrPersonalUser searcherId [SearchContacts]
   federationDomain <- viewFederationDomain
   let queryDomain = fromMaybe federationDomain maybeDomain
   if queryDomain == federationDomain

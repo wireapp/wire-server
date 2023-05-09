@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: background-worker
+  labels:
+    app: background-worker
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  # TODO(elland): Review this
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: background-worker
+  template:
+    metadata:
+      labels:
+        app: background-worker
+        release: {{ .Release.Name }}
+      annotations:
+        # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
+        checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
+        fluentbit.io/parser: json
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      volumes:
+        - name: "background-worker-config"
+          configMap:
+            name: "background-worker"
+        - name: "background-worker-secrets"
+          secret:
+            secretName: "background-worker"
+      containers:
+        - name: background-worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          volumeMounts:
+          - name: "background-worker-config"
+            mountPath: "/etc/wire/background-worker/conf"
+          env:
+          - name: RABBITMQ_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: background-worker
+                key: rabbitmqUsername
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: background-worker
+                key: rabbitmqPassword
+          resources:
+{{ toYaml .Values.resources | indent 12 }}

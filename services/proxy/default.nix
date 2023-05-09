@@ -30,7 +30,6 @@
 , wai-predicates
 , wai-routing
 , wai-utilities
-, warp
 , wire-api
 }:
 mkDerivation {
@@ -65,10 +64,9 @@ mkDerivation {
     wai-predicates
     wai-routing
     wai-utilities
-    warp
     wire-api
   ];
-  executableHaskellDepends = [ base extended imports types-common ];
+  executableHaskellDepends = [ base imports types-common ];
   license = lib.licenses.agpl3Only;
   mainProgram = "proxy";
 }

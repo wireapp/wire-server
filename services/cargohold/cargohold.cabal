@@ -82,11 +82,11 @@ library
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -fplugin=TransitiveAnns.Plugin -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       aeson                  >=2.0.1.0
     , amazonka               >=1.3.7
-    , amazonka-core          >=1.3.7
     , amazonka-s3            >=1.3.7
     , attoparsec             >=0.12
     , auto-update            >=0.1.4
@@ -99,14 +99,12 @@ library
     , case-insensitive       >=1.0
     , conduit                >=1.2
     , conduit-extra          >=1.1.5
-    , containers             >=0.5
     , cryptonite             >=0.20
     , data-default           >=0.5
     , errors                 >=1.4
     , exceptions             >=0.6
     , extended
     , HsOpenSSL              >=0.11
-    , HsOpenSSL-x509-system  >=0.1
     , http-client            >=0.4
     , http-client-openssl    >=0.2
     , http-types             >=0.8
@@ -117,10 +115,8 @@ library
     , metrics-core
     , metrics-wai            >=0.4
     , mime                   >=0.4
-    , optparse-applicative   >=0.10
     , resourcet              >=1.1
     , retry                  >=0.5
-    , safe                   >=0.3
     , servant
     , servant-server
     , text                   >=1.1
@@ -191,30 +187,14 @@ executable cargohold
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -rtsopts -with-rtsopts=-T -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
-      aeson                  >=2.0.1.0
-    , base
-    , base64-bytestring      >=1.0
-    , bilge                  >=0.21
-    , bytestring             >=0.10
-    , bytestring-conversion  >=0.2
+      base
     , cargohold
-    , containers             >=0.5
-    , data-default           >=0.5
-    , errors                 >=1.4
-    , exceptions             >=0.6
-    , extended
-    , HsOpenSSL              >=0.11
-    , http-client            >=0.4
-    , http-types             >=0.8
+    , HsOpenSSL     >=0.11
     , imports
-    , kan-extensions
-    , mime                   >=0.4
-    , safe                   >=0.3
-    , text                   >=1.1
     , types-common
-    , yaml                   >=0.8
 
   if flag(static)
     ld-options: -static
@@ -278,26 +258,19 @@ executable cargohold-integration
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson                  >=2.0.1.0
     , base                   >=4       && <5
-    , base64-bytestring      >=1.0
     , bilge                  >=0.21
     , bytestring             >=0.10
     , bytestring-conversion  >=0.2
     , cargohold
     , cargohold-types
     , conduit
-    , containers             >=0.5
     , cryptonite
-    , data-default           >=0.5
-    , errors                 >=1.4
-    , exceptions             >=0.6
-    , extended
     , federator
-    , HsOpenSSL              >=0.11
     , http-api-data
     , http-client            >=0.4
     , http-client-tls        >=0.2
@@ -310,9 +283,7 @@ executable cargohold-integration
     , mmorph
     , mtl
     , optparse-applicative
-    , safe                   >=0.3
     , servant-client
-    , servant-client-core
     , tagged                 >=0.8
     , tasty                  >=1.0
     , tasty-hunit            >=0.9
@@ -320,7 +291,6 @@ executable cargohold-integration
     , time                   >=1.5
     , types-common           >=0.7
     , uuid                   >=1.3
-    , wai
     , wai-utilities          >=0.12
     , wire-api
     , wire-api-federation

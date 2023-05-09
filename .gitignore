@@ -20,6 +20,7 @@ target
 .#*
 *#*#
 .*.sw[a-z]
+**/__pycache__
 .cabal-sandbox
 ID
 cabal.sandbox.config
@@ -113,5 +114,4 @@ result-*
 
 services/nginz/third_party/headers-more-nginx-module
 services/nginz/third_party/nginx-module-vts
-
-**/__pycache__
+services/.integration
