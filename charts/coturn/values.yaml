@@ -82,17 +82,6 @@ federate:
   #   - host: host
   #     issuer: issuer
 
-
-# federation:
-#   enabled: false
-#   # listeningIp: 127.0.0.1
-#   listeningPort: 9191
-#   noDtls: false
-#   # privateKeyPassword: XXX
-#   remoteWhitelist:
-#   #  - host: host
-#   #    issuer: issuer
-
 metrics:
   serviceMonitor:
     enabled: false
