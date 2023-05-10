@@ -27,7 +27,7 @@ import Bilge.Assert
 import Brig.Types.Intra
 import Control.Applicative
 import Control.Lens hiding ((.=))
-import Data.Aeson (ToJSON)
+import Data.Aeson (ToJSON, Value)
 import Data.ByteString.Conversion
 import Data.Handle
 import Data.Id
@@ -52,6 +52,7 @@ import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search
+import Wire.API.Properties (PropertyKey)
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -116,6 +117,8 @@ testSearchVisibility = do
 testGetUserMetaInfo :: TestM ()
 testGetUserMetaInfo = do
   uid <- randomUser
+  let k = fromMaybe (error "invalid property key") $ fromByteString "WIRE_RECEIPT_MODE"
+  putUserProperty uid k "bar"
   -- Just make sure this returns a 200
   void $ getUserMetaInfo uid
 
@@ -615,3 +618,8 @@ unlockFeature ::
 unlockFeature tid = do
   g <- view tsGalley
   void $ put (g . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg, "unlocked"] . expect2xx)
+
+putUserProperty :: UserId -> PropertyKey -> Value -> TestM ()
+putUserProperty uid k v = do
+  b <- view tsBrig
+  void $ put (b . paths ["properties", toByteString' k] . json v . zUser uid . zConn "123" . expect2xx)
