@@ -308,7 +308,7 @@ testRemoteDownloadWrongDomain = do
   let key = AssetKeyV3 assetId AssetPersistent
       qkey = Qualified key (Domain "invalid.example.com")
   downloadAsset uid qkey () !!! do
-    const 400 === statusCode
+    const 422 === statusCode
 
 testRemoteDownloadNoAsset :: TestM ()
 testRemoteDownloadNoAsset = do

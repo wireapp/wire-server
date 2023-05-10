@@ -92,7 +92,7 @@ tests _cl _at opts p db n b c g =
       test p "get /users/<localdomain>/:uid/clients - 200" $ testGetUserClientsQualified opts b,
       test p "get /users/:uid/prekeys - 200" $ testGetUserPrekeys b,
       test p "get /users/<localdomain>/:uid/prekeys - 200" $ testGetUserPrekeysQualified b opts,
-      test p "get /users/:domain/:uid/prekeys - 400" $ testGetUserPrekeysInvalidDomain b,
+      test p "get /users/:domain/:uid/prekeys - 4xx" $ testGetUserPrekeysInvalidDomain b,
       test p "get /users/:uid/prekeys/:client - 200" $ testGetClientPrekey b,
       test p "get /users/<localdomain>/:uid/prekeys/:client - 200" $ testGetClientPrekeyQualified b opts,
       test p "post /users/prekeys" $ testMultiUserGetPrekeys b,
@@ -783,7 +783,7 @@ testGetUserPrekeysInvalidDomain :: Brig -> Http ()
 testGetUserPrekeysInvalidDomain brig = do
   [(uid, _c, _lpk, _)] <- generateClients 1 brig
   get (brig . paths ["users", "invalid.example.com", toByteString' uid, "prekeys"] . zUser uid) !!! do
-    const 400 === statusCode
+    const 422 === statusCode
 
 testGetClientPrekey :: Brig -> Http ()
 testGetClientPrekey brig = do
