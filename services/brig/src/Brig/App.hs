@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -110,10 +111,12 @@ import Cassandra.Schema (versionCheck)
 import qualified Cassandra.Settings as Cas
 import Control.AutoUpdate
 import Control.Error
+import Control.Exception (throwIO)
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
+import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Default (def)
 import Data.Domain
@@ -248,7 +251,7 @@ newEnv o = do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
-  rabbitChan <- newIORef =<< mkRabbitMqChannel o
+  rabbitChan <- newIORef =<< mkRabbitMqChannel lgr o
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -301,15 +304,24 @@ newEnv o = do
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
 
-mkRabbitMqChannel :: Opts -> IO Q.Channel
-mkRabbitMqChannel (Opt.rabbitMQ -> Opt.RabbitMQOpts {..}) = do
+mkRabbitMqChannel :: Logger -> Opts -> IO Q.Channel
+mkRabbitMqChannel g (Opt.rabbitMQ -> Opt.RabbitMQOpts {..}) = do
   username <- Text.pack <$> getEnv "RABBITMQ_USERNAME"
   password <- Text.pack <$> getEnv "RABBITMQ_PASSWORD"
   conn <- Q.openConnection' host (fromIntegral port) vHost username password
   -- TODO(elland): Q.addConnectionClosedHandler
   -- TODO(elland): Q.addConnectionBlockedHandler
   -- TODO(elland): Q.addChannelExceptionHandler
-  Q.openChannel conn
+  chan <- Q.openChannel conn
+  Q.addChannelExceptionHandler chan $ \e -> do
+    Log.err g (msg . val $ "Exception throw inside rabbit channel: " <> bshow e)
+    -- Rethrow the exception, we don't want to silence or handle them yet.
+    -- TODO(elland): Handle some of the exceptions.
+    throwIO e
+  pure chan
+  where
+    bshow :: Show a => a -> ByteString
+    bshow = pack . show
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
 mkIndexEnv o lgr mgr mtr galleyEndpoint =

@@ -1451,8 +1451,12 @@ testCreateAccessToken ep n brig = do
     Right signed -> do
       let proof = Just $ Proof (cs signed)
       response <- Util.createAccessTokenNginz n t cid proof
-      accessToken <- responseJsonError response
-      liftIO $ datrType accessToken @?= DPoP
+      case responseJsonEither response of
+        Right accessToken ->
+          liftIO $ datrType accessToken @?= DPoP
+        Left e -> do
+          print $ "Could not parse json with error: " <> show e
+          liftIO $ assertFailure "JSON parsing error."
   where
     signAccessToken :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
     signAccessToken claims = runJOSE $ do
