@@ -89,9 +89,7 @@ data Opts = Opts
     -- | Logformat to use
     logFormat :: !(Maybe (Last LogFormat)),
     -- | Runtime settings
-    optSettings :: !RunSettings,
-    -- | Domain update interval (microseconds)
-    domainUpdateInterval :: !Int
+    optSettings :: !RunSettings
   }
   deriving (Show, Generic)
 

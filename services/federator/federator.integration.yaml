@@ -40,12 +40,3 @@ optSettings:
   clientPrivateKey: "test/resources/integration-leaf-key.pem"
   dnsHost: "127.0.0.1"
   dnsPort: 9053
-
-mqSettings:
-  mqHost: "some.mq.host"
-  # https://www.rabbitmq.com/vhosts.html
-  mqVHost: "some.mq.host"
-  mqUser: "username"
-  mqPass: "password"
-  mqQueue: "queue name"
-domainUpdateInterval: 1000000

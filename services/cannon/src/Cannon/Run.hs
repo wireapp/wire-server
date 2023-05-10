@@ -53,12 +53,10 @@ import System.Posix.Signals
 import qualified System.Posix.Signals as Signals
 import System.Random.MWC (createSystemRandom)
 import UnliftIO.Concurrent (myThreadId, throwTo)
-import Wire.API.Routes.FederationDomainConfig
-import qualified Wire.API.Routes.Internal.Brig as IAPI
 import qualified Wire.API.Routes.Internal.Cannon as Internal
-import Wire.API.Routes.Named (namedClient)
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version.Wai
+import Wire.API.FederationUpdate (getAllowedDomainsLoop, getAllowedDomainsInitial)
 
 type CombinedAPI = PublicAPI :<|> Internal.API
 
@@ -85,20 +83,9 @@ run o = do
   let Brig bh bp = o ^. brig
       baseUrl = BaseUrl Http (unpack bh) (fromIntegral bp) ""
       clientEnv = ClientEnv manager baseUrl Nothing defaultMakeClientRequest
-      -- Loop the request until we get an answer. This is helpful during integration
-      -- tests where services are being brought up in parallel.
-      getInitialFedDomains = do
-        runClientM getFedRemotes clientEnv >>= \case
-          Right strat -> pure strat
-          Left err -> do
-            print $ "Could not retrieve the latest list of federation domains from Brig: " <> show err
-            threadDelay $ o ^. domainUpdateInterval
-            getInitialFedDomains
-  fedStrat <- getInitialFedDomains
-  tEnv <- newTVarIO fedStrat
-  let callback :: FederationDomainConfigs -> IO ()
-      callback = atomically . writeTVar tEnv
-  updateDomainsThread <- Async.async $ updateDomains clientEnv callback
+  fedStrat <- getAllowedDomainsInitial clientEnv
+  ioref <- newIORef fedStrat
+  updateDomainsThread <- Async.async $ getAllowedDomainsLoop clientEnv ioref
 
   let middleware :: Wai.Middleware
       middleware =
@@ -133,17 +120,6 @@ run o = do
       maybe (readExternal extFile) (pure . encodeUtf8) (o ^. cannon . externalHost)
     readExternal :: FilePath -> IO ByteString
     readExternal f = encodeUtf8 . strip . pack <$> Strict.readFile f
-
-    getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
-
-    updateDomains :: ClientEnv -> (FederationDomainConfigs -> IO ()) -> IO ()
-    updateDomains clientEnv update = forever $ do
-      threadDelay $ o ^. domainUpdateInterval
-      strat <- runClientM getFedRemotes clientEnv
-      either
-        print
-        update
-        strat
 
 signalHandler :: Env -> ThreadId -> Signals.Handler
 signalHandler e mainThread = CatchOnce $ do

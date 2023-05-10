@@ -214,9 +214,3 @@ optSettings:
 
 logLevel: Warn
 logNetStrings: false
-mqSettings:
-  mqHost: ""
-  mqVHost: ""
-  mqUser: ""
-  mqPass: ""
-  mqQueue: ""

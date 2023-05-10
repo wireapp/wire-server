@@ -53,6 +53,7 @@ import Servant.Client.Core
 import Servant.Types.SourceT
 import Wire.Network.DNS.Effect
 import Wire.Sem.Logger.TinyLog
+import Wire.API.Routes.FederationDomainConfig
 
 defaultHeaders :: [HTTP.Header]
 defaultHeaders = [("Content-Type", "application/json")]
@@ -119,7 +120,7 @@ type AllEffects =
      ServiceStreaming,
      Input RunSettings,
      Input Http2Manager, -- needed by Remote
-     Input AllowedDomains, -- needed for `FederationStrategy` `AllowList`.
+     Input FederationDomainConfigs, -- needed for the domain list.
      Input Env, -- needed by Service
      Error ValidationError,
      Error RemoteError,

@@ -25,7 +25,7 @@ import Data.Default
 import Data.Domain
 import Federator.Error.ServerError
 import Federator.InternalServer (callOutward)
-import Federator.Options (AllowedDomains (..), FederationStrategy (..), RunSettings (..))
+import Federator.Options (FederationStrategy (..), RunSettings (..))
 import Federator.Remote
 import Federator.Validation
 import Imports
@@ -44,6 +44,8 @@ import Test.Tasty.HUnit
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
 import Wire.Sem.Logger.TinyLog
+import Wire.API.Routes.FederationDomainConfig
+import Wire.API.User.Search
 
 tests :: TestTree
 tests =
@@ -56,9 +58,9 @@ tests =
         ]
     ]
 
-settingsWithAllowList :: [Domain] -> RunSettings
-settingsWithAllowList domains =
-  noClientCertSettings {federationStrategy = AllowList (AllowedDomains domains)}
+settingsWithAllowList :: RunSettings
+settingsWithAllowList =
+  noClientCertSettings {federationStrategy = AllowList}
 
 federatedRequestSuccess :: TestTree
 federatedRequestSuccess =
@@ -95,6 +97,7 @@ federatedRequestSuccess =
         . assertNoError @ServerError
         . discardTinyLogs
         . runInputConst settings
+        . runInputConst (FederationDomainConfigs [] 0)
         $ callOutward request
     Wai.responseStatus res @?= HTTP.status200
     body <- Wai.lazyResponseBody res
@@ -106,7 +109,7 @@ federatedRequestSuccess =
 federatedRequestFailureAllowList :: TestTree
 federatedRequestFailureAllowList =
   testCase "should not make a call when target domain not in the allowList" $ do
-    let settings = settingsWithAllowList [Domain "hello.world"]
+    let settings = settingsWithAllowList
     let targetDomain = Domain "target.example.com"
         headers = [(originDomainHeaderName, "origin.example.com")]
     request <-
@@ -136,6 +139,7 @@ federatedRequestFailureAllowList =
         . assertNoError @ServerError
         . discardTinyLogs
         . runInputConst settings
+        . runInputConst (FederationDomainConfigs [FederationDomainConfig (Domain "hello.world") FullSearch] 0)
         $ callOutward request
     eith @?= Left (FederationDenied targetDomain)
 

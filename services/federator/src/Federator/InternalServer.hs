@@ -36,6 +36,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Federation.Component
+import Wire.API.Routes.FederationDomainConfig
 
 data RequestData = RequestData
   { rdTargetDomain :: Text,
@@ -83,7 +84,7 @@ callOutward ::
     Member (Error ValidationError) r,
     Member (Error ServerError) r,
     Member (Input RunSettings) r,
-    Member (Input AllowedDomains) r
+    Member (Input FederationDomainConfigs) r
   ) =>
   Wai.Request ->
   Sem r Wai.Response

@@ -55,9 +55,8 @@ import qualified System.Logger.Extended as LogExt
 import Util.Options
 import Wire.API.Federation.Component
 import Wire.API.Routes.FederationDomainConfig
-import qualified Wire.API.Routes.Internal.Brig as IAPI
-import Wire.API.Routes.Named
 import qualified Wire.Network.DNS.Helper as DNS
+import Wire.API.FederationUpdate
 
 ------------------------------------------------------------------------------
 -- run/app
@@ -67,38 +66,16 @@ run :: Opts -> IO ()
 run opts = do
   manager <- newManager defaultManagerSettings
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
-  let Endpoint host port = brig opts
+      Endpoint host port = brig opts
       baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
       clientEnv = ClientEnv manager baseUrl Nothing defaultMakeClientRequest
-
-      getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
-
-      getAllowedDomainsOnce :: IO AllowedDomains
-      getAllowedDomainsOnce =
-        (AllowedDomains . fmap domain . fromFederationDomainConfigs)
-          <$> let go :: IO FederationDomainConfigs
-                  go = do
-                    runClientM getFedRemotes clientEnv >>= \case
-                      Right s -> pure s
-                      Left e -> do
-                        print $ "Could not retrieve the latest list of federation domains from Brig: " <> show e -- TODO: log error or critical!
-                        threadDelay $ domainUpdateInterval opts
-                        go
-               in go
-
-      getAllowedDomainsLoop :: Env -> IO ()
-      getAllowedDomainsLoop env = forever $ do
-        threadDelay $ domainUpdateInterval opts
-        atomicWriteIORef (view allowedRemoteDomains env) =<< getAllowedDomainsOnce
-
-  okRemoteDomains <- getAllowedDomainsOnce
-
+  okRemoteDomains <- getAllowedDomainsInitial clientEnv
   DNS.withCachingResolver resolvConf $ \res ->
     bracket (newEnv opts res okRemoteDomains) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
       withMonitor (env ^. applog) (onNewSSLContext env) (optSettings opts) $ do
-        updateAllowedDomainsThread <- async (getAllowedDomainsLoop env)
+        updateAllowedDomainsThread <- async (getAllowedDomainsLoop clientEnv $ view allowedRemoteDomains env)
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
         void $ waitAnyCancel [updateAllowedDomainsThread, internalServerThread, externalServerThread]
@@ -121,7 +98,7 @@ run opts = do
 -------------------------------------------------------------------------------
 -- Environment
 
-newEnv :: Opts -> DNS.Resolver -> AllowedDomains -> IO Env
+newEnv :: Opts -> DNS.Resolver -> FederationDomainConfigs -> IO Env
 newEnv o _dnsResolver okRemoteDomains = do
   _metrics <- Metrics.metrics
   _applog <- LogExt.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)

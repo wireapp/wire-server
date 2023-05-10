@@ -10,11 +10,11 @@ import Prelude (Show, String)
 
 -- | Options for connecting to the message queue system
 data MessageQueueSettings = MessageQueueSettings
-  { mqHost :: String,
-    mqVHost :: Text,
-    mqUser :: Text,
-    mqPass :: Text,
-    mqQueue :: Text
+  { host :: String,
+    vHost :: Text,
+    user :: Text,
+    pass :: Text,
+    queue :: Text
   }
   deriving (Show, Generic)
 

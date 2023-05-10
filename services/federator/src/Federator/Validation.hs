@@ -37,7 +37,6 @@ import qualified Data.Text.Lazy as LText
 import qualified Data.X509 as X509
 import qualified Data.X509.Validation as X509
 import Federator.Discovery
-import Federator.Env
 import Federator.Error
 import Federator.Options
 import Imports
@@ -47,6 +46,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Wire.Network.DNS.SRV (SrvTarget (..))
+import Wire.API.Routes.FederationDomainConfig
 
 data ValidationError
   = NoClientCertificate
@@ -93,7 +93,7 @@ validationErrorStatus _ = HTTP.status403
 -- | Validates an already-parsed domain against the allowList (stored in
 -- `brig.federation_remotes`, cached in `Env`).
 ensureCanFederateWith ::
-  ( Member (Input AllowedDomains) r,
+  ( Member (Input FederationDomainConfigs) r,
     Member (Input RunSettings) r,
     Member (Error ValidationError) r
   ) =>
@@ -104,8 +104,8 @@ ensureCanFederateWith targetDomain = do
   case strategy of
     AllowAll -> pure ()
     AllowList -> do
-      AllowedDomains domains <- input
-      unless (targetDomain `elem` domains) $
+      FederationDomainConfigs domains _ <- input
+      unless (targetDomain `elem` fmap domain domains) $
         throw (FederationDenied targetDomain)
 
 decodeCertificate ::
@@ -143,7 +143,7 @@ parseDomainText domain =
 -- by the client certificate
 validateDomain ::
   ( Member (Input RunSettings) r,
-    Member (Input AllowedDomains) r,
+    Member (Input FederationDomainConfigs) r,
     Member (Error ValidationError) r,
     Member (Error DiscoveryFailure) r,
     Member DiscoverFederator r

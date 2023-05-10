@@ -46,6 +46,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Federation.Component
 import Wire.Sem.Logger.TinyLog
+import Wire.API.Routes.FederationDomainConfig
 
 tests :: TestTree
 tests =
@@ -113,6 +114,7 @@ requestBrigSuccess =
         . discardTinyLogs
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
+        . runInputConst (FederationDomainConfigs [] 0)
         $ callInward request
     let expectedCall = Call Brig "/federation/get-user-by-handle" "\"foo\"" aValidDomain
     assertEqual "one call to brig should be made" [expectedCall] actualCalls
@@ -138,6 +140,7 @@ requestBrigFailure =
         . discardTinyLogs
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
+        . runInputConst (FederationDomainConfigs [] 0)
         $ callInward request
 
     let expectedCall = Call Brig "/federation/get-user-by-handle" "\"foo\"" aValidDomain
@@ -164,6 +167,7 @@ requestGalleySuccess =
           . discardTinyLogs
           . mockDiscoveryTrivial
           . runInputConst noClientCertSettings
+          . runInputConst (FederationDomainConfigs [] 0)
           $ callInward request
       let expectedCall = Call Galley "/federation/get-conversations" "\"foo\"" aValidDomain
       embed $ assertEqual "one call to galley should be made" [expectedCall] actualCalls
@@ -192,6 +196,7 @@ requestNoDomain =
           . discardTinyLogs
           . mockDiscoveryTrivial
           . runInputConst noClientCertSettings
+          . runInputConst (FederationDomainConfigs [] 0)
           $ callInward request
 
       embed $ assertEqual "no calls to services should be made" [] actualCalls
@@ -217,6 +222,7 @@ requestNoCertificate =
         . discardTinyLogs
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
+        . runInputConst (FederationDomainConfigs [] 0)
         $ callInward request
 
     assertEqual "no calls to services should be made" [] actualCalls
@@ -268,6 +274,7 @@ testInvalidPaths = do
           . discardTinyLogs
           . mockDiscoveryTrivial
           . runInputConst noClientCertSettings
+          . runInputConst (FederationDomainConfigs [] 0)
           $ callInward request
 
       assertEqual ("Expected request with path \"" <> cs invalidPath <> "\" to fail") (Left InvalidRoute) (void res)
@@ -291,6 +298,7 @@ testInvalidComponent =
         . discardTinyLogs
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
+        . runInputConst (FederationDomainConfigs [] 0)
         $ callInward request
 
     void res @?= Left (UnknownComponent "mast")
@@ -319,6 +327,7 @@ testMethod =
           . discardTinyLogs
           . mockDiscoveryTrivial
           . runInputConst noClientCertSettings
+          . runInputConst (FederationDomainConfigs [] 0)
           $ callInward request
       void res @?= Left InvalidRoute
 

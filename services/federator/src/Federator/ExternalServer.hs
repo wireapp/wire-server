@@ -41,6 +41,7 @@ import Servant.Client.Core
 import qualified System.Logger.Message as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
+import Wire.API.Routes.FederationDomainConfig
 
 -- FUTUREWORK(federation): Versioning of the federation API.
 callInward ::
@@ -52,7 +53,7 @@ callInward ::
     Member (Error DiscoveryFailure) r,
     Member (Error ServerError) r,
     Member (Input RunSettings) r,
-    Member (Input AllowedDomains) r
+    Member (Input FederationDomainConfigs) r
   ) =>
   Wai.Request ->
   Sem r Wai.Response

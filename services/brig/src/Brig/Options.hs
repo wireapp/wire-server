@@ -461,7 +461,7 @@ data Opts = Opts
     -- | Runtime settings
     optSettings :: !Settings,
     -- | Message Queue settings
-    mqSettings :: !MessageQueueSettings
+    mqSettings :: !(Maybe MessageQueueSettings)
   }
   deriving (Show, Generic)
 

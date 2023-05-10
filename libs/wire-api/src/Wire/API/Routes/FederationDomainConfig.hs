@@ -46,8 +46,10 @@ instance ToSchema FederationDomainConfig where
         <$> domain .= field "domain" schema
         <*> cfgSearchPolicy .= field "search_policy" schema
 
-newtype FederationDomainConfigs = FederationDomainConfigs
-  {fromFederationDomainConfigs :: [FederationDomainConfig]}
+data FederationDomainConfigs = FederationDomainConfigs
+  { fromFederationDomainConfigs :: [FederationDomainConfig]
+  , updateInterval :: Int
+  }
   deriving (Show, Generic, Eq)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema FederationDomainConfigs
 
@@ -56,3 +58,4 @@ instance ToSchema FederationDomainConfigs where
     object "FederationDomainConfigs" $
       FederationDomainConfigs
         <$> fromFederationDomainConfigs .= field "remotes" (array schema)
+        <*> updateInterval .= field "updateInterval" schema
