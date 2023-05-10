@@ -58,6 +58,11 @@ spec:
           secret:
             secretName: {{ .Values.tls.secretRef }}
         {{- end }}
+        {{- if .Values.federate.dtls.enabled }}
+        - name: coturn-dtls-certificate
+          secret:
+            secretName: coturn-dtls-certificate
+        {{- end }}
       initContainers:
         - name: get-external-ip
           image: bitnami/kubectl:1.24.12
@@ -116,6 +121,11 @@ spec:
               mountPath: /secrets-tls/
               readOnly: true
           {{- end }}
+{{- if .Values.federate.dtls.enabled }}
+            - name: coturn-dtls-certificate
+              mountPath: /coturn-dtls-certificate/
+              readOnly: true
+{{- end }}
           command:
             - /bin/sh
             - -c
