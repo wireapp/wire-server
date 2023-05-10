@@ -178,7 +178,7 @@ authAPI =
 
 federationRemotesAPI :: ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
-  Named @"get-federation-remotes" getFederationRemotes -- TODO: get this from TVar!
+  Named @"get-federation-remotes" getFederationRemotes
     :<|> Named @"add-federation-remotes" addFederationRemote
     :<|> Named @"delete-federation-remotes" deleteFederationRemotes
 

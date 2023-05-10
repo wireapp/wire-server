@@ -192,6 +192,15 @@ maintained by brig is mostly ignored, but e.g., search policy is still
 considered by brig itself.
 -}
 
+{-
+
+TODO: explain how brig doesn't cache, but always read from the
+database, and that if you have update cycles of <10? secs, and/or
+clusters with >100? pods, you should monitor the load a little after
+upgrade.
+
+-}
+
 See {ref}`configuring-remote-connections-dev-perspective` for the
 developer's point of view on this topic.
 
