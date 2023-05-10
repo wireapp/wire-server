@@ -200,10 +200,11 @@ getFederationRemotes = lift $ do
   -- more robust migration path.  See
   -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
   -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
-  pure $ FederationDomainConfigs 
-    { fromFederationDomainConfigs = nub $ db <> cfg
-    , updateInterval = 1000000 -- TODO FIX ME!
-    }
+  pure $
+    FederationDomainConfigs
+      { fromFederationDomainConfigs = nub $ db <> cfg,
+        updateInterval = 1000000 -- TODO FIX ME!
+      }
 
 deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemotes dom = do

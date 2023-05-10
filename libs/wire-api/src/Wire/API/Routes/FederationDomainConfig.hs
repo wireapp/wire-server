@@ -47,8 +47,8 @@ instance ToSchema FederationDomainConfig where
         <*> cfgSearchPolicy .= field "search_policy" schema
 
 data FederationDomainConfigs = FederationDomainConfigs
-  { fromFederationDomainConfigs :: [FederationDomainConfig]
-  , updateInterval :: Int
+  { fromFederationDomainConfigs :: [FederationDomainConfig],
+    updateInterval :: Int
   }
   deriving (Show, Generic, Eq)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema FederationDomainConfigs

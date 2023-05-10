@@ -51,9 +51,9 @@ import Polysemy.Internal
 import Polysemy.TinyLog
 import Servant.Client.Core
 import Servant.Types.SourceT
+import Wire.API.Routes.FederationDomainConfig
 import Wire.Network.DNS.Effect
 import Wire.Sem.Logger.TinyLog
-import Wire.API.Routes.FederationDomainConfig
 
 defaultHeaders :: [HTTP.Header]
 defaultHeaders = [("Content-Type", "application/json")]

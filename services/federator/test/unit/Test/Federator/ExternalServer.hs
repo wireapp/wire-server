@@ -45,8 +45,8 @@ import Test.Federator.Validation (mockDiscoveryTrivial)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Federation.Component
-import Wire.Sem.Logger.TinyLog
 import Wire.API.Routes.FederationDomainConfig
+import Wire.Sem.Logger.TinyLog
 
 tests :: TestTree
 tests =

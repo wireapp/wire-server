@@ -93,6 +93,7 @@
 , tasty-quickcheck
 , text
 , time
+, tinylog
 , transitive-anns
 , types-common
 , unliftio
@@ -190,6 +191,7 @@ mkDerivation {
     tagged
     text
     time
+    tinylog
     transitive-anns
     types-common
     unordered-containers

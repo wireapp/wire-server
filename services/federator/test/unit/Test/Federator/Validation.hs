@@ -37,9 +37,9 @@ import Test.Federator.Options (noClientCertSettings)
 import Test.Federator.Util
 import Test.Tasty
 import Test.Tasty.HUnit
-import Wire.Network.DNS.SRV (SrvTarget (..))
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.User.Search
+import Wire.Network.DNS.SRV (SrvTarget (..))
 
 mockDiscoveryTrivial :: Sem (DiscoverFederator ': r) x -> Sem r x
 mockDiscoveryTrivial = Polysemy.interpret $ \case
@@ -88,7 +88,7 @@ tests =
 federateWithAllowListSuccess :: TestTree
 federateWithAllowListSuccess =
   testCase "should give True when target domain is in the list" $ do
-    let settings = settingsWithAllowList 
+    let settings = settingsWithAllowList
     runM
       . assertNoError @ValidationError
       . runInputConst settings

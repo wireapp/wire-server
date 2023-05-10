@@ -45,8 +45,8 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Wire.Network.DNS.SRV (SrvTarget (..))
 import Wire.API.Routes.FederationDomainConfig
+import Wire.Network.DNS.SRV (SrvTarget (..))
 
 data ValidationError
   = NoClientCertificate
