@@ -52,7 +52,6 @@ module Galley.Options
     optLogLevel,
     optLogNetStrings,
     optLogFormat,
-    optDomainUpdateInterval,
   )
 where
 
@@ -173,9 +172,7 @@ data Opts = Opts
     --  <http://cr.yp.to/proto/netstrings.txt>
     _optLogNetStrings :: !(Maybe (Last Bool)),
     -- | What log format to use
-    _optLogFormat :: !(Maybe (Last LogFormat)),
-    -- | Domain update interval (microseconds)
-    _optDomainUpdateInterval :: !Int
+    _optLogFormat :: !(Maybe (Last LogFormat))
   }
 
 deriveFromJSON toOptionFieldName ''Opts

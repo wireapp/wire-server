@@ -27,10 +27,22 @@ getAllowedDomainsInitial clientEnv =
 getAllowedDomains :: ClientEnv -> IO (Either ClientError FederationDomainConfigs)
 getAllowedDomains = runClientM getFedRemotes
 
-getAllowedDomainsLoop :: ClientEnv -> IORef FederationDomainConfigs -> IO ()
-getAllowedDomainsLoop clientEnv env = forever $ do
+type FedUpdateCallback = FederationDomainConfigs -> FederationDomainConfigs -> IO ()
+
+-- The callback takes the previous and the new values of the federation domain configs
+-- and runs a given action. This function is not called if a new config value cannot be fetched.
+getAllowedDomainsLoop :: ClientEnv -> IORef FederationDomainConfigs -> FedUpdateCallback -> IO ()
+getAllowedDomainsLoop clientEnv env callback = forever $ do
   getAllowedDomains clientEnv >>= \case
     Left e -> print $ "Could not retrieve the latest list of federation domains from Brig: " <> show e -- TODO: log error or critical!
-    Right cfg -> atomicWriteIORef env cfg
+    Right cfg -> do
+      old <- readIORef env
+      callback old cfg
+      atomicWriteIORef env cfg
   delay <- updateInterval <$> readIORef env
   threadDelay delay
+
+-- A version where the callback isn't needed. Most of the services don't care about
+-- when the list changes, just that they have the new list and can use it as-is
+getAllowedDomainsLoop' :: ClientEnv -> IORef FederationDomainConfigs -> IO ()
+getAllowedDomainsLoop' c r = getAllowedDomainsLoop c r $ \_ _ -> pure ()

@@ -54,11 +54,9 @@ import Servant.Client
 import qualified System.Logger as Log
 import qualified UnliftIO.Async as Async
 import Util.Options
-import Wire.API.Routes.FederationDomainConfig
-import qualified Wire.API.Routes.Internal.Brig as IAPI
-import Wire.API.Routes.Named (namedClient)
 import Wire.API.Routes.Public.Gundeck (GundeckAPI)
 import Wire.API.Routes.Version.Wai
+import Wire.API.FederationUpdate
 
 run :: Opts -> IO ()
 run o = do
@@ -75,20 +73,9 @@ run o = do
   let Endpoint host port = o ^. optBrig
       baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
       clientEnv = ClientEnv mgr baseUrl Nothing defaultMakeClientRequest
-      -- Loop the request until we get an answer. This is helpful during integration
-      -- tests where services are being brought up in parallel.
-      getInitialFedDomains = do
-        runClientM getFedRemotes clientEnv >>= \case
-          Right strat -> pure strat
-          Left err -> do
-            print $ "Could not retrieve the latest list of federation domains from Brig: " <> show err
-            threadDelay $ o ^. optDomainUpdateInterval
-            getInitialFedDomains
-  fedStrat <- getInitialFedDomains
-  tEnv <- newTVarIO fedStrat
-  let callback :: FederationDomainConfigs -> IO ()
-      callback = atomically . writeTVar tEnv
-  updateDomainsThread <- Async.async $ updateDomains clientEnv callback
+  fedStrat <- getAllowedDomainsInitial clientEnv
+  ioref <- newIORef fedStrat
+  updateDomainsThread <- Async.async $ getAllowedDomainsLoop' clientEnv ioref
 
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 10
@@ -112,17 +99,6 @@ run o = do
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. monitor]
-
-    getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
-
-    updateDomains :: ClientEnv -> (FederationDomainConfigs -> IO ()) -> IO ()
-    updateDomains clientEnv update = forever $ do
-      threadDelay $ o ^. optDomainUpdateInterval
-      strat <- runClientM getFedRemotes clientEnv
-      either
-        print
-        update
-        strat
 
 type CombinedAPI = GundeckAPI :<|> Servant.Raw
 

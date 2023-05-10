@@ -56,7 +56,7 @@ import UnliftIO.Concurrent (myThreadId, throwTo)
 import qualified Wire.API.Routes.Internal.Cannon as Internal
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version.Wai
-import Wire.API.FederationUpdate (getAllowedDomainsLoop, getAllowedDomainsInitial)
+import Wire.API.FederationUpdate (getAllowedDomainsInitial, getAllowedDomainsLoop')
 
 type CombinedAPI = PublicAPI :<|> Internal.API
 
@@ -85,7 +85,7 @@ run o = do
       clientEnv = ClientEnv manager baseUrl Nothing defaultMakeClientRequest
   fedStrat <- getAllowedDomainsInitial clientEnv
   ioref <- newIORef fedStrat
-  updateDomainsThread <- Async.async $ getAllowedDomainsLoop clientEnv ioref
+  updateDomainsThread <- Async.async $ getAllowedDomainsLoop' clientEnv ioref
 
   let middleware :: Wai.Middleware
       middleware =

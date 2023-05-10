@@ -108,9 +108,8 @@ import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
 import Wire.API.Error
 import Wire.API.Federation.Error
-import qualified Wire.API.Routes.Internal.Brig as IAPI
-import Wire.API.Routes.Named (namedClient)
 import qualified Wire.Sem.Logger
+import Wire.API.FederationUpdate
 
 -- Effects needed by the interpretation of other effects
 type GalleyEffects0 =
@@ -168,23 +167,13 @@ createEnv m o = do
       Endpoint h p = brigEndpoint
       baseUrl = SC.BaseUrl SC.Http (unpack h) (fromIntegral p) ""
       clientEnv = SC.ClientEnv mgr baseUrl Nothing SC.defaultMakeClientRequest
-      getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
-      -- Loop the request until we get an answer. This is helpful during integration
-      -- tests where services are being brought up in parallel.
-      getInitalFedDomains = do
-        SC.runClientM getFedRemotes clientEnv >>= \case
-          Right s -> pure s
-          Left e -> do
-            print $ "Could not retrieve the latest list of federation domains from Brig: " <> show e
-            threadDelay $ o ^. optDomainUpdateInterval
-            getInitalFedDomains
-  strat <- getInitalFedDomains
+  strat <- getAllowedDomainsInitial clientEnv
   Env def m o l mgr h2mgr (o ^. optFederator) brigEndpoint cass
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
     <*> loadAllMLSKeys (fold (o ^. optSettings . setMlsPrivateKeyPaths))
-    <*> newTVarIO strat
+    <*> newIORef strat
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do

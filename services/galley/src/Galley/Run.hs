@@ -66,17 +66,14 @@ import Servant.Client
     ClientEnv (ClientEnv),
     Scheme (Http),
     defaultMakeClientRequest,
-    runClientM,
   )
 import qualified System.Logger as Log
-import qualified System.Logger.Class as L
 import Util.Options
 import Wire.API.Routes.API
 import Wire.API.Routes.FederationDomainConfig
-import qualified Wire.API.Routes.Internal.Brig as IAPI
-import Wire.API.Routes.Named (namedClient)
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
+import Wire.API.FederationUpdate
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
@@ -186,29 +183,20 @@ collectAuthMetrics m env = do
 
 updateFedDomains :: App ()
 updateFedDomains = do
-  updateInterval <- view $ options . optDomainUpdateInterval
-  tvar <- view fedDomains
+  ioref <- view fedDomains
   manager' <- view manager
   Endpoint host port <- view brig
   let baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
       clientEnv = ClientEnv manager' baseUrl Nothing defaultMakeClientRequest
-  forever $ do
-    threadDelay updateInterval
-    previous <- liftIO $ readTVarIO tvar
-    strat <- liftIO $ runClientM getFedRemotes clientEnv
-    let domainListsEqual s =
-          Set.fromList (fromFederationDomainConfigs s)
-            == Set.fromList (fromFederationDomainConfigs previous)
-    case strat of
-      Left e -> L.err . L.msg $ "Could not retrieve federation domains from brig: " <> show e
-      -- Using Set to do the comparison, as it will handle the lists being in different orders.
-      Right s -> unless (domainListsEqual s) $ do
-        -- Perform updates before rewriting the tvar
-        -- This means that if the update fails on a
-        -- particular invocation, it can be run again
-        -- on the next firing as it isn't likely that
-        -- the domain list is changing frequently.
-        -- FS-1179 is handling this part.
-        liftIO $ atomically $ writeTVar tvar s
-  where
-    getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
+  
+  liftIO $ do
+    okRemoteDomains <- getAllowedDomainsInitial clientEnv
+    atomicWriteIORef ioref okRemoteDomains
+    let domainListsEqual old new =
+            Set.fromList (domain <$> fromFederationDomainConfigs old)
+              == Set.fromList (domain <$> fromFederationDomainConfigs new)
+        callback old new = unless (domainListsEqual old new) $ do
+          -- TODO: perform the database updates here
+          -- This code will only run when there is a change in the domain lists
+          pure ()
+    getAllowedDomainsLoop clientEnv ioref callback

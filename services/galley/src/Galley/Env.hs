@@ -61,7 +61,7 @@ data Env = Env
     _extEnv :: ExtEnv,
     _aEnv :: Maybe Aws.Env,
     _mlsKeys :: SignaturePurpose -> MLSKeys,
-    _fedDomains :: TVar FederationDomainConfigs
+    _fedDomains :: IORef FederationDomainConfigs
   }
 
 -- | Environment specific to the communication with external

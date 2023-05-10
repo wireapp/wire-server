@@ -75,7 +75,7 @@ run opts = do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
       withMonitor (env ^. applog) (onNewSSLContext env) (optSettings opts) $ do
-        updateAllowedDomainsThread <- async (getAllowedDomainsLoop clientEnv $ view allowedRemoteDomains env)
+        updateAllowedDomainsThread <- async (getAllowedDomainsLoop' clientEnv $ view allowedRemoteDomains env)
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
         void $ waitAnyCancel [updateAllowedDomainsThread, internalServerThread, externalServerThread]
