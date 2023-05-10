@@ -42,6 +42,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
 import Util
+import Wire.API.Properties (PropertyKey)
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra (tdStatus)
@@ -52,7 +53,6 @@ import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search
-import Wire.API.Properties (PropertyKey)
 
 tests :: IO TestSetup -> TestTree
 tests s =
