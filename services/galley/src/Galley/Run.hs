@@ -69,11 +69,11 @@ import Servant.Client
   )
 import qualified System.Logger as Log
 import Util.Options
+import Wire.API.FederationUpdate
 import Wire.API.Routes.API
 import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
-import Wire.API.FederationUpdate
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
@@ -184,19 +184,20 @@ collectAuthMetrics m env = do
 updateFedDomains :: App ()
 updateFedDomains = do
   ioref <- view fedDomains
+  logger <- view applog
   manager' <- view manager
   Endpoint host port <- view brig
   let baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
       clientEnv = ClientEnv manager' baseUrl Nothing defaultMakeClientRequest
-  
+
   liftIO $ do
-    okRemoteDomains <- getAllowedDomainsInitial clientEnv
+    okRemoteDomains <- getAllowedDomainsInitial logger clientEnv
     atomicWriteIORef ioref okRemoteDomains
     let domainListsEqual old new =
-            Set.fromList (domain <$> fromFederationDomainConfigs old)
-              == Set.fromList (domain <$> fromFederationDomainConfigs new)
+          Set.fromList (domain <$> fromFederationDomainConfigs old)
+            == Set.fromList (domain <$> fromFederationDomainConfigs new)
         callback old new = unless (domainListsEqual old new) $ do
           -- TODO: perform the database updates here
           -- This code will only run when there is a change in the domain lists
           pure ()
-    getAllowedDomainsLoop clientEnv ioref callback
+    getAllowedDomainsLoop logger clientEnv ioref callback

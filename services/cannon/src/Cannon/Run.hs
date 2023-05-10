@@ -53,10 +53,10 @@ import System.Posix.Signals
 import qualified System.Posix.Signals as Signals
 import System.Random.MWC (createSystemRandom)
 import UnliftIO.Concurrent (myThreadId, throwTo)
+import Wire.API.FederationUpdate (getAllowedDomainsInitial, getAllowedDomainsLoop')
 import qualified Wire.API.Routes.Internal.Cannon as Internal
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version.Wai
-import Wire.API.FederationUpdate (getAllowedDomainsInitial, getAllowedDomainsLoop')
 
 type CombinedAPI = PublicAPI :<|> Internal.API
 
@@ -83,9 +83,9 @@ run o = do
   let Brig bh bp = o ^. brig
       baseUrl = BaseUrl Http (unpack bh) (fromIntegral bp) ""
       clientEnv = ClientEnv manager baseUrl Nothing defaultMakeClientRequest
-  fedStrat <- getAllowedDomainsInitial clientEnv
+  fedStrat <- getAllowedDomainsInitial g clientEnv
   ioref <- newIORef fedStrat
-  updateDomainsThread <- Async.async $ getAllowedDomainsLoop' clientEnv ioref
+  updateDomainsThread <- Async.async $ getAllowedDomainsLoop' g clientEnv ioref
 
   let middleware :: Wai.Middleware
       middleware =

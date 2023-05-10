@@ -50,13 +50,13 @@ import qualified Network.DNS as DNS
 import Network.HTTP.Client
 import qualified Network.HTTP.Client as HTTP
 import Servant.Client
-import qualified System.Logger.Class as Log
+import qualified System.Logger as Log
 import qualified System.Logger.Extended as LogExt
 import Util.Options
 import Wire.API.Federation.Component
+import Wire.API.FederationUpdate
 import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.Network.DNS.Helper as DNS
-import Wire.API.FederationUpdate
 
 ------------------------------------------------------------------------------
 -- run/app
@@ -65,17 +65,18 @@ import Wire.API.FederationUpdate
 run :: Opts -> IO ()
 run opts = do
   manager <- newManager defaultManagerSettings
+  logger <- LogExt.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
       Endpoint host port = brig opts
       baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
       clientEnv = ClientEnv manager baseUrl Nothing defaultMakeClientRequest
-  okRemoteDomains <- getAllowedDomainsInitial clientEnv
+  okRemoteDomains <- getAllowedDomainsInitial logger clientEnv
   DNS.withCachingResolver resolvConf $ \res ->
-    bracket (newEnv opts res okRemoteDomains) closeEnv $ \env -> do
+    bracket (newEnv opts res logger okRemoteDomains) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
-      withMonitor (env ^. applog) (onNewSSLContext env) (optSettings opts) $ do
-        updateAllowedDomainsThread <- async (getAllowedDomainsLoop' clientEnv $ view allowedRemoteDomains env)
+      withMonitor logger (onNewSSLContext env) (optSettings opts) $ do
+        updateAllowedDomainsThread <- async (getAllowedDomainsLoop' logger clientEnv $ view allowedRemoteDomains env)
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
         void $ waitAnyCancel [updateAllowedDomainsThread, internalServerThread, externalServerThread]
@@ -98,10 +99,9 @@ run opts = do
 -------------------------------------------------------------------------------
 -- Environment
 
-newEnv :: Opts -> DNS.Resolver -> FederationDomainConfigs -> IO Env
-newEnv o _dnsResolver okRemoteDomains = do
+newEnv :: Opts -> DNS.Resolver -> Log.Logger -> FederationDomainConfigs -> IO Env
+newEnv o _dnsResolver _applog okRemoteDomains = do
   _metrics <- Metrics.metrics
-  _applog <- LogExt.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def
   let _runSettings = Opt.optSettings o
   let _service Brig = Opt.brig o

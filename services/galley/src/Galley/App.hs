@@ -108,8 +108,8 @@ import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
 import Wire.API.Error
 import Wire.API.Federation.Error
-import qualified Wire.Sem.Logger
 import Wire.API.FederationUpdate
+import qualified Wire.Sem.Logger
 
 -- Effects needed by the interpretation of other effects
 type GalleyEffects0 =
@@ -167,7 +167,7 @@ createEnv m o = do
       Endpoint h p = brigEndpoint
       baseUrl = SC.BaseUrl SC.Http (unpack h) (fromIntegral p) ""
       clientEnv = SC.ClientEnv mgr baseUrl Nothing SC.defaultMakeClientRequest
-  strat <- getAllowedDomainsInitial clientEnv
+  strat <- getAllowedDomainsInitial l clientEnv
   Env def m o l mgr h2mgr (o ^. optFederator) brigEndpoint cass
     <$> Q.new 16000
     <*> initExtEnv

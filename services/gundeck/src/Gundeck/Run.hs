@@ -54,9 +54,9 @@ import Servant.Client
 import qualified System.Logger as Log
 import qualified UnliftIO.Async as Async
 import Util.Options
+import Wire.API.FederationUpdate
 import Wire.API.Routes.Public.Gundeck (GundeckAPI)
 import Wire.API.Routes.Version.Wai
-import Wire.API.FederationUpdate
 
 run :: Opts -> IO ()
 run o = do
@@ -73,9 +73,9 @@ run o = do
   let Endpoint host port = o ^. optBrig
       baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
       clientEnv = ClientEnv mgr baseUrl Nothing defaultMakeClientRequest
-  fedStrat <- getAllowedDomainsInitial clientEnv
+  fedStrat <- getAllowedDomainsInitial l clientEnv
   ioref <- newIORef fedStrat
-  updateDomainsThread <- Async.async $ getAllowedDomainsLoop' clientEnv ioref
+  updateDomainsThread <- Async.async $ getAllowedDomainsLoop' l clientEnv ioref
 
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 10
