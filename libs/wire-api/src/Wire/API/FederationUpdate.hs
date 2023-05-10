@@ -6,6 +6,8 @@ module Wire.API.FederationUpdate
   )
 where
 
+import Control.Exception (ErrorCall (ErrorCall), throwIO)
+import qualified Control.Retry as R
 import Imports
 import Servant.Client (ClientEnv, ClientError, runClientM)
 import Servant.Client.Internal.HttpClient (ClientM)
@@ -20,18 +22,22 @@ getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
 -- Initial function for getting the set of domains from brig, and an update interval
 getAllowedDomainsInitial :: L.Logger -> ClientEnv -> IO FederationDomainConfigs
 getAllowedDomainsInitial logger clientEnv =
-  let oneSec = 1000000 -- microsends
-      go :: IO FederationDomainConfigs
+  let -- keep trying every 3s for one minute
+      policy :: R.RetryPolicy
+      policy = R.constantDelay 3_081_003 <> R.limitRetries 20
+
+      go :: IO (Maybe FederationDomainConfigs)
       go = do
         getAllowedDomains clientEnv >>= \case
-          Right s -> pure s
+          Right s -> pure $ Just s
           Left e -> do
             L.log logger L.Info $
               L.msg (L.val "Could not retrieve an initial list of federation domains from Brig.")
                 L.~~ "error" L..= show e
-            threadDelay oneSec -- TODO: use retry instead.
-            go
-   in go
+            pure Nothing
+   in R.retrying policy (const (pure . isNothing)) (const go) >>= \case
+        Just c -> pure c
+        Nothing -> throwIO $ ErrorCall "*** Failed to reach brig for federation setup, giving up!"
 
 getAllowedDomains :: ClientEnv -> IO (Either ClientError FederationDomainConfigs)
 getAllowedDomains = runClientM getFedRemotes

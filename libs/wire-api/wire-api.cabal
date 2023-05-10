@@ -191,6 +191,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -269,6 +270,7 @@ library
     , quickcheck-instances       >=0.3.16
     , random                     >=1.2.0
     , resourcet
+    , retry
     , saml2-web-sso
     , schema-profunctor
     , scientific
