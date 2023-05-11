@@ -11,21 +11,18 @@ Check that this file exists by running `ls $KUBECONFIG`.
 
 ## How to look at the swagger docs / UI locally
 
-Terminal 1:
-* Set up backing services: `./deploy/dockerephemeral/run.sh`
+In the root of wire-server:
 
-Terminal 2:
-* Compile all services: `make c`
-* Run services including nginz: `./services/start-services-only.sh`.
+```
+$ make c && ./services/run-services
+```
 
 Open your browser at:
-[http://localhost:8080/api/swagger-ui](http://localhost:8080/api/swagger-ui) for
-the Swagger 2.0 endpoints of the latest version. This endpoint is versioned;
-i.e. the Swagger docs refer to the API version. Refer to the [Swagger API
-documentation](../../understand/api-client-perspective/swagger.md) regarding
-Swagger and API versioning.
+[http://localhost:8080/api/swagger-ui](http://localhost:8080/api/swagger-ui) for a list of API verions.
 
-Swagger json is available under [http://localhost:8080/api/swagger.json](http://localhost:8080/api/swagger.json)
+Also check out the docs for swagger in our staging environment:
+{ref}`swagger-api-docs`.  Replace the staging domain by
+`localhost:8080` to get to your local build.
 
 
 ## How to run federation tests across two backends
@@ -211,6 +208,6 @@ Note: Simply deleting the namespaces is insufficient, because it leaves some res
 
 ## How to manage RabbitMQ
 
-We support two different ways of managing the docker-compose instance of rabbitmq: 
-* A web console interface is available [here](http://localhost:15672) 
+We support two different ways of managing the docker-compose instance of rabbitmq:
+* A web console interface is available [here](http://localhost:15672)
 * `rabbitmqadmin` CLI is made available in the dev environment
