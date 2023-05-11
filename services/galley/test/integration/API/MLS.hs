@@ -100,8 +100,7 @@ tests s =
         ],
       testGroup
         "Commit"
-        [ test s "add user to a conversation" testAddUser,
-          test s "add user (not connected)" testAddUserNotConnected,
+        [ test s "add user (not connected)" testAddUserNotConnected,
           test s "add user (partial client list)" testAddUserPartial,
           test s "add client of existing user" testAddClientPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
@@ -194,8 +193,7 @@ tests s =
         ],
       testGroup
         "Self conversation"
-        [ test s "create a self conversation" testSelfConversation,
-          test s "do not list a self conversation below v3" $ testSelfConversationList True,
+        [ test s "do not list a self conversation below v3" $ testSelfConversationList True,
           test s "list a self conversation automatically from v3" $ testSelfConversationList False,
           test s "listing conversations without MLS configured" testSelfConversationMLSNotConfigured,
           test s "attempt to add another user to a conversation fails" testSelfConversationOtherUser,
@@ -213,10 +211,7 @@ tests s =
         "SubConversation"
         [ testGroup
             "Local Sender/Local Subconversation"
-            [ test s "get subconversation of MLS conv - 200" (testCreateSubConv True),
-              test s "get subconversation of Proteus conv - 404" (testCreateSubConv False),
-              test s "join subconversation with an external commit bundle" testJoinSubConv,
-              test s "rejoin a subconversation with the same client" testExternalCommitSameClientSubConv,
+            [ test s "rejoin a subconversation with the same client" testExternalCommitSameClientSubConv,
               test s "join subconversation with a client that is not in the parent conv" testJoinSubNonMemberClient,
               test s "fail to add another client to a subconversation via internal commit" testAddClientSubConvFailure,
               test s "remove another client from a subconversation" testRemoveClientSubConv,
@@ -382,28 +377,6 @@ testAddUserWithBundle = do
   returnedGS <- getGroupInfo alice (fmap Conv qcnv)
   liftIO $ assertBool "Commit does not contain a public group State" (isJust (mpGroupInfo commit))
   liftIO $ mpGroupInfo commit @?= Just returnedGS
-
-testAddUser :: TestM ()
-testAddUser = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
-
-  qcnv <- runMLSTest $ do
-    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
-
-    traverse_ uploadNewKeyPackage [bob1, bob2]
-
-    (_, qcnv) <- setupMLSGroup alice1
-    events <- createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-    event <- assertOne events
-    liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
-    pure qcnv
-
-  -- check that bob can now see the conversation
-  convs <- getAllConvs (qUnqualified bob)
-  liftIO $
-    assertBool
-      "Users added to an MLS group should find it when listing conversations"
-      (qcnv `elem` map cnvQualifiedId convs)
 
 testAddUserNotConnected :: TestM ()
 testAddUserNotConnected = do
@@ -2165,24 +2138,6 @@ testRemoteUserPostsCommitBundle = do
 
         pure ()
 
--- FUTUREWORK: New clients should be adding themselves via external commits, and
--- they shouldn't be added by another client. Change the test so external
--- commits are used.
-testSelfConversation :: TestM ()
-testSelfConversation = do
-  alice <- randomQualifiedUser
-  runMLSTest $ do
-    creator : others <- traverse createMLSClient (replicate 3 alice)
-    traverse_ uploadNewKeyPackage others
-    void $ setupMLSSelfGroup creator
-    commit <- createAddCommit creator [alice]
-    welcome <- assertJust (mpWelcome commit)
-    mlsBracket others $ \wss -> do
-      void $ sendAndConsumeCommitBundle commit
-      WS.assertMatchN_ (5 # Second) wss $
-        wsAssertMLSWelcome alice welcome
-      WS.assertNoEvent (1 # WS.Second) wss
-
 -- | The MLS self-conversation should be available even without explicitly
 -- creating it by calling `GET /conversations/mls-self` starting from version 3
 -- of the client API and should not be listed in versions less than 3.
@@ -2319,78 +2274,6 @@ deleteSubConversationDisabled = do
           (Epoch 0)
   withMLSDisabled $
     deleteSubConv alice cnvId scnvId dsc !!! assertMLSNotEnabled
-
-testCreateSubConv :: Bool -> TestM ()
-testCreateSubConv parentIsMLSConv = do
-  alice <- randomQualifiedUser
-  runMLSTest $ do
-    qcnv <-
-      if parentIsMLSConv
-        then do
-          creator <- createMLSClient alice
-          (_, qcnv) <- setupMLSGroup creator
-          pure qcnv
-        else
-          cnvQualifiedId
-            <$> liftTest
-              ( postConvQualified (qUnqualified alice) Nothing defNewProteusConv
-                  >>= responseJsonError
-              )
-    let sconv = SubConvId "conference"
-    if parentIsMLSConv
-      then do
-        sub <-
-          liftTest $
-            responseJsonError
-              =<< getSubConv (qUnqualified alice) qcnv sconv
-                <!! const 200 === statusCode
-        liftIO $
-          assertEqual
-            "The epoch timestamp is not null"
-            Nothing
-            (pscEpochTimestamp sub)
-      else
-        liftTest $
-          getSubConv (qUnqualified alice) qcnv sconv
-            !!! const 404 === statusCode
-
-testJoinSubConv :: TestM ()
-testJoinSubConv = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
-
-  runMLSTest $
-    do
-      [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
-      traverse_ uploadNewKeyPackage [bob1, bob2]
-      (_, qcnv) <- setupMLSGroup alice1
-      void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-
-      let subId = SubConvId "conference"
-      sub <-
-        liftTest $
-          responseJsonError
-            =<< getSubConv (qUnqualified bob) qcnv subId
-              <!! const 200 === statusCode
-
-      resetGroup bob1 (fmap (flip SubConv subId) qcnv) (pscGroupId sub)
-
-      -- bob adds his first client to the subconversation
-      void $
-        createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
-      subAfter <-
-        liftTest $
-          responseJsonError
-            =<< getSubConv (qUnqualified bob) qcnv subId
-              <!! const 200 === statusCode
-      liftIO $ do
-        assertBool
-          "The epoch timestamp is null"
-          (isJust (pscEpochTimestamp subAfter))
-
-      -- now alice joins with her own client
-      void $
-        createExternalCommit alice1 Nothing (fmap (flip SubConv subId) qcnv)
-          >>= sendAndConsumeCommitBundle
 
 testExternalCommitSameClientSubConv :: TestM ()
 testExternalCommitSameClientSubConv = do

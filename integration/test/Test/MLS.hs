@@ -2,7 +2,10 @@
 
 module Test.MLS where
 
-import qualified API.Galley as Public
+import API.Galley
+import qualified Data.ByteString.Base64 as Base64
+import qualified Data.ByteString.Char8 as B8
+import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
 
@@ -10,11 +13,11 @@ testMixedProtocolUpgrade :: HasCallStack => App ()
 testMixedProtocolUpgrade = do
   [alice, bob] <- createAndConnectUsers [ownDomain, ownDomain]
 
-  qcnv <- bindResponseR (Public.postConversation alice noValue Public.defProteus {Public.qualifiedUsers = [bob]}) $ \resp -> do
+  qcnv <- bindResponseR (postConversation alice noValue defProteus {qualifiedUsers = [bob]}) $ \resp -> do
     resp.status `shouldMatchInt` 201
 
   withWebSocket alice $ \wsAlice -> do
-    bindResponse (Public.putConversationProtocol bob qcnv noValue "mixed") $ \resp -> do
+    bindResponse (putConversationProtocol bob qcnv noValue "mixed") $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp %. "conversation" `shouldMatch` (qcnv %. "id")
       resp %. "data.protocol" `shouldMatch` "mixed"
@@ -22,9 +25,106 @@ testMixedProtocolUpgrade = do
     n <- awaitMatch 3 (\value -> nPayload value %. "type" `isEqual` "conversation.protocol-update") wsAlice
     nPayload n %. "data.protocol" `shouldMatch` "mixed"
 
-  bindResponse (Public.getConversation alice qcnv) $ \resp -> do
+  bindResponse (getConversation alice qcnv) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp %. "protocol" `shouldMatch` "mixed"
 
-  bindResponse (Public.putConversationProtocol alice qcnv noValue "mixed") $ \resp -> do
+  bindResponse (putConversationProtocol alice qcnv noValue "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 204
+
+testAddUser :: HasCallStack => App ()
+testAddUser = do
+  [alice, bob] <- createAndConnectUsers [ownDomain, ownDomain]
+
+  [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+
+  traverse_ uploadNewKeyPackage [bob1, bob2]
+
+  (_, qcnv) <- setupMLSGroup alice1
+
+  resp <- createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+  events <- resp %. "events" & asList
+  do
+    event <- assertOne events
+    shouldMatch (event %. "qualified_conversation") qcnv
+    shouldMatch (event %. "type") "conversation.member-join"
+    shouldMatch (event %. "from") (objId alice)
+    members <- event %. "data" %. "users" & asList
+    memberQids <- for members $ \mem -> mem %. "qualified_id"
+    bobQid <- bob %. "qualified_id"
+    shouldMatch memberQids [bobQid]
+
+  -- check that bob can now see the conversation
+  convs <- getAllConvs bob
+  convIds <- traverse (%. "qualified_id") convs
+  void $
+    assertBool
+      "Users added to an MLS group should find it when listing conversations"
+      (qcnv `elem` convIds)
+
+testCreateSubConv :: HasCallStack => App ()
+testCreateSubConv = do
+  alice <- randomUser ownDomain def
+  alice1 <- createMLSClient alice
+  (_, conv) <- setupMLSGroup alice1
+  bindResponse (getSubConversation alice conv "conference") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    let tm = resp.json %. "epoch_timestamp"
+    tm `shouldMatch` Null
+
+testCreateSubConvProteus :: App ()
+testCreateSubConvProteus = do
+  alice <- randomUser ownDomain def
+  conv <- bindResponse (postConversation alice noValue defProteus) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json
+  bindResponse (getSubConversation alice conv "conference") $ \resp ->
+    resp.status `shouldMatchInt` 404
+
+-- FUTUREWORK: New clients should be adding themselves via external commits, and
+-- they shouldn't be added by another client. Change the test so external
+-- commits are used.
+testSelfConversation :: App ()
+testSelfConversation = do
+  alice <- randomUser ownDomain def
+  creator : others <- traverse createMLSClient (replicate 3 alice)
+  traverse_ uploadNewKeyPackage others
+  void $ setupMLSSelfGroup creator
+  commit <- createAddCommit creator [alice]
+  welcome <- assertOne (toList commit.welcome)
+
+  withWebSockets others $ \wss -> do
+    void $ sendAndConsumeCommitBundle commit
+    let isWelcome n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
+    for_ wss $ \ws -> do
+      n <- awaitMatch 3 isWelcome ws
+      shouldMatch (nPayload n %. "conversation") (objId alice)
+      shouldMatch (nPayload n %. "from") (objId alice)
+      shouldMatch (nPayload n %. "data") (B8.unpack (Base64.encode welcome))
+
+testJoinSubConv :: App ()
+testJoinSubConv = do
+  [alice, bob] <- createAndConnectUsers [ownDomain, ownDomain]
+  [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+  traverse_ uploadNewKeyPackage [bob1, bob2]
+  (_, qcnv) <- setupMLSGroup alice1
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+  sub <- bindResponse (getSubConversation bob qcnv "conference") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json
+  resetGroup bob1 sub
+
+  -- bob adds his first client to the subconversation
+  void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
+  sub' <- bindResponse (getSubConversation bob qcnv "conference") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json
+  do
+    tm <- sub' %. "epoch_timestamp"
+    assertBool "Epoch timestamp should not be null" (tm /= Null)
+
+  -- now alice joins with her own client
+  void $
+    createExternalCommit alice1 Nothing
+      >>= sendAndConsumeCommitBundle
