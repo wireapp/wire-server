@@ -11,11 +11,11 @@ Check that this file exists by running `ls $KUBECONFIG`.
 
 ## How to look at the swagger docs / UI locally
 
-In the root of wire-server:
+Terminal 1:
+* Set up backing services: `./deploy/dockerephemeral/run.sh`
 
-```
-$ make c && ./services/run-services
-```
+Terminal 2:
+* Build and start wire-server services: ` make c && ./services/run-services`
 
 Open your browser at:
 [http://localhost:8080/api/swagger-ui](http://localhost:8080/api/swagger-ui) for a list of API verions.
