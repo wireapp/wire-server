@@ -41,7 +41,5 @@ settings:
     hard: 30  # more than this number of threads will not be allowed
     soft: 10  # more than this number of threads will be warned about
 
-domainUpdateInterval: 1000000
-
 logLevel: Warn
 logNetStrings: false

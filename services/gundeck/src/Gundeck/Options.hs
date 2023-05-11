@@ -123,8 +123,6 @@ data Opts = Opts
     _optAws :: !AWSOpts,
     _optDiscoUrl :: !(Maybe Text),
     _optSettings :: !Settings,
-    -- | Domain update interval (microseconds)
-    _optDomainUpdateInterval :: !Int,
     -- Logging
 
     -- | Log level (Debug, Info, etc)

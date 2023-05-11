@@ -37,7 +37,6 @@ module Cannon.Options
     millisecondsBetweenBatches,
     minBatchSize,
     disabledAPIVersions,
-    domainUpdateInterval,
     DrainOpts,
   )
 where
@@ -104,9 +103,7 @@ data Opts = Opts
     _optsLogNetStrings :: !(Maybe (Last Bool)),
     _optsLogFormat :: !(Maybe (Last LogFormat)),
     _optsDrainOpts :: DrainOpts,
-    _optsDisabledAPIVersions :: Maybe (Set Version),
-    -- | Domain update interval (microseconds)
-    _optsDomainUpdateInterval :: !Int
+    _optsDisabledAPIVersions :: Maybe (Set Version)
   }
   deriving (Eq, Show, Generic)
 
