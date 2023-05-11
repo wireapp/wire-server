@@ -1,6 +1,7 @@
 module Testlib.App where
 
 import Control.Monad.Reader
+import qualified Control.Retry as Retry
 import Data.Aeson hiding ((.=))
 import Data.IORef
 import qualified Data.Yaml as Yaml
@@ -49,3 +50,12 @@ ownDomain = asks (.domain1)
 
 otherDomain :: App String
 otherDomain = asks (.domain2)
+
+-- | Run an action, `recoverAll`ing with exponential backoff (min step 8ms, total timeout
+-- ~15s).  Search this package for examples how to use it.
+--
+-- Ideally, this will be the only thing you'll ever need from the retry package when writing
+-- integration tests.  If you are unhappy with it,, please consider fixing it so everybody can
+-- benefit.
+unrace :: App a -> App a
+unrace action = Retry.recoverAll (Retry.exponentialBackoff 8000 <> Retry.limitRetries 10) (const action)

@@ -838,7 +838,7 @@ joinConversation lusr zcon conv access = do
       addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
     lcuEvent
       <$> notifyConversationAction
-        False
+        FaultTolerant
         (sing @'ConversationJoinTag)
         (tUntagged lusr)
         False

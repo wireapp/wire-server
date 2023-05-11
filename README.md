@@ -85,7 +85,7 @@ will, eventually, have built a range of docker images. Make sure to [give Docker
 
 See the `Makefile`s and `Dockerfile`s, as well as [build/ubuntu/README.md](build/ubuntu/README.md) for details.
 
-#### 2. Use nix-provided build environment 
+#### 2. Use nix-provided build environment
 
 This is suitable only for local development and testing. See [build instructions](./docs/src/developer/developer/building.md) in the developer documentation.
 
