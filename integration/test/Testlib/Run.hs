@@ -42,10 +42,8 @@ runTest ge action = lowerCodensity $ do
   env <- mkEnv ge
   liftIO $
     (Right <$> runAppWithEnv env action)
-      `E.catches` [ E.Handler
-                      ( \(e :: AssertionFailure) -> do
-                          Left <$> printFailureDetails e
-                      ),
+      `E.catches` [ E.Handler -- AssertionFailure
+                      (fmap Left . printFailureDetails),
                     E.Handler
                       (fmap Left . printExceptionDetails)
                   ]

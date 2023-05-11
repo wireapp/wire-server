@@ -78,15 +78,16 @@ updateClient ::
 updateClient cid args = do
   uid <- objId cid
   req <- baseRequest cid Brig Versioned $ "/clients/" <> cid.client
-  submit "PUT" . zUser uid $
-    addJSONObject
-      ( ["prekeys" .= args.prekeys]
-          <> ["lastkey" .= k | k <- toList args.lastPrekey]
-          <> ["label" .= l | l <- toList args.label]
-          <> ["capabilities" .= c | c <- toList args.capabilities]
-          <> ["mls_public_keys" .= k | k <- toList args.mlsPublicKeys]
-      )
-      req
+  submit "PUT" $
+    req
+      & zUser uid
+      & addJSONObject
+        ( ["prekeys" .= args.prekeys]
+            <> ["lastkey" .= k | k <- toList args.lastPrekey]
+            <> ["label" .= l | l <- toList args.label]
+            <> ["capabilities" .= c | c <- toList args.capabilities]
+            <> ["mls_public_keys" .= k | k <- toList args.mlsPublicKeys]
+        )
 
 deleteClient ::
   (HasCallStack, MakesValue user, MakesValue client) =>
