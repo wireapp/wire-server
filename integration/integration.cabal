@@ -84,6 +84,7 @@ library
     API.Common
     API.Galley
     API.GalleyInternal
+    MLS.Util
     RunAllTests
     SetupHelpers
     Test.B2B
@@ -109,6 +110,7 @@ library
     , array
     , async
     , base
+    , base64-bytestring
     , bytestring
     , bytestring-conversion
     , case-insensitive
@@ -117,8 +119,10 @@ library
     , directory
     , exceptions
     , filepath
+    , hex
     , http-client
     , http-types
+    , kan-extensions
     , mtl
     , network
     , network-uri
@@ -132,9 +136,12 @@ library
     , stm
     , string-conversions
     , tagged
+    , temporary
     , text
     , time
     , transformers
+    , unix
     , unliftio
+    , uuid
     , websockets
     , yaml

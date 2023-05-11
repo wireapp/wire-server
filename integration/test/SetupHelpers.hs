@@ -2,6 +2,7 @@ module SetupHelpers where
 
 import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
+import API.Galley
 import Data.Aeson
 import Data.Default
 import Data.Function
@@ -46,3 +47,14 @@ createAndConnectUsers domains = do
         pure (a, b)
   for_ userPairs (uncurry connectUsers)
   pure users
+
+getAllConvs :: (HasCallStack, MakesValue u) => u -> App [Value]
+getAllConvs u = do
+  page <- bindResponse (listConversationIds u def) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json
+  ids <- page %. "qualified_conversations" & asList
+  result <- bindResponse (listConversations u ids) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json
+  result %. "found" & asList

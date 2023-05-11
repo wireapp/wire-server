@@ -116,3 +116,87 @@ getConversation user qcnv = do
     ( req
         & zUser uid
     )
+
+getSubConversation ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue conv
+  ) =>
+  user ->
+  conv ->
+  String ->
+  App Response
+getSubConversation user conv sub = do
+  uid <- objId user
+  (cnvDomain, cnvId) <- objQid conv
+  req <-
+    baseRequest user Galley Versioned $
+      joinHttpPath
+        [ "conversations",
+          cnvDomain,
+          cnvId,
+          "subconversations",
+          sub
+        ]
+  submit "GET" $ req & zUser uid
+
+getSelfConversation :: (HasCallStack, MakesValue user) => user -> App Response
+getSelfConversation user = do
+  uid <- objId user
+  req <- baseRequest user Galley Versioned "/conversations/mls-self"
+  submit "GET" $ req & zUser uid & zConnection "conn"
+
+data ListConversationIds = ListConversationIds {pagingState :: Maybe String, size :: Maybe Int}
+
+instance Default ListConversationIds where
+  def = ListConversationIds Nothing Nothing
+
+listConversationIds :: MakesValue user => user -> ListConversationIds -> App Response
+listConversationIds user args = do
+  req <- baseRequest user Galley Versioned "/conversations/list-ids"
+  uid <- objId user
+  submit "POST" $
+    req
+      & zUser uid
+      & addJSONObject
+        ( ["paging_state" .= s | s <- toList args.pagingState]
+            <> ["size" .= s | s <- toList args.size]
+        )
+
+listConversations :: MakesValue user => user -> [Value] -> App Response
+listConversations user cnvs = do
+  req <- baseRequest user Galley Versioned "/conversations/list"
+  uid <- objId user
+  submit "POST" $
+    req
+      & zUser uid
+      & addJSONObject ["qualified_ids" .= cnvs]
+
+postMLSMessage :: HasCallStack => ClientIdentity -> ByteString -> App Response
+postMLSMessage cid msg = do
+  req <- baseRequest cid Galley Versioned "/mls/messages"
+  uid <- objId cid
+  c <- cid %. "client" & asString
+  submit "POST" (addMLS msg req & zUser uid & zClient c & zConnection "conn")
+
+postMLSCommitBundle :: HasCallStack => ClientIdentity -> ByteString -> App Response
+postMLSCommitBundle cid msg = do
+  req <- baseRequest cid Galley Versioned "/mls/commit-bundles"
+  uid <- objId cid
+  c <- cid %. "client_id" & asString
+  submit "POST" (addMLS msg req & zUser uid & zClient c & zConnection "conn")
+
+getGroupInfo ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  App Response
+getGroupInfo user conv = do
+  (qcnv, mSub) <- objSubConv conv
+  (convDomain, convId) <- objQid qcnv
+  let path = joinHttpPath $ case mSub of
+        Nothing -> ["conversations", convDomain, convId, "groupinfo"]
+        Just sub -> ["conversations", convDomain, convId, "subconversations", sub, "groupinfo"]
+  req <- baseRequest user Galley Versioned path
+  uid <- objId user
+  submit "GET" (req & zUser uid & zConnection "conn")

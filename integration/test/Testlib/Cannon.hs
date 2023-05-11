@@ -82,10 +82,12 @@ class ToWSConnect a where
 instance {-# OVERLAPPING #-} ToWSConnect WSConnect where
   toWSConnect = pure
 
-instance {-# OVERLAPPABLE #-} (MakesValue user) => ToWSConnect user where
+instance {-# OVERLAPPABLE #-} MakesValue user => ToWSConnect user where
   toWSConnect u = do
     uid <- objId u & asString
-    pure (WSConnect uid Nothing Nothing)
+    mc <- lookupField u "client_id"
+    c <- traverse asString mc
+    pure (WSConnect uid c Nothing)
 
 instance (MakesValue user, MakesValue conn) => ToWSConnect (user, conn) where
   toWSConnect (u, c) = do
@@ -138,7 +140,7 @@ run wsConnect app = do
 
   let path =
         "/await"
-          <> ( case client wsConnect of
+          <> ( case wsConnect.client of
                  Nothing -> ""
                  Just client -> fromJust . fromByteString $ Http.queryString (Http.setQueryString [("client", Just (toByteString' client))] Http.defaultRequest)
              )
@@ -183,7 +185,7 @@ withWebSocket w k = do
   wsConnect <- toWSConnect w
   Catch.bracket (connect wsConnect) close k
 
-withWebSockets :: forall a w. (HasCallStack, (ToWSConnect w)) => [w] -> ([WebSocket] -> App a) -> App a
+withWebSockets :: forall a w. (HasCallStack, ToWSConnect w) => [w] -> ([WebSocket] -> App a) -> App a
 withWebSockets twcs k = do
   wcs <- for twcs toWSConnect
   go wcs []
