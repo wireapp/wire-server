@@ -83,7 +83,7 @@ import TestHelpers
 import TestSetup
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Connection
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (status)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code hiding (Value)
 import Wire.API.Conversation.Protocol

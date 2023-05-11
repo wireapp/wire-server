@@ -88,6 +88,7 @@ library
     SetupHelpers
     Test.B2B
     Test.Brig
+    Test.Conversation
     Test.Demo
     Testlib.App
     Testlib.Assertions
@@ -136,5 +137,6 @@ library
     , time
     , transformers
     , unliftio
+    , vector
     , websockets
     , yaml

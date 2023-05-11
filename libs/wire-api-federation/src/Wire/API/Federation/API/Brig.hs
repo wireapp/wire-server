@@ -75,7 +75,7 @@ type BrigApi =
     :<|> FedEndpoint "get-federation-status" DomainSet FederationStatusResponse
 
 newtype DomainSet = DomainSet
-  { domains :: Set Domain
+  { dsDomains :: Set Domain
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded DomainSet)
@@ -84,9 +84,8 @@ data FederationStatus = Connected | NotConnected
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded FederationStatus)
 
-data FederationStatusResponse = FederationStatusResponse
-  { domains :: Set Domain,
-    status :: FederationStatus
+newtype FederationStatusResponse = FederationStatusResponse
+  { status :: FederationStatus
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded FederationStatusResponse)

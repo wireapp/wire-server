@@ -95,7 +95,7 @@ federationSitemap =
 getFederationStatus :: Member (Input (Set Domain)) r => Domain -> DomainSet -> Handler r FederationStatusResponse
 getFederationStatus _ request = do
   fedDomains <- lift $ liftSem $ input @(Set Domain)
-  pure $ FederationStatusResponse request.domains (checkFederationStatus fedDomains request.domains)
+  pure $ FederationStatusResponse (checkFederationStatus fedDomains request.dsDomains)
 
 checkFederationStatus :: Set Domain -> Set Domain -> FederationStatus
 checkFederationStatus federatingDomains domainsToCheck =
