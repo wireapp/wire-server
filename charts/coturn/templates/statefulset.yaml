@@ -121,11 +121,11 @@ spec:
               mountPath: /secrets-tls/
               readOnly: true
           {{- end }}
-{{- if .Values.federate.dtls.enabled }}
+           {{- if .Values.federate.dtls.enabled }}
             - name: coturn-dtls-certificate
               mountPath: /coturn-dtls-certificate/
               readOnly: true
-{{- end }}
+           {{- end }}
           command:
             - /bin/sh
             - -c
