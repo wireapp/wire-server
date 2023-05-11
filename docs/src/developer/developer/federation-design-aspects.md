@@ -20,7 +20,10 @@ brig itself for performance keeps a `TVar` that it updates at regular
 intervals.  Plus provides the contents of the `TVar` via an internal
 CRUD API (see {ref}`configuring-remote-connections` for the links).
 
-Update intervals are currently hard-wired into the code.
+Update intervals are currently supplied by Brig in same response that
+carries the federation domain lists. This allows for simplified control
+of the update times and minimises changes to both services and their
+configuration files.
 
 Introduced in
 [PR#3260](https://github.com/wireapp/wire-server/pull/3260).
