@@ -179,3 +179,18 @@ postMLSCommitBundle cid msg = do
   uid <- objId cid
   c <- cid %. "client_id" & asString
   submit "POST" (addMLS msg req & zUser uid & zClient c & zConnection "conn")
+
+getGroupInfo ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  App Response
+getGroupInfo user conv = do
+  (qcnv, mSub) <- objSubConv conv
+  (convDomain, convId) <- objQid qcnv
+  let path = joinHttpPath $ case mSub of
+        Nothing -> ["conversations", convDomain, convId, "groupinfo"]
+        Just sub -> ["conversations", convDomain, convId, "subconversations", sub, "groupinfo"]
+  req <- baseRequest user Galley Versioned path
+  uid <- objId user
+  submit "GET" (req & zUser uid & zConnection "conn")

@@ -6,7 +6,10 @@ import API.Brig
 import API.Galley
 import Control.Concurrent.Async hiding (link)
 import Control.Monad
-import Control.Monad.IO.Class
+import Control.Monad.Catch
+import Control.Monad.Cont
+import Control.Monad.Reader
+import Control.Monad.Trans.Maybe
 import Data.Aeson (Value, object)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -29,6 +32,7 @@ import System.Exit
 import System.FilePath
 import System.IO
 import System.IO.Temp
+import System.Posix.Files
 import System.Process
 import Testlib.App
 import Testlib.Assertions
@@ -53,10 +57,12 @@ data MessagePackage = MessagePackage
     groupInfo :: Maybe ByteString
   }
 
-getConvId :: App String
-getConvId = do
+getConv :: App Value
+getConv = do
   mls <- getMLSState
-  maybe (assertFailure "Uninitialised test conversation") pure mls.convId
+  case mls.convId of
+    Nothing -> assertFailure "Uninitialised test conversation"
+    Just convId -> pure convId
 
 toRandomFile :: ByteString -> App FilePath
 toRandomFile bs = do
@@ -70,18 +76,18 @@ randomFileName = do
   (bd </>) . UUID.toString <$> liftIO UUIDV4.nextRandom
 
 mlscli :: HasCallStack => ClientIdentity -> [String] -> Maybe ByteString -> App ByteString
-mlscli qcid args mbstdin = do
+mlscli cid args mbstdin = do
   bd <- getBaseDir
-  let cdir = bd </> cid2Str qcid
+  let cdir = bd </> cid2Str cid
 
   groupOut <- randomFileName
   let substOut = argSubst "<group-out>" groupOut
 
-  hasState <- hasClientGroupState qcid
+  hasState <- hasClientGroupState cid
   substIn <-
     if hasState
       then do
-        gs <- getClientGroupState qcid
+        gs <- getClientGroupState cid
         fn <- toRandomFile gs
         pure (argSubst "<group-in>" fn)
       else pure id
@@ -99,7 +105,7 @@ mlscli qcid args mbstdin = do
   groupOutWritten <- liftIO $ doesFileExist groupOut
   when groupOutWritten $ do
     gs <- liftIO (BS.readFile groupOut)
-    setClientGroupState qcid gs
+    setClientGroupState cid gs
   pure out
 
 argSubst :: String -> String -> String -> String
@@ -156,45 +162,6 @@ generateKeyPackage cid = do
   liftIO $ BS.writeFile fp kp
   pure (kp, ref)
 
-groupFileLink :: HasCallStack => ClientIdentity -> App FilePath
-groupFileLink cid = do
-  bd <- getBaseDir
-  pure $ bd </> cid2Str cid </> "group.latest"
-
-currentGroupFile :: HasCallStack => ClientIdentity -> App FilePath
-currentGroupFile = liftIO . getSymbolicLinkTarget <=< groupFileLink
-
-parseGroupFileName :: FilePath -> App (FilePath, Int)
-parseGroupFileName fp = do
-  let base = takeFileName fp
-  (prefix, version) <- case break (== '.') base of
-    (p, '.' : v) -> pure (p, v)
-    _ -> assertFailure "invalid group file name"
-  n <- case reads version of
-    [(v, "")] -> pure (v :: Int)
-    _ -> assertFailure "could not parse group file version"
-  pure $ (prefix, n)
-
--- sets symlink and creates empty file
-nextGroupFile :: HasCallStack => ClientIdentity -> App FilePath
-nextGroupFile qcid = do
-  bd <- getBaseDir
-  link <- groupFileLink qcid
-  exists <- liftIO $ doesFileExist link
-  base' <-
-    if exists
-      then -- group file exists, bump version and update link
-      do
-        (prefix, n) <- parseGroupFileName =<< liftIO (getSymbolicLinkTarget link)
-        liftIO $ removeFile link
-        pure $ prefix <> "." <> show (n + 1)
-      else -- group file does not exist yet, point link to version 0
-        pure "group.0"
-
-  let groupFile = bd </> cid2Str qcid </> base'
-  liftIO $ createFileLink groupFile link
-  pure groupFile
-
 -- | Create conversation and corresponding group.
 setupMLSGroup :: HasCallStack => ClientIdentity -> App (String, Value)
 setupMLSGroup cid = do
@@ -203,32 +170,53 @@ setupMLSGroup cid = do
     pure resp.json
   groupId <- conv %. "group_id" & asString
   convId <- conv %. "qualified_id"
-  createGroup cid groupId
+  createGroup cid conv
   pure (groupId, convId)
 
-createGroup :: ClientIdentity -> String -> App ()
-createGroup cid gid = do
+createGroup :: MakesValue conv => ClientIdentity -> conv -> App ()
+createGroup cid conv = do
   mls <- getMLSState
   case mls.groupId of
     Just _ -> assertFailure "only one group can be created"
     Nothing -> pure ()
+  resetGroup cid conv
 
-  groupJSON <- mlscli cid ["group", "create", gid] Nothing
-  g <- nextGroupFile cid
-  liftIO $ BS.writeFile g groupJSON
-  setMLSState $
-    mls
-      { groupId = Just gid,
-        members = Set.singleton cid
+resetGroup :: MakesValue conv => ClientIdentity -> conv -> App ()
+resetGroup cid conv = do
+  convId <- make conv
+  groupId <- conv %. "group_id" & asString
+  modifyMLSState $ \s ->
+    s
+      { groupId = Just groupId,
+        convId = Just convId,
+        members = Set.singleton cid,
+        epoch = 0,
+        newMembers = mempty
       }
+  resetClientGroup cid groupId
+
+resetClientGroup :: ClientIdentity -> String -> App ()
+resetClientGroup cid gid = do
+  removalKeyPath <- asks (.removalKeyPath)
+  groupJSON <-
+    mlscli
+      cid
+      [ "group",
+        "create",
+        "--removal-key",
+        removalKeyPath,
+        gid
+      ]
+      Nothing
+  setClientGroupState cid groupJSON
 
 keyPackageFile :: HasCallStack => ClientIdentity -> String -> App FilePath
 keyPackageFile cid ref = do
   bd <- getBaseDir
   pure $ bd </> cid2Str cid </> ref
 
-bundleKeyPackages :: Value -> App [(ClientIdentity, FilePath)]
-bundleKeyPackages bundle = do
+unbundleKeyPackages :: Value -> App [(ClientIdentity, ByteString)]
+unbundleKeyPackages bundle = do
   let entryIdentity be = do
         d <- be %. "domain" & asString
         u <- be %. "user" & asString
@@ -239,13 +227,8 @@ bundleKeyPackages bundle = do
   for bundleEntries $ \be -> do
     kp64 <- be %. "key_package" & asString
     kp <- assertOne . toList . Base64.decode . B8.pack $ kp64
-    ref <-
-      fmap (B8.unpack . hex . Base64.decodeLenient . B8.pack) $
-        be %. "key_package_ref" & asString
     cid <- entryIdentity be
-    fn <- keyPackageFile cid ref
-    liftIO $ BS.writeFile fn kp
-    pure (cid, fn)
+    pure (cid, kp)
 
 -- | Claim keypackages and create a commit/welcome pair on a given client.
 -- Note that this alters the state of the group immediately. If we want to test
@@ -257,34 +240,44 @@ createAddCommit cid users = do
     bundle <- bindResponse (claimKeyPackages cid user) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json
-    bundleKeyPackages bundle
+    unbundleKeyPackages bundle
   createAddCommitWithKeyPackages cid kps
+
+withTempKeyPackageFile :: ByteString -> ContT a App FilePath
+withTempKeyPackageFile bs = do
+  bd <- lift getBaseDir
+  ContT $ \k ->
+    bracket
+      (liftIO (openBinaryTempFile bd "kp"))
+      (\(fp, _) -> liftIO (removeFile fp))
+      $ \(fp, h) -> do
+        liftIO $ BS.hPut h bs `finally` hClose h
+        k fp
 
 createAddCommitWithKeyPackages ::
   ClientIdentity ->
-  [(ClientIdentity, FilePath)] ->
+  [(ClientIdentity, ByteString)] ->
   App MessagePackage
-createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
+createAddCommitWithKeyPackages cid clientsAndKeyPackages = do
   bd <- getBaseDir
-  g <- currentGroupFile qcid
-  gNew <- nextGroupFile qcid
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
-  giFile <- liftIO $ emptyTempFile bd "pgs"
-  commit <-
+  giFile <- liftIO $ emptyTempFile bd "gi"
+
+  commit <- runContT (traverse (withTempKeyPackageFile . snd) clientsAndKeyPackages) $ \kpFiles ->
     mlscli
-      qcid
+      cid
       ( [ "member",
           "add",
           "--group",
-          g,
+          "<group-in>",
           "--welcome-out",
           welcomeFile,
           "--group-info-out",
           giFile,
           "--group-out",
-          gNew
+          "<group-out>"
         ]
-          <> map snd clientsAndKeyPackages
+          <> kpFiles
       )
       Nothing
 
@@ -297,23 +290,29 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
   gi <- liftIO $ BS.readFile giFile
   pure $
     MessagePackage
-      { sender = qcid,
+      { sender = cid,
         message = commit,
         welcome = Just welcome,
         groupInfo = Just gi
       }
 
+createAddProposals :: HasCallStack => ClientIdentity -> [Value] -> App [MessagePackage]
+createAddProposals cid users = do
+  bundles <- for users $ \u -> bindResponse (claimKeyPackages cid u) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json
+  kps <- concat <$> traverse unbundleKeyPackages bundles
+  traverse (createAddProposalWithKeyPackage cid) kps
+
 createAddProposalWithKeyPackage ::
   ClientIdentity ->
-  (ClientIdentity, FilePath) ->
+  (ClientIdentity, ByteString) ->
   App MessagePackage
 createAddProposalWithKeyPackage cid (_, kp) = do
-  g <- currentGroupFile cid
-  gNew <- nextGroupFile cid
-  prop <-
+  prop <- runContT (withTempKeyPackageFile kp) $ \kpFile ->
     mlscli
       cid
-      ["proposal", "--group-in", g, "--group-out", gNew, "add", kp]
+      ["proposal", "--group-in", "<group-in>", "--group-out", "<group-out>", "add", kpFile]
       Nothing
   pure
     MessagePackage
@@ -321,6 +320,79 @@ createAddProposalWithKeyPackage cid (_, kp) = do
         message = prop,
         welcome = Nothing,
         groupInfo = Nothing
+      }
+
+createPendingProposalCommit :: HasCallStack => ClientIdentity -> App MessagePackage
+createPendingProposalCommit cid = do
+  bd <- getBaseDir
+  welcomeFile <- liftIO $ emptyTempFile bd "welcome"
+  pgsFile <- liftIO $ emptyTempFile bd "pgs"
+  commit <-
+    mlscli
+      cid
+      [ "commit",
+        "--group",
+        "<group-in>",
+        "--group-out",
+        "<group-out>",
+        "--welcome-out",
+        welcomeFile,
+        "--group-info-out",
+        pgsFile
+      ]
+      Nothing
+
+  welcome <- liftIO $ readWelcome welcomeFile
+  pgs <- liftIO $ BS.readFile pgsFile
+  pure
+    MessagePackage
+      { sender = cid,
+        message = commit,
+        welcome = welcome,
+        groupInfo = Just pgs
+      }
+
+createExternalCommit ::
+  HasCallStack =>
+  ClientIdentity ->
+  Maybe ByteString ->
+  App MessagePackage
+createExternalCommit cid mgi = do
+  bd <- getBaseDir
+  giFile <- liftIO $ emptyTempFile bd "gi"
+  conv <- getConv
+  gi <- case mgi of
+    Nothing -> bindResponse (getGroupInfo cid conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      pure resp.body
+    Just v -> pure v
+  commit <-
+    mlscli
+      cid
+      [ "external-commit",
+        "--group-info-in",
+        "-",
+        "--group-info-out",
+        giFile,
+        "--group-out",
+        "<group-out>"
+      ]
+      (Just gi)
+
+  modifyMLSState $ \mls ->
+    mls
+      { newMembers = Set.singleton cid
+      -- This might be a different client than those that have been in the
+      -- group from before.
+      }
+
+  newPgs <- liftIO $ BS.readFile giFile
+  pure $
+    MessagePackage
+      { sender = cid,
+        message = commit,
+        welcome = Nothing,
+        groupInfo = Just newPgs
       }
 
 -- | Make all member clients consume a given message.
@@ -331,20 +403,15 @@ consumeMessage msg = do
     consumeMessage1 cid msg.message
 
 consumeMessage1 :: HasCallStack => ClientIdentity -> ByteString -> App ()
-consumeMessage1 cid msg = do
-  bd <- getBaseDir
-  g <- currentGroupFile cid
-  gNew <- nextGroupFile cid
+consumeMessage1 cid msg =
   void $
     mlscli
       cid
       [ "consume",
         "--group",
-        g,
+        "<group-in>",
         "--group-out",
-        gNew,
-        "--signer-key",
-        bd </> "removal.key",
+        "<group-out>",
         "-"
       ]
       (Just msg)
@@ -395,6 +462,13 @@ consumeWelcome welcome = do
           "-"
         ]
         (Just welcome)
+
+readWelcome :: FilePath -> IO (Maybe ByteString)
+readWelcome fp = runMaybeT $ do
+  liftIO (doesFileExist fp) >>= guard
+  stat <- liftIO $ getFileStatus fp
+  guard $ fileSize stat > 0
+  liftIO $ BS.readFile fp
 
 mkBundle :: MessagePackage -> ByteString
 mkBundle mp = mp.message <> foldMap mkGroupInfoMessage mp.groupInfo <> fold mp.welcome

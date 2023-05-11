@@ -31,6 +31,7 @@ data Env = Env
     manager :: HTTP.Manager,
     serviceConfigsDir :: FilePath,
     servicesCwdBase :: Maybe FilePath,
+    removalKeyPath :: FilePath,
     prekeys :: IORef [(Int, String)],
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState
@@ -44,7 +45,8 @@ data GlobalEnv = GlobalEnv
     gDefaultAPIVersion :: Int,
     gManager :: HTTP.Manager,
     gServiceConfigsDir :: FilePath,
-    gServicesCwdBase :: Maybe FilePath
+    gServicesCwdBase :: Maybe FilePath,
+    gRemovalKeyPath :: FilePath
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -138,7 +140,8 @@ mkGlobalEnv cfgFile = do
         gDefaultAPIVersion = 4,
         gManager = manager,
         gServiceConfigsDir = configsDir,
-        gServicesCwdBase = devEnvProjectRoot <&> (</> "services")
+        gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
+        gRemovalKeyPath = error "Uninitialised removal key path"
       }
 
 mkEnv :: GlobalEnv -> Codensity IO Env
@@ -155,6 +158,7 @@ mkEnv ge = do
         manager = gManager ge,
         serviceConfigsDir = gServiceConfigsDir ge,
         servicesCwdBase = gServicesCwdBase ge,
+        removalKeyPath = gRemovalKeyPath ge,
         prekeys = pks,
         lastPrekeys = lpks,
         mls = mls
@@ -166,17 +170,17 @@ data MLSState = MLSState
     -- | users expected to receive a welcome message after the next commit
     newMembers :: Set ClientIdentity,
     groupId :: Maybe String,
-    convId :: Maybe String,
+    convId :: Maybe Value,
     clientGroupState :: Map ClientIdentity ByteString,
     epoch :: Word64
   }
 
 mkMLSState :: Codensity IO MLSState
 mkMLSState = Codensity $ \k ->
-  withSystemTempDirectory "mls" $ \_tmp -> do
+  withSystemTempDirectory "mls" $ \tmp -> do
     k
       MLSState
-        { baseDir = "/tmp/mls",
+        { baseDir = tmp,
           members = mempty,
           newMembers = mempty,
           groupId = Nothing,

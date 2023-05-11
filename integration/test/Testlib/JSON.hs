@@ -264,13 +264,13 @@ objQid ob = do
         Nothing -> firstSuccess xs
         Just y -> pure (Just y)
 
--- Get "qualified_id" field as {"id": _, "domain": _} object or - if already is a qualified id object - return that
+-- | Get "qualified_id" field as {"id": _, "domain": _} object or - if already is a qualified id object - return that.
 objQidObject :: HasCallStack => MakesValue a => a -> App Value
 objQidObject o = do
   (domain, id_) <- objQid o
   pure $ object ["domain" .= domain, "id" .= id_]
 
--- Get "domain" field or - if already string-like return String
+-- Get "domain" field or - if already string-like - return String.
 objDomain :: (HasCallStack, MakesValue a) => a -> App String
 objDomain x = do
   v <- make x
@@ -278,6 +278,53 @@ objDomain x = do
     Object _ob -> fst <$> objQid v
     String t -> pure (T.unpack t)
     other -> assertFailureWithJSON other (typeWasExpectedButGot "Object or String" other)
+
+-- | Get conversation ID and optional subconversation ID.
+--
+-- This accepts subconversation objects in the format:
+-- @
+-- { "parent_qualified_id": {
+--      "domain": "example.com",
+--      "id": "7b6c21d1-322d-4be6-a923-85225691f398"
+--   },
+--   "subconv_id": "conference"
+-- }
+-- @
+--
+-- as well as conversation objects in the general format supported by 'objQid'.
+-- Conversation objects can optionally contain a @subconv_id@ field. So, in
+-- particular, a flat subconversation format, like
+-- @
+-- { "domain": "example.com",
+--   "id": "7b6c21d1-322d-4be6-a923-85225691f398",
+--   "subconv_id": "conference"
+-- }
+-- @
+-- is also supported.
+objSubConv :: (HasCallStack, MakesValue a) => a -> App (Value, Maybe String)
+objSubConv x = do
+  mParent <- lookupField x "parent_qualified_id"
+  case mParent of
+    Nothing -> do
+      obj <- objQidObject x
+      subValue <- lookupField x "subconv_id"
+      sub <- traverse asString subValue
+      pure (obj, sub)
+    Just parent -> do
+      obj <- objQidObject parent
+      sub <- x %. "subconv_id" & asString
+      pure (obj, Just sub)
+
+-- | Turn an object parseable by 'objSubConv' into a canonical flat representation.
+objSubConvObject :: (HasCallStack, MakesValue a) => a -> App Value
+objSubConvObject x = do
+  (convId, mSubConvId) <- objSubConv x
+  (domain, id_) <- objQid convId
+  pure . object $
+    [ "domain" .= domain,
+      "id" .= id_
+    ]
+      <> ["subconv_id" .= sub | sub <- toList mSubConvId]
 
 instance MakesValue ClientIdentity where
   make cid =

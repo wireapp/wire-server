@@ -140,6 +140,7 @@ library
     , text
     , time
     , transformers
+    , unix
     , unliftio
     , uuid
     , websockets

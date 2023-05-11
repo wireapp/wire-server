@@ -62,7 +62,12 @@ a `shouldNotMatch` b = do
   unless (jsonType xa == jsonType xb) $ do
     pa <- prettyJSON xa
     pb <- prettyJSON xb
-    assertFailure $ "Compared values are not of the same type:\n" <> "Left side:\n" <> pa <> "Right side:\n" <> pb
+    assertFailure $
+      "Compared values are not of the same type:\n"
+        <> "Left side:\n"
+        <> pa
+        <> "\nRight side:\n"
+        <> pb
 
   when (xa == xb) $ do
     pa <- prettyJSON xa
