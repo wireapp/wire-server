@@ -1,3 +1,5 @@
+(swagger-api-docs)=
+
 # Swagger API documentation
 
 Our staging system provides [Swagger /
