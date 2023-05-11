@@ -85,6 +85,7 @@ import Wire.API.Conversation.Role
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Error
 import Polysemy.Error
+import Galley.API.Error
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
@@ -233,17 +234,25 @@ updateFedDomains = do
               -- Build the map, keyed by conversations to the list of remote members
               insertIntoMap (cnvId, user) m = Map.alter (pure . maybe (pure user) (N.cons user)) cnvId m
           for_ (Map.toList cnvMap) $ \(cnv, rUsers) -> do
-            res <- liftIO $ evalGalleyToIO env $ runError 
-              . mapToRuntimeError @'ConvNotFound F.RemoveFromConversationErrorNotFound
-              . mapToRuntimeError @('ActionDenied 'LeaveConversation) F.RemoveFromConversationErrorRemovalNotAllowed
-              . mapToRuntimeError @'InvalidOperation F.RemoveFromConversationErrorRemovalNotAllowed
-              . mapError @NoChanges (const F.RemoveFromConversationErrorUnchanged) $
-              updateLocalConversation
-              @'ConversationRemoveMembersTag
-              (toLocalUnsafe (domain fedDomCfg) cnv)
-              undefined
-              Nothing $
-              tUntagged . rmId <$> rUsers
+            -- This value contains an event that we might need to
+            -- send out to all of the local clients that are a party
+            -- to the conversation. However we also don't want to DOS
+            -- clients. Maybe suppress and send out a bulk version?
+            _res <- liftIO $ evalGalleyToIO env
+              -- TODO: Are these the right error types we should be using?
+              -- TODO: We are restricted to the errors listed in GalleyEffects,
+              -- TODO: and none of those seem like a great fit.
+              $ mapToRuntimeError @F.RemoveFromConversationError (InternalErrorWithDescription "Foo")
+              . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Bar")
+              . mapToRuntimeError @('ActionDenied 'RemoveConversationMember) (InternalErrorWithDescription  "Baz")
+              . mapToRuntimeError @'InvalidOperation (InternalErrorWithDescription  "Qux")
+              . mapError @NoChanges (const (InternalErrorWithDescription  "Qwe"))
+              $ updateLocalConversation
+                @'ConversationRemoveMembersTag
+                (toLocalUnsafe (domain fedDomCfg) cnv)
+                undefined
+                Nothing $
+                tUntagged . rmId <$> rUsers
             pure ()
         for_ addedDomains $ \_domain -> do
           pure ()
