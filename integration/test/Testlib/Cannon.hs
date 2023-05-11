@@ -161,22 +161,17 @@ run wsConnect app = do
           )
           `onException` tryPutMVar latch ()
 
-  let waitForRegistry :: HasCallStack => Int -> App ()
-      waitForRegistry (0 :: Int) = failApp "Cannon: failed to register presence"
-      waitForRegistry n = do
+  let waitForRegistry :: HasCallStack => App ()
+      waitForRegistry = unrace $ do
         request <- baseRequest ownDomain Cannon Unversioned ("/i/presences/" <> wsConnect.user <> "/" <> connId)
         response <- submit "HEAD" request
-        unless (status response == 200) $ do
-          liftIO $ threadDelay $ 100 * 1000
-          waitForRegistry (n - 1)
+        status response `shouldMatchInt` 200
 
   liftIO $ takeMVar latch
   stat <- liftIO $ poll wsapp
   case stat of
     Just (Left ex) -> liftIO $ throwIO ex
-    _ -> waitForRegistry numRetries >> pure wsapp
-  where
-    numRetries = 30
+    _ -> waitForRegistry >> pure wsapp
 
 close :: MonadIO m => WebSocket -> m ()
 close ws = liftIO $ do
