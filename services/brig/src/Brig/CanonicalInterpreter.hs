@@ -23,9 +23,11 @@ import Brig.RPC (ParseException)
 import qualified Cassandra as Cas
 import Control.Lens ((^.))
 import Control.Monad.Catch (throwM)
+import Data.Domain
 import Imports
 import Polysemy (Embed, Final, embedToFinal, runFinal)
 import Polysemy.Error (Error, mapError, runError)
+import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
@@ -36,7 +38,8 @@ import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
-  '[ Jwk,
+  '[ Input [Domain],
+     Jwk,
      PublicKeyBundle,
      JwtTools,
      BlacklistPhonePrefixStore,
@@ -79,6 +82,7 @@ runBrigToIO e (AppT ma) = do
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
+              . runInputConst []
           )
     )
     $ runReaderT ma e

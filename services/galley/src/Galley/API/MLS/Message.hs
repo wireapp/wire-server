@@ -74,7 +74,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
-import Wire.API.Federation.API.Brig
+import Wire.API.Federation.API.Brig hiding (NotConnected)
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite

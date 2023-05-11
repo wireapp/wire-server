@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.Federation (federationSitemap, FederationAPI) where
+module Brig.API.Federation (federationSitemap, FederationAPI, getFederationStatus) where
 
 import qualified Brig.API.Client as API
 import Brig.API.Connection.Remote (performRemoteAction)
@@ -49,6 +49,7 @@ import qualified Gundeck.Types.Push as Push
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
+import Polysemy.Input
 import Servant (ServerT)
 import Servant.API
 import UnliftIO.Async (pooledForConcurrentlyN_)
@@ -71,7 +72,8 @@ type FederationAPI = "federation" :> BrigApi
 
 federationSitemap ::
   ( Member GalleyProvider r,
-    Member (Concurrency 'Unsafe) r
+    Member (Concurrency 'Unsafe) r,
+    Member (Input [Domain]) r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -87,6 +89,13 @@ federationSitemap =
     :<|> Named @"send-connection-action" sendConnectionAction
     :<|> Named @"on-user-deleted-connections" onUserDeleted
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
+    :<|> Named @"get-federation-status" getFederationStatus
+
+getFederationStatus :: Member (Input [Domain]) r => Domain -> DomainList -> Handler r FederationStatusResponse
+getFederationStatus _ domainsToCheck = do
+  fedDomains <- lift $ liftSem $ input @[Domain]
+  let status = if all (`elem` fedDomains) domainsToCheck.domains then Connected else NotConnected
+  pure $ FederationStatusResponse domainsToCheck status
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do

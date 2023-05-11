@@ -724,6 +724,7 @@ test-suite brig-tests
   -- cabal-fmt: expand test/unit
   other-modules:
     Main
+    Test.Brig.API.Federation
     Test.Brig.Calling
     Test.Brig.Calling.Internal
     Test.Brig.Effects.Delay
@@ -789,11 +790,13 @@ test-suite brig-tests
     , brig-types
     , bytestring
     , containers
+    , data-default
     , data-timeout
     , dns
     , dns-util
+    , errors
     , exceptions
-    , HsOpenSSL          >=0.10
+    , HsOpenSSL            >=0.10
     , imports
     , lens
     , polysemy
@@ -808,5 +811,6 @@ test-suite brig-tests
     , uri-bytestring
     , uuid
     , wire-api
+    , wire-api-federation
 
   default-language:   Haskell2010
