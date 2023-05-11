@@ -86,13 +86,13 @@ data:
     {{- if .Values.federate.enabled }}
     ### federation setup
     federation-listening-ip=__COTURN_EXT_IP__
-    federation-listening-port={{ required "Define the public port coturn should listen on for federation." .Values.federate.port }}
-    {{ if hasKey .Values.federate "dtls" }}
-    federation-no-dtls={{ not (required "Define if DTLS is enabled." .Values.federate.dtls.enabled) }}
+    federation-listening-port={{ .Values.federate.port }}
+    federation-no-dtls={{ not .Values.federate.dtls.enabled }}
+    {{- if .Values.federate.dtls.enabled }}
     federation-cert=/coturn-dtls-certificate/tls.crt
     federation-pkey=/coturn-dtls-certificate/tls.key
-    {{ if hasKey .Values.federate "privateKeyPassword" }}
-    federation-pkey-pwd={{ .Values.federate.privateKeyPassword }}
+    {{ if hasKey .Values.federate.dtls.tls "privateKeyPassword" }}
+    federation-pkey-pwd={{ .Values.federate.dtls.tls.privateKeyPassword }}
     {{ end }}
     # list of host/ip/cert common names / subject alt names, and optional issuer
     # names to accept DTLS connections from. There can be multiple entries, each
@@ -101,7 +101,5 @@ data:
     {{ range $entry := .Values.federate.dtls.remoteWhitelist }}
     federation-remote-whitelist={{ $entry.host }}{{ if hasKey $entry "issuer" }},{{ $entry.issuer }}{{end}}
     {{ end }}
-    {{ else }}
-    federation-no-dtls=true
     {{ end }}
     {{ end }}

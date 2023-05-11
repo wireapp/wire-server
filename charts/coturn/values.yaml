@@ -46,7 +46,7 @@ federate:
   port: 9191
 
   dtls:
-    enabled: true
+    enabled: false
 
     tls:
   #   Example:
@@ -54,6 +54,7 @@ federate:
   #   tls:
   #     key: "-----BEGIN EC PRIVATE KEY----- ..." # (ascii blob) private key
   #     crt: "-----BEGIN CERTIFICATE----- ..." # (ascii blob) certificate
+  #     privateKeyPassword: "XXX" # optional, used when the key is password protected
   #
   #   OR (mutually exclusive)
   #
@@ -73,9 +74,7 @@ federate:
   #      # optional labels to attach to the cert-manager Certificate
   #      certificate:
   #        labels: ..
-  #
-  #   host: # public hostname for which the certificate is created for.
-  #
+
   # # list of host/ip/cert common names / subject alt names, and optional issuer
   # # names to accept DTLS connections from. There can be multiple entries.
   # remoteWhitelist:
@@ -84,6 +83,7 @@ federate:
   #   - host: another.example.com
   #     issuer: "DigiCert SHA2 Extended Validation Server CA"
   #   - host: another-host-without-issuer.example.com
+    remoteWhitelist: []
 
 metrics:
   serviceMonitor:
