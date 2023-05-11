@@ -47,7 +47,7 @@ runTest ge action = lowerCodensity $ do
                           Left <$> printFailureDetails e
                       ),
                     E.Handler
-                      (\e -> Left <$> printExceptionDetails e)
+                      (fmap Left . printExceptionDetails)
                   ]
 
 pluralise :: Int -> String -> String
