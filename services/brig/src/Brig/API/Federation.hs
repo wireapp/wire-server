@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.Federation (federationSitemap, FederationAPI, getFederationStatus) where
+module Brig.API.Federation (federationSitemap, FederationAPI, checkFederationStatus) where
 
 import qualified Brig.API.Client as API
 import Brig.API.Connection.Remote (performRemoteAction)
@@ -45,6 +45,7 @@ import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Qualified
 import Data.Range
+import qualified Data.Set as Set
 import qualified Gundeck.Types.Push as Push
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
@@ -73,7 +74,7 @@ type FederationAPI = "federation" :> BrigApi
 federationSitemap ::
   ( Member GalleyProvider r,
     Member (Concurrency 'Unsafe) r,
-    Member (Input [Domain]) r
+    Member (Input (Set Domain)) r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -91,11 +92,16 @@ federationSitemap =
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
     :<|> Named @"get-federation-status" getFederationStatus
 
-getFederationStatus :: Member (Input [Domain]) r => Domain -> DomainList -> Handler r FederationStatusResponse
-getFederationStatus _ domainsToCheck = do
-  fedDomains <- lift $ liftSem $ input @[Domain]
-  let status = if all (`elem` fedDomains) domainsToCheck.domains then Connected else NotConnected
-  pure $ FederationStatusResponse domainsToCheck status
+getFederationStatus :: Member (Input (Set Domain)) r => Domain -> DomainList -> Handler r FederationStatusResponse
+getFederationStatus _ request = do
+  fedDomains <- lift $ liftSem $ input @(Set Domain)
+  pure $ FederationStatusResponse request.domains (checkFederationStatus fedDomains request.domains)
+
+checkFederationStatus :: Set Domain -> Set Domain -> FederationStatus
+checkFederationStatus federatingDomains domainsToCheck =
+  if domainsToCheck `Set.isSubsetOf` federatingDomains
+    then Connected
+    else NotConnected
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do

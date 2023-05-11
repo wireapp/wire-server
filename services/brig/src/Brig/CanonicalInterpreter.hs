@@ -38,7 +38,7 @@ import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
-  '[ Input [Domain],
+  '[ Input (Set Domain),
      Jwk,
      PublicKeyBundle,
      JwtTools,
@@ -82,7 +82,7 @@ runBrigToIO e (AppT ma) = do
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
-              . runInputConst []
+              . runInputConst mempty -- get this from the ENV once available
           )
     )
     $ runReaderT ma e

@@ -790,11 +790,9 @@ test-suite brig-tests
     , brig-types
     , bytestring
     , containers
-    , data-default
     , data-timeout
     , dns
     , dns-util
-    , errors
     , exceptions
     , HsOpenSSL            >=0.10
     , imports

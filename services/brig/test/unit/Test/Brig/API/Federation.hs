@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -19,14 +17,10 @@
 
 module Test.Brig.API.Federation (tests) where
 
-import Brig.API.Federation (getFederationStatus)
-import Brig.App (AppT (AppT), Env)
-import Control.Error (ExceptT, runExceptT)
-import Data.Default (Default (..))
+import Brig.API.Federation
 import Data.Domain (Domain (Domain))
+import qualified Data.Set as Set
 import Imports
-import Polysemy (Final, runFinal)
-import Polysemy.Input (Input, runInputConst)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (Assertion, assertEqual, testCase)
 import Wire.API.Federation.API.Brig
@@ -45,17 +39,5 @@ tests =
     ]
 
 testFederationStatus :: [Domain] -> [Domain] -> FederationStatus -> Assertion
-testFederationStatus federatingDomains domainsToCheck expectedStatus = do
-  fedStatusOrError <- run federatingDomains $ getFederationStatus (Domain "a.com") (DomainList domainsToCheck)
-  let fedStatus = fromRight (error "an error occurred") fedStatusOrError
-  assertEqual "FederationStatus" fedStatus.status expectedStatus
-
-run :: [Domain] -> ExceptT e (AppT '[Input [Domain], Final IO]) a -> IO (Either e a)
-run domains = runFinal' . runExceptT
-  where
-    runFinal' :: AppT '[Input [Domain], Final IO] (Either e a) -> IO (Either e a)
-    runFinal' (AppT ma) = runFinal . runInputConst domains $ runReaderT ma def
-
-instance Default Env where
-  -- We don't need the Env and can get away with this dues to Haskell's laziness.
-  def = undefined
+testFederationStatus federatingDomains domainsToCheck expectedStatus =
+  assertEqual "FederationStatus" (checkFederationStatus (Set.fromList federatingDomains) (Set.fromList domainsToCheck)) expectedStatus
