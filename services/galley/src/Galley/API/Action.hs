@@ -37,7 +37,6 @@ module Galley.API.Action
     notifyConversationAction,
     notifyRemoteConversationAction,
     ConversationUpdate,
-    FederationFailEarly (..),
   )
 where
 
@@ -692,11 +691,6 @@ addMembersToLocalConversation lcnv users role = do
   neUsers <- note NoChanges $ nonEmpty (ulAll lcnv users)
   let action = ConversationJoin neUsers role
   pure (bmFromMembers lmems rmems, action)
-
-data FederationFailEarly
-  = FailEarly
-  | FaultTolerant
-  deriving (Eq, Show)
 
 notifyConversationAction ::
   forall tag r.
