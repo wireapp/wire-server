@@ -246,3 +246,100 @@ config file will be ignored, and you should remove it at your
 convenience.  See
 [docs](https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections)
 for details."*)
+
+
+
+### noise!!!
+
+
+
+### Federation allow list
+
+As of 2021-07, federation (whatever is implemented by the time you read this) is turned off by default by means of having an empty allow list:
+
+```yaml
+# federator.yaml
+optSettings:
+  federationStrategy:
+    allowedDomains: []
+```
+
+You can choose to federate with a specific list of allowed servers:
+
+
+```yaml
+# federator.yaml
+optSettings:
+  federationStrategy:
+    allowedDomains:
+      - server1.example.com
+      - server2.example.com
+```
+
+or, you can federate with everyone:
+
+```yaml
+# federator.yaml
+optSettings:
+  federationStrategy:
+    # note the 'empty' value after 'allowAll'
+    allowAll:
+
+# when configuring helm charts, this becomes (note 'true' after 'allowAll')
+# inside helm_vars/wire-server:
+federator:
+  optSettings:
+    federationStrategy:
+      allowAll: true
+```
+
+
+
+
+this is deprecated:
+
+```
+  setFederationDomainConfigs:
+    - domain: example.com
+      search_policy: no_search
+
+```
+
+
+
+
+**This section is deprecated .  See
+https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+for details.**
+
+#### Restrict user search
+
+TODO: deprecate this, also rename this section.  it's about federation now.
+
+TODO: should we consider the federation strategy from federator in the
+union returned by brig for a transition period as well?  (if not, we
+need to insist on updating brig's config before this upgrade.  no
+remote backend may be unlisted and use the search policy default.  we
+should also crash on startup when somebody tries that.)
+
+The lookup and search of users on a wire instance can be configured. This can be done per federated domain.
+
+```yaml
+# [brig.yaml]
+optSettings:
+  setFederationDomainConfigs:
+    - domain: example.com
+      search_policy: no_search
+```
+
+Valid values for `search_policy` are:
+- `no_search`: No users are returned by federated searches.
+- `exact_handle_search`: Only users where the handle exactly matches are returned.
+- `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
+
+If there is no configuration for a domain, it's defaulted to `no_search`.
+
+
+
+
+does anybody know off the top of their heads: is [this section](https://wearezeta.atlassian.net/wiki/spaces/BAC/pages/288620677/Processes+shared+with+CS#Different-search-visibility-per-team) still up to date?  and is stern?  [this page](https://docs.wire.com/developer/reference/config-options.html#federated-domain-specific-configuration-settings) tells a different story...

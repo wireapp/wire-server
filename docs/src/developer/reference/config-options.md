@@ -393,43 +393,29 @@ settings:
 
 ### Federation allow list
 
-As of 2021-07, federation (whatever is implemented by the time you read this) is turned off by default by means of having an empty allow list:
+As of the release containing [PR#3260](https://github.com/wireapp/wire-server/pull/3260), federator gets its configuration from brig (which has a cassandra instance and is thus better equipped to handle persistent dynamic data).  See {ref}`configuring-remote-connections` for the whole story.
+
+Federation is turned off by default, and you can turn it off
+explicitly switching to strategy "allowedDomains", and making sure
+that `brig.federation_remotes` (the response of the
+[`GET`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_federation_remotes)
+request is empty).
 
 ```yaml
-# federator.yaml
+# brig.yaml
 optSettings:
-  federationStrategy:
-    allowedDomains: []
+  federationStrategy: allowedDomains
 ```
 
-You can choose to federate with a specific list of allowed servers:
-
+If you want to federate with all domains that ask, change this to:
 
 ```yaml
-# federator.yaml
+# brig.yaml
 optSettings:
-  federationStrategy:
-    allowedDomains:
-      - server1.example.com
-      - server2.example.com
+  federationStrategy: allowAll
 ```
 
-or, you can federate with everyone:
-
-```yaml
-# federator.yaml
-optSettings:
-  federationStrategy:
-    # note the 'empty' value after 'allowAll'
-    allowAll:
-
-# when configuring helm charts, this becomes (note 'true' after 'allowAll')
-# inside helm_vars/wire-server:
-federator:
-  optSettings:
-    federationStrategy:
-      allowAll: true
-```
+If you want to federate selectively with a list of known peers, consult {ref}`configuring-remote-connections`.
 
 ### Federation TLS Config
 
@@ -612,36 +598,11 @@ any key package whose expiry date is set further than 15 days after upload time 
 
 ### Federated domain specific configuration settings
 
-**This section is deprecated as of https://github.com/wireapp/wire-server/pull/3260.  See
-https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
-for details.**
+As of the release containing
+[PR#3260](https://github.com/wireapp/wire-server/pull/3260), you can
+configure search policies on a peer-by-peer basis.  See
+{ref}`configuring-remote-connections` for how.
 
-#### Restrict user search
-
-TODO: deprecate this, also rename this section.  it's about federation now.
-
-TODO: should we consider the federation strategy from federator in the
-union returned by brig for a transition period as well?  (if not, we
-need to insist on updating brig's config before this upgrade.  no
-remote backend may be unlisted and use the search policy default.  we
-should also crash on startup when somebody tries that.)
-
-The lookup and search of users on a wire instance can be configured. This can be done per federated domain.
-
-```yaml
-# [brig.yaml]
-optSettings:
-  setFederationDomainConfigs:
-    - domain: example.com
-      search_policy: no_search
-```
-
-Valid values for `search_policy` are:
-- `no_search`: No users are returned by federated searches.
-- `exact_handle_search`: Only users where the handle exactly matches are returned.
-- `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
-
-If there is no configuration for a domain, it's defaulted to `no_search`.
 
 ### API Versioning
 
