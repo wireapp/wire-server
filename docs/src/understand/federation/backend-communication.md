@@ -201,6 +201,18 @@ upgrade.
 
 -}
 
+TODO: explain how things need a while to stabilize (configurable), but
+that the other backend also needs to know us in order to be reachable.
+(how do we handle one backend being known to the other first for a few
+minutes / hours?)
+
+
+Update intervals are currently supplied by Brig in same response that
+carries the federation domain lists. This allows for simplified control
+of the update times and minimises changes to both services and their
+configuration files.
+
+
 See {ref}`configuring-remote-connections-dev-perspective` for the
 developer's point of view on this topic.
 

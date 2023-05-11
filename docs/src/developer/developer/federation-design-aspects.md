@@ -8,22 +8,21 @@ Federation can start and end.  These events need handlers to be called
 (like remove remote users from local conv), plus it is not convenient
 to edit and re-deploy config files every time that happens.  Hence
 remotes are stored in cassandra in brig, and every pod of every
-service keeps a cache in a `TVar` (this information is needed in many
-end-points).
+service keeps a cache in an `IORef` in its `Env` (this information is
+needed in many end-points, so it has to remain as fast as read access
+to `Env`).
 
-This secion elaborates on the implementation.  See
+This section elaborates on the implementation.  See
 {ref}`configuring-remote-connections` for the administrator's point of
-view.  Go read that section now!
+view.  If you haven't done so, go read that section now!
 
-The state is persistent in cassandra table `brig.federation_remotes`
-brig itself for performance keeps a `TVar` that it updates at regular
-intervals.  Plus provides the contents of the `TVar` via an internal
-CRUD API (see {ref}`configuring-remote-connections` for the links).
-
-Update intervals are currently supplied by Brig in same response that
-carries the federation domain lists. This allows for simplified control
-of the update times and minimises changes to both services and their
-configuration files.
+The state is persisted in cassandra table `brig.federation_remotes`.
+brig provides the contents via an internal CRUD API (see
+{ref}`configuring-remote-connections` for the links).  In the future,
+we may decide that brig needs to cache the table itself, but for now
+(`GET` is only used for the internal end-point to share it with other
+services) we hope to get away with the simple solution and always read
+from cassandra directly.
 
 Introduced in
 [PR#3260](https://github.com/wireapp/wire-server/pull/3260).
