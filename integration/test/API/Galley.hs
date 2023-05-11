@@ -117,6 +117,29 @@ getConversation user qcnv = do
         & zUser uid
     )
 
+getSubConversation ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue conv
+  ) =>
+  user ->
+  conv ->
+  String ->
+  App Response
+getSubConversation user conv sub = do
+  uid <- objId user
+  (cnvDomain, cnvId) <- objQid conv
+  req <-
+    baseRequest user Galley Versioned $
+      joinHttpPath
+        [ "conversations",
+          cnvDomain,
+          cnvId,
+          "subconversations",
+          sub
+        ]
+  submit "GET" $ req & zUser uid
+
 data ListConversationIds = ListConversationIds {pagingState :: Maybe String, size :: Maybe Int}
 
 instance Default ListConversationIds where
