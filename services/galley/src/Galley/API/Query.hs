@@ -18,7 +18,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Query
-  ( getBotConversationH,
+  ( getFederationStatus,
+    getBotConversationH,
     getUnqualifiedConversation,
     getConversation,
     getConversationRoles,
@@ -42,6 +43,7 @@ where
 
 import qualified Cassandra as C
 import Control.Lens
+import Control.Monad.Extra (allM, ifM)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Code
 import Data.CommaSeparatedList
@@ -91,6 +93,8 @@ import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Brig (DomainSet (DomainSet), FederationStatus (Connected))
+import qualified Wire.API.Federation.API.Brig as Fed
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
@@ -98,6 +102,14 @@ import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
 import Wire.Sem.Paging.Cassandra
+
+getFederationStatus :: Member FederatorAccess r => Local UserId -> RemoteDomains -> Sem r FederationStatusResponse
+getFederationStatus _ (RemoteDomains domains) =
+  ifM (allM (checkConnection domains) (Set.toList domains)) (pure $ FederationStatusResponse FullyConnected) (pure $ FederationStatusResponse NonFullyConnected)
+  where
+    checkConnection :: Member FederatorAccess r => Set Domain -> Domain -> Sem r Bool
+    checkConnection ds d =
+      (==) Connected . Fed.status <$> E.runFederated (toRemoteUnsafe d ()) (fedClient @'Brig @"get-federation-status" (DomainSet (d `Set.delete` ds)))
 
 getBotConversationH ::
   ( Member ConversationStore r,
@@ -521,6 +533,10 @@ listConversations luser (Public.ListConversations ids) = do
       fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> failedConvs
       remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map tUntagged remoteIds
   unless (null remoteNotFoundRemoteIds) $
+    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
+    -- current user should be considered removed from this conversation at this
+    -- point.
+
     -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
     -- current user should be considered removed from this conversation at this
     -- point.

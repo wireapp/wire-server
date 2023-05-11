@@ -92,7 +92,7 @@ federationSitemap =
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
     :<|> Named @"get-federation-status" getFederationStatus
 
-getFederationStatus :: Member (Input (Set Domain)) r => Domain -> DomainList -> Handler r FederationStatusResponse
+getFederationStatus :: Member (Input (Set Domain)) r => Domain -> DomainSet -> Handler r FederationStatusResponse
 getFederationStatus _ request = do
   fedDomains <- lift $ liftSem $ input @(Set Domain)
   pure $ FederationStatusResponse request.domains (checkFederationStatus fedDomains request.domains)

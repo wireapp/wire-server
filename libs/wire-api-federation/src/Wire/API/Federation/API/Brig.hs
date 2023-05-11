@@ -72,13 +72,13 @@ type BrigApi =
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
     :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
     :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)
-    :<|> FedEndpoint "get-federation-status" DomainList FederationStatusResponse
+    :<|> FedEndpoint "get-federation-status" DomainSet FederationStatusResponse
 
-newtype DomainList = DomainList
+newtype DomainSet = DomainSet
   { domains :: Set Domain
   }
   deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded DomainList)
+  deriving (ToJSON, FromJSON) via (CustomEncoded DomainSet)
 
 data FederationStatus = Connected | NotConnected
   deriving stock (Eq, Show, Generic)
