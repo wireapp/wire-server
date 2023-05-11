@@ -140,6 +140,12 @@ getSubConversation user conv sub = do
         ]
   submit "GET" $ req & zUser uid
 
+getSelfConversation :: (HasCallStack, MakesValue user) => user -> App Response
+getSelfConversation user = do
+  uid <- objId user
+  req <- baseRequest user Galley Versioned "/conversations/mls-self"
+  submit "GET" $ req & zUser uid & zConnection "conn"
+
 data ListConversationIds = ListConversationIds {pagingState :: Maybe String, size :: Maybe Int}
 
 instance Default ListConversationIds where

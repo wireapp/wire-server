@@ -10,7 +10,7 @@ import Control.Monad.Catch
 import Control.Monad.Cont
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
-import Data.Aeson (Value, object)
+import Data.Aeson (Value (..), object)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
@@ -168,6 +168,18 @@ setupMLSGroup cid = do
   conv <- bindResponse (postConversation cid (Just cid.client) defMLS) $ \resp -> do
     resp.status `shouldMatchInt` 201
     pure resp.json
+  groupId <- conv %. "group_id" & asString
+  convId <- conv %. "qualified_id"
+  createGroup cid conv
+  pure (groupId, convId)
+
+-- | Retrieve self conversation and create the corresponding group.
+setupMLSSelfGroup :: HasCallStack => ClientIdentity -> App (String, Value)
+setupMLSSelfGroup cid = do
+  conv <- bindResponse (getSelfConversation cid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "epoch" `shouldMatchInt` 0
+    resp.json
   groupId <- conv %. "group_id" & asString
   convId <- conv %. "qualified_id"
   createGroup cid conv
