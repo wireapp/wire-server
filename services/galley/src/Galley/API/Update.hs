@@ -720,7 +720,7 @@ updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProt
   foldQualified
     lusr
     ( \lcnv -> do
-        (fmap (maybe Unchanged (Updated . lcuEvent) . hush))
+        fmap (maybe Unchanged (Updated . lcuEvent) . hush)
           . runError @NoChanges
           . updateLocalConversation @'ConversationUpdateProtocolTag lcnv (tUntagged lusr) (Just conn)
           $ newProtocol

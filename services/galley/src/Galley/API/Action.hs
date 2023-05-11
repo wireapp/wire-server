@@ -93,12 +93,12 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Error
-import Wire.API.MLS.CipherSuite
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API (Component (Galley), fedClient)
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.CipherSuite
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import qualified Wire.API.User as User
@@ -211,8 +211,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Error NoChanges) r
     )
   HasConversationActionEffects 'ConversationUpdateProtocolTag r =
-    (
-      Member ConversationStore r,
+    ( Member ConversationStore r,
       Member (ErrorS 'ConvInvalidProtocolTransition) r,
       Member (Error NoChanges) r
     )
