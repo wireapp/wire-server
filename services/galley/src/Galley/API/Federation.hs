@@ -40,6 +40,7 @@ import Data.Singletons (SingI (..), demote, sing)
 import Data.Tagged
 import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
+import Debug.Trace (traceM)
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.Enabled
@@ -206,6 +207,7 @@ onNewRemoteConversation ::
   F.NewRemoteConversation ->
   Sem r EmptyResponse
 onNewRemoteConversation domain nrc = do
+  traceM $ "onNewRemoteConversation: " <> show nrc.nrcConvId
   -- update group_id -> conv_id mapping
   for_ (preview (to F.nrcProtocol . _ProtocolMLS) nrc) $ \mls ->
     E.setGroupIdForConversation
@@ -257,7 +259,9 @@ onConversationUpdated ::
   Domain ->
   F.ConversationUpdate ->
   Sem r ()
-onConversationUpdated requestingDomain cu = updateLocalStateOfRemoteConv requestingDomain cu
+onConversationUpdated requestingDomain cu = do
+  traceM "onConversationUpdated"
+  updateLocalStateOfRemoteConv requestingDomain cu
 
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::

@@ -27,6 +27,7 @@ import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Tuple.Extra
+import Debug.Trace (traceM)
 import Galley.API.Action
 import Galley.API.MLS.Commit.Core
 import Galley.API.MLS.Conversation
@@ -76,6 +77,7 @@ processInternalCommit ::
   Commit ->
   Sem r [LocalConversationUpdate]
 processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
+  traceM "processInternalCommit"
   let convOrSub = tUnqualified lConvOrSub
       mlsMeta = mlsMetaConvOrSub convOrSub
       qusr = cidQualifiedUser senderIdentity

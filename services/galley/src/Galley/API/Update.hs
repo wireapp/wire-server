@@ -89,6 +89,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
 import Data.Time
+import Debug.Trace
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.Mapping
@@ -1704,6 +1705,7 @@ updateLocalStateOfRemoteConv ::
   F.ConversationUpdate ->
   Sem r ()
 updateLocalStateOfRemoteConv requestingDomain cu = do
+  traceM "updateLocalStateOfRemoteConv"
   loc <- qualifyLocal ()
   let rconvId = toRemoteUnsafe requestingDomain (F.cuConvId cu)
       qconvId = tUntagged rconvId
@@ -1713,6 +1715,9 @@ updateLocalStateOfRemoteConv requestingDomain cu = do
   -- backend. See also the comment below.
   (presentUsers, allUsersArePresent) <-
     E.selectRemoteMembers (F.cuAlreadyPresentUsers cu) rconvId
+  traceM $ "F.cuAlreadyPresentUsers: " <> show (F.cuAlreadyPresentUsers cu)
+  traceM $ "presentUsers: " <> show presentUsers
+  traceM $ "allUsersArePresent: " <> show allUsersArePresent
 
   -- Perform action, and determine extra notification targets.
   --
@@ -1722,6 +1727,7 @@ updateLocalStateOfRemoteConv requestingDomain cu = do
   -- are not in the conversations are being removed or have their membership state
   -- updated, we do **not** add them to the list of targets, because we have no
   -- way to make sure that they are actually supposed to receive that notification.
+  traceM $ "F.cuAction: " <> show (F.cuAction cu)
 
   (mActualAction :: Maybe SomeConversationAction, extraTargets :: [UserId]) <- case F.cuAction cu of
     sca@(SomeConversationAction singTag action) -> case singTag of
@@ -1730,6 +1736,7 @@ updateLocalStateOfRemoteConv requestingDomain cu = do
         let (localUsers, remoteUsers) = partitionQualified loc toAdd
         addedLocalUsers <- Set.toList <$> addLocalUsersToRemoteConv rconvId (F.cuOrigUserId cu) localUsers
         let allAddedUsers = map (tUntagged . qualifyAs loc) addedLocalUsers <> map tUntagged remoteUsers
+        traceM $ "allAddedUsers: " <> show allAddedUsers
         case allAddedUsers of
           [] -> pure (Nothing, []) -- If no users get added, its like no action was performed.
           (u : us) -> pure (Just (SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (u :| us) role)), addedLocalUsers)
@@ -1765,6 +1772,7 @@ updateLocalStateOfRemoteConv requestingDomain cu = do
   for_ mActualAction $ \(SomeConversationAction tag action) -> do
     let event = conversationActionToEvent tag (F.cuTime cu) (F.cuOrigUserId cu) qconvId Nothing action
         targets = nubOrd $ presentUsers <> extraTargets
+    traceM $ "targets: " <> show targets
     -- FUTUREWORK: support bots?
     pushConversationEvent Nothing event (qualifyAs loc targets) []
 

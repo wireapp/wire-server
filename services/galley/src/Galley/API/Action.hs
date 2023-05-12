@@ -54,6 +54,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
 import Data.Time.Clock
+import Debug.Trace (traceM)
 import Galley.API.Error
 import Galley.API.MLS.Removal
 import Galley.API.Util
@@ -856,6 +857,7 @@ notifyRemoteConversationAction ::
   Maybe ConnId ->
   Sem r Event
 notifyRemoteConversationAction loc rconvUpdate con = do
+  traceM "notifyRemoteConversationAction"
   let convUpdate = tUnqualified rconvUpdate
       rconvId = qualifyAs rconvUpdate . cuConvId $ convUpdate
 

@@ -104,7 +104,9 @@ testSelfConversation = do
 
 testJoinSubConv :: App ()
 testJoinSubConv = do
-  [alice, bob] <- createAndConnectUsers [ownDomain, ownDomain]
+  [alice, bob] <- createAndConnectUsers [ownDomain, otherDomain]
+  printJSON alice
+  printJSON bob
   [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
   traverse_ uploadNewKeyPackage [bob1, bob2]
   (_, qcnv) <- setupMLSGroup alice1

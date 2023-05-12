@@ -26,6 +26,7 @@ import Control.Lens (forOf_)
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
+import Debug.Trace (traceM)
 import Galley.API.MLS.Commit.Core
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Removal
@@ -131,6 +132,7 @@ processExternalCommit ::
   Maybe UpdatePath ->
   Sem r ()
 processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
+  traceM "processExternalCommit"
   let convOrSub = tUnqualified lConvOrSub
 
   -- only members can join a subconversation

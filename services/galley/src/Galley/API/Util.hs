@@ -36,6 +36,7 @@ import qualified Data.Set as Set
 import Data.Singletons
 import qualified Data.Text as T
 import Data.Time
+import Debug.Trace
 import Galley.API.Error
 import Galley.API.Mapping
 import qualified Galley.Data.Conversation as Data
@@ -548,9 +549,11 @@ getConversationAndCheckMembership ::
   Local ConvId ->
   Sem r Data.Conversation
 getConversationAndCheckMembership quid lcnv = do
+  traceM "getConversationAndCheckMembership"
   foldQualified
     lcnv
     ( \lusr -> do
+        traceM $ "local user: " <> show quid
         (conv, _) <-
           getConversationAndMemberWithError
             @'ConvAccessDenied
@@ -559,6 +562,7 @@ getConversationAndCheckMembership quid lcnv = do
         pure conv
     )
     ( \rusr -> do
+        traceM $ "remote user: " <> show quid
         (conv, _) <-
           getConversationAndMemberWithError
             @'ConvNotFound

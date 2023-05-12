@@ -32,6 +32,7 @@ import qualified Data.List.Extra as List
 import Data.Monoid
 import Data.Qualified
 import qualified Data.Set as Set
+import Debug.Trace
 import Galley.Cassandra.Conversation.MLS
 import Galley.Cassandra.Instances ()
 import qualified Galley.Cassandra.Queries as Cql
@@ -309,16 +310,20 @@ filterRemoteConvMembers ::
   [UserId] ->
   Remote ConvId ->
   Client ([UserId], Bool)
-filterRemoteConvMembers users (tUntagged -> Qualified conv dom) =
+filterRemoteConvMembers users (tUntagged -> Qualified conv dom) = do
+  traceM "filterRemoteConvMembers"
   fmap Data.Monoid.getAll
     . foldMap (\muser -> (muser, Data.Monoid.All (not (null muser))))
     <$> UnliftIO.pooledMapConcurrentlyN 8 filterMember users
   where
     filterMember :: UserId -> Client [UserId]
-    filterMember user =
-      fmap (map runIdentity)
-        . retry x1
-        $ query Cql.selectRemoteConvMembers (params LocalQuorum (user, dom, conv))
+    filterMember user = do
+      users' <-
+        fmap (map runIdentity)
+          . retry x1
+          $ query Cql.selectRemoteConvMembers (params LocalQuorum (user, dom, conv))
+      traceM $ "filterMember/users: " <> show users' <> ", " <> show dom <> ", " <> show conv
+      pure users'
 
 lookupLocalMemberRemoteConv ::
   UserId ->

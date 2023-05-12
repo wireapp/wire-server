@@ -36,6 +36,7 @@ import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
 import Data.Time.Clock
+import Debug.Trace (traceM)
 import Galley.API.MLS
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.GroupInfo
@@ -114,6 +115,7 @@ getLocalSubConversation ::
   SubConvId ->
   Sem r PublicSubConversation
 getLocalSubConversation qusr lconv sconv = do
+  traceM "getLocalSubConversation"
   c <- getConversationAndCheckMembership qusr lconv
 
   unless (Data.convType c == RegularConv) $
@@ -164,6 +166,7 @@ getRemoteSubConversation ::
   SubConvId ->
   Sem r PublicSubConversation
 getRemoteSubConversation lusr rcnv sconv = do
+  traceM "getRemoteSubConversation"
   res <- runFederated rcnv $ do
     fedClient @'Galley @"get-sub-conversation" $
       GetSubConversationsRequest
