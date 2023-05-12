@@ -181,8 +181,9 @@ authAPI =
 
 federationRemotesAPI :: ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
-  Named @"get-federation-remotes" getFederationRemotes
-    :<|> Named @"add-federation-remotes" addFederationRemote
+  Named @"add-federation-remotes" addFederationRemote
+    :<|> Named @"get-federation-remotes" getFederationRemotes
+    :<|> Named @"update-federation-remotes" updateFederationRemotes
     :<|> Named @"delete-federation-remotes" deleteFederationRemotes
 
 addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
@@ -224,6 +225,9 @@ getFederationRemotes = lift $ do
     & (\cfg -> cfg {fromFederationDomainConfigs = nub $ db <> fromMaybe mempty mf})
     & maybe id (\v cfg -> cfg {updateInterval = min 10 v}) mu
     & pure
+
+updateFederationRemotes :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+updateFederationRemotes = _
 
 deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemotes dom = do

@@ -492,6 +492,15 @@ crudFederationRemotes opts brig = do
   -- deleting from the config file triggers an error
   deleteFederationRemote' id brig (domain $ head $ cfgRemotes) !!! const 533 === statusCode
 
+  -- updating search strategy works
+  _
+
+  -- updating from config file fails
+  _
+
+  -- updating domain fails
+  _
+
   -- TODO: how do we test that the TVar is updated in all services?  some fancy unit test?
   -- duplicate internal end-point to all services, and implement the hanlers in a library?
   pure ()

@@ -166,8 +166,8 @@ all information about remote connections is stored in the database,
 and there is an internal REST API for adding and removing remotes:
 
 * [`POST`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_federation_remotes)
-* [`PUT`](TODO)
 * [`GET`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_federation_remotes)
+* [`PUT`](TODO)
 * [`DELETE`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/delete_i_federation_remotes__domain_)
 
 **WARNING:** If you delete a connection, all users from that remote
