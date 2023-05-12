@@ -1,3 +1,5 @@
+{-# LANGUAGE NumericUnderscores #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -62,7 +64,7 @@ import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
 import qualified Brig.User.Search.Index as Index
 import Control.Error hiding (bool)
-import Control.Lens (view)
+import Control.Lens (to, view, (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
@@ -83,6 +85,7 @@ import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
 import qualified System.Logger.Class as Log
+import System.Random (randomRIO)
 import UnliftIO.Async
 import Wire.API.Connection
 import Wire.API.Error
@@ -194,18 +197,33 @@ addFederationRemote fedDomConf = do
 
 getFederationRemotes :: ExceptT Brig.API.Error.Error (AppT r) FederationDomainConfigs
 getFederationRemotes = lift $ do
-  db <- wrapClient Data.getFederationRemotes
-  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
   -- FUTUREWORK: we should solely rely on `db` in the future for remote domains; merging
   -- remote domains from `cfg` is just for providing an easier, more robust migration path.
   -- See
   -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
   -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
-  pure $
-    FederationDomainConfigs
-      { fromFederationDomainConfigs = nub $ db <> cfg,
-        updateInterval = 1000000 -- TODO FIX ME!
-      }
+  db <- wrapClient Data.getFederationRemotes
+  (ms :: Maybe FederationStrategy, mf :: Maybe [FederationDomainConfig], mu :: Maybe Int) <- do
+    cfg :: Env <- ask
+    pure
+      ( setFederationStrategy (cfg ^. settings),
+        cfg ^. settings . to setFederationDomainConfigs,
+        setFederationDomainConfigsUpdateFreq (cfg ^. settings)
+      )
+
+  -- update frequency settings of <= 0 are ignored.  only warn about this every now and
+  -- then, that'll be noise enough for the logs given the traffic on this end-point.
+  unless (maybe True (> 0) mu) $
+    randomRIO (0 :: Int, 1000)
+      >>= \case
+        0 -> Log.warn (Log.msg (Log.val "Invalid brig configuration: setFederationDomainConfigsUpdateFreq must be > 0, using default 10 seconds."))
+        _ -> pure ()
+
+  defFederationDomainConfigs
+    & maybe id (\v cfg -> cfg {strategy = v}) ms
+    & (\cfg -> cfg {fromFederationDomainConfigs = nub $ db <> fromMaybe mempty mf})
+    & maybe id (\v cfg -> cfg {updateInterval = min 10 v}) mu
+    & pure
 
 deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemotes dom = do

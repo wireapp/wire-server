@@ -18,6 +18,8 @@
 module Wire.API.Routes.FederationDomainConfig
   ( FederationDomainConfig (..),
     FederationDomainConfigs (..),
+    FederationStrategy (..),
+    defFederationDomainConfigs,
   )
 where
 
@@ -28,6 +30,7 @@ import qualified Data.Swagger as S
 import GHC.Generics
 import Imports
 import Wire.API.User.Search (FederatedUserSearchPolicy)
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- | Everything we need to know about a remote instance in order to federate with it.  Comes
 -- in `AllowedDomains` if `AllowStrategy` is `AllowList`.  If `AllowAll`, we still use this
@@ -38,6 +41,7 @@ data FederationDomainConfig = FederationDomainConfig
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema FederationDomainConfig
+  deriving (Arbitrary) via (GenericUniform FederationDomainConfig)
 
 instance ToSchema FederationDomainConfig where
   schema =
@@ -47,15 +51,47 @@ instance ToSchema FederationDomainConfig where
         <*> cfgSearchPolicy .= field "search_policy" schema
 
 data FederationDomainConfigs = FederationDomainConfigs
-  { fromFederationDomainConfigs :: [FederationDomainConfig],
+  { strategy :: FederationStrategy,
+    fromFederationDomainConfigs :: [FederationDomainConfig], -- TODO: rename to `remotes`
     updateInterval :: Int
   }
   deriving (Show, Generic, Eq)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema FederationDomainConfigs
+  deriving (Arbitrary) via (GenericUniform FederationDomainConfigs)
+
+defFederationDomainConfigs :: FederationDomainConfigs
+defFederationDomainConfigs =
+  FederationDomainConfigs
+    { strategy = AllowNone,
+      fromFederationDomainConfigs = [],
+      updateInterval = 10
+    }
 
 instance ToSchema FederationDomainConfigs where
   schema =
     object "FederationDomainConfigs" $
       FederationDomainConfigs
-        <$> fromFederationDomainConfigs .= field "remotes" (array schema)
-        <*> updateInterval .= field "updateInterval" schema
+        <$> strategy .= field "strategy" schema
+        <*> fromFederationDomainConfigs .= field "remotes" (array schema)
+        <*> updateInterval .= field "updateInterval (seconds)" schema
+
+data FederationStrategy
+  = -- | Disable federation.
+    AllowNone
+  | -- | Allow any backend that asks.
+    AllowAll
+  | -- | Any backend explicitly configured in table `brig.federation_remotes` (if that table
+    -- is empty, this is the same as `AllowNone`).
+    AllowList
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema FederationStrategy
+  deriving (Arbitrary) via (GenericUniform FederationStrategy)
+
+instance ToSchema FederationStrategy where
+  schema =
+    enum @Text "FederationStrategy" $
+      mconcat
+        [ element "allowNone" AllowNone,
+          element "allowAll" AllowAll,
+          element "allowList" AllowList
+        ]

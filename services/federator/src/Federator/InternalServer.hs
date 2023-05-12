@@ -25,7 +25,6 @@ import qualified Data.ByteString as BS
 import qualified Data.Text as Text
 import Federator.Env
 import Federator.Error.ServerError
-import Federator.Options (RunSettings)
 import Federator.Remote
 import Federator.Response
 import Federator.Validation
@@ -83,7 +82,6 @@ callOutward ::
     Member (Embed IO) r,
     Member (Error ValidationError) r,
     Member (Error ServerError) r,
-    Member (Input RunSettings) r,
     Member (Input FederationDomainConfigs) r
   ) =>
   Wai.Request ->

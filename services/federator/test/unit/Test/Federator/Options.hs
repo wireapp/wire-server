@@ -51,38 +51,8 @@ tests :: TestTree
 tests =
   testGroup
     "Options"
-    [ -- parseFederationStrategy,
-      testSettings
+    [ testSettings
     ]
-
-{- TODO fixme
-parseFederationStrategy :: TestTree
-parseFederationStrategy =
-  testCase "parse FederationStrategy examples" $ do
-    assertParsesAs AllowAll $
-      "allowAll: null"
-    assertParsesAs (withAllowList []) $
-      "allowedDomains: []"
-    assertParsesAs (withAllowList ["test.org"]) . B8.pack $
-      [QQ.i|
-      allowedDomains:
-        - test.org|]
-    assertParsesAs (withAllowList ["example.com", "wire.com"]) . B8.pack $
-      [QQ.i|
-      allowedDomains:
-        - example.com
-        - wire.com|]
-    -- manual roundtrip example AllowAll
-    let allowA = toStrict $ Aeson.encode AllowAll
-    assertParsesAs AllowAll $ allowA
-    -- manual roundtrip example AllowList
-    let allowWire = withAllowList ["wire.com"]
-    let allowedDom = toStrict $ Aeson.encode allowWire
-    assertParsesAs allowWire $ allowedDom
-  where
-    withAllowList =
-      AllowedDomains . map (either error id . mkDomain)
--}
 
 testSettings :: TestTree
 testSettings =

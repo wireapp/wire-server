@@ -25,7 +25,6 @@ import qualified Data.Text as Text
 import Federator.Discovery
 import Federator.Env
 import Federator.Error.ServerError
-import Federator.Options (RunSettings)
 import Federator.Response
 import Federator.Service
 import Federator.Validation
@@ -52,7 +51,6 @@ callInward ::
     Member (Error ValidationError) r,
     Member (Error DiscoveryFailure) r,
     Member (Error ServerError) r,
-    Member (Input RunSettings) r,
     Member (Input FederationDomainConfigs) r
   ) =>
   Wai.Request ->

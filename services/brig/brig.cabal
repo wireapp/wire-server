@@ -260,6 +260,7 @@ library
     , polysemy-plugin
     , polysemy-wire-zoo
     , proto-lens                 >=0.1
+    , random
     , random-shuffle             >=0.0.3
     , resource-pool              >=0.2
     , resourcet                  >=1.1
