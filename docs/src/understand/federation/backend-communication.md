@@ -160,13 +160,14 @@ search request from *Alice*, one of its clients.
 
 Up to the release containing
 [PR#3260](https://github.com/wireapp/wire-server/pull/3260), the
-config files of the individual services statically contained
-information about the remote connections.  Starting with this release,
-this information is stored in the database, and there is an internal
-REST API for adding and removing remotes:
+config files of the individual services statically contained the
+domains of remote connections.  Starting with this release, this and
+all information about remote connections is stored in the database,
+and there is an internal REST API for adding and removing remotes:
 
-* [`GET`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_federation_remotes)
 * [`POST`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_federation_remotes)
+* [`PUT`](TODO)
+* [`GET`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_federation_remotes)
 * [`DELETE`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/delete_i_federation_remotes__domain_)
 
 **WARNING:** If you delete a connection, all users from that remote
@@ -177,7 +178,7 @@ can be re-established should you decide to add the same backend later.
 
 Changing the configuration of existing edges via `PUT` is not
 implemented at the moment, if you need to do that, delete the
-connection and add it again.
+connection and add it again.  TODO: this is bullshit.  go implement it!
 
 {-
 TODO: this paragraph still annoys me.  move strategy to brig, too?  or
