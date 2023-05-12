@@ -8,6 +8,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
+import Data.Function
 import Data.List
 import Data.List.Split (splitOn)
 import Data.String
@@ -57,15 +58,6 @@ addQueryParams :: [(String, String)] -> HTTP.Request -> HTTP.Request
 addQueryParams params req =
   HTTP.setQueryString (map (\(k, v) -> (cs k, Just (cs v))) params) req
 
-zUser :: String -> HTTP.Request -> HTTP.Request
-zUser = addHeader "Z-User"
-
-zConnection :: String -> HTTP.Request -> HTTP.Request
-zConnection = addHeader "Z-Connection"
-
-zClient :: String -> HTTP.Request -> HTTP.Request
-zClient = addHeader "Z-Client"
-
 zType :: String -> HTTP.Request -> HTTP.Request
 zType = addHeader "Z-Type"
 
@@ -98,8 +90,8 @@ onFailureAddResponse r m = App $ do
 
 data Versioned = Versioned | Unversioned | ExplicitVersion Int
 
-baseRequest :: (HasCallStack, MakesValue domain) => domain -> Service -> Versioned -> String -> App HTTP.Request
-baseRequest domain service versioned path = do
+rawBaseRequest :: (HasCallStack, MakesValue domain) => domain -> Service -> Versioned -> String -> App HTTP.Request
+rawBaseRequest domain service versioned path = do
   pathSegsPrefix <- case versioned of
     Versioned -> do
       v <- asks (.defaultAPIVersion)
@@ -114,6 +106,27 @@ baseRequest domain service versioned path = do
   liftIO . HTTP.parseRequest $
     let HostPort h p = serviceHostPort serviceMap service
      in "http://" <> h <> ":" <> show p <> ("/" <> joinHttpPath (pathSegsPrefix <> splitHttpPath path))
+
+baseRequest :: (HasCallStack, MakesValue user) => user -> Service -> Versioned -> String -> App HTTP.Request
+baseRequest user service versioned path = do
+  req <- rawBaseRequest user service versioned path
+  uid <- objId user
+  cli <-
+    make user >>= \case
+      Aeson.Object _ -> do
+        c <- lookupField user "client_id"
+        traverse asString c
+      _ -> pure Nothing
+  pure $ req & zUser uid & maybe id zClient cli & zConnection "conn"
+
+zUser :: String -> HTTP.Request -> HTTP.Request
+zUser = addHeader "Z-User"
+
+zConnection :: String -> HTTP.Request -> HTTP.Request
+zConnection = addHeader "Z-Connection"
+
+zClient :: String -> HTTP.Request -> HTTP.Request
+zClient = addHeader "Z-Client"
 
 submit :: String -> HTTP.Request -> App Response
 submit method req0 = do

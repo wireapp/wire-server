@@ -165,7 +165,7 @@ generateKeyPackage cid = do
 -- | Create conversation and corresponding group.
 setupMLSGroup :: HasCallStack => ClientIdentity -> App (String, Value)
 setupMLSGroup cid = do
-  conv <- postConversation cid (Just cid.client) defMLS >>= getJSON 201
+  conv <- postConversation cid defMLS >>= getJSON 201
   groupId <- conv %. "group_id" & asString
   convId <- conv %. "qualified_id"
   createGroup cid conv

@@ -14,14 +14,14 @@ testCantDeleteLHClient = do
     Public.addClient user def {Public.ctype = "legalhold", Public.internal = True}
       >>= getJSON 201
 
-  bindResponse (Public.deleteClient user Nothing client) $ \resp -> do
+  bindResponse (Public.deleteClient user client) $ \resp -> do
     resp.status `shouldMatchInt` 400
 
 testDeleteUnknownClient :: HasCallStack => App ()
 testDeleteUnknownClient = do
   user <- randomUser ownDomain def
   let fakeClientId = "deadbeefdeadbeef"
-  bindResponse (Public.deleteClient user Nothing fakeClientId) $ \resp -> do
+  bindResponse (Public.deleteClient user fakeClientId) $ \resp -> do
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "client-not-found"
 
