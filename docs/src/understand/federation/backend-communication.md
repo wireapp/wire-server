@@ -176,10 +176,6 @@ by that remote will be removed from the local backend.  Connections
 between local and remote users that are removed will be archived, and
 can be re-established should you decide to add the same backend later.
 
-Changing the configuration of existing edges via `PUT` is not
-implemented at the moment, if you need to do that, delete the
-connection and add it again.  TODO: this is bullshit.  go implement it!
-
 {-
 TODO: this paragraph still annoys me.  move strategy to brig, too?  or
 at least to a different syntax, and force admin to use both old and

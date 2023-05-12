@@ -473,12 +473,12 @@ crudFederationRemotes opts brig = do
   let remote1 = FederationDomainConfig (Domain "good.example.com") NoSearch
   addFederationRemote brig remote1
   res2 <- getFederationRemotes brig
-  liftIO $ assertEqual "should return config values and good.example.com" (nub $ sort $ cfgRemotes <> [remote1]) (sort res2)
+  liftIO $ assertEqual "should return config values and good.example.com" (sort $ remote1 : cfgRemotes) (sort res2)
 
   -- idempotency
   addFederationRemote brig remote1
   res2' <- getFederationRemotes brig
-  liftIO $ assertEqual "should return config values and good.example.com" (nub $ sort $ cfgRemotes <> [remote1]) (sort res2')
+  liftIO $ assertEqual "should return config values and good.example.com" (sort $ remote1 : cfgRemotes) (sort res2')
 
   let remote2 = FederationDomainConfig (Domain "evil.example.com") ExactHandleSearch
   addFederationRemote brig remote2
@@ -493,13 +493,17 @@ crudFederationRemotes opts brig = do
   deleteFederationRemote' id brig (domain $ head $ cfgRemotes) !!! const 533 === statusCode
 
   -- updating search strategy works
-  _
+  let remote2' = remote2 {cfgSearchPolicy = NoSearch}
+  () <- updateFederationRemote brig (domain remote2) remote2'
+  res5 <- getFederationRemotes brig
+  liftIO $ assertEqual "should be NoSearch" (nub $ sort $ cfgRemotes <> [remote1, remote2']) (sort res5)
 
   -- updating from config file fails
-  _
+  updateFederationRemote' id brig (domain $ head $ cfgRemotes) (head $ cfgRemotes) !!! const 533 === statusCode
 
   -- updating domain fails
-  _
+  let remote2'' = remote2' {domain = Domain "broken.example.com"}
+  updateFederationRemote' id brig (domain remote2) remote2'' !!! const 533 === statusCode
 
   -- TODO: how do we test that the TVar is updated in all services?  some fancy unit test?
   -- duplicate internal end-point to all services, and implement the hanlers in a library?

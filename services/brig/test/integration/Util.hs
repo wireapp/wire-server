@@ -1085,6 +1085,14 @@ addFederationRemote :: Brig -> FederationDomainConfig -> Http ()
 addFederationRemote brig remote =
   void $ post (brig . paths ["i", "federation", "remotes"] . contentJson . json remote . expect2xx)
 
+updateFederationRemote :: Brig -> Domain -> FederationDomainConfig -> Http ()
+updateFederationRemote brig rdom remote =
+  void $ updateFederationRemote' expect2xx brig rdom remote
+
+updateFederationRemote' :: (Request -> Request) -> Brig -> Domain -> FederationDomainConfig -> Http ResponseLBS
+updateFederationRemote' mods brig rdom remote =
+  put (brig . paths ["i", "federation", "remotes", toByteString' rdom] . contentJson . json remote . mods)
+
 deleteFederationRemote :: Brig -> Domain -> Http ()
 deleteFederationRemote brig rdom =
   void $ deleteFederationRemote' expect2xx brig rdom
