@@ -215,6 +215,8 @@ developer's point of view on this topic.
 
 ### Transitioning from config file to database state
 
+transitioning is only necessary if you (1) upgrade and not install fresh; and (2) already have federation enabled before the upgrade.
+
 TODO: you need to update config files!
   - complete list of search policies, no more defaults
   - new fed strategy syntax (keep the old, just copy)
