@@ -54,9 +54,6 @@ instance {-# OVERLAPPABLE #-} ToJSON a => MakesValue a where
 instance {-# OVERLAPPING #-} ToJSON a => MakesValue (App a) where
   make m = m <&> toJSON
 
-instance MakesValue Response where
-  make r = r.json
-
 -- use this to provide Nothing for MakesValue a => (Maybe a) values.
 noValue :: Maybe Value
 noValue = Nothing

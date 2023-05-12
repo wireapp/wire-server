@@ -17,6 +17,7 @@ import qualified Data.Text.Encoding as T
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
+import Testlib.Assertions
 import Testlib.Env
 import Testlib.JSON
 import Testlib.Types
@@ -74,11 +75,20 @@ contentTypeJSON = addHeader "Content-Type" "application/json"
 bindResponse :: HasCallStack => App Response -> (Response -> App a) -> App a
 bindResponse m k = m >>= \r -> withResponse r k
 
-bindResponseR :: HasCallStack => App Response -> (Response -> App a) -> App Response
-bindResponseR m k = m >>= \r -> withResponse r k >> pure r
-
 withResponse :: HasCallStack => Response -> (Response -> App a) -> App a
 withResponse r k = onFailureAddResponse r (k r)
+
+-- | Check response status code, then return body.
+getBody :: Int -> Response -> App ByteString
+getBody status resp = withResponse resp $ \r -> do
+  r.status `shouldMatch` status
+  pure r.body
+
+-- | Check response status code, then return JSON body.
+getJSON :: Int -> Response -> App Aeson.Value
+getJSON status resp = withResponse resp $ \r -> do
+  r.status `shouldMatch` status
+  r.json
 
 onFailureAddResponse :: Response -> App a -> App a
 onFailureAddResponse r m = App $ do
