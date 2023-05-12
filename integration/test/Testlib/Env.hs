@@ -21,6 +21,7 @@ import System.FilePath
 import System.IO
 import System.IO.Temp
 import Testlib.Prekeys
+import Prelude
 
 -- | Initialised once per test.
 data Env = Env

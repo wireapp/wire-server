@@ -24,6 +24,7 @@ import Testlib.Printing
 import Testlib.Types
 import Text.Printf
 import UnliftIO.Async
+import Prelude
 
 data TestReport = TestReport
   { count :: Int,

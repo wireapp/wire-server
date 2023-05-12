@@ -22,6 +22,7 @@ import Testlib.Assertions
 import Testlib.Env
 import Testlib.JSON
 import Testlib.Types
+import Prelude
 
 splitHttpPath :: String -> [String]
 splitHttpPath path = filter (not . null) (splitOn "/" path)

@@ -10,8 +10,6 @@ import Control.Monad.Catch
 import Control.Monad.Cont
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
-import Data.Aeson (Value (..), object)
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
@@ -39,7 +37,7 @@ import Testlib.Assertions
 import Testlib.Env
 import Testlib.HTTP
 import Testlib.JSON
-import Testlib.Types
+import Testlib.Prelude
 
 mkClientIdentity :: (MakesValue u, MakesValue c) => u -> c -> App ClientIdentity
 mkClientIdentity u c = do

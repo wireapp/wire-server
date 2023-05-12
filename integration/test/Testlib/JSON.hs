@@ -20,6 +20,7 @@ import qualified Data.Text as T
 import GHC.Stack
 import Testlib.Env
 import Testlib.Types
+import Prelude
 
 -- | All library functions should use this typeclass for all untyped value
 -- arguments wherever possible. This design choice has advantages:
