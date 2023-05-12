@@ -697,7 +697,7 @@ updateConversationProtocolWithLocalUser ::
   forall r.
   ( Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvInvalidProtocolTransition) r,
-    Member (ErrorS ('ActionDenied 'ModifyConversationProtocol)) r,
+    Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
     Member (Input UTCTime) r,

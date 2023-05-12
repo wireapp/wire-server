@@ -273,7 +273,7 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'ConvNotFound
      ]
   HasConversationActionGalleyErrors 'ConversationUpdateProtocolTag =
-    '[ ErrorS ('ActionDenied 'ModifyConversationProtocol),
+    '[ ErrorS ('ActionDenied 'LeaveConversation),
        ErrorS 'InvalidOperation,
        ErrorS 'ConvNotFound,
        ErrorS 'ConvInvalidProtocolTransition

@@ -139,7 +139,7 @@ $( singletons
        conversationActionPermission ConversationMessageTimerUpdateTag = ModifyConversationMessageTimer
        conversationActionPermission ConversationReceiptModeUpdateTag = ModifyConversationReceiptMode
        conversationActionPermission ConversationAccessDataTag = ModifyConversationAccess
-       conversationActionPermission ConversationUpdateProtocolTag = ModifyConversationProtocol
+       conversationActionPermission ConversationUpdateProtocolTag = LeaveConversation
        |]
  )
 

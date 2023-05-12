@@ -46,7 +46,6 @@ module Wire.API.Conversation.Role
     RemoveConversationMemberSym0,
     ModifyConversationNameSym0,
     ModifyConversationMessageTimerSym0,
-    ModifyConversationProtocolSym0,
     ModifyConversationReceiptModeSym0,
     ModifyConversationAccessSym0,
     ModifyOtherConversationMemberSym0,
@@ -99,7 +98,6 @@ data Action
   | RemoveConversationMember
   | ModifyConversationName
   | ModifyConversationMessageTimer
-  | ModifyConversationProtocol
   | ModifyConversationReceiptMode
   | ModifyConversationAccess
   | ModifyOtherConversationMember
@@ -119,7 +117,6 @@ type family ActionName (a :: Action) :: Symbol where
   ActionName 'ModifyOtherConversationMember = "modify_other_conversation_member"
   ActionName 'LeaveConversation = "leave_conversation"
   ActionName 'DeleteConversation = "delete_conversation"
-  ActionName 'ModifyConversationProtocol = "modify_conversation_protocol"
 
 A.deriveJSON A.defaultOptions {A.constructorTagModifier = A.camelTo2 '_'} ''Action
 
@@ -166,8 +163,7 @@ roleActions :: ConversationRole -> Set Action
 roleActions ConvRoleWireAdmin = allowedActions allActions
 roleActions ConvRoleWireMember =
   Set.fromList
-    [ LeaveConversation,
-      ModifyConversationProtocol
+    [ LeaveConversation
     ]
 roleActions (ConvRoleCustom _ (Actions actions)) = actions
 

@@ -1253,7 +1253,7 @@ type ConversationAPI =
                :> Description "**Note**: Only proteus->mixed upgrade is supported."
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvInvalidProtocolTransition
-               :> CanThrow ('ActionDenied 'ModifyConversationProtocol)
+               :> CanThrow ('ActionDenied 'LeaveConversation)
                :> CanThrow 'InvalidOperation
                :> ZLocalUser
                :> ZConn
