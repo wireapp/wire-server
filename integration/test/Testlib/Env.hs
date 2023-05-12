@@ -175,6 +175,7 @@ data MLSState = MLSState
     clientGroupState :: Map ClientIdentity ByteString,
     epoch :: Word64
   }
+  deriving (Show)
 
 mkMLSState :: Codensity IO MLSState
 mkMLSState = Codensity $ \k ->
@@ -195,4 +196,4 @@ data ClientIdentity = ClientIdentity
     user :: String,
     client :: String
   }
-  deriving (Eq, Ord)
+  deriving (Show, Eq, Ord)
