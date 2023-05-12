@@ -813,7 +813,7 @@ getUserProperties uid = do
             b
             ( method GET
                 . header "Z-User" (toByteString' uid)
-                . versionedPaths ["/properties", toByteString' x]
+                . versionedPaths ["properties", toByteString' x]
                 . expect2xx
             )
       info $ msg ("Response" ++ show r)
