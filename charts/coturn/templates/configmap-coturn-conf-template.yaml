@@ -20,13 +20,15 @@ data:
     no-tls
     {{- end }}
 
+    # This is mandatory for federated DTLS
+    CA-file=/etc/ssl/certs/ca-certificates.crt
+
     ## don't turn on coturn's cli.
     no-cli
 
     ## turn, stun.
     listening-ip=__COTURN_EXT_IP__
     listening-port={{ .Values.coturnTurnListenPort }}
-    max-allocate-lifetime=3600
     relay-ip=__COTURN_EXT_IP__
     realm=dummy.io
     no-stun-backward-compatibility
