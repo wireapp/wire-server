@@ -52,7 +52,7 @@ instance ToSchema FederationDomainConfig where
 
 data FederationDomainConfigs = FederationDomainConfigs
   { strategy :: FederationStrategy,
-    fromFederationDomainConfigs :: [FederationDomainConfig], -- TODO: rename to `remotes`
+    remotes :: [FederationDomainConfig],
     updateInterval :: Int
   }
   deriving (Show, Generic, Eq)
@@ -63,7 +63,7 @@ defFederationDomainConfigs :: FederationDomainConfigs
 defFederationDomainConfigs =
   FederationDomainConfigs
     { strategy = AllowNone,
-      fromFederationDomainConfigs = [],
+      remotes = [],
       updateInterval = 10
     }
 
@@ -72,7 +72,7 @@ instance ToSchema FederationDomainConfigs where
     object "FederationDomainConfigs" $
       FederationDomainConfigs
         <$> strategy .= field "strategy" schema
-        <*> fromFederationDomainConfigs .= field "remotes" (array schema)
+        <*> remotes .= field "remotes" (array schema)
         <*> updateInterval .= field "update_interval" schema
 
 data FederationStrategy

@@ -1078,7 +1078,7 @@ withDomainsBlockedForRegistration opts domains sess = do
 
 getFederationRemotes :: Brig -> Http [FederationDomainConfig]
 getFederationRemotes brig =
-  fromFederationDomainConfigs . responseJsonUnsafe <$> do
+  remotes . responseJsonUnsafe <$> do
     get (brig . paths ["i", "federation", "remotes"] . contentJson . expect2xx)
 
 addFederationRemote :: Brig -> FederationDomainConfig -> Http ()

@@ -222,12 +222,12 @@ getFederationRemotes = lift $ do
 
   defFederationDomainConfigs
     & maybe id (\v cfg -> cfg {strategy = v}) ms
-    & (\cfg -> cfg {fromFederationDomainConfigs = nub $ db <> fromMaybe mempty mf})
+    & (\cfg -> cfg {remotes = nub $ db <> fromMaybe mempty mf})
     & maybe id (\v cfg -> cfg {updateInterval = min 10 v}) mu
     & pure
 
 updateFederationRemotes :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
-updateFederationRemotes = _
+updateFederationRemotes = undefined
 
 deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemotes dom = do

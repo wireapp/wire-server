@@ -194,8 +194,8 @@ updateFedDomains = do
     okRemoteDomains <- getAllowedDomainsInitial logger clientEnv
     atomicWriteIORef ioref okRemoteDomains
     let domainListsEqual old new =
-          Set.fromList (domain <$> fromFederationDomainConfigs old)
-            == Set.fromList (domain <$> fromFederationDomainConfigs new)
+          Set.fromList (domain <$> remotes old)
+            == Set.fromList (domain <$> remotes new)
         callback old new = unless (domainListsEqual old new) $ do
           -- TODO: perform the database updates here
           -- This code will only run when there is a change in the domain lists
