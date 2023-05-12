@@ -5,6 +5,7 @@ module Test.MLS where
 import API.Galley
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
+import qualified Data.Text.Encoding as T
 import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
@@ -34,6 +35,43 @@ testMixedProtocolUpgrade secondDomain = do
 
   bindResponse (putConversationProtocol alice qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 204
+
+testMixedProtocolAddUsers :: HasCallStack => App ()
+testMixedProtocolAddUsers = ptestMixedProtocolAddUsers ownDomain
+
+testMixedProtocolAddUsersFed :: HasCallStack => App ()
+testMixedProtocolAddUsersFed = ptestMixedProtocolAddUsers otherDomain
+
+ptestMixedProtocolAddUsers :: (HasCallStack, MakesValue domain) => domain -> App ()
+ptestMixedProtocolAddUsers secondDomain = do
+  [alice, bob] <- do
+    d <- ownDomain
+    d2 <- secondDomain & asString
+    createAndConnectUsers [d, d2]
+
+  qcnv <- bindResponseR (postConversation alice noValue defProteus {qualifiedUsers = [bob]}) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+
+  bindResponse (putConversationProtocol bob qcnv noValue "mixed") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+
+  bindResponse (getConversation alice qcnv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    groupId <- resp %. "group_id" & asString
+    convId <- resp %. "qualified_id" & setField "group_id" groupId
+    createGroup alice1 convId
+
+  traverse_ uploadNewKeyPackage [bob1]
+
+  withWebSockets [alice, bob] $ \wss -> do
+    mp <- createAddCommit alice1 [bob]
+    welcome <- assertJust "should have welcome" mp.welcome
+    void $ sendAndConsumeCommitBundle mp
+    for_ wss $ \ws -> do
+      n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-welcome") ws
+      nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode welcome)
 
 testAddUser :: HasCallStack => App ()
 testAddUser = do
