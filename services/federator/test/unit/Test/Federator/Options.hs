@@ -35,8 +35,7 @@ import Test.Tasty.HUnit
 defRunSettings :: FilePath -> FilePath -> RunSettings
 defRunSettings client key =
   RunSettings
-    { federationStrategy = AllowAll,
-      useSystemCAStore = True,
+    { useSystemCAStore = True,
       remoteCAStore = Nothing,
       clientCertificate = client,
       clientPrivateKey = key,
@@ -72,8 +71,7 @@ testSettings =
       testCase "parse configuration example (closed federation)" $ do
         let settings =
               (defRunSettings "client.pem" "client-key.pem")
-                { federationStrategy = AllowList,
-                  useSystemCAStore = False
+                { useSystemCAStore = False
                 }
         assertParsesAs settings . B8.pack $
           [QQ.i|

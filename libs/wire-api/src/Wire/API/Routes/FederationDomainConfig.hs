@@ -73,7 +73,7 @@ instance ToSchema FederationDomainConfigs where
       FederationDomainConfigs
         <$> strategy .= field "strategy" schema
         <*> fromFederationDomainConfigs .= field "remotes" (array schema)
-        <*> updateInterval .= field "updateInterval (seconds)" schema
+        <*> updateInterval .= field "update_interval" schema
 
 data FederationStrategy
   = -- | Disable federation.

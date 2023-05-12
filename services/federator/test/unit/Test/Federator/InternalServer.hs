@@ -25,7 +25,6 @@ import Data.Default
 import Data.Domain
 import Federator.Error.ServerError
 import Federator.InternalServer (callOutward)
-import Federator.Options (FederationStrategy (..), RunSettings (..))
 import Federator.Remote
 import Federator.Validation
 import Imports
@@ -57,10 +56,6 @@ tests =
           federatedRequestFailureAllowList
         ]
     ]
-
-settingsWithAllowList :: RunSettings
-settingsWithAllowList =
-  noClientCertSettings {federationStrategy = AllowList}
 
 federatedRequestSuccess :: TestTree
 federatedRequestSuccess =
@@ -97,7 +92,7 @@ federatedRequestSuccess =
         . assertNoError @ServerError
         . discardTinyLogs
         . runInputConst settings
-        . runInputConst (FederationDomainConfigs [] 0)
+        . runInputConst (FederationDomainConfigs AllowList [FederationDomainConfig (Domain "target.example.com") FullSearch] 10)
         $ callOutward request
     Wai.responseStatus res @?= HTTP.status200
     body <- Wai.lazyResponseBody res
@@ -109,7 +104,7 @@ federatedRequestSuccess =
 federatedRequestFailureAllowList :: TestTree
 federatedRequestFailureAllowList =
   testCase "should not make a call when target domain not in the allowList" $ do
-    let settings = settingsWithAllowList
+    let settings = noClientCertSettings
     let targetDomain = Domain "target.example.com"
         headers = [(originDomainHeaderName, "origin.example.com")]
     request <-
@@ -139,7 +134,7 @@ federatedRequestFailureAllowList =
         . assertNoError @ServerError
         . discardTinyLogs
         . runInputConst settings
-        . runInputConst (FederationDomainConfigs [FederationDomainConfig (Domain "hello.world") FullSearch] 0)
+        . runInputConst (FederationDomainConfigs AllowList [FederationDomainConfig (Domain "hello.world") FullSearch] 10)
         $ callOutward request
     eith @?= Left (FederationDenied targetDomain)
 

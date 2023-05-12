@@ -338,4 +338,4 @@ aValidDomain :: Domain
 aValidDomain = Domain exampleDomain
 
 scaffoldingFederationDomainConfigs :: FederationDomainConfigs
-scaffoldingFederationDomainConfigs = defFederationDomainConfigs & strategy .~ AllowAll
+scaffoldingFederationDomainConfigs = defFederationDomainConfigs {strategy = AllowAll}
