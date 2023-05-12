@@ -93,7 +93,7 @@ import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
-import Wire.API.Federation.API.Brig (DomainSet (DomainSet), FederationStatus (Connected))
+import Wire.API.Federation.API.Brig (DomainSet (DomainSet))
 import qualified Wire.API.Federation.API.Brig as Fed
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
@@ -109,7 +109,8 @@ getFederationStatus _ (RemoteDomains domains) =
   where
     checkConnection :: Member FederatorAccess r => Set Domain -> Domain -> Sem r Bool
     checkConnection ds d =
-      (==) Connected . Fed.status <$> E.runFederated (toRemoteUnsafe d ()) (fedClient @'Brig @"get-federation-status" (DomainSet (d `Set.delete` ds)))
+      either (const False) ((==) Fed.Connected . Fed.status)
+        <$> E.runFederatedEither (toRemoteUnsafe d ()) (fedClient @'Brig @"get-federation-status" (DomainSet (d `Set.delete` ds)))
 
 getBotConversationH ::
   ( Member ConversationStore r,

@@ -4,6 +4,7 @@ import qualified Control.Exception as E
 import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
@@ -35,6 +36,15 @@ addJSON obj req =
     { HTTP.requestBody = HTTP.RequestBodyLBS (Aeson.encode obj),
       HTTP.requestHeaders =
         (fromString "Content-Type", fromString "application/json")
+          : HTTP.requestHeaders req
+    }
+
+addMLS :: ByteString -> HTTP.Request -> HTTP.Request
+addMLS bytes req =
+  req
+    { HTTP.requestBody = HTTP.RequestBodyLBS (L.fromStrict bytes),
+      HTTP.requestHeaders =
+        (fromString "Content-Type", fromString "message/mls")
           : HTTP.requestHeaders req
     }
 

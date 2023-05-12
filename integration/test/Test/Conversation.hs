@@ -9,6 +9,9 @@ import Testlib.Prelude
 testFederationStatus :: HasCallStack => App ()
 testFederationStatus = do
   uid <- randomUser ownDomain def {Internal.team = True}
+  federatingRemoteDomain <- otherDomain
+  let unknownDomain = "foobar.com"
+  let invalidDomain = "c.example.com" -- has no srv record
   bindResponse
     (API.getFederationStatus uid [])
     ( \resp -> do
@@ -17,22 +20,28 @@ testFederationStatus = do
     )
 
   bindResponse
-    (API.getFederationStatus uid ["foobar.com"])
+    (API.getFederationStatus uid [unknownDomain])
     ( \resp -> do
-        resp.status `shouldMatchInt` 400
-        resp %. "label" `shouldMatch` "discovery-failure"
+        resp.status `shouldMatchInt` 200
+        resp %. "status" `shouldMatch` "non-fully-connected"
     )
 
-  d <- otherDomain
   bindResponse
-    (API.getFederationStatus uid [d])
+    (API.getFederationStatus uid [invalidDomain])
+    ( \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp %. "status" `shouldMatch` "non-fully-connected"
+    )
+
+  bindResponse
+    (API.getFederationStatus uid [federatingRemoteDomain])
     ( \resp -> do
         resp.status `shouldMatchInt` 200
         resp %. "status" `shouldMatch` "fully-connected"
     )
 
   bindResponse
-    (API.getFederationStatus uid [d, "c.example.com"])
+    (API.getFederationStatus uid [federatingRemoteDomain, unknownDomain])
     ( \resp -> do
         resp.status `shouldMatchInt` 200
         resp %. "status" `shouldMatch` "non-fully-connected"
