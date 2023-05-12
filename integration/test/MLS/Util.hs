@@ -10,6 +10,7 @@ import Control.Monad.Catch
 import Control.Monad.Cont
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
@@ -27,7 +28,7 @@ import GHC.Stack
 import System.Directory
 import System.Exit
 import System.FilePath
-import System.IO
+import System.IO hiding (print, putStrLn)
 import System.IO.Temp
 import System.Posix.Files
 import System.Process
@@ -509,3 +510,8 @@ setClientGroupState :: HasCallStack => ClientIdentity -> ByteString -> App ()
 setClientGroupState cid g =
   modifyMLSState $ \s ->
     s {clientGroupState = Map.insert cid g (clientGroupState s)}
+
+showMessage :: HasCallStack => ClientIdentity -> ByteString -> App Value
+showMessage cid msg = do
+  bs <- mlscli cid ["show", "message", "-"] (Just msg)
+  assertOne (Aeson.decode (BS.fromStrict bs))

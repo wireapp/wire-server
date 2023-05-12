@@ -164,3 +164,14 @@ getGroupInfo user conv = do
         Just sub -> ["conversations", convDomain, convId, "subconversations", sub, "groupinfo"]
   req <- baseRequest user Galley Versioned path
   submit "GET" req
+
+removeConversationMember ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  App Response
+removeConversationMember user conv = do
+  (convDomain, convId) <- objQid conv
+  (userDomain, userId) <- objQid user
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members", userDomain, userId])
+  submit "DELETE" req

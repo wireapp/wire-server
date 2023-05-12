@@ -49,19 +49,16 @@ ptestMixedProtocolAddUsers secondDomain = do
     d2 <- secondDomain & asString
     createAndConnectUsers [d, d2]
 
-  qcnv <- bindResponseR (postConversation alice noValue defProteus {qualifiedUsers = [bob]}) $ \resp -> do
-    resp.status `shouldMatchInt` 201
+  qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
 
-  bindResponse (putConversationProtocol bob qcnv noValue "mixed") $ \resp -> do
+  bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
 
   [alice1, bob1] <- traverse createMLSClient [alice, bob]
 
   bindResponse (getConversation alice qcnv) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    groupId <- resp %. "group_id" & asString
-    convId <- resp %. "qualified_id" & setField "group_id" groupId
-    createGroup alice1 convId
+    createGroup alice1 resp.json
 
   traverse_ uploadNewKeyPackage [bob1]
 
@@ -72,6 +69,46 @@ ptestMixedProtocolAddUsers secondDomain = do
     for_ wss $ \ws -> do
       n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-welcome") ws
       nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode welcome)
+
+testMixedProtocolUserLeaves :: HasCallStack => App ()
+testMixedProtocolUserLeaves = ptestMixedProtocolUserLeaves ownDomain
+
+testMixedProtocolUserLeavesFed :: HasCallStack => App ()
+testMixedProtocolUserLeavesFed = ptestMixedProtocolUserLeaves otherDomain
+
+ptestMixedProtocolUserLeaves :: (HasCallStack, MakesValue domain) => domain -> App ()
+ptestMixedProtocolUserLeaves secondDomain = do
+  [alice, bob] <- do
+    d <- ownDomain
+    d2 <- secondDomain & asString
+    createAndConnectUsers [d, d2]
+
+  qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+
+  bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+
+  bindResponse (getConversation alice qcnv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    createGroup alice1 resp.json
+
+  traverse_ uploadNewKeyPackage [bob1]
+
+  mp <- createAddCommit alice1 [bob]
+  void $ sendAndConsumeCommitBundle mp
+
+  withWebSocket alice $ \ws -> do
+    bindResponse (removeConversationMember bob qcnv) $ \resp ->
+      resp.status `shouldMatchInt` 200
+
+    n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
+
+    msg <- asByteString (nPayload n %. "data") >>= showMessage alice1
+    let leafIndexBob = 1
+    msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
+    msg %. "message.content.sender.External" `shouldMatchInt` 0
 
 testAddUser :: HasCallStack => App ()
 testAddUser = do
