@@ -302,7 +302,7 @@ createAddCommitWithKeyPackages cid clientsAndKeyPackages = do
 
 createAddProposals :: HasCallStack => ClientIdentity -> [Value] -> App [MessagePackage]
 createAddProposals cid users = do
-  bundles <- for users $ \u -> claimKeyPackages cid u >>= getJSON 200
+  bundles <- for users $ (claimKeyPackages cid >=> getJSON 200)
   kps <- concat <$> traverse unbundleKeyPackages bundles
   traverse (createAddProposalWithKeyPackage cid) kps
 
