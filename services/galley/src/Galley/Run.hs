@@ -34,6 +34,7 @@ import Control.Monad.Codensity
 import qualified Data.Aeson as Aeson
 import Data.Default
 import Data.Id
+import qualified Data.Map as Map
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Middleware as M
@@ -74,6 +75,16 @@ import Wire.API.Routes.API
 import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
+import qualified Galley.Effects.MemberStore as E
+import qualified Data.List.NonEmpty as N
+import Galley.API.Action
+import Galley.Types.Conversations.Members
+import Data.Qualified
+import Wire.API.Error.Galley
+import Wire.API.Conversation.Role
+import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Error
+import Polysemy.Error
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
@@ -183,21 +194,56 @@ collectAuthMetrics m env = do
 
 updateFedDomains :: App ()
 updateFedDomains = do
-  ioref <- view fedDomains
-  logger <- view applog
-  manager' <- view manager
-  Endpoint host port <- view brig
-  let baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
+  env <- ask
+  let ioref              = env ^. fedDomains
+      logger             = env ^. applog
+      manager'           = env ^. manager
+      Endpoint host port = env ^. brig
+      baseUrl   = BaseUrl Http (unpack host) (fromIntegral port) ""
       clientEnv = ClientEnv manager' baseUrl Nothing defaultMakeClientRequest
-
-  liftIO $ do
-    okRemoteDomains <- getAllowedDomainsInitial logger clientEnv
-    atomicWriteIORef ioref okRemoteDomains
-    let domainListsEqual old new =
-          Set.fromList (domain <$> remotes old)
-            == Set.fromList (domain <$> remotes new)
-        callback old new = unless (domainListsEqual old new) $ do
-          -- TODO: perform the database updates here
-          -- This code will only run when there is a change in the domain lists
+  liftIO $ getAllowedDomainsLoop logger clientEnv ioref $ callback env
+  where
+    callback env old new = do
+      -- TODO: perform the database updates here
+      -- This code will only run when there is a change in the domain lists
+      let fromFedList = Set.fromList . fromFederationDomainConfigs
+          prevDoms = fromFedList old
+          currDoms = fromFedList new
+      unless (prevDoms == currDoms) $ do
+        -- Perform updates before rewriting the tvar
+        -- This means that if the update fails on a
+        -- particular invocation, it can be run again
+        -- on the next firing as it isn't likely that
+        -- the domain list is changing frequently.
+        -- FS-1179 is handling this part.
+        let deletedDomains = Set.difference prevDoms currDoms
+            addedDomains = Set.difference currDoms prevDoms
+        for_ deletedDomains $ \fedDomCfg -> do
+          -- https://wearezeta.atlassian.net/browse/FS-1179
+          -- TODO
+          -- * Remove remote users for the given domain from all conversations owned by the current host
+          -- * Remove all local users from remote conversations owned by the given domain.
+          --   NOTE: This is NOT sent to other backends, as this information is not authoratative, but is
+          --   good enough to tell local users about the federation connection being removed.
+          -- * Delete all connections from local users to users for the remote domain.
+          -- Get all remote users for the given domain, along with conversation IDs that they are in
+          remoteUsers <- liftIO $ evalGalleyToIO env $ E.getRemoteMembersByDomain $ domain fedDomCfg
+          let cnvMap :: Map ConvId (N.NonEmpty RemoteMember)
+              cnvMap = foldr insertIntoMap mempty remoteUsers
+              -- Build the map, keyed by conversations to the list of remote members
+              insertIntoMap (cnvId, user) m = Map.alter (pure . maybe (pure user) (N.cons user)) cnvId m
+          for_ (Map.toList cnvMap) $ \(cnv, rUsers) -> do
+            res <- liftIO $ evalGalleyToIO env $ runError 
+              . mapToRuntimeError @'ConvNotFound F.RemoveFromConversationErrorNotFound
+              . mapToRuntimeError @('ActionDenied 'LeaveConversation) F.RemoveFromConversationErrorRemovalNotAllowed
+              . mapToRuntimeError @'InvalidOperation F.RemoveFromConversationErrorRemovalNotAllowed
+              . mapError @NoChanges (const F.RemoveFromConversationErrorUnchanged) $
+              updateLocalConversation
+              @'ConversationRemoveMembersTag
+              (toLocalUnsafe (domain fedDomCfg) cnv)
+              undefined
+              Nothing $
+              tUntagged . rmId <$> rUsers
+            pure ()
+        for_ addedDomains $ \_domain -> do
           pure ()
-    getAllowedDomainsLoop logger clientEnv ioref callback

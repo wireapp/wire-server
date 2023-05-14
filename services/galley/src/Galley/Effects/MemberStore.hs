@@ -34,6 +34,7 @@ module Galley.Effects.MemberStore
     getRemoteMembers,
     checkLocalMemberRemoteConv,
     selectRemoteMembers,
+    getRemoteMembersByDomain,
 
     -- * Update members
     setSelfMember,
@@ -60,6 +61,7 @@ import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.Provider.Service
+import Data.Domain
 
 data MemberStore m a where
   CreateMembers :: ToUserRole u => ConvId -> UserList u -> MemberStore m ([LocalMember], [RemoteMember])
@@ -80,6 +82,7 @@ data MemberStore m a where
   LookupMLSClients ::
     GroupId ->
     MemberStore m (Map (Qualified UserId) (Set (ClientId, KeyPackageRef)))
+  GetRemoteMembersByDomain :: Domain -> MemberStore m [(ConvId, RemoteMember)]
 
 makeSem ''MemberStore
 

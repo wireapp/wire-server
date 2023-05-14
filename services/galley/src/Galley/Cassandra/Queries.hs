@@ -369,6 +369,10 @@ selectRemoteMembers = "select user_remote_domain, user_remote_id, conversation_r
 updateRemoteMemberConvRoleName :: PrepQuery W (RoleName, ConvId, Domain, UserId) ()
 updateRemoteMemberConvRoleName = "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
 
+-- Used when removing a federation domain, so that we can quickly list all of the affected remote users and conversations
+selectRemoteMembersByDomain :: PrepQuery R (Identity Domain) (ConvId, UserId, RoleName)
+selectRemoteMembersByDomain = "select conv, user_remote_id, conversation_role from member_remote_user where user_remote_domain = ?"
+
 -- local user with remote conversations
 
 insertUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()

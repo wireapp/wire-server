@@ -199,6 +199,12 @@ lookupRemoteMembers conv = do
           rmConvRoleName = role
         }
 
+lookupRemoteMembersByDomain :: Domain -> Client [(ConvId, RemoteMember)]
+lookupRemoteMembersByDomain dom = do
+  fmap (fmap mkConvMem) . retry x1 $ query Cql.selectRemoteMembersByDomain (params LocalQuorum (Identity dom))
+  where
+    mkConvMem (convId, usr, role) = (convId, RemoteMember (toRemoteUnsafe dom usr) role)
+
 member ::
   ConvId ->
   UserId ->
@@ -390,3 +396,4 @@ interpretMemberStoreToCassandra = interpret $ \case
   AddMLSClients lcnv quid cs -> embedClient $ addMLSClients lcnv quid cs
   RemoveMLSClients lcnv quid cs -> embedClient $ removeMLSClients lcnv quid cs
   LookupMLSClients lcnv -> embedClient $ lookupMLSClients lcnv
+  GetRemoteMembersByDomain dom -> embedClient $ lookupRemoteMembersByDomain dom
