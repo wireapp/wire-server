@@ -371,7 +371,6 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
     ConversationUpdateResponseNoChanges -> throw NoChanges
     ConversationUpdateResponseError err' -> rethrowErrors @(HasConversationActionGalleyErrors tag) err'
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
-
   onConversationUpdated (tDomain rcnv) convUpdate
   notifyRemoteConversationAction lusr (qualifyAs rcnv convUpdate) (Just conn)
 

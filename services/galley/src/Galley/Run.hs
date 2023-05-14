@@ -44,7 +44,6 @@ import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import qualified Galley.API as API
-import Galley.API.Federation (FederationAPI, federationSitemap)
 import Galley.API.Internal
 import Galley.App
 import qualified Galley.App as App
@@ -67,6 +66,7 @@ import Servant.Client
     ClientEnv (ClientEnv),
     Scheme (Http),
     defaultMakeClientRequest,
+    runClientM
   )
 import qualified System.Logger as Log
 import Util.Options
@@ -75,7 +75,6 @@ import Wire.API.Routes.API
 import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
-import qualified Galley.Effects.MemberStore as E
 import qualified Data.List.NonEmpty as N
 import Galley.API.Action
 import Galley.Types.Conversations.Members
@@ -86,6 +85,14 @@ import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Error
 import Polysemy.Error
 import Galley.API.Error
+import qualified Galley.Effects.MemberStore as E
+import Data.Time (getCurrentTime)
+import Wire.API.Conversation.Action
+import Galley.API.Federation
+import Data.Singletons
+import qualified Wire.API.Federation.API.Brig as Brig
+import Wire.API.Routes.Named (namedClient)
+import qualified System.Logger as L
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
@@ -202,14 +209,17 @@ updateFedDomains = do
       Endpoint host port = env ^. brig
       baseUrl   = BaseUrl Http (unpack host) (fromIntegral port) ""
       clientEnv = ClientEnv manager' baseUrl Nothing defaultMakeClientRequest
-  liftIO $ getAllowedDomainsLoop logger clientEnv ioref $ callback env
+  liftIO $ getAllowedDomainsLoop logger clientEnv ioref $ callback env clientEnv
   where
-    callback env old new = do
+    -- Build the map, keyed by conversations to the list of members
+    insertIntoMap (cnvId, user) m = Map.alter (pure . maybe (pure user) (N.cons user)) cnvId m
+    callback env clientEnv old new = do
       -- TODO: perform the database updates here
       -- This code will only run when there is a change in the domain lists
-      let fromFedList = Set.fromList . fromFederationDomainConfigs
+      let fromFedList = Set.fromList . remotes
           prevDoms = fromFedList old
           currDoms = fromFedList new
+          localDomain = env ^. options . optSettings . setFederationDomain
       unless (prevDoms == currDoms) $ do
         -- Perform updates before rewriting the tvar
         -- This means that if the update fails on a
@@ -218,7 +228,7 @@ updateFedDomains = do
         -- the domain list is changing frequently.
         -- FS-1179 is handling this part.
         let deletedDomains = Set.difference prevDoms currDoms
-            addedDomains = Set.difference currDoms prevDoms
+            -- addedDomains = Set.difference currDoms prevDoms
         for_ deletedDomains $ \fedDomCfg -> do
           -- https://wearezeta.atlassian.net/browse/FS-1179
           -- TODO
@@ -227,13 +237,12 @@ updateFedDomains = do
           --   NOTE: This is NOT sent to other backends, as this information is not authoratative, but is
           --   good enough to tell local users about the federation connection being removed.
           -- * Delete all connections from local users to users for the remote domain.
+
           -- Get all remote users for the given domain, along with conversation IDs that they are in
-          remoteUsers <- liftIO $ evalGalleyToIO env $ E.getRemoteMembersByDomain $ domain fedDomCfg
-          let cnvMap :: Map ConvId (N.NonEmpty RemoteMember)
-              cnvMap = foldr insertIntoMap mempty remoteUsers
-              -- Build the map, keyed by conversations to the list of remote members
-              insertIntoMap (cnvId, user) m = Map.alter (pure . maybe (pure user) (N.cons user)) cnvId m
-          for_ (Map.toList cnvMap) $ \(cnv, rUsers) -> do
+          let dom = domain fedDomCfg
+          remoteUsers <- liftIO $ evalGalleyToIO env $ E.getRemoteMembersByDomain dom
+          let lCnvMap = foldr insertIntoMap mempty remoteUsers
+          for_ (Map.toList lCnvMap) $ \(cnv, rUsers) -> do
             -- This value contains an event that we might need to
             -- send out to all of the local clients that are a party
             -- to the conversation. However we also don't want to DOS
@@ -242,11 +251,12 @@ updateFedDomains = do
               -- TODO: Are these the right error types we should be using?
               -- TODO: We are restricted to the errors listed in GalleyEffects,
               -- TODO: and none of those seem like a great fit.
-              $ mapToRuntimeError @F.RemoveFromConversationError (InternalErrorWithDescription "Foo")
-              . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Bar")
-              . mapToRuntimeError @('ActionDenied 'RemoveConversationMember) (InternalErrorWithDescription  "Baz")
-              . mapToRuntimeError @'InvalidOperation (InternalErrorWithDescription  "Qux")
-              . mapError @NoChanges (const (InternalErrorWithDescription  "Qwe"))
+              $ mapToRuntimeError @F.RemoveFromConversationError (InternalErrorWithDescription "Remove From Conversation Error")
+              . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Conv Not Found")
+              . mapToRuntimeError @('ActionDenied 'RemoveConversationMember) (InternalErrorWithDescription  "Action Denied: Remove Conversation Member")
+              . mapToRuntimeError @'InvalidOperation (InternalErrorWithDescription  "Invalid Operation")
+              . mapError @NoChanges (const (InternalErrorWithDescription  "No Changes"))
+              -- This is allowed to send notifications to _local_ clients.
               $ updateLocalConversation
                 @'ConversationRemoveMembersTag
                 (toLocalUnsafe (domain fedDomCfg) cnv)
@@ -254,5 +264,42 @@ updateFedDomains = do
                 Nothing $
                 tUntagged . rmId <$> rUsers
             pure ()
-        for_ addedDomains $ \_domain -> do
-          pure ()
+
+          -- Get all local users for the given domain, along with remote conversation IDs that they are in
+          localUsers <- liftIO $ evalGalleyToIO env $ E.getLocalMembersByDomain dom
+          -- As above, build the map so we can get all local users per conversation
+          let rCnvMap = foldr insertIntoMap mempty localUsers
+          -- Process each user.
+          for_ (Map.toList rCnvMap) $ \(cnv, lUsers) -> do
+            _res <- liftIO $ evalGalleyToIO env
+              $ mapError @NoChanges (const (InternalErrorWithDescription  "No Changes: Could not remove a local member from a remote conversation."))
+              $ do
+                now <- liftIO $ getCurrentTime
+                for_ lUsers $ \user -> do
+                  let lUser = toLocalUnsafe localDomain user
+                      convUpdate = F.ConversationUpdate
+                        { cuTime = now
+                        , cuOrigUserId = tUntagged lUser
+                        , cuConvId = cnv
+                        , cuAlreadyPresentUsers = mempty
+                        , cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ()
+                        }
+                  -- These functions are used directly rather than as part of a larger conversation
+                  -- delete function, as we don't have an originating user, and we can't send data
+                  -- to the remote backend.
+                  onConversationUpdated dom convUpdate
+                  let rcnv = toRemoteUnsafe dom cnv
+                  notifyRemoteConversationAction lUser (qualifyAs rcnv convUpdate) Nothing
+            pure ()
+
+          -- Remove the remote one-on-one conversations between local members and remote members for the given domain.
+          -- NOTE: We cannot tell the remote backend about these changes as we are no longer federated.
+          let delFedDomain = namedClient @Brig.BrigApi @"on-domain-unfederated"
+          -- deleteRemoteConnectionsByDomain dom
+          liftIO (runClientM (delFedDomain dom) clientEnv) >>= \case
+            Right _ -> pure ()
+            Left e -> L.log (env ^. applog) L.Info $
+              L.msg (L.val "Could not delete remote user connections in Brig")
+                L.~~ "error" L..= show e
+        -- for_ addedDomains $ \_domain -> do
+        --   pure ()

@@ -35,6 +35,7 @@ module Galley.Effects.MemberStore
     checkLocalMemberRemoteConv,
     selectRemoteMembers,
     getRemoteMembersByDomain,
+    getLocalMembersByDomain,
 
     -- * Update members
     setSelfMember,
@@ -83,6 +84,7 @@ data MemberStore m a where
     GroupId ->
     MemberStore m (Map (Qualified UserId) (Set (ClientId, KeyPackageRef)))
   GetRemoteMembersByDomain :: Domain -> MemberStore m [(ConvId, RemoteMember)]
+  GetLocalMembersByDomain :: Domain -> MemberStore m [(ConvId, UserId)]
 
 makeSem ''MemberStore
 

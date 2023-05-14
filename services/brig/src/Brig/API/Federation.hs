@@ -86,6 +86,7 @@ federationSitemap =
     :<|> Named @"get-mls-clients" getMLSClients
     :<|> Named @"send-connection-action" sendConnectionAction
     :<|> Named @"on-user-deleted-connections" onUserDeleted
+    :<|> Named @"on-domain-unfederated" (\d _ -> onDomainUnfederated d)
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
@@ -220,3 +221,7 @@ onUserDeleted origDomain udcn = lift $ do
       notify event (tUnqualified deletedUser) Push.RouteDirect Nothing (pure recipients)
   wrapClient $ Data.deleteRemoteConnections deletedUser connections
   pure EmptyResponse
+
+onDomainUnfederated :: Domain -> Handler r EmptyResponse
+onDomainUnfederated fedDomain = lift $
+  EmptyResponse <$ wrapClient (Data.deleteRemoteConnectionsByDomain fedDomain)

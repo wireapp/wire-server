@@ -370,6 +370,7 @@ updateRemoteMemberConvRoleName :: PrepQuery W (RoleName, ConvId, Domain, UserId)
 updateRemoteMemberConvRoleName = "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
 
 -- Used when removing a federation domain, so that we can quickly list all of the affected remote users and conversations
+-- This returns local conversation IDs and remote users
 selectRemoteMembersByDomain :: PrepQuery R (Identity Domain) (ConvId, UserId, RoleName)
 selectRemoteMembersByDomain = "select conv, user_remote_id, conversation_role from member_remote_user where user_remote_domain = ?"
 
@@ -389,6 +390,11 @@ selectRemoteConvMembers = "select user from user_remote_conv where user = ? and 
 
 deleteUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
 deleteUserRemoteConv = "delete from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
+
+-- Used when removing a federation domain, so that we can quickly list all of the affected local users and conversations
+-- This returns remote conversation IDs and local users
+selectLocalMembersByDomain :: PrepQuery R (Identity Domain) (ConvId, UserId)
+selectLocalMembersByDomain = "select conv_remote_id, user from user_remote_conv where conv_remote_domain = ?"
 
 -- remote conversation status for local user
 
