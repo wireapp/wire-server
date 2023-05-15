@@ -111,14 +111,12 @@ testHooks hooks =
             dest
             ( unlines
                 [ "module RunAllTests where",
-                  "import Testlib.Types",
+                  "import Testlib.PTest",
                   "import Prelude",
                   unlines (map ("import qualified " <>) modules),
-                  "allTests :: [(String, String, String, String, App ())]",
+                  "allTests :: [Test]",
                   "allTests =",
-                  "  [",
-                  "    " <> intercalate ",\n    " (map (\(m, n, s, f) -> "(" <> intercalate ", " [show m, show n, show s, show f, m <> "." <> n] <> ")") tests),
-                  "  ]"
+                  "  " <> intercalate " <>\n  " (map (\(m, n, s, f) -> "mkTests " <> unwords [show m, show n, show s, show f, m <> "." <> n]) tests)
                 ]
             )
           pure ()
