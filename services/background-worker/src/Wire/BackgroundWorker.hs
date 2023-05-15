@@ -40,14 +40,18 @@ withRabbitMqChannel l opts hooks = do
   where
     connect username password = do
       conn <- Q.openConnection' opts.host (fromIntegral opts.port) opts.vHost username password
+      Log.info l $ Log.msg (Log.val "RabbitMQ connection established")
       chan <- Q.openChannel conn
       -- TODO(elland): Q.addConnectionClosedHandler
       -- TODO(elland): Q.addConnectionBlockedHandler (Probably not required: https://www.rabbitmq.com/connection-blocked.html)
       Q.addChannelExceptionHandler chan (handler username password)
+      Log.info l $ Log.msg (Log.val "RabbitMQ channel opened")
       hooks.onNewChannel chan
     handler username password e =
       if Q.isNormalChannelClose e
-        then hooks.onGracefulStop
+        then do
+          Log.info l $ Log.msg (Log.val "RabbitMQ channel gracefully closed")
+          hooks.onGracefulStop
         else do
           Log.err l $ Log.msg (Log.val "RabbitMQ channel closed with an exception") . Log.field "error" (displayException e)
           hooks.onException e
