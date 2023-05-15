@@ -116,7 +116,7 @@ testHooks hooks =
                   unlines (map ("import qualified " <>) modules),
                   "allTests :: [Test]",
                   "allTests =",
-                  "  " <> intercalate " <>\n  " (map (\(m, n, s, f) -> "mkTests " <> intercalate " " [show m, show n, show s, show f, m <> "." <> n]) tests)
+                  "  " <> intercalate " <>\n  " (map (\(m, n, s, f) -> "mkTests " <> unwords [show m, show n, show s, show f, m <> "." <> n]) tests)
                 ]
             )
           pure ()
