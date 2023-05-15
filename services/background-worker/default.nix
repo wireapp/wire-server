@@ -6,6 +6,7 @@
 , aeson
 , amqp
 , base
+, extended
 , gitignoreSource
 , HsOpenSSL
 , http2-manager
@@ -25,6 +26,7 @@ mkDerivation {
     aeson
     amqp
     base
+    extended
     HsOpenSSL
     http2-manager
     imports
