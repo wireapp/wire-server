@@ -20,6 +20,7 @@ module Brig.API.MLS.KeyPackages
     claimKeyPackages,
     claimLocalKeyPackages,
     countKeyPackages,
+    deleteKeyPackages,
   )
 where
 
@@ -137,3 +138,12 @@ countKeyPackages lusr c = do
   lift $
     KeyPackageCount . fromIntegral
       <$> wrapClient (Data.countKeyPackages lusr c)
+
+deleteKeyPackages ::
+  Local UserId ->
+  ClientId ->
+  DeleteKeyPackages ->
+  Handler r ()
+deleteKeyPackages lusr c (unDeleteKeyPackages -> refs) = do
+  assertMLSEnabled
+  lift $ wrapClient (Data.deleteKeyPackages (tUnqualified lusr) c refs)

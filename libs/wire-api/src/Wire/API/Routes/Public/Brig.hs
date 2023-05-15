@@ -1186,6 +1186,15 @@ type MLSKeyPackageAPI =
                       :> Summary "Return the number of unused key packages for the given client"
                       :> MultiVerb1 'GET '[JSON] (Respond 200 "Number of key packages" KeyPackageCount)
                   )
+           :<|> Named
+                  "mls-key-packages-delete"
+                  ( "self"
+                      :> ZLocalUser
+                      :> CaptureClientId "client"
+                      :> Summary "Return the number of unused key packages for the given client"
+                      :> ReqBody '[JSON] DeleteKeyPackages
+                      :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 201 "OK")
+                  )
        )
 
 -- Search API -----------------------------------------------------

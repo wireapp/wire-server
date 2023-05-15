@@ -21,6 +21,7 @@ module Wire.API.MLS.KeyPackage
     KeyPackageBundleEntry (..),
     KeyPackageCount (..),
     KeyPackageData (..),
+    DeleteKeyPackages (..),
     KeyPackage (..),
     keyPackageIdentity,
     kpRef,
@@ -38,6 +39,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
+import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S
 import GHC.Records
@@ -116,6 +118,20 @@ instance ToSchema KeyPackageCount where
   schema =
     object "OwnKeyPackages" $
       KeyPackageCount <$> unKeyPackageCount .= field "count" schema
+
+newtype DeleteKeyPackages = DeleteKeyPackages
+  {unDeleteKeyPackages :: [KeyPackageRef]}
+  deriving newtype (Eq, Ord, Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema DeleteKeyPackages
+
+instance ToSchema DeleteKeyPackages where
+  schema =
+    object "DeleteKeyPackages" $
+      DeleteKeyPackages
+        <$> unDeleteKeyPackages
+          .= field
+            "key_packages"
+            (untypedRangedSchema 1 1000 (array schema))
 
 newtype KeyPackageRef = KeyPackageRef {unKeyPackageRef :: ByteString}
   deriving stock (Eq, Ord, Show)

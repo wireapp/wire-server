@@ -364,6 +364,7 @@ servantSitemap =
       Named @"mls-key-packages-upload" uploadKeyPackages
         :<|> Named @"mls-key-packages-claim" (callsFed (exposeAnnotations claimKeyPackages))
         :<|> Named @"mls-key-packages-count" countKeyPackages
+        :<|> Named @"mls-key-packages-delete" deleteKeyPackages
 
     userHandleAPI :: ServerT UserHandleAPI (Handler r)
     userHandleAPI =

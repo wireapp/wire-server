@@ -19,6 +19,7 @@ module Brig.Data.MLS.KeyPackage
   ( insertKeyPackages,
     claimKeyPackage,
     countKeyPackages,
+    deleteKeyPackages,
   )
 where
 
@@ -66,12 +67,12 @@ claimKeyPackage u c = do
     kps <- getNonClaimedKeyPackages u c
     mk <- liftIO (pick kps)
     for mk $ \(ref, kpd) -> do
-      retry x5 $ write deleteByRef (params LocalQuorum (tUnqualified u, c, ref))
+      retry x5 $ write delete1Query (params LocalQuorum (tUnqualified u, c, ref))
       pure (ref, kpd)
   pure (ref, kpd)
   where
-    deleteByRef :: PrepQuery W (UserId, ClientId, KeyPackageRef) ()
-    deleteByRef = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND ref = ?"
+    delete1Query :: PrepQuery W (UserId, ClientId, KeyPackageRef) ()
+    delete1Query = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND ref = ?"
 
 -- | Fetch all unclaimed non-expired key packages for a given client and delete
 -- from the database those that have expired.
@@ -92,18 +93,11 @@ getNonClaimedKeyPackages u c = do
   let (kpsExpired, kpsNonExpired) =
         partition (hasExpired now mMaxLifetime) decodedKps
   -- delete expired key packages
-  let kpsExpired' = fmap (\(_, (ref, _)) -> ref) kpsExpired
-   in retry x5 $
-        write
-          deleteByRefs
-          (params LocalQuorum (tUnqualified u, c, kpsExpired'))
+  deleteKeyPackages (tUnqualified u) c (map (\(_, (ref, _)) -> ref) kpsExpired)
   pure $ fmap snd kpsNonExpired
   where
     lookupQuery :: PrepQuery R (UserId, ClientId) (KeyPackageRef, KeyPackageData)
     lookupQuery = "SELECT ref, data FROM mls_key_packages WHERE user = ? AND client = ?"
-
-    deleteByRefs :: PrepQuery W (UserId, ClientId, [KeyPackageRef]) ()
-    deleteByRefs = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND ref in ?"
 
     decodeKp :: (a, KeyPackageData) -> Maybe KeyPackage
     decodeKp = hush . decodeMLS' . kpData . snd
@@ -128,6 +122,16 @@ countKeyPackages ::
   ClientId ->
   m Int64
 countKeyPackages u c = fromIntegral . length <$> getNonClaimedKeyPackages u c
+
+deleteKeyPackages :: MonadClient m => UserId -> ClientId -> [KeyPackageRef] -> m ()
+deleteKeyPackages u c refs =
+  retry x5 $
+    write
+      deleteQuery
+      (params LocalQuorum (u, c, refs))
+  where
+    deleteQuery :: PrepQuery W (UserId, ClientId, [KeyPackageRef]) ()
+    deleteQuery = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND ref in ?"
 
 --------------------------------------------------------------------------------
 -- Utilities
