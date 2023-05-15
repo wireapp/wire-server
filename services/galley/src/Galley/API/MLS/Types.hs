@@ -24,6 +24,7 @@ import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import qualified Data.Map as Map
 import Data.Qualified
+import Galley.Data.Conversation.Types
 import Galley.Types.Conversations.Members
 import Imports
 import Wire.API.Conversation
@@ -130,7 +131,8 @@ data MLSConversation = MLSConversation
     mcLocalMembers :: [LocalMember],
     mcRemoteMembers :: [RemoteMember],
     mcMembers :: ClientMap,
-    mcIndexMap :: IndexMap
+    mcIndexMap :: IndexMap,
+    mcMigrationState :: MLSMigrationState
   }
   deriving (Show)
 

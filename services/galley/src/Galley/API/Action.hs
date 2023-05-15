@@ -361,7 +361,7 @@ performAction tag origUser lconv action = do
             E.deleteAllProposals groupId
 
       let cid = convId conv
-      for_ (conv & mlsMetadata <&> cnvmlsGroupId) $ \gidParent -> do
+      for_ (conv & mlsMetadata <&> cnvmlsGroupId . fst) $ \gidParent -> do
         sconvs <- E.listSubConversations cid
         gidSubs <- for (Map.assocs sconvs) $ \(subid, mlsData) -> do
           let gidSub = cnvmlsGroupId mlsData

@@ -122,7 +122,12 @@ getLocalSubConversation qusr lconv sconv = do
   msub <- Eff.getSubConversation (tUnqualified lconv) sconv
   sub <- case msub of
     Nothing -> do
-      mlsMeta <- noteS @'ConvNotFound (mlsMetadata c)
+      (mlsMeta, mlsProtocol) <- noteS @'ConvNotFound (mlsMetadata c)
+
+      case mlsProtocol of
+        MLSMigrationMixed -> throwS @'MLSSubConvUnsupportedConvType
+        MLSMigrationMLS -> pure ()
+
       -- deriving this detemernistically to prevent race condition between
       -- multiple threads creating the subconversation
       let groupId = initialGroupId lconv sconv
@@ -281,7 +286,11 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
   let cnvId = tUnqualified lcnvId
       lConvOrSubId = qualifyAs lcnvId (SubConv cnvId scnvId)
   cnv <- getConversationAndCheckMembership qusr lcnvId
-  cs <- cnvmlsCipherSuite <$> noteS @'ConvNotFound (mlsMetadata cnv)
+
+  (mlsMeta, _mlsProtocol) <- noteS @'ConvNotFound (mlsMetadata cnv)
+
+  let cs = cnvmlsCipherSuite mlsMeta
+
   (mlsData, oldGid) <- withCommitLock lConvOrSubId (dscGroupId dsc) (dscEpoch dsc) $ do
     sconv <-
       Eff.getSubConversation cnvId scnvId

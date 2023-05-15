@@ -44,9 +44,15 @@ data NewConversation = NewConversation
     ncProtocol :: ProtocolCreateTag
   }
 
-mlsMetadata :: Conversation -> Maybe ConversationMLSData
+-- TODO: Rename to MLSProtocol or similar
+data MLSMigrationState
+  = MLSMigrationMixed
+  | MLSMigrationMLS
+  deriving (Show, Eq, Ord)
+
+mlsMetadata :: Conversation -> Maybe (ConversationMLSData, MLSMigrationState)
 mlsMetadata conv =
   case convProtocol conv of
     ProtocolProteus -> Nothing
-    ProtocolMLS meta -> pure meta
-    ProtocolMixed meta -> pure meta
+    ProtocolMLS meta -> pure (meta, MLSMigrationMLS)
+    ProtocolMixed meta -> pure (meta, MLSMigrationMixed)
