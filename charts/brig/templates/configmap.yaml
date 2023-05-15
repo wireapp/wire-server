@@ -57,7 +57,7 @@ data:
     federatorInternal:
       host: federator
       port: 8080
-    rabbitMQ:
+    rabbitmq:
 {{ toYaml .rabbitmq | indent 6}}
     {{- end }}
 

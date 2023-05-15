@@ -95,14 +95,14 @@ data ElasticSearchOpts = ElasticSearchOpts
 
 instance FromJSON ElasticSearchOpts
 
-data RabbitMQOpts = RabbitMQOpts
+data RabbitMqOpts = RabbitMqOpts
   { host :: !String,
     port :: !Int,
     vHost :: !Text
   }
   deriving (Show, Generic)
 
-instance FromJSON RabbitMQOpts
+instance FromJSON RabbitMqOpts
 
 data AWSOpts = AWSOpts
   { -- | Event journal queue for user events
@@ -443,7 +443,7 @@ data Opts = Opts
     -- | ElasticSearch settings
     elasticsearch :: !ElasticSearchOpts,
     -- | RabbitMQ settings
-    rabbitMQ :: !RabbitMQOpts,
+    rabbitmq :: !RabbitMqOpts,
     -- | AWS settings
     aws :: !AWSOpts,
     -- | Enable Random Prekey Strategy
