@@ -22,7 +22,7 @@ ptestMixedProtocolUpgrade secondDomain = do
     d2 <- secondDomain & asString
     createAndConnectUsers [d, d2, d2]
 
-  qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+  qcnv <- postConversation alice defProteus {qualifiedUsers = [bob, charlie]} >>= getJSON 201
 
   withWebSockets [alice, charlie] $ \websockets -> do
     bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
