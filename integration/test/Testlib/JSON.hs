@@ -9,6 +9,8 @@ import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.Aeson.Key as KM
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.Aeson.Types as Aeson
+import Data.ByteString
+import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy.Char8 as LC8
 import Data.Foldable
 import Data.Function
@@ -17,6 +19,7 @@ import Data.List.Split (splitOn)
 import qualified Data.Scientific as Sci
 import Data.String
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import GHC.Stack
 import Testlib.Env
 import Testlib.Types
@@ -76,6 +79,14 @@ asStringM x =
   make x >>= \case
     (String s) -> pure (Just (T.unpack s))
     _ -> pure Nothing
+
+asByteString :: (HasCallStack, MakesValue a) => a -> App ByteString
+asByteString x = do
+  s <- asString x
+  let bs = T.encodeUtf8 (T.pack s)
+  case Base64.decode bs of
+    Left _ -> assertFailure "Could not base64 decode"
+    Right a -> pure a
 
 asObject :: HasCallStack => MakesValue a => a -> App Object
 asObject x =
