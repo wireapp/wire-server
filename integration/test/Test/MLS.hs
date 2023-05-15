@@ -135,12 +135,13 @@ ptestMixedProtocolAddPartialClients secondDomain = do
     resp.status `shouldMatchInt` 200
     createGroup alice1 resp.json
 
-  traverse_ uploadNewKeyPackage [bob1, bob2]
+  traverse_ uploadNewKeyPackage [bob1, bob1, bob2, bob2]
 
   -- create add commit for only one of bob's two clients
   bundle <- claimKeyPackages alice1 bob >>= getJSON 200
   [kp1, _] <- unbundleKeyPackages bundle
   mp <- createAddCommitWithKeyPackages alice1 [kp1]
+
   void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 
 testAddUser :: HasCallStack => App ()
