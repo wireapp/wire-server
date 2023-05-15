@@ -28,6 +28,7 @@ library
       aeson
     , amqp
     , base
+    , extended
     , HsOpenSSL
     , http2-manager
     , imports

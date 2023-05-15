@@ -4,9 +4,12 @@ import Data.Aeson
 import Data.Domain
 import Imports
 import Util.Options
+import System.Logger.Extended
 
-data Opts = Opts
-  { federatorInternal :: !Endpoint,
+data Opts = Opts 
+  { logLevel :: !Level,
+    logFormat :: !(Maybe (Last LogFormat)),
+    federatorInternal :: !Endpoint,
     rabbitmq :: !RabbitMqOpts,
     remoteDomains :: [Domain]
   }

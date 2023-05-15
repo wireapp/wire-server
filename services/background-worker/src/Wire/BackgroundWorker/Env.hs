@@ -8,6 +8,8 @@ import Imports
 import qualified Network.AMQP as Q
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
+import System.Logger.Extended (Logger)
+import qualified System.Logger.Extended as Logger
 import Util.Options
 import Wire.BackgroundWorker.Options
 
@@ -22,7 +24,8 @@ data Env = Env
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
   http2Manager <- initHttp2Manager
-  rabbitmqChannel <- newIORef =<< initRabbitMq opts.rabbitmq
+  l <- Logger.mkLogger opts.logLevel Nothing opts.logFormat
+  rabbitmqChannel <- initRabbitMq l opts.rabbitmq
   let federatorInternal = opts.federatorInternal
   pure Env {..}
 
@@ -38,12 +41,22 @@ initHttp2Manager = do
   SSL.contextSetDefaultVerifyPaths ctx
   http2ManagerWithSSLCtx ctx
 
-initRabbitMq :: RabbitMqOpts -> IO Q.Channel
-initRabbitMq opts = do
+initRabbitMq :: Logger -> RabbitMqOpts -> IO (IORef Q.Channel)
+initRabbitMq l opts = do
   username <- Text.pack <$> getEnv "RABBITMQ_USERNAME"
   password <- Text.pack <$> getEnv "RABBITMQ_PASSWORD"
-  conn <- Q.openConnection' opts.host (fromIntegral opts.port) opts.vHost username password
-  -- TODO(elland): Q.addConnectionClosedHandler
-  -- TODO(elland): Q.addConnectionBlockedHandler (Probably not required: https://www.rabbitmq.com/connection-blocked.html)
-  -- TODO(elland): Q.addChannelExceptionHandler
-  Q.openChannel conn
+  ref <- newIORef (error "connection to rabbiqmq not established yet!")
+  connect username password ref
+  pure ref
+  where
+    connect username password ref = do
+      conn <- Q.openConnection' opts.host (fromIntegral opts.port) opts.vHost username password
+      chan <- Q.openChannel conn
+      -- TODO(elland): Q.addConnectionClosedHandler
+      -- TODO(elland): Q.addConnectionBlockedHandler (Probably not required: https://www.rabbitmq.com/connection-blocked.html)
+      Q.addChannelExceptionHandler chan (handler username password ref)
+      atomicWriteIORef ref chan
+    handler username password ref e =
+      unless (Q.isNormalChannelClose e) $ do
+        Logger.err l $ Logger.msg (Logger.val "RabbitMQ connection had an exception") . Logger.field "error" (displayException e)
+        connect username password ref
