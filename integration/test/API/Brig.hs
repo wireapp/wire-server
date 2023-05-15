@@ -168,3 +168,13 @@ claimKeyPackages u v = do
     baseRequest u Brig Versioned $
       "/mls/key-packages/claim/" <> targetDom <> "/" <> targetUid
   submit "POST" req
+
+countKeyPackages :: ClientIdentity -> App Response
+countKeyPackages cid = do
+  baseRequest cid Brig Versioned ("/mls/key-packages/self/" <> cid.client <> "/count")
+    >>= submit "GET"
+
+deleteKeyPackages :: ClientIdentity -> [String] -> App Response
+deleteKeyPackages cid kps = do
+  req <- baseRequest cid Brig Versioned ("/mls/key-packages/self/" <> cid.client)
+  submit "DELETE" $ req & addJSONObject ["key_packages" .= kps]

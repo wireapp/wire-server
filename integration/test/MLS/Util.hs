@@ -16,7 +16,6 @@ import qualified Data.ByteString.Char8 as B8
 import Data.Default
 import Data.Foldable
 import Data.Function
-import Data.Hex
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
@@ -155,7 +154,7 @@ uploadNewKeyPackage cid = do
 generateKeyPackage :: HasCallStack => ClientIdentity -> App (ByteString, String)
 generateKeyPackage cid = do
   kp <- mlscli cid ["key-package", "create"] Nothing
-  ref <- B8.unpack . hex <$> mlscli cid ["key-package", "ref", "-"] (Just kp)
+  ref <- B8.unpack . Base64.encode <$> mlscli cid ["key-package", "ref", "-"] (Just kp)
   fp <- keyPackageFile cid ref
   liftIO $ BS.writeFile fp kp
   pure (kp, ref)
@@ -218,8 +217,13 @@ resetClientGroup cid gid = do
 
 keyPackageFile :: HasCallStack => ClientIdentity -> String -> App FilePath
 keyPackageFile cid ref = do
+  let ref' = map urlSafe ref
   bd <- getBaseDir
-  pure $ bd </> cid2Str cid </> ref
+  pure $ bd </> cid2Str cid </> ref'
+  where
+    urlSafe '+' = '-'
+    urlSafe '/' = '_'
+    urlSafe c = c
 
 unbundleKeyPackages :: Value -> App [(ClientIdentity, ByteString)]
 unbundleKeyPackages bundle = do
