@@ -28,6 +28,7 @@ import Data.Domain (Domain)
 import Data.Id as Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword6, PlainTextPassword8)
 import Data.Qualified
@@ -904,6 +905,9 @@ conversationExisted ::
   Data.Conversation ->
   Sem r ConversationResponse
 conversationExisted lusr cnv = Existed <$> conversationView lusr cnv
+
+getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
+getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList
 
 --------------------------------------------------------------------------------
 -- Handling remote errors

@@ -21,6 +21,7 @@ import System.FilePath
 import System.IO
 import System.IO.Temp
 import Testlib.Prekeys
+import Prelude
 
 -- | Initialised once per test.
 data Env = Env
@@ -174,6 +175,7 @@ data MLSState = MLSState
     clientGroupState :: Map ClientIdentity ByteString,
     epoch :: Word64
   }
+  deriving (Show)
 
 mkMLSState :: Codensity IO MLSState
 mkMLSState = Codensity $ \k ->
@@ -194,4 +196,4 @@ data ClientIdentity = ClientIdentity
     user :: String,
     client :: String
   }
-  deriving (Eq, Ord)
+  deriving (Show, Eq, Ord)
