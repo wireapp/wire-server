@@ -100,7 +100,6 @@ tests s =
       testGroup
         "Commit"
         [ test s "add user (not connected)" testAddUserNotConnected,
-          test s "add user (partial client list)" testAddUserPartial,
           test s "add client of existing user" testAddClientPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "send a stale commit" testStaleCommit,
@@ -410,34 +409,6 @@ testAddUserWithProteusClients = do
 
     void $ setupMLSGroup alice1
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-
-testAddUserPartial :: TestM ()
-testAddUserPartial = do
-  [alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
-
-  runMLSTest $ do
-    -- Bob has 3 clients, Charlie has 2
-    alice1 <- createMLSClient alice
-    bobClients@[_bob1, _bob2, bob3] <- replicateM 3 (createMLSClient bob)
-    charlieClients <- replicateM 2 (createMLSClient charlie)
-
-    -- Only the first 2 clients of Bob's have uploaded key packages
-    traverse_ uploadNewKeyPackage (take 2 bobClients <> charlieClients)
-
-    -- alice adds bob's first 2 clients
-    void $ setupMLSGroup alice1
-    commit <- createAddCommit alice1 [bob, charlie]
-
-    -- before alice can commit, bob3 uploads a key package
-    void $ uploadNewKeyPackage bob3
-
-    -- alice sends a commit now, and should get a conflict error
-    bundle <- createBundle commit
-    err <-
-      responseJsonError
-        =<< localPostCommitBundle (mpSender commit) bundle
-          <!! const 409 === statusCode
-    liftIO $ Wai.label err @?= "mls-client-mismatch"
 
 testAddClientPartial :: TestM ()
 testAddClientPartial = do

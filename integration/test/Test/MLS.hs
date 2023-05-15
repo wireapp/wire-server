@@ -239,3 +239,30 @@ testJoinSubConv = do
   void $
     createExternalCommit alice1 Nothing
       >>= sendAndConsumeCommitBundle
+
+testAddUserPartial :: HasCallStack => App ()
+testAddUserPartial = do
+  [alice, bob, charlie] <- createAndConnectUsers (replicate 3 ownDomain)
+
+  -- Bob has 3 clients, Charlie has 2
+  alice1 <- createMLSClient alice
+  bobClients@[_bob1, _bob2, bob3] <- replicateM 3 (createMLSClient bob)
+  charlieClients <- replicateM 2 (createMLSClient charlie)
+
+  -- Only the first 2 clients of Bob's have uploaded key packages
+  traverse_ uploadNewKeyPackage (take 2 bobClients <> charlieClients)
+
+  -- alice adds bob's first 2 clients
+  void $ setupMLSGroup alice1
+
+  -- alice sends a commit now, and should get a conflict error
+  kps <- fmap concat . for [bob, charlie] $ \user -> do
+    bundle <- claimKeyPackages alice1 user >>= getJSON 200
+    unbundleKeyPackages bundle
+  mp <- createAddCommitWithKeyPackages alice1 kps
+
+  -- before alice can commit, bob3 uploads a key package
+  void $ uploadNewKeyPackage bob3
+
+  err <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 409
+  err %. "label" `shouldMatch` "mls-client-mismatch"
