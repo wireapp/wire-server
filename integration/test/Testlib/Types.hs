@@ -24,6 +24,7 @@ import qualified Network.HTTP.Types as HTTP
 import Network.URI
 import Testlib.Env
 import Testlib.Printing
+import Prelude
 
 data Response = Response
   { jsonBody :: Maybe Aeson.Value,

@@ -20,6 +20,7 @@ import qualified Data.Text as T
 import GHC.Stack
 import Testlib.Env
 import Testlib.Types
+import Prelude
 
 -- | All library functions should use this typeclass for all untyped value
 -- arguments wherever possible. This design choice has advantages:
@@ -53,9 +54,6 @@ instance {-# OVERLAPPABLE #-} ToJSON a => MakesValue a where
 
 instance {-# OVERLAPPING #-} ToJSON a => MakesValue (App a) where
   make m = m <&> toJSON
-
-instance MakesValue Response where
-  make r = r.json
 
 -- use this to provide Nothing for MakesValue a => (Maybe a) values.
 noValue :: Maybe Value

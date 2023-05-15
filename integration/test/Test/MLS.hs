@@ -13,23 +13,22 @@ testMixedProtocolUpgrade :: HasCallStack => App ()
 testMixedProtocolUpgrade = do
   [alice, bob] <- createAndConnectUsers [ownDomain, ownDomain]
 
-  qcnv <- bindResponseR (postConversation alice noValue defProteus {qualifiedUsers = [bob]}) $ \resp -> do
-    resp.status `shouldMatchInt` 201
+  qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
 
   withWebSocket alice $ \wsAlice -> do
-    bindResponse (putConversationProtocol bob qcnv noValue "mixed") $ \resp -> do
+    bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
       resp.status `shouldMatchInt` 200
-      resp %. "conversation" `shouldMatch` (qcnv %. "id")
-      resp %. "data.protocol" `shouldMatch` "mixed"
+      resp.json %. "conversation" `shouldMatch` (qcnv %. "id")
+      resp.json %. "data.protocol" `shouldMatch` "mixed"
 
     n <- awaitMatch 3 (\value -> nPayload value %. "type" `isEqual` "conversation.protocol-update") wsAlice
     nPayload n %. "data.protocol" `shouldMatch` "mixed"
 
   bindResponse (getConversation alice qcnv) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp %. "protocol" `shouldMatch` "mixed"
+    resp.json %. "protocol" `shouldMatch` "mixed"
 
-  bindResponse (putConversationProtocol alice qcnv noValue "mixed") $ \resp -> do
+  bindResponse (putConversationProtocol alice qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 204
 
 testAddUser :: HasCallStack => App ()
@@ -75,7 +74,7 @@ testCreateSubConv = do
 testCreateSubConvProteus :: App ()
 testCreateSubConvProteus = do
   alice <- randomUser ownDomain def
-  conv <- bindResponse (postConversation alice noValue defProteus) $ \resp -> do
+  conv <- bindResponse (postConversation alice defProteus) $ \resp -> do
     resp.status `shouldMatchInt` 201
     resp.json
   bindResponse (getSubConversation alice conv "conference") $ \resp ->

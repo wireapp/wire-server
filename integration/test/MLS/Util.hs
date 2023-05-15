@@ -10,8 +10,6 @@ import Control.Monad.Catch
 import Control.Monad.Cont
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
-import Data.Aeson (Value (..), object)
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
@@ -39,7 +37,7 @@ import Testlib.Assertions
 import Testlib.Env
 import Testlib.HTTP
 import Testlib.JSON
-import Testlib.Types
+import Testlib.Prelude
 
 mkClientIdentity :: (MakesValue u, MakesValue c) => u -> c -> App ClientIdentity
 mkClientIdentity u c = do
@@ -115,7 +113,7 @@ argSubst from to_ s =
 createWireClient :: (MakesValue u, HasCallStack) => u -> App ClientIdentity
 createWireClient u = do
   lpk <- getLastPrekey
-  c <- addClient u def {lastPrekey = Just lpk}
+  c <- addClient u def {lastPrekey = Just lpk} >>= getJSON 201
   mkClientIdentity u c
 
 initMLSClient :: HasCallStack => ClientIdentity -> App ()
@@ -165,9 +163,7 @@ generateKeyPackage cid = do
 -- | Create conversation and corresponding group.
 setupMLSGroup :: HasCallStack => ClientIdentity -> App (String, Value)
 setupMLSGroup cid = do
-  conv <- bindResponse (postConversation cid (Just cid.client) defMLS) $ \resp -> do
-    resp.status `shouldMatchInt` 201
-    pure resp.json
+  conv <- postConversation cid defMLS >>= getJSON 201
   groupId <- conv %. "group_id" & asString
   convId <- conv %. "qualified_id"
   createGroup cid conv
@@ -176,10 +172,8 @@ setupMLSGroup cid = do
 -- | Retrieve self conversation and create the corresponding group.
 setupMLSSelfGroup :: HasCallStack => ClientIdentity -> App (String, Value)
 setupMLSSelfGroup cid = do
-  conv <- bindResponse (getSelfConversation cid) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "epoch" `shouldMatchInt` 0
-    resp.json
+  conv <- getSelfConversation cid >>= getJSON 200
+  conv %. "epoch" `shouldMatchInt` 0
   groupId <- conv %. "group_id" & asString
   convId <- conv %. "qualified_id"
   createGroup cid conv
@@ -249,9 +243,7 @@ unbundleKeyPackages bundle = do
 createAddCommit :: HasCallStack => ClientIdentity -> [Value] -> App MessagePackage
 createAddCommit cid users = do
   kps <- fmap concat . for users $ \user -> do
-    bundle <- bindResponse (claimKeyPackages cid user) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      resp.json
+    bundle <- claimKeyPackages cid user >>= getJSON 200
     unbundleKeyPackages bundle
   createAddCommitWithKeyPackages cid kps
 
@@ -310,9 +302,7 @@ createAddCommitWithKeyPackages cid clientsAndKeyPackages = do
 
 createAddProposals :: HasCallStack => ClientIdentity -> [Value] -> App [MessagePackage]
 createAddProposals cid users = do
-  bundles <- for users $ \u -> bindResponse (claimKeyPackages cid u) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json
+  bundles <- for users $ (claimKeyPackages cid >=> getJSON 200)
   kps <- concat <$> traverse unbundleKeyPackages bundles
   traverse (createAddProposalWithKeyPackage cid) kps
 
@@ -374,9 +364,7 @@ createExternalCommit cid mgi = do
   giFile <- liftIO $ emptyTempFile bd "gi"
   conv <- getConv
   gi <- case mgi of
-    Nothing -> bindResponse (getGroupInfo cid conv) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      pure resp.body
+    Nothing -> getGroupInfo cid conv >>= getBody 200
     Just v -> pure v
   commit <-
     mlscli
@@ -432,9 +420,7 @@ consumeMessage1 cid msg =
 -- commit, the 'sendAndConsumeCommit' function should be used instead.
 sendAndConsumeMessage :: HasCallStack => MessagePackage -> App Value
 sendAndConsumeMessage mp = do
-  r <- bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
-    resp.status `shouldMatchInt` 201
-    resp.json
+  r <- postMLSMessage mp.sender mp.message >>= getJSON 201
   consumeMessage mp
   pure r
 
@@ -442,9 +428,7 @@ sendAndConsumeMessage mp = do
 -- test state accordingly.
 sendAndConsumeCommitBundle :: HasCallStack => MessagePackage -> App Value
 sendAndConsumeCommitBundle mp = do
-  resp <- bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
-    resp.status `shouldMatchInt` 201
-    resp.json
+  resp <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
   consumeMessage mp
   traverse_ consumeWelcome mp.welcome
 

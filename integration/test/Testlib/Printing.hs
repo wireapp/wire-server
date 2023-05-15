@@ -1,5 +1,7 @@
 module Testlib.Printing where
 
+import Prelude
+
 yellow :: String
 yellow = "\x1b[38;5;11m"
 
