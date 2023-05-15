@@ -3,6 +3,7 @@ module Testlib.Options (getOptions, TestOptions (..)) where
 import Data.List.Split (splitOn)
 import Options.Applicative
 import System.Environment (lookupEnv)
+import Prelude
 
 data TestOptions = TestOptions
   { includeTests :: [String],

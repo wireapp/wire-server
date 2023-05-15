@@ -10,6 +10,7 @@ import System.FilePath
 import Testlib.Env
 import Testlib.JSON
 import Testlib.Types
+import Prelude
 
 failApp :: String -> App a
 failApp msg = throw (AppFailure msg)
