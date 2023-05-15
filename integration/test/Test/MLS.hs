@@ -2,6 +2,7 @@
 
 module Test.MLS where
 
+import API.Brig (claimKeyPackages)
 import API.Galley
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
@@ -109,6 +110,38 @@ ptestMixedProtocolUserLeaves secondDomain = do
     let leafIndexBob = 1
     msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
     msg %. "message.content.sender.External" `shouldMatchInt` 0
+
+testMixedProtocolAddPartialClients :: HasCallStack => App ()
+testMixedProtocolAddPartialClients = ptestMixedProtocolAddPartialClients ownDomain
+
+testMixedProtocolAddPartialClientsFed :: HasCallStack => App ()
+testMixedProtocolAddPartialClientsFed = ptestMixedProtocolAddPartialClients otherDomain
+
+ptestMixedProtocolAddPartialClients :: (HasCallStack, MakesValue domain) => domain -> App ()
+ptestMixedProtocolAddPartialClients secondDomain = do
+  [alice, bob] <- do
+    d <- ownDomain
+    d2 <- secondDomain & asString
+    createAndConnectUsers [d, d2]
+
+  qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+
+  bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+
+  bindResponse (getConversation alice qcnv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    createGroup alice1 resp.json
+
+  traverse_ uploadNewKeyPackage [bob1, bob2]
+
+  -- create add commit for only one of bob's two clients
+  bundle <- claimKeyPackages alice1 bob >>= getJSON 200
+  [kp1, _] <- unbundleKeyPackages bundle
+  mp <- createAddCommitWithKeyPackages alice1 [kp1]
+  void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 
 testAddUser :: HasCallStack => App ()
 testAddUser = do
