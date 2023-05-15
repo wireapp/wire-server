@@ -522,6 +522,11 @@ updateConversation origDomain updateRequest = do
           @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
           . fmap lcuUpdate
           $ updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged rusr) Nothing action
+      SConversationUpdateProtocolTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationUpdateProtocolTag)
+          . fmap lcuUpdate
+          $ updateLocalConversation @'ConversationUpdateProtocolTag lcnv (tUntagged rusr) Nothing action
   where
     mkResponse = fmap toResponse . runError @GalleyError . runError @NoChanges
 

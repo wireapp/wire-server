@@ -44,5 +44,5 @@ testObject_Event_conversation_manual_2 =
       evtSubConv = Nothing,
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "a471447c-aa30-4592-81b0-dec6c1c02bca")), qDomain = Domain {_domainText = "example.com"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdProtocolUpdate (P.ProtocolUpdate P.ProtocolMixedTag)
+      evtData = EdProtocolUpdate P.ProtocolMixedTag
     }

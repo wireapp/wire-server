@@ -38,6 +38,7 @@ data ConversationActionTag
   | ConversationMessageTimerUpdateTag
   | ConversationReceiptModeUpdateTag
   | ConversationAccessDataTag
+  | ConversationUpdateProtocolTag
   deriving (Show, Eq, Generic, Bounded, Enum)
 
 instance Arbitrary ConversationActionTag where
@@ -55,7 +56,8 @@ instance ToSchema ConversationActionTag where
           element "ConversationRenameTag" ConversationRenameTag,
           element "ConversationMessageTimerUpdateTag" ConversationMessageTimerUpdateTag,
           element "ConversationReceiptModeUpdateTag" ConversationReceiptModeUpdateTag,
-          element "ConversationAccessDataTag" ConversationAccessDataTag
+          element "ConversationAccessDataTag" ConversationAccessDataTag,
+          element "ConversationUpdateProtocolTag" ConversationUpdateProtocolTag
         ]
 
 instance ToJSON ConversationActionTag where
