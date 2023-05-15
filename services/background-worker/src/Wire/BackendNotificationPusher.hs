@@ -14,10 +14,10 @@ import Wire.BackgroundWorker.Env
 -- implement some sort of blocking, which causes push back so memory doesn't
 -- blow up.
 startPushingNotifications ::
+  Q.Channel ->
   Domain ->
   ReaderT Env IO Q.ConsumerTag
-startPushingNotifications domain = do
-  chan <- readIORef =<< asks rabbitmqChannel
+startPushingNotifications chan domain = do
   lift $ ensureQueue chan domain
   env <- ask
   lift $ Q.consumeMsgs chan (routingKey domain) Q.Ack (pushNotification env domain)
@@ -42,8 +42,8 @@ pushNotification env targetDomain (msg, envelope) = do
           Q.ackEnv envelope
         _ -> undefined
 
-startWorker :: Env -> [Domain] -> IO ()
-startWorker env remoteDomains = do
+startWorker :: Env -> [Domain] -> Q.Channel -> IO ()
+startWorker env remoteDomains chan = do
   -- TODO(elland): Watch these and respawn if needed
-  flip runReaderT env $ mapM_ startPushingNotifications remoteDomains
+  flip runReaderT env $ mapM_ (startPushingNotifications chan) remoteDomains
   forever $ threadDelay maxBound
