@@ -29,7 +29,19 @@ startPushingNotifications chan domain = do
 
 pushNotification :: Domain -> (Q.Message, Q.Envelope) -> AppT IO ()
 pushNotification targetDomain (msg, envelope) = do
-  case A.eitherDecode @BackendNotification (Q.msgBody msg) of
+  let handlers =
+        [ Handler $ \(e :: Q.ChanThreadKilledException) -> throwM e,
+          Handler $ \(e :: SomeException) -> do
+            -- TODO: This error likely means that no new notifications will be
+            -- retrieved from RabbitMQ as the envelope will not have been acked.
+            -- Perhaps we should restart this consumer.
+            Log.err $
+              Log.msg (Log.val "Unexpected exception occured while pushing notification")
+                . Log.field "error" (displayException e)
+                . Log.field "domain" (domainText targetDomain)
+            throwM e
+        ]
+  flip catches handlers $ case A.eitherDecode @BackendNotification (Q.msgBody msg) of
     Left e -> do
       Log.err $
         Log.msg (Log.val "Invalid notification for backend")
