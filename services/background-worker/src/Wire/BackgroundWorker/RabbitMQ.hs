@@ -34,6 +34,8 @@ runWithRabbitMq l opts hooks = do
   where
     connectWithRetries :: Text -> Text -> m ()
     connectWithRetries username password = do
+      -- Jittered exponential backoff with 1ms as starting delay and 5s as max
+      -- delay.
       let policy = capDelay 5_000_000 $ fullJitterBackoff 1000
           logError willRetry e retryStatus = do
             Log.err l $

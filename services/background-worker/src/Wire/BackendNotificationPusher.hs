@@ -1,8 +1,10 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Wire.BackendNotificationPusher where
 
 import Control.Monad.Catch
+import Control.Retry
 import qualified Data.Aeson as A
 import Data.Domain
 import Imports
@@ -51,9 +53,22 @@ pushNotification targetDomain (msg, envelope) = do
           let ceOriginDomain = notif.ownDomain
               ceTargetDomain = targetDomain
           let fcEnv = FederatorClientEnv {..}
-          lift (sendNotification fcEnv notif.content)
-            -- TODO(elland): Deal with this error
-            >>= either throwM pure
+              -- Jittered exponential backoff with 10ms as starting delay and
+              -- 300s as max delay.
+              policy = capDelay 300_000_000 $ fullJitterBackoff 10000
+              shouldRetry status eithRes = do
+                case eithRes of
+                  Right () -> pure False
+                  Left e -> do
+                    -- Logging at error level is probably too much in case a
+                    -- backend is down. Maybe this should be demeoted to debug.
+                    Log.info $
+                      Log.msg (Log.val "Failed to push notification, will retry")
+                        . Log.field "domain" (domainText targetDomain)
+                        . Log.field "error" (displayException e)
+                        . Log.field "retryCount" status.rsIterNumber
+                    pure True
+          void $ retrying policy shouldRetry (const $ lift $ sendNotificationBrig fcEnv notif.content)
           lift $ Q.ackEnv envelope
         c -> do
           Log.err $

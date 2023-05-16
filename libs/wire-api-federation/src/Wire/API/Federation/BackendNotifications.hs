@@ -33,8 +33,8 @@ instance FromJSON BackendNotification
 notificationTarget :: BackendNotificationContent -> Component
 notificationTarget (OnUserDeletedConnections _) = Brig
 
-sendNotification :: FederatorClientEnv -> BackendNotificationContent -> IO (Either FederatorClientError ())
-sendNotification env (OnUserDeletedConnections notif) = do
+sendNotificationBrig :: FederatorClientEnv -> BackendNotificationContent -> IO (Either FederatorClientError ())
+sendNotificationBrig env (OnUserDeletedConnections notif) = do
   runFederatorClient env $ void $ fedClient @'Brig @"on-user-deleted-connections" notif
 
 enqueue :: Q.Channel -> Domain -> BackendNotification -> Q.DeliveryMode -> IO ()
