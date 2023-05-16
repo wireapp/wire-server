@@ -1,13 +1,18 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Wire.BackgroundWorker.Env where
 
+import Control.Monad.Base
+import Control.Monad.Catch
+import Control.Monad.Trans.Control
 import HTTP2.Client.Manager
 import Imports
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
-import System.Logger.Extended (Logger)
-import qualified System.Logger.Extended as Logger
+import qualified System.Logger as Log
+import System.Logger.Class
+import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.BackgroundWorker.Options
 
@@ -20,7 +25,7 @@ data Env = Env
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
   http2Manager <- initHttp2Manager
-  logger <- Logger.mkLogger opts.logLevel Nothing opts.logFormat
+  logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
   -- rabbitmqChannel <- initRabbitMq l opts.rabbitmq hooks
   let federatorInternal = opts.federatorInternal
   pure Env {..}
@@ -36,3 +41,28 @@ initHttp2Manager = do
     SSL.VerifyPeer True True Nothing
   SSL.contextSetDefaultVerifyPaths ctx
   http2ManagerWithSSLCtx ctx
+
+newtype AppT m a where
+  AppT :: {unAppT :: ReaderT Env m a} -> AppT m a
+  deriving
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadIO,
+      MonadCatch,
+      MonadThrow,
+      MonadReader Env,
+      MonadTrans
+    )
+
+deriving newtype instance MonadBase b m => MonadBase b (AppT m)
+
+deriving newtype instance MonadBaseControl b m => MonadBaseControl b (AppT m)
+
+instance MonadIO m => MonadLogger (AppT m) where
+  log lvl m = do
+    l <- asks logger
+    Log.log l lvl m
+
+runAppT :: Env -> AppT m a -> m a
+runAppT env app = runReaderT (unAppT app) env

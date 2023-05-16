@@ -1,10 +1,14 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Wire.BackendNotificationPusher where
 
-import Control.Exception
+import Control.Monad.Catch
 import qualified Data.Aeson as A
 import Data.Domain
 import Imports
 import qualified Network.AMQP as Q
+import qualified Network.AMQP.Lifted as QL
+import qualified System.Logger.Class as Log
 import Wire.API.Federation.API
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
@@ -16,34 +20,35 @@ import Wire.BackgroundWorker.Env
 startPushingNotifications ::
   Q.Channel ->
   Domain ->
-  ReaderT Env IO Q.ConsumerTag
+  AppT IO Q.ConsumerTag
 startPushingNotifications chan domain = do
   lift $ ensureQueue chan domain
-  env <- ask
-  lift $ Q.consumeMsgs chan (routingKey domain) Q.Ack (pushNotification env domain)
+  QL.consumeMsgs chan (routingKey domain) Q.Ack (pushNotification domain)
 
-pushNotification :: Env -> Domain -> (Q.Message, Q.Envelope) -> IO ()
-pushNotification env targetDomain (msg, envelope) = do
+pushNotification :: Domain -> (Q.Message, Q.Envelope) -> AppT IO ()
+pushNotification targetDomain (msg, envelope) = do
   case A.eitherDecode @BackendNotification (Q.msgBody msg) of
-    Left e -> putStrLn $ "Invalid message for backend " <> show targetDomain <> ", error: " <> show e
+    Left e ->
+      Log.err $
+        Log.msg (Log.val "Invalid notification for backend")
+          . Log.field "domain" (domainText targetDomain)
+          . Log.field "error" e
     Right notif -> do
       case notificationTarget notif.content of
         Brig -> do
-          let fcEnv =
-                FederatorClientEnv
-                  { ceOriginDomain = notif.ownDomain,
-                    ceTargetDomain = targetDomain,
-                    ceFederator = env.federatorInternal,
-                    ceHttp2Manager = env.http2Manager
-                  }
-          liftIO (sendNotification fcEnv notif.content)
+          ceFederator <- asks federatorInternal
+          ceHttp2Manager <- asks http2Manager
+          let ceOriginDomain = notif.ownDomain
+              ceTargetDomain = targetDomain
+          let fcEnv = FederatorClientEnv {..}
+          lift (sendNotification fcEnv notif.content)
             -- TODO(elland): Deal with this error
-            >>= either throwIO pure
-          Q.ackEnv envelope
+            >>= either throwM pure
+          lift $ Q.ackEnv envelope
         _ -> undefined
 
-startWorker :: Env -> [Domain] -> Q.Channel -> IO ()
-startWorker env remoteDomains chan = do
+startWorker :: [Domain] -> Q.Channel -> AppT IO ()
+startWorker remoteDomains chan = do
   -- TODO(elland): Watch these and respawn if needed
-  flip runReaderT env $ mapM_ (startPushingNotifications chan) remoteDomains
+  mapM_ (startPushingNotifications chan) remoteDomains
   forever $ threadDelay maxBound

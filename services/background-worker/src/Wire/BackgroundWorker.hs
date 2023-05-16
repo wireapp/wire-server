@@ -1,7 +1,11 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE NumericUnderscores #-}
 
 module Wire.BackgroundWorker where
 
+import Control.Monad.Catch
+import Control.Monad.Trans.Control
+import Control.Retry
 import qualified Data.Text as Text
 import Imports
 import qualified Network.AMQP as Q
@@ -20,35 +24,48 @@ run opts = do
   stopped <- newEmptyMVar
   runWithRabbitMq env.logger opts.rabbitmq $
     RabbitMqHooks
-      { onNewChannel = BackendNotificationPusher.startWorker env opts.remoteDomains,
+      { onNewChannel = runAppT env . BackendNotificationPusher.startWorker opts.remoteDomains,
         onGracefulStop = putMVar stopped (),
         onException = const $ pure ()
       }
   takeMVar stopped
 
-data RabbitMqHooks = RabbitMqHooks
-  { onGracefulStop :: IO (),
-    onException :: SomeException -> IO (),
-    onNewChannel :: Q.Channel -> IO ()
+data RabbitMqHooks m = RabbitMqHooks
+  { onGracefulStop :: m (),
+    onException :: SomeException -> m (),
+    onNewChannel :: Q.Channel -> m ()
   }
 
 -- TODO(elland): Find out if there are benefits of having one channel for everything
 -- or should we create more channels?
-runWithRabbitMq :: Logger -> RabbitMqOpts -> RabbitMqHooks -> IO ()
+runWithRabbitMq :: forall m. (MonadIO m, MonadMask m, MonadBaseControl IO m) => Logger -> RabbitMqOpts -> RabbitMqHooks m -> m ()
 runWithRabbitMq l opts hooks = do
-  username <- Text.pack <$> getEnv "RABBITMQ_USERNAME"
-  password <- Text.pack <$> getEnv "RABBITMQ_PASSWORD"
-  connect username password
+  username <- liftIO $ Text.pack <$> getEnv "RABBITMQ_USERNAME"
+  password <- liftIO $ Text.pack <$> getEnv "RABBITMQ_PASSWORD"
+  connectWithRetries username password
   where
+    connectWithRetries :: Text -> Text -> m ()
+    connectWithRetries username password = do
+      let policy = capDelay 5_000_000 $ fullJitterBackoff 1000
+      recoverAll
+        policy
+        ( const $ do
+            Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
+            connect username password
+        )
+    connect :: Text -> Text -> m ()
     connect username password = do
-      conn <- Q.openConnection' opts.host (fromIntegral opts.port) opts.vHost username password
-      Q.addConnectionClosedHandler conn True (connect username password)
+      conn <- liftIO $ Q.openConnection' opts.host (fromIntegral opts.port) opts.vHost username password
+      liftBaseWith $ \runInIO ->
+        Q.addConnectionClosedHandler conn True (void $ runInIO $ connectWithRetries username password)
       openChan conn
 
+    openChan :: Q.Connection -> m ()
     openChan conn = do
       Log.info l $ Log.msg (Log.val "Opening channel with RabbitMQ")
-      chan <- Q.openChannel conn
-      Q.addChannelExceptionHandler chan (handler conn)
+      chan <- liftIO $ Q.openChannel conn
+      liftBaseWith $ \runInIO ->
+        Q.addChannelExceptionHandler chan (void . runInIO . handler conn)
       Log.info l $ Log.msg (Log.val "RabbitMQ channel opened")
       hooks.onNewChannel chan
     handler conn e =

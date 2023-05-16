@@ -5,14 +5,18 @@
 { mkDerivation
 , aeson
 , amqp
-, base
+, exceptions
 , extended
 , gitignoreSource
 , HsOpenSSL
 , http2-manager
 , imports
 , lib
+, monad-control
+, retry
 , text
+, tinylog
+, transformers-base
 , types-common
 , wire-api-federation
 }:
@@ -25,12 +29,16 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
-    base
+    exceptions
     extended
     HsOpenSSL
     http2-manager
     imports
+    monad-control
+    retry
     text
+    tinylog
+    transformers-base
     types-common
     wire-api-federation
   ];

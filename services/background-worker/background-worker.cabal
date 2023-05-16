@@ -27,12 +27,16 @@ library
   build-depends:
       aeson
     , amqp
-    , base
+    , exceptions
     , extended
     , HsOpenSSL
     , http2-manager
     , imports
+    , monad-control
+    , retry
     , text
+    , tinylog
+    , transformers-base
     , types-common
     , wire-api-federation
 
