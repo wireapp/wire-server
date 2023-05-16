@@ -24,6 +24,7 @@ startPushingNotifications chan domain = do
   lift $ ensureQueue chan domain
   QL.consumeMsgs chan (routingKey domain) Q.Ack (pushNotification domain)
 
+-- TODO(elland): Test this code.
 pushNotification :: Domain -> (Q.Message, Q.Envelope) -> AppT IO ()
 pushNotification targetDomain (msg, envelope) = do
   let handlers =
