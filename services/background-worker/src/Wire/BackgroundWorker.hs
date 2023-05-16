@@ -3,10 +3,10 @@
 module Wire.BackgroundWorker where
 
 import Imports
+import Network.AMQP.Extended
 import qualified Wire.BackendNotificationPusher as BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
-import Wire.BackgroundWorker.RabbitMQ
 
 -- TODO(elland): Start an http service with status and metrics endpoints
 run :: Opts -> IO ()
@@ -14,11 +14,11 @@ run opts = do
   env <- mkEnv opts
   -- FUTUREWORK: Make some way to tracking all the workers, currently there is
   -- only one so we can just block on it.
-  stopped <- newEmptyMVar
-  runWithRabbitMq env.logger opts.rabbitmq $
+  openConnectionWithRetries env.logger opts.rabbitmq.host opts.rabbitmq.port opts.rabbitmq.vHost $
     RabbitMqHooks
       { onNewChannel = runAppT env . BackendNotificationPusher.startWorker opts.remoteDomains,
-        onGracefulStop = putMVar stopped (),
-        onException = const $ pure ()
+        -- TODO: Use these for metrics
+        onChannelException = const $ pure (),
+        onConnectionClose = pure ()
       }
-  takeMVar stopped
+  forever $ threadDelay maxBound

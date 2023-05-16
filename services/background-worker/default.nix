@@ -14,7 +14,6 @@
 , lib
 , monad-control
 , retry
-, text
 , tinylog
 , transformers-base
 , types-common
@@ -36,7 +35,6 @@ mkDerivation {
     imports
     monad-control
     retry
-    text
     tinylog
     transformers-base
     types-common

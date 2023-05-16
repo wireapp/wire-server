@@ -16,7 +16,6 @@ library
     Wire.BackgroundWorker
     Wire.BackgroundWorker.Env
     Wire.BackgroundWorker.Options
-    Wire.BackgroundWorker.RabbitMQ
 
   hs-source-dirs:     src
   default-language:   Haskell2010
@@ -35,7 +34,6 @@ library
     , imports
     , monad-control
     , retry
-    , text
     , tinylog
     , transformers-base
     , types-common
