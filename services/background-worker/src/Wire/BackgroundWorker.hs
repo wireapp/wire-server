@@ -21,7 +21,7 @@ run opts = do
   runWithRabbitMq env.logger opts.rabbitmq $
     RabbitMqHooks
       { onNewChannel = BackendNotificationPusher.startWorker env opts.remoteDomains,
-        onGracefulStop = putMVar stopped (),  
+        onGracefulStop = putMVar stopped (),
         onException = const $ pure ()
       }
   takeMVar stopped
@@ -48,8 +48,6 @@ runWithRabbitMq l opts hooks = do
     openChan conn = do
       Log.info l $ Log.msg (Log.val "Opening channel with RabbitMQ")
       chan <- Q.openChannel conn
-      -- TODO(elland): Q.addConnectionClosedHandler
-      -- TODO(elland): Q.addConnectionBlockedHandler (Probably not required: https://www.rabbitmq.com/connection-blocked.html)
       Q.addChannelExceptionHandler chan (handler conn)
       Log.info l $ Log.msg (Log.val "RabbitMQ channel opened")
       hooks.onNewChannel chan
