@@ -1,6 +1,6 @@
 {
     "events": [],
-    "failed_to_send": [
+    "failed_to_add": [
         {
             "domain": "offline.example.com",
             "id": "00000000-0000-0000-0000-000200000008"

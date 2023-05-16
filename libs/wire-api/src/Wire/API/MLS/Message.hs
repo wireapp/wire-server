@@ -377,7 +377,7 @@ verifyMessageSignature ctx msgContent authData pubkey = isJust $ do
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],
     mmssTime :: UTCTimeMillis,
-    mmssUnreachableUsers :: Maybe UnreachableUsers
+    mmssFailedToProcess :: FailedToProcess
   }
   deriving (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema MLSMessageSendingStatus
@@ -396,10 +396,4 @@ instance ToSchema MLSMessageSendingStatus where
             "time"
             (description ?~ "The time of sending the message.")
             schema
-        <*> mmssUnreachableUsers
-          .= maybe_
-            ( optFieldWithDocModifier
-                "failed_to_send"
-                (description ?~ "List of federated users who could not be reached and did not receive the message")
-                schema
-            )
+        <*> mmssFailedToProcess .= failedToProcessObjectSchema
