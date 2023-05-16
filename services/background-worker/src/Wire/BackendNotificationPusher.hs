@@ -90,6 +90,8 @@ pushNotification targetDomain (msg, envelope) = do
           -- See Note [Reject Messages]
           lift $ Q.rejectEnv envelope False
 
+-- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
+-- for a handful of remote domains.
 startWorker :: [Domain] -> Q.Channel -> AppT IO ()
 startWorker remoteDomains chan = do
   lift $ Q.qos chan 0 1 False

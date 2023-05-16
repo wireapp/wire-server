@@ -18,8 +18,6 @@ data RabbitMqHooks m = RabbitMqHooks
     onNewChannel :: Q.Channel -> m ()
   }
 
--- TODO(elland): Find out if there are benefits of having one channel for everything
--- or should we create more channels?
 runWithRabbitMq ::
   forall m.
   (MonadIO m, MonadMask m, MonadBaseControl IO m) =>
