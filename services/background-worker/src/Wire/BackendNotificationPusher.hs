@@ -50,6 +50,5 @@ pushNotification targetDomain (msg, envelope) = do
 startWorker :: [Domain] -> Q.Channel -> AppT IO ()
 startWorker remoteDomains chan = do
   lift $ Q.qos chan 0 1 False
-  -- TODO(elland): Watch these and respawn if needed
   mapM_ (startPushingNotifications chan) remoteDomains
   forever $ threadDelay maxBound
