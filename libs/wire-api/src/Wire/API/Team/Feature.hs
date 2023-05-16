@@ -114,6 +114,7 @@ import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
+import Test.QuickCheck.Modifiers
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
 import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -959,26 +960,34 @@ data MlsMigrationConfig = MlsMigrationConfig
   deriving stock (Eq, Show, Generic)
 
 instance Arbitrary MlsMigrationConfig where
-  arbitrary =
-    MlsMigrationConfig
-      <$> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
+  arbitrary = do
+    startTime <- fmap fromUTCTimeMillis <$> arbitrary
+    finaliseRegardlessAfter <- fmap fromUTCTimeMillis <$> arbitrary
+    usersThreshold <- fmap getNonNegative <$> arbitrary
+    clientsThreshold <- fmap (fmap getNonNegative) $
+      case (finaliseRegardlessAfter, usersThreshold) of
+        (Nothing, Nothing) -> Just <$> arbitrary
+        _ -> arbitrary
+    pure
+      MlsMigrationConfig
+        { startTime = startTime,
+          finaliseRegardlessAfter = finaliseRegardlessAfter,
+          usersThreshold = usersThreshold,
+          clientsThreshold = clientsThreshold
+        }
 
 instance ToSchema MlsMigrationConfig where
   schema =
     object "MlsMigration" $
       withParser
         ( MlsMigrationConfig
-            <$> startTime .= maybe_ (optField "startTime" timeSchema)
-            <*> finaliseRegardlessAfter .= maybe_ (optField "finaliseRegardlessAfter" timeSchema)
+            <$> startTime .= maybe_ (optField "startTime" utcTimeSchema)
+            <*> finaliseRegardlessAfter .= maybe_ (optField "finaliseRegardlessAfter" utcTimeSchema)
             <*> usersThreshold .= maybe_ (optField "usersThreshold" schema)
             <*> clientsThreshold .= maybe_ (optField "clientsThreshold" schema)
         )
         checkConfig
     where
-      timeSchema = toUTCTimeMillis .= (fromUTCTimeMillis <$> schema)
       checkConfig c = do
         when
           ( isNothing c.finaliseRegardlessAfter

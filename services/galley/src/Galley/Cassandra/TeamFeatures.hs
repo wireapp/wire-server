@@ -376,14 +376,15 @@ instance FeatureStatusCassandra MlsMigrationConfig where
   setFeatureConfig _ tid status = do
     let statusValue = wssStatus status
         config = wssConfig status
+
     retry x5 $ write insert (params LocalQuorum (tid, statusValue, config.startTime, config.finaliseRegardlessAfter, fmap fromIntegral config.usersThreshold, fmap fromIntegral config.clientsThreshold))
     where
       insert :: PrepQuery W (TeamId, FeatureStatus, Maybe UTCTime, Maybe UTCTime, Maybe Int32, Maybe Int32) ()
       insert =
-        "insert into team_features (team_id, mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url) values (?, ?, ?, ?)"
+        "insert into team_features (team_id, mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after, mls_migration_users_threshold, mls_migration_clients_threshold) values (?, ?, ?, ?, ?, ?)"
 
-  getFeatureLockStatus _ = getLockStatusC "mls_e2eid_lock_status"
-  setFeatureLockStatus _ = setLockStatusC "mls_e2eid_lock_status"
+  getFeatureLockStatus _ = getLockStatusC "mls_migration_lock_status"
+  setFeatureLockStatus _ = setLockStatusC "mls_migration_lock_status"
 
 instance FeatureStatusCassandra ExposeInvitationURLsToTeamAdminConfig where
   getFeatureConfig _ = getTrivialConfigC "expose_invitation_urls_to_team_admin"
