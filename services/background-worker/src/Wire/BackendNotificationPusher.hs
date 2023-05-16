@@ -28,11 +28,18 @@ startPushingNotifications chan domain = do
 pushNotification :: Domain -> (Q.Message, Q.Envelope) -> AppT IO ()
 pushNotification targetDomain (msg, envelope) = do
   case A.eitherDecode @BackendNotification (Q.msgBody msg) of
-    Left e ->
+    Left e -> do
       Log.err $
         Log.msg (Log.val "Invalid notification for backend")
           . Log.field "domain" (domainText targetDomain)
           . Log.field "error" e
+
+      -- FUTUREWORK: This rejects the message without any requeueing. This is
+      -- dangerous as it could happen that a new type of notification is
+      -- introduced and an old instance of this worker is running, in which case
+      -- the notification will just get dropped. Perhaps there is a better way
+      -- to deal with this.
+      lift $ Q.rejectEnv envelope False
     Right notif -> do
       case notificationTarget notif.content of
         Brig -> do
