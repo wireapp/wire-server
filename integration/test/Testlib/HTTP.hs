@@ -78,7 +78,7 @@ getBody status resp = withResponse resp $ \r -> do
   pure r.body
 
 -- | Check response status code, then return JSON body.
-getJSON :: Int -> Response -> App Aeson.Value
+getJSON :: HasCallStack => Int -> Response -> App Aeson.Value
 getJSON status resp = withResponse resp $ \r -> do
   r.status `shouldMatch` status
   r.json
