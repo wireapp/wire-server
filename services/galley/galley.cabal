@@ -545,6 +545,7 @@ executable galley-schema
     V81_TeamFeatureMlsE2EIdUpdate
     V82_MLSSubconversation
     V83_MLSDraft17
+    V84_TeamFeatureMlsMigration
 
   hs-source-dirs:     schema/src
   default-extensions: TemplateHaskell

@@ -29,7 +29,7 @@ import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Misc (HttpsUrl)
 import Data.Proxy
-import Data.Time (NominalDiffTime)
+import Data.Time
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
 import qualified Galley.Effects.TeamFeatureStore as TFS
@@ -346,6 +346,39 @@ instance FeatureStatusCassandra MlsE2EIdConfig where
     retry x5 $ write insert (params LocalQuorum (tid, statusValue, truncate vex, mUrl))
     where
       insert :: PrepQuery W (TeamId, FeatureStatus, Int32, Maybe HttpsUrl) ()
+      insert =
+        "insert into team_features (team_id, mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url) values (?, ?, ?, ?)"
+
+  getFeatureLockStatus _ = getLockStatusC "mls_e2eid_lock_status"
+  setFeatureLockStatus _ = setLockStatusC "mls_e2eid_lock_status"
+
+instance FeatureStatusCassandra MlsMigrationConfig where
+  getFeatureConfig _ tid = do
+    let q = query1 select (params LocalQuorum (Identity tid))
+    retry x1 q <&> \case
+      Nothing -> Nothing
+      Just (Nothing, _, _, _, _) -> Nothing
+      Just (Just fs, startTime, finaliseRegardlessAfter, usersThreshold, clientsThreshold) ->
+        Just $
+          WithStatusNoLock
+            fs
+            MlsMigrationConfig
+              { startTime = startTime,
+                finaliseRegardlessAfter = finaliseRegardlessAfter,
+                usersThreshold = fmap fromIntegral usersThreshold,
+                clientsThreshold = fmap fromIntegral clientsThreshold
+              }
+            FeatureTTLUnlimited
+    where
+      select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe UTCTime, Maybe UTCTime, Maybe Int32, Maybe Int32)
+      select = "select mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after, mls_migration_users_threshold, mls_migration_clients_threshold from team_features where team_id = ?"
+
+  setFeatureConfig _ tid status = do
+    let statusValue = wssStatus status
+        config = wssConfig status
+    retry x5 $ write insert (params LocalQuorum (tid, statusValue, config.startTime, config.finaliseRegardlessAfter, fmap fromIntegral config.usersThreshold, fmap fromIntegral config.clientsThreshold))
+    where
+      insert :: PrepQuery W (TeamId, FeatureStatus, Maybe UTCTime, Maybe UTCTime, Maybe Int32, Maybe Int32) ()
       insert =
         "insert into team_features (team_id, mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url) values (?, ?, ?, ?)"
 

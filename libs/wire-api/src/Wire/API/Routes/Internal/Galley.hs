@@ -154,6 +154,11 @@ type IFeatureAPI =
     :<|> IFeatureStatusPut '[] '() MlsE2EIdConfig
     :<|> IFeatureStatusPatch '[] '() MlsE2EIdConfig
     :<|> IFeatureStatusLockStatusPut MlsE2EIdConfig
+    -- MlsMigrationConfig
+    :<|> IFeatureStatusGet MlsMigrationConfig
+    :<|> IFeatureStatusPut '[] '() MlsMigrationConfig
+    :<|> IFeatureStatusPatch '[] '() MlsMigrationConfig
+    :<|> IFeatureStatusLockStatusPut MlsMigrationConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"

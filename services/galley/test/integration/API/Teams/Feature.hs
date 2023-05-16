@@ -36,6 +36,7 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Char8 (unpack)
 import Data.Domain (Domain (..))
 import Data.Id
+import Data.Json.Util (fromUTCTimeMillis, readUTCTimeMillis)
 import qualified Data.List1 as List1
 import Data.Schema (ToSchema)
 import qualified Data.Set as Set
@@ -107,6 +108,8 @@ tests s =
               (wsConfig (defFeatureStatus @MlsE2EIdConfig))
               FeatureTTLUnlimited
           ),
+      test s "MlsMigration feature config" $
+        testNonTrivialConfigNoTTL defaultMlsMigrationConfig,
       testGroup
         "Patch"
         [ -- Note: `SSOConfig` and `LegalHoldConfig` may not be able to be reset
@@ -1047,7 +1050,8 @@ testAllFeatures = do
           afcSearchVisibilityInboundConfig = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig FeatureTTLUnlimited,
           afcExposeInvitationURLsToTeamAdmin = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited,
           afcOutlookCalIntegration = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited,
-          afcMlsE2EId = withStatus FeatureStatusDisabled LockStatusUnlocked (wsConfig defFeatureStatus) FeatureTTLUnlimited
+          afcMlsE2EId = withStatus FeatureStatusDisabled LockStatusUnlocked (wsConfig defFeatureStatus) FeatureTTLUnlimited,
+          afcMlsMigration = defaultMlsMigrationConfig
         }
 
 testFeatureConfigConsistency :: TestM ()
@@ -1458,3 +1462,16 @@ wsAssertFeatureConfigUpdate config lockStatus notification = do
   FeatureConfig._eventType e @?= FeatureConfig.Update
   FeatureConfig._eventFeatureName e @?= featureName @cfg
   FeatureConfig._eventData e @?= Aeson.toJSON (withLockStatus lockStatus config)
+
+defaultMlsMigrationConfig :: WithStatus MlsMigrationConfig
+defaultMlsMigrationConfig =
+  withStatus
+    FeatureStatusEnabled
+    LockStatusLocked
+    MlsMigrationConfig
+      { startTime = fmap fromUTCTimeMillis (readUTCTimeMillis "2029-05-16T10:11:12.123Z"),
+        finaliseRegardlessAfter = fmap fromUTCTimeMillis (readUTCTimeMillis "2029-10-17T00:00:00.000Z"),
+        usersThreshold = Just 60,
+        clientsThreshold = Just 50
+      }
+    FeatureTTLUnlimited

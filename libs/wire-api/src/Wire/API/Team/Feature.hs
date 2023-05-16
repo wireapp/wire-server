@@ -79,6 +79,7 @@ module Wire.API.Team.Feature
     MLSConfig (..),
     OutlookCalIntegrationConfig (..),
     MlsE2EIdConfig (..),
+    MlsMigrationConfig (..),
     AllFeatureConfigs (..),
     unImplicitLockStatus,
     ImplicitLockStatus (..),
@@ -95,6 +96,7 @@ import qualified Data.ByteString.UTF8 as UTF8
 import Data.Domain (Domain)
 import Data.Either.Extra (maybeToEither)
 import Data.Id
+import Data.Json.Util
 import Data.Kind
 import Data.Misc (HttpsUrl)
 import Data.Proxy
@@ -105,7 +107,7 @@ import qualified Data.Swagger as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
-import Data.Time (NominalDiffTime)
+import Data.Time
 import Deriving.Aeson
 import GHC.TypeLits
 import Imports
@@ -135,17 +137,22 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- Galley.Cassandra.TeamFeatures together with a schema migration
 --
 -- 4. Add the feature to the config schema of galley in Galley.Types.Teams.
--- and extend the Arbitrary instance of FeatureConfigs in the unit tests Test.Galley.Types
+-- and extend the Arbitrary instance of FeatureConfigs in the unit tests
+-- Test.Galley.Types
 --
 -- 5. Implement 'GetFeatureConfig' and 'SetFeatureConfig' in
 -- Galley.API.Teams.Features which defines the main business logic for getting
--- and setting (with side-effects). Note that we don't have to check the lockstatus inside 'setConfigForTeam'
--- because the lockstatus is checked in 'setFeatureStatus' before which is the public API for setting the feature status.
+-- and setting (with side-effects). Note that we don't have to check the
+-- lockstatus inside 'setConfigForTeam' because the lockstatus is checked in
+-- 'setFeatureStatus' before which is the public API for setting the feature
+-- status. Also extend FeaturePersistentAllFeatures.
 --
--- 6. Add public routes to Wire.API.Routes.Public.Galley.Feature: 'FeatureStatusGet',
--- 'FeatureStatusPut' (optional). Then implement them in Galley.API.Public.Feature.
+-- 6. Add public routes to Wire.API.Routes.Public.Galley.Feature:
+-- 'FeatureStatusGet', 'FeatureStatusPut' (optional). Then implement them in
+-- Galley.API.Public.Feature.
 --
--- 7. Add internal routes in Wire.API.Routes.Internal.Galley
+-- 7. Add internal routes in Wire.API.Routes.Internal.Galley and implement them
+-- in Galley.API.Internal.
 --
 -- 8. If the feature should be configurable via Stern add routes to Stern.API.
 -- Manually check that the swagger looks okay and works.
@@ -941,6 +948,54 @@ instance IsFeatureConfig MlsE2EIdConfig where
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
+-- MlsMigration
+
+data MlsMigrationConfig = MlsMigrationConfig
+  { startTime :: Maybe UTCTime,
+    finaliseRegardlessAfter :: Maybe UTCTime,
+    usersThreshold :: Maybe Int,
+    clientsThreshold :: Maybe Int
+  }
+  deriving stock (Eq, Show, Generic)
+
+instance Arbitrary MlsMigrationConfig where
+  arbitrary =
+    MlsMigrationConfig
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+
+instance ToSchema MlsMigrationConfig where
+  schema =
+    object "MlsMigration" $
+      withParser
+        ( MlsMigrationConfig
+            <$> startTime .= maybe_ (optField "startTime" timeSchema)
+            <*> finaliseRegardlessAfter .= maybe_ (optField "finaliseRegardlessAfter" timeSchema)
+            <*> usersThreshold .= maybe_ (optField "usersThreshold" schema)
+            <*> clientsThreshold .= maybe_ (optField "clientsThreshold" schema)
+        )
+        checkConfig
+    where
+      timeSchema = toUTCTimeMillis .= (fromUTCTimeMillis <$> schema)
+      checkConfig c = do
+        when
+          ( isNothing c.finaliseRegardlessAfter
+              && isNothing c.usersThreshold
+              && isNothing c.clientsThreshold
+          )
+          $ fail "At least one of finaliseRegardlessAfter, usersThreshold or clientsThreshold must be set"
+        pure c
+
+instance IsFeatureConfig MlsMigrationConfig where
+  type FeatureSymbol MlsMigrationConfig = "mlsMigration"
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked defValue FeatureTTLUnlimited
+    where
+      defValue = MlsMigrationConfig Nothing Nothing Nothing Nothing
+  objectSchema = field "config" schema
+
+----------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -1016,7 +1071,8 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcMLS :: WithStatus MLSConfig,
     afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig,
     afcOutlookCalIntegration :: WithStatus OutlookCalIntegrationConfig,
-    afcMlsE2EId :: WithStatus MlsE2EIdConfig
+    afcMlsE2EId :: WithStatus MlsE2EIdConfig,
+    afcMlsMigration :: WithStatus MlsMigrationConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -1042,6 +1098,7 @@ instance ToSchema AllFeatureConfigs where
         <*> afcExposeInvitationURLsToTeamAdmin .= featureField
         <*> afcOutlookCalIntegration .= featureField
         <*> afcMlsE2EId .= featureField
+        <*> afcMlsMigration .= featureField
     where
       featureField ::
         forall cfg.
@@ -1053,6 +1110,7 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
