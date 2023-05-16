@@ -16,9 +16,6 @@ import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.BackgroundWorker.Env
 
--- TODO(elland): This calls the callback for next notification even if one fails,
--- implement some sort of blocking, which causes push back so memory doesn't
--- blow up.
 startPushingNotifications ::
   Q.Channel ->
   Domain ->
@@ -94,6 +91,8 @@ pushNotification targetDomain (msg, envelope) = do
 -- for a handful of remote domains.
 startWorker :: [Domain] -> Q.Channel -> AppT IO ()
 startWorker remoteDomains chan = do
+  -- This ensures that we receive notifications 1 by 1 which ensures they are
+  -- delivered in order.
   lift $ Q.qos chan 0 1 False
   mapM_ (startPushingNotifications chan) remoteDomains
   forever $ threadDelay maxBound
