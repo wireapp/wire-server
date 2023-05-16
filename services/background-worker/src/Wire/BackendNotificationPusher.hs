@@ -34,11 +34,14 @@ pushNotification targetDomain (msg, envelope) = do
           . Log.field "domain" (domainText targetDomain)
           . Log.field "error" e
 
+      -- [Reject Messages]
+      --
       -- FUTUREWORK: This rejects the message without any requeueing. This is
       -- dangerous as it could happen that a new type of notification is
       -- introduced and an old instance of this worker is running, in which case
-      -- the notification will just get dropped. Perhaps there is a better way
-      -- to deal with this.
+      -- the notification will just get dropped. On the other hand not dropping
+      -- this message blocks the whole queue. Perhaps there is a better way to
+      -- deal with this.
       lift $ Q.rejectEnv envelope False
     Right notif -> do
       case notificationTarget notif.content of
@@ -52,7 +55,12 @@ pushNotification targetDomain (msg, envelope) = do
             -- TODO(elland): Deal with this error
             >>= either throwM pure
           lift $ Q.ackEnv envelope
-        _ -> undefined
+        c -> do
+          Log.err $
+            Log.msg (Log.val "Notifications for component not implmented")
+              . Log.field "component" (show c)
+          -- See Note [Reject Messages]
+          lift $ Q.rejectEnv envelope False
 
 startWorker :: [Domain] -> Q.Channel -> AppT IO ()
 startWorker remoteDomains chan = do
