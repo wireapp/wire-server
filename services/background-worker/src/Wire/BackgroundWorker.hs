@@ -57,7 +57,6 @@ runWithRabbitMq l opts hooks = do
               Log.info l $ Log.msg (Log.val "RabbitMQ channel gracefully closed, not retrying to open channel")
               hooks.onGracefulStop
           | isConnectionClosed e -> do
-              -- if ConnectionClosedException, do not reconnect channel
               Log.info l $ Log.msg (Log.val "RabbitMQ connection closed, not retrying to open channel")
           | otherwise -> do
               Log.err l $ Log.msg (Log.val "RabbitMQ channel closed with an exception") . Log.field "error" (displayException e)
