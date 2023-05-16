@@ -104,6 +104,7 @@ library
     Testlib.Prekeys
     Testlib.Prelude
     Testlib.Printing
+    Testlib.PTest
     Testlib.Run
     Testlib.Types
 
