@@ -32,9 +32,9 @@ pushNotification targetDomain (msg, envelope) = do
   let handlers =
         [ Handler $ \(e :: Q.ChanThreadKilledException) -> throwM e,
           Handler $ \(SomeException e) -> do
-            -- TODO: This error likely means that no new notifications will be
-            -- retrieved from RabbitMQ as the envelope will not have been acked.
-            -- Perhaps we should restart this consumer.
+            -- TODO(elland): This error likely means that no new notifications
+            -- will be retrieved from RabbitMQ as the envelope will not have
+            -- been acked. Perhaps we should restart this consumer.
             Log.err $
               Log.msg (Log.val "Unexpected exception occured while pushing notification")
                 . Log.field "error" (displayException e)
