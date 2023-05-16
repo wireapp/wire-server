@@ -111,12 +111,10 @@ import Cassandra.Schema (versionCheck)
 import qualified Cassandra.Settings as Cas
 import Control.AutoUpdate
 import Control.Error
-import Control.Exception (throwIO)
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
-import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Default (def)
 import Data.Domain
@@ -138,6 +136,8 @@ import qualified Database.Bloodhound as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports
 import qualified Network.AMQP as Q
+import Network.AMQP.Extended (RabbitMqHooks (RabbitMqHooks))
+import qualified Network.AMQP.Extended as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
@@ -198,7 +198,7 @@ data Env = Env
     _indexEnv :: IndexEnv,
     _randomPrekeyLocalLock :: Maybe (MVar ()),
     _keyPackageLocalLock :: MVar (),
-    _rabbitmqChannel :: IORef Q.Channel
+    _rabbitmqChannel :: MVar Q.Channel
   }
 
 makeLenses ''Env
@@ -251,7 +251,7 @@ newEnv o = do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
-  rabbitChan <- newIORef =<< mkRabbitMqChannel lgr o
+  rabbitChan <- mkRabbitMqChannel lgr o
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -304,24 +304,16 @@ newEnv o = do
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
 
-mkRabbitMqChannel :: Logger -> Opts -> IO Q.Channel
-mkRabbitMqChannel g (Opt.rabbitmq -> Opt.RabbitMqOpts {..}) = do
-  username <- Text.pack <$> getEnv "RABBITMQ_USERNAME"
-  password <- Text.pack <$> getEnv "RABBITMQ_PASSWORD"
-  conn <- Q.openConnection' host (fromIntegral port) vHost username password
-  -- TODO(elland): Q.addConnectionClosedHandler
-  -- TODO(elland): Q.addConnectionBlockedHandler
-  -- TODO(elland): Q.addChannelExceptionHandler
-  chan <- Q.openChannel conn
-  Q.addChannelExceptionHandler chan $ \e -> do
-    Log.err g (msg . val $ "Exception throw inside rabbit channel: " <> bshow e)
-    -- Rethrow the exception, we don't want to silence or handle them yet.
-    -- TODO(elland): Handle some of the exceptions.
-    throwIO e
+mkRabbitMqChannel :: Logger -> Opts -> IO (MVar Q.Channel)
+mkRabbitMqChannel l (Opt.rabbitmq -> Opt.RabbitMqOpts {..}) = do
+  chan <- newEmptyMVar
+  Q.openConnectionWithRetries l host port vHost $
+    RabbitMqHooks
+      { onNewChannel = putMVar chan,
+        onChannelException = \_ -> void $ tryTakeMVar chan,
+        onConnectionClose = void $ tryTakeMVar chan
+      }
   pure chan
-  where
-    bshow :: Show a => a -> ByteString
-    bshow = pack . show
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
 mkIndexEnv o lgr mgr mtr galleyEndpoint =

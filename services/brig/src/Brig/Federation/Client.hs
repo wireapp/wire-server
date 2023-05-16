@@ -145,7 +145,8 @@ notifyUserDeleted ::
 notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
       domain = tDomain self
-  qChan <- readIORef =<< view rabbitmqChannel
+  -- TODO(elland): Add retries
+  qChan <- readMVar =<< view rabbitmqChannel
   let notif = BackendNotification domain (OnUserDeletedConnections $ UserDeletedConnectionsNotification (tUnqualified self) remoteConnections)
   liftIO $ enqueue qChan (tDomain remotes) notif Q.Persistent
 
