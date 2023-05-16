@@ -94,8 +94,8 @@ asObject x =
     (Object o) -> pure o
     v -> assertFailureWithJSON x ("Object" `typeWasExpectedButGot` v)
 
-asInt :: HasCallStack => MakesValue a => a -> App Int
-asInt x =
+asIntegral :: (Integral i, HasCallStack) => MakesValue a => a -> App i
+asIntegral x =
   make x >>= \case
     (Number n) ->
       case Sci.floatingOrInteger n of
