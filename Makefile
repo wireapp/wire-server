@@ -99,11 +99,11 @@ endif
 ci: c db-migrate
 ifeq ("$(package)", "all")
     ifneq ("$(suite)", "new")
-		echo ./hack/bin/cabal-run-integration.sh all
+		./hack/bin/cabal-run-integration.sh all
     endif
     ifneq ("$(suite)", "old")
 		make c package=integration
-		echo ./hack/bin/cabal-run-integration.sh integration
+		./hack/bin/cabal-run-integration.sh integration
     endif
 else
   ifeq ("$(package)", "integration")
