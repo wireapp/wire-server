@@ -48,6 +48,7 @@ runWithRabbitMq l opts hooks = do
             Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
             connect username password
         )
+
     connect :: Text -> Text -> m ()
     connect username password = do
       conn <- liftIO $ Q.openConnection' opts.host (fromIntegral opts.port) opts.vHost username password
@@ -68,12 +69,18 @@ runWithRabbitMq l opts hooks = do
     chanExceptionHandler conn e =
       if
           | Q.isNormalChannelClose e -> do
-              Log.info l $ Log.msg (Log.val "RabbitMQ channel gracefully closed, not retrying to open channel")
+              Log.info l $
+                Log.msg (Log.val "RabbitMQ channel gracefully closed, not retrying to open channel")
+                  . Log.field "error" (displayException e)
               hooks.onGracefulStop
           | isConnectionClosed e -> do
-              Log.info l $ Log.msg (Log.val "RabbitMQ connection closed, not retrying to open channel")
+              Log.info l $
+                Log.msg (Log.val "RabbitMQ connection closed, not retrying to open channel")
+                  . Log.field "error" (displayException e)
           | otherwise -> do
-              Log.err l $ Log.msg (Log.val "RabbitMQ channel closed with an exception") . Log.field "error" (displayException e)
+              Log.err l $
+                Log.msg (Log.val "RabbitMQ channel closed with an exception")
+                  . Log.field "error" (displayException e)
               hooks.onException e
               openChan conn
 
