@@ -14,6 +14,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
+import qualified Data.ByteString.Char8 as C8
 import Data.Default
 import Data.Foldable
 import Data.Function
@@ -305,6 +306,44 @@ createAddCommitWithKeyPackages cid clientsAndKeyPackages = do
         groupInfo = Just gi
       }
 
+createRemoveCommit :: HasCallStack => ClientIdentity -> [ClientIdentity] -> App MessagePackage
+createRemoveCommit cid targets = do
+  bd <- getBaseDir
+  welcomeFile <- liftIO $ emptyTempFile bd "welcome"
+  giFile <- liftIO $ emptyTempFile bd "gi"
+
+  groupStateMap <- Map.fromList <$> (getClientGroupState cid >>= readGroupState)
+  let indices = map (fromMaybe (error "could not find target") . flip Map.lookup groupStateMap) targets
+
+  commit <-
+    mlscli
+      cid
+      ( [ "member",
+          "remove",
+          "--group",
+          "<group-in>",
+          "--group-out",
+          "<group-out>",
+          "--welcome-out",
+          welcomeFile,
+          "--group-info-out",
+          giFile
+        ]
+          <> map show indices
+      )
+      Nothing
+
+  welcome <- liftIO $ BS.readFile welcomeFile
+  gi <- liftIO $ BS.readFile giFile
+
+  pure
+    MessagePackage
+      { sender = cid,
+        message = commit,
+        welcome = Just welcome,
+        groupInfo = Just gi
+      }
+
 createAddProposals :: HasCallStack => ClientIdentity -> [Value] -> App [MessagePackage]
 createAddProposals cid users = do
   bundles <- for users $ (claimKeyPackages cid >=> getJSON 200)
@@ -515,3 +554,23 @@ showMessage :: HasCallStack => ClientIdentity -> ByteString -> App Value
 showMessage cid msg = do
   bs <- mlscli cid ["show", "message", "-"] (Just msg)
   assertOne (Aeson.decode (BS.fromStrict bs))
+
+readGroupState :: HasCallStack => ByteString -> App [(ClientIdentity, Word32)]
+readGroupState gs = do
+  v :: Value <- assertJust "Could not decode group state" (Aeson.decode (BS.fromStrict gs))
+  lnodes <- v %. "group" %. "public_group" %. "treesync" %. "tree" %. "leaf_nodes" & asList
+  catMaybes <$$> for (zip lnodes [0 ..]) $ \(el, leafNodeIndex) -> do
+    lookupField el "node" >>= \case
+      Just lnode -> do
+        case lnode of
+          Null -> pure Nothing
+          _ -> do
+            vecb <- lnode %. "payload" %. "credential" %. "credential" %. "Basic" %. "identity" %. "vec"
+            vec <- asList vecb
+            ws <- BS.pack <$> for vec (\x -> asIntegral @Word8 x)
+            [uc, domain] <- pure (C8.split '@' ws)
+            [uid, client] <- pure (C8.split ':' uc)
+            let cid = ClientIdentity (C8.unpack domain) (C8.unpack uid) (C8.unpack client)
+            pure (Just (cid, leafNodeIndex))
+      Nothing ->
+        pure Nothing

@@ -108,8 +108,7 @@ tests s =
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
           test s "post commit that references an unknown proposal" testUnknownProposalRefCommit,
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
-          test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
-          test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete
+          test s "admin removes user from a conversation" testAdminRemovesUserFromConv
         ],
       testGroup
         "External commit"
@@ -722,23 +721,6 @@ testAdminRemovesUserFromConv = do
       assertBool
         "bob is not longer part of conversation after the commit"
         (qcnv `notElem` map cnvQualifiedId convs)
-
-testRemoveClientsIncomplete :: TestM ()
-testRemoveClientsIncomplete = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
-  runMLSTest $ do
-    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
-    traverse_ uploadNewKeyPackage [bob1, bob2]
-    void $ setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-    commit <- createRemoveCommit alice1 [bob1]
-
-    bundle <- createBundle commit
-    err <-
-      responseJsonError
-        =<< localPostCommitBundle alice1 bundle
-          <!! statusCode === const 409
-    liftIO $ Wai.label err @?= "mls-client-mismatch"
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = do

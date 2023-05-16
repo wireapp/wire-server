@@ -249,3 +249,17 @@ testAddUserPartial = do
 
   err <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 409
   err %. "label" `shouldMatch` "mls-client-mismatch"
+
+-- | admin removes user from a conversation but doesn't list all clients
+testRemoveClientsIncomplete :: HasCallStack => App ()
+testRemoveClientsIncomplete = do
+  [alice, bob] <- createAndConnectUsers [ownDomain, ownDomain]
+
+  [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+  traverse_ uploadNewKeyPackage [bob1, bob2]
+  void $ setupMLSGroup alice1
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+  mp <- createRemoveCommit alice1 [bob1]
+
+  err <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 409
+  err %. "label" `shouldMatch` "mls-client-mismatch"
