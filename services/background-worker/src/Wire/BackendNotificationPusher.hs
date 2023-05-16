@@ -31,7 +31,7 @@ pushNotification :: Domain -> (Q.Message, Q.Envelope) -> AppT IO ()
 pushNotification targetDomain (msg, envelope) = do
   let handlers =
         [ Handler $ \(e :: Q.ChanThreadKilledException) -> throwM e,
-          Handler $ \(e :: SomeException) -> do
+          Handler $ \(SomeException e) -> do
             -- TODO: This error likely means that no new notifications will be
             -- retrieved from RabbitMQ as the envelope will not have been acked.
             -- Perhaps we should restart this consumer.
