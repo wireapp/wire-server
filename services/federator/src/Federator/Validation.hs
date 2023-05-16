@@ -86,7 +86,7 @@ validationErrorStatus :: ValidationError -> HTTP.Status
 -- the FederationDenied case is handled differently, because it may be caused
 -- by wrong input in the original request, so we let this error propagate to the
 -- client
-validationErrorStatus (FederationDenied _) = HTTP.status400
+validationErrorStatus (FederationDenied _) = HTTP.status422
 validationErrorStatus _ = HTTP.status403
 
 -- | Validates an already-parsed domain against the allowList (stored in
