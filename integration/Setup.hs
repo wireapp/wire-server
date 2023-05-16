@@ -71,7 +71,7 @@ collectDescription revLines =
   let comments = reverse (map stripHaddock (takeWhile isComment revLines))
    in case uncons comments of
         Nothing -> ("", "")
-        Just (summary, _) -> (summary, unlines comments)
+        Just (summary, rest) -> (summary, unlines (dropWhile null rest))
 
 isComment :: String -> Bool
 isComment ('-' : '-' : _) = True
