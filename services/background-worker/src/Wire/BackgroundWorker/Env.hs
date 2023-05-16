@@ -26,7 +26,6 @@ mkEnv :: Opts -> IO Env
 mkEnv opts = do
   http2Manager <- initHttp2Manager
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
-  -- rabbitmqChannel <- initRabbitMq l opts.rabbitmq hooks
   let federatorInternal = opts.federatorInternal
   pure Env {..}
 
