@@ -41,7 +41,7 @@ pushNotification targetDomain (msg, envelope) = do
   flip catches handlers $ case A.eitherDecode @BackendNotification (Q.msgBody msg) of
     Left e -> do
       Log.err $
-        Log.msg (Log.val "Invalid notification for backend")
+        Log.msg (Log.val "Failed to parse notification, the notification will be ignored")
           . Log.field "domain" (domainText targetDomain)
           . Log.field "error" e
 
@@ -82,7 +82,7 @@ pushNotification targetDomain (msg, envelope) = do
           lift $ Q.ackEnv envelope
         c -> do
           Log.err $
-            Log.msg (Log.val "Notifications for component not implmented")
+            Log.msg (Log.val "Notifications for component not implmented, the notification will be ignored")
               . Log.field "component" (show c)
           -- See Note [Reject Messages]
           lift $ Q.rejectEnv envelope False
