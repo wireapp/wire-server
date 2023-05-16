@@ -9,14 +9,8 @@ import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
 
-testMixedProtocolUpgrade :: HasCallStack => App ()
-testMixedProtocolUpgrade = ptestMixedProtocolUpgrade ownDomain
-
-testMixedProtocolUpgradeFed :: HasCallStack => App ()
-testMixedProtocolUpgradeFed = ptestMixedProtocolUpgrade otherDomain
-
-ptestMixedProtocolUpgrade :: (HasCallStack, MakesValue domain) => domain -> App ()
-ptestMixedProtocolUpgrade secondDomain = do
+testMixedProtocolUpgrade :: HasCallStack => Domain -> App ()
+testMixedProtocolUpgrade secondDomain = do
   [alice, bob, charlie] <- do
     d <- ownDomain
     d2 <- secondDomain & asString
