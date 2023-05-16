@@ -37,14 +37,8 @@ testMixedProtocolUpgrade secondDomain = do
   bindResponse (putConversationProtocol alice qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 204
 
-testMixedProtocolAddUsers :: HasCallStack => App ()
-testMixedProtocolAddUsers = ptestMixedProtocolAddUsers ownDomain
-
-testMixedProtocolAddUsersFed :: HasCallStack => App ()
-testMixedProtocolAddUsersFed = ptestMixedProtocolAddUsers otherDomain
-
-ptestMixedProtocolAddUsers :: (HasCallStack, MakesValue domain) => domain -> App ()
-ptestMixedProtocolAddUsers secondDomain = do
+testMixedProtocolAddUsers :: HasCallStack => Domain -> App ()
+testMixedProtocolAddUsers secondDomain = do
   [alice, bob] <- do
     d <- ownDomain
     d2 <- secondDomain & asString
@@ -71,14 +65,8 @@ ptestMixedProtocolAddUsers secondDomain = do
       n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-welcome") ws
       nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode welcome)
 
-testMixedProtocolUserLeaves :: HasCallStack => App ()
-testMixedProtocolUserLeaves = ptestMixedProtocolUserLeaves ownDomain
-
-testMixedProtocolUserLeavesFed :: HasCallStack => App ()
-testMixedProtocolUserLeavesFed = ptestMixedProtocolUserLeaves otherDomain
-
-ptestMixedProtocolUserLeaves :: (HasCallStack, MakesValue domain) => domain -> App ()
-ptestMixedProtocolUserLeaves secondDomain = do
+testMixedProtocolUserLeaves :: HasCallStack => Domain -> App ()
+testMixedProtocolUserLeaves secondDomain = do
   [alice, bob] <- do
     d <- ownDomain
     d2 <- secondDomain & asString
@@ -111,14 +99,8 @@ ptestMixedProtocolUserLeaves secondDomain = do
     msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
     msg %. "message.content.sender.External" `shouldMatchInt` 0
 
-testMixedProtocolAddPartialClients :: HasCallStack => App ()
-testMixedProtocolAddPartialClients = ptestMixedProtocolAddPartialClients ownDomain
-
-testMixedProtocolAddPartialClientsFed :: HasCallStack => App ()
-testMixedProtocolAddPartialClientsFed = ptestMixedProtocolAddPartialClients otherDomain
-
-ptestMixedProtocolAddPartialClients :: (HasCallStack, MakesValue domain) => domain -> App ()
-ptestMixedProtocolAddPartialClients secondDomain = do
+testMixedProtocolAddPartialClients :: HasCallStack => Domain -> App ()
+testMixedProtocolAddPartialClients secondDomain = do
   [alice, bob] <- do
     d <- ownDomain
     d2 <- secondDomain & asString
