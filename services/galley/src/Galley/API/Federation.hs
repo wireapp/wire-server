@@ -24,6 +24,7 @@ import Control.Lens (itraversed, preview, to, (<.>))
 import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
+import Data.Either.Combinators
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map as Map
@@ -245,7 +246,7 @@ leaveConversation ::
   F.LeaveConversationRequest ->
   Sem r F.LeaveConversationResponse
 leaveConversation requestingDomain lc = do
-  let leaver :: Remote UserId = qTagUnsafe $ Qualified (F.lcLeaver lc) requestingDomain
+  let leaver = Qualified (F.lcLeaver lc) requestingDomain
   lcnv <- qualifyLocal (F.lcConvId lc)
 
   res <-
@@ -255,34 +256,48 @@ leaveConversation requestingDomain lc = do
       . mapToRuntimeError @'InvalidOperation F.RemoveFromConversationErrorRemovalNotAllowed
       . mapError @NoChanges (const F.RemoveFromConversationErrorUnchanged)
       $ do
-        (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound (tUntagged leaver) lcnv
-        update <-
-          lcuUpdate
-            <$> updateLocalConversation
-              @'ConversationLeaveTag
-              lcnv
-              (tUntagged leaver)
-              Nothing
-              ()
-        pure (update, conv)
+        (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound leaver lcnv
+        outcome <-
+          runError @FederationError $
+            first lcuUpdate
+              <$> updateLocalConversation
+                @'ConversationLeaveTag
+                lcnv
+                leaver
+                Nothing
+                ()
+        case outcome of
+          Left e -> do
+            logFederationError lcnv e
+            throw . internalErr $ e
+          Right update -> pure (update, conv)
 
   case res of
     Left e -> pure $ F.LeaveConversationResponse (Left e)
-    Right (_update, conv) -> do
-      let remotes = filter ((== tDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
+    Right ((_update, updateFailedToProcess), conv) -> do
+      let remotes = filter ((== qDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
-      _ <-
-        notifyConversationAction
-          FaultTolerant
-          SConversationLeaveTag
-          (tUntagged leaver)
-          False
-          Nothing
-          (qualifyAs lcnv conv)
-          botsAndMembers
-          ()
+      (_, notifyFailedToProcess) <- do
+        outcome <-
+          runError @FederationError $
+            notifyConversationAction
+              SConversationLeaveTag
+              leaver
+              False
+              Nothing
+              (qualifyAs lcnv conv)
+              botsAndMembers
+              ()
+        case outcome of
+          Left e -> do
+            logFederationError lcnv e
+            throw . internalErr $ e
+          Right v -> pure v
 
-      pure $ F.LeaveConversationResponse (Right ())
+      pure . F.LeaveConversationResponse . Right $
+        updateFailedToProcess <> notifyFailedToProcess
+  where
+    internalErr = InternalErrorWithDescription . LT.pack . displayException
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
@@ -399,16 +414,17 @@ onUserDeleted origDomain udcn = do
             Public.RegularConv -> do
               let botsAndMembers = convBotsAndMembers conv
               removeUser (qualifyAs lc conv) (tUntagged deletedUser)
-              void $
-                notifyConversationAction
-                  FaultTolerant
-                  (sing @'ConversationLeaveTag)
-                  untaggedDeletedUser
-                  False
-                  Nothing
-                  (qualifyAs lc conv)
-                  botsAndMembers
-                  ()
+              outcome <-
+                runError @FederationError $
+                  notifyConversationAction
+                    (sing @'ConversationLeaveTag)
+                    untaggedDeletedUser
+                    False
+                    Nothing
+                    (qualifyAs lc conv)
+                    botsAndMembers
+                    ()
+              whenLeft outcome . logFederationError $ lc
   pure EmptyResponse
 
 updateConversation ::
@@ -446,53 +462,53 @@ updateConversation origDomain updateRequest = do
     SomeConversationAction tag action -> case tag of
       SConversationJoinTag ->
         mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationJoinTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationJoinTag lcnv (tUntagged rusr) Nothing action
       SConversationLeaveTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationLeaveTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationLeaveTag lcnv (tUntagged rusr) Nothing action
       SConversationRemoveMembersTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationRemoveMembersTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationRemoveMembersTag lcnv (tUntagged rusr) Nothing action
       SConversationMemberUpdateTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationMemberUpdateTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationMemberUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationDeleteTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationDeleteTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationDeleteTag lcnv (tUntagged rusr) Nothing action
       SConversationRenameTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationRenameTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationRenameTag lcnv (tUntagged rusr) Nothing action
       SConversationMessageTimerUpdateTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationMessageTimerUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationReceiptModeUpdateTag ->
         mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationReceiptModeUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationAccessDataTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
-          . fmap lcuUpdate
+          . fmap (first lcuUpdate)
           $ updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged rusr) Nothing action
   where
     mkResponse = fmap toResponse . runError @GalleyError . runError @NoChanges
 
     toResponse (Left galleyErr) = F.ConversationUpdateResponseError galleyErr
     toResponse (Right (Left NoChanges)) = F.ConversationUpdateResponseNoChanges
-    toResponse (Right (Right update)) = F.ConversationUpdateResponseUpdate update
+    toResponse (Right (Right (update, ftp))) = F.ConversationUpdateResponseUpdate update ftp
 
 sendMLSCommitBundle ::
   ( Member BrigAccess r,
@@ -731,3 +747,24 @@ onTypingIndicatorUpdated origDomain TypingDataUpdated {..} = do
   let qcnv = Qualified tudConvId origDomain
   pushTypingIndicatorEvents tudOrigUserId tudTime tudUsersInConv Nothing qcnv tudTypingStatus
   pure EmptyResponse
+
+--------------------------------------------------------------------------------
+-- Utilities
+--------------------------------------------------------------------------------
+
+-- | Log a federation error that is impossible in processing a remote request
+-- for a local conversation.
+logFederationError ::
+  Member P.TinyLog r =>
+  Local ConvId ->
+  FederationError ->
+  Sem r ()
+logFederationError lc e =
+  P.warn $
+    Log.field "conversation" (toByteString' (tUnqualified lc))
+      Log.~~ Log.field "domain" (toByteString' (tDomain lc))
+      Log.~~ Log.msg
+        ( "An impossible federation error occurred when deleting\
+          \ a user from a local conversation: "
+            <> displayException e
+        )

@@ -138,6 +138,7 @@ library
     Wire.API.Team.Role
     Wire.API.Team.SearchVisibility
     Wire.API.Team.Size
+    Wire.API.Unreachable
     Wire.API.User
     Wire.API.User.Activation
     Wire.API.User.Auth

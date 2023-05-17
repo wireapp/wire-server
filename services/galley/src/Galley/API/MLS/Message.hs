@@ -92,6 +92,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.Internal.Brig
+import Wire.API.Unreachable
 import Wire.API.User.Client
 
 type MLSMessageStaticErrors =
@@ -186,8 +187,6 @@ postMLSMessageFromLocalUser lusr mc conn smsg = do
   -- FUTUREWORK: Inline the body of 'postMLSMessageFromLocalUserV1' once version
   -- V1 is dropped
   assertMLSEnabled
-  -- (events, unreachables) <- postMLSMessageFromLocalUserV1 lusr mc conn msg
-  assertMLSEnabled
   (events, unreachables) <- case rmValue smsg of
     SomeMessage _ msg -> do
       qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
@@ -218,7 +217,7 @@ postMLSCommitBundle ::
   Qualified ConvId ->
   Maybe ConnId ->
   CommitBundle ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSCommitBundle loc qusr mc qcnv conn rawBundle =
   foldQualified
     loc
@@ -276,7 +275,7 @@ postMLSCommitBundleToLocalConv ::
   Maybe ConnId ->
   CommitBundle ->
   Local ConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   let msg = rmValue (cbCommitMsg bundle)
   conv <- getLocalConvForUser qusr lcnv
@@ -339,7 +338,7 @@ postMLSCommitBundleToRemoteConv ::
   Maybe ConnId ->
   CommitBundle ->
   Remote ConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
@@ -393,7 +392,7 @@ postMLSMessage ::
   Qualified ConvId ->
   Maybe ConnId ->
   RawMLS SomeMessage ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSMessage loc qusr mc qcnv con smsg =
   case rmValue smsg of
     SomeMessage tag msg -> do
@@ -471,7 +470,7 @@ postMLSMessageToLocalConv ::
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Local ConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSMessageToLocalConv qusr senderClient con smsg lcnv =
   case rmValue smsg of
     SomeMessage tag msg -> do
@@ -513,7 +512,7 @@ postMLSMessageToRemoteConv ::
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Remote ConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
@@ -1216,7 +1215,7 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
       foldMap
         ( handleNoChanges
             . handleMLSProposalFailures @ProposalErrors
-            . fmap pure
+            . fmap (pure . fst)
             . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
             . flip ConversationJoin roleNameWireMember
         )
@@ -1229,7 +1228,7 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
       foldMap
         ( handleNoChanges
             . handleMLSProposalFailures @ProposalErrors
-            . fmap pure
+            . fmap (pure . fst)
             . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
         )
         . nonEmpty
