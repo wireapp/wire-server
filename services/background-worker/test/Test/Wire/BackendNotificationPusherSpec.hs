@@ -78,12 +78,12 @@ spec = describe "Wire.BackendNotificationPusher" $ do
     fedReqs `shouldBe` []
 
   it "should retry failed deliveries" $ do
-    isFirstReqRef <- newIORef False
+    isFirstReqRef <- newIORef True
     let returnSuccessSecondTime _ =
           atomicModifyIORef isFirstReqRef $ \isFirstReq ->
             if isFirstReq
-              then (True, ("text/html", "<marquee>down for maintenance</marquee>"))
-              else (True, ("application/json", Aeson.encode EmptyResponse))
+              then (False, ("text/html", "<marquee>down for maintenance</marquee>"))
+              else (False, ("application/json", Aeson.encode EmptyResponse))
         origDomain = Domain "origin.example.com"
         targetDomain = Domain "target.example.com"
     notifContent <- generate $ UserDeletedConnectionsNotification <$> arbitrary <*> (unsafeRange . (: []) <$> arbitrary)
