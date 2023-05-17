@@ -89,24 +89,30 @@ printTime =
 
 main :: IO ()
 main = do
+  opts <- getOptions
+  let f = testFilter opts
+      cfg = opts.configFile
+
   let tests =
-        sortOn fst $
-          allTests <&> \(module_, name, _summary, _full, action) ->
+        filter (\(qname, _, _, _) -> f qname)
+          . sortOn (\(qname, _, _, _) -> qname)
+          $ allTests <&> \(module_, name, summary, full, action) ->
             let module0 = case module_ of
                   ('T' : 'e' : 's' : 't' : '.' : m) -> m
                   _ -> module_
                 qualifiedName = module0 <> "." <> name
-             in (qualifiedName, action)
+             in (qualifiedName, summary, full, action)
+
+  if opts.listTests then doListTests tests else runTests tests cfg
+
+runTests :: [(String, x, y, App ())] -> FilePath -> IO ()
+runTests tests cfg = do
   output <- newChan
   let displayOutput =
         readChan output >>= \case
           Just x -> putStr x *> displayOutput
           Nothing -> pure ()
   let writeOutput = writeChan output . Just
-
-  opts <- getOptions
-  let f = testFilter opts
-      cfg = opts.configFile
 
   genv0 <- mkGlobalEnv cfg
 
@@ -123,29 +129,34 @@ main = do
       pure genv0 {gRemovalKeyPath = path}
 
   withAsync displayOutput $ \displayThread -> do
-    report <- fmap mconcat $ pooledForConcurrently tests $ \(name, action) -> do
-      if f name
-        then do
-          (mErr, tm) <- withTime (runTest genv action)
-          case mErr of
-            Left err -> do
-              writeOutput $
-                "----- "
-                  <> name
-                  <> colored red " FAIL"
-                  <> " ("
-                  <> printTime tm
-                  <> ") -----\n"
-                  <> err
-                  <> "\n"
-              pure (TestReport 1 [name])
-            Right _ -> do
-              writeOutput $ name <> colored green " OK" <> " (" <> printTime tm <> ")" <> "\n"
-              pure (TestReport 1 [])
-        else pure (TestReport 0 [])
+    report <- fmap mconcat $ pooledForConcurrently tests $ \(qname, _, _, action) -> do
+      do
+        (mErr, tm) <- withTime (runTest genv action)
+        case mErr of
+          Left err -> do
+            writeOutput $
+              "----- "
+                <> qname
+                <> colored red " FAIL"
+                <> " ("
+                <> printTime tm
+                <> ") -----\n"
+                <> err
+                <> "\n"
+            pure (TestReport 1 [qname])
+          Right _ -> do
+            writeOutput $ qname <> colored green " OK" <> " (" <> printTime tm <> ")" <> "\n"
+            pure (TestReport 1 [])
     writeChan output Nothing
     wait displayThread
     printReport report
+
+doListTests :: [(String, String, String, x)] -> IO ()
+doListTests tests = for_ tests $ \(qname, desc, full, _) -> do
+  putStrLn $ qname <> "  " <> colored gray desc
+  unless (null full) $
+    putStr $
+      colored gray (indent 2 full)
 
 -- like `main` but meant to run from a repl
 mainI :: [String] -> IO ()

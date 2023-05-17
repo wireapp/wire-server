@@ -7,6 +7,7 @@ import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
 
+-- | Legalhold clients cannot be deleted.
 testCantDeleteLHClient :: HasCallStack => App ()
 testCantDeleteLHClient = do
   user <- randomUser ownDomain def
@@ -17,6 +18,7 @@ testCantDeleteLHClient = do
   bindResponse (Public.deleteClient user client) $ \resp -> do
     resp.status `shouldMatchInt` 400
 
+-- | Deleting unknown clients should fail with 404.
 testDeleteUnknownClient :: HasCallStack => App ()
 testDeleteUnknownClient = do
   user <- randomUser ownDomain def
