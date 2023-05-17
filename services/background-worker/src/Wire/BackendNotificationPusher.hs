@@ -72,7 +72,7 @@ pushNotification targetDomain (msg, envelope) = do
                   Left e -> do
                     -- Logging at 'error' level is probably too much in case a
                     -- backend is down. This is 'info' while we test this
-                    -- functionality. Maybe this should be demeoted to 'debug'.
+                    -- functionality. Maybe this should be demoted to 'debug'.
                     Log.info $
                       Log.msg (Log.val "Failed to push notification, will retry")
                         . Log.field "domain" (domainText targetDomain)
