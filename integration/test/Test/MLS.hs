@@ -279,6 +279,23 @@ testJoinSubConv = do
     createExternalCommit alice1 Nothing
       >>= sendAndConsumeCommitBundle
 
+-- | FUTUREWORK: Don't allow partial adds, not even in the first commit
+testFirstCommitAllowsPartialAdds :: HasCallStack => App ()
+testFirstCommitAllowsPartialAdds = do
+  alice <- randomUser ownDomain def
+
+  [alice1, alice2, alice3] <- traverse createMLSClient [alice, alice, alice]
+  traverse_ uploadNewKeyPackage [alice1, alice2, alice3]
+
+  (_, _qcnv) <- createNewGroup alice1
+
+  bundle <- claimKeyPackages alice1 alice >>= getJSON 200
+  kps <- unbundleKeyPackages bundle
+
+  -- first commit only adds kp for alice2 (not alice2 and alice3)
+  mp <- createAddCommitWithKeyPackages alice1 (filter ((== alice2) . fst) kps)
+  void $ sendAndConsumeCommitBundle mp
+
 testAddUserPartial :: HasCallStack => App ()
 testAddUserPartial = do
   [alice, bob, charlie] <- createAndConnectUsers (replicate 3 ownDomain)
