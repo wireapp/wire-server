@@ -215,6 +215,10 @@ featureAPI =
     <@> mkNamedAPI @'("iput", MlsE2EIdConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", MlsE2EIdConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ilock", MlsE2EIdConfig) (updateLockStatus @Cassandra @MlsE2EIdConfig)
+    <@> mkNamedAPI @'("iget", MlsMigrationConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", MlsMigrationConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", MlsMigrationConfig) (patchFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ilock", MlsMigrationConfig) (updateLockStatus @Cassandra @MlsMigrationConfig)
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer (getAllFeatureConfigsForUser @Cassandra))
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()

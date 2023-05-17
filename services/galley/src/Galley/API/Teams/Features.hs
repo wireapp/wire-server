@@ -205,7 +205,8 @@ type FeaturePersistentAllFeatures db =
     FeaturePersistentConstraint db SearchVisibilityInboundConfig,
     FeaturePersistentConstraint db ExposeInvitationURLsToTeamAdminConfig,
     FeaturePersistentConstraint db OutlookCalIntegrationConfig,
-    FeaturePersistentConstraint db MlsE2EIdConfig
+    FeaturePersistentConstraint db MlsE2EIdConfig,
+    FeaturePersistentConstraint db MlsMigrationConfig
   )
 
 getFeatureStatus ::
@@ -439,6 +440,7 @@ getAllFeatureConfigsForServer =
     <*> getConfigForServer @ExposeInvitationURLsToTeamAdminConfig
     <*> getConfigForServer @OutlookCalIntegrationConfig
     <*> getConfigForServer @MlsE2EIdConfig
+    <*> getConfigForServer @MlsMigrationConfig
 
 getAllFeatureConfigsUser ::
   forall db r.
@@ -473,6 +475,7 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @db @ExposeInvitationURLsToTeamAdminConfig uid
     <*> getConfigForUser @db @OutlookCalIntegrationConfig uid
     <*> getConfigForUser @db @MlsE2EIdConfig uid
+    <*> getConfigForUser @db @MlsMigrationConfig uid
 
 getAllFeatureConfigsTeam ::
   forall db r.
@@ -503,6 +506,7 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid
     <*> getConfigForTeam @db @OutlookCalIntegrationConfig tid
     <*> getConfigForTeam @db @MlsE2EIdConfig tid
+    <*> getConfigForTeam @db @MlsMigrationConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
@@ -862,6 +866,12 @@ instance SetFeatureConfig db MlsE2EIdConfig
 instance GetFeatureConfig db MlsE2EIdConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagMlsE2EId . unDefaults)
+
+instance SetFeatureConfig db MlsMigrationConfig
+
+instance GetFeatureConfig db MlsMigrationConfig where
+  getConfigForServer =
+    input <&> view (optSettings . setFeatureFlags . flagMlsMigration . unDefaults)
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --

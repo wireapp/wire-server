@@ -109,3 +109,58 @@ galley:
               acmeDiscoveryUrl: null
             lockStatus: unlocked
 ```
+
+## MLS Migration
+
+The MLS migration configuration determines client behaviour related to
+migration from Proteus to MSL, and defines the criteria enforced by the backend
+when a conversation is finally migrated to MLS.
+
+The settings are the following:
+
+ - `startTime`: migration start timestamp. Once this time arrives, clients will
+   initialise the migration process (no migration-related action will take
+   place before that time).  If the migration feature is enabled, but
+   `startTime` value is not set (or is set to `null`), migration is never
+   started.
+
+ - `finaliseRegardlessAfter`: timestamp of the date by which the migration must
+   be finalised.
+
+ - `usersThreshold`: percentage of migrated users needed for migration to
+   finalise (0-100).
+
+ - `clientsThreshold`: percentage of migrated clients needed for migration to
+   finalise (0-100).
+
+All of the migration finalisation values are technically optional, but at least
+one of them must be specified for the configuration to be valid. If
+`finaliseRegardlessAfter` is not set, `usersThreshold` or `clientsThreshold`
+should be specified. In case both `usersThreshold` and `clientsThreshold` are
+specified, even if one of them is set to 0, both have to be fulfilled for the
+migration to be finalised.
+
+The `finaliseRegardlessAfter` timestamp determines a time after which the
+threshold criteria are dropped, and finalisation is allowed in any case.
+
+An example configuration follows:
+
+```
+galley:
+  # ...
+  config:
+    # ...
+    settings:
+      # ...
+      featureFlags:
+        # ...
+        mlsMigration:
+          defaults:
+            status: enabled
+            config:
+              startTime: "2024-05-16T00:00:00.000Z"
+              finaliseRegardlessAfter: "2024-10-17T00:00:00.000Z"
+              usersThreshold: 100
+              clientsThreshold: 50
+            lockStatus: locked
+```

@@ -191,6 +191,15 @@ galley:
           status: enabled
           config:
             domains: ["example.com"]
+        mlsMigration:
+          defaults:
+            status: enabled
+            config:
+              startTime: "2029-05-16T10:11:12.123Z"
+              finaliseRegardlessAfter: "2029-10-17T00:00:00.000Z"
+              usersThreshold: 100
+              clientsThreshold: 50
+            lockStatus: locked
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo
