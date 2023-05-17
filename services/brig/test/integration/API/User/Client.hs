@@ -1454,9 +1454,8 @@ testCreateAccessToken ep n brig = do
       case responseJsonEither response of
         Right accessToken ->
           liftIO $ datrType accessToken @?= DPoP
-        Left e -> do
-          print $ "Could not parse json with error: " <> show e
-          liftIO $ assertFailure "JSON parsing error."
+        Left _ -> do
+          liftIO $ assertFailure $ "JSON parsing error: " <> show response
   where
     signAccessToken :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
     signAccessToken claims = runJOSE $ do
