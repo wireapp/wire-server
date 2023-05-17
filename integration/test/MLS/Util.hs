@@ -91,12 +91,17 @@ mlscli cid args mbstdin = do
         pure (argSubst "<group-in>" fn)
       else pure id
 
+  let args' = map (substIn . substOut) args
+  for_ args' $ \arg ->
+    when (arg `elem` ["<group-in>", "<group-out>"]) $
+      assertFailure ("Unbound arg: " <> arg)
+
   out <-
     spawn
       ( proc
           "mls-test-cli"
           ( ["--store", cdir </> "store"]
-              <> map (substIn . substOut) args
+              <> args'
           )
       )
       mbstdin
@@ -162,8 +167,8 @@ generateKeyPackage cid = do
   pure (kp, ref)
 
 -- | Create conversation and corresponding group.
-setupMLSGroup :: HasCallStack => ClientIdentity -> App (String, Value)
-setupMLSGroup cid = do
+createNewGroup :: HasCallStack => ClientIdentity -> App (String, Value)
+createNewGroup cid = do
   conv <- postConversation cid defMLS >>= getJSON 201
   groupId <- conv %. "group_id" & asString
   convId <- conv %. "qualified_id"
@@ -171,8 +176,8 @@ setupMLSGroup cid = do
   pure (groupId, convId)
 
 -- | Retrieve self conversation and create the corresponding group.
-setupMLSSelfGroup :: HasCallStack => ClientIdentity -> App (String, Value)
-setupMLSSelfGroup cid = do
+createSelfGroup :: HasCallStack => ClientIdentity -> App (String, Value)
+createSelfGroup cid = do
   conv <- getSelfConversation cid >>= getJSON 200
   conv %. "epoch" `shouldMatchInt` 0
   groupId <- conv %. "group_id" & asString
@@ -227,7 +232,7 @@ keyPackageFile cid ref = do
     urlSafe '/' = '_'
     urlSafe c = c
 
-unbundleKeyPackages :: Value -> App [(ClientIdentity, ByteString)]
+unbundleKeyPackages :: HasCallStack => Value -> App [(ClientIdentity, ByteString)]
 unbundleKeyPackages bundle = do
   let entryIdentity be = do
         d <- be %. "domain" & asString
@@ -265,6 +270,7 @@ withTempKeyPackageFile bs = do
         k fp
 
 createAddCommitWithKeyPackages ::
+  HasCallStack =>
   ClientIdentity ->
   [(ClientIdentity, ByteString)] ->
   App MessagePackage

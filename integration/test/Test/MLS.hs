@@ -67,10 +67,7 @@ testMixedProtocolAddUsers secondDomain = do
 
 testMixedProtocolUserLeaves :: HasCallStack => Domain -> App ()
 testMixedProtocolUserLeaves secondDomain = do
-  [alice, bob] <- do
-    d <- ownDomain
-    d2 <- secondDomain & asString
-    createAndConnectUsers [d, d2]
+  [alice, bob] <- createAndConnectUsers [ownDomain, secondDomain & asString]
 
   qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
 
@@ -101,10 +98,9 @@ testMixedProtocolUserLeaves secondDomain = do
 
 testMixedProtocolAddPartialClients :: HasCallStack => Domain -> App ()
 testMixedProtocolAddPartialClients secondDomain = do
-  [alice, bob] <- do
-    d <- ownDomain
-    d2 <- secondDomain & asString
-    createAndConnectUsers [d, d2]
+  [alice, bob] <- createAndConnectUsers [ownDomain, secondDomain & asString]
+  putStrLn "bob"
+  printJSON bob
 
   qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
 
@@ -154,7 +150,7 @@ testAddUser = do
 
   traverse_ uploadNewKeyPackage [bob1, bob2]
 
-  (_, qcnv) <- setupMLSGroup alice1
+  (_, qcnv) <- createNewGroup alice1
 
   resp <- createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
   events <- resp %. "events" & asList
@@ -180,7 +176,7 @@ testCreateSubConv :: HasCallStack => App ()
 testCreateSubConv = do
   alice <- randomUser ownDomain def
   alice1 <- createMLSClient alice
-  (_, conv) <- setupMLSGroup alice1
+  (_, conv) <- createNewGroup alice1
   bindResponse (getSubConversation alice conv "conference") $ \resp -> do
     resp.status `shouldMatchInt` 200
     let tm = resp.json %. "epoch_timestamp"
@@ -203,7 +199,7 @@ testSelfConversation = do
   alice <- randomUser ownDomain def
   creator : others <- traverse createMLSClient (replicate 3 alice)
   traverse_ uploadNewKeyPackage others
-  void $ setupMLSSelfGroup creator
+  void $ createSelfGroup creator
   commit <- createAddCommit creator [alice]
   welcome <- assertOne (toList commit.welcome)
 
@@ -221,7 +217,7 @@ testJoinSubConv = do
   [alice, bob] <- createAndConnectUsers [ownDomain, ownDomain]
   [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
   traverse_ uploadNewKeyPackage [bob1, bob2]
-  (_, qcnv) <- setupMLSGroup alice1
+  (_, qcnv) <- createNewGroup alice1
   void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
   sub <- bindResponse (getSubConversation bob qcnv "conference") $ \resp -> do
@@ -256,7 +252,7 @@ testAddUserPartial = do
   traverse_ uploadNewKeyPackage (take 2 bobClients <> charlieClients)
 
   -- alice adds bob's first 2 clients
-  void $ setupMLSGroup alice1
+  void $ createNewGroup alice1
 
   -- alice sends a commit now, and should get a conflict error
   kps <- fmap concat . for [bob, charlie] $ \user -> do
@@ -277,7 +273,7 @@ testRemoveClientsIncomplete = do
 
   [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
   traverse_ uploadNewKeyPackage [bob1, bob2]
-  void $ setupMLSGroup alice1
+  void $ createNewGroup alice1
   void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
   mp <- createRemoveCommit alice1 [bob1]
 
