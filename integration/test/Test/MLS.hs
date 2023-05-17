@@ -99,8 +99,6 @@ testMixedProtocolUserLeaves secondDomain = do
 testMixedProtocolAddPartialClients :: HasCallStack => Domain -> App ()
 testMixedProtocolAddPartialClients secondDomain = do
   [alice, bob] <- createAndConnectUsers [ownDomain, secondDomain & asString]
-  putStrLn "bob"
-  printJSON bob
 
   qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
 
@@ -116,11 +114,22 @@ testMixedProtocolAddPartialClients secondDomain = do
   traverse_ uploadNewKeyPackage [bob1, bob1, bob2, bob2]
 
   -- create add commit for only one of bob's two clients
-  bundle <- claimKeyPackages alice1 bob >>= getJSON 200
-  [kp1, _] <- unbundleKeyPackages bundle
-  mp <- createAddCommitWithKeyPackages alice1 [kp1]
+  do
+    bundle <- claimKeyPackages alice1 bob >>= getJSON 200
+    kps <- unbundleKeyPackages bundle
+    kp1 <- assertOne (filter ((== bob1) . fst) kps)
+    mp <- createAddCommitWithKeyPackages alice1 [kp1]
+    void $ sendAndConsumeCommitBundle mp
 
-  void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
+  -- this tests that bob's backend has a mapping of group id to the remote conv
+  -- this test is only interesting when bob is on otherDomain
+  do
+    bundle <- claimKeyPackages bob1 bob >>= getJSON 200
+    kps <- unbundleKeyPackages bundle
+    kp2 <- assertOne (filter ((== bob2) . fst) kps)
+    mp <- createAddCommitWithKeyPackages bob1 [kp2]
+    isBobRemote <- secondDomain `isEqual` otherDomain
+    void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON (if isBobRemote then 404 else 201)
 
 testMixedProtocolRemovePartialClients :: HasCallStack => Domain -> App ()
 testMixedProtocolRemovePartialClients secondDomain = do
