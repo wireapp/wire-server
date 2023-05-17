@@ -149,7 +149,23 @@ test-suite background-worker-test
     -funbox-strict-fields -threaded -with-rtsopts=-N
     -Wredundant-constraints -Wunused-packages
 
-  build-depends:      imports
+  -- cabal-fmt: expand test
+  other-modules:
+    Main
+    Test.Wire.BackendNotificationPusherSpec
+
+  build-depends:
+      aeson
+    , amqp
+    , background-worker
+    , federator
+    , hspec
+    , imports
+    , QuickCheck
+    , tinylog
+    , types-common
+    , wire-api-federation
+
   default-extensions:
     NoImplicitPrelude
     AllowAmbiguousTypes

@@ -7,12 +7,15 @@
 , amqp
 , exceptions
 , extended
+, federator
 , gitignoreSource
 , HsOpenSSL
+, hspec
 , http2-manager
 , imports
 , lib
 , monad-control
+, QuickCheck
 , retry
 , tinylog
 , transformers-base
@@ -41,7 +44,17 @@ mkDerivation {
     wire-api-federation
   ];
   executableHaskellDepends = [ HsOpenSSL imports types-common ];
-  testHaskellDepends = [ imports ];
+  testHaskellDepends = [
+    aeson
+    amqp
+    federator
+    hspec
+    imports
+    QuickCheck
+    tinylog
+    types-common
+    wire-api-federation
+  ];
   description = "Runs background work";
   license = lib.licenses.agpl3Only;
   mainProgram = "background-worker";

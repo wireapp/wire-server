@@ -24,8 +24,17 @@ startPushingNotifications chan domain = do
   lift $ ensureQueue chan domain
   QL.consumeMsgs chan (routingKey domain) Q.Ack (pushNotification domain)
 
--- TODO(elland): Test this code.
-pushNotification :: Domain -> (Q.Message, Q.Envelope) -> AppT IO ()
+-- | This class exists to help with testing, making the envelope in unit test is
+-- too difficult. So we use fake envelopes in the unit tests.
+class RabbitMQEnvelope e where
+  ack :: e -> IO ()
+  reject :: e -> Bool -> IO ()
+
+instance RabbitMQEnvelope Q.Envelope where
+  ack = Q.ackEnv
+  reject = Q.rejectEnv
+
+pushNotification :: RabbitMQEnvelope e => Domain -> (Q.Message, e) -> AppT IO ()
 pushNotification targetDomain (msg, envelope) = do
   let handlers =
         [ Handler $ \(e :: Q.ChanThreadKilledException) -> throwM e,
@@ -54,7 +63,7 @@ pushNotification targetDomain (msg, envelope) = do
       -- the notification will just get dropped. On the other hand not dropping
       -- this message blocks the whole queue. Perhaps there is a better way to
       -- deal with this.
-      lift $ Q.rejectEnv envelope False
+      lift $ reject envelope False
     Right notif -> do
       case notificationTarget notif.content of
         Brig -> do
@@ -65,6 +74,8 @@ pushNotification targetDomain (msg, envelope) = do
           let fcEnv = FederatorClientEnv {..}
               -- Jittered exponential backoff with 10ms as starting delay and
               -- 300s as max delay.
+              --
+              -- FUTUREWORK: Pull these numbers into config
               policy = capDelay 300_000_000 $ fullJitterBackoff 10000
               shouldRetry status eithRes = do
                 case eithRes of
@@ -80,13 +91,13 @@ pushNotification targetDomain (msg, envelope) = do
                         . Log.field "retryCount" status.rsIterNumber
                     pure True
           void $ retrying policy shouldRetry (const $ lift $ sendNotificationBrig fcEnv notif.content)
-          lift $ Q.ackEnv envelope
+          lift $ ack envelope
         c -> do
           Log.err $
             Log.msg (Log.val "Notifications for component not implmented, the notification will be ignored")
               . Log.field "component" (show c)
           -- See Note [Reject Messages]
-          lift $ Q.rejectEnv envelope False
+          lift $ reject envelope False
 
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.
