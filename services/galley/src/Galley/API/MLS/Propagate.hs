@@ -65,7 +65,7 @@ propagateMessage ::
   Sem r (Maybe UnreachableUsers)
 propagateMessage qusr lConvOrSub con msg cm = do
   now <- input @UTCTime
-  let mlsConv = convOfConvOrSub <$> lConvOrSub
+  let mlsConv = (.conv) <$> lConvOrSub
       lmems = mcLocalMembers . tUnqualified $ mlsConv
       rmems = mcRemoteMembers . tUnqualified $ mlsConv
       botMap = Map.fromList $ do

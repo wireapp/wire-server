@@ -24,6 +24,7 @@ import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import qualified Data.Map as Map
 import Data.Qualified
+import GHC.Records (HasField (..))
 import Galley.Data.Conversation.Types
 import Galley.Types.Conversations.Members
 import Imports
@@ -160,22 +161,22 @@ toPublicSubConv (Qualified (SubConversation {..}) domain) =
 
 type ConvOrSubConv = ConvOrSubChoice MLSConversation SubConversation
 
-mlsMetaConvOrSub :: ConvOrSubConv -> ConversationMLSData
-mlsMetaConvOrSub (Conv c) = mcMLSData c
-mlsMetaConvOrSub (SubConv _ s) = scMLSData s
+instance HasField "meta" ConvOrSubConv ConversationMLSData where
+  getField (Conv c) = mcMLSData c
+  getField (SubConv _ s) = scMLSData s
 
-membersConvOrSub :: ConvOrSubConv -> ClientMap
-membersConvOrSub (Conv c) = mcMembers c
-membersConvOrSub (SubConv _ s) = scMembers s
+instance HasField "members" ConvOrSubConv ClientMap where
+  getField (Conv c) = mcMembers c
+  getField (SubConv _ s) = scMembers s
 
-indexMapConvOrSub :: ConvOrSubConv -> IndexMap
-indexMapConvOrSub (Conv c) = mcIndexMap c
-indexMapConvOrSub (SubConv _ s) = scIndexMap s
+instance HasField "indexMap" ConvOrSubConv IndexMap where
+  getField (Conv c) = mcIndexMap c
+  getField (SubConv _ s) = scIndexMap s
 
-convOfConvOrSub :: ConvOrSubChoice c s -> c
-convOfConvOrSub (Conv c) = c
-convOfConvOrSub (SubConv c _) = c
+instance HasField "id" ConvOrSubConv ConvOrSubConvId where
+  getField (Conv c) = Conv (mcId c)
+  getField (SubConv c s) = SubConv (mcId c) (scSubConvId s)
 
-idForConvOrSub :: ConvOrSubConv -> ConvOrSubConvId
-idForConvOrSub (Conv c) = Conv (mcId c)
-idForConvOrSub (SubConv c s) = SubConv (mcId c) (scSubConvId s)
+instance HasField "migrationState" ConvOrSubConv MLSMigrationState where
+  getField (Conv c) = c.mcMigrationState
+  getField (SubConv _ _) = MLSMigrationMLS

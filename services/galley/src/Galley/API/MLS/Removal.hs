@@ -74,7 +74,7 @@ createAndSendRemoveProposals ::
   ClientMap ->
   Sem r ()
 createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
-  let meta = mlsMetaConvOrSub (tUnqualified lConvOrSubConv)
+  let meta = (tUnqualified lConvOrSubConv).meta
   mKeyPair <- getMLSRemovalKey
   case mKeyPair of
     Nothing -> do
@@ -164,7 +164,7 @@ removeClient lc qusr c = do
   mMlsConv <- mkMLSConversation (tUnqualified lc)
   for_ mMlsConv $ \mlsConv -> do
     let cid = mkClientIdentity qusr c
-    let getClients = fmap (cid,) . cmLookupIndex cid . membersConvOrSub
+    let getClients = fmap (cid,) . cmLookupIndex cid . (.members)
     removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getClients qusr
 
 -- | Send remove proposals for all clients of the user to the local conversation.
@@ -190,7 +190,7 @@ removeUser lc qusr = do
           map (first (mkClientIdentity qusr))
             . Map.assocs
             . Map.findWithDefault mempty qusr
-            . membersConvOrSub
+            . (.members)
     removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getClients qusr
 
 -- | Convert cassandra subconv maps into SubConversations

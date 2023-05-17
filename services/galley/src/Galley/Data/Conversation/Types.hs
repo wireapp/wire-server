@@ -44,7 +44,6 @@ data NewConversation = NewConversation
     ncProtocol :: ProtocolCreateTag
   }
 
--- TODO: Rename to MLSProtocol or similar
 data MLSMigrationState
   = MLSMigrationMixed
   | MLSMigrationMLS

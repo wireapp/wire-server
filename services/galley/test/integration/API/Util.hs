@@ -77,7 +77,6 @@ import Federator.MockServer
 import qualified Federator.MockServer as Mock
 import GHC.TypeLits (KnownSymbol)
 import GHC.TypeNats
-import Galley.API.MLS.Types
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
@@ -1729,7 +1728,7 @@ assertMLSMessageEvent ::
   Conv.Event ->
   IO ()
 assertMLSMessageEvent qcs u message e = do
-  evtConv e @?= convOfConvOrSub <$> qcs
+  evtConv e @?= (.conv) <$> qcs
   case qUnqualified qcs of
     Conv _ -> pure ()
     SubConv _ subconvId ->
@@ -2917,7 +2916,7 @@ wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified C
 wsAssertBackendRemoveProposal fromUser cnvOrSubCnv idx n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= convOfConvOrSub <$> cnvOrSubCnv
+  evtConv e @?= (.conv) <$> cnvOrSubCnv
   evtType e @?= MLSMessageAdd
   evtFrom e @?= fromUser
   let bs = getMLSMessageData (evtData e)

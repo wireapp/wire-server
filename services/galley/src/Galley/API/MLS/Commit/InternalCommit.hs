@@ -19,7 +19,7 @@ module Galley.API.MLS.Commit.InternalCommit (processInternalCommit) where
 
 import Control.Comonad
 import Control.Error.Util (hush)
-import Control.Lens (forOf_, preview, to, (^?))
+import Control.Lens (forOf_, preview)
 import Control.Lens.Extras (is)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
@@ -77,19 +77,18 @@ processInternalCommit ::
   Sem r [LocalConversationUpdate]
 processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
   let convOrSub = tUnqualified lConvOrSub
-      mlsMeta = mlsMetaConvOrSub convOrSub
       qusr = cidQualifiedUser senderIdentity
-      cm = membersConvOrSub convOrSub
-      ss = csSignatureScheme (cnvmlsCipherSuite mlsMeta)
+      cm = convOrSub.members
+      ss = csSignatureScheme (cnvmlsCipherSuite convOrSub.meta)
       newUserClients = Map.assocs (paAdd action)
 
   -- check all pending proposals are referenced in the commit
-  allPendingProposals <- getAllPendingProposalRefs (cnvmlsGroupId mlsMeta) epoch
+  allPendingProposals <- getAllPendingProposalRefs (cnvmlsGroupId convOrSub.meta) epoch
   let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) commit.proposals
   unless (all (`Set.member` referencedProposals) allPendingProposals) $
     throwS @'MLSCommitMissingReferences
 
-  withCommitLock (fmap idForConvOrSub lConvOrSub) (cnvmlsGroupId (mlsMetaConvOrSub convOrSub)) epoch $ do
+  withCommitLock (fmap (.id) lConvOrSub) (cnvmlsGroupId convOrSub.meta) epoch $ do
     -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
     foldQualified lConvOrSub (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
 
@@ -98,7 +97,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
       throw (mlsProtocolError "Add proposals in subconversations are not supported")
 
     events <-
-      if convOrSub ^? _Conv . to mcMigrationState == Just MLSMigrationMLS
+      if convOrSub.migrationState == MLSMigrationMLS
         then do
           -- Note [client removal]
           -- We support two types of removals:
@@ -202,11 +201,11 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
     -- Remove clients from the conversation state. This includes client removals
     -- of all types (see Note [client removal]).
     for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
-      removeMLSClients (cnvmlsGroupId mlsMeta) qtarget (Map.keysSet clients)
+      removeMLSClients (cnvmlsGroupId convOrSub.meta) qtarget (Map.keysSet clients)
 
     -- add clients in the conversation state
     for_ newUserClients $ \(qtarget, newClients) -> do
-      addMLSClients (cnvmlsGroupId mlsMeta) qtarget (Set.fromList (Map.assocs newClients))
+      addMLSClients (cnvmlsGroupId convOrSub.meta) qtarget (Set.fromList (Map.assocs newClients))
 
     -- increment epoch number
     for_ lConvOrSub incrementEpoch
