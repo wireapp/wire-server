@@ -45,6 +45,7 @@ import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (sendWelcomes)
 import Galley.API.Util
+import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
@@ -349,7 +350,8 @@ postMLSMessageToLocalConv qusr c con msg convOrSubId = do
       FramedContentProposal prop ->
         processProposal qusr lConvOrSub msg.groupId msg.epoch pub prop
     IncomingMessageContentPrivate -> do
-      pure ()
+      when ((tUnqualified lConvOrSub).migrationState == MLSMigrationMixed) $
+        throwS @'MLSUnsupportedMessage
 
   unreachables <- propagateMessage qusr lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
   pure ([], unreachables)

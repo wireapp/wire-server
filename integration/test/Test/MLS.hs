@@ -151,6 +151,31 @@ testMixedProtocolRemovePartialClients secondDomain = do
   mp <- createRemoveCommit alice1 [bob1]
 
   void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
+
+testMixedProtocolAppMessagesAreDenied :: HasCallStack => Domain -> App ()
+testMixedProtocolAppMessagesAreDenied secondDomain = do
+  [alice, bob] <- createAndConnectUsers [ownDomain, secondDomain & asString]
+
+  qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+
+  bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+
+  traverse_ uploadNewKeyPackage [bob1]
+
+  bindResponse (getConversation alice qcnv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    createGroup alice1 resp.json
+
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+  mp <- createApplicationMessage bob1 "hello, world"
+  bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
+    resp.status `shouldMatchInt` 422
+    resp.json %. "label" `shouldMatch` "mls-unsupported-message"
+
 testAddUser :: HasCallStack => App ()
 testAddUser = do
   [alice, bob] <- createAndConnectUsers [ownDomain, ownDomain]

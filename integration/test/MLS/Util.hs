@@ -580,3 +580,23 @@ readGroupState gs = do
             pure (Just (cid, leafNodeIndex))
       Nothing ->
         pure Nothing
+
+createApplicationMessage ::
+  HasCallStack =>
+  ClientIdentity ->
+  String ->
+  App MessagePackage
+createApplicationMessage cid messageContent = do
+  message <-
+    mlscli
+      cid
+      ["message", "--group", "<group-in>", messageContent]
+      Nothing
+
+  pure
+    MessagePackage
+      { sender = cid,
+        message = message,
+        welcome = Nothing,
+        groupInfo = Nothing
+      }
