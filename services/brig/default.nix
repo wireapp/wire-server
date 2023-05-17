@@ -35,7 +35,6 @@
 , data-timeout
 , dns
 , dns-util
-, either
 , email-validate
 , enclosed-exceptions
 , errors
@@ -195,7 +194,6 @@ mkDerivation {
     data-timeout
     dns
     dns-util
-    either
     enclosed-exceptions
     errors
     exceptions

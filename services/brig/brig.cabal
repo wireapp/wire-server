@@ -214,7 +214,6 @@ library
     , data-timeout               >=0.3
     , dns
     , dns-util
-    , either                     >=4.3
     , enclosed-exceptions        >=1.0
     , errors                     >=1.4
     , exceptions                 >=0.5
