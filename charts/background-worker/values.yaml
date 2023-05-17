@@ -14,7 +14,6 @@ resources:
 #   serviceMonitor:
 #     enabled: false
 config:
-  # TODO(elland): Proper logging
   logLevel: Info
   logFormat: StructuredJSON
   rabbitmq:
