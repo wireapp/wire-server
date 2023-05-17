@@ -143,7 +143,8 @@ sendConnectionAction self (tUntagged -> other) action = do
 notifyUserDeleted ::
   ( MonadReader Env m,
     MonadIO m,
-    MonadMask m
+    MonadMask m,
+    Log.MonadLogger m
   ) =>
   Local UserId ->
   Remote (Range 1 1000 [UserId]) ->
@@ -155,20 +156,26 @@ notifyUserDeleted self remotes = do
   enqueueNotification (tDomain remotes) notif Q.Persistent
 
 -- | Enqueues notifications in RabbitMQ. Retries 3 times with a delay of 1s.
-enqueueNotification :: (MonadReader Env m, MonadIO m, MonadMask m) => Domain -> BackendNotification -> Q.DeliveryMode -> m ()
+enqueueNotification :: (MonadReader Env m, MonadIO m, MonadMask m, Log.MonadLogger m) => Domain -> BackendNotification -> Q.DeliveryMode -> m ()
 enqueueNotification domain notif deliveryMode =
-  recoverAll (limitRetries 3 <> constantDelay 1_000_000) (const go)
+  recovering (limitRetries 3 <> constantDelay 1_000_000) [logRetries (const $ pure True) logError] (const go)
   where
+    logError willRetry (SomeException e) status = do
+      Log.err $
+        Log.msg @Text "failed to enqueue notification in RabbitMQ"
+          . Log.field "error" (displayException e)
+          . Log.field "willRetry" willRetry
+          . Log.field "retryCount" status.rsIterNumber
     go = do
       mChan <- timeout (1 :: Second) (readMVar =<< view rabbitmqChannel)
       case mChan of
         Nothing -> throwM NoRabbitMqChannel
         Just chan -> liftIO $ enqueue chan domain notif deliveryMode
 
-data BackendNotificationException = NoRabbitMqChannel
+data NoRabbitMqChannel = NoRabbitMqChannel
   deriving (Show)
 
-instance Exception BackendNotificationException
+instance Exception NoRabbitMqChannel
 
 runBrigFederatorClient ::
   (MonadReader Env m, MonadIO m) =>
