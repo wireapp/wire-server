@@ -173,8 +173,14 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
 
   mp <- createApplicationMessage bob1 "hello, world"
   bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
-    resp.status `shouldMatchInt` 422
-    resp.json %. "label" `shouldMatch` "mls-unsupported-message"
+    isBobRemote <- secondDomain `isEqual` otherDomain
+    if isBobRemote
+      then do
+        resp.status `shouldMatchInt` 404
+        resp.json %. "label" `shouldMatch` "no-conversation"
+      else do
+        resp.status `shouldMatchInt` 422
+        resp.json %. "label" `shouldMatch` "mls-unsupported-message"
 
 testAddUser :: HasCallStack => App ()
 testAddUser = do
