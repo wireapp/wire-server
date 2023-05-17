@@ -508,7 +508,7 @@ updateConversation origDomain updateRequest = do
 
     toResponse (Left galleyErr) = F.ConversationUpdateResponseError galleyErr
     toResponse (Right (Left NoChanges)) = F.ConversationUpdateResponseNoChanges
-    toResponse (Right (Right update)) = F.ConversationUpdateResponseUpdate update
+    toResponse (Right (Right (update, ftp))) = F.ConversationUpdateResponseUpdate update ftp
 
 sendMLSCommitBundle ::
   ( Member BrigAccess r,
