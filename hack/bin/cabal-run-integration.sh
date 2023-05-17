@@ -47,7 +47,7 @@ run_integration_tests() {
   then
     cd "$TOP_LEVEL"
     "$TOP_LEVEL/services/run-services" \
-      "$TOP_LEVEL/dist/integration"
+      "$TOP_LEVEL/dist/integration" \
       "${@:2}"
   else
     service_dir="$TOP_LEVEL/services/$package"

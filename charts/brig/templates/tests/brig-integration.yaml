@@ -80,10 +80,6 @@ spec:
       value: "dummy"
     - name: AWS_REGION
       value: "eu-west-1"
-    {{- if .Values.tests.enableFederationTests }}
-    - name: INTEGRATION_FEDERATION_TESTS
-      value: "1"
-    {{- end }}
     {{- if .Values.config.enableFederation }}
     - name: RABBITMQ_USERNAME
       value: "guest"
