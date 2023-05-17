@@ -126,6 +126,26 @@ testMixedProtocolAddPartialClients secondDomain = do
 
   void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 
+testMixedProtocolRemovePartialClients :: HasCallStack => Domain -> App ()
+testMixedProtocolRemovePartialClients secondDomain = do
+  [alice, bob] <- createAndConnectUsers [ownDomain, secondDomain & asString]
+
+  qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+
+  bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+
+  bindResponse (getConversation alice qcnv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    createGroup alice1 resp.json
+
+  traverse_ uploadNewKeyPackage [bob1, bob2]
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+  mp <- createRemoveCommit alice1 [bob1]
+
+  void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 testAddUser :: HasCallStack => App ()
 testAddUser = do
   [alice, bob] <- createAndConnectUsers [ownDomain, ownDomain]
