@@ -160,7 +160,7 @@ galley:
             config:
               startTime: "2024-05-16T00:00:00.000Z"
               finaliseRegardlessAfter: "2024-10-17T00:00:00.000Z"
-              usersThreshold: 60
+              usersThreshold: 100
               clientsThreshold: 50
             lockStatus: locked
 ```

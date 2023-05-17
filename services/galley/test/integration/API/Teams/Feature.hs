@@ -1471,7 +1471,7 @@ defaultMlsMigrationConfig =
     MlsMigrationConfig
       { startTime = fmap fromUTCTimeMillis (readUTCTimeMillis "2029-05-16T10:11:12.123Z"),
         finaliseRegardlessAfter = fmap fromUTCTimeMillis (readUTCTimeMillis "2029-10-17T00:00:00.000Z"),
-        usersThreshold = Just 60,
+        usersThreshold = Just 100,
         clientsThreshold = Just 50
       }
     FeatureTTLUnlimited

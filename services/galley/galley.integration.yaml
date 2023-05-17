@@ -85,7 +85,7 @@ settings:
         config:
           startTime: "2029-05-16T10:11:12.123Z"
           finaliseRegardlessAfter: "2029-10-17T00:00:00.000Z"
-          usersThreshold: 60
+          usersThreshold: 100
           clientsThreshold: 50
         lockStatus: locked
 
