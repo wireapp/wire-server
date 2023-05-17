@@ -55,6 +55,7 @@ import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Text (replace)
 import Data.Text.Ascii (AsciiChars (validate))
+import Data.Time (addUTCTime)
 import Data.Time.Clock.POSIX
 import qualified Data.Vector as Vec
 import Imports
@@ -1440,7 +1441,7 @@ testCreateAccessToken ep n brig = do
   let claimsSet' =
         emptyClaimsSet
           & claimIat ?~ NumericDate now
-          & claimExp ?~ NumericDate now
+          & claimExp ?~ NumericDate (addUTCTime 10 now)
           & claimNbf ?~ NumericDate now
           & claimSub ?~ fromMaybe (error "invalid sub claim") (clientIdentity ^? stringOrUri)
           & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
@@ -1451,11 +1452,8 @@ testCreateAccessToken ep n brig = do
     Right signed -> do
       let proof = Just $ Proof (cs signed)
       response <- Util.createAccessTokenNginz n t cid proof
-      case responseJsonEither response of
-        Right accessToken ->
-          liftIO $ datrType accessToken @?= DPoP
-        Left _ -> do
-          liftIO $ assertFailure $ "JSON parsing error: " <> show response
+      let accessToken = fromRight (error $ "failed to create token: " <> show response) $ responseJsonEither response
+      liftIO $ datrType accessToken @?= DPoP
   where
     signAccessToken :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
     signAccessToken claims = runJOSE $ do
