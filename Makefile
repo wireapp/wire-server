@@ -396,16 +396,6 @@ kube-integration-teardown:
 kube-integration-e2e-telepresence:
 	./services/brig/federation-tests.sh $(NAMESPACE)
 
-.PHONY: kube-integration-setup-sans-federation
-kube-integration-setup-sans-federation: guard-tag charts-integration
-	# by default "test-<your computer username> is used as namespace
-	# you can override the default by setting the NAMESPACE environment variable
-	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup.sh
-
-.PHONY: kube-integration-teardown-sans-federation
-kube-integration-teardown-sans-federation:
-	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown.sh
-
 .PHONY: kube-restart-%
 kube-restart-%:
 	kubectl delete pod -n $(NAMESPACE) -l app=$(*)
