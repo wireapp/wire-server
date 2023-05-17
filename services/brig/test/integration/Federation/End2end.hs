@@ -650,9 +650,9 @@ testDeleteUser brig1 brig2 galley1 galley2 cannon1 = do
       =<< createConversation galley2 (qUnqualified bobDel) [alice]
         <!! const 201 === statusCode
 
-  WS.bracketR2 cannon1 (qUnqualified alice) (qUnqualified bobDel) $ \(wsAlice, wsBob) -> do
+  WS.bracketR cannon1 (qUnqualified alice) $ \wsAlice -> do
     deleteUser (qUnqualified bobDel) (Just defPassword) brig2 !!! const 200 === statusCode
-    WS.assertMatch_ (5 # Second) wsBob $ matchDeleteUserNotification bobDel
+    WS.assertMatch_ (5 # Second) wsAlice $ matchDeleteUserNotification bobDel
     WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv1 bobDel [bobDel]
     WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv2 bobDel [bobDel]
 
