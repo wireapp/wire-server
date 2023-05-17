@@ -480,15 +480,15 @@ removeLegalHoldClient uid = do
 
 createAccessToken ::
   (Member JwtTools r, Member Now r, Member PublicKeyBundle r) =>
-  UserId ->
+  Local UserId ->
   ClientId ->
   StdMethod ->
   Link ->
   Proof ->
-  Text ->
   ExceptT CertEnrollmentError (AppT r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken uid cid method link proof host = do
-  let domain = Domain host
+createAccessToken luid cid method link proof = do
+  let domain = tDomain luid
+  let uid = tUnqualified luid
   nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
   httpsUrl <- do
     let urlBs = "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)

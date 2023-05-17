@@ -33,6 +33,7 @@ import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opt
+import qualified Brig.Options as Opts
 import qualified Cassandra as DB
 import Control.Lens hiding (Wrapped, (#))
 import Crypto.JWT hiding (Ed25519, header, params)
@@ -55,7 +56,6 @@ import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Text (replace)
 import Data.Text.Ascii (AsciiChars (validate))
-import Data.Time (addUTCTime)
 import Data.Time.Clock.POSIX
 import qualified Data.Vector as Vec
 import Imports
@@ -68,7 +68,6 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
-import Util.Options (Endpoint (..), epHost)
 import Wire.API.Internal.Notification
 import Wire.API.MLS.Credential
 import qualified Wire.API.Team.Feature as Public
@@ -81,8 +80,8 @@ import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
 
-tests :: Endpoint -> ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Nginz -> Brig -> Cannon -> Galley -> TestTree
-tests e _cl _at opts p db n b c g =
+tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Nginz -> Brig -> Cannon -> Galley -> TestTree
+tests _cl _at opts p db n b c g =
   testGroup
     "client"
     [ test p "delete /clients/:client 403 - can't delete legalhold clients" $
@@ -134,7 +133,7 @@ tests e _cl _at opts p db n b c g =
       test p "get/head nonce/clients" $ testNewNonce b,
       testGroup
         "post /clients/:cid/access-token"
-        [ test p "success" $ testCreateAccessToken e n b,
+        [ test p "success" $ testCreateAccessToken opts n b,
           test p "proof missing" $ testCreateAccessTokenMissingProof b,
           test p "no nonce" $ testCreateAccessTokenNoNonce b
         ]
@@ -1307,7 +1306,6 @@ testMissingClient brig = do
 -- again.  (NB: temp clients replace each other, there can always be
 -- at most one per account.)
 testAddMultipleTemporary :: HasCallStack => Brig -> Galley -> Cannon -> Http ()
----
 testAddMultipleTemporary brig galley cannon = do
   uid <- userId <$> randomUser brig
   let clt1 =
@@ -1422,9 +1420,9 @@ instance A.ToJSON DPoPClaimsSet where
       ins k v (Object o) = Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
 
-testCreateAccessToken :: Endpoint -> Nginz -> Brig -> Http ()
-testCreateAccessToken ep n brig = do
-  let h = ep ^. epHost
+testCreateAccessToken :: Opts.Opts -> Nginz -> Brig -> Http ()
+testCreateAccessToken opts n brig = do
+  let localDomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
   u <- randomUser brig
   let uid = userId u
   let email = fromMaybe (error "invalid email") $ userEmail u
@@ -1435,24 +1433,25 @@ testCreateAccessToken ep n brig = do
   let uidb64 = B64.encodeUnpadded $ cs $ replace "-" "" $ cs (toByteString' uid)
   cid <- createClientForUser brig uid
   nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
-  let nonceBs = fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
+  let nonceBs = cs $ fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
   now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (floor <$> getPOSIXTime)
-  let clientIdentity :: Text = "im:wireapp=" <> cs uidb64 <> "/" <> cs (toByteString' cid) <> "@" <> h
+  let clientIdentity = cs $ "im:wireapp=" <> uidb64 <> "/" <> toByteString' cid <> "@" <> toByteString' localDomain
+  let httpsUrl = cs $ "https://" <> toByteString' localDomain <> "/clients/" <> toByteString' cid <> "/access-token"
   let claimsSet' =
         emptyClaimsSet
           & claimIat ?~ NumericDate now
-          & claimExp ?~ NumericDate (addUTCTime 10 now)
+          & claimExp ?~ NumericDate now
           & claimNbf ?~ NumericDate now
-          & claimSub ?~ fromMaybe (error "invalid sub claim") (clientIdentity ^? stringOrUri)
+          & claimSub ?~ fromMaybe (error "invalid sub claim") ((clientIdentity :: Text) ^? stringOrUri)
           & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
-  let dpopClaims = DPoPClaimsSet claimsSet' (cs nonceBs) "POST" ("https://" <> h <> "/clients/" <> cs (toByteString' cid) <> "/access-token") "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+  let dpopClaims = DPoPClaimsSet claimsSet' nonceBs "POST" httpsUrl "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
   signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
   case signedOrError of
     Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
     Right signed -> do
       let proof = Just $ Proof (cs signed)
       response <- Util.createAccessTokenNginz n t cid proof
-      let accessToken = fromRight (error $ "failed to create token: " <> show response) $ responseJsonEither response
+      accessToken <- responseJsonError response
       liftIO $ datrType accessToken @?= DPoP
   where
     signAccessToken :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)

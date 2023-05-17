@@ -129,7 +129,7 @@ waitUserExpiration :: MonadUnliftIO m => Opts -> m ()
 waitUserExpiration opts' = do
   let timeoutSecs = round @Double . realToFrac . setTeamInvitationTimeout . optSettings $ opts'
   Control.Exception.assert (timeoutSecs < 30) $ do
-    threadDelay $ (timeoutSecs + 1) * 1_000_000
+    threadDelay $ (timeoutSecs + 3) * 1_000_000
 
 userExists :: MonadClient m => UserId -> m Bool
 userExists uid = do
