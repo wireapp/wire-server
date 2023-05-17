@@ -285,7 +285,7 @@ testFirstCommitAllowsPartialAdds = do
   alice <- randomUser ownDomain def
 
   [alice1, alice2, alice3] <- traverse createMLSClient [alice, alice, alice]
-  traverse_ uploadNewKeyPackage [alice1, alice2, alice3]
+  traverse_ uploadNewKeyPackage [alice1, alice2, alice2, alice3, alice3]
 
   (_, _qcnv) <- createNewGroup alice1
 
@@ -294,7 +294,9 @@ testFirstCommitAllowsPartialAdds = do
 
   -- first commit only adds kp for alice2 (not alice2 and alice3)
   mp <- createAddCommitWithKeyPackages alice1 (filter ((== alice2) . fst) kps)
-  void $ sendAndConsumeCommitBundle mp
+  bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 409
+    resp.json %. "label" `shouldMatch` "mls-client-mismatch"
 
 testAddUserPartial :: HasCallStack => App ()
 testAddUserPartial = do
