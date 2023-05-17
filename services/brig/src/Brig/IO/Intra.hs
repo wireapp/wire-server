@@ -296,7 +296,8 @@ notifyUserDeletionRemotes ::
   forall m.
   ( MonadReader Env m,
     MonadClient m,
-    MonadLogger m
+    MonadLogger m,
+    MonadMask m
   ) =>
   UserId ->
   m ()

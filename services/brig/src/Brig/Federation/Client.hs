@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -25,13 +26,17 @@ module Brig.Federation.Client where
 import Brig.App
 import Control.Lens
 import Control.Monad
+import Control.Monad.Catch (MonadMask, throwM)
 import Control.Monad.Trans.Except (ExceptT (..), throwE)
+import Control.Retry
+import Control.Timeout
 import Data.Domain
 import Data.Handle
 import Data.Id (ClientId, UserId)
 import Data.Qualified
 import Data.Range (Range)
 import qualified Data.Text as T
+import Data.Time.Units
 import Imports
 import qualified Network.AMQP as Q
 import qualified System.Logger.Class as Log
@@ -137,7 +142,8 @@ sendConnectionAction self (tUntagged -> other) action = do
 
 notifyUserDeleted ::
   ( MonadReader Env m,
-    MonadIO m
+    MonadIO m,
+    MonadMask m
   ) =>
   Local UserId ->
   Remote (Range 1 1000 [UserId]) ->
@@ -145,10 +151,24 @@ notifyUserDeleted ::
 notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
       domain = tDomain self
-  -- TODO(elland): Add retries
-  qChan <- readMVar =<< view rabbitmqChannel
   let notif = BackendNotification domain (OnUserDeletedConnections $ UserDeletedConnectionsNotification (tUnqualified self) remoteConnections)
-  liftIO $ enqueue qChan (tDomain remotes) notif Q.Persistent
+  enqueueNotification (tDomain remotes) notif Q.Persistent
+
+-- | Enqueues notifications in RabbitMQ. Retries 3 times with a delay of 1s.
+enqueueNotification :: (MonadReader Env m, MonadIO m, MonadMask m) => Domain -> BackendNotification -> Q.DeliveryMode -> m ()
+enqueueNotification domain notif deliveryMode =
+  recoverAll (limitRetries 3 <> constantDelay 1_000_000) (const go)
+  where
+    go = do
+      mChan <- timeout (1 :: Second) (readMVar =<< view rabbitmqChannel)
+      case mChan of
+        Nothing -> throwM NoRabbitMqChannel
+        Just chan -> liftIO $ enqueue chan domain notif deliveryMode
+
+data BackendNotificationException = NoRabbitMqChannel
+  deriving (Show)
+
+instance Exception BackendNotificationException
 
 runBrigFederatorClient ::
   (MonadReader Env m, MonadIO m) =>
