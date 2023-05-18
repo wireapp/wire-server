@@ -134,17 +134,18 @@ getClientInfo ::
   Local x ->
   Qualified UserId ->
   SignatureSchemeTag ->
-  Sem r (Set ClientInfo)
-getClientInfo loc = foldQualified loc getLocalMLSClients getRemoteMLSClients
+  Sem r (Either FederationError (Set ClientInfo))
+getClientInfo loc =
+  foldQualified loc (\lusr -> fmap Right . getLocalMLSClients lusr) getRemoteMLSClients
 
 getRemoteMLSClients ::
   ( Member FederatorAccess r
   ) =>
   Remote UserId ->
   SignatureSchemeTag ->
-  Sem r (Set ClientInfo)
+  Sem r (Either FederationError (Set ClientInfo))
 getRemoteMLSClients rusr ss = do
-  runFederated rusr $
+  runFederatedEither rusr $
     fedClient @'Brig @"get-mls-clients" $
       MLSClientsRequest
         { mcrUserId = tUnqualified rusr,

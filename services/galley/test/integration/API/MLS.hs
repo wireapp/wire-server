@@ -1063,7 +1063,7 @@ testAppMessageSomeReachable = do
       (_, ftp) <- sendAndConsumeMessage message
       liftIO $ do
         assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-        ftp @?= unreachableFromList [charlie]
+        ftp @?= failedToSend [charlie]
 
 testAppMessageUnreachable :: TestM ()
 testAppMessageUnreachable = do
@@ -1085,7 +1085,7 @@ testAppMessageUnreachable = do
     (_, ftp) <- sendAndConsumeMessage message
     liftIO $ do
       assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-      ftp @?= unreachableFromList [bob]
+      ftp @?= failedToSend [bob]
 
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do

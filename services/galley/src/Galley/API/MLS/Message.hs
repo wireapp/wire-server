@@ -149,7 +149,7 @@ postMLSCommitBundle ::
   Qualified ConvOrSubConvId ->
   Maybe ConnId ->
   IncomingBundle ->
-  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 postMLSCommitBundle loc qusr c qConvOrSub conn bundle =
   foldQualified
     loc
@@ -190,15 +190,15 @@ postMLSCommitBundleToLocalConv ::
   Maybe ConnId ->
   IncomingBundle ->
   Local ConvOrSubConvId ->
-  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr lConvOrSubId
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
-  (events, newClients) <- case bundle.sender of
+  (events, newClients, failedToProcess) <- case bundle.sender of
     SenderMember _index -> do
       action <- getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
-      events <-
+      (events, addedClients, failedToProcess) <-
         processInternalCommit
           senderIdentity
           conn
@@ -206,7 +206,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
           bundle.epoch
           action
           bundle.commit.value
-      pure (events, cmIdentities (paAdd action))
+      pure (events, addedClients, failedToProcess)
     SenderExternal _ -> throw (mlsProtocolError "Unexpected sender")
     SenderNewMemberProposal -> throw (mlsProtocolError "Unexpected sender")
     SenderNewMemberCommit -> do
@@ -217,13 +217,13 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
         bundle.epoch
         action
         bundle.commit.value.path
-      pure ([], [])
+      pure ([], [], mempty)
 
   storeGroupInfo (tUnqualified lConvOrSub).id bundle.groupInfo
 
   unreachables <- propagateMessage qusr lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
   traverse_ (sendWelcomes lConvOrSub conn newClients) bundle.welcome
-  pure (events, unreachables)
+  pure (events, failedToProcess <> failedToSendMaybe unreachables)
 
 postMLSCommitBundleToRemoteConv ::
   ( Members MLSBundleStaticErrors r,
@@ -244,7 +244,7 @@ postMLSCommitBundleToRemoteConv ::
   Maybe ConnId ->
   IncomingBundle ->
   Remote ConvOrSubConvId ->
-  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 postMLSCommitBundleToRemoteConv loc qusr c con bundle rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
@@ -295,8 +295,8 @@ postMLSMessage ::
   Qualified ConvOrSubConvId ->
   Maybe ConnId ->
   IncomingMessage ->
-  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
-postMLSMessage loc qusr c qconvOrSub con msg = do
+  Sem r ([LocalConversationUpdate], FailedToProcess)
+postMLSMessage loc qusr c qconvOrSub con msg =
   foldQualified
     loc
     (postMLSMessageToLocalConv qusr c con msg)
@@ -335,7 +335,7 @@ postMLSMessageToLocalConv ::
   Maybe ConnId ->
   IncomingMessage ->
   Local ConvOrSubConvId ->
-  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 postMLSMessageToLocalConv qusr c con msg convOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr convOrSubId
 
@@ -354,7 +354,7 @@ postMLSMessageToLocalConv qusr c con msg convOrSubId = do
         throwS @'MLSUnsupportedMessage
 
   unreachables <- propagateMessage qusr lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
-  pure ([], unreachables)
+  pure ([], failedToSendMaybe unreachables)
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
@@ -369,7 +369,7 @@ postMLSMessageToRemoteConv ::
   Maybe ConnId ->
   IncomingMessage ->
   Remote ConvOrSubConvId ->
-  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
+  Sem r ([LocalConversationUpdate], FailedToProcess)
 postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
