@@ -90,9 +90,12 @@ import Data.Time (getCurrentTime)
 import Wire.API.Conversation.Action
 import Galley.API.Federation
 import Data.Singletons
-import qualified Wire.API.Federation.API.Brig as Brig
+import qualified Wire.API.Routes.Internal.Brig as Brig
 import Wire.API.Routes.Named (namedClient)
 import qualified System.Logger as L
+import Wire.API.Conversation (ConvType(One2OneConv), cnvmType, ConvType (ConnectConv, One2OneConv))
+import Galley.Data.Conversation.Types (convMetadata)
+import Galley.API.Util (getConversationWithError)
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
@@ -214,7 +217,6 @@ updateFedDomains = do
     -- Build the map, keyed by conversations to the list of members
     insertIntoMap (cnvId, user) m = Map.alter (pure . maybe (pure user) (N.cons user)) cnvId m
     callback env clientEnv old new = do
-      -- TODO: perform the database updates here
       -- This code will only run when there is a change in the domain lists
       let fromFedList = Set.fromList . remotes
           prevDoms = fromFedList old
@@ -228,10 +230,8 @@ updateFedDomains = do
         -- the domain list is changing frequently.
         -- FS-1179 is handling this part.
         let deletedDomains = Set.difference prevDoms currDoms
-            -- addedDomains = Set.difference currDoms prevDoms
         for_ deletedDomains $ \fedDomCfg -> do
           -- https://wearezeta.atlassian.net/browse/FS-1179
-          -- TODO
           -- * Remove remote users for the given domain from all conversations owned by the current host
           -- * Remove all local users from remote conversations owned by the given domain.
           --   NOTE: This is NOT sent to other backends, as this information is not authoratative, but is
@@ -242,27 +242,44 @@ updateFedDomains = do
           let dom = domain fedDomCfg
           remoteUsers <- liftIO $ evalGalleyToIO env $ E.getRemoteMembersByDomain dom
           let lCnvMap = foldr insertIntoMap mempty remoteUsers
-          for_ (Map.toList lCnvMap) $ \(cnv, rUsers) -> do
+          for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
+            let lCnvId = toLocalUnsafe dom cnvId
             -- This value contains an event that we might need to
             -- send out to all of the local clients that are a party
             -- to the conversation. However we also don't want to DOS
             -- clients. Maybe suppress and send out a bulk version?
-            _res <- liftIO $ evalGalleyToIO env
-              -- TODO: Are these the right error types we should be using?
-              -- TODO: We are restricted to the errors listed in GalleyEffects,
-              -- TODO: and none of those seem like a great fit.
-              $ mapToRuntimeError @F.RemoveFromConversationError (InternalErrorWithDescription "Remove From Conversation Error")
-              . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Conv Not Found")
-              . mapToRuntimeError @('ActionDenied 'RemoveConversationMember) (InternalErrorWithDescription  "Action Denied: Remove Conversation Member")
-              . mapToRuntimeError @'InvalidOperation (InternalErrorWithDescription  "Invalid Operation")
-              . mapError @NoChanges (const (InternalErrorWithDescription  "No Changes"))
+            liftIO $ evalGalleyToIO env
+              $ mapToRuntimeError @F.RemoveFromConversationError (InternalErrorWithDescription "Federation domain removal: Remove from conversation error")
+              . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Federation domain removal: Conversation not found")
+              . mapToRuntimeError @('ActionDenied 'RemoveConversationMember) (InternalErrorWithDescription  "Federation domain removal: Action denied, remove conversation member")
+              . mapToRuntimeError @'InvalidOperation (InternalErrorWithDescription  "Federation domain removal: Invalid operation")
+              . mapToRuntimeError @'NotATeamMember (InternalErrorWithDescription  "Federation domain removal: Not a team member")
+              . mapError @NoChanges (const (InternalErrorWithDescription  "Federation domain removal: No changes"))
               -- This is allowed to send notifications to _local_ clients.
-              $ updateLocalConversation
-                @'ConversationRemoveMembersTag
-                (toLocalUnsafe (domain fedDomCfg) cnv)
-                undefined
-                Nothing $
-                tUntagged . rmId <$> rUsers
+              -- But we are suppressing those events as we don't want to
+              -- DOS our users if a large and deeply interconnected federation
+              -- member is removed. Sending out hundreds or thousands of events
+              -- to each client isn't something we want to be doing.
+              $ do
+                conv <- getConversationWithError lCnvId
+                let lConv = toLocalUnsafe dom conv
+                updateLocalConversationUserUnchecked
+                  @'ConversationRemoveMembersTag
+                  lConv
+                  undefined $ -- This field can be undefined as the path for ConversationRemoveMembersTag doens't use it
+                  tUntagged . rmId <$> rUsers
+                -- Check if the conversation if type 2 or 3, one-on-one conversations.
+                -- If it is, then we need to remove the entire conversation as users
+                -- aren't able to delete those types of conversations themselves.
+                -- Check that we are in a type 2 or a type 3 conversation
+                when (cnvmType (convMetadata conv) `elem` [One2OneConv, ConnectConv]) $
+                  -- If we are, delete it.
+                  updateLocalConversationUserUnchecked
+                    @'ConversationDeleteTag
+                    lConv
+                    undefined
+                    ()
+                  
             pure ()
 
           -- Get all local users for the given domain, along with remote conversation IDs that they are in
@@ -287,6 +304,9 @@ updateFedDomains = do
                   -- These functions are used directly rather than as part of a larger conversation
                   -- delete function, as we don't have an originating user, and we can't send data
                   -- to the remote backend.
+                  -- We don't need to check the conversation type here, as we can't tell the
+                  -- remote federation server to delete the conversation. They will have to do a
+                  -- similar processing run for removing the local domain from their federation list.
                   onConversationUpdated dom convUpdate
                   let rcnv = toRemoteUnsafe dom cnv
                   notifyRemoteConversationAction lUser (qualifyAs rcnv convUpdate) Nothing
@@ -294,12 +314,10 @@ updateFedDomains = do
 
           -- Remove the remote one-on-one conversations between local members and remote members for the given domain.
           -- NOTE: We cannot tell the remote backend about these changes as we are no longer federated.
-          let delFedDomain = namedClient @Brig.BrigApi @"on-domain-unfederated"
-          -- deleteRemoteConnectionsByDomain dom
+          let delFedDomain = namedClient @Brig.FederationRemotesAPI @"delete-federation-remotes"
           liftIO (runClientM (delFedDomain dom) clientEnv) >>= \case
             Right _ -> pure ()
             Left e -> L.log (env ^. applog) L.Info $
               L.msg (L.val "Could not delete remote user connections in Brig")
                 L.~~ "error" L..= show e
-        -- for_ addedDomains $ \_domain -> do
-        --   pure ()
+

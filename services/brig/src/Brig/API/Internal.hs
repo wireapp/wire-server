@@ -241,6 +241,8 @@ deleteFederationRemotes dom = do
       \do that, removing items listed in the config file is not allowed."
   -- FUTUREWORK: see 'getFederationRemotes'.
   lift . wrapClient . Data.deleteFederationRemote $ dom
+  -- Also drop connections to the remote domain
+  lift . wrapClient . Data.deleteRemoteConnectionsByDomain $ dom
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
