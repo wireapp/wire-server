@@ -43,3 +43,57 @@ createUser domain cu = do
                  | cu.team
                ]
         )
+
+data FedConn = FedConn
+  { domain :: Maybe String,
+    searchStrategy :: Maybe String
+  }
+
+instance Default FedConn where
+  def =
+    FedConn
+      { domain = Nothing,
+        searchStrategy = Nothing
+      }
+
+createFedConn :: HasCallStack => FedConn -> App Response
+createFedConn = undefined
+
+{-
+  post (brig . paths ["i", "federation", "remotes"] . contentJson . json remote . expect2xx)
+-}
+
+readFedConn :: HasCallStack => App Response
+readFedConn = undefined
+
+{-
+  remotes . responseJsonUnsafe <$> do
+    get (brig . paths ["i", "federation", "remotes"] . contentJson . expect2xx)
+-}
+
+updateFedConn :: HasCallStack => FedConn -> App Response
+updateFedConn = undefined
+
+deleteFedConn :: HasCallStack => String -> App Response
+deleteFedConn = undefined
+
+{-
+updateFederationRemote' :: (Request -> Request) -> Brig -> Domain -> FederationDomainConfig -> Http ResponseLBS
+updateFederationRemote' mods brig rdom remote =
+  put (brig . paths ["i", "federation", "remotes", toByteString' rdom] . contentJson . json remote . mods)
+
+deleteFederationRemote' :: (Request -> Request) -> Brig -> Domain -> Http ResponseLBS
+deleteFederationRemote' mods brig rdom =
+  delete (brig . paths ["i", "federation", "remotes", toByteString' rdom] . contentJson . mods)
+
+-- this one needs to go elsewhere
+resetFederationRemotes :: Opts -> Brig -> Http ()
+resetFederationRemotes opts brig = do
+  rs <- getFederationRemotes brig
+  -- Filter out domains that are in the config file.
+  -- These values can't be deleted yet, so don't even try.
+  forM_ (notCfgRemotes rs) $ \(FederationDomainConfig rdom _) -> deleteFederationRemote brig rdom
+  where
+    cfgRemotes = fromMaybe [] . Opt.setFederationDomainConfigs $ Opt.optSettings opts
+    notCfgRemotes = filter (`notElem` cfgRemotes)
+-}

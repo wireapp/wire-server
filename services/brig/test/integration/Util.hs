@@ -29,7 +29,6 @@ import Brig.AWS.Types
 import Brig.App (applog, fsWatcher, sftEnv, turnEnv)
 import Brig.Calling as Calling
 import qualified Brig.Code as Code
-import Brig.Options (Opts)
 import qualified Brig.Options as Opt
 import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
@@ -112,7 +111,6 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
 import Wire.API.Internal.Notification
-import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
@@ -1075,41 +1073,6 @@ withDomainsBlockedForRegistration opts domains sess = do
       blocked = Opts.CustomerExtensions (Opts.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
       unsafeMkDomain = either error id . mkDomain
   withSettingsOverrides opts' sess
-
-getFederationRemotes :: Brig -> Http [FederationDomainConfig]
-getFederationRemotes brig =
-  remotes . responseJsonUnsafe <$> do
-    get (brig . paths ["i", "federation", "remotes"] . contentJson . expect2xx)
-
-addFederationRemote :: Brig -> FederationDomainConfig -> Http ()
-addFederationRemote brig remote =
-  void $ post (brig . paths ["i", "federation", "remotes"] . contentJson . json remote . expect2xx)
-
-updateFederationRemote :: Brig -> Domain -> FederationDomainConfig -> Http ()
-updateFederationRemote brig rdom remote =
-  void $ updateFederationRemote' expect2xx brig rdom remote
-
-updateFederationRemote' :: (Request -> Request) -> Brig -> Domain -> FederationDomainConfig -> Http ResponseLBS
-updateFederationRemote' mods brig rdom remote =
-  put (brig . paths ["i", "federation", "remotes", toByteString' rdom] . contentJson . json remote . mods)
-
-deleteFederationRemote :: Brig -> Domain -> Http ()
-deleteFederationRemote brig rdom =
-  void $ deleteFederationRemote' expect2xx brig rdom
-
-deleteFederationRemote' :: (Request -> Request) -> Brig -> Domain -> Http ResponseLBS
-deleteFederationRemote' mods brig rdom =
-  delete (brig . paths ["i", "federation", "remotes", toByteString' rdom] . contentJson . mods)
-
-resetFederationRemotes :: Opts -> Brig -> Http ()
-resetFederationRemotes opts brig = do
-  rs <- getFederationRemotes brig
-  -- Filter out domains that are in the config file.
-  -- These values can't be deleted yet, so don't even try.
-  forM_ (notCfgRemotes rs) $ \(FederationDomainConfig rdom _) -> deleteFederationRemote brig rdom
-  where
-    cfgRemotes = fromMaybe [] . Opt.setFederationDomainConfigs $ Opt.optSettings opts
-    notCfgRemotes = filter (`notElem` cfgRemotes)
 
 -- | Run a probe several times, until a "good" value materializes or until patience runs out
 aFewTimes ::
