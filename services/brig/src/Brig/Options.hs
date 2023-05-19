@@ -39,7 +39,6 @@ import qualified Data.Code as Code
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
-import Data.MessageQueue
 import Data.Misc (HttpsUrl)
 import Data.Nonce
 import Data.Range
@@ -459,9 +458,7 @@ data Opts = Opts
     -- | SFT Settings
     sft :: !(Maybe SFTOptions),
     -- | Runtime settings
-    optSettings :: !Settings,
-    -- | Message Queue settings
-    mqSettings :: !(Maybe MessageQueueSettings)
+    optSettings :: !Settings
   }
   deriving (Show, Generic)
 
