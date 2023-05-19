@@ -58,7 +58,7 @@ getAllowedDomainsLoop logger clientEnv env callback = forever $ do
       callback old cfg
       atomicWriteIORef env cfg
   delay <- updateInterval <$> readIORef env
-  threadDelay delay
+  threadDelay (delay * 1_000_000)
 
 -- A version where the callback isn't needed. Most of the services don't care about
 -- when the list changes, just that they have the new list and can use it as-is
