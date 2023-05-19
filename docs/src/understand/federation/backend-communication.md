@@ -342,3 +342,6 @@ If there is no configuration for a domain, it's defaulted to `no_search`.
 
 
 does anybody know off the top of their heads: is [this section](https://wearezeta.atlassian.net/wiki/spaces/BAC/pages/288620677/Processes+shared+with+CS#Different-search-visibility-per-team) still up to date?  and is stern?  [this page](https://docs.wire.com/developer/reference/config-options.html#federated-domain-specific-configuration-settings) tells a different story...
+
+
+TODO: explain setFederationDomainConfigsUpdateFreq

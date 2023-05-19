@@ -23,6 +23,7 @@ module Wire.API.Routes.FederationDomainConfig
   )
 where
 
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain (Domain)
 import Data.Schema
@@ -69,8 +70,10 @@ defFederationDomainConfigs =
 
 instance ToSchema FederationDomainConfigs where
   schema =
-    object "FederationDomainConfigs" $
-      FederationDomainConfigs
+    objectWithDocModifier
+      "FederationDomainConfigs"
+      (description ?~ "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections.")
+      $ FederationDomainConfigs
         <$> strategy .= field "strategy" schema
         <*> remotes .= field "remotes" (array schema)
         <*> updateInterval .= field "update_interval" schema

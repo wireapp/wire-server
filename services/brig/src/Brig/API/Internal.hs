@@ -212,7 +212,7 @@ getFederationRemotes = lift $ do
         setFederationDomainConfigsUpdateFreq (cfg ^. settings)
       )
 
-  -- update frequency settings of <= 0 are ignored.  only warn about this every now and
+  -- update frequency settings of `<1` are interpreted as `1 second`.  only warn about this every now and
   -- then, that'll be noise enough for the logs given the traffic on this end-point.
   unless (maybe True (> 0) mu) $
     randomRIO (0 :: Int, 1000)
@@ -223,7 +223,7 @@ getFederationRemotes = lift $ do
   defFederationDomainConfigs
     & maybe id (\v cfg -> cfg {strategy = v}) ms
     & (\cfg -> cfg {remotes = nub $ db <> fromMaybe mempty mf})
-    & maybe id (\v cfg -> cfg {updateInterval = min 10 v}) mu
+    & maybe id (\v cfg -> cfg {updateInterval = min 1 v}) mu
     & pure
 
 updateFederationRemotes :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()

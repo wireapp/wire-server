@@ -556,7 +556,7 @@ data Settings = Settings
     -- for details.
     -- default: []
     setFederationDomainConfigs :: !(Maybe [FederationDomainConfig]),
-    -- | In seconds.  Values <=0 are ignored.  Default: 10 seconds.  See
+    -- | In seconds.  Default: 10 seconds.  Values <1 are silently replaced by 1.  See
     -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
     setFederationDomainConfigsUpdateFreq :: !(Maybe Int),
     -- | The amount of time in milliseconds to wait after reading from an SQS queue
