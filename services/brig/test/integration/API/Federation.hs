@@ -494,9 +494,10 @@ crudFederationRemotes opts brig = do
 
   -- updating search strategy works
   let remote2' = remote2 {cfgSearchPolicy = NoSearch}
-  () <- updateFederationRemote brig (domain remote2) remote2'
+  updateFederationRemote brig (domain remote2) remote2'
   res5 <- getFederationRemotes brig
-  liftIO $ assertEqual "should be NoSearch" (nub $ sort $ cfgRemotes <> [remote1, remote2']) (sort res5)
+  -- (move the dynamic remotes to the beginning here to make sure we look for `remote2'`, not `remote`.)
+  liftIO $ assertEqual "should be NoSearch" (nub $ sort $ [remote1, remote2'] <> cfgRemotes) (sort res5)
 
   -- updating from config file fails
   updateFederationRemote' id brig (domain $ head $ cfgRemotes) (head $ cfgRemotes) !!! const 533 === statusCode
