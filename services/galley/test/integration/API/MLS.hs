@@ -25,7 +25,6 @@ import API.Util
 import Bilge hiding (empty, head)
 import Bilge.Assert
 import Cassandra hiding (Set)
-import Control.Exception (throw)
 import Control.Lens (view)
 import Control.Lens.Extras
 import qualified Control.Monad.State as State
@@ -46,7 +45,6 @@ import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
-import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (Second), (#))
@@ -73,6 +71,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
+import Wire.API.Unreachable
 import Wire.API.User.Client
 
 tests :: IO TestSetup -> TestTree
@@ -1085,12 +1084,11 @@ testAppMessage2 = do
 
 testAppMessageSomeReachable :: TestM ()
 testAppMessageSomeReachable = do
+  let bobDomain = Domain "bob.example.com"
+      charlieDomain = Domain "charlie.example.com"
   users@[_alice, bob, charlie] <-
-    createAndConnectUsers
-      [ Nothing,
-        Just "bob.example.com",
-        Just "charlie.example.com"
-      ]
+    createAndConnectUsers $
+      domainText <$$> [Nothing, Just bobDomain, Just charlieDomain]
 
   void $ runMLSTest $ do
     [alice1, bob1, charlie1] <-
@@ -1099,27 +1097,25 @@ testAppMessageSomeReachable = do
     void $ setupMLSGroup alice1
     commit <- createAddCommit alice1 [bob, charlie]
 
-    let mocks =
+    let commitMocks =
           receiveCommitMockByDomain [bob1, charlie1]
             <|> welcomeMock
-    ([event], _) <-
-      withTempMockFederator' mocks $ do
-        sendAndConsumeCommitBundle commit
+    (([event], ftpCommit), _) <-
+      withTempMockFederator' commitMocks $ do
+        sendAndConsumeCommitBundleFederated commit
+    liftIO $ ftpCommit @?= mempty
 
     let unreachables = Set.singleton (Domain "charlie.example.com")
-    withTempMockFederator' (mockUnreachableFor unreachables) $ do
+    let sendMocks =
+          messageSentMockByDomain [bobDomain]
+            <|> mlsMockUnreachableFor unreachables
+
+    withTempMockFederator' sendMocks $ do
       message <- createApplicationMessage alice1 "hi, bob!"
-      (_, us) <- sendAndConsumeMessage message
+      (_, ftp) <- sendAndConsumeMessage message
       liftIO $ do
         assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-        us @?= UnreachableUsers [charlie]
-  where
-    mockUnreachableFor :: Set Domain -> Mock LByteString
-    mockUnreachableFor backends = do
-      r <- getRequest
-      if Set.member (frTargetDomain r) backends
-        then throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
-        else mockReply ("RemoteMLSMessageOk" :: String)
+        ftp @?= unreachableFromList [charlie]
 
 testAppMessageUnreachable :: TestM ()
 testAppMessageUnreachable = do
@@ -1138,10 +1134,10 @@ testAppMessageUnreachable = do
         sendAndConsumeCommitBundle commit
 
     message <- createApplicationMessage alice1 "hi, bob!"
-    (_, us) <- sendAndConsumeMessage message
+    (_, ftp) <- sendAndConsumeMessage message
     liftIO $ do
       assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-      us @?= UnreachableUsers [bob]
+      ftp @?= unreachableFromList [bob]
 
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do
@@ -2084,7 +2080,7 @@ testAddUserToRemoteConvWithBundle = do
     commit <- createAddCommit bob1 [charlie]
     commitBundle <- createBundle commit
 
-    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers [])
+    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] mempty
     (_, reqs) <- withTempMockFederator' mock $ do
       void $ sendAndConsumeCommitBundle commit
 
@@ -2393,7 +2389,7 @@ testJoinRemoteSubConv = do
     -- bob joins subconversation
     let pgs = mpGroupInfo initialCommit
     let mock =
-          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers []))
+          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] mempty)
             <|> queryGroupStateMock (fold pgs) bob
             <|> sendMessageMock
     (_, reqs) <- withTempMockFederator' mock $ do
@@ -2873,7 +2869,7 @@ testDeleteRemoteParentOfSubConv = do
 
     let pgs = mpGroupInfo initialCommit
     let mock =
-          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers []))
+          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] mempty)
             <|> queryGroupStateMock (fold pgs) bob
             <|> sendMessageMock
     void $ withTempMockFederator' mock $ do
@@ -3143,7 +3139,7 @@ testLeaveRemoteSubConv = do
 
     let pgs = mpGroupInfo initialCommit
     let mock =
-          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers []))
+          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] mempty)
             <|> queryGroupStateMock (fold pgs) bob
             <|> sendMessageMock
             <|> ("leave-sub-conversation" ~> LeaveSubConversationResponseOk)

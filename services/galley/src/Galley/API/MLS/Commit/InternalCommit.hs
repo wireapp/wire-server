@@ -221,7 +221,7 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
     foldMap
       ( handleNoChanges
           . handleMLSProposalFailures @ProposalErrors
-          . fmap pure
+          . fmap (pure . fst)
           . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
           . flip ConversationJoin roleNameWireMember
       )
@@ -244,7 +244,7 @@ removeMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
     foldMap
       ( handleNoChanges
           . handleMLSProposalFailures @ProposalErrors
-          . fmap pure
+          . fmap (pure . fst)
           . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
       )
       . nonEmpty

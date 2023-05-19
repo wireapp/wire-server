@@ -60,7 +60,6 @@ import OpenSSL (withOpenSSL)
 import Options.Applicative hiding (action)
 import qualified SMTP
 import System.Environment (withArgs)
-import qualified System.Environment.Blank as Blank
 import qualified System.Logger as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -157,7 +156,6 @@ runTests iConf brigOpts otherArgs = do
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
   federationEnd2End <- Federation.End2end.spec brigOpts mg b g ch c f brigTwo galleyTwo ch2 cannonTwo
   federationEndpoints <- API.Federation.tests mg brigOpts b c fedBrigClient
-  includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
 
   let smtp = SMTP.tests mg lg
@@ -191,9 +189,9 @@ runTests iConf brigOpts otherArgs = do
         swaggerApi,
         mlsApi,
         smtp,
-        oauthAPI
+        oauthAPI,
+        federationEnd2End
       ]
-      <> [federationEnd2End | includeFederationTests]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
 

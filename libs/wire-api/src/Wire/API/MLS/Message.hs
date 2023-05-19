@@ -29,7 +29,6 @@ module Wire.API.MLS.Message
     FramedContentTBS (..),
     FramedContentAuthData (..),
     Sender (..),
-    UnreachableUsers (..),
 
     -- * Utilities
     verifyMessageSignature,
@@ -42,9 +41,7 @@ where
 import Control.Lens ((?~))
 import qualified Data.Aeson as A
 import Data.Binary
-import Data.Id
 import Data.Json.Util
-import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
 import GHC.Records
@@ -61,6 +58,7 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
+import Wire.API.Unreachable
 import Wire.Arbitrary
 
 data WireFormatTag
@@ -376,22 +374,10 @@ verifyMessageSignature ctx msgContent authData pubkey = isJust $ do
 --------------------------------------------------------------------------------
 -- Servant
 
-newtype UnreachableUsers = UnreachableUsers {unreachableUsers :: [Qualified UserId]}
-  deriving stock (Eq, Show)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema UnreachableUsers
-  deriving newtype (Semigroup, Monoid)
-
-instance ToSchema UnreachableUsers where
-  schema =
-    named "UnreachableUsers" $
-      UnreachableUsers
-        <$> unreachableUsers
-          .= array schema
-
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],
     mmssTime :: UTCTimeMillis,
-    mmssUnreachableUsers :: UnreachableUsers
+    mmssUnreachableUsers :: Maybe UnreachableUsers
   }
   deriving (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema MLSMessageSendingStatus
@@ -411,7 +397,9 @@ instance ToSchema MLSMessageSendingStatus where
             (description ?~ "The time of sending the message.")
             schema
         <*> mmssUnreachableUsers
-          .= fieldWithDocModifier
-            "failed_to_send"
-            (description ?~ "List of federated users who could not be reached and did not receive the message")
-            schema
+          .= maybe_
+            ( optFieldWithDocModifier
+                "failed_to_send"
+                (description ?~ "List of federated users who could not be reached and did not receive the message")
+                schema
+            )

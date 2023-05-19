@@ -70,6 +70,7 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.API.Unreachable
 
 -- FUTUREWORK
 -- - Check that the capabilities of a leaf node in an add proposal contains all
@@ -147,7 +148,7 @@ postMLSCommitBundle ::
   Qualified ConvOrSubConvId ->
   Maybe ConnId ->
   IncomingBundle ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSCommitBundle loc qusr c qConvOrSub conn bundle =
   foldQualified
     loc
@@ -188,7 +189,7 @@ postMLSCommitBundleToLocalConv ::
   Maybe ConnId ->
   IncomingBundle ->
   Local ConvOrSubConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr lConvOrSubId
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
@@ -243,7 +244,7 @@ postMLSCommitBundleToRemoteConv ::
   Maybe ConnId ->
   IncomingBundle ->
   Remote ConvOrSubConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSCommitBundleToRemoteConv loc qusr c con bundle rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
@@ -294,7 +295,7 @@ postMLSMessage ::
   Qualified ConvOrSubConvId ->
   Maybe ConnId ->
   IncomingMessage ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSMessage loc qusr c qconvOrSub con msg = do
   foldQualified
     loc
@@ -335,7 +336,7 @@ postMLSMessageToLocalConv ::
   Maybe ConnId ->
   IncomingMessage ->
   Local ConvOrSubConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSMessageToLocalConv qusr c con msg convOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr convOrSubId
 
@@ -368,7 +369,7 @@ postMLSMessageToRemoteConv ::
   Maybe ConnId ->
   IncomingMessage ->
   Remote ConvOrSubConvId ->
-  Sem r ([LocalConversationUpdate], UnreachableUsers)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr

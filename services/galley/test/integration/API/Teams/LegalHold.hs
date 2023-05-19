@@ -1074,7 +1074,7 @@ testNoConsentCannotBeInvited = do
       >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
     localdomain <- viewFederationDomain
-    API.Util.postQualifiedMembers userLHNotActivated (Qualified peer2 localdomain :| []) convId
+    API.Util.postQualifiedMembers userLHNotActivated (Qualified peer2 localdomain :| []) qconvId
       >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
 testCannotCreateGroupWithUsersInConflict :: HasCallStack => TestM ()

@@ -82,6 +82,7 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.API.Unreachable
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
@@ -142,7 +143,7 @@ remotePostCommitBundle ::
   Remote ClientIdentity ->
   Qualified ConvOrSubConvId ->
   ByteString ->
-  m [Event]
+  m ([Event], Maybe UnreachableUsers)
 remotePostCommitBundle rsender qcs bundle = do
   client <- view tsFedGalleyClient
   let msr =
@@ -167,20 +168,20 @@ remotePostCommitBundle rsender qcs bundle = do
       MLSMessageResponseProposalFailure e ->
         assertFailure $
           "proposal failure while receiving commit bundle: " <> displayException e
-      MLSMessageResponseUpdates _ _ -> pure []
+      MLSMessageResponseUpdates _ _ -> pure ([], mempty)
 
 postCommitBundle ::
   HasCallStack =>
   ClientIdentity ->
   Qualified ConvOrSubConvId ->
   ByteString ->
-  TestM [Event]
+  TestM ([Event], Maybe UnreachableUsers)
 postCommitBundle sender qcs bundle = do
   loc <- qualifyLocal ()
   foldQualified
     loc
     ( \_ ->
-        fmap mmssEvents . responseJsonError
+        fmap (mmssEvents &&& mmssUnreachableUsers) . responseJsonError
           =<< localPostCommitBundle sender bundle
             <!! const 201 === statusCode
     )
@@ -861,7 +862,7 @@ consumeMessage1 cid msg =
 
 -- | Send an MLS message and simulate clients receiving it. If the message is a
 -- commit, the 'sendAndConsumeCommit' function should be used instead.
-sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], UnreachableUsers)
+sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], Maybe UnreachableUsers)
 sendAndConsumeMessage mp = do
   for_ mp.mpWelcome $ \_ -> liftIO $ assertFailure "use sendAndConsumeCommitBundle"
   res <-
@@ -891,14 +892,17 @@ createBundle mp = do
       mkBundle mp
   pure (encodeMLS' bundle)
 
-sendAndConsumeCommitBundle ::
+sendAndConsumeCommitBundle :: HasCallStack => MessagePackage -> MLSTest [Event]
+sendAndConsumeCommitBundle = fmap fst . sendAndConsumeCommitBundleFederated
+
+sendAndConsumeCommitBundleFederated ::
   HasCallStack =>
   MessagePackage ->
-  MLSTest [Event]
-sendAndConsumeCommitBundle mp = do
+  MLSTest ([Event], Maybe UnreachableUsers)
+sendAndConsumeCommitBundleFederated mp = do
   qcs <- getConvId
   bundle <- createBundle mp
-  events <- liftTest $ postCommitBundle (mpSender mp) qcs bundle
+  resp <- liftTest $ postCommitBundle (mpSender mp) qcs bundle
   consumeMessage mp
   traverse_ consumeWelcome (mpWelcome mp)
 
@@ -910,7 +914,7 @@ sendAndConsumeCommitBundle mp = do
         mlsNewMembers = mempty
       }
 
-  pure events
+  pure resp
 
 mlsBracket ::
   HasCallStack =>
