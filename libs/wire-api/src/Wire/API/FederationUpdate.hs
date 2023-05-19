@@ -31,7 +31,7 @@ getAllowedDomainsInitial logger clientEnv =
         getAllowedDomains clientEnv >>= \case
           Right s -> pure $ Just s
           Left e -> do
-            L.log logger L.Info $
+            L.log logger L.Debug $
               L.msg (L.val "Could not retrieve an initial list of federation domains from Brig.")
                 L.~~ "error" L..= show e
             pure Nothing
