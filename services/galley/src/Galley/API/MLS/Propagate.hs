@@ -44,8 +44,8 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.Message
 import Wire.API.Message
+import Wire.API.Unreachable
 
 -- | Propagate a message.
 propagateMessage ::
@@ -60,7 +60,7 @@ propagateMessage ::
   ClientMap ->
   Maybe ConnId ->
   ByteString ->
-  Sem r UnreachableUsers
+  Sem r (Maybe UnreachableUsers)
 propagateMessage qusr lconv cm con raw = do
   -- FUTUREWORK: check the epoch
   let lmems = Data.convLocalMembers . tUnqualified $ lconv
@@ -80,7 +80,7 @@ propagateMessage qusr lconv cm con raw = do
     foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients lcnv)
 
   -- send to remotes
-  UnreachableUsers . concat
+  unreachableFromList . concat
     <$$> traverse handleError
     <=< runFederatedConcurrentlyEither (map remoteMemberQualify rmems)
     $ \(tUnqualified -> rs) ->

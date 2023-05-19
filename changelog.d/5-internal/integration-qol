@@ -1,0 +1,4 @@
+- Add convenience getJSON and getBody functions
+- baseRequest now adds Z headers automatically
+- Add liftIO versions of putStrLn etc
+- Add Show instances for MLSState

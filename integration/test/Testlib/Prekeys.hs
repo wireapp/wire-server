@@ -1,5 +1,7 @@
 module Testlib.Prekeys where
 
+import Prelude
+
 somePrekeys :: [String]
 somePrekeys =
   [ "pQABAQECoQBYIOjl7hw0D8YRNqkkBQETCxyr7/ywE/2R5RWcUPM+GJACA6EAoQBYILLf1TIwSB62q69Ojs/X1tzJ+dYHNAw4QbW/7TC5vSZqBPY=",

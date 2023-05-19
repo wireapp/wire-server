@@ -14,6 +14,7 @@ import System.FilePath
 import Testlib.JSON
 import Testlib.Printing
 import Testlib.Types
+import Prelude
 
 assertBool :: HasCallStack => String -> Bool -> App ()
 assertBool _ True = pure ()
@@ -46,7 +47,7 @@ a `shouldMatch` b = do
   unless (xa == xb) $ do
     pa <- prettyJSON xa
     pb <- prettyJSON xb
-    assertFailure $ "Expected:\n" <> pb <> "\n" <> "Actual:\n" <> pa
+    assertFailure $ "Actual:\n" <> pa <> "\nExpected:\n" <> pb
 
 shouldNotMatch ::
   (MakesValue a, MakesValue b, HasCallStack) =>
@@ -62,7 +63,12 @@ a `shouldNotMatch` b = do
   unless (jsonType xa == jsonType xb) $ do
     pa <- prettyJSON xa
     pb <- prettyJSON xb
-    assertFailure $ "Compared values are not of the same type:\n" <> "Left side:\n" <> pa <> "Right side:\n" <> pb
+    assertFailure $
+      "Compared values are not of the same type:\n"
+        <> "Left side:\n"
+        <> pa
+        <> "\nRight side:\n"
+        <> pb
 
   when (xa == xb) $ do
     pa <- prettyJSON xa
@@ -102,6 +108,13 @@ printFailureDetails (AssertionFailure stack mbResponse msg) = do
       : colored red msg
       : "\n" <> s
       : toList (fmap prettyResponse mbResponse)
+
+printExceptionDetails :: SomeException -> IO String
+printExceptionDetails e = do
+  pure . unlines $
+    [ colored yellow "exception:",
+      colored red (displayException e)
+    ]
 
 prettierCallStack :: CallStack -> IO String
 prettierCallStack cstack = do

@@ -99,11 +99,11 @@ endif
 ci: c db-migrate
 ifeq ("$(package)", "all")
     ifneq ("$(suite)", "new")
-		echo ./hack/bin/cabal-run-integration.sh all
+		./hack/bin/cabal-run-integration.sh all
     endif
     ifneq ("$(suite)", "old")
 		make c package=integration
-		echo ./hack/bin/cabal-run-integration.sh integration
+		./hack/bin/cabal-run-integration.sh integration
     endif
 else
   ifeq ("$(package)", "integration")
@@ -306,17 +306,13 @@ ifeq ($(package), all)
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --reset
 	./dist/spar-schema --keyspace spar_test --replication-factor 1 --reset
-ifeq ($(INTEGRATION_FEDERATION_TESTS), 1)
 	./dist/brig-schema --keyspace brig_test2 --replication-factor 1 --reset
 	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 --reset
 	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 --reset
 	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 --reset
-endif
 else
 	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1 --reset
-ifeq ($(INTEGRATION_FEDERATION_TESTS), 1)
 	$(EXE_SCHEMA) --keyspace $(package)_test2 --replication-factor 1 --reset
-endif
 endif
 	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 > /dev/null
 	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 > /dev/null
@@ -334,12 +330,10 @@ db-migrate: c
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 > /dev/null
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 > /dev/null
 	./dist/spar-schema --keyspace spar_test --replication-factor 1 > /dev/null
-ifeq ($(INTEGRATION_FEDERATION_TESTS), 1)
 	./dist/brig-schema --keyspace brig_test2 --replication-factor 1 > /dev/null
 	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 > /dev/null
 	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 > /dev/null
 	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 > /dev/null
-endif
 	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 > /dev/null
 	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 > /dev/null
 
@@ -401,16 +395,6 @@ kube-integration-teardown:
 .PHONY: kube-integration-e2e-telepresence
 kube-integration-e2e-telepresence:
 	./services/brig/federation-tests.sh $(NAMESPACE)
-
-.PHONY: kube-integration-setup-sans-federation
-kube-integration-setup-sans-federation: guard-tag charts-integration
-	# by default "test-<your computer username> is used as namespace
-	# you can override the default by setting the NAMESPACE environment variable
-	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup.sh
-
-.PHONY: kube-integration-teardown-sans-federation
-kube-integration-teardown-sans-federation:
-	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown.sh
 
 .PHONY: kube-restart-%
 kube-restart-%:
