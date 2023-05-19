@@ -74,6 +74,7 @@ import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Qualified
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
@@ -227,7 +228,16 @@ getFederationRemotes = lift $ do
     & pure
 
 updateFederationRemotes :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
-updateFederationRemotes = undefined
+updateFederationRemotes dom fedcfg = do
+  assertDomainIsNotUpdated dom fedcfg
+  assertNoDomainsFromConfigFiles dom
+  lift . wrapClient . Data.updateFederationRemote $ fedcfg
+
+assertDomainIsNotUpdated :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+assertDomainIsNotUpdated dom fedcfg = do
+  when (dom /= domain fedcfg) $
+    throwError . fedError . FederationUnexpectedError . cs $
+      "federation domain of a given peer cannot be changed from " <> show (domain fedcfg) <> " to " <> show dom <> "."
 
 -- | FUTUREWORK: should go away in the future; see 'getFederationRemotes'.
 assertNoDomainsFromConfigFiles :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()

@@ -18,6 +18,7 @@
 module Brig.Data.Federation
   ( getFederationRemotes,
     addFederationRemote,
+    updateFederationRemote,
     deleteFederationRemote,
     AddFederationRemoteResult (..),
   )
@@ -53,6 +54,13 @@ addFederationRemote (FederationDomainConfig rdom searchpolicy) = do
   where
     add :: PrepQuery W (Domain, FederatedUserSearchPolicy) ()
     add = "INSERT INTO federation_remotes (domain, search_policy) VALUES (?, ?)"
+
+updateFederationRemote :: MonadClient m => FederationDomainConfig -> m ()
+updateFederationRemote (FederationDomainConfig rdom spol) = do
+  retry x1 $ write upd (params LocalQuorum (spol, rdom))
+  where
+    upd :: PrepQuery W (FederatedUserSearchPolicy, Domain) ()
+    upd = "UPDATE federation_remotes SET search_policy = ? WHERE domain = ? IF EXISTS"
 
 deleteFederationRemote :: MonadClient m => Domain -> m ()
 deleteFederationRemote rdom =
