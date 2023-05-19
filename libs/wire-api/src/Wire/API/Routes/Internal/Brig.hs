@@ -431,7 +431,8 @@ type FederationRemotesAPI =
            )
     :<|> Named
            "delete-federation-remotes"
-           ( Description FederationRemotesAPIDeleteDescription
+           ( Description FederationRemotesAPIDescription
+               :> Description FederationRemotesAPIDeleteDescription
                :> "federation"
                :> "remotes"
                :> Capture "domain" Domain
@@ -439,12 +440,11 @@ type FederationRemotesAPI =
            )
 
 type FederationRemotesAPIDescription =
-  "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background."
+  "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "
 
 type FederationRemotesAPIDeleteDescription =
-  "WARNING!  If you remove a remote connection, all users from that remote will be removed from local conversations, and all \
-  \group conversations hosted by that remote will be removed from the local backend.  This cannot be reverted!  See \
-  \https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background."
+  "**WARNING!** If you remove a remote connection, all users from that remote will be removed from local conversations, and all \
+  \group conversations hosted by that remote will be removed from the local backend. This cannot be reverted! "
 
 swaggerDoc :: Swagger
 swaggerDoc =
