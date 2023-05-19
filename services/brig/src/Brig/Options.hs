@@ -543,12 +543,8 @@ data Settings = Settings
     -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
     -- It should also match the SRV DNS records under which other wire-server installations can find this backend:
     -- >>>   _wire-server-federator._tcp.<federationDomain>
-    -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
+    -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working.
     -- Remember to keep it the same in all services.
-    -- Example:
-    -- >>>  allowedDomains:
-    -- >>>    - wire.com
-    -- >>>    - example.com
     setFederationDomain :: !Domain,
     -- | See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
     -- default: AllowNone
