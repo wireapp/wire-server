@@ -43,6 +43,7 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import Stern.Types
+import Wire.API.OAuth
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import Wire.API.Routes.Named
@@ -379,6 +380,43 @@ type SternAPI =
                :> "meta-info"
                :> QueryParam' [Required, Strict, Description "A valid UserId"] "id" UserId
                :> Post '[JSON] UserMetaInfo
+           )
+    :<|> Named
+           "register-oauth-client"
+           ( Summary "Register an OAuth client"
+               :> "i"
+               :> "oauth"
+               :> "clients"
+               :> ReqBody '[JSON] OAuthClientConfig
+               :> Post '[JSON] OAuthClientCredentials
+           )
+    :<|> Named
+           "get-oauth-client"
+           ( Summary "Get OAuth client by id"
+               :> "i"
+               :> "oauth"
+               :> "clients"
+               :> Capture "id" OAuthClientId
+               :> Get '[JSON] OAuthClient
+           )
+    :<|> Named
+           "update-oauth-client"
+           ( Summary "Update OAuth client"
+               :> "i"
+               :> "oauth"
+               :> "clients"
+               :> Capture "id" OAuthClientId
+               :> ReqBody '[JSON] OAuthClientConfig
+               :> Post '[JSON] OAuthClient
+           )
+    :<|> Named
+           "delete-oauth-client"
+           ( Summary "Delete OAuth client"
+               :> "i"
+               :> "oauth"
+               :> "clients"
+               :> Capture "id" OAuthClientId
+               :> Delete '[JSON] ()
            )
 
 -------------------------------------------------------------------------------

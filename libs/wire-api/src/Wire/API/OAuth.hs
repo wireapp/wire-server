@@ -100,18 +100,18 @@ newtype OAuthApplicationName = OAuthApplicationName {unOAuthApplicationName :: R
 instance ToSchema OAuthApplicationName where
   schema = OAuthApplicationName <$> unOAuthApplicationName .= schema
 
-data RegisterOAuthClientRequest = RegisterOAuthClientRequest
+data OAuthClientConfig = OAuthClientConfig
   { applicationName :: OAuthApplicationName,
     redirectUrl :: RedirectUrl
   }
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform RegisterOAuthClientRequest)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RegisterOAuthClientRequest)
+  deriving (Arbitrary) via (GenericUniform OAuthClientConfig)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthClientConfig)
 
-instance ToSchema RegisterOAuthClientRequest where
+instance ToSchema OAuthClientConfig where
   schema =
-    object "RegisterOAuthClientRequest" $
-      RegisterOAuthClientRequest
+    object "OAuthClientConfig" $
+      OAuthClientConfig
         <$> applicationName .= fieldWithDocModifier "application_name" applicationNameDescription schema
         <*> (.redirectUrl) .= fieldWithDocModifier "redirect_url" redirectUrlDescription schema
     where

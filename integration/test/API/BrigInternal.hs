@@ -43,3 +43,30 @@ createUser domain cu = do
                  | cu.team
                ]
         )
+
+registerOAuthClient :: (HasCallStack, MakesValue user, MakesValue name, MakesValue url) => user -> name -> url -> App Response
+registerOAuthClient user name url = do
+  req <- baseRequest user Brig Unversioned "i/oauth/clients"
+  applicationName <- asString name
+  redirectUrl <- asString url
+  submit "POST" (req & addJSONObject ["application_name" .= applicationName, "redirect_url" .= redirectUrl])
+
+getOAuthClient :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> App Response
+getOAuthClient user cid = do
+  clientId <- objId cid
+  req <- baseRequest user Brig Unversioned $ "i/oauth/clients/" <> clientId
+  submit "GET" req
+
+updateOAuthClient :: (HasCallStack, MakesValue user, MakesValue cid, MakesValue name, MakesValue url) => user -> cid -> name -> url -> App Response
+updateOAuthClient user cid name url = do
+  clientId <- objId cid
+  req <- baseRequest user Brig Unversioned $ "i/oauth/clients/" <> clientId
+  applicationName <- asString name
+  redirectUrl <- asString url
+  submit "POST" (req & addJSONObject ["application_name" .= applicationName, "redirect_url" .= redirectUrl])
+
+deleteOAuthClient :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> App Response
+deleteOAuthClient user cid = do
+  clientId <- objId cid
+  req <- baseRequest user Brig Unversioned $ "i/oauth/clients/" <> clientId
+  submit "DELETE" req

@@ -31,6 +31,7 @@ import Data.Aeson (ToJSON, Value)
 import Data.ByteString.Conversion
 import Data.Handle
 import Data.Id
+import Data.Range (unsafeRange)
 import Data.Schema
 import qualified Data.Set as Set
 import Data.String.Conversions
@@ -42,6 +43,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
 import Util
+import Wire.API.OAuth (OAuthApplicationName (OAuthApplicationName), OAuthClientConfig (..), OAuthClientCredentials (..))
 import Wire.API.Properties (PropertyKey)
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
@@ -93,13 +95,33 @@ tests s =
       test s "GET /i/consent" testGetConsentLog,
       test s "GET /teams/:id" testGetTeamInfo,
       test s "GET i/user/meta-info?id=..." testGetUserMetaInfo,
-      test s "/teams/:tid/search-visibility" testSearchVisibility
+      test s "/teams/:tid/search-visibility" testSearchVisibility,
+      test s "i/oauth/clients" testCrudOAuthClient
       -- The following endpoints can not be tested because they require ibis:
       -- - `GET /teams/:tid/billing`
       -- - `GET /teams/:tid/invoice/:inr`
       -- - `PUT /teams/:tid/billing`
       -- - `POST /teams/:tid/billing`
     ]
+
+testCrudOAuthClient :: TestM ()
+testCrudOAuthClient = do
+  let url = fromMaybe (error "invalid url") . fromByteString $ "https://example.com"
+  let name = OAuthApplicationName (unsafeRange "foobar")
+  cred <- registerOAuthClient (OAuthClientConfig name url)
+  c <- getOAuthClient cred.clientId
+  liftIO $ do
+    c.applicationName @?= name
+    c.redirectUrl @?= url
+  let newName = OAuthApplicationName (unsafeRange "barfoo")
+  let newUrl = fromMaybe (error "invalid url") . fromByteString $ "https://example.org"
+  updateOAuthClient cred.clientId (OAuthClientConfig newName newUrl)
+  c' <- getOAuthClient cred.clientId
+  liftIO $ do
+    c'.applicationName @?= newName
+    c'.redirectUrl @?= newUrl
+  deleteOAuthClient cred.clientId
+  getOAuthClient' cred.clientId !!! const 404 === statusCode
 
 testSearchVisibility :: TestM ()
 testSearchVisibility = do
@@ -623,3 +645,30 @@ putUserProperty :: UserId -> PropertyKey -> Value -> TestM ()
 putUserProperty uid k v = do
   b <- view tsBrig
   void $ put (b . paths ["properties", toByteString' k] . json v . zUser uid . zConn "123" . expect2xx)
+
+registerOAuthClient :: OAuthClientConfig -> TestM OAuthClientCredentials
+registerOAuthClient cfg = do
+  s <- view tsStern
+  r <- post (s . paths ["i", "oauth", "clients"] . json cfg . expect2xx)
+  pure $ responseJsonUnsafe r
+
+getOAuthClient' :: OAuthClientId -> TestM ResponseLBS
+getOAuthClient' cid = do
+  s <- view tsStern
+  get (s . paths ["i", "oauth", "clients", toByteString' cid])
+
+getOAuthClient :: OAuthClientId -> TestM OAuthClientConfig
+getOAuthClient cid = do
+  s <- view tsStern
+  r <- get (s . paths ["i", "oauth", "clients", toByteString' cid] . expect2xx)
+  pure $ responseJsonUnsafe r
+
+updateOAuthClient :: OAuthClientId -> OAuthClientConfig -> TestM ()
+updateOAuthClient cid cfg = do
+  s <- view tsStern
+  void $ post (s . paths ["i", "oauth", "clients", toByteString' cid] . json cfg . expect2xx)
+
+deleteOAuthClient :: OAuthClientId -> TestM ()
+deleteOAuthClient cid = do
+  s <- view tsStern
+  void $ delete (s . paths ["i", "oauth", "clients", toByteString' cid] . expect2xx)
