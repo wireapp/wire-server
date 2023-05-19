@@ -50,8 +50,8 @@ readServiceConfig srv = do
 data Domain = OwnDomain | OtherDomain
 
 instance MakesValue Domain where
-  make OwnDomain = String . T.pack <$> asks (.domain1)
-  make OtherDomain = String . T.pack <$> asks (.domain2)
+  make OwnDomain = asks (String . T.pack . (.domain1))
+  make OtherDomain = asks (String . T.pack . (.domain2))
 
 -- | Run an action, `recoverAll`ing with exponential backoff (min step 8ms, total timeout
 -- ~15s).  Search this package for examples how to use it.
