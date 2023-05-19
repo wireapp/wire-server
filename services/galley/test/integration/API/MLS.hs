@@ -45,6 +45,7 @@ import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
+import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (Second), (#))
@@ -104,6 +105,7 @@ tests s =
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "send a stale commit" testStaleCommit,
           test s "add remote user to a conversation" testAddRemoteUser,
+          test s "add remote users to a conversation (some unreachable)" testAddRemotesSomeUnreachable,
           test s "return error when commit is locked" testCommitLock,
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
           test s "post commit that references an unknown proposal" testUnknownProposalRefCommit,
@@ -584,6 +586,40 @@ testAddRemoteUser = do
   liftIO $ do
     event <- assertOne events
     assertJoinEvent qcnv alice [bob] roleNameWireMember event
+
+testAddRemotesSomeUnreachable :: TestM ()
+testAddRemotesSomeUnreachable = do
+  let bobDomain = Domain "bob.example.com"
+      charlieDomain = Domain "charlie.example.com"
+  users@[alice, bob, charlie] <-
+    createAndConnectUsers $
+      domainText
+        <$$> [Nothing, Just bobDomain, Just charlieDomain]
+  runMLSTest $ do
+    [alice1, bob1, _charlie1] <- traverse createMLSClient users
+    (_, qcnv) <- setupMLSGroup alice1
+
+    commit <- createAddCommit alice1 [bob, charlie]
+    bundle <- createBundle commit
+    let unreachable = Set.singleton charlieDomain
+    (errRaw, _) <-
+      withTempMockFederator'
+        ( receiveCommitMockByDomain [bob1]
+            <|> mlsMockUnreachableFor unreachable
+            <|> welcomeMockByDomain [bobDomain]
+        )
+        $ localPostCommitBundle (mpSender commit) bundle
+
+    err <- responseJsonError errRaw
+    liftIO $ do
+      Wai.label err @?= "federation-unreachable-domains-error"
+      Wai.code err @?= HTTP.status503
+      Wai.message err @?= "The following domains are unreachable: [\"charlie.example.com\"]"
+
+    convAfter <- responseJsonError =<< getConvQualified (qUnqualified alice) qcnv
+    liftIO $ do
+      memId (cmSelf (cnvMembers convAfter)) @?= alice
+      cmOthers (cnvMembers convAfter) @?= []
 
 testCommitLock :: TestM ()
 testCommitLock = do
