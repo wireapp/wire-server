@@ -78,7 +78,7 @@ run o = do
   refreshMetricsThread <- Async.async $ runCannon' e refreshMetrics
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) m (Just idleTimeout)
 
-  -- Get the federaion domain list from Brig and start the updater loop
+  -- Get the federation domain list from Brig and start the updater loop
   manager <- newManager defaultManagerSettings
   let Brig bh bp = o ^. brig
       baseUrl = BaseUrl Http (unpack bh) (fromIntegral bp) ""

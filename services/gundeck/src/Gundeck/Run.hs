@@ -68,7 +68,7 @@ run o = do
   s <- newSettings $ defaultServer (unpack $ o ^. optGundeck . epHost) (o ^. optGundeck . epPort) l m
   let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (optSettings . setSqsThrottleMillis)
 
-  -- Get the federaion domain list from Brig and start the updater loop
+  -- Get the federation domain list from Brig and start the updater loop
   mgr <- newManager defaultManagerSettings
   let Endpoint host port = o ^. optBrig
       baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
