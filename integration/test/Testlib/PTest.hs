@@ -1,9 +1,6 @@
 module Testlib.PTest where
 
-import Data.Aeson (Value (..))
-import qualified Data.Text as T
 import Testlib.App
-import Testlib.JSON
 import Testlib.Types
 import Prelude
 
@@ -14,12 +11,6 @@ class HasTests x where
 
 instance HasTests (App ()) where
   mkTests m n s f x = [(m, n, s, f, x)]
-
-data Domain = OwnDomain | OtherDomain
-
-instance MakesValue Domain where
-  make OwnDomain = String . T.pack <$> ownDomain
-  make OtherDomain = String . T.pack <$> otherDomain
 
 instance HasTests x => HasTests (Domain -> x) where
   mkTests m n s f x =

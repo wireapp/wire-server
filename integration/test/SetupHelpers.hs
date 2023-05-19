@@ -25,7 +25,7 @@ createTeam domain = do
   -- refreshIndex
   pure (user, tid)
 
-connectUsers ::
+connectUsers2 ::
   ( HasCallStack,
     MakesValue alice,
     MakesValue bob
@@ -33,19 +33,21 @@ connectUsers ::
   alice ->
   bob ->
   App ()
-connectUsers alice bob = do
+connectUsers2 alice bob = do
   bindResponse (Public.postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
   bindResponse (Public.putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
+
+connectUsers :: HasCallStack => [Value] -> App ()
+connectUsers users = traverse_ (uncurry connectUsers2) $ do
+  t <- tails users
+  (a, others) <- maybeToList (uncons t)
+  b <- others
+  pure (a, b)
 
 createAndConnectUsers :: (HasCallStack, MakesValue domain) => [domain] -> App [Value]
 createAndConnectUsers domains = do
   users <- for domains (flip randomUser def)
-  let userPairs = do
-        t <- tails users
-        (a, others) <- maybeToList (uncons t)
-        b <- others
-        pure (a, b)
-  for_ userPairs (uncurry connectUsers)
+  connectUsers users
   pure users
 
 getAllConvs :: (HasCallStack, MakesValue u) => u -> App [Value]

@@ -13,12 +13,21 @@ import Testlib.Prelude
 
 testMixedProtocolUpgrade :: HasCallStack => Domain -> App ()
 testMixedProtocolUpgrade secondDomain = do
-  [alice, bob, charlie] <- do
-    d <- ownDomain
-    d2 <- secondDomain & asString
-    createAndConnectUsers [d, d2, d2]
+  (alice, tid) <- createTeam OwnDomain
+  [bob, charlie] <- replicateM 2 (randomUser secondDomain def)
+  connectUsers [alice, bob, charlie]
 
-  qcnv <- postConversation alice defProteus {qualifiedUsers = [bob, charlie]} >>= getJSON 201
+  qcnv <-
+    postConversation
+      alice
+      defProteus
+        { qualifiedUsers = [bob, charlie],
+          team = Just tid
+        }
+      >>= getJSON 201
+
+  bindResponse (putConversationProtocol bob qcnv "mls") $ \resp -> do
+    resp.status `shouldMatchInt` 403
 
   withWebSockets [alice, charlie] $ \websockets -> do
     bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
@@ -37,14 +46,31 @@ testMixedProtocolUpgrade secondDomain = do
   bindResponse (putConversationProtocol alice qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 204
 
+  bindResponse (putConversationProtocol bob qcnv "proteus") $ \resp -> do
+    resp.status `shouldMatchInt` 403
+
+  bindResponse (putConversationProtocol bob qcnv "invalid") $ \resp -> do
+    resp.status `shouldMatchInt` 400
+
+testMixedProtocolNonTeam :: HasCallStack => Domain -> App ()
+testMixedProtocolNonTeam secondDomain = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, secondDomain]
+  qcnv <-
+    postConversation alice defProteus {qualifiedUsers = [bob]}
+      >>= getJSON 201
+
+  bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
+    resp.status `shouldMatchInt` 403
+
 testMixedProtocolAddUsers :: HasCallStack => Domain -> App ()
 testMixedProtocolAddUsers secondDomain = do
-  [alice, bob] <- do
-    d <- ownDomain
-    d2 <- secondDomain & asString
-    createAndConnectUsers [d, d2]
+  (alice, tid) <- createTeam OwnDomain
+  [bob, charlie] <- replicateM 2 (randomUser secondDomain def)
+  connectUsers [alice, bob, charlie]
 
-  qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+  qcnv <-
+    postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
+      >>= getJSON 201
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -67,9 +93,13 @@ testMixedProtocolAddUsers secondDomain = do
 
 testMixedProtocolUserLeaves :: HasCallStack => Domain -> App ()
 testMixedProtocolUserLeaves secondDomain = do
-  [alice, bob] <- createAndConnectUsers [ownDomain, secondDomain & asString]
+  (alice, tid) <- createTeam OwnDomain
+  bob <- randomUser secondDomain def
+  connectUsers [alice, bob]
 
-  qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+  qcnv <-
+    postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
+      >>= getJSON 201
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -98,9 +128,13 @@ testMixedProtocolUserLeaves secondDomain = do
 
 testMixedProtocolAddPartialClients :: HasCallStack => Domain -> App ()
 testMixedProtocolAddPartialClients secondDomain = do
-  [alice, bob] <- createAndConnectUsers [ownDomain, secondDomain & asString]
+  (alice, tid) <- createTeam OwnDomain
+  bob <- randomUser secondDomain def
+  connectUsers [alice, bob]
 
-  qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+  qcnv <-
+    postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
+      >>= getJSON 201
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -122,20 +156,24 @@ testMixedProtocolAddPartialClients secondDomain = do
     void $ sendAndConsumeCommitBundle mp
 
   -- this tests that bob's backend has a mapping of group id to the remote conv
-  -- this test is only interesting when bob is on otherDomain
+  -- this test is only interesting when bob is on OtherDomain
   do
     bundle <- claimKeyPackages bob1 bob >>= getJSON 200
     kps <- unbundleKeyPackages bundle
     kp2 <- assertOne (filter ((== bob2) . fst) kps)
     mp <- createAddCommitWithKeyPackages bob1 [kp2]
-    isBobRemote <- secondDomain `isEqual` otherDomain
+    isBobRemote <- secondDomain `isEqual` OtherDomain
     void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON (if isBobRemote then 404 else 201)
 
 testMixedProtocolRemovePartialClients :: HasCallStack => Domain -> App ()
 testMixedProtocolRemovePartialClients secondDomain = do
-  [alice, bob] <- createAndConnectUsers [ownDomain, secondDomain & asString]
+  (alice, tid) <- createTeam OwnDomain
+  bob <- randomUser secondDomain def
+  connectUsers [alice, bob]
 
-  qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+  qcnv <-
+    postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
+      >>= getJSON 201
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -154,9 +192,13 @@ testMixedProtocolRemovePartialClients secondDomain = do
 
 testMixedProtocolAppMessagesAreDenied :: HasCallStack => Domain -> App ()
 testMixedProtocolAppMessagesAreDenied secondDomain = do
-  [alice, bob] <- createAndConnectUsers [ownDomain, secondDomain & asString]
+  (alice, tid) <- createTeam OwnDomain
+  bob <- randomUser secondDomain def
+  connectUsers [alice, bob]
 
-  qcnv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+  qcnv <-
+    postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
+      >>= getJSON 201
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -173,7 +215,7 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
 
   mp <- createApplicationMessage bob1 "hello, world"
   bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
-    isBobRemote <- secondDomain `isEqual` otherDomain
+    isBobRemote <- secondDomain `isEqual` OtherDomain
     if isBobRemote
       then do
         resp.status `shouldMatchInt` 404
@@ -184,7 +226,7 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
 
 testAddUser :: HasCallStack => App ()
 testAddUser = do
-  [alice, bob] <- createAndConnectUsers [ownDomain, ownDomain]
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
 
   [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
 
@@ -214,7 +256,7 @@ testAddUser = do
 
 testCreateSubConv :: HasCallStack => App ()
 testCreateSubConv = do
-  alice <- randomUser ownDomain def
+  alice <- randomUser OwnDomain def
   alice1 <- createMLSClient alice
   (_, conv) <- createNewGroup alice1
   bindResponse (getSubConversation alice conv "conference") $ \resp -> do
@@ -224,7 +266,7 @@ testCreateSubConv = do
 
 testCreateSubConvProteus :: App ()
 testCreateSubConvProteus = do
-  alice <- randomUser ownDomain def
+  alice <- randomUser OwnDomain def
   conv <- bindResponse (postConversation alice defProteus) $ \resp -> do
     resp.status `shouldMatchInt` 201
     resp.json
@@ -236,7 +278,7 @@ testCreateSubConvProteus = do
 -- commits are used.
 testSelfConversation :: App ()
 testSelfConversation = do
-  alice <- randomUser ownDomain def
+  alice <- randomUser OwnDomain def
   creator : others <- traverse createMLSClient (replicate 3 alice)
   traverse_ uploadNewKeyPackage others
   void $ createSelfGroup creator
@@ -254,7 +296,7 @@ testSelfConversation = do
 
 testJoinSubConv :: App ()
 testJoinSubConv = do
-  [alice, bob] <- createAndConnectUsers [ownDomain, ownDomain]
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
   traverse_ uploadNewKeyPackage [bob1, bob2]
   (_, qcnv) <- createNewGroup alice1
@@ -282,7 +324,7 @@ testJoinSubConv = do
 -- | FUTUREWORK: Don't allow partial adds, not even in the first commit
 testFirstCommitAllowsPartialAdds :: HasCallStack => App ()
 testFirstCommitAllowsPartialAdds = do
-  alice <- randomUser ownDomain def
+  alice <- randomUser OwnDomain def
 
   [alice1, alice2, alice3] <- traverse createMLSClient [alice, alice, alice]
   traverse_ uploadNewKeyPackage [alice1, alice2, alice2, alice3, alice3]
@@ -300,7 +342,7 @@ testFirstCommitAllowsPartialAdds = do
 
 testAddUserPartial :: HasCallStack => App ()
 testAddUserPartial = do
-  [alice, bob, charlie] <- createAndConnectUsers (replicate 3 ownDomain)
+  [alice, bob, charlie] <- createAndConnectUsers (replicate 3 OwnDomain)
 
   -- Bob has 3 clients, Charlie has 2
   alice1 <- createMLSClient alice
@@ -328,7 +370,7 @@ testAddUserPartial = do
 -- | admin removes user from a conversation but doesn't list all clients
 testRemoveClientsIncomplete :: HasCallStack => App ()
 testRemoveClientsIncomplete = do
-  [alice, bob] <- createAndConnectUsers [ownDomain, ownDomain]
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
 
   [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
   traverse_ uploadNewKeyPackage [bob1, bob2]

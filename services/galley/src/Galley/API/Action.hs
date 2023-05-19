@@ -400,17 +400,17 @@ performAction tag origUser lconv action = do
       (bm, act) <- performConversationAccessData origUser lconv action
       pure (bm, act)
     SConversationUpdateProtocolTag -> do
-      case (protocolTag (convProtocol (tUnqualified lconv)), action) of
-        (ProtocolProteusTag, ProtocolMixedTag) -> do
+      case (protocolTag (convProtocol (tUnqualified lconv)), action, convTeam (tUnqualified lconv)) of
+        (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
           E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
           pure (mempty, action)
-        (ProtocolProteusTag, ProtocolProteusTag) ->
+        (ProtocolProteusTag, ProtocolProteusTag, _) ->
           noChanges
-        (ProtocolMixedTag, ProtocolMixedTag) ->
+        (ProtocolMixedTag, ProtocolMixedTag, _) ->
           noChanges
-        (ProtocolMLSTag, ProtocolMLSTag) ->
+        (ProtocolMLSTag, ProtocolMLSTag, _) ->
           noChanges
-        (_, _) -> throwS @'ConvInvalidProtocolTransition
+        (_, _, _) -> throwS @'ConvInvalidProtocolTransition
 
 performConversationJoin ::
   ( HasConversationActionEffects 'ConversationJoinTag r

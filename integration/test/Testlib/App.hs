@@ -4,6 +4,7 @@ import Control.Monad.Reader
 import qualified Control.Retry as Retry
 import Data.Aeson hiding ((.=))
 import Data.IORef
+import qualified Data.Text as T
 import qualified Data.Yaml as Yaml
 import GHC.Exception
 import System.FilePath
@@ -46,11 +47,11 @@ readServiceConfig srv = do
     Left err -> failApp ("Error while parsing " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err)
     Right value -> pure value
 
-ownDomain :: App String
-ownDomain = asks (.domain1)
+data Domain = OwnDomain | OtherDomain
 
-otherDomain :: App String
-otherDomain = asks (.domain2)
+instance MakesValue Domain where
+  make OwnDomain = String . T.pack <$> asks (.domain1)
+  make OtherDomain = String . T.pack <$> asks (.domain2)
 
 -- | Run an action, `recoverAll`ing with exponential backoff (min step 8ms, total timeout
 -- ~15s).  Search this package for examples how to use it.
