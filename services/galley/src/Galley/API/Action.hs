@@ -215,7 +215,8 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
   HasConversationActionEffects 'ConversationUpdateProtocolTag r =
     ( Member ConversationStore r,
       Member (ErrorS 'ConvInvalidProtocolTransition) r,
-      Member (Error NoChanges) r
+      Member (Error NoChanges) r,
+      Member FederatorAccess r
     )
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
@@ -402,7 +403,14 @@ performAction tag origUser lconv action = do
     SConversationUpdateProtocolTag -> do
       case (protocolTag (convProtocol (tUnqualified lconv)), action, convTeam (tUnqualified lconv)) of
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
-          E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+          mls <- E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+          E.runFederatedConcurrently_ (map rmId (convRemoteMembers conv)) $ \_ -> do
+            void $
+              fedClient @'Galley @"on-new-remote-conversation" $
+                NewRemoteConversation
+                  { nrcConvId = convId conv,
+                    nrcProtocol = ProtocolMixed mls
+                  }
           pure (mempty, action)
         (ProtocolProteusTag, ProtocolProteusTag, _) ->
           noChanges

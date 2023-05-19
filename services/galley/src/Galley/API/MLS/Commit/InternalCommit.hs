@@ -89,9 +89,6 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
     throwS @'MLSCommitMissingReferences
 
   withCommitLock (fmap (.id) lConvOrSub) (cnvmlsGroupId convOrSub.meta) epoch $ do
-    -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
-    foldQualified lConvOrSub (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
-
     -- no client can be directly added to a subconversation
     when (is _SubConv convOrSub && any ((senderIdentity /=) . fst) (cmAssocs (paAdd action))) $
       throw (mlsProtocolError "Add proposals in subconversations are not supported")

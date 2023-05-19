@@ -162,8 +162,7 @@ testMixedProtocolAddPartialClients secondDomain = do
     kps <- unbundleKeyPackages bundle
     kp2 <- assertOne (filter ((== bob2) . fst) kps)
     mp <- createAddCommitWithKeyPackages bob1 [kp2]
-    isBobRemote <- secondDomain `isEqual` OtherDomain
-    void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON (if isBobRemote then 404 else 201)
+    void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 
 testMixedProtocolRemovePartialClients :: HasCallStack => Domain -> App ()
 testMixedProtocolRemovePartialClients secondDomain = do
@@ -215,14 +214,8 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
 
   mp <- createApplicationMessage bob1 "hello, world"
   bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
-    isBobRemote <- secondDomain `isEqual` OtherDomain
-    if isBobRemote
-      then do
-        resp.status `shouldMatchInt` 404
-        resp.json %. "label" `shouldMatch` "no-conversation"
-      else do
-        resp.status `shouldMatchInt` 422
-        resp.json %. "label" `shouldMatch` "mls-unsupported-message"
+    resp.status `shouldMatchInt` 422
+    resp.json %. "label" `shouldMatch` "mls-unsupported-message"
 
 testAddUser :: HasCallStack => App ()
 testAddUser = do

@@ -208,7 +208,7 @@ onNewRemoteConversation ::
   Sem r EmptyResponse
 onNewRemoteConversation domain nrc = do
   -- update group_id -> conv_id mapping
-  for_ (preview (to F.nrcProtocol . _ProtocolMLS) nrc) $ \mls ->
+  for_ (preview (to F.nrcProtocol . conversationMLSData) nrc) $ \mls ->
     E.setGroupIdForConversation
       (cnvmlsGroupId mls)
       (Qualified (F.nrcConvId nrc) domain)

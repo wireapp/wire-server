@@ -445,14 +445,22 @@ updateToMixedProtocol ::
     r =>
   Local ConvId ->
   CipherSuiteTag ->
-  Sem r ()
-updateToMixedProtocol lcnv cs =
+  Sem r ConversationMLSData
+updateToMixedProtocol lcnv cs = do
+  let gid = convToGroupId lcnv
+      epoch = Epoch 0
   embedClient . retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
-    let gid = convToGroupId lcnv
     addPrepQuery Cql.insertGroupIdForConversation (gid, tUnqualified lcnv, tDomain lcnv)
-    addPrepQuery Cql.updateToMixedConv (tUnqualified lcnv, ProtocolMixedTag, gid, Epoch 0, cs)
+    addPrepQuery Cql.updateToMixedConv (tUnqualified lcnv, ProtocolMixedTag, gid, epoch, cs)
+  pure
+    ConversationMLSData
+      { cnvmlsGroupId = gid,
+        cnvmlsEpoch = epoch,
+        cnvmlsEpochTimestamp = Nothing,
+        cnvmlsCipherSuite = cs
+      }
 
 interpretConversationStoreToCassandra ::
   ( Member (Embed IO) r,
