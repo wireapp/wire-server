@@ -229,14 +229,18 @@ getFederationRemotes = lift $ do
 updateFederationRemotes :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 updateFederationRemotes = undefined
 
-deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
-deleteFederationRemotes dom = do
+-- | FUTUREWORK: should go away in the future; see 'getFederationRemotes'.
+assertNoDomainsFromConfigFiles :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
+assertNoDomainsFromConfigFiles dom = do
   cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
   when (dom `elem` (domain <$> cfg)) $ do
-    -- FUTUREWORK: see 'getFederationRemotes'.
     throwError . fedError . FederationUnexpectedError $
       "keeping track of remote domains in the brig config file is deprecated, but as long as we \
-      \do that, removing items listed in the config file is not allowed."
+      \do that, removing or updating items listed in the config file is not allowed."
+
+deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
+deleteFederationRemotes dom = do
+  assertNoDomainsFromConfigFiles dom
   lift . wrapClient . Data.deleteFederationRemote $ dom
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
