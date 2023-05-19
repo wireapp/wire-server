@@ -15,7 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.Commit.InternalCommit (processInternalCommit) where
+module Galley.API.MLS.Commit.InternalCommit
+  ( InternalCommitOutcome (..),
+    processInternalCommit,
+  )
+where
 
 import Control.Comonad
 import Control.Error.Util (hush)
@@ -60,6 +64,12 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
 import Wire.API.User.Client
 
+data InternalCommitOutcome = InternalCommitOutcome
+  { updates :: [LocalConversationUpdate],
+    successfullyAdded :: [ClientIdentity],
+    failedToProcess :: FailedToProcess
+  }
+
 processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
@@ -77,7 +87,7 @@ processInternalCommit ::
   Epoch ->
   ProposalAction ->
   Commit ->
-  Sem r ([LocalConversationUpdate], [ClientIdentity], FailedToProcess)
+  Sem r InternalCommitOutcome
 processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
   let convOrSub = tUnqualified lConvOrSub
       qusr = cidQualifiedUser senderIdentity
@@ -250,7 +260,12 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
     -- increment epoch number
     for_ lConvOrSub incrementEpoch
 
-    pure (events, addedClients, failedToProcess)
+    pure $
+      InternalCommitOutcome
+        { updates = events,
+          successfullyAdded = addedClients,
+          failedToProcess = failedToProcess
+        }
   where
     onlyJoining :: Event -> [Qualified UserId]
     onlyJoining (evtData -> EdMembersJoin ms) = smQualifiedId <$> mMembers ms

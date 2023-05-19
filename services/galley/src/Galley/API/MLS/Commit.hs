@@ -19,6 +19,7 @@ module Galley.API.MLS.Commit
   ( getCommitData,
     getExternalCommitData,
     processInternalCommit,
+    InternalCommitOutcome (..),
     processExternalCommit,
   )
 where

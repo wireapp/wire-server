@@ -195,35 +195,38 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr lConvOrSubId
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
-  (events, newClients, failedToProcess) <- case bundle.sender of
-    SenderMember _index -> do
-      action <- getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
-      (events, addedClients, failedToProcess) <-
-        processInternalCommit
-          senderIdentity
-          conn
-          lConvOrSub
-          bundle.epoch
-          action
-          bundle.commit.value
-      pure (events, addedClients, failedToProcess)
-    SenderExternal _ -> throw (mlsProtocolError "Unexpected sender")
-    SenderNewMemberProposal -> throw (mlsProtocolError "Unexpected sender")
-    SenderNewMemberCommit -> do
-      action <- getExternalCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
-      processExternalCommit
-        senderIdentity
-        lConvOrSub
-        bundle.epoch
-        action
-        bundle.commit.value.path
-      pure ([], [], mempty)
+  (events, newClients, failedToProcess) <-
+    unpack <$> case bundle.sender of
+      SenderMember _index -> do
+        action <- getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
+        Left
+          <$> processInternalCommit
+            senderIdentity
+            conn
+            lConvOrSub
+            bundle.epoch
+            action
+            bundle.commit.value
+      SenderExternal _ -> throw (mlsProtocolError "Unexpected sender")
+      SenderNewMemberProposal -> throw (mlsProtocolError "Unexpected sender")
+      SenderNewMemberCommit -> do
+        action <- getExternalCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
+        Right
+          <$> processExternalCommit
+            senderIdentity
+            lConvOrSub
+            bundle.epoch
+            action
+            bundle.commit.value.path
 
   storeGroupInfo (tUnqualified lConvOrSub).id bundle.groupInfo
 
   unreachables <- propagateMessage qusr lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
   traverse_ (sendWelcomes lConvOrSub conn newClients) bundle.welcome
   pure (events, failedToProcess <> failedToSendMaybe unreachables)
+  where
+    unpack (Left (InternalCommitOutcome updates nc ftp)) = (updates, nc, ftp)
+    unpack (Right ()) = ([], [], mempty)
 
 postMLSCommitBundleToRemoteConv ::
   ( Members MLSBundleStaticErrors r,
