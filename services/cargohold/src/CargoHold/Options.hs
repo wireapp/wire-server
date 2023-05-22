@@ -148,7 +148,7 @@ data Opts = Opts
   { -- | Hostname and port to bind to
     _optCargohold :: !Endpoint,
     _optAws :: !AWSOpts,
-    _optMultiIngress :: !(Map String AWSEndpoint),
+    _optMultiIngress :: !(Maybe (Map String AWSEndpoint)),
     _optSettings :: !Settings,
     -- | Federator endpoint
     _optFederator :: Maybe Endpoint,
