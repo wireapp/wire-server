@@ -189,6 +189,7 @@ federationRemotesAPI =
 
 addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 addFederationRemote fedDomConf = do
+  assertNoDivergingDomainInConfigFiles fedDomConf
   result <- lift . wrapClient $ Data.addFederationRemote fedDomConf
   case result of
     Data.AddFederationRemoteSuccess -> pure ()
@@ -196,6 +197,34 @@ addFederationRemote fedDomConf = do
       throwError . fedError . FederationUnexpectedError $
         "Maximum number of remote backends reached.  If you need to create more connections, \
         \please contact wire.com."
+
+-- | If remote domain is registered in config file, the version that can be added to the
+-- database must be the same.
+assertNoDivergingDomainInConfigFiles :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+assertNoDivergingDomainInConfigFiles fedComConf = do
+  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
+  let dict = Map.fromListWith merge keyvals
+        where
+          merge c c' =
+            if c == c'
+              then c
+              else error $ "error in config file: conflicting parameters on domain: " <> show (c, c')
+
+          keyvals = [(domain cnf, cnf) | cnf <- cfg]
+  let diverges = case Map.lookup (domain fedComConf) dict of
+        Nothing -> False
+        Just fedComConf' -> fedComConf' /= fedComConf
+  when diverges $ do
+    throwError . fedError . FederationUnexpectedError $
+      "keeping track of remote domains in the brig config file is deprecated, but as long as we \
+      \do that, adding a domain with different settings than in the config file is nto allowed.  want "
+        <> ( "Just "
+               <> cs (show fedComConf)
+               <> "or Nothing, "
+           )
+        <> ( "got "
+               <> cs (show (Map.lookup (domain fedComConf) dict))
+           )
 
 getFederationRemotes :: ExceptT Brig.API.Error.Error (AppT r) FederationDomainConfigs
 getFederationRemotes = lift $ do
