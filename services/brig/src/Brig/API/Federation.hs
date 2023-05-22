@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.Federation (federationSitemap, FederationAPI, checkFederationStatus) where
+module Brig.API.Federation (federationSitemap, FederationAPI) where
 
 import qualified Brig.API.Client as API
 import Brig.API.Connection.Remote (performRemoteAction)
@@ -45,9 +45,9 @@ import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set ((\\))
 import qualified Gundeck.Types.Push as Push
-import Imports
+import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
 import Polysemy.Input
@@ -95,13 +95,7 @@ federationSitemap =
 getFederationStatus :: Member (Input (Set Domain)) r => Domain -> DomainSet -> Handler r FederationStatusResponse
 getFederationStatus _ request = do
   fedDomains <- lift $ liftSem $ input @(Set Domain)
-  pure $ FederationStatusResponse (checkFederationStatus fedDomains request.dsDomains)
-
-checkFederationStatus :: Set Domain -> Set Domain -> FederationStatus
-checkFederationStatus federatingDomains domainsToCheck =
-  if domainsToCheck `Set.isSubsetOf` federatingDomains
-    then Connected
-    else NotConnected
+  pure $ FederationStatusResponse (DomainSet $ request.dsDomains \\ fedDomains)
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do

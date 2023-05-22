@@ -408,7 +408,6 @@ mkDerivation {
     uri-bytestring
     uuid
     wire-api
-    wire-api-federation
   ];
   description = "User Service";
   license = lib.licenses.agpl3Only;

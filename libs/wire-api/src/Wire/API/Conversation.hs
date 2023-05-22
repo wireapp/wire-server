@@ -950,8 +950,9 @@ instance ToSchema FederationStatus where
           element "non-fully-connected" NonFullyConnected
         ]
 
-newtype FederationStatusResponse = FederationStatusResponse
-  { status :: FederationStatus
+data FederationStatusResponse = FederationStatusResponse
+  { status :: FederationStatus,
+    notConnected :: Maybe RemoteDomains
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform FederationStatusResponse)
@@ -961,9 +962,10 @@ instance ToSchema FederationStatusResponse where
   schema =
     objectWithDocModifier
       "FederationStatusResponse"
-      (description ?~ "The federation status of remote domains. Either `fully-connected` or `non-fully-connected`")
+      (description ?~ "The federation status of remote domains. Either `fully-connected` or `non-fully-connected`. If `non-fully-connected`, the `not_connected` field will contain a non-exhaustive list of remote domains that are not fully connected.")
       $ FederationStatusResponse
         <$> status .= field "status" schema
+        <*> notConnected .= maybe_ (optField "not_connected" schema)
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

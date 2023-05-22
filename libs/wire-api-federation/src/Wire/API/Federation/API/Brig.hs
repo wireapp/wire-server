@@ -80,12 +80,8 @@ newtype DomainSet = DomainSet
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded DomainSet)
 
-data FederationStatus = Connected | NotConnected
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded FederationStatus)
-
 newtype FederationStatusResponse = FederationStatusResponse
-  { status :: FederationStatus
+  { notConnectedTo :: DomainSet
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded FederationStatusResponse)

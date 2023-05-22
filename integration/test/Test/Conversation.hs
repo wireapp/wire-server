@@ -22,15 +22,15 @@ testFederationStatus = do
   bindResponse
     (API.getFederationStatus uid [unknownDomain])
     ( \resp -> do
-        resp.status `shouldMatchInt` 200
-        resp.json %. "status" `shouldMatch` "non-fully-connected"
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "discovery-failure"
     )
 
   bindResponse
     (API.getFederationStatus uid [invalidDomain])
     ( \resp -> do
-        resp.status `shouldMatchInt` 200
-        resp.json %. "status" `shouldMatch` "non-fully-connected"
+        resp.status `shouldMatchInt` 422
+        resp.json %. "label" `shouldMatch` "invalid-domain"
     )
 
   bindResponse
@@ -43,6 +43,6 @@ testFederationStatus = do
   bindResponse
     (API.getFederationStatus uid [federatingRemoteDomain, unknownDomain])
     ( \resp -> do
-        resp.status `shouldMatchInt` 200
-        resp.json %. "status" `shouldMatch` "non-fully-connected"
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "discovery-failure"
     )

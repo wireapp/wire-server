@@ -21,7 +21,6 @@ module Main
 where
 
 import Imports
-import qualified Test.Brig.API.Federation
 import qualified Test.Brig.Calling
 import qualified Test.Brig.Calling.Internal
 import qualified Test.Brig.InternalNotification
@@ -40,6 +39,5 @@ main =
         Test.Brig.Calling.Internal.tests,
         Test.Brig.Roundtrip.tests,
         Test.Brig.MLS.tests,
-        Test.Brig.InternalNotification.tests,
-        Test.Brig.API.Federation.tests
+        Test.Brig.InternalNotification.tests
       ]

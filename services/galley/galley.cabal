@@ -731,6 +731,7 @@ test-suite galley-tests
     Paths_galley
     Test.Galley.API.Message
     Test.Galley.API.One2One
+    Test.Galley.API.Query
     Test.Galley.Intra.User
     Test.Galley.Mapping
 

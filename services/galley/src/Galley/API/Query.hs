@@ -38,18 +38,20 @@ module Galley.API.Query
     ensureConvAdmin,
     getMLSSelfConversation,
     getMLSSelfConversationWithError,
+    firstConflictOrFullyConnected,
   )
 where
 
 import qualified Cassandra as C
+import Control.Error (headMay)
 import Control.Lens
-import Control.Monad.Extra (allM, ifM)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
 import qualified Data.Map as Map
+import Data.Maybe
 import Data.Proxy
 import Data.Qualified
 import Data.Range
@@ -104,13 +106,31 @@ import Wire.API.Team.Feature as Public hiding (setStatus)
 import Wire.Sem.Paging.Cassandra
 
 getFederationStatus :: Member FederatorAccess r => Local UserId -> RemoteDomains -> Sem r FederationStatusResponse
-getFederationStatus _ (RemoteDomains domains) =
-  ifM (allM (checkConnection domains) (Set.toList domains)) (pure $ FederationStatusResponse FullyConnected) (pure $ FederationStatusResponse NonFullyConnected)
+getFederationStatus _ (RemoteDomains allRemoteDomains) = do
+  firstConflictOrFullyConnected
+    <$> E.runFederatedConcurrently
+      ((\d -> toRemoteUnsafe d d) <$> Set.toList allRemoteDomains)
+      (\qds -> fedClient @'Brig @"get-federation-status" (DomainSet (tDomain qds `Set.delete` allRemoteDomains)))
+
+firstConflictOrFullyConnected :: [Remote Fed.FederationStatusResponse] -> FederationStatusResponse
+firstConflictOrFullyConnected =
+  maybe
+    (FederationStatusResponse FullyConnected Nothing)
+    mkFederationStatusResponse
+    . headMay
+    . mapMaybe (toMaybeConflict . (\r -> (tDomain r, tUnqualified r)))
   where
-    checkConnection :: Member FederatorAccess r => Set Domain -> Domain -> Sem r Bool
-    checkConnection ds d =
-      either (const False) ((==) Fed.Connected . Fed.status)
-        <$> E.runFederatedEither (toRemoteUnsafe d ()) (fedClient @'Brig @"get-federation-status" (DomainSet (d `Set.delete` ds)))
+    toMaybeConflict :: (Domain, Fed.FederationStatusResponse) -> Maybe (Domain, Domain)
+    toMaybeConflict (d, Fed.FederationStatusResponse (Fed.DomainSet conflictingDomains)) =
+      case Set.toList conflictingDomains of
+        [] -> Nothing
+        conflictingDomain : _ -> Just (d, conflictingDomain)
+
+    mkFederationStatusResponse :: (Domain, Domain) -> FederationStatusResponse
+    mkFederationStatusResponse (d1, d2) =
+      FederationStatusResponse
+        NonFullyConnected
+        (Just $ RemoteDomains $ Set.fromList [d1, d2])
 
 getBotConversationH ::
   ( Member ConversationStore r,
@@ -534,10 +554,6 @@ listConversations luser (Public.ListConversations ids) = do
       fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> failedConvs
       remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map tUntagged remoteIds
   unless (null remoteNotFoundRemoteIds) $
-    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
-    -- current user should be considered removed from this conversation at this
-    -- point.
-
     -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
     -- current user should be considered removed from this conversation at this
     -- point.
