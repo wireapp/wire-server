@@ -1,8 +1,6 @@
 module API.Galley where
 
 import qualified Data.Aeson as Aeson
-import Data.String.Conversions (cs)
-import qualified Data.Vector as Vector
 import Testlib.Prelude
 
 data CreateConv = CreateConv
@@ -94,25 +92,6 @@ getConversation user qcnv = do
   (domain, cnv) <- objQid qcnv
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv])
   submit "GET" req
-
-getFederationStatus ::
-  ( HasCallStack,
-    MakesValue user
-  ) =>
-  user ->
-  [String] ->
-  App Response
-getFederationStatus user domains =
-  let domainList = Aeson.Array (Vector.fromList $ Aeson.String . cs <$> domains)
-   in do
-        uid <- objId user
-        req <- baseRequest user Galley Versioned "/federation-status"
-        submit
-          "GET"
-          ( req
-              & zUser uid
-              & addJSONObject ["domains" .= domainList]
-          )
 
 getSubConversation ::
   ( HasCallStack,

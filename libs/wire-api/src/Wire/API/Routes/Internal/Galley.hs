@@ -27,6 +27,7 @@ import Servant hiding (JSON, WithStatus)
 import qualified Servant hiding (WithStatus)
 import Servant.Swagger
 import Wire.API.ApplyMods
+import Wire.API.Conversation (FederationStatusResponse, RemoteDomains)
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -227,6 +228,7 @@ type InternalAPIBase =
                :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
            )
     :<|> IFeatureAPI
+    :<|> IFederationAPI
 
 type ILegalholdWhitelistedTeamsAPI =
   "legalhold"
@@ -409,6 +411,16 @@ type IFeatureNoConfigMultiGet f =
   Named
     '("igetmulti", f)
     (FeatureNoConfigMultiGetBase f)
+
+type IFederationAPI =
+  Named
+    "get-federation-status"
+    ( Summary "Get the federation status"
+        :> ZLocalUser
+        :> "federation-status"
+        :> ReqBody '[Servant.JSON] RemoteDomains
+        :> Get '[Servant.JSON] FederationStatusResponse
+    )
 
 swaggerDoc :: Swagger
 swaggerDoc =

@@ -1,7 +1,7 @@
 module Test.Conversation where
 
 import qualified API.BrigInternal as Internal
-import qualified API.Galley as API
+import qualified API.GalleyInternal as API
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
@@ -16,33 +16,33 @@ testFederationStatus = do
     (API.getFederationStatus uid [])
     ( \resp -> do
         resp.status `shouldMatchInt` 200
-        resp %. "status" `shouldMatch` "fully-connected"
+        resp.json %. "status" `shouldMatch` "fully-connected"
     )
 
   bindResponse
     (API.getFederationStatus uid [unknownDomain])
     ( \resp -> do
         resp.status `shouldMatchInt` 200
-        resp %. "status" `shouldMatch` "non-fully-connected"
+        resp.json %. "status" `shouldMatch` "non-fully-connected"
     )
 
   bindResponse
     (API.getFederationStatus uid [invalidDomain])
     ( \resp -> do
         resp.status `shouldMatchInt` 200
-        resp %. "status" `shouldMatch` "non-fully-connected"
+        resp.json %. "status" `shouldMatch` "non-fully-connected"
     )
 
   bindResponse
     (API.getFederationStatus uid [federatingRemoteDomain])
     ( \resp -> do
         resp.status `shouldMatchInt` 200
-        resp %. "status" `shouldMatch` "fully-connected"
+        resp.json %. "status" `shouldMatch` "fully-connected"
     )
 
   bindResponse
     (API.getFederationStatus uid [federatingRemoteDomain, unknownDomain])
     ( \resp -> do
         resp.status `shouldMatchInt` 200
-        resp %. "status" `shouldMatch` "non-fully-connected"
+        resp.json %. "status" `shouldMatch` "non-fully-connected"
     )

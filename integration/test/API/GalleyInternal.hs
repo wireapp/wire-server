@@ -1,5 +1,8 @@
 module API.GalleyInternal where
 
+import qualified Data.Aeson as Aeson
+import Data.String.Conversions (cs)
+import qualified Data.Vector as Vector
 import GHC.Stack
 import Testlib.Prelude
 
@@ -33,3 +36,22 @@ getTeamFeature :: HasCallStack => String -> String -> App Response
 getTeamFeature featureName tid = do
   req <- baseRequest ownDomain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
   submit "GET" $ req
+
+getFederationStatus ::
+  ( HasCallStack,
+    MakesValue user
+  ) =>
+  user ->
+  [String] ->
+  App Response
+getFederationStatus user domains =
+  let domainList = Aeson.Array (Vector.fromList $ Aeson.String . cs <$> domains)
+   in do
+        uid <- objId user
+        req <- baseRequest user Galley Unversioned $ joinHttpPath ["i", "federation-status"]
+        submit
+          "GET"
+          ( req
+              & zUser uid
+              & addJSONObject ["domains" .= domainList]
+          )

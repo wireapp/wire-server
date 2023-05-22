@@ -1137,11 +1137,3 @@ type ConversationAPI =
                     '[RespondEmpty 200 "Update successful"]
                     ()
            )
-    :<|> Named
-           "get-federation-status"
-           ( Summary "Get the federation status"
-               :> ZLocalUser
-               :> "federation-status"
-               :> ReqBody '[JSON] RemoteDomains
-               :> Get '[JSON] FederationStatusResponse
-           )
