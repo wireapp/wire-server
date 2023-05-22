@@ -45,16 +45,10 @@ createUser domain cu = do
         )
 
 data FedConn = FedConn
-  { domain :: Maybe String,
-    searchStrategy :: Maybe String
+  { domain :: String,
+    searchStrategy :: String
   }
-
-instance Default FedConn where
-  def =
-    FedConn
-      { domain = Nothing,
-        searchStrategy = Nothing
-      }
+  deriving (Eq, Ord)
 
 createFedConn :: HasCallStack => FedConn -> App Response
 createFedConn = undefined

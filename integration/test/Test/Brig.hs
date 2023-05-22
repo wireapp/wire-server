@@ -4,15 +4,12 @@ import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import qualified API.Common as API
 import qualified API.GalleyInternal as Internal
+import Control.Monad.IO.Class
+import Data.String.Conversions
 import GHC.Stack
 import SetupHelpers
+import Testlib.Assertions
 import Testlib.Prelude
-import Wire.API.Routes.FederationDomainConfig
-import qualified Data.Domain as D
-import Wire.API.User.Search
-import Data.String.Conversions
-import Control.Monad.IO.Class
-import TestLib.Assertions
 
 testSearchContactForExternalUsers :: HasCallStack => App ()
 testSearchContactForExternalUsers = do
@@ -27,86 +24,47 @@ testSearchContactForExternalUsers = do
 
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
-  let remote1 = FederationDomainConfig (D.Domain $ cs "good.example.com") NoSearch
-      remote2 = FederationDomainConfig (D.Domain $ cs "evil.example.com") ExactHandleSearch
-      remote2' = remote2 {cfgSearchPolicy = NoSearch}
-
-      parseFedConns :: HasCallStack => Response -> App [FederationDomainConfig]
+  let parseFedConns :: HasCallStack => Response -> App [Internal.FedConn]
       parseFedConns = undefined
 
-      shouldMatchFedConns :: HasCallStack => [FederationDomainConfig] -> [FederationDomainConfig] -> App ()
-      shouldMatchFedConns _ _ = do
-        liftIO $ shouldMatch _ _ --  "should return config values and good.example.com" (sort $ rem : cfgRemotes) (sort res2)
-        undefined
+      addOnce :: HasCallStack => Internal.FedConn -> [Internal.FedConn] -> App ()
+      addOnce rem want = do
+        Internal.createFedConn rem
+        res <- parseFedConns =<< Internal.readFedConns
+        sort res `shouldMatch` sort want
 
-      addOnce :: HasCallStack => FederationDomainConfig -> App ()
-      addOnce rem = do
-        createFedConn rem
-        res <- parseFedConns =<< readFedConns
-        res `shouldMatchFedConns` (sort $ rem : cfgRemotes)
-
-      deleteOnce :: HasCallStack => Domain -> App ()
+      deleteOnce :: HasCallStack => String -> [Internal.FedConn] -> App ()
       deleteOnce = undefined
 
-      deleteFail :: HasCallStack => Domain -> App ()
+      deleteFail :: HasCallStack => String -> App ()
       deleteFail = undefined
 
-      updateOnce :: HasCallStack => D.Domain -> FederationDomainConfig -> App ()
+      updateOnce :: HasCallStack => String -> Internal.FedConn -> [Internal.FedConn] -> App ()
       updateOnce = undefined
 
-      updateFail :: HasCallStack => D.Domain -> App ()
+      updateFail :: HasCallStack => String -> Internal.FedConn -> App ()
       updateFail = undefined
 
-  -- Delete the remotes from the database
-  -- This doesn't do anything with the remotes
-  -- defined in config files.
-  resetFedConns
-  cfgRemotes <- parseFedConns =<< readFedConns
-  cfgRemotes `shouldMatchFedConns` [remote2]
-  deleteFail (domain $ head $ cfgRemotes)
+  Internal.resetFedConns
+  cfgRemotes <- parseFedConns =<< Internal.readFedConns
 
-  addOnce remote1
-  readFedConns `shouldContainFedConns` remote1
+  let remote1, remote1', remote1'' :: Internal.FedConn
+      remote1 = Internal.FedConn (cs "good.example.com") "no_search"
+      remote1' = remote1 {Internal.searchStrategy = "full_search"}
+      remote1'' = remote1 {Internal.domain = "meh.example.com"}
 
-  addOnce remote1 -- idempotency
-  readFedConns `shouldContainFedConns` remote1
+      remote2 = Internal.FedConn (cs "evil.example.com") "exact_handle_search"
+      remote2' = remote2 {Internal.searchStrategy = "no_search"}
 
-  deleteOnce (domain remote1)
-  readFedConns `shouldNotContainFedConns` remote1
+  cfgRemotes `shouldMatch` [remote2]
+  deleteFail (Internal.domain remote2)
 
-  deleteOnce (domain remote1) -- idempotency
-  readFedConns `shouldNotContainFedConns` remote1
-
-  addOnce remote2
-  deleteFail (domain remote2) -- removing from cfg file doesn't work whether it's in the database or not
-  readFedConns `shouldContainFedConns` remote2
-
-  updateOnce (domain remote2) remote2'
-  readFedConns `shouldNotContainFedConns` remote2
-  readFedConns `shouldContainFedConns` remote2'
-
-  updateOnce (domain remote2) remote2' -- idempotency
-  readFedConns `shouldNotContainFedConns` remote2
-  readFedConns `shouldContainFedConns` remote2'
-
-{-
-
-  -- updating search strategy works
-  updateFederationRemote brig (domain remote2) remote2'
-  res5 <- getFederationRemotes brig
-  -- (move the dynamic remotes to the beginning here to make sure we look for `remote2'`, not `remote`.)
-  liftIO $ assertEqual "should be NoSearch" (nub $ sort $ [remote1, remote2'] <> cfgRemotes) (sort res5)
-
-  -- updating from config file fails
-  updateFederationRemote' id brig (domain $ head $ cfgRemotes) (head $ cfgRemotes) !!! const 533 === statusCode
-
-  -- updating domain fails
-  let remote2'' = remote2' {domain = Domain "broken.example.com"}
-  updateFederationRemote' id brig (domain remote2) remote2'' !!! const 533 === statusCode
-
-  -- TODO: how do we test that the TVar is updated in all services?  some fancy unit test?
-  -- duplicate internal end-point to all services, and implement the hanlers in a library?
-  pure ()
-  where
-
--}
+  addOnce remote1 [remote1, remote2]
+  addOnce remote1 [remote1, remote2] -- idempotency
+  updateOnce (Internal.domain remote1) remote1' [remote1', remote2]
+  updateFail (Internal.domain remote1) remote1''
+  deleteOnce (Internal.domain remote1) cfgRemotes
+  deleteOnce (Internal.domain remote1) cfgRemotes -- idempotency
+  addOnce remote2 cfgRemotes
+  deleteFail (Internal.domain remote2) -- removing from cfg file doesn't work whether it's in the database or not
+  updateFail (Internal.domain remote2) remote2'

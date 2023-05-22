@@ -147,5 +147,4 @@ library
     , unliftio
     , uuid
     , websockets
-    , wire-api
     , yaml
