@@ -8,7 +8,7 @@ import qualified Wire.BackendNotificationPusher as BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 
--- TODO(elland): Start an http service with status and metrics endpoints
+-- FUTUREWORK: Start an http service with status and metrics endpoints
 run :: Opts -> IO ()
 run opts = do
   env <- mkEnv opts
@@ -17,7 +17,7 @@ run opts = do
   openConnectionWithRetries env.logger opts.rabbitmq.host opts.rabbitmq.port opts.rabbitmq.vHost $
     RabbitMqHooks
       { onNewChannel = runAppT env . BackendNotificationPusher.startWorker opts.remoteDomains,
-        -- TODO: Use these for metrics
+        -- FUTUREWORK: Use these for metrics
         onChannelException = const $ pure (),
         onConnectionClose = pure ()
       }
