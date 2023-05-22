@@ -110,14 +110,10 @@ run opts = lowerCodensity $ do
           (env ^. monitor)
 
   forM_ (env ^. aEnv) $ \aws ->
-    void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. moni  where
-    rtree = compile API.sitemap
-    runGalley e r k = evalGalleyToIO e (route rtree r k)
-    -- the servant API wraps the one defined using wai-routing
-    servantApp e0 r =
-      let e = reqId .~ lookupReqId r $ e0
-       in Servant.serveWithContext
-            (Proxy @CombinedAPI)
+    void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
+  void $ Codensity $ Async.withAsync $ runApp env updateFedDomains
+  void $ Codensity $ Async.withAsync $ runApp env deleteLoop
+  void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
   void $ Codensity $ Async.withAsync $ runApp env undefined
   lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
 
