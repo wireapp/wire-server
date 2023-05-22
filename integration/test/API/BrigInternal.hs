@@ -111,19 +111,3 @@ deleteFedConn' dom = do
   owndom <- ownDomain
   req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes/" <> dom)
   submit "DELETE" req
-
-resetFedConns :: HasCallStack => App Response
-resetFedConns = do
-  {-
-  -- this one needs to go elsewhere
-  resetFederationRemotes :: Opts -> Brig -> Http ()
-  resetFederationRemotes opts brig = do
-    rs <- getFederationRemotes brig
-    -- Filter out domains that are in the config file.
-    -- These values can't be deleted yet, so don't even try.
-    forM_ (notCfgRemotes rs) $ \(FederationDomainConfig rdom _) -> deleteFederationRemote brig rdom
-    where
-      cfgRemotes = fromMaybe [] . Opt.setFederationDomainConfigs $ Opt.optSettings opts
-      notCfgRemotes = filter (`notElem` cfgRemotes)
-  -}
-  pure undefined
