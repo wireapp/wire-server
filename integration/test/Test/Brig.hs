@@ -4,6 +4,7 @@ import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import qualified API.Common as API
 import qualified API.GalleyInternal as Internal
+import qualified Data.Aeson as Aeson
 import Data.String.Conversions
 import GHC.Stack
 import SetupHelpers
@@ -24,7 +25,7 @@ testSearchContactForExternalUsers = do
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
   let parseFedConns :: HasCallStack => Response -> App [Internal.FedConn]
-      parseFedConns = undefined
+      parseFedConns resp = fromJust . Aeson.decode . Aeson.encode . fromJust <$> ((`lookupField` "remotes") =<< getJSON 200 resp)
 
       addOnce :: HasCallStack => Internal.FedConn -> [Internal.FedConn] -> App ()
       addOnce fedConn want = do
@@ -40,7 +41,7 @@ testCrudFederationRemotes = do
 
       deleteFail :: HasCallStack => String -> App ()
       deleteFail del = do
-        res <- Internal.deleteFedConn del
+        res <- Internal.deleteFedConn' del
         res.status `shouldMatchInt` 400
 
       updateOnce :: HasCallStack => String -> Internal.FedConn -> [Internal.FedConn] -> App ()
@@ -51,7 +52,7 @@ testCrudFederationRemotes = do
 
       updateFail :: HasCallStack => String -> Internal.FedConn -> App ()
       updateFail domain fedConn = do
-        res <- Internal.updateFedConn domain fedConn
+        res <- Internal.updateFedConn' domain fedConn
         res.status `shouldMatchInt` 400
 
   _res <- Internal.resetFedConns
