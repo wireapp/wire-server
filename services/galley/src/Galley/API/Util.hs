@@ -375,6 +375,13 @@ instance IsConvMemberId (Local UserId) LocalMember where
 
 instance IsConvMemberId (Remote UserId) RemoteMember where
   getConvMember _ conv u = find ((u ==) . rmId) (Data.convRemoteMembers conv)
+    -- error $
+    --   "----------------" <>
+    --   "\n\n\nconv = " <> show conv <>
+    --   "\n\n\nu = " <> show u <>
+    --   "\n\n\nresult = " <> show (find ((u ==) . rmId) (Data.convRemoteMembers conv)) <>
+    --   "\n\n\n" <>
+    --   "----------------"
 
 instance IsConvMemberId (Qualified UserId) (Either LocalMember RemoteMember) where
   getConvMember loc conv =

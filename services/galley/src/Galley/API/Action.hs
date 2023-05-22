@@ -100,6 +100,7 @@ import Wire.API.Federation.Error
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import qualified Wire.API.User as User
+import qualified Polysemy.TinyLog as TinyLog
 
 data NoChanges = NoChanges
 
@@ -145,6 +146,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     )
   HasConversationActionEffects 'ConversationRemoveMembersTag r =
     ( Member MemberStore r,
+      Member TinyLog r,
       Member (Error NoChanges) r
     )
   HasConversationActionEffects 'ConversationMemberUpdateTag r =
@@ -330,6 +332,14 @@ performAction tag origUser lconv action = do
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
+      _ <- error $
+        "-----------------------------\n\n\n" <>
+        "lconv = " <> show lconv <> "\n\n\n" <>
+        "action = " <> show action <> "\n\n\n" <>
+        "presentVictims = " <> show presentVictims <> "\n\n\n" <>
+        "-----------------------------"
+      TinyLog.err $ Log.msg ("action" :: String) . Log.field "values" (show action)
+      TinyLog.err $ Log.msg ("presentVictims" :: String) . Log.field "values" (show presentVictims)
       when (null presentVictims) noChanges
       E.deleteMembers (tUnqualified lcnv) (toUserList lconv presentVictims)
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?

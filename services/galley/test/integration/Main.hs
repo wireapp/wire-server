@@ -52,6 +52,8 @@ import Util.Options
 import Util.Options.Common
 import Util.Test
 import qualified Util.Test.SQS as SQS
+import Federation
+import TestHelpers (test)
 
 newtype ServiceConfigFile = ServiceConfigFile String
   deriving (Eq, Ord, Typeable)
@@ -93,7 +95,8 @@ main = withOpenSSL $ runTests go
               "inconsistent sitemap"
               mempty
               (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.sitemap),
-          API.tests setup
+          API.tests setup,
+          test setup "Federation Domains" updateFedDomainsTest
         ]
     getOpts gFile iFile = do
       m <- newManager tlsManagerSettings {managerResponseTimeout = responseTimeoutMicro 300000000}

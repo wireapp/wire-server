@@ -37,12 +37,10 @@ module Brig.Data.Connection
     countConnections,
     deleteConnections,
     deleteRemoteConnections,
-    deleteRemoteConnectionsByDomain, 
     remoteConnectionInsert,
     remoteConnectionSelect,
     remoteConnectionSelectFrom,
     remoteConnectionDelete,
-    remoteConnectionsDeleteByDomain,
     remoteConnectionClear,
 
     -- * Re-exports
@@ -325,13 +323,6 @@ deleteRemoteConnections (tUntagged -> Qualified remoteUser remoteDomain) (fromRa
   pooledForConcurrentlyN_ 16 locals $ \u ->
     write remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)
 
-deleteRemoteConnectionsByDomain
-  :: MonadClient m
-  => Domain
-  -> m ()
-deleteRemoteConnectionsByDomain domain =
-  retry x1 . write remoteConnectionsDeleteByDomain $ params LocalQuorum $ pure domain
-
 -- Queries
 
 connectionInsert :: PrepQuery W (UserId, UserId, RelationWithHistory, UTCTimeMillis, ConvId) ()
@@ -393,9 +384,6 @@ remoteConnectionUpdate = "UPDATE connection_remote set status = ?, last_update =
 
 remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
 remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right_user = ?"
-
-remoteConnectionsDeleteByDomain :: PrepQuery W (Identity Domain) ()
-remoteConnectionsDeleteByDomain = "DELETE FROM connection_remote where right_domain = ?"
 
 remoteConnectionClear :: PrepQuery W (Identity UserId) ()
 remoteConnectionClear = "DELETE FROM connection_remote where left = ?"
