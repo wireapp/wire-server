@@ -63,8 +63,8 @@ createFedConn = undefined
   post (brig . paths ["i", "federation", "remotes"] . contentJson . json remote . expect2xx)
 -}
 
-readFedConn :: HasCallStack => App Response
-readFedConn = undefined
+readFedConns :: HasCallStack => App Response
+readFedConns = undefined
 
 {-
   remotes . responseJsonUnsafe <$> do
@@ -76,6 +76,9 @@ updateFedConn = undefined
 
 deleteFedConn :: HasCallStack => String -> App Response
 deleteFedConn = undefined
+
+resetFedConns :: HasCallStack => App Response
+resetFedConns = undefined
 
 {-
 updateFederationRemote' :: (Request -> Request) -> Brig -> Domain -> FederationDomainConfig -> Http ResponseLBS

@@ -21,38 +21,71 @@ testSearchContactForExternalUsers = do
 
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
+  let remote1 = FederationDomainConfig (Domain "good.example.com") NoSearch
+      remote2 = FederationDomainConfig (Domain "evil.example.com") ExactHandleSearch
+      remote2' = remote2 {cfgSearchPolicy = NoSearch}
+
+      parseFedConns :: HasCallStack => Response -> App [FederationDomainConfig]
+      parseFedConns = undefined
+
+      shouldMatchFedConns :: HasCallStack => [FederationDomainConfig] -> [FederationDomainConfig] -> App ()
+      shouldMatchFedConns _ _ = do
+        liftIO $ assertEqual "should return config values and good.example.com" (sort $ rem : cfgRemotes) (sort res2)
+        undefined
+
+      addOnce :: HasCallStack => FederationDomainConfig -> App ()
+      addOnce rem = do
+        createFedConn rem
+        res <- parseFedConns =<< readFedConns
+        res `shouldMatchFedConns` (sort $ rem : cfgRemotes)
+
+      deleteOnce :: HasCallStack => Domain -> App ()
+      deleteOnce = undefined
+
+      deleteFail :: HasCallStack => Domain -> App ()
+      deleteFail = undefined
+
+      updateOnce :: HasCallStack => Domain -> FederationDomainConfig -> App ()
+      updateOnce = undefined
+
+      updateFail :: HasCallStack => Domain -> App ()
+      updateFail = undefined
+
   -- Delete the remotes from the database
   -- This doesn't do anything with the remotes
   -- defined in config files.
-  resetFederationRemotes opts brig
+  resetFedConns
+  cfgRemotes <- parseFedConns =<< readFedConns
+  cfgRemotes `shouldMatchFedConns` [remote2]
+  deleteFail (domain $ head $ cfgRemotes)
 
-  res1 <- getFederationRemotes brig
-  liftIO $ assertEqual "should return config values" cfgRemotes res1
+  addOnce remote1
+  readFedConns `shouldContainFedConns` remote1
 
-  let remote1 = FederationDomainConfig (Domain "good.example.com") NoSearch
-  addFederationRemote brig remote1
-  res2 <- getFederationRemotes brig
-  liftIO $ assertEqual "should return config values and good.example.com" (sort $ remote1 : cfgRemotes) (sort res2)
+  addOnce remote1 -- idempotency
+  readFedConns `shouldContainFedConns` remote1
 
-  -- idempotency
-  addFederationRemote brig remote1
-  res2' <- getFederationRemotes brig
-  liftIO $ assertEqual "should return config values and good.example.com" (sort $ remote1 : cfgRemotes) (sort res2')
+  deleteOnce (domain remote1)
+  readFedConns `shouldNotContainFedConns` remote1
 
-  let remote2 = FederationDomainConfig (Domain "evil.example.com") ExactHandleSearch
-  addFederationRemote brig remote2
-  res3 <- getFederationRemotes brig
-  liftIO $ assertEqual "should return config values and {good,evil}.example.com" (nub $ sort $ cfgRemotes <> [remote1, remote2]) (sort res3)
+  deleteOnce (domain remote1) -- idempotency
+  readFedConns `shouldNotContainFedConns` remote1
 
-  deleteFederationRemote brig (domain remote1)
-  res4 <- getFederationRemotes brig
-  liftIO $ assertEqual "should return config values and evil.example.com" (nub $ sort $ cfgRemotes <> [remote2]) (sort res4)
+  addOnce remote2
+  deleteFail (domain remote2) -- removing from cfg file doesn't work whether it's in the database or not
+  readFedConns `shouldContainFedConns` remote2
 
-  -- deleting from the config file triggers an error
-  deleteFederationRemote' id brig (domain $ head $ cfgRemotes) !!! const 533 === statusCode
+  updateOnce (domain remote2) remote2')
+  readFedConns `shouldNotContainFedConns` remote2
+  readFedConns `shouldContainFedConns` remote2'
+
+  updateOnce (domain remote2) remote2') -- idempotency
+  readFedConns `shouldNotContainFedConns` remote2
+  readFedConns `shouldContainFedConns` remote2'
+
+{-
 
   -- updating search strategy works
-  let remote2' = remote2 {cfgSearchPolicy = NoSearch}
   updateFederationRemote brig (domain remote2) remote2'
   res5 <- getFederationRemotes brig
   -- (move the dynamic remotes to the beginning here to make sure we look for `remote2'`, not `remote`.)
@@ -69,4 +102,5 @@ testCrudFederationRemotes = do
   -- duplicate internal end-point to all services, and implement the hanlers in a library?
   pure ()
   where
-    cfgRemotes = fromMaybe [] . Opt.setFederationDomainConfigs $ Opt.optSettings opts
+
+-}

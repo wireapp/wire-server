@@ -79,6 +79,7 @@ run o = do
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) m (Just idleTimeout)
 
   -- Get the federation domain list from Brig and start the updater loop
+  -- TODO: move this block into a function in libs/wire-api/src/Wire/API/FederationUpdate.hs; check all services for the same block and use the function.
   manager <- newManager defaultManagerSettings
   let Brig bh bp = o ^. brig
       baseUrl = BaseUrl Http (unpack bh) (fromIntegral bp) ""
