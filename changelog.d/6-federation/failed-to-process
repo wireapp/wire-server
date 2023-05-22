@@ -1,0 +1,1 @@
+Several federation Galley endpoints have a breaking change in their response types: "leave-conversation", "update-conversation" and "send-mls-message". They have been extended with information related to unreachable users.

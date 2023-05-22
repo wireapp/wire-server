@@ -61,6 +61,7 @@ import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Printing
 import Testlib.Types
+import Prelude
 
 data WebSocket = WebSocket
   { wsChan :: TChan Value,

@@ -371,7 +371,7 @@ def start_backend(services, suffix, domain, remoteDomains, backend_name):
 
     return instances
 
-ENABLE_FEDERATION = os.environ.get("INTEGRATION_FEDERATION_TESTS") == "1"
+ENABLE_FEDERATION = True
 LEVEL = os.environ.get("INTEGRATION_LEVEL")
 BRIG = Service("brig", Colors.GREEN).with_level(LEVEL)
 GALLEY = Service("galley", Colors.YELLOW).with_level(LEVEL)

@@ -55,25 +55,15 @@ instance MakesValue CreateConv where
 
 postConversation ::
   ( HasCallStack,
-    MakesValue user,
-    MakesValue client
+    MakesValue user
   ) =>
   user ->
-  Maybe client ->
   CreateConv ->
   App Response
-postConversation user mclient cc = do
-  uid <- objId user
-  domain <- objDomain user
-  mcid <- for mclient objId
-  req <- baseRequest domain Galley Versioned "/conversations"
+postConversation user cc = do
+  req <- baseRequest user Galley Versioned "/conversations"
   ccv <- make cc
-  submit "POST" $
-    req
-      & zUser uid
-      & maybe id zClient mcid
-      & zConnection "conn"
-      & addJSON ccv
+  submit "POST" $ req & addJSON ccv
 
 putConversationProtocol ::
   ( HasCallStack,
@@ -84,22 +74,13 @@ putConversationProtocol ::
   ) =>
   user ->
   qcnv ->
-  Maybe conn ->
   protocol ->
   App Response
-putConversationProtocol user qcnv mconn protocol = do
-  mconn' <- for mconn asString
+putConversationProtocol user qcnv protocol = do
   (domain, cnv) <- objQid qcnv
   p <- asString protocol
-  uid <- objId user
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv, "protocol"])
-  submit
-    "PUT"
-    ( req
-        & zUser uid
-        & zConnection (fromMaybe "conn" mconn')
-        & addJSONObject ["protocol" .= p]
-    )
+  submit "PUT" (req & addJSONObject ["protocol" .= p])
 
 getConversation ::
   ( HasCallStack,
@@ -111,13 +92,8 @@ getConversation ::
   App Response
 getConversation user qcnv = do
   (domain, cnv) <- objQid qcnv
-  uid <- objId user
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv])
-  submit
-    "GET"
-    ( req
-        & zUser uid
-    )
+  submit "GET" req
 
 getFederationStatus ::
   ( HasCallStack,
@@ -148,7 +124,6 @@ getSubConversation ::
   String ->
   App Response
 getSubConversation user conv sub = do
-  uid <- objId user
   (cnvDomain, cnvId) <- objQid conv
   req <-
     baseRequest user Galley Versioned $
@@ -159,13 +134,12 @@ getSubConversation user conv sub = do
           "subconversations",
           sub
         ]
-  submit "GET" $ req & zUser uid
+  submit "GET" req
 
 getSelfConversation :: (HasCallStack, MakesValue user) => user -> App Response
 getSelfConversation user = do
-  uid <- objId user
   req <- baseRequest user Galley Versioned "/conversations/mls-self"
-  submit "GET" $ req & zUser uid & zConnection "conn"
+  submit "GET" $ req
 
 data ListConversationIds = ListConversationIds {pagingState :: Maybe String, size :: Maybe Int}
 
@@ -175,10 +149,8 @@ instance Default ListConversationIds where
 listConversationIds :: MakesValue user => user -> ListConversationIds -> App Response
 listConversationIds user args = do
   req <- baseRequest user Galley Versioned "/conversations/list-ids"
-  uid <- objId user
   submit "POST" $
     req
-      & zUser uid
       & addJSONObject
         ( ["paging_state" .= s | s <- toList args.pagingState]
             <> ["size" .= s | s <- toList args.size]
@@ -187,25 +159,19 @@ listConversationIds user args = do
 listConversations :: MakesValue user => user -> [Value] -> App Response
 listConversations user cnvs = do
   req <- baseRequest user Galley Versioned "/conversations/list"
-  uid <- objId user
   submit "POST" $
     req
-      & zUser uid
       & addJSONObject ["qualified_ids" .= cnvs]
 
 postMLSMessage :: HasCallStack => ClientIdentity -> ByteString -> App Response
 postMLSMessage cid msg = do
   req <- baseRequest cid Galley Versioned "/mls/messages"
-  uid <- objId cid
-  c <- cid %. "client" & asString
-  submit "POST" (addMLS msg req & zUser uid & zClient c & zConnection "conn")
+  submit "POST" (addMLS msg req)
 
 postMLSCommitBundle :: HasCallStack => ClientIdentity -> ByteString -> App Response
 postMLSCommitBundle cid msg = do
   req <- baseRequest cid Galley Versioned "/mls/commit-bundles"
-  uid <- objId cid
-  c <- cid %. "client_id" & asString
-  submit "POST" (addMLS msg req & zUser uid & zClient c & zConnection "conn")
+  submit "POST" (addMLS msg req)
 
 getGroupInfo ::
   (HasCallStack, MakesValue user, MakesValue conv) =>
@@ -219,5 +185,4 @@ getGroupInfo user conv = do
         Nothing -> ["conversations", convDomain, convId, "groupinfo"]
         Just sub -> ["conversations", convDomain, convId, "subconversations", sub, "groupinfo"]
   req <- baseRequest user Galley Versioned path
-  uid <- objId user
-  submit "GET" (req & zUser uid & zConnection "conn")
+  submit "GET" req

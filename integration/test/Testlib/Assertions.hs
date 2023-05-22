@@ -14,6 +14,7 @@ import System.FilePath
 import Testlib.JSON
 import Testlib.Printing
 import Testlib.Types
+import Prelude
 
 assertBool :: HasCallStack => String -> Bool -> App ()
 assertBool _ True = pure ()

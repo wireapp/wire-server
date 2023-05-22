@@ -4,7 +4,6 @@ import API.Common
 import qualified Data.ByteString.Base64 as Base64
 import Data.Foldable
 import Data.Function
-import Data.Maybe
 import qualified Data.Text.Encoding as T
 import GHC.Stack
 import Testlib.Prelude
@@ -76,11 +75,9 @@ updateClient ::
   UpdateClient ->
   App Response
 updateClient cid args = do
-  uid <- objId cid
   req <- baseRequest cid Brig Versioned $ "/clients/" <> cid.client
   submit "PUT" $
     req
-      & zUser uid
       & addJSONObject
         ( ["prekeys" .= args.prekeys]
             <> ["lastkey" .= k | k <- toList args.lastPrekey]
@@ -92,18 +89,13 @@ updateClient cid args = do
 deleteClient ::
   (HasCallStack, MakesValue user, MakesValue client) =>
   user ->
-  Maybe String ->
   client ->
   App Response
-deleteClient user mconn client = do
-  let conn = fromMaybe "0" mconn
-  uid <- objId user
+deleteClient user client = do
   cid <- objId client
   req <- baseRequest user Brig Versioned $ "/clients/" <> cid
   submit "DELETE" $
     req
-      & zUser uid
-      & zConnection conn
       & addJSONObject
         [ "password" .= defPassword
         ]
@@ -118,13 +110,7 @@ searchContacts ::
 searchContacts searchingUserId searchTerm = do
   req <- baseRequest searchingUserId Brig Versioned "/search/contacts"
   q <- asString searchTerm
-  uid <- objId searchingUserId
-  submit
-    "GET"
-    ( req
-        & addQueryParams [("q", q)]
-        & zUser uid
-    )
+  submit "GET" (req & addQueryParams [("q", q)])
 
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do
@@ -140,17 +126,11 @@ postConnection ::
   userTo ->
   App Response
 postConnection userFrom userTo = do
-  uidFrom <- objId userFrom
   (userToDomain, userToId) <- objQid userTo
   req <-
     baseRequest userFrom Brig Versioned $
       joinHttpPath ["/connections", userToDomain, userToId]
-  submit
-    "POST"
-    ( req
-        & zUser uidFrom
-        & zConnection "conn"
-    )
+  submit "POST" req
 
 putConnection ::
   ( HasCallStack,
@@ -163,31 +143,21 @@ putConnection ::
   status ->
   App Response
 putConnection userFrom userTo status = do
-  uidFrom <- objId userFrom
   (userToDomain, userToId) <- objQid userTo
   req <-
     baseRequest userFrom Brig Versioned $
       joinHttpPath ["/connections", userToDomain, userToId]
   statusS <- asString status
-  submit
-    "POST"
-    ( req
-        & zUser uidFrom
-        & zConnection "conn"
-        & contentTypeJSON
-        & addJSONObject ["status" .= statusS]
-    )
+  submit "POST" (req & addJSONObject ["status" .= statusS])
 
 uploadKeyPackage :: ClientIdentity -> ByteString -> App Response
 uploadKeyPackage cid kp = do
   req <-
     baseRequest cid Brig Versioned $
       "/mls/key-packages/self/" <> cid.client
-  uid <- objId cid
   submit
     "POST"
     ( req
-        & zUser uid
         & addJSONObject ["key_packages" .= [T.decodeUtf8 (Base64.encode kp)]]
     )
 
@@ -197,5 +167,4 @@ claimKeyPackages u v = do
   req <-
     baseRequest u Brig Versioned $
       "/mls/key-packages/claim/" <> targetDom <> "/" <> targetUid
-  uid <- objId u
-  submit "POST" (req & zUser uid)
+  submit "POST" req

@@ -25,6 +25,7 @@ common common-all
     -optP-Wno-nonportable-include-path
 
   default-extensions:
+    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -102,6 +103,7 @@ library
     Testlib.Prekeys
     Testlib.Prelude
     Testlib.Printing
+    Testlib.PTest
     Testlib.Run
     Testlib.Types
 
