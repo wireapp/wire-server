@@ -84,6 +84,23 @@ shouldMatchInt ::
   App ()
 shouldMatchInt = shouldMatch
 
+shouldMatchRange ::
+  (MakesValue a, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The expected range, inclusive both sides
+  (Int, Int) ->
+  App ()
+shouldMatchRange a (lower, upper) = do
+  xa <- make a
+  xl <- make lower
+  xu <- make upper
+  unless (xa < xl || xa > xu) $ do
+    pa <- prettyJSON xa
+    pu <- prettyJSON xu
+    pl <- prettyJSON xl
+    assertFailure $ "Actual:\n" <> pa <> "\nExpected:\n(" <> pl <> "," <> pu <> ")"
+
 liftP2 ::
   (MakesValue a, MakesValue b, HasCallStack) =>
   (Value -> Value -> c) ->

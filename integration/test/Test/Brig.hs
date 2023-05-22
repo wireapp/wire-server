@@ -4,7 +4,6 @@ import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import qualified API.Common as API
 import qualified API.GalleyInternal as Internal
-import Control.Monad.IO.Class
 import Data.String.Conversions
 import GHC.Stack
 import SetupHelpers
@@ -28,24 +27,34 @@ testCrudFederationRemotes = do
       parseFedConns = undefined
 
       addOnce :: HasCallStack => Internal.FedConn -> [Internal.FedConn] -> App ()
-      addOnce rem want = do
-        Internal.createFedConn rem
+      addOnce fedConn want = do
+        _res <- Internal.createFedConn fedConn
         res <- parseFedConns =<< Internal.readFedConns
         sort res `shouldMatch` sort want
 
       deleteOnce :: HasCallStack => String -> [Internal.FedConn] -> App ()
-      deleteOnce = undefined
+      deleteOnce domain want = do
+        _res <- Internal.deleteFedConn domain
+        res <- parseFedConns =<< Internal.readFedConns
+        sort res `shouldMatch` sort want
 
       deleteFail :: HasCallStack => String -> App ()
-      deleteFail = undefined
+      deleteFail del = do
+        res <- Internal.deleteFedConn del
+        res.status `shouldMatchInt` 400
 
       updateOnce :: HasCallStack => String -> Internal.FedConn -> [Internal.FedConn] -> App ()
-      updateOnce = undefined
+      updateOnce domain fedConn want = do
+        _res <- Internal.updateFedConn domain fedConn
+        res <- parseFedConns =<< Internal.readFedConns
+        sort res `shouldMatch` sort want
 
       updateFail :: HasCallStack => String -> Internal.FedConn -> App ()
-      updateFail = undefined
+      updateFail domain fedConn = do
+        res <- Internal.updateFedConn domain fedConn
+        res.status `shouldMatchInt` 400
 
-  Internal.resetFedConns
+  _res <- Internal.resetFedConns
   cfgRemotes <- parseFedConns =<< Internal.readFedConns
 
   let remote1, remote1', remote1'' :: Internal.FedConn

@@ -4,6 +4,7 @@ import API.Common
 import Data.Function
 import Data.Maybe
 import Testlib.Prelude
+import qualified Data.Aeson as Aeson
 
 data CreateUser = CreateUser
   { email :: Maybe String,
@@ -50,26 +51,45 @@ data FedConn = FedConn
   }
   deriving (Eq, Ord)
 
+instance ToJSON FedConn where
+  toJSON (FedConn d s) =
+    Aeson.object
+      [ "domain" .= d
+      , "search_policy" .= s
+      ]
+
 createFedConn :: HasCallStack => FedConn -> App Response
-createFedConn = undefined
+createFedConn fedConn = do
+  dom <- ownDomain
+  req <- rawBaseRequest dom Brig Versioned "/i/federation/remotes"
+  res <- submit "POST" $ req & addJSON fedConn
+  res.status `shouldMatchRange` (200, 299)
+  pure res
 
 {-
   post (brig . paths ["i", "federation", "remotes"] . contentJson . json remote . expect2xx)
 -}
 
 readFedConns :: HasCallStack => App Response
-readFedConns = undefined
+readFedConns = do
+  dom <- ownDomain
+  req <- rawBaseRequest dom Brig Versioned "/i/federation/remotes"
+  res <- submit "GET" req
+  res.status `shouldMatchRange` (200, 299)
+  pure re
 
 {-
   remotes . responseJsonUnsafe <$> do
     get (brig . paths ["i", "federation", "remotes"] . contentJson . expect2xx)
 -}
 
-updateFedConn :: HasCallStack => FedConn -> App Response
-updateFedConn = undefined
+updateFedConn :: HasCallStack => String -> FedConn -> App Response
+updateFedConn _dom _fedConn = do
+  dom <- ownDomain
+  req <- rawBaseRequest
 
 deleteFedConn :: HasCallStack => String -> App Response
-deleteFedConn = undefined
+deleteFedConn _dom = undefined
 
 resetFedConns :: HasCallStack => App Response
 resetFedConns = undefined
