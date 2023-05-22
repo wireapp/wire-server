@@ -95,7 +95,6 @@ import Galley.Data.Conversation.Types (convMetadata)
 import Galley.API.Util (getConversationWithError)
 import Data.Domain (Domain)
 import Galley.Cassandra.Connection
-import UnliftIO.Retry
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do

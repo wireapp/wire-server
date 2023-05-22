@@ -1,4 +1,5 @@
 module Federation where
+
 import TestSetup
 import Control.Lens ((^.))
 import Imports
@@ -16,6 +17,11 @@ import Bilge.Assert
 import Bilge.Response
 import Galley.Options (optSettings, setFederationDomain)
 import Galley.Env
+import UnliftIO.Retry
+import Control.Monad.Catch
+
+x3 :: RetryPolicy
+x3 = limitRetries 3 <> exponentialBackoff 100000
 
 updateFedDomainsTest :: TestM ()
 updateFedDomainsTest = do
@@ -43,8 +49,11 @@ updateFedDomainsTest = do
   -- Removing multiple domains
   -- liftIO $ updateFedDomainsCallback env old new
 
+constHandlers :: MonadIO m => [RetryStatus -> Handler m Bool]
+constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]
+
 updateFedDomainRemoveRemoteFromLocal :: Env -> Domain -> Domain -> Int -> TestM ()
-updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = recovering x3 [const . Handler $ pure . _] $ const $ do
+updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = recovering x3 constHandlers $ const $ do
   s <- ask
   let opts = s ^. tsGConf
       localDomain = opts ^. optSettings . setFederationDomain
@@ -61,7 +70,7 @@ updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = r
   connectWithRemoteUser alice remoteBob
   connectWithRemoteUser alice remoteCharlie
   _ <- postQualifiedMembers alice (remoteCharlie <| remoteBob :| []) convId
-  liftIO $ threadDelay $ 10000
+  liftIO $ threadDelay $ 3  * 1000000
   -- Remove the remote user from the local domain
   liftIO $ updateFedDomainsCallback env old new
   -- Check that the conversation still exists.
