@@ -65,7 +65,7 @@ testCrudFederationRemotes = do
 
   resetFedConns
   cfgRemotes <- parseFedConns =<< Internal.readFedConns
-  cfgRemotes `shouldMatch` [cfgRemotesExpect]
+  cfgRemotes `shouldMatch` [cfgRemotesExpect] -- this fails and returns two entries for example.com.  maybe resetFedConns or createFedConn is broken in brig?
 
   -- entries present in the config file can be idempotently added, but cannot be deleted or
   -- updated.
