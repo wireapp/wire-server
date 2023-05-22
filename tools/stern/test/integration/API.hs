@@ -666,7 +666,7 @@ getOAuthClient cid = do
 updateOAuthClient :: OAuthClientId -> OAuthClientConfig -> TestM ()
 updateOAuthClient cid cfg = do
   s <- view tsStern
-  void $ post (s . paths ["i", "oauth", "clients", toByteString' cid] . json cfg . expect2xx)
+  void $ put (s . paths ["i", "oauth", "clients", toByteString' cid] . json cfg . expect2xx)
 
 deleteOAuthClient :: OAuthClientId -> TestM ()
 deleteOAuthClient cid = do

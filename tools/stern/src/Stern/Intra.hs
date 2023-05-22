@@ -888,7 +888,7 @@ getOAuthClient cid = do
   case statusCode r of
     200 -> parseResponse (mkError status502 "bad-upstream") r
     404 -> throwE (mkError status404 "bad-upstream" "not-found")
-    _ -> throwE (mkError status502 "bad-upstream" "")
+    _ -> throwE (mkError status502 "bad-upstream" (cs $ show r))
 
 updateOAuthClient :: OAuthClientId -> OAuthClientConfig -> Handler OAuthClient
 updateOAuthClient cid conf = do
@@ -898,7 +898,7 @@ updateOAuthClient cid conf = do
       rpc'
         "brig"
         b
-        ( method POST
+        ( method PUT
             . Bilge.paths ["i", "oauth", "clients", toByteString' cid]
             . Bilge.json conf
             . contentJson

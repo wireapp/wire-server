@@ -63,7 +63,7 @@ updateOAuthClient user cid name url = do
   req <- baseRequest user Brig Unversioned $ "i/oauth/clients/" <> clientId
   applicationName <- asString name
   redirectUrl <- asString url
-  submit "POST" (req & addJSONObject ["application_name" .= applicationName, "redirect_url" .= redirectUrl])
+  submit "PUT" (req & addJSONObject ["application_name" .= applicationName, "redirect_url" .= redirectUrl])
 
 deleteOAuthClient :: (HasCallStack, MakesValue user, MakesValue cid) => user -> cid -> App Response
 deleteOAuthClient user cid = do

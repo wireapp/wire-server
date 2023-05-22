@@ -407,7 +407,7 @@ type SternAPI =
                :> "clients"
                :> Capture "id" OAuthClientId
                :> ReqBody '[JSON] OAuthClientConfig
-               :> Post '[JSON] OAuthClient
+               :> Put '[JSON] OAuthClient
            )
     :<|> Named
            "delete-oauth-client"
