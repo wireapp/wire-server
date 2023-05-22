@@ -258,6 +258,8 @@ testRemoteAddUser = do
     resp.status `shouldMatchInt` 200
 
   mp <- createAddCommit bob1 [charlie]
+  -- Support for remote admins is not implemeted yet, but this shows that add
+  -- proposal is being applied action
   bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
     resp.status `shouldMatchInt` 500
     resp.json %. "label" `shouldMatch` "federation-not-implemented"

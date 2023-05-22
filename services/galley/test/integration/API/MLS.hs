@@ -185,8 +185,7 @@ tests s =
       testGroup
         "CommitBundle"
         [ test s "add user with a commit bundle" testAddUserWithBundle,
-          test s "add user with a commit bundle to a remote conversation" testAddUserToRemoteConvWithBundle,
-          test s "remote user posts commit bundle" testRemoteUserPostsCommitBundle
+          test s "add user with a commit bundle to a remote conversation" testAddUserToRemoteConvWithBundle
         ],
       testGroup
         "Self conversation"
@@ -2045,43 +2044,6 @@ testAddUserToRemoteConvWithBundle = do
       mmsrConvOrSubId msr @?= Conv (qUnqualified qcnv)
       mmsrSender msr @?= qUnqualified bob
       fromBase64ByteString (mmsrRawMessage msr) @?= commitBundle
-
-testRemoteUserPostsCommitBundle :: TestM ()
-testRemoteUserPostsCommitBundle = do
-  let bobDomain = "bob.example.com"
-  [alice, bob, charlie] <- createAndConnectUsers [Nothing, Just bobDomain, Just bobDomain]
-  fedGalleyClient <- view tsFedGalleyClient
-
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient [alice, bob]
-    (_, qcnv) <- setupMLSGroup alice1
-
-    commit <- createAddCommit alice1 [bob]
-    void $ do
-      let mock = receiveCommitMock [bob1] <|> welcomeMock
-      withTempMockFederator' mock $ do
-        void $ sendAndConsumeCommitBundle commit
-        putOtherMemberQualified (qUnqualified alice) bob (OtherMemberUpdate (Just roleNameWireAdmin)) qcnv
-          !!! const 200 === statusCode
-
-        [_charlie1] <- traverse createMLSClient [charlie]
-        commitAddCharlie <- createAddCommit bob1 [charlie]
-        commitBundle <- createBundle commitAddCharlie
-
-        let msr =
-              MLSMessageSendRequest
-                { mmsrConvOrSubId = Conv (qUnqualified qcnv),
-                  mmsrSender = qUnqualified bob,
-                  mmsrSenderClient = ciClient bob1,
-                  mmsrRawMessage = Base64ByteString commitBundle
-                }
-
-        -- we can't fully test it, because remote admins are not implemeted, but
-        -- at least this proves that proposal processing has started on the
-        -- backend
-        MLSMessageResponseError MLSUnsupportedProposal <- runFedClient @"send-mls-commit-bundle" fedGalleyClient (Domain bobDomain) msr
-
-        pure ()
 
 -- | The MLS self-conversation should be available even without explicitly
 -- creating it by calling `GET /conversations/mls-self` starting from version 3
