@@ -328,8 +328,8 @@ getMLSClients usr _ss = do
   pure . Set.fromList . map (uncurry ClientInfo) $ clientInfo
   where
     getResult [] = pure mempty
-    getResult ((u, cs) : rs)
-      | u == usr = pure cs
+    getResult ((u, cs') : rs)
+      | u == usr = pure cs'
       | otherwise = getResult rs
 
     getValidity lusr cid =

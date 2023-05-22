@@ -7,6 +7,12 @@ import qualified API.GalleyInternal as Internal
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
+import Wire.API.Routes.FederationDomainConfig
+import qualified Data.Domain as D
+import Wire.API.User.Search
+import Data.String.Conversions
+import Control.Monad.IO.Class
+import TestLib.Assertions
 
 testSearchContactForExternalUsers :: HasCallStack => App ()
 testSearchContactForExternalUsers = do
@@ -21,8 +27,8 @@ testSearchContactForExternalUsers = do
 
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
-  let remote1 = FederationDomainConfig (Domain "good.example.com") NoSearch
-      remote2 = FederationDomainConfig (Domain "evil.example.com") ExactHandleSearch
+  let remote1 = FederationDomainConfig (D.Domain $ cs "good.example.com") NoSearch
+      remote2 = FederationDomainConfig (D.Domain $ cs "evil.example.com") ExactHandleSearch
       remote2' = remote2 {cfgSearchPolicy = NoSearch}
 
       parseFedConns :: HasCallStack => Response -> App [FederationDomainConfig]
@@ -30,7 +36,7 @@ testCrudFederationRemotes = do
 
       shouldMatchFedConns :: HasCallStack => [FederationDomainConfig] -> [FederationDomainConfig] -> App ()
       shouldMatchFedConns _ _ = do
-        liftIO $ assertEqual "should return config values and good.example.com" (sort $ rem : cfgRemotes) (sort res2)
+        liftIO $ shouldMatch _ _ --  "should return config values and good.example.com" (sort $ rem : cfgRemotes) (sort res2)
         undefined
 
       addOnce :: HasCallStack => FederationDomainConfig -> App ()
@@ -45,10 +51,10 @@ testCrudFederationRemotes = do
       deleteFail :: HasCallStack => Domain -> App ()
       deleteFail = undefined
 
-      updateOnce :: HasCallStack => Domain -> FederationDomainConfig -> App ()
+      updateOnce :: HasCallStack => D.Domain -> FederationDomainConfig -> App ()
       updateOnce = undefined
 
-      updateFail :: HasCallStack => Domain -> App ()
+      updateFail :: HasCallStack => D.Domain -> App ()
       updateFail = undefined
 
   -- Delete the remotes from the database
@@ -75,11 +81,11 @@ testCrudFederationRemotes = do
   deleteFail (domain remote2) -- removing from cfg file doesn't work whether it's in the database or not
   readFedConns `shouldContainFedConns` remote2
 
-  updateOnce (domain remote2) remote2')
+  updateOnce (domain remote2) remote2'
   readFedConns `shouldNotContainFedConns` remote2
   readFedConns `shouldContainFedConns` remote2'
 
-  updateOnce (domain remote2) remote2') -- idempotency
+  updateOnce (domain remote2) remote2' -- idempotency
   readFedConns `shouldNotContainFedConns` remote2
   readFedConns `shouldContainFedConns` remote2'
 
