@@ -97,7 +97,7 @@ updateFedConn dom fedConn = do
 updateFedConn' :: HasCallStack => String -> FedConn -> App Response
 updateFedConn' dom fedConn = do
   owndom <- ownDomain
-  req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes" <> dom)
+  req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes/" <> dom)
   submit "PUT" (fedConn `addJSON` req)
 
 deleteFedConn :: HasCallStack => String -> App Response
@@ -109,7 +109,7 @@ deleteFedConn dom = do
 deleteFedConn' :: HasCallStack => String -> App Response
 deleteFedConn' dom = do
   owndom <- ownDomain
-  req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes" <> dom)
+  req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes/" <> dom)
   submit "DELETE" req
 
 resetFedConns :: HasCallStack => App Response
