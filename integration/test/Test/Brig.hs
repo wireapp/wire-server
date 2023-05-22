@@ -63,12 +63,17 @@ testCrudFederationRemotes = do
       remote1' = remote1 {Internal.searchStrategy = "full_search"}
       remote1'' = remote1 {Internal.domain = "meh.example.com"}
 
-      remote2 = Internal.FedConn (cs "evil.example.com") "exact_handle_search"
-      remote2' = remote2 {Internal.searchStrategy = "no_search"}
+      remote2 = Internal.FedConn (cs "evil.example.com") "no_search"
+      remote2' = remote2 {Internal.searchStrategy = "exact_handle_search"}
 
-  cfgRemotes `shouldMatch` [remote2]
+      cfgRemotesExpect :: [Internal.FedConn]
+      cfgRemotesExpect =
+        [ remote2,
+          Internal.FedConn (cs "example.com") "full_search"
+        ]
+
+  sort cfgRemotes `shouldMatch` sort cfgRemotesExpect
   deleteFail (Internal.domain remote2)
-
   addOnce remote1 [remote1, remote2]
   addOnce remote1 [remote1, remote2] -- idempotency
   updateOnce (Internal.domain remote1) remote1' [remote1', remote2]

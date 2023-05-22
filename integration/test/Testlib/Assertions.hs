@@ -95,7 +95,7 @@ shouldMatchRange a (lower, upper) = do
   xa <- make a
   xl <- make lower
   xu <- make upper
-  unless (xa < xl || xa > xu) $ do
+  when (xa < xl || xa > xu) $ do
     pa <- prettyJSON xa
     pu <- prettyJSON xu
     pl <- prettyJSON xl
