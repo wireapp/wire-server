@@ -73,11 +73,11 @@ buildMultipartBody header body bodyMimeType =
     endMultipartBody :: Builder
     endMultipartBody = stringUtf8 "\r\n--frontier--\r\n"
 
-downloadAsset :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> App Response
-downloadAsset user key = do
+downloadAsset :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> (HTTP.Request -> HTTP.Request) -> App Response
+downloadAsset user key trans = do
   uid <- user & objId
   key' <- key & asString
-  req <- baseRequest user Cargohold Versioned $ "/assets/example.com/" ++ key'
+  req <- fmap trans $ baseRequest user Cargohold Versioned $ "/assets/example.com/" ++ key'
   submit "GET" $
     req
       & zUser uid

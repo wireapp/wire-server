@@ -91,6 +91,7 @@ withModifiedServices services k = do
                 Brig -> sm {brig = sm.brig {host = "127.0.0.1", port = fromIntegral newPort}}
                 Galley -> sm {galley = sm.galley {host = "127.0.0.1", port = fromIntegral newPort}}
                 Cannon -> sm {cannon = sm.cannon {host = "127.0.0.1", port = fromIntegral newPort}}
+                Cargohold -> sm {cargohold = sm.cargohold {host = "127.0.0.1", port = fromIntegral newPort}}
           )
           serviceMap
           ports
