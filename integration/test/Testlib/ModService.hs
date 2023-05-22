@@ -130,13 +130,12 @@ withModifiedServices services k = do
 
 waitUntilServiceUp :: HasCallStack => Service -> App ()
 waitUntilServiceUp srv = do
-  d <- ownDomain
   isUp <-
     retrying
       (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
       (\_ isUp -> pure (not isUp))
       ( \_ -> do
-          req <- baseRequest d srv Unversioned "/i/status"
+          req <- baseRequest OwnDomain srv Unversioned "/i/status"
           env <- ask
           eith <-
             liftIO $

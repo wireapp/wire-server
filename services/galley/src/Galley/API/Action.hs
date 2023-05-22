@@ -215,7 +215,8 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
   HasConversationActionEffects 'ConversationUpdateProtocolTag r =
     ( Member ConversationStore r,
       Member (ErrorS 'ConvInvalidProtocolTransition) r,
-      Member (Error NoChanges) r
+      Member (Error NoChanges) r,
+      Member FederatorAccess r
     )
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
@@ -361,7 +362,7 @@ performAction tag origUser lconv action = do
             E.deleteAllProposals groupId
 
       let cid = convId conv
-      for_ (conv & mlsMetadata <&> cnvmlsGroupId) $ \gidParent -> do
+      for_ (conv & mlsMetadata <&> cnvmlsGroupId . fst) $ \gidParent -> do
         sconvs <- E.listSubConversations cid
         gidSubs <- for (Map.assocs sconvs) $ \(subid, mlsData) -> do
           let gidSub = cnvmlsGroupId mlsData
@@ -400,17 +401,24 @@ performAction tag origUser lconv action = do
       (bm, act) <- performConversationAccessData origUser lconv action
       pure (bm, act)
     SConversationUpdateProtocolTag -> do
-      case (protocolTag (convProtocol (tUnqualified lconv)), action) of
-        (ProtocolProteusTag, ProtocolMixedTag) -> do
-          E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+      case (protocolTag (convProtocol (tUnqualified lconv)), action, convTeam (tUnqualified lconv)) of
+        (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
+          mls <- E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+          E.runFederatedConcurrently_ (map rmId (convRemoteMembers conv)) $ \_ -> do
+            void $
+              fedClient @'Galley @"on-new-remote-conversation" $
+                NewRemoteConversation
+                  { nrcConvId = convId conv,
+                    nrcProtocol = ProtocolMixed mls
+                  }
           pure (mempty, action)
-        (ProtocolProteusTag, ProtocolProteusTag) ->
+        (ProtocolProteusTag, ProtocolProteusTag, _) ->
           noChanges
-        (ProtocolMixedTag, ProtocolMixedTag) ->
+        (ProtocolMixedTag, ProtocolMixedTag, _) ->
           noChanges
-        (ProtocolMLSTag, ProtocolMLSTag) ->
+        (ProtocolMLSTag, ProtocolMLSTag, _) ->
           noChanges
-        (_, _) -> throwS @'ConvInvalidProtocolTransition
+        (_, _, _) -> throwS @'ConvInvalidProtocolTransition
 
 performConversationJoin ::
   ( HasConversationActionEffects 'ConversationJoinTag r

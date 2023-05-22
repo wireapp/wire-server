@@ -1,0 +1,4 @@
+- Do not perform client checks for add and remove proposals in mixed conversations
+- Restrict protocol updates to team conversations
+- Disallow MLS application messages in mixed conversations
+- Send remove proposals when users leave mixed conversations

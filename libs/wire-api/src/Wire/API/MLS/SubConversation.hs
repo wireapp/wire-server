@@ -36,6 +36,7 @@ import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Data.Time.Clock
+import GHC.Records
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (toQueryParam))
 import Test.QuickCheck
@@ -124,6 +125,10 @@ deriving via
   (GenericUniform (ConvOrSubChoice c s))
   instance
     (Generic c, Generic s, Arbitrary c, Arbitrary s) => Arbitrary (ConvOrSubChoice c s)
+
+instance HasField "conv" (ConvOrSubChoice c s) c where
+  getField (Conv c) = c
+  getField (SubConv c _) = c
 
 type ConvOrSubConvId = ConvOrSubChoice ConvId SubConvId
 

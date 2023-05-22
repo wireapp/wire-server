@@ -33,7 +33,7 @@ mkMLSConversation ::
   Data.Conversation ->
   Sem r (Maybe MLSConversation)
 mkMLSConversation conv =
-  for (Data.mlsMetadata conv) $ \mlsData -> do
+  for (Data.mlsMetadata conv) $ \(mlsData, migrationState) -> do
     (cm, im) <- lookupMLSClientLeafIndices (cnvmlsGroupId mlsData)
     pure
       MLSConversation
@@ -43,7 +43,8 @@ mkMLSConversation conv =
           mcRemoteMembers = Data.convRemoteMembers conv,
           mcMLSData = mlsData,
           mcMembers = cm,
-          mcIndexMap = im
+          mcIndexMap = im,
+          mcMigrationState = migrationState
         }
 
 mcConv :: MLSConversation -> Data.Conversation

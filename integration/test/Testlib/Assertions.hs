@@ -20,9 +20,10 @@ assertBool :: HasCallStack => String -> Bool -> App ()
 assertBool _ True = pure ()
 assertBool msg False = assertFailure msg
 
-assertOne :: HasCallStack => [a] -> App a
-assertOne [x] = pure x
-assertOne xs = assertFailure ("Expected one, but got " <> show (length xs))
+assertOne :: (HasCallStack, Foldable t) => t a -> App a
+assertOne xs = case toList xs of
+  [x] -> pure x
+  other -> assertFailure ("Expected one, but got " <> show (length other))
 
 expectFailure :: HasCallStack => (AssertionFailure -> App ()) -> App a -> App ()
 expectFailure checkFailure action = do

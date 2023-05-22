@@ -96,16 +96,15 @@ getCommitData ::
   Sem r ProposalAction
 getCommitData senderIdentity lConvOrSub epoch commit = do
   let convOrSub = tUnqualified lConvOrSub
-      mlsMeta = mlsMetaConvOrSub convOrSub
-      groupId = cnvmlsGroupId mlsMeta
+      groupId = cnvmlsGroupId convOrSub.meta
 
-  evalState (indexMapConvOrSub convOrSub) $ do
+  evalState convOrSub.indexMap $ do
     creatorAction <-
       if epoch == Epoch 0
         then addProposedClient senderIdentity
         else mempty
-    proposals <- traverse (derefOrCheckProposal mlsMeta groupId epoch) commit.proposals
-    action <- applyProposals mlsMeta groupId proposals
+    proposals <- traverse (derefOrCheckProposal convOrSub.meta groupId epoch) commit.proposals
+    action <- applyProposals convOrSub.meta groupId proposals
     pure (creatorAction <> action)
 
 incrementEpoch ::

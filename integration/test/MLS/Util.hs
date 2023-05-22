@@ -10,9 +10,11 @@ import Control.Monad.Catch
 import Control.Monad.Cont
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
+import qualified Data.ByteString.Char8 as C8
 import Data.Default
 import Data.Foldable
 import Data.Function
@@ -27,7 +29,7 @@ import GHC.Stack
 import System.Directory
 import System.Exit
 import System.FilePath
-import System.IO
+import System.IO hiding (print, putStrLn)
 import System.IO.Temp
 import System.Posix.Files
 import System.Process
@@ -89,12 +91,17 @@ mlscli cid args mbstdin = do
         pure (argSubst "<group-in>" fn)
       else pure id
 
+  let args' = map (substIn . substOut) args
+  for_ args' $ \arg ->
+    when (arg `elem` ["<group-in>", "<group-out>"]) $
+      assertFailure ("Unbound arg: " <> arg)
+
   out <-
     spawn
       ( proc
           "mls-test-cli"
           ( ["--store", cdir </> "store"]
-              <> map (substIn . substOut) args
+              <> args'
           )
       )
       mbstdin
@@ -160,8 +167,8 @@ generateKeyPackage cid = do
   pure (kp, ref)
 
 -- | Create conversation and corresponding group.
-setupMLSGroup :: HasCallStack => ClientIdentity -> App (String, Value)
-setupMLSGroup cid = do
+createNewGroup :: HasCallStack => ClientIdentity -> App (String, Value)
+createNewGroup cid = do
   conv <- postConversation cid defMLS >>= getJSON 201
   groupId <- conv %. "group_id" & asString
   convId <- conv %. "qualified_id"
@@ -169,8 +176,8 @@ setupMLSGroup cid = do
   pure (groupId, convId)
 
 -- | Retrieve self conversation and create the corresponding group.
-setupMLSSelfGroup :: HasCallStack => ClientIdentity -> App (String, Value)
-setupMLSSelfGroup cid = do
+createSelfGroup :: HasCallStack => ClientIdentity -> App (String, Value)
+createSelfGroup cid = do
   conv <- getSelfConversation cid >>= getJSON 200
   conv %. "epoch" `shouldMatchInt` 0
   groupId <- conv %. "group_id" & asString
@@ -225,7 +232,7 @@ keyPackageFile cid ref = do
     urlSafe '/' = '_'
     urlSafe c = c
 
-unbundleKeyPackages :: Value -> App [(ClientIdentity, ByteString)]
+unbundleKeyPackages :: HasCallStack => Value -> App [(ClientIdentity, ByteString)]
 unbundleKeyPackages bundle = do
   let entryIdentity be = do
         d <- be %. "domain" & asString
@@ -263,6 +270,7 @@ withTempKeyPackageFile bs = do
         k fp
 
 createAddCommitWithKeyPackages ::
+  HasCallStack =>
   ClientIdentity ->
   [(ClientIdentity, ByteString)] ->
   App MessagePackage
@@ -297,6 +305,44 @@ createAddCommitWithKeyPackages cid clientsAndKeyPackages = do
   welcome <- liftIO $ BS.readFile welcomeFile
   gi <- liftIO $ BS.readFile giFile
   pure $
+    MessagePackage
+      { sender = cid,
+        message = commit,
+        welcome = Just welcome,
+        groupInfo = Just gi
+      }
+
+createRemoveCommit :: HasCallStack => ClientIdentity -> [ClientIdentity] -> App MessagePackage
+createRemoveCommit cid targets = do
+  bd <- getBaseDir
+  welcomeFile <- liftIO $ emptyTempFile bd "welcome"
+  giFile <- liftIO $ emptyTempFile bd "gi"
+
+  groupStateMap <- Map.fromList <$> (getClientGroupState cid >>= readGroupState)
+  let indices = map (fromMaybe (error "could not find target") . flip Map.lookup groupStateMap) targets
+
+  commit <-
+    mlscli
+      cid
+      ( [ "member",
+          "remove",
+          "--group",
+          "<group-in>",
+          "--group-out",
+          "<group-out>",
+          "--welcome-out",
+          welcomeFile,
+          "--group-info-out",
+          giFile
+        ]
+          <> map show indices
+      )
+      Nothing
+
+  welcome <- liftIO $ BS.readFile welcomeFile
+  gi <- liftIO $ BS.readFile giFile
+
+  pure
     MessagePackage
       { sender = cid,
         message = commit,
@@ -509,3 +555,48 @@ setClientGroupState :: HasCallStack => ClientIdentity -> ByteString -> App ()
 setClientGroupState cid g =
   modifyMLSState $ \s ->
     s {clientGroupState = Map.insert cid g (clientGroupState s)}
+
+showMessage :: HasCallStack => ClientIdentity -> ByteString -> App Value
+showMessage cid msg = do
+  bs <- mlscli cid ["show", "message", "-"] (Just msg)
+  assertOne (Aeson.decode (BS.fromStrict bs))
+
+readGroupState :: HasCallStack => ByteString -> App [(ClientIdentity, Word32)]
+readGroupState gs = do
+  v :: Value <- assertJust "Could not decode group state" (Aeson.decode (BS.fromStrict gs))
+  lnodes <- v %. "group" %. "public_group" %. "treesync" %. "tree" %. "leaf_nodes" & asList
+  catMaybes <$$> for (zip lnodes [0 ..]) $ \(el, leafNodeIndex) -> do
+    lookupField el "node" >>= \case
+      Just lnode -> do
+        case lnode of
+          Null -> pure Nothing
+          _ -> do
+            vecb <- lnode %. "payload" %. "credential" %. "credential" %. "Basic" %. "identity" %. "vec"
+            vec <- asList vecb
+            ws <- BS.pack <$> for vec (\x -> asIntegral @Word8 x)
+            [uc, domain] <- pure (C8.split '@' ws)
+            [uid, client] <- pure (C8.split ':' uc)
+            let cid = ClientIdentity (C8.unpack domain) (C8.unpack uid) (C8.unpack client)
+            pure (Just (cid, leafNodeIndex))
+      Nothing ->
+        pure Nothing
+
+createApplicationMessage ::
+  HasCallStack =>
+  ClientIdentity ->
+  String ->
+  App MessagePackage
+createApplicationMessage cid messageContent = do
+  message <-
+    mlscli
+      cid
+      ["message", "--group", "<group-in>", messageContent]
+      Nothing
+
+  pure
+    MessagePackage
+      { sender = cid,
+        message = message,
+        welcome = Nothing,
+        groupInfo = Nothing
+      }

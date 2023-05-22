@@ -45,6 +45,7 @@ import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (sendWelcomes)
 import Galley.API.Util
+import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
@@ -218,10 +219,9 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
         bundle.commit.value.path
       pure ([], [])
 
-  storeGroupInfo (idForConvOrSub . tUnqualified $ lConvOrSub) bundle.groupInfo
+  storeGroupInfo (tUnqualified lConvOrSub).id bundle.groupInfo
 
-  let cm = membersConvOrSub (tUnqualified lConvOrSub)
-  unreachables <- propagateMessage qusr lConvOrSub conn bundle.rawMessage cm
+  unreachables <- propagateMessage qusr lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
   traverse_ (sendWelcomes lConvOrSub conn newClients) bundle.welcome
   pure (events, unreachables)
 
@@ -250,7 +250,7 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle rConvOrSubId = do
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
   -- only members may send commit bundles to a remote conversation
 
-  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) (convOfConvOrSub <$> rConvOrSubId)
+  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
 
   resp <-
     runFederated rConvOrSubId $
@@ -314,11 +314,10 @@ getSenderIdentity ::
   Sem r ClientIdentity
 getSenderIdentity qusr c mSender lConvOrSubConv = do
   let cid = mkClientIdentity qusr c
-  let idxMap = indexMapConvOrSub $ tUnqualified lConvOrSubConv
-  let epoch = epochNumber . cnvmlsEpoch . mlsMetaConvOrSub . tUnqualified $ lConvOrSubConv
+  let epoch = epochNumber . cnvmlsEpoch . (.meta) . tUnqualified $ lConvOrSubConv
   case mSender of
     SenderMember idx | epoch > 0 -> do
-      cid' <- note (mlsProtocolError "unknown sender leaf index") $ imLookup idxMap idx
+      cid' <- note (mlsProtocolError "unknown sender leaf index") $ imLookup (tUnqualified lConvOrSubConv).indexMap idx
       unless (cid' == cid) $ throwS @'MLSClientSenderUserMismatch
     _ -> pure ()
   pure cid
@@ -350,10 +349,11 @@ postMLSMessageToLocalConv qusr c con msg convOrSubId = do
       FramedContentApplicationData _ -> throwS @'MLSUnsupportedMessage
       FramedContentProposal prop ->
         processProposal qusr lConvOrSub msg.groupId msg.epoch pub prop
-    IncomingMessageContentPrivate -> pure ()
+    IncomingMessageContentPrivate -> do
+      when ((tUnqualified lConvOrSub).migrationState == MLSMigrationMixed) $
+        throwS @'MLSUnsupportedMessage
 
-  let cm = membersConvOrSub (tUnqualified lConvOrSub)
-  unreachables <- propagateMessage qusr lConvOrSub con msg.rawMessage cm
+  unreachables <- propagateMessage qusr lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
   pure ([], unreachables)
 
 postMLSMessageToRemoteConv ::
@@ -374,7 +374,7 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
   -- only members may send messages to the remote conversation
-  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) (convOfConvOrSub <$> rConvOrSubId)
+  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
 
   resp <-
     runFederated rConvOrSubId $

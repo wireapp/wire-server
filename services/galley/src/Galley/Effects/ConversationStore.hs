@@ -71,8 +71,8 @@ import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite (CipherSuiteTag)
-import Wire.API.MLS.Epoch
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 
@@ -107,7 +107,7 @@ data ConversationStore m a where
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
   DeleteGroupIds :: [GroupId] -> ConversationStore m ()
-  UpdateToMixedProtocol :: Local ConvId -> CipherSuiteTag -> ConversationStore m ()
+  UpdateToMixedProtocol :: Local ConvId -> CipherSuiteTag -> ConversationStore m ConversationMLSData
 
 makeSem ''ConversationStore
 

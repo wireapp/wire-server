@@ -77,135 +77,137 @@ processInternalCommit ::
   Sem r [LocalConversationUpdate]
 processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
   let convOrSub = tUnqualified lConvOrSub
-      mlsMeta = mlsMetaConvOrSub convOrSub
       qusr = cidQualifiedUser senderIdentity
-      cm = membersConvOrSub convOrSub
-      ss = csSignatureScheme (cnvmlsCipherSuite mlsMeta)
+      cm = convOrSub.members
+      ss = csSignatureScheme (cnvmlsCipherSuite convOrSub.meta)
       newUserClients = Map.assocs (paAdd action)
 
   -- check all pending proposals are referenced in the commit
-  allPendingProposals <- getAllPendingProposalRefs (cnvmlsGroupId mlsMeta) epoch
+  allPendingProposals <- getAllPendingProposalRefs (cnvmlsGroupId convOrSub.meta) epoch
   let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) commit.proposals
   unless (all (`Set.member` referencedProposals) allPendingProposals) $
     throwS @'MLSCommitMissingReferences
 
-  withCommitLock (fmap idForConvOrSub lConvOrSub) (cnvmlsGroupId (mlsMetaConvOrSub convOrSub)) epoch $ do
-    -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
-    foldQualified lConvOrSub (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
-
+  withCommitLock (fmap (.id) lConvOrSub) (cnvmlsGroupId convOrSub.meta) epoch $ do
     -- no client can be directly added to a subconversation
     when (is _SubConv convOrSub && any ((senderIdentity /=) . fst) (cmAssocs (paAdd action))) $
       throw (mlsProtocolError "Add proposals in subconversations are not supported")
 
-    -- Note [client removal]
-    -- We support two types of removals:
-    --  1. when a user is removed from a group, all their clients have to be removed
-    --  2. when a client is deleted, that particular client (but not necessarily
-    --     other clients of the same user) has to be removed.
-    --
-    -- Type 2 requires no special processing on the backend, so here we filter
-    -- out all removals of that type, so that further checks and processing can
-    -- be applied only to type 1 removals.
-    --
-    -- Furthermore, subconversation clients can be removed arbitrarily, so this
-    -- processing is only necessary for main conversations. In the
-    -- subconversation case, an empty list is returned.
-    membersToRemove <- case convOrSub of
-      SubConv _ _ -> pure []
-      Conv _ -> mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
-        \(qtarget, Map.keysSet -> clients) -> runError @() $ do
-          let clientsInConv = Map.keysSet (Map.findWithDefault mempty qtarget cm)
-          let removedClients = Set.intersection clients clientsInConv
+    events <-
+      if convOrSub.migrationState == MLSMigrationMLS
+        then do
+          -- Note [client removal]
+          -- We support two types of removals:
+          --  1. when a user is removed from a group, all their clients have to be removed
+          --  2. when a client is deleted, that particular client (but not necessarily
+          --     other clients of the same user) has to be removed.
+          --
+          -- Type 2 requires no special processing on the backend, so here we filter
+          -- out all removals of that type, so that further checks and processing can
+          -- be applied only to type 1 removals.
+          --
+          -- Furthermore, subconversation clients can be removed arbitrarily, so this
+          -- processing is only necessary for main conversations. In the
+          -- subconversation case, an empty list is returned.
+          membersToRemove <- case convOrSub of
+            SubConv _ _ -> pure []
+            Conv _ -> mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
+              \(qtarget, Map.keysSet -> clients) -> runError @() $ do
+                let clientsInConv = Map.keysSet (Map.findWithDefault mempty qtarget cm)
+                let removedClients = Set.intersection clients clientsInConv
 
-          -- ignore user if none of their clients are being removed
-          when (Set.null removedClients) $ throw ()
+                -- ignore user if none of their clients are being removed
+                when (Set.null removedClients) $ throw ()
 
-          -- return error if the user is trying to remove themself
-          when (cidQualifiedUser senderIdentity == qtarget) $
-            throwS @'MLSSelfRemovalNotAllowed
+                -- return error if the user is trying to remove themself
+                when (cidQualifiedUser senderIdentity == qtarget) $
+                  throwS @'MLSSelfRemovalNotAllowed
 
-          -- FUTUREWORK: add tests against this situation for conv v subconv
-          when (removedClients /= clientsInConv) $ do
-            -- FUTUREWORK: turn this error into a proper response
-            throwS @'MLSClientMismatch
+                -- FUTUREWORK: add tests against this situation for conv v subconv
+                when (removedClients /= clientsInConv) $ do
+                  -- FUTUREWORK: turn this error into a proper response
+                  throwS @'MLSClientMismatch
 
-          pure qtarget
+                pure qtarget
 
-    -- for each user, we compare their clients with the ones being added to the conversation
-    for_ newUserClients $ \(qtarget, newclients) -> case Map.lookup qtarget cm of
-      -- user is already present, skip check in this case
-      Just _ -> pure ()
-      -- new user
-      Nothing -> do
-        -- final set of clients in the conversation
-        let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
-        -- get list of mls clients from brig
-        clientInfo <- getClientInfo lConvOrSub qtarget ss
-        let allClients = Set.map ciId clientInfo
-        let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
-        -- We check the following condition:
-        --   allMLSClients ⊆ clients ⊆ allClients
-        -- i.e.
-        -- - if a client has at least 1 key package, it has to be added
-        -- - if a client is being added, it has to still exist
-        --
-        -- The reason why we can't simply check that clients == allMLSClients is
-        -- that a client with no remaining key packages might be added by a user
-        -- who just fetched its last key package.
-        unless
-          ( Set.isSubsetOf allMLSClients clients
-              && Set.isSubsetOf clients allClients
-          )
-          $ do
-            -- unless (Set.isSubsetOf allClients clients) $ do
-            -- FUTUREWORK: turn this error into a proper response
-            throwS @'MLSClientMismatch
+          -- for each user, we compare their clients with the ones being added to the conversation
+          for_ newUserClients $ \(qtarget, newclients) -> case Map.lookup qtarget cm of
+            -- user is already present, skip check in this case
+            Just _ -> pure ()
+            -- new user
+            Nothing -> do
+              -- final set of clients in the conversation
+              let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
+              -- get list of mls clients from brig
+              clientInfo <- getClientInfo lConvOrSub qtarget ss
+              let allClients = Set.map ciId clientInfo
+              let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
+              -- We check the following condition:
+              --   allMLSClients ⊆ clients ⊆ allClients
+              -- i.e.
+              -- - if a client has at least 1 key package, it has to be added
+              -- - if a client is being added, it has to exist
+              --
+              -- The reason why we can't simply check that clients == allMLSClients is
+              -- that a client with no remaining key packages might be added by a user
+              -- who just fetched its last key package.
+              unless
+                ( Set.isSubsetOf allMLSClients clients
+                    && Set.isSubsetOf clients allClients
+                )
+                $ do
+                  -- unless (Set.isSubsetOf allClients clients) $ do
+                  -- FUTUREWORK: turn this error into a proper response
+                  throwS @'MLSClientMismatch
 
-    -- remove users from the conversation and send events
-    removeEvents <-
-      foldMap
-        (removeMembers qusr con lConvOrSub)
-        (nonEmpty membersToRemove)
+          -- remove users from the conversation and send events
+          removeEvents <-
+            foldMap
+              (removeMembers qusr con lConvOrSub)
+              (nonEmpty membersToRemove)
+
+          -- if this is a new subconversation, call `on-new-remote-conversation` on all
+          -- the remote backends involved in the main conversation
+          forOf_ _SubConv convOrSub $ \(mlsConv, subConv) -> do
+            when (cnvmlsEpoch (scMLSData subConv) == Epoch 0) $ do
+              let remoteDomains =
+                    Set.fromList
+                      ( map
+                          (void . rmId)
+                          (mcRemoteMembers mlsConv)
+                      )
+              let nrc =
+                    NewRemoteSubConversation
+                      { nrscConvId = mcId mlsConv,
+                        nrscSubConvId = scSubConvId subConv,
+                        nrscMlsData = scMLSData subConv
+                      }
+              runFederatedConcurrently_ (toList remoteDomains) $ \_ -> do
+                void $ fedClient @'Galley @"on-new-remote-subconversation" nrc
+
+          -- add users to the conversation and send events
+          addEvents <-
+            foldMap (addMembers qusr con lConvOrSub)
+              . nonEmpty
+              . map fst
+              $ newUserClients
+
+          pure (addEvents <> removeEvents)
+        else pure []
 
     -- Remove clients from the conversation state. This includes client removals
     -- of all types (see Note [client removal]).
     for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
-      removeMLSClients (cnvmlsGroupId mlsMeta) qtarget (Map.keysSet clients)
-
-    -- if this is a new subconversation, call `on-new-remote-conversation` on all
-    -- the remote backends involved in the main conversation
-    forOf_ _SubConv convOrSub $ \(mlsConv, subConv) -> do
-      when (cnvmlsEpoch (scMLSData subConv) == Epoch 0) $ do
-        let remoteDomains =
-              Set.fromList
-                ( map
-                    (void . rmId)
-                    (mcRemoteMembers mlsConv)
-                )
-        let nrc =
-              NewRemoteSubConversation
-                { nrscConvId = mcId mlsConv,
-                  nrscSubConvId = scSubConvId subConv,
-                  nrscMlsData = scMLSData subConv
-                }
-        runFederatedConcurrently_ (toList remoteDomains) $ \_ -> do
-          void $ fedClient @'Galley @"on-new-remote-subconversation" nrc
-
-    -- add users to the conversation and send events
-    addEvents <-
-      foldMap (addMembers qusr con lConvOrSub)
-        . nonEmpty
-        . map fst
-        $ newUserClients
+      removeMLSClients (cnvmlsGroupId convOrSub.meta) qtarget (Map.keysSet clients)
 
     -- add clients in the conversation state
     for_ newUserClients $ \(qtarget, newClients) -> do
-      addMLSClients (cnvmlsGroupId mlsMeta) qtarget (Set.fromList (Map.assocs newClients))
+      addMLSClients (cnvmlsGroupId convOrSub.meta) qtarget (Set.fromList (Map.assocs newClients))
 
     -- increment epoch number
     for_ lConvOrSub incrementEpoch
 
-    pure (addEvents <> removeEvents)
+    pure events
 
 addMembers ::
   HasProposalActionEffects r =>

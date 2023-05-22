@@ -7,7 +7,7 @@ import Testlib.Prelude
 
 testDeleteKeyPackages :: App ()
 testDeleteKeyPackages = do
-  alice <- randomUser ownDomain def
+  alice <- randomUser OwnDomain def
   alice1 <- createMLSClient alice
   kps <- replicateM 3 (uploadNewKeyPackage alice1)
 

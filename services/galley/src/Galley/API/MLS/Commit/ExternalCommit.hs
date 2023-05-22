@@ -69,9 +69,8 @@ getExternalCommitData ::
   Sem r ExternalCommitAction
 getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   let convOrSub = tUnqualified lConvOrSub
-      mlsMeta = mlsMetaConvOrSub convOrSub
-      curEpoch = cnvmlsEpoch mlsMeta
-      groupId = cnvmlsGroupId mlsMeta
+      curEpoch = cnvmlsEpoch convOrSub.meta
+      groupId = cnvmlsGroupId convOrSub.meta
   when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
   proposals <- traverse getInlineProposal commit.proposals
 
@@ -90,9 +89,9 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   unless (null (Map.keys counts \\ allowedProposals)) $
     throw (mlsProtocolError "Invalid proposal type in an external commit")
 
-  evalState (indexMapConvOrSub convOrSub) $ do
+  evalState convOrSub.indexMap $ do
     -- process optional removal
-    propAction <- applyProposals mlsMeta groupId proposals
+    propAction <- applyProposals convOrSub.meta groupId proposals
     removedIndex <- case cmAssocs (paRemove propAction) of
       [(cid, idx)]
         | cid /= senderIdentity ->
@@ -144,8 +143,8 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
       <$> note
         (mlsProtocolError "External commits need an update path")
         updatePath
-  let cs = cnvmlsCipherSuite (mlsMetaConvOrSub (tUnqualified lConvOrSub))
-  let groupId = cnvmlsGroupId (mlsMetaConvOrSub convOrSub)
+  let cs = cnvmlsCipherSuite (tUnqualified lConvOrSub).meta
+  let groupId = cnvmlsGroupId convOrSub.meta
   let extra = LeafNodeTBSExtraCommit groupId action.add
   case validateLeafNode cs (Just senderIdentity) extra leafNode.value of
     Left errMsg ->
@@ -153,7 +152,7 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
         mlsProtocolError ("Tried to add invalid LeafNode: " <> errMsg)
     Right _ -> pure ()
 
-  withCommitLock (fmap idForConvOrSub lConvOrSub) groupId epoch $ do
+  withCommitLock (fmap (.id) lConvOrSub) groupId epoch $ do
     executeExternalCommitAction lConvOrSub senderIdentity action
 
     -- increment epoch number
@@ -166,12 +165,11 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
         <$> getPendingBackendRemoveProposals groupId epoch
 
     -- requeue backend remove proposals for the current epoch
-    let cm = membersConvOrSub (tUnqualified lConvOrSub')
     createAndSendRemoveProposals
       lConvOrSub'
       indicesInRemoveProposals
       (cidQualifiedUser senderIdentity)
-      cm
+      (tUnqualified lConvOrSub').members
 
 executeExternalCommitAction ::
   forall r.
@@ -181,7 +179,7 @@ executeExternalCommitAction ::
   ExternalCommitAction ->
   Sem r ()
 executeExternalCommitAction lconvOrSub senderIdentity action = do
-  let mlsMeta = mlsMetaConvOrSub $ tUnqualified lconvOrSub
+  let mlsMeta = (tUnqualified lconvOrSub).meta
 
   -- Remove deprecated sender client from conversation state.
   for_ action.remove $ \_ ->

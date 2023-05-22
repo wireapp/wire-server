@@ -100,7 +100,6 @@ tests s =
       testGroup
         "Commit"
         [ test s "add user (not connected)" testAddUserNotConnected,
-          test s "add user (partial client list)" testAddUserPartial,
           test s "add client of existing user" testAddClientPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "send a stale commit" testStaleCommit,
@@ -109,8 +108,7 @@ tests s =
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
           test s "post commit that references an unknown proposal" testUnknownProposalRefCommit,
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
-          test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
-          test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete
+          test s "admin removes user from a conversation" testAdminRemovesUserFromConv
         ],
       testGroup
         "External commit"
@@ -187,8 +185,7 @@ tests s =
       testGroup
         "CommitBundle"
         [ test s "add user with a commit bundle" testAddUserWithBundle,
-          test s "add user with a commit bundle to a remote conversation" testAddUserToRemoteConvWithBundle,
-          test s "remote user posts commit bundle" testRemoteUserPostsCommitBundle
+          test s "add user with a commit bundle to a remote conversation" testAddUserToRemoteConvWithBundle
         ],
       testGroup
         "Self conversation"
@@ -252,10 +249,6 @@ tests s =
             "Remote Sender/Remote SubConversation"
             [ test s "on-mls-message-sent in subconversation" testRemoteToRemoteInSub
             ]
-        ],
-      testGroup
-        "MixedProtocol"
-        [ test s "Add clients to a mixed conversation and send proteus message" testMixedAddClients
         ]
     ]
 
@@ -414,34 +407,6 @@ testAddUserWithProteusClients = do
 
     void $ setupMLSGroup alice1
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-
-testAddUserPartial :: TestM ()
-testAddUserPartial = do
-  [alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
-
-  runMLSTest $ do
-    -- Bob has 3 clients, Charlie has 2
-    alice1 <- createMLSClient alice
-    bobClients@[_bob1, _bob2, bob3] <- replicateM 3 (createMLSClient bob)
-    charlieClients <- replicateM 2 (createMLSClient charlie)
-
-    -- Only the first 2 clients of Bob's have uploaded key packages
-    traverse_ uploadNewKeyPackage (take 2 bobClients <> charlieClients)
-
-    -- alice adds bob's first 2 clients
-    void $ setupMLSGroup alice1
-    commit <- createAddCommit alice1 [bob, charlie]
-
-    -- before alice can commit, bob3 uploads a key package
-    void $ uploadNewKeyPackage bob3
-
-    -- alice sends a commit now, and should get a conflict error
-    bundle <- createBundle commit
-    err <-
-      responseJsonError
-        =<< localPostCommitBundle (mpSender commit) bundle
-          <!! const 409 === statusCode
-    liftIO $ Wai.label err @?= "mls-client-mismatch"
 
 testAddClientPartial :: TestM ()
 testAddClientPartial = do
@@ -755,23 +720,6 @@ testAdminRemovesUserFromConv = do
       assertBool
         "bob is not longer part of conversation after the commit"
         (qcnv `notElem` map cnvQualifiedId convs)
-
-testRemoveClientsIncomplete :: TestM ()
-testRemoveClientsIncomplete = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
-  runMLSTest $ do
-    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
-    traverse_ uploadNewKeyPackage [bob1, bob2]
-    void $ setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-    commit <- createRemoveCommit alice1 [bob1]
-
-    bundle <- createBundle commit
-    err <-
-      responseJsonError
-        =<< localPostCommitBundle alice1 bundle
-          <!! statusCode === const 409
-    liftIO $ Wai.label err @?= "mls-client-mismatch"
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = do
@@ -2097,43 +2045,6 @@ testAddUserToRemoteConvWithBundle = do
       mmsrSender msr @?= qUnqualified bob
       fromBase64ByteString (mmsrRawMessage msr) @?= commitBundle
 
-testRemoteUserPostsCommitBundle :: TestM ()
-testRemoteUserPostsCommitBundle = do
-  let bobDomain = "bob.example.com"
-  [alice, bob, charlie] <- createAndConnectUsers [Nothing, Just bobDomain, Just bobDomain]
-  fedGalleyClient <- view tsFedGalleyClient
-
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient [alice, bob]
-    (_, qcnv) <- setupMLSGroup alice1
-
-    commit <- createAddCommit alice1 [bob]
-    void $ do
-      let mock = receiveCommitMock [bob1] <|> welcomeMock
-      withTempMockFederator' mock $ do
-        void $ sendAndConsumeCommitBundle commit
-        putOtherMemberQualified (qUnqualified alice) bob (OtherMemberUpdate (Just roleNameWireAdmin)) qcnv
-          !!! const 200 === statusCode
-
-        [_charlie1] <- traverse createMLSClient [charlie]
-        commitAddCharlie <- createAddCommit bob1 [charlie]
-        commitBundle <- createBundle commitAddCharlie
-
-        let msr =
-              MLSMessageSendRequest
-                { mmsrConvOrSubId = Conv (qUnqualified qcnv),
-                  mmsrSender = qUnqualified bob,
-                  mmsrSenderClient = ciClient bob1,
-                  mmsrRawMessage = Base64ByteString commitBundle
-                }
-
-        -- we can't fully test it, because remote admins are not implemeted, but
-        -- at least this proves that proposal processing has started on the
-        -- backend
-        MLSMessageResponseError MLSUnsupportedProposal <- runFedClient @"send-mls-commit-bundle" fedGalleyClient (Domain bobDomain) msr
-
-        pure ()
-
 -- | The MLS self-conversation should be available even without explicitly
 -- creating it by calling `GET /conversations/mls-self` starting from version 3
 -- of the client API and should not be listed in versions less than 3.
@@ -3345,49 +3256,3 @@ testCreatorRemovesUserFromParent = do
               )
               (sort [alice1, charlie1, charlie2])
               (sort $ pscMembers sub2)
-
-testMixedAddClients :: TestM ()
-testMixedAddClients = do
-  [alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
-
-  runMLSTest $ do
-    clients@[alice1, bob1, charlie1] <- traverse createMLSClient [alice, bob, charlie]
-    traverse_ uploadNewKeyPackage clients
-
-    -- alice creates conv
-    qcnv <-
-      cnvQualifiedId
-        <$> liftTest
-          ( postConvQualified (qUnqualified alice) Nothing defNewProteusConv {newConvQualifiedUsers = [bob, charlie]}
-              >>= responseJsonError
-          )
-
-    -- bob upgrades to mixed
-    putConversationProtocol (qUnqualified bob) (ciClient bob1) qcnv ProtocolMixedTag
-      !!! const 200 === statusCode
-
-    conv <-
-      responseJsonError
-        =<< getConvQualified (qUnqualified alice) qcnv
-          <!! const 200 === statusCode
-    void $ assertMixedProtocol conv
-
-    -- bob adds all client of alice and charlie
-    (_gid, _) <- setupMLSGroupWithConv (pure conv) bob1
-    commit <- createAddCommit bob1 [alice, charlie]
-    welcome <- assertJust (mpWelcome commit)
-    mlsBracket [alice1, charlie1] $ \wss -> do
-      void $ sendAndConsumeCommitBundle commit
-      for_ (zip [alice1, charlie1] wss) $ \(c, ws) ->
-        WS.assertMatch (5 # Second) ws $
-          wsAssertMLSWelcome (cidQualifiedUser c) welcome
-
-    -- charlie sends a Proteus message
-    let msgs =
-          [ (qUnqualified alice, ciClient alice1, toBase64Text "ciphertext-to-alice"),
-            (qUnqualified bob, ciClient bob1, toBase64Text "ciphertext-to-bob")
-          ]
-    liftTest $
-      postOtrMessage id (qUnqualified charlie) (ciClient charlie1) (qUnqualified qcnv) msgs !!! do
-        const 201 === statusCode
-        assertMismatch [] [] []
