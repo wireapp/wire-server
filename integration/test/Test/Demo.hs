@@ -10,7 +10,7 @@ import Testlib.Prelude
 -- | Legalhold clients cannot be deleted.
 testCantDeleteLHClient :: HasCallStack => App ()
 testCantDeleteLHClient = do
-  user <- randomUser ownDomain def
+  user <- randomUser OwnDomain def
   client <-
     Public.addClient user def {Public.ctype = "legalhold", Public.internal = True}
       >>= getJSON 201
@@ -21,7 +21,7 @@ testCantDeleteLHClient = do
 -- | Deleting unknown clients should fail with 404.
 testDeleteUnknownClient :: HasCallStack => App ()
 testDeleteUnknownClient = do
-  user <- randomUser ownDomain def
+  user <- randomUser OwnDomain def
   let fakeClientId = "deadbeefdeadbeef"
   bindResponse (Public.deleteClient user fakeClientId) $ \resp -> do
     resp.status `shouldMatchInt` 404
@@ -32,14 +32,14 @@ testModifiedBrig = do
   withModifiedService
     Brig
     (setField "optSettings.setFederationDomain" "overridden.example.com")
-    $ bindResponse (Public.getAPIVersion ownDomain)
+    $ bindResponse (Public.getAPIVersion OwnDomain)
     $ \resp -> do
       resp.status `shouldMatchInt` 200
       (resp.json %. "domain") `shouldMatch` "overridden.example.com"
 
 testModifiedGalley :: HasCallStack => App ()
 testModifiedGalley = do
-  (_user, tid) <- createTeam ownDomain
+  (_user, tid) <- createTeam OwnDomain
 
   let getFeatureStatus = do
         bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
@@ -57,7 +57,7 @@ testModifiedGalley = do
 
 testWebSockets :: HasCallStack => App ()
 testWebSockets = do
-  user <- randomUser ownDomain def
+  user <- randomUser OwnDomain def
   withWebSocket user $ \ws -> do
     client <- Public.addClient user def >>= getJSON 201
     n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "user.client-add") ws
@@ -65,11 +65,11 @@ testWebSockets = do
 
 testMultipleBackends :: App ()
 testMultipleBackends = do
-  ownDomainRes <- (Public.getAPIVersion ownDomain >>= getJSON 200) %. "domain"
-  otherDomainRes <- (Public.getAPIVersion otherDomain >>= getJSON 200) %. "domain"
-  ownDomainRes `shouldMatch` ownDomain
-  otherDomainRes `shouldMatch` otherDomain
-  ownDomain `shouldNotMatch` otherDomain
+  ownDomainRes <- (Public.getAPIVersion OwnDomain >>= getJSON 200) %. "domain"
+  otherDomainRes <- (Public.getAPIVersion OtherDomain >>= getJSON 200) %. "domain"
+  ownDomainRes `shouldMatch` OwnDomain
+  otherDomainRes `shouldMatch` OtherDomain
+  OwnDomain `shouldNotMatch` OtherDomain
 
 testUnrace :: App ()
 testUnrace = do
