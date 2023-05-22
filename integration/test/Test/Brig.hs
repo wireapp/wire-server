@@ -25,19 +25,29 @@ testSearchContactForExternalUsers = do
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
   let parseFedConns :: HasCallStack => Response -> App [Internal.FedConn]
-      parseFedConns resp = fromJust . Aeson.decode . Aeson.encode . fromJust <$> ((`lookupField` "remotes") =<< getJSON 200 resp)
+      parseFedConns resp = do
+        -- TODO: not idiomatic!  try `getJSON 200 resp %. "remotes" & asList & mapM asObjOrSomething`
+        -- Some ideas: There is asList to assert that a Value is actually a an array of Values. Then you can sort that to have a defined order.
+        fromJust . Aeson.decode . Aeson.encode . fromJust <$> ((`lookupField` "remotes") =<< getJSON 200 resp)
 
       addOnce :: HasCallStack => Internal.FedConn -> [Internal.FedConn] -> App ()
       addOnce fedConn want = do
-        _res <- Internal.createFedConn fedConn
-        res <- parseFedConns =<< Internal.readFedConns
-        sort res `shouldMatch` sort want
+        res <- Internal.createFedConn fedConn
+        res.status `shouldMatchInt` 200
+        res2 <- parseFedConns =<< Internal.readFedConns
+        sort res2 `shouldMatch` sort want
+
+      addFail :: HasCallStack => Internal.FedConn -> App ()
+      addFail fedConn = do
+        res <- Internal.createFedConn' fedConn
+        res.status `shouldMatchInt` 533
 
       deleteOnce :: HasCallStack => String -> [Internal.FedConn] -> App ()
       deleteOnce domain want = do
-        _res <- Internal.deleteFedConn domain
-        res <- parseFedConns =<< Internal.readFedConns
-        sort res `shouldMatch` sort want
+        res <- Internal.deleteFedConn domain
+        res.status `shouldMatchInt` 200
+        res2 <- parseFedConns =<< Internal.readFedConns
+        sort res2 `shouldMatch` sort want
 
       deleteFail :: HasCallStack => String -> App ()
       deleteFail del = do
@@ -46,9 +56,10 @@ testCrudFederationRemotes = do
 
       updateOnce :: HasCallStack => String -> Internal.FedConn -> [Internal.FedConn] -> App ()
       updateOnce domain fedConn want = do
-        _res <- Internal.updateFedConn domain fedConn
-        res <- parseFedConns =<< Internal.readFedConns
-        sort res `shouldMatch` sort want
+        res <- Internal.updateFedConn domain fedConn
+        res.status `shouldMatchInt` 200
+        res2 <- parseFedConns =<< Internal.readFedConns
+        sort res2 `shouldMatch` sort want
 
       updateFail :: HasCallStack => String -> Internal.FedConn -> App ()
       updateFail domain fedConn = do
@@ -63,15 +74,16 @@ testCrudFederationRemotes = do
       cfgRemotesExpect :: Internal.FedConn
       cfgRemotesExpect = Internal.FedConn (cs "example.com") "full_search"
 
-  resetFedConns
+  resetFedConns -- TODO: if you `make cqlsh and look at the table, you'll find this doesn't delete anything
   cfgRemotes <- parseFedConns =<< Internal.readFedConns
   cfgRemotes `shouldMatch` [cfgRemotesExpect] -- this fails and returns two entries for example.com.  maybe resetFedConns or createFedConn is broken in brig?
 
-  -- entries present in the config file can be idempotently added, but cannot be deleted or
-  -- updated.
+  -- entries present in the config file can be idempotently added if identical, but cannot be
+  -- updated, deleted or updated.
   addOnce cfgRemotesExpect [cfgRemotesExpect]
+  addFail (cfgRemotesExpect {Internal.searchStrategy = "no_search"})
   deleteFail (Internal.domain cfgRemotesExpect)
-  updateFail (Internal.domain cfgRemotesExpect) cfgRemotesExpect {Internal.searchStrategy = "no_search"}
+  updateFail (Internal.domain cfgRemotesExpect) (cfgRemotesExpect {Internal.searchStrategy = "no_search"})
 
   -- create
   addOnce remote1 (remote1 : cfgRemotes)

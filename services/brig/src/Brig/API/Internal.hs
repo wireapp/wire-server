@@ -64,7 +64,7 @@ import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
 import qualified Brig.User.Search.Index as Index
 import Control.Error hiding (bool)
-import Control.Lens (to, view, (^.))
+import Control.Lens (view, (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
@@ -198,20 +198,25 @@ addFederationRemote fedDomConf = do
         "Maximum number of remote backends reached.  If you need to create more connections, \
         \please contact wire.com."
 
+remotesMapFromCfgFile :: AppT r (Map Domain FederationDomainConfig)
+remotesMapFromCfgFile = do
+  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
+  let dict = [(domain cnf, cnf) | cnf <- cfg]
+      merge c c' =
+        if c == c'
+          then c
+          else error $ "error in config file: conflicting parameters on domain: " <> show (c, c')
+  pure $ Map.fromListWith merge dict
+
+remotesListFromCfgFile :: AppT r [FederationDomainConfig]
+remotesListFromCfgFile = Map.elems <$> remotesMapFromCfgFile
+
 -- | If remote domain is registered in config file, the version that can be added to the
 -- database must be the same.
 assertNoDivergingDomainInConfigFiles :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 assertNoDivergingDomainInConfigFiles fedComConf = do
-  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
-  let dict = Map.fromListWith merge keyvals
-        where
-          merge c c' =
-            if c == c'
-              then c
-              else error $ "error in config file: conflicting parameters on domain: " <> show (c, c')
-
-          keyvals = [(domain cnf, cnf) | cnf <- cfg]
-  let diverges = case Map.lookup (domain fedComConf) dict of
+  cfg <- lift remotesMapFromCfgFile
+  let diverges = case Map.lookup (domain fedComConf) cfg of
         Nothing -> False
         Just fedComConf' -> fedComConf' /= fedComConf
   when diverges $ do
@@ -223,7 +228,7 @@ assertNoDivergingDomainInConfigFiles fedComConf = do
                <> "or Nothing, "
            )
         <> ( "got "
-               <> cs (show (Map.lookup (domain fedComConf) dict))
+               <> cs (show (Map.lookup (domain fedComConf) cfg))
            )
 
 getFederationRemotes :: ExceptT Brig.API.Error.Error (AppT r) FederationDomainConfigs
@@ -234,11 +239,12 @@ getFederationRemotes = lift $ do
   -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
   -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
   db <- wrapClient Data.getFederationRemotes
-  (ms :: Maybe FederationStrategy, mf :: Maybe [FederationDomainConfig], mu :: Maybe Int) <- do
-    cfg :: Env <- ask
+  (ms :: Maybe FederationStrategy, mf :: [FederationDomainConfig], mu :: Maybe Int) <- do
+    cfg <- ask
+    domcfgs <- remotesListFromCfgFile -- (it's not very elegant to prove the env twice here, but this code is transitory.)
     pure
       ( setFederationStrategy (cfg ^. settings),
-        cfg ^. settings . to setFederationDomainConfigs,
+        domcfgs,
         setFederationDomainConfigsUpdateFreq (cfg ^. settings)
       )
 
@@ -252,7 +258,7 @@ getFederationRemotes = lift $ do
 
   defFederationDomainConfigs
     & maybe id (\v cfg -> cfg {strategy = v}) ms
-    & (\cfg -> cfg {remotes = nub $ db <> fromMaybe mempty mf})
+    & (\cfg -> cfg {remotes = nub $ db <> mf})
     & maybe id (\v cfg -> cfg {updateInterval = min 1 v}) mu
     & pure
 
