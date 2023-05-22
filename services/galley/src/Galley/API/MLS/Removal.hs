@@ -17,6 +17,7 @@
 
 module Galley.API.MLS.Removal
   ( createAndSendRemoveProposals,
+    removeExtraneousClients,
     removeClient,
     removeUser,
   )
@@ -26,17 +27,20 @@ import Data.Bifunctor
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
+import qualified Data.Set as Set
 import Data.Time
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Types
+import Galley.Data.Conversation.Types
 import qualified Galley.Data.Conversation.Types as Data
 import Galley.Effects
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Galley.Effects.SubConversationStore
 import Galley.Env
+import Galley.Types.Conversations.Members
 import Imports hiding (cs)
 import Polysemy
 import Polysemy.Input
@@ -116,6 +120,8 @@ removeClientsWithClientMapRecursively ::
     Foldable f
   ) =>
   Local MLSConversation ->
+  -- | A function returning the "list" of clients to be removed from either the
+  -- main conversation or each of its subconversations.
   (ConvOrSubConv -> f (ClientIdentity, LeafIndex)) ->
   -- | Originating user. The resulting proposals will appear to be sent by this user.
   Qualified UserId ->
@@ -203,3 +209,31 @@ listSubConversations' cid = do
   msubs <- for (Map.assocs subs) $ \(subId, _) -> do
     getSubConversation cid subId
   pure (catMaybes msubs)
+
+-- | Send remove proposals for clients of users that are not part of a conversation
+removeExtraneousClients ::
+  ( Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input UTCTime) r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member SubConversationStore r,
+    Member TinyLog r
+  ) =>
+  Qualified UserId ->
+  Local Conversation ->
+  Sem r ()
+removeExtraneousClients qusr lconv = do
+  mMlsConv <- mkMLSConversation (tUnqualified lconv)
+  for_ mMlsConv $ \mlsConv -> do
+    let allMembers =
+          Set.fromList $
+            map (tUntagged . qualifyAs lconv . lmId) (mcLocalMembers mlsConv)
+              <> map (tUntagged . rmId) (mcRemoteMembers mlsConv)
+    let getClients c =
+          filter
+            (\(cid, _) -> cidQualifiedUser cid `Set.notMember` allMembers)
+            (cmAssocs c.members)
+    removeClientsWithClientMapRecursively (qualifyAs lconv mlsConv) getClients qusr

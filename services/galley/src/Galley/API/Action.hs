@@ -214,7 +214,15 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     ( Member ConversationStore r,
       Member (ErrorS 'ConvInvalidProtocolTransition) r,
       Member (Error NoChanges) r,
-      Member FederatorAccess r
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member GundeckAccess r,
+      Member (Input Env) r,
+      Member (Input UTCTime) r,
+      Member MemberStore r,
+      Member ProposalStore r,
+      Member SubConversationStore r,
+      Member TinyLog r
     )
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
@@ -394,6 +402,15 @@ performAction tag origUser lconv action = do
       case (protocolTag (convProtocol (tUnqualified lconv)), action, convTeam (tUnqualified lconv)) of
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
           E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+          pure (mempty, action)
+        (ProtocolMixedTag, ProtocolMLSTag, Just _tid) -> do
+          -- TODO:
+          -- [ ] get migration criteria
+          -- [ ] verify that migration criteria are satisfied
+          -- [x] send remove proposals for clients of users that are not part of the conversation
+          -- [x] update the protocol
+          removeExtraneousClients origUser lconv
+          E.updateToMLSProtocol lcnv
           pure (mempty, action)
         (ProtocolProteusTag, ProtocolProteusTag, _) ->
           noChanges

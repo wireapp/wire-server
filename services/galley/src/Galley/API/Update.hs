@@ -690,6 +690,7 @@ updateConversationProtocolWithLocalUser ::
     Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
     Member (Input UTCTime) r,
+    Member (Input Env) r,
     Member (Input (Local ())) r,
     Member BrigAccess r,
     Member MemberStore r,
@@ -697,6 +698,8 @@ updateConversationProtocolWithLocalUser ::
     Member GundeckAccess r,
     Member ExternalAccess r,
     Member FederatorAccess r,
+    Member ProposalStore r,
+    Member SubConversationStore r,
     Member ConversationStore r
   ) =>
   Local UserId ->
