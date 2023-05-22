@@ -175,3 +175,16 @@ removeConversationMember user conv = do
   (userDomain, userId) <- objQid user
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members", userDomain, userId])
   submit "DELETE" req
+
+updateConversationMember ::
+  (HasCallStack, MakesValue user, MakesValue conv, MakesValue target) =>
+  user ->
+  conv ->
+  target ->
+  String ->
+  App Response
+updateConversationMember user conv target role = do
+  (convDomain, convId) <- objQid conv
+  (targetDomain, targetId) <- objQid target
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members", targetDomain, targetId])
+  submit "PUT" (req & addJSONObject ["conversation_role" .= role])

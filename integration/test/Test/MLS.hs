@@ -247,6 +247,21 @@ testAddUser = do
       "Users added to an MLS group should find it when listing conversations"
       (qcnv `elem` convIds)
 
+testRemoteAddUser :: HasCallStack => App ()
+testRemoteAddUser = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OtherDomain, OwnDomain]
+  [alice1, bob1, charlie1] <- traverse createMLSClient [alice, bob, charlie]
+  traverse_ uploadNewKeyPackage [bob1, charlie1]
+  (_, conv) <- createNewGroup alice1
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+  bindResponse (updateConversationMember alice1 conv bob "wire_admin") $ \resp ->
+    resp.status `shouldMatchInt` 200
+
+  mp <- createAddCommit bob1 [charlie]
+  bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 500
+    resp.json %. "label" `shouldMatch` "federation-not-implemented"
+
 testCreateSubConv :: HasCallStack => App ()
 testCreateSubConv = do
   alice <- randomUser OwnDomain def
