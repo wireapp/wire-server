@@ -125,15 +125,16 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- 1. Add a data type for your feature's "config" part, naming convention:
 -- **<NameOfFeature>Config**. If your feature doesn't have a config besides
 -- being enabled/disabled, locked/unlocked, then the config should be a unit
--- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Implement type classes
--- 'ToSchema', 'IsFeatureConfig' and 'Arbitrary'. If your feature doesn't have a
--- config implement 'FeatureTrivialConfig'.
+-- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Add a singleton for
+-- the new data type. Implement type classes 'ToSchema', 'IsFeatureConfig' and
+-- 'Arbitrary'. If your feature doesn't have a config implement
+-- 'FeatureTrivialConfig'.
 --
 -- 2. Add the config to to 'AllFeatureConfigs'.
 --
 -- 3. If your feature is configurable on a per-team basis, add a schema
--- migration in galley and add 'FeatureStatusCassandra' instance in
--- Galley.Cassandra.TeamFeatures together with a schema migration
+-- migration in galley and extend 'getFeatureStatus' and similar functions in
+-- Galley.Cassandra.TeamFeatures
 --
 -- 4. Add the feature to the config schema of galley in Galley.Types.Teams.
 -- and extend the Arbitrary instance of FeatureConfigs in the unit tests Test.Galley.Types
