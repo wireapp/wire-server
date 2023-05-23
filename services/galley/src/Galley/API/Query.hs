@@ -121,7 +121,7 @@ firstConflictOrFullyConnected =
     . mapMaybe (toMaybeConflict . (\r -> (tDomain r, tUnqualified r)))
   where
     toMaybeConflict :: (Domain, Fed.FederationStatusResponse) -> Maybe (Domain, Domain)
-    toMaybeConflict (d, Fed.FederationStatusResponse (Fed.DomainSet conflictingDomains)) =
+    toMaybeConflict (d, Fed.FederationStatusResponse conflictingDomains) =
       case Set.toList conflictingDomains of
         [] -> Nothing
         conflictingDomain : _ -> Just (d, conflictingDomain)

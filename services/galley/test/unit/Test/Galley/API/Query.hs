@@ -1,5 +1,3 @@
-
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -52,7 +50,7 @@ testTable =
   ]
   where
     mkResponse :: Domain -> [Domain] -> Remote Fed.FederationStatusResponse
-    mkResponse d = toRemoteUnsafe d . Fed.FederationStatusResponse . Fed.DomainSet . Set.fromList
+    mkResponse d = toRemoteUnsafe d . Fed.FederationStatusResponse . Set.fromList
 
     notOk :: Domain -> Domain -> FederationStatusResponse
     notOk d1 d2 = FederationStatusResponse NonFullyConnected (Just $ RemoteDomains $ Set.fromList [d1, d2])
