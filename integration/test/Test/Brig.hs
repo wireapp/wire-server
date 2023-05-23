@@ -87,7 +87,7 @@ testCrudFederationRemotes = do
   addOnce remote1 (remote1 : cfgRemotes)
   addOnce remote1 (remote1 : cfgRemotes) -- idempotency
   -- update
-  updateOnce (Internal.domain remote1) remote1' (remote1' : cfgRemotes) -- This fails
+  updateOnce (Internal.domain remote1) remote1' (remote1' : cfgRemotes)
   updateFail (Internal.domain remote1) remote1''
   -- delete
   deleteOnce (Internal.domain remote1) cfgRemotes

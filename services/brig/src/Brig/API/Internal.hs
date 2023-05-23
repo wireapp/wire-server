@@ -270,7 +270,11 @@ updateFederationRemotes :: Domain -> FederationDomainConfig -> ExceptT Brig.API.
 updateFederationRemotes dom fedcfg = do
   assertDomainIsNotUpdated dom fedcfg
   assertNoDomainsFromConfigFiles dom
-  lift . wrapClient . Data.updateFederationRemote $ fedcfg
+  (lift . wrapClient . Data.updateFederationRemote $ fedcfg) >>= \case
+    True -> pure ()
+    False ->
+      throwError . fedError . FederationUnexpectedError . cs $
+        "federation domain does not exist and cannot be updated: " <> show (dom, fedcfg)
 
 assertDomainIsNotUpdated :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 assertDomainIsNotUpdated dom fedcfg = do

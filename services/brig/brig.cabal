@@ -208,6 +208,7 @@ library
     , conduit                    >=1.2.8
     , containers                 >=0.5
     , cookie                     >=0.4
+    , cql
     , cryptobox-haskell          >=0.1.1
     , currency-codes             >=2.0
     , data-default               >=0.5
