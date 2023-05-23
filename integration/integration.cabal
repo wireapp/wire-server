@@ -142,7 +142,6 @@ library
     , text
     , time
     , transformers
-    , types-common
     , unix
     , unliftio
     , uuid
