@@ -82,7 +82,7 @@ runBrigToIO e (AppT ma) = do
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
-              . runInputConst mempty -- get this from the ENV once available
+              . runInputConst mempty -- TODO(leif): get this from the ENV once available
           )
     )
     $ runReaderT ma e
