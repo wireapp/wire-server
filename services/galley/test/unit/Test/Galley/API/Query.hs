@@ -43,9 +43,9 @@ testTable =
     ("single response", [mkResponse (Domain "a.com") []], ok),
     ("multiple responses", [mkResponse (Domain "a.com") [], mkResponse (Domain "b.com") []], ok),
     ("single bad responses", [mkResponse (Domain "a.com") [Domain "b.com"]], notOk (Domain "a.com") (Domain "b.com")),
-    ("ond good one bad response", [mkResponse (Domain "a.com") [], mkResponse (Domain "b.com") [Domain "c.com"]], notOk (Domain "b.com") (Domain "c.com")),
-    ("ond bad one good response", [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") []], notOk (Domain "b.com") (Domain "c.com")),
-    ("ond bad multiple good responses", [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") []], notOk (Domain "b.com") (Domain "c.com")),
+    ("one good one bad response", [mkResponse (Domain "a.com") [], mkResponse (Domain "b.com") [Domain "c.com"]], notOk (Domain "b.com") (Domain "c.com")),
+    ("one bad one good response", [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") []], notOk (Domain "b.com") (Domain "c.com")),
+    ("one bad multiple good responses", [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") []], notOk (Domain "b.com") (Domain "c.com")),
     ("multiple bad responses", [mkResponse (Domain "a.com") [Domain "b.com"], mkResponse (Domain "b.com") [Domain "a.com"]], notOk (Domain "a.com") (Domain "b.com"))
   ]
   where
