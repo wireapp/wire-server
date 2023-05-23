@@ -58,6 +58,7 @@ module Wire.API.Team.Feature
     defFeatureStatusNoLock,
     computeFeatureConfigForTeamUser,
     IsFeatureConfig (..),
+    FeatureSingleton (..),
     FeatureTrivialConfig (..),
     HasDeprecatedFeatureName (..),
     LockStatusResponse (..),
@@ -127,15 +128,16 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- 1. Add a data type for your feature's "config" part, naming convention:
 -- **<NameOfFeature>Config**. If your feature doesn't have a config besides
 -- being enabled/disabled, locked/unlocked, then the config should be a unit
--- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Implement type classes
--- 'ToSchema', 'IsFeatureConfig' and 'Arbitrary'. If your feature doesn't have a
--- config implement 'FeatureTrivialConfig'.
+-- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Add a singleton for
+-- the new data type. Implement type classes 'ToSchema', 'IsFeatureConfig' and
+-- 'Arbitrary'. If your feature doesn't have a config implement
+-- 'FeatureTrivialConfig'.
 --
 -- 2. Add the config to to 'AllFeatureConfigs'.
 --
 -- 3. If your feature is configurable on a per-team basis, add a schema
--- migration in galley and add 'FeatureStatusCassandra' instance in
--- Galley.Cassandra.TeamFeatures together with a schema migration
+-- migration in galley and extend 'getFeatureStatus' and similar functions in
+-- Galley.Cassandra.TeamFeatures
 --
 -- 4. Add the feature to the config schema of galley in Galley.Types.Teams.
 -- and extend the Arbitrary instance of FeatureConfigs in the unit tests
@@ -175,12 +177,33 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 class IsFeatureConfig cfg where
   type FeatureSymbol cfg :: Symbol
   defFeatureStatus :: WithStatus cfg
+  featureSingleton :: FeatureSingleton cfg
 
   objectSchema ::
     -- | Should be "pure MyFeatureConfig" if the feature doesn't have config,
     -- which results in a trivial empty schema and the "config" field being
     -- omitted/ignored in the JSON encoder / parser.
     ObjectSchema SwaggerDoc cfg
+
+data FeatureSingleton cfg where
+  FeatureSingletonGuestLinksConfig :: FeatureSingleton GuestLinksConfig
+  FeatureSingletonLegalholdConfig :: FeatureSingleton LegalholdConfig
+  FeatureSingletonSSOConfig :: FeatureSingleton SSOConfig
+  FeatureSingletonSearchVisibilityAvailableConfig :: FeatureSingleton SearchVisibilityAvailableConfig
+  FeatureSingletonValidateSAMLEmailsConfig :: FeatureSingleton ValidateSAMLEmailsConfig
+  FeatureSingletonDigitalSignaturesConfig :: FeatureSingleton DigitalSignaturesConfig
+  FeatureSingletonConferenceCallingConfig :: FeatureSingleton ConferenceCallingConfig
+  FeatureSingletonSndFactorPasswordChallengeConfig :: FeatureSingleton SndFactorPasswordChallengeConfig
+  FeatureSingletonSearchVisibilityInboundConfig :: FeatureSingleton SearchVisibilityInboundConfig
+  FeatureSingletonClassifiedDomainsConfig :: FeatureSingleton ClassifiedDomainsConfig
+  FeatureSingletonAppLockConfig :: FeatureSingleton AppLockConfig
+  FeatureSingletonSelfDeletingMessagesConfig :: FeatureSingleton SelfDeletingMessagesConfig
+  FeatureSingletonFileSharingConfig :: FeatureSingleton FileSharingConfig
+  FeatureSingletonMLSConfig :: FeatureSingleton MLSConfig
+  FeatureSingletonExposeInvitationURLsToTeamAdminConfig :: FeatureSingleton ExposeInvitationURLsToTeamAdminConfig
+  FeatureSingletonOutlookCalIntegrationConfig :: FeatureSingleton OutlookCalIntegrationConfig
+  FeatureSingletonMlsE2EIdConfig :: FeatureSingleton MlsE2EIdConfig
+  FeatureSingletonMlsMigration :: FeatureSingleton MlsMigrationConfig
 
 class FeatureTrivialConfig cfg where
   trivialConfig :: cfg
@@ -560,6 +583,7 @@ instance ToSchema GuestLinksConfig where
 instance IsFeatureConfig GuestLinksConfig where
   type FeatureSymbol GuestLinksConfig = "conversationGuestLinks"
   defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked GuestLinksConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonGuestLinksConfig
 
   objectSchema = pure GuestLinksConfig
 
@@ -576,6 +600,7 @@ data LegalholdConfig = LegalholdConfig
 instance IsFeatureConfig LegalholdConfig where
   type FeatureSymbol LegalholdConfig = "legalhold"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked LegalholdConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonLegalholdConfig
   objectSchema = pure LegalholdConfig
 
 instance ToSchema LegalholdConfig where
@@ -594,6 +619,7 @@ data SSOConfig = SSOConfig
 instance IsFeatureConfig SSOConfig where
   type FeatureSymbol SSOConfig = "sso"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SSOConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonSSOConfig
   objectSchema = pure SSOConfig
 
 instance ToSchema SSOConfig where
@@ -614,6 +640,7 @@ data SearchVisibilityAvailableConfig = SearchVisibilityAvailableConfig
 instance IsFeatureConfig SearchVisibilityAvailableConfig where
   type FeatureSymbol SearchVisibilityAvailableConfig = "searchVisibility"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonSearchVisibilityAvailableConfig
   objectSchema = pure SearchVisibilityAvailableConfig
 
 instance ToSchema SearchVisibilityAvailableConfig where
@@ -638,6 +665,7 @@ instance ToSchema ValidateSAMLEmailsConfig where
 instance IsFeatureConfig ValidateSAMLEmailsConfig where
   type FeatureSymbol ValidateSAMLEmailsConfig = "validateSAMLemails"
   defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked ValidateSAMLEmailsConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonValidateSAMLEmailsConfig
   objectSchema = pure ValidateSAMLEmailsConfig
 
 instance HasDeprecatedFeatureName ValidateSAMLEmailsConfig where
@@ -656,6 +684,7 @@ data DigitalSignaturesConfig = DigitalSignaturesConfig
 instance IsFeatureConfig DigitalSignaturesConfig where
   type FeatureSymbol DigitalSignaturesConfig = "digitalSignatures"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked DigitalSignaturesConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonDigitalSignaturesConfig
   objectSchema = pure DigitalSignaturesConfig
 
 instance HasDeprecatedFeatureName DigitalSignaturesConfig where
@@ -677,6 +706,7 @@ data ConferenceCallingConfig = ConferenceCallingConfig
 instance IsFeatureConfig ConferenceCallingConfig where
   type FeatureSymbol ConferenceCallingConfig = "conferenceCalling"
   defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked ConferenceCallingConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonConferenceCallingConfig
   objectSchema = pure ConferenceCallingConfig
 
 instance ToSchema ConferenceCallingConfig where
@@ -698,6 +728,7 @@ instance ToSchema SndFactorPasswordChallengeConfig where
 instance IsFeatureConfig SndFactorPasswordChallengeConfig where
   type FeatureSymbol SndFactorPasswordChallengeConfig = "sndFactorPasswordChallenge"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked SndFactorPasswordChallengeConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonSndFactorPasswordChallengeConfig
   objectSchema = pure SndFactorPasswordChallengeConfig
 
 instance FeatureTrivialConfig SndFactorPasswordChallengeConfig where
@@ -714,6 +745,7 @@ data SearchVisibilityInboundConfig = SearchVisibilityInboundConfig
 instance IsFeatureConfig SearchVisibilityInboundConfig where
   type FeatureSymbol SearchVisibilityInboundConfig = "searchVisibilityInbound"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonSearchVisibilityInboundConfig
   objectSchema = pure SearchVisibilityInboundConfig
 
 instance ToSchema SearchVisibilityInboundConfig where
@@ -748,6 +780,7 @@ instance IsFeatureConfig ClassifiedDomainsConfig where
       LockStatusUnlocked
       (ClassifiedDomainsConfig [])
       FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonClassifiedDomainsConfig
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
@@ -777,6 +810,7 @@ instance IsFeatureConfig AppLockConfig where
       LockStatusUnlocked
       (AppLockConfig (EnforceAppLock False) 60)
       FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonAppLockConfig
   objectSchema = field "config" schema
 
 newtype EnforceAppLock = EnforceAppLock Bool
@@ -797,6 +831,7 @@ data FileSharingConfig = FileSharingConfig
 instance IsFeatureConfig FileSharingConfig where
   type FeatureSymbol FileSharingConfig = "fileSharing"
   defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked FileSharingConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonFileSharingConfig
   objectSchema = pure FileSharingConfig
 
 instance ToSchema FileSharingConfig where
@@ -829,6 +864,7 @@ instance IsFeatureConfig SelfDeletingMessagesConfig where
       LockStatusUnlocked
       (SelfDeletingMessagesConfig 0)
       FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonSelfDeletingMessagesConfig
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
@@ -857,6 +893,7 @@ instance IsFeatureConfig MLSConfig where
   defFeatureStatus =
     let config = MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
      in withStatus FeatureStatusDisabled LockStatusUnlocked config FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonMLSConfig
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
@@ -869,6 +906,7 @@ data ExposeInvitationURLsToTeamAdminConfig = ExposeInvitationURLsToTeamAdminConf
 instance IsFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   type FeatureSymbol ExposeInvitationURLsToTeamAdminConfig = "exposeInvitationURLsToTeamAdmin"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonExposeInvitationURLsToTeamAdminConfig
   objectSchema = pure ExposeInvitationURLsToTeamAdminConfig
 
 instance ToSchema ExposeInvitationURLsToTeamAdminConfig where
@@ -889,6 +927,7 @@ data OutlookCalIntegrationConfig = OutlookCalIntegrationConfig
 instance IsFeatureConfig OutlookCalIntegrationConfig where
   type FeatureSymbol OutlookCalIntegrationConfig = "outlookCalIntegration"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonOutlookCalIntegrationConfig
   objectSchema = pure OutlookCalIntegrationConfig
 
 instance ToSchema OutlookCalIntegrationConfig where
@@ -946,6 +985,7 @@ instance IsFeatureConfig MlsE2EIdConfig where
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked defValue FeatureTTLUnlimited
     where
       defValue = MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24)) Nothing
+  featureSingleton = FeatureSingletonMlsE2EIdConfig
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
@@ -1002,6 +1042,7 @@ instance IsFeatureConfig MlsMigrationConfig where
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked defValue FeatureTTLUnlimited
     where
       defValue = MlsMigrationConfig Nothing Nothing Nothing Nothing
+  featureSingleton = FeatureSingletonMlsMigration
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------

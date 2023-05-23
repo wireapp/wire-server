@@ -85,26 +85,23 @@ import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 
 assertLegalHoldEnabledForTeam ::
-  forall db r.
+  forall r.
   ( Member LegalHoldStore r,
     Member TeamStore r,
-    Member (TeamFeatureStore db) r,
+    Member TeamFeatureStore r,
     Member (ErrorS 'LegalHoldNotEnabled) r
   ) =>
-  TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   TeamId ->
   Sem r ()
 assertLegalHoldEnabledForTeam tid =
-  unlessM (isLegalHoldEnabledForTeam @db tid) $
+  unlessM (isLegalHoldEnabledForTeam tid) $
     throwS @'LegalHoldNotEnabled
 
 isLegalHoldEnabledForTeam ::
-  forall db r.
-  ( ( Member LegalHoldStore r,
-      Member TeamStore r,
-      Member (TeamFeatureStore db) r
-    ),
-    TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig
+  forall r.
+  ( Member LegalHoldStore r,
+    Member TeamStore r,
+    Member TeamFeatureStore r
   ) =>
   TeamId ->
   Sem r Bool
@@ -114,7 +111,7 @@ isLegalHoldEnabledForTeam tid = do
       pure False
     FeatureLegalHoldDisabledByDefault -> do
       statusValue <-
-        Public.wssStatus <$$> TeamFeatures.getFeatureConfig @db (Proxy @Public.LegalholdConfig) tid
+        Public.wssStatus <$$> TeamFeatures.getFeatureConfig Public.FeatureSingletonLegalholdConfig tid
       pure $ case statusValue of
         Just Public.FeatureStatusEnabled -> True
         Just Public.FeatureStatusDisabled -> False
@@ -123,25 +120,24 @@ isLegalHoldEnabledForTeam tid = do
       LegalHoldData.isTeamLegalholdWhitelisted tid
 
 createSettings ::
-  forall db r.
+  forall r.
   ( Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'LegalHoldNotEnabled) r,
     Member (ErrorS 'LegalHoldServiceInvalidKey) r,
     Member (ErrorS 'LegalHoldServiceBadResponse) r,
     Member LegalHoldStore r,
-    Member (TeamFeatureStore db) r,
+    Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r
   ) =>
-  TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   Local UserId ->
   TeamId ->
   Public.NewLegalHoldService ->
   Sem r Public.ViewLegalHoldService
 createSettings lzusr tid newService = do
   let zusr = tUnqualified lzusr
-  assertLegalHoldEnabledForTeam @db tid
+  assertLegalHoldEnabledForTeam tid
   zusrMembership <- getTeamMember tid zusr
   -- let zothers = map (view userId) membs
   -- Log.debug $
@@ -157,13 +153,12 @@ createSettings lzusr tid newService = do
   pure . viewLegalHoldService $ service
 
 getSettings ::
-  forall db r.
+  forall r.
   ( Member (ErrorS 'NotATeamMember) r,
     Member LegalHoldStore r,
-    Member (TeamFeatureStore db) r,
+    Member TeamFeatureStore r,
     Member TeamStore r
   ) =>
-  TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   Local UserId ->
   TeamId ->
   Sem r Public.ViewLegalHoldService
@@ -171,7 +166,7 @@ getSettings lzusr tid = do
   let zusr = tUnqualified lzusr
   zusrMembership <- getTeamMember tid zusr
   void $ maybe (throwS @'NotATeamMember) pure zusrMembership
-  isenabled <- isLegalHoldEnabledForTeam @db tid
+  isenabled <- isLegalHoldEnabledForTeam tid
   mresult <- LegalHoldData.getSettings tid
   pure $ case (isenabled, mresult) of
     (False, _) -> Public.ViewLegalHoldServiceDisabled
@@ -179,7 +174,7 @@ getSettings lzusr tid = do
     (True, Just result) -> viewLegalHoldService result
 
 removeSettingsInternalPaging ::
-  forall db r.
+  forall r.
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
@@ -206,19 +201,18 @@ removeSettingsInternalPaging ::
     Member ProposalStore r,
     Member P.TinyLog r,
     Member SubConversationStore r,
-    Member (TeamFeatureStore db) r,
+    Member TeamFeatureStore r,
     Member (TeamMemberStore InternalPaging) r,
     Member TeamStore r
   ) =>
-  TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   Local UserId ->
   TeamId ->
   Public.RemoveLegalHoldSettingsRequest ->
   Sem r ()
-removeSettingsInternalPaging lzusr = removeSettings @db @InternalPaging (tUnqualified lzusr)
+removeSettingsInternalPaging lzusr = removeSettings @InternalPaging (tUnqualified lzusr)
 
 removeSettings ::
-  forall db p r.
+  forall p r.
   ( Paging p,
     Bounded (PagingBounds p TeamMember),
     Member BrigAccess r,
@@ -247,18 +241,17 @@ removeSettings ::
     Member ProposalStore r,
     Member P.TinyLog r,
     Member SubConversationStore r,
-    Member (TeamFeatureStore db) r,
+    Member TeamFeatureStore r,
     Member (TeamMemberStore p) r,
     Member TeamStore r
   ) =>
-  TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   UserId ->
   TeamId ->
   Public.RemoveLegalHoldSettingsRequest ->
   Sem r ()
 removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
   assertNotWhitelisting
-  assertLegalHoldEnabledForTeam @db tid
+  assertLegalHoldEnabledForTeam tid
   zusrMembership <- getTeamMember tid zusr
   -- let zothers = map (view userId) membs
   -- Log.debug $
@@ -406,7 +399,7 @@ grantConsent lusr tid = do
 
 -- | Request to provision a device on the legal hold service for a user
 requestDevice ::
-  forall db r.
+  forall r.
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
@@ -434,10 +427,9 @@ requestDevice ::
     Member ProposalStore r,
     Member P.TinyLog r,
     Member SubConversationStore r,
-    Member (TeamFeatureStore db) r,
+    Member TeamFeatureStore r,
     Member TeamStore r
   ) =>
-  TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   Local UserId ->
   TeamId ->
   UserId ->
@@ -445,7 +437,7 @@ requestDevice ::
 requestDevice lzusr tid uid = do
   let zusr = tUnqualified lzusr
   luid <- qualifyLocal uid
-  assertLegalHoldEnabledForTeam @db tid
+  assertLegalHoldEnabledForTeam tid
   P.debug $
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.requestDevice")
@@ -486,7 +478,7 @@ requestDevice lzusr tid uid = do
 -- it gets interupted. There's really no reason to delete them anyways
 -- since they are replaced if needed when registering new LH devices.
 approveDevice ::
-  forall db r.
+  forall r.
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
@@ -514,10 +506,9 @@ approveDevice ::
     Member ProposalStore r,
     Member P.TinyLog r,
     Member SubConversationStore r,
-    Member (TeamFeatureStore db) r,
+    Member TeamFeatureStore r,
     Member TeamStore r
   ) =>
-  TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   Local UserId ->
   ConnId ->
   TeamId ->
@@ -527,7 +518,7 @@ approveDevice ::
 approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassword) = do
   let zusr = tUnqualified lzusr
   luid <- qualifyLocal uid
-  assertLegalHoldEnabledForTeam @db tid
+  assertLegalHoldEnabledForTeam tid
   P.debug $
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.approveDevice")

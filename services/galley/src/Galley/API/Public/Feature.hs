@@ -20,7 +20,6 @@ module Galley.API.Public.Feature where
 import Galley.API.Teams
 import Galley.API.Teams.Features
 import Galley.App
-import Galley.Cassandra.TeamFeatures
 import Imports
 import Wire.API.Federation.API
 import Wire.API.Routes.API
@@ -29,55 +28,55 @@ import Wire.API.Team.Feature
 
 featureAPI :: API FeatureAPI GalleyEffects
 featureAPI =
-  mkNamedAPI @'("get", SSOConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", LegalholdConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", LegalholdConfig) (callsFed (exposeAnnotations (setFeatureStatus @Cassandra . DoAuth)))
-    <@> mkNamedAPI @'("get", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra . DoAuth)
+  mkNamedAPI @'("get", SSOConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", LegalholdConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", LegalholdConfig) (callsFed (exposeAnnotations (setFeatureStatus . DoAuth)))
+    <@> mkNamedAPI @'("get", SearchVisibilityAvailableConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", SearchVisibilityAvailableConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) (setFeatureStatus . DoAuth)
     <@> mkNamedAPI @"get-search-visibility" getSearchVisibility
-    <@> mkNamedAPI @"set-search-visibility" (setSearchVisibility (featureEnabledForTeam @Cassandra @SearchVisibilityAvailableConfig))
-    <@> mkNamedAPI @'("get", ValidateSAMLEmailsConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get-deprecated", ValidateSAMLEmailsConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", DigitalSignaturesConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get-deprecated", DigitalSignaturesConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", AppLockConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", AppLockConfig) (setFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", FileSharingConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", FileSharingConfig) (setFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", ClassifiedDomainsConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", ConferenceCallingConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", SelfDeletingMessagesConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", SelfDeletingMessagesConfig) (setFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", GuestLinksConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", GuestLinksConfig) (setFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", SndFactorPasswordChallengeConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", SndFactorPasswordChallengeConfig) (setFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", MLSConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", MLSConfig) (setFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", ExposeInvitationURLsToTeamAdminConfig) (setFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", SearchVisibilityInboundConfig) (setFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", OutlookCalIntegrationConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", OutlookCalIntegrationConfig) (setFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", MlsE2EIdConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", MlsE2EIdConfig) (setFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("get", MlsMigrationConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", MlsMigrationConfig) (setFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @"get-all-feature-configs-for-user" (getAllFeatureConfigsForUser @Cassandra)
-    <@> mkNamedAPI @"get-all-feature-configs-for-team" (getAllFeatureConfigsForTeam @Cassandra)
-    <@> mkNamedAPI @'("get-config", LegalholdConfig) (getFeatureStatusForUser @Cassandra)
-    <@> mkNamedAPI @'("get-config", SSOConfig) (getFeatureStatusForUser @Cassandra)
-    <@> mkNamedAPI @'("get-config", SearchVisibilityAvailableConfig) (getFeatureStatusForUser @Cassandra)
-    <@> mkNamedAPI @'("get-config", ValidateSAMLEmailsConfig) (getFeatureStatusForUser @Cassandra)
-    <@> mkNamedAPI @'("get-config", DigitalSignaturesConfig) (getFeatureStatusForUser @Cassandra)
-    <@> mkNamedAPI @'("get-config", AppLockConfig) (getFeatureStatusForUser @Cassandra)
-    <@> mkNamedAPI @'("get-config", FileSharingConfig) (getFeatureStatusForUser @Cassandra)
-    <@> mkNamedAPI @'("get-config", ClassifiedDomainsConfig) (getFeatureStatusForUser @Cassandra)
-    <@> mkNamedAPI @'("get-config", ConferenceCallingConfig) (getFeatureStatusForUser @Cassandra)
-    <@> mkNamedAPI @'("get-config", SelfDeletingMessagesConfig) (getFeatureStatusForUser @Cassandra)
-    <@> mkNamedAPI @'("get-config", GuestLinksConfig) (getFeatureStatusForUser @Cassandra)
-    <@> mkNamedAPI @'("get-config", SndFactorPasswordChallengeConfig) (getFeatureStatusForUser @Cassandra)
-    <@> mkNamedAPI @'("get-config", MLSConfig) (getFeatureStatusForUser @Cassandra)
+    <@> mkNamedAPI @"set-search-visibility" (setSearchVisibility (featureEnabledForTeam @SearchVisibilityAvailableConfig))
+    <@> mkNamedAPI @'("get", ValidateSAMLEmailsConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get-deprecated", ValidateSAMLEmailsConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", DigitalSignaturesConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get-deprecated", DigitalSignaturesConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", AppLockConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", AppLockConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", FileSharingConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", FileSharingConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", ClassifiedDomainsConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", ConferenceCallingConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", SelfDeletingMessagesConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", SelfDeletingMessagesConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", GuestLinksConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", GuestLinksConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", SndFactorPasswordChallengeConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", SndFactorPasswordChallengeConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", MLSConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", MLSConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", ExposeInvitationURLsToTeamAdminConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", SearchVisibilityInboundConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", SearchVisibilityInboundConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", OutlookCalIntegrationConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", OutlookCalIntegrationConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", MlsE2EIdConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", MlsE2EIdConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", MlsMigrationConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", MlsMigrationConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @"get-all-feature-configs-for-user" getAllFeatureConfigsForUser
+    <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllFeatureConfigsForTeam
+    <@> mkNamedAPI @'("get-config", LegalholdConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", SSOConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", SearchVisibilityAvailableConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", ValidateSAMLEmailsConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", DigitalSignaturesConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", AppLockConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", FileSharingConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", ClassifiedDomainsConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", ConferenceCallingConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", SelfDeletingMessagesConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", GuestLinksConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", SndFactorPasswordChallengeConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", MLSConfig) getFeatureStatusForUser
