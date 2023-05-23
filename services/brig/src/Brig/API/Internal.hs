@@ -216,17 +216,12 @@ remotesListFromCfgFile = Map.elems <$> remotesMapFromCfgFile
 assertNoDivergingDomainInConfigFiles :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 assertNoDivergingDomainInConfigFiles fedComConf = do
   cfg <- lift remotesMapFromCfgFile
-  -- _ <- error $
-  --   "-------------------\n\n\n" <>
-  --   "cfg = " <> show cfg <> "\n\n\n" <>
-  --   "fedComConf = " <> show fedComConf <> "\n\n\n" <>
-  --   "-------------------\n\n\n"
   let diverges = case Map.lookup (domain fedComConf) cfg of
         Nothing -> False
         Just fedComConf' -> fedComConf' /= fedComConf
   when diverges $ do
     throwError . fedError . FederationUnexpectedError $
-      "foooooooooooooooo keeping track of remote domains in the brig config file is deprecated, but as long as we \
+      "keeping track of remote domains in the brig config file is deprecated, but as long as we \
       \do that, adding a domain with different settings than in the config file is nto allowed.  want "
         <> ( "Just "
                <> cs (show fedComConf)

@@ -74,10 +74,9 @@ testCrudFederationRemotes = do
       cfgRemotesExpect :: Internal.FedConn
       cfgRemotesExpect = Internal.FedConn (cs "example.com") "full_search"
 
-  -- Pass in a list of domains to _not_ delete
-  resetFedConns $ Internal.domain <$> [cfgRemotesExpect] -- TODO: if you `make cqlsh and look at the table, you'll find this doesn't delete anything
+  resetFedConns
   cfgRemotes <- parseFedConns =<< Internal.readFedConns
-  cfgRemotes `shouldMatch` [cfgRemotesExpect] -- this fails and returns two entries for example.com.  maybe resetFedConns or createFedConn is broken in brig?
+  cfgRemotes `shouldMatch` [cfgRemotesExpect]
   -- entries present in the config file can be idempotently added if identical, but cannot be
   -- updated, deleted or updated.
   addOnce cfgRemotesExpect [cfgRemotesExpect]
