@@ -55,7 +55,7 @@ testUploadAssetMultiIngressS3DownloadUrl = do
     modifyConfig :: Value -> App Value
     modifyConfig v =
       setField "aws.s3DownloadEndpoint" "http://s3-download.example.com" v
-        >>= setField "multiIngress" multiIngressConfig
+        >>= setField "aws.multiIngress" multiIngressConfig
 
     multiIngressConfig =
       object

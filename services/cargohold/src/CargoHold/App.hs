@@ -113,7 +113,7 @@ newEnv o = do
           ( \(k, v) ->
               initAws (patchS3DownloadEndpoint v) lgr mgr >>= \v' -> pure (k, v')
           )
-          (Map.assocs (o ^. Opt.optMultiIngress . non Map.empty))
+          (Map.assocs (o ^. optAws . Opt.optMultiIngress . non Map.empty))
 
     patchS3DownloadEndpoint :: AWSEndpoint -> AWSOpts
     patchS3DownloadEndpoint endpoint = (o ^. optAws) & awsS3DownloadEndpoint ?~ endpoint
