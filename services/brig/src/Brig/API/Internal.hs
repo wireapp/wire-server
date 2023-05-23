@@ -198,6 +198,8 @@ addFederationRemote fedDomConf = do
         "Maximum number of remote backends reached.  If you need to create more connections, \
         \please contact wire.com."
 
+-- | Compile config file list into a map indexed by domains.  Use this to make sure the config
+-- file is consistent (ie., no two entries for the same domain).
 remotesMapFromCfgFile :: AppT r (Map Domain FederationDomainConfig)
 remotesMapFromCfgFile = do
   cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
@@ -208,6 +210,8 @@ remotesMapFromCfgFile = do
           else error $ "error in config file: conflicting parameters on domain: " <> show (c, c')
   pure $ Map.fromListWith merge dict
 
+-- | Return the config file list.  Use this to make sure the config file is consistent (ie.,
+-- no two entries for the same domain).  Based on `remotesMapFromCfgFile`.
 remotesListFromCfgFile :: AppT r [FederationDomainConfig]
 remotesListFromCfgFile = Map.elems <$> remotesMapFromCfgFile
 
@@ -283,10 +287,13 @@ assertNoDomainsFromConfigFiles dom = do
       "keeping track of remote domains in the brig config file is deprecated, but as long as we \
       \do that, removing or updating items listed in the config file is not allowed."
 
+-- | Remove the entry from the database if present (or do nothing if not).  This responds with
+-- 533 if the entry was also present in the config file, but only *after* it has removed the
+-- entry from cassandra.
 deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemotes dom = do
-  assertNoDomainsFromConfigFiles dom
   lift . wrapClient . Data.deleteFederationRemote $ dom
+  assertNoDomainsFromConfigFiles dom
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
