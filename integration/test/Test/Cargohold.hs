@@ -24,8 +24,8 @@ testUploadAsset = do
       ("Expect 'Hello World!' as text asset content. Got: " ++ show resp.body)
       (resp.body == fromString "Hello World!")
 
-testUploadAssetBadS3DownloadUrl :: HasCallStack => App ()
-testUploadAssetBadS3DownloadUrl = do
+testUploadAssetMultiIngressS3DownloadUrl :: HasCallStack => App ()
+testUploadAssetMultiIngressS3DownloadUrl = do
   user <- randomUser ownDomain def
 
   key <- bindResponse (uploadAsset user) $ \resp -> do
@@ -54,6 +54,12 @@ testUploadAssetBadS3DownloadUrl = do
             locationURI = fromJust $ parseURI location
             locationHost = fromJust $ locationURI & uriAuthority <&> uriRegName
         locationHost `shouldMatch` "s3-download.green.example.com"
+      bindResponse (downloadAsset' user key "unknown.example.com" noRedirects) $ \resp -> do
+        resp.status `shouldMatchInt` 302
+        let location = C.unpack . snd . fromJust $ find (\(name, _) -> hLocation == name) resp.headers
+            locationURI = fromJust $ parseURI location
+            locationHost = fromJust $ locationURI & uriAuthority <&> uriRegName
+        locationHost `shouldMatch` "s3-download.example.com"
   where
     noRedirects :: HTTP.Request -> HTTP.Request
     noRedirects req = (req {redirectCount = 0})
@@ -69,27 +75,3 @@ testUploadAssetBadS3DownloadUrl = do
         [ "red.example.com" .= "http://s3-download.red.example.com",
           "green.example.com" .= "http://s3-download.green.example.com"
         ]
-
---   withModifiedService
---     Cargohold
---     (setField "aws.s3DownloadEndpoint" "http://s3-download.invalid")
---     $ bindResponse (downloadAsset user key)
---     $ error "We won't get here, because the call fails with an exception"
-
--- testUploadAssetMultiIngress :: HasCallStack => App ()
--- testUploadAssetMultiIngress = do
---   user <- randomUser ownDomain def
---   key <- bindResponse (uploadAsset user) $ \resp -> do
---     resp.status `shouldMatchInt` 201
---     resp.json %. "key"
---
---   withModifiedService
---     Cargohold
---     (setField "config.multiIngress" multiIngressConfig)
---     $ bindResponse (downloadAsset user key)
---     $ \ resp -> resp.status `shouldMatchInt` 200
---   where
---     multiIngressConfig =
---       object
---         [ "red.example.com" .= "http://red.s3.example.com"
---         ]
