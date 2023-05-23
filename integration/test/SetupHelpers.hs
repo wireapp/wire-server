@@ -8,7 +8,6 @@ import Data.Default
 import Data.Function
 import GHC.Stack
 import Testlib.Prelude
-import API.BrigInternal
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> Internal.CreateUser -> App Value
 randomUser domain cu = bindResponse (Internal.createUser domain cu) $ \resp -> do
@@ -61,7 +60,7 @@ getAllConvs u = do
   result %. "found" & asList
 
 resetFedConns :: HasCallStack => [String] -> App ()
-resetFedConns cfgRemotes= do
+resetFedConns cfgRemotes = do
   bindResponse Internal.readFedConns $ \resp -> do
     rdoms' :: [String] <- do
       rawlist <- resp.json %. "remotes" & asList
