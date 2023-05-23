@@ -59,6 +59,10 @@ module Stern.Intra
     getUserClients,
     getUserCookies,
     getUserNotifications,
+    registerOAuthClient,
+    getOAuthClient,
+    updateOAuthClient,
+    deleteOAuthClient,
   )
 where
 
@@ -98,6 +102,7 @@ import UnliftIO.Exception hiding (Handler)
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Internal.Notification
+import Wire.API.OAuth (OAuthClient, OAuthClientConfig, OAuthClientCredentials)
 import Wire.API.Properties
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
@@ -853,3 +858,64 @@ getUserNotifications uid = do
         404 -> parseResponse (mkError status502 "bad-upstream") r
         _ -> throwE (mkError status502 "bad-upstream" "")
     batchSize = 100 :: Int
+
+registerOAuthClient :: OAuthClientConfig -> Handler OAuthClientCredentials
+registerOAuthClient conf = do
+  b <- view brig
+  r <-
+    catchRpcErrors $
+      rpc'
+        "brig"
+        b
+        ( method POST
+            . Bilge.paths ["i", "oauth", "clients"]
+            . Bilge.json conf
+            . contentJson
+            . expect2xx
+        )
+  parseResponse (mkError status502 "bad-upstream") r
+
+getOAuthClient :: OAuthClientId -> Handler OAuthClient
+getOAuthClient cid = do
+  b <- view brig
+  r <-
+    rpc'
+      "brig"
+      b
+      ( method GET
+          . Bilge.paths ["i", "oauth", "clients", toByteString' cid]
+      )
+  case statusCode r of
+    200 -> parseResponse (mkError status502 "bad-upstream") r
+    404 -> throwE (mkError status404 "bad-upstream" "not-found")
+    _ -> throwE (mkError status502 "bad-upstream" (cs $ show r))
+
+updateOAuthClient :: OAuthClientId -> OAuthClientConfig -> Handler OAuthClient
+updateOAuthClient cid conf = do
+  b <- view brig
+  r <-
+    catchRpcErrors $
+      rpc'
+        "brig"
+        b
+        ( method PUT
+            . Bilge.paths ["i", "oauth", "clients", toByteString' cid]
+            . Bilge.json conf
+            . contentJson
+            . expect2xx
+        )
+  parseResponse (mkError status502 "bad-upstream") r
+
+deleteOAuthClient :: OAuthClientId -> Handler ()
+deleteOAuthClient cid = do
+  b <- view brig
+  r <-
+    catchRpcErrors $
+      rpc'
+        "brig"
+        b
+        ( method DELETE
+            . Bilge.paths ["i", "oauth", "clients", toByteString' cid]
+            . expect2xx
+        )
+  parseResponse (mkError status502 "bad-upstream") r
