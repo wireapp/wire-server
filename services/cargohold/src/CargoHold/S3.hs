@@ -230,19 +230,24 @@ signedURL path hostHeader = do
     awsEnvForHost :: ExceptT Error App AWS.Env
     awsEnvForHost = do
       Log.debug $
-        "host" .= hostHeader
+        "host"
+          .= hostHeader
           ~~ msg (val "awsEnvForHost - Looking up multiIngress config.")
       mbHostAwsEnv <- view (multiIngress . at (Text.unpack hostHeader))
       case mbHostAwsEnv of
         Nothing -> do
           Log.debug $
-            "host" .= hostHeader
-              ~~ msg (val "awsEnvForHost - multiIngress lookup failed, using default.")
+            "host"
+              .= hostHeader
+              ~~ msg (val "awsEnvForHost - multiIngress lookup failed, using default AWS env.")
           view aws
         Just hostAwsEnv -> do
           Log.debug $
-            "host" .= hostHeader
-              ~~ msg (val "awsEnvForHost - multiIngress lookup succeed, using specific env.")
+            "host"
+              .= hostHeader
+              ~~ "s3DownloadEndpoint"
+              .= show (hostAwsEnv ^. AWS.amazonkaDownloadEndpoint)
+              ~~ msg (val "awsEnvForHost - multiIngress lookup succeed, using specific AWS env.")
           pure hostAwsEnv
 
 mkKey :: V3.AssetKey -> S3AssetKey

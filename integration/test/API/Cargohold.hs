@@ -5,8 +5,8 @@ import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Lazy.Char8 as LBSC
 import Data.Time.Clock
-import qualified Network.HTTP.Client as HTTP
 import GHC.Stack
+import qualified Network.HTTP.Client as HTTP
 import Testlib.Prelude
 
 type LByteString = LBS.ByteString
@@ -74,11 +74,14 @@ buildMultipartBody header body bodyMimeType =
     endMultipartBody = stringUtf8 "\r\n--frontier--\r\n"
 
 downloadAsset :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> (HTTP.Request -> HTTP.Request) -> App Response
-downloadAsset user key trans = do
+downloadAsset user key trans = downloadAsset' user key "nginz-https.example.com" trans
+
+downloadAsset' :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
+downloadAsset' user key zHostHeader trans = do
   uid <- user & objId
   key' <- key & asString
   req <- fmap trans $ baseRequest user Cargohold Versioned $ "/assets/example.com/" ++ key'
   submit "GET" $
     req
       & zUser uid
-      & zHost "nginz-https.example.com"
+      & zHost zHostHeader
