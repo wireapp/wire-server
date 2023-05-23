@@ -36,6 +36,9 @@ newtype RawJson = RawJson {rawJsonBytes :: LByteString}
 instance {-# OVERLAPPING #-} MimeUnrender JSON RawJson where
   mimeUnrender _ = pure . RawJson
 
+instance MimeRender JSON RawJson where
+  mimeRender _ = rawJsonBytes
+
 instance Swagger.ToSchema RawJson where
   declareNamedSchema _ =
     pure . Swagger.NamedSchema (Just "RawJson") $

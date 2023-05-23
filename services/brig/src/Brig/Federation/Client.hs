@@ -151,13 +151,12 @@ notifyUserDeleted ::
   m ()
 notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
-      domain = tDomain self
-  let notif = BackendNotification domain (OnUserDeletedConnections $ UserDeletedConnectionsNotification (tUnqualified self) remoteConnections)
-  enqueueNotification (tDomain remotes) notif Q.Persistent
+  let notif = UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
+  enqueueNotification (tDomain self) (tDomain remotes) Q.Persistent $ void $ fedQueueClient @'Brig @"on-user-deleted-connections" notif
 
 -- | Enqueues notifications in RabbitMQ. Retries 3 times with a delay of 1s.
-enqueueNotification :: (MonadReader Env m, MonadIO m, MonadMask m, Log.MonadLogger m) => Domain -> BackendNotification -> Q.DeliveryMode -> m ()
-enqueueNotification domain notif deliveryMode =
+enqueueNotification :: (MonadReader Env m, MonadIO m, MonadMask m, Log.MonadLogger m) => Domain -> Domain -> Q.DeliveryMode -> FedQueueClient c () -> m ()
+enqueueNotification ownDomain remoteDomain deliveryMode action =
   recovering (limitRetries 3 <> constantDelay 1_000_000) [logRetries (const $ pure True) logError] (const go)
   where
     logError willRetry (SomeException e) status = do
@@ -170,7 +169,7 @@ enqueueNotification domain notif deliveryMode =
       mChan <- timeout (1 :: Second) (readMVar =<< view rabbitmqChannel)
       case mChan of
         Nothing -> throwM NoRabbitMqChannel
-        Just chan -> liftIO $ enqueue chan domain notif deliveryMode
+        Just chan -> liftIO $ enqueue chan ownDomain remoteDomain deliveryMode action
 
 data NoRabbitMqChannel = NoRabbitMqChannel
   deriving (Show)

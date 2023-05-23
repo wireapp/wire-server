@@ -16,6 +16,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.BackendNotifications
+import Wire.API.RawJson
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 
@@ -37,7 +38,13 @@ spec = describe "Wire.BackendNotificationPusher" $ do
     -- slow. Make me wonder if notification pusher should even try to parse the
     -- actual content, seems like wasted compute power.
     notifContent <- generate $ UserDeletedConnectionsNotification <$> arbitrary <*> (unsafeRange . (: []) <$> arbitrary)
-    let notif = BackendNotification origDomain (OnUserDeletedConnections notifContent)
+    let notif =
+          BackendNotification
+            { targetComponent = Brig,
+              ownDomain = origDomain,
+              path = "/on-user-deleted-connections",
+              body = RawJson $ Aeson.encode notifContent
+            }
     envelope <- newFakeEnvelope
     let msg =
           Q.newMsg
@@ -87,7 +94,13 @@ spec = describe "Wire.BackendNotificationPusher" $ do
         origDomain = Domain "origin.example.com"
         targetDomain = Domain "target.example.com"
     notifContent <- generate $ UserDeletedConnectionsNotification <$> arbitrary <*> (unsafeRange . (: []) <$> arbitrary)
-    let notif = BackendNotification origDomain (OnUserDeletedConnections notifContent)
+    let notif =
+          BackendNotification
+            { targetComponent = Brig,
+              ownDomain = origDomain,
+              path = "/on-user-deleted-connections",
+              body = RawJson $ Aeson.encode notifContent
+            }
     envelope <- newFakeEnvelope
     let msg =
           Q.newMsg

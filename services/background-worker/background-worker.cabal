@@ -164,6 +164,7 @@ test-suite background-worker-test
     , QuickCheck
     , tinylog
     , types-common
+    , wire-api
     , wire-api-federation
 
   default-extensions:

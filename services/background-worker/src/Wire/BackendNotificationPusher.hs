@@ -11,7 +11,6 @@ import Imports
 import qualified Network.AMQP as Q
 import qualified Network.AMQP.Lifted as QL
 import qualified System.Logger.Class as Log
-import Wire.API.Federation.API
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.BackgroundWorker.Env
@@ -55,8 +54,6 @@ pushNotification targetDomain (msg, envelope) = do
           . Log.field "domain" (domainText targetDomain)
           . Log.field "error" e
 
-      -- [Reject Messages]
-      --
       -- FUTUREWORK: This rejects the message without any requeueing. This is
       -- dangerous as it could happen that a new type of notification is
       -- introduced and an old instance of this worker is running, in which case
@@ -65,39 +62,31 @@ pushNotification targetDomain (msg, envelope) = do
       -- deal with this.
       lift $ reject envelope False
     Right notif -> do
-      case notificationTarget notif.content of
-        Brig -> do
-          ceFederator <- asks federatorInternal
-          ceHttp2Manager <- asks http2Manager
-          let ceOriginDomain = notif.ownDomain
-              ceTargetDomain = targetDomain
-          let fcEnv = FederatorClientEnv {..}
-              -- Jittered exponential backoff with 10ms as starting delay and
-              -- 300s as max delay.
-              --
-              -- FUTUREWORK: Pull these numbers into config
-              policy = capDelay 300_000_000 $ fullJitterBackoff 10000
-              shouldRetry status eithRes = do
-                case eithRes of
-                  Right () -> pure False
-                  Left e -> do
-                    -- Logging at 'error' level is probably too much in case a
-                    -- backend is down. This is 'info' while we test this
-                    -- functionality. Maybe this should be demoted to 'debug'.
-                    Log.info $
-                      Log.msg (Log.val "Failed to push notification, will retry")
-                        . Log.field "domain" (domainText targetDomain)
-                        . Log.field "error" (displayException e)
-                        . Log.field "retryCount" status.rsIterNumber
-                    pure True
-          void $ retrying policy shouldRetry (const $ lift $ sendNotificationBrig fcEnv notif.content)
-          lift $ ack envelope
-        c -> do
-          Log.err $
-            Log.msg (Log.val "Notifications for component not implmented, the notification will be ignored")
-              . Log.field "component" (show c)
-          -- See Note [Reject Messages]
-          lift $ reject envelope False
+      ceFederator <- asks federatorInternal
+      ceHttp2Manager <- asks http2Manager
+      let ceOriginDomain = notif.ownDomain
+          ceTargetDomain = targetDomain
+      let fcEnv = FederatorClientEnv {..}
+          -- Jittered exponential backoff with 10ms as starting delay and
+          -- 300s as max delay.
+          --
+          -- FUTUREWORK: Pull these numbers into config
+          policy = capDelay 300_000_000 $ fullJitterBackoff 10000
+          shouldRetry status eithRes = do
+            case eithRes of
+              Right () -> pure False
+              Left e -> do
+                -- Logging at 'error' level is probably too much in case a
+                -- backend is down. This is 'info' while we test this
+                -- functionality. Maybe this should be demoted to 'debug'.
+                Log.info $
+                  Log.msg (Log.val "Failed to push notification, will retry")
+                    . Log.field "domain" (domainText targetDomain)
+                    . Log.field "error" (displayException e)
+                    . Log.field "retryCount" status.rsIterNumber
+                pure True
+      void $ retrying policy shouldRetry (const $ lift $ sendNotification fcEnv notif.targetComponent notif.path notif.body)
+      lift $ ack envelope
 
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.

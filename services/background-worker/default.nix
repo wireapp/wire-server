@@ -20,6 +20,7 @@
 , tinylog
 , transformers-base
 , types-common
+, wire-api
 , wire-api-federation
 }:
 mkDerivation {
@@ -53,6 +54,7 @@ mkDerivation {
     QuickCheck
     tinylog
     types-common
+    wire-api
     wire-api-federation
   ];
   description = "Runs background work";
