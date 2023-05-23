@@ -59,10 +59,10 @@ getAllConvs u = do
     resp.json
   result %. "found" & asList
 
-resetFedConns :: HasCallStack => App ()
-resetFedConns = do
-  bindResponse Internal.readFedConns $ \resp -> do
+resetFedConns :: (HasCallStack, MakesValue owndom) => owndom -> App ()
+resetFedConns owndom = do
+  bindResponse (Internal.readFedConns owndom) $ \resp -> do
     rdoms :: [String] <- do
       rawlist <- resp.json %. "remotes" & asList
       (asString . (%. "domain")) `mapM` rawlist
-    Internal.deleteFedConn' `mapM_` rdoms
+    Internal.deleteFedConn' owndom `mapM_` rdoms
