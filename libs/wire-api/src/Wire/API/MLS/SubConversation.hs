@@ -52,19 +52,26 @@ import Wire.Arbitrary
 newtype SubConvId = SubConvId {unSubConvId :: Text}
   deriving newtype (Eq, ToSchema, Ord, S.ToParamSchema, ToByteString, ToJSON, FromJSON)
   deriving stock (Generic)
-  deriving (Arbitrary) via (GenericUniform SubConvId)
   deriving stock (Show)
 
 instance FromHttpApiData SubConvId where
   parseQueryParam s = do
     unless (T.length s > 0) $ throwError "The subconversation ID cannot be empty"
-    unless (T.all isValid s) $ throwError "The subconversation ID contains invalid characters"
+    unless (T.length s < 256) $ throwError "The subconversation ID cannot be longer than 255 characters"
+    unless (T.all isValidSubConvChar s) $ throwError "The subconversation ID contains invalid characters"
     pure (SubConvId s)
-    where
-      isValid c = isPrint c && isAscii c && not (isSpace c)
 
 instance ToHttpApiData SubConvId where
   toQueryParam = unSubConvId
+
+instance Arbitrary SubConvId where
+  arbitrary = do
+    n <- choose (1, 255)
+    cs <- replicateM n (arbitrary `suchThat` isValidSubConvChar)
+    pure $ SubConvId (T.pack cs)
+
+isValidSubConvChar :: Char -> Bool
+isValidSubConvChar c = isPrint c && isAscii c && not (isSpace c)
 
 -- | Compute the inital group ID for a subconversation
 initialGroupId :: Local ConvId -> SubConvId -> GroupId
@@ -129,6 +136,10 @@ deriving via
 instance HasField "conv" (ConvOrSubChoice c s) c where
   getField (Conv c) = c
   getField (SubConv c _) = c
+
+instance HasField "subconv" (ConvOrSubChoice c s) (Maybe s) where
+  getField (Conv _) = Nothing
+  getField (SubConv _ s) = Just s
 
 type ConvOrSubConvId = ConvOrSubChoice ConvId SubConvId
 

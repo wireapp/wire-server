@@ -106,6 +106,7 @@ library
     Wire.API.MLS.Epoch
     Wire.API.MLS.Extension
     Wire.API.MLS.Group
+    Wire.API.MLS.Group.Serialisation
     Wire.API.MLS.GroupInfo
     Wire.API.MLS.HPKEPublicKey
     Wire.API.MLS.KeyPackage
@@ -611,6 +612,7 @@ test-suite wire-api-tests
     Test.Wire.API.Call.Config
     Test.Wire.API.Conversation
     Test.Wire.API.MLS
+    Test.Wire.API.MLS.Group
     Test.Wire.API.MLS.SubConversation
     Test.Wire.API.OAuth
     Test.Wire.API.RawJson
