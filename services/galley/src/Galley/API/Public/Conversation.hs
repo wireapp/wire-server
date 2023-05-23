@@ -23,7 +23,6 @@ import Galley.API.MLS.Types
 import Galley.API.Query
 import Galley.API.Update
 import Galley.App
-import Galley.Cassandra.TeamFeatures
 import Imports
 import Wire.API.Federation.API
 import Wire.API.Routes.API
@@ -44,7 +43,7 @@ conversationAPI =
     <@> mkNamedAPI @"list-conversations@v1" (callsFed (exposeAnnotations listConversations))
     <@> mkNamedAPI @"list-conversations@v2" (callsFed (exposeAnnotations listConversations))
     <@> mkNamedAPI @"list-conversations" (callsFed (exposeAnnotations listConversations))
-    <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
+    <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode)
     <@> mkNamedAPI @"create-group-conversation@v2" (callsFed (exposeAnnotations createGroupConversationUpToV3))
     <@> mkNamedAPI @"create-group-conversation@v3" (callsFed (exposeAnnotations createGroupConversationUpToV3))
     <@> mkNamedAPI @"create-group-conversation" (callsFed (exposeAnnotations createGroupConversation))
@@ -57,13 +56,13 @@ conversationAPI =
     <@> mkNamedAPI @"add-members-to-conversation-unqualified2" (callsFed addMembersUnqualifiedV2)
     <@> mkNamedAPI @"add-members-to-conversation" (callsFed addMembers)
     <@> mkNamedAPI @"join-conversation-by-id-unqualified" (callsFed joinConversationById)
-    <@> mkNamedAPI @"join-conversation-by-code-unqualified" (callsFed (joinConversationByReusableCode @Cassandra))
-    <@> mkNamedAPI @"code-check" (checkReusableCode @Cassandra)
-    <@> mkNamedAPI @"create-conversation-code-unqualified@v3" (addCodeUnqualified @Cassandra Nothing)
-    <@> mkNamedAPI @"create-conversation-code-unqualified" (addCodeUnqualifiedWithReqBody @Cassandra)
-    <@> mkNamedAPI @"get-conversation-guest-links-status" (getConversationGuestLinksStatus @Cassandra)
+    <@> mkNamedAPI @"join-conversation-by-code-unqualified" (callsFed (joinConversationByReusableCode))
+    <@> mkNamedAPI @"code-check" (checkReusableCode)
+    <@> mkNamedAPI @"create-conversation-code-unqualified@v3" (addCodeUnqualified Nothing)
+    <@> mkNamedAPI @"create-conversation-code-unqualified" (addCodeUnqualifiedWithReqBody)
+    <@> mkNamedAPI @"get-conversation-guest-links-status" (getConversationGuestLinksStatus)
     <@> mkNamedAPI @"remove-code-unqualified" rmCodeUnqualified
-    <@> mkNamedAPI @"get-code" (getCode @Cassandra)
+    <@> mkNamedAPI @"get-code" (getCode)
     <@> mkNamedAPI @"member-typing-unqualified" (callsFed (exposeAnnotations memberTypingUnqualified))
     <@> mkNamedAPI @"member-typing-qualified" (callsFed (exposeAnnotations memberTyping))
     <@> mkNamedAPI @"remove-member-unqualified" (callsFed (exposeAnnotations removeMemberUnqualified))

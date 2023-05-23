@@ -19,18 +19,17 @@ module Galley.API.Public.LegalHold where
 
 import Galley.API.LegalHold
 import Galley.App
-import Galley.Cassandra.TeamFeatures
 import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.LegalHold
 
 legalHoldAPI :: API LegalHoldAPI GalleyEffects
 legalHoldAPI =
-  mkNamedAPI @"create-legal-hold-settings" (createSettings @Cassandra)
-    <@> mkNamedAPI @"get-legal-hold-settings" (getSettings @Cassandra)
-    <@> mkNamedAPI @"delete-legal-hold-settings" (callsFed (exposeAnnotations (removeSettingsInternalPaging @Cassandra)))
+  mkNamedAPI @"create-legal-hold-settings" createSettings
+    <@> mkNamedAPI @"get-legal-hold-settings" getSettings
+    <@> mkNamedAPI @"delete-legal-hold-settings" (callsFed (exposeAnnotations removeSettingsInternalPaging))
     <@> mkNamedAPI @"get-legal-hold" getUserStatus
     <@> mkNamedAPI @"consent-to-legal-hold" (callsFed (exposeAnnotations grantConsent))
-    <@> mkNamedAPI @"request-legal-hold-device" (callsFed (exposeAnnotations (requestDevice @Cassandra)))
+    <@> mkNamedAPI @"request-legal-hold-device" (callsFed (exposeAnnotations requestDevice))
     <@> mkNamedAPI @"disable-legal-hold-for-user" (callsFed (exposeAnnotations disableForUser))
-    <@> mkNamedAPI @"approve-legal-hold-device" (callsFed (exposeAnnotations (approveDevice @Cassandra)))
+    <@> mkNamedAPI @"approve-legal-hold-device" (callsFed (exposeAnnotations approveDevice))

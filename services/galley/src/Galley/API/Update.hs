@@ -109,7 +109,6 @@ import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.ProposalStore
 import qualified Galley.Effects.ServiceStore as E
-import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import Galley.Effects.WaiRoutes
 import Galley.Intra.Push
 import Galley.Options
@@ -149,7 +148,6 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
-import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.Team.Member
 import Wire.API.User.Client
 
@@ -487,7 +485,7 @@ getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
 getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
 addCodeUnqualifiedWithReqBody ::
-  forall db r.
+  forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -500,18 +498,17 @@ addCodeUnqualifiedWithReqBody ::
     Member (Input UTCTime) r,
     Member (Embed IO) r,
     Member (Input Opts) r,
-    Member (TeamFeatureStore db) r,
-    FeaturePersistentConstraint db GuestLinksConfig
+    Member TeamFeatureStore r
   ) =>
   UserId ->
   Maybe ConnId ->
   ConvId ->
   CreateConversationCodeRequest ->
   Sem r AddCodeResult
-addCodeUnqualifiedWithReqBody usr mZcon cnv req = addCodeUnqualified @db (Just req) usr mZcon cnv
+addCodeUnqualifiedWithReqBody usr mZcon cnv req = addCodeUnqualified (Just req) usr mZcon cnv
 
 addCodeUnqualified ::
-  forall db r.
+  forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -524,8 +521,7 @@ addCodeUnqualified ::
     Member (Input UTCTime) r,
     Member (Input Opts) r,
     Member (Embed IO) r,
-    Member (TeamFeatureStore db) r,
-    FeaturePersistentConstraint db GuestLinksConfig
+    Member TeamFeatureStore r
   ) =>
   Maybe CreateConversationCodeRequest ->
   UserId ->
@@ -535,10 +531,10 @@ addCodeUnqualified ::
 addCodeUnqualified mReq usr mZcon cnv = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
-  addCode @db lusr mZcon lcnv mReq
+  addCode lusr mZcon lcnv mReq
 
 addCode ::
-  forall db r.
+  forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
@@ -549,9 +545,8 @@ addCode ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member (Input Opts) r,
-    Member (TeamFeatureStore db) r,
-    Member (Embed IO) r,
-    FeaturePersistentConstraint db GuestLinksConfig
+    Member TeamFeatureStore r,
+    Member (Embed IO) r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -560,7 +555,7 @@ addCode ::
   Sem r AddCodeResult
 addCode lusr mZcon lcnv mReq = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-  Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
+  Query.ensureGuestLinksEnabled (Data.convTeam conv)
   Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
   ensureAccess conv CodeAccess
   ensureGuestsOrNonTeamMembersAllowed conv
@@ -638,7 +633,7 @@ rmCode lusr zcon lcnv = do
   pure event
 
 getCode ::
-  forall db r.
+  forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (ErrorS 'CodeNotFound) r,
@@ -646,8 +641,7 @@ getCode ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (Input Opts) r,
-    Member (TeamFeatureStore db) r,
-    FeaturePersistentConstraint db GuestLinksConfig
+    Member TeamFeatureStore r
   ) =>
   Local UserId ->
   ConvId ->
@@ -655,7 +649,7 @@ getCode ::
 getCode lusr cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
-  Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
+  Query.ensureGuestLinksEnabled (Data.convTeam conv)
   ensureAccess conv CodeAccess
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   key <- E.makeKey cnv
@@ -663,15 +657,14 @@ getCode lusr cnv = do
   mkConversationCodeInfo (isJust mPw) (codeKey c) (codeValue c) <$> E.getConversationCodeURI
 
 checkReusableCode ::
-  forall db r.
+  forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
-    Member (TeamFeatureStore db) r,
+    Member TeamFeatureStore r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
-    Member (Input Opts) r,
-    FeaturePersistentConstraint db GuestLinksConfig
+    Member (Input Opts) r
   ) =>
   ConversationCode ->
   Sem r ()
@@ -679,10 +672,10 @@ checkReusableCode convCode = do
   code <- verifyReusableCode False Nothing convCode
   conv <- E.getConversation (codeConversation code) >>= noteS @'ConvNotFound
   mapErrorS @'GuestLinksDisabled @'CodeNotFound $
-    Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
+    Query.ensureGuestLinksEnabled (Data.convTeam conv)
 
 joinConversationByReusableCode ::
-  forall db r.
+  forall r.
   ( Member BrigAccess r,
     Member CodeStore r,
     Member ConversationStore r,
@@ -702,9 +695,8 @@ joinConversationByReusableCode ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member TeamStore r,
-    Member (TeamFeatureStore db) r,
-    Member (Logger (Msg -> Msg)) r,
-    FeaturePersistentConstraint db GuestLinksConfig
+    Member TeamFeatureStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -713,7 +705,7 @@ joinConversationByReusableCode ::
 joinConversationByReusableCode lusr zcon req = do
   c <- verifyReusableCode True req.password req.code
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
-  Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
+  Query.ensureGuestLinksEnabled (Data.convTeam conv)
   joinConversation lusr zcon conv CodeAccess
 
 joinConversationById ::
