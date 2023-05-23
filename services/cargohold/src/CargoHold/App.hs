@@ -56,7 +56,7 @@ import qualified CargoHold.AWS as AWS
 import CargoHold.Options as Opt
 import Control.Error (ExceptT, exceptT)
 import Control.Exception (throw)
-import Control.Lens (Lens', makeLenses, view, (^.), non, (?~))
+import Control.Lens (Lens', makeLenses, non, view, (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Data.Default (def)

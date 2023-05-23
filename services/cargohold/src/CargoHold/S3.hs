@@ -246,7 +246,7 @@ signedURL path hostHeader = do
             "host"
               .= hostHeader
               ~~ "s3DownloadEndpoint"
-              .= show (hostAwsEnv ^. AWS.amazonkaDownloadEndpoint)
+                .= show (hostAwsEnv ^. AWS.amazonkaDownloadEndpoint)
               ~~ msg (val "awsEnvForHost - multiIngress lookup succeed, using specific AWS env.")
           pure hostAwsEnv
 

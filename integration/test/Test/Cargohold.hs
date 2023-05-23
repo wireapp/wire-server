@@ -68,5 +68,4 @@ testUploadAssetMultiIngressS3DownloadUrl = do
       let location = C.unpack . snd . fromJust $ find (\(name, _) -> hLocation == name) resp.headers
           locationURI = fromJust $ parseURI location
           locationHost = fromJust $ locationURI & uriAuthority <&> uriRegName
-       in
-        locationHost
+       in locationHost
