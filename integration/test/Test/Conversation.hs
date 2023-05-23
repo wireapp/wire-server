@@ -8,8 +8,8 @@ import Testlib.Prelude
 
 testFederationStatus :: HasCallStack => App ()
 testFederationStatus = do
-  uid <- randomUser ownDomain def {Internal.team = True}
-  federatingRemoteDomain <- otherDomain
+  uid <- randomUser OwnDomain def {Internal.team = True}
+  federatingRemoteDomain <- asString OtherDomain
   let unknownDomain = "foobar.com"
   let invalidDomain = "c.example.com" -- has no srv record
   bindResponse

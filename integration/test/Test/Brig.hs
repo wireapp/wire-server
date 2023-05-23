@@ -10,8 +10,8 @@ import Testlib.Prelude
 
 testSearchContactForExternalUsers :: HasCallStack => App ()
 testSearchContactForExternalUsers = do
-  owner <- randomUser ownDomain def {Internal.team = True}
-  partner <- randomUser ownDomain def {Internal.team = True}
+  owner <- randomUser OwnDomain def {Internal.team = True}
+  partner <- randomUser OwnDomain def {Internal.team = True}
 
   bindResponse (Internal.putTeamMember partner (partner %. "team") (API.teamRole "partner")) $ \resp ->
     resp.status `shouldMatchInt` 200
@@ -21,7 +21,7 @@ testSearchContactForExternalUsers = do
 
 testCrudOAuthClient :: HasCallStack => App ()
 testCrudOAuthClient = do
-  user <- randomUser ownDomain def
+  user <- randomUser OwnDomain def
   let appName = "foobar"
   let url = "https://example.com/callback.html"
   clientId <- bindResponse (Internal.registerOAuthClient user appName url) $ \resp -> do
