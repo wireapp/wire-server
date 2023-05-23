@@ -49,7 +49,7 @@ data FedConn = FedConn
   { domain :: String,
     searchStrategy :: String
   }
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 instance ToJSON FedConn where
   toJSON (FedConn d s) =
