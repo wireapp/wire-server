@@ -35,58 +35,49 @@ instance RabbitMQEnvelope Q.Envelope where
 
 pushNotification :: RabbitMQEnvelope e => Domain -> (Q.Message, e) -> AppT IO ()
 pushNotification targetDomain (msg, envelope) = do
-  let handlers =
-        [ Handler $ \(e :: Q.ChanThreadKilledException) -> throwM e,
-          Handler $ \(SomeException e) -> do
-            -- TODO(elland): This error likely means that no new notifications
-            -- will be retrieved from RabbitMQ as the envelope will not have
-            -- been acked. Perhaps we should restart this consumer.
-            Log.err $
-              Log.msg (Log.val "Unexpected exception occured while pushing notification")
-                . Log.field "error" (displayException e)
-                . Log.field "domain" (domainText targetDomain)
-            throwM e
-        ]
-  flip catches handlers $ case A.eitherDecode @BackendNotification (Q.msgBody msg) of
-    Left e -> do
-      Log.err $
-        Log.msg (Log.val "Failed to parse notification, the notification will be ignored")
-          . Log.field "domain" (domainText targetDomain)
-          . Log.field "error" e
+  -- Jittered exponential backoff with 10ms as starting delay and
+  -- 300s as max delay.
+  --
+  -- FUTUREWORK: Pull these numbers into config
+  let policy = capDelay 300_000_000 $ fullJitterBackoff 10000
+      logErrr willRetry (SomeException e) rs =
+        Log.err $
+          Log.msg (Log.val "Exception occurred while pushing notification")
+            . Log.field "error" (displayException e)
+            . Log.field "domain" (domainText targetDomain)
+            . Log.field "willRetry" willRetry
+            . Log.field "retryCount" rs.rsIterNumber
+      skipChanThreadKilled _ = Handler $ \(_ :: Q.ChanThreadKilledException) -> pure False
+      handlers =
+        skipAsyncExceptions
+          <> [ skipChanThreadKilled,
+               logRetries (const $ pure True) logErrr
+             ]
+  recovering policy handlers $ const go
+  where
+    go :: AppT IO ()
+    go = case A.eitherDecode @BackendNotification (Q.msgBody msg) of
+      Left e -> do
+        Log.err $
+          Log.msg (Log.val "Failed to parse notification, the notification will be ignored")
+            . Log.field "domain" (domainText targetDomain)
+            . Log.field "error" e
 
-      -- FUTUREWORK: This rejects the message without any requeueing. This is
-      -- dangerous as it could happen that a new type of notification is
-      -- introduced and an old instance of this worker is running, in which case
-      -- the notification will just get dropped. On the other hand not dropping
-      -- this message blocks the whole queue. Perhaps there is a better way to
-      -- deal with this.
-      lift $ reject envelope False
-    Right notif -> do
-      ceFederator <- asks federatorInternal
-      ceHttp2Manager <- asks http2Manager
-      let ceOriginDomain = notif.ownDomain
-          ceTargetDomain = targetDomain
-      let fcEnv = FederatorClientEnv {..}
-          -- Jittered exponential backoff with 10ms as starting delay and
-          -- 300s as max delay.
-          --
-          -- FUTUREWORK: Pull these numbers into config
-          policy = capDelay 300_000_000 $ fullJitterBackoff 10000
-          shouldRetry status eithRes = do
-            case eithRes of
-              Right () -> pure False
-              Left e -> do
-                -- Logging at 'error' level is probably too much in case a
-                -- backend is down. This is 'info' while we test this
-                -- functionality. Maybe this should be demoted to 'debug'.
-                Log.info $
-                  Log.msg (Log.val "Failed to push notification, will retry")
-                    . Log.field "domain" (domainText targetDomain)
-                    . Log.field "error" (displayException e)
-                    . Log.field "retryCount" status.rsIterNumber
-                pure True
-      void $ retrying policy shouldRetry (const $ lift $ sendNotification fcEnv notif.targetComponent notif.path notif.body)
-      lift $ ack envelope
+        -- FUTUREWORK: This rejects the message without any requeueing. This is
+        -- dangerous as it could happen that a new type of notification is
+        -- introduced and an old instance of this worker is running, in which case
+        -- the notification will just get dropped. On the other hand not dropping
+        -- this message blocks the whole queue. Perhaps there is a better way to
+        -- deal with this.
+        lift $ reject envelope False
+      Right notif -> do
+        ceFederator <- asks federatorInternal
+        ceHttp2Manager <- asks http2Manager
+        let ceOriginDomain = notif.ownDomain
+            ceTargetDomain = targetDomain
+            fcEnv = FederatorClientEnv {..}
+        liftIO $ either throwM pure =<< sendNotification fcEnv notif.targetComponent notif.path notif.body
+        lift $ ack envelope
 
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.

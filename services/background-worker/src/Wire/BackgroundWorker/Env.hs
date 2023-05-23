@@ -50,6 +50,7 @@ newtype AppT m a where
       MonadIO,
       MonadCatch,
       MonadThrow,
+      MonadMask,
       MonadReader Env,
       MonadTrans
     )
