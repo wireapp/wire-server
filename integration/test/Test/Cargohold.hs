@@ -38,28 +38,16 @@ testUploadAssetMultiIngressS3DownloadUrl = do
     $ do
       bindResponse (downloadAsset user key noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 302
-        let location = C.unpack . snd . fromJust $ find (\(name, _) -> hLocation == name) resp.headers
-            locationURI = fromJust $ parseURI location
-            locationHost = fromJust $ locationURI & uriAuthority <&> uriRegName
-        locationHost `shouldMatch` "s3-download.example.com"
+        locationHeaderHost resp `shouldMatch` "s3-download.example.com"
       bindResponse (downloadAsset' user key "red.example.com" noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 302
-        let location = C.unpack . snd . fromJust $ find (\(name, _) -> hLocation == name) resp.headers
-            locationURI = fromJust $ parseURI location
-            locationHost = fromJust $ locationURI & uriAuthority <&> uriRegName
-        locationHost `shouldMatch` "s3-download.red.example.com"
+        locationHeaderHost resp `shouldMatch` "s3-download.red.example.com"
       bindResponse (downloadAsset' user key "green.example.com" noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 302
-        let location = C.unpack . snd . fromJust $ find (\(name, _) -> hLocation == name) resp.headers
-            locationURI = fromJust $ parseURI location
-            locationHost = fromJust $ locationURI & uriAuthority <&> uriRegName
-        locationHost `shouldMatch` "s3-download.green.example.com"
+        locationHeaderHost resp `shouldMatch` "s3-download.green.example.com"
       bindResponse (downloadAsset' user key "unknown.example.com" noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 302
-        let location = C.unpack . snd . fromJust $ find (\(name, _) -> hLocation == name) resp.headers
-            locationURI = fromJust $ parseURI location
-            locationHost = fromJust $ locationURI & uriAuthority <&> uriRegName
-        locationHost `shouldMatch` "s3-download.example.com"
+        locationHeaderHost resp `shouldMatch` "s3-download.example.com"
   where
     noRedirects :: HTTP.Request -> HTTP.Request
     noRedirects req = (req {redirectCount = 0})
@@ -68,10 +56,17 @@ testUploadAssetMultiIngressS3DownloadUrl = do
     modifyConfig v =
       setField "aws.s3DownloadEndpoint" "http://s3-download.example.com" v
         >>= setField "multiIngress" multiIngressConfig
-        >>= setField "logLevel" "Debug"
 
     multiIngressConfig =
       object
         [ "red.example.com" .= "http://s3-download.red.example.com",
           "green.example.com" .= "http://s3-download.green.example.com"
         ]
+
+    locationHeaderHost :: Response -> String
+    locationHeaderHost resp =
+      let location = C.unpack . snd . fromJust $ find (\(name, _) -> hLocation == name) resp.headers
+          locationURI = fromJust $ parseURI location
+          locationHost = fromJust $ locationURI & uriAuthority <&> uriRegName
+       in
+        locationHost
