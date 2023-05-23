@@ -101,7 +101,6 @@ import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.Queue as E
 import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
 import qualified Galley.Effects.SparAccess as Spar
-import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import qualified Galley.Effects.TeamMemberStore as E
 import qualified Galley.Effects.TeamStore as E
 import qualified Galley.Intra.Journal as Journal
@@ -138,7 +137,6 @@ import qualified Wire.API.Team as Public
 import Wire.API.Team.Conversation
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
-import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import qualified Wire.API.Team.Member as Public
 import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, fullPermissions, self)
@@ -701,7 +699,7 @@ uncheckedGetTeamMembers ::
 uncheckedGetTeamMembers = E.getTeamMembersWithLimit
 
 addTeamMember ::
-  forall db r.
+  forall r.
   ( Member BrigAccess r,
     Member GundeckAccess r,
     Member (ErrorS 'InvalidPermissions) r,
@@ -716,11 +714,10 @@ addTeamMember ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
-    Member (TeamFeatureStore db) r,
+    Member TeamFeatureStore r,
     Member TeamNotificationStore r,
     Member TeamStore r,
-    Member P.TinyLog r,
-    FeaturePersistentConstraint db LegalholdConfig
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -743,13 +740,13 @@ addTeamMember lzusr zcon tid nmem = do
   ensureUnboundUsers [uid]
   ensureConnectedToLocals zusr [uid]
   (TeamSize sizeBeforeJoin) <- E.getSize tid
-  ensureNotTooLargeForLegalHold @db tid (fromIntegral sizeBeforeJoin + 1)
+  ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   memList <- getTeamMembersForFanout tid
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMember ::
-  forall db r.
+  forall r.
   ( Member BrigAccess r,
     Member GundeckAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
@@ -758,10 +755,9 @@ uncheckedAddTeamMember ::
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member P.TinyLog r,
-    Member (TeamFeatureStore db) r,
+    Member TeamFeatureStore r,
     Member TeamNotificationStore r,
-    Member TeamStore r,
-    FeaturePersistentConstraint db LegalholdConfig
+    Member TeamStore r
   ) =>
   TeamId ->
   NewTeamMember ->
@@ -769,7 +765,7 @@ uncheckedAddTeamMember ::
 uncheckedAddTeamMember tid nmem = do
   mems <- getTeamMembersForFanout tid
   (TeamSize sizeBeforeJoin) <- E.getSize tid
-  ensureNotTooLargeForLegalHold @db tid (fromIntegral sizeBeforeJoin + 1)
+  ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
   billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList (ntmNewTeamMember nmem : mems ^. teamMembers) (mems ^. teamMemberListType)
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
@@ -1236,18 +1232,17 @@ ensureNotTooLarge tid = do
 -- LegalHold off after activation.
 --  FUTUREWORK: Find a way around the fanout limit.
 ensureNotTooLargeForLegalHold ::
-  forall db r.
+  forall r.
   ( Member LegalHoldStore r,
     Member TeamStore r,
-    Member (TeamFeatureStore db) r,
-    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
-    FeaturePersistentConstraint db LegalholdConfig
+    Member TeamFeatureStore r,
+    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r
   ) =>
   TeamId ->
   Int ->
   Sem r ()
 ensureNotTooLargeForLegalHold tid teamSize =
-  whenM (isLegalHoldEnabledForTeam @db tid) $
+  whenM (isLegalHoldEnabledForTeam tid) $
     unlessM (teamSizeBelowLimit teamSize) $
       throwS @'TooManyTeamMembersOnTeamWithLegalhold
 
@@ -1374,21 +1369,20 @@ getBindingTeamMembers zusr = do
 -- thrown in IO, we could then refactor that to be thrown in `ExceptT
 -- RegisterError`.
 canUserJoinTeam ::
-  forall db r.
+  forall r.
   ( Member BrigAccess r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member (TeamFeatureStore db) r,
-    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
-    FeaturePersistentConstraint db LegalholdConfig
+    Member TeamFeatureStore r,
+    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r
   ) =>
   TeamId ->
   Sem r ()
 canUserJoinTeam tid = do
-  lhEnabled <- isLegalHoldEnabledForTeam @db tid
+  lhEnabled <- isLegalHoldEnabledForTeam tid
   when lhEnabled $ do
     (TeamSize sizeBeforeJoin) <- E.getSize tid
-    ensureNotTooLargeForLegalHold @db tid (fromIntegral sizeBeforeJoin + 1)
+    ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternal ::
