@@ -153,65 +153,65 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
   mkNamedAPI @'("iget", SSOConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", SSOConfig) (setFeatureStatusInternal)
-    <@> mkNamedAPI @'("ipatch", SSOConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", SSOConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", SSOConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", LegalholdConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", LegalholdConfig) (callsFed (exposeAnnotations (setFeatureStatusInternal)))
-    <@> mkNamedAPI @'("ipatch", LegalholdConfig) (callsFed (exposeAnnotations (patchFeatureStatusInternal)))
+    <@> mkNamedAPI @'("iput", LegalholdConfig) (callsFed (exposeAnnotations setFeatureStatusInternal))
+    <@> mkNamedAPI @'("ipatch", LegalholdConfig) (callsFed (exposeAnnotations patchFeatureStatusInternal))
     <@> mkNamedAPI @'("iget", SearchVisibilityAvailableConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", SearchVisibilityAvailableConfig) (setFeatureStatusInternal)
-    <@> mkNamedAPI @'("ipatch", SearchVisibilityAvailableConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", SearchVisibilityAvailableConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", SearchVisibilityAvailableConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", ValidateSAMLEmailsConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", ValidateSAMLEmailsConfig) (setFeatureStatusInternal)
-    <@> mkNamedAPI @'("ipatch", ValidateSAMLEmailsConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", ValidateSAMLEmailsConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", ValidateSAMLEmailsConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", DigitalSignaturesConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", DigitalSignaturesConfig) (setFeatureStatusInternal)
-    <@> mkNamedAPI @'("ipatch", DigitalSignaturesConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", DigitalSignaturesConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", DigitalSignaturesConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", AppLockConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", AppLockConfig) (setFeatureStatusInternal)
-    <@> mkNamedAPI @'("ipatch", AppLockConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", AppLockConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", AppLockConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", FileSharingConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", FileSharingConfig) (setFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", FileSharingConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", FileSharingConfig) (updateLockStatus @FileSharingConfig)
-    <@> mkNamedAPI @'("ipatch", FileSharingConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("ipatch", FileSharingConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", ConferenceCallingConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", ConferenceCallingConfig) (setFeatureStatusInternal)
-    <@> mkNamedAPI @'("ipatch", ConferenceCallingConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", ConferenceCallingConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", ConferenceCallingConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", SelfDeletingMessagesConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", SelfDeletingMessagesConfig) (setFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", SelfDeletingMessagesConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", SelfDeletingMessagesConfig) (updateLockStatus @SelfDeletingMessagesConfig)
-    <@> mkNamedAPI @'("ipatch", SelfDeletingMessagesConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("ipatch", SelfDeletingMessagesConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", GuestLinksConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", GuestLinksConfig) (setFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", GuestLinksConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", GuestLinksConfig) (updateLockStatus @GuestLinksConfig)
-    <@> mkNamedAPI @'("ipatch", GuestLinksConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("ipatch", GuestLinksConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", SndFactorPasswordChallengeConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", SndFactorPasswordChallengeConfig) (setFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", SndFactorPasswordChallengeConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", SndFactorPasswordChallengeConfig) (updateLockStatus @SndFactorPasswordChallengeConfig)
-    <@> mkNamedAPI @'("ipatch", SndFactorPasswordChallengeConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("ipatch", SndFactorPasswordChallengeConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) (setFeatureStatusInternal)
-    <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) (patchFeatureStatusInternal)
-    <@> mkNamedAPI @'("igetmulti", SearchVisibilityInboundConfig) (getFeatureStatusMulti)
+    <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("igetmulti", SearchVisibilityInboundConfig) getFeatureStatusMulti
     <@> mkNamedAPI @'("iget", ClassifiedDomainsConfig) (getFeatureStatus DontDoAuth)
     <@> mkNamedAPI @'("iget", MLSConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", MLSConfig) (setFeatureStatusInternal)
-    <@> mkNamedAPI @'("ipatch", MLSConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", MLSConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", MLSConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", ExposeInvitationURLsToTeamAdminConfig) (setFeatureStatusInternal)
-    <@> mkNamedAPI @'("ipatch", ExposeInvitationURLsToTeamAdminConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", ExposeInvitationURLsToTeamAdminConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", ExposeInvitationURLsToTeamAdminConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) (setFeatureStatusInternal)
-    <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("iget", OutlookCalIntegrationConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", OutlookCalIntegrationConfig) (setFeatureStatusInternal)
-    <@> mkNamedAPI @'("ipatch", OutlookCalIntegrationConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", OutlookCalIntegrationConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", OutlookCalIntegrationConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", OutlookCalIntegrationConfig) (updateLockStatus @OutlookCalIntegrationConfig)
     <@> mkNamedAPI @'("iget", MlsE2EIdConfig) (getFeatureStatus DontDoAuth)
-    <@> mkNamedAPI @'("iput", MlsE2EIdConfig) (setFeatureStatusInternal)
-    <@> mkNamedAPI @'("ipatch", MlsE2EIdConfig) (patchFeatureStatusInternal)
+    <@> mkNamedAPI @'("iput", MlsE2EIdConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", MlsE2EIdConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", MlsE2EIdConfig) (updateLockStatus @MlsE2EIdConfig)
-    <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer (getAllFeatureConfigsForUser))
+    <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do

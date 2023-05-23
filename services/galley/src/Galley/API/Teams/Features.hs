@@ -769,7 +769,7 @@ instance SetFeatureConfig MLSConfig
 instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   getConfigForTeam tid = do
     allowList <- input <&> view (optSettings . setExposeInvitationURLsTeamAllowlist . to (fromMaybe []))
-    mbOldStatus <- TeamFeatures.getFeatureConfig (FeatureSingletonExposeInvitationURLsToTeamAdminConfig) tid <&> fmap wssStatus
+    mbOldStatus <- TeamFeatures.getFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid <&> fmap wssStatus
     let teamAllowed = tid `elem` allowList
     pure $ computeConfigForTeam teamAllowed (fromMaybe FeatureStatusDisabled mbOldStatus)
     where

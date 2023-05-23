@@ -63,18 +63,18 @@ featureAPI =
     <@> mkNamedAPI @'("put", OutlookCalIntegrationConfig) (setFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("get", MlsE2EIdConfig) (getFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("put", MlsE2EIdConfig) (setFeatureStatus . DoAuth)
-    <@> mkNamedAPI @"get-all-feature-configs-for-user" (getAllFeatureConfigsForUser)
-    <@> mkNamedAPI @"get-all-feature-configs-for-team" (getAllFeatureConfigsForTeam)
-    <@> mkNamedAPI @'("get-config", LegalholdConfig) (getFeatureStatusForUser)
-    <@> mkNamedAPI @'("get-config", SSOConfig) (getFeatureStatusForUser)
-    <@> mkNamedAPI @'("get-config", SearchVisibilityAvailableConfig) (getFeatureStatusForUser)
-    <@> mkNamedAPI @'("get-config", ValidateSAMLEmailsConfig) (getFeatureStatusForUser)
-    <@> mkNamedAPI @'("get-config", DigitalSignaturesConfig) (getFeatureStatusForUser)
-    <@> mkNamedAPI @'("get-config", AppLockConfig) (getFeatureStatusForUser)
-    <@> mkNamedAPI @'("get-config", FileSharingConfig) (getFeatureStatusForUser)
-    <@> mkNamedAPI @'("get-config", ClassifiedDomainsConfig) (getFeatureStatusForUser)
-    <@> mkNamedAPI @'("get-config", ConferenceCallingConfig) (getFeatureStatusForUser)
-    <@> mkNamedAPI @'("get-config", SelfDeletingMessagesConfig) (getFeatureStatusForUser)
-    <@> mkNamedAPI @'("get-config", GuestLinksConfig) (getFeatureStatusForUser)
-    <@> mkNamedAPI @'("get-config", SndFactorPasswordChallengeConfig) (getFeatureStatusForUser)
-    <@> mkNamedAPI @'("get-config", MLSConfig) (getFeatureStatusForUser)
+    <@> mkNamedAPI @"get-all-feature-configs-for-user" getAllFeatureConfigsForUser
+    <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllFeatureConfigsForTeam
+    <@> mkNamedAPI @'("get-config", LegalholdConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", SSOConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", SearchVisibilityAvailableConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", ValidateSAMLEmailsConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", DigitalSignaturesConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", AppLockConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", FileSharingConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", ClassifiedDomainsConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", ConferenceCallingConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", SelfDeletingMessagesConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", GuestLinksConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", SndFactorPasswordChallengeConfig) getFeatureStatusForUser
+    <@> mkNamedAPI @'("get-config", MLSConfig) getFeatureStatusForUser
