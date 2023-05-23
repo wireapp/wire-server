@@ -195,11 +195,15 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
       Just (RequestBodyBS bs, _) -> pure (LBS.fromStrict bs)
       Just (RequestBodySource _, _) -> throwError FederatorClientStreamingNotSupported
       Nothing -> pure mempty
-  let req' =
+  let headers =
+        toList (requestHeaders req)
+          <> [(originDomainHeaderName, toByteString' (ceOriginDomain env))]
+          <> [(HTTP.hAccept, HTTP.renderHeader (toList $ req.requestAccept))]
+      req' =
         HTTP2.requestBuilder
           (requestMethod req)
           (LBS.toStrict (toLazyByteString path))
-          (toList (requestHeaders req) <> [(originDomainHeaderName, toByteString' (ceOriginDomain env))])
+          headers
           (lazyByteString body)
   let Endpoint (Text.encodeUtf8 -> hostname) (fromIntegral -> port) = ceFederator env
   resp <-
