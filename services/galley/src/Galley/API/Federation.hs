@@ -483,6 +483,7 @@ updateConversation ::
     Member TinyLog r,
     Member ConversationStore r,
     Member SubConversationStore r,
+    Member TeamFeatureStore r,
     Member (Input (Local ())) r
   ) =>
   Domain ->

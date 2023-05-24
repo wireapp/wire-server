@@ -1255,6 +1255,9 @@ type ConversationAPI =
                :> CanThrow 'ConvInvalidProtocolTransition
                :> CanThrow ('ActionDenied 'LeaveConversation)
                :> CanThrow 'InvalidOperation
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'TeamNotFound
                :> ZLocalUser
                :> ZConn
                :> "conversations"
