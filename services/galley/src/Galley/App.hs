@@ -99,7 +99,6 @@ import Polysemy.Internal (Append)
 import Polysemy.Resource
 import qualified Polysemy.TinyLog as P
 import qualified Servant
-import qualified Servant.Client as SC
 import Ssl.Util
 import qualified System.Logger as Log
 import System.Logger.Class
@@ -108,7 +107,7 @@ import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
 import Wire.API.Error
 import Wire.API.Federation.Error
-import Wire.API.FederationUpdate
+import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.Sem.Logger
 
 -- Effects needed by the interpretation of other effects
@@ -152,28 +151,21 @@ validateOptions l o = do
   when (settings ^. setMaxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
 
-createEnv :: Metrics -> Opts -> IO Env
-createEnv m o = do
+createEnv :: Metrics -> Opts -> IORef FederationDomainConfigs -> IO Env
+createEnv m o r = do
   l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
   cass <- initCassandra o l
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   validateOptions l o
 
-  -- Fetch the initial federation domain list so we always start with
-  -- a known update to date dataset.
-
   let brigEndpoint = o ^. optBrig
-      Endpoint h p = brigEndpoint
-      baseUrl = SC.BaseUrl SC.Http (unpack h) (fromIntegral p) ""
-      clientEnv = SC.ClientEnv mgr baseUrl Nothing SC.defaultMakeClientRequest
-  strat <- getAllowedDomainsInitial l clientEnv
   Env def m o l mgr h2mgr (o ^. optFederator) brigEndpoint cass
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
     <*> loadAllMLSKeys (fold (o ^. optSettings . setMlsPrivateKeyPaths))
-    <*> newIORef strat
+    <*> pure r
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do

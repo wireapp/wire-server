@@ -4,12 +4,12 @@ import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import qualified API.Common as API
 import qualified API.GalleyInternal as Internal
-import qualified Data.Aeson as Aeson
 import Data.String.Conversions
 import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
 import Testlib.Prelude
+import Data.Aeson.Types (parseMaybe)
 
 testSearchContactForExternalUsers :: HasCallStack => App ()
 testSearchContactForExternalUsers = do
@@ -28,7 +28,7 @@ testCrudFederationRemotes = do
       parseFedConns resp = do
         -- TODO: not idiomatic!  try `getJSON 200 resp %. "remotes" & asList & mapM asObjOrSomething`
         -- Some ideas: There is asList to assert that a Value is actually a an array of Values. Then you can sort that to have a defined order.
-        fromJust . Aeson.decode . Aeson.encode . fromJust <$> ((`lookupField` "remotes") =<< getJSON 200 resp)
+        fromJust . parseMaybe parseJSON . fromJust <$> ((`lookupField` "remotes") =<< getJSON 200 resp)
 
       addOnce :: HasCallStack => Internal.FedConn -> [Internal.FedConn] -> App ()
       addOnce fedConn want = do

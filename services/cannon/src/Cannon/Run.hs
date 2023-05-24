@@ -37,7 +37,7 @@ import Data.Metrics.Middleware (gaugeSet, path)
 import qualified Data.Metrics.Middleware as Middleware
 import Data.Metrics.Servant
 import Data.Proxy
-import Data.Text (pack, strip, unpack)
+import Data.Text (pack, strip)
 import Data.Text.Encoding (encodeUtf8)
 import Imports hiding (head)
 import qualified Network.Wai as Wai
@@ -45,7 +45,6 @@ import Network.Wai.Handler.Warp hiding (run)
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import Network.Wai.Utilities.Server
 import Servant
-import Servant.Client
 import qualified System.IO.Strict as Strict
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as L
@@ -53,10 +52,11 @@ import System.Posix.Signals
 import qualified System.Posix.Signals as Signals
 import System.Random.MWC (createSystemRandom)
 import UnliftIO.Concurrent (myThreadId, throwTo)
-import Wire.API.FederationUpdate (getAllowedDomainsInitial, getAllowedDomainsLoop')
+import Wire.API.FederationUpdate
 import qualified Wire.API.Routes.Internal.Cannon as Internal
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version.Wai
+import Util.Options (Endpoint(..))
 
 type CombinedAPI = PublicAPI :<|> Internal.API
 
@@ -79,14 +79,9 @@ run o = do
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) m (Just idleTimeout)
 
   -- Get the federation domain list from Brig and start the updater loop
-  -- TODO: move this block into a function in libs/wire-api/src/Wire/API/FederationUpdate.hs; check all services for the same block and use the function.
-  manager <- newManager defaultManagerSettings
-  let Brig bh bp = o ^. brig
-      baseUrl = BaseUrl Http (unpack bh) (fromIntegral bp) ""
-      clientEnv = ClientEnv manager baseUrl Nothing defaultMakeClientRequest
-  fedStrat <- getAllowedDomainsInitial g clientEnv
-  ioref <- newIORef fedStrat
-  updateDomainsThread <- Async.async $ getAllowedDomainsLoop' g clientEnv ioref
+  let brigEndpoint = Endpoint bh bp
+      Brig bh bp = o ^. brig
+  (_, updateDomainsThread) <- updateFedDomains brigEndpoint g (\_ _ -> pure ())
 
   let middleware :: Wai.Middleware
       middleware =
