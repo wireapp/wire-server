@@ -4,6 +4,8 @@
 
 ## keeping track of federator remotes
 
+**Since [PR#3260](https://github.com/wireapp/wire-server/pull/3260).**
+
 Federation can start and end.  These events need handlers to be called
 (like remove remote users from local conv), plus it is not convenient
 to edit and re-deploy config files every time that happens.  Hence
@@ -23,6 +25,3 @@ we may decide that brig needs to cache the table itself, but for now
 (`GET` is only used for the internal end-point to share it with other
 services) we hope to get away with the simple solution and always read
 from cassandra directly.
-
-Introduced in
-[PR#3260](https://github.com/wireapp/wire-server/pull/3260).

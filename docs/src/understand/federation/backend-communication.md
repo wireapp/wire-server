@@ -158,23 +158,63 @@ search request from *Alice*, one of its clients.
 
 ## Configuring Remote Connections
 
-Up to the release containing
-[PR#3260](https://github.com/wireapp/wire-server/pull/3260), the
-config files of the individual services statically contained the
-domains of remote connections.  Starting with this release, this and
-all information about remote connections is stored in the database,
-and there is an internal REST API for adding and removing remotes:
+**Since [PR#3260](https://github.com/wireapp/wire-server/pull/3260).**
+
+
+Related: {ref}`configure-federation-strategy-in-brig`.  (TODO: or move this entire section there?)
+
+
+Brig keeps track of the following information for all services that
+need to know:
+
+* Federation strategy
+  - `allowNone`: federation is effectively disabled
+  - `allowAll`: no restriction on whom to federate with
+  - `allowDynamic`: only allow federating with a domain list maintained via an internal CRUD API (see below).
+* Settings for remote domains
+  - domain
+  - search policy: valid values are:
+    - `no_search`: No users are returned by federated searches.  default.
+    - `exact_handle_search`: Only users where the handle exactly matches are returned.
+    - `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
+
+
+
+
+
+
+does anybody know off the top of their heads: is [this section](https://wearezeta.atlassian.net/wiki/spaces/BAC/pages/288620677/Processes+shared+with+CS#Different-search-visibility-per-team) still up to date?  and is stern?  [this page](https://docs.wire.com/developer/reference/config-options.html#federated-domain-specific-configuration-settings) tells a different story...
+
+
+
+
+* UpdateFrequency
+
+
+
+
+The federation strategy (ie., whom to federate with) and the
+information about remote backends are maintained by brig and made
+available to other services via these CRUD end-points:
 
 * [`POST`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_federation_remotes)
 * [`GET`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_federation_remotes)
-* [`PUT`](TODO)
+* [`PUT`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/put_i_federation_remotes__domain_)
 * [`DELETE`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/delete_i_federation_remotes__domain_)
+  **WARNING:** If you delete a connection, all users from that remote
+  will be removed from local conversations, and all conversations hosted
+  by that remote will be removed from the local backend.  Connections
+  between local and remote users that are removed will be archived, and
+  can be re-established should you decide to add the same backend later.
 
-**WARNING:** If you delete a connection, all users from that remote
-will be removed from local conversations, and all conversations hosted
-by that remote will be removed from the local backend.  Connections
-between local and remote users that are removed will be archived, and
-can be re-established should you decide to add the same backend later.
+The list of remotes is stored in the cassandra in
+`brig.federation_remotes`.  Brig's config file contains the federation
+strategy and update frequency that will be assumed by the pulling
+services.
+
+.  Relevant
+config options:
+
 
 {-
 TODO: this paragraph still annoys me.  move strategy to brig, too?  or
@@ -182,7 +222,7 @@ at least to a different syntax, and force admin to use both old and
 new syntax until transition period is over?  just to avoid the
 confusing bogus `:` at the end of the flag.
 
-The federation strategy (allow all or allow list) is still configured
+The federation strategy (allow all or allow dynamic) is still configured
 in federator, only the list of allowed hosts is ignored; if you select
 "allow all" (or if you disable federation), the list of known backends
 maintained by brig is mostly ignored, but e.g., search policy is still
@@ -331,17 +371,6 @@ optSettings:
       search_policy: no_search
 ```
 
-Valid values for `search_policy` are:
-- `no_search`: No users are returned by federated searches.
-- `exact_handle_search`: Only users where the handle exactly matches are returned.
-- `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
-
-If there is no configuration for a domain, it's defaulted to `no_search`.
-
-
-
-
-does anybody know off the top of their heads: is [this section](https://wearezeta.atlassian.net/wiki/spaces/BAC/pages/288620677/Processes+shared+with+CS#Different-search-visibility-per-team) still up to date?  and is stern?  [this page](https://docs.wire.com/developer/reference/config-options.html#federated-domain-specific-configuration-settings) tells a different story...
 
 
 TODO: explain setFederationDomainConfigsUpdateFreq

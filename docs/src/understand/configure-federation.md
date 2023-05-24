@@ -395,6 +395,30 @@ cargohold:
       federationDomain: example.com # your chosen "backend domain"
 ```
 
+(configure-federation-strategy-in-brig)=
+
+### Configure federation strategy (whom to federate with) in brig
+
+(**This section is valid as of the release containing [PR#3260](https://github.com/wireapp/wire-server/pull/3260).**)
+
+You also need to define the federation strategy (whom to federate
+with), and the frequency with which the other backend services will
+refresh their cache of this configuration.
+
+``` yaml
+# override values for wire-server
+# (e.g. under ./helm_vars/wire-server/values.yaml)
+brig:
+  config:
+    optSettings:
+      setFederationStrategy: AllowNone # [AllowAll | AllowDynamic | AllowNone]
+      setFederationDomainConfigsUpdateFreq: 10 # seconds
+```
+
+The default of `AllowNone` probably doesn't make sense if you are
+reading this.  See {ref}`configuring-remote-connections` for details
+on the alternatives.
+
 ### Configure federator process to run and allow incoming traffic
 
 For federation to work, the `federator` subchart of wire-server has to
