@@ -17,7 +17,9 @@ license-file:  LICENSE
 build-type:    Simple
 
 library
+  -- cabal-fmt: expand src
   exposed-modules:
+    Network.AMQP.Extended
     Options.Applicative.Extended
     Servant.API.Extended
     Servant.API.Extended.RawM
@@ -74,6 +76,7 @@ library
 
   build-depends:
       aeson
+    , amqp
     , base
     , bytestring
     , cassandra-util
@@ -84,12 +87,15 @@ library
     , http-types
     , imports
     , metrics-wai
+    , monad-control
     , optparse-applicative
     , resourcet
+    , retry
     , servant
     , servant-server
     , servant-swagger
     , string-conversions
+    , text
     , tinylog
     , wai
 

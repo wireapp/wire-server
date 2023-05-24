@@ -9,6 +9,7 @@
 , amazonka-dynamodb
 , amazonka-ses
 , amazonka-sqs
+, amqp
 , async
 , attoparsec
 , auto-update
@@ -35,7 +36,6 @@
 , data-timeout
 , dns
 , dns-util
-, either
 , email-validate
 , enclosed-exceptions
 , errors
@@ -172,6 +172,7 @@ mkDerivation {
     amazonka-dynamodb
     amazonka-ses
     amazonka-sqs
+    amqp
     async
     auto-update
     base
@@ -195,7 +196,6 @@ mkDerivation {
     data-timeout
     dns
     dns-util
-    either
     enclosed-exceptions
     errors
     exceptions
@@ -252,7 +252,6 @@ mkDerivation {
     schema-profunctor
     scientific
     servant
-    servant-client
     servant-server
     servant-swagger
     servant-swagger-ui

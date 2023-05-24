@@ -9,12 +9,11 @@ resources:
     cpu: "100m"
   limits:
     memory: "512Mi"
-# TODO(elland): Create issue for a metrics endpoint
+# FUTUREWORK: Implement metrics
 # metrics:
 #   serviceMonitor:
 #     enabled: false
 config:
-  # TODO(elland): Proper logging
   logLevel: Info
   logFormat: StructuredJSON
   rabbitmq:

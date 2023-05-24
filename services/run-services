@@ -386,6 +386,7 @@ FEDERATOR = Service("federator", Colors.BLUE,
                     check_status=False).with_level(LEVEL)
 STERN = Service("stern", Colors.YELLOW).with_level(LEVEL)
 PROXY = Service("proxy", Colors.RED).with_level(LEVEL)
+BACKGROUND_WORKER = Service("background-worker", Colors.RED, check_status=False).with_level(LEVEL)
 NGINZ = Nginz(Colors.PURPLEISH)
 
 if __name__ == '__main__':
@@ -399,8 +400,8 @@ if __name__ == '__main__':
         'AWS_REGION': "eu-west-1",
         'AWS_ACCESS_KEY_ID': "dummykey",
         'AWS_SECRET_ACCESS_KEY': "dummysecret",
-        'RABBITMQ_USERNAME': 'guest',
-        'RABBITMQ_PASSWORD': 'alpaca-grapefruit'
+        'RABBITMQ_USERNAME': os.environ.get("RABBITMQ_USERNAME"),
+        'RABBITMQ_PASSWORD': os.environ.get("RABBITMQ_PASSWORD")
     }
 
     backend_a = [
@@ -414,6 +415,7 @@ if __name__ == '__main__':
         Instance(STERN, 8091),
         DummyInstance(PROXY, 8087),
         FederatorInstance(8097, 8098),
+        Instance(BACKGROUND_WORKER, 0),
         NginzInstance(
             local_port=8080,
             http2_port=8090,
@@ -431,6 +433,7 @@ if __name__ == '__main__':
         Instance(SPAR, 9088),
         DummyInstance(PROXY, 9087),
         FederatorInstance(9097, 9098),
+        Instance(BACKGROUND_WORKER, 0),
         NginzInstance(
             local_port=9080,
             http2_port=9090,

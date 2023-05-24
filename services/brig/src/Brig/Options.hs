@@ -95,6 +95,15 @@ data ElasticSearchOpts = ElasticSearchOpts
 
 instance FromJSON ElasticSearchOpts
 
+data RabbitMqOpts = RabbitMqOpts
+  { host :: !String,
+    port :: !Int,
+    vHost :: !Text
+  }
+  deriving (Show, Generic)
+
+instance FromJSON RabbitMqOpts
+
 data AWSOpts = AWSOpts
   { -- | Event journal queue for user events
     --   (e.g. user deletion)
@@ -419,6 +428,8 @@ data Opts = Opts
     cassandra :: !CassandraOpts,
     -- | ElasticSearch settings
     elasticsearch :: !ElasticSearchOpts,
+    -- | RabbitMQ settings
+    rabbitmq :: !RabbitMqOpts,
     -- | AWS settings
     aws :: !AWSOpts,
     -- | Enable Random Prekey Strategy
