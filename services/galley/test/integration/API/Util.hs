@@ -126,6 +126,7 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
+import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
@@ -144,7 +145,6 @@ import Wire.API.User.Auth hiding (Access)
 import Wire.API.User.Client
 import qualified Wire.API.User.Client as Client
 import Wire.API.User.Client.Prekey
-import Wire.API.Routes.FederationDomainConfig
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -2457,7 +2457,7 @@ instance HasSettingsOverrides TestM where
     ts :: TestSetup <- ask
     let opts = f (ts ^. tsGConf)
     liftIO . lowerCodensity $ do
-      ioref <- newIORef defFederationDomainConfigs 
+      ioref <- newIORef defFederationDomainConfigs
       (galleyApp, _env) <- Run.mkApp opts ioref
       port' <- withMockServer galleyApp
       liftIO $

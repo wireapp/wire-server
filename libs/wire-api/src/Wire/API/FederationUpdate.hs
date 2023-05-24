@@ -1,22 +1,22 @@
 module Wire.API.FederationUpdate
   ( FedUpdateCallback,
-    updateFedDomains
+    updateFedDomains,
   )
 where
 
+import Control.Concurrent.Async
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import qualified Control.Retry as R
+import Data.Text (unpack)
 import Imports
-import Servant.Client (ClientEnv (ClientEnv), ClientError, runClientM, BaseUrl (BaseUrl), Scheme (Http))
+import Network.HTTP.Client (defaultManagerSettings, newManager)
+import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, Scheme (Http), runClientM)
 import Servant.Client.Internal.HttpClient (ClientM, defaultMakeClientRequest)
 import qualified System.Logger as L
+import Util.Options (Endpoint (..))
 import Wire.API.Routes.FederationDomainConfig (FederationDomainConfigs (updateInterval))
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Named (namedClient)
-import Util.Options (Endpoint (..))
-import Control.Concurrent.Async
-import Network.HTTP.Client (newManager, defaultManagerSettings)
-import Data.Text (unpack)
 
 getFedRemotes :: ClientM FederationDomainConfigs
 getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"

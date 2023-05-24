@@ -31,7 +31,6 @@
 , random
 , retry
 , safe-exceptions
-, servant-client
 , servant-conduit
 , servant-server
 , strict
@@ -82,7 +81,6 @@ mkDerivation {
     mwc-random
     retry
     safe-exceptions
-    servant-client
     servant-conduit
     servant-server
     strict

@@ -1,7 +1,6 @@
 module API.BrigInternal where
 
 import API.Common
-import Control.Monad.Reader (asks)
 import qualified Data.Aeson as Aeson
 import Data.Function
 import Data.Maybe

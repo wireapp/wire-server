@@ -60,7 +60,7 @@ addFederationRemote (FederationDomainConfig rdom searchpolicy) = do
 
 updateFederationRemote :: MonadClient m => FederationDomainConfig -> m Bool
 updateFederationRemote (FederationDomainConfig rdom spol) = do
-  (retry x1 $ trans upd (params LocalQuorum (spol, rdom)) {serialConsistency = Just LocalSerialConsistency}) >>= \case
+  retry x1 (trans upd (params LocalQuorum (spol, rdom)) {serialConsistency = Just LocalSerialConsistency}) >>= \case
     [] -> pure False
     [_] -> pure True
     _ -> throwM $ ErrorCall "Primary key violation detected federation_remotes"

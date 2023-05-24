@@ -4,12 +4,12 @@ import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import qualified API.Common as API
 import qualified API.GalleyInternal as Internal
+import Data.Aeson.Types (parseMaybe)
 import Data.String.Conversions
 import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
 import Testlib.Prelude
-import Data.Aeson.Types (parseMaybe)
 
 testSearchContactForExternalUsers :: HasCallStack => App ()
 testSearchContactForExternalUsers = do

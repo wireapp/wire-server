@@ -28,6 +28,7 @@
 , conduit
 , containers
 , cookie
+, cql
 , cryptobox-haskell
 , currency-codes
 , data-default
@@ -187,6 +188,7 @@ mkDerivation {
     conduit
     containers
     cookie
+    cql
     cryptobox-haskell
     currency-codes
     data-default
@@ -239,6 +241,7 @@ mkDerivation {
     polysemy-plugin
     polysemy-wire-zoo
     proto-lens
+    random
     random-shuffle
     resource-pool
     resourcet

@@ -61,13 +61,13 @@ import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
 import Servant hiding (route)
 import qualified System.Logger as Log
+import System.Logger.Extended (mkLogger)
 import Util.Options
 import Wire.API.FederationUpdate
 import Wire.API.Routes.API
 import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
-import System.Logger.Extended (mkLogger)
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
@@ -187,5 +187,5 @@ callback old new = unless (domainListsEqual old new) $ do
   pure ()
   where
     domainListsEqual o n =
-      Set.fromList (domain <$> remotes o) ==
-      Set.fromList (domain <$> remotes n)
+      Set.fromList (domain <$> remotes o)
+        == Set.fromList (domain <$> remotes n)

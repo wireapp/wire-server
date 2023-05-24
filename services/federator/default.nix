@@ -106,7 +106,6 @@ mkDerivation {
     polysemy
     polysemy-wire-zoo
     servant
-    servant-client
     servant-client-core
     string-conversions
     text
