@@ -90,6 +90,9 @@ zUser = header "Z-User" . UUID.toASCIIBytes . toUUID
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
+zHost :: ByteString -> Request -> Request
+zHost = header "Z-Host"
+
 deleteAssetV3 :: UserId -> Qualified AssetKey -> TestM (Response (Maybe Lazy.ByteString))
 deleteAssetV3 u k = do
   c <- viewUnversionedCargohold
@@ -148,6 +151,7 @@ downloadAssetWith r uid loc tok = do
     c
       . r
       . zUser uid
+      . zHost "nginz-https.example.com"
       . locationPath loc
       . tokenParam tok
       . noRedirect
