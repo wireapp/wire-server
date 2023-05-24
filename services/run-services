@@ -400,8 +400,8 @@ if __name__ == '__main__':
         'AWS_REGION': "eu-west-1",
         'AWS_ACCESS_KEY_ID': "dummykey",
         'AWS_SECRET_ACCESS_KEY': "dummysecret",
-        'RABBITMQ_USERNAME': 'guest',
-        'RABBITMQ_PASSWORD': 'guest'
+        'RABBITMQ_USERNAME': os.environ.get("RABBITMQ_USERNAME"),
+        'RABBITMQ_PASSWORD': os.environ.get("RABBITMQ_PASSWORD")
     }
 
     backend_a = [
