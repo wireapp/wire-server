@@ -96,6 +96,7 @@ library
     Galley.API.MLS.IncomingMessage
     Galley.API.MLS.Keys
     Galley.API.MLS.Message
+    Galley.API.MLS.Migration
     Galley.API.MLS.Propagate
     Galley.API.MLS.Proposal
     Galley.API.MLS.Removal

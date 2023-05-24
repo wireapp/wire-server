@@ -54,7 +54,9 @@ import qualified Data.Set as Set
 import Data.Singletons
 import Data.Time.Clock
 import Galley.API.Error
+import Galley.API.MLS.Migration
 import Galley.API.MLS.Removal
+import Galley.API.Teams.Features.Get
 import Galley.API.Util
 import Galley.App
 import Galley.Data.Conversation
@@ -98,6 +100,7 @@ import Wire.API.Federation.API (Component (Galley), fedClient)
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
+import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.Unreachable
@@ -213,15 +216,21 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
   HasConversationActionEffects 'ConversationUpdateProtocolTag r =
     ( Member ConversationStore r,
       Member (ErrorS 'ConvInvalidProtocolTransition) r,
+      Member (ErrorS OperationDenied) r,
       Member (Error NoChanges) r,
+      Member (ErrorS 'NotATeamMember) r,
+      Member (ErrorS 'TeamNotFound) r,
       Member ExternalAccess r,
       Member FederatorAccess r,
       Member GundeckAccess r,
       Member (Input Env) r,
+      Member (Input Opts) r,
       Member (Input UTCTime) r,
       Member MemberStore r,
       Member ProposalStore r,
       Member SubConversationStore r,
+      Member TeamFeatureStore r,
+      Member TeamStore r,
       Member TinyLog r
     )
 
@@ -285,7 +294,10 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
     '[ ErrorS ('ActionDenied 'LeaveConversation),
        ErrorS 'InvalidOperation,
        ErrorS 'ConvNotFound,
-       ErrorS 'ConvInvalidProtocolTransition
+       ErrorS 'ConvInvalidProtocolTransition,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ErrorS 'TeamNotFound
      ]
 
 noChanges :: Member (Error NoChanges) r => Sem r a
@@ -403,12 +415,11 @@ performAction tag origUser lconv action = do
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
           E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
           pure (mempty, action)
-        (ProtocolMixedTag, ProtocolMLSTag, Just _tid) -> do
-          -- TODO:
-          -- [ ] get migration criteria
-          -- [ ] verify that migration criteria are satisfied
-          -- [x] send remove proposals for clients of users that are not part of the conversation
-          -- [x] update the protocol
+        (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
+          mig <- getFeatureStatus @MlsMigrationConfig DontDoAuth tid
+          now <- input
+          unless (checkMigrationCriteria now mig) $
+            throwS @'ConvInvalidProtocolTransition
           removeExtraneousClients origUser lconv
           E.updateToMLSProtocol lcnv
           pure (mempty, action)
