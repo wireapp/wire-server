@@ -22,6 +22,10 @@ config:
   aws:
     region: "eu-west-1"
     s3Bucket: assets
+    # Multi-ingress configuration:
+    # multiIngress:
+    #   - nginz-https.red.example.com: s3-download-endpoint.red.example.com
+    #   - nginz-https.green.example.com: s3-download-endpoint.green.example.com
   proxy: {}
   settings:
     maxTotalBytes: 5368709120
