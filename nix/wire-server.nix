@@ -202,13 +202,18 @@ let
     '';
   };
 
-  integration-scripts = pkgs.stdenvNoCC.mkDerivation {
-    name = "integration-scripts";
-    src = ../integration/scripts;
-    installPhase = ''
-      mkdir -p $out/bin
-      cp $src/* $out/bin
-    '';
+  integration-dynamic-backends-db-schemas = pkgs.writeShellApplication {
+    name = "integration-dynamic-backends-db-schemas.sh";
+    text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-db-schemas.sh}";
+    runtimeInputs = [ pkgs.parallel ];
+    checkPhase = "";
+  };
+
+  integration-dynamic-backends-brig-index = pkgs.writeShellApplication {
+    name = "integration-dynamic-backends-brig-index.sh";
+    text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-brig-index.sh}";
+    runtimeInputs = [ pkgs.parallel ];
+    checkPhase = "";
   };
 
   # Some images require extra things which is not possible to specify using
@@ -219,7 +224,7 @@ let
     brig = [ brig-templates ];
     brig-integration = [ brig-templates pkgs.mls-test-cli ];
     galley-integration = [ pkgs.mls-test-cli ];
-    integration = with exes; [ brig brig-index brig-schema cannon cargohold federator galley galley-schema gundeck gundeck-schema proxy spar spar-schema stern brig-templates integration-scripts pkgs.parallel ];
+    integration = with exes; [ brig brig-index brig-schema cannon cargohold federator galley galley-schema gundeck gundeck-schema proxy spar spar-schema stern brig-templates integration-dynamic-backends-db-schemas integration-dynamic-backends-brig-index ];
   };
 
   # useful to poke around a container during a 'kubectl exec'
@@ -368,7 +373,7 @@ let
 in
 {
 
-  inherit integration-scripts ciImage hoogleImage;
+  inherit ciImage hoogleImage;
 
   images = images localModsEnableAll;
   imagesUnoptimizedNoDocs = images localModsOnlyTests;
