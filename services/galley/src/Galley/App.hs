@@ -76,7 +76,6 @@ import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
 import Galley.Effects
 import Galley.Effects.FireAndForget (interpretFireAndForget)
-import Galley.Effects.SubConversationSupply.Random
 import Galley.Effects.WaiRoutes.IO
 import Galley.Env
 import Galley.External
@@ -275,7 +274,6 @@ evalGalley e =
     . interpretLegalHoldStoreToCassandra lh
     . interpretCustomBackendStoreToCassandra
     . randomToIO
-    . interpretSubConversationSupplyToRandom
     . interpretSubConversationStoreToCassandra
     . interpretConversationStoreToCassandra
     . interpretProposalStoreToCassandra

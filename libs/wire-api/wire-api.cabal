@@ -613,7 +613,6 @@ test-suite wire-api-tests
     Test.Wire.API.Conversation
     Test.Wire.API.MLS
     Test.Wire.API.MLS.Group
-    Test.Wire.API.MLS.SubConversation
     Test.Wire.API.OAuth
     Test.Wire.API.RawJson
     Test.Wire.API.Roundtrip.Aeson

@@ -321,14 +321,6 @@ insertUserConv = "insert into user (user, conv) values (?, ?)"
 deleteUserConv :: PrepQuery W (UserId, ConvId) ()
 deleteUserConv = "delete from user where user = ? and conv = ?"
 
--- MLS Conversations --------------------------------------------------------
-
-insertGroupIdForConversation :: PrepQuery W (GroupId, ConvId, Domain) ()
-insertGroupIdForConversation = "INSERT INTO group_id_conv_id (group_id, conv_id, domain) VALUES (?, ?, ?)"
-
-lookupGroupId :: PrepQuery R (Identity GroupId) (ConvId, Domain, Maybe SubConvId)
-lookupGroupId = "SELECT conv_id, domain, subconv_id from group_id_conv_id where group_id = ?"
-
 -- MLS SubConversations -----------------------------------------------------
 
 selectSubConversation :: PrepQuery R (ConvId, SubConvId) (CipherSuiteTag, Epoch, Writetime Epoch, GroupId)
@@ -345,15 +337,6 @@ selectSubConvGroupInfo = "SELECT public_group_state FROM subconversation WHERE c
 
 selectSubConvEpoch :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe Epoch))
 selectSubConvEpoch = "SELECT epoch FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
-
-deleteGroupId :: PrepQuery W (Identity GroupId) ()
-deleteGroupId = "DELETE FROM group_id_conv_id WHERE group_id = ?"
-
-insertGroupIdForSubConversation :: PrepQuery W (GroupId, ConvId, Domain, SubConvId) ()
-insertGroupIdForSubConversation = "INSERT INTO group_id_conv_id (group_id, conv_id, domain, subconv_id) VALUES (?, ?, ?, ?)"
-
-lookupGroupIdForSubConversation :: PrepQuery R (Identity GroupId) (ConvId, Domain, SubConvId)
-lookupGroupIdForSubConversation = "SELECT conv_id, domain, subconv_id from group_id_conv_id where group_id = ?"
 
 insertEpochForSubConversation :: PrepQuery W (Epoch, ConvId, SubConvId) ()
 insertEpochForSubConversation = "UPDATE subconversation set epoch = ? WHERE conv_id = ? AND subconv_id = ?"

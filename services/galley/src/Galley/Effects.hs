@@ -83,7 +83,6 @@ import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.ServiceStore
 import Galley.Effects.SparAccess
 import Galley.Effects.SubConversationStore
-import Galley.Effects.SubConversationSupply
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
@@ -113,7 +112,6 @@ type GalleyEffects1 =
      ProposalStore,
      ConversationStore,
      SubConversationStore,
-     SubConversationSupply,
      Random,
      CustomBackendStore,
      LegalHoldStore,

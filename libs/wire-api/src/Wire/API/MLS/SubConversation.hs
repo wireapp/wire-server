@@ -24,10 +24,8 @@ module Wire.API.MLS.SubConversation where
 import Control.Lens (makePrisms, (?~))
 import Control.Lens.Tuple (_1)
 import Control.Monad.Except
-import Crypto.Hash as Crypto
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
-import Data.ByteArray
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
@@ -37,7 +35,7 @@ import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Data.Time.Clock
 import GHC.Records
-import Imports
+import Imports hiding (cs)
 import Servant (FromHttpApiData (..), ToHttpApiData (toQueryParam))
 import Test.QuickCheck
 import Wire.API.MLS.CipherSuite
@@ -72,16 +70,6 @@ instance Arbitrary SubConvId where
 
 isValidSubConvChar :: Char -> Bool
 isValidSubConvChar c = isPrint c && isAscii c && not (isSpace c)
-
--- | Compute the inital group ID for a subconversation
-initialGroupId :: Local ConvId -> SubConvId -> GroupId
-initialGroupId lcnv sconv =
-  GroupId
-    . convert
-    . Crypto.hash @ByteString @Crypto.SHA256
-    $ toByteString' (tUnqualified lcnv)
-      <> toByteString' (tDomain lcnv)
-      <> toByteString' (unSubConvId sconv)
 
 data PublicSubConversation = PublicSubConversation
   { pscParentConvId :: Qualified ConvId,

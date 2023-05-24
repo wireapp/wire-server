@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Federation
@@ -25,7 +24,7 @@ module Galley.API.Federation
 where
 
 import Control.Error
-import Control.Lens (itraversed, preview, to, (<.>))
+import Control.Lens
 import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
@@ -48,6 +47,7 @@ import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Message
 import Galley.API.MLS.Removal
 import Galley.API.MLS.SubConversation hiding (leaveSubConversation)
+import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
@@ -57,12 +57,9 @@ import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
-import Galley.Effects.ConversationStore (deleteGroupIds)
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
-import qualified Galley.Effects.SubConversationStore as E
-import Galley.Effects.SubConversationSupply
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList (UserList (UserList))
@@ -80,7 +77,6 @@ import qualified System.Logger.Class as Log
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -105,8 +101,6 @@ federationSitemap ::
   ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
-    :<|> Named @"on-new-remote-conversation" onNewRemoteConversation
-    :<|> Named @"on-new-remote-subconversation" onNewRemoteSubConversation
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"on-conversation-updated" onConversationUpdated
     :<|> Named @"leave-conversation" (callsFed (exposeAnnotations leaveConversation))
@@ -125,7 +119,6 @@ federationSitemap =
     :<|> Named @"get-sub-conversation" getSubConversationForRemoteUser
     :<|> Named @"delete-sub-conversation" (callsFed deleteSubConversationForRemoteUser)
     :<|> Named @"leave-sub-conversation" (callsFed leaveSubConversation)
-    :<|> Named @"on-delete-mls-conversation" onDeleteMLSConversation
 
 onClientRemoved ::
   ( Member ConversationStore r,
@@ -196,40 +189,6 @@ onConversationCreated domain rc = do
             (F.ccTime qrcConnected)
             (EdConversation c)
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
-
-onNewRemoteConversation ::
-  Members
-    '[ ConversationStore,
-       SubConversationStore
-     ]
-    r =>
-  Domain ->
-  F.NewRemoteConversation ->
-  Sem r EmptyResponse
-onNewRemoteConversation domain nrc = do
-  -- update group_id -> conv_id mapping
-  for_ (preview (to F.nrcProtocol . conversationMLSData) nrc) $ \mls ->
-    E.setGroupIdForConversation
-      (cnvmlsGroupId mls)
-      (Qualified (F.nrcConvId nrc) domain)
-
-  pure EmptyResponse
-
-onNewRemoteSubConversation ::
-  Members
-    '[ ConversationStore,
-       SubConversationStore
-     ]
-    r =>
-  Domain ->
-  F.NewRemoteSubConversation ->
-  Sem r EmptyResponse
-onNewRemoteSubConversation domain nrsc = do
-  E.setGroupIdForSubConversation
-    (cnvmlsGroupId (F.nrscMlsData nrsc))
-    (Qualified (F.nrscConvId nrsc) domain)
-    (F.nrscSubConvId nrsc)
-  pure EmptyResponse
 
 getConversations ::
   ( Member ConversationStore r,
@@ -590,7 +549,7 @@ sendMLSCommitBundle remoteDomain msr =
           decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
 
       ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
-      qConvOrSub <- E.lookupConvByGroupId ibundle.groupId >>= noteS @'ConvNotFound
+      qConvOrSub <- getConvFromGroupId ibundle.groupId
       when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
       uncurry F.MLSMessageResponseUpdates . (,mempty) . map lcuUpdate
         <$> postMLSCommitBundle
@@ -637,7 +596,7 @@ sendMLSMessage remoteDomain msr =
       let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
       raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
       msg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage raw
-      qConvOrSub <- E.lookupConvByGroupId msg.groupId >>= noteS @'ConvNotFound
+      qConvOrSub <- getConvFromGroupId msg.groupId
       when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
       uncurry F.MLSMessageResponseUpdates . first (map lcuUpdate)
         <$> postMLSMessage
@@ -799,8 +758,7 @@ leaveSubConversation ::
   ( HasLeaveSubConversationEffects r,
     Members
       '[ Input (Local ()),
-         Resource,
-         SubConversationSupply
+         Resource
        ]
       r
   ) =>
@@ -827,8 +785,7 @@ deleteSubConversationForRemoteUser ::
          Input Env,
          MemberStore,
          Resource,
-         SubConversationStore,
-         SubConversationSupply
+         SubConversationStore
        ]
       r
   ) =>
@@ -848,15 +805,6 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
           dsc = DeleteSubConversationRequest dscreqGroupId dscreqEpoch
       lconv <- qualifyLocal dscreqConv
       deleteLocalSubConversation qusr lconv dscreqSubConv dsc
-
-onDeleteMLSConversation ::
-  Members '[ConversationStore] r =>
-  Domain ->
-  OnDeleteMLSConversationRequest ->
-  Sem r EmptyResponse
-onDeleteMLSConversation _domain OnDeleteMLSConversationRequest {..} = do
-  deleteGroupIds odmcGroupIds
-  pure EmptyResponse
 
 --------------------------------------------------------------------------------
 -- Error handling machinery

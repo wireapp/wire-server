@@ -38,10 +38,7 @@ type MLSMessagingAPI =
         :> MakesFederatedCall 'Galley "on-mls-message-sent"
         :> MakesFederatedCall 'Galley "send-mls-message"
         :> MakesFederatedCall 'Galley "on-conversation-updated"
-        :> MakesFederatedCall 'Galley "on-new-remote-conversation"
-        :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
         :> MakesFederatedCall 'Brig "get-mls-clients"
-        :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
         :> CanThrow 'ConvAccessDenied
         :> CanThrow 'ConvMemberNotFound
         :> CanThrow 'ConvNotFound
@@ -75,10 +72,7 @@ type MLSMessagingAPI =
                :> MakesFederatedCall 'Galley "mls-welcome"
                :> MakesFederatedCall 'Galley "send-mls-commit-bundle"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
-               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> MakesFederatedCall 'Brig "get-mls-clients"
-               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound

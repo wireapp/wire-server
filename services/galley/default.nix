@@ -173,7 +173,6 @@ mkDerivation {
     imports
     kan-extensions
     lens
-    memory
     metrics-core
     metrics-wai
     mtl

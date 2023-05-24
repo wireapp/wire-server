@@ -32,7 +32,7 @@ import Data.Qualified
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.UUID as UUID
-import Imports
+import Imports hiding (cs)
 import Web.HttpApiData (FromHttpApiData (parseHeader))
 import Wire.API.MLS.Group
 import Wire.API.MLS.SubConversation

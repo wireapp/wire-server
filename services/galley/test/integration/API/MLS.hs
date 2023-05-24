@@ -58,7 +58,6 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.CipherSuite
@@ -243,8 +242,7 @@ tests s =
               test s "get subconversation as a remote non-member" (testRemoteMemberGetSubConv False),
               test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv,
               test s "delete subconversation as a remote member" (testRemoteMemberDeleteSubConv True),
-              test s "delete subconversation as a remote non-member" (testRemoteMemberDeleteSubConv False),
-              test s "delete parent conversation of a remote subconversation" testDeleteRemoteParentOfSubConv
+              test s "delete subconversation as a remote non-member" (testRemoteMemberDeleteSubConv False)
             ],
           testGroup
             "Remote Sender/Remote SubConversation"
@@ -252,6 +250,10 @@ tests s =
             ]
         ]
     ]
+
+-- FUTUREWORK: implement testDeleteRemoteParentOfSubConv in global integration tests
+-- alice's backend deletes the main conversation
+-- cannot be achieved, since on-conversation-deleted is gone
 
 postMLSConvFail :: TestM ()
 postMLSConvFail = do
@@ -463,7 +465,7 @@ testAddUsersToProteus = do
   runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
-    void $ setupFakeMLSGroup alice1
+    void $ setupFakeMLSGroup alice1 Nothing
     mp <- createAddCommit alice1 [bob]
     bundle <- createBundle mp
     err <-
@@ -796,7 +798,7 @@ testRemoteAppMessage = do
 -- 1) alice creates a new conversation @A -> convId, groupID
 -- 2) alice creates an MLS group (locally) with bob in it -> commit, welcome
 -- 3) alice sends commit
--- 4) A notifies B about the new conversation
+-- 4) deprecated & removed: A notifies B about the new conversation
 -- 5) A notifies B about bob being in the conversation (Join event)
 -- 6) B notifies bob about join event
 -- 7) alice sends welcome @A
@@ -828,15 +830,13 @@ testLocalToRemote = do
     void $ uploadNewKeyPackage bob1
 
     -- step 2
-    (groupId, qcnv) <- setupFakeMLSGroup alice1
+    (_groupId, qcnv) <- setupFakeMLSGroup alice1 Nothing
     mp <- createAddCommit alice1 [bob]
     -- step 10
     traverse_ consumeWelcome (mpWelcome mp)
     -- step 11
     message <- createApplicationMessage bob1 "hi"
 
-    -- register remote conversation: step 4
-    receiveNewRemoteConv (fmap Conv qcnv) groupId
     -- A notifies B about bob being in the conversation (Join event): step 5
     receiveOnConvUpdated qcnv alice bob
 
@@ -869,16 +869,13 @@ testLocalToRemoteNonMember = do
     void $ uploadNewKeyPackage bob1
 
     -- step 2
-    (groupId, qcnv) <- setupFakeMLSGroup alice1
+    void $ setupFakeMLSGroup alice1 Nothing
 
     mp <- createAddCommit alice1 [bob]
     -- step 10
     traverse_ consumeWelcome (mpWelcome mp)
     -- step 11
     message <- createApplicationMessage bob1 "hi"
-
-    -- register remote conversation: step 4
-    receiveNewRemoteConv (fmap Conv qcnv) groupId
 
     void $
       withTempMockFederator' sendMessageMock $ do
@@ -1365,7 +1362,7 @@ propNonExistingConv = do
   runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
-    void $ setupFakeMLSGroup alice1
+    void $ setupFakeMLSGroup alice1 Nothing
 
     [prop] <- createAddProposals alice1 [bob]
     postMessage alice1 (mpMessage prop) !!! do
@@ -1729,7 +1726,7 @@ sendRemoteMLSWelcome = do
   [alice, bob] <- createAndConnectUsers [Just "alice.example.com", Nothing]
   (commit, bob1) <- runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
-    void $ setupFakeMLSGroup alice1
+    void $ setupFakeMLSGroup alice1 Nothing
     void $ uploadNewKeyPackage bob1
     commit <- createAddCommit alice1 [bob]
     pure (commit, bob1)
@@ -1955,11 +1952,10 @@ testGetGroupInfoOfRemoteConv = do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
 
     void $ uploadNewKeyPackage bob1
-    (groupId, qcnv) <- setupFakeMLSGroup alice1
+    (_groupId, qcnv) <- setupFakeMLSGroup alice1 Nothing
     mp <- createAddCommit alice1 [bob]
     traverse_ consumeWelcome (mpWelcome mp)
 
-    receiveNewRemoteConv (fmap Conv qcnv) groupId
     receiveOnConvUpdated qcnv alice bob
 
     let fakeGroupState = "\xde\xad\xbe\xef"
@@ -2047,12 +2043,11 @@ testAddUserToRemoteConvWithBundle = do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
 
     void $ uploadNewKeyPackage bob1
-    (groupId, qcnv) <- setupFakeMLSGroup alice1
+    (_groupId, qcnv) <- setupFakeMLSGroup alice1 Nothing
 
     mp <- createAddCommit alice1 [bob]
     traverse_ consumeWelcome (mpWelcome mp)
 
-    receiveNewRemoteConv (fmap Conv qcnv) groupId
     receiveOnConvUpdated qcnv alice bob
 
     -- NB. this commit would be rejected by the owning backend, but for the
@@ -2317,19 +2312,11 @@ testJoinRemoteSubConv = do
 
     -- setup fake group for the subconversation
     let subId = SubConvId "conference"
-    (subGroupId, qcnv) <- setupFakeMLSGroup alice1
+    (_subGroupId, qcnv) <- setupFakeMLSGroup alice1 (Just subId)
     let qcs = fmap (flip SubConv subId) qcnv
     initialCommit <- createPendingProposalCommit alice1
 
-    -- create a fake group ID for the main (we don't need the actual group)
-    mainGroupId <- fakeGroupId
-
-    -- inform backend about the main conversation
-    receiveNewRemoteConv (fmap Conv qcnv) mainGroupId
     receiveOnConvUpdated qcnv alice bob
-
-    -- inform backend about the subconversation
-    receiveNewRemoteConv qcs subGroupId
 
     -- bob joins subconversation
     let pgs = mpGroupInfo initialCommit
@@ -2369,19 +2356,9 @@ testRemoteSubConvNotificationWhenUserJoins = do
 
     State.put s
 
-    (_, reqs) <-
+    void $
       withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
         createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-
-    do
-      req <- assertOne $ filter ((== "on-new-remote-conversation") . frRPC) reqs
-      nrc <- assertOne (toList (Aeson.decode (frBody req)))
-      liftIO $ nrcConvId nrc @?= qUnqualified qcnv
-    do
-      req <- assertOne $ filter ((== "on-new-remote-subconversation") . frRPC) reqs
-      nrsc <- assertOne (toList (Aeson.decode (frBody req)))
-      liftIO $ nrscConvId nrsc @?= qUnqualified qcnv
-      liftIO $ nrscSubConvId nrsc @?= subId
 
 testRemoteUserJoinSubConv :: TestM ()
 testRemoteUserJoinSubConv = do
@@ -2397,28 +2374,9 @@ testRemoteUserJoinSubConv = do
       withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
         sendAndConsumeCommitBundle commit
 
-    let mock =
-          asum
-            [ "on-new-remote-subconversation" ~> EmptyResponse,
-              messageSentMock
-            ]
+    let mock = messageSentMock
     let subId = SubConvId "conference"
-    (qcs, reqs) <- withTempMockFederator' mock $ createSubConv qcnv alice1 subId
-    psc <-
-      liftTest $
-        responseJsonError
-          =<< getSubConv (ciUser alice1) qcnv subId <!! const 200 === statusCode
-
-    -- check that the remote backend is notified when a subconversation is
-    -- created locally
-    req <- assertOne $ filter ((== "on-new-remote-subconversation") . frRPC) reqs
-    nrsc <- assertOne . toList $ Aeson.decode (frBody req)
-    liftIO $ do
-      nrscConvId nrsc @?= qUnqualified qcnv
-      nrscSubConvId nrsc @?= subId
-      let mls = nrscMlsData nrsc
-      cnvmlsGroupId mls @?= pscGroupId psc
-      cnvmlsEpoch mls @?= Epoch 0
+    (qcs, _reqs) <- withTempMockFederator' mock $ createSubConv qcnv alice1 subId
 
     -- bob joins the subconversation
     void $
@@ -2433,14 +2391,9 @@ testRemoteUserJoinSubConv = do
             <!! const 200 === statusCode
       liftIO $ Set.fromList (pscMembers psc') @?= Set.fromList [alice1, bob1]
 
-    -- check that on-new-remote-subconversation is not called on further commits
-    (_, reqs') <-
+    void $
       withTempMockFederator' mock $
         createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
-
-    liftIO $
-      assertBool "Unexpected on-new-remote-subconversation" $
-        all ((/= "on-new-remote-subconversation") . frRPC) reqs'
 
 testSendMessageSubConv :: TestM ()
 testSendMessageSubConv = do
@@ -2587,26 +2540,10 @@ testRemoteMemberDeleteSubConv isAMember = do
 
   -- Bob is a member of the parent conversation so he's allowed to delete the
   -- subconversation.
-  (res, reqs) <-
+  (res, _reqs) <-
     withTempMockFederator' deleteMLSConvMock $ do
       fedGalleyClient <- view tsFedGalleyClient
       runFedClient @"delete-sub-conversation" fedGalleyClient bobDomain delReq
-
-  when isAMember $ do
-    liftIO $ do
-      req <- assertOne (filter ((== "on-new-remote-subconversation") . frRPC) reqs)
-      nrsc <- assertOne (toList (Aeson.decode (frBody req)))
-      nrscConvId nrsc @?= cnv
-      nrscSubConvId nrsc @?= scnv
-
-    liftIO $ do
-      fr <- assertOne (filter ((== "on-delete-mls-conversation") . frRPC) reqs)
-      frTargetDomain fr @?= bobDomain
-      frRPC fr @?= "on-delete-mls-conversation"
-      bdy <- case Aeson.eitherDecode (frBody fr) of
-        Right b -> pure b
-        Left e -> assertFailure $ "Could not parse delete-sub-conversation request body: " <> e
-      odmcGroupIds bdy @?= [groupId]
 
   if isAMember then expectSuccess res else expectFailure ConvNotFound res
   where
@@ -2747,7 +2684,7 @@ testDeleteParentOfSubConv = do
   connectWithRemoteUser aliceUnqualified bob
 
   let sconv = SubConvId "conference"
-  (qcnv, parentGroupId, subGroupId) <- runMLSTest $ do
+  (qcnv, _parentGroupId, _subGroupId) <- runMLSTest $ do
     [alice1, arthur1, bob1] <- traverse createMLSClient [alice, arthur, bob]
     traverse_ uploadNewKeyPackage [arthur1]
     (parentGroupId, qcnv) <- setupMLSGroup alice1
@@ -2790,78 +2727,13 @@ testDeleteParentOfSubConv = do
 
     pure (qcnv, parentGroupId, pscGroupId sub')
 
-  (_, freqs) <- withTempMockFederator' deleteMLSConvMock $ do
+  void $ withTempMockFederator' deleteMLSConvMock $ do
     deleteTeamConv tid (qUnqualified qcnv) (qUnqualified alice)
       !!! const 200
         === statusCode
 
-  req <- assertOne (filter ((== "on-delete-mls-conversation") . frRPC) freqs)
-  let Just odmc = Aeson.decode (frBody req)
-  liftIO $
-    sort (odmcGroupIds odmc) @?= sort [parentGroupId, subGroupId]
-
   getSubConv (qUnqualified alice) qcnv sconv
     !!! do const 404 === statusCode
-
-testDeleteRemoteParentOfSubConv :: TestM ()
-testDeleteRemoteParentOfSubConv = do
-  [alice, bob] <- createAndConnectUsers [Just "alice.example.com", Nothing]
-
-  runMLSTest $ do
-    alice1 <- createFakeMLSClient alice
-    bob1 <- createMLSClient bob
-    void $ uploadNewKeyPackage bob1
-
-    -- setup fake group for the subconversation
-    let subId = SubConvId "conference"
-    (subGroupId, qcnv) <- setupFakeMLSGroup alice1
-    let qcs = fmap (flip SubConv subId) qcnv
-    initialCommit <- createPendingProposalCommit alice1
-
-    -- create a fake group ID for the main (we don't need the actual group)
-    mainGroupId <- fakeGroupId
-
-    -- inform backend about the main conversation
-    receiveNewRemoteConv (fmap Conv qcnv) mainGroupId
-    receiveOnConvUpdated qcnv alice bob
-
-    -- inform backend about the subconversation
-    receiveNewRemoteConv qcs subGroupId
-
-    let pgs = mpGroupInfo initialCommit
-    let mock =
-          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] mempty)
-            <|> queryGroupStateMock (fold pgs) bob
-            <|> sendMessageMock
-    void $ withTempMockFederator' mock $ do
-      -- bob joins subconversation
-      commit <- createExternalCommit bob1 Nothing qcs
-      void $ sendAndConsumeCommitBundle commit
-
-      -- bob can send to remote conversation
-      void $
-        withTempMockFederator' sendMessageMock $ do
-          message <- createApplicationMessage bob1 "hi"
-          postMessage (mpSender message) (mpMessage message)
-            !!! const 201 === statusCode
-
-      -- remote notifies about deletion of group
-      liftTest $ do
-        client <- view tsFedGalleyClient
-        let odm = OnDeleteMLSConversationRequest [mainGroupId, subGroupId]
-        void $
-          runFedClient
-            @"on-delete-mls-conversation"
-            client
-            (qDomain alice)
-            odm
-
-      -- bob's backend has no longer a mapping of the group id
-      void $
-        withTempMockFederator' sendMessageMock $ do
-          message <- createApplicationMessage bob1 "hi"
-          postMessage (mpSender message) (mpMessage message)
-            !!! const 404 === statusCode
 
 testDeleteRemoteSubConv :: Bool -> TestM ()
 testDeleteRemoteSubConv isAMember = do
@@ -2911,12 +2783,6 @@ testLastLeaverSubConv = do
 
     let subId = SubConvId "conference"
     qsub <- createSubConv qcnv alice1 subId
-    prePsc <-
-      liftTest $
-        responseJsonError
-          =<< getSubConv (qUnqualified alice) qcnv subId
-            <!! do
-              const 200 === statusCode
     void $ leaveCurrentConv alice1 qsub
 
     psc <-
@@ -2928,7 +2794,6 @@ testLastLeaverSubConv = do
     liftIO $ do
       pscEpoch psc @?= Epoch 0
       pscEpochTimestamp psc @?= Nothing
-      assertBool "group ID unchanged" $ pscGroupId prePsc /= pscGroupId psc
       length (pscMembers psc) @?= 0
 
 testLeaveSubConv :: Bool -> TestM ()
@@ -3088,20 +2953,13 @@ testLeaveRemoteSubConv = do
 
     -- setup fake group for the subconversation
     let subId = SubConvId "conference"
-    (subGroupId, qcnv) <- setupFakeMLSGroup alice1
+    (_subGroupId, qcnv) <- setupFakeMLSGroup alice1 (Just subId)
     -- TODO: refactor setupFakeMLSGroup to make it consistent with createSubConv
     let qcs = fmap (flip SubConv subId) qcnv
     initialCommit <- createPendingProposalCommit alice1
 
-    -- create a fake group ID for the main (we don't need the actual group)
-    mainGroupId <- fakeGroupId
-
     -- inform backend about the main conversation
-    receiveNewRemoteConv (fmap Conv qcnv) mainGroupId
     receiveOnConvUpdated qcnv alice bob
-
-    -- inform backend about the subconversation
-    receiveNewRemoteConv qcs subGroupId
 
     let pgs = mpGroupInfo initialCommit
     let mock =
