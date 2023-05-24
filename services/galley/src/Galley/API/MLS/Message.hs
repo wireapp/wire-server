@@ -181,6 +181,7 @@ postMLSCommitBundleFromLocalUser lusr c conn bundle = do
 
 postMLSCommitBundleToLocalConv ::
   ( HasProposalEffects r,
+    Member (Error FederationError) r,
     Members MLSBundleStaticErrors r,
     Member Resource r,
     Member SubConversationStore r
@@ -199,7 +200,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
     unpack <$> case bundle.sender of
       SenderMember _index -> do
         action <- getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
-        Left
+        Left . (,cmIdentities . paAdd $ action)
           <$> processInternalCommit
             senderIdentity
             conn
@@ -225,7 +226,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
   traverse_ (sendWelcomes lConvOrSub conn newClients) bundle.welcome
   pure (events, failedToProcess <> failedToSendMaybe unreachables)
   where
-    unpack (Left (InternalCommitOutcome updates nc ftp)) = (updates, nc, ftp)
+    unpack (Left (InternalCommitOutcome updates ftp, nc)) = (updates, nc, ftp)
     unpack (Right ()) = ([], [], mempty)
 
 postMLSCommitBundleToRemoteConv ::

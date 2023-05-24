@@ -78,6 +78,8 @@ module Wire.API.Federation.Error
   )
 where
 
+import Data.Domain
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as LT
@@ -151,6 +153,8 @@ data FederationError
     FederationUnexpectedBody Text
   | -- | Federator client got an unexpected error response from remote backend
     FederationUnexpectedError Text
+  | -- | One or more remote backends is unreachable
+    FederationUnreachableDomains (Set Domain)
   deriving (Show, Typeable)
 
 data VersionNegotiationError
@@ -178,6 +182,7 @@ federationErrorToWai FederationNotConfigured = federationNotConfigured
 federationErrorToWai (FederationCallFailure err) = federationClientErrorToWai err
 federationErrorToWai (FederationUnexpectedBody s) = federationUnexpectedBody s
 federationErrorToWai (FederationUnexpectedError t) = federationUnexpectedError t
+federationErrorToWai (FederationUnreachableDomains ds) = federationUnreachableError ds
 
 federationClientErrorToWai :: FederatorClientError -> Wai.Error
 federationClientErrorToWai (FederatorClientHTTP2Error e) =
@@ -303,6 +308,16 @@ federationUnexpectedError msg =
     unexpectedFederationResponseStatus
     "federation-unexpected-wai-error"
     ("Could parse body, but got an unexpected error response: " <> LT.fromStrict msg)
+
+federationUnreachableError :: Set Domain -> Wai.Error
+federationUnreachableError (Set.map domainText -> ds) =
+  Wai.mkError
+    status
+    "federation-unreachable-domains-error"
+    ("The following domains are unreachable: " <> (LT.pack . show . Set.toList) ds)
+  where
+    status :: Status
+    status = HTTP.Status 503 "Unreachable federated domains"
 
 federationNotConfigured :: Wai.Error
 federationNotConfigured =

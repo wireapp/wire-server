@@ -27,6 +27,7 @@ import Control.Lens (forOf_, preview)
 import Control.Lens.Extras (is)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
@@ -44,7 +45,6 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Galley.Types.Conversations.Members
-import Galley.Types.UserList
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -53,9 +53,9 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
@@ -66,13 +66,13 @@ import Wire.API.User.Client
 
 data InternalCommitOutcome = InternalCommitOutcome
   { updates :: [LocalConversationUpdate],
-    successfullyAdded :: [ClientIdentity],
     failedToProcess :: FailedToProcess
   }
 
 processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
+    Member (Error FederationError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
@@ -106,7 +106,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
     when (is _SubConv convOrSub && any ((senderIdentity /=) . fst) (cmAssocs (paAdd action))) $
       throw (mlsProtocolError "Add proposals in subconversations are not supported")
 
-    (events, addedClients, failedAddComponent, failedToProcess) <-
+    (events, failedToProcess) <-
       if convOrSub.migrationState == MLSMigrationMLS
         then do
           -- Note [client removal]
@@ -176,6 +176,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
                         -- FUTUREWORK: turn this error into a proper response
                         throwS @'MLSClientMismatch
                     pure Nothing
+          for_ (unreachableFromList failedAddFetching) throwUnreachable
 
           -- remove users from the conversation and send events
           removeEvents <-
@@ -205,25 +206,11 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
           addEvents <-
             foldMap (addMembers qusr con lConvOrSub)
               . nonEmpty
-              . filter (\u -> u `notElem` failedAddFetching)
               . map fst
               $ newUserClients
-          let failedAdding =
-                ulAll lConvOrSub . uncurry ulDiff . both (toUserList lConvOrSub) $
-                  ( fst <$> newUserClients,
-                    foldMap (onlyJoining . lcuEvent) . fst $ addEvents
-                  )
-              failedAddComponent = failedAddFetching <> failedAdding
-          let failedToProcess =
-                failedToAdd failedAddComponent
-                  <> snd addEvents
-                  <> snd removeEvents
-              addedClients =
-                cmIdentities $
-                  Map.filterWithKey (\k _ -> k `notElem` failedAddComponent) $
-                    paAdd action
-          pure (fst addEvents <> fst removeEvents, addedClients, failedAddComponent, failedToProcess)
-        else pure ([], mempty, mempty, mempty)
+          let failedToProcess = snd addEvents <> snd removeEvents
+          pure (fst addEvents <> fst removeEvents, failedToProcess)
+        else pure ([], mempty)
 
     -- Remove clients from the conversation state. This includes client removals
     -- of all types (see Note [client removal]).
@@ -249,12 +236,8 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
         runFederatedConcurrently_ (toList remoteDomains) $ \_ -> do
           void $ fedClient @'Galley @"on-new-remote-subconversation" nrc
 
-    let newUserClientsFiltered =
-          filter
-            (\(u, _) -> u `notElem` failedAddComponent)
-            newUserClients
     -- add clients to the conversation state
-    for_ newUserClientsFiltered $ \(qtarget, newClients) -> do
+    for_ newUserClients $ \(qtarget, newClients) -> do
       addMLSClients (cnvmlsGroupId convOrSub.meta) qtarget (Set.fromList (Map.assocs newClients))
 
     -- increment epoch number
@@ -263,16 +246,21 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
     pure $
       InternalCommitOutcome
         { updates = events,
-          successfullyAdded = addedClients,
           failedToProcess = failedToProcess
         }
-  where
-    onlyJoining :: Event -> [Qualified UserId]
-    onlyJoining (evtData -> EdMembersJoin ms) = smQualifiedId <$> mMembers ms
-    onlyJoining _ = []
+
+throwUnreachable :: Member (Error FederationError) r => UnreachableUsers -> Sem r a
+throwUnreachable =
+  throw
+    . FederationUnreachableDomains
+    . Set.fromList
+    . NE.toList
+    . fmap qDomain
+    . unreachableUsers
 
 addMembers ::
   HasProposalActionEffects r =>
+  Member (Error FederationError) r =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
@@ -282,21 +270,26 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   Conv mlsConv -> do
     let lconv = qualifyAs lConvOrSub (mcConv mlsConv)
     -- FUTUREWORK: update key package ref mapping to reflect conversation membership
-    foldMap
-      ( handleNoChanges
-          . handleMLSProposalFailures @ProposalErrors
-          . fmap (first pure)
-          . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
-          . flip ConversationJoin roleNameWireMember
-      )
-      . nonEmpty
-      . filter (flip Set.notMember (existingMembers lconv))
-      . toList
-      $ users
+    (lcus, ftp) <-
+      foldMap
+        ( handleNoChanges
+            . handleMLSProposalFailures @ProposalErrors
+            . fmap (first pure)
+            . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
+            . flip ConversationJoin roleNameWireMember
+        )
+        . nonEmpty
+        . filter (flip Set.notMember (existingMembers lconv))
+        . toList
+        $ users
+    for_ (add ftp) throwUnreachable
+
+    pure (lcus, ftp)
   SubConv _ _ -> pure ([], mempty)
 
 removeMembers ::
   HasProposalActionEffects r =>
+  Member (Error FederationError) r =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
@@ -305,16 +298,20 @@ removeMembers ::
 removeMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   Conv mlsConv -> do
     let lconv = qualifyAs lConvOrSub (mcConv mlsConv)
-    foldMap
-      ( handleNoChanges
-          . handleMLSProposalFailures @ProposalErrors
-          . fmap (first pure)
-          . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
-      )
-      . nonEmpty
-      . filter (flip Set.member (existingMembers lconv))
-      . toList
-      $ users
+    (lcus, ftp) <-
+      foldMap
+        ( handleNoChanges
+            . handleMLSProposalFailures @ProposalErrors
+            . fmap (first pure)
+            . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
+        )
+        . nonEmpty
+        . filter (flip Set.member (existingMembers lconv))
+        . toList
+        $ users
+    for_ (remove ftp) throwUnreachable
+
+    pure (lcus, ftp)
   SubConv _ _ -> pure ([], mempty)
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
