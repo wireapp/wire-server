@@ -45,6 +45,7 @@
 , hspec
 , hspec-wai
 , http-api-data
+, http-client
 , http-media
 , http-types
 , imports
@@ -69,6 +70,7 @@
 , quickcheck-instances
 , random
 , resourcet
+, retry
 , saml2-web-sso
 , schema-profunctor
 , scientific
@@ -117,6 +119,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    async
     attoparsec
     base
     base64-bytestring
@@ -150,6 +153,7 @@ mkDerivation {
     hscim
     HsOpenSSL
     http-api-data
+    http-client
     http-media
     http-types
     imports
@@ -171,6 +175,7 @@ mkDerivation {
     quickcheck-instances
     random
     resourcet
+    retry
     saml2-web-sso
     schema-profunctor
     scientific

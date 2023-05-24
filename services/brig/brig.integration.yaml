@@ -194,6 +194,12 @@ optSettings:
   setFederationDomainConfigs:
     - domain: example.com
       search_policy: full_search
+    - domain: b.example.com
+      search_policy: full_search
+    - domain: invalid.example.com
+      search_policy: full_search
+    - domain: far-away.example.com
+      search_policy: full_search
   set2FACodeGenerationDelaySecs: 5
   setNonceTtlSecs: 5
   setDpopMaxSkewSecs: 1

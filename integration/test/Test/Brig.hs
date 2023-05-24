@@ -4,12 +4,12 @@ import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import qualified API.Common as API
 import qualified API.GalleyInternal as Internal
+import Data.Aeson.Types (parseMaybe)
 import Data.String.Conversions
 import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
 import Testlib.Prelude
-import Data.Aeson.Types (parseMaybe)
 
 testSearchContactForExternalUsers :: HasCallStack => App ()
 testSearchContactForExternalUsers = do
@@ -32,38 +32,38 @@ testCrudFederationRemotes = do
 
       addOnce :: HasCallStack => Internal.FedConn -> [Internal.FedConn] -> App ()
       addOnce fedConn want = do
-        res <- Internal.createFedConn fedConn
+        res <- Internal.createFedConn OwnDomain fedConn
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
-        res2 <- parseFedConns =<< Internal.readFedConns
+        res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
         sort res2 `shouldMatch` sort want
 
       addFail :: HasCallStack => Internal.FedConn -> App ()
       addFail fedConn = do
-        res <- Internal.createFedConn' fedConn
+        res <- Internal.createFedConn' OwnDomain fedConn
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
 
       deleteOnce :: HasCallStack => String -> [Internal.FedConn] -> App ()
       deleteOnce domain want = do
-        res <- Internal.deleteFedConn domain
+        res <- Internal.deleteFedConn OwnDomain domain
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
-        res2 <- parseFedConns =<< Internal.readFedConns
+        res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
         sort res2 `shouldMatch` sort want
 
       deleteFail :: HasCallStack => String -> App ()
       deleteFail del = do
-        res <- Internal.deleteFedConn' del
+        res <- Internal.deleteFedConn' OwnDomain del
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
 
       updateOnce :: HasCallStack => String -> Internal.FedConn -> [Internal.FedConn] -> App ()
       updateOnce domain fedConn want = do
-        res <- Internal.updateFedConn domain fedConn
+        res <- Internal.updateFedConn OwnDomain domain fedConn
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
-        res2 <- parseFedConns =<< Internal.readFedConns
+        res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
         sort res2 `shouldMatch` sort want
 
       updateFail :: HasCallStack => String -> Internal.FedConn -> App ()
       updateFail domain fedConn = do
-        res <- Internal.updateFedConn' domain fedConn
+        res <- Internal.updateFedConn' OwnDomain domain fedConn
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
 
   let remote1, remote1', remote1'' :: Internal.FedConn
@@ -74,8 +74,8 @@ testCrudFederationRemotes = do
       cfgRemotesExpect :: Internal.FedConn
       cfgRemotesExpect = Internal.FedConn (cs "example.com") "full_search"
 
-  resetFedConns
-  cfgRemotes <- parseFedConns =<< Internal.readFedConns
+  resetFedConns OwnDomain
+  cfgRemotes <- parseFedConns =<< Internal.readFedConns OwnDomain
   cfgRemotes `shouldMatch` [cfgRemotesExpect]
   -- entries present in the config file can be idempotently added if identical, but cannot be
   -- updated, deleted or updated.

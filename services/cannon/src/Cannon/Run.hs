@@ -52,11 +52,11 @@ import System.Posix.Signals
 import qualified System.Posix.Signals as Signals
 import System.Random.MWC (createSystemRandom)
 import UnliftIO.Concurrent (myThreadId, throwTo)
+import Util.Options (Endpoint (..))
 import Wire.API.FederationUpdate
 import qualified Wire.API.Routes.Internal.Cannon as Internal
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version.Wai
-import Util.Options (Endpoint(..))
 
 type CombinedAPI = PublicAPI :<|> Internal.API
 

@@ -5,7 +5,6 @@ import qualified Data.Aeson as Aeson
 import Data.Function
 import Data.Maybe
 import Testlib.Prelude
-import Control.Monad.Reader (asks)
 
 data CreateUser = CreateUser
   { email :: Maybe String,
@@ -65,52 +64,48 @@ instance FromJSON FedConn where
       <$> obj .: fromString "domain"
       <*> obj .: fromString "search_policy"
 
-createFedConn :: HasCallStack => FedConn -> App Response
-createFedConn fedConn = do
-  res <- createFedConn' fedConn
+createFedConn :: (HasCallStack, MakesValue dom) => dom -> FedConn -> App Response
+createFedConn dom fedConn = do
+  res <- createFedConn' dom fedConn
   res.status `shouldMatchRange` (200, 299)
   pure res
 
-createFedConn' :: HasCallStack => FedConn -> App Response
-createFedConn' fedConn = do
-  ownDomain <- asks domain1
-  req <- rawBaseRequest ownDomain Brig Unversioned "/i/federation/remotes"
+createFedConn' :: (HasCallStack, MakesValue dom) => dom -> FedConn -> App Response
+createFedConn' dom fedConn = do
+  req <- rawBaseRequest dom Brig Unversioned "/i/federation/remotes"
   submit "POST" $ req & addJSON fedConn
 
-readFedConns :: HasCallStack => App Response
-readFedConns = do
-  res <- readFedConns'
+readFedConns :: (HasCallStack, MakesValue dom) => dom -> App Response
+readFedConns dom = do
+  res <- readFedConns' dom
   res.status `shouldMatchRange` (200, 299)
   pure res
 
-readFedConns' :: HasCallStack => App Response
-readFedConns' = do
-  ownDomain <- asks domain1
-  req <- rawBaseRequest ownDomain Brig Unversioned "/i/federation/remotes"
+readFedConns' :: (HasCallStack, MakesValue dom) => dom -> App Response
+readFedConns' dom = do
+  req <- rawBaseRequest dom Brig Unversioned "/i/federation/remotes"
   submit "GET" req
 
-updateFedConn :: HasCallStack => String -> FedConn -> App Response
-updateFedConn dom fedConn = do
-  res <- updateFedConn' dom fedConn
+updateFedConn :: (HasCallStack, MakesValue owndom) => owndom -> String -> FedConn -> App Response
+updateFedConn owndom dom fedConn = do
+  res <- updateFedConn' owndom dom fedConn
   res.status `shouldMatchRange` (200, 299)
   pure res
 
-updateFedConn' :: HasCallStack => String -> FedConn -> App Response
-updateFedConn' dom fedConn = do
-  ownDomain <- asks domain1
-  req <- rawBaseRequest ownDomain Brig Unversioned ("/i/federation/remotes/" <> dom)
+updateFedConn' :: (HasCallStack, MakesValue owndom) => owndom -> String -> FedConn -> App Response
+updateFedConn' owndom dom fedConn = do
+  req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes/" <> dom)
   submit "PUT" (fedConn `addJSON` req)
 
-deleteFedConn :: HasCallStack => String -> App Response
-deleteFedConn dom = do
-  res <- deleteFedConn' dom
+deleteFedConn :: (HasCallStack, MakesValue owndom) => owndom -> String -> App Response
+deleteFedConn owndom dom = do
+  res <- deleteFedConn' owndom dom
   res.status `shouldMatchRange` (200, 299)
   pure res
 
-deleteFedConn' :: HasCallStack => String -> App Response
-deleteFedConn' dom = do
-  ownDomain <- asks domain1
-  req <- rawBaseRequest ownDomain Brig Unversioned ("/i/federation/remotes/" <> dom)
+deleteFedConn' :: (HasCallStack, MakesValue owndom) => owndom -> String -> App Response
+deleteFedConn' owndom dom = do
+  req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes/" <> dom)
   submit "DELETE" req
 
 registerOAuthClient :: (HasCallStack, MakesValue user, MakesValue name, MakesValue url) => user -> name -> url -> App Response
