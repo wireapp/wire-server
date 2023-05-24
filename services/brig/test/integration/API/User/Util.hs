@@ -481,6 +481,7 @@ downloadAsset c usr ast =
         . paths ["/assets", toByteString' (qDomain ast), toByteString' (qUnqualified ast)]
         . zUser usr
         . zConn "conn"
+        . zHost "nginz-https.example.com"
     )
 
 requestLegalHoldDevice :: Brig -> UserId -> UserId -> LastPrekey -> MonadHttp m => m ResponseLBS
