@@ -12,7 +12,7 @@ import Testlib.Prelude
 
 testUploadAsset :: HasCallStack => App ()
 testUploadAsset = do
-  user <- randomUser ownDomain def
+  user <- randomUser OwnDomain def
 
   key <- bindResponse (uploadAsset user) $ \resp -> do
     resp.status `shouldMatchInt` 201
@@ -26,7 +26,7 @@ testUploadAsset = do
 
 testUploadAssetMultiIngressS3DownloadUrl :: HasCallStack => App ()
 testUploadAssetMultiIngressS3DownloadUrl = do
-  user <- randomUser ownDomain def
+  user <- randomUser OwnDomain def
 
   key <- bindResponse (uploadAsset user) $ \resp -> do
     resp.status `shouldMatchInt` 201
