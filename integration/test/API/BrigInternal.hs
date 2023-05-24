@@ -5,6 +5,7 @@ import qualified Data.Aeson as Aeson
 import Data.Function
 import Data.Maybe
 import Testlib.Prelude
+import Control.Monad.Reader (asks)
 
 data CreateUser = CreateUser
   { email :: Maybe String,
@@ -72,6 +73,7 @@ createFedConn fedConn = do
 
 createFedConn' :: HasCallStack => FedConn -> App Response
 createFedConn' fedConn = do
+  ownDomain <- asks domain1
   req <- rawBaseRequest ownDomain Brig Unversioned "/i/federation/remotes"
   submit "POST" $ req & addJSON fedConn
 
@@ -83,6 +85,7 @@ readFedConns = do
 
 readFedConns' :: HasCallStack => App Response
 readFedConns' = do
+  ownDomain <- asks domain1
   req <- rawBaseRequest ownDomain Brig Unversioned "/i/federation/remotes"
   submit "GET" req
 
@@ -94,6 +97,7 @@ updateFedConn dom fedConn = do
 
 updateFedConn' :: HasCallStack => String -> FedConn -> App Response
 updateFedConn' dom fedConn = do
+  ownDomain <- asks domain1
   req <- rawBaseRequest ownDomain Brig Unversioned ("/i/federation/remotes/" <> dom)
   submit "PUT" (fedConn `addJSON` req)
 
@@ -105,6 +109,7 @@ deleteFedConn dom = do
 
 deleteFedConn' :: HasCallStack => String -> App Response
 deleteFedConn' dom = do
+  ownDomain <- asks domain1
   req <- rawBaseRequest ownDomain Brig Unversioned ("/i/federation/remotes/" <> dom)
   submit "DELETE" req
 
