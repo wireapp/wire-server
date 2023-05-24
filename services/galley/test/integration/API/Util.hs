@@ -2457,7 +2457,7 @@ instance HasSettingsOverrides TestM where
     ts :: TestSetup <- ask
     let opts = f (ts ^. tsGConf)
     liftIO . lowerCodensity $ do
-      ioref <- newIORef defFederationDomainConfigs 
+      ioref <- newIORef $ FederationDomainConfigs AllowAll [] $ updateInterval defFederationDomainConfigs
       (galleyApp, _env) <- Run.mkApp opts ioref
       port' <- withMockServer galleyApp
       liftIO $
