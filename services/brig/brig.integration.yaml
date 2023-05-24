@@ -190,15 +190,9 @@ optSettings:
   setFederationDomain: example.com
   setFeatureFlags:  # see #RefConfigOptions in `/docs/reference`
   setFederationDomainConfigsUpdateFreq: 1
-  setFederationStrategy: allowList
+  setFederationStrategy: allowAll
   setFederationDomainConfigs:
     - domain: example.com
-      search_policy: full_search
-    - domain: b.example.com
-      search_policy: full_search
-    - domain: invalid.example.com
-      search_policy: full_search
-    - domain: far-away.example.com
       search_policy: full_search
   set2FACodeGenerationDelaySecs: 5
   setNonceTtlSecs: 5
