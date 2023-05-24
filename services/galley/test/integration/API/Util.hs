@@ -144,6 +144,7 @@ import Wire.API.User.Auth hiding (Access)
 import Wire.API.User.Client
 import qualified Wire.API.User.Client as Client
 import Wire.API.User.Client.Prekey
+import Wire.API.Routes.FederationDomainConfig
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -2456,7 +2457,8 @@ instance HasSettingsOverrides TestM where
     ts :: TestSetup <- ask
     let opts = f (ts ^. tsGConf)
     liftIO . lowerCodensity $ do
-      (galleyApp, _env) <- Run.mkApp opts
+      ioref <- newIORef defFederationDomainConfigs 
+      (galleyApp, _env) <- Run.mkApp opts ioref
       port' <- withMockServer galleyApp
       liftIO $
         runReaderT

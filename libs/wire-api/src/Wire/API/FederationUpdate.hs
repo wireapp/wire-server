@@ -1,20 +1,22 @@
 module Wire.API.FederationUpdate
   ( FedUpdateCallback,
-    getAllowedDomainsInitial,
-    getAllowedDomainsLoop,
-    getAllowedDomainsLoop',
+    updateFedDomains
   )
 where
 
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import qualified Control.Retry as R
 import Imports
-import Servant.Client (ClientEnv, ClientError, runClientM)
-import Servant.Client.Internal.HttpClient (ClientM)
+import Servant.Client (ClientEnv (ClientEnv), ClientError, runClientM, BaseUrl (BaseUrl), Scheme (Http))
+import Servant.Client.Internal.HttpClient (ClientM, defaultMakeClientRequest)
 import qualified System.Logger as L
 import Wire.API.Routes.FederationDomainConfig (FederationDomainConfigs (updateInterval))
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Named (namedClient)
+import Util.Options (Endpoint (..))
+import Control.Concurrent.Async
+import Network.HTTP.Client (newManager, defaultManagerSettings)
+import Data.Text (unpack)
 
 getFedRemotes :: ClientM FederationDomainConfigs
 getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
@@ -42,12 +44,13 @@ getAllowedDomainsInitial logger clientEnv =
 getAllowedDomains :: ClientEnv -> IO (Either ClientError FederationDomainConfigs)
 getAllowedDomains = runClientM getFedRemotes
 
+-- Old value -> new value -> action
 type FedUpdateCallback = FederationDomainConfigs -> FederationDomainConfigs -> IO ()
 
 -- The callback takes the previous and the new values of the federation domain configs
 -- and runs a given action. This function is not called if a new config value cannot be fetched.
-getAllowedDomainsLoop :: L.Logger -> ClientEnv -> IORef FederationDomainConfigs -> FedUpdateCallback -> IO ()
-getAllowedDomainsLoop logger clientEnv env callback = forever $ do
+getAllowedDomainsLoop :: L.Logger -> ClientEnv -> FedUpdateCallback -> IORef FederationDomainConfigs -> IO ()
+getAllowedDomainsLoop logger clientEnv callback env = forever $ do
   getAllowedDomains clientEnv >>= \case
     Left e ->
       L.log logger L.Fatal $
@@ -60,7 +63,11 @@ getAllowedDomainsLoop logger clientEnv env callback = forever $ do
   delay <- updateInterval <$> readIORef env
   threadDelay (delay * 1_000_000)
 
--- A version where the callback isn't needed. Most of the services don't care about
--- when the list changes, just that they have the new list and can use it as-is
-getAllowedDomainsLoop' :: L.Logger -> ClientEnv -> IORef FederationDomainConfigs -> IO ()
-getAllowedDomainsLoop' logger c r = getAllowedDomainsLoop logger c r $ \_ _ -> pure ()
+updateFedDomains :: Endpoint -> L.Logger -> FedUpdateCallback -> IO (IORef FederationDomainConfigs, Async ())
+updateFedDomains (Endpoint h p) log' cb = do
+  clientEnv <- newManager defaultManagerSettings <&> \mgr -> ClientEnv mgr baseUrl Nothing defaultMakeClientRequest
+  ioref <- newIORef =<< getAllowedDomainsInitial log' clientEnv
+  updateDomainsThread <- async $ getAllowedDomainsLoop log' clientEnv cb ioref
+  pure (ioref, updateDomainsThread)
+  where
+    baseUrl = BaseUrl Http (unpack h) (fromIntegral p) ""

@@ -49,7 +49,6 @@ import Galley.App
 import qualified Galley.App as App
 import Galley.Aws (awsEnv)
 import Galley.Cassandra
-import Galley.Env (fedDomains)
 import Galley.Monad
 import Galley.Options
 import qualified Galley.Queue as Q
@@ -61,12 +60,6 @@ import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
 import Servant hiding (route)
-import Servant.Client
-  ( BaseUrl (BaseUrl),
-    ClientEnv (ClientEnv),
-    Scheme (Http),
-    defaultMakeClientRequest,
-  )
 import qualified System.Logger as Log
 import Util.Options
 import Wire.API.FederationUpdate
@@ -74,10 +67,17 @@ import Wire.API.Routes.API
 import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
+import System.Logger.Extended (mkLogger)
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
-  (app, env) <- mkApp opts
+  (ioref, _) <- lift $ do
+    -- Duplicating the logger from App.createEnv so that we don't have to deal
+    -- with recursive monadic actions to get the logger before we have the initial
+    -- IORef of values from brig. It's just easier this way.
+    l <- mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
+    updateFedDomains (opts ^. optBrig) l callback
+  (app, env) <- mkApp opts ioref
   settings <-
     lift $
       newSettings $
@@ -89,17 +89,16 @@ run opts = lowerCodensity $ do
 
   forM_ (env ^. aEnv) $ \aws ->
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
-  void $ Codensity $ Async.withAsync $ runApp env updateFedDomains
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
   void $ Codensity $ Async.withAsync $ runApp env undefined
   lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
 
-mkApp :: Opts -> Codensity IO (Application, Env)
-mkApp opts =
+mkApp :: Opts -> IORef FederationDomainConfigs -> Codensity IO (Application, Env)
+mkApp opts fedDoms =
   do
     metrics <- lift $ M.metrics
-    env <- lift $ App.createEnv metrics opts
+    env <- lift $ App.createEnv metrics opts fedDoms
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
 
     let logger = env ^. App.applog
@@ -181,23 +180,12 @@ collectAuthMetrics m env = do
       gaugeTokenRemaing m mbRemaining
       threadDelay 1_000_000
 
-updateFedDomains :: App ()
-updateFedDomains = do
-  ioref <- view fedDomains
-  logger <- view applog
-  manager' <- view manager
-  Endpoint host port <- view brig
-  let baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
-      clientEnv = ClientEnv manager' baseUrl Nothing defaultMakeClientRequest
-
-  liftIO $ do
-    okRemoteDomains <- getAllowedDomainsInitial logger clientEnv
-    atomicWriteIORef ioref okRemoteDomains
-    let domainListsEqual old new =
-          Set.fromList (domain <$> remotes old)
-            == Set.fromList (domain <$> remotes new)
-        callback old new = unless (domainListsEqual old new) $ do
-          -- TODO: perform the database updates here
-          -- This code will only run when there is a change in the domain lists
-          pure ()
-    getAllowedDomainsLoop logger clientEnv ioref callback
+callback :: FedUpdateCallback
+callback old new = unless (domainListsEqual old new) $ do
+  -- TODO: perform the database updates here
+  -- This code will only run when there is a change in the domain lists
+  pure ()
+  where
+    domainListsEqual o n =
+      Set.fromList (domain <$> remotes o) ==
+      Set.fromList (domain <$> remotes n)
