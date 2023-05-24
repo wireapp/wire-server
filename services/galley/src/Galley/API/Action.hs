@@ -54,6 +54,7 @@ import qualified Data.Set as Set
 import Data.Singletons
 import Data.Time.Clock
 import Galley.API.Error
+import Galley.API.MLS.Conversation
 import Galley.API.MLS.Migration
 import Galley.API.MLS.Removal
 import Galley.API.Teams.Features.Get
@@ -435,8 +436,9 @@ performAction tag origUser lconv action = do
         (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
           mig <- getFeatureStatus @MlsMigrationConfig DontDoAuth tid
           now <- input
-          unless (checkMigrationCriteria now mig) $
-            throwS @'ConvInvalidProtocolTransition
+          mlsConv <- mkMLSConversation conv >>= noteS @'ConvInvalidProtocolTransition
+          ok <- checkMigrationCriteria now mlsConv mig
+          unless ok $ throwS @'ConvInvalidProtocolTransition
           removeExtraneousClients origUser lconv
           E.updateToMLSProtocol lcnv
           pure (mempty, action)
