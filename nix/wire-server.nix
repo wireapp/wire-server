@@ -202,6 +202,15 @@ let
     '';
   };
 
+  integration-scripts = pkgs.stdenvNoCC.mkDerivation {
+    name = "integration-scripts";
+    src = ../integration/scripts;
+    installPhase = ''
+      mkdir -p $out/bin
+      cp $src/* $out/bin
+    '';
+  };
+
   # Some images require extra things which is not possible to specify using
   # cabal file dependencies, so cabal2nix cannot automatically add these.
   #
@@ -210,7 +219,7 @@ let
     brig = [ brig-templates ];
     brig-integration = [ brig-templates pkgs.mls-test-cli ];
     galley-integration = [ pkgs.mls-test-cli ];
-    integration = with exes; [ brig cannon cargohold federator galley gundeck proxy spar stern brig-templates ];
+    integration = with exes; [ brig brig-index brig-schema cannon cargohold federator galley galley-schema gundeck gundeck-schema proxy spar spar-schema stern brig-templates integration-scripts pkgs.parallel ];
   };
 
   # useful to poke around a container during a 'kubectl exec'
@@ -358,7 +367,8 @@ let
   };
 in
 {
-  inherit ciImage hoogleImage;
+
+  inherit integration-scripts ciImage hoogleImage;
 
   images = images localModsEnableAll;
   imagesUnoptimizedNoDocs = images localModsOnlyTests;
