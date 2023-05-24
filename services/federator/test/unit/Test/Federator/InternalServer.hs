@@ -92,7 +92,7 @@ federatedRequestSuccess =
         . assertNoError @ServerError
         . discardTinyLogs
         . runInputConst settings
-        . runInputConst (FederationDomainConfigs AllowList [FederationDomainConfig (Domain "target.example.com") FullSearch] 10)
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "target.example.com") FullSearch] 10)
         $ callOutward request
     Wai.responseStatus res @?= HTTP.status200
     body <- Wai.lazyResponseBody res
@@ -100,10 +100,10 @@ federatedRequestSuccess =
 
 -- @SF.Federation @TSFI.Federate @TSFI.DNS @S2 @S3 @S7
 --
--- Refuse to send outgoing request to non-included domain when allowlist is configured.
+-- Refuse to send outgoing request to non-included domain when AllowDynamic is configured.
 federatedRequestFailureAllowList :: TestTree
 federatedRequestFailureAllowList =
-  testCase "should not make a call when target domain not in the allowList" $ do
+  testCase "should not make a call when target domain not in the allow list" $ do
     let settings = noClientCertSettings
     let targetDomain = Domain "target.example.com"
         headers = [(originDomainHeaderName, "origin.example.com")]
@@ -134,7 +134,7 @@ federatedRequestFailureAllowList =
         . assertNoError @ServerError
         . discardTinyLogs
         . runInputConst settings
-        . runInputConst (FederationDomainConfigs AllowList [FederationDomainConfig (Domain "hello.world") FullSearch] 10)
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "hello.world") FullSearch] 10)
         $ callOutward request
     eith @?= Left (FederationDenied targetDomain)
 

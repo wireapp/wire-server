@@ -537,7 +537,7 @@ data Settings = Settings
     setSearchSameTeamOnly :: !(Maybe Bool),
     -- | FederationDomain is required, even when not wanting to federate with other backends
     -- (in that case the 'setFederationStrategy' can be set to `allowNone` below, or to
-    -- `allowList` while keeping the list of allowed domains empty, see
+    -- `allowDynamic` while keeping the list of allowed domains empty, see
     -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections)
     -- Federation domain is used to qualify local IDs and handles,
     -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.

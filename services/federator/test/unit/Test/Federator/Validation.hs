@@ -62,7 +62,7 @@ mockDiscoveryFailure = Polysemy.interpret $ \case
 scaffoldingFederationDomainConfigs :: FederationDomainConfigs
 scaffoldingFederationDomainConfigs =
   FederationDomainConfigs
-    AllowList
+    AllowDynamic
     [ FederationDomainConfig (Domain "foo.example.com") FullSearch,
       FederationDomainConfig (Domain "example.com") FullSearch,
       FederationDomainConfig (Domain "federator.example.com") FullSearch
@@ -101,7 +101,7 @@ federateWithAllowListSuccess =
     runM
       . assertNoError @ValidationError
       . runInputConst settings
-      . runInputConst (FederationDomainConfigs AllowList [FederationDomainConfig (Domain "hello.world") FullSearch] 0)
+      . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "hello.world") FullSearch] 0)
       $ ensureCanFederateWith (Domain "hello.world")
 
 federateWithAllowListFail :: TestTree
@@ -112,7 +112,7 @@ federateWithAllowListFail =
       runM
         . runError @ValidationError
         . runInputConst settings
-        . runInputConst (FederationDomainConfigs AllowList [FederationDomainConfig (Domain "only.other.domain") FullSearch] 0)
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "only.other.domain") FullSearch] 0)
         $ ensureCanFederateWith (Domain "hello.world")
     assertBool "federating should not be allowed" (isLeft eith)
 
@@ -127,13 +127,13 @@ validateDomainAllowListFailSemantic =
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst settings
-        . runInputConst (FederationDomainConfigs AllowList [FederationDomainConfig (Domain "only.other.domain") FullSearch] 0)
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "only.other.domain") FullSearch] 0)
         $ validateDomain (Just exampleCert) "invalid//.><-semantic-&@-domain"
     res @?= Left (DomainParseError "invalid//.><-semantic-&@-domain")
 
 -- @SF.Federation @TSFI.Federate @TSFI.DNS @S2 @S3 @S7
 --
--- Refuse to send outgoing request to non-included domain when allowlist is configured.
+-- Refuse to send outgoing request to non-included domain when AllowDynamic is configured.
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
   testCase "allow list validation" $ do
@@ -145,7 +145,7 @@ validateDomainAllowListFail =
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst settings
-        . runInputConst (FederationDomainConfigs AllowList [FederationDomainConfig (Domain "only.other.domain") FullSearch] 0)
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "only.other.domain") FullSearch] 0)
         $ validateDomain (Just exampleCert) "localhost.example.com"
     res @?= Left (FederationDenied (Domain "localhost.example.com"))
 
@@ -163,7 +163,7 @@ validateDomainAllowListSuccess =
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst settings
-        . runInputConst (FederationDomainConfigs AllowList [FederationDomainConfig domain FullSearch] 0)
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig domain FullSearch] 0)
         $ validateDomain (Just exampleCert) (toByteString' domain)
     assertEqual "validateDomain should give 'localhost.example.com' as domain" domain res
 

@@ -34,7 +34,7 @@ import Wire.API.User.Search (FederatedUserSearchPolicy)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- | Everything we need to know about a remote instance in order to federate with it.  Comes
--- in `AllowedDomains` if `AllowStrategy` is `AllowList`.  If `AllowAll`, we still use this
+-- in `AllowedDomains` if `AllowStrategy` is `AllowDynamic`.  If `AllowAll`, we still use this
 -- information for search policy.
 data FederationDomainConfig = FederationDomainConfig
   { domain :: Domain,
@@ -85,7 +85,7 @@ data FederationStrategy
     AllowAll
   | -- | Any backend explicitly configured in table `brig.federation_remotes` (if that table
     -- is empty, this is the same as `AllowNone`).
-    AllowList
+    AllowDynamic
   deriving (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema FederationStrategy
   deriving (Arbitrary) via (GenericUniform FederationStrategy)
@@ -96,5 +96,5 @@ instance ToSchema FederationStrategy where
       mconcat
         [ element "allowNone" AllowNone,
           element "allowAll" AllowAll,
-          element "allowList" AllowList
+          element "allowDynamic" AllowDynamic
         ]
