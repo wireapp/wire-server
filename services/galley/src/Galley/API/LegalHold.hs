@@ -26,7 +26,6 @@ module Galley.API.LegalHold
     requestDevice,
     approveDevice,
     disableForUser,
-    isLegalHoldEnabledForTeam,
     unsetTeamLegalholdWhitelistedH,
   )
 where
@@ -45,6 +44,7 @@ import Data.Qualified
 import Data.Range (toRange)
 import Data.Time.Clock
 import Galley.API.Error
+import Galley.API.LegalHold.Team
 import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.API.Util
@@ -54,7 +54,6 @@ import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.FireAndForget
 import qualified Galley.Effects.LegalHoldStore as LegalHoldData
-import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
 import qualified Galley.External.LegalHoldService as LHService
@@ -75,7 +74,6 @@ import Wire.API.Federation.Error
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.LegalHold
-import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.LegalHold
 import qualified Wire.API.Team.LegalHold as Public
 import Wire.API.Team.LegalHold.External hiding (userId)
@@ -83,41 +81,6 @@ import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
-
-assertLegalHoldEnabledForTeam ::
-  forall r.
-  ( Member LegalHoldStore r,
-    Member TeamStore r,
-    Member TeamFeatureStore r,
-    Member (ErrorS 'LegalHoldNotEnabled) r
-  ) =>
-  TeamId ->
-  Sem r ()
-assertLegalHoldEnabledForTeam tid =
-  unlessM (isLegalHoldEnabledForTeam tid) $
-    throwS @'LegalHoldNotEnabled
-
-isLegalHoldEnabledForTeam ::
-  forall r.
-  ( Member LegalHoldStore r,
-    Member TeamStore r,
-    Member TeamFeatureStore r
-  ) =>
-  TeamId ->
-  Sem r Bool
-isLegalHoldEnabledForTeam tid = do
-  getLegalHoldFlag >>= \case
-    FeatureLegalHoldDisabledPermanently -> do
-      pure False
-    FeatureLegalHoldDisabledByDefault -> do
-      statusValue <-
-        Public.wssStatus <$$> TeamFeatures.getFeatureConfig Public.FeatureSingletonLegalholdConfig tid
-      pure $ case statusValue of
-        Just Public.FeatureStatusEnabled -> True
-        Just Public.FeatureStatusDisabled -> False
-        Nothing -> False
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
-      LegalHoldData.isTeamLegalholdWhitelisted tid
 
 createSettings ::
   forall r.

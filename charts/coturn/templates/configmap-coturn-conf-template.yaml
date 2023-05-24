@@ -20,13 +20,15 @@ data:
     no-tls
     {{- end }}
 
+    # This is mandatory for federated DTLS
+    CA-file=/etc/ssl/certs/ca-certificates.crt
+
     ## don't turn on coturn's cli.
     no-cli
 
     ## turn, stun.
     listening-ip=__COTURN_EXT_IP__
     listening-port={{ .Values.coturnTurnListenPort }}
-    max-allocate-lifetime=3600
     relay-ip=__COTURN_EXT_IP__
     realm=dummy.io
     no-stun-backward-compatibility
@@ -82,3 +84,24 @@ data:
     zrest
     ## static authentication secrets will be added below this line when the
     ## runtime configuration is generated.
+
+    {{- if .Values.federate.enabled }}
+    ### federation setup
+    federation-listening-ip=__COTURN_EXT_IP__
+    federation-listening-port={{ .Values.federate.port }}
+    federation-no-dtls={{ not .Values.federate.dtls.enabled }}
+    {{- if .Values.federate.dtls.enabled }}
+    federation-cert=/coturn-dtls-certificate/tls.crt
+    federation-pkey=/coturn-dtls-certificate/tls.key
+    {{ if hasKey .Values.federate.dtls.tls "privateKeyPassword" }}
+    federation-pkey-pwd={{ .Values.federate.dtls.tls.privateKeyPassword }}
+    {{ end }}
+    # list of host/ip/cert common names / subject alt names, and optional issuer
+    # names to accept DTLS connections from. There can be multiple entries, each
+    # entry is formated as:
+    # <hostname>[,<issuer>]
+    {{ range $entry := .Values.federate.dtls.remoteWhitelist }}
+    federation-remote-whitelist={{ $entry.host }}{{ if hasKey $entry "issuer" }},{{ $entry.issuer }}{{end}}
+    {{ end }}
+    {{ end }}
+    {{ end }}

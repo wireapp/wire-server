@@ -83,7 +83,7 @@ import Data.Range as Range
 import qualified Data.Set as Set
 import Data.Time.Clock (UTCTime)
 import Galley.API.Error as Galley
-import Galley.API.LegalHold
+import Galley.API.LegalHold.Team
 import qualified Galley.API.Teams.Notifications as APITeamQueue
 import qualified Galley.API.Update as API
 import Galley.API.Util
@@ -1249,29 +1249,6 @@ ensureNotTooLargeForLegalHold tid teamSize =
   whenM (isLegalHoldEnabledForTeam tid) $
     unlessM (teamSizeBelowLimit teamSize) $
       throwS @'TooManyTeamMembersOnTeamWithLegalhold
-
-ensureNotTooLargeToActivateLegalHold ::
-  ( Member BrigAccess r,
-    Member (ErrorS 'CannotEnableLegalHoldServiceLargeTeam) r,
-    Member TeamStore r
-  ) =>
-  TeamId ->
-  Sem r ()
-ensureNotTooLargeToActivateLegalHold tid = do
-  (TeamSize teamSize) <- E.getSize tid
-  unlessM (teamSizeBelowLimit (fromIntegral teamSize)) $
-    throwS @'CannotEnableLegalHoldServiceLargeTeam
-
-teamSizeBelowLimit :: Member TeamStore r => Int -> Sem r Bool
-teamSizeBelowLimit teamSize = do
-  limit <- fromIntegral . fromRange <$> E.fanoutLimit
-  let withinLimit = teamSize <= limit
-  E.getLegalHoldFlag >>= \case
-    FeatureLegalHoldDisabledPermanently -> pure withinLimit
-    FeatureLegalHoldDisabledByDefault -> pure withinLimit
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
-      -- unlimited, see docs of 'ensureNotTooLargeForLegalHold'
-      pure True
 
 addTeamMemberInternal ::
   ( Member BrigAccess r,
