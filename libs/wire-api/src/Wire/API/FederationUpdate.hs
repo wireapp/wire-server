@@ -7,6 +7,7 @@ where
 import Control.Concurrent.Async
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import qualified Control.Retry as R
+import qualified Data.Set as Set
 import Data.Text (unpack)
 import Imports
 import Network.HTTP.Client (defaultManagerSettings, newManager)
@@ -14,7 +15,7 @@ import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, Sc
 import Servant.Client.Internal.HttpClient (ClientM, defaultMakeClientRequest)
 import qualified System.Logger as L
 import Util.Options (Endpoint (..))
-import Wire.API.Routes.FederationDomainConfig (FederationDomainConfigs (updateInterval))
+import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (domain), FederationDomainConfigs (remotes, updateInterval))
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Named (namedClient)
 
@@ -56,12 +57,16 @@ getAllowedDomainsLoop logger clientEnv callback env = forever $ do
       L.log logger L.Fatal $
         L.msg (L.val "Could not retrieve an updated list of federation domains from Brig; I'll keep trying!")
           L.~~ "error" L..= show e
-    Right cfg -> do
+    Right new -> do
       old <- readIORef env
-      callback old cfg
-      atomicWriteIORef env cfg
+      unless (domainListsEqual old new) $ callback old new
+      atomicWriteIORef env new
   delay <- updateInterval <$> readIORef env
   threadDelay (delay * 1_000_000)
+  where
+    domainListsEqual o n =
+      Set.fromList (domain <$> remotes o)
+        == Set.fromList (domain <$> remotes n)
 
 updateFedDomains :: Endpoint -> L.Logger -> FedUpdateCallback -> IO (IORef FederationDomainConfigs, Async ())
 updateFedDomains (Endpoint h p) log' cb = do
