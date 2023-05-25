@@ -442,8 +442,8 @@ data Opts = Opts
     cassandra :: !CassandraOpts,
     -- | ElasticSearch settings
     elasticsearch :: !ElasticSearchOpts,
-    -- | RabbitMQ settings
-    rabbitmq :: !RabbitMqOpts,
+    -- | RabbitMQ settings, required when federation is enabled.
+    rabbitmq :: !(Maybe RabbitMqOpts),
     -- | AWS settings
     aws :: !AWSOpts,
     -- | Enable Random Prekey Strategy
