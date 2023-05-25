@@ -399,7 +399,7 @@ cargohold:
 
 ### Configure federation strategy (whom to federate with) in brig
 
-(**This section is valid as of the release containing [PR#3260](https://github.com/wireapp/wire-server/pull/3260).**)
+**Since [PR#3260](https://github.com/wireapp/wire-server/pull/3260).**
 
 You also need to define the federation strategy (whom to federate
 with), and the frequency with which the other backend services will
@@ -411,13 +411,129 @@ refresh their cache of this configuration.
 brig:
   config:
     optSettings:
-      setFederationStrategy: AllowNone # [AllowAll | AllowDynamic | AllowNone]
+      setFederationStrategy: allowNone # [allowAll | allowDynamic | allowNone]
       setFederationDomainConfigsUpdateFreq: 10 # seconds
 ```
 
-The default of `AllowNone` probably doesn't make sense if you are
-reading this.  See {ref}`configuring-remote-connections` for details
-on the alternatives.
+The default strategy of `allowNone` effectively disables federation
+(and probably isn't what you want if you are reading this).
+`allowAll` federates with any backend that requests contact or that a
+user uses in a search.  `allowDynamic` only federates with known
+remote backends listed in cassandra.
+
+The update frequence determines how often other services will refresh
+the information about remote connections from brig.
+
+More information about individual remote connections is stored in
+brig's cassandra, and maintained via internal brig api end-points by
+the sysadmin:
+
+* [`POST`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_federation_remotes)
+
+  - after adding a new remote backend, wait for the other end to do
+    the same with you, and then wait a few moments for things to
+    stabilize (at least `update_interval * 2`; see below).
+
+* [`GET`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_federation_remotes)
+
+  - this serves an object with 3 fields:
+     - `remotes` (from cassandra): the list of remote domains with search strategy (and
+       possibly other information in the future);
+     - `strategy` (from config): one of `allowNone`, `allowDynamic`, `allowAll` (see above)
+     - `update_interval` (from config): the suggested update frequency with which calling
+       services should refresh their information.
+
+  - It doesn't serve the local domain, which needs to be configured
+   for every service that needs to know it individually.  This may
+   change in the future.
+
+  - This end-point enjoys a comparably high amount of traffic.  If you
+   have many a large instance (say, >100 pods), *and* you set a very
+   short update interval (<10s), you should monitor brig's service and
+   database load closely in the beginning.
+
+* [`PUT`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/put_i_federation_remotes__domain_)
+
+* [`DELETE`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/delete_i_federation_remotes__domain_)
+  - **WARNING:** If you delete a connection, all users from that
+   remote will be removed from local conversations, and all
+   conversations hosted by that remote will be removed from the local
+   backend.  Connections between local and remote users that are
+   removed will be archived, and can be re-established should you
+   decide to add the same backend later.
+
+The `remotes` list looks like this:
+
+```
+[
+  {
+    "domain": "wire.example.com",
+    "search_policy": "full_search"
+  },
+  {
+    "domain": "evil.example.com"
+  },
+  ...
+]
+```
+
+It serves two purposes:
+
+1. If federation strategy is `allowDynamic`, only backends that are
+  listed can be reached by us and can reach us;
+
+2. Independently of the federation strategy, the list provides
+  information about remote backends that may change dynamically (at
+  the time of writing this: search policy, see
+  {ref}`searching-users-on-another-federated-backend`)
+
+The search policy for a remote backend can be:
+
+- `no_search`: No users are returned by federated searches.  default.
+- `exact_handle_search`: Only users where the handle exactly matches are returned.
+- `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
+
+Default is `no_search`.
+
+Also see {ref}`configuring-remote-connections-dev-perspective` for the
+developer's point of view on this topic.
+
+#### If your instance has been federating before
+
+Only needed if your instance has been federating with other instances
+prior to [PR#3260](https://github.com/wireapp/wire-server/pull/3260).
+
+The new configuration process ignores the federation policy set in the
+federator config under TODO NOISE FROM HERE ON OUT ***
+
+TODO: you need to update config files!
+  - complete list of search policies, no more defaults
+  - new fed strategy syntax (keep the old, just copy)
+  - later, remove the old syntax in brig, federator.
+
+As of the release containing
+[PR#3260](https://github.com/wireapp/wire-server/pull/3260),
+[`federationStrategy`](https://github.com/wireapp/wire-server/blob/4a4ba8dd54586e1d85fe4af609990d79ae3d8cc2/charts/federator/values.yaml#L44-L45)
+in the federation config file is ignored, and brig's cassandra is used
+instead.  Furthermore, for a transition period,
+[`setFederationDomainConfigs`](https://github.com/wireapp/wire-server/blob/4a4ba8dd54586e1d85fe4af609990d79ae3d8cc2/charts/brig/templates/configmap.yaml#L250-L252)
+from the brig config file also remains being honored.  Attempting to
+delete entries that occur in the config file will trigger an error;
+delete from the config file first, then from cassandra.
+
+In the future, wire-server will stop honoring the config file data,
+and solely rely on brig's cassandra.  From that point onward, you can
+delete any connection, whether listed in the config file or not.
+Watch out for the release notes to learn when this will happen.
+(Something like *"[Federation only] support for remote configuration
+in config file is discontinued.  Before upgrading to this release,
+upgrade to the release containing
+[PR#3260](https://github.com/wireapp/wire-server/pull/3260) first.
+After upgrading to this release, `setFederationDomainConfigs` in brig's
+config file will be ignored, and you should remove it at your
+convenience.*)
+
+
 
 ### Configure federator process to run and allow incoming traffic
 

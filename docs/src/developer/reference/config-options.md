@@ -393,7 +393,7 @@ settings:
 
 ### Federation allow list
 
-See {ref}`configuring-remote-connections` (since [PR#3260](https://github.com/wireapp/wire-server/pull/3260)).
+See {ref}`configure-federation-strategy-in-brig` (since [PR#3260](https://github.com/wireapp/wire-server/pull/3260)).
 
 ### Federation TLS Config
 
@@ -578,7 +578,7 @@ any key package whose expiry date is set further than 15 days after upload time 
 
 #### Restrict user search
 
-See {ref}`configuring-remote-connections` (since [PR#3260](https://github.com/wireapp/wire-server/pull/3260)).
+See {ref}`configure-federation-strategy-in-brig` (since [PR#3260](https://github.com/wireapp/wire-server/pull/3260)).
 
 
 ### API Versioning
