@@ -36,7 +36,7 @@ spec:
   restartPolicy: Never
 
   initContainers:
-  - name: integration-scripts
+  - name: integration-setup
     image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
     env:
     - name: INTEGRATION_DYNAMIC_BACKENDS_POOLSIZE
