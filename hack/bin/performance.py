@@ -147,7 +147,7 @@ class Context:
 
         name = "WIREAPI_BASEURL_" + service.upper()
         baseurl = os.environ[name]
-        if not relative_url.startswith("/access"):
+        if (not relative_url.startswith("/access")) and (not relative_url.startswith('/register')) and (not relative_url.startswith('/i'))  and (not relative_url.startswith("/login")):
             relative_url = "/v4" + relative_url
         return urljoin(baseurl, relative_url)
 
@@ -160,6 +160,7 @@ class Context:
             headers = {}
         if user is not None:
             headers = {**headers, **self.headers(user, conn_id)}
+
 
         if headers.get("Z-User") is None and self.last_switched_user:
             headers["Z-User"] = self.last_switched_user

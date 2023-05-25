@@ -271,7 +271,7 @@ db-migrate-package:
 
 # Reset all keyspaces and reset the ES index
 .PHONY: db-reset
-db-reset: c
+db-reset:
 	@echo "Make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
 	./dist/brig-schema --keyspace brig_test --replication-factor 1 --reset
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
