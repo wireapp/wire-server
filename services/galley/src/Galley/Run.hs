@@ -50,7 +50,6 @@ import Galley.App
 import qualified Galley.App as App
 import Galley.Aws (awsEnv)
 import Galley.Cassandra
-import Galley.Env (fedDomains)
 import Galley.Monad
 import Galley.Options
 import qualified Galley.Queue as Q
@@ -62,15 +61,8 @@ import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
 import Servant hiding (route)
-import Servant.Client
-  ( BaseUrl (BaseUrl),
-    ClientEnv (ClientEnv),
-    Scheme (Http),
-    defaultMakeClientRequest
-  )
 import qualified System.Logger as Log
 import Util.Options
-import Wire.API.FederationUpdate
 import Wire.API.Routes.API
 import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -110,7 +102,7 @@ run opts = lowerCodensity $ do
 
   forM_ (env ^. aEnv) $ \aws ->
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
-  void $ Codensity $ Async.withAsync $ runApp env updateFedDomains
+  -- void $ Codensity $ Async.withAsync $ runApp env updateFedDomains
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
   void $ Codensity $ Async.withAsync $ runApp env undefined
@@ -202,24 +194,14 @@ collectAuthMetrics m env = do
       gaugeTokenRemaing m mbRemaining
       threadDelay 1_000_000
 
-updateFedDomains :: App ()
-updateFedDomains = do
-  env <- ask
-  let ioref              = env ^. fedDomains
-      logger             = env ^. applog
-      manager'           = env ^. manager
-      Endpoint host port = env ^. brig
-      baseUrl   = BaseUrl Http (unpack host) (fromIntegral port) ""
-      clientEnv = ClientEnv manager' baseUrl Nothing defaultMakeClientRequest
-  liftIO $ getAllowedDomainsLoop logger clientEnv ioref $ updateFedDomainsCallback env
-
 -- Build the map, keyed by conversations to the list of members
 insertIntoMap :: (ConvId, a) -> Map ConvId (N.NonEmpty a) -> Map ConvId (N.NonEmpty a)
 insertIntoMap (cnvId, user) m = Map.alter (pure . maybe (pure user) (N.cons user)) cnvId m
 
-deleteFederationDomainRemote :: Env -> Domain -> IO ()
-deleteFederationDomainRemote env dom = do
-  remoteUsers <- evalGalleyToIO env $ E.getRemoteMembersByDomain dom
+deleteFederationDomainRemote :: Domain -> App ()
+deleteFederationDomainRemote dom = do
+  env <- ask
+  remoteUsers <- liftIO $ evalGalleyToIO env $ E.getRemoteMembersByDomain dom
   let lCnvMap = foldr insertIntoMap mempty remoteUsers
   for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
     let lCnvId = toLocalUnsafe dom cnvId
@@ -227,7 +209,7 @@ deleteFederationDomainRemote env dom = do
     -- send out to all of the local clients that are a party
     -- to the conversation. However we also don't want to DOS
     -- clients. Maybe suppress and send out a bulk version?
-    evalGalleyToIO env
+    liftIO $ evalGalleyToIO env
       $ mapToRuntimeError @F.RemoveFromConversationError (InternalErrorWithDescription "Federation domain removal: Remove from conversation error")
       . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Federation domain removal: Conversation not found")
       . mapToRuntimeError @('ActionDenied 'RemoveConversationMember) (InternalErrorWithDescription  "Federation domain removal: Action denied, remove conversation member")
@@ -259,14 +241,16 @@ deleteFederationDomainRemote env dom = do
             undefined
             ()
 
-deleteFederationDomainLocal :: Env -> Domain -> IO ()
-deleteFederationDomainLocal env dom = do
-  localUsers <- evalGalleyToIO env $ E.getLocalMembersByDomain dom
+deleteFederationDomainLocal :: Domain -> App ()
+deleteFederationDomainLocal dom = do
+  env <- ask
+  localUsers <- liftIO $ evalGalleyToIO env $ E.getLocalMembersByDomain dom
   -- As above, build the map so we can get all local users per conversation
   let rCnvMap = foldr insertIntoMap mempty localUsers
+      localDomain = env ^. options . optSettings . setFederationDomain
   -- Process each user.
   for_ (Map.toList rCnvMap) $ \(cnv, lUsers) -> do
-    evalGalleyToIO env
+    liftIO $ evalGalleyToIO env
       $ mapError @NoChanges (const (InternalErrorWithDescription  "No Changes: Could not remove a local member from a remote conversation."))
       $ do
         now <- liftIO $ getCurrentTime
@@ -288,11 +272,10 @@ deleteFederationDomainLocal env dom = do
           onConversationUpdated dom convUpdate
           -- let rcnv = toRemoteUnsafe dom cnv
           -- notifyRemoteConversationAction lUser (qualifyAs rcnv convUpdate) Nothing
-  where
-    localDomain = env ^. options . optSettings . setFederationDomain
+    
 
-deleteFederationDomain :: Env -> Set FederationDomainConfig -> IO ()
-deleteFederationDomain env deletedDomains = do
+deleteFederationDomain :: Set FederationDomainConfig -> App ()
+deleteFederationDomain deletedDomains = do
   for_ deletedDomains $ \fedDomCfg -> do
     -- https://wearezeta.atlassian.net/browse/FS-1179
     -- * Remove remote users for the given domain from all conversations owned by the current host
@@ -302,15 +285,16 @@ deleteFederationDomain env deletedDomains = do
     -- * Delete all connections from local users to users for the remote domain
     -- Get all remote users for the given domain, along with conversation IDs that they are in
     let dom = domain fedDomCfg
-    deleteFederationDomainRemote env dom
+    deleteFederationDomainRemote dom
     -- Get all local users for the given domain, along with remote conversation IDs that they are in
-    deleteFederationDomainLocal env dom
+    deleteFederationDomainLocal dom
     -- Remove the remote one-on-one conversations between local members and remote members for the given domain.
     -- NOTE: We cannot tell the remote backend about these changes as we are no longer federated.
-    runClient (env ^. cstate) . deleteRemoteConnectionsByDomain $ dom
+    env <- ask
+    liftIO $ runClient (env ^. cstate) . deleteRemoteConnectionsByDomain $ dom
     
-updateFedDomainsCallback :: Env -> FederationDomainConfigs -> FederationDomainConfigs -> IO ()
-updateFedDomainsCallback env old new = do
+updateFedDomainsCallback :: FederationDomainConfigs -> FederationDomainConfigs -> App ()
+updateFedDomainsCallback old new = do
   -- This code will only run when there is a change in the domain lists
   let fromFedList = Set.fromList . remotes
       prevDoms = fromFedList old
@@ -323,5 +307,5 @@ updateFedDomainsCallback env old new = do
     -- the domain list is changing frequently.
     -- FS-1179 is handling this part.
     let deletedDomains = Set.difference prevDoms currDoms
-    deleteFederationDomain env deletedDomains
+    deleteFederationDomain deletedDomains
 

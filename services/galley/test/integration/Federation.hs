@@ -19,6 +19,7 @@ import Galley.Options (optSettings, setFederationDomain)
 import Galley.Env
 import UnliftIO.Retry
 import Control.Monad.Catch
+import Galley.Monad
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
@@ -47,7 +48,7 @@ updateFedDomainsTest = do
   updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval  
 
   -- Removing multiple domains
-  -- liftIO $ updateFedDomainsCallback env old new
+  -- updateFedDomainsCallback old new
 
 constHandlers :: MonadIO m => [RetryStatus -> Handler m Bool]
 constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]
@@ -72,7 +73,7 @@ updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = r
   _ <- postQualifiedMembers alice (remoteCharlie <| remoteBob :| []) convId
   liftIO $ threadDelay $ 3  * 1000000
   -- Remove the remote user from the local domain
-  liftIO $ updateFedDomainsCallback env old new
+  liftIO $ runApp env $ updateFedDomainsCallback old new
   -- Check that the conversation still exists.
   getConvQualified (qUnqualified qalice) (Qualified convId localDomain) !!! do
     const 200 === statusCode
@@ -100,7 +101,7 @@ updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval = do
   _ <- postQualifiedMembers alice (remoteBob :| []) convId
 
   -- No-op
-  liftIO $ updateFedDomainsCallback env old new
+  liftIO $ runApp env $ updateFedDomainsCallback old new
   -- Check that the conversation still exists.
   getConvQualified (qUnqualified qalice) (Qualified convId localDomain) !!! do
     const 200 === statusCode
@@ -125,7 +126,7 @@ updateFedDomainsTestNoop env remoteDomain interval = do
   connectWithRemoteUser alice remoteBob
   _ <- postQualifiedMembers alice (remoteBob :| []) convId
   -- No-op
-  liftIO $ updateFedDomainsCallback env old new
+  liftIO $ runApp env $ updateFedDomainsCallback old new
   -- Check that the conversation still exists.
   getConvQualified (qUnqualified qalice) (Qualified convId localDomain) !!! do
     const 200 === statusCode
