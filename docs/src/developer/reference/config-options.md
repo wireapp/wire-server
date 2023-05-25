@@ -804,9 +804,12 @@ to the configuration example above:
         activate cargohold
         Note right of cargohold: Look up asset host URL for Z-Host
         cargohold-->>alice(red): Redirect. Location: Storage via ingress-red
+        deactivate cargohold
         alice(red)->>ingress-red: Follow redirect
         ingress-red->>S3 storage: Forward request
+        activate S3 storage
         S3 storage-->alice(red): Return asset
+        deactivate S3 storage
         end
         rect rgb(161, 247, 167)
         note right of bob(green): Bob downloads asset
@@ -816,8 +819,11 @@ to the configuration example above:
         activate cargohold
         Note right of cargohold: Look up asset host URL for Z-Host
         cargohold-->>bob(green): Redirect. Location: Storage via ingress-green
+        deactivate cargohold
         bob(green)->>ingress-green: Follow redirect
         ingress-green->>S3 storage: Forward request
+        activate S3 storage
         S3 storage-->bob(green): Return asset
+        deactivate S3 storage
         end
 ```
