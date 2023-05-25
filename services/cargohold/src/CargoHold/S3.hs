@@ -104,15 +104,15 @@ uploadV3 prc (s3Key . mkKey -> key) originalHeaders@(V3.AssetHeaders _ cl) tok s
     "remote"
       .= val "S3"
       ~~ "asset.owner"
-      .= toByteString prc
+        .= toByteString prc
       ~~ "asset.key"
-      .= key
+        .= key
       ~~ "asset.type_from_request_ignored"
-      .= MIME.showType (V3.hdrType originalHeaders)
+        .= MIME.showType (V3.hdrType originalHeaders)
       ~~ "asset.type"
-      .= MIME.showType ct
+        .= MIME.showType ct
       ~~ "asset.size"
-      .= cl
+        .= cl
       ~~ msg (val "Uploading asset")
   void $ exec req
   where
@@ -164,7 +164,7 @@ getMetadataV3 (s3Key . mkKey -> key) = do
     "remote"
       .= val "S3"
       ~~ "asset.key"
-      .= key
+        .= key
       ~~ msg
         (val "Getting asset metadata")
   maybe (pure Nothing) handle =<< execCatch req
@@ -186,13 +186,13 @@ deleteV3 (s3Key . mkKey -> key) = do
     "remote"
       .= val "S3"
       ~~ "asset.key"
-      .= key
+        .= key
       ~~ msg (val "Deleting asset")
   Log.debug $
     "remote"
       .= val "S3"
       ~~ "asset.key"
-      .= key
+        .= key
       ~~ msg (val "Deleting asset")
   void $ exec req
   where
@@ -204,9 +204,9 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
     "remote"
       .= val "S3"
       ~~ "asset.owner"
-      .= show prc
+        .= show prc
       ~~ "asset.key"
-      .= key
+        .= key
       ~~ msg (val "Updating asset metadata")
   void $ exec req
   where
@@ -278,7 +278,7 @@ signedURL path mbHost = do
                 "host"
                   .= host
                   ~~ "s3DownloadEndpoint"
-                  .= show (hostAwsEnv ^. AWS.amazonkaDownloadEndpoint)
+                    .= show (hostAwsEnv ^. AWS.amazonkaDownloadEndpoint)
                   ~~ msg (val "awsEnvForHost - multiIngress lookup succeed, using specific AWS env.")
               pure hostAwsEnv
 
