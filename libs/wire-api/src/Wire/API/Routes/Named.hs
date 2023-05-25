@@ -19,9 +19,12 @@
 
 module Wire.API.Routes.Named where
 
+import Control.Lens ((?~))
 import Data.Kind
 import Data.Metrics.Servant
 import Data.Proxy
+import Data.String.Conversions (cs)
+import Data.Swagger
 import GHC.TypeLits
 import Imports
 import Servant
@@ -29,11 +32,16 @@ import Servant.Client
 import Servant.Client.Core (clientIn)
 import Servant.Swagger
 
-newtype Named named x = Named {unnamed :: x}
+newtype Named name x = Named {unnamed :: x}
   deriving (Functor)
 
-instance HasSwagger api => HasSwagger (Named name api) where
-  toSwagger _ = toSwagger (Proxy @api)
+instance (HasSwagger api, KnownSymbol name) => HasSwagger (Named name api) where
+  toSwagger _ =
+    toSwagger (Proxy @api)
+      & (info . description)
+        ?~ ( -- TODO: use TypeRep instead?  is the type error later because of missing KnownSymbol instance?  for what type?!
+             "internal route name: " <> cs (symbolVal (Proxy @name))
+           )
 
 instance HasServer api ctx => HasServer (Named name api) ctx where
   type ServerT (Named name api) m = Named name (ServerT api m)
