@@ -43,9 +43,9 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.Message
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
+import Wire.API.Unreachable
 
 -- | Propagate a message.
 propagateMessage ::
@@ -60,7 +60,7 @@ propagateMessage ::
   Maybe ConnId ->
   ByteString ->
   ClientMap ->
-  Sem r UnreachableUsers
+  Sem r (Maybe UnreachableUsers)
 propagateMessage qusr lConvOrSub con raw cm = do
   now <- input @UTCTime
   let mlsConv = convOfConvOrSub <$> lConvOrSub
@@ -84,7 +84,7 @@ propagateMessage qusr lConvOrSub con raw cm = do
     foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients mlsConv)
 
   -- send to remotes
-  UnreachableUsers . concat
+  unreachableFromList . concat
     <$$> traverse handleError
     <=< runFederatedConcurrentlyEither (map remoteMemberQualify rmems)
     $ \(tUnqualified -> rs) ->

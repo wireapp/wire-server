@@ -8,6 +8,7 @@
 , array
 , async
 , base
+, base64-bytestring
 , bytestring
 , bytestring-conversion
 , Cabal
@@ -18,8 +19,10 @@
 , exceptions
 , filepath
 , gitignoreSource
+, hex
 , http-client
 , http-types
+, kan-extensions
 , lib
 , mtl
 , network
@@ -34,10 +37,13 @@
 , stm
 , string-conversions
 , tagged
+, temporary
 , text
 , time
 , transformers
+, unix
 , unliftio
+, uuid
 , websockets
 , yaml
 }:
@@ -54,6 +60,7 @@ mkDerivation {
     array
     async
     base
+    base64-bytestring
     bytestring
     bytestring-conversion
     case-insensitive
@@ -62,8 +69,10 @@ mkDerivation {
     directory
     exceptions
     filepath
+    hex
     http-client
     http-types
+    kan-extensions
     mtl
     network
     network-uri
@@ -77,10 +86,13 @@ mkDerivation {
     stm
     string-conversions
     tagged
+    temporary
     text
     time
     transformers
+    unix
     unliftio
+    uuid
     websockets
     yaml
   ];

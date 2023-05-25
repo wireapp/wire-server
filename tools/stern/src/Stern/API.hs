@@ -165,6 +165,10 @@ sitemap' =
     :<|> Named @"post-team-billing-info" setTeamBillingInfo
     :<|> Named @"get-consent-log" getConsentLog
     :<|> Named @"get-user-meta-info" getUserData
+    :<|> Named @"register-oauth-client" Intra.registerOAuthClient
+    :<|> Named @"get-oauth-client" Intra.getOAuthClient
+    :<|> Named @"update-oauth-client" Intra.updateOAuthClient
+    :<|> Named @"delete-oauth-client" Intra.deleteOAuthClient
 
 sitemapInternal :: Servant.Server SternAPIInternal
 sitemapInternal =

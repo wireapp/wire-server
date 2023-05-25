@@ -51,7 +51,6 @@ import Galley.API.Teams.Features
 import qualified Galley.API.Update as Update
 import Galley.API.Util
 import Galley.App
-import Galley.Cassandra.TeamFeatures
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import Galley.Effects.ClientStore
@@ -142,80 +141,80 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
         <@> mkNamedAPI @"get-team-name" (Teams.getTeamNameInternalH tid)
         <@> mkNamedAPI @"update-team-status" (Teams.updateTeamStatus tid)
         <@> hoistAPISegment
-          ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMember @Cassandra tid)
+          ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMember tid)
               <@> mkNamedAPI @"unchecked-get-team-members" (Teams.uncheckedGetTeamMembersH tid)
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
-              <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeam @Cassandra tid)
+              <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeam tid)
               <@> mkNamedAPI @"unchecked-update-team-member" (Teams.uncheckedUpdateTeamMember Nothing Nothing tid)
           )
         <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
-              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @Cassandra @SearchVisibilityAvailableConfig) tid)
+              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @SearchVisibilityAvailableConfig) tid)
           )
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
-  mkNamedAPI @'("iget", SSOConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", SSOConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ipatch", SSOConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("iget", LegalholdConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", LegalholdConfig) (callsFed (exposeAnnotations (setFeatureStatusInternal @Cassandra)))
-    <@> mkNamedAPI @'("ipatch", LegalholdConfig) (callsFed (exposeAnnotations (patchFeatureStatusInternal @Cassandra)))
-    <@> mkNamedAPI @'("iget", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", SearchVisibilityAvailableConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ipatch", SearchVisibilityAvailableConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("iget", ValidateSAMLEmailsConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", ValidateSAMLEmailsConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ipatch", ValidateSAMLEmailsConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("iget", DigitalSignaturesConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", DigitalSignaturesConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ipatch", DigitalSignaturesConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("iget", AppLockConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", AppLockConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ipatch", AppLockConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("iget", FileSharingConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", FileSharingConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ilock", FileSharingConfig) (updateLockStatus @Cassandra @FileSharingConfig)
-    <@> mkNamedAPI @'("ipatch", FileSharingConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("iget", ConferenceCallingConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", ConferenceCallingConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ipatch", ConferenceCallingConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("iget", SelfDeletingMessagesConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", SelfDeletingMessagesConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ilock", SelfDeletingMessagesConfig) (updateLockStatus @Cassandra @SelfDeletingMessagesConfig)
-    <@> mkNamedAPI @'("ipatch", SelfDeletingMessagesConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("iget", GuestLinksConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", GuestLinksConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ilock", GuestLinksConfig) (updateLockStatus @Cassandra @GuestLinksConfig)
-    <@> mkNamedAPI @'("ipatch", GuestLinksConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("iget", SndFactorPasswordChallengeConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", SndFactorPasswordChallengeConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ilock", SndFactorPasswordChallengeConfig) (updateLockStatus @Cassandra @SndFactorPasswordChallengeConfig)
-    <@> mkNamedAPI @'("ipatch", SndFactorPasswordChallengeConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("igetmulti", SearchVisibilityInboundConfig) (getFeatureStatusMulti @Cassandra)
-    <@> mkNamedAPI @'("iget", ClassifiedDomainsConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iget", MLSConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", MLSConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ipatch", MLSConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("iget", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", ExposeInvitationURLsToTeamAdminConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ipatch", ExposeInvitationURLsToTeamAdminConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("iget", OutlookCalIntegrationConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", OutlookCalIntegrationConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ipatch", OutlookCalIntegrationConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ilock", OutlookCalIntegrationConfig) (updateLockStatus @Cassandra @OutlookCalIntegrationConfig)
-    <@> mkNamedAPI @'("iget", MlsE2EIdConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", MlsE2EIdConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ipatch", MlsE2EIdConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ilock", MlsE2EIdConfig) (updateLockStatus @Cassandra @MlsE2EIdConfig)
-    <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer (getAllFeatureConfigsForUser @Cassandra))
+  mkNamedAPI @'("iget", SSOConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", SSOConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", SSOConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("iget", LegalholdConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", LegalholdConfig) (callsFed (exposeAnnotations setFeatureStatusInternal))
+    <@> mkNamedAPI @'("ipatch", LegalholdConfig) (callsFed (exposeAnnotations patchFeatureStatusInternal))
+    <@> mkNamedAPI @'("iget", SearchVisibilityAvailableConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", SearchVisibilityAvailableConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", SearchVisibilityAvailableConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("iget", ValidateSAMLEmailsConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", ValidateSAMLEmailsConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", ValidateSAMLEmailsConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("iget", DigitalSignaturesConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", DigitalSignaturesConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", DigitalSignaturesConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("iget", AppLockConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", AppLockConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", AppLockConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("iget", FileSharingConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", FileSharingConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ilock", FileSharingConfig) (updateLockStatus @FileSharingConfig)
+    <@> mkNamedAPI @'("ipatch", FileSharingConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("iget", ConferenceCallingConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", ConferenceCallingConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", ConferenceCallingConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("iget", SelfDeletingMessagesConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", SelfDeletingMessagesConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ilock", SelfDeletingMessagesConfig) (updateLockStatus @SelfDeletingMessagesConfig)
+    <@> mkNamedAPI @'("ipatch", SelfDeletingMessagesConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("iget", GuestLinksConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", GuestLinksConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ilock", GuestLinksConfig) (updateLockStatus @GuestLinksConfig)
+    <@> mkNamedAPI @'("ipatch", GuestLinksConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("iget", SndFactorPasswordChallengeConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", SndFactorPasswordChallengeConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ilock", SndFactorPasswordChallengeConfig) (updateLockStatus @SndFactorPasswordChallengeConfig)
+    <@> mkNamedAPI @'("ipatch", SndFactorPasswordChallengeConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("igetmulti", SearchVisibilityInboundConfig) getFeatureStatusMulti
+    <@> mkNamedAPI @'("iget", ClassifiedDomainsConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iget", MLSConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", MLSConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", MLSConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("iget", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", ExposeInvitationURLsToTeamAdminConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", ExposeInvitationURLsToTeamAdminConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("iget", OutlookCalIntegrationConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", OutlookCalIntegrationConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", OutlookCalIntegrationConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("ilock", OutlookCalIntegrationConfig) (updateLockStatus @OutlookCalIntegrationConfig)
+    <@> mkNamedAPI @'("iget", MlsE2EIdConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", MlsE2EIdConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", MlsE2EIdConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("ilock", MlsE2EIdConfig) (updateLockStatus @MlsE2EIdConfig)
+    <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do

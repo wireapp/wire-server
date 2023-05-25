@@ -31,11 +31,12 @@ module Wire.API.MakesFederatedCall
   )
 where
 
-import Data.Aeson (Value (..))
+import Data.Aeson
 import Data.Constraint
 import Data.Kind
 import Data.Metrics.Servant
 import Data.Proxy
+import Data.Schema
 import Data.Swagger.Operation (addExtensions)
 import qualified Data.Text as T
 import GHC.TypeLits
@@ -78,6 +79,16 @@ data Component
   | Cargohold
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform Component)
+  deriving (ToJSON, FromJSON) via (Schema Component)
+
+instance ToSchema Component where
+  schema =
+    enum @Text "Component" $
+      mconcat
+        [ element "brig" Brig,
+          element "galley" Galley,
+          element "cargohold" Cargohold
+        ]
 
 -- | A typeclass corresponding to calls to federated services. This class has
 -- no methods, and exists only to automatically propagate information up to

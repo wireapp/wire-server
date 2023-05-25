@@ -21,6 +21,7 @@ module API.Federation where
 import API.Util
 import Bilge hiding (head)
 import Bilge.Assert
+import Control.Exception
 import Control.Lens hiding ((#))
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (toByteString')
@@ -42,6 +43,7 @@ import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
 import Federator.MockServer
 import Imports
+import qualified Network.HTTP.Types as Http
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
@@ -86,7 +88,11 @@ tests s =
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage,
       test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted,
-      test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin
+      test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin,
+      test s "POST /federation/on-conversation-updated : Notify local user about conversation rename with an unavailable federator" notifyConvRenameUnavailable,
+      test s "POST /federation/on-conversation-updated : Notify local user about message timer update with an unavailable federator" notifyMessageTimerUnavailable,
+      test s "POST /federation/on-conversation-updated : Notify local user about receipt mode update with an unavailable federator" notifyReceiptModeUnavailable,
+      test s "POST /federation/on-conversation-updated : Notify local user about access update with an unavailable federator" notifyAccessUnavailable
     ]
 
 getConversationsAllFound :: TestM ()
@@ -473,6 +479,50 @@ notifyUpdate extras action etype edata = do
         evtData e @?= edata
       WS.assertNoEvent (1 # Second) [wsC]
 
+notifyUpdateUnavailable :: [Qualified UserId] -> SomeConversationAction -> EventType -> EventData -> TestM ()
+notifyUpdateUnavailable extras action etype edata = do
+  c <- view tsCannon
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
+  bob <- randomId
+  charlie <- randomUser
+  conv <- randomId
+  let bdom = Domain "bob.example.com"
+      qbob = Qualified bob bdom
+      qconv = Qualified conv bdom
+      mkMember quid = OtherMember quid Nothing roleNameWireMember
+  fedGalleyClient <- view tsFedGalleyClient
+
+  connectWithRemoteUser alice qbob
+  registerRemoteConv
+    qconv
+    bob
+    (Just "gossip")
+    (Set.fromList (map mkMember (qalice : extras)))
+
+  now <- liftIO getCurrentTime
+  let cu =
+        FedGalley.ConversationUpdate
+          { FedGalley.cuTime = now,
+            FedGalley.cuOrigUserId = qbob,
+            FedGalley.cuConvId = conv,
+            FedGalley.cuAlreadyPresentUsers = [alice, charlie],
+            FedGalley.cuAction = action
+          }
+  WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
+    ((), _fedRequests) <-
+      withTempMockFederator' (throw $ MockErrorResponse Http.status500 "Down for maintenance") $
+        runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
+    liftIO $ do
+      WS.assertMatch_ (5 # Second) wsA $ \n -> do
+        let e = List1.head (WS.unpackPayload n)
+        ntfTransient n @?= False
+        evtConv e @?= qconv
+        evtType e @?= etype
+        evtFrom e @?= qbob
+        evtData e @?= edata
+      WS.assertNoEvent (1 # Second) [wsC]
+
 notifyConvRename :: TestM ()
 notifyConvRename = do
   let d = ConversationRename "gossip++"
@@ -500,6 +550,38 @@ notifyAccess :: TestM ()
 notifyAccess = do
   let d = ConversationAccessData (Set.fromList [InviteAccess, LinkAccess]) (Set.fromList [TeamMemberAccessRole])
   notifyUpdate
+    []
+    (SomeConversationAction (sing @'ConversationAccessDataTag) d)
+    ConvAccessUpdate
+    (EdConvAccessUpdate d)
+
+notifyConvRenameUnavailable :: TestM ()
+notifyConvRenameUnavailable = do
+  let d = ConversationRename "gossip++"
+  notifyUpdateUnavailable [] (SomeConversationAction (sing @'ConversationRenameTag) d) ConvRename (EdConvRename d)
+
+notifyMessageTimerUnavailable :: TestM ()
+notifyMessageTimerUnavailable = do
+  let d = ConversationMessageTimerUpdate (Just 5000)
+  notifyUpdateUnavailable
+    []
+    (SomeConversationAction (sing @'ConversationMessageTimerUpdateTag) d)
+    ConvMessageTimerUpdate
+    (EdConvMessageTimerUpdate d)
+
+notifyReceiptModeUnavailable :: TestM ()
+notifyReceiptModeUnavailable = do
+  let d = ConversationReceiptModeUpdate (ReceiptMode 42)
+  notifyUpdateUnavailable
+    []
+    (SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) d)
+    ConvReceiptModeUpdate
+    (EdConvReceiptModeUpdate d)
+
+notifyAccessUnavailable :: TestM ()
+notifyAccessUnavailable = do
+  let d = ConversationAccessData (Set.fromList [InviteAccess, LinkAccess]) (Set.fromList [TeamMemberAccessRole])
+  notifyUpdateUnavailable
     []
     (SomeConversationAction (sing @'ConversationAccessDataTag) d)
     ConvAccessUpdate
@@ -680,7 +762,7 @@ leaveConversationSuccess = do
             <!! const 200 === statusCode
         parsedResp <- responseJsonError respBS
         liftIO $ do
-          FedGalley.leaveResponse parsedResp @?= Right ()
+          FedGalley.leaveResponse parsedResp @?= Right mempty
           void . WS.assertMatch (3 # Second) wsAlice $
             wsAssertMembersLeave qconvId qChad [qChad]
           void . WS.assertMatch (3 # Second) wsBob $
@@ -1096,7 +1178,7 @@ updateConversationByRemoteAdmin = do
         cnvUpdate' <- liftIO $ case resp of
           ConversationUpdateResponseError err -> assertFailure ("Expected ConversationUpdateResponseUpdate but got " <> show err)
           ConversationUpdateResponseNoChanges -> assertFailure "Expected ConversationUpdateResponseUpdate but got ConversationUpdateResponseNoChanges"
-          ConversationUpdateResponseUpdate up -> pure up
+          ConversationUpdateResponseUpdate up _ftp -> pure up
 
         liftIO $ do
           cuOrigUserId cnvUpdate' @?= qbob

@@ -35,11 +35,11 @@ import Wire.API.Conversation.Typing
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
-import Wire.API.MLS.Message
 import Wire.API.MLS.SubConversation
 import Wire.API.MakesFederatedCall
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
+import Wire.API.Unreachable
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -405,11 +405,11 @@ newtype MessageSendResponse = MessageSendResponse
         )
 
 newtype LeaveConversationResponse = LeaveConversationResponse
-  {leaveResponse :: Either RemoveFromConversationError ()}
+  {leaveResponse :: Either RemoveFromConversationError FailedToProcess}
   deriving stock (Eq, Show)
   deriving
     (ToJSON, FromJSON)
-    via (Either (CustomEncoded RemoveFromConversationError) ())
+    via (Either (CustomEncoded RemoveFromConversationError) FailedToProcess)
 
 type UserDeletedNotificationMaxConvs = 1000
 
@@ -438,7 +438,7 @@ data ConversationUpdateRequest = ConversationUpdateRequest
 
 data ConversationUpdateResponse
   = ConversationUpdateResponseError GalleyError
-  | ConversationUpdateResponseUpdate ConversationUpdate
+  | ConversationUpdateResponseUpdate ConversationUpdate FailedToProcess
   | ConversationUpdateResponseNoChanges
   deriving stock (Eq, Show, Generic)
   deriving
@@ -463,7 +463,7 @@ data MLSMessageResponse
   = MLSMessageResponseError GalleyError
   | MLSMessageResponseProtocolError Text
   | MLSMessageResponseProposalFailure Wai.Error
-  | MLSMessageResponseUpdates [ConversationUpdate] UnreachableUsers
+  | MLSMessageResponseUpdates [ConversationUpdate] (Maybe UnreachableUsers)
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
 

@@ -61,6 +61,7 @@ import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Printing
 import Testlib.Types
+import Prelude
 
 data WebSocket = WebSocket
   { wsChan :: TChan Value,
@@ -82,10 +83,12 @@ class ToWSConnect a where
 instance {-# OVERLAPPING #-} ToWSConnect WSConnect where
   toWSConnect = pure
 
-instance {-# OVERLAPPABLE #-} (MakesValue user) => ToWSConnect user where
+instance {-# OVERLAPPABLE #-} MakesValue user => ToWSConnect user where
   toWSConnect u = do
     uid <- objId u & asString
-    pure (WSConnect uid Nothing Nothing)
+    mc <- lookupField u "client_id"
+    c <- traverse asString mc
+    pure (WSConnect uid c Nothing)
 
 instance (MakesValue user, MakesValue conn) => ToWSConnect (user, conn) where
   toWSConnect (u, c) = do
@@ -126,7 +129,7 @@ clientApp wsChan latch conn = do
 --   for the connection to register with Gundeck, and return the 'Async' thread.
 run :: HasCallStack => WSConnect -> WS.ClientApp () -> App (Async ())
 run wsConnect app = do
-  domain <- ownDomain
+  domain <- asString OwnDomain
   serviceMap <- getServiceMap domain
 
   let HostPort caHost caPort = serviceHostPort serviceMap Cannon
@@ -138,7 +141,7 @@ run wsConnect app = do
 
   let path =
         "/await"
-          <> ( case client wsConnect of
+          <> ( case wsConnect.client of
                  Nothing -> ""
                  Just client -> fromJust . fromByteString $ Http.queryString (Http.setQueryString [("client", Just (toByteString' client))] Http.defaultRequest)
              )
@@ -161,22 +164,17 @@ run wsConnect app = do
           )
           `onException` tryPutMVar latch ()
 
-  let waitForRegistry :: HasCallStack => Int -> App ()
-      waitForRegistry (0 :: Int) = failApp "Cannon: failed to register presence"
-      waitForRegistry n = do
-        request <- baseRequest ownDomain Cannon Unversioned ("/i/presences/" <> wsConnect.user <> "/" <> connId)
+  let waitForRegistry :: HasCallStack => App ()
+      waitForRegistry = unrace $ do
+        request <- baseRequest OwnDomain Cannon Unversioned ("/i/presences/" <> wsConnect.user <> "/" <> connId)
         response <- submit "HEAD" request
-        unless (status response == 200) $ do
-          liftIO $ threadDelay $ 100 * 1000
-          waitForRegistry (n - 1)
+        status response `shouldMatchInt` 200
 
   liftIO $ takeMVar latch
   stat <- liftIO $ poll wsapp
   case stat of
     Just (Left ex) -> liftIO $ throwIO ex
-    _ -> waitForRegistry numRetries >> pure wsapp
-  where
-    numRetries = 30
+    _ -> waitForRegistry >> pure wsapp
 
 close :: MonadIO m => WebSocket -> m ()
 close ws = liftIO $ do
@@ -188,7 +186,7 @@ withWebSocket w k = do
   wsConnect <- toWSConnect w
   Catch.bracket (connect wsConnect) close k
 
-withWebSockets :: forall a w. (HasCallStack, (ToWSConnect w)) => [w] -> ([WebSocket] -> App a) -> App a
+withWebSockets :: forall a w. (HasCallStack, ToWSConnect w) => [w] -> ([WebSocket] -> App a) -> App a
 withWebSockets twcs k = do
   wcs <- for twcs toWSConnect
   go wcs []

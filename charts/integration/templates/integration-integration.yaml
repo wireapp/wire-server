@@ -71,6 +71,12 @@ spec:
     - name: AWS_REGION
       value: "eu-west-1"
     - name: RABBITMQ_USERNAME
-      value: "guest"
+      valueFrom:
+        secretKeyRef:
+          name: brig
+          key: rabbitmqUsername
     - name: RABBITMQ_PASSWORD
-      value: "guest"
+      valueFrom:
+        secretKeyRef:
+          name: brig
+          key: rabbitmqPassword

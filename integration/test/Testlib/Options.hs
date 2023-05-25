@@ -3,10 +3,12 @@ module Testlib.Options (getOptions, TestOptions (..)) where
 import Data.List.Split (splitOn)
 import Options.Applicative
 import System.Environment (lookupEnv)
+import Prelude
 
 data TestOptions = TestOptions
   { includeTests :: [String],
     excludeTests :: [String],
+    listTests :: Bool,
     configFile :: String
   }
 
@@ -29,6 +31,7 @@ parser =
               <> help "Exclude tests matching PATTERN (simple substring match). This flag can be provided multiple times. This flag can also be provided via the TEST_EXCLUDE environment variable."
           )
       )
+    <*> switch (long "list" <> short 'l' <> help "Only list tests.")
     <*> strOption
       ( long "config"
           <> short 'c'

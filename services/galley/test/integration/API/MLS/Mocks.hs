@@ -19,14 +19,18 @@ module API.MLS.Mocks
   ( receiveCommitMock,
     receiveCommitMockByDomain,
     messageSentMock,
+    messageSentMockByDomain,
     welcomeMock,
+    welcomeMockByDomain,
     sendMessageMock,
     claimKeyPackagesMock,
     queryGroupStateMock,
     deleteMLSConvMock,
+    mlsMockUnreachableFor,
   )
 where
 
+import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
@@ -38,7 +42,6 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.Message
 import Wire.API.User.Client
 
 receiveCommitMock :: [ClientIdentity] -> Mock LByteString
@@ -55,29 +58,35 @@ receiveCommitMock clients =
 
 receiveCommitMockByDomain :: [ClientIdentity] -> Mock LByteString
 receiveCommitMockByDomain clients = do
-  r <- getRequest
-  let fClients = filter (\c -> frTargetDomain r == ciDomain c) clients
-  asum
-    [ "on-conversation-updated" ~> (),
-      "on-new-remote-conversation" ~> EmptyResponse,
-      "get-mls-clients" ~>
-        Set.fromList
-          ( map (flip ClientInfo True . ciClient) fClients
-          )
-    ]
+  domain <- frTargetDomain <$> getRequest
+  guard (domain `elem` (ciDomain <$> clients))
+  let fClients = filter (\c -> domain == ciDomain c) clients
+  receiveCommitMock fClients
 
 messageSentMock :: Mock LByteString
 messageSentMock = "on-mls-message-sent" ~> RemoteMLSMessageOk
 
+messageSentMockByDomain :: [Domain] -> Mock LByteString
+messageSentMockByDomain reachables = do
+  domain <- frTargetDomain <$> getRequest
+  guard (domain `elem` reachables)
+  messageSentMock
+
 welcomeMock :: Mock LByteString
 welcomeMock = "mls-welcome" ~> MLSWelcomeSent
+
+welcomeMockByDomain :: [Domain] -> Mock LByteString
+welcomeMockByDomain reachables = do
+  domain <- frTargetDomain <$> getRequest
+  guard (domain `elem` reachables)
+  welcomeMock
 
 sendMessageMock :: Mock LByteString
 sendMessageMock =
   "send-mls-message" ~>
     MLSMessageResponseUpdates
       []
-      (UnreachableUsers [])
+      mempty
 
 claimKeyPackagesMock :: KeyPackageBundle -> Mock LByteString
 claimKeyPackagesMock kpb = "claim-key-packages" ~> kpb
@@ -98,3 +107,6 @@ deleteMLSConvMock =
       "on-new-remote-subconversation" ~> EmptyResponse,
       "on-conversation-updated" ~> EmptyResponse
     ]
+
+mlsMockUnreachableFor :: Set Domain -> Mock LByteString
+mlsMockUnreachableFor = mockUnreachableFor "RemoteMLSMessageOk"

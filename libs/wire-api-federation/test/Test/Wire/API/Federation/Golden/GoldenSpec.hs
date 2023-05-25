@@ -42,7 +42,10 @@ spec =
     testObjects
       [ (MLSMessageSendingStatus.testObject_MLSMessageSendingStatus1, "testObject_MLSMessageSendingStatus1.json"),
         (MLSMessageSendingStatus.testObject_MLSMessageSendingStatus2, "testObject_MLSMessageSendingStatus2.json"),
-        (MLSMessageSendingStatus.testObject_MLSMessageSendingStatus3, "testObject_MLSMessageSendingStatus3.json")
+        (MLSMessageSendingStatus.testObject_MLSMessageSendingStatus3, "testObject_MLSMessageSendingStatus3.json"),
+        (MLSMessageSendingStatus.testObject_MLSMessageSendingStatus4, "testObject_MLSMessageSendingStatus4.json"),
+        (MLSMessageSendingStatus.testObject_MLSMessageSendingStatus5, "testObject_MLSMessageSendingStatus5.json"),
+        (MLSMessageSendingStatus.testObject_MLSMessageSendingStatus6, "testObject_MLSMessageSendingStatus6.json")
       ]
     testObjects [(LeaveConversationRequest.testObject_LeaveConversationRequest1, "testObject_LeaveConversationRequest1.json")]
     testObjects
