@@ -19,6 +19,7 @@
 module Galley.Run
   ( run,
     mkApp,
+    mkLogger,
   )
 where
 
@@ -39,7 +40,6 @@ import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
-import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import qualified Galley.API as API
@@ -71,13 +71,9 @@ import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
-  (ioref, _) <- lift $ do
-    -- Duplicating the logger from App.createEnv so that we don't have to deal
-    -- with recursive monadic actions to get the logger before we have the initial
-    -- IORef of values from brig. It's just easier this way.
-    l <- mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
-    updateFedDomains (opts ^. optBrig) l callback
-  (app, env) <- mkApp opts ioref
+  l <- lift $ mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
+  (ioref, _) <- lift $ updateFedDomains (opts ^. optBrig) l $ \_ _ -> pure ()
+  (app, env) <- mkApp opts ioref l
   settings <-
     lift $
       newSettings $
@@ -94,15 +90,12 @@ run opts = lowerCodensity $ do
   void $ Codensity $ Async.withAsync $ runApp env undefined
   lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
 
-mkApp :: Opts -> IORef FederationDomainConfigs -> Codensity IO (Application, Env)
-mkApp opts fedDoms =
+mkApp :: Opts -> IORef FederationDomainConfigs -> Log.Logger -> Codensity IO (Application, Env)
+mkApp opts fedDoms logger =
   do
     metrics <- lift $ M.metrics
-    env <- lift $ App.createEnv metrics opts fedDoms
+    env <- lift $ App.createEnv metrics opts logger fedDoms
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
-
-    let logger = env ^. App.applog
-
     let middlewares =
           versionMiddleware (opts ^. optSettings . setDisabledAPIVersions . traverse)
             . servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
@@ -179,13 +172,3 @@ collectAuthMetrics m env = do
       mbRemaining <- readAuthExpiration env
       gaugeTokenRemaing m mbRemaining
       threadDelay 1_000_000
-
-callback :: FedUpdateCallback
-callback old new = unless (domainListsEqual old new) $ do
-  -- TODO: perform the database updates here
-  -- This code will only run when there is a change in the domain lists
-  pure ()
-  where
-    domainListsEqual o n =
-      Set.fromList (domain <$> remotes o)
-        == Set.fromList (domain <$> remotes n)

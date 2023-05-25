@@ -2458,7 +2458,8 @@ instance HasSettingsOverrides TestM where
     let opts = f (ts ^. tsGConf)
     liftIO . lowerCodensity $ do
       ioref <- newIORef defFederationDomainConfigs
-      (galleyApp, _env) <- Run.mkApp opts ioref
+      logger <- lift $ Run.mkLogger (opts ^. Opts.optLogLevel) (opts ^. Opts.optLogNetStrings) (opts ^. Opts.optLogFormat)
+      (galleyApp, _env) <- Run.mkApp opts ioref logger
       port' <- withMockServer galleyApp
       liftIO $
         runReaderT

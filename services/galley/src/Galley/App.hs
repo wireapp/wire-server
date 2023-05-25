@@ -151,9 +151,8 @@ validateOptions l o = do
   when (settings ^. setMaxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
 
-createEnv :: Metrics -> Opts -> IORef FederationDomainConfigs -> IO Env
-createEnv m o r = do
-  l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
+createEnv :: Metrics -> Opts -> Logger -> IORef FederationDomainConfigs -> IO Env
+createEnv m o l r = do
   cass <- initCassandra o l
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
