@@ -217,6 +217,23 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
     resp.status `shouldMatchInt` 422
     resp.json %. "label" `shouldMatch` "mls-unsupported-message"
 
+testMLSProtocolUpgrade :: HasCallStack => Domain -> App ()
+testMLSProtocolUpgrade secondDomain = do
+  (alice, bob, conv) <- simpleMixedConversationSetup secondDomain
+
+  -- alice creates MLS group and bob joins
+  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+  createGroup alice1 conv
+  void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit bob1 Nothing >>= sendAndConsumeCommitBundle
+
+  bindResponse (putConversationProtocol bob conv "mls") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  bindResponse (getConversation alice conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "protocol" `shouldMatch` "mls"
+
 testAddUser :: HasCallStack => App ()
 testAddUser = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
