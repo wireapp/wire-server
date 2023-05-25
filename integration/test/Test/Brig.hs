@@ -4,7 +4,7 @@ import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import qualified API.Common as API
 import qualified API.GalleyInternal as Internal
-import Data.Aeson.Types (parseMaybe)
+import Data.Aeson.Types
 import Data.String.Conversions
 import GHC.Stack
 import SetupHelpers
@@ -22,14 +22,16 @@ testSearchContactForExternalUsers = do
   bindResponse (Public.searchContacts partner (owner %. "name")) $ \resp ->
     resp.status `shouldMatchInt` 403
 
+-- Parse a given JSON value to a structure.
+-- Calls `assertFailure` if the value cannot
+-- be parsed to the desired type.
+parseJSONApp :: FromJSON a => Value -> App a
+parseJSONApp = either assertFailure pure . parseEither parseJSON
+
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
   let parseFedConns :: HasCallStack => Response -> App [Internal.FedConn]
-      parseFedConns resp = do
-        -- TODO: not idiomatic!  try `getJSON 200 resp %. "remotes" & asList & mapM asObjOrSomething`
-        -- Some ideas: There is asList to assert that a Value is actually a an array of Values. Then you can sort that to have a defined order.
-        fromJust . parseMaybe parseJSON . fromJust <$> ((`lookupField` "remotes") =<< getJSON 200 resp)
-
+      parseFedConns resp = getJSON 200 resp %. "remotes" & asList >>= mapM parseJSONApp
       addOnce :: HasCallStack => Internal.FedConn -> [Internal.FedConn] -> App ()
       addOnce fedConn want = do
         res <- Internal.createFedConn OwnDomain fedConn
@@ -37,12 +39,12 @@ testCrudFederationRemotes = do
         res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
         sort res2 `shouldMatch` sort want
 
-      addFail :: HasCallStack => Internal.FedConn -> App ()
+      addFail :: HasCallStack => MakesValue fedConn => fedConn -> App ()
       addFail fedConn = do
         res <- Internal.createFedConn' OwnDomain fedConn
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
 
-      deleteOnce :: HasCallStack => String -> [Internal.FedConn] -> App ()
+      deleteOnce :: String -> [Internal.FedConn] -> App ()
       deleteOnce domain want = do
         res <- Internal.deleteFedConn OwnDomain domain
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
@@ -61,7 +63,7 @@ testCrudFederationRemotes = do
         res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
         sort res2 `shouldMatch` sort want
 
-      updateFail :: HasCallStack => String -> Internal.FedConn -> App ()
+      updateFail :: (MakesValue fedConn, HasCallStack) => String -> fedConn -> App ()
       updateFail domain fedConn = do
         res <- Internal.updateFedConn' OwnDomain domain fedConn
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533

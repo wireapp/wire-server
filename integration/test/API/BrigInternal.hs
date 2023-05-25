@@ -58,22 +58,25 @@ instance ToJSON FedConn where
         "search_policy" .= s
       ]
 
+instance MakesValue FedConn where
+  make = pure . toJSON
+
 instance FromJSON FedConn where
   parseJSON = withObject "FedConn" $ \obj -> do
     FedConn
       <$> obj .: fromString "domain"
       <*> obj .: fromString "search_policy"
 
-createFedConn :: (HasCallStack, MakesValue dom) => dom -> FedConn -> App Response
+createFedConn :: (HasCallStack, MakesValue dom, MakesValue fedConn) => dom -> fedConn -> App Response
 createFedConn dom fedConn = do
   res <- createFedConn' dom fedConn
   res.status `shouldMatchRange` (200, 299)
   pure res
 
-createFedConn' :: (HasCallStack, MakesValue dom) => dom -> FedConn -> App Response
+createFedConn' :: (HasCallStack, MakesValue dom, MakesValue fedConn) => dom -> fedConn -> App Response
 createFedConn' dom fedConn = do
   req <- rawBaseRequest dom Brig Unversioned "/i/federation/remotes"
-  submit "POST" $ req & addJSON fedConn
+  make fedConn >>= \v -> submit "POST" $ req & addJSON v
 
 readFedConns :: (HasCallStack, MakesValue dom) => dom -> App Response
 readFedConns dom = do
@@ -86,16 +89,16 @@ readFedConns' dom = do
   req <- rawBaseRequest dom Brig Unversioned "/i/federation/remotes"
   submit "GET" req
 
-updateFedConn :: (HasCallStack, MakesValue owndom) => owndom -> String -> FedConn -> App Response
+updateFedConn :: (HasCallStack, MakesValue owndom, MakesValue fedConn) => owndom -> String -> fedConn -> App Response
 updateFedConn owndom dom fedConn = do
   res <- updateFedConn' owndom dom fedConn
   res.status `shouldMatchRange` (200, 299)
   pure res
 
-updateFedConn' :: (HasCallStack, MakesValue owndom) => owndom -> String -> FedConn -> App Response
+updateFedConn' :: (HasCallStack, MakesValue owndom, MakesValue fedConn) => owndom -> String -> fedConn -> App Response
 updateFedConn' owndom dom fedConn = do
   req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes/" <> dom)
-  submit "PUT" (fedConn `addJSON` req)
+  make fedConn >>= \v -> submit "PUT" $ addJSON v req
 
 deleteFedConn :: (HasCallStack, MakesValue owndom) => owndom -> String -> App Response
 deleteFedConn owndom dom = do
