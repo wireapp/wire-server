@@ -734,35 +734,38 @@ assets. The Haddock of `AWSOpts` provides a lot of useful information.
 
 In a multi-ingress setup the backend is reachable via several domains. This is
 useful to obfuscate the relationship of clients to each other, as an attacker on
-TCP-level could only see domains and IPs that do not obviously relate to each
+TCP/IP-level could only see domains and IPs that do not obviously relate to each
 other.
 
-In case of a fake AWS S3 service it's identity needs to be obfuscated by making
+In case of a fake AWS S3 service its identity needs to be obfuscated by making
 it accessible via several domains, too. Thus, there isn't one
 `s3DownloadEndpoint`, but one per backend domain. (N.B. this backend domain is a
 DNS domain at which it is reachable. This does not directly relate to the
 federation domain!)
 
-The backend domain of a request is defined by it's `Z-Host` header which is set
+The backend domain of a request is defined by its `Z-Host` header which is set
 by `nginz`.
 
 The config `aws.multiIngress` is a map from backend domain (`Z-Host` header
-value) to a S3 download endpoint. E.g.:
+value) to a S3 download endpoint. The `Z-Host` header is set by `nginz` to the
+value of the incoming requests `Host` header.
+
+This example shows a setup with fake backends *red*, *green* and *blue*:
 
 ```yaml
 aws:
   # S3 endpoint for internal communication (cargohold -> S3)
-  s3Endpoint: http://s3.internal.example.com
+  s3Endpoint: http://s3.internal.example
 
   # Default in case there's no match for the backend domain
-  s3DownloadEndpoint: https://s3.default.example.com
+  s3DownloadEndpoint: https://assets.default.example.com
 
   # Other settings can still be used
   # ...
 
   # Map from backend domain to S3 download domain
   multiIngress:
-    - red.example.com: https://s3.red.example.com
-    - blue.example.com: https://s3.blue.example.com
-    - green.example.com: https://s3.green.example.com
+    - nginz-https.red.example.com: https://assets.red.example.com
+    - nginz-https.blue.example.com: https://assets.blue.example.com
+    - nginz-https.green.example.com: https://assets.green.example.com
 ```

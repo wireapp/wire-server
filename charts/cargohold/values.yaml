@@ -24,8 +24,8 @@ config:
     s3Bucket: assets
     # Multi-ingress configuration:
     # multiIngress:
-    #   - nginz-https.red.example.com: s3-download-endpoint.red.example.com
-    #   - nginz-https.green.example.com: s3-download-endpoint.green.example.com
+    #   - nginz-https.red.example.com: assets.red.example.com
+    #   - nginz-https.green.example.com: assets.green.example.com
   proxy: {}
   settings:
     maxTotalBytes: 5368709120
