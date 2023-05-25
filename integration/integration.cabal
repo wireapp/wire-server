@@ -85,6 +85,7 @@ library
     API.Common
     API.Galley
     API.GalleyInternal
+    API.Nginz
     MLS.Util
     RunAllTests
     SetupHelpers
@@ -120,6 +121,7 @@ library
     , data-default
     , directory
     , exceptions
+    , extra
     , filepath
     , hex
     , http-client

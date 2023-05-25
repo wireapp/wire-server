@@ -54,6 +54,7 @@ data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig
   }
+  deriving (Show, Generic)
 
 instance FromJSON IntegrationConfig where
   parseJSON v =
@@ -80,7 +81,7 @@ data BackendConfig = BackendConfig
   { beServiceMap :: ServiceMap,
     originDomain :: String
   }
-  deriving (Show)
+  deriving (Show, Generic)
 
 instance FromJSON BackendConfig where
   parseJSON v =
@@ -96,8 +97,20 @@ data HostPort = HostPort
 
 instance FromJSON HostPort
 
-data Service = Brig | Galley | Cannon
-  deriving (Show, Eq, Ord)
+data NginzConfig = NginzConfig
+  { localPort :: Word16,
+    http2Port :: Word16,
+    sslPort :: Word16,
+    fedPort :: Word16
+  }
+  deriving (Show, Generic)
+
+data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar
+  deriving
+    ( Show,
+      Eq,
+      Ord
+    )
 
 serviceName :: Service -> String
 serviceName srv = map toLower (show srv)
@@ -106,6 +119,10 @@ serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
 serviceHostPort m Galley = m.galley
 serviceHostPort m Cannon = m.cannon
+serviceHostPort m Gundeck = m.gundeck
+serviceHostPort m Cargohold = m.cargohold
+serviceHostPort m Nginz = m.nginz
+serviceHostPort m Spar = m.spar
 
 mkGlobalEnv :: FilePath -> IO GlobalEnv
 mkGlobalEnv cfgFile = do

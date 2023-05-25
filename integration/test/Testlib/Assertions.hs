@@ -84,6 +84,16 @@ shouldMatchInt ::
   App ()
 shouldMatchInt = shouldMatch
 
+-- | Specialized variant of `shouldMatch` to avoid the need for type annotations.
+shouldMatchBool ::
+  (MakesValue a, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The expected value
+  Bool ->
+  App ()
+shouldMatchBool = shouldMatch
+
 liftP2 ::
   (MakesValue a, MakesValue b, HasCallStack) =>
   (Value -> Value -> c) ->

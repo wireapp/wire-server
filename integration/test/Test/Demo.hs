@@ -3,6 +3,8 @@ module Test.Demo where
 
 import qualified API.Brig as Public
 import qualified API.GalleyInternal as Internal
+import qualified API.Nginz as Nginz
+import qualified Data.Map as Map
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
@@ -54,6 +56,31 @@ testModifiedGalley = do
     (setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
     $ do
       getFeatureStatus `shouldMatch` "enabled"
+
+testModifiedServices :: HasCallStack => App ()
+testModifiedServices = do
+  let serviceMap =
+        Map.fromList
+          [ (Brig, setField "optSettings.setFederationDomain" "overridden.example.com"),
+            (Galley, setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"),
+            (Cannon, pure),
+            (Gundeck, pure),
+            (Cargohold, pure),
+            (Nginz, pure)
+          ]
+  withModifiedServices serviceMap $ do
+    (_user, tid) <- createTeam OwnDomain
+    bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
+      res.status `shouldMatchInt` 200
+      res.json %. "status" `shouldMatch` "enabled"
+    bindResponse (Public.getAPIVersion OwnDomain) $
+      \resp -> do
+        resp.status `shouldMatchInt` 200
+        (resp.json %. "domain") `shouldMatch` "overridden.example.com"
+    bindResponse Nginz.getSystemSettingsUnAuthorized $
+      \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "setRestrictUserCreation" `shouldMatchBool` False
 
 testWebSockets :: HasCallStack => App ()
 testWebSockets = do
