@@ -27,7 +27,6 @@ import Control.Lens (forOf_, preview)
 import Control.Lens.Extras (is)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
-import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
@@ -248,15 +247,6 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
         { updates = events,
           failedToProcess = failedToProcess
         }
-
-throwUnreachable :: Member (Error FederationError) r => UnreachableUsers -> Sem r a
-throwUnreachable =
-  throw
-    . FederationUnreachableDomains
-    . Set.fromList
-    . NE.toList
-    . fmap qDomain
-    . unreachableUsers
 
 addMembers ::
   HasProposalActionEffects r =>

@@ -75,10 +75,15 @@ module Wire.API.Federation.Error
     federationRemoteResponseError,
     federationNotImplemented,
     federationNotConfigured,
+
+    -- * utilities
+    throwUnreachable,
   )
 where
 
 import Data.Domain
+import qualified Data.List.NonEmpty as NE
+import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -89,8 +94,11 @@ import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Wai.Utilities.Error as Wai
 import OpenSSL.Session (SomeSSLException)
+import Polysemy
+import qualified Polysemy.Error as P
 import Servant.Client
 import Wire.API.Error
+import Wire.API.Unreachable
 
 -- | Transport-layer errors in federator client.
 data FederatorClientHTTP2Error
@@ -339,3 +347,15 @@ federationUnknownError =
     unexpectedFederationResponseStatus
     "unknown-federation-error"
     "Unknown federation error"
+
+--------------------------------------------------------------------------------
+-- Utilities
+
+throwUnreachable :: Member (P.Error FederationError) r => UnreachableUsers -> Sem r a
+throwUnreachable =
+  P.throw
+    . FederationUnreachableDomains
+    . Set.fromList
+    . NE.toList
+    . fmap qDomain
+    . unreachableUsers
