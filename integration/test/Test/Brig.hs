@@ -30,39 +30,36 @@ testCrudFederationRemotes = do
         getJSON 200 resp %. "remotes" & asList
         -- Enforce that the values are objects and not something else
         >>= traverse (fmap Object . asObject)
-      addOnce :: (MakesValue fedConn, HasCallStack) => fedConn -> [fedConn] -> App ()
+      addOnce :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => fedConn -> [fedConn2] -> App ()
       addOnce fedConn want = do
         res <- Internal.createFedConn OwnDomain fedConn
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
         res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
-        want' <- traverse make want
-        sort res2 `shouldMatch` sort want'
+        sort res2 `shouldMatch` sort want
 
       addFail :: HasCallStack => MakesValue fedConn => fedConn -> App ()
       addFail fedConn = do
         res <- Internal.createFedConn' OwnDomain fedConn
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
 
-      deleteOnce :: MakesValue fedConn => String -> [fedConn] -> App ()
+      deleteOnce :: (Ord fedConn, ToJSON fedConn, MakesValue fedConn) => String -> [fedConn] -> App ()
       deleteOnce domain want = do
         res <- Internal.deleteFedConn OwnDomain domain
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
         res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
-        want' <- traverse make want
-        sort res2 `shouldMatch` sort want'
+        sort res2 `shouldMatch` sort want
 
       deleteFail :: HasCallStack => String -> App ()
       deleteFail del = do
         res <- Internal.deleteFedConn' OwnDomain del
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
 
-      updateOnce :: (MakesValue fedConn, HasCallStack) => String -> fedConn -> [fedConn] -> App ()
+      updateOnce :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => String -> fedConn -> [fedConn2] -> App ()
       updateOnce domain fedConn want = do
         res <- Internal.updateFedConn OwnDomain domain fedConn
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
         res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
-        want' <- traverse make want
-        sort res2 `shouldMatch` sort want'
+        sort res2 `shouldMatch` sort want
 
       updateFail :: (MakesValue fedConn, HasCallStack) => String -> fedConn -> App ()
       updateFail domain fedConn = do
@@ -70,20 +67,19 @@ testCrudFederationRemotes = do
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
 
   let remote1, remote1', remote1'' :: Internal.FedConn
-      remote1J, remote1J', remote1J'' :: Value
       remote1 = Internal.FedConn (cs "good.example.com") "no_search"
       remote1' = remote1 {Internal.searchStrategy = "full_search"}
       remote1'' = remote1 {Internal.domain = "meh.example.com"}
-      remote1J = toJSON remote1
-      remote1J' = toJSON remote1'
-      remote1J'' = toJSON remote1''
 
       cfgRemotesExpect :: Internal.FedConn
       cfgRemotesExpect = Internal.FedConn (cs "example.com") "full_search"
 
+  remote1J  <- make remote1
+  remote1J' <- make remote1'
+
   resetFedConns OwnDomain
   cfgRemotes <- parseFedConns =<< Internal.readFedConns OwnDomain
-  cfgRemotes `shouldMatch` [toJSON cfgRemotesExpect]
+  cfgRemotes `shouldMatch` [cfgRemotesExpect]
   -- entries present in the config file can be idempotently added if identical, but cannot be
   -- updated, deleted or updated.
   addOnce cfgRemotesExpect [cfgRemotesExpect]
@@ -91,11 +87,11 @@ testCrudFederationRemotes = do
   deleteFail (Internal.domain cfgRemotesExpect)
   updateFail (Internal.domain cfgRemotesExpect) (cfgRemotesExpect {Internal.searchStrategy = "no_search"})
   -- create
-  addOnce remote1J $ (remote1J : cfgRemotes)
-  addOnce remote1J $ (remote1J : cfgRemotes) -- idempotency
+  addOnce remote1 $ (remote1J : cfgRemotes)
+  addOnce remote1 $ (remote1J : cfgRemotes) -- idempotency
   -- update
-  updateOnce (Internal.domain remote1) remote1J' (remote1J' : cfgRemotes)
-  updateFail (Internal.domain remote1) remote1J''
+  updateOnce (Internal.domain remote1) remote1' (remote1J' : cfgRemotes)
+  updateFail (Internal.domain remote1) remote1''
   -- delete
   deleteOnce (Internal.domain remote1) cfgRemotes
   deleteOnce (Internal.domain remote1) cfgRemotes -- idempotency
