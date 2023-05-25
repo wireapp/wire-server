@@ -1,0 +1,38 @@
+This release introduces a new component: background-worker. This is currently
+only used to forward notifications to federated backends. Enabling federation in
+the wire-server helm chart automatically installs this component.
+
+When federation is enabled, wire-server will require running RabbitMQ. The helm
+chart in `rabbitmq` can be used to install RabbitMQ. Please refer to the
+documentation at https://docs.wire.com to install RabbitMQ in Kubernetes. These
+new configurations are required:
+
+```yaml
+brig:
+  config:
+    rabbitmq:
+      host: rabbitmq
+      port: 5672
+      vHost: /
+  secrets:
+    rabbitmq:
+      username: <YOUR_USERNAME>
+      password: <YOUR_PASSWORD>
+background-worker:
+  config:
+    rabbitmq:
+      host: rabbitmq
+      port: 5672
+      vHost: /
+    remoteDomains: []
+  secrets:
+    rabbitmq:
+      username: <YOUR_USERNAME>
+      password: <YOUR_PASSWORD>
+```
+
+The above are the default values (except for secrets, which do not have
+defaults), if they work they are not required to be configured.
+`background-worker.config.remoteDomains` should contain all the remote domains
+with which the wire-server instance allows federating. This change is
+incompatible with open-federation.

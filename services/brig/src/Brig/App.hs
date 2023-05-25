@@ -1,4 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 -- FUTUREWORK: Get rid of this option once Polysemy is fully introduced to Brig
@@ -60,6 +62,7 @@ module Brig.App
     emailSender,
     randomPrekeyLocalLock,
     keyPackageLocalLock,
+    rabbitmqChannel,
     fsWatcher,
 
     -- * App Monad
@@ -132,6 +135,9 @@ import Data.Yaml (FromJSON)
 import qualified Database.Bloodhound as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports
+import qualified Network.AMQP as Q
+import Network.AMQP.Extended (RabbitMqHooks (RabbitMqHooks))
+import qualified Network.AMQP.Extended as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
@@ -191,7 +197,8 @@ data Env = Env
     _digestMD5 :: Digest,
     _indexEnv :: IndexEnv,
     _randomPrekeyLocalLock :: Maybe (MVar ()),
-    _keyPackageLocalLock :: MVar ()
+    _keyPackageLocalLock :: MVar (),
+    _rabbitmqChannel :: Maybe (MVar Q.Channel)
   }
 
 makeLenses ''Env
@@ -244,6 +251,7 @@ newEnv o = do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
+  rabbitChan <- mkRabbitMqChannel lgr o
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -279,7 +287,8 @@ newEnv o = do
         _digestSHA256 = sha256,
         _indexEnv = mkIndexEnv o lgr mgr mtr (Opt.galley o),
         _randomPrekeyLocalLock = prekeyLocalLock,
-        _keyPackageLocalLock = kpLock
+        _keyPackageLocalLock = kpLock,
+        _rabbitmqChannel = rabbitChan
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)
@@ -294,6 +303,18 @@ newEnv o = do
       smtp <- SMTP.initSMTP lgr host port smtpCredentials (Opt.smtpConnType s)
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
+
+mkRabbitMqChannel :: Logger -> Opts -> IO (Maybe (MVar Q.Channel))
+mkRabbitMqChannel l (Opt.rabbitmq -> Just Opt.RabbitMqOpts {..}) = do
+  chan <- newEmptyMVar
+  Q.openConnectionWithRetries l host port vHost $
+    RabbitMqHooks
+      { onNewChannel = putMVar chan,
+        onChannelException = \_ -> void $ tryTakeMVar chan,
+        onConnectionClose = void $ tryTakeMVar chan
+      }
+  pure $ Just chan
+mkRabbitMqChannel _ _ = pure Nothing
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
 mkIndexEnv o lgr mgr mtr galleyEndpoint =
