@@ -87,9 +87,6 @@ import Wire.API.Asset hiding (Asset)
 import qualified Wire.API.Asset as Asset
 import Wire.API.Connection
 import Wire.API.Conversation
-import Wire.API.Federation.API.Brig (UserDeletedConnectionsNotification (..))
-import qualified Wire.API.Federation.API.Brig as FedBrig
-import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
 import Wire.API.Internal.Notification
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Feature (ExposeInvitationURLsToTeamAdminConfig (..), FeatureStatus (..), FeatureTTL' (..), LockStatus (LockStatusLocked), withStatus)
@@ -157,8 +154,6 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "delete/by-code" $ testDeleteUserByCode b,
       test p "delete/anonymous" $ testDeleteAnonUser b,
       test p "delete with profile pic" $ testDeleteWithProfilePic b ch,
-      test p "delete with connected remote users" $ testDeleteWithRemotes opts b,
-      test p "delete with connected remote users and failed remote notifcations" $ testDeleteWithRemotesAndFailedNotifications opts b c,
       test p "put /i/users/:uid/sso-id" $ testUpdateSSOId b g,
       testGroup
         "temporary customer extensions"
@@ -1478,96 +1473,6 @@ testDeleteWithProfilePic brig cargohold = do
   deleteUser uid Nothing brig !!! const 200 === statusCode
   -- Check that the asset gets deleted
   downloadAsset cargohold uid (ast ^. Asset.assetKey) !!! const 404 === statusCode
-
-testDeleteWithRemotes :: Opt.Opts -> Brig -> Http ()
-testDeleteWithRemotes opts brig = do
-  localUser <- randomUser brig
-
-  let remote1Domain = Domain "remote1.example.com"
-      remote2Domain = Domain "remote2.example.com"
-  remote1UserConnected <- Qualified <$> randomId <*> pure remote1Domain
-  remote1UserPending <- Qualified <$> randomId <*> pure remote1Domain
-  remote2UserBlocked <- Qualified <$> randomId <*> pure remote2Domain
-
-  sendConnectionAction brig opts (userId localUser) remote1UserConnected (Just FedBrig.RemoteConnect) Accepted
-  sendConnectionAction brig opts (userId localUser) remote1UserPending Nothing Sent
-  sendConnectionAction brig opts (userId localUser) remote2UserBlocked (Just FedBrig.RemoteConnect) Accepted
-  void $ putConnectionQualified brig (userId localUser) remote2UserBlocked Blocked
-
-  let fedMockResponse _ = pure (Aeson.encode EmptyResponse)
-  let galleyHandler :: ReceivedRequest -> MockT IO Wai.Response
-      galleyHandler (ReceivedRequest requestMethod requestPath _requestBody) =
-        case (requestMethod, requestPath) of
-          (_methodDelete, ["i", "user"]) -> do
-            let response = Wai.responseLBS Http.status200 [(Http.hContentType, "application/json")] (cs $ Aeson.encode EmptyResponse)
-            pure response
-          _ -> error "not mocked"
-
-  (_, rpcCalls, _galleyCalls) <- liftIO $
-    withMockedFederatorAndGalley opts (Domain "example.com") fedMockResponse galleyHandler $ do
-      deleteUser (userId localUser) (Just defPassword) brig !!! do
-        const 200 === statusCode
-
-  liftIO $ do
-    remote1Call <- assertOne $ filter (\c -> frTargetDomain c == remote1Domain) rpcCalls
-    remote1Udn <- assertRight $ parseFedRequest remote1Call
-    udcnUser remote1Udn @?= userId localUser
-    sort (fromRange (udcnConnections remote1Udn))
-      @?= sort (map qUnqualified [remote1UserConnected, remote1UserPending])
-
-    remote2Call <- assertOne $ filter (\c -> frTargetDomain c == remote2Domain) rpcCalls
-    remote2Udn <- assertRight $ parseFedRequest remote2Call
-    udcnUser remote2Udn @?= userId localUser
-    fromRange (udcnConnections remote2Udn) @?= [qUnqualified remote2UserBlocked]
-  where
-    parseFedRequest :: FromJSON a => FederatedRequest -> Either String a
-    parseFedRequest = eitherDecode . frBody
-
-testDeleteWithRemotesAndFailedNotifications :: Opt.Opts -> Brig -> Cannon -> Http ()
-testDeleteWithRemotesAndFailedNotifications opts brig cannon = do
-  alice <- randomUser brig
-  alex <- randomUser brig
-  let localDomain = qDomain (userQualifiedId alice)
-
-  let bDomain = Domain "b.example.com"
-      cDomain = Domain "c.example.com"
-  bob <- Qualified <$> randomId <*> pure bDomain
-  carl <- Qualified <$> randomId <*> pure cDomain
-
-  postConnection brig (userId alice) (userId alex) !!! const 201 === statusCode
-  putConnection brig (userId alex) (userId alice) Accepted !!! const 200 === statusCode
-  sendConnectionAction brig opts (userId alice) bob (Just FedBrig.RemoteConnect) Accepted
-  sendConnectionAction brig opts (userId alice) carl (Just FedBrig.RemoteConnect) Accepted
-
-  let fedMockResponse req =
-        if frTargetDomain req == bDomain
-          then throw $ MockErrorResponse Http.status500 "mocked connection problem with b domain"
-          else pure (Aeson.encode EmptyResponse)
-
-  let galleyHandler :: ReceivedRequest -> MockT IO Wai.Response
-      galleyHandler (ReceivedRequest requestMethod requestPath _requestBody) =
-        case (Http.parseMethod requestMethod, requestPath) of
-          (Right Http.DELETE, ["i", "user"]) -> do
-            let response = Wai.responseLBS Http.status200 [(Http.hContentType, "application/json")] (cs $ Aeson.encode EmptyResponse)
-            pure response
-          _ -> error "not mocked"
-
-  (_, rpcCalls, _galleyCalls) <- WS.bracketR cannon (userId alex) $ \wsAlex -> do
-    let action = withMockedFederatorAndGalley opts localDomain fedMockResponse galleyHandler $ do
-          deleteUser (userId alice) (Just defPassword) brig !!! do
-            const 200 === statusCode
-    liftIO action <* do
-      void . liftIO . WS.assertMatch (5 # Second) wsAlex $ matchDeleteUserNotification (userQualifiedId alice)
-
-  liftIO $ do
-    rRpc <- assertOne $ filter (\c -> frTargetDomain c == cDomain) rpcCalls
-    cUdn <- assertRight $ parseFedRequest rRpc
-    udcnUser cUdn @?= userId alice
-    sort (fromRange (udcnConnections cUdn))
-      @?= sort (map qUnqualified [carl])
-  where
-    parseFedRequest :: FromJSON a => FederatedRequest -> Either String a
-    parseFedRequest = eitherDecode . frBody
 
 testUpdateSSOId :: Brig -> Galley -> Http ()
 testUpdateSSOId brig galley = do

@@ -85,6 +85,8 @@ brig:
           search_policy: full_search
         - domain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
           search_policy: full_search
+      setFederationStrategy: allowList
+      setFederationDomainConfigsUpdateFreq: 10
       set2FACodeGenerationDelaySecs: 5
       setNonceTtlSecs: 300
       setDpopMaxSkewSecs: 1
@@ -299,6 +301,17 @@ federator:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     optSettings:
-      federationStrategy:
-        allowAll: true
       useSystemCAStore: false
+
+background-worker:
+  replicaCount: 1
+  resources:
+    requests: {}
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
+  config:
+    # See helmfile for the real value
+    remoteDomains: []
+  secrets:
+    rabbitmq:
+      username: {{ .Values.rabbitmqUsername }}
+      password: {{ .Values.rabbitmqPassword }}

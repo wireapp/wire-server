@@ -39,7 +39,6 @@ import qualified Data.Code as Code
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
-import Data.MessageQueue
 import Data.Misc (HttpsUrl)
 import Data.Nonce
 import Data.Range
@@ -95,6 +94,15 @@ data ElasticSearchOpts = ElasticSearchOpts
   deriving (Show, Generic)
 
 instance FromJSON ElasticSearchOpts
+
+data RabbitMqOpts = RabbitMqOpts
+  { host :: !String,
+    port :: !Int,
+    vHost :: !Text
+  }
+  deriving (Show, Generic)
+
+instance FromJSON RabbitMqOpts
 
 data AWSOpts = AWSOpts
   { -- | Event journal queue for user events
@@ -420,6 +428,8 @@ data Opts = Opts
     cassandra :: !CassandraOpts,
     -- | ElasticSearch settings
     elasticsearch :: !ElasticSearchOpts,
+    -- | RabbitMQ settings
+    rabbitmq :: !RabbitMqOpts,
     -- | AWS settings
     aws :: !AWSOpts,
     -- | Enable Random Prekey Strategy
@@ -459,9 +469,7 @@ data Opts = Opts
     -- | SFT Settings
     sft :: !(Maybe SFTOptions),
     -- | Runtime settings
-    optSettings :: !Settings,
-    -- | Message Queue settings
-    mqSettings :: !(Maybe MessageQueueSettings)
+    optSettings :: !Settings
   }
   deriving (Show, Generic)
 
@@ -540,18 +548,14 @@ data Settings = Settings
     setSearchSameTeamOnly :: !(Maybe Bool),
     -- | FederationDomain is required, even when not wanting to federate with other backends
     -- (in that case the 'setFederationStrategy' can be set to `allowNone` below, or to
-    -- `allowList` while keeping the list of allowed domains empty, see
+    -- `allowDynamic` while keeping the list of allowed domains empty, see
     -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections)
     -- Federation domain is used to qualify local IDs and handles,
     -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
     -- It should also match the SRV DNS records under which other wire-server installations can find this backend:
     -- >>>   _wire-server-federator._tcp.<federationDomain>
-    -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
+    -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working.
     -- Remember to keep it the same in all services.
-    -- Example:
-    -- >>>  allowedDomains:
-    -- >>>    - wire.com
-    -- >>>    - example.com
     setFederationDomain :: !Domain,
     -- | See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
     -- default: AllowNone
@@ -563,7 +567,7 @@ data Settings = Settings
     -- for details.
     -- default: []
     setFederationDomainConfigs :: !(Maybe [FederationDomainConfig]),
-    -- | In seconds.  Values <=0 are ignored.  Default: 10 seconds.  See
+    -- | In seconds.  Default: 10 seconds.  Values <1 are silently replaced by 1.  See
     -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
     setFederationDomainConfigsUpdateFreq :: !(Maybe Int),
     -- | The amount of time in milliseconds to wait after reading from an SQS queue

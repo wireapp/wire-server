@@ -6,5 +6,5 @@ import Testlib.Prelude
 
 testConnectUsers :: App ()
 testConnectUsers = do
-  _alice <- randomUser ownDomain def
+  _alice <- randomUser OwnDomain def
   pure ()

@@ -62,7 +62,7 @@ backend.
     domain. Your user known to you as Alice, and known on your
     server with ID `ac41a202-2555-11ec-9341-00163e5e6c00` will
     become known for other servers you federate with as
-    
+
     ``` json
     {
       "user": {
@@ -73,7 +73,7 @@ backend.
     ```
 
 -   This domain is shown in the User Interface
-    alongside user information. 
+    alongside user information.
 
     Example: Using the same example as above, for backends you
     federate with, Alice would be displayed with the
@@ -138,7 +138,7 @@ The SRV record would look as follows:
 _wire-server-federator._tcp.example.com. 600 IN SRV 0        10     443  federator.wire.example.org.
 ```
 
-### DNS A record for the federator 
+### DNS A record for the federator
 
 Background: `federator` is the server component responsible for incoming
 and outgoing requests to other backend; but it is proxied on the
@@ -151,7 +151,7 @@ also needs to point to the IP of your ingress, i.e. the IP you want to
 provide services on.
 
 (federation-certificate-setup)=
-## Generate and configure TLS server and client certificates 
+## Generate and configure TLS server and client certificates
 
 Are your servers on the public internet? Then you have the option of
 using TLS certificates from [Let\'s encrypt](https://letsencrypt.org/).
@@ -196,7 +196,7 @@ FS-33 and FS-49 (tickets only visible to Wire employees).
 ```
 
 
-### (A) Let\'s encrypt TLS server and client certificate generation and renewal 
+### (A) Let\'s encrypt TLS server and client certificate generation and renewal
 
 The following will make use of [Let\'s
 encrypt](https://letsencrypt.org/) for both server certificates (used
@@ -395,7 +395,31 @@ cargohold:
       federationDomain: example.com # your chosen "backend domain"
 ```
 
-### Configure federator process to run and allow incoming traffic 
+(configure-federation-strategy-in-brig)=
+
+### Configure federation strategy (whom to federate with) in brig
+
+(**This section is valid as of the release containing [PR#3260](https://github.com/wireapp/wire-server/pull/3260).**)
+
+You also need to define the federation strategy (whom to federate
+with), and the frequency with which the other backend services will
+refresh their cache of this configuration.
+
+``` yaml
+# override values for wire-server
+# (e.g. under ./helm_vars/wire-server/values.yaml)
+brig:
+  config:
+    optSettings:
+      setFederationStrategy: AllowNone # [AllowAll | AllowDynamic | AllowNone]
+      setFederationDomainConfigsUpdateFreq: 10 # seconds
+```
+
+The default of `AllowNone` probably doesn't make sense if you are
+reading this.  See {ref}`configuring-remote-connections` for details
+on the alternatives.
+
+### Configure federator process to run and allow incoming traffic
 
 For federation to work, the `federator` subchart of wire-server has to
 be enabled:
@@ -422,7 +446,7 @@ config:
     federator: federator.wire.example.org # set this to your "infra" domain
 ```
 
-### Configure the validation depth when handling client certificates 
+### Configure the validation depth when handling client certificates
 
 By default, `verify_depth` is `1`, meaning that in order to validate an
 incoming request from another backend, this backend needs to have a
@@ -482,14 +506,14 @@ federator:
         allowAll: true
 ```
 
-## Applying all configuration changes 
+## Applying all configuration changes
 
 Depending on your installation method and time you initially installed
 your first version of wire-server, commands to run to apply all of the
 above configrations may vary. You want to ensure that you upgrade the
 `nginx-ingress-services` and `wire-server` helm charts at a minimum.
 
-## Manually test that your configurations work as expected 
+## Manually test that your configurations work as expected
 
 ### Manually test DNS
 
@@ -518,7 +542,7 @@ DOMAIN to your
 {ref}`federation infrastructure domain <glossary_infra_domain>`. They should include your domain as part of the SAN (Subject
 Alternative Names) and not have expired.
 
-### Manually test that federation works 
+### Manually test that federation works
 
 Prerequisites:
 

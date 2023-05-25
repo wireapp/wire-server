@@ -152,7 +152,7 @@ tests =
       testRoundTrip @Message.ClientMismatch,
       testRoundTrip @OAuth.RedirectUrl,
       testRoundTrip @OAuth.OAuthApplicationName,
-      testRoundTrip @OAuth.RegisterOAuthClientRequest,
+      testRoundTrip @OAuth.OAuthClientConfig,
       testRoundTrip @OAuth.OAuthClient,
       testRoundTrip @OAuth.CreateOAuthAuthorizationCodeRequest,
       testRoundTrip @OAuth.OAuthAccessTokenRequest,

@@ -89,7 +89,7 @@ validationErrorStatus :: ValidationError -> HTTP.Status
 validationErrorStatus (FederationDenied _) = HTTP.status422
 validationErrorStatus _ = HTTP.status403
 
--- | Validates an already-parsed domain against the allowList (stored in
+-- | Validates an already-parsed domain against the allow list (stored in
 -- `brig.federation_remotes`, cached in `Env`).
 ensureCanFederateWith ::
   ( Member (Input FederationDomainConfigs) r,
@@ -102,7 +102,7 @@ ensureCanFederateWith targetDomain = do
   case strategy of
     AllowNone -> throw (FederationDenied targetDomain)
     AllowAll -> pure ()
-    AllowList -> do
+    AllowDynamic -> do
       unless (targetDomain `elem` fmap domain domains) $
         throw (FederationDenied targetDomain)
 
@@ -136,7 +136,7 @@ parseDomainText domain =
     . mkDomain
     $ domain
 
--- | Validates an unknown domain string against the allowList using the
+-- | Validates an unknown domain string against the allow list using the
 -- federator startup configuration and checks that it matches the names reported
 -- by the client certificate
 validateDomain ::

@@ -18,6 +18,7 @@
 module Brig.Data.Federation
   ( getFederationRemotes,
     addFederationRemote,
+    updateFederationRemote,
     deleteFederationRemote,
     AddFederationRemoteResult (..),
   )
@@ -25,7 +26,10 @@ where
 
 import Brig.Data.Instances ()
 import Cassandra
+import Control.Exception (ErrorCall (ErrorCall))
+import Control.Monad.Catch (throwM)
 import Data.Domain
+import Database.CQL.Protocol (SerialConsistency (LocalSerialConsistency), serialConsistency)
 import Imports
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.User.Search
@@ -53,6 +57,16 @@ addFederationRemote (FederationDomainConfig rdom searchpolicy) = do
   where
     add :: PrepQuery W (Domain, FederatedUserSearchPolicy) ()
     add = "INSERT INTO federation_remotes (domain, search_policy) VALUES (?, ?)"
+
+updateFederationRemote :: MonadClient m => FederationDomainConfig -> m Bool
+updateFederationRemote (FederationDomainConfig rdom spol) = do
+  retry x1 (trans upd (params LocalQuorum (spol, rdom)) {serialConsistency = Just LocalSerialConsistency}) >>= \case
+    [] -> pure False
+    [_] -> pure True
+    _ -> throwM $ ErrorCall "Primary key violation detected federation_remotes"
+  where
+    upd :: PrepQuery W (FederatedUserSearchPolicy, Domain) x
+    upd = "UPDATE federation_remotes SET search_policy = ? WHERE domain = ? IF EXISTS"
 
 deleteFederationRemote :: MonadClient m => Domain -> m ()
 deleteFederationRemote rdom =

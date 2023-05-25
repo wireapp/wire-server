@@ -36,10 +36,9 @@ where
 
 import Control.Concurrent.Async
 import Control.Exception (bracket)
-import Control.Lens (view, (^.))
+import Control.Lens ((^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
-import Data.Text
 import Federator.Env
 import Federator.ExternalServer (serveInward)
 import Federator.InternalServer (serveOutward)
@@ -47,9 +46,7 @@ import Federator.Monitor
 import Federator.Options as Opt
 import Imports
 import qualified Network.DNS as DNS
-import Network.HTTP.Client
 import qualified Network.HTTP.Client as HTTP
-import Servant.Client
 import qualified System.Logger as Log
 import qualified System.Logger.Extended as LogExt
 import Util.Options
@@ -64,19 +61,14 @@ import qualified Wire.Network.DNS.Helper as DNS
 -- FUTUREWORK(federation): Add metrics and status endpoints
 run :: Opts -> IO ()
 run opts = do
-  manager <- newManager defaultManagerSettings
   logger <- LogExt.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
-      Endpoint host port = brig opts
-      baseUrl = BaseUrl Http (unpack host) (fromIntegral port) ""
-      clientEnv = ClientEnv manager baseUrl Nothing defaultMakeClientRequest
-  okRemoteDomains <- getAllowedDomainsInitial logger clientEnv
-  DNS.withCachingResolver resolvConf $ \res ->
-    bracket (newEnv opts res logger okRemoteDomains) closeEnv $ \env -> do
+  DNS.withCachingResolver resolvConf $ \res -> do
+    (ioref, updateAllowedDomainsThread) <- updateFedDomains (brig opts) logger (\_ _ -> pure ())
+    bracket (newEnv opts res logger ioref) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
       withMonitor logger (onNewSSLContext env) (optSettings opts) $ do
-        updateAllowedDomainsThread <- async (getAllowedDomainsLoop' logger clientEnv $ view allowedRemoteDomains env)
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
         void $ waitAnyCancel [updateAllowedDomainsThread, internalServerThread, externalServerThread]
@@ -99,16 +91,15 @@ run opts = do
 -------------------------------------------------------------------------------
 -- Environment
 
-newEnv :: Opts -> DNS.Resolver -> Log.Logger -> FederationDomainConfigs -> IO Env
-newEnv o _dnsResolver _applog okRemoteDomains = do
+newEnv :: Opts -> DNS.Resolver -> Log.Logger -> IORef FederationDomainConfigs -> IO Env
+newEnv o _dnsResolver _applog _allowedRemoteDomains = do
   _metrics <- Metrics.metrics
   let _requestId = def
-  let _runSettings = Opt.optSettings o
-  let _service Brig = Opt.brig o
+      _runSettings = Opt.optSettings o
+      _service Brig = Opt.brig o
       _service Galley = Opt.galley o
       _service Cargohold = Opt.cargohold o
   _httpManager <- initHttpManager
-  _allowedRemoteDomains <- newIORef okRemoteDomains
   sslContext <- mkTLSSettingsOrThrow _runSettings
   _http2Manager <- newIORef =<< mkHttp2Manager sslContext
   pure Env {..}

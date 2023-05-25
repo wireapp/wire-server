@@ -140,6 +140,7 @@ library
     Wire.API.Team.Role
     Wire.API.Team.SearchVisibility
     Wire.API.Team.Size
+    Wire.API.Unreachable
     Wire.API.User
     Wire.API.User.Activation
     Wire.API.User.Auth
@@ -216,6 +217,7 @@ library
 
   build-depends:
       aeson                      >=2.0.1.0
+    , async
     , attoparsec                 >=0.10
     , base                       >=4       && <5
     , base64-bytestring          >=1.0
@@ -249,6 +251,7 @@ library
     , hscim
     , HsOpenSSL
     , http-api-data
+    , http-client
     , http-media
     , http-types
     , imports

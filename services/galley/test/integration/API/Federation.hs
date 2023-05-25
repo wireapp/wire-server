@@ -762,7 +762,7 @@ leaveConversationSuccess = do
             <!! const 200 === statusCode
         parsedResp <- responseJsonError respBS
         liftIO $ do
-          FedGalley.leaveResponse parsedResp @?= Right ()
+          FedGalley.leaveResponse parsedResp @?= Right mempty
           void . WS.assertMatch (3 # Second) wsAlice $
             wsAssertMembersLeave qconvId qChad [qChad]
           void . WS.assertMatch (3 # Second) wsBob $
@@ -1178,7 +1178,7 @@ updateConversationByRemoteAdmin = do
         cnvUpdate' <- liftIO $ case resp of
           ConversationUpdateResponseError err -> assertFailure ("Expected ConversationUpdateResponseUpdate but got " <> show err)
           ConversationUpdateResponseNoChanges -> assertFailure "Expected ConversationUpdateResponseUpdate but got ConversationUpdateResponseNoChanges"
-          ConversationUpdateResponseUpdate up -> pure up
+          ConversationUpdateResponseUpdate up _ftp -> pure up
 
         liftIO $ do
           cuOrigUserId cnvUpdate' @?= qbob

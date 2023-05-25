@@ -1,0 +1,1 @@
+Add federation options to the `coturn` Helm chart including DTLS support. The options themselves are strongly inspired by the `restund` Helm chart.

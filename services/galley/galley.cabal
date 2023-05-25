@@ -28,6 +28,7 @@ library
     Galley.API.Internal
     Galley.API.LegalHold
     Galley.API.LegalHold.Conflicts
+    Galley.API.LegalHold.Team
     Galley.API.Mapping
     Galley.API.Message
     Galley.API.MLS
@@ -59,6 +60,7 @@ library
     Galley.API.Query
     Galley.API.Teams
     Galley.API.Teams.Features
+    Galley.API.Teams.Features.Get
     Galley.API.Teams.Notifications
     Galley.API.Update
     Galley.API.Util

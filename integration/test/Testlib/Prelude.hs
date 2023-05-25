@@ -7,7 +7,7 @@ module Testlib.Prelude
     module Testlib.ModService,
     module Testlib.HTTP,
     module Testlib.JSON,
-    module Text.RawString.QQ,
+    module Testlib.PTest,
     module Data.Aeson,
     module Prelude,
     module Control.Applicative,
@@ -46,11 +46,45 @@ module Testlib.Prelude
     SomeException (..),
     SomeAsyncException (..),
     IOException,
+
+    -- ** Prelude
+    putChar,
+    putStr,
+    putStrLn,
+    print,
+    getChar,
+    getLine,
+    getContents,
+    interact,
+    readFile,
+    writeFile,
+    appendFile,
+    readIO,
+    readLn,
+
+    -- * Functor
+    (<$$>),
+    (<$$$>),
   )
 where
 
 import Control.Applicative hiding (empty, many, optional, some)
 import Control.Monad hiding (forM, forM_, mapM, mapM_, msum, sequence, sequence_)
+-- 'insert' and 'delete' are common in database modules
+
+-- Lazy and strict versions are the same
+
+-- First and Last are going to be deprecated. Use Semigroup instead
+
+-- conflicts with Options.Applicative.Option (should we care?)
+
+-- Permissions is common in Galley
+
+-- Handle is hidden because it's common in Brig
+-- Explicitly saying what to import because some things from Prelude clash
+-- with e.g. UnliftIO modules
+
+import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Aeson hiding ((.=))
 import Data.Bifunctor hiding (first, second)
 import Data.Bool
@@ -63,15 +97,11 @@ import Data.Function
 import Data.Functor
 import Data.Functor.Identity
 import Data.Int
--- 'insert' and 'delete' are common in database modules
 import Data.List hiding (delete, insert, singleton)
--- Lazy and strict versions are the same
 import Data.Map (Map)
 import Data.Maybe
--- First and Last are going to be deprecated. Use Semigroup instead
 import Data.Monoid hiding (First (..), Last (..))
 import Data.Ord
--- conflicts with Options.Applicative.Option (should we care?)
 import Data.Semigroup hiding (diff)
 import Data.Set (Set)
 import Data.String
@@ -88,13 +118,9 @@ import Testlib.Env
 import Testlib.HTTP
 import Testlib.JSON
 import Testlib.ModService
+import Testlib.PTest
 import Testlib.Types
-import Text.RawString.QQ
--- Permissions is common in Galley
 import UnliftIO.Exception
--- Handle is hidden because it's common in Brig
--- Explicitly saying what to import because some things from Prelude clash
--- with e.g. UnliftIO modules
 import Prelude
   ( Bounded (..),
     Double,
@@ -139,3 +165,59 @@ import Prelude
     (^),
     (^^),
   )
+import qualified Prelude as P
+
+----------------------------------------------------------------------------
+-- Lifted functions from Prelude
+
+putChar :: MonadIO m => Char -> m ()
+putChar = liftIO . P.putChar
+
+putStr :: MonadIO m => String -> m ()
+putStr = liftIO . P.putStr
+
+putStrLn :: MonadIO m => String -> m ()
+putStrLn = liftIO . P.putStrLn
+
+print :: (Show a, MonadIO m) => a -> m ()
+print = liftIO . P.print
+
+getChar :: MonadIO m => m Char
+getChar = liftIO P.getChar
+
+getLine :: MonadIO m => m String
+getLine = liftIO P.getLine
+
+getContents :: MonadIO m => m String
+getContents = liftIO P.getContents
+
+interact :: MonadIO m => (String -> String) -> m ()
+interact = liftIO . P.interact
+
+readFile :: MonadIO m => FilePath -> m String
+readFile = liftIO . P.readFile
+
+writeFile :: MonadIO m => FilePath -> String -> m ()
+writeFile = fmap liftIO . P.writeFile
+
+appendFile :: MonadIO m => FilePath -> String -> m ()
+appendFile = fmap liftIO . P.appendFile
+
+readIO :: (Read a, MonadIO m) => String -> m a
+readIO = liftIO . P.readIO
+
+readLn :: (Read a, MonadIO m) => m a
+readLn = liftIO P.readLn
+
+----------------------------------------------------------------------
+-- Functor
+
+(<$$>) :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
+(<$$>) = fmap . fmap
+
+infix 4 <$$>
+
+(<$$$>) :: (Functor f, Functor g, Functor h) => (a -> b) -> f (g (h a)) -> f (g (h b))
+(<$$$>) = fmap . fmap . fmap
+
+infix 4 <$$$>

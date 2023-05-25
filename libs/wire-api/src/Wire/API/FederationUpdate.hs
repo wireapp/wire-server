@@ -1,18 +1,21 @@
 module Wire.API.FederationUpdate
   ( FedUpdateCallback,
-    getAllowedDomainsInitial,
-    getAllowedDomainsLoop,
-    getAllowedDomainsLoop',
+    updateFedDomains,
   )
 where
 
+import Control.Concurrent.Async
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import qualified Control.Retry as R
+import qualified Data.Set as Set
+import Data.Text (unpack)
 import Imports
-import Servant.Client (ClientEnv, ClientError, runClientM)
-import Servant.Client.Internal.HttpClient (ClientM)
+import Network.HTTP.Client (defaultManagerSettings, newManager)
+import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, Scheme (Http), runClientM)
+import Servant.Client.Internal.HttpClient (ClientM, defaultMakeClientRequest)
 import qualified System.Logger as L
-import Wire.API.Routes.FederationDomainConfig (FederationDomainConfigs (updateInterval))
+import Util.Options (Endpoint (..))
+import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (domain), FederationDomainConfigs (remotes, updateInterval))
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Named (namedClient)
 
@@ -31,7 +34,7 @@ getAllowedDomainsInitial logger clientEnv =
         getAllowedDomains clientEnv >>= \case
           Right s -> pure $ Just s
           Left e -> do
-            L.log logger L.Info $
+            L.log logger L.Debug $
               L.msg (L.val "Could not retrieve an initial list of federation domains from Brig.")
                 L.~~ "error" L..= show e
             pure Nothing
@@ -42,25 +45,34 @@ getAllowedDomainsInitial logger clientEnv =
 getAllowedDomains :: ClientEnv -> IO (Either ClientError FederationDomainConfigs)
 getAllowedDomains = runClientM getFedRemotes
 
+-- Old value -> new value -> action
 type FedUpdateCallback = FederationDomainConfigs -> FederationDomainConfigs -> IO ()
 
 -- The callback takes the previous and the new values of the federation domain configs
 -- and runs a given action. This function is not called if a new config value cannot be fetched.
-getAllowedDomainsLoop :: L.Logger -> ClientEnv -> IORef FederationDomainConfigs -> FedUpdateCallback -> IO ()
-getAllowedDomainsLoop logger clientEnv env callback = forever $ do
+getAllowedDomainsLoop :: L.Logger -> ClientEnv -> FedUpdateCallback -> IORef FederationDomainConfigs -> IO ()
+getAllowedDomainsLoop logger clientEnv callback env = forever $ do
   getAllowedDomains clientEnv >>= \case
     Left e ->
       L.log logger L.Fatal $
         L.msg (L.val "Could not retrieve an updated list of federation domains from Brig; I'll keep trying!")
           L.~~ "error" L..= show e
-    Right cfg -> do
+    Right new -> do
       old <- readIORef env
-      callback old cfg
-      atomicWriteIORef env cfg
+      unless (domainListsEqual old new) $ callback old new
+      atomicWriteIORef env new
   delay <- updateInterval <$> readIORef env
-  threadDelay delay
+  threadDelay (delay * 1_000_000)
+  where
+    domainListsEqual o n =
+      Set.fromList (domain <$> remotes o)
+        == Set.fromList (domain <$> remotes n)
 
--- A version where the callback isn't needed. Most of the services don't care about
--- when the list changes, just that they have the new list and can use it as-is
-getAllowedDomainsLoop' :: L.Logger -> ClientEnv -> IORef FederationDomainConfigs -> IO ()
-getAllowedDomainsLoop' logger c r = getAllowedDomainsLoop logger c r $ \_ _ -> pure ()
+updateFedDomains :: Endpoint -> L.Logger -> FedUpdateCallback -> IO (IORef FederationDomainConfigs, Async ())
+updateFedDomains (Endpoint h p) log' cb = do
+  clientEnv <- newManager defaultManagerSettings <&> \mgr -> ClientEnv mgr baseUrl Nothing defaultMakeClientRequest
+  ioref <- newIORef =<< getAllowedDomainsInitial log' clientEnv
+  updateDomainsThread <- async $ getAllowedDomainsLoop log' clientEnv cb ioref
+  pure (ioref, updateDomainsThread)
+  where
+    baseUrl = BaseUrl Http (unpack h) (fromIntegral p) ""

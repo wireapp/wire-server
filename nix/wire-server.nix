@@ -85,6 +85,7 @@ let
     inconsistencies = [ "inconsistencies" ];
     api-simulations = [ "api-smoketest" "api-loadtest" ];
     zauth = [ "zauth" ];
+    background-worker = [ "background-worker" ];
     integration = [ "integration" ];
   };
 

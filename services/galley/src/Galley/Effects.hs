@@ -62,7 +62,6 @@ where
 import Data.Id
 import Data.Qualified
 import Data.Time.Clock
-import Galley.Cassandra.TeamFeatures (Cassandra)
 import Galley.Effects.BotAccess
 import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
@@ -113,7 +112,7 @@ type GalleyEffects1 =
      MemberStore,
      SearchVisibilityStore,
      ServiceStore,
-     TeamFeatureStore Cassandra,
+     TeamFeatureStore,
      TeamNotificationStore,
      TeamStore,
      TeamMemberStore InternalPaging,

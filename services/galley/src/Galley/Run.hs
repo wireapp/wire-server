@@ -19,7 +19,8 @@
 module Galley.Run
   ( run,
     mkApp,
-    updateFedDomainsCallback
+    updateFedDomainsCallback,
+    mkLogger
   )
 where
 
@@ -41,7 +42,6 @@ import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
-import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import qualified Galley.API as API
@@ -62,6 +62,7 @@ import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
 import Servant hiding (route)
 import qualified System.Logger as Log
+import System.Logger.Extended (mkLogger)
 import Util.Options
 import Wire.API.Routes.API
 import Wire.API.Routes.FederationDomainConfig
@@ -90,7 +91,9 @@ import Galley.Cassandra.Connection
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
-  (app, env) <- mkApp opts
+  l <- lift $ mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
+  (ioref, _) <- lift $ updateFedDomains (opts ^. optBrig) l $ \_ _ -> pure ()
+  (app, env) <- mkApp opts ioref l
   settings <-
     lift $
       newSettings $
@@ -108,15 +111,12 @@ run opts = lowerCodensity $ do
   void $ Codensity $ Async.withAsync $ runApp env undefined
   lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
 
-mkApp :: Opts -> Codensity IO (Application, Env)
-mkApp opts =
+mkApp :: Opts -> IORef FederationDomainConfigs -> Log.Logger -> Codensity IO (Application, Env)
+mkApp opts fedDoms logger =
   do
     metrics <- lift $ M.metrics
-    env <- lift $ App.createEnv metrics opts
+    env <- lift $ App.createEnv metrics opts logger fedDoms
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
-
-    let logger = env ^. App.applog
-
     let middlewares =
           versionMiddleware (opts ^. optSettings . setDisabledAPIVersions . traverse)
             . servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
@@ -308,4 +308,3 @@ updateFedDomainsCallback old new = do
     -- FS-1179 is handling this part.
     let deletedDomains = Set.difference prevDoms currDoms
     deleteFederationDomain deletedDomains
-

@@ -11,6 +11,8 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
 import Data.Functor
+import Data.Hex
+import Data.IORef
 import Data.List
 import qualified Data.Map as Map
 import qualified Data.Text as T
@@ -22,6 +24,7 @@ import qualified Network.HTTP.Types as HTTP
 import Network.URI
 import Testlib.Env
 import Testlib.Printing
+import Prelude
 
 data Response = Response
   { jsonBody :: Maybe Aeson.Value,
@@ -30,6 +33,7 @@ data Response = Response
     headers :: [HTTP.Header],
     request :: HTTP.Request
   }
+  deriving (Show)
 
 instance HasField "json" Response (App Aeson.Value) where
   getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody
@@ -64,7 +68,7 @@ prettyResponse r =
             [ colored yellow "request body:",
               T.unpack . T.decodeUtf8 $ case Aeson.decode (L.fromStrict b) of
                 Just v -> L.toStrict (Aeson.encodePretty (v :: Aeson.Value))
-                Nothing -> b
+                Nothing -> hex b
             ],
         pure $ colored blue "response status: " <> show r.status,
         pure $ colored blue "response body:",
@@ -108,6 +112,24 @@ getServiceMap fedDomain = do
   env <- ask
   assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain (env.serviceMap))
 
+getMLSState :: App MLSState
+getMLSState = do
+  ref <- asks (.mls)
+  liftIO $ readIORef ref
+
+setMLSState :: MLSState -> App ()
+setMLSState s = do
+  ref <- asks (.mls)
+  liftIO $ writeIORef ref s
+
+modifyMLSState :: (MLSState -> MLSState) -> App ()
+modifyMLSState f = do
+  ref <- asks (.mls)
+  liftIO $ modifyIORef ref f
+
+getBaseDir :: App FilePath
+getBaseDir = fmap (.baseDir) getMLSState
+
 data AppFailure = AppFailure String
 
 instance Show AppFailure where
@@ -133,7 +155,7 @@ assertJust _ (Just x) = pure x
 assertJust msg Nothing = assertFailure msg
 
 addFailureContext :: String -> App a -> App a
-addFailureContext msg = modifyFailureMsg (\m -> m <> "\nThis failure happend in this context:\n" <> msg)
+addFailureContext msg = modifyFailureMsg (\m -> m <> "\nThis failure happened in this context:\n" <> msg)
 
 modifyFailureMsg :: (String -> String) -> App a -> App a
 modifyFailureMsg modMessage = modifyFailure (\e -> e {msg = modMessage e.msg})

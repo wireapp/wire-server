@@ -391,31 +391,9 @@ settings:
   federationDomain: example.com
 ```
 
-### Federation strategy: whom to federate with?
+### Federation allow list
 
-As of the release containing [PR#3260](https://github.com/wireapp/wire-server/pull/3260), federator gets its configuration from brig (which has a cassandra instance and is thus better equipped to handle persistent dynamic data).  See {ref}`configuring-remote-connections` for the whole story.
-
-Federation is turned off by default.  You can also turn it off
-explicitly by setting federation strategy "allowedDomains", and making
-sure that `brig.federation_remotes` (the response of the
-[`GET`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_federation_remotes)
-request is empty).
-
-```yaml
-# brig.yaml
-optSettings:
-  federationStrategy: allowedDomains
-```
-
-If you want to federate with all domains that ask, change this to:
-
-```yaml
-# brig.yaml
-optSettings:
-  federationStrategy: allowAll
-```
-
-If you want to federate selectively with a list of known peers, consult {ref}`configuring-remote-connections`.
+See {ref}`configuring-remote-connections` (since [PR#3260](https://github.com/wireapp/wire-server/pull/3260)).
 
 ### Federation TLS Config
 
@@ -600,11 +578,7 @@ any key package whose expiry date is set further than 15 days after upload time 
 
 #### Restrict user search
 
-You can configure search policies on a peer-by-peer basis, but using
-the config file for that is not supported any more since the release
-containing
-[PR#3260](https://github.com/wireapp/wire-server/pull/3260).  See
-{ref}`configuring-remote-connections` for how to do this now.
+See {ref}`configuring-remote-connections` (since [PR#3260](https://github.com/wireapp/wire-server/pull/3260)).
 
 
 ### API Versioning
