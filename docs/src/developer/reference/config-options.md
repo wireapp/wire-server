@@ -732,10 +732,10 @@ assets. The Haddock of `AWSOpts` provides a lot of useful information.
 
 #### Multi-Ingress setup
 
-In a multi-ingress setup the backend is reachable via several domains. This is
-useful to obfuscate the relationship of clients to each other, as an attacker on
-TCP/IP-level could only see domains and IPs that do not obviously relate to each
-other.
+In a multi-ingress setup the backend is reachable via several domains, each
+handled by a separate Kubernetes ingress. This is useful to obfuscate the
+relationship of clients to each other, as an attacker on TCP/IP-level could only
+see domains and IPs that do not obviously relate to each other.
 
 In case of a fake AWS S3 service its identity needs to be obfuscated by making
 it accessible via several domains, too. Thus, there isn't one
@@ -772,4 +772,52 @@ aws:
     - nginz-https.red.example.com: https://assets.red.example.com
     - nginz-https.blue.example.com: https://assets.blue.example.com
     - nginz-https.green.example.com: https://assets.green.example.com
+```
+
+
+This sequence diagram illustrates how users on different virtual backends
+(represented by different Kubernetes ingresses) download local assets according
+to the configuration example above:
+
+```{eval-rst}
+.. kroki::
+   :type: mermaid
+   :caption: Sequence Diagram: Alice and Bob download an asset
+
+    sequenceDiagram
+        actor alice(red)
+        Note over alice(red): Uses webapp.red.example.com
+        actor bob(green)
+        Note over bob(green): Uses webapp.green.example.com
+        participant ingress-red
+        Note over ingress-red: Routes *.red.example.com
+        participant ingress-green
+        Note over ingress-green: Routes *.green.example.com
+        participant nginz
+        participant cargohold
+        participant S3 storage
+        rect rgb(255, 127, 127)
+        note right of alice(red): Alice downloads asset
+        alice(red)->>ingress-red: Download local asset
+        ingress-red->>nginz: Forward request
+        nginz->>cargohold: Forward request - Add Z-Host header
+        activate cargohold
+        Note right of cargohold: Look up asset host URL for Z-Host
+        cargohold-->>alice(red): Redirect. Location: Storage via ingress-red
+        alice(red)->>ingress-red: Follow redirect
+        ingress-red->>S3 storage: Forward request
+        S3 storage-->alice(red): Return asset
+        end
+        rect rgb(161, 247, 167)
+        note right of bob(green): Bob downloads asset
+        bob(green)->>ingress-green: Download local asset
+        ingress-green->>nginz: Forward request
+        nginz->>cargohold: Forward request - Add Z-Host header
+        activate cargohold
+        Note right of cargohold: Look up asset host URL for Z-Host
+        cargohold-->>bob(green): Redirect. Location: Storage via ingress-green
+        bob(green)->>ingress-green: Follow redirect
+        ingress-green->>S3 storage: Forward request
+        S3 storage-->bob(green): Return asset
+        end
 ```
