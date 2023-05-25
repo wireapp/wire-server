@@ -46,6 +46,7 @@ testUploadAssetMultiIngressS3DownloadUrl = do
         locationHeaderHost resp `shouldMatch` "s3-download.green.example.com"
       bindResponse (downloadAsset' user key "unknown.example.com" noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 404
+        resp.json %. "label" `shouldMatch` "no-asset-endpoint"
   where
     noRedirects :: HTTP.Request -> HTTP.Request
     noRedirects req = (req {redirectCount = 0})

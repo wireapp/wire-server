@@ -64,12 +64,7 @@ uploadTooLarge =
     \is larger than the full upload size."
 
 noMatchingAssetEndpoint :: Error
-noMatchingAssetEndpoint =
-  mkError
-    status404
-    "no-asset-endpoint"
-    "No matching asset endpoint found. \
-    \Please contact your system administrator."
+noMatchingAssetEndpoint = errorToWai @'NoMatchingAssetEndpoint
 
 clientError :: LText -> Error
 clientError = mkError status400 "client-error"

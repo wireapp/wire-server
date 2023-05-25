@@ -284,6 +284,7 @@ type MainAPI =
                   \while remote assets are streamed directly."
              :> MakesFederatedCall 'Cargohold "get-asset"
              :> MakesFederatedCall 'Cargohold "stream-asset"
+             :> CanThrow 'NoMatchingAssetEndpoint
              :> ZLocalUser
              :> "assets"
              :> QualifiedCapture "key" AssetKey
