@@ -100,6 +100,7 @@ import Test.Tasty (TestName, TestTree)
 import Test.Tasty.Cannon
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
+import Test.Tasty.Pending (flakyTestCase)
 import Text.Printf (printf)
 import qualified UnliftIO.Async as Async
 import Util.Options
@@ -226,6 +227,9 @@ instance ToJSON SESNotification where
 
 test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)
+
+flakyTest :: Manager -> TestName -> Http a -> TestTree
+flakyTest m n h = flakyTestCase n (void $ runHttpT m h)
 
 twoRandomUsers :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m (Qualified UserId, UserId, Qualified UserId, UserId)
 twoRandomUsers brig = do
