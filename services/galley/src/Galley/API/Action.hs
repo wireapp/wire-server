@@ -217,7 +217,9 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Error NoChanges) r
     )
   HasConversationActionEffects 'ConversationUpdateProtocolTag r =
-    ( Member ConversationStore r,
+    ( Member BrigAccess r,
+      Member ClientStore r,
+      Member ConversationStore r,
       Member (ErrorS 'ConvInvalidProtocolTransition) r,
       Member (ErrorS OperationDenied) r,
       Member (Error NoChanges) r,

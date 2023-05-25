@@ -701,6 +701,7 @@ updateConversationProtocolWithLocalUser ::
     Member (Input (Local ())) r,
     Member (Input Opts) r,
     Member BrigAccess r,
+    Member ClientStore r,
     Member ConversationStore r,
     Member MemberStore r,
     Member TinyLog r,

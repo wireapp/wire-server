@@ -17,11 +17,20 @@
 
 module Galley.API.MLS.Migration (checkMigrationCriteria) where
 
+import Data.Qualified
 import Data.Time
 import Galley.API.MLS.Types
+import Galley.Effects.BrigAccess
+import Galley.Effects.ClientStore
+import Galley.Effects.FederatorAccess
+import Galley.Types.Clients
+import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Brig
 import Wire.API.Team.Feature
+import Wire.API.UserMap
 
 -- | Similar to @Ap f All@, but short-circuiting.
 --
@@ -38,7 +47,15 @@ instance Monad f => Semigroup (ApAll f) where
 instance Monad f => Monoid (ApAll f) where
   mempty = ApAll (pure True)
 
-checkMigrationCriteria :: UTCTime -> MLSConversation -> WithStatus MlsMigrationConfig -> Sem r Bool
+checkMigrationCriteria ::
+  ( Member BrigAccess r,
+    Member ClientStore r,
+    Member FederatorAccess r
+  ) =>
+  UTCTime ->
+  MLSConversation ->
+  WithStatus MlsMigrationConfig ->
+  Sem r Bool
 checkMigrationCriteria now conv ws
   | wsStatus ws == FeatureStatusDisabled = pure False
   | afterDeadline = pure True
@@ -54,8 +71,20 @@ checkMigrationCriteria now conv ws
     userPercentage = (numMLSUsers * 100) `div` max 1 numUsers
     userThresholdOK = ApAll . pure $ maybe True (userPercentage >=) mig.usersThreshold
 
+    mapLength :: Map k (Set a) -> Int
+    mapLength = getSum . foldMap (Sum . length)
+
     clientThresholdOK = ApAll $ do
-      -- TODO: count total number of clients
-      numClients <- pure 1
-      let clientPercentage = (length (cmIdentities conv.mcMembers) * 100) `div` max 1 numClients
+      numLocalClients <- do
+        let users = map lmId (conv.mcLocalMembers)
+        i <- useIntraClientListing
+        cs <- if i then fromUserClients <$> lookupClients users else getClients users
+        pure (mapLength (toMap cs))
+      numRemoteClients <- fmap (sum . map tUnqualified)
+        . runFederatedConcurrently (map rmId conv.mcRemoteMembers)
+        $ \ruids -> do
+          cs <- fedClient @'Brig @"get-user-clients" (GetUserClients (tUnqualified ruids))
+          pure (mapLength (userMap cs))
+      let numClients = numRemoteClients + numLocalClients
+          clientPercentage = (length (cmIdentities conv.mcMembers) * 100) `div` max 1 numClients
       pure $ maybe True (clientPercentage >=) mig.clientsThreshold

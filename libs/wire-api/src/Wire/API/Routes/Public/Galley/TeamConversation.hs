@@ -73,6 +73,7 @@ type TeamConversationAPI =
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> CanThrow ('ActionDenied 'DeleteConversation)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation

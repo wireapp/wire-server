@@ -87,4 +87,4 @@ conversationAPI =
     <@> mkNamedAPI @"get-conversation-self-unqualified" getLocalSelf
     <@> mkNamedAPI @"update-conversation-self-unqualified" updateUnqualifiedSelfMember
     <@> mkNamedAPI @"update-conversation-self" updateSelfMember
-    <@> mkNamedAPI @"update-conversation-protocol" updateConversationProtocolWithLocalUser
+    <@> mkNamedAPI @"update-conversation-protocol" (callsFed (exposeAnnotations updateConversationProtocolWithLocalUser))

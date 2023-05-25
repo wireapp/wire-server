@@ -464,6 +464,7 @@ onUserDeleted origDomain udcn = do
 updateConversation ::
   forall r.
   ( Member BrigAccess r,
+    Member ClientStore r,
     Member CodeStore r,
     Member BotAccess r,
     Member FireAndForget r,

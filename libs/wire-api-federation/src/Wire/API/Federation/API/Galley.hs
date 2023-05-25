@@ -67,7 +67,8 @@ type GalleyApi =
               MakesFederatedCall 'Galley "on-mls-message-sent",
               MakesFederatedCall 'Galley "on-new-remote-conversation",
               MakesFederatedCall 'Galley "on-new-remote-subconversation",
-              MakesFederatedCall 'Galley "on-delete-mls-conversation"
+              MakesFederatedCall 'Galley "on-delete-mls-conversation",
+              MakesFederatedCall 'Brig "get-user-clients"
             ]
            "leave-conversation"
            LeaveConversationRequest
@@ -98,7 +99,8 @@ type GalleyApi =
               MakesFederatedCall 'Galley "on-mls-message-sent",
               MakesFederatedCall 'Galley "on-delete-mls-conversation",
               MakesFederatedCall 'Galley "on-new-remote-conversation",
-              MakesFederatedCall 'Galley "on-new-remote-subconversation"
+              MakesFederatedCall 'Galley "on-new-remote-subconversation",
+              MakesFederatedCall 'Brig "get-user-clients"
             ]
            "update-conversation"
            ConversationUpdateRequest
@@ -124,8 +126,8 @@ type GalleyApi =
               MakesFederatedCall 'Galley "on-mls-message-sent",
               MakesFederatedCall 'Galley "on-new-remote-conversation",
               MakesFederatedCall 'Galley "on-new-remote-subconversation",
-              MakesFederatedCall 'Galley "send-mls-commit-bundle",
-              MakesFederatedCall 'Brig "get-mls-clients"
+              MakesFederatedCall 'Brig "get-mls-clients",
+              MakesFederatedCall 'Brig "get-user-clients"
             ]
            "send-mls-commit-bundle"
            MLSMessageSendRequest

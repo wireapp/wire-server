@@ -67,6 +67,7 @@ type LegalHoldAPI =
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> CanThrow AuthenticationError
                :> CanThrow OperationDenied
                :> CanThrow 'NotATeamMember
@@ -107,6 +108,7 @@ type LegalHoldAPI =
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
                :> CanThrow 'InvalidOperation
                :> CanThrow 'TeamMemberNotFound
@@ -126,6 +128,7 @@ type LegalHoldAPI =
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
@@ -158,6 +161,7 @@ type LegalHoldAPI =
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> CanThrow AuthenticationError
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
                :> CanThrow 'NotATeamMember
@@ -188,6 +192,7 @@ type LegalHoldAPI =
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> CanThrow AuthenticationError
                :> CanThrow 'AccessDenied
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
