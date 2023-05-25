@@ -71,7 +71,8 @@ data ServiceMap = ServiceMap
     galley :: HostPort,
     gundeck :: HostPort,
     nginz :: HostPort,
-    spar :: HostPort
+    spar :: HostPort,
+    proxy :: HostPort
   }
   deriving (Show, Generic)
 

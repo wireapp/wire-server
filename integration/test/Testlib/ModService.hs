@@ -11,12 +11,10 @@ import qualified Data.ByteString as BS
 import Data.Foldable
 import Data.Function
 import Data.Functor
-import qualified Data.Functor.Contravariant.Day as Map
 import qualified Data.Map.Strict as Map
 import Data.String.Conversions (cs)
 import Data.Text hiding (elem)
 import Data.Traversable
-import Data.Word (Word16)
 import qualified Data.Yaml as Yaml
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
@@ -114,7 +112,6 @@ withModifiedServices services action = do
       -- the location of the main configuration file.
       (ph, tempFile) <- do
         tmpDir <- liftIO $ createTempDirectory "/tmp" "nginz"
-        liftIO $ print $ "tmpDir: " <> tmpDir
         mBaseDir <- asks (.servicesCwdBase)
         basedir <- maybe (failApp "service cwd base not found") pure mBaseDir
         let srvName = serviceName Nginz
@@ -155,20 +152,20 @@ listen [::]:{ssl_port} ssl http2;
 |]
 
         forM_
-          [ (Brig, sm.brig.port),
-            (Cannon, sm.cannon.port),
-            (Cargohold, sm.cargohold.port),
-            (Galley, sm.galley.port),
-            (Gundeck, sm.gundeck.port),
-            (Nginz, sm.nginz.port),
-            (Spar, sm.spar.port)
+          [ (serviceName Brig, sm.brig.port),
+            (serviceName Cannon, sm.cannon.port),
+            (serviceName Cargohold, sm.cargohold.port),
+            (serviceName Galley, sm.galley.port),
+            (serviceName Gundeck, sm.gundeck.port),
+            (serviceName Nginz, sm.nginz.port),
+            (serviceName Spar, sm.spar.port),
+            ("proxy", sm.proxy.port)
           ]
           ( \case
               (srv, port) -> do
-                liftIO $ print $ "upstream service: " <> show srv
                 let upstream =
                       upstreamTemplate
-                        & replace (cs "{name}") (cs $ serviceName srv)
+                        & replace (cs "{name}") (cs $ srv)
                         & replace (cs "{port}") (cs $ show port)
                 liftIO $ appendFile upstreamsCfg (cs upstream)
           )
