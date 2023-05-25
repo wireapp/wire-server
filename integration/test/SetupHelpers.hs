@@ -60,3 +60,25 @@ getAllConvs u = do
     resp.status `shouldMatchInt` 200
     resp.json
   result %. "found" & asList
+
+-- | Setup a team user, another user, connect the two, create a proteus
+-- conversation, upgrade to mixed. Return the two users and the conversation.
+simpleMixedConversationSetup ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  App (Value, Value, Value)
+simpleMixedConversationSetup secondDomain = do
+  (alice, tid) <- createTeam OwnDomain
+  bob <- randomUser secondDomain def
+  connectUsers [alice, bob]
+
+  conv <-
+    postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
+      >>= getJSON 201
+
+  bindResponse (putConversationProtocol bob conv "mixed") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  conv' <- getConversation alice conv >>= getJSON 200
+
+  pure (alice, bob, conv')
