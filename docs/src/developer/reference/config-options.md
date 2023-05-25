@@ -743,12 +743,16 @@ it accessible via several domains, too. Thus, there isn't one
 DNS domain at which it is reachable. This does not directly relate to the
 federation domain!)
 
-The backend domain of a request is defined by its `Z-Host` header which is set
-by `nginz`.
+The backend domain of a download request is defined by its `Z-Host` header which
+is set by `nginz`. (Multi-ingress handlling only applies to download requests as
+these are implemented by redirects to the S3 assets host for local assets.
+Uploads are handled by cargohold directly itself.)
 
 The config `aws.multiIngress` is a map from backend domain (`Z-Host` header
 value) to a S3 download endpoint. The `Z-Host` header is set by `nginz` to the
-value of the incoming requests `Host` header.
+value of the incoming requests `Host` header. If there's no config map entry for
+a provided `Z-Host` in a download request for a local asset, then an error is
+returned.
 
 This example shows a setup with fake backends *red*, *green* and *blue*:
 
@@ -757,7 +761,7 @@ aws:
   # S3 endpoint for internal communication (cargohold -> S3)
   s3Endpoint: http://s3.internal.example
 
-  # Default in case there's no match for the backend domain
+  # This option is ignored when multiIngress is configured
   s3DownloadEndpoint: https://assets.default.example.com
 
   # Other settings can still be used

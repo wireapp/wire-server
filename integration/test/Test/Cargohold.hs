@@ -37,8 +37,7 @@ testUploadAssetMultiIngressS3DownloadUrl = do
     modifyConfig
     $ do
       bindResponse (downloadAsset user key noRedirects) $ \resp -> do
-        resp.status `shouldMatchInt` 302
-        locationHeaderHost resp `shouldMatch` "s3-download.example.com"
+        resp.status `shouldMatchInt` 404
       bindResponse (downloadAsset' user key "red.example.com" noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 302
         locationHeaderHost resp `shouldMatch` "s3-download.red.example.com"
@@ -46,8 +45,7 @@ testUploadAssetMultiIngressS3DownloadUrl = do
         resp.status `shouldMatchInt` 302
         locationHeaderHost resp `shouldMatch` "s3-download.green.example.com"
       bindResponse (downloadAsset' user key "unknown.example.com" noRedirects) $ \resp -> do
-        resp.status `shouldMatchInt` 302
-        locationHeaderHost resp `shouldMatch` "s3-download.example.com"
+        resp.status `shouldMatchInt` 404
   where
     noRedirects :: HTTP.Request -> HTTP.Request
     noRedirects req = (req {redirectCount = 0})

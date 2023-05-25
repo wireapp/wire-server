@@ -63,6 +63,14 @@ uploadTooLarge =
     "The current chunk size + offset \
     \is larger than the full upload size."
 
+noMatchingAssetEndpoint :: Error
+noMatchingAssetEndpoint =
+  mkError
+    status404
+    "no-asset-endpoint"
+    "No matching asset endpoint found. \
+    \Please contact your system administrator."
+
 clientError :: LText -> Error
 clientError = mkError status400 "client-error"
 

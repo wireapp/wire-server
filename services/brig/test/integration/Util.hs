@@ -849,9 +849,6 @@ zClient = header "Z-Client" . toByteString'
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
-zHost :: ByteString -> Request -> Request
-zHost = header "Z-Host"
-
 mkEmailRandomLocalSuffix :: MonadIO m => Text -> m Email
 mkEmailRandomLocalSuffix e = do
   uid <- liftIO UUID.nextRandom

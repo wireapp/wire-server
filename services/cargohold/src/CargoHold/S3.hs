@@ -101,12 +101,18 @@ uploadV3 ::
   ExceptT Error App ()
 uploadV3 prc (s3Key . mkKey -> key) originalHeaders@(V3.AssetHeaders _ cl) tok src = do
   Log.info $
-    "remote" .= val "S3"
-      ~~ "asset.owner" .= toByteString prc
-      ~~ "asset.key" .= key
-      ~~ "asset.type_from_request_ignored" .= MIME.showType (V3.hdrType originalHeaders)
-      ~~ "asset.type" .= MIME.showType ct
-      ~~ "asset.size" .= cl
+    "remote"
+      .= val "S3"
+      ~~ "asset.owner"
+      .= toByteString prc
+      ~~ "asset.key"
+      .= key
+      ~~ "asset.type_from_request_ignored"
+      .= MIME.showType (V3.hdrType originalHeaders)
+      ~~ "asset.type"
+      .= MIME.showType ct
+      ~~ "asset.size"
+      .= cl
       ~~ msg (val "Uploading asset")
   void $ exec req
   where
@@ -155,8 +161,10 @@ downloadV3 (s3Key . mkKey -> key) = do
 getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)
 getMetadataV3 (s3Key . mkKey -> key) = do
   Log.debug $
-    "remote" .= val "S3"
-      ~~ "asset.key" .= key
+    "remote"
+      .= val "S3"
+      ~~ "asset.key"
+      .= key
       ~~ msg
         (val "Getting asset metadata")
   maybe (pure Nothing) handle =<< execCatch req
@@ -175,12 +183,16 @@ getMetadataV3 (s3Key . mkKey -> key) = do
 deleteV3 :: V3.AssetKey -> ExceptT Error App ()
 deleteV3 (s3Key . mkKey -> key) = do
   Log.debug $
-    "remote" .= val "S3"
-      ~~ "asset.key" .= key
+    "remote"
+      .= val "S3"
+      ~~ "asset.key"
+      .= key
       ~~ msg (val "Deleting asset")
   Log.debug $
-    "remote" .= val "S3"
-      ~~ "asset.key" .= key
+    "remote"
+      .= val "S3"
+      ~~ "asset.key"
+      .= key
       ~~ msg (val "Deleting asset")
   void $ exec req
   where
@@ -189,9 +201,12 @@ deleteV3 (s3Key . mkKey -> key) = do
 updateMetadataV3 :: V3.AssetKey -> S3AssetMeta -> ExceptT Error App ()
 updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
   Log.debug $
-    "remote" .= val "S3"
-      ~~ "asset.owner" .= show prc
-      ~~ "asset.key" .= key
+    "remote"
+      .= val "S3"
+      ~~ "asset.owner"
+      .= show prc
+      ~~ "asset.key"
+      .= key
       ~~ msg (val "Updating asset metadata")
   void $ exec req
   where
@@ -207,8 +222,8 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
         & copyObject_metadataDirective ?~ MetadataDirective_REPLACE
         & copyObject_metadata .~ metaHeaders tok prc
 
-signedURL :: (ToByteString p) => p -> Text -> ExceptT Error App URI
-signedURL path hostHeader = do
+signedURL :: (ToByteString p) => p -> Maybe Text -> ExceptT Error App URI
+signedURL path mbHost = do
   e <- awsEnvForHost
   let b = view AWS.s3Bucket e
   now <- liftIO getCurrentTime
@@ -221,7 +236,8 @@ signedURL path hostHeader = do
     toUri x = case parseURI strictURIParserOptions x of
       Left e -> do
         Log.err $
-          "remote" .= val "S3"
+          "remote"
+            .= val "S3"
             ~~ msg (val "Failed to generate a signed URI")
             ~~ msg (show e)
         throwE serverError
@@ -229,26 +245,36 @@ signedURL path hostHeader = do
 
     awsEnvForHost :: ExceptT Error App AWS.Env
     awsEnvForHost = do
-      Log.debug $
-        "host"
-          .= hostHeader
-          ~~ msg (val "awsEnvForHost - Looking up multiIngress config.")
-      mbHostAwsEnv <- view (multiIngress . at (Text.unpack hostHeader))
-      case mbHostAwsEnv of
-        Nothing -> do
+      multiIngressConf <- view multiIngress
+      if null multiIngressConf
+        then view aws
+        else awsEnvForHost' mbHost multiIngressConf
+      where
+        awsEnvForHost' :: Maybe Text -> Map String AWS.Env -> ExceptT Error App AWS.Env
+        awsEnvForHost' Nothing _ = do
+          Log.debug $
+            msg (val "awsEnvForHost - multiIngress configured, but no Z-Host header provided.")
+          throwE noMatchingAssetEndpoint
+        awsEnvForHost' (Just host) multiIngressConf = do
           Log.debug $
             "host"
-              .= hostHeader
-              ~~ msg (val "awsEnvForHost - multiIngress lookup failed, using default AWS env.")
-          view aws
-        Just hostAwsEnv -> do
-          Log.debug $
-            "host"
-              .= hostHeader
-              ~~ "s3DownloadEndpoint"
-                .= show (hostAwsEnv ^. AWS.amazonkaDownloadEndpoint)
-              ~~ msg (val "awsEnvForHost - multiIngress lookup succeed, using specific AWS env.")
-          pure hostAwsEnv
+              .= host
+              ~~ msg (val "awsEnvForHost - Looking up multiIngress config.")
+          case multiIngressConf ^. at (Text.unpack host) of
+            Nothing -> do
+              Log.debug $
+                "host"
+                  .= host
+                  ~~ msg (val "awsEnvForHost - multiIngress lookup failed, no config for provided Z-Host header.")
+              throwE noMatchingAssetEndpoint
+            Just hostAwsEnv -> do
+              Log.debug $
+                "host"
+                  .= host
+                  ~~ "s3DownloadEndpoint"
+                  .= show (hostAwsEnv ^. AWS.amazonkaDownloadEndpoint)
+                  ~~ msg (val "awsEnvForHost - multiIngress lookup succeed, using specific AWS env.")
+              pure hostAwsEnv
 
 mkKey :: V3.AssetKey -> S3AssetKey
 mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key
