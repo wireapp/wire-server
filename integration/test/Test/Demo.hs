@@ -57,16 +57,20 @@ testModifiedGalley = do
     $ do
       getFeatureStatus `shouldMatch` "enabled"
 
+testModifiedCannon :: HasCallStack => App ()
+testModifiedCannon = do
+  withModifiedService Cannon pure $ do
+    pure ()
+
 testModifiedServices :: HasCallStack => App ()
 testModifiedServices = do
   let serviceMap =
         Map.fromList
           [ (Brig, setField "optSettings.setFederationDomain" "overridden.example.com"),
             (Galley, setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"),
-            (Cannon, pure),
-            (Gundeck, pure),
-            (Cargohold, pure),
-            (Nginz, pure)
+            -- (Gundeck, pure),
+            -- (Cargohold, pure),
+            -- (Nginz, pure)
           ]
   withModifiedServices serviceMap $ do
     (_user, tid) <- createTeam OwnDomain

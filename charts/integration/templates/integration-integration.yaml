@@ -33,9 +33,14 @@ spec:
       configMap:
         name: "turn"
 
+    - name: "cannon-config"
+      configMap:
+        name: cannon
+
   restartPolicy: Never
 
   initContainers:
+  # FUTUREWORK: reproduce brig's initContainers (for geoip)
   - name: integration-setup
     image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
     env:
@@ -62,23 +67,26 @@ spec:
         cpu: "2"
     volumeMounts:
 
-    - name: "integration-config"
-      mountPath: "/etc/wire/integration"
+    - name: integration-confg
+      mountPath: /etc/wire/integration
 
-    - name: "galley-config"
-      mountPath: "/etc/wire/galley/conf"
+    - name: galley-config
+      mountPath: /etc/wire/galley/conf
 
-    - name: "galley-secrets"
-      mountPath: "/etc/wire/galley/secrets"
+    - name: galley-secrets
+      mountPath: /etc/wire/galley/secrets
 
-    - name: "brig-config"
-      mountPath: "/etc/wire/brig/conf"
+    - name: brig-config
+      mountPath: /etc/wire/brig/conf
 
-    - name: "brig-secrets"
-      mountPath: "/etc/wire/brig/secrets"
+    - name: brig-secrets
+      mountPath: /etc/wire/brig/secrets
 
-    - name: "turn-servers"
-      mountPath: "/etc/wire/brig/turn"
+    - name: turn-servers
+      mountPath: /etc/wire/brig/turn
+
+    - name: cannon-config
+      mountPath: /etc/wire/cannon/conf
 
     env:
     # these dummy values are necessary for Amazonka's "Discover"
