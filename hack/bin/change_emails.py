@@ -1,44 +1,43 @@
 #!/usr/bin/env python3
 
-'''Repair pending email confirmations after scim email update
-
-When updating email addresses (ie., externalIds) via scim in a team
-where users should have their email addresses validated, when a user
-doesn't follow up on the confirmation email (aka validation email),
-after expiration of the validation credentials, the system goes into
-an undesired state:
-
-```
-brig.user.email = <old, valid address>
-brig.user.unvalidated_email = null
-spar.scim_external.external_id = <new, unvalidated email address>
-```
-
-There is no way for the team/scim admins to recover from this state,
-since a scim update is ignored and doesn't send a new confirmation
-email.
-
-If you have this problem, AND YOU HAVE CONFIRMED INTERFERING DOING
-THIS IS LEGAL AND EITHER HAS OR DOES NOT LEGALLY REQUIRE THE CONSENT
-OF THE AFFECTED USERS, then you can run this script instead.
-
-Start by editing Section `configure this section` to your taste.  You
-may need to create a new scim token for this, and
-https://docs.wire.com/understand/single-sign-on/understand/main.html#using-scim-via-curl
-may prove useful in that if you are customer support and have no
-account in the team.  Remember to clean up after yourself and remove
-the token when you're done!
-
-`filename` should consist of rows of the form
-`old_email,user_id,new_email`.
-
-The script goes through this file, and for every user: (1) changes the
-email address to `old_email` and emulates the confirmation flow (the
-user doesn't have to do anything); (2) then changes the email address
-to `new_email`, again emulating the confirmation flow.  (1) is needed
-because changing to the new email twice will cause spar to notice that
-the external_id is already `new_email`, and doesn't do anything.
-'''
+# Repair pending email confirmations after scim email update
+#
+# When updating email addresses (ie., externalIds) via scim in a team
+# where users should have their email addresses validated, when a user
+# doesn't follow up on the confirmation email (aka validation email),
+# after expiration of the validation credentials, the system goes into
+# an undesired state:
+#
+# ```
+# brig.user.email = <old, valid address>
+# brig.user.unvalidated_email = null
+# spar.scim_external.external_id = <new, unvalidated email address>
+# ```
+#
+# There is no way for the team/scim admins to recover from this state,
+# since a scim update is ignored and doesn't send a new confirmation
+# email.
+#
+# If you have this problem, AND YOU HAVE CONFIRMED INTERFERING DOING
+# THIS IS LEGAL AND EITHER HAS OR DOES NOT LEGALLY REQUIRE THE CONSENT
+# OF THE AFFECTED USERS, then you can run this script instead.
+#
+# Start by editing Section `configure this section` to your taste.  You
+# may need to create a new scim token for this, and
+# https://docs.wire.com/understand/single-sign-on/understand/main.html#using-scim-via-curl
+# may prove useful in that if you are customer support and have no
+# account in the team.  Remember to clean up after yourself and remove
+# the token when you're done!
+#
+# `filename` should consist of rows of the form
+# `old_email,user_id,new_email`.
+#
+# The script goes through this file, and for every user: (1) changes the
+# email address to `old_email` and emulates the confirmation flow (the
+# user doesn't have to do anything); (2) then changes the email address
+# to `new_email`, again emulating the confirmation flow.  (1) is needed
+# because changing to the new email twice will cause spar to notice that
+# the external_id is already `new_email`, and doesn't do anything.
 
 from wire import api
 from wire.context import Context
