@@ -62,13 +62,17 @@ testModifiedCannon = do
   withModifiedService Cannon pure $ do
     pure ()
 
+testModifiedGundeck :: HasCallStack => App ()
+testModifiedGundeck = do
+  withModifiedService Gundeck pure $ do
+    pure ()
+
 testModifiedServices :: HasCallStack => App ()
 testModifiedServices = do
   let serviceMap =
         Map.fromList
           [ (Brig, setField "optSettings.setFederationDomain" "overridden.example.com"),
             (Galley, setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"),
-            -- (Gundeck, pure),
             -- (Cargohold, pure),
             -- (Nginz, pure)
           ]

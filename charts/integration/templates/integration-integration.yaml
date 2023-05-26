@@ -37,6 +37,10 @@ spec:
       configMap:
         name: cannon
 
+    - name: "gundeck-config"
+      configMap:
+        name: "gundeck"
+
   restartPolicy: Never
 
   initContainers:
@@ -87,6 +91,9 @@ spec:
 
     - name: cannon-config
       mountPath: /etc/wire/cannon/conf
+
+    - name: gundeck-config
+      mountPath: /etc/wire/gundeck/conf
 
     env:
     # these dummy values are necessary for Amazonka's "Discover"
