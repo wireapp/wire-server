@@ -263,7 +263,7 @@ setFeatureLockStatus FeatureSingletonSelfDeletingMessagesConfig tid status = set
 setFeatureLockStatus FeatureSingletonGuestLinksConfig tid status = setLockStatusC "guest_links_lock_status" tid status
 setFeatureLockStatus FeatureSingletonSndFactorPasswordChallengeConfig tid status = setLockStatusC "snd_factor_password_challenge_lock_status" tid status
 setFeatureLockStatus FeatureSingletonMlsE2EIdConfig tid status = setLockStatusC "mls_e2eid_lock_status" tid status
-setFeatureLockStatus FeatureSingletonMlsMigration tid status = setLockStatusC "outlook_cal_integration_lock_status" tid status
+setFeatureLockStatus FeatureSingletonMlsMigration tid status = setLockStatusC "mls_migration_lock_status" tid status
 setFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid status = setLockStatusC "outlook_cal_integration_lock_status" tid status
 setFeatureLockStatus _ _tid _status = pure ()
 
