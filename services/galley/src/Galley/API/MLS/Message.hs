@@ -407,8 +407,8 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
     MLSMessageResponseUnreachableBackends ds ->
       throw . InternalErrorWithDescription $
-        "An application message to a remote conversation should not ever \
-        \return a non-empty list of domains a commit could not be \
+        "An application or proposal message to a remote conversation should \
+        \not ever return a non-empty list of domains a commit could not be \
         \sent to. The remote end returned: "
           <> LT.pack (intercalate ", " (show <$> Set.toList (Set.map domainText ds)))
     MLSMessageResponseUpdates updates unreachables -> do
