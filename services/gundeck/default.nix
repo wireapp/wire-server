@@ -57,7 +57,6 @@
 , safe-exceptions
 , scientific
 , servant-server
-, string-conversions
 , tagged
 , tasty
 , tasty-hunit
@@ -203,7 +202,6 @@ mkDerivation {
     quickcheck-instances
     quickcheck-state-machine
     scientific
-    string-conversions
     tasty
     tasty-hunit
     tasty-quickcheck
