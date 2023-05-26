@@ -43,6 +43,10 @@ data:
       host: spar.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080
 
+    proxy:
+      host: proxy.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
     originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
 
     backendTwo:
@@ -81,6 +85,10 @@ data:
 
       spar:
         host: cannon.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
+      proxy:
+        host: proxy.{{ .Release.Namespace }}-fed2.svc.cluster.local
         port: 8080
 
       originDomain: federation-test-helper.{{ .Release.Namespace }}-fed2.svc.cluster.local
