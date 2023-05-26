@@ -25,7 +25,6 @@ import Data.Metrics.Servant
 import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.Swagger
-import Data.Typeable
 import GHC.TypeLits
 import Imports
 import Servant
@@ -44,8 +43,8 @@ class RenderableSymbol a where
 instance {-# OVERLAPPABLE #-} KnownSymbol a => RenderableSymbol a where
   renderSymbol = cs $ symbolVal (Proxy @a)
 
-instance {-# OVERLAPPING #-} (RenderableSymbol a, Typeable b) => RenderableSymbol (a, b) where
-  renderSymbol = "(" <> renderSymbol @a <> ", " <> (cs . show . typeRep $ (Proxy @b)) <> ")"
+instance {-# OVERLAPPING #-} (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol (a, b) where
+  renderSymbol = "(" <> (renderSymbol @a) <> ", " <> (renderSymbol @b) <> ")"
 
 instance (HasSwagger api, RenderableSymbol name) => HasSwagger (Named name api) where
   toSwagger _ =
