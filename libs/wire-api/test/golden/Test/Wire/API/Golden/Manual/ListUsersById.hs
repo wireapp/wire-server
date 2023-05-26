@@ -23,6 +23,7 @@ import Data.Domain
 import Data.Id
 import Data.LegalHold
 import Data.Qualified
+import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Imports
 import Wire.API.User
@@ -49,7 +50,8 @@ profile1 =
       profileExpire = Nothing,
       profileTeam = Nothing,
       profileEmail = Nothing,
-      profileLegalholdStatus = UserLegalHoldDisabled
+      profileLegalholdStatus = UserLegalHoldDisabled,
+      profileSupportedProtocols = defSupportedProtocols
     }
 profile2 =
   UserProfile
@@ -64,7 +66,8 @@ profile2 =
       profileExpire = Nothing,
       profileTeam = Nothing,
       profileEmail = Nothing,
-      profileLegalholdStatus = UserLegalHoldDisabled
+      profileLegalholdStatus = UserLegalHoldDisabled,
+      profileSupportedProtocols = Set.fromList [BaseProtocolProteusTag, BaseProtocolMLSTag]
     }
 
 testObject_ListUsersById_user_1 :: ListUsersById
