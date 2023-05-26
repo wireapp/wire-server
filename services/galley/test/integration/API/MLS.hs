@@ -251,10 +251,6 @@ tests s =
         ]
     ]
 
--- FUTUREWORK: implement testDeleteRemoteParentOfSubConv in global integration tests
--- alice's backend deletes the main conversation
--- cannot be achieved, since on-conversation-deleted is gone
-
 postMLSConvFail :: TestM ()
 postMLSConvFail = do
   qalice <- randomQualifiedUser

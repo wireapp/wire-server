@@ -331,6 +331,60 @@ testJoinSubConv = do
     createExternalCommit alice1 Nothing
       >>= sendAndConsumeCommitBundle
 
+testDeleteParentOfSubConv :: HasCallStack => Domain -> App ()
+testDeleteParentOfSubConv secondDomain = do
+  (alice, tid) <- createTeam OwnDomain
+  bob <- randomUser secondDomain def
+  connectUsers [alice, bob]
+
+  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+  traverse_ uploadNewKeyPackage [alice1, bob1]
+  (_, qcnv) <- createNewGroup alice1
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+  sub <- bindResponse (getSubConversation bob qcnv "conference") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json
+  resetGroup bob1 sub
+
+  -- bob adds his client to the subconversation
+  void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
+
+  -- alice joins with her own client
+  void $ createExternalCommit alice1 Nothing >>= sendAndConsumeCommitBundle
+
+  -- bob sends a message to the subconversation
+  do
+    mp <- createApplicationMessage bob1 "hello, alice"
+    void . bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+
+  -- alice sends a message to the subconversation
+  do
+    mp <- createApplicationMessage bob1 "hello, bob"
+    void . bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+
+  -- alice deletes main conversation
+  void . bindResponse (deleteTeamConv tid qcnv alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  -- bob fails to send a message to the subconversation
+  do
+    mp <- createApplicationMessage bob1 "hello, alice"
+    void . bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+      case secondDomain of
+        OwnDomain -> resp.json %. "label" `shouldMatch` "no-conversation"
+        OtherDomain -> resp.json %. "label" `shouldMatch` "no-conversation-member"
+
+  -- alice fails to send a message to the subconversation
+  do
+    mp <- createApplicationMessage alice1 "hello, bob"
+    void . bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+      resp.json %. "label" `shouldMatch` "no-conversation"
+
 -- | FUTUREWORK: Don't allow partial adds, not even in the first commit
 testFirstCommitAllowsPartialAdds :: HasCallStack => App ()
 testFirstCommitAllowsPartialAdds = do
