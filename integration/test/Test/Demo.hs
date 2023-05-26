@@ -72,7 +72,7 @@ testModifiedServices = do
   let serviceMap =
         Map.fromList
           [ (Brig, setField "optSettings.setFederationDomain" "overridden.example.com"),
-            (Galley, setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"),
+            (Galley, setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
             -- (Cargohold, pure),
             -- (Nginz, pure)
           ]
