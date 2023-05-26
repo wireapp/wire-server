@@ -15,11 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.Commit.InternalCommit
-  ( InternalCommitOutcome (..),
-    processInternalCommit,
-  )
-where
+module Galley.API.MLS.Commit.InternalCommit (processInternalCommit) where
 
 import Control.Comonad
 import Control.Error.Util (hush)
@@ -63,11 +59,6 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
 import Wire.API.User.Client
 
-data InternalCommitOutcome = InternalCommitOutcome
-  { updates :: [LocalConversationUpdate],
-    failedToProcess :: FailedToProcess
-  }
-
 processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
@@ -86,7 +77,7 @@ processInternalCommit ::
   Epoch ->
   ProposalAction ->
   Commit ->
-  Sem r InternalCommitOutcome
+  Sem r [LocalConversationUpdate]
 processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
   let convOrSub = tUnqualified lConvOrSub
       qusr = cidQualifiedUser senderIdentity
@@ -105,7 +96,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
     when (is _SubConv convOrSub && any ((senderIdentity /=) . fst) (cmAssocs (paAdd action))) $
       throw (mlsProtocolError "Add proposals in subconversations are not supported")
 
-    (events, failedToProcess) <-
+    events <-
       if convOrSub.migrationState == MLSMigrationMLS
         then do
           -- Note [client removal]
@@ -175,7 +166,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
                         -- FUTUREWORK: turn this error into a proper response
                         throwS @'MLSClientMismatch
                     pure Nothing
-          for_ (unreachableFromList failedAddFetching) throwUnreachable
+          for_ (unreachableFromList failedAddFetching) throwUnreachableUsers
 
           -- remove users from the conversation and send events
           removeEvents <-
@@ -208,9 +199,8 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
               . nonEmpty
               . map fst
               $ newUserClients
-          let failedToProcess = snd addEvents <> snd removeEvents
-          pure (fst addEvents <> fst removeEvents, failedToProcess)
-        else pure ([], mempty)
+          pure (addEvents <> removeEvents)
+        else pure []
 
     -- Remove clients from the conversation state. This includes client removals
     -- of all types (see Note [client removal]).
@@ -224,11 +214,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
     -- increment epoch number
     for_ lConvOrSub incrementEpoch
 
-    pure $
-      InternalCommitOutcome
-        { updates = events,
-          failedToProcess = failedToProcess
-        }
+    pure events
 
 addMembers ::
   HasProposalActionEffects r =>
@@ -237,7 +223,7 @@ addMembers ::
   Maybe ConnId ->
   Local ConvOrSubConv ->
   NonEmpty (Qualified UserId) ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r [LocalConversationUpdate]
 addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   Conv mlsConv -> do
     let lconv = qualifyAs lConvOrSub (mcConv mlsConv)
@@ -254,10 +240,10 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
         . filter (flip Set.notMember (existingMembers lconv))
         . toList
         $ users
-    for_ (add ftp) throwUnreachable
+    for_ (add ftp) throwUnreachableUsers
 
-    pure (lcus, ftp)
-  SubConv _ _ -> pure ([], mempty)
+    pure lcus
+  SubConv _ _ -> pure []
 
 removeMembers ::
   HasProposalActionEffects r =>
@@ -266,7 +252,7 @@ removeMembers ::
   Maybe ConnId ->
   Local ConvOrSubConv ->
   NonEmpty (Qualified UserId) ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r [LocalConversationUpdate]
 removeMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   Conv mlsConv -> do
     let lconv = qualifyAs lConvOrSub (mcConv mlsConv)
@@ -281,10 +267,10 @@ removeMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
         . filter (flip Set.member (existingMembers lconv))
         . toList
         $ users
-    for_ (remove ftp) throwUnreachable
+    for_ (remove ftp) throwUnreachableUsers
 
-    pure (lcus, ftp)
-  SubConv _ _ -> pure ([], mempty)
+    pure lcus
+  SubConv _ _ -> pure []
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError

@@ -143,7 +143,7 @@ remotePostCommitBundle ::
   Remote ClientIdentity ->
   Qualified ConvOrSubConvId ->
   ByteString ->
-  m ([Event], FailedToProcess)
+  m [Event]
 remotePostCommitBundle rsender qcs bundle = do
   client <- view tsFedGalleyClient
   let msr =
@@ -168,20 +168,23 @@ remotePostCommitBundle rsender qcs bundle = do
       MLSMessageResponseProposalFailure e ->
         assertFailure $
           "proposal failure while receiving commit bundle: " <> displayException e
-      MLSMessageResponseUpdates _ _ -> pure ([], mempty)
+      e@(MLSMessageResponseUnreachableBackends _) ->
+        assertFailure $
+          "error while receiving commit bundle: " <> show e
+      MLSMessageResponseUpdates _ _ -> pure []
 
 postCommitBundle ::
   HasCallStack =>
   ClientIdentity ->
   Qualified ConvOrSubConvId ->
   ByteString ->
-  TestM ([Event], FailedToProcess)
+  TestM [Event]
 postCommitBundle sender qcs bundle = do
   loc <- qualifyLocal ()
   foldQualified
     loc
     ( \_ ->
-        fmap (mmssEvents &&& mmssFailedToProcess) . responseJsonError
+        fmap mmssEvents . responseJsonError
           =<< localPostCommitBundle sender bundle
             <!! const 201 === statusCode
     )
@@ -862,11 +865,11 @@ consumeMessage1 cid msg =
 
 -- | Send an MLS message and simulate clients receiving it. If the message is a
 -- commit, the 'sendAndConsumeCommit' function should be used instead.
-sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], FailedToProcess)
+sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], Maybe UnreachableUsers)
 sendAndConsumeMessage mp = do
   for_ mp.mpWelcome $ \_ -> liftIO $ assertFailure "use sendAndConsumeCommitBundle"
   res <-
-    fmap (mmssEvents Tuple.&&& mmssFailedToProcess) $
+    fmap (mmssEvents Tuple.&&& mmssFailedToSendTo) $
       responseJsonError
         =<< postMessage (mpSender mp) (mpMessage mp)
           <!! const 201 === statusCode
@@ -887,7 +890,7 @@ sendAndConsumeCommit = fmap fst . sendAndConsumeCommitFederated
 sendAndConsumeCommitFederated ::
   HasCallStack =>
   MessagePackage ->
-  MLSTest ([Event], FailedToProcess)
+  MLSTest ([Event], Maybe UnreachableUsers)
 sendAndConsumeCommitFederated mp = do
   resp <- sendAndConsumeMessage mp
 
@@ -921,13 +924,7 @@ createBundle mp = do
   pure (encodeMLS' bundle)
 
 sendAndConsumeCommitBundle :: HasCallStack => MessagePackage -> MLSTest [Event]
-sendAndConsumeCommitBundle = fmap fst . sendAndConsumeCommitBundleFederated
-
-sendAndConsumeCommitBundleFederated ::
-  HasCallStack =>
-  MessagePackage ->
-  MLSTest ([Event], FailedToProcess)
-sendAndConsumeCommitBundleFederated mp = do
+sendAndConsumeCommitBundle mp = do
   qcs <- getConvId
   bundle <- createBundle mp
   resp <- liftTest $ postCommitBundle (mpSender mp) qcs bundle

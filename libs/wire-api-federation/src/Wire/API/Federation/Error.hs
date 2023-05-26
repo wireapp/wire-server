@@ -77,7 +77,8 @@ module Wire.API.Federation.Error
     federationNotConfigured,
 
     -- * utilities
-    throwUnreachable,
+    throwUnreachableUsers,
+    throwUnreachableDomains,
   )
 where
 
@@ -351,11 +352,13 @@ federationUnknownError =
 --------------------------------------------------------------------------------
 -- Utilities
 
-throwUnreachable :: Member (P.Error FederationError) r => UnreachableUsers -> Sem r a
-throwUnreachable =
-  P.throw
-    . FederationUnreachableDomains
+throwUnreachableUsers :: Member (P.Error FederationError) r => UnreachableUsers -> Sem r a
+throwUnreachableUsers =
+  throwUnreachableDomains
     . Set.fromList
     . NE.toList
     . fmap qDomain
     . unreachableUsers
+
+throwUnreachableDomains :: Member (P.Error FederationError) r => Set Domain -> Sem r a
+throwUnreachableDomains = P.throw . FederationUnreachableDomains

@@ -30,11 +30,16 @@ module Galley.API.MLS.Message
 where
 
 import Control.Comonad
+import Data.Domain
 import Data.Id
 import Data.Json.Util
+import qualified Data.List.NonEmpty as NE
 import Data.Qualified
+import qualified Data.Set as Set
+import qualified Data.Text.Lazy as LT
 import Data.Tuple.Extra
 import Galley.API.Action
+import Galley.API.Error
 import Galley.API.MLS.Commit
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Enabled
@@ -149,7 +154,7 @@ postMLSCommitBundle ::
   Qualified ConvOrSubConvId ->
   Maybe ConnId ->
   IncomingBundle ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r [LocalConversationUpdate]
 postMLSCommitBundle loc qusr c qConvOrSub conn bundle =
   foldQualified
     loc
@@ -173,11 +178,11 @@ postMLSCommitBundleFromLocalUser lusr c conn bundle = do
   assertMLSEnabled
   ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
   qConvOrSub <- lookupConvByGroupId ibundle.groupId >>= noteS @'ConvNotFound
-  (events, unreachables) <-
-    first (map lcuEvent)
+  events <-
+    map lcuEvent
       <$> postMLSCommitBundle lusr (tUntagged lusr) c qConvOrSub (Just conn) ibundle
   t <- toUTCTimeMillis <$> input
-  pure $ MLSMessageSendingStatus events t unreachables
+  pure $ MLSMessageSendingStatus events t mempty
 
 postMLSCommitBundleToLocalConv ::
   ( HasProposalEffects r,
@@ -191,48 +196,48 @@ postMLSCommitBundleToLocalConv ::
   Maybe ConnId ->
   IncomingBundle ->
   Local ConvOrSubConvId ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r [LocalConversationUpdate]
 postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr lConvOrSubId
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
-  (events, newClients, failedToProcess) <-
-    unpack <$> case bundle.sender of
-      SenderMember _index -> do
-        action <- getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
-        Left . (,cmIdentities . paAdd $ action)
-          <$> processInternalCommit
-            senderIdentity
-            conn
-            lConvOrSub
-            bundle.epoch
-            action
-            bundle.commit.value
-      SenderExternal _ -> throw (mlsProtocolError "Unexpected sender")
-      SenderNewMemberProposal -> throw (mlsProtocolError "Unexpected sender")
-      SenderNewMemberCommit -> do
-        action <- getExternalCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
-        Right
-          <$> processExternalCommit
-            senderIdentity
-            lConvOrSub
-            bundle.epoch
-            action
-            bundle.commit.value.path
+  (events, newClients) <- case bundle.sender of
+    SenderMember _index -> do
+      action <- getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
+      events <-
+        processInternalCommit
+          senderIdentity
+          conn
+          lConvOrSub
+          bundle.epoch
+          action
+          bundle.commit.value
+      pure (events, cmIdentities (paAdd action))
+    SenderExternal _ -> throw (mlsProtocolError "Unexpected sender")
+    SenderNewMemberProposal -> throw (mlsProtocolError "Unexpected sender")
+    SenderNewMemberCommit -> do
+      action <- getExternalCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
+      processExternalCommit
+        senderIdentity
+        lConvOrSub
+        bundle.epoch
+        action
+        bundle.commit.value.path
+      pure ([], [])
 
   storeGroupInfo (tUnqualified lConvOrSub).id bundle.groupInfo
 
-  unreachables <- propagateMessage qusr lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
+  propagateMessage qusr lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
+    >>= mapM_ throwUnreachableUsers
+
   traverse_ (sendWelcomes lConvOrSub conn newClients) bundle.welcome
-  pure (events, failedToProcess <> failedToSendMaybe unreachables)
-  where
-    unpack (Left (InternalCommitOutcome updates ftp, nc)) = (updates, nc, ftp)
-    unpack (Right ()) = ([], [], mempty)
+  pure events
 
 postMLSCommitBundleToRemoteConv ::
   ( Members MLSBundleStaticErrors r,
     ( Member BrigAccess r,
       Member (Error FederationError) r,
+      Member (Error InternalError) r,
       Member (Error MLSProtocolError) r,
       Member (Error MLSProposalFailure) r,
       Member ExternalAccess r,
@@ -248,7 +253,7 @@ postMLSCommitBundleToRemoteConv ::
   Maybe ConnId ->
   IncomingBundle ->
   Remote ConvOrSubConvId ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r [LocalConversationUpdate]
 postMLSCommitBundleToRemoteConv loc qusr c con bundle rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
@@ -269,11 +274,17 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle rConvOrSubId = do
     MLSMessageResponseError e -> rethrowErrors @MLSBundleStaticErrors e
     MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
+    MLSMessageResponseUnreachableBackends ds -> throwUnreachableDomains ds
     MLSMessageResponseUpdates updates unreachables -> do
-      ups <- for updates $ \update -> do
+      for_ unreachables $ \us ->
+        throw . InternalErrorWithDescription $
+          "A commit to a remote conversation should not ever return a \
+          \non-empty list of users an application message could not be \
+          \sent to. The remote end returned: "
+            <> LT.pack (intercalate ", " (show <$> NE.toList (unreachableUsers us)))
+      for updates $ \update -> do
         e <- notifyRemoteConversationAction loc (qualifyAs rConvOrSubId update) con
         pure (LocalConversationUpdate e update)
-      pure (ups, unreachables)
 
 postMLSMessage ::
   ( HasProposalEffects r,
@@ -299,8 +310,8 @@ postMLSMessage ::
   Qualified ConvOrSubConvId ->
   Maybe ConnId ->
   IncomingMessage ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
-postMLSMessage loc qusr c qconvOrSub con msg =
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
+postMLSMessage loc qusr c qconvOrSub con msg = do
   foldQualified
     loc
     (postMLSMessageToLocalConv qusr c con msg)
@@ -339,7 +350,7 @@ postMLSMessageToLocalConv ::
   Maybe ConnId ->
   IncomingMessage ->
   Local ConvOrSubConvId ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSMessageToLocalConv qusr c con msg convOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr convOrSubId
 
@@ -358,7 +369,7 @@ postMLSMessageToLocalConv qusr c con msg convOrSubId = do
         throwS @'MLSUnsupportedMessage
 
   unreachables <- propagateMessage qusr lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
-  pure ([], failedToSendMaybe unreachables)
+  pure ([], unreachables)
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
@@ -373,7 +384,7 @@ postMLSMessageToRemoteConv ::
   Maybe ConnId ->
   IncomingMessage ->
   Remote ConvOrSubConvId ->
-  Sem r ([LocalConversationUpdate], FailedToProcess)
+  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
@@ -394,6 +405,12 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
     MLSMessageResponseProtocolError e ->
       throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
+    MLSMessageResponseUnreachableBackends ds ->
+      throw . InternalErrorWithDescription $
+        "An application message to a remote conversation should not ever \
+        \return a non-empty list of domains a commit could not be \
+        \sent to. The remote end returned: "
+          <> LT.pack (intercalate ", " (show <$> Set.toList (Set.map domainText ds)))
     MLSMessageResponseUpdates updates unreachables -> do
       lcus <- for updates $ \update -> do
         e <- notifyRemoteConversationAction loc (qualifyAs rConvOrSubId update) con
