@@ -45,6 +45,10 @@ spec:
       configMap:
         name: "cargohold"
 
+    - name: "spar-config"
+      configMap:
+        name: "spar"
+
   restartPolicy: Never
 
   initContainers:
@@ -101,6 +105,9 @@ spec:
 
     - name: cargohold-config
       mountPath: /etc/wire/cargohold/conf
+
+    - name: "spar-config"
+      mountPath: "/etc/wire/spar/conf"
 
     env:
     # these dummy values are necessary for Amazonka's "Discover"

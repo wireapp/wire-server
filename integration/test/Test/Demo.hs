@@ -72,6 +72,11 @@ testModifiedCargohold = do
   withModifiedService Cargohold pure $ do
     pure ()
 
+testModifiedSpar :: HasCallStack => App ()
+testModifiedSpar = do
+  withModifiedService Spar pure $ do
+    pure ()
+
 testModifiedServices :: HasCallStack => App ()
 testModifiedServices = do
   let serviceMap =
