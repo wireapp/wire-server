@@ -122,12 +122,12 @@ zauth:
   publicKeys: test/resources/zauth/pubkeys.txt
   authSettings:
     keyIndex: 1
-    userTokenTimeout: 120
-    sessionTokenTimeout: 20
-    accessTokenTimeout: 30
-    providerTokenTimeout: 60
-    legalHoldUserTokenTimeout: 120
-    legalHoldAccessTokenTimeout: 30
+    userTokenTimeout: 12000
+    sessionTokenTimeout: 2000
+    accessTokenTimeout: 3000
+    providerTokenTimeout: 6000
+    legalHoldUserTokenTimeout: 12000
+    legalHoldAccessTokenTimeout: 3000
 
 turn:
   serversSource: files # files | dns
@@ -143,9 +143,9 @@ turn:
   tokenTTL: 21600
 
 optSettings:
-  setActivationTimeout: 10
-  setVerificationTimeout: 10
-  setTeamInvitationTimeout: 10
+  setActivationTimeout: 1000
+  setVerificationTimeout: 1000
+  setTeamInvitationTimeout: 1000
   setExpiredUserCleanupTimeout: 1
   setTwilio: test/resources/twilio-credentials.yaml
   setNexmo: test/resources/nexmo-credentials.yaml
@@ -161,11 +161,11 @@ optSettings:
     timeout: 5  # seconds.  if you reach the limit, how long do you have to wait to try again.
     retryLimit: 5  # how many times can you have a failed login in that timeframe.
   setSuspendInactiveUsers:  # if this is omitted: never suspend inactive users.
-    suspendTimeout: 10
+    suspendTimeout: 1000000
   setRichInfoLimit: 5000  # should be in sync with Spar
   setDefaultUserLocale: en
-  setMaxTeamSize: 32
-  setMaxConvSize: 16
+  setMaxTeamSize: 10000
+  setMaxConvSize: 10000
   setEmailVisibility: visible_to_self
   setPropertyMaxKeyLen: 1024
   setPropertyMaxValueLen: 4096

@@ -18,6 +18,7 @@
 module Wire.API.MLS.Extension where
 
 import Data.Binary
+import Data.Binary.Get
 import Imports
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
@@ -31,7 +32,7 @@ data Extension = Extension
   deriving (Arbitrary) via GenericUniform Extension
 
 instance ParseMLS Extension where
-  parseMLS = Extension <$> parseMLS <*> parseMLSBytes @VarInt
+  parseMLS = Extension <$> label "extType" parseMLS <*> label "extData" (parseMLSBytes @VarInt)
 
 instance SerialiseMLS Extension where
   serialiseMLS (Extension ty d) = do

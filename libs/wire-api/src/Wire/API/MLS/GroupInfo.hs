@@ -83,10 +83,10 @@ data GroupInfoTBS = GroupInfoTBS
 instance ParseMLS GroupInfoTBS where
   parseMLS =
     GroupInfoTBS
-      <$> parseMLS
-      <*> parseMLSVector @VarInt parseMLS
-      <*> parseMLSBytes @VarInt
-      <*> parseMLS
+      <$> label "groupContext" parseMLS
+      <*> traceMLS "extensions" (parseMLSVector @VarInt parseMLS)
+      <*> label "confirmationTag" (parseMLSBytes @VarInt)
+      <*> label "signer" parseMLS
 
 instance SerialiseMLS GroupInfoTBS where
   serialiseMLS tbs = do

@@ -132,12 +132,13 @@ def mls_welcome(ctx, user, welcome):
     return ctx.request("POST", url, user=user, data=welcome, headers=headers)
 
 
-def mls_post_commit_bundle(ctx, commit_bundle):
+def mls_post_commit_bundle(ctx, client, commit_bundle):
     url = ctx.mkurl("galley", f"/mls/commit-bundles")
     return ctx.request(
         "POST",
         url,
-        headers={"Content-Type": "application/x-protobuf"},
+        headers={"Content-Type": "message/mls"},
+        client=client,
         data=commit_bundle,
     )
 

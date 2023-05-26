@@ -142,8 +142,8 @@ class Context:
         self.last_switched_user = None
 
     def mkurl(self, service, relative_url, internal=False):
-        if not internal:
-            service = "nginz"
+        # if not internal:
+        #     service = "nginz"
 
         name = "WIREAPI_BASEURL_" + service.upper()
         baseurl = os.environ[name]
@@ -151,19 +151,20 @@ class Context:
             relative_url = "/v4" + relative_url
         return urljoin(baseurl, relative_url)
 
-    @staticmethod
-    def headers(user, conn_id="0"):
-        return {"Z-User": obj_id(user), "Z-Connection": conn_id}
 
-    def request(self, method, url, user=None, conn_id="0", headers=None, **kwargs):
+    def request(self, method, url, user=None, conn_id="conn", client=None, headers=None, **kwargs):
         if headers is None:
             headers = {}
+
+        headers['Z-Connection'] = conn_id
+
         if user is not None:
-            headers = {**headers, **self.headers(user, conn_id)}
-
-
-        if headers.get("Z-User") is None and self.last_switched_user:
+            headers['Z-User'] = obj_id(user)
+        if user is None and self.last_switched_user:
             headers["Z-User"] = self.last_switched_user
+
+        if client is not None:
+            headers['Z-Client'] = client
 
         req = Request(method, url, headers=headers, **kwargs)
 
@@ -532,15 +533,16 @@ def create_mls_conv(ctx, basedir):
     Assumes admin is logged in
     """
     ud = admin_user_dir(basedir)
+    admin = load_json_file(j(ud, "res_creation.json"))['response']['content']
 
     # create conv
     client_id = list_clients(ud)[0]
     res_post_conv = save(
-        api.create_conversation(ctx, user=None, **defNewConvMLS(client_id)),
+        api.create_conversation(ctx, user=admin, **defNewConvMLS(client_id)),
         j(basedir, "res_post_conv.json"),
     )
-    group_id = res_post_conv["response"]["content"]["group_id"]
     simple_expect_status(201, res_post_conv)
+    group_id = res_post_conv["response"]["content"]["group_id"]
 
     cdir = client_dir(ud, client_id)
     state = ClientState.load(cdir)
@@ -585,7 +587,7 @@ class LogWithContext:
         self.logger.info(line)
 
 
-def main_setup_team(basedir=None, n_users=10):
+def main_setup_team(basedir=None, n_users=100):
     if basedir is None:
         basedir = tempfile.TemporaryDirectory().name
 
@@ -650,14 +652,22 @@ def chunk(xs, chunk_size):
         yield xs[i : i + chunk_size]
 
 
-def main_setup_add_participants(basedir, batch_size=300):
+def main_setup_add_participants(basedir, batch_size=10):
     ctx_admin = Context()
     admin_id = meta_get(basedir, "admin_user_id")
 
     admin_dir = user_dir(basedir, admin_id)
 
-    admin_res_login = load_json_file(j(admin_dir, "res_login.json"))
-    ctx_admin.load_cookies_from_response(admin_res_login)
+    res_creation = load_json_file(j(admin_dir, "res_creation.json"))
+    admin = res_creation['response']['content']
+    res_login = save(
+        api.login(ctx_admin, res_creation["request"]["body"]["email"]),
+        j(admin_dir, "res_login.json"),
+    )
+    simple_expect_status(200, res_login)
+
+    # admin_res_login = load_json_file(j(admin_dir, "res_login.json"))
+    # ctx_admin.load_cookies_from_response(admin_res_login)
 
     client_id = list_clients(admin_dir)[0]
 
@@ -715,7 +725,7 @@ def main_setup_add_participants(basedir, batch_size=300):
             log.log("post_commit_bundle_begin")
             ctx_admin.switch_user(admin_id)
             res_post_commit_bundle = save(
-                api.mls_post_commit_bundle(ctx_admin, commit_bundle),
+                api.mls_post_commit_bundle(ctx_admin, client=client_id, commit_bundle=commit_bundle),
                 j(admin_dir, "res_post_commit_bundle.json"),
             )
             log.log("post_commit_bundle_end")

@@ -403,7 +403,6 @@ in
           flake8
           ipdb
           ipython
-          protobuf
           pylint
           pyyaml
           requests
