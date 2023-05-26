@@ -25,6 +25,7 @@ import Data.Metrics.Servant
 import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.Swagger
+import Data.Typeable
 import GHC.TypeLits
 import Imports
 import Servant
@@ -35,13 +36,21 @@ import Servant.Swagger
 newtype Named name x = Named {unnamed :: x}
   deriving (Functor)
 
-instance (HasSwagger api, KnownSymbol name) => HasSwagger (Named name api) where
+-- | For 'HasSwagger' instance of 'Named'.  'KnownSymbol' isn't enough because we're using
+-- types other than string literals in some places.
+class RenderableSymbol a where
+  renderSymbol :: Text
+
+instance {-# OVERLAPPABLE #-} KnownSymbol a => RenderableSymbol a where
+  renderSymbol = cs $ symbolVal (Proxy @a)
+
+instance {-# OVERLAPPING #-} (RenderableSymbol a, Typeable b) => RenderableSymbol (a, b) where
+  renderSymbol = "(" <> renderSymbol @a <> ", " <> (cs . show . typeRep $ (Proxy @b)) <> ")"
+
+instance (HasSwagger api, RenderableSymbol name) => HasSwagger (Named name api) where
   toSwagger _ =
     toSwagger (Proxy @api)
-      & (info . description)
-        ?~ ( -- TODO: use TypeRep instead?  is the type error later because of missing KnownSymbol instance?  for what type?!
-             "internal route name: " <> cs (symbolVal (Proxy @name))
-           )
+      & (info . description) ?~ ("internal route ID: " <> cs (renderSymbol @name))
 
 instance HasServer api ctx => HasServer (Named name api) ctx where
   type ServerT (Named name api) m = Named name (ServerT api m)
