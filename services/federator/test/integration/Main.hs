@@ -20,7 +20,6 @@ module Main
   )
 where
 
-import Data.String.Conversions
 import Imports
 import OpenSSL (withOpenSSL)
 import System.Environment (withArgs)

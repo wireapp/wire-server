@@ -25,7 +25,6 @@ where
 
 import Cassandra as Cas
 import Control.Lens
-import Data.String.Conversions
 import Imports
 import Polysemy
 import qualified SAML2.WebSSO as SAML
@@ -47,22 +46,22 @@ idpRawMetadataStoreToCassandra =
 storeIdPRawMetadata ::
   (HasCallStack, MonadClient m) =>
   SAML.IdPId ->
-  ST ->
+  Text ->
   m ()
 storeIdPRawMetadata idp raw = retry x5 . write ins $ params LocalQuorum (idp, raw)
   where
-    ins :: PrepQuery W (SAML.IdPId, ST) ()
+    ins :: PrepQuery W (SAML.IdPId, Text) ()
     ins = "INSERT INTO idp_raw_metadata (id, metadata) VALUES (?, ?)"
 
 getIdPRawMetadata ::
   (HasCallStack, MonadClient m) =>
   SAML.IdPId ->
-  m (Maybe ST)
+  m (Maybe Text)
 getIdPRawMetadata idp =
   runIdentity
     <$$> (retry x1 . query1 sel $ params LocalQuorum (Identity idp))
   where
-    sel :: PrepQuery R (Identity SAML.IdPId) (Identity ST)
+    sel :: PrepQuery R (Identity SAML.IdPId) (Identity Text)
     sel = "SELECT metadata FROM idp_raw_metadata WHERE id = ?"
 
 deleteIdPRawMetadata ::

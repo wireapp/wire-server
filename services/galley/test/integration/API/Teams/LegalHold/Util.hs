@@ -32,7 +32,6 @@ import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword6)
 import Data.PEM
 import Data.Streaming.Network (bindRandomPortTCP)
-import Data.String.Conversions (LBS, cs)
 import Data.Tagged
 import Data.Text.Encoding (encodeUtf8)
 import Galley.Options
@@ -95,7 +94,7 @@ withDummyTestServiceForTeam ::
   UserId ->
   TeamId ->
   -- | the test
-  (Chan (Wai.Request, LBS) -> TestM a) ->
+  (Chan (Wai.Request, LByteString) -> TestM a) ->
   TestM a
 withDummyTestServiceForTeam owner tid go =
   withDummyTestServiceForTeamNoService $ \lhPort chan -> do
@@ -109,12 +108,12 @@ withDummyTestServiceForTeamNoService ::
   forall a.
   HasCallStack =>
   -- | the test
-  (Warp.Port -> Chan (Wai.Request, LBS) -> TestM a) ->
+  (Warp.Port -> Chan (Wai.Request, LByteString) -> TestM a) ->
   TestM a
 withDummyTestServiceForTeamNoService go = do
   withTestService dummyService go
   where
-    dummyService :: Chan (Wai.Request, LBS) -> Wai.Application
+    dummyService :: Chan (Wai.Request, LByteString) -> Wai.Application
     dummyService ch req cont = do
       reqBody <- Wai.strictRequestBody req
       writeChan ch (req, reqBody)
@@ -558,7 +557,7 @@ assertNotification ws predicate =
 assertNoNotification :: (HasCallStack, MonadIO m) => WS.WebSocket -> m ()
 assertNoNotification ws = void . liftIO $ WS.assertNoEvent (5 WS.# WS.Second) [ws]
 
-assertMatchJSON :: (HasCallStack, FromJSON a, MonadCatch m, MonadIO m) => Chan (Wai.Request, LBS) -> (a -> m ()) -> m ()
+assertMatchJSON :: (HasCallStack, FromJSON a, MonadCatch m, MonadIO m) => Chan (Wai.Request, LByteString) -> (a -> m ()) -> m ()
 assertMatchJSON c match = do
   assertMatchChan c $ \(_, reqBody) -> do
     case Aeson.eitherDecode reqBody of

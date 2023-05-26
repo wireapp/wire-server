@@ -79,7 +79,6 @@ import Data.ByteString.Lazy (toStrict)
 import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
 import Data.Range
 import Data.Schema
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)

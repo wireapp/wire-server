@@ -33,7 +33,6 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Proxy (Proxy (Proxy))
 import Data.Schema
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import Data.Swagger.ParamSchema
 import Data.UUID as UUID (UUID, fromByteString, toByteString)

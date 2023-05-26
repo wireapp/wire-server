@@ -28,7 +28,6 @@ import Data.Id
 import Data.Proxy
 import Data.Qualified
 import Data.Range
-import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
 import Galley.API.Error

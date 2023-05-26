@@ -45,7 +45,6 @@ import Bilge (ResponseLBS, responseBody, responseJsonMaybe)
 import qualified Bilge
 import Control.Monad.Except
 import Data.Aeson
-import Data.String.Conversions
 import Data.Typeable (typeRep)
 import GHC.Stack (callStack, prettyCallStack)
 import Imports
@@ -68,43 +67,43 @@ throwSpar :: MonadError SparError m => SparCustomError -> m a
 throwSpar = throwError . SAML.CustomError
 
 data SparCustomError
-  = SparIdPNotFound LT
+  = SparIdPNotFound LText
   | SparSamlCredentialsNotFound
   | SparMissingZUsr
   | SparNotInTeam
-  | SparNoPermission LT
+  | SparNoPermission LText
   | SparSSODisabled
   | SparNoSuchRequest
-  | SparNoRequestRefInResponse LT
-  | SparCouldNotSubstituteSuccessURI LT
-  | SparCouldNotSubstituteFailureURI LT
-  | SparBadInitiateLoginQueryParams LT
-  | SparUserRefInNoOrMultipleTeams LT
-  | SparBadUserName LT
-  | SparCannotCreateUsersOnReplacedIdP LT
-  | SparCouldNotParseRfcResponse LT LT
+  | SparNoRequestRefInResponse LText
+  | SparCouldNotSubstituteSuccessURI LText
+  | SparCouldNotSubstituteFailureURI LText
+  | SparBadInitiateLoginQueryParams LText
+  | SparUserRefInNoOrMultipleTeams LText
+  | SparBadUserName LText
+  | SparCannotCreateUsersOnReplacedIdP LText
+  | SparCouldNotParseRfcResponse LText LText
   | SparReAuthRequired
   | SparReAuthCodeAuthFailed
   | SparReAuthCodeAuthRequired
   | SparCouldNotRetrieveCookie
-  | SparCassandraError LT
+  | SparCassandraError LText
   | SparCassandraTTLError TTLError
-  | SparNewIdPBadMetadata LT
+  | SparNewIdPBadMetadata LText
   | SparNewIdPPubkeyMismatch
-  | SparNewIdPAlreadyInUse LT
-  | SparNewIdPWantHttps LT
+  | SparNewIdPAlreadyInUse LText
+  | SparNewIdPWantHttps LText
   | SparIdPHasBoundUsers
   | SparIdPIssuerInUse
   | SparIdPCannotDeleteOwnIdp
   | IdpDbError IdpDbError
-  | SparProvisioningMoreThanOneIdP LT
+  | SparProvisioningMoreThanOneIdP LText
   | SparProvisioningTokenLimitReached
   | -- | FUTUREWORK(fisx): This constructor is used in exactly one place (see
     -- "Spar.Sem.SAML2.Library"), for an error that immediately gets caught.
     -- Instead, we could just use an IO exception, and catch it with
     -- 'catchErrors' (see "Spar.Run"). Maybe we want to remove this case
     -- altogether? Not sure.
-    SparInternalError LT
+    SparInternalError LText
   | -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
     SparScimError Scim.ScimError
   deriving (Eq, Show)
@@ -230,12 +229,12 @@ rethrow serviceName resp = do
           )
           (SAML.CustomServant . waiToServant)
 
-parseResponse :: forall a m. (FromJSON a, MonadError SparError m, Typeable a) => LT -> ResponseLBS -> m a
+parseResponse :: forall a m. (FromJSON a, MonadError SparError m, Typeable a) => LText -> ResponseLBS -> m a
 parseResponse serviceName resp = do
-  let typeinfo :: LT
+  let typeinfo :: LText
       typeinfo = cs $ show (typeRep ([] @a)) <> ": "
 
-      err :: forall a'. LT -> m a'
+      err :: forall a'. LText -> m a'
       err = throwSpar . SparCouldNotParseRfcResponse serviceName . (typeinfo <>)
 
   bdy <- maybe (err "no body") pure $ responseBody resp

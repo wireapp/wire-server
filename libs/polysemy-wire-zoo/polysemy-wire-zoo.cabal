@@ -82,7 +82,7 @@ library
 
   build-depends:
       aeson
-    , base                >=4.6 && <5.0
+    , base             >=4.6 && <5.0
     , bytestring
     , cassandra-util
     , HsOpenSSL
@@ -94,7 +94,6 @@ library
     , polysemy-plugin
     , QuickCheck
     , saml2-web-sso
-    , string-conversions
     , time
     , tinylog
     , types-common

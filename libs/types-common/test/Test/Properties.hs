@@ -39,7 +39,6 @@ import qualified Data.Json.Util as Util
 import Data.Nonce (Nonce)
 import Data.ProtocolBuffers.Internal
 import Data.Serialize
-import Data.String.Conversions (cs)
 import Data.Text.Ascii
 import qualified Data.Text.Ascii as Ascii
 import Data.Time

@@ -20,7 +20,6 @@ module Options where
 import Brig.Data.Instances ()
 import Cassandra hiding (Set)
 import Data.Id
-import Data.String.Conversions (cs)
 import Data.UUID
 import Imports
 import Options.Applicative hiding (action)

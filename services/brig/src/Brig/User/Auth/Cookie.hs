@@ -56,7 +56,7 @@ import qualified Data.Metrics as Metrics
 import Data.Proxy
 import Data.RetryAfter
 import Data.Time.Clock
-import Imports
+import Imports hiding (cs)
 import Network.Wai (Response)
 import Network.Wai.Utilities.Response (addHeader)
 import System.Logger.Class (field, msg, val, (~~))

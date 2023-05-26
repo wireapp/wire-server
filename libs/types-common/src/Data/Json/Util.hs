@@ -63,7 +63,6 @@ import qualified Data.ByteString.Conversion as BS
 import qualified Data.ByteString.Lazy as L
 import Data.Fixed
 import Data.Schema
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text

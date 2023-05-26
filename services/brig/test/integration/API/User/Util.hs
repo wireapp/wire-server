@@ -47,7 +47,6 @@ import qualified Data.List1 as List1
 import Data.Misc
 import Data.Qualified
 import Data.Range (unsafeRange)
-import Data.String.Conversions (cs)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
 import qualified Data.ZAuth.Token as ZAuth

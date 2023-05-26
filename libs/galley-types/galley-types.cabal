@@ -83,7 +83,6 @@ library
     , memory
     , QuickCheck
     , schema-profunctor
-    , string-conversions
     , text                   >=0.11
     , types-common           >=0.16
     , uuid

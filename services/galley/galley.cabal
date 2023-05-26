@@ -255,7 +255,6 @@ library
     , split                  >=0.2
     , ssl-util               >=0.1
     , stm                    >=2.4
-    , string-conversions
     , tagged
     , text                   >=0.11
     , time                   >=1.4
@@ -484,7 +483,6 @@ executable galley-integration
     , sop-core
     , ssl-util
     , streaming-commons
-    , string-conversions
     , tagged
     , tasty                  >=0.8
     , tasty-cannon           >=0.3.2

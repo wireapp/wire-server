@@ -65,7 +65,6 @@ import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
 import Data.Singletons
-import Data.String.Conversions (ST, cs)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy.Encoding as T
@@ -1856,7 +1855,7 @@ testResponse status mlabel = do
     Just label -> responseJsonEither === const (Right label)
     Nothing -> (isLeft <$> responseJsonEither @TestErrorLabel) === const True
 
-newtype TestErrorLabel = TestErrorLabel {fromTestErrorLabel :: ST}
+newtype TestErrorLabel = TestErrorLabel {fromTestErrorLabel :: Text}
   deriving (Eq, Show)
 
 instance IsString TestErrorLabel where
