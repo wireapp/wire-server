@@ -17,6 +17,7 @@
 , data-default
 , directory
 , exceptions
+, extra
 , filepath
 , gitignoreSource
 , hex
@@ -68,6 +69,7 @@ mkDerivation {
     data-default
     directory
     exceptions
+    extra
     filepath
     hex
     http-client
