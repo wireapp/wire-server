@@ -152,12 +152,22 @@ notifyUserDeleted ::
 notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
   let notif = UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
-  enqueueNotification (tDomain self) (tDomain remotes) Q.Persistent $ void $ fedQueueClient @'Brig @"on-user-deleted-connections" notif
+      remoteDomain = tDomain remotes
+  view rabbitmqChannel >>= \case
+    Just chanVar -> do
+      enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $ void $ fedQueueClient @'Brig @"on-user-deleted-connections" notif
+    Nothing ->
+      Log.err $
+        Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
+          . Log.field "user_id" (show self)
+          . Log.field "domain" (domainText remoteDomain)
+          . Log.field "error" (show FederationNotConfigured)
 
 -- | Enqueues notifications in RabbitMQ. Retries 3 times with a delay of 1s.
-enqueueNotification :: (MonadReader Env m, MonadIO m, MonadMask m, Log.MonadLogger m) => Domain -> Domain -> Q.DeliveryMode -> FedQueueClient c () -> m ()
-enqueueNotification ownDomain remoteDomain deliveryMode action =
-  recovering (limitRetries 3 <> constantDelay 1_000_000) [logRetries (const $ pure True) logError] (const go)
+enqueueNotification :: (MonadReader Env m, MonadIO m, MonadMask m, Log.MonadLogger m) => Domain -> Domain -> Q.DeliveryMode -> MVar Q.Channel -> FedQueueClient c () -> m ()
+enqueueNotification ownDomain remoteDomain deliveryMode chanVar action = do
+  let policy = limitRetries 3 <> constantDelay 1_000_000
+  recovering policy [logRetries (const $ pure True) logError] (const go)
   where
     logError willRetry (SomeException e) status = do
       Log.err $
@@ -166,7 +176,7 @@ enqueueNotification ownDomain remoteDomain deliveryMode action =
           . Log.field "willRetry" willRetry
           . Log.field "retryCount" status.rsIterNumber
     go = do
-      mChan <- timeout (1 :: Second) (readMVar =<< view rabbitmqChannel)
+      mChan <- timeout (1 :: Second) (readMVar chanVar)
       case mChan of
         Nothing -> throwM NoRabbitMqChannel
         Just chan -> liftIO $ enqueue chan ownDomain remoteDomain deliveryMode action

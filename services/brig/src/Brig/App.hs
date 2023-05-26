@@ -198,7 +198,7 @@ data Env = Env
     _indexEnv :: IndexEnv,
     _randomPrekeyLocalLock :: Maybe (MVar ()),
     _keyPackageLocalLock :: MVar (),
-    _rabbitmqChannel :: MVar Q.Channel
+    _rabbitmqChannel :: Maybe (MVar Q.Channel)
   }
 
 makeLenses ''Env
@@ -304,8 +304,8 @@ newEnv o = do
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
 
-mkRabbitMqChannel :: Logger -> Opts -> IO (MVar Q.Channel)
-mkRabbitMqChannel l (Opt.rabbitmq -> Opt.RabbitMqOpts {..}) = do
+mkRabbitMqChannel :: Logger -> Opts -> IO (Maybe (MVar Q.Channel))
+mkRabbitMqChannel l (Opt.rabbitmq -> Just Opt.RabbitMqOpts {..}) = do
   chan <- newEmptyMVar
   Q.openConnectionWithRetries l host port vHost $
     RabbitMqHooks
@@ -313,7 +313,8 @@ mkRabbitMqChannel l (Opt.rabbitmq -> Opt.RabbitMqOpts {..}) = do
         onChannelException = \_ -> void $ tryTakeMVar chan,
         onConnectionClose = void $ tryTakeMVar chan
       }
-  pure chan
+  pure $ Just chan
+mkRabbitMqChannel _ _ = pure Nothing
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
 mkIndexEnv o lgr mgr mtr galleyEndpoint =

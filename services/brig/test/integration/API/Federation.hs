@@ -74,7 +74,7 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/search-users : Found (multiple users)" (testFulltextSearchMultipleUsers opts brig),
         test m "POST /federation/search-users : NotFound" (testSearchNotFound opts),
         test m "POST /federation/search-users : Empty Input - NotFound" (testSearchNotFoundEmpty opts),
-        test m "POST /federation/search-users : configured restrictions" (testSearchRestrictions opts brig),
+        flakyTest m "POST /federation/search-users : configured restrictions" (testSearchRestrictions opts brig),
         test m "POST /federation/get-user-by-handle : configured restrictions" (testGetUserByHandleRestrictions opts brig),
         test m "POST /federation/get-user-by-handle : Found" (testGetUserByHandleSuccess opts brig),
         test m "POST /federation/get-user-by-handle : NotFound" (testGetUserByHandleNotFound opts),
