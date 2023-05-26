@@ -876,34 +876,6 @@ sendAndConsumeMessage mp = do
   consumeMessage mp
   pure res
 
--- | Send an MLS commit message, simulate clients receiving it, and update the
--- test state accordingly.
-sendAndConsumeCommit ::
-  HasCallStack =>
-  MessagePackage ->
-  MLSTest [Event]
-sendAndConsumeCommit = fmap fst . sendAndConsumeCommitFederated
-
--- | Send an MLS commit message, simulate clients receiving it, and update the
--- test state accordingly. Also return lists of federated users that a message
--- could not be sent to.
-sendAndConsumeCommitFederated ::
-  HasCallStack =>
-  MessagePackage ->
-  MLSTest ([Event], Maybe UnreachableUsers)
-sendAndConsumeCommitFederated mp = do
-  resp <- sendAndConsumeMessage mp
-
-  -- increment epoch and add new clients
-  State.modify $ \mls ->
-    mls
-      { mlsEpoch = mlsEpoch mls + 1,
-        mlsMembers = mlsMembers mls <> mlsNewMembers mls,
-        mlsNewMembers = mempty
-      }
-
-  pure resp
-
 mkBundle :: MessagePackage -> Either Text CommitBundle
 mkBundle mp = do
   commitB <- first ("Commit: " <>) $ decodeMLS' (mpMessage mp)
