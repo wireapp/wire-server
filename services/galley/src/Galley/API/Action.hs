@@ -86,6 +86,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import qualified Polysemy.TinyLog as P
+import qualified Polysemy.TinyLog as TinyLog
 import qualified System.Logger as Log
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
@@ -102,7 +103,6 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.Unreachable
 import qualified Wire.API.User as User
-import qualified Polysemy.TinyLog as TinyLog
 
 data NoChanges = NoChanges
 
@@ -335,12 +335,19 @@ performAction tag origUser lconv action = do
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
-      _ <- error $
-        "-----------------------------\n\n\n" <>
-        "lconv = " <> show lconv <> "\n\n\n" <>
-        "action = " <> show action <> "\n\n\n" <>
-        "presentVictims = " <> show presentVictims <> "\n\n\n" <>
-        "-----------------------------"
+      _ <-
+        error $
+          "-----------------------------\n\n\n"
+            <> "lconv = "
+            <> show lconv
+            <> "\n\n\n"
+            <> "action = "
+            <> show action
+            <> "\n\n\n"
+            <> "presentVictims = "
+            <> show presentVictims
+            <> "\n\n\n"
+            <> "-----------------------------"
       TinyLog.err $ Log.msg ("action" :: String) . Log.field "values" (show action)
       TinyLog.err $ Log.msg ("presentVictims" :: String) . Log.field "values" (show presentVictims)
       when (null presentVictims) noChanges
@@ -659,7 +666,6 @@ updateLocalConversationUnchecked lconv qusr con action = do
     (convBotsAndMembers conv <> extraTargets)
     action'
 
-
 -- | Similar to 'updateLocalConversationUnchecked', but skips performing
 -- user authorisation checks. This is written for use in de-federation code
 -- where conversations for many users will be torn down at once and must work.
@@ -668,7 +674,8 @@ updateLocalConversationUnchecked lconv qusr con action = do
 updateLocalConversationUserUnchecked ::
   forall tag r.
   ( SingI tag,
-    HasConversationActionEffects tag r
+    HasConversationActionEffects tag r,
+    Member (Error FederationError) r
   ) =>
   Local Conversation ->
   Qualified UserId ->

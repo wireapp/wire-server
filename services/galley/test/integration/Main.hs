@@ -34,6 +34,7 @@ import Data.Tagged
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
+import Federation
 import Galley.API (sitemap)
 import qualified Galley.Aws as Aws
 import Galley.Options
@@ -47,13 +48,12 @@ import qualified System.Logger.Class as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.Options
+import TestHelpers (test)
 import TestSetup
 import Util.Options
 import Util.Options.Common
 import Util.Test
 import qualified Util.Test.SQS as SQS
-import Federation
-import TestHelpers (test)
 
 newtype ServiceConfigFile = ServiceConfigFile String
   deriving (Eq, Ord, Typeable)

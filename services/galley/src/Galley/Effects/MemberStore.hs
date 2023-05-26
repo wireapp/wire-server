@@ -50,6 +50,7 @@ module Galley.Effects.MemberStore
   )
 where
 
+import Data.Domain
 import Data.Id
 import Data.Qualified
 import Galley.Data.Services
@@ -62,7 +63,6 @@ import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.Provider.Service
-import Data.Domain
 
 data MemberStore m a where
   CreateMembers :: ToUserRole u => ConvId -> UserList u -> MemberStore m ([LocalMember], [RemoteMember])

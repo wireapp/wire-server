@@ -20,7 +20,7 @@ module Galley.Run
   ( run,
     mkApp,
     updateFedDomainsCallback,
-    mkLogger
+    mkLogger,
   )
 where
 
@@ -35,24 +35,38 @@ import Control.Lens (view, (.~), (^.))
 import Control.Monad.Codensity
 import qualified Data.Aeson as Aeson
 import Data.Default
+import Data.Domain (Domain)
 import Data.Id
+import qualified Data.List.NonEmpty as N
 import qualified Data.Map as Map
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
+import Data.Qualified
+import qualified Data.Set as Set
+import Data.Singletons
 import Data.String.Conversions (cs)
 import Data.Text (unpack)
+import Data.Time (getCurrentTime)
 import qualified Galley.API as API
+import Galley.API.Action
+import Galley.API.Error
+import Galley.API.Federation
 import Galley.API.Internal
+import Galley.API.Util (getConversationWithError)
 import Galley.App
 import qualified Galley.App as App
 import Galley.Aws (awsEnv)
 import Galley.Cassandra
+import Galley.Cassandra.Connection
+import Galley.Data.Conversation.Types (convMetadata)
+import qualified Galley.Effects.MemberStore as E
 import Galley.Monad
 import Galley.Options
 import qualified Galley.Queue as Q
+import Galley.Types.Conversations.Members
 import Imports
 import qualified Network.HTTP.Media.RenderHeader as HTTPMedia
 import qualified Network.HTTP.Types as HTTP
@@ -60,39 +74,29 @@ import Network.Wai
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
+import Polysemy.Error
 import Servant hiding (route)
 import qualified System.Logger as Log
 import System.Logger.Extended (mkLogger)
 import Util.Options
+import Wire.API.Conversation (ConvType (ConnectConv, One2OneConv), cnvmType)
+import Wire.API.Conversation.Action
+import Wire.API.Conversation.Role
+import Wire.API.Error
+import Wire.API.Error.Galley
+import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.FederationUpdate
 import Wire.API.Routes.API
 import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
-import qualified Data.List.NonEmpty as N
-import Galley.API.Action
-import Galley.Types.Conversations.Members
-import Data.Qualified
-import Wire.API.Error.Galley
-import Wire.API.Conversation.Role
-import qualified Wire.API.Federation.API.Galley as F
-import Wire.API.Error
-import Polysemy.Error
-import Galley.API.Error
-import qualified Galley.Effects.MemberStore as E
-import Data.Time (getCurrentTime)
-import Wire.API.Conversation.Action
-import Galley.API.Federation
-import Data.Singletons
-import Wire.API.Conversation (ConvType(One2OneConv), cnvmType, ConvType (ConnectConv, One2OneConv))
-import Galley.Data.Conversation.Types (convMetadata)
-import Galley.API.Util (getConversationWithError)
-import Data.Domain (Domain)
-import Galley.Cassandra.Connection
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
   l <- lift $ mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
-  (ioref, _) <- lift $ updateFedDomains (opts ^. optBrig) l $ \_ _ -> pure ()
+  (ioref, _) <- lift $
+    updateFedDomains (opts ^. optBrig) l $
+      \_ _ -> pure () -- TODO: Push the domain to be deleted to a RabbitMQ queue
   (app, env) <- mkApp opts ioref l
   settings <-
     lift $
@@ -105,7 +109,8 @@ run opts = lowerCodensity $ do
 
   forM_ (env ^. aEnv) $ \aws ->
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
-  -- void $ Codensity $ Async.withAsync $ runApp env updateFedDomains
+  -- TODO: Run a loop that pulls from RabbitMQ and performs the deletion
+  -- void $ Codensity $ Async.withAsync $ runApp env $ _ deleteFederationDomain
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
   void $ Codensity $ Async.withAsync $ runApp env undefined
@@ -209,13 +214,14 @@ deleteFederationDomainRemote dom = do
     -- send out to all of the local clients that are a party
     -- to the conversation. However we also don't want to DOS
     -- clients. Maybe suppress and send out a bulk version?
-    liftIO $ evalGalleyToIO env
+    liftIO
+      $ evalGalleyToIO env
       $ mapToRuntimeError @F.RemoveFromConversationError (InternalErrorWithDescription "Federation domain removal: Remove from conversation error")
-      . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Federation domain removal: Conversation not found")
-      . mapToRuntimeError @('ActionDenied 'RemoveConversationMember) (InternalErrorWithDescription  "Federation domain removal: Action denied, remove conversation member")
-      . mapToRuntimeError @'InvalidOperation (InternalErrorWithDescription  "Federation domain removal: Invalid operation")
-      . mapToRuntimeError @'NotATeamMember (InternalErrorWithDescription  "Federation domain removal: Not a team member")
-      . mapError @NoChanges (const (InternalErrorWithDescription  "Federation domain removal: No changes"))
+        . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Federation domain removal: Conversation not found")
+        . mapToRuntimeError @('ActionDenied 'RemoveConversationMember) (InternalErrorWithDescription "Federation domain removal: Action denied, remove conversation member")
+        . mapToRuntimeError @'InvalidOperation (InternalErrorWithDescription "Federation domain removal: Invalid operation")
+        . mapToRuntimeError @'NotATeamMember (InternalErrorWithDescription "Federation domain removal: Not a team member")
+        . mapError @NoChanges (const (InternalErrorWithDescription "Federation domain removal: No changes"))
       -- This is allowed to send notifications to _local_ clients.
       -- But we are suppressing those events as we don't want to
       -- DOS our users if a large and deeply interconnected federation
@@ -227,8 +233,9 @@ deleteFederationDomainRemote dom = do
         updateLocalConversationUserUnchecked
           @'ConversationRemoveMembersTag
           lConv
-          undefined $ -- This field can be undefined as the path for ConversationRemoveMembersTag doens't use it
-          tUntagged . rmId <$> rUsers
+          undefined
+          $ tUntagged . rmId <$> rUsers -- This field can be undefined as the path for ConversationRemoveMembersTag doens't use it
+
         -- Check if the conversation if type 2 or 3, one-on-one conversations.
         -- If it is, then we need to remove the entire conversation as users
         -- aren't able to delete those types of conversations themselves.
@@ -250,39 +257,41 @@ deleteFederationDomainLocal dom = do
       localDomain = env ^. options . optSettings . setFederationDomain
   -- Process each user.
   for_ (Map.toList rCnvMap) $ \(cnv, lUsers) -> do
-    liftIO $ evalGalleyToIO env
-      $ mapError @NoChanges (const (InternalErrorWithDescription  "No Changes: Could not remove a local member from a remote conversation."))
-      $ do
-        now <- liftIO $ getCurrentTime
-        for_ lUsers $ \user -> do
-          let lUser = toLocalUnsafe localDomain user
-              convUpdate = F.ConversationUpdate
-                { cuTime = now
-                , cuOrigUserId = tUntagged lUser
-                , cuConvId = cnv
-                , cuAlreadyPresentUsers = mempty
-                , cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ()
-                }
-          -- These functions are used directly rather than as part of a larger conversation
-          -- delete function, as we don't have an originating user, and we can't send data
-          -- to the remote backend.
-          -- We don't need to check the conversation type here, as we can't tell the
-          -- remote federation server to delete the conversation. They will have to do a
-          -- similar processing run for removing the local domain from their federation list.
-          onConversationUpdated dom convUpdate
-          -- let rcnv = toRemoteUnsafe dom cnv
-          -- notifyRemoteConversationAction lUser (qualifyAs rcnv convUpdate) Nothing
-    
+    liftIO $
+      evalGalleyToIO env $
+        mapError @NoChanges (const (InternalErrorWithDescription "No Changes: Could not remove a local member from a remote conversation.")) $
+          do
+            now <- liftIO $ getCurrentTime
+            for_ lUsers $ \user -> do
+              let lUser = toLocalUnsafe localDomain user
+                  convUpdate =
+                    F.ConversationUpdate
+                      { cuTime = now,
+                        cuOrigUserId = tUntagged lUser,
+                        cuConvId = cnv,
+                        cuAlreadyPresentUsers = mempty,
+                        cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ()
+                      }
+              -- These functions are used directly rather than as part of a larger conversation
+              -- delete function, as we don't have an originating user, and we can't send data
+              -- to the remote backend.
+              -- We don't need to check the conversation type here, as we can't tell the
+              -- remote federation server to delete the conversation. They will have to do a
+              -- similar processing run for removing the local domain from their federation list.
+              onConversationUpdated dom convUpdate
+
+-- let rcnv = toRemoteUnsafe dom cnv
+-- notifyRemoteConversationAction lUser (qualifyAs rcnv convUpdate) Nothing
 
 deleteFederationDomain :: Set FederationDomainConfig -> App ()
 deleteFederationDomain deletedDomains = do
   for_ deletedDomains $ \fedDomCfg -> do
     -- https://wearezeta.atlassian.net/browse/FS-1179
-    -- * Remove remote users for the given domain from all conversations owned by the current host
-    -- * Remove all local users from remote conversations owned by the given domain.
+    -- \* Remove remote users for the given domain from all conversations owned by the current host
+    -- \* Remove all local users from remote conversations owned by the given domain.
     --   NOTE: This is NOT sent to other backends, as this information is not authoratative, but is
     --   good enough to tell local users about the federation connection being removed.
-    -- * Delete all connections from local users to users for the remote domain
+    -- \* Delete all connections from local users to users for the remote domain
     -- Get all remote users for the given domain, along with conversation IDs that they are in
     let dom = domain fedDomCfg
     deleteFederationDomainRemote dom
@@ -292,7 +301,7 @@ deleteFederationDomain deletedDomains = do
     -- NOTE: We cannot tell the remote backend about these changes as we are no longer federated.
     env <- ask
     liftIO $ runClient (env ^. cstate) . deleteRemoteConnectionsByDomain $ dom
-    
+
 updateFedDomainsCallback :: FederationDomainConfigs -> FederationDomainConfigs -> App ()
 updateFedDomainsCallback old new = do
   -- This code will only run when there is a change in the domain lists
