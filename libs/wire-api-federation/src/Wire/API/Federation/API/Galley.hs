@@ -18,6 +18,7 @@
 module Wire.API.Federation.API.Galley where
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Misc (Milliseconds)
@@ -466,7 +467,12 @@ data MLSMessageResponse
   = MLSMessageResponseError GalleyError
   | MLSMessageResponseProtocolError Text
   | MLSMessageResponseProposalFailure Wai.Error
-  | MLSMessageResponseUpdates [ConversationUpdate] (Maybe UnreachableUsers)
+  | -- | The conversation-owning backend could not reach some of the backends that
+    -- have users in the conversation when processing a commit.
+    MLSMessageResponseUnreachableBackends (Set Domain)
+  | -- | If the list of unreachable users is non-empty, it corresponds to users
+    -- that an application message could not be sent to.
+    MLSMessageResponseUpdates [ConversationUpdate] (Maybe UnreachableUsers)
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
 

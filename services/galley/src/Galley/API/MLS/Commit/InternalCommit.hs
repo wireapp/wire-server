@@ -50,16 +50,19 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
 import qualified Wire.API.MLS.Proposal as Proposal
 import Wire.API.MLS.SubConversation
+import Wire.API.Unreachable
 import Wire.API.User.Client
 
 processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
+    Member (Error FederationError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
@@ -131,34 +134,39 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
                 pure qtarget
 
           -- for each user, we compare their clients with the ones being added to the conversation
-          for_ newUserClients $ \(qtarget, newclients) -> case Map.lookup qtarget cm of
-            -- user is already present, skip check in this case
-            Just _ -> pure ()
-            -- new user
-            Nothing -> do
-              -- final set of clients in the conversation
-              let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
-              -- get list of mls clients from brig
-              clientInfo <- getClientInfo lConvOrSub qtarget ss
-              let allClients = Set.map ciId clientInfo
-              let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
-              -- We check the following condition:
-              --   allMLSClients ⊆ clients ⊆ allClients
-              -- i.e.
-              -- - if a client has at least 1 key package, it has to be added
-              -- - if a client is being added, it has to exist
-              --
-              -- The reason why we can't simply check that clients == allMLSClients is
-              -- that a client with no remaining key packages might be added by a user
-              -- who just fetched its last key package.
-              unless
-                ( Set.isSubsetOf allMLSClients clients
-                    && Set.isSubsetOf clients allClients
-                )
-                $ do
-                  -- unless (Set.isSubsetOf allClients clients) $ do
-                  -- FUTUREWORK: turn this error into a proper response
-                  throwS @'MLSClientMismatch
+          failedAddFetching <- fmap catMaybes . forM newUserClients $
+            \(qtarget, newclients) -> case Map.lookup qtarget cm of
+              -- user is already present, skip check in this case
+              Just _ -> do
+                -- new user
+                pure Nothing
+              Nothing -> do
+                -- final set of clients in the conversation
+                let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
+                -- get list of mls clients from Brig (local or remote)
+                getClientInfo lConvOrSub qtarget ss >>= \case
+                  Left _e -> pure (Just qtarget)
+                  Right clientInfo -> do
+                    let allClients = Set.map ciId clientInfo
+                    let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
+                    -- We check the following condition:
+                    --   allMLSClients ⊆ clients ⊆ allClients
+                    -- i.e.
+                    -- - if a client has at least 1 key package, it has to be added
+                    -- - if a client is being added, it has to still exist
+                    --
+                    -- The reason why we can't simply check that clients == allMLSClients is
+                    -- that a client with no remaining key packages might be added by a user
+                    -- who just fetched its last key package.
+                    unless
+                      ( Set.isSubsetOf allMLSClients clients
+                          && Set.isSubsetOf clients allClients
+                      )
+                      $ do
+                        -- FUTUREWORK: turn this error into a proper response
+                        throwS @'MLSClientMismatch
+                    pure Nothing
+          for_ (unreachableFromList failedAddFetching) throwUnreachableUsers
 
           -- remove users from the conversation and send events
           removeEvents <-
@@ -191,7 +199,6 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
               . nonEmpty
               . map fst
               $ newUserClients
-
           pure (addEvents <> removeEvents)
         else pure []
 
@@ -200,7 +207,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
     for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
       removeMLSClients (cnvmlsGroupId convOrSub.meta) qtarget (Map.keysSet clients)
 
-    -- add clients in the conversation state
+    -- add clients to the conversation state
     for_ newUserClients $ \(qtarget, newClients) -> do
       addMLSClients (cnvmlsGroupId convOrSub.meta) qtarget (Set.fromList (Map.assocs newClients))
 
@@ -211,6 +218,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
 
 addMembers ::
   HasProposalActionEffects r =>
+  Member (Error FederationError) r =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
@@ -220,21 +228,26 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   Conv mlsConv -> do
     let lconv = qualifyAs lConvOrSub (mcConv mlsConv)
     -- FUTUREWORK: update key package ref mapping to reflect conversation membership
-    foldMap
-      ( handleNoChanges
-          . handleMLSProposalFailures @ProposalErrors
-          . fmap (pure . fst)
-          . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
-          . flip ConversationJoin roleNameWireMember
-      )
-      . nonEmpty
-      . filter (flip Set.notMember (existingMembers lconv))
-      . toList
-      $ users
+    (lcus, ftp) <-
+      foldMap
+        ( handleNoChanges
+            . handleMLSProposalFailures @ProposalErrors
+            . fmap (first pure)
+            . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
+            . flip ConversationJoin roleNameWireMember
+        )
+        . nonEmpty
+        . filter (flip Set.notMember (existingMembers lconv))
+        . toList
+        $ users
+    for_ (add ftp) throwUnreachableUsers
+
+    pure lcus
   SubConv _ _ -> pure []
 
 removeMembers ::
   HasProposalActionEffects r =>
+  Member (Error FederationError) r =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
@@ -243,16 +256,20 @@ removeMembers ::
 removeMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   Conv mlsConv -> do
     let lconv = qualifyAs lConvOrSub (mcConv mlsConv)
-    foldMap
-      ( handleNoChanges
-          . handleMLSProposalFailures @ProposalErrors
-          . fmap (pure . fst)
-          . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
-      )
-      . nonEmpty
-      . filter (flip Set.member (existingMembers lconv))
-      . toList
-      $ users
+    (lcus, ftp) <-
+      foldMap
+        ( handleNoChanges
+            . handleMLSProposalFailures @ProposalErrors
+            . fmap (first pure)
+            . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
+        )
+        . nonEmpty
+        . filter (flip Set.member (existingMembers lconv))
+        . toList
+        $ users
+    for_ (remove ftp) throwUnreachableUsers
+
+    pure lcus
   SubConv _ _ -> pure []
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a

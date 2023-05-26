@@ -45,6 +45,7 @@ import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
+import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (Second), (#))
@@ -104,6 +105,7 @@ tests s =
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "send a stale commit" testStaleCommit,
           test s "add remote user to a conversation" testAddRemoteUser,
+          test s "add remote users to a conversation (some unreachable)" testAddRemotesSomeUnreachable,
           test s "return error when commit is locked" testCommitLock,
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
           test s "post commit that references an unknown proposal" testUnknownProposalRefCommit,
@@ -585,6 +587,40 @@ testAddRemoteUser = do
     event <- assertOne events
     assertJoinEvent qcnv alice [bob] roleNameWireMember event
 
+testAddRemotesSomeUnreachable :: TestM ()
+testAddRemotesSomeUnreachable = do
+  let bobDomain = Domain "bob.example.com"
+      charlieDomain = Domain "charlie.example.com"
+  users@[alice, bob, charlie] <-
+    createAndConnectUsers $
+      domainText
+        <$$> [Nothing, Just bobDomain, Just charlieDomain]
+  runMLSTest $ do
+    [alice1, bob1, _charlie1] <- traverse createMLSClient users
+    (_, qcnv) <- setupMLSGroup alice1
+
+    commit <- createAddCommit alice1 [bob, charlie]
+    bundle <- createBundle commit
+    let unreachable = Set.singleton charlieDomain
+    (errRaw, _) <-
+      withTempMockFederator'
+        ( receiveCommitMockByDomain [bob1]
+            <|> mlsMockUnreachableFor unreachable
+            <|> welcomeMockByDomain [bobDomain]
+        )
+        $ localPostCommitBundle (mpSender commit) bundle
+
+    err <- responseJsonError errRaw
+    liftIO $ do
+      Wai.label err @?= "federation-unreachable-domains-error"
+      Wai.code err @?= HTTP.status503
+      Wai.message err @?= "The following domains are unreachable: [\"charlie.example.com\"]"
+
+    convAfter <- responseJsonError =<< getConvQualified (qUnqualified alice) qcnv
+    liftIO $ do
+      memId (cmSelf (cnvMembers convAfter)) @?= alice
+      cmOthers (cnvMembers convAfter) @?= []
+
 testCommitLock :: TestM ()
 testCommitLock = do
   users <- createAndConnectUsers (replicate 4 Nothing)
@@ -1048,10 +1084,9 @@ testAppMessageSomeReachable = do
     let commitMocks =
           receiveCommitMockByDomain [bob1, charlie1]
             <|> welcomeMock
-    (([event], ftpCommit), _) <-
+    ([event], _) <-
       withTempMockFederator' commitMocks $ do
-        sendAndConsumeCommitBundleFederated commit
-    liftIO $ ftpCommit @?= mempty
+        sendAndConsumeCommitBundle commit
 
     let unreachables = Set.singleton (Domain "charlie.example.com")
     let sendMocks =
@@ -1060,10 +1095,10 @@ testAppMessageSomeReachable = do
 
     withTempMockFederator' sendMocks $ do
       message <- createApplicationMessage alice1 "hi, bob!"
-      (_, ftp) <- sendAndConsumeMessage message
+      (_, failed) <- sendAndConsumeMessage message
       liftIO $ do
         assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-        ftp @?= unreachableFromList [charlie]
+        failed @?= unreachableFromList [charlie]
 
 testAppMessageUnreachable :: TestM ()
 testAppMessageUnreachable = do
@@ -1082,10 +1117,10 @@ testAppMessageUnreachable = do
         sendAndConsumeCommitBundle commit
 
     message <- createApplicationMessage alice1 "hi, bob!"
-    (_, ftp) <- sendAndConsumeMessage message
+    (_, failed) <- sendAndConsumeMessage message
     liftIO $ do
       assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-      ftp @?= unreachableFromList [bob]
+      failed @?= unreachableFromList [bob]
 
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do
@@ -2387,7 +2422,9 @@ testRemoteUserJoinSubConv = do
       cnvmlsEpoch mls @?= Epoch 0
 
     -- bob joins the subconversation
-    void $ createExternalCommit bob1 Nothing qcs >>= sendAndConsumeCommitBundle
+    void $
+      withTempMockFederator' ("on-mls-message-sent" ~> RemoteMLSMessageOk) $
+        createExternalCommit bob1 Nothing qcs >>= sendAndConsumeCommitBundle
 
     -- check that bob is now part of the subconversation
     liftTest $ do
@@ -2716,17 +2753,31 @@ testDeleteParentOfSubConv = do
     traverse_ uploadNewKeyPackage [arthur1]
     (parentGroupId, qcnv) <- setupMLSGroup alice1
 
-    (qcs, _) <- withTempMockFederator' (receiveCommitMock [bob1]) $ do
-      void $ createAddCommit alice1 [arthur, bob] >>= sendAndConsumeCommitBundle
-      createSubConv qcnv alice1 sconv
+    (qcs, _) <- withTempMockFederator'
+      ( receiveCommitMock [bob1]
+          <|> ("on-mls-message-sent" ~> RemoteMLSMessageOk)
+      )
+      $ do
+        void $ createAddCommit alice1 [arthur, bob] >>= sendAndConsumeCommitBundle
+        createSubConv qcnv alice1 sconv
 
     subGid <- getCurrentGroupId
 
     resetGroup arthur1 qcs subGid
-    void $ createExternalCommit arthur1 Nothing qcs >>= sendAndConsumeCommitBundle
+    void
+      $ withTempMockFederator'
+        ( welcomeMock
+            <|> ("on-mls-message-sent" ~> RemoteMLSMessageOk)
+        )
+      $ createExternalCommit arthur1 Nothing qcs >>= sendAndConsumeCommitBundle
 
     resetGroup bob1 qcs subGid
-    void $ createExternalCommit bob1 Nothing qcs >>= sendAndConsumeCommitBundle
+    void
+      $ withTempMockFederator'
+        ( welcomeMock
+            <|> ("on-mls-message-sent" ~> RemoteMLSMessageOk)
+        )
+      $ createExternalCommit bob1 Nothing qcs >>= sendAndConsumeCommitBundle
 
     sub' <-
       responseJsonError
@@ -2942,7 +2993,10 @@ testLeaveSubConv isSubConvCreator = do
     do
       leaveCommit <- createPendingProposalCommit (head others)
       mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
-        events <- sendAndConsumeCommitBundle leaveCommit
+        events <-
+          fst
+            <$$> withTempMockFederator' ("on-mls-message-sent" ~> RemoteMLSMessageOk)
+            $ sendAndConsumeCommitBundle leaveCommit
         liftIO $ events @?= []
         WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
           wsAssertMLSMessage qsub (cidQualifiedUser . head $ others) (mpMessage leaveCommit) n
@@ -2981,7 +3035,9 @@ testLeaveSubConv isSubConvCreator = do
       traverse_ (uncurry consumeMessage1) (zip others msgs)
 
     -- a member commits the pending proposal
-    void $ createPendingProposalCommit (head others) >>= sendAndConsumeCommitBundle
+    void $
+      withTempMockFederator' ("on-mls-message-sent" ~> RemoteMLSMessageOk) $
+        createPendingProposalCommit (head others) >>= sendAndConsumeCommitBundle
 
     -- check that only 2 clients are left in the subconv
     do

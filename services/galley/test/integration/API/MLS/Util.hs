@@ -143,7 +143,7 @@ remotePostCommitBundle ::
   Remote ClientIdentity ->
   Qualified ConvOrSubConvId ->
   ByteString ->
-  m ([Event], Maybe UnreachableUsers)
+  m [Event]
 remotePostCommitBundle rsender qcs bundle = do
   client <- view tsFedGalleyClient
   let msr =
@@ -168,20 +168,23 @@ remotePostCommitBundle rsender qcs bundle = do
       MLSMessageResponseProposalFailure e ->
         assertFailure $
           "proposal failure while receiving commit bundle: " <> displayException e
-      MLSMessageResponseUpdates _ _ -> pure ([], mempty)
+      e@(MLSMessageResponseUnreachableBackends _) ->
+        assertFailure $
+          "error while receiving commit bundle: " <> show e
+      MLSMessageResponseUpdates _ _ -> pure []
 
 postCommitBundle ::
   HasCallStack =>
   ClientIdentity ->
   Qualified ConvOrSubConvId ->
   ByteString ->
-  TestM ([Event], Maybe UnreachableUsers)
+  TestM [Event]
 postCommitBundle sender qcs bundle = do
   loc <- qualifyLocal ()
   foldQualified
     loc
     ( \_ ->
-        fmap (mmssEvents &&& mmssUnreachableUsers) . responseJsonError
+        fmap mmssEvents . responseJsonError
           =<< localPostCommitBundle sender bundle
             <!! const 201 === statusCode
     )
@@ -866,7 +869,7 @@ sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], May
 sendAndConsumeMessage mp = do
   for_ mp.mpWelcome $ \_ -> liftIO $ assertFailure "use sendAndConsumeCommitBundle"
   res <-
-    fmap (mmssEvents Tuple.&&& mmssUnreachableUsers) $
+    fmap (mmssEvents Tuple.&&& mmssFailedToSendTo) $
       responseJsonError
         =<< postMessage (mpSender mp) (mpMessage mp)
           <!! const 201 === statusCode
@@ -893,13 +896,7 @@ createBundle mp = do
   pure (encodeMLS' bundle)
 
 sendAndConsumeCommitBundle :: HasCallStack => MessagePackage -> MLSTest [Event]
-sendAndConsumeCommitBundle = fmap fst . sendAndConsumeCommitBundleFederated
-
-sendAndConsumeCommitBundleFederated ::
-  HasCallStack =>
-  MessagePackage ->
-  MLSTest ([Event], Maybe UnreachableUsers)
-sendAndConsumeCommitBundleFederated mp = do
+sendAndConsumeCommitBundle mp = do
   qcs <- getConvId
   bundle <- createBundle mp
   resp <- liftTest $ postCommitBundle (mpSender mp) qcs bundle

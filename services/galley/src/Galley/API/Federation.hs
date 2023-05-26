@@ -592,7 +592,7 @@ sendMLSCommitBundle remoteDomain msr =
       ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
       qConvOrSub <- E.lookupConvByGroupId ibundle.groupId >>= noteS @'ConvNotFound
       when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
-      uncurry F.MLSMessageResponseUpdates . first (map lcuUpdate)
+      uncurry F.MLSMessageResponseUpdates . (,mempty) . map lcuUpdate
         <$> postMLSCommitBundle
           loc
           (tUntagged sender)
