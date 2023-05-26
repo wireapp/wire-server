@@ -23,6 +23,7 @@ module Wire.API.Federation.API
     HasFedEndpoint,
     HasUnsafeFedEndpoint,
     fedClient,
+    fedQueueClient,
     fedClientIn,
     unsafeFedClientIn,
     module Wire.API.MakesFederatedCall,
@@ -41,6 +42,7 @@ import Servant.Client.Core
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
@@ -74,6 +76,12 @@ fedClient ::
   (AddAnnotation 'Remote showcomp name x, showcomp ~ ShowComponent comp, HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
+
+fedQueueClient ::
+  forall (comp :: Component) (name :: Symbol) m api.
+  (HasFedEndpoint comp api name, HasClient m api, m ~ FedQueueClient comp) =>
+  Client m api
+fedQueueClient = clientIn (Proxy @api) (Proxy @m)
 
 fedClientIn ::
   forall (comp :: Component) (name :: Symbol) m api.

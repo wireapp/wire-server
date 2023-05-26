@@ -9,12 +9,11 @@ metadata:
     heritage: {{ .Release.Service }}
 spec:
   replicas: {{ .Values.replicaCount }}
-  # TODO(elland): Review this
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: {{ .Values.replicaCount }}
+    # Ensures only one version of the background worker is running at any given
+    # moment. This means small downtime, but the background workers should be
+    # able to catch up.
+    type: Recreate
   selector:
     matchLabels:
       app: background-worker

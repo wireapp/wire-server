@@ -1,4 +1,4 @@
-{stdenv, python3, fetchgit}:
+{ stdenv, python3, fetchgit }:
 stdenv.mkDerivation rec {
   name = "rabbitmqadmin";
   version = "3.11.13";
@@ -9,7 +9,7 @@ stdenv.mkDerivation rec {
     sha256 = "sha256-lbOuxJz66xlGlgodbz8Xlb3hcaewVFMqf9R/5XlqaAY=";
   };
 
-  propagatedBuildInputs = [python3];
+  propagatedBuildInputs = [ python3 ];
 
   dontBuild = true;
 

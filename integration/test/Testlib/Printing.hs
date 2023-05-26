@@ -1,5 +1,7 @@
 module Testlib.Printing where
 
+import Prelude
+
 yellow :: String
 yellow = "\x1b[38;5;11m"
 
@@ -17,6 +19,9 @@ red = "\x1b[38;5;9m"
 
 green :: String
 green = "\x1b[32m"
+
+gray :: String
+gray = "\x1b[38;5;250m"
 
 resetColor :: String
 resetColor = "\x1b[0m"

@@ -129,7 +129,7 @@ tests m db b n o = do
 
 testRegisterNewOAuthClient :: Brig -> Http ()
 testRegisterNewOAuthClient brig = do
-  let newOAuthClient@(RegisterOAuthClientRequest expectedAppName expectedUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
+  let newOAuthClient@(OAuthClientConfig expectedAppName expectedUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
   c <- registerNewOAuthClient brig newOAuthClient
   uid <- randomId
   oauthClientInfo <- getOAuthClientInfo brig uid c.clientId
@@ -139,7 +139,7 @@ testRegisterNewOAuthClient brig = do
 
 testCreateOAuthCodeSuccess :: Brig -> Http ()
 testCreateOAuthCodeSuccess brig = do
-  let newOAuthClient@(RegisterOAuthClientRequest _ redirectUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
+  let newOAuthClient@(OAuthClientConfig _ redirectUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
   c <- registerNewOAuthClient brig newOAuthClient
   uid <- randomId
   let scope = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
@@ -738,17 +738,17 @@ authHeader = bearer "Authorization"
 bearer :: ToHttpApiData a => HeaderName -> a -> Request -> Request
 bearer name = header name . toHeader . Bearer
 
-newOAuthClientRequestBody :: Text -> Text -> RegisterOAuthClientRequest
+newOAuthClientRequestBody :: Text -> Text -> OAuthClientConfig
 newOAuthClientRequestBody name url =
   let redirectUrl = mkUrl (cs url)
       applicationName = OAuthApplicationName (unsafeRange name)
-   in RegisterOAuthClientRequest applicationName redirectUrl
+   in OAuthClientConfig applicationName redirectUrl
 
-registerNewOAuthClient :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> RegisterOAuthClientRequest -> m OAuthClientCredentials
+registerNewOAuthClient :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> OAuthClientConfig -> m OAuthClientCredentials
 registerNewOAuthClient brig reqBody =
   responseJsonError =<< registerNewOAuthClient' brig reqBody <!! const 200 === statusCode
 
-registerNewOAuthClient' :: (MonadHttp m) => Brig -> RegisterOAuthClientRequest -> m ResponseLBS
+registerNewOAuthClient' :: (MonadHttp m) => Brig -> OAuthClientConfig -> m ResponseLBS
 registerNewOAuthClient' brig reqBody =
   post (brig . paths ["i", "oauth", "clients"] . json reqBody)
 
@@ -799,7 +799,7 @@ generateOAuthClientAndAuthorizationCode = generateOAuthClientAndAuthorizationCod
 
 generateOAuthClientAndAuthorizationCode' :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => OAuthCodeChallenge -> Brig -> UserId -> OAuthScopes -> RedirectUrl -> m (OAuthClientId, OAuthAuthorizationCode)
 generateOAuthClientAndAuthorizationCode' chal brig uid scope url = do
-  let newOAuthClient = RegisterOAuthClientRequest (OAuthApplicationName (unsafeRange "E Corp")) url
+  let newOAuthClient = OAuthClientConfig (OAuthApplicationName (unsafeRange "E Corp")) url
   OAuthClientCredentials cid _ <- registerNewOAuthClient brig newOAuthClient
   (cid,) <$> generateOAuthAuthorizationCode' chal brig uid cid scope url
 

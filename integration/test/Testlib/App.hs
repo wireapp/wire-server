@@ -1,14 +1,17 @@
 module Testlib.App where
 
 import Control.Monad.Reader
+import qualified Control.Retry as Retry
 import Data.Aeson hiding ((.=))
 import Data.IORef
+import qualified Data.Text as T
 import qualified Data.Yaml as Yaml
 import GHC.Exception
 import System.FilePath
 import Testlib.Env
 import Testlib.JSON
 import Testlib.Types
+import Prelude
 
 failApp :: String -> App a
 failApp msg = throw (AppFailure msg)
@@ -44,8 +47,17 @@ readServiceConfig srv = do
     Left err -> failApp ("Error while parsing " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err)
     Right value -> pure value
 
-ownDomain :: App String
-ownDomain = asks (.domain1)
+data Domain = OwnDomain | OtherDomain
 
-otherDomain :: App String
-otherDomain = asks (.domain2)
+instance MakesValue Domain where
+  make OwnDomain = asks (String . T.pack . (.domain1))
+  make OtherDomain = asks (String . T.pack . (.domain2))
+
+-- | Run an action, `recoverAll`ing with exponential backoff (min step 8ms, total timeout
+-- ~15s).  Search this package for examples how to use it.
+--
+-- Ideally, this will be the only thing you'll ever need from the retry package when writing
+-- integration tests.  If you are unhappy with it,, please consider fixing it so everybody can
+-- benefit.
+unrace :: App a -> App a
+unrace action = Retry.recoverAll (Retry.exponentialBackoff 8000 <> Retry.limitRetries 10) (const action)

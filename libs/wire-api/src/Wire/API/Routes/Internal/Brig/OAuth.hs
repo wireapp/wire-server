@@ -17,6 +17,7 @@
 
 module Wire.API.Routes.Internal.Brig.OAuth where
 
+import Data.Id (OAuthClientId)
 import Servant (JSON)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
@@ -34,6 +35,37 @@ type OAuthAPI =
         :> CanThrow 'OAuthFeatureDisabled
         :> "oauth"
         :> "clients"
-        :> ReqBody '[JSON] RegisterOAuthClientRequest
+        :> ReqBody '[JSON] OAuthClientConfig
         :> Post '[JSON] OAuthClientCredentials
     )
+    :<|> Named
+           "get-oauth-client"
+           ( Summary "Get OAuth client by id"
+               :> CanThrow 'OAuthFeatureDisabled
+               :> CanThrow 'OAuthClientNotFound
+               :> "oauth"
+               :> "clients"
+               :> Capture "id" OAuthClientId
+               :> Get '[JSON] OAuthClient
+           )
+    :<|> Named
+           "update-oauth-client"
+           ( Summary "Update OAuth client"
+               :> CanThrow 'OAuthFeatureDisabled
+               :> CanThrow 'OAuthClientNotFound
+               :> "oauth"
+               :> "clients"
+               :> Capture "id" OAuthClientId
+               :> ReqBody '[JSON] OAuthClientConfig
+               :> Put '[JSON] OAuthClient
+           )
+    :<|> Named
+           "delete-oauth-client"
+           ( Summary "Delete OAuth client"
+               :> CanThrow 'OAuthFeatureDisabled
+               :> CanThrow 'OAuthClientNotFound
+               :> "oauth"
+               :> "clients"
+               :> Capture "id" OAuthClientId
+               :> Delete '[JSON] ()
+           )

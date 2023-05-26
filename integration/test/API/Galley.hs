@@ -53,25 +53,15 @@ instance MakesValue CreateConv where
 
 postConversation ::
   ( HasCallStack,
-    MakesValue user,
-    MakesValue client
+    MakesValue user
   ) =>
   user ->
-  Maybe client ->
   CreateConv ->
   App Response
-postConversation user mclient cc = do
-  uid <- objId user
-  domain <- objDomain user
-  mcid <- for mclient objId
-  req <- baseRequest domain Galley Versioned "/conversations"
+postConversation user cc = do
+  req <- baseRequest user Galley Versioned "/conversations"
   ccv <- make cc
-  submit "POST" $
-    req
-      & zUser uid
-      & maybe id zClient mcid
-      & zConnection "conn"
-      & addJSON ccv
+  submit "POST" $ req & addJSON ccv
 
 putConversationProtocol ::
   ( HasCallStack,
@@ -89,13 +79,10 @@ putConversationProtocol user qcnv mclient protocol = do
   mclientId <- for mclient objId
   (domain, cnv) <- objQid qcnv
   p <- asString protocol
-  uid <- objId user
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv, "protocol"])
   submit
     "PUT"
     ( req
-        & zUser uid
-        & zConnection "conn"
         & maybe id zClient mclientId
         & addJSONObject ["protocol" .= p]
     )
@@ -110,10 +97,78 @@ getConversation ::
   App Response
 getConversation user qcnv = do
   (domain, cnv) <- objQid qcnv
-  uid <- objId user
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv])
-  submit
-    "GET"
-    ( req
-        & zUser uid
-    )
+  submit "GET" req
+
+getSubConversation ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue conv
+  ) =>
+  user ->
+  conv ->
+  String ->
+  App Response
+getSubConversation user conv sub = do
+  (cnvDomain, cnvId) <- objQid conv
+  req <-
+    baseRequest user Galley Versioned $
+      joinHttpPath
+        [ "conversations",
+          cnvDomain,
+          cnvId,
+          "subconversations",
+          sub
+        ]
+  submit "GET" req
+
+getSelfConversation :: (HasCallStack, MakesValue user) => user -> App Response
+getSelfConversation user = do
+  req <- baseRequest user Galley Versioned "/conversations/mls-self"
+  submit "GET" $ req
+
+data ListConversationIds = ListConversationIds {pagingState :: Maybe String, size :: Maybe Int}
+
+instance Default ListConversationIds where
+  def = ListConversationIds Nothing Nothing
+
+listConversationIds :: MakesValue user => user -> ListConversationIds -> App Response
+listConversationIds user args = do
+  req <- baseRequest user Galley Versioned "/conversations/list-ids"
+  submit "POST" $
+    req
+      & addJSONObject
+        ( ["paging_state" .= s | s <- toList args.pagingState]
+            <> ["size" .= s | s <- toList args.size]
+        )
+
+listConversations :: MakesValue user => user -> [Value] -> App Response
+listConversations user cnvs = do
+  req <- baseRequest user Galley Versioned "/conversations/list"
+  submit "POST" $
+    req
+      & addJSONObject ["qualified_ids" .= cnvs]
+
+postMLSMessage :: HasCallStack => ClientIdentity -> ByteString -> App Response
+postMLSMessage cid msg = do
+  req <- baseRequest cid Galley Versioned "/mls/messages"
+  submit "POST" (addMLS msg req)
+
+postMLSCommitBundle :: HasCallStack => ClientIdentity -> ByteString -> App Response
+postMLSCommitBundle cid msg = do
+  req <- baseRequest cid Galley Versioned "/mls/commit-bundles"
+  submit "POST" (addMLS msg req)
+
+getGroupInfo ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  App Response
+getGroupInfo user conv = do
+  (qcnv, mSub) <- objSubConv conv
+  (convDomain, convId) <- objQid qcnv
+  let path = joinHttpPath $ case mSub of
+        Nothing -> ["conversations", convDomain, convId, "groupinfo"]
+        Just sub -> ["conversations", convDomain, convId, "subconversations", sub, "groupinfo"]
+  req <- baseRequest user Galley Versioned path
+  submit "GET" req

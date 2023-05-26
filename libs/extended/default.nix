@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, amqp
 , base
 , bytestring
 , cassandra-util
@@ -18,13 +19,16 @@
 , imports
 , lib
 , metrics-wai
+, monad-control
 , optparse-applicative
 , resourcet
+, retry
 , servant
 , servant-server
 , servant-swagger
 , string-conversions
 , temporary
+, text
 , tinylog
 , wai
 }:
@@ -34,6 +38,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    amqp
     base
     bytestring
     cassandra-util
@@ -44,12 +49,15 @@ mkDerivation {
     http-types
     imports
     metrics-wai
+    monad-control
     optparse-applicative
     resourcet
+    retry
     servant
     servant-server
     servant-swagger
     string-conversions
+    text
     tinylog
     wai
   ];
