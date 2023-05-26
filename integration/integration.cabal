@@ -134,6 +134,7 @@ library
     , process
     , random
     , raw-strings-qq
+    , resource-pool
     , retry
     , scientific
     , split

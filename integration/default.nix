@@ -32,6 +32,7 @@
 , process
 , random
 , raw-strings-qq
+, resource-pool
 , retry
 , scientific
 , split
@@ -82,6 +83,7 @@ mkDerivation {
     process
     random
     raw-strings-qq
+    resource-pool
     retry
     scientific
     split
