@@ -41,6 +41,10 @@ spec:
       configMap:
         name: "gundeck"
 
+    - name: "cargohold-config"
+      configMap:
+        name: "cargohold"
+
   restartPolicy: Never
 
   initContainers:
@@ -94,6 +98,9 @@ spec:
 
     - name: gundeck-config
       mountPath: /etc/wire/gundeck/conf
+
+    - name: cargohold-config
+      mountPath: /etc/wire/cargohold/conf
 
     env:
     # these dummy values are necessary for Amazonka's "Discover"

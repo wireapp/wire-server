@@ -67,14 +67,17 @@ testModifiedGundeck = do
   withModifiedService Gundeck pure $ do
     pure ()
 
+testModifiedCargohold :: HasCallStack => App ()
+testModifiedCargohold = do
+  withModifiedService Cargohold pure $ do
+    pure ()
+
 testModifiedServices :: HasCallStack => App ()
 testModifiedServices = do
   let serviceMap =
         Map.fromList
           [ (Brig, setField "optSettings.setFederationDomain" "overridden.example.com"),
             (Galley, setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
-            -- (Cargohold, pure),
-            -- (Nginz, pure)
           ]
   withModifiedServices serviceMap $ do
     (_user, tid) <- createTeam OwnDomain
