@@ -71,7 +71,7 @@ spec:
         cpu: "2"
     volumeMounts:
 
-    - name: integration-confg
+    - name: integration-config
       mountPath: /etc/wire/integration
 
     - name: galley-config
