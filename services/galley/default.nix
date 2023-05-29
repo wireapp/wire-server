@@ -7,6 +7,7 @@
 , aeson-qq
 , amazonka
 , amazonka-sqs
+, amqp
 , asn1-encoding
 , asn1-types
 , async
@@ -136,6 +137,7 @@ mkDerivation {
     aeson
     amazonka
     amazonka-sqs
+    amqp
     asn1-encoding
     asn1-types
     async

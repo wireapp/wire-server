@@ -57,7 +57,7 @@ module Galley.Options
     rmqHost,
     rmqPort,
     rmqVhost,
-    rmqQueue
+    rmqQueue,
   )
 where
 
@@ -159,9 +159,9 @@ data RabbitMqOpts = RabbitMqOpts
     _rmqQueue :: !Text
   }
   deriving (Show, Generic)
+
 makeLenses ''RabbitMqOpts
 deriveFromJSON toOptionFieldName ''RabbitMqOpts
-
 
 data Opts = Opts
   { -- | Host and port to bind to

@@ -2,7 +2,7 @@ module Wire.API.FederationUpdate
   ( FedUpdateCallback,
     updateFedDomains,
     getAllowedDomainsInitial,
-    updateFedDomains'
+    updateFedDomains',
   )
 where
 

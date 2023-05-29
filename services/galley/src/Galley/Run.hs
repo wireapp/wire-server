@@ -63,11 +63,17 @@ import Galley.Cassandra
 import Galley.Cassandra.Connection
 import Galley.Data.Conversation.Types (convMetadata)
 import qualified Galley.Effects.MemberStore as E
+import Galley.Env
 import Galley.Monad
 import Galley.Options
 import qualified Galley.Queue as Q
 import Galley.Types.Conversations.Members
 import Imports
+import qualified Network.AMQP as AMQP
+import Network.AMQP.Extended (RabbitMqHooks (RabbitMqHooks), openConnectionWithRetries)
+import qualified Network.AMQP.Extended as AMQP
+import qualified Network.AMQP.Types as AMQP
+import Network.HTTP.Client (defaultManagerSettings, newManager)
 import qualified Network.HTTP.Media.RenderHeader as HTTPMedia
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai
@@ -76,6 +82,8 @@ import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
 import Polysemy.Error
 import Servant hiding (route)
+import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http))
+import Servant.Client.Internal.HttpClient (defaultMakeClientRequest)
 import qualified System.Logger as Log
 import System.Logger.Extended (mkLogger)
 import Util.Options
@@ -90,14 +98,6 @@ import Wire.API.Routes.API
 import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
-import Network.AMQP.Extended (openConnectionWithRetries, RabbitMqHooks (RabbitMqHooks))
-import qualified Network.AMQP.Extended as AMQP
-import qualified Network.AMQP as AMQP
-import qualified Network.AMQP.Types as AMQP
-import Network.HTTP.Client (defaultManagerSettings, newManager)
-import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http))
-import Servant.Client.Internal.HttpClient (defaultMakeClientRequest)
-import Galley.Env
 
 -- This type is used to tie the amqp sending and receiving message types together.
 type MsgData = Domain
@@ -106,8 +106,10 @@ run :: Opts -> IO ()
 run opts = lowerCodensity $ do
   l <- lift $ mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
   let Endpoint h p = opts ^. optBrig
-  clientEnv <- liftIO $ newManager defaultManagerSettings <&> \mgr ->
-    ClientEnv mgr (BaseUrl  Http (unpack h) (fromIntegral p) "") Nothing defaultMakeClientRequest
+  clientEnv <-
+    liftIO $
+      newManager defaultManagerSettings <&> \mgr ->
+        ClientEnv mgr (BaseUrl Http (unpack h) (fromIntegral p) "") Nothing defaultMakeClientRequest
   ioref <- liftIO $ newIORef =<< getAllowedDomainsInitial l clientEnv
   (app, env) <- mkApp opts ioref l
   settings <-
@@ -141,71 +143,75 @@ run opts = lowerCodensity $ do
 -- TODO: We still need to delete things, so we'll have to come up with some other processing
 -- and non-volatile data storage to replace rabbit
 simpleFederationUpdate :: IORef FederationDomainConfigs -> ClientEnv -> Log.Logger -> Codensity IO ()
-simpleFederationUpdate ioref clientEnv l = void $ Codensity $ Async.withAsync $
-  updateFedDomains' ioref clientEnv l $ \_ _ -> pure ()
+simpleFederationUpdate ioref clientEnv l = void $
+  Codensity $
+    Async.withAsync $
+      updateFedDomains' ioref clientEnv l $
+        \_ _ -> pure ()
 
 -- Complex handling. Most of the complexity comes from interweaving both rabbit queue handling
 -- and the HTTP calls out to brig for the new lists of federation domains. Rabbit handles the
 -- heavey lifting of ensuring single threaded processing of the domains to be deleted.
-complexFederationUpdate
-  :: Env
-  -> ClientEnv
-  -> RabbitMqOpts
-  -> Codensity IO ()
+complexFederationUpdate ::
+  Env ->
+  ClientEnv ->
+  RabbitMqOpts ->
+  Codensity IO ()
 complexFederationUpdate env clientEnv rmq = void $ Codensity $ Async.withAsync $ do
   -- This ioref is needed so that we can kill the async thread that
   -- is forked by updateFedDomains'
   threadRef <- newIORef Nothing
-  let
-      mqh = rmq ^. rmqHost
+  let mqh = rmq ^. rmqHost
       mqp = rmq ^. rmqPort
       mqv = rmq ^. rmqVhost
       mqq = rmq ^. rmqQueue
-  openConnectionWithRetries (env ^. applog) mqh mqp mqv $ RabbitMqHooks
-    { AMQP.onConnectionClose = do
-      Log.info (env ^. applog) $ Log.msg @Text "AMQP connection closed"
-      killForkedThread threadRef
-    , AMQP.onChannelException = \e -> do
-      Log.err (env ^. applog) $ Log.msg @Text "AMQP channel exception" . Log.field "exception" (show e)
-      killForkedThread threadRef
-    , AMQP.onNewChannel = \channel -> do
-      -- NOTE: `amqp` uses ChanThreadKilledException to signal that this channel is closed
-      -- This exception should _NOT_ be caught, or if it is it needs to be rethrown. This
-      -- will kill the thread. This handler is then used to start a new one.
-      ensureQueue channel mqq
-      writeRabbitMq clientEnv env channel mqq threadRef
-      readRabbitMq channel mqq env
+  openConnectionWithRetries (env ^. applog) mqh mqp mqv $
+    RabbitMqHooks
+      { AMQP.onConnectionClose = do
+          Log.info (env ^. applog) $ Log.msg @Text "AMQP connection closed"
+          killForkedThread threadRef,
+        AMQP.onChannelException = \e -> do
+          Log.err (env ^. applog) $ Log.msg @Text "AMQP channel exception" . Log.field "exception" (show e)
+          killForkedThread threadRef,
+        AMQP.onNewChannel = \channel -> do
+          -- NOTE: `amqp` uses ChanThreadKilledException to signal that this channel is closed
+          -- This exception should _NOT_ be caught, or if it is it needs to be rethrown. This
+          -- will kill the thread. This handler is then used to start a new one.
+          ensureQueue channel mqq
+          writeRabbitMq clientEnv env channel mqq threadRef
+          readRabbitMq channel mqq env
 
-      -- Keep this thread around until it is killed.
-      forever $ threadDelay maxBound 
-    }
+          -- Keep this thread around until it is killed.
+          forever $ threadDelay maxBound
+      }
   where
-    killForkedThread ref = 
-      readIORef ref >>= maybe
-        (pure ())
-        (\t -> do
-          Async.cancel t
-          atomicWriteIORef ref Nothing
-        )
+    killForkedThread ref =
+      readIORef ref
+        >>= maybe
+          (pure ())
+          ( \t -> do
+              Async.cancel t
+              atomicWriteIORef ref Nothing
+          )
 
 -- Ensure that the queue exists and is single active consumer.
 -- Queue declaration is idempotent
 ensureQueue :: AMQP.Channel -> Text -> IO ()
 ensureQueue channel mqq = do
-  void $ AMQP.declareQueue channel $ AMQP.newQueue { AMQP.queueName = mqq, AMQP.queueHeaders = headers }
+  void $ AMQP.declareQueue channel $ AMQP.newQueue {AMQP.queueName = mqq, AMQP.queueHeaders = headers}
   where
     headers = AMQP.FieldTable $ Map.fromList [("x-single-active-consumer", AMQP.FVBool True)]
 
 -- Update federation domains, write deleted domains to rabbitmq
 -- Push this thread id somewhere so we can make sure it is killed with
 -- this channel thread. We don't want to leak those resources.
-writeRabbitMq
-  :: ClientEnv
-  -> Env
-  -> AMQP.Channel
-  -> Text
-  -> IORef (Maybe (Async.Async ()))
-  -> IO ()
+writeRabbitMq ::
+  ClientEnv ->
+  Env ->
+  AMQP.Channel ->
+  Text ->
+  IORef (Maybe (Async.Async ())) ->
+  IO ()
 writeRabbitMq clientEnv env channel mqq threadRef = do
   threadId <- updateFedDomains' ioref clientEnv (env ^. applog) $ \old new -> do
     let fromFedList = Set.fromList . remotes
@@ -217,10 +223,12 @@ writeRabbitMq clientEnv env channel mqq threadRef = do
     for_ deletedDomains $ \fedCfg -> do
       -- We're using the default exchange. This will deliver the
       -- message to the queue name used for the routing key
-      void $ AMQP.publishMsg channel "" mqq $ AMQP.newMsg
-        { AMQP.msgBody = Aeson.encode @MsgData $ domain fedCfg
-        , AMQP.msgDeliveryMode = pure AMQP.Persistent
-        }
+      void $
+        AMQP.publishMsg channel "" mqq $
+          AMQP.newMsg
+            { AMQP.msgBody = Aeson.encode @MsgData $ domain fedCfg,
+              AMQP.msgDeliveryMode = pure AMQP.Persistent
+            }
   atomicWriteIORef threadRef $ pure threadId
   where
     ioref = env ^. fedDomains
@@ -418,9 +426,6 @@ deleteFederationDomainOneOnOne dom = do
   env <- ask
   liftIO $ runClient (env ^. cstate) . deleteRemoteConnectionsByDomain $ dom
 
-
-
-
 -------
 -- TODO: Delete these functions
 
@@ -440,7 +445,7 @@ deleteFederationDomain deletedDomains = do
     deleteFederationDomainLocal dom
     -- Remove the remote one-on-one conversations between local members and remote members for the given domain.
     -- NOTE: We cannot tell the remote backend about these changes as we are no longer federated.
-    deleteFederationDomainOneOnOne dom    
+    deleteFederationDomainOneOnOne dom
 
 updateFedDomainsCallback :: FederationDomainConfigs -> FederationDomainConfigs -> App ()
 updateFedDomainsCallback old new = do
