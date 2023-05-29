@@ -52,6 +52,12 @@ module Galley.Options
     optLogLevel,
     optLogNetStrings,
     optLogFormat,
+    optRabbitMq,
+    RabbitMqOpts,
+    rmqHost,
+    rmqPort,
+    rmqVhost,
+    rmqQueue
   )
 where
 
@@ -145,6 +151,18 @@ deriveFromJSON toOptionFieldName ''JournalOpts
 
 makeLenses ''JournalOpts
 
+-- Based on Wire.BackgroundWorker.Options
+data RabbitMqOpts = RabbitMqOpts
+  { _rmqHost :: !String,
+    _rmqPort :: !Int,
+    _rmqVhost :: !Text,
+    _rmqQueue :: !Text
+  }
+  deriving (Show, Generic)
+makeLenses ''RabbitMqOpts
+deriveFromJSON toOptionFieldName ''RabbitMqOpts
+
+
 data Opts = Opts
   { -- | Host and port to bind to
     _optGalley :: !Endpoint,
@@ -172,7 +190,9 @@ data Opts = Opts
     --  <http://cr.yp.to/proto/netstrings.txt>
     _optLogNetStrings :: !(Maybe (Last Bool)),
     -- | What log format to use
-    _optLogFormat :: !(Maybe (Last LogFormat))
+    _optLogFormat :: !(Maybe (Last LogFormat)),
+    -- | RabbitMQ
+    _optRabbitMq :: !(Maybe RabbitMqOpts)
   }
 
 deriveFromJSON toOptionFieldName ''Opts

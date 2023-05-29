@@ -196,6 +196,7 @@ library
       aeson                  >=2.0.1.0
     , amazonka               >=1.4.5
     , amazonka-sqs           >=1.4.5
+    , amqp
     , asn1-encoding
     , asn1-types
     , async                  >=2.0

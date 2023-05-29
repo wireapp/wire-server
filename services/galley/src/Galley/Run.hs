@@ -90,13 +90,22 @@ import Wire.API.Routes.API
 import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
+import Network.AMQP.Extended (openConnectionWithRetries, RabbitMqHooks (RabbitMqHooks))
+import qualified Network.AMQP.Extended as AMQP
+import qualified Network.AMQP as AMQP
+import qualified Network.AMQP.Types as AMQP
+import Network.HTTP.Client (defaultManagerSettings, newManager)
+import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http))
+import Servant.Client.Internal.HttpClient (defaultMakeClientRequest)
+import qualified System.Logger as L
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
   l <- lift $ mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
-  (ioref, _) <- lift $
-    updateFedDomains (opts ^. optBrig) l $
-      \_ _ -> pure () -- TODO: Push the domain to be deleted to a RabbitMQ queue
+  let Endpoint h p = opts ^. optBrig
+  clientEnv <- liftIO $ newManager defaultManagerSettings <&> \mgr ->
+    ClientEnv mgr (BaseUrl  Http (unpack h) (fromIntegral p) "") Nothing defaultMakeClientRequest
+  ioref <- liftIO $ newIORef =<< getAllowedDomainsInitial l clientEnv
   (app, env) <- mkApp opts ioref l
   settings <-
     lift $
@@ -109,12 +118,56 @@ run opts = lowerCodensity $ do
 
   forM_ (env ^. aEnv) $ \aws ->
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
+
   -- TODO: Run a loop that pulls from RabbitMQ and performs the deletion
-  -- void $ Codensity $ Async.withAsync $ runApp env $ _ deleteFederationDomain
+  maybe
+    (pure ())
+    (\rmq -> void $ Codensity $ Async.withAsync $ readFromRabbitMQ l env rmq)
+    $ opts ^. optRabbitMq
+
+  -- TODO: Run a loop that polls brig for the new domain list, updating the IORef
+  -- The remote domain deletion is tracked with a rabbitmq queue. This is so that
+  -- we can ensure only one galley instance is removing domains and that they aren't
+  -- stepping on each others toes. It also allows for the galley instance to go down
+  -- without losing information about which domains still need to be removed.
+  void $ Codensity $ Async.withAsync $ updateFedDomains' ioref clientEnv l $ \_old _new -> do
+    -- TODO: Push the deleted domains to rabbit so they can be deleted.
+    pure ()
+
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
   void $ Codensity $ Async.withAsync $ runApp env undefined
   lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
+
+
+readFromRabbitMQ :: L.Logger -> Env -> RabbitMqOpts -> IO ()
+readFromRabbitMQ l env rmq = openConnectionWithRetries l host port vhost $ RabbitMqHooks
+  { AMQP.onConnectionClose = pure () -- Log that the channel closed?
+  , AMQP.onChannelException = const $ pure () -- Log the exception?
+  , AMQP.onNewChannel = \channel -> do
+    -- Ensure that the queue exists and is single active consumer.
+    -- Queue declaration is idempotent
+    let headers = AMQP.FieldTable $ Map.fromList [("x-single-active-consumer", AMQP.FVBool True)]
+    void $ AMQP.declareQueue channel $ AMQP.newQueue { AMQP.queueName = rmq ^. rmqQueue, AMQP.queueHeaders = headers }
+    -- Read messages from RabbitMQ, process the message, and ACK or NACK it as appropriate.
+    void $ AMQP.consumeMsgs channel queue AMQP.Ack $ \(message, envelope) -> do
+      case Aeson.eitherDecode (AMQP.msgBody message) of
+        Left e -> do
+          Log.err l $ Log.msg @Text "Could not decode message from RabbitMQ" . Log.field "error" (show e)
+          AMQP.nackEnv envelope
+        Right dom -> do
+          runApp env $ do
+            deleteFederationDomainRemote dom
+            deleteFederationDomainLocal dom
+            deleteFederationDomainOneOnOne dom
+          AMQP.ackEnv envelope
+  }
+  where
+    host = rmq ^. rmqHost
+    port = rmq ^. rmqPort
+    vhost = rmq ^. rmqVhost
+    queue = rmq ^. rmqQueue
+
 
 mkApp :: Opts -> IORef FederationDomainConfigs -> Log.Logger -> Codensity IO (Application, Env)
 mkApp opts fedDoms logger =
@@ -283,6 +336,11 @@ deleteFederationDomainLocal dom = do
 -- let rcnv = toRemoteUnsafe dom cnv
 -- notifyRemoteConversationAction lUser (qualifyAs rcnv convUpdate) Nothing
 
+deleteFederationDomainOneOnOne :: Domain -> App ()
+deleteFederationDomainOneOnOne dom = do
+  env <- ask
+  liftIO $ runClient (env ^. cstate) . deleteRemoteConnectionsByDomain $ dom
+
 deleteFederationDomain :: Set FederationDomainConfig -> App ()
 deleteFederationDomain deletedDomains = do
   for_ deletedDomains $ \fedDomCfg -> do
@@ -299,8 +357,7 @@ deleteFederationDomain deletedDomains = do
     deleteFederationDomainLocal dom
     -- Remove the remote one-on-one conversations between local members and remote members for the given domain.
     -- NOTE: We cannot tell the remote backend about these changes as we are no longer federated.
-    env <- ask
-    liftIO $ runClient (env ^. cstate) . deleteRemoteConnectionsByDomain $ dom
+    deleteFederationDomainOneOnOne dom    
 
 updateFedDomainsCallback :: FederationDomainConfigs -> FederationDomainConfigs -> App ()
 updateFedDomainsCallback old new = do
@@ -308,12 +365,11 @@ updateFedDomainsCallback old new = do
   let fromFedList = Set.fromList . remotes
       prevDoms = fromFedList old
       currDoms = fromFedList new
-  unless (prevDoms == currDoms) $ do
-    -- Perform updates before rewriting the tvar
-    -- This means that if the update fails on a
-    -- particular invocation, it can be run again
-    -- on the next firing as it isn't likely that
-    -- the domain list is changing frequently.
-    -- FS-1179 is handling this part.
-    let deletedDomains = Set.difference prevDoms currDoms
-    deleteFederationDomain deletedDomains
+      deletedDomains = Set.difference prevDoms currDoms
+  -- Perform updates before rewriting the ioref
+  -- This means that if the update fails on a
+  -- particular invocation, it can be run again
+  -- on the next firing as it isn't likely that
+  -- the domain list is changing frequently.
+  -- FS-1179 is handling this part.
+  deleteFederationDomain deletedDomains
