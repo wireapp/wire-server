@@ -74,11 +74,9 @@ updateFedDomains :: Endpoint -> L.Logger -> FedUpdateCallback -> IO (IORef Feder
 updateFedDomains (Endpoint h p) log' cb = do
   clientEnv <- newManager defaultManagerSettings <&> \mgr -> ClientEnv mgr baseUrl Nothing defaultMakeClientRequest
   ioref <- newIORef =<< getAllowedDomainsInitial log' clientEnv
-  updateFedDomains' ioref clientEnv log' cb
+  (ioref,) <$> updateFedDomains' ioref clientEnv log' cb
   where
     baseUrl = BaseUrl Http (unpack h) (fromIntegral p) ""
 
-updateFedDomains' :: IORef FederationDomainConfigs -> ClientEnv -> L.Logger -> FedUpdateCallback -> IO (IORef FederationDomainConfigs, Async ())
-updateFedDomains' ioref clientEnv log' cb = do
-  updateDomainsThread <- async $ getAllowedDomainsLoop log' clientEnv cb ioref
-  pure (ioref, updateDomainsThread)
+updateFedDomains' :: IORef FederationDomainConfigs -> ClientEnv -> L.Logger -> FedUpdateCallback -> IO (Async ())
+updateFedDomains' ioref clientEnv log' cb = async $ getAllowedDomainsLoop log' clientEnv cb ioref

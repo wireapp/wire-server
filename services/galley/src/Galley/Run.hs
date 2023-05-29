@@ -97,7 +97,9 @@ import qualified Network.AMQP.Types as AMQP
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http))
 import Servant.Client.Internal.HttpClient (defaultMakeClientRequest)
-import qualified System.Logger as L
+
+-- This type is used to tie the amqp sending and receiving message types together.
+type MsgData = Domain
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
@@ -119,54 +121,92 @@ run opts = lowerCodensity $ do
   forM_ (env ^. aEnv) $ \aws ->
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
 
-  -- TODO: Run a loop that pulls from RabbitMQ and performs the deletion
   maybe
-    (pure ())
-    (\rmq -> void $ Codensity $ Async.withAsync $ readFromRabbitMQ l env rmq)
-    $ opts ^. optRabbitMq
+    -- Update federation domains without talking to rabbitmq
+    -- This doesn't need a call back as there isn't anything
+    -- we need to do beyond updating the IORef, which is done
+    -- for us.
+    (void $ Codensity $ Async.withAsync $ updateFedDomains' ioref clientEnv l $ \_ _ -> pure ())
+    (\rmq -> void $ Codensity $ Async.withAsync $ do
+      -- This ioref is needed so that we can kill the async thread that
+      -- is forked by updateFedDomains'
+      threadRef <- newIORef Nothing
+      let killForkedThread = readIORef threadRef >>= maybe
+            (pure ())
+            (\t -> do
+              Async.cancel t
+              atomicWriteIORef threadRef Nothing
+            )
+          mqh = rmq ^. rmqHost
+          mqp = rmq ^. rmqPort
+          mqv = rmq ^. rmqVhost
+          mqq = rmq ^. rmqQueue
+      openConnectionWithRetries l mqh mqp mqv $ RabbitMqHooks
+        { AMQP.onConnectionClose = do
+          -- Log that the channel closed?
+          killForkedThread
+        , AMQP.onChannelException = const $ do
+          -- Log the exception?
+          killForkedThread
+        , AMQP.onNewChannel = \channel -> do
+          -- NOTE: `amqp` uses ChanThreadKilledException to signal that this channel is closed
+          -- This exception should _NOT_ be caught, or if it is it needs to be rethrown. This
+          -- will kill the thread. This handler is then used to start a new one.
 
-  -- TODO: Run a loop that polls brig for the new domain list, updating the IORef
-  -- The remote domain deletion is tracked with a rabbitmq queue. This is so that
-  -- we can ensure only one galley instance is removing domains and that they aren't
-  -- stepping on each others toes. It also allows for the galley instance to go down
-  -- without losing information about which domains still need to be removed.
-  void $ Codensity $ Async.withAsync $ updateFedDomains' ioref clientEnv l $ \_old _new -> do
-    -- TODO: Push the deleted domains to rabbit so they can be deleted.
-    pure ()
+          -- Ensure that the queue exists and is single active consumer.
+          -- Queue declaration is idempotent
+          let headers = AMQP.FieldTable $ Map.fromList [("x-single-active-consumer", AMQP.FVBool True)]
+          void $ AMQP.declareQueue channel $ AMQP.newQueue { AMQP.queueName = rmq ^. rmqQueue, AMQP.queueHeaders = headers }
+
+          -- Update federation domains, write deleted domains to rabbitmq
+          -- Push this thread id somewhere so we can make sure it is killed with
+          -- this channel thread. We don't want to leak those resources.
+          threadId <- updateFedDomains' ioref clientEnv l $ \old new -> do
+            let fromFedList = Set.fromList . remotes
+                prevDoms = fromFedList old
+                currDoms = fromFedList new
+                deletedDomains = Set.difference prevDoms currDoms
+            -- Write to the queue
+            -- NOTE: This type must be compatible with what is being read from the queue.
+            for_ deletedDomains $ \fedCfg -> do
+              -- We're using the default exchange. This will deliver the
+              -- message to the queue name used for the routing key
+              void $ AMQP.publishMsg channel "" mqq $ AMQP.newMsg
+                { AMQP.msgBody = Aeson.encode @MsgData $ domain fedCfg
+                , AMQP.msgDeliveryMode = pure AMQP.Persistent
+                }
+          atomicWriteIORef threadRef $ pure threadId          
+
+          -- Read messages from RabbitMQ, process the message, and ACK or NACK it as appropriate.
+          -- This is automatically killed by `amqp`, we don't need to handle it.
+          --
+          -- We can run this on every galley instance, and rabbitmq will handle the single
+          -- consumer constraint for us. This is done via the x-single-active-consumer header
+          -- that is set when the queue is created. When the active consumer disconnects for
+          -- whatever reason, rabbit will pick another of the subscribed clients to be the new
+          -- active consumer.
+          void $ AMQP.consumeMsgs channel mqq AMQP.Ack $ \(message, envelope) -> 
+            case Aeson.eitherDecode @MsgData (AMQP.msgBody message) of
+              Left e -> do
+                Log.err l $ Log.msg @Text "Could not decode message from RabbitMQ" . Log.field "error" (show e)
+                AMQP.nackEnv envelope
+              Right dom -> do
+                runApp env $ do
+                  deleteFederationDomainRemote dom
+                  deleteFederationDomainLocal dom
+                  deleteFederationDomainOneOnOne dom
+                AMQP.ackEnv envelope
+          -- Keep this thread around until it is killed.
+          forever $ threadDelay maxBound 
+        }
+    )
+    $ opts ^. optRabbitMq
 
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
   void $ Codensity $ Async.withAsync $ runApp env undefined
   lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
 
-
-readFromRabbitMQ :: L.Logger -> Env -> RabbitMqOpts -> IO ()
-readFromRabbitMQ l env rmq = openConnectionWithRetries l host port vhost $ RabbitMqHooks
-  { AMQP.onConnectionClose = pure () -- Log that the channel closed?
-  , AMQP.onChannelException = const $ pure () -- Log the exception?
-  , AMQP.onNewChannel = \channel -> do
-    -- Ensure that the queue exists and is single active consumer.
-    -- Queue declaration is idempotent
-    let headers = AMQP.FieldTable $ Map.fromList [("x-single-active-consumer", AMQP.FVBool True)]
-    void $ AMQP.declareQueue channel $ AMQP.newQueue { AMQP.queueName = rmq ^. rmqQueue, AMQP.queueHeaders = headers }
-    -- Read messages from RabbitMQ, process the message, and ACK or NACK it as appropriate.
-    void $ AMQP.consumeMsgs channel queue AMQP.Ack $ \(message, envelope) -> do
-      case Aeson.eitherDecode (AMQP.msgBody message) of
-        Left e -> do
-          Log.err l $ Log.msg @Text "Could not decode message from RabbitMQ" . Log.field "error" (show e)
-          AMQP.nackEnv envelope
-        Right dom -> do
-          runApp env $ do
-            deleteFederationDomainRemote dom
-            deleteFederationDomainLocal dom
-            deleteFederationDomainOneOnOne dom
-          AMQP.ackEnv envelope
-  }
-  where
-    host = rmq ^. rmqHost
-    port = rmq ^. rmqPort
-    vhost = rmq ^. rmqVhost
-    queue = rmq ^. rmqQueue
 
 
 mkApp :: Opts -> IORef FederationDomainConfigs -> Log.Logger -> Codensity IO (Application, Env)
@@ -340,6 +380,12 @@ deleteFederationDomainOneOnOne :: Domain -> App ()
 deleteFederationDomainOneOnOne dom = do
   env <- ask
   liftIO $ runClient (env ^. cstate) . deleteRemoteConnectionsByDomain $ dom
+
+
+
+
+-------
+-- TODO: Delete these functions
 
 deleteFederationDomain :: Set FederationDomainConfig -> App ()
 deleteFederationDomain deletedDomains = do
