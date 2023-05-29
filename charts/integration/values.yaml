@@ -1,3 +1,13 @@
 image:
   repository: quay.io/wire/integration
   tag: do-not-use
+
+config:
+  dynamicBackendsPoolsize: 3
+
+  cassandra:
+    host: cassandra-ephemeral
+    replicationFactor: 1
+
+  elasticsearch:
+    host: elasticsearch-ephemeral
