@@ -590,6 +590,8 @@ Here's an example of how to include the `-k` option in the command:
 
 ```
 
+The default value for `-k` is `3000`. If internet access is degraded, a good start would be to try `1000` instead.
+
 ### Locale
 
 
