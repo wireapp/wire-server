@@ -26,7 +26,6 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Jwt.Tools (DPoPTokenGenerationError (..))
-import Data.String.Conversions (cs)
 import qualified Data.ZAuth.Validation as ZAuth
 import Imports
 import Network.HTTP.Types.Header

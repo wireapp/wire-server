@@ -133,7 +133,6 @@ library
     , polysemy-wire-zoo
     , servant
     , servant-client-core
-    , string-conversions
     , text
     , tinylog
     , transformers
@@ -293,7 +292,6 @@ executable federator-integration
     , QuickCheck
     , random
     , servant-client-core
-    , string-conversions
     , tasty-hunit
     , text
     , types-common
@@ -394,7 +392,6 @@ test-suite federator-tests
     , servant
     , servant-client
     , servant-client-core
-    , string-conversions
     , tasty
     , tasty-hunit
     , tasty-quickcheck

@@ -49,7 +49,6 @@ import Crypto.Random.Types (MonadRandom (..))
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.Aeson.TH
-import Data.String.Conversions
 import Imports
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
@@ -105,7 +104,7 @@ deriveFromJSON deriveJSONOptions ''IntegrationConfig
 
 makeLenses ''TestEnv
 
-newtype TestErrorLabel = TestErrorLabel {fromTestErrorLabel :: ST}
+newtype TestErrorLabel = TestErrorLabel {fromTestErrorLabel :: Text}
   deriving (Eq, Show, IsString)
 
 instance FromJSON TestErrorLabel where

@@ -60,7 +60,6 @@ import Data.Json.Util ((#))
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword6)
 import Data.Proxy
-import Data.String.Conversions (cs)
 import Data.Swagger hiding (Operation)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (UTCTime)

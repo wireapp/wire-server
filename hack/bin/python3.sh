@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 # You can use this wrapper when configurating your editor's linter integration
 

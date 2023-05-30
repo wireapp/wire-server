@@ -283,7 +283,6 @@ library
     , singletons-base
     , singletons-th
     , sop-core
-    , string-conversions
     , swagger2
     , tagged
     , text                       >=0.11
@@ -742,7 +741,6 @@ test-suite wire-api-tests
     , schema-profunctor
     , servant
     , servant-server
-    , string-conversions
     , swagger2
     , tasty
     , tasty-hspec

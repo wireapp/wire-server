@@ -72,7 +72,7 @@ import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams
-import Imports
+import Imports hiding (cs)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, result, setStatus)

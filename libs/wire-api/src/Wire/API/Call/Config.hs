@@ -82,7 +82,6 @@ import qualified Data.IP as IP
 import Data.List.NonEmpty (NonEmpty)
 import Data.Misc (HttpsUrl (..), IpAddr (IpAddr), Port (..))
 import Data.Schema
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Data.Text.Ascii

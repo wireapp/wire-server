@@ -34,7 +34,6 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.String.Conversions
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Tuple.Extra

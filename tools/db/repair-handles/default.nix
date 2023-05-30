@@ -14,7 +14,6 @@
 , lib
 , mtl
 , optparse-applicative
-, string-conversions
 , text
 , tinylog
 , types-common
@@ -36,7 +35,6 @@ mkDerivation {
     lens
     mtl
     optparse-applicative
-    string-conversions
     text
     tinylog
     types-common

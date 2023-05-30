@@ -37,7 +37,6 @@
 , servant-swagger
 , servant-swagger-ui
 , split
-, string-conversions
 , swagger2
 , tagged
 , tasty
@@ -86,7 +85,6 @@ mkDerivation {
     servant-swagger
     servant-swagger-ui
     split
-    string-conversions
     swagger2
     text
     tinylog
@@ -121,7 +119,6 @@ mkDerivation {
     random
     retry
     schema-profunctor
-    string-conversions
     tagged
     tasty
     tasty-hunit

@@ -17,7 +17,6 @@
 
 import Control.Monad.Trans.Except
 import Data.Jwt.Tools
-import Data.String.Conversions (cs)
 import Imports
 import Test.Hspec
 

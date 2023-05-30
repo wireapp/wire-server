@@ -26,7 +26,6 @@ module Arbitrary where
 import Data.Aeson
 import Data.Id (TeamId, UserId)
 import Data.Proxy
-import Data.String.Conversions (cs)
 import Data.Swagger hiding (Header (..))
 import Imports
 import SAML2.WebSSO.Test.Arbitrary ()

@@ -31,7 +31,6 @@ import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id (TeamId)
 import Data.Proxy (Proxy (Proxy))
-import Data.String.Conversions
 import Data.Swagger
 import Imports
 import Network.HTTP.Media ((//))

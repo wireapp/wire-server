@@ -22,7 +22,6 @@ import Brig.Options
 import Control.Lens
 import Data.Aeson.Lens
 import Data.ByteString.Conversion (toByteString')
-import Data.String.Conversions
 import Imports
 import Servant.API (toQueryParam)
 import Test.Tasty

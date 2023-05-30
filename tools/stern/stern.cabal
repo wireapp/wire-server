@@ -98,7 +98,6 @@ library
     , servant-swagger
     , servant-swagger-ui
     , split                  >=0.2
-    , string-conversions
     , swagger2
     , text                   >=1.1
     , tinylog                >=0.10
@@ -271,7 +270,6 @@ executable stern-integration
     , retry
     , schema-profunctor
     , stern
-    , string-conversions
     , tagged
     , tasty                  >=0.8
     , tasty-hunit            >=0.9

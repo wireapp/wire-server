@@ -52,7 +52,7 @@ import Data.Json.Util
 import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
-import Imports
+import Imports hiding (cs)
 import Test.QuickCheck
 import Web.HttpApiData
 import Wire.API.MLS.CipherSuite

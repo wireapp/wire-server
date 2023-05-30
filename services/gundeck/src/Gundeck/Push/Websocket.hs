@@ -44,7 +44,7 @@ import Gundeck.Monad
 import qualified Gundeck.Presence.Data as Presence
 import Gundeck.Types.Presence
 import Gundeck.Util
-import Imports
+import Imports hiding (cs)
 import Network.HTTP.Client (HttpExceptionContent (..))
 import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types (StdMethod (POST), status200, status410)

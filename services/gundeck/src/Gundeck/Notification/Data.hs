@@ -34,7 +34,7 @@ import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
 import qualified Data.Sequence as Seq
 import Gundeck.Options (NotificationTTL (..))
-import Imports
+import Imports hiding (cs)
 import UnliftIO (pooledForConcurrentlyN_)
 import Wire.API.Internal.Notification
 

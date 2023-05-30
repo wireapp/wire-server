@@ -54,7 +54,7 @@ import Data.Kind
 import Data.Schema
 import Data.Singletons.TH
 import qualified Data.Swagger as S
-import Imports
+import Imports hiding (cs)
 import Test.QuickCheck hiding (label)
 import Wire.API.Event.Conversation
 import Wire.API.MLS.CipherSuite

@@ -6,7 +6,6 @@ import Control.Exception
 import Crypto.JOSE.JWK
 import Data.Aeson
 import qualified Data.ByteString as BS
-import Data.String.Conversions (cs)
 import Imports
 import Polysemy
 

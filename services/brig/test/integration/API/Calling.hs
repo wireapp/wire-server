@@ -32,7 +32,6 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Misc (Port (..), mkHttpsUrl)
 import qualified Data.Set as Set
-import Data.String.Conversions
 import Imports
 import System.FilePath ((</>))
 import Test.Tasty
