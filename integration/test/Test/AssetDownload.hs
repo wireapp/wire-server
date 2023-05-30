@@ -1,4 +1,4 @@
-module Test.Cargohold where
+module Test.AssetDownload where
 
 import API.Cargohold
 import qualified Data.ByteString.Char8 as C
@@ -10,8 +10,8 @@ import Network.URI
 import SetupHelpers
 import Testlib.Prelude
 
-testUploadAsset :: HasCallStack => App ()
-testUploadAsset = do
+testDownloadAsset :: HasCallStack => App ()
+testDownloadAsset = do
   user <- randomUser OwnDomain def
 
   key <- bindResponse (uploadAsset user) $ \resp -> do
@@ -24,8 +24,8 @@ testUploadAsset = do
       ("Expect 'Hello World!' as text asset content. Got: " ++ show resp.body)
       (resp.body == fromString "Hello World!")
 
-testUploadAssetMultiIngressS3DownloadUrl :: HasCallStack => App ()
-testUploadAssetMultiIngressS3DownloadUrl = do
+testDownloadAssetMultiIngressS3DownloadUrl :: HasCallStack => App ()
+testDownloadAssetMultiIngressS3DownloadUrl = do
   user <- randomUser OwnDomain def
 
   key <- bindResponse (uploadAsset user) $ \resp -> do

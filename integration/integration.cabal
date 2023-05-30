@@ -89,9 +89,9 @@ library
     MLS.Util
     RunAllTests
     SetupHelpers
+    Test.AssetDownload
     Test.B2B
     Test.Brig
-    Test.Cargohold
     Test.Demo
     Test.User
     Testlib.App
