@@ -329,9 +329,6 @@ mkRawMLS x = RawMLS (LBS.toStrict (runPut (serialiseMLS x))) x
 
 traceMLS :: Show a => String -> Get a -> Get a
 traceMLS l g = do
-  lookAhead $ do
-    d <- getByteString 4
-    traceM $ l <> " peek: " <> show d
   begin <- bytesRead
   r <- g
   end <- bytesRead

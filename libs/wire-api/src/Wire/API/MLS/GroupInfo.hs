@@ -84,7 +84,7 @@ instance ParseMLS GroupInfoTBS where
   parseMLS =
     GroupInfoTBS
       <$> label "groupContext" parseMLS
-      <*> traceMLS "extensions" (parseMLSVector @VarInt parseMLS)
+      <*> label "extensions" (parseMLSVector @VarInt parseMLS)
       <*> label "confirmationTag" (parseMLSBytes @VarInt)
       <*> label "signer" parseMLS
 
