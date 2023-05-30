@@ -1,8 +1,10 @@
 module Testlib.Types where
 
 import Control.Exception as E
+import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Reader
+import Control.Monad.Trans.Control
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import Data.ByteString (ByteString)
@@ -100,8 +102,14 @@ newtype App a = App {unApp :: ReaderT Env IO a}
       MonadMask,
       MonadCatch,
       MonadThrow,
-      MonadReader Env
+      MonadReader Env,
+      MonadBase IO
     )
+
+instance MonadBaseControl IO App where
+  type StM App a = StM (ReaderT Env IO) a
+  liftBaseWith f = App (liftBaseWith (\g -> f (g . unApp)))
+  restoreM = App . restoreM
 
 runAppWithEnv :: Env -> App a -> IO a
 runAppWithEnv e m = runReaderT (unApp m) e

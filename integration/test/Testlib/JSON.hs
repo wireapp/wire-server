@@ -1,6 +1,7 @@
 module Testlib.JSON where
 
 import Control.Monad
+import Control.Monad.Extra (ifM)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding ((.=))
@@ -179,6 +180,19 @@ setField ::
   App Value
 setField selector v x = do
   modifyField @a @Value selector (\_ -> pure (toJSON v)) x
+
+setFieldIfExists :: forall a b. (HasCallStack, MakesValue a, ToJSON b) => String -> b -> a -> App Value
+setFieldIfExists selector v x = do
+  ifM
+    (member selector x)
+    (modifyField @a @Value selector (\_ -> pure (toJSON v)) x)
+    (make x)
+
+member :: (HasCallStack, MakesValue a) => String -> a -> App Bool
+member k x = do
+  v <- make x
+  ob <- asObject v
+  pure (KM.member (KM.fromString k) ob)
 
 -- Update nested fields, using the old value with a stateful action
 modifyField :: (HasCallStack, MakesValue a, ToJSON b) => String -> (Maybe Value -> App b) -> a -> App Value

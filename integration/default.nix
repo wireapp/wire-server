@@ -25,6 +25,7 @@
 , http-types
 , kan-extensions
 , lib
+, monad-control
 , mtl
 , network
 , network-uri
@@ -43,6 +44,7 @@
 , text
 , time
 , transformers
+, transformers-base
 , unix
 , unliftio
 , uuid
@@ -76,6 +78,7 @@ mkDerivation {
     http-client
     http-types
     kan-extensions
+    monad-control
     mtl
     network
     network-uri
@@ -94,6 +97,7 @@ mkDerivation {
     text
     time
     transformers
+    transformers-base
     unix
     unliftio
     uuid

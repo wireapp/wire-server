@@ -5,6 +5,7 @@ import Control.Exception (finally)
 import qualified Control.Exception as E
 import Control.Monad.Extra
 import Control.Monad.Reader
+import Control.Monad.Trans.Control (MonadBaseControl (liftBaseWith))
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
 import qualified Data.ByteString as BS
@@ -12,6 +13,7 @@ import Data.Foldable
 import Data.Function
 import Data.Functor
 import qualified Data.Map.Strict as Map
+import Data.Pool (withResource)
 import Data.String.Conversions (cs)
 import Data.Text hiding (elem)
 import Data.Traversable
@@ -56,6 +58,12 @@ copyDirectoryRecursively from to = do
 
 withModifiedServices :: Map.Map Service (Value -> App Value) -> App a -> App a
 withModifiedServices services action = do
+  pool <- asks (.resourcePool)
+  liftBaseWith $
+    \runInBase -> withResource pool (runInBase . withModifiedServicesAndResourcePool services action)
+
+withModifiedServicesAndResourcePool :: Map.Map Service (Value -> App Value) -> App a -> BackendResource -> App a
+withModifiedServicesAndResourcePool services action resource = do
   ports <- Map.traverseWithKey (\_ _ -> liftIO openFreePort) services
 
   let updateServiceMapInConfig :: Value -> App Value
@@ -72,6 +80,7 @@ withModifiedServices services action = do
                           <> (["externalHost" .= ("127.0.0.1" :: String) | srv == Cannon])
                       )
                   )
+                & setFieldIfExists "cassandra.keyspace" (mkKeyspace srv resource)
           )
           config
           (Map.assocs ports)

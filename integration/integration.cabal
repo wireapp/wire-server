@@ -127,6 +127,7 @@ library
     , http-client
     , http-types
     , kan-extensions
+    , monad-control
     , mtl
     , network
     , network-uri
@@ -134,7 +135,7 @@ library
     , process
     , random
     , raw-strings-qq
-    , resource-pool
+    , resource-pool          >=0.4.0
     , retry
     , scientific
     , split
@@ -145,6 +146,7 @@ library
     , text
     , time
     , transformers
+    , transformers-base
     , unix
     , unliftio
     , uuid

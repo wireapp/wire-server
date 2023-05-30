@@ -10,7 +10,9 @@ import Data.Functor
 import Data.IORef
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Pool
 import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.String
 import Data.Word
 import qualified Data.Yaml as Yaml
@@ -35,7 +37,8 @@ data Env = Env
     removalKeyPath :: FilePath,
     prekeys :: IORef [(Int, String)],
     lastPrekeys :: IORef [String],
-    mls :: IORef MLSState
+    mls :: IORef MLSState,
+    resourcePool :: Pool BackendResource
   }
 
 -- | Initialised once per testsuite.
@@ -168,6 +171,8 @@ mkEnv ge = do
   pks <- liftIO $ newIORef (zip [1 ..] somePrekeys)
   lpks <- liftIO $ newIORef someLastPrekeys
   mls <- liftIO . newIORef =<< mkMLSState
+  resources <- liftIO $ newIORef $ Set.fromList [DynBackend1, DynBackend2, DynBackend3]
+  pool <- liftIO $ newPool $ defaultPoolConfig (create resources) (destroy resources) (fromIntegral $ maxBound @Int) 3
   pure
     Env
       { serviceMap = gServiceMap ge,
@@ -180,8 +185,21 @@ mkEnv ge = do
         removalKeyPath = gRemovalKeyPath ge,
         prekeys = pks,
         lastPrekeys = lpks,
-        mls = mls
+        mls = mls,
+        resourcePool = pool
       }
+
+destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
+destroy ioRef = modifyIORef' ioRef . Set.insert
+
+create :: IORef (Set.Set BackendResource) -> IO BackendResource
+create ioRef = do
+  resources <- Set.toList <$> readIORef ioRef
+  case resources of
+    [] -> error "No resources available"
+    (r : rs) -> do
+      writeIORef ioRef (Set.fromList rs)
+      pure r
 
 data MLSState = MLSState
   { baseDir :: FilePath,
@@ -215,3 +233,17 @@ data ClientIdentity = ClientIdentity
     client :: String
   }
   deriving (Show, Eq, Ord)
+
+data BackendResource
+  = DynBackend1
+  | DynBackend2
+  | DynBackend3
+  deriving (Show, Eq, Ord)
+
+toInt :: BackendResource -> Int
+toInt DynBackend1 = 1
+toInt DynBackend2 = 2
+toInt DynBackend3 = 3
+
+mkKeyspace :: Service -> BackendResource -> String
+mkKeyspace srv r = serviceName srv <> "_test_dyn_" <> show (toInt r)
