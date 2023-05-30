@@ -779,51 +779,10 @@ This sequence diagram illustrates how users on different virtual backends
 (represented by different Kubernetes ingresses) download local assets according
 to the configuration example above:
 
-```{eval-rst}
-.. kroki::
-   :type: mermaid
-   :caption: Sequence Diagram: Alice and Bob download an asset
+![Sequence Diagram: Alice and Bob download an asset](./multi-ingress-example-sequence.svg)
 
-    sequenceDiagram
-        actor alice(red)
-        Note over alice(red): Uses webapp.red.example.com
-        actor bob(green)
-        Note over bob(green): Uses webapp.green.example.com
-        participant ingress-red
-        Note over ingress-red: Routes *.red.example.com
-        participant ingress-green
-        Note over ingress-green: Routes *.green.example.com
-        participant nginz
-        participant cargohold
-        participant S3 storage
-        rect rgb(255, 127, 127)
-        note right of alice(red): Alice downloads asset
-        alice(red)->>ingress-red: Download local asset
-        ingress-red->>nginz: Forward request
-        nginz->>cargohold: Forward request - Add Z-Host header
-        activate cargohold
-        Note right of cargohold: Look up asset host URL for Z-Host
-        cargohold-->>alice(red): Redirect. Location: Storage via ingress-red
-        deactivate cargohold
-        alice(red)->>ingress-red: Follow redirect
-        ingress-red->>S3 storage: Forward request
-        activate S3 storage
-        S3 storage-->alice(red): Return asset
-        deactivate S3 storage
-        end
-        rect rgb(161, 247, 167)
-        note right of bob(green): Bob downloads asset
-        bob(green)->>ingress-green: Download local asset
-        ingress-green->>nginz: Forward request
-        nginz->>cargohold: Forward request - Add Z-Host header
-        activate cargohold
-        Note right of cargohold: Look up asset host URL for Z-Host
-        cargohold-->>bob(green): Redirect. Location: Storage via ingress-green
-        deactivate cargohold
-        bob(green)->>ingress-green: Follow redirect
-        ingress-green->>S3 storage: Forward request
-        activate S3 storage
-        S3 storage-->bob(green): Return asset
-        deactivate S3 storage
-        end
-```
+<!-- 
+Unfortunately, kroki currently doesn't work on our CI: SQPIT-1810
+Link to diagram:
+https://mermaid.live/edit#pako:eNrdVbFu2zAQ_ZUDJ7ewDdhtUkBDgBRB0CHIYCNL4eVEnmWiMk8lKbttkH8vJbsW5dCOUXSqBkHiPT6-e3yinoVkRSITEC5H32syku40FhbXCwP7C6VnC1hqSQNL6l1XeWRPwBuKqxk8OXKwpRyrahxGxvQD11VJY8mvSHPOB4UlMknSrtonbcfStBVar6Wu0HjQJgCdGwUNKfaonMGMax8WeH9acIq5FXKOuwVE7BcqN4U2v9IlibbgFZcqXZ5_ABeMxYK6uiXpwRb5YHp1NYTJ9FN7ixw3jW6ri5UHXva28rZ5BsVbUzIqB-gc-WgTD9DRzU3Pz7v9FChZYnk8L4KGiW23Gdyz3aJVQW7IoYvQbT3gDq2_wsIIbpWCr6MvHF5WhIpsL2p6g6HFhHePvdajFR6Yv0Fd7ZTDquF9mj3AMoR2t0zHcZg1CiJj92akdGP-OLBJ9JpDFOa73YGNxnRAFZ3Te9rxey5L3gZHdmueMrsLyBnHDwpScerGQr_9dn1tzfFeR_2k2MioRFIn15MhTD82Sb0-ndT4fPjM-emcdsDItf23eVlSW_D_ltXYv0uzenTknU_rOd_fzOsfy_9xYvtN_21ixVCsya5Rq_D3fG6KC-FXtKaFyMKjoiXWpV-IhXkJUKw9z38aKTJvaxqKulKBff-jFdkSS0cvvwHKl250
+<!-- -->
