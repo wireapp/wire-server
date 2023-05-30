@@ -23,7 +23,6 @@ import Control.Lens ((?~))
 import Data.Kind
 import Data.Metrics.Servant
 import Data.Proxy
-import Data.String.Conversions (cs)
 import Data.Swagger
 import GHC.TypeLits
 import Imports
