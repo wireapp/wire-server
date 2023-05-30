@@ -113,6 +113,7 @@ module Wire.API.User
 
     -- * Protocol preferences
     BaseProtocolTag (..),
+    SupportedProtocolUpdate (..),
     defSupportedProtocols,
     protocolSetBits,
     protocolSetFromBits,
@@ -1554,6 +1555,7 @@ instance ToSchema SendVerificationCode where
 data BaseProtocolTag = BaseProtocolProteusTag | BaseProtocolMLSTag
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform BaseProtocolTag)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema BaseProtocolTag)
 
 baseProtocolMask :: BaseProtocolTag -> Word32
 baseProtocolMask BaseProtocolProteusTag = 1
@@ -1585,3 +1587,15 @@ protocolSetFromBits w =
     (\x -> if w .&. baseProtocolMask x /= 0 then Set.insert x else id)
     mempty
     [BaseProtocolProteusTag, BaseProtocolMLSTag]
+
+newtype SupportedProtocolUpdate = SupportedProtocolUpdate
+  {unSupportedProtocolUpdate :: Set BaseProtocolTag}
+  deriving stock (Eq, Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema SupportedProtocolUpdate)
+
+instance ToSchema SupportedProtocolUpdate where
+  schema =
+    object "SupportedProtocolUpdate" $
+      SupportedProtocolUpdate
+        <$> unSupportedProtocolUpdate
+          .= field "supported_protocols" (set schema)

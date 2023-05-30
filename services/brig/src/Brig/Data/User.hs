@@ -63,6 +63,7 @@ module Brig.Data.User
     updatePassword,
     updateStatus,
     updateHandle,
+    updateSupportedProtocols,
     updateRichInfo,
     updateFeatureConferenceCalling,
 
@@ -315,6 +316,11 @@ updateManagedBy u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (
 
 updateHandle :: MonadClient m => UserId -> Handle -> m ()
 updateHandle u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h, u))
+
+updateSupportedProtocols :: MonadClient m => UserId -> Set BaseProtocolTag -> m ()
+updateSupportedProtocols u prots =
+  retry x5 $
+    write userSupportedProtocolUpdate (params LocalQuorum (prots, u))
 
 updatePassword :: MonadClient m => UserId -> PlainTextPassword8 -> m ()
 updatePassword u t = do
@@ -648,6 +654,9 @@ userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ?"
 
 userHandleUpdate :: PrepQuery W (Handle, UserId) ()
 userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"
+
+userSupportedProtocolUpdate :: PrepQuery W (Set BaseProtocolTag, UserId) ()
+userSupportedProtocolUpdate = "UPDATE user SET supported_protocols = ? WHERE id = ?"
 
 userPasswordUpdate :: PrepQuery W (Password, UserId) ()
 userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"

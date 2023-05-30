@@ -269,6 +269,18 @@ type UserAPI =
                     '[Respond 200 "Rich info about the user" RichInfoAssocList]
                     RichInfoAssocList
            )
+    :<|> Named
+           "get-supported-protocols"
+           ( Summary "Get a user's supported protocols"
+               :> ZLocalUser
+               :> "users"
+               :> QualifiedCaptureUserId "uid"
+               :> "supported-protocols"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "Protocols supported by the user" (Set BaseProtocolTag))
+           )
 
 type SelfAPI =
   Named
@@ -404,6 +416,16 @@ type SelfAPI =
                :> "handle"
                :> ReqBody '[JSON] HandleUpdate
                :> MultiVerb 'PUT '[JSON] ChangeHandleResponses (Maybe ChangeHandleError)
+           )
+    :<|> Named
+           "change-supported-protocols"
+           ( Summary "Change your supported protocols"
+               :> ZLocalUser
+               :> ZConn
+               :> "self"
+               :> "supported-protocols"
+               :> ReqBody '[JSON] SupportedProtocolUpdate
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Supported protocols changed")
            )
 
 type UserHandleAPI =
