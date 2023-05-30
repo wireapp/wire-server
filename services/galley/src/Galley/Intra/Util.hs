@@ -25,7 +25,6 @@ where
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
 import Bilge.Retry
-import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Control.Retry
 import qualified Data.ByteString.Lazy as LB
@@ -51,14 +50,14 @@ componentName Gundeck = "gundeck"
 
 componentRequest :: IntraComponent -> Opts -> Request -> Request
 componentRequest Brig o =
-  host (encodeUtf8 (o ^. optBrig . epHost))
-    . port (portNumber (fromIntegral (o ^. optBrig . epPort)))
+  host (encodeUtf8 (o.brig._epHost))
+    . port (portNumber (fromIntegral (o.brig._epPort)))
 componentRequest Spar o =
-  host (encodeUtf8 (o ^. optSpar . epHost))
-    . port (portNumber (fromIntegral (o ^. optSpar . epPort)))
+  host (encodeUtf8 (o.spar._epHost))
+    . port (portNumber (fromIntegral (o.spar._epPort)))
 componentRequest Gundeck o =
-  host (encodeUtf8 $ o ^. optGundeck . epHost)
-    . port (portNumber $ fromIntegral (o ^. optGundeck . epPort))
+  host (encodeUtf8 $ o.gundeck._epHost)
+    . port (portNumber $ fromIntegral (o.gundeck._epPort))
     . method POST
     . path "/i/push/v2"
     . expect2xx
@@ -73,7 +72,7 @@ call ::
   (Request -> Request) ->
   App (Response (Maybe LB.ByteString))
 call comp r = do
-  o <- view options
+  o <- asks (.options)
   let r0 = componentRequest comp o
   let n = LT.pack (componentName comp)
   recovering (componentRetryPolicy comp) rpcHandlers (const (rpc n (r . r0)))

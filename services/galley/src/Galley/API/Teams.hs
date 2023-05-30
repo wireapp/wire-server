@@ -442,10 +442,10 @@ uncheckedDeleteTeam lusr zcon tid = do
   where
     pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Sem r ()
     pushDeleteEvents membs e ue = do
-      o <- inputs (view optSettings)
+      o <- inputs settings
       let r = list1 (userRecipient (tUnqualified lusr)) (membersToRecipients (Just (tUnqualified lusr)) membs)
       -- To avoid DoS on gundeck, send team deletion events in chunks
-      let chunkSize = fromMaybe defConcurrentDeletionEvents (o ^. setConcurrentDeletionEvents)
+      let chunkSize = fromMaybe defConcurrentDeletionEvents (o.concurrentDeletionEvents)
       let chunks = List.chunksOf chunkSize (toList r)
       forM_ chunks $ \case
         [] -> pure ()
@@ -1216,9 +1216,9 @@ ensureNotTooLarge ::
   TeamId ->
   Sem r TeamSize
 ensureNotTooLarge tid = do
-  o <- input
+  o <- input @Opts
   (TeamSize size) <- E.getSize tid
-  unless (size < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
+  unless (size < fromIntegral o.settings.maxTeamSize) $
     throwS @'TooManyTeamMembers
   pure $ TeamSize size
 

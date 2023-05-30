@@ -19,12 +19,11 @@
 
 module TestHelpers where
 
-import Control.Lens (view)
 import Control.Monad.Catch (MonadMask)
 import Control.Retry
 import Data.Domain (Domain)
 import Data.Qualified
-import Galley.Options (optSettings, setFederationDomain)
+import Galley.Options
 import Imports
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit (Assertion, testCase)
@@ -39,7 +38,7 @@ test s n h = testCase n runTest
       void . flip runReaderT setup . runTestM $ h
 
 viewFederationDomain :: TestM Domain
-viewFederationDomain = view (tsGConf . optSettings . setFederationDomain)
+viewFederationDomain = asks (._tsGConf.settings.federationDomain)
 
 qualifyLocal :: a -> TestM (Local a)
 qualifyLocal x = do

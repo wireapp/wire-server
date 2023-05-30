@@ -356,7 +356,7 @@ genericGetConfigForUser uid = do
 instance GetFeatureConfig SSOConfig where
   getConfigForServer = do
     status <-
-      inputs (view (optSettings . setFeatureFlags . flagSSO)) <&> \case
+      inputs @Opts (.settings.featureFlags.sso) <&> \case
         FeatureSSOEnabledByDefault -> FeatureStatusEnabled
         FeatureSSODisabledByDefault -> FeatureStatusDisabled
     pure $ setStatus status defFeatureStatus
@@ -366,14 +366,14 @@ instance GetFeatureConfig SSOConfig where
 instance GetFeatureConfig SearchVisibilityAvailableConfig where
   getConfigForServer = do
     status <-
-      inputs (view (optSettings . setFeatureFlags . flagTeamSearchVisibility)) <&> \case
+      inputs @Opts (.settings.featureFlags.teamSearchVisibility) <&> \case
         FeatureTeamSearchVisibilityAvailableByDefault -> FeatureStatusEnabled
         FeatureTeamSearchVisibilityUnavailableByDefault -> FeatureStatusDisabled
     pure $ setStatus status defFeatureStatus
 
 instance GetFeatureConfig ValidateSAMLEmailsConfig where
   getConfigForServer =
-    inputs (view (optSettings . setFeatureFlags . flagsTeamFeatureValidateSAMLEmailsStatus . unDefaults . unImplicitLockStatus))
+    inputs @Opts (.settings.featureFlags.teamFeatureValidateSAMLEmailsStatus.unDefaults.unImplicitLockStatus)
 
 instance GetFeatureConfig DigitalSignaturesConfig
 
@@ -405,15 +405,15 @@ instance GetFeatureConfig LegalholdConfig where
 
 instance GetFeatureConfig FileSharingConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagFileSharing . unDefaults)
+    input @Opts <&> (.settings.featureFlags.fileSharing.unDefaults)
 
 instance GetFeatureConfig AppLockConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagAppLockDefaults . unDefaults . unImplicitLockStatus)
+    input @Opts <&> (.settings.featureFlags.appLockDefaults.unDefaults.unImplicitLockStatus)
 
 instance GetFeatureConfig ClassifiedDomainsConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagClassifiedDomains . unImplicitLockStatus)
+    input @Opts <&> (.settings.featureFlags.classifiedDomains.unImplicitLockStatus)
 
 instance GetFeatureConfig ConferenceCallingConfig where
   type
@@ -428,7 +428,7 @@ instance GetFeatureConfig ConferenceCallingConfig where
       )
 
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagConferenceCalling . unDefaults . unImplicitLockStatus)
+    input @Opts <&> (.settings.featureFlags.conferenceCalling.unDefaults.unImplicitLockStatus)
 
   getConfigForUser uid = do
     wsnl <- getAccountConferenceCallingConfigClient uid
@@ -436,27 +436,27 @@ instance GetFeatureConfig ConferenceCallingConfig where
 
 instance GetFeatureConfig SelfDeletingMessagesConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . unDefaults)
+    input @Opts <&> (.settings.featureFlags.selfDeletingMessages.unDefaults)
 
 instance GetFeatureConfig GuestLinksConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
+    input @Opts <&> (.settings.featureFlags.conversationGuestLinks.unDefaults)
 
 instance GetFeatureConfig SndFactorPasswordChallengeConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . unDefaults)
+    input @Opts <&> (.settings.featureFlags.teamFeatureSndFactorPasswordChallengeStatus.unDefaults)
 
 instance GetFeatureConfig SearchVisibilityInboundConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSearchVisibilityInbound . unDefaults . unImplicitLockStatus)
+    input @Opts <&> (.settings.featureFlags.teamFeatureSearchVisibilityInbound.unDefaults.unImplicitLockStatus)
 
 instance GetFeatureConfig MLSConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagMLS . unDefaults . unImplicitLockStatus)
+    input @Opts <&> (.settings.featureFlags.mls.unDefaults.unImplicitLockStatus)
 
 instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   getConfigForTeam tid = do
-    allowList <- input <&> view (optSettings . setExposeInvitationURLsTeamAllowlist . to (fromMaybe []))
+    allowList <- fromMaybe [] <$> inputs @Opts (.settings.exposeInvitationURLsTeamAllowlist)
     mbOldStatus <- TeamFeatures.getFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid <&> fmap wssStatus
     let teamAllowed = tid `elem` allowList
     pure $ computeConfigForTeam teamAllowed (fromMaybe FeatureStatusDisabled mbOldStatus)
@@ -477,11 +477,11 @@ instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
 
 instance GetFeatureConfig OutlookCalIntegrationConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagOutlookCalIntegration . unDefaults)
+    input @Opts <&> (.settings.featureFlags.outlookCalIntegration.unDefaults)
 
 instance GetFeatureConfig MlsE2EIdConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagMlsE2EId . unDefaults)
+    input @Opts <&> (.settings.featureFlags.mlsE2EId.unDefaults)
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --

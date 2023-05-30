@@ -642,7 +642,7 @@ instance IsTest LHTest where
   run :: OptionSet -> LHTest -> (Progress -> IO ()) -> IO Result
   run _ (LHTest expectedFlag setupAction testAction) _ = do
     setup <- setupAction
-    let featureLegalHold = setup ^. tsGConf . optSettings . setFeatureFlags . flagLegalHold
+    let featureLegalHold = setup._tsGConf.settings.featureFlags.legalHold
     if featureLegalHold == expectedFlag
       then do
         hunitResult <- try $ void . flip runReaderT setup . runTestM $ testAction

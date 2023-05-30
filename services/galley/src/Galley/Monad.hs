@@ -22,7 +22,6 @@ module Galley.Monad where
 import Bilge.IO hiding (options)
 import Bilge.RPC
 import Cassandra
-import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Except
 import Galley.Env
@@ -49,23 +48,24 @@ runApp :: Env -> App a -> IO a
 runApp env = flip runReaderT env . unApp
 
 instance HasRequestId App where
-  getRequestId = App $ view reqId
+  getRequestId = App $ asks reqId
 
 instance MonadHttp App where
   handleRequestWithCont req h = do
-    m <- view manager
+    m <- asks manager
     liftIO $ withResponse req m h
 
 instance MonadClient App where
   liftClient m = do
-    cs <- view cstate
+    cs <- asks cstate
     liftIO $ runClient cs m
-  localState f = locally cstate f
+  localState f =
+    local $ \env -> env {cstate = f env.cstate}
 
 instance LC.MonadLogger App where
   log lvl m = do
     env <- ask
-    log (env ^. applog) lvl (reqIdMsg (env ^. reqId) . m)
+    log (env.applog) lvl (reqIdMsg (env.reqId) . m)
 
 embedApp ::
   ( Member (Embed IO) r,

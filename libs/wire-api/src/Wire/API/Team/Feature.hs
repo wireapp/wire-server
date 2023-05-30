@@ -1,7 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -81,13 +79,12 @@ module Wire.API.Team.Feature
     OutlookCalIntegrationConfig (..),
     MlsE2EIdConfig (..),
     AllFeatureConfigs (..),
-    unImplicitLockStatus,
     ImplicitLockStatus (..),
   )
 where
 
 import qualified Cassandra.CQL as Cass
-import Control.Lens (makeLenses, (?~))
+import Control.Lens ((?~))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import qualified Data.Attoparsec.ByteString as Parser
@@ -538,7 +535,7 @@ instance ToSchema LockStatusResponse where
       LockStatusResponse
         <$> _unlockStatus .= field "lockStatus" schema
 
-newtype ImplicitLockStatus (cfg :: Type) = ImplicitLockStatus {_unImplicitLockStatus :: WithStatus cfg}
+newtype ImplicitLockStatus (cfg :: Type) = ImplicitLockStatus {unImplicitLockStatus :: WithStatus cfg}
   deriving newtype (Eq, Show, Arbitrary)
 
 instance (IsFeatureConfig a, ToSchema a) => ToJSON (ImplicitLockStatus a) where
@@ -1107,5 +1104,3 @@ instance Arbitrary AllFeatureConfigs where
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
-
-makeLenses ''ImplicitLockStatus

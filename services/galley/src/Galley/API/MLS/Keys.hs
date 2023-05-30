@@ -17,7 +17,6 @@
 
 module Galley.API.MLS.Keys (getMLSRemovalKey) where
 
-import Control.Lens (view)
 import Crypto.PubKey.Ed25519 (PublicKey, SecretKey)
 import Galley.Env
 import Imports
@@ -27,4 +26,4 @@ import Wire.API.MLS.Credential (SignaturePurpose (RemovalPurpose))
 import Wire.API.MLS.Keys
 
 getMLSRemovalKey :: Member (Input Env) r => Sem r (Maybe (SecretKey, PublicKey))
-getMLSRemovalKey = mlsKeyPair_ed25519 <$> (inputs (view mlsKeys) <*> pure RemovalPurpose)
+getMLSRemovalKey = mlsKeyPair_ed25519 <$> (inputs mlsKeys <*> pure RemovalPurpose)

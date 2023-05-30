@@ -26,25 +26,8 @@ module Galley.Types.Teams
   ( TeamCreationTime (..),
     tcTime,
     FeatureFlags (..),
-    flagSSO,
-    flagLegalHold,
-    flagTeamSearchVisibility,
-    flagFileSharing,
-    flagAppLockDefaults,
-    flagClassifiedDomains,
-    flagConferenceCalling,
-    flagSelfDeletingMessages,
-    flagConversationGuestLinks,
-    flagsTeamFeatureValidateSAMLEmailsStatus,
-    flagTeamFeatureSndFactorPasswordChallengeStatus,
-    flagTeamFeatureSearchVisibilityInbound,
-    flagOutlookCalIntegration,
-    flagMLS,
-    flagMlsE2EId,
     Defaults (..),
     ImplicitLockStatus (..),
-    unImplicitLockStatus,
-    unDefaults,
     FeatureSSO (..),
     FeatureLegalHold (..),
     FeatureTeamSearchVisibilityAvailability (..),
@@ -139,25 +122,25 @@ newtype TeamCreationTime = TeamCreationTime
   }
 
 data FeatureFlags = FeatureFlags
-  { _flagSSO :: !FeatureSSO,
-    _flagLegalHold :: !FeatureLegalHold,
-    _flagTeamSearchVisibility :: !FeatureTeamSearchVisibilityAvailability,
-    _flagAppLockDefaults :: !(Defaults (ImplicitLockStatus AppLockConfig)),
-    _flagClassifiedDomains :: !(ImplicitLockStatus ClassifiedDomainsConfig),
-    _flagFileSharing :: !(Defaults (WithStatus FileSharingConfig)),
-    _flagConferenceCalling :: !(Defaults (ImplicitLockStatus ConferenceCallingConfig)),
-    _flagSelfDeletingMessages :: !(Defaults (WithStatus SelfDeletingMessagesConfig)),
-    _flagConversationGuestLinks :: !(Defaults (WithStatus GuestLinksConfig)),
-    _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (ImplicitLockStatus ValidateSAMLEmailsConfig)),
-    _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (WithStatus SndFactorPasswordChallengeConfig)),
-    _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (ImplicitLockStatus SearchVisibilityInboundConfig)),
-    _flagMLS :: !(Defaults (ImplicitLockStatus MLSConfig)),
-    _flagOutlookCalIntegration :: !(Defaults (WithStatus OutlookCalIntegrationConfig)),
-    _flagMlsE2EId :: !(Defaults (WithStatus MlsE2EIdConfig))
+  { sso :: !FeatureSSO,
+    legalHold :: !FeatureLegalHold,
+    teamSearchVisibility :: !FeatureTeamSearchVisibilityAvailability,
+    appLockDefaults :: !(Defaults (ImplicitLockStatus AppLockConfig)),
+    classifiedDomains :: !(ImplicitLockStatus ClassifiedDomainsConfig),
+    fileSharing :: !(Defaults (WithStatus FileSharingConfig)),
+    conferenceCalling :: !(Defaults (ImplicitLockStatus ConferenceCallingConfig)),
+    selfDeletingMessages :: !(Defaults (WithStatus SelfDeletingMessagesConfig)),
+    conversationGuestLinks :: !(Defaults (WithStatus GuestLinksConfig)),
+    teamFeatureValidateSAMLEmailsStatus :: !(Defaults (ImplicitLockStatus ValidateSAMLEmailsConfig)),
+    teamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (WithStatus SndFactorPasswordChallengeConfig)),
+    teamFeatureSearchVisibilityInbound :: !(Defaults (ImplicitLockStatus SearchVisibilityInboundConfig)),
+    mls :: !(Defaults (ImplicitLockStatus MLSConfig)),
+    outlookCalIntegration :: !(Defaults (WithStatus OutlookCalIntegrationConfig)),
+    mlsE2EId :: !(Defaults (WithStatus MlsE2EIdConfig))
   }
   deriving (Eq, Show, Generic)
 
-newtype Defaults a = Defaults {_unDefaults :: a}
+newtype Defaults a = Defaults {unDefaults :: a}
   deriving (Eq, Ord, Show, Enum, Bounded, Generic, Functor)
   deriving newtype (Arbitrary)
 

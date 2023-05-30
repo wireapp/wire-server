@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -72,12 +71,10 @@ deriving instance Typeable Error
 instance Exception Error
 
 data Env = Env
-  { _awsEnv :: !AWS.Env,
-    _logger :: !Logger,
-    _eventQueue :: !QueueUrl
+  { awsEnv :: !AWS.Env,
+    logger :: !Logger,
+    eventQueue :: !QueueUrl
   }
-
-makeLenses ''Env
 
 newtype Amazon a = Amazon
   { unAmazon :: ReaderT Env (ResourceT IO) a
@@ -96,20 +93,20 @@ newtype Amazon a = Amazon
     )
 
 instance MonadLogger Amazon where
-  log l m = view logger >>= \g -> Logger.log g l m
+  log l m = asks logger >>= \g -> Logger.log g l m
 
 mkEnv :: Logger -> Manager -> JournalOpts -> IO Env
 mkEnv lgr mgr opts = do
   let g = Logger.clone (Just "aws.galley") lgr
   e <- mkAwsEnv g
-  q <- getQueueUrl e (opts ^. awsQueueName)
+  q <- getQueueUrl e opts.queueName
   pure (Env e g q)
   where
     sqs e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) SQS.defaultService
     mkAwsEnv g = do
       baseEnv <-
         AWS.newEnv AWS.discover
-          <&> AWS.configureService (sqs (opts ^. awsEndpoint))
+          <&> AWS.configureService (sqs opts.endpoint)
       pure $
         baseEnv
           { AWS.logger = awsLogger g,
@@ -161,9 +158,9 @@ execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 
 enqueue :: E.TeamEvent -> Amazon ()
 enqueue e = do
-  QueueUrl url <- view eventQueue
+  QueueUrl url <- asks eventQueue
   rnd <- liftIO nextRandom
-  amaznkaEnv <- view awsEnv
+  amaznkaEnv <- asks awsEnv
   res <- retrying (limitRetries 5 <> exponentialBackoff 1000000) (const canRetry) $ const (sendCatch amaznkaEnv (req url rnd))
   either (throwM . GeneralError) (const (pure ())) res
   where

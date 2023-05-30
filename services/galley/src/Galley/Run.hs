@@ -29,7 +29,6 @@ import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (finally)
-import Control.Lens (view, (.~), (^.))
 import Control.Monad.Codensity
 import qualified Data.Aeson as Aeson
 import Data.Default
@@ -71,28 +70,28 @@ run opts = lowerCodensity $ do
     lift $
       newSettings $
         defaultServer
-          (unpack $ opts ^. optGalley . epHost)
-          (portNumber $ fromIntegral $ opts ^. optGalley . epPort)
-          (env ^. App.applog)
-          (env ^. monitor)
+          (unpack $ opts.galley._epHost)
+          (portNumber $ fromIntegral $ opts.galley._epPort)
+          (env.applog)
+          (env.monitor)
 
-  forM_ (env ^. aEnv) $ \aws ->
-    void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
+  forM_ (env.awsEnv) $ \aws ->
+    void $ Codensity $ Async.withAsync $ collectAuthMetrics (env.monitor) (aws.awsEnv)
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
-  lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
+  lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown env.cstate)
 
 mkApp :: Opts -> Codensity IO (Application, Env)
 mkApp opts =
   do
     metrics <- lift $ M.metrics
     env <- lift $ App.createEnv metrics opts
-    lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
+    lift $ runClient env.cstate $ versionCheck schemaVersion
 
-    let logger = env ^. App.applog
+    let logger = env.applog
 
     let middlewares =
-          versionMiddleware (opts ^. optSettings . setDisabledAPIVersions . traverse)
+          versionMiddleware (fromMaybe mempty $ opts.settings.disabledAPIVersions)
             . servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def
@@ -107,10 +106,10 @@ mkApp opts =
     runGalley e r k = evalGalleyToIO e (route rtree r k)
     -- the servant API wraps the one defined using wai-routing
     servantApp e0 r =
-      let e = reqId .~ lookupReqId r $ e0
+      let e = e0 {reqId = lookupReqId r}
        in Servant.serveWithContext
             (Proxy @CombinedAPI)
-            ( view (options . optSettings . setFederationDomain) e
+            ( e.options.settings.federationDomain
                 :. customFormatters
                 :. Servant.EmptyContext
             )
@@ -153,8 +152,8 @@ type CombinedAPI =
 
 refreshMetrics :: App ()
 refreshMetrics = do
-  m <- view monitor
-  q <- view deleteQueue
+  m <- asks monitor
+  q <- asks deleteQueue
   safeForever "refreshMetrics" $ do
     n <- Q.len q
     M.gaugeSet (fromIntegral n) (M.path "galley.deletequeue.len") m

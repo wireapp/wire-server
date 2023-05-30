@@ -48,7 +48,6 @@ import Galley.Effects.ListItems
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore (TeamStore (..))
 import Galley.Env
-import Galley.Monad
 import Galley.Options
 import Galley.Types.Teams
 import Imports hiding (Set, max)
@@ -96,11 +95,11 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   DeleteTeamConversation tid cid -> embedClient $ removeTeamConv tid cid
   SetTeamData tid upd -> embedClient $ updateTeam tid upd
   SetTeamStatus tid st -> embedClient $ updateTeamStatus tid st
-  FanoutLimit -> embedApp $ currentFanoutLimit <$> view options
+  FanoutLimit -> inputs @Env $ (\env -> currentFanoutLimit env.options)
   GetLegalHoldFlag ->
-    view (options . optSettings . setFeatureFlags . flagLegalHold) <$> input
+    inputs @Env (.options.settings.featureFlags.legalHold)
   EnqueueTeamEvent e -> do
-    menv <- inputs (view aEnv)
+    menv <- inputs @Env (.awsEnv)
     for_ menv $ \env ->
       embed @IO $ Aws.execute env (Aws.enqueue e)
 

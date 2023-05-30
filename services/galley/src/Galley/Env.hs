@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -20,7 +18,6 @@
 module Galley.Env where
 
 import Cassandra
-import Control.Lens hiding ((.=))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Metrics.Middleware
@@ -47,30 +44,26 @@ data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
 
 -- | Main application environment.
 data Env = Env
-  { _reqId :: RequestId,
-    _monitor :: Metrics,
-    _options :: Opts,
-    _applog :: Logger,
-    _manager :: Manager,
-    _http2Manager :: Http2Manager,
-    _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
-    _brig :: Endpoint, -- FUTUREWORK: see _federator
-    _cstate :: ClientState,
-    _deleteQueue :: Q.Queue DeleteItem,
-    _extEnv :: ExtEnv,
-    _aEnv :: Maybe Aws.Env,
-    _mlsKeys :: SignaturePurpose -> MLSKeys
+  { reqId :: RequestId,
+    monitor :: Metrics,
+    options :: Opts,
+    applog :: Logger,
+    manager :: Manager,
+    http2Manager :: Http2Manager,
+    federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
+    brig :: Endpoint, -- FUTUREWORK: see _federator
+    cstate :: ClientState,
+    deleteQueue :: Q.Queue DeleteItem,
+    extEnv :: ExtEnv,
+    awsEnv :: Maybe Aws.Env,
+    mlsKeys :: SignaturePurpose -> MLSKeys
   }
 
 -- | Environment specific to the communication with external
 -- service providers.
 data ExtEnv = ExtEnv
-  { _extGetManager :: (Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
+  { extGetManager :: (Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
   }
-
-makeLenses ''Env
-
-makeLenses ''ExtEnv
 
 -- TODO: somewhat duplicates Brig.App.initExtGetManager
 initExtEnv :: IO ExtEnv
@@ -101,6 +94,6 @@ reqIdMsg = ("request" .=) . unRequestId
 
 currentFanoutLimit :: Opts -> Range 1 HardTruncationLimit Int32
 currentFanoutLimit o = do
-  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. (optSettings . setMaxFanoutSize))
-  let maxTeamSize = fromIntegral (o ^. (optSettings . setMaxTeamSize))
+  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit o.settings.maxFanoutSize
+  let maxTeamSize = fromIntegral o.settings.maxTeamSize
   unsafeRange (min maxTeamSize optFanoutLimit)

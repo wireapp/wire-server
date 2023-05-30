@@ -19,21 +19,9 @@
 
 module Galley.App
   ( -- * Environment
-    Env,
-    reqId,
-    monitor,
-    options,
-    applog,
-    manager,
-    federator,
-    brig,
-    cstate,
-    deleteQueue,
+    Env (..),
     createEnv,
-    extEnv,
-    aEnv,
     ExtEnv (..),
-    extGetManager,
 
     -- * Running Galley effects
     GalleyEffects,
@@ -49,7 +37,6 @@ import Cassandra hiding (Set)
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.Error hiding (err)
-import Control.Lens hiding ((.=))
 import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
 import qualified Data.List.NonEmpty as NE
@@ -84,7 +71,7 @@ import Galley.Keys
 import Galley.Options
 import Galley.Queue
 import qualified Galley.Queue as Q
-import qualified Galley.Types.Teams as Teams
+import Galley.Types.Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (forkIO)
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -128,59 +115,59 @@ type GalleyEffects = Append GalleyEffects1 GalleyEffects0
 -- Define some invariants for the options used
 validateOptions :: Logger -> Opts -> IO ()
 validateOptions l o = do
-  let settings = view optSettings o
-      optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
+  let settings = o.settings
+      fanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
   when
-    ( isJust (o ^. optJournal)
-        && settings ^. setMaxTeamSize > optFanoutLimit
-        && not (settings ^. setEnableIndexedBillingTeamMembers . to (fromMaybe False))
+    ( isJust (o.journal)
+        && settings.maxTeamSize > fanoutLimit
+        && not (fromMaybe False $ settings.enableIndexedBillingTeamMembers)
     )
     $ Logger.warn
       l
       ( msg
           . val
           $ "You're journaling events for teams larger than "
-            <> toByteString' optFanoutLimit
+            <> toByteString' fanoutLimit
             <> " may have some admin user ids missing. \
                \ This is fine for testing purposes but NOT for production use!!"
       )
-  when (settings ^. setMaxConvSize > fromIntegral optFanoutLimit) $
+  when (settings.maxConvSize > fromIntegral fanoutLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
-  when (settings ^. setMaxTeamSize < optFanoutLimit) $
+  when (settings.maxTeamSize < fanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
 
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-  l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
+  l <- Logger.mkLogger (o.logLevel) (o.logNetStrings) (o.logFormat)
   cass <- initCassandra o l
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   validateOptions l o
-  Env def m o l mgr h2mgr (o ^. optFederator) (o ^. optBrig) cass
+  Env def m o l mgr h2mgr (o.federator) (o.brig) cass
     <$> Q.new 16000
     <*> initExtEnv
-    <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
-    <*> loadAllMLSKeys (fold (o ^. optSettings . setMlsPrivateKeyPaths))
+    <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o.journal)
+    <*> loadAllMLSKeys (fold (o.settings.mlsPrivateKeyPaths))
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
   c <-
     maybe
-      (C.initialContactsPlain (o ^. optCassandra . casEndpoint . epHost))
+      (C.initialContactsPlain (o.cassandra._casEndpoint._epHost))
       (C.initialContactsDisco "cassandra_galley" . unpack)
-      (o ^. optDiscoUrl)
+      (o.discoUrl)
   C.init
     . C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.galley") l))
     . C.setContacts (NE.head c) (NE.tail c)
-    . C.setPortNumber (fromIntegral $ o ^. optCassandra . casEndpoint . epPort)
-    . C.setKeyspace (Keyspace $ o ^. optCassandra . casKeyspace)
+    . C.setPortNumber (fromIntegral $ o.cassandra._casEndpoint._epPort)
+    . C.setKeyspace (Keyspace $ o.cassandra._casKeyspace)
     . C.setMaxConnections 4
     . C.setMaxStreams 128
     . C.setPoolStripes 4
     . C.setSendTimeout 3
     . C.setResponseTimeout 10
     . C.setProtocolVersion C.V4
-    . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. optCassandra . casFilterNodesByDatacentre))
+    . C.setPolicy (C.dcFilterPolicyIfConfigured l (o.cassandra._casFilterNodesByDatacentre))
     $ C.defSettings
 
 initHttpManager :: Opts -> IO Manager
@@ -195,8 +182,8 @@ initHttpManager o = do
   newManager
     (opensslManagerSettings (pure ctx))
       { managerResponseTimeout = responseTimeoutMicro 10000000,
-        managerConnCount = o ^. optSettings . setHttpPoolSize,
-        managerIdleConnectionCount = 3 * (o ^. optSettings . setHttpPoolSize)
+        managerConnCount = o.settings.httpPoolSize,
+        managerIdleConnectionCount = 3 * (o.settings.httpPoolSize)
       }
 
 initHttp2Manager :: IO Http2Manager
@@ -217,17 +204,17 @@ interpretTinyLog ::
   Sem (P.TinyLog ': r) a ->
   Sem r a
 interpretTinyLog e = interpret $ \case
-  P.Log l m -> Logger.log (e ^. applog) (Wire.Sem.Logger.toLevel l) (reqIdMsg (e ^. reqId) . m)
+  P.Log l m -> Logger.log (e.applog) (Wire.Sem.Logger.toLevel l) (reqIdMsg (e.reqId) . m)
 
 evalGalleyToIO :: Env -> Sem GalleyEffects a -> IO a
 evalGalleyToIO env action = do
   r <-
     -- log IO exceptions
     runExceptT (evalGalley env action) `UnliftIO.catch` \(e :: SomeException) -> do
-      Log.err (env ^. applog) $
+      Log.err (env.applog) $
         Log.msg ("IO Exception occurred" :: ByteString)
           . Log.field "message" (displayException e)
-          . Log.field "request" (unRequestId (env ^. reqId))
+          . Log.field "request" (unRequestId (env.reqId))
       UnliftIO.throwIO e
   case r of
     -- throw any errors as IO exceptions without logging them
@@ -248,14 +235,14 @@ evalGalley e =
     . mapError toWai
     . mapError toWai
     . runInputConst e
-    . runInputConst (e ^. cstate)
+    . runInputConst (e.cstate)
     . mapError toWai -- DynError
     . interpretTinyLog e
-    . interpretQueue (e ^. deleteQueue)
+    . interpretQueue (e.deleteQueue)
     . runInputSem (embed getCurrentTime) -- FUTUREWORK: could we take the time only once instead?
     . interpretWaiRoutes
-    . runInputConst (e ^. options)
-    . runInputConst (toLocalUnsafe (e ^. options . optSettings . setFederationDomain) ())
+    . runInputConst (e.options)
+    . runInputConst (toLocalUnsafe (e.options.settings.federationDomain) ())
     . interpretInternalTeamListToCassandra
     . interpretTeamListToCassandra
     . interpretLegacyConversationListToCassandra
@@ -283,4 +270,4 @@ evalGalley e =
     . interpretSparAccess
     . interpretBrigAccess
   where
-    lh = view (options . optSettings . setFeatureFlags . Teams.flagLegalHold) e
+    lh = e.options.settings.featureFlags.legalHold

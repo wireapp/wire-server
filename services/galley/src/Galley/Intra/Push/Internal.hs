@@ -20,7 +20,7 @@
 module Galley.Intra.Push.Internal where
 
 import Bilge hiding (options)
-import Control.Lens (makeLenses, set, view, (.~))
+import Control.Lens (makeLenses, set, (.~))
 import Data.Aeson (Object)
 import Data.Id (ConnId, UserId)
 import Data.Json.Util
@@ -95,7 +95,7 @@ push ps = do
 -- more than 128 recipients.
 pushLocal :: NonEmpty (PushTo UserId) -> App ()
 pushLocal ps = do
-  opts <- view options
+  opts <- asks (.options)
   let limit = currentFanoutLimit opts
   -- Do not fan out for very large teams
   let (asyncs, syncs) = partition _pushAsync (removeIfLargeFanout limit $ toList ps)
@@ -188,7 +188,7 @@ newConversationEventPush e users =
 
 pushSlowly :: Foldable f => f Push -> App ()
 pushSlowly ps = do
-  mmillis <- view (options . optSettings . setDeleteConvThrottleMillis)
+  mmillis <- asks (.options.settings.deleteConvThrottleMillis)
   let delay = 1000 * fromMaybe defDeleteConvThrottleMillis mmillis
   forM_ ps $ \p -> do
     push [p]
