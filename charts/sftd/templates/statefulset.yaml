@@ -169,6 +169,7 @@ spec:
                       ${ACCESS_ARGS} \
                       ${MULTI_SFT_ARGS} \
                       {{ if .Values.turnDiscoveryEnabled }}-T{{ end }} \
+                      {{ if not empty .Values.keyFrameRate }}-k {{ .Values.keyFrameRate }}{{ end }} \
                       -u "https://{{ required "must specify host" .Values.host }}/sfts/${POD_NAME}"
           ports:
             - name: sft
