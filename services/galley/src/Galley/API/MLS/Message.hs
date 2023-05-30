@@ -293,7 +293,7 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
         -- check that the welcome message matches the action
         for_ (cbWelcome bundle) $ \welcome ->
           when
-            ( Set.fromList (map gsNewMember (welSecrets (rmValue welcome)))
+            ( Set.fromList (map gsNewMember (secrets (rmValue welcome)))
                 /= Set.fromList (map (snd . snd) (cmAssocs (paAdd action)))
             )
             $ throwS @'MLSWelcomeMismatch

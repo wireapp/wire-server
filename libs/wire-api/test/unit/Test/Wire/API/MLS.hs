@@ -136,8 +136,8 @@ testParseWelcome = do
     Left err -> assertFailure (T.unpack err)
     Right x -> pure x
 
-  welCipherSuite wel @?= CipherSuite 1
-  map gsNewMember (welSecrets wel) @?= [KeyPackageRef (fromRight' (unhex "ab4692703ca6d50ffdeaae3096f885c2"))]
+  cipherSuite wel @?= CipherSuite 1
+  map gsNewMember wel.secrets @?= [KeyPackageRef (fromRight' (unhex "ab4692703ca6d50ffdeaae3096f885c2"))]
 
 testKeyPackageRef :: IO ()
 testKeyPackageRef = do

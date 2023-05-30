@@ -27,10 +27,10 @@ import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
 data Welcome = Welcome
-  { welProtocolVersion :: ProtocolVersion,
-    welCipherSuite :: CipherSuite,
-    welSecrets :: [GroupSecrets],
-    welGroupInfo :: ByteString
+  { protocolVersion :: ProtocolVersion,
+    cipherSuite :: CipherSuite,
+    secrets :: [GroupSecrets],
+    groupInfo :: ByteString
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform Welcome)

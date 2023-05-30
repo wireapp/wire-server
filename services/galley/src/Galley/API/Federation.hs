@@ -636,7 +636,7 @@ mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawW
       assertMLSEnabled
       loc <- qualifyLocal ()
       now <- input
-      welcome <- either (throw . InternalErrorWithDescription . LT.fromStrict) pure $ decodeMLS' rawWelcome
+      welcome :: Welcome <- either (throw . InternalErrorWithDescription . LT.fromStrict) pure $ decodeMLS' rawWelcome
       -- Extract only recipients local to this backend
       rcpts <-
         fmap catMaybes
@@ -646,7 +646,7 @@ mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawW
                 . derefKeyPackage
                 . gsNewMember
             )
-          $ welSecrets welcome
+          $ welcome.secrets
       let lrcpts = qualifyAs loc $ fst $ partitionQualified loc rcpts
       sendLocalWelcomes Nothing now rawWelcome lrcpts
 

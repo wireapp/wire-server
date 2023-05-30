@@ -390,7 +390,7 @@ testAddUserWithBundleIncompleteWelcome = do
       liftIO $ do
         welcome <- assertJust (mpWelcome commit)
         w <- either (assertFailure . T.unpack) pure $ decodeMLS' welcome
-        let w' = w {welSecrets = take 1 (welSecrets w)}
+        let w' = w {secrets = take 1 (secrets w)}
             welcome' = encodeMLS' w'
             commit' = commit {mpWelcome = Just welcome'}
         pure commit'

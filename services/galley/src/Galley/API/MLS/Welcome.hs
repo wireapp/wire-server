@@ -103,7 +103,7 @@ welcomeRecipients =
         . derefKeyPackage
         . gsNewMember
     )
-    . welSecrets
+    . secrets
 
 sendLocalWelcomes ::
   Member GundeckAccess r =>
