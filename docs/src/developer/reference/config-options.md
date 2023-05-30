@@ -572,15 +572,15 @@ If you anticipate users to have a poor quality internet connection, modifying th
 
 Keyframes are critical frames in a video stream that serve as reference points for subsequent frames, thus their rate of transmission directly impacts video quality and bandwidth consumption.
 
-To adjust the keyframe rate, you can utilize the `-x` option in the SFT command, followed by a numeric value indicating the desired rate.
+To adjust the keyframe rate, you can utilize the `-k` option in the SFT command, followed by a numeric value indicating the desired rate.
 
 You'll find the location where you need to execute the SFT command here: [https://github.com/wireapp/wire-server/blob/develop/charts/sftd/templates/statefulset.yaml#L166](https://github.com/wireapp/wire-server/blob/develop/charts/sftd/templates/statefulset.yaml#L166)
 
-Here's an example of how to include the `-x` option in the command:
+Here's an example of how to include the `-k` option in the command:
 
 ```
               exec sftd \
-                      -x 1000 \     
+                      -k 1000 \     
                       -I "${POD_IP}" \
                       -M "${POD_IP}" \
                       ${ACCESS_ARGS} \
