@@ -168,3 +168,8 @@ claimKeyPackages u v = do
     baseRequest u Brig Versioned $
       "/mls/key-packages/claim/" <> targetDom <> "/" <> targetUid
   submit "POST" req
+
+getSelf :: (HasCallStack, MakesValue user) => user -> App Response
+getSelf user = do
+  req <- baseRequest user Brig Versioned "/self"
+  submit "GET" req

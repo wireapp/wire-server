@@ -6,6 +6,7 @@ import Data.Aeson hiding ((.=))
 import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
 import Data.Char
+import Data.Function ((&))
 import Data.Functor
 import Data.IORef
 import Data.Map (Map)
@@ -172,7 +173,16 @@ mkEnv ge = do
   lpks <- liftIO $ newIORef someLastPrekeys
   mls <- liftIO . newIORef =<< mkMLSState
   resources <- liftIO $ newIORef $ Set.fromList [DynBackend1, DynBackend2, DynBackend3]
-  pool <- liftIO $ newPool $ defaultPoolConfig (create resources) (destroy resources) (fromIntegral $ maxBound @Int) 3
+  pool <-
+    liftIO $
+      newPool $
+        ( defaultPoolConfig
+            (create resources)
+            (destroy resources)
+            (fromIntegral $ maxBound @Int)
+            3
+            & setNumStripes (Just 1)
+        )
   pure
     Env
       { serviceMap = gServiceMap ge,

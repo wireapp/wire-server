@@ -185,8 +185,8 @@ setFieldIfExists :: forall a b. (HasCallStack, MakesValue a, ToJSON b) => String
 setFieldIfExists selector v x = do
   ifM
     (member selector x)
-    (modifyField @a @Value selector (\_ -> pure (toJSON v)) x)
     (make x)
+    (modifyField @a @Value selector (\_ -> pure (toJSON v)) x)
 
 member :: (HasCallStack, MakesValue a) => String -> a -> App Bool
 member k x = do
