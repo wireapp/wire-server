@@ -35,7 +35,6 @@ import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Either.Extra
 import Data.Id
-import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Imports

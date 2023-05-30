@@ -20,7 +20,6 @@ module Util.Logging where
 import Crypto.Hash (SHA256, hash)
 import Data.Handle (Handle (fromHandle))
 import Data.Id (TeamId, UserId)
-import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import Imports

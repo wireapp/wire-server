@@ -101,7 +101,6 @@ import Data.Misc (HttpsUrl)
 import Data.Proxy
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T

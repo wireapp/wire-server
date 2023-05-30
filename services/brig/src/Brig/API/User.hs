@@ -161,7 +161,7 @@ import Data.Qualified
 import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
-import Imports
+import Imports hiding (cs)
 import Network.Wai.Utilities
 import Polysemy
 import System.Logger.Class (MonadLogger)

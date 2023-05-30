@@ -56,7 +56,6 @@
 , servant-server
 , servant-swagger
 , silently
-, string-conversions
 , swagger2
 , tasty-hunit
 , text
@@ -119,7 +118,6 @@ mkDerivation {
     saml2-web-sso
     servant-multipart
     servant-server
-    string-conversions
     text
     text-latin1
     time
@@ -180,7 +178,6 @@ mkDerivation {
     servant
     servant-server
     silently
-    string-conversions
     tasty-hunit
     text
     time
@@ -221,7 +218,6 @@ mkDerivation {
     saml2-web-sso
     servant
     servant-swagger
-    string-conversions
     swagger2
     time
     tinylog

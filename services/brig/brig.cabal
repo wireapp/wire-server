@@ -277,7 +277,6 @@ library
     , ssl-util
     , statistics                 >=0.13
     , stomp-queue                >=0.3
-    , string-conversions
     , swagger2
     , template                   >=0.2
     , template-haskell
@@ -586,7 +585,6 @@ executable brig-integration
     , servant-client-core
     , spar
     , streaming-commons
-    , string-conversions
     , tasty                  >=1.0
     , tasty-cannon           >=0.3.4
     , tasty-hunit            >=0.2

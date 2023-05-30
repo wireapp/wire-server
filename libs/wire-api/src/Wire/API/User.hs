@@ -137,7 +137,6 @@ import Data.Qualified
 import Data.Range
 import Data.SOP
 import Data.Schema
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Data.Text.Ascii

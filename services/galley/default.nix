@@ -90,7 +90,6 @@
 , ssl-util
 , stm
 , streaming-commons
-, string-conversions
 , tagged
 , tasty
 , tasty-cannon
@@ -196,7 +195,6 @@ mkDerivation {
     split
     ssl-util
     stm
-    string-conversions
     tagged
     text
     time
@@ -287,7 +285,6 @@ mkDerivation {
     sop-core
     ssl-util
     streaming-commons
-    string-conversions
     tagged
     tasty
     tasty-cannon

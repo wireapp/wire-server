@@ -34,7 +34,6 @@ import Data.Json.Util
 import Data.Proxy (Proxy (Proxy))
 import Data.Range
 import Data.Schema
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import Data.Swagger.ParamSchema
 import Data.Text (pack)

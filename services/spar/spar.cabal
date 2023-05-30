@@ -162,7 +162,6 @@ library
     , saml2-web-sso          >=0.19
     , servant-multipart
     , servant-server
-    , string-conversions
     , text
     , text-latin1
     , time
@@ -355,7 +354,6 @@ executable spar-integration
     , servant-server
     , silently
     , spar
-    , string-conversions
     , tasty-hunit
     , text
     , time
@@ -445,7 +443,6 @@ executable spar-migrate-data
     , optparse-applicative
     , saml2-web-sso         >=0.19
     , spar
-    , string-conversions
     , text
     , time
     , tinylog
@@ -629,7 +626,6 @@ test-suite spec
     , servant
     , servant-swagger
     , spar
-    , string-conversions
     , swagger2
     , time
     , tinylog

@@ -42,7 +42,6 @@ import qualified Data.Map.Strict as Map
 import Data.PEM
 import Data.Range
 import qualified Data.Set as Set
-import Data.String.Conversions (LBS)
 import Galley.Cassandra.Client
 import Galley.Cassandra.LegalHold
 import qualified Galley.Cassandra.LegalHold as LegalHoldData
@@ -772,7 +771,7 @@ testClaimKeys testcase = do
 --------------------------------------------------------------------
 -- setup helpers
 
-withDummyTestServiceForTeam' :: HasCallStack => UserId -> TeamId -> (Warp.Port -> Chan (Wai.Request, LBS) -> TestM a) -> TestM a
+withDummyTestServiceForTeam' :: HasCallStack => UserId -> TeamId -> (Warp.Port -> Chan (Wai.Request, LByteString) -> TestM a) -> TestM a
 withDummyTestServiceForTeam' owner tid go = do
   withDummyTestServiceForTeamNoService $ \lhPort chan -> do
     newService <- newLegalHoldService lhPort

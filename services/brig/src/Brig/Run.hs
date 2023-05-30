@@ -54,7 +54,6 @@ import Data.Id (RequestId (..))
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Servant as Metrics
 import Data.Proxy (Proxy (Proxy))
-import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import Imports hiding (head)
 import qualified Network.HTTP.Media as HTTPMedia

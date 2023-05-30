@@ -24,7 +24,6 @@ where
 
 import Brig.Types.Common
 import Brig.Types.Team.LegalHold
-import Data.String.Conversions (cs)
 import Imports
 import Test.QuickCheck
 import Wire.Arbitrary

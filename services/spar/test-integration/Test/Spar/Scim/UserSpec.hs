@@ -51,7 +51,6 @@ import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
 import Data.LanguageCodes (ISO639_1 (..))
 import Data.Misc (HttpsUrl, mkHttpsUrl)
-import Data.String.Conversions (cs)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Vector as V
 import qualified Data.ZAuth.Token as ZAuth

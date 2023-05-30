@@ -51,7 +51,6 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import qualified Data.List1 as List1
 import Data.Range
-import Data.String.Conversions (cs)
 import qualified Galley.Types.Teams as Team
 import Imports hiding (head)
 import Network.HTTP.Types.Status

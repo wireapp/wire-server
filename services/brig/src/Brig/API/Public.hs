@@ -89,7 +89,6 @@ import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
 import Data.Qualified
 import Data.Range
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii

@@ -80,7 +80,6 @@ executable inconsistencies
     , extra
     , imports
     , optparse-applicative
-    , string-conversions
     , text
     , tinylog
     , types-common

@@ -37,7 +37,6 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Data.Singletons
-import Data.String.Conversions
 import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)

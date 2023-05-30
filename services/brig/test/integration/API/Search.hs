@@ -42,7 +42,6 @@ import Data.Handle (fromHandle)
 import Data.Id
 import qualified Data.Map.Strict as Map
 import Data.Qualified (Qualified (qDomain, qUnqualified))
-import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Database.Bloodhound as ES

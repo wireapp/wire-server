@@ -48,7 +48,7 @@ where
 import qualified Data.HashMap.Strict as HashMap
 import Data.Metrics
 import Data.Time.Clock
-import Imports
+import Imports hiding (cs)
 import Network.Wire.Bot.Metrics
 import Network.Wire.Client.API.Push (EventType (..), eventTypeText)
 

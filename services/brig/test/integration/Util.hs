@@ -63,7 +63,6 @@ import Data.Proxy
 import Data.Qualified hiding (isLocal)
 import Data.Range
 import qualified Data.Sequence as Seq
-import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
@@ -1242,11 +1241,11 @@ instance VersionedMonad v WaiTestFedClient where
 
 fromServantRequest :: Domain -> Servant.Request -> WaiTest.SRequest
 fromServantRequest domain r =
-  let pathBS = "/federation" <> Data.String.Conversions.cs (toLazyByteString (Servant.requestPath r))
+  let pathBS = "/federation" <> cs (toLazyByteString (Servant.requestPath r))
       bodyBS = case Servant.requestBody r of
         Nothing -> ""
         Just (bdy, _) -> case bdy of
-          Servant.RequestBodyLBS lbs -> Data.String.Conversions.cs lbs
+          Servant.RequestBodyLBS lbs -> cs lbs
           Servant.RequestBodyBS bs -> bs
           Servant.RequestBodySource _ -> error "fromServantRequest: not implemented for RequestBodySource"
 
@@ -1279,7 +1278,7 @@ fromServantRequest domain r =
                 <> headers
                 <> [(originDomainHeaderName, T.encodeUtf8 (domainText domain))],
             Wai.isSecure = True,
-            Wai.pathInfo = filter (not . T.null) (map Data.String.Conversions.cs (B8.split '/' pathBS)),
+            Wai.pathInfo = filter (not . T.null) (map cs (B8.split '/' pathBS)),
             Wai.queryString = toList (Servant.requestQueryString r)
           }
    in WaiTest.SRequest req (cs bodyBS)

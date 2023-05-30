@@ -68,7 +68,7 @@ import Data.List.Extra (chunksOf)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Gundeck.Types
-import Imports hiding (threadDelay)
+import Imports hiding (cs, threadDelay)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
