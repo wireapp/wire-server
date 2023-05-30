@@ -19,7 +19,7 @@
 
 module Wire.API.Routes.Named where
 
-import Control.Lens ((?~))
+import Control.Lens ((%~))
 import Data.Kind
 import Data.Metrics.Servant
 import Data.Proxy
@@ -48,7 +48,11 @@ instance {-# OVERLAPPING #-} (RenderableSymbol a, RenderableSymbol b) => Rendera
 instance (HasSwagger api, RenderableSymbol name) => HasSwagger (Named name api) where
   toSwagger _ =
     toSwagger (Proxy @api)
-      & (info . description) ?~ ("internal route ID: " <> cs (renderSymbol @name))
+      & allOperations . summary %~ (<> Just dscr)
+      & allOperations . description %~ (Just (dscr <> "\n\n") <>)
+    where
+      dscr :: Text
+      dscr = " [internal route ID: " <> cs (renderSymbol @name) <> "]"
 
 instance HasServer api ctx => HasServer (Named name api) ctx where
   type ServerT (Named name api) m = Named name (ServerT api m)
