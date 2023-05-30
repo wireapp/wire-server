@@ -98,30 +98,16 @@ endif
 .PHONY: ci
 ci: c db-migrate
 ifeq ("$(package)", "all")
-    ifneq ("$(suite)", "new")
-		./hack/bin/cabal-run-integration.sh all
-    endif
-    ifneq ("$(suite)", "old")
-		make c package=integration
-		./hack/bin/cabal-run-integration.sh integration
-    endif
-else
-  ifeq ("$(package)", "integration")
+	 make c
+	./hack/bin/cabal-run-integration.sh all
 	./hack/bin/cabal-run-integration.sh integration
-  else
-    ifeq ("$(suite)", "old")
-		./hack/bin/cabal-run-integration.sh $(package)
-    else
-      ifeq ("$(suite)", "new")
-		make c package=integration
-		./hack/bin/cabal-run-integration.sh integration
-      else
-		make c package=integration
-		./hack/bin/cabal-run-integration.sh $(package)
-		./hack/bin/cabal-run-integration.sh integration
-      endif
-    endif
-  endif
+endif
+ifeq ("$(package)", "integration")
+	make c package=integration
+	./hack/bin/cabal-run-integration.sh integration
+else
+	make c package=$(package)
+	./hack/bin/cabal-run-integration.sh $(package)
 endif
 
 # Compile and run services
