@@ -54,6 +54,7 @@ packages:
   , tools/rex/
   , tools/stern/
 
+profiling: True
 tests: True
 benchmarks: True
 
