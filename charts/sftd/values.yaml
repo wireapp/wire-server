@@ -102,4 +102,4 @@ multiSFT:
   turnServerURI:
 
 # Uncomment and set a value if you want to change the rate at which keyframes are sent (-k)
-# keyFrameRate: 10000
+# keyFrameRate: 1000
