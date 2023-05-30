@@ -51,7 +51,7 @@ import argparse
 
 scim_token = "..."
 filename = './test.csv'
-ctx = Context(domain="localhost", version="4", service_map={'spar': 8081, 'brig': 8082})
+ctx = None
 
 ### brig, spar api
 
