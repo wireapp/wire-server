@@ -42,7 +42,7 @@ class RenderableSymbol a where
 instance {-# OVERLAPPABLE #-} KnownSymbol a => RenderableSymbol a where
   renderSymbol = cs $ symbolVal (Proxy @a)
 
-instance {-# OVERLAPPING #-} (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol (a, b) where
+instance {-# OVERLAPPING #-} (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol '(a, b) where
   renderSymbol = "(" <> (renderSymbol @a) <> ", " <> (renderSymbol @b) <> ")"
 
 instance (HasSwagger api, RenderableSymbol name) => HasSwagger (Named name api) where
