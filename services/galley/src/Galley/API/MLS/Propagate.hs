@@ -82,8 +82,8 @@ propagateMessage qusr lConvOrSub con msg cm = do
       e = Event qcnv sconv qusr now $ EdMLSMessage msg.raw
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
       mkPush u c = newMessagePush mlsConv botMap con mm (u, c) e
-  runMessagePush mlsConv (Just qcnv) $
-    foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients mlsConv)
+  for_ (lmems >>= localMemberMLSClients mlsConv) $ \(u, c) ->
+    runMessagePush mlsConv (Just qcnv) (mkPush u c)
 
   -- send to remotes
   unreachableFromList . concat
