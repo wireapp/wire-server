@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 # shellcheck disable=SC3040,SC3045,SC3057
 
 set -eo pipefail
