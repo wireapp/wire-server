@@ -51,6 +51,7 @@ import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
+import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
@@ -68,6 +69,7 @@ import Galley.Types.Bot.Service
 import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.UserList
 import Imports hiding (head)
+import qualified Network.AMQP as Q
 import Network.Wai.Predicate hiding (Error, err)
 import qualified Network.Wai.Predicate as Predicate
 import Network.Wai.Routing hiding (App, route, toList)
@@ -301,7 +303,8 @@ rmUser ::
   forall p1 p2 r.
   ( p1 ~ CassandraPaging,
     p2 ~ InternalPaging,
-    ( Member BrigAccess r,
+    ( Member BackendNotificationQueueAccess r,
+      Member BrigAccess r,
       Member ClientStore r,
       Member ConversationStore r,
       Member (Error InternalError) r,
@@ -401,12 +404,13 @@ rmUser lusr conn = do
         >>= logAndIgnoreError "Error in onConversationUpdated call" (qUnqualified qUser)
 
     leaveRemoteConversations :: Range 1 UserDeletedNotificationMaxConvs [Remote ConvId] -> Sem r ()
-    leaveRemoteConversations cids = do
+    leaveRemoteConversations cids =
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
-        let rpc = fedClient @'Galley @"on-user-deleted-conversations" userDelete
-        runFederatedEither remoteConvs rpc
-          >>= logAndIgnoreError "Error in onUserDeleted call" (tUnqualified lusr)
+        let rpc = void $ fedQueueClient @'Galley @"on-user-deleted-conversations" userDelete
+        enqueueNotification remoteConvs Q.Persistent rpc
+    -- runFederatedEither remoteConvs rpc
+    --   >>= logAndIgnoreError "Error in onUserDeleted call" (tUnqualified lusr)
 
     -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
     -- See https://wearezeta.atlassian.net/browse/SQCORE-1091

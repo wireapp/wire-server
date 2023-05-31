@@ -62,6 +62,7 @@ where
 import Data.Id
 import Data.Qualified
 import Data.Time.Clock
+import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.BotAccess
 import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
@@ -101,6 +102,7 @@ type GalleyEffects1 =
      GundeckAccess,
      ExternalAccess,
      FederatorAccess,
+     BackendNotificationQueueAccess,
      BotAccess,
      FireAndForget,
      ClientStore,

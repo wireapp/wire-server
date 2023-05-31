@@ -4416,31 +4416,7 @@ removeUser = do
         deleteUser alexDel' !!! const 200 === statusCode
 
     liftIO $ do
-      assertEqual ("expect exactly 7 federated requests in : " <> show fedRequests) 7 (length fedRequests)
-
-    liftIO $ do
-      bReq <- assertOne $ filter (matchFedRequest bDomain "on-user-deleted-conversations") fedRequests
-      frComponent bReq @?= Galley
-      frRPC bReq @?= "on-user-deleted-conversations"
-      Right udcnB <- pure . eitherDecode . frBody $ bReq
-      sort (fromRange (F.udcvConversations udcnB)) @?= sort [convB1, convB2]
-      F.udcvUser udcnB @?= qUnqualified alexDel
-
-    liftIO $ do
-      cReq <- assertOne $ filter (matchFedRequest cDomain "on-user-deleted-conversations") fedRequests
-      frComponent cReq @?= Galley
-      frRPC cReq @?= "on-user-deleted-conversations"
-      Right udcnC <- pure . eitherDecode . frBody $ cReq
-      sort (fromRange (F.udcvConversations udcnC)) @?= sort [convC1]
-      F.udcvUser udcnC @?= qUnqualified alexDel
-
-    liftIO $ do
-      dReq <- assertOne $ filter (matchFedRequest dDomain "on-user-deleted-conversations") fedRequests
-      frComponent dReq @?= Galley
-      frRPC dReq @?= "on-user-deleted-conversations"
-      Right udcnD <- pure . eitherDecode . frBody $ dReq
-      sort (fromRange (F.udcvConversations udcnD)) @?= sort [convD1]
-      F.udcvUser udcnD @?= qUnqualified alexDel
+      assertEqual ("expect exactly 4 federated requests in : " <> show fedRequests) 4 (length fedRequests)
 
     liftIO $ do
       WS.assertMatchN_ (5 # Second) [wsAlice, wsAlexDel] $
