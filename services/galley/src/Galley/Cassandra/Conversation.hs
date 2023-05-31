@@ -74,7 +74,7 @@ createMLSSelfConversation lusr = do
             ncProtocol = ProtocolCreateMLSTag
           }
       meta = ncMetadata nc
-      gid = convToGroupId . fmap Conv . tUntagged . qualifyAs lusr $ cnv
+      gid = convToGroupId' . fmap Conv . tUntagged . qualifyAs lusr $ cnv
       -- FUTUREWORK: Stop hard-coding the cipher suite
       --
       -- 'CipherSuite 1' corresponds to
@@ -123,7 +123,7 @@ createConversation lcnv nc = do
       (proto, mgid, mep, mcs) = case ncProtocol nc of
         ProtocolCreateProteusTag -> (ProtocolProteus, Nothing, Nothing, Nothing)
         ProtocolCreateMLSTag ->
-          let gid = convToGroupId $ Conv <$> tUntagged lcnv
+          let gid = convToGroupId' $ Conv <$> tUntagged lcnv
               ep = Epoch 0
               cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
            in ( ProtocolMLS
@@ -415,7 +415,7 @@ updateToMixedProtocol ::
   CipherSuiteTag ->
   Sem r ()
 updateToMixedProtocol lcnv cs = do
-  let gid = convToGroupId $ Conv <$> tUntagged lcnv
+  let gid = convToGroupId' $ Conv <$> tUntagged lcnv
       epoch = Epoch 0
   embedClient . retry x5 . batch $ do
     setType BatchLogged

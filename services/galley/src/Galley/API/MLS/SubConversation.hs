@@ -127,7 +127,7 @@ getLocalSubConversation qusr lconv sconv = do
 
       -- deriving this detemernistically to prevent race condition between
       -- multiple threads creating the subconversation
-      let groupId = convToGroupId $ flip SubConv sconv <$> tUntagged lconv
+      let groupId = convToGroupId' $ flip SubConv sconv <$> tUntagged lconv
           epoch = Epoch 0
           suite = cnvmlsCipherSuite mlsMeta
       Eff.createSubConversation (tUnqualified lconv) sconv suite epoch groupId Nothing
@@ -293,7 +293,8 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
     unless (dscEpoch dsc == epoch) $ throwS @'MLSStaleMessage
     Eff.removeAllMLSClients gid
 
-    let newGid = convToGroupId (flip SubConv scnvId <$> tUntagged lcnvId)
+    -- TODO(SB) swallowing the error and starting with GroupIdGen 0 if nextGenGroupId
+    let newGid = fromRight (convToGroupId' (flip SubConv scnvId <$> tUntagged lcnvId)) $ nextGenGroupId gid
 
     -- the following overwrites any prior information about the subconversation
     Eff.createSubConversation cnvId scnvId cs (Epoch 0) newGid Nothing

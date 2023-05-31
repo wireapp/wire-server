@@ -2779,6 +2779,12 @@ testLastLeaverSubConv = do
 
     let subId = SubConvId "conference"
     qsub <- createSubConv qcnv alice1 subId
+    prePsc <-
+      liftTest $
+        responseJsonError
+          =<< getSubConv (qUnqualified alice) qcnv subId
+            <!! do
+              const 200 === statusCode
     void $ leaveCurrentConv alice1 qsub
 
     psc <-
@@ -2790,6 +2796,7 @@ testLastLeaverSubConv = do
     liftIO $ do
       pscEpoch psc @?= Epoch 0
       pscEpochTimestamp psc @?= Nothing
+      assertBool "group ID unchanged" $ pscGroupId prePsc /= pscGroupId psc
       length (pscMembers psc) @?= 0
 
 testLeaveSubConv :: Bool -> TestM ()

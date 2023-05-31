@@ -76,7 +76,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Group.Serialisation (convToGroupId)
+import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
 import Wire.API.MLS.LeafNode
@@ -521,7 +521,7 @@ setupFakeMLSGroup ::
   MLSTest (GroupId, Qualified ConvId)
 setupFakeMLSGroup creator mSubId = do
   qcnv <- randomQualifiedId (ciDomain creator)
-  let groupId = convToGroupId $ maybe (Conv <$> qcnv) ((<$> qcnv) . flip SubConv) mSubId
+  let groupId = convToGroupId' $ maybe (Conv <$> qcnv) ((<$> qcnv) . flip SubConv) mSubId
   createGroup creator (fmap Conv qcnv) groupId
   pure (groupId, qcnv)
 

@@ -22,8 +22,9 @@ import Imports
 import Test.QuickCheck
 import Test.Tasty
 import Test.Tasty.QuickCheck
+import Wire.API.MLS.Group
 import Wire.API.MLS.Group.Serialisation
-import Wire.API.MLS.SubConversation (ConvOrSubConvId)
+import Wire.API.MLS.SubConversation
 
 tests :: TestTree
 tests =
@@ -32,5 +33,9 @@ tests =
     [ testProperty "roundtrip serialise and parse groupId" $ roundtripGroupId
     ]
 
-roundtripGroupId :: Qualified ConvOrSubConvId -> Property
-roundtripGroupId convId = groupIdToConv (convToGroupId convId) === Right convId
+roundtripGroupId :: Qualified ConvOrSubConvId -> GroupIdGen -> Property
+roundtripGroupId convId gen =
+  let gen' = case qUnqualified convId of
+        (Conv _) -> GroupIdGen 0
+        (SubConv _ _) -> gen
+   in groupIdToConv (convToGroupId convId gen) === Right (convId, gen')

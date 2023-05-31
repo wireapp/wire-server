@@ -486,5 +486,5 @@ iGetMLSClientListForConv ::
   ConvId ->
   Sem r ClientList
 iGetMLSClientListForConv lusr cnv = do
-  cm <- E.lookupMLSClients (convToGroupId (Conv <$> tUntagged (qualifyAs lusr cnv)))
+  cm <- E.lookupMLSClients (convToGroupId' (Conv <$> tUntagged (qualifyAs lusr cnv)))
   pure $ ClientList (concatMap (Map.keys . snd) (Map.assocs cm))

@@ -44,3 +44,7 @@ instance ToSchema GroupId where
     GroupId
       <$> unGroupId
         .= named "GroupId" (Base64ByteString .= fmap fromBase64ByteString (unnamed schema))
+
+newtype GroupIdGen = GroupIdGen {unGroupIdGen :: Word32}
+  deriving (Eq, Show, Generic, Ord)
+  deriving (Arbitrary) via (GenericUniform GroupIdGen)

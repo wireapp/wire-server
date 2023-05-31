@@ -17,7 +17,9 @@
 
 module Wire.API.MLS.Group.Serialisation
   ( convToGroupId,
+    convToGroupId',
     groupIdToConv,
+    nextGenGroupId,
   )
 where
 
@@ -39,21 +41,25 @@ import Wire.API.MLS.SubConversation
 
 -- | Return the group ID associated to a conversation ID. Note that is not
 -- assumed to be stable over time or even consistent among different backends.
-convToGroupId :: Qualified ConvOrSubConvId -> GroupId
-convToGroupId qcs = GroupId . L.toStrict . runPut $ do
+convToGroupId :: Qualified ConvOrSubConvId -> GroupIdGen -> GroupId
+convToGroupId qcs gen = GroupId . L.toStrict . runPut $ do
   let cs = qUnqualified qcs
       subId = foldMap unSubConvId cs.subconv
   putWord64be 1 -- Version 1 of the GroupId format
   putLazyByteString . UUID.toByteString . toUUID $ cs.conv
   putWord8 $ fromIntegral (T.length subId)
   putByteString $ T.encodeUtf8 subId
+  maybe (pure ()) (const $ putWord32be (unGroupIdGen gen)) cs.subconv
   putLazyByteString . toByteString $ qDomain qcs
 
-groupIdToConv :: GroupId -> Either String (Qualified ConvOrSubConvId)
+convToGroupId' :: Qualified ConvOrSubConvId -> GroupId
+convToGroupId' = flip convToGroupId (GroupIdGen 0)
+
+groupIdToConv :: GroupId -> Either String (Qualified ConvOrSubConvId, GroupIdGen)
 groupIdToConv gid = do
-  (rem', _, conv) <- first (\(_, _, msg) -> msg) $ runGetOrFail readConv (L.fromStrict (unGroupId gid))
+  (rem', _, (conv, gen)) <- first (\(_, _, msg) -> msg) $ runGetOrFail readConv (L.fromStrict (unGroupId gid))
   domain <- first displayException . T.decodeUtf8' . L.toStrict $ rem'
-  pure $ Qualified conv (Domain domain)
+  pure $ (Qualified conv (Domain domain), gen)
   where
     readConv = do
       version <- getWord64be
@@ -62,8 +68,15 @@ groupIdToConv gid = do
       uuid <- maybe (fail "invalid conversation UUID in groupId") pure mUUID
       n <- getWord8
       if n == 0
-        then pure $ Conv (Id uuid)
+        then pure $ (Conv (Id uuid), GroupIdGen 0)
         else do
           subConvIdBS <- getByteString $ fromIntegral n
           subConvId <- either (fail . T.unpack) pure $ parseHeader subConvIdBS
-          pure $ SubConv (Id uuid) (SubConvId subConvId)
+          gen <- getWord32be
+          pure $ (SubConv (Id uuid) (SubConvId subConvId), GroupIdGen gen)
+
+nextGenGroupId :: GroupId -> Either String GroupId
+nextGenGroupId gid =
+  uncurry convToGroupId
+    . second (GroupIdGen . succ . unGroupIdGen)
+    <$> groupIdToConv gid
