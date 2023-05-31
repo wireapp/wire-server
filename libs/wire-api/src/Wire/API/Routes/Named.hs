@@ -48,7 +48,6 @@ instance {-# OVERLAPPING #-} (RenderableSymbol a, RenderableSymbol b) => Rendera
 instance (HasSwagger api, RenderableSymbol name) => HasSwagger (Named name api) where
   toSwagger _ =
     toSwagger (Proxy @api)
-      & allOperations . summary %~ (<> Just dscr)
       & allOperations . description %~ (Just (dscr <> "\n\n") <>)
     where
       dscr :: Text
