@@ -103,7 +103,7 @@ library
     , monad-control          >=1.0
     , mwc-random             >=0.13
     , optparse-applicative   >=0.11
-    , resource-pool          >=0.2
+    , resource-pool          >=0.4
     , stm                    >=2.4
     , text                   >=0.11
     , time                   >=1.5
