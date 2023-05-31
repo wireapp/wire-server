@@ -32,7 +32,6 @@ import Data.ByteString.Conversion
 import qualified Data.Map as Map
 import Data.Misc
 import Data.Schema
-import Data.String.Conversions (cs)
 import Imports hiding (fromException, intercalate)
 import Network.HTTP.Client
 import Polysemy

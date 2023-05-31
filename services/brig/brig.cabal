@@ -161,6 +161,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -280,7 +281,6 @@ library
     , ssl-util
     , statistics                 >=0.13
     , stomp-queue                >=0.3
-    , string-conversions
     , swagger2
     , template                   >=0.2
     , template-haskell
@@ -341,6 +341,7 @@ executable brig
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -502,6 +503,7 @@ executable brig-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -589,7 +591,6 @@ executable brig-integration
     , servant-client-core
     , spar
     , streaming-commons
-    , string-conversions
     , tasty                  >=1.0
     , tasty-cannon           >=0.3.4
     , tasty-hunit            >=0.2
@@ -688,6 +689,7 @@ executable brig-schema
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -761,6 +763,7 @@ test-suite brig-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports

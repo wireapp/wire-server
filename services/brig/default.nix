@@ -120,7 +120,6 @@
 , statistics
 , stomp-queue
 , streaming-commons
-, string-conversions
 , swagger2
 , tasty
 , tasty-cannon
@@ -260,7 +259,6 @@ mkDerivation {
     ssl-util
     statistics
     stomp-queue
-    string-conversions
     swagger2
     template
     template-haskell
@@ -355,7 +353,6 @@ mkDerivation {
     servant-client-core
     spar
     streaming-commons
-    string-conversions
     tasty
     tasty-cannon
     tasty-hunit

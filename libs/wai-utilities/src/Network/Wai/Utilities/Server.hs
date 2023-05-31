@@ -59,7 +59,6 @@ import Data.Domain (domainText)
 import Data.Metrics.GC (spawnGCMetricsCollector)
 import Data.Metrics.Middleware
 import Data.Streaming.Zlib (ZlibException (..))
-import Data.String.Conversions (cs)
 import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.Text.Lazy.Encoding as LT
 import Imports

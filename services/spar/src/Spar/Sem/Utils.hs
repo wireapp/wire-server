@@ -30,7 +30,6 @@ import Bilge
 import Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
-import Data.String.Conversions
 import Imports hiding (log)
 import Polysemy
 import Polysemy.Error

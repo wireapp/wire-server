@@ -30,7 +30,6 @@ import qualified Data.Conduit.Combinators as C
 import Data.Handle (Handle)
 import Data.Id
 import qualified Data.Map.Strict as Map
-import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import Imports
 import Options

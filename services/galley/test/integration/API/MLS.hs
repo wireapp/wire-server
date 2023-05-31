@@ -43,7 +43,6 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Data.Singletons
-import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)

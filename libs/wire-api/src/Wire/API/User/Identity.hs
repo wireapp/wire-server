@@ -62,7 +62,6 @@ import Data.Bifunctor (first)
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
 import Data.Schema
-import Data.String.Conversions (cs)
 import Data.Swagger (ToParamSchema (..))
 import qualified Data.Swagger as S
 import qualified Data.Text as Text

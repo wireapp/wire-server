@@ -45,9 +45,8 @@ import Data.Aeson.Text as Aeson (encodeToLazyText)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.CaseInsensitive as CI
 import Data.Id
-import Data.String.Conversions
 import Data.Text.Ascii (encodeBase64, toText)
-import qualified Data.Text.Lazy as LT
+import qualified Data.Text.Lazy as LText
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -300,7 +299,7 @@ verdictHandler aresp verdict idp = do
 data VerdictHandlerResult
   = VerifyHandlerGranted {_vhrCookie :: SetCookie, _vhrUserId :: UserId}
   | VerifyHandlerDenied {_vhrReasons :: [SAML.DeniedReason]}
-  | VerifyHandlerError {_vhrLabel :: ST, _vhrMessage :: ST}
+  | VerifyHandlerError {_vhrLabel :: Text, _vhrMessage :: Text}
   deriving (Eq, Show)
 
 verdictHandlerResult ::
@@ -436,7 +435,7 @@ verdictHandlerWeb =
     VerifyHandlerDenied reasons -> forbiddenPage "forbidden" (explainDeniedReason <$> reasons)
     VerifyHandlerError lbl msg -> forbiddenPage lbl [msg]
   where
-    forbiddenPage :: ST -> [ST] -> SAML.ResponseVerdict
+    forbiddenPage :: Text -> [Text] -> SAML.ResponseVerdict
     forbiddenPage errlbl reasons =
       ServerError
         { errHTTPCode = 200,
@@ -461,10 +460,10 @@ verdictHandlerWeb =
       where
         errval =
           object
-            [ "type" .= ("AUTH_ERROR" :: ST),
+            [ "type" .= ("AUTH_ERROR" :: Text),
               "payload"
                 .= object
-                  [ "label" .= ("forbidden" :: ST),
+                  [ "label" .= ("forbidden" :: Text),
                     "errors" .= reasons
                   ]
             ]
@@ -488,7 +487,7 @@ verdictHandlerWeb =
             ]
         }
 
-easyHtml :: LT -> LBS
+easyHtml :: LText -> LByteString
 easyHtml doc =
   cs $
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
@@ -518,7 +517,7 @@ verdictHandlerMobile granted denied = \case
         (throwSparSem . SparCouldNotSubstituteFailureURI . cs)
         (pure . forbiddenPage lbl [msg])
   where
-    forbiddenPage :: ST -> [ST] -> URI.URI -> SAML.ResponseVerdict
+    forbiddenPage :: Text -> [Text] -> URI.URI -> SAML.ResponseVerdict
     forbiddenPage errlbl errs uri =
       err303
         { errReasonPhrase = cs errlbl,
@@ -545,13 +544,13 @@ errorPage err mpInputs =
   ServerError
     { errHTTPCode = Http.statusCode $ Wai.code werr,
       errReasonPhrase = cs $ Wai.label werr,
-      errBody = easyHtml $ LT.intercalate "\n" errbody,
+      errBody = easyHtml $ LText.intercalate "\n" errbody,
       errHeaders = [("Content-Type", "text/html")]
     }
   where
     werr = either forceWai id $ renderSparError err
     forceWai ServerError {..} = Wai.mkError (Http.Status errHTTPCode "") (cs errReasonPhrase) (cs errBody)
-    errbody :: [LT]
+    errbody :: [LText]
     errbody =
       [ "<head>",
         "  <title>wire:sso:error:" <> cs (Wai.label werr) <> "</title>",

@@ -52,6 +52,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -94,7 +95,6 @@ library
     , servant
     , servant-server
     , servant-swagger
-    , string-conversions
     , text
     , tinylog
     , wai
@@ -164,7 +164,6 @@ test-suite extended-tests
     , extended
     , hspec
     , imports
-    , string-conversions
     , temporary
 
   default-language:   Haskell2010

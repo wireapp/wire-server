@@ -47,7 +47,6 @@ import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Qualified
-import Data.String.Conversions
 import qualified Data.Text.Lazy as Lazy
 import Galley.API.Error
 import Galley.Env

@@ -40,7 +40,6 @@ import Data.Id
 import Data.Proxy (Proxy (..))
 import Data.Range
 import Data.Schema hiding ((.=))
-import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import qualified Data.Text as T
 import GHC.TypeLits (KnownSymbol)

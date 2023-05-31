@@ -17,7 +17,6 @@
 , memory
 , QuickCheck
 , schema-profunctor
-, string-conversions
 , tasty
 , tasty-hunit
 , tasty-quickcheck
@@ -43,7 +42,6 @@ mkDerivation {
     memory
     QuickCheck
     schema-profunctor
-    string-conversions
     text
     types-common
     uuid

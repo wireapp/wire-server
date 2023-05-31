@@ -51,7 +51,6 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.Maybe
 import Data.Qualified
-import Data.String.Conversions (cs)
 import Data.Text.Ascii (AsciiText (toText))
 import Imports
 import Polysemy

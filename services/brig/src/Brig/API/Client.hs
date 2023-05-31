@@ -86,7 +86,6 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities

@@ -31,7 +31,6 @@ import Data.Metrics.Types
 import qualified Data.Metrics.Types as Metrics
 import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Proxy
-import Data.String.Conversions
 import Data.Tree
 import GHC.TypeLits
 import Imports

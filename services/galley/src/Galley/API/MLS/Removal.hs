@@ -36,7 +36,7 @@ import Galley.Effects
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Galley.Env
-import Imports
+import Imports hiding (cs)
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
