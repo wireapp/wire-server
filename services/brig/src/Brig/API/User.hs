@@ -32,6 +32,7 @@ module Brig.API.User
     checkHandle,
     lookupHandle,
     changeManagedBy,
+    changeSupportedProtocols,
     changeAccountStatus,
     changeSingleAccountStatus,
     Data.lookupAccounts,
@@ -140,7 +141,7 @@ import Brig.User.Handle.Blacklist
 import Brig.User.Phone
 import Brig.User.Search.Index (MonadIndexIO, reindex)
 import qualified Brig.User.Search.TeamSize as TeamSize
-import Cassandra
+import Cassandra hiding (Set)
 import Control.Arrow ((&&&))
 import Control.Error
 import Control.Lens (view, (^.))
@@ -605,6 +606,14 @@ changeManagedBy :: UserId -> ConnId -> ManagedByUpdate -> (AppT r) ()
 changeManagedBy uid conn (ManagedByUpdate mb) = do
   wrapClient $ Data.updateManagedBy uid mb
   wrapHttpClient $ Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
+
+-------------------------------------------------------------------------------
+-- Update supported protocols
+
+changeSupportedProtocols :: UserId -> ConnId -> Set BaseProtocolTag -> AppT r ()
+changeSupportedProtocols uid conn prots = do
+  wrapClient $ Data.updateSupportedProtocols uid prots
+  wrapHttpClient $ Intra.onUserEvent uid (Just conn) (supportedProtocolUpdate uid prots)
 
 --------------------------------------------------------------------------------
 -- Change Handle
