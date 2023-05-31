@@ -48,6 +48,10 @@ to be inserted into the swagger docs.  The instance should satisfy the
 property that the ID, as rendered can be copied and fed to grep to
 find its occurrances behind `Named`s in the source code.
 
+The initial reason to introduce `Named` was increased type safety: if
+two handlers have the same type, they can have be `Named` differently
+and thus confusing them will be caught by the type checker.
+
 ## Error handling
 
 Several layers of error handling are involved when serving a request. A handler in service code (e.g. Brig or Galley) can:
