@@ -97,12 +97,10 @@ endif
 .PHONY: ci
 ci: c db-migrate
 ifeq ("$(package)", "all")
-	 make c
 	./hack/bin/cabal-run-integration.sh all
 	./hack/bin/cabal-run-integration.sh integration
 endif
 ifeq ("$(package)", "integration")
-	make c package=integration
 	./hack/bin/cabal-run-integration.sh integration
 else
 	make c package=$(package)
