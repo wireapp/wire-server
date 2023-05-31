@@ -86,7 +86,7 @@ endif
 
 # ci here doesn't refer to continuous integration, but to cabal-run-integration.sh
 # Usage: make ci                        - build & run all tests, excluding integration
-#        make ci all                    - build & run all tests, including integration
+#        make ci package=all            - build & run all tests, including integration
 #        make ci package=brig           - build brig & run "brig-integration" 
 #        make ci package=integration    - build & run "integration"
 #
