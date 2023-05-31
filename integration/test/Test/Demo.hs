@@ -131,6 +131,23 @@ testDynamicBackend = do
     bindResponse (Public.getSelf ownDomain uidD1) $ \resp -> do
       resp.status `shouldMatchInt` 404
 
+testStartMultipleDynamicBackends :: HasCallStack => App ()
+testStartMultipleDynamicBackends = do
+  let dynDomain1 = "c.example.com"
+      dynDomain2 = "d.example.com"
+      dynDomain3 = "e.example.com"
+  let assertCorrectDomain domain =
+        bindResponse (Public.getAPIVersion domain) $
+          \resp -> do
+            resp.status `shouldMatchInt` 200
+            (resp.json %. "domain") `shouldMatch` domain
+  startDynamicBackend dynDomain1 defaultDynBackendConfigOverrides $
+    startDynamicBackend dynDomain2 defaultDynBackendConfigOverrides $
+      startDynamicBackend dynDomain3 defaultDynBackendConfigOverrides $ do
+        assertCorrectDomain dynDomain1
+        assertCorrectDomain dynDomain2
+        assertCorrectDomain dynDomain3
+
 testWebSockets :: HasCallStack => App ()
 testWebSockets = do
   user <- randomUser OwnDomain def
