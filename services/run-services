@@ -406,7 +406,7 @@ FEDERATOR = Service("federator", Colors.BLUE,
                     check_status=False).with_level(LEVEL)
 STERN = Service("stern", Colors.YELLOW).with_level(LEVEL)
 PROXY = Service("proxy", Colors.RED).with_level(LEVEL)
-BACKGROUND_WORKER = Service("background-worker", Colors.RED, check_status=False).with_level(LEVEL)
+BACKGROUND_WORKER = Service("background-worker", Colors.BLUE, check_status=False).with_level(LEVEL)
 NGINZ = Nginz(Colors.PURPLEISH)
 
 if __name__ == '__main__':

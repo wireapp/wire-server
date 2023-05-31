@@ -41,30 +41,10 @@ import qualified Data.LanguageCodes
   )
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
 import qualified Data.UUID as UUID (fromString)
-import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
+import Imports
 import Wire.API.Asset
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 import Wire.API.User
-  ( Asset (ImageAsset),
-    AssetSize (AssetComplete),
-    ColourId (ColourId, fromColourId),
-    Country (Country, fromCountry),
-    Email (Email, emailDomain, emailLocal),
-    Language (Language),
-    Locale (Locale, lCountry, lLanguage),
-    ManagedBy (ManagedByScim, ManagedByWire),
-    Name (Name, fromName),
-    Phone (Phone, fromPhone),
-    Pict (Pict, fromPict),
-    User (..),
-    UserIdentity
-      ( EmailIdentity,
-        FullIdentity,
-        PhoneIdentity,
-        SSOIdentity
-      ),
-    UserSSOId (UserScimExternalId),
-  )
 
 testObject_User_user_1 :: User
 testObject_User_user_1 =
@@ -86,7 +66,8 @@ testObject_User_user_1 =
       userHandle = Nothing,
       userExpire = Nothing,
       userTeam = Nothing,
-      userManagedBy = ManagedByWire
+      userManagedBy = ManagedByWire,
+      userSupportedProtocols = defSupportedProtocols
     }
 
 testObject_User_user_2 :: User
@@ -123,7 +104,8 @@ testObject_User_user_2 =
       userHandle = Nothing,
       userExpire = Just (fromJust (readUTCTimeMillis "1864-05-11T17:06:58.936Z")),
       userTeam = Nothing,
-      userManagedBy = ManagedByWire
+      userManagedBy = ManagedByWire,
+      userSupportedProtocols = mempty
     }
 
 testObject_User_user_3 :: User
@@ -153,7 +135,8 @@ testObject_User_user_3 =
       userHandle = Just (Handle {fromHandle = "1c"}),
       userExpire = Just (fromJust (readUTCTimeMillis "1864-05-09T20:12:05.821Z")),
       userTeam = Just (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000000"))),
-      userManagedBy = ManagedByWire
+      userManagedBy = ManagedByWire,
+      userSupportedProtocols = defSupportedProtocols
     }
 
 testObject_User_user_4 :: User
@@ -193,7 +176,8 @@ testObject_User_user_4 =
           ),
       userExpire = Just (fromJust (readUTCTimeMillis "1864-05-09T14:25:26.089Z")),
       userTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002"))),
-      userManagedBy = ManagedByScim
+      userManagedBy = ManagedByScim,
+      userSupportedProtocols = defSupportedProtocols
     }
 
 testObject_User_user_5 :: User
@@ -233,5 +217,6 @@ testObject_User_user_5 =
           ),
       userExpire = Just (fromJust (readUTCTimeMillis "1864-05-09T14:25:26.089Z")),
       userTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002"))),
-      userManagedBy = ManagedByScim
+      userManagedBy = ManagedByScim,
+      userSupportedProtocols = defSupportedProtocols
     }

@@ -287,3 +287,10 @@ instance Cql SearchVisibilityInbound where
   fromCql (CqlInt 0) = pure SearchableByOwnTeam
   fromCql (CqlInt 1) = pure SearchableByAllTeams
   fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
+
+instance Cql (Imports.Set BaseProtocolTag) where
+  ctype = Tagged IntColumn
+
+  toCql = CqlInt . fromIntegral . protocolSetBits
+  fromCql (CqlInt bits) = pure $ protocolSetFromBits (fromIntegral bits)
+  fromCql _ = Left "Protocol set: Int expected"

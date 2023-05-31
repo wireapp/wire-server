@@ -99,7 +99,8 @@ toUser _ domain acc [i, e, p] = do
           userHandle = Nothing,
           userExpire = Nothing,
           userTeam = Nothing,
-          userManagedBy = ManagedByWire
+          userManagedBy = ManagedByWire,
+          userSupportedProtocols = defSupportedProtocols
         }
 toUser g _ acc entry = do
   warn g $ msg (val "invalid entry: " +++ show entry)
