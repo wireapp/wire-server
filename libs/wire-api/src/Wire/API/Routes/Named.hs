@@ -31,6 +31,7 @@ import Servant.Client
 import Servant.Client.Core (clientIn)
 import Servant.Swagger
 
+-- | See http://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids-in-swagger
 newtype Named name x = Named {unnamed :: x}
   deriving (Functor)
 
@@ -51,7 +52,10 @@ instance (HasSwagger api, RenderableSymbol name) => HasSwagger (Named name api) 
       & allOperations . description %~ (Just (dscr <> "\n\n") <>)
     where
       dscr :: Text
-      dscr = " [internal route ID: " <> cs (renderSymbol @name) <> "]"
+      dscr =
+        " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> "
+          <> cs (renderSymbol @name)
+          <> "]"
 
 instance HasServer api ctx => HasServer (Named name api) ctx where
   type ServerT (Named name api) m = Named name (ServerT api m)

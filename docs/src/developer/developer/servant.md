@@ -33,6 +33,21 @@ Note that error types can also be turned into `MultiVerb` responses using the `E
 
 This is a capture combinator for a path that looks like `/:domain/:value`, where `value` is of some arbitrary type `a`. The value is returned as a value of type `Qualified a`, which can then be used in federation-aware endpoints.
 
+(named-and-internal-route-ids)=
+
+## `Named`, and internal route IDs in swagger
+
+There is also a combinator `Named` that allows developers to jump back
+and forth between the swagger docs (see {ref}`swagger-api-docs`) and
+source code: from the swagger docs, copy the *internal route ID* and
+full-text-search it in `wire-server/{libs,services}`.  That will give
+you both the routing table type and the handler.
+
+Route internal IDs need to instantiate the `Renderable` class in order
+to be inserted into the swagger docs.  The instance should satisfy the
+property that the ID, as rendered can be copied and fed to grep to
+find its occurrances behind `Named`s in the source code.
+
 ## Error handling
 
 Several layers of error handling are involved when serving a request. A handler in service code (e.g. Brig or Galley) can:
