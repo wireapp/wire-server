@@ -40,7 +40,7 @@ class RenderableSymbol a where
   renderSymbol :: Text
 
 instance {-# OVERLAPPABLE #-} KnownSymbol a => RenderableSymbol a where
-  renderSymbol = cs $ symbolVal (Proxy @a)
+  renderSymbol = cs . show $ symbolVal (Proxy @a)
 
 instance {-# OVERLAPPING #-} (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol '(a, b) where
   renderSymbol = "(" <> (renderSymbol @a) <> ", " <> (renderSymbol @b) <> ")"
