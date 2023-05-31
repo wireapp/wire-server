@@ -103,7 +103,6 @@ endif
 ifeq ("$(package)", "integration")
 	./hack/bin/cabal-run-integration.sh integration
 else
-	make c package=$(package)
 	./hack/bin/cabal-run-integration.sh $(package)
 endif
 
