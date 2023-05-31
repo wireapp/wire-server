@@ -409,8 +409,6 @@ rmUser lusr conn = do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
         let rpc = void $ fedQueueClient @'Galley @"on-user-deleted-conversations" userDelete
         enqueueNotification remoteConvs Q.Persistent rpc
-    -- runFederatedEither remoteConvs rpc
-    --   >>= logAndIgnoreError "Error in onUserDeleted call" (tUnqualified lusr)
 
     -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
     -- See https://wearezeta.atlassian.net/browse/SQCORE-1091
