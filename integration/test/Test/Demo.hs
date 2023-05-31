@@ -89,11 +89,13 @@ testModifiedServices = do
     bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
       res.status `shouldMatchInt` 200
       res.json %. "status" `shouldMatch` "enabled"
+
     bindResponse (Public.getAPIVersion OwnDomain) $
       \resp -> do
         resp.status `shouldMatchInt` 200
         (resp.json %. "domain") `shouldMatch` "overridden.example.com"
-    bindResponse Nginz.getSystemSettingsUnAuthorized $
+
+    bindResponse (Nginz.getSystemSettingsUnAuthorized OwnDomain) $
       \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "setRestrictUserCreation" `shouldMatchBool` False
@@ -109,6 +111,11 @@ testDynamicBackend = do
 
   let dynDomain = "c.example.com"
   startDynamicBackend dynDomain defaultDynBackendConfigOverrides $ do
+    bindResponse (Nginz.getSystemSettingsUnAuthorized dynDomain) $
+      \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "setRestrictUserCreation" `shouldMatchBool` False
+
     -- user created in own domain should not be found in dynamic backend
     bindResponse (Public.getSelf dynDomain uid) $ \resp -> do
       resp.status `shouldMatchInt` 404
