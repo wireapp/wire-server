@@ -43,7 +43,7 @@ import Data.Range (checked)
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import Federation.Util
-import Imports
+import Imports hiding (cs)
 import System.FilePath
 import qualified System.Logger as Log
 import System.Process

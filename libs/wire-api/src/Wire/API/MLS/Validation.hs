@@ -23,7 +23,7 @@ module Wire.API.MLS.Validation
 where
 
 import Control.Applicative
-import Imports
+import Imports hiding (cs)
 import Wire.API.MLS.Capabilities
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential

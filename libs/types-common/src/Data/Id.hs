@@ -74,7 +74,6 @@ import Data.Hashable (Hashable)
 import Data.ProtocolBuffers.Internal
 import Data.Proxy
 import Data.Schema
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import Data.Swagger.Internal.ParamSchema (ToParamSchema (..))
 import qualified Data.Text as T

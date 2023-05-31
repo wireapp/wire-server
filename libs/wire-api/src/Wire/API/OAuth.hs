@@ -33,7 +33,6 @@ import Data.Id as Id
 import Data.Range
 import Data.Schema
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import Data.Swagger (ToParamSchema (..))
 import qualified Data.Swagger as S
 import qualified Data.Text as T

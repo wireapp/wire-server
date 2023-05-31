@@ -41,7 +41,7 @@ import Galley.Effects.MemberStore (MemberStore (..))
 import Galley.Types.Conversations.Members
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
-import Imports hiding (Set)
+import Imports hiding (Set, cs)
 import Polysemy
 import Polysemy.Input
 import qualified UnliftIO

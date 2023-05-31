@@ -38,7 +38,6 @@ import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Char8 as C8
 import Data.Id
 import Data.Misc
-import Data.String.Conversions
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID

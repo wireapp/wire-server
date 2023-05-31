@@ -77,7 +77,6 @@ import Data.Handle (Handle)
 import Data.Id
 import qualified Data.Map as Map
 import Data.Metrics
-import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)

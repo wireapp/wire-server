@@ -31,7 +31,7 @@ import Galley.Cassandra.Conversation.MLS
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store (embedClient)
 import Galley.Effects.SubConversationStore (SubConversationStore (..))
-import Imports
+import Imports hiding (cs)
 import Polysemy
 import Polysemy.Input
 import Wire.API.Conversation.Protocol

@@ -93,6 +93,7 @@ library
     Test.Demo
     Test.MLS
     Test.MLS.KeyPackage
+    Test.User
     Testlib.App
     Testlib.Assertions
     Testlib.Cannon

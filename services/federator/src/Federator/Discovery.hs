@@ -21,7 +21,6 @@ module Federator.Discovery where
 import Data.Domain (Domain, domainText)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LText
 import Federator.Error

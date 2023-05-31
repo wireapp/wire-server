@@ -37,7 +37,6 @@ import Data.Id
 import Data.Qualified (Qualified (qUnqualified))
 import Data.Range
 import Data.Set as Set hiding (delete, null, (\\))
-import Data.String.Conversions (cs)
 import Data.Text.Ascii (encodeBase16)
 import qualified Data.Text.Encoding as T
 import Data.Time

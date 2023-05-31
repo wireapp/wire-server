@@ -1,4 +1,3 @@
-{-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
@@ -53,7 +52,6 @@ import Data.Nonce (isValidBase64UrlEncodedUUID)
 import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import Data.Text (replace)
 import Data.Text.Ascii (AsciiChars (validate))
 import Data.Time (addUTCTime)

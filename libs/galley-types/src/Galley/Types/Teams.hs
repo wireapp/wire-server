@@ -69,7 +69,6 @@ import Data.Id (UserId)
 import qualified Data.Maybe as Maybe
 import qualified Data.Schema as Schema
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import Imports
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Error.Galley

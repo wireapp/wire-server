@@ -202,6 +202,20 @@ let
     '';
   };
 
+  integration-dynamic-backends-db-schemas = pkgs.writeShellApplication {
+    name = "integration-dynamic-backends-db-schemas.sh";
+    text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-db-schemas.sh}";
+    runtimeInputs = [ pkgs.parallel ];
+    checkPhase = "";
+  };
+
+  integration-dynamic-backends-brig-index = pkgs.writeShellApplication {
+    name = "integration-dynamic-backends-brig-index.sh";
+    text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-brig-index.sh}";
+    runtimeInputs = [ pkgs.parallel ];
+    checkPhase = "";
+  };
+
   # Some images require extra things which is not possible to specify using
   # cabal file dependencies, so cabal2nix cannot automatically add these.
   #
@@ -210,7 +224,7 @@ let
     brig = [ brig-templates ];
     brig-integration = [ brig-templates pkgs.mls-test-cli ];
     galley-integration = [ pkgs.mls-test-cli ];
-    integration = with exes; [ brig cannon cargohold federator galley gundeck proxy spar stern brig-templates ];
+    integration = with exes; [ brig brig-index brig-schema cannon cargohold federator galley galley-schema gundeck gundeck-schema proxy spar spar-schema stern brig-templates integration-dynamic-backends-db-schemas integration-dynamic-backends-brig-index ];
   };
 
   # useful to poke around a container during a 'kubectl exec'
@@ -358,6 +372,7 @@ let
   };
 in
 {
+
   inherit ciImage hoogleImage;
 
   images = images localModsEnableAll;
@@ -374,6 +389,8 @@ in
   devEnv = pkgs.buildEnv {
     name = "wire-server-dev-env";
     paths = commonTools ++ [
+      pkgs.bash
+      pkgs.dash
       (pkgs.haskell-language-server.override { supportedGhcVersions = [ "92" ]; })
       pkgs.ghcid
       pkgs.kind

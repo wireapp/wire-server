@@ -15,7 +15,6 @@
 , lib
 , QuickCheck
 , schema-profunctor
-, string-conversions
 , swagger2
 , tasty
 , tasty-hunit
@@ -41,7 +40,6 @@ mkDerivation {
     imports
     QuickCheck
     schema-profunctor
-    string-conversions
     swagger2
     text
     time

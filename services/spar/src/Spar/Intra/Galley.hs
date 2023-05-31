@@ -26,7 +26,6 @@ import Control.Lens
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.Id (TeamId, UserId)
-import Data.String.Conversions (cs)
 import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types.Method

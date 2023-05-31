@@ -17,8 +17,8 @@ def random_letters(n=10):
     return "".join(random.choices(string.ascii_letters, k=n))
 
 
-def random_email():
-    return "test-email" + "-" + random_letters(10) + "@example.com"
+def random_email(domain='example.com'):
+    return "test-email" + "-" + random_letters(10) + "@" + domain
 
 
 def create_user(ctx, email=None, password=None, name=None, create_team=False, **kwargs):

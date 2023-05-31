@@ -18,7 +18,6 @@
 module Data.Metrics.Test where
 
 import Data.Metrics.Types
-import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Tree as Tree
 import Imports

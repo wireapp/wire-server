@@ -42,7 +42,6 @@ import Data.Id
 import Data.Kind
 import Data.Qualified (Local)
 import Data.Schema
-import Data.String.Conversions (cs)
 import Data.Time (UTCTime)
 import GHC.TypeLits (KnownSymbol)
 import Galley.API.Error (InternalError)

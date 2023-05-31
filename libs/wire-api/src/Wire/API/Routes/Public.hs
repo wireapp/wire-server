@@ -43,7 +43,6 @@ import Data.Id as Id
 import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
-import Data.String.Conversions
 import Data.Swagger hiding (Header)
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)

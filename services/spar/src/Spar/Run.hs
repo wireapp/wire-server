@@ -37,7 +37,6 @@ import Data.Default (def)
 import Data.List.NonEmpty as NE
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
-import Data.String.Conversions
 import Imports
 import Network.Wai (Application)
 import qualified Network.Wai as Wai

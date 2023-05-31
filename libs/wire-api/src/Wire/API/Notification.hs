@@ -47,7 +47,6 @@ import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty)
 import Data.SOP
 import Data.Schema
-import Data.String.Conversions (cs)
 import Data.Swagger (ToParamSchema (..))
 import qualified Data.Swagger as S
 import Data.Time.Clock (UTCTime)

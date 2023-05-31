@@ -11,7 +11,6 @@ import qualified Data.Jwt.Tools as Jwt
 import Data.Misc (HttpsUrl)
 import Data.Nonce (Nonce)
 import Data.PEMKeys
-import Data.String.Conversions (cs)
 import Imports
 import Network.HTTP.Types (StdMethod (..))
 import Numeric (readHex)

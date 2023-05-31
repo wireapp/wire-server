@@ -58,7 +58,7 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Internal.Schema as S
 import qualified Data.Text as T
 import Data.Word
-import Imports
+import Imports hiding (cs)
 import Servant (FromHttpApiData (parseQueryParam))
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary

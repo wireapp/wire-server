@@ -67,7 +67,6 @@ library
     , bytestring-conversion
     , http-types
     , imports
-    , string-conversions
     , transformers
 
   default-language:   Haskell2010
@@ -83,7 +82,6 @@ test-suite jwt-tools-tests
       hspec
     , imports
     , jwt-tools
-    , string-conversions
     , transformers
 
   hs-source-dirs:     test

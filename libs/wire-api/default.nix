@@ -84,7 +84,6 @@
 , singletons-base
 , singletons-th
 , sop-core
-, string-conversions
 , swagger2
 , tagged
 , tasty
@@ -185,7 +184,6 @@ mkDerivation {
     singletons-base
     singletons-th
     sop-core
-    string-conversions
     swagger2
     tagged
     text
@@ -243,7 +241,6 @@ mkDerivation {
     schema-profunctor
     servant
     servant-server
-    string-conversions
     swagger2
     tasty
     tasty-hspec

@@ -182,6 +182,26 @@ class Instance:
         if 'remoteDomains' in data:
             data['remoteDomains'] = remoteDomains
 
+        if 'aws' in data:
+            if 'userJournalQueue' in data['aws']:
+                data['aws']['userJournalQueue'] = f"integration-user-events.fifo{suffix}"
+            if 'prekeyTable' in data['aws']:
+                data['aws']['prekeyTable'] = f"integration-brig-prekeys{suffix}"
+            if 's3Bucket' in data['aws']:
+                data['aws']['s3Bucket'] = f"dummy-bucket{suffix}"
+            if 'queueName' in data['aws']:
+                data['aws']['queueName'] = f"integration-gundeck-events{suffix}"
+
+        if 'internalEvents' in data and 'queueName' in data['internalEvents']:
+            data['internalEvents']['queueName'] = f"integration-brig-events-internal{suffix}"
+
+        if 'emailSMS' in data:
+            data['emailSMS']['email']['sesQueue'] = f"integration-brig-events{suffix}"
+            data['emailSMS']['general']['emailSender'] = f"backend-integration{suffix}@wire.com"
+
+        if 'journal' in data:
+            data['journal']['queueName'] = f"integration-team-events.fifo{suffix}"
+
         # set log level
         if self.service.level is not None:
             if 'logLevel' in data:
@@ -386,7 +406,7 @@ FEDERATOR = Service("federator", Colors.BLUE,
                     check_status=False).with_level(LEVEL)
 STERN = Service("stern", Colors.YELLOW).with_level(LEVEL)
 PROXY = Service("proxy", Colors.RED).with_level(LEVEL)
-BACKGROUND_WORKER = Service("background-worker", Colors.RED, check_status=False).with_level(LEVEL)
+BACKGROUND_WORKER = Service("background-worker", Colors.BLUE, check_status=False).with_level(LEVEL)
 NGINZ = Nginz(Colors.PURPLEISH)
 
 if __name__ == '__main__':

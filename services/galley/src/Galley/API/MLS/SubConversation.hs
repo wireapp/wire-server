@@ -54,7 +54,7 @@ import qualified Galley.Effects.SubConversationStore as Eff
 import Galley.Effects.SubConversationSupply (SubConversationSupply)
 import qualified Galley.Effects.SubConversationSupply as Eff
 import Galley.Types.Conversations.Members
-import Imports
+import Imports hiding (cs)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input

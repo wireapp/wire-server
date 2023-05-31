@@ -43,7 +43,7 @@ import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S
 import GHC.Records
-import Imports
+import Imports hiding (cs)
 import Test.QuickCheck
 import Web.HttpApiData
 import Wire.API.MLS.CipherSuite

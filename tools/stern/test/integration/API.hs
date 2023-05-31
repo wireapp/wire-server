@@ -34,7 +34,6 @@ import Data.Id
 import Data.Range (unsafeRange)
 import Data.Schema
 import qualified Data.Set as Set
-import Data.String.Conversions
 import GHC.TypeLits
 import Imports
 import Stern.API.Routes (UserConnectionGroups (..))

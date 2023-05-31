@@ -474,7 +474,6 @@ test-suite gundeck-tests
     , quickcheck-instances
     , quickcheck-state-machine
     , scientific
-    , string-conversions
     , tasty
     , tasty-hunit
     , tasty-quickcheck

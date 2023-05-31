@@ -48,7 +48,7 @@ import Galley.Effects.BrigAccess
 import Galley.Effects.ProposalStore
 import Galley.Env
 import Galley.Options
-import Imports
+import Imports hiding (cs)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input

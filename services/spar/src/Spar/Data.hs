@@ -37,7 +37,6 @@ import Control.Lens
 import Control.Monad.Except
 import Data.CaseInsensitive (foldCase)
 import qualified Data.CaseInsensitive as CI
-import Data.String.Conversions
 import Data.Time
 import GHC.TypeLits (KnownSymbol)
 import Imports
@@ -114,7 +113,7 @@ instance Cql NormalizedUNameID where
 normalizeUnqualifiedNameId :: SAML.UnqualifiedNameID -> NormalizedUNameID
 normalizeUnqualifiedNameId = NormalizedUNameID . foldCase . nameIdTxt
   where
-    nameIdTxt :: SAML.UnqualifiedNameID -> ST
+    nameIdTxt :: SAML.UnqualifiedNameID -> Text
     nameIdTxt (SAML.UNameIDUnspecified txt) = SAML.unsafeFromXmlText txt
     nameIdTxt (SAML.UNameIDEmail email) = SAMLEmail.render $ CI.original email
     nameIdTxt (SAML.UNameIDX509 txt) = SAML.unsafeFromXmlText txt

@@ -33,7 +33,7 @@ import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.Effects
 import Galley.Effects.MemberStore
-import Imports
+import Imports hiding (cs)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Resource (Resource)

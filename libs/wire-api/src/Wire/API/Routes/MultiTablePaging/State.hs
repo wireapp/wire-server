@@ -28,7 +28,6 @@ import qualified Data.ByteString.Base64.URL as Base64Url
 import Data.Either.Combinators (mapLeft)
 import Data.Proxy
 import Data.Schema
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text

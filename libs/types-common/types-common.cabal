@@ -124,7 +124,6 @@ library
     , random                 >=1.1
     , schema-profunctor
     , servant-server
-    , string-conversions
     , swagger2
     , tagged                 >=0.8
     , tasty                  >=0.11
@@ -209,7 +208,6 @@ test-suite tests
     , cereal
     , imports
     , protobuf
-    , string-conversions
     , tasty
     , tasty-hunit
     , tasty-quickcheck

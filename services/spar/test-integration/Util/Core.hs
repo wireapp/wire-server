@@ -159,7 +159,6 @@ import Data.Id
 import Data.Misc (PlainTextPassword6, plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Range
-import Data.String.Conversions
 import Data.Text (pack)
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
@@ -636,7 +635,7 @@ getSelfProfile brg usr = do
   rsp <- get $ brg . path "/self" . zUser usr
   pure $ responseJsonUnsafe rsp
 
-zAuthAccess :: UserId -> SBS -> Request -> Request
+zAuthAccess :: UserId -> ByteString -> Request -> Request
 zAuthAccess u c = header "Z-Type" "access" . zUser u . zConn c
 
 newTeam :: Galley.BindingNewTeam
@@ -660,7 +659,7 @@ randomUser brig_ = do
 
 createUser ::
   (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) =>
-  ST ->
+  Text ->
   BrigReq ->
   m User
 createUser name brig_ = do
@@ -671,7 +670,7 @@ createUser name brig_ = do
 -- clone this again!)
 postUser ::
   (HasCallStack, MonadIO m, MonadHttp m) =>
-  ST ->
+  Text ->
   Bool ->
   Maybe UserSSOId ->
   Maybe TeamId ->
@@ -725,7 +724,7 @@ activate brig_ (k, c) =
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'
 
-zConn :: SBS -> Request -> Request
+zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
 endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
@@ -738,7 +737,7 @@ endpointToSettings endpoint =
       Warp.settingsPort = fromIntegral $ endpoint ^. epPort
     }
 
-endpointToURL :: MonadIO m => Endpoint -> ST -> m URI
+endpointToURL :: MonadIO m => Endpoint -> Text -> m URI
 endpointToURL endpoint urlpath = either err pure url
   where
     url = parseURI' ("http://" <> urlhost <> ":" <> urlport) <&> (=/ urlpath)
@@ -858,7 +857,7 @@ tryLogin privkey idp userSubject = do
   sparresp <- submitAuthnResponse tid idpresp
   liftIO $ do
     statusCode sparresp `shouldBe` 200
-    let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+    let bdy = maybe "" (cs @LByteString @String) (responseBody sparresp)
     bdy `shouldContain` "<title>wire:sso:success</title>"
   either (error . show) (pure . view userRefL) $
     SAML.parseFromDocument (fromSignedAuthnResponse idpresp)
@@ -872,7 +871,7 @@ tryLoginFail privkey idp userSubject bodyShouldContain = do
   idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
   sparresp <- submitAuthnResponse tid idpresp
   liftIO $ do
-    let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+    let bdy = maybe "" (cs @LByteString @String) (responseBody sparresp)
     bdy `shouldContain` bodyShouldContain
 
 -- | see also: 'callAuthnReq'
@@ -961,7 +960,7 @@ loginCreatedSsoUser nameid idp privCreds = do
   let uid :: UserId
       uid = Id . fromMaybe (error "bad user field in /access response body") . UUID.fromText $ uidRaw
 
-      uidRaw :: HasCallStack => ST
+      uidRaw :: HasCallStack => Text
       uidRaw = accessToken ^?! Aeson.key "user" . _String
 
       accessToken :: HasCallStack => Aeson.Value
@@ -1002,7 +1001,7 @@ test_parseAuthnReqResp = isRight tst1
 parseAuthnReqResp ::
   forall n.
   MonadError String n =>
-  Maybe LT ->
+  Maybe LText ->
   n (URI, SAML.AuthnRequest)
 parseAuthnReqResp Nothing = throwError "no response body"
 parseAuthnReqResp (Just raw) = do
@@ -1084,13 +1083,13 @@ callIdpCreate' apiversion sparreq_ muid metadata = do
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
       . header "Content-Type" "application/xml"
 
-callIdpCreateRaw :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SBS -> LBS -> m IdP
+callIdpCreateRaw :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> ByteString -> LByteString -> m IdP
 callIdpCreateRaw sparreq_ muid ctyp metadata = do
   resp <- callIdpCreateRaw' (sparreq_ . expect2xx) muid ctyp metadata
   either (liftIO . throwIO . ErrorCall . show) pure $
     responseJsonEither @IdP resp
 
-callIdpCreateRaw' :: MonadHttp m => SparReq -> Maybe UserId -> SBS -> LBS -> m ResponseLBS
+callIdpCreateRaw' :: MonadHttp m => SparReq -> Maybe UserId -> ByteString -> LByteString -> m ResponseLBS
 callIdpCreateRaw' sparreq_ muid ctyp metadata = do
   post $
     sparreq_

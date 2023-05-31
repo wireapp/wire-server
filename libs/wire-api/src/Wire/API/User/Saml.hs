@@ -31,9 +31,8 @@ import Data.Aeson.TH hiding (fieldLabelModifier)
 import qualified Data.ByteString.Builder as Builder
 import Data.Id (UserId)
 import Data.Proxy (Proxy (Proxy))
-import Data.String.Conversions
 import Data.Swagger
-import qualified Data.Text as ST
+import qualified Data.Text as T
 import Data.Time
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
@@ -71,17 +70,17 @@ mkVerdictGrantedFormatMobile before cky uid =
     . substituteVar "userid" (cs . show $ uid)
     $ renderURI before
 
-mkVerdictDeniedFormatMobile :: MonadError String m => URI -> ST -> m URI
+mkVerdictDeniedFormatMobile :: MonadError String m => URI -> Text -> m URI
 mkVerdictDeniedFormatMobile before lbl =
   parseURI'
     . substituteVar "label" lbl
     $ renderURI before
 
-substituteVar :: ST -> ST -> ST -> ST
+substituteVar :: Text -> Text -> Text -> Text
 substituteVar var val = substituteVar' ("$" <> var) val . substituteVar' ("%24" <> var) val
 
-substituteVar' :: ST -> ST -> ST -> ST
-substituteVar' var val = ST.intercalate val . ST.splitOn var
+substituteVar' :: Text -> Text -> Text -> Text
+substituteVar' var val = T.intercalate val . T.splitOn var
 
 -- | (seconds)
 newtype TTL (tablename :: Symbol) = TTL {fromTTL :: Int32}

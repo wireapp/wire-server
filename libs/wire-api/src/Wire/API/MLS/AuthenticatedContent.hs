@@ -25,7 +25,7 @@ module Wire.API.MLS.AuthenticatedContent
 where
 
 import Crypto.PubKey.Ed25519
-import Imports
+import Imports hiding (cs)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Context
 import Wire.API.MLS.Epoch

@@ -34,7 +34,6 @@ import Control.Monad.Codensity
 import qualified Data.ByteString as BS
 import Data.Domain
 import qualified Data.Sequence as Seq
-import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as Text
 import Federator.Env
 import Imports

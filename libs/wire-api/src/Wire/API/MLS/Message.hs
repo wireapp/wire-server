@@ -45,7 +45,8 @@ import Data.Json.Util
 import Data.Schema
 import qualified Data.Swagger as S
 import GHC.Records
-import Imports
+import Imports hiding (cs)
+import Test.QuickCheck hiding (label)
 import Wire.API.Event.Conversation
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit

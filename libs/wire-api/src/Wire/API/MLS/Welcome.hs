@@ -18,7 +18,7 @@
 module Wire.API.MLS.Welcome where
 
 import qualified Data.Swagger as S
-import Imports
+import Imports hiding (cs)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.KeyPackage

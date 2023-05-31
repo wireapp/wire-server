@@ -48,6 +48,7 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedLabels
     OverloadedRecordDot
     OverloadedStrings
@@ -273,7 +274,6 @@ library
     , split                  >=0.2
     , ssl-util               >=0.1
     , stm                    >=2.4
-    , string-conversions
     , tagged
     , text                   >=0.11
     , time                   >=1.4
@@ -317,9 +317,9 @@ executable galley
   default-language: Haskell2010
 
 executable galley-integration
-  import:         common-all
-  main-is:        ../integration.hs
-  ghc-options:    -Wno-unused-packages
+  import:             common-all
+  main-is:            ../integration.hs
+  ghc-options:        -Wno-unused-packages
 
   -- cabal-fmt: expand test/integration
   other-modules:
@@ -344,8 +344,58 @@ executable galley-integration
     TestHelpers
     TestSetup
 
-  ghc-options:    -threaded -with-rtsopts=-N -rtsopts
-  hs-source-dirs: test/integration
+  ghc-options:        -threaded -with-rtsopts=-N -rtsopts
+  hs-source-dirs:     test/integration
+  hs-source-dirs:     test/integration
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NumericUnderscores
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -threaded -with-rtsopts=-N -Wredundant-constraints
+    -Wunused-packages
+
   build-depends:
     , aeson
     , aeson-qq
@@ -368,7 +418,6 @@ executable galley-integration
     , currency-codes
     , data-default
     , data-timeout
-    , directory
     , errors
     , exceptions
     , extra                  >=1.3
@@ -376,7 +425,6 @@ executable galley-integration
     , filepath
     , galley
     , galley-types
-    , hex
     , HsOpenSSL
     , hspec
     , http-api-data
@@ -412,7 +460,6 @@ executable galley-integration
     , sop-core
     , ssl-util
     , streaming-commons
-    , string-conversions
     , tagged
     , tasty                  >=0.8
     , tasty-cannon           >=0.3.2

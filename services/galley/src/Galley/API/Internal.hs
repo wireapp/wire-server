@@ -32,7 +32,6 @@ import qualified Data.Map as Map
 import Data.Qualified
 import Data.Range
 import Data.Singletons
-import Data.String.Conversions (cs)
 import Data.Time
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create

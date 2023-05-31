@@ -25,7 +25,7 @@ import Control.Lens (makePrisms)
 import Data.Binary
 import Data.ByteString as B
 import GHC.Records
-import Imports
+import Imports hiding (cs)
 import Test.QuickCheck
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Extension

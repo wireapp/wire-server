@@ -47,6 +47,7 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedLabels
     OverloadedRecordDot
     OverloadedStrings
@@ -286,7 +287,6 @@ library
     , ssl-util
     , statistics                 >=0.13
     , stomp-queue                >=0.3
-    , string-conversions
     , swagger2
     , template                   >=0.2
     , template-haskell
@@ -460,7 +460,6 @@ executable brig-integration
     , servant-client-core
     , spar
     , streaming-commons
-    , string-conversions
     , tasty                  >=1.0
     , tasty-cannon           >=0.3.4
     , tasty-hunit            >=0.2
@@ -531,6 +530,7 @@ executable brig-schema
     V73_ReplaceNonceTable
     V74_AddOAuthTables
     V75_AddOAuthCodeChallenge
+    V76_AddSupportedProtocols
     V_FUTUREWORK
 
   hs-source-dirs:     schema/src

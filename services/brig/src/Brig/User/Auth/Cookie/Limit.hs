@@ -22,7 +22,7 @@ import Data.RetryAfter
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import qualified Data.Vector as Vector
-import Imports
+import Imports hiding (cs)
 import qualified Statistics.Sample as Stats
 import Wire.API.User.Auth
 
