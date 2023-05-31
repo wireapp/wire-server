@@ -85,7 +85,6 @@
 , servant-client-core
 , servant-server
 , singletons
-, singletons-th
 , sop-core
 , split
 , ssl-util
@@ -193,7 +192,6 @@ mkDerivation {
     servant-client
     servant-server
     singletons
-    singletons-th
     split
     ssl-util
     stm

@@ -271,7 +271,6 @@ library
     , servant-client
     , servant-server
     , singletons
-    , singletons-th
     , split                  >=0.2
     , ssl-util               >=0.1
     , stm                    >=2.4

@@ -330,7 +330,7 @@ onMessageSent domain rmUnqualified = do
           )
   loc <- qualifyLocal ()
   void $
-    sendLocalMessages @'NormalMessage
+    sendLocalMessages
       loc
       (F.rmTime rm)
       (F.rmSender rm)
@@ -611,6 +611,8 @@ sendMLSMessage remoteDomain msr =
 mlsSendWelcome ::
   ( Member (Error InternalError) r,
     Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member P.TinyLog r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r
@@ -666,7 +668,7 @@ onMLSMessageSent domain rmm =
       let e =
             Event (tUntagged rcnv) (F.rmmSubConversation rmm) (F.rmmSender rmm) (F.rmmTime rmm) $
               EdMLSMessage (fromBase64ByteString (F.rmmMessage rmm))
-      let mkPush :: (UserId, ClientId) -> MessagePush 'NormalMessage
+      let mkPush :: (UserId, ClientId) -> MessagePush
           mkPush uc = newMessagePush loc mempty Nothing (F.rmmMetadata rmm) uc e
 
       runMessagePush loc (Just (tUntagged rcnv)) $

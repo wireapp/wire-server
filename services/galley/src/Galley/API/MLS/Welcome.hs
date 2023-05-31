@@ -27,6 +27,7 @@ import Data.Json.Util
 import Data.Qualified
 import Data.Time
 import Galley.API.Push
+import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Imports
@@ -52,6 +53,7 @@ import Wire.API.Message
 sendWelcomes ::
   ( Member FederatorAccess r,
     Member GundeckAccess r,
+    Member ExternalAccess r,
     Member P.TinyLog r,
     Member (Input UTCTime) r
   ) =>
@@ -72,7 +74,10 @@ sendWelcomes loc con cids welcome = do
     convFrom (SubConv c _) = c
 
 sendLocalWelcomes ::
-  Member GundeckAccess r =>
+  ( Member GundeckAccess r,
+    Member P.TinyLog r,
+    Member ExternalAccess r
+  ) =>
   Qualified ConvId ->
   Maybe ConnId ->
   UTCTime ->
@@ -83,7 +88,7 @@ sendLocalWelcomes qcnv con now welcome lclients = do
   runMessagePush lclients Nothing $
     foldMap (uncurry mkPush) (tUnqualified lclients)
   where
-    mkPush :: UserId -> ClientId -> MessagePush 'Broadcast
+    mkPush :: UserId -> ClientId -> MessagePush
     mkPush u c =
       -- FUTUREWORK: use the conversation ID stored in the key package mapping table
       let lusr = qualifyAs lclients u
