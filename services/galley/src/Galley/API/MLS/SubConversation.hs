@@ -293,7 +293,7 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
     unless (dscEpoch dsc == epoch) $ throwS @'MLSStaleMessage
     Eff.removeAllMLSClients gid
 
-    -- TODO(SB) swallowing the error and starting with GroupIdGen 0 if nextGenGroupId
+    -- swallowing the error and starting with GroupIdGen 0 if nextGenGroupId
     let newGid = fromRight (convToGroupId' (flip SubConv scnvId <$> tUntagged lcnvId)) $ nextGenGroupId gid
 
     -- the following overwrites any prior information about the subconversation
