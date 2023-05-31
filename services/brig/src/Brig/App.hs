@@ -203,8 +203,16 @@ data Env = Env
 
 makeLenses ''Env
 
+validateOptions :: Opts -> IO ()
+validateOptions o =
+  case (o.federatorInternal, o.rabbitmq) of
+    (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
+    (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
+    _ -> pure ()
+
 newEnv :: Opts -> IO Env
 newEnv o = do
+  validateOptions o
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"
