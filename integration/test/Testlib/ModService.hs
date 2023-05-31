@@ -71,15 +71,9 @@ startDynamicBackend domain beOverrides action = do
         ( \resource -> runInBase $ do
             defDomain <- asks (.domain1)
             let services =
-                  Map.fromList
-                    [ (Brig, beOverrides.dbBrig >=> setKeyspace resource Brig),
-                      (Cannon, beOverrides.dbCannon >=> setKeyspace resource Cannon),
-                      (Cargohold, beOverrides.dbCargohold >=> setKeyspace resource Cargohold),
-                      (Galley, beOverrides.dbGalley >=> setKeyspace resource Galley),
-                      (Gundeck, beOverrides.dbGundeck >=> setKeyspace resource Gundeck),
-                      (Nginz, beOverrides.dbNginz >=> setKeyspace resource Nginz),
-                      (Spar, beOverrides.dbSpar >=> setKeyspace resource Spar)
-                    ]
+                  Map.mapWithKey
+                    (\srv conf -> conf >=> setKeyspace resource srv >=> setEsIndex resource srv)
+                    $ defaultDynBackendConfigOverridesToMap beOverrides
             startBackend
               domain
               services
@@ -97,6 +91,12 @@ setKeyspace resource = \case
   Spar -> setFieldIfExists "cassandra.keyspace" resource.sparKeyspace
   Gundeck -> setFieldIfExists "cassandra.keyspace" resource.gundeckKeyspace
   -- other services do not have a DB
+  _ -> pure
+
+setEsIndex :: BackendResource -> Service -> Value -> App Value
+setEsIndex resource = \case
+  Brig -> setFieldIfExists "elasticsearch.index" resource.elasticsearchIndex
+  -- other services do not have an ES index
   _ -> pure
 
 withModifiedServices :: Map.Map Service (Value -> App Value) -> App a -> App a

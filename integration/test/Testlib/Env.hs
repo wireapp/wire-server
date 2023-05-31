@@ -250,7 +250,8 @@ data BackendResource = BackendResource
   { brigKeyspace :: String,
     galleyKeyspace :: String,
     sparKeyspace :: String,
-    gundeckKeyspace :: String
+    gundeckKeyspace :: String,
+    elasticsearchIndex :: String
   }
   deriving (Show, Eq, Ord)
 
@@ -262,7 +263,8 @@ backendResources n =
               { brigKeyspace = "brig_test_dyn_" <> show i,
                 galleyKeyspace = "galley_test_dyn_" <> show i,
                 sparKeyspace = "spar_test_dyn_" <> show i,
-                gundeckKeyspace = "gundeck_test_dyn_" <> show i
+                gundeckKeyspace = "gundeck_test_dyn_" <> show i,
+                elasticsearchIndex = "directory_dyn_" <> show i <> "_test"
               }
         )
     & Set.fromList

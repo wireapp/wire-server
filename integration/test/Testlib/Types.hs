@@ -200,3 +200,15 @@ defaultDynBackendConfigOverrides =
       dbNginz = pure,
       dbSpar = pure
     }
+
+defaultDynBackendConfigOverridesToMap :: DynBackendConfigOverrides -> Map.Map Service (Value -> App Value)
+defaultDynBackendConfigOverridesToMap overrides =
+  Map.fromList
+    [ (Brig, dbBrig overrides),
+      (Cannon, dbCannon overrides),
+      (Cargohold, dbCargohold overrides),
+      (Galley, dbGalley overrides),
+      (Gundeck, dbGundeck overrides),
+      (Nginz, dbNginz overrides),
+      (Spar, dbSpar overrides)
+    ]

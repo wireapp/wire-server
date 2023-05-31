@@ -2,6 +2,7 @@
 module Test.Demo where
 
 import qualified API.Brig as Public
+import qualified API.BrigInternal as Internal
 import qualified API.GalleyInternal as Internal
 import qualified API.Nginz as Nginz
 import qualified Data.Map as Map
@@ -147,6 +148,39 @@ testStartMultipleDynamicBackends = do
         assertCorrectDomain dynDomain1
         assertCorrectDomain dynDomain2
         assertCorrectDomain dynDomain3
+
+testIndependentESIndices :: HasCallStack => App ()
+testIndependentESIndices = do
+  u1 <- randomUser OwnDomain def
+  u2 <- randomUser OwnDomain def
+  uid2 <- objId u2
+  connectUsers u1 u2
+  Internal.refreshIndex OwnDomain
+  bindResponse (Public.searchContacts u1 (u2 %. "name")) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    case docs of
+      [] -> assertFailure "Expected a non empty result, but got an empty one"
+      doc : _ -> doc %. "id" `shouldMatch` uid2
+  let dynDomain1 = "c.example.com"
+  startDynamicBackend dynDomain1 defaultDynBackendConfigOverrides $ do
+    uD1 <- randomUser dynDomain1 def
+    -- searching for u1 on the dyn backend should yield no result
+    bindResponse (Public.searchContacts uD1 (u2 %. "name")) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      null docs `shouldMatchBool` True
+    uD2 <- randomUser dynDomain1 def
+    uidD2 <- objId uD2
+    connectUsers uD1 uD2
+    Internal.refreshIndex dynDomain1
+    -- searching for uD2 on the dyn backend should yield a result
+    bindResponse (Public.searchContacts uD1 (uD2 %. "name")) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      case docs of
+        [] -> assertFailure "Expected a non empty result, but got an empty one"
+        doc : _ -> doc %. "id" `shouldMatch` uidD2
 
 testWebSockets :: HasCallStack => App ()
 testWebSockets = do
