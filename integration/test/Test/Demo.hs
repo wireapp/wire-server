@@ -98,6 +98,32 @@ testModifiedServices = do
         resp.status `shouldMatchInt` 200
         resp.json %. "setRestrictUserCreation" `shouldMatchBool` False
 
+testDynamicBackend :: HasCallStack => App ()
+testDynamicBackend = do
+  ownDomain <- objDomain OwnDomain
+  user <- randomUser OwnDomain def
+  uid <- objId user
+  bindResponse (Public.getSelf ownDomain uid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    (resp.json %. "id") `shouldMatch` objId user
+
+  let dynDomain = "c.example.com"
+  startDynamicBackend dynDomain defaultDynBackendConfigOverrides $ do
+    -- user created in own domain should not be found in dynamic backend
+    bindResponse (Public.getSelf dynDomain uid) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+
+    -- now create a user in the dynamic backend
+    userD1 <- randomUser dynDomain def
+    uidD1 <- objId userD1
+    bindResponse (Public.getSelf dynDomain uidD1) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      (resp.json %. "id") `shouldMatch` objId userD1
+
+    -- the d1 user should not be found in the own domain
+    bindResponse (Public.getSelf ownDomain uidD1) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+
 testWebSockets :: HasCallStack => App ()
 testWebSockets = do
   user <- randomUser OwnDomain def

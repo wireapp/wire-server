@@ -169,7 +169,8 @@ claimKeyPackages u v = do
       "/mls/key-packages/claim/" <> targetDom <> "/" <> targetUid
   submit "POST" req
 
-getSelf :: (HasCallStack, MakesValue user) => user -> App Response
-getSelf user = do
+getSelf :: HasCallStack => String -> String -> App Response
+getSelf domain uid = do
+  let user = object ["domain" .= domain, "id" .= uid]
   req <- baseRequest user Brig Versioned "/self"
   submit "GET" req

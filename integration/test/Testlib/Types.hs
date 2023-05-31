@@ -5,6 +5,7 @@ import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
+import Data.Aeson (Value)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import Data.ByteString (ByteString)
@@ -177,3 +178,25 @@ modifyFailure modifyAssertion action = do
             E.throw (modifyAssertion e)
         )
     )
+
+data DynBackendConfigOverrides = DynBackendConfigOverrides
+  { dbBrig :: Value -> App Value,
+    dbCannon :: Value -> App Value,
+    dbCargohold :: Value -> App Value,
+    dbGalley :: Value -> App Value,
+    dbGundeck :: Value -> App Value,
+    dbNginz :: Value -> App Value,
+    dbSpar :: Value -> App Value
+  }
+
+defaultDynBackendConfigOverrides :: DynBackendConfigOverrides
+defaultDynBackendConfigOverrides =
+  DynBackendConfigOverrides
+    { dbBrig = pure,
+      dbCannon = pure,
+      dbCargohold = pure,
+      dbGalley = pure,
+      dbGundeck = pure,
+      dbNginz = pure,
+      dbSpar = pure
+    }

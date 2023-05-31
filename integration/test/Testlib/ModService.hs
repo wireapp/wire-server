@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use tuple-section" #-}
 module Testlib.ModService where
 
 import Control.Concurrent.Async (mapConcurrently_)
@@ -13,9 +16,10 @@ import Data.Foldable
 import Data.Function
 import Data.Functor
 import qualified Data.Map.Strict as Map
+import Data.Maybe
 import Data.Pool (withResource)
 import Data.String.Conversions (cs)
-import Data.Text hiding (elem)
+import Data.Text hiding (elem, head)
 import Data.Traversable
 import Data.Word (Word16)
 import qualified Data.Yaml as Yaml
@@ -57,24 +61,46 @@ copyDirectoryRecursively from to = do
       then copyDirectoryRecursively fromPath toPath
       else copyFile fromPath toPath
 
-startDynamicBackend :: Map.Map Service (Value -> App Value) -> App a -> App a
-startDynamicBackend services action = do
+startDynamicBackend :: String -> DynBackendConfigOverrides -> App a -> App a
+startDynamicBackend domain beOverrides action = do
   pool <- asks (.resourcePool)
   liftBaseWith $
     \runInBase ->
       withResource
         pool
         ( \resource -> runInBase $ do
-            -- compose with services
-            -- >>= setFieldIfExists "cassandra.keyspace" (mkKeyspace srv resource)
-            domain <- asks (.domain1)
-            startBackend domain services undefined action
+            defDomain <- asks (.domain1)
+            let services =
+                  Map.fromList
+                    [ (Brig, beOverrides.dbBrig >=> setKeyspace resource Brig),
+                      (Cannon, beOverrides.dbCannon >=> setKeyspace resource Cannon),
+                      (Cargohold, beOverrides.dbCargohold >=> setKeyspace resource Cargohold),
+                      (Galley, beOverrides.dbGalley >=> setKeyspace resource Galley),
+                      (Gundeck, beOverrides.dbGundeck >=> setKeyspace resource Gundeck),
+                      (Nginz, beOverrides.dbNginz >=> setKeyspace resource Nginz),
+                      (Spar, beOverrides.dbSpar >=> setKeyspace resource Spar)
+                    ]
+            startBackend
+              domain
+              services
+              ( \ports sm -> do
+                  let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
+                   in Map.insert domain (updateServiceMap ports templateBackend) sm
+              )
+              action
         )
+
+setKeyspace :: BackendResource -> Service -> Value -> App Value
+setKeyspace resource = \case
+  Galley -> setFieldIfExists "cassandra.keyspace" resource.galleyKeyspace
+  Brig -> setFieldIfExists "cassandra.keyspace" resource.brigKeyspace
+  Spar -> setFieldIfExists "cassandra.keyspace" resource.sparKeyspace
+  Gundeck -> setFieldIfExists "cassandra.keyspace" resource.gundeckKeyspace
+  -- other services do not have a DB
+  _ -> pure
 
 withModifiedServices :: Map.Map Service (Value -> App Value) -> App a -> App a
 withModifiedServices services action = do
-  -- compose with services
-  -- >>= setFieldIfExists "cassandra.keyspace" (mkKeyspace srv resource)
   domain <- asks (.domain1)
   startBackend domain services (\ports -> Map.adjust (updateServiceMap ports) domain) action
 
@@ -98,38 +124,61 @@ startBackend :: String -> Map.Map Service (Value -> App Value) -> (Map.Map Servi
 startBackend domain services modifyBackends action = do
   ports <- Map.traverseWithKey (\_ _ -> liftIO openFreePort) services
 
-  let updateServiceMapInConfig :: Value -> App Value
-      updateServiceMapInConfig config =
+  let updateServiceMapInConfig :: Service -> Value -> App Value
+      updateServiceMapInConfig forSrv config =
         foldlM
-          ( \c (srv, (port, _)) ->
-              c
-                & setField
-                  (serviceName srv)
-                  ( object
-                      ( [ "host" .= ("127.0.0.1" :: String),
-                          "port" .= port
-                        ]
-                          <> (["externalHost" .= ("127.0.0.1" :: String) | srv == Cannon])
-                      )
-                  )
+          ( \c (srv, (port, _)) -> do
+              overridden <-
+                c
+                  & setField
+                    (serviceName srv)
+                    ( object
+                        ( [ "host" .= ("127.0.0.1" :: String),
+                            "port" .= port
+                          ]
+                            <> (["externalHost" .= ("127.0.0.1" :: String) | srv == Cannon])
+                        )
+                    )
+              case forSrv of
+                Spar ->
+                  overridden
+                    -- FUTUREWORK: override "saml.spAppUri" and "saml.spSsoUri" with correct port, too?
+                    & setField "saml.spHost" ("127.0.0.1" :: String)
+                    & setField "saml.spPort" port
+                Brig ->
+                  overridden
+                    & setField "optSettings.setFederationDomain" domain
+                    & setField "optSettings.setFederationDomainConfigs" [object ["domain" .= domain, "search_policy" .= "full_search"]]
+                Cargohold ->
+                  overridden
+                    & setField "settings.federationDomain" domain
+                Galley ->
+                  overridden
+                    & setField "settings.federationDomain" domain
+                    & setField "settings.featureFlags.classifiedDomains.config.domains" [domain]
+                Gundeck ->
+                  overridden
+                    & setField "settings.federationDomain" domain
+                _ -> pure overridden
           )
           config
           (Map.assocs ports)
 
   -- close all sockets before starting the services
+  liftIO $ print $ "service ports: " <> show ports
   for_ (Map.keys services) $ \srv -> maybe (failApp "the impossible in withServices happened") (liftIO . N.close . snd) (Map.lookup srv ports)
 
   instances <- for (Map.assocs services) $ \case
     (Nginz, _) -> do
       env <- ask
       sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (modifyBackends (fromIntegral . fst <$> ports) env.serviceMap))
-      port <- maybe (error "the impossible in withServices happened") (pure . fromIntegral . fst) (Map.lookup Nginz ports)
+      port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral . fst) (Map.lookup Nginz ports)
       startNginz port sm
     (srv, modifyConfig) -> do
       let srvName = serviceName srv
       config <-
         readServiceConfig srv
-          >>= updateServiceMapInConfig
+          >>= updateServiceMapInConfig srv
           >>= modifyConfig
 
       (tempFile, fh) <- liftIO $ openBinaryTempFile "/tmp" (srvName <> ".yaml")
@@ -151,7 +200,7 @@ startBackend domain services modifyBackends action = do
         for_ instances $ \(ph, path) -> do
           terminateProcess ph
           print ("killing " <> path)
-          -- whenM (doesFileExist path) $ removeFile path
+          whenM (doesFileExist path) $ removeFile path
           whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
   let modifyEnv env =
@@ -161,7 +210,7 @@ startBackend domain services modifyBackends action = do
         env <- ask
         liftIO $
           mapConcurrently_
-            (\srv -> runReaderT (unApp (waitUntilServiceUp srv)) env)
+            (\srv -> runReaderT (unApp (waitUntilServiceUp domain srv)) env)
             (Map.keys ports)
 
   App $
@@ -179,8 +228,8 @@ startBackend domain services modifyBackends action = do
             `finally` stopInstances
       )
 
-waitUntilServiceUp :: HasCallStack => Service -> App ()
-waitUntilServiceUp = \case
+waitUntilServiceUp :: HasCallStack => String -> Service -> App ()
+waitUntilServiceUp domain = \case
   Nginz -> pure ()
   srv -> do
     isUp <-
@@ -188,7 +237,7 @@ waitUntilServiceUp = \case
         (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
         (\_ isUp -> pure (not isUp))
         ( \_ -> do
-            req <- baseRequest OwnDomain srv Unversioned "/i/status"
+            req <- baseRequest domain srv Unversioned "/i/status"
             env <- ask
             eith <-
               liftIO $
@@ -289,11 +338,11 @@ listen [::]:{ssl_port} ssl http2;
         ("proxy", sm.proxy.port)
       ]
       ( \case
-          (srv, port) -> do
+          (srv, p) -> do
             let upstream =
                   upstreamTemplate
                     & replace (cs "{name}") (cs $ srv)
-                    & replace (cs "{port}") (cs $ show port)
+                    & replace (cs "{port}") (cs $ show p)
             liftIO $ appendFile upstreamsCfg (cs upstream)
       )
     let upstreamFederatorTemplate =

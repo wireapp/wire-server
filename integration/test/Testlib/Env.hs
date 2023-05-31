@@ -114,7 +114,9 @@ data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar
   deriving
     ( Show,
       Eq,
-      Ord
+      Ord,
+      Enum,
+      Bounded
     )
 
 serviceName :: Service -> String
@@ -172,7 +174,7 @@ mkEnv ge = do
   pks <- liftIO $ newIORef (zip [1 ..] somePrekeys)
   lpks <- liftIO $ newIORef someLastPrekeys
   mls <- liftIO . newIORef =<< mkMLSState
-  resources <- liftIO $ newIORef $ Set.fromList [DynBackend1, DynBackend2, DynBackend3]
+  resources <- liftIO $ newIORef $ backendResources 3
   pool <-
     liftIO $
       newPool $
@@ -244,16 +246,23 @@ data ClientIdentity = ClientIdentity
   }
   deriving (Show, Eq, Ord)
 
-data BackendResource
-  = DynBackend1
-  | DynBackend2
-  | DynBackend3
+data BackendResource = BackendResource
+  { brigKeyspace :: String,
+    galleyKeyspace :: String,
+    sparKeyspace :: String,
+    gundeckKeyspace :: String
+  }
   deriving (Show, Eq, Ord)
 
-toInt :: BackendResource -> Int
-toInt DynBackend1 = 1
-toInt DynBackend2 = 2
-toInt DynBackend3 = 3
-
-mkKeyspace :: Service -> BackendResource -> String
-mkKeyspace srv r = serviceName srv <> "_test_dyn_" <> show (toInt r)
+backendResources :: Int -> Set.Set BackendResource
+backendResources n =
+  [1 .. n]
+    <&> ( \i ->
+            BackendResource
+              { brigKeyspace = "brig_test_dyn_" <> show i,
+                galleyKeyspace = "galley_test_dyn_" <> show i,
+                sparKeyspace = "spar_test_dyn_" <> show i,
+                gundeckKeyspace = "gundeck_test_dyn_" <> show i
+              }
+        )
+    & Set.fromList
