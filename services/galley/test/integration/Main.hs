@@ -96,7 +96,8 @@ main = withOpenSSL $ runTests go
               mempty
               (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.sitemap),
           API.tests setup,
-          test setup "Federation Domains" updateFedDomainsTest
+          test setup "Federation Domains" updateFedDomainsTest,
+          test setup "isConvMemberL" isConvMemberLTests
         ]
     getOpts gFile iFile = do
       m <- newManager tlsManagerSettings {managerResponseTimeout = responseTimeoutMicro 300000000}

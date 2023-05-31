@@ -370,6 +370,7 @@ executable galley-integration
     API.Util.TeamFeature
     Federation
     Main
+    RabbitMQ
     TestHelpers
     TestSetup
 

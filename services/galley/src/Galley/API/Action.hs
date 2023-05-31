@@ -335,19 +335,19 @@ performAction tag origUser lconv action = do
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
-      _ <-
-        error $
-          "-----------------------------\n\n\n"
-            <> "lconv = "
-            <> show lconv
-            <> "\n\n\n"
-            <> "action = "
-            <> show action
-            <> "\n\n\n"
-            <> "presentVictims = "
-            <> show presentVictims
-            <> "\n\n\n"
-            <> "-----------------------------"
+      -- _ <-
+      --   error $
+      --     "-----------------------------\n\n\n"
+      --       <> "lconv = "
+      --       <> show lconv
+      --       <> "\n\n\n"
+      --       <> "action = "
+      --       <> show action
+      --       <> "\n\n\n"
+      --       <> "presentVictims = "
+      --       <> show presentVictims
+      --       <> "\n\n\n"
+      --       <> "-----------------------------"
       TinyLog.err $ Log.msg ("action" :: String) . Log.field "values" (show action)
       TinyLog.err $ Log.msg ("presentVictims" :: String) . Log.field "values" (show presentVictims)
       when (null presentVictims) noChanges

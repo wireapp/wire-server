@@ -19,8 +19,11 @@
 module Galley.Run
   ( run,
     mkApp,
-    updateFedDomainsCallback,
     mkLogger,
+    -- Exported for tests
+    deleteFederationDomainRemote,
+    deleteFederationDomainLocal,
+    deleteFederationDomainOneOnOne,
   )
 where
 
@@ -341,13 +344,15 @@ collectAuthMetrics m env = do
 insertIntoMap :: (ConvId, a) -> Map ConvId (N.NonEmpty a) -> Map ConvId (N.NonEmpty a)
 insertIntoMap (cnvId, user) m = Map.alter (pure . maybe (pure user) (N.cons user)) cnvId m
 
+-- Remove remote members from local conversations
 deleteFederationDomainRemote :: Domain -> App ()
 deleteFederationDomainRemote dom = do
   env <- ask
   remoteUsers <- liftIO $ evalGalleyToIO env $ E.getRemoteMembersByDomain dom
   let lCnvMap = foldr insertIntoMap mempty remoteUsers
+      localDomain = env ^. options . optSettings . setFederationDomain
   for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
-    let lCnvId = toLocalUnsafe dom cnvId
+    let lCnvId = toLocalUnsafe localDomain cnvId
     -- This value contains an event that we might need to
     -- send out to all of the local clients that are a party
     -- to the conversation. However we also don't want to DOS
@@ -367,7 +372,7 @@ deleteFederationDomainRemote dom = do
       -- to each client isn't something we want to be doing.
       $ do
         conv <- getConversationWithError lCnvId
-        let lConv = toLocalUnsafe dom conv
+        let lConv = toLocalUnsafe localDomain conv
         updateLocalConversationUserUnchecked
           @'ConversationRemoveMembersTag
           lConv
@@ -386,6 +391,7 @@ deleteFederationDomainRemote dom = do
             undefined
             ()
 
+-- Remove local members from remote conversations
 deleteFederationDomainLocal :: Domain -> App ()
 deleteFederationDomainLocal dom = do
   env <- ask
@@ -425,39 +431,3 @@ deleteFederationDomainOneOnOne :: Domain -> App ()
 deleteFederationDomainOneOnOne dom = do
   env <- ask
   liftIO $ runClient (env ^. cstate) . deleteRemoteConnectionsByDomain $ dom
-
--------
--- TODO: Delete these functions
-
-deleteFederationDomain :: Set FederationDomainConfig -> App ()
-deleteFederationDomain deletedDomains = do
-  for_ deletedDomains $ \fedDomCfg -> do
-    -- https://wearezeta.atlassian.net/browse/FS-1179
-    -- \* Remove remote users for the given domain from all conversations owned by the current host
-    -- \* Remove all local users from remote conversations owned by the given domain.
-    --   NOTE: This is NOT sent to other backends, as this information is not authoratative, but is
-    --   good enough to tell local users about the federation connection being removed.
-    -- \* Delete all connections from local users to users for the remote domain
-    -- Get all remote users for the given domain, along with conversation IDs that they are in
-    let dom = domain fedDomCfg
-    deleteFederationDomainRemote dom
-    -- Get all local users for the given domain, along with remote conversation IDs that they are in
-    deleteFederationDomainLocal dom
-    -- Remove the remote one-on-one conversations between local members and remote members for the given domain.
-    -- NOTE: We cannot tell the remote backend about these changes as we are no longer federated.
-    deleteFederationDomainOneOnOne dom
-
-updateFedDomainsCallback :: FederationDomainConfigs -> FederationDomainConfigs -> App ()
-updateFedDomainsCallback old new = do
-  -- This code will only run when there is a change in the domain lists
-  let fromFedList = Set.fromList . remotes
-      prevDoms = fromFedList old
-      currDoms = fromFedList new
-      deletedDomains = Set.difference prevDoms currDoms
-  -- Perform updates before rewriting the ioref
-  -- This means that if the update fails on a
-  -- particular invocation, it can be run again
-  -- on the next firing as it isn't likely that
-  -- the domain list is changing frequently.
-  -- FS-1179 is handling this part.
-  deleteFederationDomain deletedDomains
