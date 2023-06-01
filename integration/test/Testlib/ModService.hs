@@ -45,7 +45,7 @@ withModifiedService ::
   -- | function that edits the config
   (Value -> App Value) ->
   -- | This action wil access the modified spawned service
-  App a ->
+  (String -> App a) ->
   App a
 withModifiedService srv modConfig = withModifiedServices (Map.singleton srv modConfig)
 
@@ -61,8 +61,8 @@ copyDirectoryRecursively from to = do
       then copyDirectoryRecursively fromPath toPath
       else copyFile fromPath toPath
 
-startDynamicBackend :: String -> DynBackendConfigOverrides -> App a -> App a
-startDynamicBackend domain beOverrides action = do
+startDynamicBackend :: DynBackendConfigOverrides -> (String -> App a) -> App a
+startDynamicBackend beOverrides action = do
   pool <- asks (.resourcePool)
   liftBaseWith $
     \runInBase ->
@@ -72,34 +72,47 @@ startDynamicBackend domain beOverrides action = do
             defDomain <- asks (.domain1)
             let services =
                   Map.mapWithKey
-                    (\srv conf -> conf >=> setKeyspace resource srv >=> setEsIndex resource srv)
+                    ( \srv conf ->
+                        conf
+                          >=> setKeyspace resource srv
+                          >=> setEsIndex resource srv
+                          >=> setFederatorPort resource srv
+                    )
                     $ defaultDynBackendConfigOverridesToMap beOverrides
             startBackend
-              domain
+              resource.domain
               services
               ( \ports sm -> do
                   let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
-                   in Map.insert domain (updateServiceMap ports templateBackend) sm
+                   in Map.insert resource.domain (updateServiceMap ports templateBackend) sm
               )
               action
         )
+  where
+    setFederatorPort :: BackendResource -> Service -> Value -> App Value
+    setFederatorPort resource = \case
+      Brig -> setFieldIfExists "federatorInternal.port" resource.federatorInternal
+      Cargohold -> setFieldIfExists "federator.port" resource.federatorInternal
+      Galley -> setFieldIfExists "federator.port" resource.federatorInternal
+      -- Federator -> setFieldIfExists "federatorInternal.port" resource.federatorInternal ... + external
+      _ -> pure
 
-setKeyspace :: BackendResource -> Service -> Value -> App Value
-setKeyspace resource = \case
-  Galley -> setFieldIfExists "cassandra.keyspace" resource.galleyKeyspace
-  Brig -> setFieldIfExists "cassandra.keyspace" resource.brigKeyspace
-  Spar -> setFieldIfExists "cassandra.keyspace" resource.sparKeyspace
-  Gundeck -> setFieldIfExists "cassandra.keyspace" resource.gundeckKeyspace
-  -- other services do not have a DB
-  _ -> pure
+    setKeyspace :: BackendResource -> Service -> Value -> App Value
+    setKeyspace resource = \case
+      Galley -> setFieldIfExists "cassandra.keyspace" resource.galleyKeyspace
+      Brig -> setFieldIfExists "cassandra.keyspace" resource.brigKeyspace
+      Spar -> setFieldIfExists "cassandra.keyspace" resource.sparKeyspace
+      Gundeck -> setFieldIfExists "cassandra.keyspace" resource.gundeckKeyspace
+      -- other services do not have a DB
+      _ -> pure
 
-setEsIndex :: BackendResource -> Service -> Value -> App Value
-setEsIndex resource = \case
-  Brig -> setFieldIfExists "elasticsearch.index" resource.elasticsearchIndex
-  -- other services do not have an ES index
-  _ -> pure
+    setEsIndex :: BackendResource -> Service -> Value -> App Value
+    setEsIndex resource = \case
+      Brig -> setFieldIfExists "elasticsearch.index" resource.elasticsearchIndex
+      -- other services do not have an ES index
+      _ -> pure
 
-withModifiedServices :: Map.Map Service (Value -> App Value) -> App a -> App a
+withModifiedServices :: Map.Map Service (Value -> App Value) -> (String -> App a) -> App a
 withModifiedServices services action = do
   domain <- asks (.domain1)
   startBackend domain services (\ports -> Map.adjust (updateServiceMap ports) domain) action
@@ -120,7 +133,12 @@ updateServiceMap ports serviceMap =
     serviceMap
     ports
 
-startBackend :: String -> Map.Map Service (Value -> App Value) -> (Map.Map Service Word16 -> Map.Map String ServiceMap -> Map.Map String ServiceMap) -> App a -> App a
+startBackend ::
+  String ->
+  Map.Map Service (Value -> App Value) ->
+  (Map.Map Service Word16 -> Map.Map String ServiceMap -> Map.Map String ServiceMap) ->
+  (String -> App a) ->
+  App a
 startBackend domain services modifyBackends action = do
   ports <- Map.traverseWithKey (\_ _ -> liftIO openFreePort) services
 
@@ -200,7 +218,7 @@ startBackend domain services modifyBackends action = do
         for_ instances $ \(ph, path) -> do
           terminateProcess ph
           print ("killing " <> path)
-          whenM (doesFileExist path) $ removeFile path
+          -- whenM (doesFileExist path) $ removeFile path
           whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
   let modifyEnv env =
@@ -221,7 +239,7 @@ startBackend domain services modifyBackends action = do
                 modifyEnv
                 ( unApp $ do
                     waitForAllServices
-                    action
+                    action domain
                 )
             )
             env

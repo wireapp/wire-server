@@ -251,11 +251,14 @@ data BackendResource = BackendResource
     galleyKeyspace :: String,
     sparKeyspace :: String,
     gundeckKeyspace :: String,
-    elasticsearchIndex :: String
+    elasticsearchIndex :: String,
+    federatorInternal :: Word16,
+    federatorExternal :: Word16,
+    domain :: String
   }
   deriving (Show, Eq, Ord)
 
-backendResources :: Int -> Set.Set BackendResource
+backendResources :: Word16 -> Set.Set BackendResource
 backendResources n =
   [1 .. n]
     <&> ( \i ->
@@ -264,7 +267,22 @@ backendResources n =
                 galleyKeyspace = "galley_test_dyn_" <> show i,
                 sparKeyspace = "spar_test_dyn_" <> show i,
                 gundeckKeyspace = "gundeck_test_dyn_" <> show i,
-                elasticsearchIndex = "directory_dyn_" <> show i <> "_test"
+                elasticsearchIndex = "directory_dyn_" <> show i <> "_test",
+                federatorInternal = federatorInternalPort i,
+                federatorExternal = federatorExternalPort i,
+                domain = domain i
               }
         )
     & Set.fromList
+  where
+    -- Fixed internal port for federator, e.g. for dynamic backends: 1 -> 10097, 2 -> 11097, etc.
+    federatorInternalPort :: Num a => a -> a
+    federatorInternalPort i = 8097 + (2 * 1000 * i)
+
+    -- Fixed external port for federator, e.g. for dynamic backends: 1 -> 10098, 2 -> 11098, etc.
+    federatorExternalPort :: Num a => a -> a
+    federatorExternalPort i = 8098 + (2 * 1000 * i)
+
+    -- Fixed domain for a backend resource, e.g. for dynamic backends: 1 -> "c.example.com", 2 -> "d.example.com", etc.
+    domain :: Integral a => a -> String
+    domain i = [chr (ord 'c' + fromIntegral i - 1)] <> ".example.com"

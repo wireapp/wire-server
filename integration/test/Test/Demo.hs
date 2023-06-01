@@ -35,10 +35,11 @@ testModifiedBrig = do
   withModifiedService
     Brig
     (setField "optSettings.setFederationDomain" "overridden.example.com")
-    $ bindResponse (Public.getAPIVersion OwnDomain)
-    $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      (resp.json %. "domain") `shouldMatch` "overridden.example.com"
+    $ \_domain -> do
+      bindResponse (Public.getAPIVersion OwnDomain)
+      $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        (resp.json %. "domain") `shouldMatch` "overridden.example.com"
 
 testModifiedGalley :: HasCallStack => App ()
 testModifiedGalley = do
@@ -55,28 +56,23 @@ testModifiedGalley = do
   withModifiedService
     Galley
     (setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
-    $ do
-      getFeatureStatus `shouldMatch` "enabled"
+    $ \_ -> getFeatureStatus `shouldMatch` "enabled"
 
 testModifiedCannon :: HasCallStack => App ()
 testModifiedCannon = do
-  withModifiedService Cannon pure $ do
-    pure ()
+  withModifiedService Cannon pure $ \_ -> pure ()
 
 testModifiedGundeck :: HasCallStack => App ()
 testModifiedGundeck = do
-  withModifiedService Gundeck pure $ do
-    pure ()
+  withModifiedService Gundeck pure $ \_ -> pure ()
 
 testModifiedCargohold :: HasCallStack => App ()
 testModifiedCargohold = do
-  withModifiedService Cargohold pure $ do
-    pure ()
+  withModifiedService Cargohold pure $ \_ -> pure ()
 
 testModifiedSpar :: HasCallStack => App ()
 testModifiedSpar = do
-  withModifiedService Spar pure $ do
-    pure ()
+  withModifiedService Spar pure $ \_ -> pure ()
 
 testModifiedServices :: HasCallStack => App ()
 testModifiedServices = do
@@ -85,7 +81,7 @@ testModifiedServices = do
           [ (Brig, setField "optSettings.setFederationDomain" "overridden.example.com"),
             (Galley, setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
           ]
-  withModifiedServices serviceMap $ do
+  withModifiedServices serviceMap $ \_domain -> do
     (_user, tid) <- createTeam OwnDomain
     bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
       res.status `shouldMatchInt` 200
@@ -110,8 +106,7 @@ testDynamicBackend = do
     resp.status `shouldMatchInt` 200
     (resp.json %. "id") `shouldMatch` objId user
 
-  let dynDomain = "c.example.com"
-  startDynamicBackend dynDomain defaultDynBackendConfigOverrides $ do
+  startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain -> do
     bindResponse (Nginz.getSystemSettingsUnAuthorized dynDomain) $
       \resp -> do
         resp.status `shouldMatchInt` 200
@@ -134,17 +129,14 @@ testDynamicBackend = do
 
 testStartMultipleDynamicBackends :: HasCallStack => App ()
 testStartMultipleDynamicBackends = do
-  let dynDomain1 = "c.example.com"
-      dynDomain2 = "d.example.com"
-      dynDomain3 = "e.example.com"
   let assertCorrectDomain domain =
         bindResponse (Public.getAPIVersion domain) $
           \resp -> do
             resp.status `shouldMatchInt` 200
             (resp.json %. "domain") `shouldMatch` domain
-  startDynamicBackend dynDomain1 defaultDynBackendConfigOverrides $
-    startDynamicBackend dynDomain2 defaultDynBackendConfigOverrides $
-      startDynamicBackend dynDomain3 defaultDynBackendConfigOverrides $ do
+  startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain1 -> do
+    startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain2 -> do
+      startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain3 -> do
         assertCorrectDomain dynDomain1
         assertCorrectDomain dynDomain2
         assertCorrectDomain dynDomain3
@@ -162,18 +154,17 @@ testIndependentESIndices = do
     case docs of
       [] -> assertFailure "Expected a non empty result, but got an empty one"
       doc : _ -> doc %. "id" `shouldMatch` uid2
-  let dynDomain1 = "c.example.com"
-  startDynamicBackend dynDomain1 defaultDynBackendConfigOverrides $ do
-    uD1 <- randomUser dynDomain1 def
+  startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain -> do
+    uD1 <- randomUser dynDomain def
     -- searching for u1 on the dyn backend should yield no result
     bindResponse (Public.searchContacts uD1 (u2 %. "name")) $ \resp -> do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "documents" >>= asList
       null docs `shouldMatchBool` True
-    uD2 <- randomUser dynDomain1 def
+    uD2 <- randomUser dynDomain def
     uidD2 <- objId uD2
     connectUsers uD1 uD2
-    Internal.refreshIndex dynDomain1
+    Internal.refreshIndex dynDomain
     -- searching for uD2 on the dyn backend should yield a result
     bindResponse (Public.searchContacts uD1 (uD2 %. "name")) $ \resp -> do
       resp.status `shouldMatchInt` 200
