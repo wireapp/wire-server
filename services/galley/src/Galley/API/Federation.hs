@@ -620,7 +620,7 @@ mlsSendWelcome ::
   Domain ->
   F.MLSWelcomeRequest ->
   Sem r F.MLSWelcomeResponse
-mlsSendWelcome _origDomain req = do
+mlsSendWelcome origDomain req = do
   fmap (either (const MLSWelcomeMLSNotEnabled) (const MLSWelcomeSent))
     . runError @(Tagged 'MLSNotEnabled ())
     $ do
@@ -630,7 +630,7 @@ mlsSendWelcome _origDomain req = do
       welcome <-
         either (throw . InternalErrorWithDescription . LT.fromStrict) pure $
           decodeMLS' (fromBase64ByteString req.welcomeMessage)
-      sendLocalWelcomes req.qualifiedConvId Nothing now welcome (qualifyAs loc req.recipients)
+      sendLocalWelcomes req.qualifiedConvId (Qualified req.originatingUser origDomain) Nothing now welcome (qualifyAs loc req.recipients)
 
 onMLSMessageSent ::
   ( Member ExternalAccess r,
@@ -668,11 +668,9 @@ onMLSMessageSent domain rmm =
       let e =
             Event (tUntagged rcnv) (F.rmmSubConversation rmm) (F.rmmSender rmm) (F.rmmTime rmm) $
               EdMLSMessage (fromBase64ByteString (F.rmmMessage rmm))
-      let mkPush :: (UserId, ClientId) -> MessagePush
-          mkPush uc = newMessagePush loc mempty Nothing (F.rmmMetadata rmm) uc e
 
       runMessagePush loc (Just (tUntagged rcnv)) $
-        foldMap mkPush recipients
+        newMessagePush mempty Nothing (F.rmmMetadata rmm) recipients e
 
 queryGroupInfo ::
   ( Member ConversationStore r,

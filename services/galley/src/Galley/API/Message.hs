@@ -604,8 +604,8 @@ sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMe
       pushes =
         events
           & itraversed
-            %@~ newMessagePush loc botMap mconn metadata
-  runMessagePush loc qcnv (pushes ^. traversed)
+            %@~ (\(u, c) -> newMessagePush botMap mconn metadata [(u, c)])
+  for_ pushes $ runMessagePush loc qcnv
   pure mempty
 
 -- | Send remote messages to the backend given by the domain argument, and

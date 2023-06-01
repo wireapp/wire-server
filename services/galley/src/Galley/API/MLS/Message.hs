@@ -232,7 +232,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
   propagateMessage qusr lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
     >>= mapM_ throwUnreachableUsers
 
-  traverse_ (sendWelcomes lConvOrSubId conn newClients) bundle.welcome
+  traverse_ (sendWelcomes lConvOrSubId qusr conn newClients) bundle.welcome
   pure events
 
 postMLSCommitBundleToRemoteConv ::

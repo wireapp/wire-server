@@ -58,17 +58,18 @@ sendWelcomes ::
     Member (Input UTCTime) r
   ) =>
   Local ConvOrSubConvId ->
+  Qualified UserId ->
   Maybe ConnId ->
   [ClientIdentity] ->
   RawMLS Welcome ->
   Sem r ()
-sendWelcomes loc con cids welcome = do
+sendWelcomes loc qusr con cids welcome = do
   now <- input
   let qcnv = convFrom <$> tUntagged loc
       (locals, remotes) = partitionQualified loc (map cidQualifiedClient cids)
       msg = mkRawMLS $ mkMessage (MessageWelcome welcome)
-  sendLocalWelcomes qcnv con now msg (qualifyAs loc locals)
-  sendRemoteWelcomes qcnv msg remotes
+  sendLocalWelcomes qcnv qusr con now msg (qualifyAs loc locals)
+  sendRemoteWelcomes qcnv qusr msg remotes
   where
     convFrom (Conv c) = c
     convFrom (SubConv c _) = c
@@ -79,36 +80,33 @@ sendLocalWelcomes ::
     Member ExternalAccess r
   ) =>
   Qualified ConvId ->
+  Qualified UserId ->
   Maybe ConnId ->
   UTCTime ->
   RawMLS Message ->
   Local [(UserId, ClientId)] ->
   Sem r ()
-sendLocalWelcomes qcnv con now welcome lclients = do
-  runMessagePush lclients Nothing $
-    foldMap (uncurry mkPush) (tUnqualified lclients)
-  where
-    mkPush :: UserId -> ClientId -> MessagePush
-    mkPush u c =
-      -- FUTUREWORK: use the conversation ID stored in the key package mapping table
-      let lusr = qualifyAs lclients u
-          e = Event qcnv Nothing (tUntagged lusr) now $ EdMLSWelcome welcome.raw
-       in newMessagePush lclients mempty con defMessageMetadata (u, c) e
+sendLocalWelcomes qcnv qusr con now welcome lclients = do
+  let e = Event qcnv Nothing qusr now $ EdMLSWelcome welcome.raw
+  runMessagePush lclients (Just qcnv) $
+    newMessagePush mempty con defMessageMetadata (tUnqualified lclients) e
 
 sendRemoteWelcomes ::
   ( Member FederatorAccess r,
     Member P.TinyLog r
   ) =>
   Qualified ConvId ->
+  Qualified UserId ->
   RawMLS Message ->
   [Remote (UserId, ClientId)] ->
   Sem r ()
-sendRemoteWelcomes qcnv welcome clients = do
+sendRemoteWelcomes qcnv qusr welcome clients = do
   let msg = Base64ByteString welcome.raw
   traverse_ handleError <=< runFederatedConcurrentlyEither clients $ \rcpts ->
     fedClient @'Galley @"mls-welcome"
       MLSWelcomeRequest
-        { welcomeMessage = msg,
+        { originatingUser = qUnqualified qusr,
+          welcomeMessage = msg,
           recipients = tUnqualified rcpts,
           qualifiedConvId = qcnv
         }

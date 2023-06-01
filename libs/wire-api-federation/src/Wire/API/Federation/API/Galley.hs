@@ -431,7 +431,9 @@ data ConversationUpdateResponse
 
 -- | A wrapper around a raw welcome message
 data MLSWelcomeRequest = MLSWelcomeRequest
-  { -- | A serialised welcome message.
+  { -- | Implicitely qualified by origin domain
+    originatingUser :: UserId,
+    -- | A serialised welcome message.
     welcomeMessage :: Base64ByteString,
     -- | Recipients local to the target backend.
     recipients :: [(UserId, ClientId)],

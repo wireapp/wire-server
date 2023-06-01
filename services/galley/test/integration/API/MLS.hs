@@ -1737,6 +1737,7 @@ sendRemoteMLSWelcome = do
     void $
       runFedClient @"mls-welcome" fedGalleyClient (qDomain alice) $
         MLSWelcomeRequest
+          (qUnqualified alice)
           (Base64ByteString welcome)
           [qUnqualified (cidQualifiedClient bob1)]
           qcid
