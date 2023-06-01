@@ -20,7 +20,6 @@
 module Galley.Effects.SubConversationStore where
 
 import Data.Id
-import Data.Qualified
 import Galley.API.MLS.Types
 import Imports
 import Polysemy
@@ -36,9 +35,7 @@ data SubConversationStore m a where
   GetSubConversationGroupInfo :: ConvId -> SubConvId -> SubConversationStore m (Maybe GroupInfoData)
   GetSubConversationEpoch :: ConvId -> SubConvId -> SubConversationStore m (Maybe Epoch)
   SetSubConversationGroupInfo :: ConvId -> SubConvId -> Maybe GroupInfoData -> SubConversationStore m ()
-  SetGroupIdForSubConversation :: GroupId -> Qualified ConvId -> SubConvId -> SubConversationStore m ()
   SetSubConversationEpoch :: ConvId -> SubConvId -> Epoch -> SubConversationStore m ()
-  DeleteGroupIdForSubConversation :: GroupId -> SubConversationStore m ()
   ListSubConversations :: ConvId -> SubConversationStore m (Map SubConvId ConversationMLSData)
   DeleteSubConversation :: ConvId -> SubConvId -> SubConversationStore m ()
 

@@ -30,7 +30,6 @@
 , currency-codes
 , data-default
 , data-timeout
-, directory
 , either
 , enclosed-exceptions
 , errors
@@ -173,7 +172,6 @@ mkDerivation {
     imports
     kan-extensions
     lens
-    memory
     metrics-core
     metrics-wai
     mtl
@@ -243,7 +241,6 @@ mkDerivation {
     currency-codes
     data-default
     data-timeout
-    directory
     errors
     exceptions
     extended
@@ -251,7 +248,6 @@ mkDerivation {
     federator
     filepath
     galley-types
-    hex
     HsOpenSSL
     hspec
     http-api-data

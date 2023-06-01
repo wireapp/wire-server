@@ -28,7 +28,6 @@ import Cassandra.Util
 import Control.Error.Util
 import Control.Monad.Trans.Maybe
 import Data.ByteString.Conversion
-import Data.Domain
 import Data.Id
 import qualified Data.Map as Map
 import Data.Misc
@@ -57,7 +56,7 @@ import qualified UnliftIO
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.Group
+import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 
@@ -75,7 +74,7 @@ createMLSSelfConversation lusr = do
             ncProtocol = ProtocolCreateMLSTag
           }
       meta = ncMetadata nc
-      gid = convToGroupId . qualifyAs lusr $ cnv
+      gid = convToGroupId' . fmap Conv . tUntagged . qualifyAs lusr $ cnv
       -- FUTUREWORK: Stop hard-coding the cipher suite
       --
       -- 'CipherSuite 1' corresponds to
@@ -106,7 +105,6 @@ createMLSSelfConversation lusr = do
         Just gid,
         Just cs
       )
-    addPrepQuery Cql.insertGroupIdForConversation (gid, cnv, tDomain lusr)
 
   (lmems, rmems) <- addMembers cnv (ncUsers nc)
   pure
@@ -125,7 +123,7 @@ createConversation lcnv nc = do
       (proto, mgid, mep, mcs) = case ncProtocol nc of
         ProtocolCreateProteusTag -> (ProtocolProteus, Nothing, Nothing, Nothing)
         ProtocolCreateMLSTag ->
-          let gid = convToGroupId lcnv
+          let gid = convToGroupId' $ Conv <$> tUntagged lcnv
               ep = Epoch 0
               cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
            in ( ProtocolMLS
@@ -164,7 +162,6 @@ createConversation lcnv nc = do
         mcs
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)
-    for_ mgid $ \gid -> addPrepQuery Cql.insertGroupIdForConversation (gid, tUnqualified lcnv, tDomain lcnv)
   (lmems, rmems) <- addMembers (tUnqualified lcnv) (ncUsers nc)
   pure
     Conversation
@@ -408,35 +405,6 @@ toConv cid ms remoteMems mconv = do
             }
       }
 
-setGroupIdForConversation :: GroupId -> Qualified ConvId -> Client ()
-setGroupIdForConversation gId conv =
-  write Cql.insertGroupIdForConversation (params LocalQuorum (gId, qUnqualified conv, qDomain conv))
-
-deleteGroupIdForConversation :: GroupId -> Client ()
-deleteGroupIdForConversation groupId =
-  retry x5 $ write Cql.deleteGroupId (params LocalQuorum (Identity groupId))
-
-lookupConvByGroupId :: GroupId -> Client (Maybe (Qualified ConvOrSubConvId))
-lookupConvByGroupId gId =
-  toConvOrSubConv <$$> retry x1 (query1 Cql.lookupGroupId (params LocalQuorum (Identity gId)))
-  where
-    toConvOrSubConv :: (ConvId, Domain, Maybe SubConvId) -> Qualified ConvOrSubConvId
-    toConvOrSubConv (convId, domain, mbSubConvId) =
-      case mbSubConvId of
-        Nothing -> Qualified (Conv convId) domain
-        Just subConvId -> Qualified (SubConv convId subConvId) domain
-
-deleteGroupIds ::
-  Members
-    '[ Embed IO,
-       Input ClientState
-     ]
-    r =>
-  [GroupId] ->
-  Sem r ()
-deleteGroupIds =
-  embedClient . UnliftIO.pooledMapConcurrentlyN_ 8 deleteGroupIdForConversation
-
 updateToMixedProtocol ::
   Members
     '[ Embed IO,
@@ -445,22 +413,15 @@ updateToMixedProtocol ::
     r =>
   Local ConvId ->
   CipherSuiteTag ->
-  Sem r ConversationMLSData
+  Sem r ()
 updateToMixedProtocol lcnv cs = do
-  let gid = convToGroupId lcnv
+  let gid = convToGroupId' $ Conv <$> tUntagged lcnv
       epoch = Epoch 0
   embedClient . retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
-    addPrepQuery Cql.insertGroupIdForConversation (gid, tUnqualified lcnv, tDomain lcnv)
     addPrepQuery Cql.updateToMixedConv (tUnqualified lcnv, ProtocolMixedTag, gid, epoch, cs)
-  pure
-    ConversationMLSData
-      { cnvmlsGroupId = gid,
-        cnvmlsEpoch = epoch,
-        cnvmlsEpochTimestamp = Nothing,
-        cnvmlsCipherSuite = cs
-      }
+  pure ()
 
 interpretConversationStoreToCassandra ::
   ( Member (Embed IO) r,
@@ -475,7 +436,6 @@ interpretConversationStoreToCassandra = interpret $ \case
   CreateMLSSelfConversation lusr -> embedClient $ createMLSSelfConversation lusr
   GetConversation cid -> embedClient $ getConversation cid
   GetConversationEpoch cid -> embedClient $ getConvEpoch cid
-  LookupConvByGroupId gId -> embedClient $ lookupConvByGroupId gId
   GetConversations cids -> localConversations cids
   GetConversationMetadata cid -> embedClient $ conversationMeta cid
   GetGroupInfo cid -> embedClient $ getGroupInfo cid
@@ -489,10 +449,7 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationMessageTimer cid value -> embedClient $ updateConvMessageTimer cid value
   SetConversationEpoch cid epoch -> embedClient $ updateConvEpoch cid epoch
   DeleteConversation cid -> embedClient $ deleteConversation cid
-  SetGroupIdForConversation gId cid -> embedClient $ setGroupIdForConversation gId cid
-  DeleteGroupIdForConversation gId -> embedClient $ deleteGroupIdForConversation gId
   SetGroupInfo cid gib -> embedClient $ setGroupInfo cid gib
   AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl
   ReleaseCommitLock gId epoch -> embedClient $ releaseCommitLock gId epoch
-  DeleteGroupIds gIds -> deleteGroupIds gIds
   UpdateToMixedProtocol cid cs -> updateToMixedProtocol cid cs

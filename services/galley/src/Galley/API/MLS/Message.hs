@@ -134,7 +134,7 @@ postMLSMessageFromLocalUser ::
 postMLSMessageFromLocalUser lusr c conn smsg = do
   assertMLSEnabled
   imsg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage smsg
-  cnvOrSub <- lookupConvByGroupId imsg.groupId >>= noteS @'ConvNotFound
+  cnvOrSub <- getConvFromGroupId imsg.groupId
   (events, unreachables) <-
     first (map lcuEvent)
       <$> postMLSMessage lusr (tUntagged lusr) c cnvOrSub (Just conn) imsg
@@ -177,7 +177,7 @@ postMLSCommitBundleFromLocalUser ::
 postMLSCommitBundleFromLocalUser lusr c conn bundle = do
   assertMLSEnabled
   ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
-  qConvOrSub <- lookupConvByGroupId ibundle.groupId >>= noteS @'ConvNotFound
+  qConvOrSub <- getConvFromGroupId ibundle.groupId
   events <-
     map lcuEvent
       <$> postMLSCommitBundle lusr (tUntagged lusr) c qConvOrSub (Just conn) ibundle

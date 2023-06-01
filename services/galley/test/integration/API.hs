@@ -44,7 +44,7 @@ import Bilge.Assert
 import Control.Arrow
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (throw)
-import Control.Lens (at, ix, preview, view, (.~), (?~))
+import Control.Lens hiding ((#), (.=))
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
@@ -81,7 +81,6 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
-import Util.Options (Endpoint (Endpoint))
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
@@ -92,7 +91,6 @@ import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Brig as F
-import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Internal.Notification
@@ -185,9 +183,7 @@ tests s =
           test s "get conversations/:domain/:cnv - remote, not found" testGetQualifiedRemoteConvNotFound,
           test s "get conversations/:domain/:cnv - remote, not found on remote" testGetQualifiedRemoteConvNotFoundOnRemote,
           test s "post conversations/list/v2" testBulkGetQualifiedConvs,
-          test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "add remote members when federation isn't enabled" testAddRemoteMemberFederationDisabled,
-          test s "add remote members when federator is unavailable" testAddRemoteMemberFederationUnavailable,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - fail, self conv" deleteMembersQualifiedFailSelf,
           test s "delete conversations/:domain:/cnv/members/:domain/:usr - fail, 1:1 conv" deleteMembersQualifiedFailO2O,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with all locals" deleteMembersConvLocalQualifiedOk,
@@ -2752,8 +2748,8 @@ testAddRemoteMember = do
       postQualifiedMembers alice (remoteBob :| []) qconvId
         <!! const 200 === statusCode
   liftIO $ do
-    map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
-    map frRPC reqs @?= ["on-new-remote-conversation", "on-conversation-updated"]
+    map frTargetDomain reqs @?= [remoteDomain]
+    map frRPC reqs @?= ["on-conversation-updated"]
 
   let e = responseJsonUnsafe resp
   let bobMember = SimpleMember remoteBob roleNameWireAdmin
@@ -2772,7 +2768,6 @@ testAddRemoteMember = do
     respond bob =
       asum
         [ guardComponent Brig *> mockReply [mkProfile bob (Name "bob")],
-          "on-new-remote-conversation" ~> EmptyResponse,
           "on-conversation-updated" ~> ()
         ]
 
@@ -2791,9 +2786,7 @@ testDeleteTeamConversationWithRemoteMembers = do
 
   connectWithRemoteUser alice remoteBob
 
-  let mock =
-        ("on-new-remote-conversation" ~> EmptyResponse)
-          <|> ("on-conversation-updated" ~> ())
+  let mock = "on-conversation-updated" ~> ()
   (_, received) <- withTempMockFederator' mock $ do
     postQualifiedMembers alice (remoteBob :| []) qconvId
       !!! const 200 === statusCode
@@ -2826,9 +2819,8 @@ testDeleteTeamConversationWithUnavailableRemoteMembers = do
   connectWithRemoteUser alice remoteBob
 
   let mock =
-        ("on-new-remote-conversation" ~> EmptyResponse)
-          -- Mock an unavailable federation server for the deletion call
-          <|> (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
+        -- Mock an unavailable federation server for the deletion call
+        (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
           <|> (guardRPC "delete-team-conversation" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
   (_, received) <- withTempMockFederator' mock $ do
     postQualifiedMembers alice (remoteBob :| []) qconvId
@@ -3046,25 +3038,6 @@ testBulkGetQualifiedConvs = do
     assertEqual "not founds" expectedNotFound actualNotFound
     assertEqual "failures" [remoteConvIdCFailure] (crFailed convs)
 
-testAddRemoteMemberInvalidDomain :: TestM ()
-testAddRemoteMemberInvalidDomain = do
-  alice <- randomUser
-  bobId <- randomId
-  let remoteBob = Qualified bobId (Domain "invalid.example.com")
-  convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  localDomain <- viewFederationDomain
-  let qconvId = Qualified convId localDomain
-
-  connectWithRemoteUser alice remoteBob
-
-  postQualifiedMembers alice (remoteBob :| []) qconvId
-    !!! do
-      const 422 === statusCode
-      const (Just "/federation/api-version")
-        === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
-      const (Just "invalid.example.com")
-        === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
-
 -- This test is a safeguard to ensure adding remote members will fail
 -- on environments where federation isn't configured (such as our production as of May 2021)
 testAddRemoteMemberFederationDisabled :: TestM ()
@@ -3085,28 +3058,6 @@ testAddRemoteMemberFederationDisabled = do
   -- the member is not actually added to the conversation
   conv <- responseJsonError =<< getConvQualified alice qconvId <!! const 200 === statusCode
   liftIO $ map omQualifiedId (cmOthers (cnvMembers conv)) @?= []
-
-testAddRemoteMemberFederationUnavailable :: TestM ()
-testAddRemoteMemberFederationUnavailable = do
-  alice <- randomUser
-  remoteBob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
-  qconvId <- decodeQualifiedConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  connectWithRemoteUser alice remoteBob
-
-  -- federator endpoint being configured in brig and/or galley, but not being
-  -- available (i.e. no service listing on that IP/port) can happen due to a
-  -- misconfiguration of federator. That should give a 500.
-  -- Port 1 should always be wrong hopefully.
-  let federatorUnavailable = optFederator ?~ Endpoint "127.0.0.1" 1
-  withSettingsOverrides federatorUnavailable $
-    postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
-      const 500 === statusCode
-      const (Right "federation-not-available") === fmap label . responseJsonEither
-
-  -- in this case, we discover that federation is unavailable too late, and the
-  -- member has already been added to the conversation
-  conv <- responseJsonError =<< getConvQualified alice qconvId <!! const 200 === statusCode
-  liftIO $ map omQualifiedId (cmOthers (cnvMembers conv)) @?= [remoteBob]
 
 postMembersOk :: TestM ()
 postMembersOk = do

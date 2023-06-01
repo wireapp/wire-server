@@ -65,9 +65,7 @@ type LegalHoldFeatureStatusChangeErrors =
 
 type LegalHoldFeaturesStatusChangeFederatedCalls =
   '[ MakesFederatedCall 'Galley "on-conversation-updated",
-     MakesFederatedCall 'Galley "on-mls-message-sent",
-     MakesFederatedCall 'Galley "on-new-remote-conversation",
-     MakesFederatedCall 'Galley "on-new-remote-subconversation"
+     MakesFederatedCall 'Galley "on-mls-message-sent"
    ]
 
 type IFeatureAPI =

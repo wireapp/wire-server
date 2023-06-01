@@ -331,7 +331,6 @@ updateConversationReceiptMode ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -402,7 +401,6 @@ updateConversationReceiptModeUnqualified ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -422,7 +420,6 @@ updateConversationMessageTimer ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member SubConversationStore r,
     Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
@@ -456,7 +453,6 @@ updateConversationMessageTimerUnqualified ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member SubConversationStore r,
     Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
@@ -701,7 +697,6 @@ updateConversationProtocolWithLocalUser ::
     Member GundeckAccess r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member SubConversationStore r,
     Member ConversationStore r
   ) =>
   Local UserId ->
@@ -729,7 +724,6 @@ joinConversationByReusableCode ::
   ( Member BrigAccess r,
     Member CodeStore r,
     Member ConversationStore r,
-    Member (Error FederationError) r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -744,7 +738,6 @@ joinConversationByReusableCode ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member SubConversationStore r,
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member (Logger (Msg -> Msg)) r
@@ -764,7 +757,6 @@ joinConversationById ::
   ( Member BrigAccess r,
     Member FederatorAccess r,
     Member ConversationStore r,
-    Member (Error FederationError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -775,7 +767,6 @@ joinConversationById ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member SubConversationStore r,
     Member TeamStore r,
     Member (Logger (Msg -> Msg)) r
   ) =>
@@ -790,7 +781,6 @@ joinConversationById lusr zcon cnv = do
 joinConversation ::
   ( Member BrigAccess r,
     Member FederatorAccess r,
-    Member (Error FederationError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -800,7 +790,6 @@ joinConversation ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member SubConversationStore r,
     Member TeamStore r,
     Member (Logger (Msg -> Msg)) r
   ) =>
@@ -1021,7 +1010,6 @@ updateOtherMemberLocalConv ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member SubConversationStore r,
     Member (Logger (Msg -> Msg)) r
   ) =>
   Local ConvId ->
@@ -1049,7 +1037,6 @@ updateOtherMemberUnqualified ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member SubConversationStore r,
     Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
@@ -1076,7 +1063,6 @@ updateOtherMember ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member SubConversationStore r,
     Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
@@ -1393,7 +1379,6 @@ updateConversationName ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member SubConversationStore r,
     Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
@@ -1420,7 +1405,6 @@ updateUnqualifiedConversationName ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member SubConversationStore r,
     Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
@@ -1443,7 +1427,6 @@ updateLocalConversationName ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member SubConversationStore r,
     Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->

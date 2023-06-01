@@ -29,7 +29,6 @@ module Galley.Effects.ConversationStore
     -- * Read conversation
     getConversation,
     getConversationEpoch,
-    lookupConvByGroupId,
     getConversations,
     getConversationMetadata,
     getGroupInfo,
@@ -45,10 +44,7 @@ module Galley.Effects.ConversationStore
     setConversationMessageTimer,
     setConversationEpoch,
     acceptConnectConversation,
-    setGroupIdForConversation,
-    deleteGroupIdForConversation,
     setGroupInfo,
-    deleteGroupIds,
     updateToMixedProtocol,
 
     -- * Delete conversation
@@ -74,7 +70,6 @@ import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite (CipherSuiteTag)
 import Wire.API.MLS.GroupInfo
-import Wire.API.MLS.SubConversation
 
 data ConversationStore m a where
   CreateConversationId :: ConversationStore m ConvId
@@ -85,7 +80,6 @@ data ConversationStore m a where
   DeleteConversation :: ConvId -> ConversationStore m ()
   GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)
   GetConversationEpoch :: ConvId -> ConversationStore m (Maybe Epoch)
-  LookupConvByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvOrSubConvId))
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
   GetGroupInfo :: ConvId -> ConversationStore m (Maybe GroupInfoData)
@@ -101,13 +95,10 @@ data ConversationStore m a where
   SetConversationReceiptMode :: ConvId -> ReceiptMode -> ConversationStore m ()
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
-  SetGroupIdForConversation :: GroupId -> Qualified ConvId -> ConversationStore m ()
-  DeleteGroupIdForConversation :: GroupId -> ConversationStore m ()
   SetGroupInfo :: ConvId -> GroupInfoData -> ConversationStore m ()
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
-  DeleteGroupIds :: [GroupId] -> ConversationStore m ()
-  UpdateToMixedProtocol :: Local ConvId -> CipherSuiteTag -> ConversationStore m ConversationMLSData
+  UpdateToMixedProtocol :: Local ConvId -> CipherSuiteTag -> ConversationStore m ()
 
 makeSem ''ConversationStore
 

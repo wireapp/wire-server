@@ -15,26 +15,27 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.SubConversationSupply.Random
-  ( interpretSubConversationSupplyToRandom,
-  )
-where
+module Test.Wire.API.MLS.Group where
 
-import qualified Crypto.Hash as Crypto
-import Data.ByteArray (convert)
-import Galley.Effects.SubConversationSupply
+import Data.Qualified
 import Imports
-import Polysemy
+import Test.QuickCheck
+import Test.Tasty
+import Test.Tasty.QuickCheck
 import Wire.API.MLS.Group
-import Wire.Sem.Random
+import Wire.API.MLS.Group.Serialisation
+import Wire.API.MLS.SubConversation
 
-interpretSubConversationSupplyToRandom ::
-  Member Random r =>
-  Sem (SubConversationSupply ': r) a ->
-  Sem r a
-interpretSubConversationSupplyToRandom = interpret $ \case
-  MakeFreshGroupId -> freshGroupId
+tests :: TestTree
+tests =
+  testGroup
+    "Group"
+    [ testProperty "roundtrip serialise and parse groupId" $ roundtripGroupId
+    ]
 
-freshGroupId :: Member Random r => Sem r GroupId
-freshGroupId =
-  GroupId . convert . Crypto.hash @ByteString @Crypto.SHA256 <$> bytes 100
+roundtripGroupId :: Qualified ConvOrSubConvId -> GroupIdGen -> Property
+roundtripGroupId convId gen =
+  let gen' = case qUnqualified convId of
+        (Conv _) -> GroupIdGen 0
+        (SubConv _ _) -> gen
+   in groupIdToConv (convToGroupId convId gen) === Right (convId, gen')

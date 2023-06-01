@@ -65,8 +65,6 @@ type LegalHoldAPI =
            ( Summary "Delete legal hold service settings"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
-               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> CanThrow AuthenticationError
                :> CanThrow OperationDenied
                :> CanThrow 'NotATeamMember
@@ -105,8 +103,6 @@ type LegalHoldAPI =
            ( Summary "Consent to legal hold"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
-               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
                :> CanThrow 'InvalidOperation
                :> CanThrow 'TeamMemberNotFound
@@ -124,8 +120,6 @@ type LegalHoldAPI =
            ( Summary "Request legal hold device"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
-               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
@@ -156,8 +150,6 @@ type LegalHoldAPI =
            ( Summary "Disable legal hold for user"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
-               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> CanThrow AuthenticationError
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
                :> CanThrow 'NotATeamMember
@@ -186,8 +178,6 @@ type LegalHoldAPI =
            ( Summary "Approve legal hold device"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
-               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> CanThrow AuthenticationError
                :> CanThrow 'AccessDenied
                :> CanThrow ('ActionDenied 'RemoveConversationMember)

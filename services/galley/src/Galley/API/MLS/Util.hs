@@ -20,6 +20,7 @@ module Galley.API.MLS.Util where
 import Control.Comonad
 import Data.Id
 import Data.Qualified
+import qualified Data.Text as T
 import Galley.Data.Conversation.Types hiding (Conversation)
 import qualified Galley.Data.Conversation.Types as Data
 import Galley.Data.Types
@@ -30,6 +31,7 @@ import Galley.Effects.ProposalStore
 import Galley.Effects.SubConversationStore
 import Imports
 import Polysemy
+import Polysemy.Error
 import Polysemy.Resource (Resource, bracket)
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as TinyLog
@@ -38,6 +40,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
+import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
@@ -121,3 +124,6 @@ withCommitLock lConvOrSubId gid epoch action =
       action
   where
     ttl = fromIntegral (600 :: Int) -- 10 minutes
+
+getConvFromGroupId :: Member (Error MLSProtocolError) r => GroupId -> Sem r (Qualified ConvOrSubConvId)
+getConvFromGroupId = either (throw . mlsProtocolError . T.pack) (pure . fst) . groupIdToConv

@@ -19,7 +19,7 @@ module Galley.API.MLS.Commit.InternalCommit (processInternalCommit) where
 
 import Control.Comonad
 import Control.Error.Util (hush)
-import Control.Lens (forOf_, preview)
+import Control.Lens
 import Control.Lens.Extras (is)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
@@ -36,7 +36,6 @@ import Galley.API.MLS.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
 import qualified Galley.Data.Conversation.Types as Data
 import Galley.Effects
-import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Galley.Types.Conversations.Members
@@ -48,8 +47,6 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Federation.API
-import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
@@ -173,25 +170,6 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
             foldMap
               (removeMembers qusr con lConvOrSub)
               (nonEmpty membersToRemove)
-
-          -- if this is a new subconversation, call `on-new-remote-conversation` on all
-          -- the remote backends involved in the main conversation
-          forOf_ _SubConv convOrSub $ \(mlsConv, subConv) -> do
-            when (cnvmlsEpoch (scMLSData subConv) == Epoch 0) $ do
-              let remoteDomains =
-                    Set.fromList
-                      ( map
-                          (void . rmId)
-                          (mcRemoteMembers mlsConv)
-                      )
-              let nrc =
-                    NewRemoteSubConversation
-                      { nrscConvId = mcId mlsConv,
-                        nrscSubConvId = scSubConvId subConv,
-                        nrscMlsData = scMLSData subConv
-                      }
-              runFederatedConcurrently_ (toList remoteDomains) $ \_ -> do
-                void $ fedClient @'Galley @"on-new-remote-subconversation" nrc
 
           -- add users to the conversation and send events
           addEvents <-

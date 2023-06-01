@@ -76,6 +76,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
 import Wire.API.MLS.LeafNode
@@ -516,17 +517,13 @@ createSubConv qcnv creator subId = do
 setupFakeMLSGroup ::
   HasCallStack =>
   ClientIdentity ->
+  Maybe SubConvId ->
   MLSTest (GroupId, Qualified ConvId)
-setupFakeMLSGroup creator = do
-  groupId <- fakeGroupId
+setupFakeMLSGroup creator mSubId = do
   qcnv <- randomQualifiedId (ciDomain creator)
+  let groupId = convToGroupId' $ maybe (Conv <$> qcnv) ((<$> qcnv) . flip SubConv) mSubId
   createGroup creator (fmap Conv qcnv) groupId
   pure (groupId, qcnv)
-
-fakeGroupId :: MLSTest GroupId
-fakeGroupId =
-  liftIO $
-    fmap (GroupId . BS.pack) (replicateM 32 (generate arbitrary))
 
 claimLocalKeyPackages :: HasCallStack => ClientIdentity -> Local UserId -> MLSTest KeyPackageBundle
 claimLocalKeyPackages qcid lusr = do
@@ -954,45 +951,6 @@ clientKeyPair cid = do
     (LBS.fromStrict credential) of
     Left (_, _, msg) -> liftIO $ assertFailure msg
     Right (_, _, keys) -> pure keys
-
-receiveNewRemoteConv ::
-  (MonadReader TestSetup m, MonadIO m) =>
-  Qualified ConvOrSubConvId ->
-  GroupId ->
-  m ()
-receiveNewRemoteConv qcs gid = do
-  client <- view tsFedGalleyClient
-  case qUnqualified qcs of
-    Conv c -> do
-      let nrc =
-            NewRemoteConversation c $
-              ProtocolMLS
-                ( ConversationMLSData
-                    gid
-                    (Epoch 1)
-                    (Just (UTCTime (fromGregorian 2020 8 29) 0))
-                    MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-                )
-      void $
-        runFedClient
-          @"on-new-remote-conversation"
-          client
-          (qDomain qcs)
-          nrc
-    SubConv c s -> do
-      let nrc =
-            NewRemoteSubConversation c s $
-              ConversationMLSData
-                gid
-                (Epoch 1)
-                (Just (UTCTime (fromGregorian 2020 8 29) 0))
-                MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-      void $
-        runFedClient
-          @"on-new-remote-subconversation"
-          client
-          (qDomain qcs)
-          nrc
 
 receiveOnConvUpdated ::
   (MonadReader TestSetup m, MonadIO m) =>

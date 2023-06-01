@@ -48,12 +48,8 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.FederatorAccess
-import qualified Galley.Effects.FederatorAccess as Eff
 import qualified Galley.Effects.MemberStore as Eff
 import qualified Galley.Effects.SubConversationStore as Eff
-import Galley.Effects.SubConversationSupply (SubConversationSupply)
-import qualified Galley.Effects.SubConversationSupply as Eff
-import Galley.Types.Conversations.Members
 import Imports hiding (cs)
 import Polysemy
 import Polysemy.Error
@@ -68,6 +64,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 
@@ -130,11 +127,10 @@ getLocalSubConversation qusr lconv sconv = do
 
       -- deriving this detemernistically to prevent race condition between
       -- multiple threads creating the subconversation
-      let groupId = initialGroupId lconv sconv
+      let groupId = convToGroupId' $ flip SubConv sconv <$> tUntagged lconv
           epoch = Epoch 0
           suite = cnvmlsCipherSuite mlsMeta
       Eff.createSubConversation (tUnqualified lconv) sconv suite epoch groupId Nothing
-      Eff.setGroupIdForSubConversation groupId (tUntagged lconv) sconv
       let sub =
             SubConversation
               { scParentConvId = tUnqualified lconv,
@@ -242,8 +238,7 @@ deleteSubConversation ::
          Input Env,
          MemberStore,
          Resource,
-         SubConversationStore,
-         SubConversationSupply
+         SubConversationStore
        ]
       r
   ) =>
@@ -270,9 +265,7 @@ deleteLocalSubConversation ::
          Input Env,
          MemberStore,
          Resource,
-         SubConversationStore,
-         SubConversationSupply,
-         SubConversationSupply
+         SubConversationStore
        ]
       r
   ) =>
@@ -291,7 +284,7 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
 
   let cs = cnvmlsCipherSuite mlsMeta
 
-  (mlsData, oldGid) <- withCommitLock lConvOrSubId (dscGroupId dsc) (dscEpoch dsc) $ do
+  withCommitLock lConvOrSubId (dscGroupId dsc) (dscEpoch dsc) $ do
     sconv <-
       Eff.getSubConversation cnvId scnvId
         >>= noteS @'ConvNotFound
@@ -300,28 +293,11 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
     unless (dscEpoch dsc == epoch) $ throwS @'MLSStaleMessage
     Eff.removeAllMLSClients gid
 
-    newGid <- Eff.makeFreshGroupId
-
-    Eff.deleteGroupIdForSubConversation gid
-    Eff.setGroupIdForSubConversation newGid (tUntagged lcnvId) scnvId
+    -- swallowing the error and starting with GroupIdGen 0 if nextGenGroupId
+    let newGid = fromRight (convToGroupId' (flip SubConv scnvId <$> tUntagged lcnvId)) $ nextGenGroupId gid
 
     -- the following overwrites any prior information about the subconversation
     Eff.createSubConversation cnvId scnvId cs (Epoch 0) newGid Nothing
-
-    pure (scMLSData sconv, gid)
-
-  -- notify all backends that the subconversation has a new ID
-  let remotes = bucketRemote (map rmId (convRemoteMembers cnv))
-  Eff.runFederatedConcurrently_ remotes $ \_ -> do
-    void $
-      fedClient @'Galley @"on-new-remote-subconversation"
-        NewRemoteSubConversation
-          { nrscConvId = cnvId,
-            nrscSubConvId = scnvId,
-            nrscMlsData = mlsData
-          }
-    fedClient @'Galley @"on-delete-mls-conversation"
-      (OnDeleteMLSConversationRequest [oldGid])
 
 deleteRemoteSubConversation ::
   ( Members
@@ -388,8 +364,7 @@ leaveSubConversation ::
          Error FederationError,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSNotEnabled,
-         Resource,
-         SubConversationSupply
+         Resource
        ]
       r,
     Members LeaveSubConversationStaticErrors r
@@ -416,7 +391,6 @@ leaveLocalSubConversation ::
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSNotEnabled,
          Resource,
-         SubConversationSupply,
          MemberStore
        ]
       r,

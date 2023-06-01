@@ -80,8 +80,6 @@ import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
 import Imports
-import qualified Network.HTTP.Types.Status as Wai
-import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -364,19 +362,11 @@ performAction tag origUser lconv action = do
       let cid = convId conv
       for_ (conv & mlsMetadata <&> cnvmlsGroupId . fst) $ \gidParent -> do
         sconvs <- E.listSubConversations cid
-        gidSubs <- for (Map.assocs sconvs) $ \(subid, mlsData) -> do
+        for_ (Map.assocs sconvs) $ \(subid, mlsData) -> do
           let gidSub = cnvmlsGroupId mlsData
           E.deleteSubConversation cid subid
-          E.deleteGroupIdForSubConversation gidSub
           deleteGroup gidSub
-          pure gidSub
-        E.deleteGroupIdForConversation gidParent
         deleteGroup gidParent
-
-        let odr = OnDeleteMLSConversationRequest ([gidParent] <> gidSubs)
-        let remotes = bucketRemote (map rmId (Data.convRemoteMembers conv))
-        E.runFederatedConcurrently_ remotes $ \_ -> do
-          void $ fedClient @'Galley @"on-delete-mls-conversation" odr
 
       key <- E.makeKey (tUnqualified lcnv)
       E.deleteCode key ReusableCode
@@ -403,14 +393,7 @@ performAction tag origUser lconv action = do
     SConversationUpdateProtocolTag -> do
       case (protocolTag (convProtocol (tUnqualified lconv)), action, convTeam (tUnqualified lconv)) of
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
-          mls <- E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-          E.runFederatedConcurrently_ (map rmId (convRemoteMembers conv)) $ \_ -> do
-            void $
-              fedClient @'Galley @"on-new-remote-conversation" $
-                NewRemoteConversation
-                  { nrcConvId = convId conv,
-                    nrcProtocol = ProtocolMixed mls
-                  }
+          E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
           pure (mempty, action)
         (ProtocolProteusTag, ProtocolProteusTag, _) ->
           noChanges
@@ -636,7 +619,6 @@ updateLocalConversation ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member SubConversationStore r,
     Member (Logger (Log.Msg -> Log.Msg)) r,
     HasConversationActionEffects tag r,
     SingI tag
@@ -677,7 +659,6 @@ updateLocalConversationUnchecked ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member SubConversationStore r,
     Member (Logger (Log.Msg -> Log.Msg)) r,
     HasConversationActionEffects tag r
   ) =>
@@ -755,12 +736,10 @@ addMembersToLocalConversation lcnv users role = do
 
 notifyConversationAction ::
   forall tag r.
-  ( Member (Error FederationError) r,
-    Member FederatorAccess r,
+  ( Member FederatorAccess r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member SubConversationStore r,
     Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
   Sing tag ->
@@ -774,7 +753,6 @@ notifyConversationAction ::
 notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap convId lconv
-      conv = tUnqualified lconv
       e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
 
   let mkUpdate uids =
@@ -785,47 +763,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
           uids
           (SomeConversationAction tag action)
 
-  -- Backends that are seeing this conversation for the first time need to be
-  -- notified about this conversation and all its subconversations
-  let newDomains =
-        Set.difference
-          (Set.map void (bmRemotes targets))
-          (Set.fromList (map (void . rmId) (convRemoteMembers conv)))
-      newRemotes =
-        Set.filter (\r -> Set.member (void r) newDomains)
-          . bmRemotes
-          $ targets
-
-  subConvs <- Map.assocs <$> E.listSubConversations (convId conv)
   (update, failedToProcess) <- do
-    notifyEithers <-
-      E.runFederatedConcurrentlyEither (toList newRemotes) $ \_ -> do
-        void $
-          fedClient @'Galley @"on-new-remote-conversation" $
-            NewRemoteConversation
-              { nrcConvId = convId conv,
-                nrcProtocol = convProtocol conv
-              }
-        for_ subConvs $ \(mSubId, mlsData) ->
-          fedClient @'Galley @"on-new-remote-subconversation"
-            NewRemoteSubConversation
-              { nrscConvId = convId conv,
-                nrscSubConvId = mSubId,
-                nrscMlsData = mlsData
-              }
-
-    -- For now these users will not be able to join the conversation until
-    -- queueing and retrying is implemented.
-    let failedNotifies = lefts notifyEithers
-    for_ failedNotifies $
-      logError
-        "on-new-remote-conversation"
-        "An error occurred while communicating with federated server: "
-    for_ failedNotifies $ \case
-      -- rethrow invalid-domain errors and mis-configured federation errors
-      (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 422 _) _ _ _)))) -> throw ex
-      (_, ex@(FederationCallFailure (FederatorClientHTTP2Error (FederatorClientConnectionError _)))) -> throw ex
-      _ -> pure ()
     updates <-
       E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
         \ruids -> do
@@ -849,9 +787,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
       logError
         "on-conversation-updated"
         "An error occurred while communicating with federated server: "
-    let totalFailedToProcess =
-          failedToAdd (qualifiedFails failedNotifies)
-            <> toFailedToProcess (qualifiedFails failedUpdates)
+    let totalFailedToProcess = toFailedToProcess (qualifiedFails failedUpdates)
     pure (update, totalFailedToProcess)
 
   -- notify local participants and bots

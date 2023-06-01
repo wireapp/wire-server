@@ -39,9 +39,7 @@ type FeatureAPI =
     :<|> FeatureStatusGet LegalholdConfig
     :<|> FeatureStatusPut
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-new-remote-conversation",
-              MakesFederatedCall 'Galley "on-new-remote-subconversation"
+              MakesFederatedCall 'Galley "on-mls-message-sent"
             ]
            '( 'ActionDenied 'RemoveConversationMember,
               '( AuthenticationError,

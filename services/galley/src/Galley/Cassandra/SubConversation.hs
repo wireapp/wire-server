@@ -24,7 +24,6 @@ import Cassandra
 import Cassandra.Util
 import Data.Id
 import qualified Data.Map as Map
-import Data.Qualified
 import Data.Time.Clock
 import Galley.API.MLS.Types
 import Galley.Cassandra.Conversation.MLS
@@ -83,17 +82,9 @@ selectSubConvEpoch :: ConvId -> SubConvId -> Client (Maybe Epoch)
 selectSubConvEpoch convId subConvId =
   (runIdentity =<<) <$> retry x5 (query1 Cql.selectSubConvEpoch (params LocalQuorum (convId, subConvId)))
 
-setGroupIdForSubConversation :: GroupId -> Qualified ConvId -> SubConvId -> Client ()
-setGroupIdForSubConversation groupId qconv sconv =
-  retry x5 (write Cql.insertGroupIdForSubConversation (params LocalQuorum (groupId, qUnqualified qconv, qDomain qconv, sconv)))
-
 setEpochForSubConversation :: ConvId -> SubConvId -> Epoch -> Client ()
 setEpochForSubConversation cid sconv epoch =
   retry x5 (write Cql.insertEpochForSubConversation (params LocalQuorum (epoch, cid, sconv)))
-
-deleteGroupId :: GroupId -> Client ()
-deleteGroupId groupId =
-  retry x5 $ write Cql.deleteGroupId (params LocalQuorum (Identity groupId))
 
 deleteSubConversation :: ConvId -> SubConvId -> Client ()
 deleteSubConversation cid sconv =
@@ -125,9 +116,7 @@ interpretSubConversationStoreToCassandra = interpret $ \case
   GetSubConversationGroupInfo convId subConvId -> embedClient (selectSubConvGroupInfo convId subConvId)
   GetSubConversationEpoch convId subConvId -> embedClient (selectSubConvEpoch convId subConvId)
   SetSubConversationGroupInfo convId subConvId mPgs -> embedClient (updateSubConvGroupInfo convId subConvId mPgs)
-  SetGroupIdForSubConversation gId cid sconv -> embedClient $ setGroupIdForSubConversation gId cid sconv
   SetSubConversationEpoch cid sconv epoch -> embedClient $ setEpochForSubConversation cid sconv epoch
-  DeleteGroupIdForSubConversation groupId -> embedClient $ deleteGroupId groupId
   ListSubConversations cid -> embedClient $ listSubConversations cid
   DeleteSubConversation convId subConvId -> embedClient $ deleteSubConversation convId subConvId
 

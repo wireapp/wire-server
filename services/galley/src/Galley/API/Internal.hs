@@ -89,7 +89,8 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.Group
+import Wire.API.MLS.Group.Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.Provider.Service hiding (Service)
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Galley
@@ -485,5 +486,5 @@ iGetMLSClientListForConv ::
   ConvId ->
   Sem r ClientList
 iGetMLSClientListForConv lusr cnv = do
-  cm <- E.lookupMLSClients (convToGroupId (qualifyAs lusr cnv))
+  cm <- E.lookupMLSClients (convToGroupId' (Conv <$> tUntagged (qualifyAs lusr cnv)))
   pure $ ClientList (concatMap (Map.keys . snd) (Map.assocs cm))
