@@ -247,14 +247,14 @@ data ClientIdentity = ClientIdentity
   deriving (Show, Eq, Ord)
 
 data BackendResource = BackendResource
-  { brigKeyspace :: String,
-    galleyKeyspace :: String,
-    sparKeyspace :: String,
-    gundeckKeyspace :: String,
-    elasticsearchIndex :: String,
-    federatorInternal :: Word16,
-    federatorExternal :: Word16,
-    domain :: String
+  { berBrigKeyspace :: String,
+    berGalleyKeyspace :: String,
+    berSparKeyspace :: String,
+    berGundeckKeyspace :: String,
+    berElasticsearchIndex :: String,
+    berFederatorInternal :: Word16,
+    berFederatorExternal :: Word16,
+    berDomain :: String
   }
   deriving (Show, Eq, Ord)
 
@@ -263,14 +263,14 @@ backendResources n =
   [1 .. n]
     <&> ( \i ->
             BackendResource
-              { brigKeyspace = "brig_test_dyn_" <> show i,
-                galleyKeyspace = "galley_test_dyn_" <> show i,
-                sparKeyspace = "spar_test_dyn_" <> show i,
-                gundeckKeyspace = "gundeck_test_dyn_" <> show i,
-                elasticsearchIndex = "directory_dyn_" <> show i <> "_test",
-                federatorInternal = federatorInternalPort i,
-                federatorExternal = federatorExternalPort i,
-                domain = domain i
+              { berBrigKeyspace = "brig_test_dyn_" <> show i,
+                berGalleyKeyspace = "galley_test_dyn_" <> show i,
+                berSparKeyspace = "spar_test_dyn_" <> show i,
+                berGundeckKeyspace = "gundeck_test_dyn_" <> show i,
+                berElasticsearchIndex = "directory_dyn_" <> show i <> "_test",
+                berFederatorInternal = federatorInternalPort i,
+                berFederatorExternal = federatorExternalPort i,
+                berDomain = domain i
               }
         )
     & Set.fromList

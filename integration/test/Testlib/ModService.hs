@@ -80,37 +80,44 @@ startDynamicBackend beOverrides action = do
                     )
                     $ defaultDynBackendConfigOverridesToMap beOverrides
             startBackend
-              resource.domain
+              resource.berDomain
               services
               ( \ports sm -> do
                   let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
-                   in Map.insert resource.domain (updateServiceMap ports templateBackend) sm
+                   in Map.insert resource.berDomain (setFederatorPorts resource $ updateServiceMap ports templateBackend) sm
               )
               action
         )
   where
     setFederatorPort :: BackendResource -> Service -> Value -> App Value
     setFederatorPort resource = \case
-      Brig -> setFieldIfExists "federatorInternal.port" resource.federatorInternal
-      Cargohold -> setFieldIfExists "federator.port" resource.federatorInternal
-      Galley -> setFieldIfExists "federator.port" resource.federatorInternal
+      Brig -> setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
+      Cargohold -> setFieldIfExists "federator.port" resource.berFederatorInternal
+      Galley -> setFieldIfExists "federator.port" resource.berFederatorInternal
       -- Federator -> setFieldIfExists "federatorInternal.port" resource.federatorInternal ... + external
       _ -> pure
 
     setKeyspace :: BackendResource -> Service -> Value -> App Value
     setKeyspace resource = \case
-      Galley -> setFieldIfExists "cassandra.keyspace" resource.galleyKeyspace
-      Brig -> setFieldIfExists "cassandra.keyspace" resource.brigKeyspace
-      Spar -> setFieldIfExists "cassandra.keyspace" resource.sparKeyspace
-      Gundeck -> setFieldIfExists "cassandra.keyspace" resource.gundeckKeyspace
+      Galley -> setFieldIfExists "cassandra.keyspace" resource.berGalleyKeyspace
+      Brig -> setFieldIfExists "cassandra.keyspace" resource.berBrigKeyspace
+      Spar -> setFieldIfExists "cassandra.keyspace" resource.berSparKeyspace
+      Gundeck -> setFieldIfExists "cassandra.keyspace" resource.berGundeckKeyspace
       -- other services do not have a DB
       _ -> pure
 
     setEsIndex :: BackendResource -> Service -> Value -> App Value
     setEsIndex resource = \case
-      Brig -> setFieldIfExists "elasticsearch.index" resource.elasticsearchIndex
+      Brig -> setFieldIfExists "elasticsearch.index" resource.berElasticsearchIndex
       -- other services do not have an ES index
       _ -> pure
+
+setFederatorPorts :: BackendResource -> ServiceMap -> ServiceMap
+setFederatorPorts resource sm =
+  sm
+    { federatorInternal = sm.federatorInternal {host = "127.0.0.1", port = resource.berFederatorInternal},
+      federatorExternal = sm.federatorExternal {host = "127.0.0.1", port = resource.berFederatorExternal}
+    }
 
 withModifiedServices :: Map.Map Service (Value -> App Value) -> (String -> App a) -> App a
 withModifiedServices services action = do
