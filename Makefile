@@ -100,11 +100,7 @@ ifeq ("$(package)", "all")
 	./hack/bin/cabal-run-integration.sh all
 	./hack/bin/cabal-run-integration.sh integration
 endif
-ifeq ("$(package)", "integration")
-	./hack/bin/cabal-run-integration.sh integration
-else
 	./hack/bin/cabal-run-integration.sh $(package)
-endif
 
 # Compile and run services
 # Usage: make crun `OR` make crun package=galley
