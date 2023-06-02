@@ -18,7 +18,7 @@ testDownloadAsset = do
     resp.status `shouldMatchInt` 201
     resp.json %. "key"
 
-  void . bindResponse (downloadAsset user key id) $ \resp -> do
+  bindResponse (downloadAsset user key id) $ \resp -> do
     resp.status `shouldMatchInt` 200
     assertBool
       ("Expect 'Hello World!' as text asset content. Got: " ++ show resp.body)
@@ -32,10 +32,7 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
     resp.status `shouldMatchInt` 201
     resp.json %. "key"
 
-  withModifiedService
-    Cargohold
-    modifyConfig
-    $ do
+  withModifiedService Cargohold modifyConfig $ do
       bindResponse (downloadAsset user key noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 404
       bindResponse (downloadAsset' user key "red.example.com" noRedirects) $ \resp -> do
@@ -56,6 +53,7 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
       setField "aws.s3DownloadEndpoint" "http://s3-download.example.com" v
         >>= setField "aws.multiIngress" multiIngressConfig
 
+    multiIngressConfig :: Value
     multiIngressConfig =
       object
         [ "red.example.com" .= "http://s3-download.red.example.com",

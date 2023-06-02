@@ -740,8 +740,8 @@ see domains and IPs that do not obviously relate to each other.
 In case of a fake AWS S3 service its identity needs to be obfuscated by making
 it accessible via several domains, too. Thus, there isn't one
 `s3DownloadEndpoint`, but one per backend domain. (N.B. this backend domain is a
-DNS domain at which it is reachable. This does not directly relate to the
-federation domain!)
+DNS domain at which it is reachable. Do not confuse with the
+federation domain!  The latter is just an identifier, and may or may not be the DNS domain.)
 
 The backend domain of a download request is defined by its `Z-Host` header which
 is set by `nginz`. (Multi-ingress handlling only applies to download requests as
@@ -785,4 +785,4 @@ to the configuration example above:
 Unfortunately, kroki currently doesn't work on our CI: SQPIT-1810
 Link to diagram:
 https://mermaid.live/edit#pako:eNrdVbFu2zAQ_ZUDJ7ewDdhtUkBDgBRB0CHIYCNL4eVEnmWiMk8lKbttkH8vJbsW5dCOUXSqBkHiPT6-e3yinoVkRSITEC5H32syku40FhbXCwP7C6VnC1hqSQNL6l1XeWRPwBuKqxk8OXKwpRyrahxGxvQD11VJY8mvSHPOB4UlMknSrtonbcfStBVar6Wu0HjQJgCdGwUNKfaonMGMax8WeH9acIq5FXKOuwVE7BcqN4U2v9IlibbgFZcqXZ5_ABeMxYK6uiXpwRb5YHp1NYTJ9FN7ixw3jW6ri5UHXva28rZ5BsVbUzIqB-gc-WgTD9DRzU3Pz7v9FChZYnk8L4KGiW23Gdyz3aJVQW7IoYvQbT3gDq2_wsIIbpWCr6MvHF5WhIpsL2p6g6HFhHePvdajFR6Yv0Fd7ZTDquF9mj3AMoR2t0zHcZg1CiJj92akdGP-OLBJ9JpDFOa73YGNxnRAFZ3Te9rxey5L3gZHdmueMrsLyBnHDwpScerGQr_9dn1tzfFeR_2k2MioRFIn15MhTD82Sb0-ndT4fPjM-emcdsDItf23eVlSW_D_ltXYv0uzenTknU_rOd_fzOsfy_9xYvtN_21ixVCsya5Rq_D3fG6KC-FXtKaFyMKjoiXWpV-IhXkJUKw9z38aKTJvaxqKulKBff-jFdkSS0cvvwHKl250
-<!-- -->
+-->

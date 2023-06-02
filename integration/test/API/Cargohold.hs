@@ -80,8 +80,9 @@ downloadAsset' :: (HasCallStack, MakesValue user, MakesValue key) => user -> key
 downloadAsset' user key zHostHeader trans = do
   uid <- user & objId
   key' <- key & asString
-  req <- fmap trans $ baseRequest user Cargohold Versioned $ "/assets/example.com/" ++ key'
+  req <- baseRequest user Cargohold Versioned $ "/assets/example.com/" ++ key'
   submit "GET" $
     req
       & zUser uid
       & zHost zHostHeader
+      & trans
