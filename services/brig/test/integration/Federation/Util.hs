@@ -39,7 +39,6 @@ import Data.Handle (fromHandle)
 import Data.Id
 import qualified Data.Map.Strict as Map
 import Data.Qualified (Qualified (..))
-import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Database.Bloodhound as ES
 import qualified Federator.MockServer as Mock

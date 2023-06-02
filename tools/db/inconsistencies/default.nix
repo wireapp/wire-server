@@ -16,7 +16,6 @@
 , imports
 , lib
 , optparse-applicative
-, string-conversions
 , text
 , tinylog
 , types-common
@@ -41,7 +40,6 @@ mkDerivation {
     extra
     imports
     optparse-applicative
-    string-conversions
     text
     tinylog
     types-common

@@ -33,7 +33,6 @@ import Control.Retry
 import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import qualified Data.Metrics as Metrics
-import Data.String.Conversions (cs)
 import qualified Database.Bloodhound as ES
 import Imports
 import Network.HTTP.Client as HTTP

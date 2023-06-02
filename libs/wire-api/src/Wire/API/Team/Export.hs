@@ -26,7 +26,6 @@ import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.Misc (HttpsUrl)
-import Data.String.Conversions (cs)
 import Data.Vector (fromList)
 import Imports
 import Test.QuickCheck (Arbitrary)

@@ -23,7 +23,6 @@ import qualified Data.ByteString.Lazy as BL
 import Data.EitherR (fmapL)
 import Data.Kind
 import Data.Metrics.Servant
-import Data.String.Conversions (cs)
 import Data.Typeable
 import GHC.TypeLits
 import Imports

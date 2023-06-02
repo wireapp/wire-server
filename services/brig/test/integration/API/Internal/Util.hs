@@ -39,7 +39,6 @@ import Data.Id
 import qualified Data.List1 as List1
 import Data.Proxy (Proxy (Proxy))
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as T
 import Imports
 import Servant.API ((:>))

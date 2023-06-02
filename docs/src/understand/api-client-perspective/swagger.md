@@ -89,3 +89,8 @@ The URL pattern is similar to that of public endpoints for latest version:
 
 If you want to get the raw json of the swagger:
 `https://<nginz-host>/api-internal/swagger-ui/<service>-swagger.json`.
+
+### Finding the source code for an end-point
+
+A *route internal ID* is provided for every end-point.  See
+{ref}`named-and-internal-route-ids` for details and usage.

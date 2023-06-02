@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V76_FederationRemotes
+module V77_FederationRemotes
   ( migration,
   )
 where
@@ -28,7 +28,7 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 76 "Table for keeping track of instances we federate with" $
+  Migration 77 "Table for keeping track of instances we federate with" $
     schema'
       [r| CREATE TABLE federation_remotes (
             domain text PRIMARY KEY,

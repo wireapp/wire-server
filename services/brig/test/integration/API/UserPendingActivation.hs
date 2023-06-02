@@ -1,4 +1,3 @@
-{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
@@ -38,7 +37,6 @@ import Data.Aeson.Lens (key, _String)
 import Data.ByteString.Conversion (fromByteString, toByteString')
 import Data.Id (InvitationId, TeamId, UserId)
 import Data.Range (unsafeRange)
-import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID

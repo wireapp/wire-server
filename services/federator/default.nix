@@ -46,7 +46,6 @@
 , servant
 , servant-client
 , servant-client-core
-, string-conversions
 , tasty
 , tasty-hunit
 , tasty-quickcheck
@@ -107,7 +106,6 @@ mkDerivation {
     polysemy-wire-zoo
     servant
     servant-client-core
-    string-conversions
     text
     tinylog
     transformers
@@ -146,7 +144,6 @@ mkDerivation {
     QuickCheck
     random
     servant-client-core
-    string-conversions
     tasty-hunit
     text
     types-common
@@ -180,7 +177,6 @@ mkDerivation {
     servant
     servant-client
     servant-client-core
-    string-conversions
     tasty
     tasty-hunit
     tasty-quickcheck

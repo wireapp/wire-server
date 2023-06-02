@@ -22,7 +22,6 @@ module Test.Federator.ExternalServer where
 import qualified Data.ByteString as BS
 import Data.Default
 import Data.Domain
-import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as Text
 import Federator.Discovery
 import Federator.Error.ServerError (ServerError (..))

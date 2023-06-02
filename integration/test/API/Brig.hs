@@ -8,6 +8,18 @@ import qualified Data.Text.Encoding as T
 import GHC.Stack
 import Testlib.Prelude
 
+getUser ::
+  (HasCallStack, MakesValue user, MakesValue target) =>
+  user ->
+  target ->
+  App Response
+getUser user target = do
+  (domain, uid) <- objQid target
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath ["users", domain, uid]
+  submit "GET" req
+
 data AddClient = AddClient
   { ctype :: String,
     internal :: Bool,
@@ -168,3 +180,26 @@ claimKeyPackages u v = do
     baseRequest u Brig Versioned $
       "/mls/key-packages/claim/" <> targetDom <> "/" <> targetUid
   submit "POST" req
+
+getUserSupportedProtocols ::
+  (HasCallStack, MakesValue user, MakesValue target) =>
+  user ->
+  target ->
+  App Response
+getUserSupportedProtocols user target = do
+  (domain, uid) <- objQid target
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath ["users", domain, uid, "supported-protocols"]
+  submit "GET" req
+
+putUserSupportedProtocols ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  [String] ->
+  App Response
+putUserSupportedProtocols user ps = do
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath ["self", "supported-protocols"]
+  submit "PUT" (req & addJSONObject ["supported_protocols" .= ps])

@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE NumericUnderscores #-}
 
 module Galley.Run
   ( run,
@@ -50,7 +49,6 @@ import Data.Misc (portNumber)
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
-import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import Data.Time (getCurrentTime)
 import qualified Galley.API as API

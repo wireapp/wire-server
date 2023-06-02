@@ -161,6 +161,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -341,6 +342,7 @@ executable brig
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -502,6 +504,7 @@ executable brig-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -589,7 +592,6 @@ executable brig-integration
     , servant-client-core
     , spar
     , streaming-commons
-    , string-conversions
     , tasty                  >=1.0
     , tasty-cannon           >=0.3.4
     , tasty-hunit            >=0.2
@@ -659,7 +661,8 @@ executable brig-schema
     V73_ReplaceNonceTable
     V74_AddOAuthTables
     V75_AddOAuthCodeChallenge
-    V76_FederationRemotes
+    V76_AddSupportedProtocols
+    V77_FederationRemotes
     V_FUTUREWORK
 
   hs-source-dirs:     schema/src
@@ -688,6 +691,7 @@ executable brig-schema
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -761,6 +765,7 @@ test-suite brig-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports

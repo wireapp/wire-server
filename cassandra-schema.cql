@@ -1380,6 +1380,7 @@ CREATE TABLE brig_test.user (
     service uuid,
     sso_id text,
     status int,
+    supported_protocols int,
     team uuid
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}

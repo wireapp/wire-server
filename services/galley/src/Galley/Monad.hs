@@ -26,7 +26,7 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Except
 import Galley.Env
-import Imports hiding (log)
+import Imports hiding (cs, log)
 import Polysemy
 import Polysemy.Input
 import System.Logger

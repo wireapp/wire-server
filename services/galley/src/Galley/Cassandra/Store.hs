@@ -21,7 +21,7 @@ module Galley.Cassandra.Store
 where
 
 import Cassandra
-import Imports
+import Imports hiding (cs)
 import Polysemy
 import Polysemy.Input
 

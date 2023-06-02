@@ -999,7 +999,8 @@ randUser (Email loc dom) (BotTag tag) = do
           newUserLabel = Nothing,
           newUserLocale = Nothing,
           newUserExpiresIn = Nothing,
-          newUserManagedBy = Nothing
+          newUserManagedBy = Nothing,
+          newUserSupportedProtocols = Nothing
         },
       passw
     )

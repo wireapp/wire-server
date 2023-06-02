@@ -40,7 +40,6 @@
 , random
 , schema-profunctor
 , servant-server
-, string-conversions
 , swagger2
 , tagged
 , tasty
@@ -95,7 +94,6 @@ mkDerivation {
     random
     schema-profunctor
     servant-server
-    string-conversions
     swagger2
     tagged
     tasty
@@ -118,7 +116,6 @@ mkDerivation {
     cereal
     imports
     protobuf
-    string-conversions
     tasty
     tasty-hunit
     tasty-quickcheck

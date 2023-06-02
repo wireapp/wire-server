@@ -39,7 +39,6 @@ where
 import Control.Exception
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion
-import Data.String.Conversions (cs)
 import Foreign.C.String (CString, newCString, peekCString)
 import Foreign.Ptr (Ptr, nullPtr)
 import Imports

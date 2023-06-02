@@ -101,6 +101,16 @@ shouldMatchRange a (lower, upper) = do
     pl <- prettyJSON xl
     assertFailure $ "Actual:\n" <> pa <> "\nExpected:\n(" <> pl <> "," <> pu <> ")"
 
+shouldMatchSet ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  a ->
+  b ->
+  App ()
+shouldMatchSet a b = do
+  la <- fmap sort (asList a)
+  lb <- fmap sort (asList b)
+  la `shouldMatch` lb
+
 liftP2 ::
   (MakesValue a, MakesValue b, HasCallStack) =>
   (Value -> Value -> c) ->

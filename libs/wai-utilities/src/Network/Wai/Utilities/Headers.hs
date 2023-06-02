@@ -18,7 +18,6 @@
 module Network.Wai.Utilities.Headers where
 
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), fromByteString', toByteString')
-import Data.String.Conversions (cs)
 import Data.Swagger.ParamSchema (ToParamSchema (..))
 import Data.Text as T
 import Imports

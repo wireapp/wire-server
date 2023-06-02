@@ -78,10 +78,10 @@ updateFedDomainsTest = do
   -- Include that domain in the old and new lists so
   -- if the function is acting up we know it will be
   -- working on the domain.
-  -- updateFedDomainsTestNoop env remoteDomain interval
+  updateFedDomainsTestNoop env remoteDomain interval
 
   -- Adding a new federation domain, this too should be a no-op
-  -- updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval
+  updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval
 
   -- Removing a single domain
   updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval
@@ -131,6 +131,7 @@ updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = r
   _ <- postQualifiedMembers alice (remoteCharlie <| remoteBob :| []) qConvId
   -- Remove the remote user from the local domain
   liftIO $ runApp env $ deleteFederationDomains old new
+  liftIO $ assertBool "Fooooo" False
   -- Check that the conversation still exists.
   getConvQualified (qUnqualified qalice) (Qualified convId localDomain) !!! do
     const 200 === statusCode
@@ -163,7 +164,7 @@ updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval = do
   -- Create a conversation
 
   conv <- postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  liftIO $ assertBool ("conv = " <> show conv) False
+  -- liftIO $ assertBool ("conv = " <> show conv) False
   let convId = decodeConvId conv
   let qConvId = Qualified convId localDomain
   connectWithRemoteUser alice remoteBob

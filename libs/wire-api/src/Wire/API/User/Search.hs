@@ -46,7 +46,6 @@ import Data.Json.Util (UTCTimeMillis)
 import Data.Proxy
 import Data.Qualified
 import Data.Schema
-import Data.String.Conversions (cs)
 import Data.Swagger (ToParamSchema (..))
 import qualified Data.Swagger as S
 import qualified Data.Text as T

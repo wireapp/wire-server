@@ -32,7 +32,6 @@ import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Handle
 import Data.Id
-import Data.String.Conversions (cs)
 import Imports
 import System.Logger
 import qualified System.Logger as Log

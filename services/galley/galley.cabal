@@ -169,6 +169,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -257,7 +258,6 @@ library
     , split                  >=0.2
     , ssl-util               >=0.1
     , stm                    >=2.4
-    , string-conversions
     , tagged
     , text                   >=0.11
     , time                   >=1.4
@@ -311,6 +311,7 @@ executable galley
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -400,6 +401,7 @@ executable galley-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -488,7 +490,6 @@ executable galley-integration
     , sop-core
     , ssl-util
     , streaming-commons
-    , string-conversions
     , tagged
     , tasty                  >=0.8
     , tasty-cannon           >=0.3.2
@@ -555,6 +556,7 @@ executable galley-migrate-data
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -695,6 +697,7 @@ executable galley-schema
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -766,6 +769,7 @@ test-suite galley-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports

@@ -101,7 +101,6 @@ import Data.Range (Range, fromRange, rangedSchema)
 import Data.SOP
 import Data.Schema
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V5 as UUIDV5

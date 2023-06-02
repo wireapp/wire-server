@@ -10,7 +10,8 @@ data CreateUser = CreateUser
   { email :: Maybe String,
     password :: Maybe String,
     name :: Maybe String,
-    team :: Bool
+    team :: Bool,
+    supportedProtocols :: Maybe [String]
   }
 
 instance Default CreateUser where
@@ -19,7 +20,8 @@ instance Default CreateUser where
       { email = Nothing,
         password = Nothing,
         name = Nothing,
-        team = False
+        team = False,
+        supportedProtocols = Nothing
       }
 
 createUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Response
@@ -36,6 +38,7 @@ createUser domain cu = do
             "password" .= password,
             "icon" .= "default"
           ]
+            <> ["supported_protocols" .= prots | prots <- toList cu.supportedProtocols]
             <> [ "team"
                    .= object
                      [ "name" .= "integration test team",

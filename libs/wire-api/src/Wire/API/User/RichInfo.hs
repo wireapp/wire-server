@@ -53,7 +53,6 @@ import qualified Data.CaseInsensitive as CI
 import Data.List.Extra (nubOrdOn)
 import qualified Data.Map as Map
 import Data.Schema
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Imports

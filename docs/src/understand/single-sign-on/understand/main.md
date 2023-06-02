@@ -407,6 +407,22 @@ export SCIM_TOKEN_ID=$(echo $SCIM_TOKEN_FULL | jq -r .info.id)
 
 The SCIM token is now contained in the `SCIM_TOKEN` environment variable.
 
+EXPERT HINT: If you are a site operator and have the ok from the team admin, but not their password, you can try something like this (WARNING!  TEST THIS ON NON-PROD ACCOUNTS FIRST!):
+
+```
+export id="$(uuid -v4)"
+export token_="$(dd if=/dev/random bs=32 count=1 | base64)"
+export created_at='2023-05-30 11:15:00+0000'
+export team=...
+export descr=...
+echo 'INSERT INTO spar.team_provisioning_by_token (token_, team, id, created_at, idp, descr) VALUES ('\'$token_\', $team, $id, \'$created_at\', NULL, \'$descr\'');'
+echo 'INSERT INTO spar.team_provisioning_by_team (token_, team, id, created_at, idp, descr) VALUES ('\'$token_\', $team, $id, \'$created_at\', NULL, \'$descr\'');'
+echo 'SELECT * FROM spar.team_provisioning_by_team WHERE '"team = $team AND id = $id;"
+echo 'SELECT * FROM spar.team_provisioning_by_token WHERE '"token_ = $token_;"
+echo 'DELETE FROM spar.team_provisioning_by_team WHERE '"team = $team AND id = $id;"
+echo 'DELETE FROM spar.team_provisioning_by_token WHERE '"token_ = $token_;"
+```
+
 You can look it up again with:
 
 ```{code-block} bash

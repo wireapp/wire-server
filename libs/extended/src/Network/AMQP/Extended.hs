@@ -1,5 +1,3 @@
-{-# LANGUAGE NumericUnderscores #-}
-
 module Network.AMQP.Extended where
 
 import Control.Monad.Catch

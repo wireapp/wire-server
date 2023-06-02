@@ -38,7 +38,6 @@ import Data.Domain
 import Data.Id
 import Data.Misc
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import Data.Text.Ascii
 import Data.Time
 import Imports hiding (exp)

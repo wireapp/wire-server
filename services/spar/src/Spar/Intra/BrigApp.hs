@@ -52,7 +52,6 @@ import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
 import Data.Handle (Handle (Handle))
 import Data.Id (TeamId, UserId)
-import Data.String.Conversions
 import Galley.Types.Teams (HiddenPerm (CreateReadDeleteScimToken), IsPerm)
 import Imports
 import Polysemy

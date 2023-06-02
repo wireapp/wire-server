@@ -73,7 +73,7 @@ import qualified Data.Map.Strict as Map
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
-import Imports hiding (head)
+import Imports hiding (cs, head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (result, setStatus)
