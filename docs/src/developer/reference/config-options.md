@@ -728,7 +728,9 @@ The default setting is that no API version is disabled.
 ### (Fake) AWS
 
 AWS S3 (or an alternative provider / service) is used to upload and download
-assets. The Haddock of `AWSOpts` provides a lot of useful information.
+assets. The Haddock of
+[`CargoHold.Options.AWSOpts`](https://github.com/wireapp/wire-server/blob/develop/services/cargohold/src/CargoHold/Options.hs#L64)
+provides a lot of useful information.
 
 #### Multi-Ingress setup
 
@@ -739,9 +741,12 @@ see domains and IPs that do not obviously relate to each other.
 
 In case of a fake AWS S3 service its identity needs to be obfuscated by making
 it accessible via several domains, too. Thus, there isn't one
-`s3DownloadEndpoint`, but one per backend domain. (N.B. this backend domain is a
-DNS domain at which it is reachable. Do not confuse with the
-federation domain!  The latter is just an identifier, and may or may not be the DNS domain.)
+`s3DownloadEndpoint`, but one per domain at which the backend is reachable. Each
+of these backend domains represents a virtual backend. N.B. these backend
+domains are *DNS domains*. Do not confuse them with the federation domain! The
+latter is just an identifier, and may or may not be equal to the backend's DNS
+domain. Backend DNS domain(s) and federation domain are usually set equal by
+convention. But, this is not true for multi-ingress setups!
 
 The backend domain of a download request is defined by its `Z-Host` header which
 is set by `nginz`. (Multi-ingress handlling only applies to download requests as
