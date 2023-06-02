@@ -25,12 +25,12 @@ import qualified Data.Yaml as Yaml
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.Socket as N
-import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, getCurrentDirectory, listDirectory, removeDirectoryRecursive, removeFile)
+import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
 import System.Environment (getEnv)
 import System.FilePath
 import System.IO
 import qualified System.IO.Error as Error
-import System.IO.Temp (createTempDirectory, writeSystemTempFile, writeTempFile)
+import System.IO.Temp (createTempDirectory, writeTempFile)
 import System.Posix (getEnvironment, killProcess, signalProcess)
 import System.Process (CreateProcess (..), ProcessHandle, createProcess, getPid, proc, terminateProcess, waitForProcess)
 import System.Timeout (timeout)
