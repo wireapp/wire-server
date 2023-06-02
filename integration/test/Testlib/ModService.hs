@@ -27,11 +27,14 @@ import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.Socket as N
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
+import System.Environment (getEnv)
 import System.FilePath
 import System.IO
 import qualified System.IO.Error as Error
 import System.IO.Temp (createTempDirectory)
-import System.Process (CreateProcess (..), ProcessHandle, createProcess, proc, terminateProcess)
+import System.Posix (killProcess, signalProcess)
+import System.Process (CreateProcess (..), ProcessHandle, createProcess, getPid, proc, terminateProcess, waitForProcess)
+import System.Timeout (timeout)
 import Testlib.App
 import Testlib.Env
 import Testlib.HTTP
@@ -189,6 +192,17 @@ startBackend domain services modifyBackends action = do
           config
           (Map.assocs ports)
 
+  processEnv <- do
+    rabbitMqUserName <- liftIO $ getEnv "RABBITMQ_USERNAME"
+    rabbitMqPassword <- liftIO $ getEnv "RABBITMQ_PASSWORD"
+    pure
+      [ ("AWS_REGION", "eu-west-1"),
+        ("AWS_ACCESS_KEY_ID", "dummykey"),
+        ("AWS_SECRET_ACCESS_KEY", "dummysecret"),
+        ("RABBITMQ_USERNAME", rabbitMqUserName),
+        ("RABBITMQ_PASSWORD", rabbitMqPassword)
+      ]
+
   -- close all sockets before starting the services
   liftIO $ print $ "service ports: " <> show ports
   for_ (Map.keys services) $ \srv -> maybe (failApp "the impossible in withServices happened") (liftIO . N.close . snd) (Map.lookup srv ports)
@@ -216,7 +230,7 @@ startBackend domain services modifyBackends action = do
           Just dir ->
             (Just (dir </> srvName), "./dist" </> srvName)
 
-      (_, _, _, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd}
+      (_, _, _, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, env = Just processEnv}
       pure (ph, tempFile)
 
   let stopInstances = liftIO $ do
@@ -224,8 +238,19 @@ startBackend domain services modifyBackends action = do
         -- is run from within ghci, so we don't wait here.
         for_ instances $ \(ph, path) -> do
           terminateProcess ph
-          print ("killing " <> path)
-          -- whenM (doesFileExist path) $ removeFile path
+          timeout 50000 (waitForProcess ph) >>= \case
+            Just _ -> do
+              putStrLn ("killing " <> path)
+            Nothing -> do
+              timeout 100000 (waitForProcess ph) >>= \case
+                Just _ -> do
+                  putStrLn ("killing again" <> path)
+                Nothing -> do
+                  putStrLn ("force-killing " <> path)
+                  mPid <- getPid ph
+                  for_ mPid (signalProcess killProcess)
+                  void $ waitForProcess ph
+          whenM (doesFileExist path) $ removeFile path
           whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
   let modifyEnv env =
