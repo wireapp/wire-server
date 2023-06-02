@@ -29,13 +29,16 @@ where
 import Control.Comonad
 import Control.Error.Util (hush)
 import Control.Lens (preview)
+import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as LT
 import Data.Time
 import Data.Tuple.Extra
 import Galley.API.Action
@@ -217,7 +220,7 @@ postMLSCommitBundle ::
   Qualified ConvId ->
   Maybe ConnId ->
   CommitBundle ->
-  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
+  Sem r [LocalConversationUpdate]
 postMLSCommitBundle loc qusr mc qcnv conn rawBundle =
   foldQualified
     loc
@@ -250,11 +253,11 @@ postMLSCommitBundleFromLocalUser lusr mc conn bundle = do
   assertMLSEnabled
   let msg = rmValue (cbCommitMsg bundle)
   qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-  (events, unreachables) <-
-    first (map lcuEvent)
+  events <-
+    map lcuEvent
       <$> postMLSCommitBundle lusr (tUntagged lusr) mc qcnv (Just conn) bundle
   t <- toUTCTimeMillis <$> input
-  pure $ MLSMessageSendingStatus events t unreachables
+  pure $ MLSMessageSendingStatus events t mempty
 
 postMLSCommitBundleToLocalConv ::
   ( HasProposalEffects r,
@@ -275,7 +278,7 @@ postMLSCommitBundleToLocalConv ::
   Maybe ConnId ->
   CommitBundle ->
   Local ConvId ->
-  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
+  Sem r [LocalConversationUpdate]
 postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   let msg = rmValue (cbCommitMsg bundle)
   conv <- getLocalConvForUser qusr lcnv
@@ -314,16 +317,18 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     ProposalMessage _ -> throwS @'MLSUnsupportedMessage
 
-  unreachables <- propagateMessage qusr (qualifyAs lcnv conv) cm conn (rmRaw (cbCommitMsg bundle))
+  propagateMessage qusr (qualifyAs lcnv conv) cm conn (rmRaw (cbCommitMsg bundle))
+    >>= mapM_ throwUnreachableUsers
 
   for_ (cbWelcome bundle) $
     postMLSWelcome lcnv conn
 
-  pure (events, unreachables)
+  pure events
 
 postMLSCommitBundleToRemoteConv ::
   ( Members MLSBundleStaticErrors r,
     ( Member (Error FederationError) r,
+      Member (Error InternalError) r,
       Member (Error MLSProtocolError) r,
       Member (Error MLSProposalFailure) r,
       Member ExternalAccess r,
@@ -338,7 +343,7 @@ postMLSCommitBundleToRemoteConv ::
   Maybe ConnId ->
   CommitBundle ->
   Remote ConvId ->
-  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
+  Sem r [LocalConversationUpdate]
 postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
@@ -357,11 +362,17 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
     MLSMessageResponseError e -> rethrowErrors @MLSBundleStaticErrors e
     MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
+    MLSMessageResponseUnreachableBackends ds -> throwUnreachableDomains ds
     MLSMessageResponseUpdates updates unreachables -> do
-      ups <- for updates $ \update -> do
+      for_ unreachables $ \us ->
+        throw . InternalErrorWithDescription $
+          "A commit to a remote conversation should not ever return a \
+          \non-empty list of users an application message could not be \
+          \sent to. The remote end returned: "
+            <> LT.pack (intercalate ", " (show <$> NE.toList (unreachableUsers us)))
+      for updates $ \update -> do
         e <- notifyRemoteConversationAction loc (qualifyAs rcnv update) con
         pure (LocalConversationUpdate e update)
-      pure (ups, unreachables)
 
 postMLSMessage ::
   ( HasProposalEffects r,
@@ -532,6 +543,12 @@ postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
     MLSMessageResponseProtocolError e ->
       throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
+    MLSMessageResponseUnreachableBackends ds ->
+      throw . InternalErrorWithDescription $
+        "An application or proposal message to a remote conversation should \
+        \not ever return a non-empty list of domains a commit could not be \
+        \sent to. The remote end returned: "
+          <> LT.pack (intercalate ", " (show <$> Set.toList (Set.map domainText ds)))
     MLSMessageResponseUpdates updates unreachables -> do
       lcus <- for updates $ \update -> do
         e <- notifyRemoteConversationAction loc (qualifyAs rcnv update) con
