@@ -1,9 +1,11 @@
 module API.Cargohold where
 
+import qualified Codec.MIME.Type as MIME
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Lazy.Char8 as LBSC
+import qualified Data.Text as T
 import Data.Time.Clock
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
@@ -18,11 +20,26 @@ uploadAsset user = do
   submit "POST" $
     req
       & zUser uid
-      & addBody txtAsset "multipart/mixed"
+      & addBody txtAsset (mimeTypeToString multipartMixedMime)
   where
-    txtAsset = buildUploadAssetRequestBody True Nothing (LBSC.pack "Hello World!") "text/plain"
+    txtAsset :: HTTP.RequestBody
+    txtAsset =
+      buildUploadAssetRequestBody
+        True
+        Nothing
+        (LBSC.pack "Hello World!")
+        textPlainMime
 
-buildUploadAssetRequestBody :: Bool -> Maybe NominalDiffTime -> LByteString -> String -> HTTP.RequestBody
+    textPlainMime :: MIME.MIMEType
+    textPlainMime = MIME.Text $ T.pack "plain"
+
+    multipartMixedMime :: MIME.MIMEType
+    multipartMixedMime = MIME.Multipart MIME.Mixed
+
+mimeTypeToString :: MIME.MIMEType -> String
+mimeTypeToString = T.unpack . MIME.showMIMEType
+
+buildUploadAssetRequestBody :: Bool -> Maybe NominalDiffTime -> LByteString -> MIME.MIMEType -> HTTP.RequestBody
 buildUploadAssetRequestBody isPublic mbRetention body mimeType =
   buildMultipartBody header body mimeType
   where
@@ -35,7 +52,7 @@ buildUploadAssetRequestBody isPublic mbRetention body mimeType =
 
 -- | Build a complete @multipart/mixed@ request body for a one-shot,
 -- non-resumable asset upload.
-buildMultipartBody :: Aeson.Value -> LByteString -> String -> HTTP.RequestBody
+buildMultipartBody :: Aeson.Value -> LByteString -> MIME.MIMEType -> HTTP.RequestBody
 buildMultipartBody header body bodyMimeType =
   HTTP.RequestBodyLBS . toLazyByteString $
     beginMultipartBody <> lazyByteString body <> endMultipartBody
@@ -57,7 +74,7 @@ buildMultipartBody header body bodyMimeType =
           "\r\n\
           \--frontier\r\n\
           \Content-Type: "
-        <> stringUtf8 bodyMimeType
+        <> stringUtf8 (mimeTypeToString bodyMimeType)
         <> stringUtf8
           "\r\n\
           \Content-Length: "
