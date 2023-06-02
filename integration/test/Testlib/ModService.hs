@@ -11,7 +11,6 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Control (MonadBaseControl (liftBaseWith))
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
-import qualified Data.ByteString as BS
 import Data.Foldable
 import Data.Function
 import Data.Functor
@@ -26,13 +25,13 @@ import qualified Data.Yaml as Yaml
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.Socket as N
-import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
+import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, getCurrentDirectory, listDirectory, removeDirectoryRecursive, removeFile)
 import System.Environment (getEnv)
 import System.FilePath
 import System.IO
 import qualified System.IO.Error as Error
-import System.IO.Temp (createTempDirectory)
-import System.Posix (killProcess, signalProcess)
+import System.IO.Temp (createTempDirectory, writeSystemTempFile, writeTempFile)
+import System.Posix (getEnvironment, killProcess, signalProcess)
 import System.Process (CreateProcess (..), ProcessHandle, createProcess, getPid, proc, terminateProcess, waitForProcess)
 import System.Timeout (timeout)
 import Testlib.App
@@ -83,6 +82,7 @@ startDynamicBackend beOverrides action = do
                     )
                     $ defaultDynBackendConfigOverridesToMap beOverrides
             startBackend
+              (Just $ backGroundWorkerOverrides resource)
               resource.berDomain
               services
               ( \ports sm -> do
@@ -92,6 +92,9 @@ startDynamicBackend beOverrides action = do
               action
         )
   where
+    backGroundWorkerOverrides :: BackendResource -> Value -> App Value
+    backGroundWorkerOverrides resource = setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
+
     setFederatorPort :: BackendResource -> Service -> Value -> App Value
     setFederatorPort resource = \case
       Brig -> setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
@@ -125,7 +128,7 @@ setFederatorPorts resource sm =
 withModifiedServices :: Map.Map Service (Value -> App Value) -> (String -> App a) -> App a
 withModifiedServices services action = do
   domain <- asks (.domain1)
-  startBackend domain services (\ports -> Map.adjust (updateServiceMap ports) domain) action
+  startBackend Nothing domain services (\ports -> Map.adjust (updateServiceMap ports) domain) action
 
 updateServiceMap :: Map.Map Service Word16 -> ServiceMap -> ServiceMap
 updateServiceMap ports serviceMap =
@@ -144,12 +147,13 @@ updateServiceMap ports serviceMap =
     ports
 
 startBackend ::
+  Maybe (Value -> App Value) ->
   String ->
   Map.Map Service (Value -> App Value) ->
   (Map.Map Service Word16 -> Map.Map String ServiceMap -> Map.Map String ServiceMap) ->
   (String -> App a) ->
   App a
-startBackend domain services modifyBackends action = do
+startBackend mBgWorkerOverrides domain services modifyBackends action = do
   ports <- Map.traverseWithKey (\_ _ -> liftIO openFreePort) services
 
   let updateServiceMapInConfig :: Service -> Value -> App Value
@@ -192,22 +196,10 @@ startBackend domain services modifyBackends action = do
           config
           (Map.assocs ports)
 
-  processEnv <- do
-    rabbitMqUserName <- liftIO $ getEnv "RABBITMQ_USERNAME"
-    rabbitMqPassword <- liftIO $ getEnv "RABBITMQ_PASSWORD"
-    pure
-      [ ("AWS_REGION", "eu-west-1"),
-        ("AWS_ACCESS_KEY_ID", "dummykey"),
-        ("AWS_SECRET_ACCESS_KEY", "dummysecret"),
-        ("RABBITMQ_USERNAME", rabbitMqUserName),
-        ("RABBITMQ_PASSWORD", rabbitMqPassword)
-      ]
-
   -- close all sockets before starting the services
-  liftIO $ print $ "service ports: " <> show ports
   for_ (Map.keys services) $ \srv -> maybe (failApp "the impossible in withServices happened") (liftIO . N.close . snd) (Map.lookup srv ports)
 
-  instances <- for (Map.assocs services) $ \case
+  instances' <- for (Map.assocs services) $ \case
     (Nginz, _) -> do
       env <- ask
       sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (modifyBackends (fromIntegral . fst <$> ports) env.serviceMap))
@@ -215,23 +207,19 @@ startBackend domain services modifyBackends action = do
       startNginz port sm
     (srv, modifyConfig) -> do
       let srvName = serviceName srv
-      config <-
-        readServiceConfig srv
-          >>= updateServiceMapInConfig srv
-          >>= modifyConfig
+      readServiceConfig srv
+        >>= updateServiceMapInConfig srv
+        >>= modifyConfig
+        >>= startProcess srvName
 
-      (tempFile, fh) <- liftIO $ openBinaryTempFile "/tmp" (srvName <> ".yaml")
-      liftIO $ BS.hPut fh (Yaml.encode config)
-      liftIO $ hClose fh
-
-      (cwd, exe) <-
-        asks (.servicesCwdBase) <&> \case
-          Nothing -> (Nothing, srvName)
-          Just dir ->
-            (Just (dir </> srvName), "./dist" </> srvName)
-
-      (_, _, _, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, env = Just processEnv}
-      pure (ph, tempFile)
+  instances <-
+    case mBgWorkerOverrides of
+      Nothing -> pure instances'
+      Just override ->
+        readServiceConfig' "background-worker"
+          >>= override
+          >>= startProcess "background-worker"
+          <&> (: instances')
 
   let stopInstances = liftIO $ do
         -- Running waitForProcess would hang for 30 seconds when the test suite
@@ -250,7 +238,7 @@ startBackend domain services modifyBackends action = do
                   mPid <- getPid ph
                   for_ mPid (signalProcess killProcess)
                   void $ waitForProcess ph
-          whenM (doesFileExist path) $ removeFile path
+          -- whenM (doesFileExist path) $ removeFile path
           whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
   let modifyEnv env =
@@ -277,6 +265,33 @@ startBackend domain services modifyBackends action = do
             env
             `finally` stopInstances
       )
+
+startProcess :: String -> Value -> App (ProcessHandle, FilePath)
+startProcess srvName config = do
+  processEnv <- liftIO $ do
+    environment <- getEnvironment
+    rabbitMqUserName <- getEnv "RABBITMQ_USERNAME"
+    rabbitMqPassword <- getEnv "RABBITMQ_PASSWORD"
+    pure
+      ( environment
+          <> [ ("AWS_REGION", "eu-west-1"),
+               ("AWS_ACCESS_KEY_ID", "dummykey"),
+               ("AWS_SECRET_ACCESS_KEY", "dummysecret"),
+               ("RABBITMQ_USERNAME", rabbitMqUserName),
+               ("RABBITMQ_PASSWORD", rabbitMqPassword)
+             ]
+      )
+
+  tempFile <- liftIO $ writeTempFile "/tmp" (srvName <> ".yaml") (cs $ Yaml.encode config)
+
+  (cwd, exe) <-
+    asks (.servicesCwdBase) <&> \case
+      Nothing -> (Nothing, srvName)
+      Just dir ->
+        (Just (dir </> srvName), "../../dist" </> srvName)
+
+  (_, _, _, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, env = Just processEnv}
+  pure (ph, tempFile)
 
 waitUntilServiceUp :: HasCallStack => String -> Service -> App ()
 waitUntilServiceUp domain = \case
@@ -412,8 +427,9 @@ listen [::]:{ssl_port} ssl http2;
     -- override pid configuration
     let pidConfigFile = tmpDir </> "conf" </> "nginz" </> "pid.conf"
     let pid = tmpDir </> "conf" </> "nginz" </> "nginz.pid"
-    liftIO $ whenM (doesFileExist $ pidConfigFile) $ removeFile pidConfigFile
-    liftIO $ writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
+    liftIO $ do
+      whenM (doesFileExist $ pidConfigFile) $ removeFile pidConfigFile
+      writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
 
     -- start service
     (_, _, _, ph) <-
