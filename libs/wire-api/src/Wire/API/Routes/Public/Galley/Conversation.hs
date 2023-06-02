@@ -1220,6 +1220,7 @@ type ConversationAPI =
                :> CanThrow 'ConvInvalidProtocolTransition
                :> CanThrow ('ActionDenied 'LeaveConversation)
                :> CanThrow 'InvalidOperation
+               :> CanThrow 'MLSMigrationCriteriaNotSatisfied
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
                :> CanThrow 'TeamNotFound

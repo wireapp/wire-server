@@ -218,6 +218,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     ( Member ConversationStore r,
       Member (ErrorS 'ConvInvalidProtocolTransition) r,
       Member (ErrorS OperationDenied) r,
+      Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
       Member (Error NoChanges) r,
       Member (ErrorS 'NotATeamMember) r,
       Member (ErrorS 'TeamNotFound) r,
@@ -297,6 +298,7 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'InvalidOperation,
        ErrorS 'ConvNotFound,
        ErrorS 'ConvInvalidProtocolTransition,
+       ErrorS 'MLSMigrationCriteriaNotSatisfied,
        ErrorS 'NotATeamMember,
        ErrorS OperationDenied,
        ErrorS 'TeamNotFound
@@ -422,7 +424,7 @@ performAction tag origUser lconv action = do
           now <- input
           mlsConv <- mkMLSConversation conv >>= noteS @'ConvInvalidProtocolTransition
           ok <- checkMigrationCriteria now mlsConv mig
-          unless ok $ throwS @'ConvInvalidProtocolTransition
+          unless ok $ throwS @'MLSMigrationCriteriaNotSatisfied
           removeExtraneousClients origUser lconv
           E.updateToMLSProtocol lcnv
           pure (mempty, action)

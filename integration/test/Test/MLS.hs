@@ -229,8 +229,8 @@ testMLSProtocolUpgrade secondDomain = do
 
   supportMLS alice
   bindResponse (putConversationProtocol bob conv "mls") $ \resp -> do
-    -- TODO: should this return a different error?
-    resp.status `shouldMatchInt` 403
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-migration-criteria-not-satisfied"
   bindResponse (getConversation alice conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mixed"

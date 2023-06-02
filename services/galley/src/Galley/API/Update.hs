@@ -689,6 +689,7 @@ updateConversationProtocolWithLocalUser ::
     Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
+    Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamNotFound) r,
