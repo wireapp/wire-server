@@ -101,18 +101,12 @@ uploadV3 ::
   ExceptT Error App ()
 uploadV3 prc (s3Key . mkKey -> key) originalHeaders@(V3.AssetHeaders _ cl) tok src = do
   Log.info $
-    "remote"
-      .= val "S3"
-      ~~ "asset.owner"
-        .= toByteString prc
-      ~~ "asset.key"
-        .= key
-      ~~ "asset.type_from_request_ignored"
-        .= MIME.showType (V3.hdrType originalHeaders)
-      ~~ "asset.type"
-        .= MIME.showType ct
-      ~~ "asset.size"
-        .= cl
+    "remote" .= val "S3"
+      ~~ "asset.owner" .= toByteString prc
+      ~~ "asset.key" .= key
+      ~~ "asset.type_from_request_ignored" .= MIME.showType (V3.hdrType originalHeaders)
+      ~~ "asset.type" .= MIME.showType ct
+      ~~ "asset.size" .= cl
       ~~ msg (val "Uploading asset")
   void $ exec req
   where
@@ -161,10 +155,8 @@ downloadV3 (s3Key . mkKey -> key) = do
 getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)
 getMetadataV3 (s3Key . mkKey -> key) = do
   Log.debug $
-    "remote"
-      .= val "S3"
-      ~~ "asset.key"
-        .= key
+    "remote" .= val "S3"
+      ~~ "asset.key" .= key
       ~~ msg
         (val "Getting asset metadata")
   maybe (pure Nothing) handle =<< execCatch req
@@ -183,16 +175,12 @@ getMetadataV3 (s3Key . mkKey -> key) = do
 deleteV3 :: V3.AssetKey -> ExceptT Error App ()
 deleteV3 (s3Key . mkKey -> key) = do
   Log.debug $
-    "remote"
-      .= val "S3"
-      ~~ "asset.key"
-        .= key
+    "remote" .= val "S3"
+      ~~ "asset.key" .= key
       ~~ msg (val "Deleting asset")
   Log.debug $
-    "remote"
-      .= val "S3"
-      ~~ "asset.key"
-        .= key
+    "remote" .= val "S3"
+      ~~ "asset.key" .= key
       ~~ msg (val "Deleting asset")
   void $ exec req
   where
@@ -201,12 +189,9 @@ deleteV3 (s3Key . mkKey -> key) = do
 updateMetadataV3 :: V3.AssetKey -> S3AssetMeta -> ExceptT Error App ()
 updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
   Log.debug $
-    "remote"
-      .= val "S3"
-      ~~ "asset.owner"
-        .= show prc
-      ~~ "asset.key"
-        .= key
+    "remote" .= val "S3"
+      ~~ "asset.owner" .= show prc
+      ~~ "asset.key" .= key
       ~~ msg (val "Updating asset metadata")
   void $ exec req
   where
@@ -242,8 +227,7 @@ signedURL path mbHost = do
     toUri x = case parseURI strictURIParserOptions x of
       Left e -> do
         Log.err $
-          "remote"
-            .= val "S3"
+          "remote" .= val "S3"
             ~~ msg (val "Failed to generate a signed URI")
             ~~ msg (show e)
         throwE serverError
