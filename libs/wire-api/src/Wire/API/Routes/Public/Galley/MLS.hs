@@ -73,6 +73,7 @@ type MLSMessagingAPI =
                :> MakesFederatedCall 'Galley "send-mls-commit-bundle"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Brig "get-mls-clients"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound

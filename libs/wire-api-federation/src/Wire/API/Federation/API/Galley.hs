@@ -63,7 +63,8 @@ type GalleyApi =
     :<|> FedEndpoint "on-conversation-updated" ConversationUpdate ()
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent"
+              MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Brig "get-users-by-ids"
             ]
            "leave-conversation"
            LeaveConversationRequest
@@ -89,7 +90,8 @@ type GalleyApi =
            EmptyResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent"
+              MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Brig "get-users-by-ids"
             ]
            "update-conversation"
            ConversationUpdateRequest
@@ -110,7 +112,8 @@ type GalleyApi =
               MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
               MakesFederatedCall 'Galley "send-mls-commit-bundle",
-              MakesFederatedCall 'Brig "get-mls-clients"
+              MakesFederatedCall 'Brig "get-mls-clients",
+              MakesFederatedCall 'Brig "get-users-by-ids"
             ]
            "send-mls-commit-bundle"
            MLSMessageSendRequest

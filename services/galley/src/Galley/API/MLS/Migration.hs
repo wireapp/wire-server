@@ -17,9 +17,62 @@
 
 module Galley.API.MLS.Migration where
 
+import Brig.Types.Intra
+import Data.Qualified
+import qualified Data.Set as Set
 import Data.Time
+import Galley.API.MLS.Types
+import Galley.Effects.BrigAccess
+import Galley.Effects.FederatorAccess
+import Galley.Types.Conversations.Members
 import Imports
+import Polysemy
+import Wire.API.Federation.API
 import Wire.API.Team.Feature
+import Wire.API.User
 
-checkMigrationCriteria :: UTCTime -> WithStatus MlsMigrationConfig -> Bool
-checkMigrationCriteria _now _mig = True
+-- | Similar to @Ap f All@, but short-circuiting.
+--
+-- For example:
+-- @
+-- ApAll (pure False) <> ApAll (putStrLn "hi" $> True)
+-- @
+-- does not print anything.
+newtype ApAll f = ApAll {unApAll :: f Bool}
+
+instance Monad f => Semigroup (ApAll f) where
+  ApAll a <> ApAll b = ApAll $ a >>= \x -> if x then b else pure False
+
+instance Monad f => Monoid (ApAll f) where
+  mempty = ApAll (pure True)
+
+checkMigrationCriteria ::
+  ( Member BrigAccess r,
+    Member FederatorAccess r
+  ) =>
+  UTCTime ->
+  MLSConversation ->
+  WithStatus MlsMigrationConfig ->
+  Sem r Bool
+checkMigrationCriteria now conv ws
+  | wsStatus ws == FeatureStatusDisabled = pure False
+  | afterDeadline = pure True
+  | otherwise = unApAll $ mconcat [localUsersMigrated, remoteUsersMigrated]
+  where
+    mig = wsConfig ws
+    afterDeadline = maybe False (now >=) mig.finaliseRegardlessAfter
+
+    containsMLS = Set.member BaseProtocolMLSTag
+
+    localUsersMigrated = ApAll $ do
+      localProfiles <-
+        map accountUser
+          <$> getUsers (map lmId conv.mcLocalMembers)
+      pure $ all (containsMLS . userSupportedProtocols) localProfiles
+
+    remoteUsersMigrated = ApAll $ do
+      remoteProfiles <- fmap (foldMap tUnqualified)
+        . runFederatedConcurrently (map rmId conv.mcRemoteMembers)
+        $ \ruids ->
+          fedClient @'Brig @"get-users-by-ids" (tUnqualified ruids)
+      pure $ all (containsMLS . profileSupportedProtocols) remoteProfiles

@@ -227,9 +227,17 @@ testMLSProtocolUpgrade secondDomain = do
   void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
   void $ createExternalCommit bob1 Nothing >>= sendAndConsumeCommitBundle
 
+  supportMLS alice
+  bindResponse (putConversationProtocol bob conv "mls") $ \resp -> do
+    -- TODO: should this return a different error?
+    resp.status `shouldMatchInt` 403
+  bindResponse (getConversation alice conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "protocol" `shouldMatch` "mixed"
+
+  supportMLS bob
   bindResponse (putConversationProtocol bob conv "mls") $ \resp -> do
     resp.status `shouldMatchInt` 200
-
   bindResponse (getConversation alice conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mls"
