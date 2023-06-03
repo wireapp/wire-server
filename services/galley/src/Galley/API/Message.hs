@@ -407,7 +407,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
             Set.fromList $
               map (tUntagged . qualifyAs lcnv) localMemberIds
                 <> map (tUntagged . rmId) (convRemoteMembers conv)
-      isInternal <- view (optSettings . setIntraListing) <$> input
+      isInternal <- inputs @Opts (.settings.intraListing)
 
       -- check if the sender is part of the conversation
       unless (Set.member sender members) $

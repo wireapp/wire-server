@@ -21,7 +21,6 @@ module Galley.Cassandra.Code
 where
 
 import Cassandra
-import Control.Lens
 import Data.Code
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store
@@ -49,7 +48,7 @@ interpretCodeStoreToCassandra = interpret $ \case
   MakeKey cid -> Code.mkKey cid
   GenerateCode cid s t -> Code.generate cid s t
   GetConversationCodeURI ->
-    view (options . optSettings . setConversationCodeURI) <$> input
+    inputs @Env (.options.settings.conversationCodeURI)
 
 -- | Insert a conversation code
 insertCode :: Code -> Maybe Password -> Client ()

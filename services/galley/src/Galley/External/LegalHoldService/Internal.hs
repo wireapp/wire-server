@@ -23,7 +23,6 @@ where
 
 import qualified Bilge
 import Bilge.Retry
-import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Retry
 import qualified Data.ByteString as BS
@@ -81,7 +80,7 @@ makeVerifiedRequest ::
   (Http.Request -> Http.Request) ->
   App (Http.Response LC8.ByteString)
 makeVerifiedRequest fpr url reqBuilder = do
-  (mgr, verifyFingerprints) <- view (extEnv . extGetManager)
+  (mgr, verifyFingerprints) <- asks (.extEnv.extGetManager)
   makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder
 
 -- | NOTE: Use this function wisely - this creates a new manager _every_ time it is called.

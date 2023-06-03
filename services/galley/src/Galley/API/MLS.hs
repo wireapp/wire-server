@@ -27,7 +27,6 @@ module Galley.API.MLS
   )
 where
 
-import Control.Lens (view)
 import Data.Id
 import Data.Qualified
 import Galley.API.MLS.Enabled
@@ -49,5 +48,5 @@ getMLSPublicKeys ::
   Sem r MLSPublicKeys
 getMLSPublicKeys _ = do
   assertMLSEnabled
-  keys <- inputs (view mlsKeys)
+  keys <- inputs mlsKeys
   pure $ mlsKeysToPublic keys

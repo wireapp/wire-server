@@ -23,7 +23,7 @@ module API.Util.TeamFeature where
 import API.Util (HasGalley (viewGalley), zUser)
 import qualified API.Util as Util
 import Bilge
-import Control.Lens ((.~), (^?))
+import Control.Lens ((^?))
 import Control.Monad.Catch (MonadThrow)
 import Data.Aeson (FromJSON, Result (Success), ToJSON, Value, fromJSON)
 import qualified Data.Aeson.Key as Key
@@ -32,7 +32,7 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Schema
 import GHC.TypeLits (KnownSymbol)
-import Galley.Options (optSettings, setFeatureFlags)
+import Galley.Options
 import Galley.Types.Teams
 import Imports
 import TestSetup
@@ -40,7 +40,7 @@ import qualified Wire.API.Team.Feature as Public
 
 withCustomSearchFeature :: FeatureTeamSearchVisibilityAvailability -> TestM () -> TestM ()
 withCustomSearchFeature flag action = do
-  Util.withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamSearchVisibility .~ flag) action
+  Util.withSettingsOverrides (\opts -> opts {settings = opts.settings {featureFlags = opts.settings.featureFlags {teamSearchVisibility = flag}}}) action
 
 getTeamSearchVisibilityAvailable :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> MonadHttp m => m ResponseLBS
 getTeamSearchVisibilityAvailable = getTeamFeatureFlagWithGalley @Public.SearchVisibilityAvailableConfig

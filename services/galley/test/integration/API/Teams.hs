@@ -62,7 +62,7 @@ import qualified Data.UUID.V1 as UUID
 import qualified Data.Vector as V
 import GHC.TypeLits (KnownSymbol)
 import qualified Galley.Env as Galley
-import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
+import Galley.Options
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Imports
@@ -421,7 +421,7 @@ testEnableSSOPerTeam = do
         liftIO $ do
           assertEqual "bad status" status403 status
           assertEqual "bad label" "not-implemented" label
-  featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
+  featureSSO <- asks (._tsGConf.settings.featureFlags.sso)
   case featureSSO of
     FeatureSSOEnabledByDefault -> check "Teams should start with SSO enabled" Public.FeatureStatusEnabled
     FeatureSSODisabledByDefault -> check "Teams should start with SSO disabled" Public.FeatureStatusDisabled

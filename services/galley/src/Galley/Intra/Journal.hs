@@ -138,14 +138,9 @@ getBillingUserIds ::
   Maybe TeamMemberList ->
   Sem r [UserId]
 getBillingUserIds tid maybeMemberList = do
-  opts <- input
+  opts <- input @Opts.Opts
   let enableIndexedBillingTeamMembers =
-        view
-          ( Opts.optSettings
-              . Opts.setEnableIndexedBillingTeamMembers
-              . to (fromMaybe False)
-          )
-          opts
+        fromMaybe False $ opts.settings.enableIndexedBillingTeamMembers
   case maybeMemberList of
     Nothing ->
       if enableIndexedBillingTeamMembers

@@ -40,7 +40,7 @@ import Bilge.RPC
 import Brig.Types.Connection (UpdateConnectionsInternal, cUsers)
 import qualified Brig.Types.Intra as Brig
 import Control.Error hiding (bool, isRight)
-import Control.Lens (view, (^.))
+import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
@@ -251,8 +251,8 @@ updateSearchVisibilityInbound =
 
 runHereClientM :: HasCallStack => Client.ClientM a -> App (Either Client.ClientError a)
 runHereClientM action = do
-  mgr <- view manager
-  brigep <- view brig
+  mgr <- asks (.manager)
+  brigep <- asks (.brig)
   let env = Client.mkClientEnv mgr baseurl
       baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. epHost) (fromIntegral $ brigep ^. epPort) ""
   liftIO $ Client.runClientM action env

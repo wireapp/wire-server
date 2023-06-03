@@ -26,7 +26,7 @@ import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
 import Control.Error.Util
-import Control.Lens (preview, to, view, (.~), (^..))
+import Control.Lens (preview, to, view, (^..))
 import Control.Monad.Catch
 import Control.Monad.State (StateT, evalStateT)
 import qualified Control.Monad.State as State
@@ -51,7 +51,6 @@ import Data.Time.Clock (getCurrentTime)
 import qualified Data.Tuple.Extra as Tuple
 import Galley.Keys
 import Galley.Options
-import qualified Galley.Options as Opts
 import Imports hiding (getSymbolicLinkTarget)
 import System.Directory (getSymbolicLinkTarget)
 import System.FilePath
@@ -191,7 +190,7 @@ mkAppAckProposalMessage gid epoch ref mrs priv pub = do
 
 saveRemovalKey :: FilePath -> TestM ()
 saveRemovalKey fp = do
-  keys <- fromJust <$> view (tsGConf . optSettings . setMlsPrivateKeyPaths)
+  keys <- fromJust <$> asks (._tsGConf.settings.mlsPrivateKeyPaths)
   keysByPurpose <- liftIO $ loadAllMLSKeys keys
   let (_, pub) = fromJust (mlsKeyPair_ed25519 (keysByPurpose RemovalPurpose))
   liftIO $ BS.writeFile fp (BA.convert pub)
@@ -1048,4 +1047,4 @@ getSelfConv u = do
 withMLSDisabled :: HasSettingsOverrides m => m a -> m a
 withMLSDisabled = withSettingsOverrides noMLS
   where
-    noMLS = Opts.optSettings . Opts.setMlsPrivateKeyPaths .~ Nothing
+    noMLS opts = opts {settings = opts.settings {mlsPrivateKeyPaths = Nothing}}

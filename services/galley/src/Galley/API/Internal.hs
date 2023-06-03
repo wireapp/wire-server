@@ -427,7 +427,7 @@ rmUser lusr conn = do
 
 deleteLoop :: App ()
 deleteLoop = do
-  q <- view deleteQueue
+  q <- asks deleteQueue
   safeForever "deleteLoop" $ do
     i@(TeamItem tid usr con) <- Q.pop q
     env <- ask

@@ -150,7 +150,7 @@ urlPort (HttpsUrl u) = do
 
 sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> App ()
 sendMessage fprs reqBuilder = do
-  (man, verifyFingerprints) <- view (extEnv . extGetManager)
+  (man, verifyFingerprints) <- asks (.extEnv.extGetManager)
   liftIO . withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->
     Http.withResponse req man (const $ pure ())
 

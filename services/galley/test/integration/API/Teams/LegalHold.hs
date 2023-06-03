@@ -50,7 +50,7 @@ import Galley.Cassandra.Client (lookupClients)
 import Galley.Cassandra.LegalHold
 import qualified Galley.Cassandra.LegalHold as LegalHoldData
 import qualified Galley.Env as Galley
-import Galley.Options (optSettings, setFeatureFlags)
+import Galley.Options
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Teams
 import Imports
@@ -83,7 +83,7 @@ import qualified Wire.API.User.Client as Client
 
 onlyIfLhWhitelisted :: TestM () -> TestM ()
 onlyIfLhWhitelisted action = do
-  featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
+  featureLegalHold <- asks (._tsGConf.settings.featureFlags.legalHold)
   case featureLegalHold of
     FeatureLegalHoldDisabledPermanently ->
       liftIO $ hPutStrLn stderr errmsg

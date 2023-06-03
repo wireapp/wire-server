@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -18,45 +16,16 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Options
-  ( Settings,
-    setHttpPoolSize,
-    setMaxTeamSize,
-    setMaxFanoutSize,
-    setExposeInvitationURLsTeamAllowlist,
-    setMaxConvSize,
-    setIntraListing,
-    setDisabledAPIVersions,
-    setConversationCodeURI,
-    setConcurrentDeletionEvents,
-    setDeleteConvThrottleMillis,
-    setFederationDomain,
-    setEnableIndexedBillingTeamMembers,
-    setMlsPrivateKeyPaths,
-    setFeatureFlags,
+  ( Settings (..),
     defConcurrentDeletionEvents,
     defDeleteConvThrottleMillis,
     defFanoutLimit,
-    JournalOpts (JournalOpts),
-    awsQueueName,
-    awsEndpoint,
-    Opts,
-    optGalley,
-    optCassandra,
-    optBrig,
-    optGundeck,
-    optSpar,
-    optFederator,
-    optDiscoUrl,
-    optSettings,
-    optJournal,
-    optLogLevel,
-    optLogNetStrings,
-    optLogFormat,
+    JournalOpts (..),
+    Opts (..),
   )
 where
 
-import Control.Lens hiding (Level, (.=))
-import Data.Aeson.TH (deriveFromJSON)
+import Data.Aeson (FromJSON)
 import Data.Domain (Domain)
 import Data.Id (TeamId)
 import Data.Misc
@@ -66,34 +35,33 @@ import Galley.Types.Teams
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
-import Util.Options.Common
 import Wire.API.Routes.Version
 import Wire.API.Team.Member
 
 data Settings = Settings
   { -- | Number of connections for the HTTP client pool
-    _setHttpPoolSize :: !Int,
+    httpPoolSize :: !Int,
     -- | Max number of members in a team. NOTE: This must be in sync with Brig
-    _setMaxTeamSize :: !Word32,
+    maxTeamSize :: !Word32,
     -- | Max number of team members users to fanout events to. For teams larger than
     --   this value, team events and user updates will no longer be sent to team users.
     --   This defaults to setMaxTeamSize and cannot be > HardTruncationLimit. Useful
     --   to tune mainly for testing purposes.
-    _setMaxFanoutSize :: !(Maybe (Range 1 HardTruncationLimit Int32)),
+    maxFanoutSize :: !(Maybe (Range 1 HardTruncationLimit Int32)),
     -- | List of teams for which the invitation URL can be added to the list of all
     -- invitations retrievable by team admins.  See also:
     -- 'ExposeInvitationURLsToTeamAdminConfig'.
-    _setExposeInvitationURLsTeamAllowlist :: !(Maybe [TeamId]),
+    exposeInvitationURLsTeamAllowlist :: !(Maybe [TeamId]),
     -- | Max number of members in a conversation. NOTE: This must be in sync with Brig
-    _setMaxConvSize :: !Word16,
+    maxConvSize :: !Word16,
     -- | Whether to call Brig for device listing
-    _setIntraListing :: !Bool,
+    intraListing :: !Bool,
     -- | URI prefix for conversations with access mode @code@
-    _setConversationCodeURI :: !HttpsUrl,
+    conversationCodeURI :: !HttpsUrl,
     -- | Throttling: limits to concurrent deletion events
-    _setConcurrentDeletionEvents :: !(Maybe Int),
+    concurrentDeletionEvents :: !(Maybe Int),
     -- | Throttling: delay between sending events upon team deletion
-    _setDeleteConvThrottleMillis :: !(Maybe Int),
+    deleteConvThrottleMillis :: !(Maybe Int),
     -- | FederationDomain is required, even when not wanting to federate with other backends
     -- (in that case the 'allowedDomains' can be set to empty in Federator)
     -- Federation domain is used to qualify local IDs and handles,
@@ -106,23 +74,21 @@ data Settings = Settings
     --   allowedDomains:
     --     - wire.com
     --     - example.com
-    _setFederationDomain :: !Domain,
+    federationDomain :: !Domain,
     -- | When true, galley will assume data in `billing_team_member` table is
     -- consistent and use it for billing.
     -- When false, billing information for large teams is not guaranteed to have all
     -- the owners.
     -- Defaults to false.
-    _setEnableIndexedBillingTeamMembers :: !(Maybe Bool),
-    _setMlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
+    enableIndexedBillingTeamMembers :: !(Maybe Bool),
+    mlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
-    _setFeatureFlags :: !FeatureFlags,
-    _setDisabledAPIVersions :: Maybe (Set Version)
+    featureFlags :: !FeatureFlags,
+    disabledAPIVersions :: Maybe (Set Version)
   }
   deriving (Show, Generic)
 
-deriveFromJSON toOptionFieldName ''Settings
-
-makeLenses ''Settings
+instance FromJSON Settings
 
 defConcurrentDeletionEvents :: Int
 defConcurrentDeletionEvents = 128
@@ -135,46 +101,43 @@ defFanoutLimit = unsafeRange hardTruncationLimit
 
 data JournalOpts = JournalOpts
   { -- | SQS queue name to send team events
-    _awsQueueName :: !Text,
+    queueName :: !Text,
     -- | AWS endpoint
-    _awsEndpoint :: !AWSEndpoint
+    endpoint :: !AWSEndpoint
   }
   deriving (Show, Generic)
 
-deriveFromJSON toOptionFieldName ''JournalOpts
-
-makeLenses ''JournalOpts
+instance FromJSON JournalOpts
 
 data Opts = Opts
   { -- | Host and port to bind to
-    _optGalley :: !Endpoint,
+    galley :: !Endpoint,
     -- | Cassandra settings
-    _optCassandra :: !CassandraOpts,
+    cassandra :: !CassandraOpts,
     -- | Brig endpoint
-    _optBrig :: !Endpoint,
+    brig :: !Endpoint,
     -- | Gundeck endpoint
-    _optGundeck :: !Endpoint,
+    gundeck :: !Endpoint,
     -- | Spar endpoint
-    _optSpar :: !Endpoint,
+    spar :: !Endpoint,
     -- | Federator endpoint
-    _optFederator :: !(Maybe Endpoint),
+    federator :: !(Maybe Endpoint),
     -- | Disco URL
-    _optDiscoUrl :: !(Maybe Text),
+    discoUrl :: !(Maybe Text),
     -- | Other settings
-    _optSettings :: !Settings,
+    settings :: !Settings,
     -- | Journaling options ('Nothing'
     --   disables journaling)
     -- Logging
-    _optJournal :: !(Maybe JournalOpts),
+    journal :: !(Maybe JournalOpts),
     -- | Log level (Debug, Info, etc)
-    _optLogLevel :: !Level,
+    logLevel :: !Level,
     -- | Use netstrings encoding
     --  <http://cr.yp.to/proto/netstrings.txt>
-    _optLogNetStrings :: !(Maybe (Last Bool)),
+    logNetStrings :: !(Maybe (Last Bool)),
     -- | What log format to use
-    _optLogFormat :: !(Maybe (Last LogFormat))
+    logFormat :: !(Maybe (Last LogFormat))
   }
+  deriving (Show, Generic)
 
-deriveFromJSON toOptionFieldName ''Opts
-
-makeLenses ''Opts
+instance FromJSON Opts

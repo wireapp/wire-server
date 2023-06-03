@@ -828,8 +828,8 @@ anyLegalholdActivated ::
   [UserId] ->
   Sem r Bool
 anyLegalholdActivated uids = do
-  opts <- input
-  case view (optSettings . setFeatureFlags . flagLegalHold) opts of
+  opts <- input @Opts
+  case opts.settings.featureFlags.legalHold of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> check
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> check
@@ -847,8 +847,8 @@ allLegalholdConsentGiven ::
   [UserId] ->
   Sem r Bool
 allLegalholdConsentGiven uids = do
-  opts <- input
-  case view (optSettings . setFeatureFlags . flagLegalHold) opts of
+  opts <- input @Opts
+  case opts.settings.featureFlags.legalHold of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> do
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
@@ -892,9 +892,8 @@ ensureMemberLimit ::
   f a ->
   Sem r ()
 ensureMemberLimit old new = do
-  o <- input
-  let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
-  when (length old + length new > maxSize) $
+  o <- input @Opts
+  when (length old + length new > fromIntegral o.settings.maxConvSize) $
     throwS @'TooManyMembers
 
 conversationExisted ::

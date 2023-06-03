@@ -45,16 +45,16 @@ interpretFederatorAccess = interpret $ \case
   RunFederatedConcurrentlyEither rs f ->
     embedApp $
       runFederatedConcurrentlyEither rs f
-  IsFederationConfigured -> embedApp $ isJust <$> view federator
+  IsFederationConfigured -> embedApp $ isJust <$> asks (.federator)
 
 runFederatedEither ::
   Remote x ->
   FederatorClient c a ->
   App (Either FederationError a)
 runFederatedEither (tDomain -> remoteDomain) rpc = do
-  ownDomain <- view (options . optSettings . setFederationDomain)
-  mfedEndpoint <- view federator
-  mgr <- view http2Manager
+  ownDomain <- asks (.options.settings.federationDomain)
+  mfedEndpoint <- asks (.federator)
+  mgr <- asks http2Manager
   case mfedEndpoint of
     Nothing -> pure (Left FederationNotConfigured)
     Just fedEndpoint -> do
