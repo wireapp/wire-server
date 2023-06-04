@@ -28,7 +28,7 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 76 "Table for keeping track of instances we federate with" $
+  Migration 77 "Table for keeping track of instances we federate with" $
     schema'
       [r| CREATE TABLE federation_remotes (
             domain text PRIMARY KEY,
