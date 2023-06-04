@@ -843,7 +843,7 @@ consumeMessage1 cid msg = do
 sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], Maybe UnreachableUsers)
 sendAndConsumeMessage mp = do
   res <-
-    fmap (mmssEvents Tuple.&&& mmssUnreachableUsers) $
+    fmap (mmssEvents Tuple.&&& mmssFailedToSendTo) $
       responseJsonError
         =<< postMessage (mpSender mp) (mpMessage mp)
           <!! const 201 === statusCode
@@ -862,17 +862,8 @@ sendAndConsumeCommit ::
   HasCallStack =>
   MessagePackage ->
   MLSTest [Event]
-sendAndConsumeCommit = fmap fst . sendAndConsumeCommitFederated
-
--- | Send an MLS commit message, simulate clients receiving it, and update the
--- test state accordingly. Also return lists of federated users that a message
--- could not be sent to.
-sendAndConsumeCommitFederated ::
-  HasCallStack =>
-  MessagePackage ->
-  MLSTest ([Event], Maybe UnreachableUsers)
-sendAndConsumeCommitFederated mp = do
-  resp <- sendAndConsumeMessage mp
+sendAndConsumeCommit mp = do
+  (resp, Nothing) <- sendAndConsumeMessage mp
 
   -- increment epoch and add new clients
   State.modify $ \mls ->
