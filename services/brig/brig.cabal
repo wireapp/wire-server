@@ -660,7 +660,8 @@ executable brig-schema
     V73_ReplaceNonceTable
     V74_AddOAuthTables
     V75_AddOAuthCodeChallenge
-    V76_FederationRemotes
+    V76_AddSupportedProtocols
+    V77_FederationRemotes
     V_FUTUREWORK
 
   hs-source-dirs:     schema/src

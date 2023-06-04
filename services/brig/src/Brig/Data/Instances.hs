@@ -300,3 +300,10 @@ instance Cql FederatedUserSearchPolicy where
   fromCql (CqlInt 1) = pure ExactHandleSearch
   fromCql (CqlInt 2) = pure FullSearch
   fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
+
+instance Cql (Imports.Set BaseProtocolTag) where
+  ctype = Tagged IntColumn
+
+  toCql = CqlInt . fromIntegral . protocolSetBits
+  fromCql (CqlInt bits) = pure $ protocolSetFromBits (fromIntegral bits)
+  fromCql _ = Left "Protocol set: Int expected"

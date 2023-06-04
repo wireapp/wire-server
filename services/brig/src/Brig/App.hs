@@ -158,7 +158,7 @@ import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
 
 schemaVersion :: Int32
-schemaVersion = 76
+schemaVersion = 77
 
 -------------------------------------------------------------------------------
 -- Environment

@@ -275,6 +275,7 @@ servantSitemap =
         :<|> Named @"list-users-by-ids-or-handles@V3" (callsFed (exposeAnnotations listUsersByIdsOrHandlesV3))
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
+        :<|> Named @"get-supported-protocols" getSupportedProtocols
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -288,6 +289,7 @@ servantSitemap =
         :<|> Named @"change-password" changePassword
         :<|> Named @"change-locale" (callsFed (exposeAnnotations changeLocale))
         :<|> Named @"change-handle" (callsFed (exposeAnnotations changeHandle))
+        :<|> Named @"change-supported-protocols" changeSupportedProtocols
 
     accountAPI :: ServerT AccountAPI (Handler r)
     accountAPI =
@@ -607,6 +609,16 @@ getRichInfo self user = do
   -- Query rich info
   wrapClientE $ fromMaybe mempty <$> API.lookupRichInfo user
 
+getSupportedProtocols ::
+  Member GalleyProvider r =>
+  Local UserId ->
+  Qualified UserId ->
+  Handler r (Set Public.BaseProtocolTag)
+getSupportedProtocols lself quid = do
+  muser <- API.lookupProfile lself quid !>> fedError
+  user <- maybe (throwStd (errorToWai @'E.UserNotFound)) pure muser
+  pure (Public.profileSupportedProtocols user)
+
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
@@ -861,6 +873,10 @@ changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
 changeLocale :: UserId -> ConnId -> Public.LocaleUpdate -> (Handler r) ()
 changeLocale u conn l = lift $ API.changeLocale u conn l
+
+changeSupportedProtocols :: Local UserId -> ConnId -> Public.SupportedProtocolUpdate -> Handler r ()
+changeSupportedProtocols (tUnqualified -> u) conn (Public.SupportedProtocolUpdate prots) =
+  lift $ API.changeSupportedProtocols u conn prots
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)

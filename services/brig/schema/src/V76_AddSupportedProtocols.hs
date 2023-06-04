@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,10 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V76_FederationRemotes
-  ( migration,
-  )
-where
+module V76_AddSupportedProtocols (migration) where
 
 import Cassandra.Schema
 import Imports
@@ -28,10 +25,9 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 76 "Table for keeping track of instances we federate with" $
+  Migration 76 "Add supported_protocols to user table" $
     schema'
-      [r| CREATE TABLE federation_remotes (
-            domain text PRIMARY KEY,
-            search_policy int
-          )
+      [r| ALTER TABLE user ADD (
+          supported_protocols int
+        )
      |]

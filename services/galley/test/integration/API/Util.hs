@@ -2592,7 +2592,8 @@ mkProfile quid name =
       profileExpire = Nothing,
       profileTeam = Nothing,
       profileEmail = Nothing,
-      profileLegalholdStatus = defUserLegalHoldStatus
+      profileLegalholdStatus = defUserLegalHoldStatus,
+      profileSupportedProtocols = defSupportedProtocols
     }
 
 -- mock federator
