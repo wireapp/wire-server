@@ -516,13 +516,10 @@ In order to achieve a zero-downtime upgrade, follow these steps:
 1. Update the brig config values file as described above.
 
 2. If you have chosen `brig.config.optSettings.setFederationStrategy:
-  allowDynamic` and/or if you had previously configured search
-  policies under `brig.config.optSettings.setFederationDomainConfigs`,
-  update brig config values again.
-
-    This is to cover the time window
-    between upgrading the brig pods and populating cassandra with the
-    information needed.  Example:
+  allowDynamic` you need to make sure the list of all domains you want
+  to allow federation with is complete (before, there was a search
+  policy default; now wire will stop federating with removes that are
+  not listed here).  Example:
 
     ```yaml
     brig:
@@ -534,6 +531,10 @@ In order to achieve a zero-downtime upgrade, follow these steps:
           - domain: blue.example.com
             search_policy: no_search
     ```
+
+    This change is to cover the time window between upgrading the brig
+    pods and populating cassandra with the information needed (see
+    Step 3 below).
 
     Any later lookup of this information will return the union of what
     is in cassandra and what is in the config file.  Any attempt to
