@@ -27,9 +27,10 @@ testCrudFederationRemotes = do
   let parseFedConns :: HasCallStack => Response -> App [Value]
       parseFedConns resp =
         -- Pick out the list of federation domain configs
-        getJSON 200 resp %. "remotes" & asList
-        -- Enforce that the values are objects and not something else
-        >>= traverse (fmap Object . asObject)
+        getJSON 200 resp %. "remotes"
+          & asList
+          -- Enforce that the values are objects and not something else
+          >>= traverse (fmap Object . asObject)
       addOnce :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => fedConn -> [fedConn2] -> App ()
       addOnce fedConn want = do
         res <- Internal.createFedConn OwnDomain fedConn
@@ -74,7 +75,7 @@ testCrudFederationRemotes = do
       cfgRemotesExpect :: Internal.FedConn
       cfgRemotesExpect = Internal.FedConn (cs "example.com") "full_search"
 
-  remote1J  <- make remote1
+  remote1J <- make remote1
   remote1J' <- make remote1'
 
   resetFedConns OwnDomain
