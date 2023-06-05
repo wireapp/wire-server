@@ -111,7 +111,8 @@ servantSitemap ::
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
-  ejpdAPI
+  istatusAPI
+    :<|> ejpdAPI
     :<|> accountAPI
     :<|> mlsAPI
     :<|> getVerificationCode
@@ -120,6 +121,9 @@ servantSitemap =
     :<|> authAPI
     :<|> internalOauthAPI
     :<|> internalSearchIndexAPI
+
+istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
+istatusAPI = Named @"get-status" (pure NoContent)
 
 ejpdAPI ::
   Member GalleyProvider r =>
@@ -291,9 +295,6 @@ sitemap ::
   ) =>
   Routes a (Handler r) ()
 sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
-  get "/i/status" (continue $ const $ pure empty) true
-  head "/i/status" (continue $ const $ pure empty) true
-
   -- internal email activation (used in tests and in spar for validating emails obtained as
   -- SAML user identifiers).  if the validate query parameter is false or missing, only set
   -- the activation timeout, but do not send an email, and do not do anything about activating

@@ -17,6 +17,7 @@
 
 module Wire.API.Routes.Internal.Brig
   ( API,
+    IStatusAPI,
     EJPD_API,
     AccountAPI,
     MLSAPI,
@@ -321,7 +322,8 @@ type GetVerificationCode =
 
 type API =
   "i"
-    :> ( EJPD_API
+    :> ( IStatusAPI
+           :<|> EJPD_API
            :<|> AccountAPI
            :<|> MLSAPI
            :<|> GetVerificationCode
@@ -331,6 +333,14 @@ type API =
            :<|> OAuthAPI
            :<|> ISearchIndexAPI
        )
+
+type IStatusAPI =
+  Named
+    "get-status"
+    ( Summary "do nothing, just check liveness (NB: this works for both get, head)"
+        :> "status"
+        :> Get '[Servant.JSON] NoContent
+    )
 
 type TeamsAPI =
   Named
