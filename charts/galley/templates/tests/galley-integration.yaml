@@ -61,6 +61,12 @@ spec:
       value: "dummy"
     - name: AWS_REGION
       value: "eu-west-1"
+    {{- if .Values.config.enableFederation }}
+    - name: RABBITMQ_USERNAME
+      value: "guest"
+    - name: RABBITMQ_PASSWORD
+      value: "guest"
+    {{- end }}
     resources:
       requests:
         memory: "512Mi"
