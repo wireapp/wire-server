@@ -69,7 +69,7 @@ import Data.Time.Clock (getCurrentTime)
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer
 import Galley.API.Mapping
-import Galley.Options (optFederator)
+import Galley.Options (optFederator, optRabbitmq)
 import Galley.Types.Conversations.Members
 import Imports
 import qualified Network.HTTP.Types.Status as HTTP
@@ -2472,7 +2472,10 @@ postConvQualifiedFederationNotEnabled = do
   alice <- randomUser
   bob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
   connectWithRemoteUser alice bob
-  let federatorNotConfigured = optFederator .~ Nothing
+  let federatorNotConfigured o =
+        o
+          & optFederator .~ Nothing
+          & optRabbitmq .~ Nothing
   withSettingsOverrides federatorNotConfigured $ do
     g <- viewGalley
     postConvHelper g alice [bob] !!! do
@@ -3076,7 +3079,10 @@ testAddRemoteMemberFederationDisabled = do
 
   -- federator endpoint not configured is equivalent to federation being disabled
   -- This is the case on staging/production in May 2021.
-  let federatorNotConfigured = optFederator .~ Nothing
+  let federatorNotConfigured o =
+        o
+          & optFederator .~ Nothing
+          & optRabbitmq .~ Nothing
   withSettingsOverrides federatorNotConfigured $
     postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
       const 400 === statusCode
