@@ -2,7 +2,7 @@
 
 (configuring-remote-connections-dev-perspective)=
 
-## keeping track of federator remotes
+## Keeping track of federator remotes
 
 **Since [PR#3260](https://github.com/wireapp/wire-server/pull/3260).**
 
