@@ -37,9 +37,5 @@ type instance MapError 'AssetTooLarge = 'StaticError 413 "client-error" "Asset t
 
 type instance MapError 'InvalidLength = 'StaticError 400 "invalid-length" "Invalid content length"
 
-type instance
-  MapError 'NoMatchingAssetEndpoint =
-    'StaticError
-      404
-      "no-asset-endpoint"
-      "No matching asset endpoint found. Please contact your system administrator."
+-- | Return `AssetNotFound` to hide there's a multi-ingress setup.
+type instance MapError 'NoMatchingAssetEndpoint = MapError 'AssetNotFound
