@@ -79,6 +79,7 @@ startDynamicBackend beOverrides action = do
                           >=> setKeyspace resource srv
                           >=> setEsIndex resource srv
                           >=> setFederatorPort resource srv
+                          >=> updateBrigConfig resource srv
                     )
                     $ defaultDynBackendConfigOverridesToMap beOverrides
             startBackend
@@ -93,6 +94,14 @@ startDynamicBackend beOverrides action = do
               action
         )
   where
+    updateBrigConfig :: BackendResource -> Service -> Value -> App Value
+    updateBrigConfig resource =
+      \case
+        Brig ->
+          setField "optSettings.setFederationDomain" resource.berDomain
+            >=> setField "optSettings.setFederationDomainConfigs" [object ["domain" .= resource.berDomain, "search_policy" .= "full_search"]]
+        _ -> pure
+
     setFederatorConfig :: BackendResource -> Value -> App Value
     setFederatorConfig resource =
       setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
@@ -184,10 +193,6 @@ startBackend domain mFederatorOverrides mBgWorkerOverrides services modifyBacken
                     -- FUTUREWORK: override "saml.spAppUri" and "saml.spSsoUri" with correct port, too?
                     & setField "saml.spHost" ("127.0.0.1" :: String)
                     & setField "saml.spPort" port
-                Just Brig ->
-                  overridden
-                    & setField "optSettings.setFederationDomain" domain
-                    & setField "optSettings.setFederationDomainConfigs" [object ["domain" .= domain, "search_policy" .= "full_search"]]
                 Just Cargohold ->
                   overridden
                     & setField "settings.federationDomain" domain
