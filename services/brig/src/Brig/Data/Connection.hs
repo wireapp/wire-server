@@ -37,10 +37,12 @@ module Brig.Data.Connection
     countConnections,
     deleteConnections,
     deleteRemoteConnections,
+    deleteRemoteConnectionsDomain,
     remoteConnectionInsert,
     remoteConnectionSelect,
     remoteConnectionSelectFrom,
     remoteConnectionDelete,
+    remoteConnectionSelectFromDomain,
     remoteConnectionClear,
 
     -- * Re-exports
@@ -323,6 +325,13 @@ deleteRemoteConnections (tUntagged -> Qualified remoteUser remoteDomain) (fromRa
   pooledForConcurrentlyN_ 16 locals $ \u ->
     write remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)
 
+deleteRemoteConnectionsDomain :: (MonadClient m, MonadUnliftIO m) => Domain -> m ()
+deleteRemoteConnectionsDomain dom = do
+  -- Select all triples for the given domain
+  triples <- retry x1 . query remoteConnectionSelectFromDomain $ params One $ pure dom
+  -- Delete them
+  pooledForConcurrentlyN_ 16 triples $ write remoteConnectionDelete . params LocalQuorum
+
 -- Queries
 
 connectionInsert :: PrepQuery W (UserId, UserId, RelationWithHistory, UTCTimeMillis, ConvId) ()
@@ -384,6 +393,9 @@ remoteConnectionUpdate = "UPDATE connection_remote set status = ?, last_update =
 
 remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
 remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right_user = ?"
+
+remoteConnectionSelectFromDomain :: PrepQuery R (Identity Domain) (UserId, Domain, UserId)
+remoteConnectionSelectFromDomain = "SELECT left, right_domain, right_user FROM connection_remote where right_domain = ?"
 
 remoteConnectionClear :: PrepQuery W (Identity UserId) ()
 remoteConnectionClear = "DELETE FROM connection_remote where left = ?"

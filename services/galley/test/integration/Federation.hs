@@ -92,18 +92,12 @@ updateFedDomainsTest = do
 fromFedList :: FederationDomainConfigs -> Set Domain
 fromFedList = Set.fromList . fmap domain . remotes
 
--- Bundle all of the deletes together for easy calling
-deleteFederationDomain :: Domain -> App ()
-deleteFederationDomain d = do
-    deleteFederationDomainRemote d
-    deleteFederationDomainLocal d
-    deleteFederationDomainOneOnOne d
-
 deleteFederationDomains :: FederationDomainConfigs -> FederationDomainConfigs -> App ()
 deleteFederationDomains old new = do
     let prev = fromFedList old
         curr = fromFedList new
         deletedDomains = Set.difference prev curr
+    -- Call into the galley code
     for_ deletedDomains deleteFederationDomain
 
 constHandlers :: MonadIO m => [RetryStatus -> Handler m Bool]
@@ -131,7 +125,6 @@ updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = r
   _ <- postQualifiedMembers alice (remoteCharlie <| remoteBob :| []) qConvId
   -- Remove the remote user from the local domain
   liftIO $ runApp env $ deleteFederationDomains old new
-  liftIO $ assertBool "Fooooo" False
   -- Check that the conversation still exists.
   getConvQualified (qUnqualified qalice) (Qualified convId localDomain) !!! do
     const 200 === statusCode

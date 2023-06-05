@@ -3,6 +3,7 @@ module Wire.API.FederationUpdate
     updateFedDomains,
     getAllowedDomainsInitial,
     updateFedDomains',
+    deleteFederationRemoteGalley
   )
 where
 
@@ -20,9 +21,13 @@ import Util.Options (Endpoint (..))
 import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (domain), FederationDomainConfigs (remotes, updateInterval))
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Named (namedClient)
+import Data.Domain
 
 getFedRemotes :: ClientM FederationDomainConfigs
 getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
+
+deleteFedRemoteGalley :: Domain -> ClientM ()
+deleteFedRemoteGalley dom = namedClient @IAPI.API @"delete-federation-remote-galley" dom
 
 -- Initial function for getting the set of domains from brig, and an update interval
 getAllowedDomainsInitial :: L.Logger -> ClientEnv -> IO FederationDomainConfigs
@@ -46,6 +51,9 @@ getAllowedDomainsInitial logger clientEnv =
 
 getAllowedDomains :: ClientEnv -> IO (Either ClientError FederationDomainConfigs)
 getAllowedDomains = runClientM getFedRemotes
+
+deleteFederationRemoteGalley :: Domain -> ClientEnv -> IO (Either ClientError ())
+deleteFederationRemoteGalley dom = runClientM $ deleteFedRemoteGalley dom
 
 -- Old value -> new value -> action
 type FedUpdateCallback = FederationDomainConfigs -> FederationDomainConfigs -> IO ()

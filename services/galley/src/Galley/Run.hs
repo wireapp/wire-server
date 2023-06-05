@@ -20,9 +20,7 @@ module Galley.Run
     mkApp,
     mkLogger,
     -- Exported for tests
-    deleteFederationDomainRemote,
-    deleteFederationDomainLocal,
-    deleteFederationDomainOneOnOne,
+    deleteFederationDomain
   )
 where
 
@@ -32,7 +30,7 @@ import Bilge.Request (requestIdName)
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import qualified Control.Concurrent.Async as Async
-import Control.Exception (finally)
+import Control.Exception (finally, throwIO)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Codensity
 import qualified Data.Aeson as Aeson
@@ -61,7 +59,6 @@ import Galley.App
 import qualified Galley.App as App
 import Galley.Aws (awsEnv)
 import Galley.Cassandra
-import Galley.Cassandra.Connection
 import Galley.Data.Conversation.Types (convMetadata)
 import qualified Galley.Effects.MemberStore as E
 import Galley.Env
@@ -83,8 +80,7 @@ import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
 import Polysemy.Error
 import Servant hiding (route)
-import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http))
-import Servant.Client.Internal.HttpClient (defaultMakeClientRequest)
+import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http), defaultMakeClientRequest)
 import qualified System.Logger as Log
 import System.Logger.Extended (mkLogger)
 import Util.Options
@@ -249,10 +245,7 @@ readRabbitMq channel mqq env = void $ AMQP.consumeMsgs channel mqq AMQP.Ack $ \(
       Log.err (env ^. applog) $ Log.msg @Text "Could not decode message from RabbitMQ" . Log.field "error" (show e)
       AMQP.nackEnv envelope
     Right dom -> do
-      runApp env $ do
-        deleteFederationDomainRemote dom
-        deleteFederationDomainLocal dom
-        deleteFederationDomainOneOnOne dom
+      runApp env $ deleteFederationDomain dom
       AMQP.ackEnv envelope
 
 mkApp :: Opts -> IORef FederationDomainConfigs -> Log.Logger -> Codensity IO (Application, Env)
@@ -342,6 +335,15 @@ collectAuthMetrics m env = do
 insertIntoMap :: (ConvId, a) -> Map ConvId (N.NonEmpty a) -> Map ConvId (N.NonEmpty a)
 insertIntoMap (cnvId, user) m = Map.alter (pure . maybe (pure user) (N.cons user)) cnvId m
 
+-- Bundle all of the deletes together for easy calling
+-- Errors & exceptions are thrown to IO to stop the message being ACKed, eventually timing it
+-- out so that it can be redelivered.
+deleteFederationDomain :: Domain -> App ()
+deleteFederationDomain d = do
+  deleteFederationDomainRemote d
+  deleteFederationDomainLocal d
+  deleteFederationDomainOneOnOne d
+
 -- Remove remote members from local conversations
 deleteFederationDomainRemote :: Domain -> App ()
 deleteFederationDomainRemote dom = do
@@ -356,6 +358,7 @@ deleteFederationDomainRemote dom = do
     -- to the conversation. However we also don't want to DOS
     -- clients. Maybe suppress and send out a bulk version?
     liftIO
+      -- All errors, either exceptions or Either e, get thrown into IO
       $ evalGalleyToIO env
       $ mapToRuntimeError @F.RemoveFromConversationError (InternalErrorWithDescription "Federation domain removal: Remove from conversation error")
         . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Federation domain removal: Conversation not found")
@@ -400,6 +403,7 @@ deleteFederationDomainLocal dom = do
   -- Process each user.
   for_ (Map.toList rCnvMap) $ \(cnv, lUsers) -> do
     liftIO $
+      -- All errors, either exceptions or Either e, get thrown into IO
       evalGalleyToIO env $
         mapError @NoChanges (const (InternalErrorWithDescription "No Changes: Could not remove a local member from a remote conversation.")) $
           do
@@ -425,7 +429,24 @@ deleteFederationDomainLocal dom = do
 -- let rcnv = toRemoteUnsafe dom cnv
 -- notifyRemoteConversationAction lUser (qualifyAs rcnv convUpdate) Nothing
 
+
+-- TODO: The DB table that this tries to update aren't available to
+-- Galley and need to be moved into brig. This will complicate the calling
+-- to delete a domain, but likely we can expose it as an internal API and
+-- eat the coverhead cost of the http call. This should also allow for the
+-- senario where galley falls over and has to redo the domain deletion so
+-- that request isn't lost.
 deleteFederationDomainOneOnOne :: Domain -> App ()
 deleteFederationDomainOneOnOne dom = do
   env <- ask
-  liftIO $ runClient (env ^. cstate) . deleteRemoteConnectionsByDomain $ dom
+  let c = mkClientEnv (env ^. manager) (env ^. brig)
+  liftIO (deleteFederationRemoteGalley dom c) >>= either
+    (\e -> do
+      Log.err (env ^. applog) $ Log.msg @Text "Could not delete one-on-one messages in Brig" . Log.field "error" (show e)
+      -- Throw the error into IO to match the other functions and to prevent the
+      -- message from rabbit being ACKed.
+      liftIO $ throwIO e
+    )
+    pure
+  where
+    mkClientEnv mgr (Endpoint h p) = ClientEnv mgr (BaseUrl Http (unpack h) (fromIntegral p) "") Nothing defaultMakeClientRequest

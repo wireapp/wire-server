@@ -184,6 +184,7 @@ federationRemotesAPI =
     :<|> Named @"get-federation-remotes" getFederationRemotes
     :<|> Named @"update-federation-remotes" updateFederationRemotes
     :<|> Named @"delete-federation-remotes" deleteFederationRemotes
+    :<|> Named @"delete-federation-remote-galley" deleteFederationRemoteGalley
 
 addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 addFederationRemote fedDomConf = do
@@ -298,6 +299,15 @@ assertNoDomainsFromConfigFiles dom = do
 deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemotes dom = do
   lift . wrapClient . Data.deleteFederationRemote $ dom
+  assertNoDomainsFromConfigFiles dom
+
+-- | Remove one-on-one conversations for the given remote domain. This is called from Galley as
+-- part of the defederation process, and should not be called duriung the initial domain removal
+-- call to brig. This is so we can ensure that domains are correctly cleaned up if a service
+-- falls over for whatever reason.
+deleteFederationRemoteGalley :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
+deleteFederationRemoteGalley dom = do
+  lift . wrapClient . Data.deleteRemoteConnectionsDomain $ dom
   assertNoDomainsFromConfigFiles dom
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
