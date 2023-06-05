@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-unused-local-binds #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -845,7 +846,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
                         (Set.singleton (PubClient carlClient Nothing))
                     )
             ]
-        galleyMock = "on-message-sent" ~> ()
+        galleyMock = "on-message-sent" ~> EmptyResponse
 
     (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceU aliceClient convId message "data" Message.MismatchReportAll (brigMock <|> galleyMock)
     pure resp2 !!! do
@@ -854,57 +855,17 @@ postMessageQualifiedLocalOwningBackendSuccess = do
     let encodedTextForAlex1 = toBase64Text "text-for-alex"
         encodedTextForAlex2 = toBase64Text "text-for-alex2"
         encodedTextForAmy = toBase64Text "text-for-amy"
-        encodedTextForBob = toBase64Text "text-for-bob"
-        encodedTextForBart1 = toBase64Text "text-for-bart1"
-        encodedTextForBart2 = toBase64Text "text-for-bart2"
-        encodedTextForCarl = toBase64Text "text-for-carl"
         encodedData = toBase64Text "data"
     liftIO $ do
       let matchReq domain component r = frTargetDomain r == domain && frComponent r == component
           filterReq domain component = filter (matchReq domain component) requests
       bBrigReq <- assertOne $ filterReq bDomain Brig
-      bGalleyReq <- assertOne $ filterReq bDomain Galley
       cBrigReq <- assertOne $ filterReq cDomain Brig
-      cGalleyReq <- assertOne $ filterReq cDomain Galley
 
       frRPC bBrigReq @?= "get-user-clients"
       (sort . F.gucUsers <$> parseFedRequest bBrigReq) @?= Right (sort $ qUnqualified <$> [bob, bart])
       frRPC cBrigReq @?= "get-user-clients"
       parseFedRequest cBrigReq @?= Right (F.GetUserClients [qUnqualified carl])
-
-      frRPC bGalleyReq @?= "on-message-sent"
-      bActualNotif <- assertRight $ parseFedRequest bGalleyReq
-      let bExpectedNotif =
-            F.RemoteMessage
-              { rmTime = F.rmTime bActualNotif,
-                rmData = Just $ toBase64Text "data",
-                rmSender = alice,
-                rmSenderClient = aliceClient,
-                rmConversation = qUnqualified convId,
-                rmPriority = Nothing,
-                rmPush = True,
-                rmTransient = False,
-                rmRecipients =
-                  UserClientMap $
-                    Map.fromList
-                      [ (qUnqualified bob, Map.singleton bobClient encodedTextForBob),
-                        ( qUnqualified bart,
-                          Map.fromList
-                            [ (bartClient1, encodedTextForBart1),
-                              (bartClient2, encodedTextForBart2)
-                            ]
-                        )
-                      ]
-              }
-      bActualNotif @?= bExpectedNotif
-      frRPC cGalleyReq @?= "on-message-sent"
-      cActualNotif <- assertRight $ parseFedRequest cGalleyReq
-      let cExpectedNotif =
-            bExpectedNotif
-              { F.rmRecipients =
-                  UserClientMap $ Map.fromList [(qUnqualified carl, Map.singleton carlClient encodedTextForCarl)]
-              }
-      cActualNotif @?= cExpectedNotif
 
       WS.assertMatch_ t wsAlex1 (wsAssertOtr' encodedData convId alice aliceClient alexClient encodedTextForAlex1)
       WS.assertMatch_ t wsAlex2 (wsAssertOtr' encodedData convId alice aliceClient alexClient2 encodedTextForAlex2)
@@ -1032,7 +993,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
                 | uid == nonMemberRemoteUnqualified = Just (uid, Set.fromList [PubClient nonMemberRemoteClient Nothing])
                 | otherwise = Nothing
           mockReply $ UserMap . Map.fromList . mapMaybe lookupClients $ F.gucUsers getUserClients
-        galleyMock = "on-message-sent" ~> ()
+        galleyMock = "on-message-sent" ~> EmptyResponse
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll (brigMock <|> galleyMock)
     pure resp2 !!! do
@@ -1253,7 +1214,6 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
             ]
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified expectedFailedToSend mempty mempty mempty
 
     liftIO $ do
       let encodedTextForBob = toBase64Text "text-for-bob"
@@ -1335,22 +1295,8 @@ postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients =
           "data"
           Message.MismatchReportAll
 
-    let expectedFailedToSend =
-          QualifiedUserClients . Map.fromList $
-            [ ( remoteDomain,
-                Map.fromList
-                  [ (deeId, Set.singleton deeClient)
-                  ]
-              ),
-              ( remoteDomain2,
-                Map.fromList
-                  [ (emilyId, Set.singleton emilyClient)
-                  ]
-              )
-            ]
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified expectedFailedToSend mempty mempty mempty
 
     liftIO $ do
       let encodedTextForBob = toBase64Text "text-for-bob"
@@ -1812,7 +1758,7 @@ testAccessUpdateGuestRemoved = do
   c <- view tsCannon
   WS.bracketRN c (map qUnqualified [alice, bob, charlie]) $ \[wsA, wsB, wsC] -> do
     -- conversation access role changes to team only
-    (_, reqs) <- withTempMockFederator' (mockReply ()) $ do
+    (_, reqs) <- withTempMockFederator' (mockReply EmptyResponse) $ do
       putQualifiedAccessUpdate
         (qUnqualified alice)
         (cnvQualifiedId conv)
@@ -2213,7 +2159,7 @@ paginateConvListIds = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
-    runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
+    void $ runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -2229,7 +2175,7 @@ paginateConvListIds = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
-    runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
+    void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
   -- 1 Proteus self conv + 1 MLS self conv + 2 convs with bob and eve + 196
   -- local convs + 25 convs on chad.example.com + 31 on dee.example = 256 convs.
@@ -2274,7 +2220,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
-    runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
+    void $ runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -2292,7 +2238,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
-    runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
+    void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
   foldM_ (getChunkedConvs 16 0 alice) Nothing [4, 3, 2, 1, 0 :: Int]
 
@@ -3312,7 +3258,7 @@ deleteLocalMemberConvLocalQualifiedOk = do
 
   let mockReturnEve =
         mockedFederatedBrigResponse [(qEve, "Eve")]
-          <|> mockReply ()
+          <|> mockReply EmptyResponse
   (respDel, fedRequests) <-
     withTempMockFederator' mockReturnEve $
       deleteMemberQualified alice qBob qconvId
@@ -3359,7 +3305,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
               *> mockReply [mkProfile qEve (Name "Eve")]
           ]
   (convId, _) <-
-    withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mockedResponse <|> mockReply ()) $
+    withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mockedResponse <|> mockReply EmptyResponse) $
       fmap decodeConvId $
         postConvQualified
           alice
@@ -3369,7 +3315,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
   let qconvId = Qualified convId localDomain
 
   (respDel, federatedRequests) <-
-    withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mockedResponse <|> mockReply ()) $
+    withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mockedResponse <|> mockReply EmptyResponse) $
       deleteMemberQualified alice qChad qconvId
   liftIO $ do
     statusCode respDel @?= 200
@@ -3419,10 +3365,10 @@ deleteUnavailableRemoteMemberConvLocalQualifiedOk = do
         d <- frTargetDomain <$> getRequest
         asum
           [ guard (d == remoteDomain1)
-              *> mockReply (),
+              *> mockReply EmptyResponse,
             guard (d == remoteDomain2)
               *> asum
-                [ guardRPC "on-conversation-created" *> mockReply (),
+                [ guardRPC "on-conversation-created" *> mockReply EmptyResponse,
                   throw $ MockErrorResponse HTTP.status503 "Down for maintenance."
                 ]
           ]
@@ -3951,7 +3897,7 @@ putRemoteConvMemberOk update = do
             cuAction =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
-  runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
+  void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
 
   -- Expected member state
   let memberAlice =
@@ -4096,7 +4042,7 @@ putRemoteReceiptModeOk = do
             cuAction =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireAdmin)
           }
-  runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAlice
+  void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAlice
 
   -- add another user adam as member
   qadam <- randomQualifiedUser
@@ -4111,7 +4057,7 @@ putRemoteReceiptModeOk = do
             cuAction =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qadam) roleNameWireMember)
           }
-  runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAdam
+  void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAdam
 
   let newReceiptMode = ReceiptMode 42
   let action = ConversationReceiptModeUpdate newReceiptMode
@@ -4427,10 +4373,10 @@ removeUser = do
             F.ccReceiptMode = Nothing,
             F.ccProtocol = ProtocolProteus
           }
-  runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB1 bart [alice, alexDel]
-  runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB2 bart [alexDel]
-  runFedClient @"on-conversation-created" fedGalleyClient cDomain $ nc convC1 carl [alexDel]
-  runFedClient @"on-conversation-created" fedGalleyClient dDomain $ nc convD1 dory [alexDel]
+  void $ runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB1 bart [alice, alexDel]
+  void $ runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB2 bart [alexDel]
+  void $ runFedClient @"on-conversation-created" fedGalleyClient cDomain $ nc convC1 carl [alexDel]
+  void $ runFedClient @"on-conversation-created" fedGalleyClient dDomain $ nc convD1 dory [alexDel]
 
   WS.bracketR3 c alice' alexDel' amy' $ \(wsAlice, wsAlexDel, wsAmy) -> do
     let handler = do

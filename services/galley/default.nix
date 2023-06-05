@@ -161,7 +161,6 @@ mkDerivation {
     extra
     galley-types
     gundeck-types
-    hex
     HsOpenSSL
     http-client
     http-client-openssl

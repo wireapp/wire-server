@@ -53,6 +53,7 @@ import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
+import Galley.Effects.BackendNotificationQueueAccess
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
@@ -154,7 +155,7 @@ onConversationCreated ::
   ) =>
   Domain ->
   F.ConversationCreated ConvId ->
-  Sem r ()
+  Sem r EmptyResponse
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
   loc <- qualifyLocal ()
@@ -187,18 +188,17 @@ onConversationCreated domain rc = do
             (F.ccTime qrcConnected)
             (EdConversation c)
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
+  pure EmptyResponse
 
 onNewRemoteConversation ::
   Member ConversationStore r =>
   Domain ->
   F.NewRemoteConversation ->
-  Sem r EmptyResponse
-onNewRemoteConversation domain nrc = do
+  Sem r ()
+onNewRemoteConversation domain nrc =
   -- update group_id -> conv_id mapping
   for_ (preview (to F.nrcProtocol . _ProtocolMLS) nrc) $ \mls ->
     E.setGroupId (cnvmlsGroupId mls) (Qualified (F.nrcConvId nrc) domain)
-
-  pure EmptyResponse
 
 getConversations ::
   ( Member ConversationStore r,
@@ -226,10 +226,11 @@ onConversationUpdated ::
   ) =>
   Domain ->
   F.ConversationUpdate ->
-  Sem r ()
+  Sem r EmptyResponse
 onConversationUpdated requestingDomain cu = do
   let rcu = toRemoteUnsafe requestingDomain cu
   void $ updateLocalStateOfRemoteConv rcu Nothing
+  pure EmptyResponse
 
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
@@ -314,7 +315,7 @@ onMessageSent ::
   ) =>
   Domain ->
   F.RemoteMessage ConvId ->
-  Sem r ()
+  Sem r EmptyResponse
 onMessageSent domain rmUnqualified = do
   let rm = fmap (toRemoteUnsafe domain) rmUnqualified
       convId = tUntagged $ F.rmConversation rm
@@ -351,6 +352,7 @@ onMessageSent domain rmUnqualified = do
       mempty
       msgMetadata
       (Map.filterWithKey (\(uid, _) _ -> Set.member uid members) msgs)
+  pure EmptyResponse
 
 sendMessage ::
   ( Member BrigAccess r,
@@ -358,6 +360,7 @@ sendMessage ::
     Member ConversationStore r,
     Member (Error InvalidInput) r,
     Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
@@ -520,6 +523,7 @@ sendMLSCommitBundle ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
@@ -719,7 +723,7 @@ queryGroupInfo origDomain req =
 
 updateTypingIndicator ::
   ( Member GundeckAccess r,
-    Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member (Input UTCTime) r,
     Member (Input (Local ())) r

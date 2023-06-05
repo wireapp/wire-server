@@ -94,6 +94,7 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
+import Galley.Effects.BackendNotificationQueueAccess
 import qualified Galley.Effects.ClientStore as E
 import qualified Galley.Effects.CodeStore as E
 import qualified Galley.Effects.ConversationStore as E
@@ -1164,6 +1165,7 @@ postProteusMessage ::
     Member ClientStore r,
     Member ConversationStore r,
     Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member GundeckAccess r,
     Member ExternalAccess r,
     Member (Input Opts) r,
@@ -1239,6 +1241,7 @@ postBotMessageUnqualified ::
     Member ConversationStore r,
     Member ExternalAccess r,
     Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
@@ -1291,6 +1294,7 @@ postOtrMessageUnqualified ::
     Member ClientStore r,
     Member ConversationStore r,
     Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input Opts) r,
@@ -1388,6 +1392,7 @@ memberTyping ::
     Member (Input UTCTime) r,
     Member ConversationStore r,
     Member MemberStore r,
+    Member BackendNotificationQueueAccess r,
     Member FederatorAccess r
   ) =>
   Local UserId ->
@@ -1411,6 +1416,7 @@ memberTyping lusr zcon qcnv ts = do
                   tdurUserId = tUnqualified lusr,
                   tdurConvId = tUnqualified rcnv
                 }
+        -- TODO(elland): check if queueable
         res <- E.runFederated rcnv (fedClient @'Galley @"update-typing-indicator" rpc)
         case res of
           TypingDataUpdateSuccess (TypingDataUpdated {..}) -> do
@@ -1426,6 +1432,7 @@ memberTypingUnqualified ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ConversationStore r,
+    Member BackendNotificationQueueAccess r,
     Member FederatorAccess r
   ) =>
   Local UserId ->
