@@ -24,6 +24,7 @@ module Wire.API.Routes.Internal.Brig
     UserAPI,
     AuthAPI,
     EJPDRequest,
+    ISearchIndexAPI,
     GetAccountConferenceCallingConfig,
     PutAccountConferenceCallingConfig,
     DeleteAccountConferenceCallingConfig,
@@ -56,6 +57,7 @@ import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Brig.OAuth (OAuthAPI)
+import Wire.API.Routes.Internal.Brig.SearchIndex (ISearchIndexAPI)
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -327,6 +329,7 @@ type API =
            :<|> UserAPI
            :<|> AuthAPI
            :<|> OAuthAPI
+           :<|> ISearchIndexAPI
        )
 
 type TeamsAPI =
