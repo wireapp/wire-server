@@ -20,13 +20,13 @@ module Federation.End2end where
 import API.MLS.Util
 import API.Search.Util
 import API.User.Util
-import Bilge
+import Bilge hiding (head)
 import Bilge.Assert ((!!!), (<!!), (===))
 import Brig.API.Client (pubClient)
 import qualified Brig.Options as BrigOpts
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((#))
-import qualified Data.Aeson as Aeson
+import qualified Data.Aeson as Aeson hiding (json)
 import Data.ByteString.Conversion (toByteString')
 import Data.Default
 import Data.Domain
@@ -34,7 +34,7 @@ import Data.Handle
 import Data.Id
 import Data.Json.Util (toBase64Text)
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Data.List1 as List1
+import qualified Data.List1 as List1
 import qualified Data.Map as Map
 import qualified Data.ProtoLens as Protolens
 import Data.Qualified
@@ -56,7 +56,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
-import Wire.API.Internal.Notification (ntfTransient)
+import Wire.API.Internal.Notification
 import Wire.API.MLS.KeyPackage
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
@@ -642,11 +642,14 @@ testDeleteUser brig1 brig2 galley1 galley2 cannon1 = do
       =<< createConversation galley2 (qUnqualified bobDel) [alice]
         <!! const 201 === statusCode
 
-  WS.bracketR cannon1 (qUnqualified alice) $ \wsAlice -> do
+  notifs <- WS.bracketR cannon1 (qUnqualified alice) $ \wsAlice -> do
     deleteUser (qUnqualified bobDel) (Just defPassword) brig2 !!! const 200 === statusCode
-    WS.assertMatch_ (5 # Second) wsAlice $ matchDeleteUserNotification bobDel
-    WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv1 bobDel [bobDel]
-    WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv2 bobDel [bobDel]
+    WS.awaitCount 3 (15 # Second) wsAlice
+  liftIO $ do
+    length notifs @?= 3
+    matchConvLeaveNotification conv2 bobDel [bobDel] $ head notifs
+    matchConvLeaveNotification conv1 bobDel [bobDel] $ notifs !! 1
+    matchDeleteUserNotification bobDel $ notifs !! 2
 
 testRemoteAsset :: Brig -> Brig -> CargoHold -> CargoHold -> Http ()
 testRemoteAsset brig1 brig2 ch1 ch2 = do

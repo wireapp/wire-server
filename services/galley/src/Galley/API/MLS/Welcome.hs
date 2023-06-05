@@ -25,30 +25,27 @@ module Galley.API.MLS.Welcome
 where
 
 import Control.Comonad
-import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.Time
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.KeyPackage
+import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.BrigAccess
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Env
 import Imports
-import qualified Network.Wai.Utilities.Error as Wai
-import Network.Wai.Utilities.Server
+import qualified Network.AMQP as Q
 import Polysemy
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
-import qualified System.Logger.Class as Logger
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
-import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
@@ -56,6 +53,7 @@ import Wire.API.MLS.Welcome
 postMLSWelcome ::
   ( Member BrigAccess r,
     Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member GundeckAccess r,
     Member ExternalAccess r,
     Member (ErrorS 'MLSKeyPackageRefNotFound) r,
@@ -76,6 +74,7 @@ postMLSWelcome loc con wel = do
 postMLSWelcomeFromLocalUser ::
   ( Member BrigAccess r,
     Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member GundeckAccess r,
     Member ExternalAccess r,
     Member (ErrorS 'MLSKeyPackageRefNotFound) r,
@@ -118,6 +117,7 @@ sendLocalWelcomes _con _now _rawWelcome _lclients = do
 
 sendRemoteWelcomes ::
   ( Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member P.TinyLog r
   ) =>
   ByteString ->
@@ -125,22 +125,6 @@ sendRemoteWelcomes ::
   Sem r ()
 sendRemoteWelcomes rawWelcome clients = do
   let req = MLSWelcomeRequest . Base64ByteString $ rawWelcome
-      rpc = fedClient @'Galley @"mls-welcome" req
-  traverse_ handleError <=< runFederatedConcurrentlyEither clients $
-    const rpc
-  where
-    handleError ::
-      Member P.TinyLog r =>
-      Either (Remote [a], FederationError) (Remote MLSWelcomeResponse) ->
-      Sem r ()
-    handleError (Right x) = case tUnqualified x of
-      MLSWelcomeSent -> pure ()
-      MLSWelcomeMLSNotEnabled -> logFedError x (errorToWai @'MLSNotEnabled)
-    handleError (Left (r, e)) = logFedError r (toWai e)
-
-    logFedError :: Member P.TinyLog r => Remote x -> Wai.Error -> Sem r ()
-    logFedError r e =
-      P.warn $
-        Logger.msg ("A welcome message could not be delivered to a remote backend" :: ByteString)
-          . Logger.field "remote_domain" (domainText (tDomain r))
-          . logErrorMsg e
+      rpc = void $ fedQueueClient @'Galley @"mls-welcome" req
+  for_ clients $ \client -> do
+    enqueueNotification client Q.Persistent rpc

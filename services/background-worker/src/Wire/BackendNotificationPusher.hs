@@ -39,7 +39,7 @@ pushNotification targetDomain (msg, envelope) = do
   --
   -- FUTUREWORK: Pull these numbers into config
   let policy = capDelay 300_000_000 $ fullJitterBackoff 10000
-      logErrr willRetry (SomeException e) rs =
+      logErrr willRetry (SomeException e) rs = do
         Log.err $
           Log.msg (Log.val "Exception occurred while pushing notification")
             . Log.field "error" (displayException e)

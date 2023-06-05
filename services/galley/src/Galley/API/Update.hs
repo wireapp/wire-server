@@ -99,6 +99,7 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
+import Galley.Effects.BackendNotificationQueueAccess
 import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ClientStore as E
 import qualified Galley.Effects.CodeStore as E
@@ -1400,6 +1401,7 @@ memberTyping ::
     Member (Input UTCTime) r,
     Member ConversationStore r,
     Member MemberStore r,
+    Member BackendNotificationQueueAccess r,
     Member FederatorAccess r
   ) =>
   Local UserId ->
@@ -1423,6 +1425,7 @@ memberTyping lusr zcon qcnv ts = do
                   tdurUserId = tUnqualified lusr,
                   tdurConvId = tUnqualified rcnv
                 }
+        -- TODO(elland): check if queueable
         res <- E.runFederated rcnv (fedClient @'Galley @"update-typing-indicator" rpc)
         case res of
           TypingDataUpdateSuccess (TypingDataUpdated {..}) -> do
@@ -1438,6 +1441,7 @@ memberTypingUnqualified ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ConversationStore r,
+    Member BackendNotificationQueueAccess r,
     Member FederatorAccess r
   ) =>
   Local UserId ->

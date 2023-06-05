@@ -776,8 +776,7 @@ registerRemoteConversationMemberships now localDomain c = do
     fedClient @'Galley @"on-conversation-created" rc
   where
     toSet :: forall a x e. Ord x => [Either (Remote [x], e) a] -> Set (Remote x)
-    toSet =
-      Set.fromList . foldMap (either (sequenceA . fst) mempty)
+    toSet = Set.fromList . foldMap (either (sequenceA . fst) mempty)
 
 --------------------------------------------------------------------------------
 -- Legalhold

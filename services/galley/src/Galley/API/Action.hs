@@ -62,6 +62,7 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services
 import Galley.Data.Types
 import Galley.Effects
+import Galley.Effects.BackendNotificationQueueAccess
 import qualified Galley.Effects.BotAccess as E
 import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.CodeStore as E
@@ -78,6 +79,7 @@ import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
 import Imports
+import qualified Network.AMQP as Q
 import qualified Network.HTTP.Types.Status as Wai
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
@@ -94,7 +96,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API (Component (Galley), fedClient)
+import Wire.API.Federation.API (Component (Galley), fedClient, fedQueueClient)
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Team.LegalHold
@@ -882,7 +884,7 @@ notifyTypingIndicator ::
   ( Member (Input UTCTime) r,
     Member (Input (Local ())) r,
     Member GundeckAccess r,
-    Member FederatorAccess r
+    Member BackendNotificationQueueAccess r
   ) =>
   Conversation ->
   Qualified UserId ->
@@ -897,7 +899,7 @@ notifyTypingIndicator conv qusr mcon ts = do
   pushTypingIndicatorEvents qusr now (fmap lmId (Data.convLocalMembers conv)) mcon (tUntagged lconv) ts
 
   let (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)
-  let tdu users =
+      tdu users =
         TypingDataUpdated
           { tudTime = now,
             tudOrigUserId = qusr,
@@ -906,8 +908,9 @@ notifyTypingIndicator conv qusr mcon ts = do
             tudTypingStatus = ts
           }
 
-  void $ E.runFederatedConcurrentlyEither (fmap rmId remoteMemsOther) $ \rmems -> do
-    fedClient @'Galley @"on-typing-indicator-updated" (tdu (tUnqualified rmems))
+  for_ (rmId <$> remoteMemsOther) $ \rmems -> do
+    let rpc = void $ fedQueueClient @'Galley @"on-typing-indicator-updated" (tdu [tUnqualified rmems])
+    enqueueNotification rmems Q.NonPersistent rpc
 
   pure (tdu (fmap (tUnqualified . rmId) remoteMemsOrig))
 

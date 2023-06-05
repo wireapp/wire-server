@@ -48,6 +48,7 @@ module Test.Tasty.Cannon
     MatchTimeout (..),
     MatchFailure (..),
     await,
+    awaitCount,
     awaitMatch,
     awaitMatch_,
     awaitMatchN,
@@ -274,6 +275,9 @@ instance Show RegistrationTimeout where
 
 await :: MonadIO m => Timeout -> WebSocket -> m (Maybe Notification)
 await t = liftIO . timeout t . atomically . readTChan . wsChan
+
+awaitCount :: MonadIO m => Int -> Timeout -> WebSocket -> m [Notification]
+awaitCount count t ws = catMaybes <$> replicateM count (await t ws)
 
 -- | 'await' a 'Notification' on the 'WebSocket'.  If it satisfies the 'Assertion', return it.
 -- Otherwise, collect the 'Notification' and the exception thrown by the 'Assertion', and keep

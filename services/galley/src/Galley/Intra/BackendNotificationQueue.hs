@@ -1,6 +1,6 @@
 {-# LANGUAGE NumericUnderscores #-}
 
-module Galley.Intra.BackendNotificationQueue where
+module Galley.Intra.BackendNotificationQueue (interpretBackendNotificationQueueAccess) where
 
 import Control.Lens (view)
 import Control.Monad.Catch
