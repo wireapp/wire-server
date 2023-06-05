@@ -1,9 +1,10 @@
+{-# LANGUAGE RecordWildCards #-}
 module Federation where
 
 import API.Util
 import Bilge.Assert
 import Bilge.Response
-import Control.Lens ((^.))
+import Control.Lens ((^.), view)
 import Control.Monad.Catch
 import Control.Monad.Codensity (lowerCodensity)
 import Data.Domain
@@ -25,9 +26,27 @@ import Test.Tasty.HUnit
 import Galley.API.Util
 import qualified Data.UUID as UUID
 import qualified Galley.Data.Conversation.Types as Types
-import Galley.Types.Conversations.Members (defMemberStatus, LocalMember (..), RemoteMember (..))
-import Wire.API.Conversation.Role (roleNameWireMember)
+import Galley.Types.Conversations.Members (defMemberStatus, LocalMember (..), RemoteMember (..), localMemberToOther)
+import Wire.API.Conversation.Role (roleNameWireMember, roleNameWireAdmin)
 import Wire.API.Conversation.Protocol (Protocol(..))
+import Wire.API.Federation.API.Galley (ConversationUpdate(..), GetConversationsResponse (..))
+import Wire.API.Conversation.Action
+import Wire.API.Event.Conversation
+import Wire.API.Internal.Notification
+import qualified Data.List1 as List1
+import qualified Test.Tasty.Cannon as WS
+import Data.Time (getCurrentTime)
+import Data.Singletons
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
+import Federator.MockServer
+import Galley.App
+import qualified Wire.API.Routes.MultiTablePaging as Public
+import qualified Galley.Effects.ListItems as E
+import qualified Wire.API.Conversation as Public
+import qualified Cassandra as C
+import qualified Data.ByteString as LBS
+import Wire.API.Routes.MultiTablePaging
+import Data.Range (unsafeRange)
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
@@ -70,8 +89,8 @@ updateFedDomainsTest = do
   (_, env) <- liftIO $ lowerCodensity $ mkApp opts r l
   -- Common variables.
   let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
-      remoteDomain = Domain "far-away.example.org"
-      remoteDomain2 = Domain "far-away-two.example.net"
+      remoteDomain = Domain "far-away.example.com"
+      remoteDomain2 = Domain "far-away-two.example.com"
   liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. optSettings . setFederationDomain
   liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
   -- Setup a conversation for a known remote domain.
@@ -83,11 +102,14 @@ updateFedDomainsTest = do
   -- Adding a new federation domain, this too should be a no-op
   updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval
 
-  -- Removing a single domain
+  -- Removing a single domain: Remove a remote domain from local conversations
   updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval
 
--- Removing multiple domains
--- updateFedDomainsCallback old new
+  -- Removing a single domain: Remove a local domain from remote conversations
+  updateFedDomainRemoveLocalFromRemote env remoteDomain interval
+
+  -- Removing multiple domains
+  -- updateFedDomainsCallback old new
 
 fromFedList :: FederationDomainConfigs -> Set Domain
 fromFedList = Set.fromList . fmap domain . remotes
@@ -105,9 +127,9 @@ constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]
 
 updateFedDomainRemoveRemoteFromLocal :: Env -> Domain -> Domain -> Int -> TestM ()
 updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = recovering x3 constHandlers $ const $ do
-  s <- ask
-  let opts = s ^. tsGConf
-      localDomain = opts ^. optSettings . setFederationDomain
+  -- s <- ask
+  let -- opts = s ^. tsGConf
+      -- localDomain = opts ^. optSettings . setFederationDomain
       new = FederationDomainConfigs AllowDynamic [FederationDomainConfig remoteDomain2 FullSearch] interval
       old = new {remotes = FederationDomainConfig remoteDomain FullSearch : remotes new}
   qalice <- randomQualifiedUser
@@ -116,17 +138,16 @@ updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = r
   let alice = qUnqualified qalice
       remoteBob = Qualified bobId remoteDomain
       remoteCharlie = Qualified charlieId remoteDomain2
-  -- Create a conversation
+  -- Create a local conversation
   conv <- postConv alice [] (Just "remote gossip") [] Nothing Nothing
   let qConvId = decodeQualifiedConvId conv
-      convId = qUnqualified qConvId
   connectWithRemoteUser alice remoteBob
   connectWithRemoteUser alice remoteCharlie
   _ <- postQualifiedMembers alice (remoteCharlie <| remoteBob :| []) qConvId
   -- Remove the remote user from the local domain
   liftIO $ runApp env $ deleteFederationDomains old new
   -- Check that the conversation still exists.
-  getConvQualified (qUnqualified qalice) (Qualified convId localDomain) !!! do
+  getConvQualified alice qConvId !!! do
     const 200 === statusCode
     let findRemote :: Qualified UserId -> Conversation -> Maybe (Qualified UserId)
         findRemote u = find (== u) . fmap omQualifiedId . cmOthers . cnvMembers
@@ -134,6 +155,144 @@ updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = r
     const (Right Nothing) === (fmap (findRemote remoteBob) <$> responseJsonEither)
     const (Right $ pure remoteCharlie) === (fmap (findRemote remoteCharlie) <$> responseJsonEither)
     const (Right qalice) === (fmap (memId . cmSelf . cnvMembers) <$> responseJsonEither)
+
+updateFedDomainRemoveLocalFromRemote :: Env -> Domain -> Int -> TestM ()
+updateFedDomainRemoveLocalFromRemote env remoteDomain interval = recovering x3 constHandlers $ const $ do
+  c <- view tsCannon
+  let new = FederationDomainConfigs AllowDynamic [] interval
+      old = new {remotes = FederationDomainConfig remoteDomain FullSearch : remotes new}
+  -- Make our users
+  qalice <- randomQualifiedUser
+  qbob <- Qualified <$> randomId <*> pure remoteDomain
+  let alice = qUnqualified qalice
+      update = memberUpdate {mupHidden = Just False}
+  -- Create a remote conversation
+  -- START: code from putRemoteConvMemberOk
+  qconv <- Qualified <$> randomId <*> pure remoteDomain
+  connectWithRemoteUser alice qbob
+
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  let cu = ConversationUpdate
+        { cuTime = now
+        , cuOrigUserId = qbob
+        , cuConvId = qUnqualified qconv
+        , cuAlreadyPresentUsers = []
+        , cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
+        }
+  runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
+  -- Expected member state
+  let memberAlice =
+        Member
+          { memId = qalice,
+            memService = Nothing,
+            memOtrMutedStatus = mupOtrMuteStatus update,
+            memOtrMutedRef = mupOtrMuteRef update,
+            memOtrArchived = Just True == mupOtrArchive update,
+            memOtrArchivedRef = mupOtrArchiveRef update,
+            memHidden = Just True == mupHidden update,
+            memHiddenRef = mupHiddenRef update,
+            memConvRoleName = roleNameWireMember
+          }
+      -- Update member state & verify push notification
+  WS.bracketR c alice $ \ws -> do
+    putMember alice update qconv !!! const 200 === statusCode
+    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= MemberStateUpdate
+      evtFrom e @?= qalice
+      case evtData e of
+        EdMemberUpdate mis -> do
+          assertEqual "otr_muted_status" (mupOtrMuteStatus update) (misOtrMutedStatus mis)
+          assertEqual "otr_muted_ref" (mupOtrMuteRef update) (misOtrMutedRef mis)
+          assertEqual "otr_archived" (mupOtrArchive update) (misOtrArchived mis)
+          assertEqual "otr_archived_ref" (mupOtrArchiveRef update) (misOtrArchivedRef mis)
+          assertEqual "hidden" (mupHidden update) (misHidden mis)
+          assertEqual "hidden_ref" (mupHiddenRef update) (misHiddenRef mis)
+        x -> assertFailure $ "Unexpected event data: " ++ show x
+
+  -- Fetch remote conversation
+  let bobAsLocal =
+        LocalMember
+          (qUnqualified qbob)
+          defMemberStatus
+          Nothing
+          roleNameWireAdmin
+  let mockConversation =
+        mkProteusConv
+          (qUnqualified qconv)
+          (qUnqualified qbob)
+          roleNameWireMember
+          [localMemberToOther remoteDomain bobAsLocal]
+      remoteConversationResponse = GetConversationsResponse [mockConversation]
+  (rs, _) <-
+    withTempMockFederator'
+      (mockReply remoteConversationResponse)
+      $ getConvQualified alice qconv
+        <!! const 200 === statusCode
+  -- Verify new member state
+  let alice' = cmSelf . cnvMembers <$> responseJsonUnsafe rs
+  liftIO $ do
+    assertBool "user" (isJust alice')
+    let newAlice = fromJust alice'
+    assertEqual "id" (memId memberAlice) (memId newAlice)
+    assertEqual "otr_muted_status" (memOtrMutedStatus memberAlice) (memOtrMutedStatus newAlice)
+    assertEqual "otr_muted_ref" (memOtrMutedRef memberAlice) (memOtrMutedRef newAlice)
+    assertEqual "otr_archived" (memOtrArchived memberAlice) (memOtrArchived newAlice)
+    assertEqual "otr_archived_ref" (memOtrArchivedRef memberAlice) (memOtrArchivedRef newAlice)
+    assertEqual "hidden" (memHidden memberAlice) (memHidden newAlice)
+    assertEqual "hidden_ref" (memHiddenRef memberAlice) (memHiddenRef newAlice)
+  -- END: code from putRemoteConvMemberOk
+  
+  -- Remove the remote user from the local domain
+  liftIO $ runApp env $ deleteFederationDomains old new
+
+  --
+  -- Do not make any calls that would need to talk to a federation
+  -- member. This process must assume that the ex-federation member
+  -- will not accept any packets from us, so we shouldn't even try.
+  -- We can only rely on our own DB.
+  --
+
+  -- get the conversation metadata.
+  -- This shouldn't return anything as the conversation shouldn't be accessible.
+--  let rConvId = toRemoteUnsafe remoteDomain $ qUnqualified qconv
+--  meta <- liftIO $ evalGalleyToIO env
+--    $ E.getRemoteConversationStatus alice [rConvId]
+--  liftIO $ case M.lookup rConvId meta of
+--    Nothing -> assertBool "Empty meta status" False
+--    Just status -> assertBool (show status) False
+
+
+  convIds <- liftIO $ evalGalleyToIO env $
+    pageToConvIdPage Public.PagingRemotes
+    . fmap (tUntagged @'QRemote)
+    <$> E.listItems alice Nothing (unsafeRange 100)
+  case find (== qconv) $ mtpResults $ convIds of
+    Nothing -> pure ()
+    Just c' -> liftIO $ assertFailure $ "Found conversation where none was expected: " <> show c'
+
+  -- Check that the conversation still exists.
+  getConvQualified (qUnqualified qalice) qconv !!! do
+    const 200 === statusCode
+    let findRemote :: Qualified UserId -> Conversation -> Maybe (Qualified UserId)
+        findRemote u = find (== u) . fmap omQualifiedId . cmOthers . cnvMembers
+    -- Check that only one remote user was removed.
+    const (Right Nothing) === (fmap (findRemote qbob) <$> responseJsonEither)
+    -- const (Right $ pure remoteCharlie) === (fmap (findRemote remoteCharlie) <$> responseJsonEither)
+    const (Right qalice) === (fmap (memId . cmSelf . cnvMembers) <$> responseJsonEither)
+
+
+pageToConvIdPage :: Public.LocalOrRemoteTable -> C.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
+pageToConvIdPage table page@C.PageWithState {..} =
+  Public.MultiTablePage
+    { mtpResults = pwsResults,
+      mtpHasMore = C.pwsHasMore page,
+      mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
+    }
+
 
 updateFedDomainsAddRemote :: Env -> Domain -> Domain -> Int -> TestM ()
 updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval = do
