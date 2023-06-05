@@ -56,6 +56,7 @@ tests :: TestTree
 tests =
   testGroup "MLS" $
     [ testCase "parse key package" testParseKeyPackage,
+      testCase "parse capabilities in key package" testParseKeyPackageWithCapabilities,
       testCase "parse commit message" testParseCommit,
       testCase "parse application message" testParseApplication,
       testCase "parse welcome and groupinfo message" testParseWelcomeAndGroupInfo,
@@ -82,6 +83,13 @@ testParseKeyPackage = do
   case keyPackageIdentity kp of
     Left err -> assertFailure $ "Failed to parse identity: " <> T.unpack err
     Right identity -> identity @?= alice
+
+testParseKeyPackageWithCapabilities :: IO ()
+testParseKeyPackageWithCapabilities = do
+  kpData <- BS.readFile "test/resources/key_package1.mls"
+  case decodeMLS' @KeyPackage kpData of
+    Left err -> assertFailure (T.unpack err)
+    Right _ -> pure ()
 
 testParseCommit :: IO ()
 testParseCommit = do

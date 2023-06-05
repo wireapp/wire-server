@@ -121,5 +121,5 @@ validateSource t s = do
 
 validateCapabilities :: Capabilities -> Either Text ()
 validateCapabilities caps =
-  unless (BasicCredentialTag `elem` caps.credentials) $
+  unless (fromMLSEnum BasicCredentialTag `elem` caps.credentials) $
     Left "missing BasicCredential capability"
