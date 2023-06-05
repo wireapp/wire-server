@@ -329,7 +329,7 @@ testLocalWelcome = do
       es <- sendAndConsumeCommitBundle commit
 
       WS.assertMatchN_ (5 # Second) wss $
-        wsAssertMLSWelcome (cidQualifiedUser bob1) welcome
+        wsAssertMLSWelcome (cidQualifiedUser bob1) qcnv welcome
 
       pure es
 
@@ -351,7 +351,7 @@ testAddUserWithBundle = do
       events <- sendAndConsumeCommitBundle commit
       for_ (zip bobClients wss) $ \(c, ws) ->
         WS.assertMatch (5 # Second) ws $
-          wsAssertMLSWelcome (cidQualifiedUser c) welcome
+          wsAssertMLSWelcome (cidQualifiedUser c) qcnv welcome
       pure events
 
     event <- assertOne events
@@ -1720,12 +1720,12 @@ sendRemoteMLSWelcome :: TestM ()
 sendRemoteMLSWelcome = do
   -- Alice is from the originating domain and Bob is local, i.e., on the receiving domain
   [alice, bob] <- createAndConnectUsers [Just "alice.example.com", Nothing]
-  (commit, bob1) <- runMLSTest $ do
+  (commit, bob1, qcid) <- runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
-    void $ setupFakeMLSGroup alice1 Nothing
+    (_, qcid) <- setupFakeMLSGroup alice1 Nothing
     void $ uploadNewKeyPackage bob1
     commit <- createAddCommit alice1 [bob]
-    pure (commit, bob1)
+    pure (commit, bob1, qcid)
 
   welcome <- assertJust (mpWelcome commit)
 
@@ -1739,11 +1739,12 @@ sendRemoteMLSWelcome = do
         MLSWelcomeRequest
           (Base64ByteString welcome)
           [qUnqualified (cidQualifiedClient bob1)]
+          qcid
 
     -- check that the corresponding event is received
     liftIO $ do
       WS.assertMatch_ (5 # WS.Second) wsB $
-        wsAssertMLSWelcome bob welcome
+        wsAssertMLSWelcome bob qcid welcome
 
 testBackendRemoveProposalLocalConvLocalLeaverCreator :: TestM ()
 testBackendRemoveProposalLocalConvLocalLeaverCreator = do

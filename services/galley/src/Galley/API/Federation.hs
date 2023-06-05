@@ -617,7 +617,7 @@ mlsSendWelcome ::
   Domain ->
   F.MLSWelcomeRequest ->
   Sem r F.MLSWelcomeResponse
-mlsSendWelcome _origDomain req =
+mlsSendWelcome _origDomain req = do
   fmap (either (const MLSWelcomeMLSNotEnabled) (const MLSWelcomeSent))
     . runError @(Tagged 'MLSNotEnabled ())
     $ do
@@ -627,7 +627,7 @@ mlsSendWelcome _origDomain req =
       welcome <-
         either (throw . InternalErrorWithDescription . LT.fromStrict) pure $
           decodeMLS' (fromBase64ByteString req.welcomeMessage)
-      sendLocalWelcomes Nothing now welcome (qualifyAs loc req.recipients)
+      sendLocalWelcomes req.qualifiedConvId Nothing now welcome (qualifyAs loc req.recipients)
 
 onMLSMessageSent ::
   ( Member ExternalAccess r,
