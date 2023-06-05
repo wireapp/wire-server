@@ -27,7 +27,6 @@ import Data.Json.Util
 import Data.Qualified
 import Data.Time
 import Galley.API.Push
-import Galley.Data.Conversation
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Imports
@@ -46,6 +45,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 
@@ -55,51 +55,57 @@ sendWelcomes ::
     Member P.TinyLog r,
     Member (Input UTCTime) r
   ) =>
-  Local x ->
+  Local ConvOrSubConvId ->
   Maybe ConnId ->
   [ClientIdentity] ->
   RawMLS Welcome ->
   Sem r ()
 sendWelcomes loc con cids welcome = do
   now <- input
-  let (locals, remotes) = partitionQualified loc (map cidQualifiedClient cids)
-  let msg = mkRawMLS $ mkMessage (MessageWelcome welcome)
-  sendLocalWelcomes con now msg (qualifyAs loc locals)
-  sendRemoteWelcomes msg remotes
+  let qcnv = convFrom <$> tUntagged loc
+      (locals, remotes) = partitionQualified loc (map cidQualifiedClient cids)
+      msg = mkRawMLS $ mkMessage (MessageWelcome welcome)
+  sendLocalWelcomes qcnv con now msg (qualifyAs loc locals)
+  sendRemoteWelcomes qcnv msg remotes
+  where
+    convFrom (Conv c) = c
+    convFrom (SubConv c _) = c
 
 sendLocalWelcomes ::
   Member GundeckAccess r =>
+  Qualified ConvId ->
   Maybe ConnId ->
   UTCTime ->
   RawMLS Message ->
   Local [(UserId, ClientId)] ->
   Sem r ()
-sendLocalWelcomes con now welcome lclients = do
+sendLocalWelcomes qcnv con now welcome lclients = do
   runMessagePush lclients Nothing $
     foldMap (uncurry mkPush) (tUnqualified lclients)
   where
     mkPush :: UserId -> ClientId -> MessagePush 'Broadcast
     mkPush u c =
       -- FUTUREWORK: use the conversation ID stored in the key package mapping table
-      let lcnv = qualifyAs lclients (selfConv u)
-          lusr = qualifyAs lclients u
-          e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now $ EdMLSWelcome welcome.raw
+      let lusr = qualifyAs lclients u
+          e = Event qcnv Nothing (tUntagged lusr) now $ EdMLSWelcome welcome.raw
        in newMessagePush lclients mempty con defMessageMetadata (u, c) e
 
 sendRemoteWelcomes ::
   ( Member FederatorAccess r,
     Member P.TinyLog r
   ) =>
+  Qualified ConvId ->
   RawMLS Message ->
   [Remote (UserId, ClientId)] ->
   Sem r ()
-sendRemoteWelcomes welcome clients = do
+sendRemoteWelcomes qcnv welcome clients = do
   let msg = Base64ByteString welcome.raw
   traverse_ handleError <=< runFederatedConcurrentlyEither clients $ \rcpts ->
     fedClient @'Galley @"mls-welcome"
       MLSWelcomeRequest
         { welcomeMessage = msg,
-          recipients = tUnqualified rcpts
+          recipients = tUnqualified rcpts,
+          qualifiedConvId = qcnv
         }
   where
     handleError ::

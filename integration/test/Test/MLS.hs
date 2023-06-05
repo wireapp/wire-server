@@ -291,7 +291,7 @@ testSelfConversation = do
   alice <- randomUser OwnDomain def
   creator : others <- traverse createMLSClient (replicate 3 alice)
   traverse_ uploadNewKeyPackage others
-  void $ createSelfGroup creator
+  (_, cnv) <- createSelfGroup creator
   commit <- createAddCommit creator [alice]
   welcome <- assertOne (toList commit.welcome)
 
@@ -300,7 +300,7 @@ testSelfConversation = do
     let isWelcome n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
     for_ wss $ \ws -> do
       n <- awaitMatch 3 isWelcome ws
-      shouldMatch (nPayload n %. "conversation") (objId alice)
+      shouldMatch (nPayload n %. "conversation") (objId cnv)
       shouldMatch (nPayload n %. "from") (objId alice)
       shouldMatch (nPayload n %. "data") (B8.unpack (Base64.encode welcome))
 

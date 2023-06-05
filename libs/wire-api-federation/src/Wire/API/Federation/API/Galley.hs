@@ -431,7 +431,9 @@ data MLSWelcomeRequest = MLSWelcomeRequest
   { -- | A serialised welcome message.
     welcomeMessage :: Base64ByteString,
     -- | Recipients local to the target backend.
-    recipients :: [(UserId, ClientId)]
+    recipients :: [(UserId, ClientId)],
+    -- | The conversation id, qualified to the owning domain
+    qualifiedConvId :: Qualified ConvId
   }
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)

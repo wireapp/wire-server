@@ -1672,13 +1672,14 @@ wsAssertOtr' evData conv usr from to txt n = do
 wsAssertMLSWelcome ::
   HasCallStack =>
   Qualified UserId ->
+  Qualified ConvId ->
   ByteString ->
   Notification ->
   IO ()
-wsAssertMLSWelcome u welcome n = do
+wsAssertMLSWelcome u cid welcome n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= fmap selfConv u
+  evtConv e @?= cid
   evtType e @?= MLSWelcome
   evtFrom e @?= u
   evtData e @?= EdMLSWelcome welcome
