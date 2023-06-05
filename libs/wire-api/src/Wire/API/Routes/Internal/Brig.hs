@@ -187,6 +187,22 @@ type AccountAPI =
                      ]
                     ChangeEmailResponse
            )
+    :<|> Named
+           "iDeleteUser"
+           ( Summary
+               "This endpoint will lead to the following events being sent: UserDeleted event to all of \
+               \its contacts, MemberLeave event to members for all conversations the user was in (via galley)"
+               :> CanThrow 'UserNotFound
+               :> "users"
+               :> Capture "uid" UserId
+               :> MultiVerb
+                    'DELETE
+                    '[Servant.JSON]
+                    '[ Respond 200 "UserResponseAccountAlreadyDeleted" (),
+                       Respond 202 "UserResponseAccountDeleted" ()
+                     ]
+                    DeleteUserResponse
+           )
 
 -- | The missing ref is implicit by the capture
 data NewKeyPackageRef = NewKeyPackageRef
