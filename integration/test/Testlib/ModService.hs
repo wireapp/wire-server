@@ -78,8 +78,7 @@ startDynamicBackend beOverrides action = do
                         conf
                           >=> setKeyspace resource srv
                           >=> setEsIndex resource srv
-                          >=> setFederatorPort resource srv
-                          >=> updateBrigConfig resource srv
+                          >=> setFederationSettings resource srv
                     )
                     $ defaultDynBackendConfigOverridesToMap beOverrides
             startBackend
@@ -94,12 +93,21 @@ startDynamicBackend beOverrides action = do
               action
         )
   where
-    updateBrigConfig :: BackendResource -> Service -> Value -> App Value
-    updateBrigConfig resource =
+    setFederationSettings :: BackendResource -> Service -> Value -> App Value
+    setFederationSettings resource =
       \case
         Brig ->
           setField "optSettings.setFederationDomain" resource.berDomain
             >=> setField "optSettings.setFederationDomainConfigs" [object ["domain" .= resource.berDomain, "search_policy" .= "full_search"]]
+            >=> setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
+        Cargohold ->
+          setField "settings.federationDomain" resource.berDomain
+            >=> setFieldIfExists "federator.port" resource.berFederatorInternal
+        Galley ->
+          setField "settings.federationDomain" resource.berDomain
+            >=> setField "settings.featureFlags.classifiedDomains.config.domains" [resource.berDomain]
+            >=> setFieldIfExists "federator.port" resource.berFederatorInternal
+        Gundeck -> setField "settings.federationDomain" resource.berDomain
         _ -> pure
 
     setFederatorConfig :: BackendResource -> Value -> App Value
@@ -110,13 +118,6 @@ startDynamicBackend beOverrides action = do
 
     backGroundWorkerOverrides :: BackendResource -> Value -> App Value
     backGroundWorkerOverrides resource = setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
-
-    setFederatorPort :: BackendResource -> Service -> Value -> App Value
-    setFederatorPort resource = \case
-      Brig -> setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
-      Cargohold -> setFieldIfExists "federator.port" resource.berFederatorInternal
-      Galley -> setFieldIfExists "federator.port" resource.berFederatorInternal
-      _ -> pure
 
     setKeyspace :: BackendResource -> Service -> Value -> App Value
     setKeyspace resource = \case
@@ -193,16 +194,6 @@ startBackend domain mFederatorOverrides mBgWorkerOverrides services modifyBacken
                     -- FUTUREWORK: override "saml.spAppUri" and "saml.spSsoUri" with correct port, too?
                     & setField "saml.spHost" ("127.0.0.1" :: String)
                     & setField "saml.spPort" port
-                Just Cargohold ->
-                  overridden
-                    & setField "settings.federationDomain" domain
-                Just Galley ->
-                  overridden
-                    & setField "settings.federationDomain" domain
-                    & setField "settings.featureFlags.classifiedDomains.config.domains" [domain]
-                Just Gundeck ->
-                  overridden
-                    & setField "settings.federationDomain" domain
                 _ -> pure overridden
           )
           config
@@ -375,95 +366,92 @@ startNginz port sm = do
   -- Create a whole temporary directory and copy all nginx's config files.
   -- This is necessary because nginx assumes local imports are relative to
   -- the location of the main configuration file.
-  (ph, tempFile) <- do
-    tmpDir <- liftIO $ createTempDirectory "/tmp" "nginz"
-    mBaseDir <- asks (.servicesCwdBase)
-    basedir <- maybe (failApp "service cwd base not found") pure mBaseDir
-    let srvName = serviceName Nginz
+  tmpDir <- liftIO $ createTempDirectory "/tmp" "nginz"
+  mBaseDir <- asks (.servicesCwdBase)
+  basedir <- maybe (failApp "service cwd base not found") pure mBaseDir
+  let srvName = serviceName Nginz
 
-    -- copy all config files into the tmp dir
-    liftIO $ do
-      let from = basedir </> srvName </> "integration-test"
-      copyDirectoryRecursively (from </> "conf" </> "nginz") (tmpDir </> "conf" </> "nginz")
-      copyDirectoryRecursively (from </> "resources") (tmpDir </> "resources")
+  -- copy all config files into the tmp dir
+  liftIO $ do
+    let from = basedir </> srvName </> "integration-test"
+    copyDirectoryRecursively (from </> "conf" </> "nginz") (tmpDir </> "conf" </> "nginz")
+    copyDirectoryRecursively (from </> "resources") (tmpDir </> "resources")
 
-    -- override port configuration
-    let portConfigTemplate =
-          cs $
-            [r|listen {port};
+  -- override port configuration
+  let portConfigTemplate =
+        cs $
+          [r|listen {port};
 listen {http2_port} http2;
 listen {ssl_port} ssl http2;
 listen [::]:{ssl_port} ssl http2;
 |]
-    let portConfig =
-          portConfigTemplate
-            & replace (cs "{port}") (cs $ show nginzConf.localPort)
-            & replace (cs "{http2_port}") (cs $ show nginzConf.http2Port)
-            & replace (cs "{ssl_port}") (cs $ show nginzConf.sslPort)
-    let integrationConfFile = tmpDir </> "conf" </> "nginz" </> "integration.conf"
-    liftIO $ whenM (doesFileExist $ integrationConfFile) $ removeFile integrationConfFile
-    liftIO $ writeFile integrationConfFile (cs portConfig)
+  let portConfig =
+        portConfigTemplate
+          & replace (cs "{port}") (cs $ show nginzConf.localPort)
+          & replace (cs "{http2_port}") (cs $ show nginzConf.http2Port)
+          & replace (cs "{ssl_port}") (cs $ show nginzConf.sslPort)
+  let integrationConfFile = tmpDir </> "conf" </> "nginz" </> "integration.conf"
+  liftIO $ whenM (doesFileExist $ integrationConfFile) $ removeFile integrationConfFile
+  liftIO $ writeFile integrationConfFile (cs portConfig)
 
-    -- override upstreams
-    let upstreamsCfg = tmpDir </> "conf" </> "nginz" </> "upstreams"
-    liftIO $ whenM (doesFileExist $ upstreamsCfg) $ removeFile upstreamsCfg
-    let upstreamTemplate =
-          cs $
-            [r|upstream {name} {
-  least_conn;
-  keepalive 32;
-  server 127.0.0.1:{port} max_fails=3 weight=1;
+  -- override upstreams
+  let upstreamsCfg = tmpDir </> "conf" </> "nginz" </> "upstreams"
+  liftIO $ whenM (doesFileExist $ upstreamsCfg) $ removeFile upstreamsCfg
+  let upstreamTemplate =
+        cs $
+          [r|upstream {name} {
+least_conn;
+keepalive 32;
+server 127.0.0.1:{port} max_fails=3 weight=1;
 }
 |]
 
-    forM_
-      [ (serviceName Brig, sm.brig.port),
-        (serviceName Cannon, sm.cannon.port),
-        (serviceName Cargohold, sm.cargohold.port),
-        (serviceName Galley, sm.galley.port),
-        (serviceName Gundeck, sm.gundeck.port),
-        (serviceName Nginz, sm.nginz.port),
-        (serviceName Spar, sm.spar.port),
-        ("proxy", sm.proxy.port)
-      ]
-      ( \case
-          (srv, p) -> do
-            let upstream =
-                  upstreamTemplate
-                    & replace (cs "{name}") (cs $ srv)
-                    & replace (cs "{port}") (cs $ show p)
-            liftIO $ appendFile upstreamsCfg (cs upstream)
-      )
-    let upstreamFederatorTemplate =
-          cs $
-            [r|upstream {name} {
-  server 127.0.0.1:{port} max_fails=3 weight=1;
+  forM_
+    [ (serviceName Brig, sm.brig.port),
+      (serviceName Cannon, sm.cannon.port),
+      (serviceName Cargohold, sm.cargohold.port),
+      (serviceName Galley, sm.galley.port),
+      (serviceName Gundeck, sm.gundeck.port),
+      (serviceName Nginz, sm.nginz.port),
+      (serviceName Spar, sm.spar.port),
+      ("proxy", sm.proxy.port)
+    ]
+    ( \case
+        (srv, p) -> do
+          let upstream =
+                upstreamTemplate
+                  & replace (cs "{name}") (cs $ srv)
+                  & replace (cs "{port}") (cs $ show p)
+          liftIO $ appendFile upstreamsCfg (cs upstream)
+    )
+  let upstreamFederatorTemplate =
+        cs $
+          [r|upstream {name} {
+server 127.0.0.1:{port} max_fails=3 weight=1;
 }|]
+  liftIO $
+    appendFile
+      upstreamsCfg
+      ( cs $
+          upstreamFederatorTemplate
+            & replace (cs "{name}") (cs "federator_external")
+            & replace (cs "{port}") (cs $ show nginzConf.fedPort)
+      )
+
+  -- override pid configuration
+  let pidConfigFile = tmpDir </> "conf" </> "nginz" </> "pid.conf"
+  let pid = tmpDir </> "conf" </> "nginz" </> "nginz.pid"
+  liftIO $ do
+    whenM (doesFileExist $ pidConfigFile) $ removeFile pidConfigFile
+    writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
+
+  -- start service
+  (_, _, _, ph) <-
     liftIO $
-      appendFile
-        upstreamsCfg
-        ( cs $
-            upstreamFederatorTemplate
-              & replace (cs "{name}") (cs "federator_external")
-              & replace (cs "{port}") (cs $ show nginzConf.fedPort)
-        )
+      createProcess
+        (proc "nginx" ["-c", tmpDir </> "conf" </> "nginz" </> "nginx.conf", "-p", tmpDir, "-g", "daemon off;"])
+          { cwd = Just $ cs tmpDir
+          }
 
-    -- override pid configuration
-    let pidConfigFile = tmpDir </> "conf" </> "nginz" </> "pid.conf"
-    let pid = tmpDir </> "conf" </> "nginz" </> "nginz.pid"
-    liftIO $ do
-      whenM (doesFileExist $ pidConfigFile) $ removeFile pidConfigFile
-      writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
-
-    -- start service
-    (_, _, _, ph) <-
-      liftIO $
-        createProcess
-          (proc "nginx" ["-c", tmpDir </> "conf" </> "nginz" </> "nginx.conf", "-p", tmpDir, "-g", "daemon off;"])
-            { cwd = Just $ cs tmpDir
-            }
-
-    -- return handle and nginx tmp dir path
-    pure (ph, tmpDir)
-
-  pure (ph, tempFile)
+  -- return handle and nginx tmp dir path
+  pure (ph, tmpDir)
