@@ -448,7 +448,7 @@ the sysadmin:
    change in the future.
 
   - This end-point enjoys a comparably high amount of traffic.  If you
-   have many a large instance (say, >100 pods), *and* you set a very
+   have many pods (a large instance with say, >100 pods), *and* you set a very
    short update interval (<10s), you should monitor brig's service and
    database load closely in the beginning.
 
