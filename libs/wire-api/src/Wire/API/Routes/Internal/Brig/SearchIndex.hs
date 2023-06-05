@@ -24,14 +24,14 @@ import Wire.API.Routes.Named (Named (..))
 
 type ISearchIndexAPI =
   Named
-    "index-refresh"
+    "indexRefresh"
     ( Summary "make index updates visible (e.g. for integration testing)"
         :> "index"
         :> "refresh"
         :> Post '[JSON] NoContent
     )
     :<|> Named
-           "index-reindex"
+           "indexReindex"
            ( Summary
                "reindex from Cassandra (NB: e.g. integration testing prefer the `brig-index` \
                \executable for actual operations!)"
@@ -40,7 +40,7 @@ type ISearchIndexAPI =
                :> Post '[JSON] NoContent
            )
     :<|> Named
-           "index-reindex-if-same-or-newer"
+           "indexReindexIfSameOrNewer"
            ( Summary
                "forcefully reindex from Cassandra, even if nothing has changed (NB: e.g. \
                \integration testing prefer the `brig-index` executable for actual operations!)"

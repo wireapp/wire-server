@@ -274,9 +274,9 @@ getVerificationCode uid action = do
 
 internalSearchIndexAPI :: forall r. ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
 internalSearchIndexAPI =
-  Named @"index-refresh" (NoContent <$ lift (wrapClient Search.refreshIndex))
-    :<|> Named @"index-reindex" (NoContent <$ lift (wrapClient Search.reindexAll))
-    :<|> Named @"index-reindex-if-same-or-newer" (NoContent <$ lift (wrapClient Search.reindexAllIfSameOrNewer))
+  Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndex))
+    :<|> Named @"indexReindex" (NoContent <$ lift (wrapClient Search.reindexAll))
+    :<|> Named @"indexReindexIfSameOrNewer" (NoContent <$ lift (wrapClient Search.reindexAllIfSameOrNewer))
 
 ---------------------------------------------------------------------------
 -- Sitemap (wai-route)
