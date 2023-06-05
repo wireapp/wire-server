@@ -327,10 +327,11 @@ deleteRemoteConnections (tUntagged -> Qualified remoteUser remoteDomain) (fromRa
 
 deleteRemoteConnectionsDomain :: (MonadClient m, MonadUnliftIO m) => Domain -> m ()
 deleteRemoteConnectionsDomain dom = do
-  -- Select all triples for the given domain
-  triples <- retry x1 . query remoteConnectionSelectFromDomain $ params One $ pure dom
-  -- Delete them
-  pooledForConcurrentlyN_ 16 triples $ write remoteConnectionDelete . params LocalQuorum
+  -- Select all triples for the given domain, and then delete them
+  runConduit $
+    paginateC remoteConnectionSelectFromDomain (paramsP LocalQuorum (pure dom) 100) x1
+      .| C.mapM_
+        (pooledMapConcurrentlyN_ 16 $ write remoteConnectionDelete . params LocalQuorum)
 
 -- Queries
 
@@ -395,7 +396,7 @@ remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
 remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right_user = ?"
 
 remoteConnectionSelectFromDomain :: PrepQuery R (Identity Domain) (UserId, Domain, UserId)
-remoteConnectionSelectFromDomain = "SELECT left, right_domain, right_user FROM connection_remote where right_domain = ?"
+remoteConnectionSelectFromDomain = "SELECT left, right_domain, right_user FROM connection_remote where right_domain = ? ALLOW FILTERING"
 
 remoteConnectionClear :: PrepQuery W (Identity UserId) ()
 remoteConnectionClear = "DELETE FROM connection_remote where left = ?"
