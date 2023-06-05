@@ -82,8 +82,9 @@ startDynamicBackend beOverrides action = do
                     )
                     $ defaultDynBackendConfigOverridesToMap beOverrides
             startBackend
-              (Just $ backGroundWorkerOverrides resource)
               resource.berDomain
+              (Just $ setFederatorConfig resource)
+              (Just $ backGroundWorkerOverrides resource)
               services
               ( \ports sm -> do
                   let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
@@ -92,6 +93,12 @@ startDynamicBackend beOverrides action = do
               action
         )
   where
+    setFederatorConfig :: BackendResource -> Value -> App Value
+    setFederatorConfig resource =
+      setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
+        >=> setFieldIfExists "federatorExternal.port" resource.berFederatorExternal
+        >=> setFieldIfExists "optSettings.setFederationDomain" resource.berDomain
+
     backGroundWorkerOverrides :: BackendResource -> Value -> App Value
     backGroundWorkerOverrides resource = setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
 
@@ -100,7 +107,6 @@ startDynamicBackend beOverrides action = do
       Brig -> setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
       Cargohold -> setFieldIfExists "federator.port" resource.berFederatorInternal
       Galley -> setFieldIfExists "federator.port" resource.berFederatorInternal
-      -- Federator -> setFieldIfExists "federatorInternal.port" resource.federatorInternal ... + external
       _ -> pure
 
     setKeyspace :: BackendResource -> Service -> Value -> App Value
@@ -128,7 +134,7 @@ setFederatorPorts resource sm =
 withModifiedServices :: Map.Map Service (Value -> App Value) -> (String -> App a) -> App a
 withModifiedServices services action = do
   domain <- asks (.domain1)
-  startBackend Nothing domain services (\ports -> Map.adjust (updateServiceMap ports) domain) action
+  startBackend domain Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain) action
 
 updateServiceMap :: Map.Map Service Word16 -> ServiceMap -> ServiceMap
 updateServiceMap ports serviceMap =
@@ -147,16 +153,17 @@ updateServiceMap ports serviceMap =
     ports
 
 startBackend ::
-  Maybe (Value -> App Value) ->
   String ->
+  Maybe (Value -> App Value) ->
+  Maybe (Value -> App Value) ->
   Map.Map Service (Value -> App Value) ->
   (Map.Map Service Word16 -> Map.Map String ServiceMap -> Map.Map String ServiceMap) ->
   (String -> App a) ->
   App a
-startBackend mBgWorkerOverrides domain services modifyBackends action = do
+startBackend domain mFederatorOverrides mBgWorkerOverrides services modifyBackends action = do
   ports <- Map.traverseWithKey (\_ _ -> liftIO openFreePort) services
 
-  let updateServiceMapInConfig :: Service -> Value -> App Value
+  let updateServiceMapInConfig :: Maybe Service -> Value -> App Value
       updateServiceMapInConfig forSrv config =
         foldlM
           ( \c (srv, (port, _)) -> do
@@ -172,23 +179,23 @@ startBackend mBgWorkerOverrides domain services modifyBackends action = do
                         )
                     )
               case forSrv of
-                Spar ->
+                Just Spar ->
                   overridden
                     -- FUTUREWORK: override "saml.spAppUri" and "saml.spSsoUri" with correct port, too?
                     & setField "saml.spHost" ("127.0.0.1" :: String)
                     & setField "saml.spPort" port
-                Brig ->
+                Just Brig ->
                   overridden
                     & setField "optSettings.setFederationDomain" domain
                     & setField "optSettings.setFederationDomainConfigs" [object ["domain" .= domain, "search_policy" .= "full_search"]]
-                Cargohold ->
+                Just Cargohold ->
                   overridden
                     & setField "settings.federationDomain" domain
-                Galley ->
+                Just Galley ->
                   overridden
                     & setField "settings.federationDomain" domain
                     & setField "settings.featureFlags.classifiedDomains.config.domains" [domain]
-                Gundeck ->
+                Just Gundeck ->
                   overridden
                     & setField "settings.federationDomain" domain
                 _ -> pure overridden
@@ -199,7 +206,26 @@ startBackend mBgWorkerOverrides domain services modifyBackends action = do
   -- close all sockets before starting the services
   for_ (Map.keys services) $ \srv -> maybe (failApp "the impossible in withServices happened") (liftIO . N.close . snd) (Map.lookup srv ports)
 
-  instances' <- for (Map.assocs services) $ \case
+  bgWorkerInstance <-
+    case mBgWorkerOverrides of
+      Nothing -> pure []
+      Just override ->
+        readServiceConfig' "background-worker"
+          >>= override
+          >>= startProcess "background-worker"
+          <&> (: [])
+
+  fedInstance <-
+    case mFederatorOverrides of
+      Nothing -> pure []
+      Just override ->
+        readServiceConfig' "federator"
+          >>= updateServiceMapInConfig Nothing
+          >>= override
+          >>= startProcess "federator"
+          <&> (: [])
+
+  otherInstances <- for (Map.assocs services) $ \case
     (Nginz, _) -> do
       env <- ask
       sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (modifyBackends (fromIntegral . fst <$> ports) env.serviceMap))
@@ -208,18 +234,11 @@ startBackend mBgWorkerOverrides domain services modifyBackends action = do
     (srv, modifyConfig) -> do
       let srvName = serviceName srv
       readServiceConfig srv
-        >>= updateServiceMapInConfig srv
+        >>= updateServiceMapInConfig (Just srv)
         >>= modifyConfig
         >>= startProcess srvName
 
-  instances <-
-    case mBgWorkerOverrides of
-      Nothing -> pure instances'
-      Just override ->
-        readServiceConfig' "background-worker"
-          >>= override
-          >>= startProcess "background-worker"
-          <&> (: instances')
+  let instances = bgWorkerInstance <> fedInstance <> otherInstances
 
   let stopInstances = liftIO $ do
         -- Running waitForProcess would hang for 30 seconds when the test suite
