@@ -212,6 +212,9 @@ galley:
           -----BEGIN PRIVATE KEY-----
           MC4CAQAwBQYDK2VwBCIEIAocCDXsKIAjb65gOUn5vEF0RIKnVJkKR4ebQzuZ709c
           -----END PRIVATE KEY-----
+    rabbitmq:
+      username: {{ .Values.rabbitmqUsername }}
+      password: {{ .Values.rabbitmqPassword }}
 
 gundeck:
   replicaCount: 1

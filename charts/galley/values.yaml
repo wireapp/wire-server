@@ -23,6 +23,11 @@ config:
     host: aws-cassandra
     replicaCount: 3
   enableFederation: false # keep enableFederation default in sync with brig and cargohold chart's config.enableFederation as well as wire-server chart's tags.federation
+  # Not used if enableFederation is false
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    vHost: /
   settings:
     httpPoolSize: 128
     maxTeamSize: 10000

@@ -40,7 +40,9 @@ import qualified Data.Text.Lazy as LT
 import Data.Tuple.Extra
 import Galley.API.Action
 import Galley.API.Error
-import Galley.API.MLS.Commit
+import Galley.API.MLS.Commit.Core (getCommitData)
+import Galley.API.MLS.Commit.ExternalCommit
+import Galley.API.MLS.Commit.InternalCommit
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.IncomingMessage

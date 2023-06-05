@@ -861,7 +861,7 @@ consumeMessage1 cid msg =
       (Just msg)
 
 -- | Send an MLS message and simulate clients receiving it. If the message is a
--- commit, the 'sendAndConsumeCommit' function should be used instead.
+-- commit, the 'sendAndConsumeCommitBundle' function should be used instead.
 sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], Maybe UnreachableUsers)
 sendAndConsumeMessage mp = do
   for_ mp.mpWelcome $ \_ -> liftIO $ assertFailure "use sendAndConsumeCommitBundle"

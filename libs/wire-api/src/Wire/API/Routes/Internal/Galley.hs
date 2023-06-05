@@ -189,7 +189,6 @@ type InternalAPIBase =
            ( Summary
                "Remove a user from their teams and conversations and erase their clients"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-user-deleted-conversations"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> ZLocalUser
                :> ZOptConn
