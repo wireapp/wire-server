@@ -1353,11 +1353,13 @@ data ChangeEmailResponse
 
 instance
   AsUnion
-    '[Respond 202 desc1 (), Respond 204 desc2 ()]
+    '[ Respond 202 "Update accepted and pending activation of the new email" (),
+       Respond 204 "No update, current and new email address are the same" ()
+     ]
     ChangeEmailResponse
   where
-  toUnion ChangeEmailResponseIdempotent = S (Z (I ()))
   toUnion ChangeEmailResponseNeedsActivation = Z (I ())
+  toUnion ChangeEmailResponseIdempotent = S (Z (I ()))
   fromUnion (Z (I ())) = ChangeEmailResponseNeedsActivation
   fromUnion (S (Z (I ()))) = ChangeEmailResponseIdempotent
   fromUnion (S (S x)) = case x of {}

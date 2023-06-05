@@ -76,7 +76,7 @@ import Network.Wai (Response)
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
-import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import Network.Wai.Utilities.ZAuth (zauthConnId)
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
@@ -159,6 +159,7 @@ accountAPI ::
 accountAPI =
   Named @"createUserNoVerify" (callsFed (exposeAnnotations createUserNoVerify))
     :<|> Named @"createUserNoVerifySpar" (callsFed (exposeAnnotations createUserNoVerifySpar))
+    :<|> Named @"putSelfEmail" changeSelfEmailMaybeSendH
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -295,15 +296,6 @@ sitemap ::
   ) =>
   Routes a (Handler r) ()
 sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
-  -- internal email activation (used in tests and in spar for validating emails obtained as
-  -- SAML user identifiers).  if the validate query parameter is false or missing, only set
-  -- the activation timeout, but do not send an email, and do not do anything about activating
-  -- the email.
-  put "/i/self/email" (continue changeSelfEmailMaybeSendH) $
-    zauthUserId
-      .&. def False (query "validate")
-      .&. jsonRequest @EmailUpdate
-
   -- This endpoint will lead to the following events being sent:
   -- - UserDeleted event to all of its contacts
   -- - MemberLeave event to members for all conversations the user was in (via galley)
@@ -546,12 +538,10 @@ deleteUserNoAuthH uid = do
     AccountAlreadyDeleted -> pure $ setStatus ok200 empty
     AccountDeleted -> pure $ setStatus accepted202 empty
 
-changeSelfEmailMaybeSendH :: Member BlacklistStore r => UserId ::: Bool ::: JsonRequest EmailUpdate -> (Handler r) Response
-changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
-  email <- euEmail <$> parseJsonBody req
-  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates >>= \case
-    ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
-    ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
+changeSelfEmailMaybeSendH :: Member BlacklistStore r => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
+  let email = euEmail body
+  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
