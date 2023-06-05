@@ -38,6 +38,8 @@ data:
     federator:
       host: federator
       port: 8080
+    rabbitmq:
+{{ toYaml .rabbitmq | indent 6}}
     {{- end }}
 
     {{- if (.journal) }}

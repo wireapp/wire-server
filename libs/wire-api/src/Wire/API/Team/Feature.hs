@@ -114,6 +114,7 @@ import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
 import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
+import Wire.API.Routes.Named (RenderableSymbol (renderSymbol))
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 ----------------------------------------------------------------------
@@ -567,6 +568,9 @@ data GuestLinksConfig = GuestLinksConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GuestLinksConfig)
 
+instance RenderableSymbol GuestLinksConfig where
+  renderSymbol = "GuestLinksConfig"
+
 instance ToSchema GuestLinksConfig where
   schema = object "GuestLinksConfig" objectSchema
 
@@ -587,6 +591,9 @@ data LegalholdConfig = LegalholdConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LegalholdConfig)
 
+instance RenderableSymbol LegalholdConfig where
+  renderSymbol = "LegalholdConfig"
+
 instance IsFeatureConfig LegalholdConfig where
   type FeatureSymbol LegalholdConfig = "legalhold"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked LegalholdConfig FeatureTTLUnlimited
@@ -605,6 +612,9 @@ instance FeatureTrivialConfig LegalholdConfig where
 data SSOConfig = SSOConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SSOConfig)
+
+instance RenderableSymbol SSOConfig where
+  renderSymbol = "SSOConfig"
 
 instance IsFeatureConfig SSOConfig where
   type FeatureSymbol SSOConfig = "sso"
@@ -626,6 +636,9 @@ instance FeatureTrivialConfig SSOConfig where
 data SearchVisibilityAvailableConfig = SearchVisibilityAvailableConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SearchVisibilityAvailableConfig)
+
+instance RenderableSymbol SearchVisibilityAvailableConfig where
+  renderSymbol = "SearchVisibilityAvailableConfig"
 
 instance IsFeatureConfig SearchVisibilityAvailableConfig where
   type FeatureSymbol SearchVisibilityAvailableConfig = "searchVisibility"
@@ -649,6 +662,9 @@ data ValidateSAMLEmailsConfig = ValidateSAMLEmailsConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ValidateSAMLEmailsConfig)
 
+instance RenderableSymbol ValidateSAMLEmailsConfig where
+  renderSymbol = "ValidateSAMLEmailsConfig"
+
 instance ToSchema ValidateSAMLEmailsConfig where
   schema = object "ValidateSAMLEmailsConfig" objectSchema
 
@@ -670,6 +686,9 @@ instance FeatureTrivialConfig ValidateSAMLEmailsConfig where
 data DigitalSignaturesConfig = DigitalSignaturesConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform DigitalSignaturesConfig)
+
+instance RenderableSymbol DigitalSignaturesConfig where
+  renderSymbol = "DigitalSignaturesConfig"
 
 instance IsFeatureConfig DigitalSignaturesConfig where
   type FeatureSymbol DigitalSignaturesConfig = "digitalSignatures"
@@ -693,6 +712,9 @@ data ConferenceCallingConfig = ConferenceCallingConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConferenceCallingConfig)
 
+instance RenderableSymbol ConferenceCallingConfig where
+  renderSymbol = "ConferenceCallingConfig"
+
 instance IsFeatureConfig ConferenceCallingConfig where
   type FeatureSymbol ConferenceCallingConfig = "conferenceCalling"
   defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked ConferenceCallingConfig FeatureTTLUnlimited
@@ -711,6 +733,9 @@ instance FeatureTrivialConfig ConferenceCallingConfig where
 data SndFactorPasswordChallengeConfig = SndFactorPasswordChallengeConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SndFactorPasswordChallengeConfig)
+
+instance RenderableSymbol SndFactorPasswordChallengeConfig where
+  renderSymbol = "SndFactorPasswordChallengeConfig"
 
 instance ToSchema SndFactorPasswordChallengeConfig where
   schema = object "SndFactorPasswordChallengeConfig" objectSchema
@@ -732,6 +757,9 @@ data SearchVisibilityInboundConfig = SearchVisibilityInboundConfig
   deriving (Arbitrary) via (GenericUniform SearchVisibilityInboundConfig)
   deriving (S.ToSchema) via Schema SearchVisibilityInboundConfig
 
+instance RenderableSymbol SearchVisibilityInboundConfig where
+  renderSymbol = "SearchVisibilityInboundConfig"
+
 instance IsFeatureConfig SearchVisibilityInboundConfig where
   type FeatureSymbol SearchVisibilityInboundConfig = "searchVisibilityInbound"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig FeatureTTLUnlimited
@@ -752,6 +780,9 @@ data ClassifiedDomainsConfig = ClassifiedDomainsConfig
   }
   deriving stock (Show, Eq, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ClassifiedDomainsConfig)
+
+instance RenderableSymbol ClassifiedDomainsConfig where
+  renderSymbol = "ClassifiedDomainsConfig"
 
 deriving via (GenericUniform ClassifiedDomainsConfig) instance Arbitrary ClassifiedDomainsConfig
 
@@ -783,6 +814,9 @@ data AppLockConfig = AppLockConfig
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AppLockConfig)
   deriving (Arbitrary) via (GenericUniform AppLockConfig)
+
+instance RenderableSymbol AppLockConfig where
+  renderSymbol = "AppLockConfig"
 
 instance ToSchema AppLockConfig where
   schema =
@@ -818,6 +852,9 @@ data FileSharingConfig = FileSharingConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform FileSharingConfig)
 
+instance RenderableSymbol FileSharingConfig where
+  renderSymbol = "FileSharingConfig"
+
 instance IsFeatureConfig FileSharingConfig where
   type FeatureSymbol FileSharingConfig = "fileSharing"
   defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked FileSharingConfig FeatureTTLUnlimited
@@ -839,6 +876,9 @@ newtype SelfDeletingMessagesConfig = SelfDeletingMessagesConfig
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema SelfDeletingMessagesConfig)
   deriving (Arbitrary) via (GenericUniform SelfDeletingMessagesConfig)
+
+instance RenderableSymbol SelfDeletingMessagesConfig where
+  renderSymbol = "SelfDeletingMessagesConfig"
 
 instance ToSchema SelfDeletingMessagesConfig where
   schema =
@@ -869,6 +909,9 @@ data MLSConfig = MLSConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform MLSConfig)
 
+instance RenderableSymbol MLSConfig where
+  renderSymbol = "MLSConfig"
+
 instance ToSchema MLSConfig where
   schema =
     object "MLSConfig" $
@@ -893,6 +936,9 @@ data ExposeInvitationURLsToTeamAdminConfig = ExposeInvitationURLsToTeamAdminConf
   deriving stock (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform ExposeInvitationURLsToTeamAdminConfig)
 
+instance RenderableSymbol ExposeInvitationURLsToTeamAdminConfig where
+  renderSymbol = "ExposeInvitationURLsToTeamAdminConfig"
+
 instance IsFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   type FeatureSymbol ExposeInvitationURLsToTeamAdminConfig = "exposeInvitationURLsToTeamAdmin"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
@@ -914,6 +960,9 @@ data OutlookCalIntegrationConfig = OutlookCalIntegrationConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OutlookCalIntegrationConfig)
 
+instance RenderableSymbol OutlookCalIntegrationConfig where
+  renderSymbol = "OutlookCalIntegrationConfig"
+
 instance IsFeatureConfig OutlookCalIntegrationConfig where
   type FeatureSymbol OutlookCalIntegrationConfig = "outlookCalIntegration"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited
@@ -934,6 +983,9 @@ data MlsE2EIdConfig = MlsE2EIdConfig
     acmeDiscoveryUrl :: Maybe HttpsUrl
   }
   deriving stock (Eq, Show, Generic)
+
+instance RenderableSymbol MlsE2EIdConfig where
+  renderSymbol = "MlsE2EIdConfig"
 
 instance Arbitrary MlsE2EIdConfig where
   arbitrary =
