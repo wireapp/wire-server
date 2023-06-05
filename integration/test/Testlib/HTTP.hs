@@ -9,15 +9,19 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
 import Data.Function
+import Data.Functor ((<&>))
 import Data.List
 import Data.List.Split (splitOn)
+import Data.Maybe
 import Data.String
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Types (hLocation)
 import qualified Network.HTTP.Types as HTTP
+import Network.URI (URI (..), URIAuth (..), parseURI)
 import Testlib.Assertions
 import Testlib.Env
 import Testlib.JSON
@@ -148,3 +152,16 @@ submit method req0 = do
         headers = HTTP.responseHeaders res,
         request = req
       }
+
+locationHeaderHost :: Response -> String
+locationHeaderHost resp =
+  let location = C8.unpack . snd . fromJust $ locationHeader resp
+      locationURI = fromJust $ parseURI location
+      locationHost = fromJust $ locationURI & uriAuthority <&> uriRegName
+   in locationHost
+
+locationHeader :: Response -> Maybe (HTTP.HeaderName, ByteString)
+locationHeader = findHeader hLocation
+
+findHeader :: HTTP.HeaderName -> Response -> Maybe (HTTP.HeaderName, ByteString)
+findHeader name resp = find (\(name', _) -> name == name') resp.headers

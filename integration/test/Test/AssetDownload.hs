@@ -1,7 +1,6 @@
 module Test.AssetDownload where
 
 import API.Cargohold
-import qualified Data.ByteString.Char8 as C
 import GHC.Stack
 import Network.HTTP.Client (Request (redirectCount))
 import qualified Network.HTTP.Client as HTTP
@@ -65,13 +64,6 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
         [ "red.example.com" .= "http://s3-download.red.example.com",
           "green.example.com" .= "http://s3-download.green.example.com"
         ]
-
-    locationHeaderHost :: Response -> String
-    locationHeaderHost resp =
-      let location = C.unpack . snd . fromJust $ find (\(name, _) -> hLocation == name) resp.headers
-          locationURI = fromJust $ parseURI location
-          locationHost = fromJust $ locationURI & uriAuthority <&> uriRegName
-       in locationHost
 
     doUploadAsset :: Value -> App Value
     doUploadAsset user = bindResponse (uploadAsset user) $ \resp -> do
