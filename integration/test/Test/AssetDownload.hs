@@ -28,23 +28,29 @@ testDownloadAssetMultiIngressS3DownloadUrl :: HasCallStack => App ()
 testDownloadAssetMultiIngressS3DownloadUrl = do
   user <- randomUser OwnDomain def
 
-  key <- bindResponse (uploadAsset user) $ \resp -> do
-    resp.status `shouldMatchInt` 201
-    resp.json %. "key"
+  -- multi-ingress disabled
+  key <- doUploadAsset user
+  checkAssetDownload user key
 
   withModifiedService Cargohold modifyConfig $ do
-    bindResponse (downloadAsset user key noRedirects) $ \resp -> do
-      resp.status `shouldMatchInt` 404
-    bindResponse (downloadAsset' user key "red.example.com" noRedirects) $ \resp -> do
-      resp.status `shouldMatchInt` 302
-      locationHeaderHost resp `shouldMatch` "s3-download.red.example.com"
-    bindResponse (downloadAsset' user key "green.example.com" noRedirects) $ \resp -> do
-      resp.status `shouldMatchInt` 302
-      locationHeaderHost resp `shouldMatch` "s3-download.green.example.com"
-    bindResponse (downloadAsset' user key "unknown.example.com" noRedirects) $ \resp -> do
-      resp.status `shouldMatchInt` 404
-      resp.json %. "label" `shouldMatch` "no-asset-endpoint"
+    -- multi-ingress enabled
+    key' <- doUploadAsset user
+    checkAssetDownload user key'
   where
+    checkAssetDownload :: Value -> Value -> App ()
+    checkAssetDownload user key = withModifiedService Cargohold modifyConfig $ do
+      bindResponse (downloadAsset user key noRedirects) $ \resp -> do
+        resp.status `shouldMatchInt` 404
+      bindResponse (downloadAsset' user key "red.example.com" noRedirects) $ \resp -> do
+        resp.status `shouldMatchInt` 302
+        locationHeaderHost resp `shouldMatch` "s3-download.red.example.com"
+      bindResponse (downloadAsset' user key "green.example.com" noRedirects) $ \resp -> do
+        resp.status `shouldMatchInt` 302
+        locationHeaderHost resp `shouldMatch` "s3-download.green.example.com"
+      bindResponse (downloadAsset' user key "unknown.example.com" noRedirects) $ \resp -> do
+        resp.status `shouldMatchInt` 404
+        resp.json %. "label" `shouldMatch` "no-asset-endpoint"
+
     noRedirects :: HTTP.Request -> HTTP.Request
     noRedirects req = (req {redirectCount = 0})
 
@@ -66,3 +72,8 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
           locationURI = fromJust $ parseURI location
           locationHost = fromJust $ locationURI & uriAuthority <&> uriRegName
        in locationHost
+
+    doUploadAsset :: Value -> App Value
+    doUploadAsset user = bindResponse (uploadAsset user) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "key"
