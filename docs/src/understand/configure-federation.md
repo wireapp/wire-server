@@ -448,7 +448,7 @@ the sysadmin:
    change in the future.
 
   - This end-point enjoys a comparably high amount of traffic.  If you
-   have many a large instance (say, >100 pods), *and* you set a very
+   have many pods (a large instance with say, >100 pods), *and* you set a very
    short update interval (<10s), you should monitor brig's service and
    database load closely in the beginning.
 
@@ -500,40 +500,59 @@ developer's point of view on this topic.
 
 #### If your instance has been federating before
 
-Only needed if your instance has been federating with other instances
-prior to [PR#3260](https://github.com/wireapp/wire-server/pull/3260).
+You only need to read this section if your instance has been
+federating with other instances prior to
+[PR#3260](https://github.com/wireapp/wire-server/pull/3260), and you
+are upgrading to the release containing that PR.
 
-The new configuration process ignores the federation policy set in the
-federator config under TODO NOISE FROM HERE ON OUT ***
+From now on the federation policy set in the federator config under
+`federationStrategy` is ignored.  Instead, the federation strategy is
+pulled by all services from brig, who in turn gets it from a
+combination of config file and database (see
+{ref}`configure-federation-strategy-in-brig` above).
 
-TODO: you need to update config files!
-  - complete list of search policies, no more defaults
-  - new fed strategy syntax (keep the old, just copy)
-  - later, remove the old syntax in brig, federator.
+In order to achieve a zero-downtime upgrade, follow these steps:
 
-As of the release containing
-[PR#3260](https://github.com/wireapp/wire-server/pull/3260),
-[`federationStrategy`](https://github.com/wireapp/wire-server/blob/4a4ba8dd54586e1d85fe4af609990d79ae3d8cc2/charts/federator/values.yaml#L44-L45)
-in the federation config file is ignored, and brig's cassandra is used
-instead.  Furthermore, for a transition period,
-[`setFederationDomainConfigs`](https://github.com/wireapp/wire-server/blob/4a4ba8dd54586e1d85fe4af609990d79ae3d8cc2/charts/brig/templates/configmap.yaml#L250-L252)
-from the brig config file also remains being honored.  Attempting to
-delete entries that occur in the config file will trigger an error;
-delete from the config file first, then from cassandra.
+1. Update the brig config values file as described above.
 
-In the future, wire-server will stop honoring the config file data,
-and solely rely on brig's cassandra.  From that point onward, you can
-delete any connection, whether listed in the config file or not.
-Watch out for the release notes to learn when this will happen.
-(Something like *"[Federation only] support for remote configuration
-in config file is discontinued.  Before upgrading to this release,
-upgrade to the release containing
-[PR#3260](https://github.com/wireapp/wire-server/pull/3260) first.
-After upgrading to this release, `setFederationDomainConfigs` in brig's
-config file will be ignored, and you should remove it at your
-convenience.*)
+2. If you have chosen `brig.config.optSettings.setFederationStrategy:
+  allowDynamic` you need to make sure the list of all domains you want
+  to allow federation with is complete (before, there was a search
+  policy default; now wire will stop federating with removes that are
+  not listed here).  Example:
 
+    ```yaml
+    brig:
+      config:
+        optSettings:
+          setFederationDomainConfigs:
+          - domain: red.example.com
+            search_policy: full_search
+          - domain: blue.example.com
+            search_policy: no_search
+    ```
 
+    This change is to cover the time window between upgrading the brig
+    pods and populating cassandra with the information needed (see
+    Step 3 below).
+
+    Any later lookup of this information will return the union of what
+    is in cassandra and what is in the config file.  Any attempt to
+    write data to cassandra that contradicts data in the config file
+    will result in an error.  Before you change any remote domain
+    config, remove it from the config file.
+
+3. Populate cassandra with remote domain configs as described above.
+
+4. At any time after you are done with the upgrade and have convinced
+  yourself everything went smoothly, remove outdated brig and
+  federator config values, in particular:
+    - `brig.config.optSettings.setFederationDomainConfigs`
+    - `federator.config.optSettings.federationStrategy`
+
+    At a later point, wire-server will start ignoring
+    `setFederationDomainConfigs` altogether (follow future entries in
+    the changelog to learn when that happens).
 
 ### Configure federator process to run and allow incoming traffic
 

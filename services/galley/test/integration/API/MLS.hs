@@ -1124,10 +1124,9 @@ testAppMessageSomeReachable = do
     let commitMocks =
           receiveCommitMockByDomain [bob1, charlie1]
             <|> welcomeMock
-    (([event], ftpCommit), _) <-
+    ([event], _) <-
       withTempMockFederator' commitMocks $ do
-        sendAndConsumeCommitFederated commit
-    liftIO $ ftpCommit @?= mempty
+        sendAndConsumeCommit commit
 
     let unreachables = Set.singleton (Domain "charlie.example.com")
     let sendMocks =

@@ -784,15 +784,15 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
     -- For now these users will not be able to join the conversation until
     -- queueing and retrying is implemented.
     let failedNotifies = lefts notifyEithers
+    for_ failedNotifies $
+      logError
+        "on-new-remote-conversation"
+        "An error occurred while communicating with federated server: "
     for_ failedNotifies $ \case
       -- rethrow invalid-domain errors and mis-configured federation errors
       (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 422 _) _ _ _)))) -> throw ex
       (_, ex@(FederationCallFailure (FederatorClientHTTP2Error (FederatorClientConnectionError _)))) -> throw ex
       _ -> pure ()
-    for_ failedNotifies $
-      logError
-        "on-new-remote-conversation"
-        "An error occurred while communicating with federated server: "
     updates <-
       E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
         \ruids -> do
