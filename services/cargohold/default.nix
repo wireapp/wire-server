@@ -135,6 +135,7 @@ mkDerivation {
     bytestring-conversion
     cargohold-types
     conduit
+    containers
     cryptonite
     federator
     HsOpenSSL

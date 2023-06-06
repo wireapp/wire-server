@@ -52,16 +52,12 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
     noRedirects req = (req {redirectCount = 0})
 
     modifyConfig :: Value -> App Value
-    modifyConfig v =
-      setField "aws.s3DownloadEndpoint" "http://s3-download.example.com" v
-        >>= setField "aws.multiIngress" multiIngressConfig
-
-    multiIngressConfig :: Value
-    multiIngressConfig =
-      object
-        [ "red.example.com" .= "http://s3-download.red.example.com",
-          "green.example.com" .= "http://s3-download.green.example.com"
-        ]
+    modifyConfig =
+      setField "aws.multiIngress" $
+        object
+          [ "red.example.com" .= "http://s3-download.red.example.com",
+            "green.example.com" .= "http://s3-download.green.example.com"
+          ]
 
     doUploadAsset :: Value -> App Value
     doUploadAsset user = bindResponse (uploadAsset user) $ \resp -> do

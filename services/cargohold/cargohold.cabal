@@ -209,6 +209,7 @@ executable cargohold-integration
     API.Federation
     API.Util
     API.V3
+    App
     Metrics
     Paths_cargohold
     TestSetup
@@ -270,6 +271,7 @@ executable cargohold-integration
     , cargohold
     , cargohold-types
     , conduit
+    , containers
     , cryptonite
     , federator
     , http-api-data

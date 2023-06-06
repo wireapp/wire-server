@@ -99,6 +99,7 @@ newEnv :: Opts -> IO Env
 newEnv o = do
   met <- Metrics.metrics
   lgr <- Log.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
+  checkOpts o lgr
   mgr <- initHttpManager (o ^. optAws . awsS3Compatibility)
   h2mgr <- initHttp2Manager
   ama <- initAws (o ^. optAws) lgr mgr
@@ -117,6 +118,29 @@ newEnv o = do
 
     patchS3DownloadEndpoint :: AWSEndpoint -> AWSOpts
     patchS3DownloadEndpoint endpoint = (o ^. optAws) & awsS3DownloadEndpoint ?~ endpoint
+
+-- | Validate (some) options (`Opts`)
+--
+-- Logs and throws if an invalid combination is found.
+checkOpts :: Opts -> Logger -> IO ()
+checkOpts opts lgr = do
+  when (multiIngressConfigured && cloudFrontConfigured) $ do
+    let errorMsg = "Invalid configuration: multiIngress and cloudFront cannot be combined!"
+    Log.fatal lgr $ Log.msg @String errorMsg
+    error errorMsg
+  when (multiIngressConfigured && singleAwsDownloadEndpointConfigured) $ do
+    let errorMsg = "Invalid configuration: multiIngress and s3DownloadEndpoint cannot be combined!"
+    Log.fatal lgr $ Log.msg @String errorMsg
+    error errorMsg
+  where
+    multiIngressConfigured :: Bool
+    multiIngressConfigured = (not . null) (opts ^. (optAws . Opt.optMultiIngress . non Map.empty))
+
+    cloudFrontConfigured :: Bool
+    cloudFrontConfigured = isJust (opts ^. (optAws . Opt.awsCloudFront))
+
+    singleAwsDownloadEndpointConfigured :: Bool
+    singleAwsDownloadEndpointConfigured = isJust (opts ^. (optAws . Opt.awsS3DownloadEndpoint))
 
 initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
 initAws o l = AWS.mkEnv l (o ^. awsS3Endpoint) addrStyle downloadEndpoint (o ^. awsS3Bucket) (o ^. awsCloudFront)
