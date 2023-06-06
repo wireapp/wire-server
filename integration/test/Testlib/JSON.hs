@@ -189,10 +189,7 @@ setFieldIfExists selector v x = do
     (modifyField @a @Value selector (\_ -> pure (toJSON v)) x)
 
 member :: (HasCallStack, MakesValue a) => String -> a -> App Bool
-member k x = do
-  v <- make x
-  ob <- asObject v
-  pure (KM.member (KM.fromString k) ob)
+member k x = KM.member (KM.fromString k) <$> (make x >>= asObject)
 
 -- Update nested fields, using the old value with a stateful action
 modifyField :: (HasCallStack, MakesValue a, ToJSON b) => String -> (Maybe Value -> App b) -> a -> App Value

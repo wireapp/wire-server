@@ -79,12 +79,14 @@ startDynamicBackend beOverrides action = do
                           >=> setKeyspace resource srv
                           >=> setEsIndex resource srv
                           >=> setFederationSettings resource srv
+                          >=> setAwsAdnQueuesConfigs resource srv
                     )
                     $ defaultDynBackendConfigOverridesToMap beOverrides
             startBackend
               resource.berDomain
               (Just $ setFederatorConfig resource)
-              (Just $ backGroundWorkerOverrides resource)
+              -- TODO(leif): add remote domains
+              (Just $ backGroundWorkerOverrides resource [])
               services
               ( \ports sm -> do
                   let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
@@ -93,6 +95,19 @@ startDynamicBackend beOverrides action = do
               action
         )
   where
+    setAwsAdnQueuesConfigs :: BackendResource -> Service -> Value -> App Value
+    setAwsAdnQueuesConfigs resource = \case
+      Brig ->
+        setFieldIfExists "aws.userJournalQueue" resource.berAwsUserJournalQueue
+          >=> setFieldIfExists "aws.prekeyTable" resource.berAwsPrekeyTable
+          >=> setFieldIfExists "internalEvents.queueName" resource.berBrigInternalEvents
+          >=> setFieldIfExists "emailSMS.email.sesQueue" resource.berEmailSMSSesQueue
+          >=> setFieldIfExists "emailSMS.general.emailSender" resource.berEmailSMSEmailSender
+      Cargohold -> setFieldIfExists "aws.s3Bucket" resource.berAwsS3Bucket
+      Gundeck -> setFieldIfExists "aws.queueName" resource.berAwsQueueName
+      Galley -> setFieldIfExists "journal.queueName" resource.berGalleyJournal
+      _ -> pure
+
     setFederationSettings :: BackendResource -> Service -> Value -> App Value
     setFederationSettings resource =
       \case
@@ -116,8 +131,10 @@ startDynamicBackend beOverrides action = do
         >=> setFieldIfExists "federatorExternal.port" resource.berFederatorExternal
         >=> setFieldIfExists "optSettings.setFederationDomain" resource.berDomain
 
-    backGroundWorkerOverrides :: BackendResource -> Value -> App Value
-    backGroundWorkerOverrides resource = setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
+    backGroundWorkerOverrides :: BackendResource -> [String] -> Value -> App Value
+    backGroundWorkerOverrides resource remoteDomains =
+      setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
+        >=> setField "remoteDomains" remoteDomains
 
     setKeyspace :: BackendResource -> Service -> Value -> App Value
     setKeyspace resource = \case

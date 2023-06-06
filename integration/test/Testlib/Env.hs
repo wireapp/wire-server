@@ -254,7 +254,15 @@ data BackendResource = BackendResource
     berElasticsearchIndex :: String,
     berFederatorInternal :: Word16,
     berFederatorExternal :: Word16,
-    berDomain :: String
+    berDomain :: String,
+    berAwsUserJournalQueue :: String,
+    berAwsPrekeyTable :: String,
+    berAwsS3Bucket :: String,
+    berAwsQueueName :: String,
+    berBrigInternalEvents :: String,
+    berEmailSMSSesQueue :: String,
+    berEmailSMSEmailSender :: String,
+    berGalleyJournal :: String
   }
   deriving (Show, Eq, Ord)
 
@@ -270,11 +278,22 @@ backendResources n =
                 berElasticsearchIndex = "directory_dyn_" <> show i <> "_test",
                 berFederatorInternal = federatorInternalPort i,
                 berFederatorExternal = federatorExternalPort i,
-                berDomain = domain i
+                berDomain = domain i,
+                berAwsUserJournalQueue = "integration-user-events.fifo" <> suffix i,
+                berAwsPrekeyTable = "integration-brig-prekeys" <> suffix i,
+                berAwsS3Bucket = "dummy-bucket" <> suffix i,
+                berAwsQueueName = "integration-gundeck-events" <> suffix i,
+                berBrigInternalEvents = "integration-brig-events-internal" <> suffix i,
+                berEmailSMSSesQueue = "integration-brig-events" <> suffix i,
+                berEmailSMSEmailSender = "backend-integration" <> suffix i <> "@wire.com",
+                berGalleyJournal = "integration-team-events.fifo" <> suffix i
               }
         )
     & Set.fromList
   where
+    suffix :: Word16 -> String
+    suffix i = show $ i + 2
+
     -- Fixed internal port for federator, e.g. for dynamic backends: 1 -> 10097, 2 -> 11097, etc.
     federatorInternalPort :: Num a => a -> a
     federatorInternalPort i = 8097 + (2 * 1000 * i)

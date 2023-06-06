@@ -17,7 +17,7 @@ while (! aws --endpoint-url=http://dynamodb:8000 --cli-connect-timeout=1 dynamod
 done
 echo " [ok!]"
 
-for suffix in "" "2"; do
+for suffix in "" "2" "3" "4" "5"; do
     aws --endpoint-url=http://dynamodb:8000 dynamodb delete-table --table-name integration-brig-userkey-blacklist$suffix || true
     aws --endpoint-url=http://dynamodb:8000 dynamodb delete-table --table-name integration-brig-prekeys$suffix || true
 
