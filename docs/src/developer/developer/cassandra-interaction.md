@@ -1,21 +1,5 @@
 # Writing code interacting with cassandra
 
-<!-- vim-markdown-toc GFM -->
-
-* [Anti-patterns](#anti-patterns)
-    * [Anti-pattern: Using full table scans in production code](#anti-pattern-using-full-table-scans-in-production-code)
-    * [Anti-pattern: Using IN queries on a field in the partition key](#anti-pattern-using-in-queries-on-a-field-in-the-partition-key)
-    * [Anti-pattern: Designing for a lot of deletes or updates](#anti-pattern-designing-for-a-lot-of-deletes-or-updates)
-* [Understanding more about cassandra](#understanding-more-about-cassandra)
-    * [primary partition clustering keys](#primary-partition-clustering-keys)
-    * [optimizing parallel request performance](#optimizing-parallel-request-performance)
-* [Cassandra schema migrations](#cassandra-schema-migrations)
-    * [Backwards compatible schema changes](#backwards-compatible-schema-changes)
-    * [Backwards incompatible schema changes](#backwards-incompatible-schema-changes)
-        * [What to do about backwards incompatible schema changes](#what-to-do-about-backwards-incompatible-schema-changes)
-
-<!-- vim-markdown-toc -->
-
 ## Anti-patterns
 
 ### Anti-pattern: Using full table scans in production code
@@ -29,18 +13,18 @@ sets](https://github.com/wireapp/wire-server/blob/develop/services/brig/src/Brig
 
 ### Anti-pattern: Using IN queries on a field in the partition key
 
-Larger IN queries lead to performance problems. See https://lostechies.com/ryansvihla/2014/09/22/cassandra-query-patterns-not-using-the-in-query-for-multiple-partitions/
+Larger `IN` queries lead to performance problems. See [blog post](https://lostechies.com/ryansvihla/2014/09/22/cassandra-query-patterns-not-using-the-in-query-for-multiple-partitions/)
 
-A preferred way to do this lookup here is to use queries operating on single keys, and make concurrent requests. One way to do this is with the [`pooledMapConcurrentlyN`] (https://hoogle.zinfra.io/file/root/.stack/snapshots/x86_64-linux/e2cc9ab01ac828ffb6fe45a45d38d7ca6e672fb9fe95528498b990da673c5071/8.8.4/doc/unliftio-0.2.13/UnliftIO-Async.html#v:pooledMapConcurrentlyN) function. To be conservative, you can use N=8 or N=32, we've done this in other places and not seen problematic performance
-yet. For an optimization of N, see the section further below.
+A preferred way to do this lookup here is to use queries operating on single keys, and make concurrent requests. In some cases `mapConcurrently` might be good, for large sets of data you may wish to use the `pooledMapConcurrentlyN` function. To be conservative, you can use N=8 or N=32, we've done this in other places and not seen problematic performance yet. Knowing what N should be or if `mapConcurrently` is fine, we would ideally need load testing including performance metrics (which we
+currently don't have - but which we should develop).
 
 ### Anti-pattern: Designing for a lot of deletes or updates
 
 Cassandra works best for write-once read-many scenarios.
 
 Read e.g.
-- https://www.datastax.com/blog/cassandra-anti-patterns-queues-and-queue-datasets
-- https://www.instaclustr.com/support/documentation/cassandra/using-cassandra/managing-tombstones-in-cassandra/#
+- <https://www.datastax.com/blog/cassandra-anti-patterns-queues-and-queue-datasets>
+- <https://www.instaclustr.com/support/documentation/cassandra/using-cassandra/managing-tombstones-in-cassandra/#>
 - search the internet some more for 'cassandra' and 'tombstones' and if you find good posts, add them here.
 
 ## Understanding more about cassandra
@@ -96,3 +80,143 @@ Options from most to least desirable:
     * First make a change that stops the code from using queries involving `my_column` or `my_table` (assuming you wish to remove those), and deploy this all the way across all of your environments (staging, prod, customers, ...).
     * After all deployments have gone through (this can take weeks or months), do the schema change removing that column or table from the database. Often there is no urgency with removal of data, so it's fine to do this e.g. 6 months later.
 * Do changes in a one-step process, but accept partial service interruption for several minutes up to a few hours, accept communication overhead across teams to warn them about upcoming interruption or explain previous interruption; accept communication and documentation to warn all operators deploying that or a future version of the code, and accept some amount of frustration that may arise from a lack of said communication and understanding of what is happening.
+
+## Background on "why cassandra?"
+
+Cassandra was chosen back in ~2014 in the context of massive scalability (expectations of billions of users), as well as the wish for redundancy and cloud-always-on high-availability.
+
+From an operational standpoint, high-availability and redundancy are well served with this: any single node/VM can crash at any moment without data loss, and version upgrades, server maintenance, and server migrations can be done without stopping the system (and causing user-observable downtime).
+
+From a developer perspective, wishing for a mental model of strong consistency across multiple tables to make easier assumptions when writing code makes working with cassandra sometimes a bit harder.
+
+Questions have come up whether another technology may serve our needs better in the evolved technical and product context of 2023 and beyond. These questions are valid, and a change can always be discussed, if the time is at hand to put this effort in.
+
+## Guidelines on per-table query consistency level and replication level
+
+### Background
+
+We currently operate all our production and production-like environments with
+
+* a **replication factor of 3** (per datacentre, but except for a brief phase of controlled datacentre migration there is only one datacentre in use)
+* a number of cassandra nodes >= 3 (depending on load and disk/machine size)
+* Everywhere where some consistency matters, **Quorum writes and Quorum reads**
+
+These three things together give us **strong consistency on a per-table** basis. A quorum write followed by a quorum read will guarantee that you see the data you inserted, even if one replica of cassandra that holds that partition key dies in the middle.
+
+The replication factor is specified when creating or migrating schemas, which is done in the `cassandra-migrations` subchart of the `wire-server` chart:
+
+```{grepinclude} ../charts/cassandra-migrations/values.yaml host name and replication
+---
+lines-after: 6
+language: yaml
+---
+```
+
+The number of cassandra nodes in use is specified on the infrastructure level (k8ssandra on kubernetes, or the inventory list when using ansible-cassandra)
+
+Quorum consistency (or, in our case, `LocalQuorum` consistency) is specified in our code. Random example:
+
+```{grepinclude} ../services/brig/src/Brig/Data/User.hs userEmailUpdate \(params
+---
+language: Haskell
+---
+```
+
+Note that `Quorum` and `LocalQuorum` behave exactly the same in the context of a single datacentre (each datacentre can have multiple racks or availability zones). We switched from `Quorum` to `LocalQuorum` in [this PR](https://github.com/wireapp/wire-server/pull/1884) in preparation of a datacentre migration. As it doesn't hurt, and more datacentre migrations may be done in the future by us or the people hosting on-premise, let's stick to `LocalQuorum` for the time being.
+
+***To summarize: In case of doubt, just follow the examples and use `LocalQuorum` Writes and Reads in your queries, unless there is a very good reason not to.***
+
+## Guidelines for across-table consistency
+
+Given that we have strong consistency for a single operation (see section above), in some cases your data access patterns mandate that you have multiple tables with seemingly duplicated data.
+
+Good ✅ example: For instance, a 'teamInvitation' needs to be queried by team ID (for the team admin - which pending invitations exist?), by email (during user registration), and by code (to check whether an invitation is valid before embarking on the user registration). Therefore, there are three tables holding similar
+data about a team invitation, but with different primary keys. This is a correct and recommended data design for cassandra.
+
+Now, any insert, update or delete of this data should either all work, or all fail, to not have weird data integrity issues. Now, cassandra provides for this, and it's called `batch` statements.
+
+> Batches are atomic by default. In the context of a Cassandra batch operation, atomic means that if any of the batch succeeds, all of it will.
+> Statement order does not matter within a batch
+
+[reference documentation of batch](https://docs.datastax.com/en/archived/cql/3.1/cql/cql_reference/batch_r.html)
+
+Here's an example of this used in our code:
+
+```{grepinclude} ../services/brig/src/Brig/Team/DB.hs insertInvitation showUrl
+---
+language: Haskell
+lines-after: 18
+---
+```
+
+While writing this documentation, I grepped for batch across our codebase, and saw that the use of batch statements seems to have fallen into disuse over the past months and years. That's a mistake! For related data, batch statements should be used to keep strong consistency across multiple tables for related data.
+
+*Sidenote:* Batch statements have a confusing name perhaps. They are not intended to speed up inserting multiple records into the same table; that is an antipattern, see [this documentation](https://docs.datastax.com/en/cql-oss/3.x/cql/cql_using/useBatchBadExample.html).
+
+***To summarize: When working on multiple tables with related data (e.g. user_by_conversation_id and conversation_by_user_id), use 'batch' statements to achieve strong consisteny! When inserting lots of data into the same table, do not use batch statements.***
+
+## Examples of code design for optimal user-level consistency in complex scenarios
+
+### Introduction
+
+As we saw above, we can achieve strong consistency for a single table, and for related tables in the same database, if the code path allows grouping inserts/updates/deletes together. In some scenarios, where some data is held by brig and some data is held by galley, this isn't easily achievable, and we need to think harder abour ordering and possibly apply some tricks. There's no easy answer to always have strong consistency, so instead here are some examples to guide future complex scenarios:
+
+### Creating a user account
+
+Upon creating a user, some resources are created by brig, some by galley (such as a self conversation). Since LocalQuorum+batch statements are not an option here, and the services can crash mid-way their request, we still wish to ensure that no inconsistent half-written data leads to a broken experience (we can accept garbage data lingering around, but we don't wish to accept a user being able to log in but having a broken state. Instead, we want to rely on some (in this case, user-level) retry.
+To achieve this, there is a boolean flag 'activated'. In the past, what happened was:
+
+* write a user entry with activated=false
+* perform other operations in brig and galley and elsewhere
+* update the user entry and set activated=true
+* when doing a user lookup, filter out any results with activated=false (or null)
+
+This way, if the code fails halfway through, even though there might be some data in the database, as it is being filtered out, the user can retry the account creation and is not left in a halfway-there broken state. This is not "pretty", but works for practial purposes.
+
+The code around this has been refactored and there are many scenarios of user creation, so the initial trick explained above may not hold true in all cases (thus potentially having broken the desired data integrity properties).
+
+### Deleting a user account
+
+When deleting a user, also handles, clients, conversations, assets etc must be deleted.
+
+To guard against this failing midway due to a crashing/restarting service, the `deleteAccount` function is used in a "automated retry-logic" way. For this, it's wrapped with some queue logic (push "this user should be deleted" onto a queue, start deleting things and only remove that item from the queue once all has completed).
+
+The function in question:
+
+```{grepinclude} ../services/brig/src/Brig/API/User.hs deleteAccount account
+---
+language: Haskell
+lines-after: 20
+lines-before: 20
+---
+```
+
+The queue logic:
+
+```{grepinclude} ../services/brig/src/Brig/API/User.hs deleteUserNoVerify uid
+---
+language: Haskell
+lines-after: 2
+lines-before: 0
+---
+```
+
+and
+
+```{grepinclude} ../services/brig/src/Brig/InternalEvent/Process.hs DeleteUser uid
+---
+language: Haskell
+lines-after: 4
+lines-before: 0
+---
+```
+
+Also, default SQS queue settings mean that events are only removed from the queue after the client code finishes processing. If the client fails mid-way, the event re-appears for consumption (after a timeout passes).
+
+## Guidelines for deciding where correctness and consistency matters most
+
+FUTUREWORK.
+
+## Guidelines for taking decisions on performance
+
+FUTUREWORK.
