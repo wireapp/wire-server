@@ -63,7 +63,10 @@ spec:
       - -c
       - >-
         integration-dynamic-backends-db-schemas.sh --host {{ .Values.config.cassandra.host }} --port 9042 --replication-factor {{ .Values.config.cassandra.replicationFactor }};
-        integration-dynamic-backends-brig-index.sh --elasticsearch-server http://{{ .Values.config.elasticsearch.host }}:9200
+        integration-dynamic-backends-brig-index.sh --elasticsearch-server http://{{ .Values.config.elasticsearch.host }}:9200;
+        integration-dynamic-backends-sqs.sh {{ .Values.config.sqsEndpointUrl }};
+        integration-dynamic-backends-ses.sh {{ .Values.config.sesEndpointUrl }};
+        integration-dynamic-backends-s3.sh {{ .Values.config.s3EndpointUrl }}
     resources:
       requests:
         memory: "512Mi"
