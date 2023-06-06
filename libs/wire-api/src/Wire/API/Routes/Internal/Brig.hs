@@ -446,15 +446,15 @@ type FederationRemotesAPI =
     -- some records hanging around. Galley uses a Rabbit queue to track
     -- what is has done and can recover from a service falling over.
     :<|> Named
-      "delete-federation-remote-galley"
-      ( Description FederationRemotesAPIDescription
-          :> Description FederationRemotesAPIDeleteDescription
-          :> "federation"
-          :> "remote"
-          :> Capture "domain" Domain
-          :> "galley"
-          :> Delete '[JSON] ()
-      )
+           "delete-federation-remote-galley"
+           ( Description FederationRemotesAPIDescription
+               :> Description FederationRemotesAPIDeleteDescription
+               :> "federation"
+               :> "remote"
+               :> Capture "domain" Domain
+               :> "galley"
+               :> Delete '[JSON] ()
+           )
 
 type FederationRemotesAPIDescription =
   "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "

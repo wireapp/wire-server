@@ -20,7 +20,7 @@ module Galley.Run
     mkApp,
     mkLogger,
     -- Exported for tests
-    deleteFederationDomain
+    deleteFederationDomain,
   )
 where
 
@@ -433,7 +433,6 @@ deleteFederationDomainLocal dom = do
 -- let rcnv = toRemoteUnsafe dom cnv
 -- notifyRemoteConversationAction lUser (qualifyAs rcnv convUpdate) Nothing
 
-
 -- TODO: The DB table that this tries to update aren't available to
 -- Galley and need to be moved into brig. This will complicate the calling
 -- to delete a domain, but likely we can expose it as an internal API and
@@ -444,13 +443,14 @@ deleteFederationDomainOneOnOne :: Domain -> App ()
 deleteFederationDomainOneOnOne dom = do
   env <- ask
   let c = mkClientEnv (env ^. manager) (env ^. brig)
-  liftIO (deleteFederationRemoteGalley dom c) >>= either
-    (\e -> do
-      Log.err (env ^. applog) $ Log.msg @Text "Could not delete one-on-one messages in Brig" . Log.field "error" (show e)
-      -- Throw the error into IO to match the other functions and to prevent the
-      -- message from rabbit being ACKed.
-      liftIO $ throwIO e
-    )
-    pure
+  liftIO (deleteFederationRemoteGalley dom c)
+    >>= either
+      ( \e -> do
+          Log.err (env ^. applog) $ Log.msg @Text "Could not delete one-on-one messages in Brig" . Log.field "error" (show e)
+          -- Throw the error into IO to match the other functions and to prevent the
+          -- message from rabbit being ACKed.
+          liftIO $ throwIO e
+      )
+      pure
   where
     mkClientEnv mgr (Endpoint h p) = ClientEnv mgr (BaseUrl Http (unpack h) (fromIntegral p) "") Nothing defaultMakeClientRequest

@@ -1,81 +1,84 @@
 {-# LANGUAGE RecordWildCards #-}
+
 module Federation where
 
 import API.Util
 import Bilge.Assert
 import Bilge.Response
-import Control.Lens ((^.), view)
+import qualified Cassandra as C
+import Cassandra.Exec (x1)
+import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Control.Monad.Codensity (lowerCodensity)
+import qualified Data.ByteString as LBS
 import Data.Domain
 import Data.Id
 import Data.List.NonEmpty
+import qualified Data.List1 as List1
 import Data.Qualified
+import qualified Data.Set as Set
+import Data.Singletons
+import Data.Time (getCurrentTime)
+import qualified Data.UUID as UUID
+import Federator.MockServer
+import Galley.API.Util
+import Galley.Cassandra.Queries
+import qualified Galley.Data.Conversation.Types as Types
 import Galley.Env
 import Galley.Monad
 import Galley.Options
 import Galley.Run
+import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), defMemberStatus, localMemberToOther)
 import Imports
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
+import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.HUnit
 import TestSetup
 import UnliftIO.Retry
 import Wire.API.Conversation
-import Wire.API.Routes.FederationDomainConfig
-import Wire.API.User.Search
-import qualified Data.Set as Set
-import Test.Tasty.HUnit
-import Galley.API.Util
-import qualified Data.UUID as UUID
-import qualified Galley.Data.Conversation.Types as Types
-import Galley.Types.Conversations.Members (defMemberStatus, LocalMember (..), RemoteMember (..), localMemberToOther)
-import Wire.API.Conversation.Role (roleNameWireMember, roleNameWireAdmin)
-import Wire.API.Conversation.Protocol (Protocol(..))
-import Wire.API.Federation.API.Galley (ConversationUpdate(..), GetConversationsResponse (..))
-import Wire.API.Conversation.Action
-import Wire.API.Event.Conversation
-import Wire.API.Internal.Notification
-import qualified Data.List1 as List1
-import qualified Test.Tasty.Cannon as WS
-import Data.Time (getCurrentTime)
-import Data.Singletons
-import Test.Tasty.Cannon (TimeoutUnit (..), (#))
-import Federator.MockServer
-import qualified Wire.API.Routes.MultiTablePaging as Public
 import qualified Wire.API.Conversation as Public
-import qualified Cassandra as C
-import qualified Data.ByteString as LBS
+import Wire.API.Conversation.Action
+import Wire.API.Conversation.Protocol (Protocol (..))
+import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
+import Wire.API.Event.Conversation
+import Wire.API.Federation.API.Galley (ConversationUpdate (..), GetConversationsResponse (..))
+import Wire.API.Internal.Notification
+import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.MultiTablePaging
-import Galley.Cassandra.Queries
-import Cassandra.Exec (x1)
+import qualified Wire.API.Routes.MultiTablePaging as Public
+import Wire.API.User.Search
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
 
 isConvMemberLTests :: TestM ()
 isConvMemberLTests = do
-    s <- ask
-    let opts = s ^. tsGConf
-        localDomain = opts ^. optSettings . setFederationDomain
-        remoteDomain = Domain "far-away.example.com"
-        convId = Id $ fromJust $ UUID.fromString "8cc34301-6949-46c5-bb93-00a72268e2f5"
-        convLocalMembers = [LocalMember userId defMemberStatus Nothing roleNameWireMember]
-        convRemoteMembers = [RemoteMember rUserId roleNameWireMember]
-        lconv = toLocalUnsafe localDomain $ Types.Conversation
+  s <- ask
+  let opts = s ^. tsGConf
+      localDomain = opts ^. optSettings . setFederationDomain
+      remoteDomain = Domain "far-away.example.com"
+      convId = Id $ fromJust $ UUID.fromString "8cc34301-6949-46c5-bb93-00a72268e2f5"
+      convLocalMembers = [LocalMember userId defMemberStatus Nothing roleNameWireMember]
+      convRemoteMembers = [RemoteMember rUserId roleNameWireMember]
+      lconv =
+        toLocalUnsafe localDomain $
+          Types.Conversation
             convId
             convLocalMembers
             convRemoteMembers
             False
             (defConversationMetadata userId)
             ProtocolProteus
-        lUserId :: Local UserId
-        lUserId = toLocalUnsafe localDomain $ Id $ fromJust $ UUID.fromString "217352c0-8b2b-4653-ac76-a88d19490dad" -- A random V4 UUID
-        userId = qUnqualified $ tUntagged lUserId
-        rUserId :: Remote UserId
-        rUserId = toRemoteUnsafe remoteDomain $ Id $ fromJust $ UUID.fromString "d87745f5-dfe7-4ff0-8772-b9c22118b372"
-    liftIO $ assertBool "UserId" $ isConvMemberL lconv userId
-    liftIO $ assertBool "Local UserId" $ isConvMemberL lconv lUserId
-    liftIO $ assertBool "Remote UserId" $ isConvMemberL lconv rUserId
-    liftIO $ assertBool "Qualified UserId (local)" $ isConvMemberL lconv $ tUntagged lUserId
-    liftIO $ assertBool "Qualified UserId (remote)" $ isConvMemberL lconv $ tUntagged rUserId
+      lUserId :: Local UserId
+      lUserId = toLocalUnsafe localDomain $ Id $ fromJust $ UUID.fromString "217352c0-8b2b-4653-ac76-a88d19490dad" -- A random V4 UUID
+      userId = qUnqualified $ tUntagged lUserId
+      rUserId :: Remote UserId
+      rUserId = toRemoteUnsafe remoteDomain $ Id $ fromJust $ UUID.fromString "d87745f5-dfe7-4ff0-8772-b9c22118b372"
+  liftIO $ assertBool "UserId" $ isConvMemberL lconv userId
+  liftIO $ assertBool "Local UserId" $ isConvMemberL lconv lUserId
+  liftIO $ assertBool "Remote UserId" $ isConvMemberL lconv rUserId
+  liftIO $ assertBool "Qualified UserId (local)" $ isConvMemberL lconv $ tUntagged lUserId
+  liftIO $ assertBool "Qualified UserId (remote)" $ isConvMemberL lconv $ tUntagged rUserId
 
 updateFedDomainsTest :: TestM ()
 updateFedDomainsTest = do
@@ -112,11 +115,11 @@ fromFedList = Set.fromList . fmap domain . remotes
 
 deleteFederationDomains :: FederationDomainConfigs -> FederationDomainConfigs -> App ()
 deleteFederationDomains old new = do
-    let prev = fromFedList old
-        curr = fromFedList new
-        deletedDomains = Set.difference prev curr
-    -- Call into the galley code
-    for_ deletedDomains deleteFederationDomain
+  let prev = fromFedList old
+      curr = fromFedList new
+      deletedDomains = Set.difference prev curr
+  -- Call into the galley code
+  for_ deletedDomains deleteFederationDomain
 
 constHandlers :: MonadIO m => [RetryStatus -> Handler m Bool]
 constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]
@@ -166,13 +169,14 @@ updateFedDomainRemoveLocalFromRemote env remoteDomain interval = recovering x3 c
 
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
-  let cu = ConversationUpdate
-        { cuTime = now
-        , cuOrigUserId = qbob
-        , cuConvId = qUnqualified qconv
-        , cuAlreadyPresentUsers = []
-        , cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
-        }
+  let cu =
+        ConversationUpdate
+          { cuTime = now,
+            cuOrigUserId = qbob,
+            cuConvId = qUnqualified qconv,
+            cuAlreadyPresentUsers = [],
+            cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
+          }
   runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
   -- Expected member state
   let memberAlice =
@@ -187,7 +191,7 @@ updateFedDomainRemoveLocalFromRemote env remoteDomain interval = recovering x3 c
             memHiddenRef = mupHiddenRef update,
             memConvRoleName = roleNameWireMember
           }
-      -- Update member state & verify push notification
+  -- Update member state & verify push notification
   WS.bracketR c alice $ \ws -> do
     putMember alice update qconv !!! const 200 === statusCode
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
@@ -238,7 +242,7 @@ updateFedDomainRemoveLocalFromRemote env remoteDomain interval = recovering x3 c
     assertEqual "hidden" (memHidden memberAlice) (memHidden newAlice)
     assertEqual "hidden_ref" (memHiddenRef memberAlice) (memHiddenRef newAlice)
   -- END: code from putRemoteConvMemberOk
-  
+
   -- Remove the remote user from the local domain
   liftIO $ runApp env $ deleteFederationDomains old new
 
@@ -248,8 +252,11 @@ updateFedDomainRemoveLocalFromRemote env remoteDomain interval = recovering x3 c
   --   . fmap (tUntagged @'QRemote)
   --   <$> E.listItems alice Nothing (toRange $ Proxy @1000)
 
-  convIds <- liftIO $ C.runClient (env ^. cstate) $ 
-      C.retry x1 $ C.query selectUserRemoteConvs (C.params C.LocalQuorum (pure alice))
+  convIds <-
+    liftIO $
+      C.runClient (env ^. cstate) $
+        C.retry x1 $
+          C.query selectUserRemoteConvs (C.params C.LocalQuorum (pure alice))
   case find (== qUnqualified qconv) $ snd <$> convIds of
     Nothing -> pure ()
     Just c' -> liftIO $ assertFailure $ "Found conversation where none was expected: " <> show c'
@@ -261,7 +268,6 @@ pageToConvIdPage table page@C.PageWithState {..} =
       mtpHasMore = C.pwsHasMore page,
       mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
     }
-
 
 updateFedDomainsAddRemote :: Env -> Domain -> Domain -> Int -> TestM ()
 updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval = do

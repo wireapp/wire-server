@@ -3,13 +3,14 @@ module Wire.API.FederationUpdate
     updateFedDomains,
     getAllowedDomainsInitial,
     updateFedDomains',
-    deleteFederationRemoteGalley
+    deleteFederationRemoteGalley,
   )
 where
 
 import Control.Concurrent.Async
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import qualified Control.Retry as R
+import Data.Domain
 import qualified Data.Set as Set
 import Data.Text (unpack)
 import Imports
@@ -21,7 +22,6 @@ import Util.Options (Endpoint (..))
 import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (domain), FederationDomainConfigs (remotes, updateInterval))
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Named (namedClient)
-import Data.Domain
 
 getFedRemotes :: ClientM FederationDomainConfigs
 getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
