@@ -24,7 +24,7 @@ module Galley.Cassandra.Conversation.MLS
 where
 
 import Cassandra
-import Cassandra.Settings (fromRow)
+import Cassandra.Settings
 import Control.Arrow
 import Data.Time
 import Galley.API.MLS.Types
@@ -44,6 +44,8 @@ acquireCommitLock groupId epoch ttl = do
             LocalQuorum
             (groupId, epoch, round ttl)
         )
+          { serialConsistency = Just LocalSerialConsistency
+          }
   pure $
     if checkTransSuccess rows
       then Acquired
