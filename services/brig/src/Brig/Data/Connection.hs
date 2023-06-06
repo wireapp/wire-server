@@ -44,6 +44,7 @@ module Brig.Data.Connection
     remoteConnectionDelete,
     remoteConnectionSelectFromDomain,
     remoteConnectionClear,
+    remoteConnectionsSelectUsers,
 
     -- * Re-exports
     module T,

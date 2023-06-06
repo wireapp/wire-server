@@ -1661,6 +1661,8 @@ updateLocalStateOfRemoteConv requestingDomain cu = do
       SConversationMemberUpdateTag ->
         pure (Just sca, [])
       SConversationDeleteTag -> do
+        -- Present users comes from `cuAlreadyPresentUsers`, so
+        -- any users that need to be deleted have to be included in it.
         E.deleteMembersInRemoteConversation rconvId presentUsers
         pure (Just sca, [])
       SConversationRenameTag -> pure (Just sca, [])

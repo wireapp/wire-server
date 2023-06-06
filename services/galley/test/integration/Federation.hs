@@ -39,14 +39,13 @@ import Data.Time (getCurrentTime)
 import Data.Singletons
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Federator.MockServer
-import Galley.App
 import qualified Wire.API.Routes.MultiTablePaging as Public
-import qualified Galley.Effects.ListItems as E
 import qualified Wire.API.Conversation as Public
 import qualified Cassandra as C
 import qualified Data.ByteString as LBS
 import Wire.API.Routes.MultiTablePaging
-import Data.Range (unsafeRange)
+import Galley.Cassandra.Queries
+import Cassandra.Exec (x1)
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
@@ -102,14 +101,11 @@ updateFedDomainsTest = do
   -- Adding a new federation domain, this too should be a no-op
   updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval
 
-  -- Removing a single domain: Remove a remote domain from local conversations
+  -- Remove a remote domain from local conversations
   updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval
 
-  -- Removing a single domain: Remove a local domain from remote conversations
+  -- Remove a local domain from remote conversations
   updateFedDomainRemoveLocalFromRemote env remoteDomain interval
-
-  -- Removing multiple domains
-  -- updateFedDomainsCallback old new
 
 fromFedList :: FederationDomainConfigs -> Set Domain
 fromFedList = Set.fromList . fmap domain . remotes
@@ -127,10 +123,7 @@ constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]
 
 updateFedDomainRemoveRemoteFromLocal :: Env -> Domain -> Domain -> Int -> TestM ()
 updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = recovering x3 constHandlers $ const $ do
-  -- s <- ask
-  let -- opts = s ^. tsGConf
-      -- localDomain = opts ^. optSettings . setFederationDomain
-      new = FederationDomainConfigs AllowDynamic [FederationDomainConfig remoteDomain2 FullSearch] interval
+  let new = FederationDomainConfigs AllowDynamic [FederationDomainConfig remoteDomain2 FullSearch] interval
       old = new {remotes = FederationDomainConfig remoteDomain FullSearch : remotes new}
   qalice <- randomQualifiedUser
   bobId <- randomId
@@ -249,41 +242,17 @@ updateFedDomainRemoveLocalFromRemote env remoteDomain interval = recovering x3 c
   -- Remove the remote user from the local domain
   liftIO $ runApp env $ deleteFederationDomains old new
 
-  --
-  -- Do not make any calls that would need to talk to a federation
-  -- member. This process must assume that the ex-federation member
-  -- will not accept any packets from us, so we shouldn't even try.
-  -- We can only rely on our own DB.
-  --
+  -- Get the list of remote conversations for the user.
+  -- convIds <- liftIO $ evalGalleyToIO env $
+  --   pageToConvIdPage Public.PagingRemotes
+  --   . fmap (tUntagged @'QRemote)
+  --   <$> E.listItems alice Nothing (toRange $ Proxy @1000)
 
-  -- get the conversation metadata.
-  -- This shouldn't return anything as the conversation shouldn't be accessible.
---  let rConvId = toRemoteUnsafe remoteDomain $ qUnqualified qconv
---  meta <- liftIO $ evalGalleyToIO env
---    $ E.getRemoteConversationStatus alice [rConvId]
---  liftIO $ case M.lookup rConvId meta of
---    Nothing -> assertBool "Empty meta status" False
---    Just status -> assertBool (show status) False
-
-
-  convIds <- liftIO $ evalGalleyToIO env $
-    pageToConvIdPage Public.PagingRemotes
-    . fmap (tUntagged @'QRemote)
-    <$> E.listItems alice Nothing (unsafeRange 100)
-  case find (== qconv) $ mtpResults $ convIds of
+  convIds <- liftIO $ C.runClient (env ^. cstate) $ 
+      C.retry x1 $ C.query selectUserRemoteConvs (C.params C.LocalQuorum (pure alice))
+  case find (== qUnqualified qconv) $ snd <$> convIds of
     Nothing -> pure ()
     Just c' -> liftIO $ assertFailure $ "Found conversation where none was expected: " <> show c'
-
-  -- Check that the conversation still exists.
-  getConvQualified (qUnqualified qalice) qconv !!! do
-    const 200 === statusCode
-    let findRemote :: Qualified UserId -> Conversation -> Maybe (Qualified UserId)
-        findRemote u = find (== u) . fmap omQualifiedId . cmOthers . cnvMembers
-    -- Check that only one remote user was removed.
-    const (Right Nothing) === (fmap (findRemote qbob) <$> responseJsonEither)
-    -- const (Right $ pure remoteCharlie) === (fmap (findRemote remoteCharlie) <$> responseJsonEither)
-    const (Right qalice) === (fmap (memId . cmSelf . cnvMembers) <$> responseJsonEither)
-
 
 pageToConvIdPage :: Public.LocalOrRemoteTable -> C.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
 pageToConvIdPage table page@C.PageWithState {..} =

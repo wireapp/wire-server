@@ -340,6 +340,8 @@ insertIntoMap (cnvId, user) m = Map.alter (pure . maybe (pure user) (N.cons user
 -- out so that it can be redelivered.
 deleteFederationDomain :: Domain -> App ()
 deleteFederationDomain d = do
+  env <- ask
+  Log.err (env ^. applog) $ Log.field "domain" $ show d
   deleteFederationDomainRemote d
   deleteFederationDomainLocal d
   deleteFederationDomainOneOnOne d
@@ -397,11 +399,13 @@ deleteFederationDomainLocal :: Domain -> App ()
 deleteFederationDomainLocal dom = do
   env <- ask
   localUsers <- liftIO $ evalGalleyToIO env $ E.getLocalMembersByDomain dom
+  Log.err (env ^. applog) $ Log.field "localUsers" $ show localUsers
   -- As above, build the map so we can get all local users per conversation
   let rCnvMap = foldr insertIntoMap mempty localUsers
       localDomain = env ^. options . optSettings . setFederationDomain
   -- Process each user.
   for_ (Map.toList rCnvMap) $ \(cnv, lUsers) -> do
+    Log.err (env ^. applog) $ Log.field "(cnv, lUsers)" (show (cnv, lUsers))
     liftIO $
       -- All errors, either exceptions or Either e, get thrown into IO
       evalGalleyToIO env $
@@ -415,7 +419,7 @@ deleteFederationDomainLocal dom = do
                       { cuTime = now,
                         cuOrigUserId = tUntagged lUser,
                         cuConvId = cnv,
-                        cuAlreadyPresentUsers = mempty,
+                        cuAlreadyPresentUsers = [user],
                         cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ()
                       }
               -- These functions are used directly rather than as part of a larger conversation

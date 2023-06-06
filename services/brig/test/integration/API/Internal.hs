@@ -62,6 +62,11 @@ import qualified Wire.API.Team.Feature as ApiFt
 import qualified Wire.API.Team.Member as Team
 import Wire.API.User
 import Wire.API.User.Client
+import Cassandra.Exec (x1)
+import Data.Json.Util (toUTCTimeMillis)
+import Data.Time
+import Brig.Data.Connection
+import Data.Domain
 
 tests :: Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Gundeck -> Galley -> IO TestTree
 tests opts mgr db brig brigep gundeck galley = do
@@ -82,8 +87,57 @@ tests opts mgr db brig brigep gundeck galley = do
               test mgr "put,put" $ testKpcPutPut brig,
               test mgr "add key package ref" $ testAddKeyPackageRef brig
             ],
-        test mgr "writetimeToInt64" $ testWritetimeRepresentation opts mgr db brig brigep galley
+        test mgr "writetimeToInt64" $ testWritetimeRepresentation opts mgr db brig brigep galley,
+        test mgr "delete-federation-remote-galley" $ testDeleteFederationRemoteGalley db brig
       ]
+
+testDeleteFederationRemoteGalley ::  forall m. TestConstraints m => Cass.ClientState -> Brig -> m ()
+testDeleteFederationRemoteGalley db brig = do
+  let remoteDomain1 = Domain "far-away.example.com"
+      remoteDomain2 = Domain "far-away-two.example.com"
+      isRemote1 = (== remoteDomain1)
+      isRemote2 = (== remoteDomain2)
+  localUser <- randomUser brig
+  let localUserId = userId localUser
+  remoteUserId1 <- randomId
+  remoteUserId2 <- randomId
+  now <- liftIO $ getCurrentTime
+  convId <- randomId
+
+  -- Write the local and remote users into 'connection_remote'
+  let params1 = (localUserId, remoteDomain1, remoteUserId1, Conn.AcceptedWithHistory, toUTCTimeMillis now, remoteDomain1, convId)
+  liftIO $ Cass.runClient db $ Cass.retry x1 $
+    Cass.write remoteConnectionInsert (Cass.params Cass.LocalQuorum params1)
+  let params2 = (localUserId, remoteDomain2, remoteUserId2, Conn.AcceptedWithHistory, toUTCTimeMillis now, remoteDomain1, convId)
+  liftIO $ Cass.runClient db $ Cass.retry x1 $
+    Cass.write remoteConnectionInsert (Cass.params Cass.LocalQuorum params2)
+  
+  -- Check that the value exists in the DB as expected.
+  -- Remote 1
+  liftIO (Cass.runClient db $ Cass.retry x1 $
+    Cass.query remoteConnectionsSelectUsers (Cass.params Cass.LocalQuorum $ pure localUserId)) >>=
+    liftIO . assertBool "connection_remote entry should exist for the user" . any (isRemote1 . fst)
+  -- Remote 2
+  liftIO (Cass.runClient db $ Cass.retry x1 $
+    Cass.query remoteConnectionsSelectUsers (Cass.params Cass.LocalQuorum $ pure localUserId)) >>=
+    liftIO . assertBool "connection_remote entry should exist for the user" . any (isRemote2 . fst)
+  
+  -- Make the API call to delete remote domain 1
+  delete
+    ( brig
+        . paths ["i", "federation", "remote", toByteString' $ domainText remoteDomain1, "galley"]
+    ) !!!
+      const 200 === statusCode
+
+  -- Check 'connection_remote' for the local user and ensure
+  -- that there are no conversations for the remote domain.
+  liftIO (Cass.runClient db $ Cass.retry x1 $
+    Cass.query remoteConnectionsSelectUsers (Cass.params Cass.LocalQuorum $ pure localUserId)) >>=
+    liftIO . assertBool "connection_remote entry should NOT exist for the user" . not . any (isRemote1 . fst)
+  -- But remote domain 2 is still listed
+  liftIO (Cass.runClient db $ Cass.retry x1 $
+    Cass.query remoteConnectionsSelectUsers (Cass.params Cass.LocalQuorum $ pure localUserId)) >>=
+    liftIO . assertBool "connection_remote entry should exist for the user" . any (isRemote2 . fst)
 
 testSuspendUser :: forall m. TestConstraints m => Cass.ClientState -> Brig -> m ()
 testSuspendUser db brig = do
