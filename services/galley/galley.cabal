@@ -92,6 +92,7 @@ library
     Galley.Data.TeamNotifications
     Galley.Data.Types
     Galley.Effects
+    Galley.Effects.BackendNotificationQueueAccess
     Galley.Effects.BotAccess
     Galley.Effects.BrigAccess
     Galley.Effects.ClientStore
@@ -121,6 +122,7 @@ library
     Galley.External.LegalHoldService
     Galley.External.LegalHoldService.Internal
     Galley.External.LegalHoldService.Types
+    Galley.Intra.BackendNotificationQueue
     Galley.Intra.Client
     Galley.Intra.Effects
     Galley.Intra.Federator

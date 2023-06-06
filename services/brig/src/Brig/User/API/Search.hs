@@ -16,9 +16,11 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.User.API.Search
-  ( routesInternal,
-    search,
+  ( search,
     teamUserSearch,
+    refreshIndex,
+    reindexAll,
+    reindexAllIfSameOrNewer,
   )
 where
 
@@ -40,13 +42,10 @@ import Control.Lens (view)
 import Data.Domain (Domain)
 import Data.Handle (parseHandle)
 import Data.Id
-import Data.Predicate
 import Data.Range
 import Galley.Types.Teams (HiddenPerm (SearchContacts))
 import Imports
-import Network.Wai.Routing
 import Network.Wai.Utilities ((!>>))
-import Network.Wai.Utilities.Response (empty)
 import Polysemy
 import System.Logger (field, msg)
 import System.Logger.Class (val, (~~))
@@ -57,31 +56,6 @@ import qualified Wire.API.Team.Permission as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility (..))
 import Wire.API.User.Search
 import qualified Wire.API.User.Search as Public
-
-routesInternal :: Routes a (Handler r) ()
-routesInternal = do
-  -- make index updates visible (e.g. for integration testing)
-  post
-    "/i/index/refresh"
-    (continue (const $ lift refreshIndex $> empty))
-    true
-
-  -- reindex from Cassandra (e.g. integration testing -- prefer the
-  -- `brig-index` executable for actual operations!)
-  post
-    "/i/index/reindex"
-    (continue . const $ lift (wrapClient reindexAll) $> empty)
-    true
-
-  -- forcefully reindex from Cassandra, even if nothing has changed
-  -- (e.g. integration testing -- prefer the `brig-index` executable
-  -- for actual operations!)
-  post
-    "/i/index/reindex-if-same-or-newer"
-    (continue . const $ lift (wrapClient reindexAllIfSameOrNewer) $> empty)
-    true
-
--- Handlers
 
 -- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
 -- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599

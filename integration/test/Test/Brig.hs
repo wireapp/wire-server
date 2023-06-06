@@ -31,6 +31,7 @@ testCrudFederationRemotes = do
           & asList
           -- Enforce that the values are objects and not something else
           >>= traverse (fmap Object . asObject)
+
       addOnce :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => fedConn -> [fedConn2] -> App ()
       addOnce fedConn want = do
         res <- Internal.createFedConn OwnDomain fedConn

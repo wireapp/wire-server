@@ -158,10 +158,10 @@ complexFederationUpdate env clientEnv rmq = void $ Codensity $ Async.withAsync $
   -- This ioref is needed so that we can kill the async thread that
   -- is forked by updateFedDomains'
   threadRef <- newIORef Nothing
-  let mqh = rmq ^. rmqHost
-      mqp = rmq ^. rmqPort
-      mqv = rmq ^. rmqVhost
-      mqq = rmq ^. rmqQueue
+  let mqh = rmq ^. rabbitmqHost
+      mqp = rmq ^. rabbitmqPort
+      mqv = rmq ^. rabbitmqVHost
+      mqq = "domain-deletion-queue"
   openConnectionWithRetries (env ^. applog) mqh mqp mqv $
     RabbitMqHooks
       { AMQP.onConnectionClose = do

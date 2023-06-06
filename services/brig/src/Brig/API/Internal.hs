@@ -125,6 +125,7 @@ servantSitemap =
     :<|> userAPI
     :<|> authAPI
     :<|> internalOauthAPI
+    :<|> internalSearchIndexAPI
     :<|> federationRemotesAPI
 
 ejpdAPI ::
@@ -410,6 +411,12 @@ getVerificationCode uid action = do
       code <- wrapClientE $ Code.lookup key (Code.scopeFromAction a)
       pure $ Code.codeValue <$> code
 
+internalSearchIndexAPI :: forall r. ServerT BrigIRoutes.ISearchIndexAPI (Handler r)
+internalSearchIndexAPI =
+  Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndex))
+    :<|> Named @"indexReindex" (NoContent <$ lift (wrapClient Search.reindexAll))
+    :<|> Named @"indexReindexIfSameOrNewer" (NoContent <$ lift (wrapClient Search.reindexAllIfSameOrNewer))
+
 ---------------------------------------------------------------------------
 -- Sitemap (wai-route)
 
@@ -576,7 +583,6 @@ sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
       .&. accept "application" "json"
 
   Provider.routesInternal
-  Search.routesInternal
   Team.routesInternal
 
 ---------------------------------------------------------------------------

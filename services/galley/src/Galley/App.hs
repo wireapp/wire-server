@@ -79,6 +79,7 @@ import Galley.Effects.FireAndForget (interpretFireAndForget)
 import Galley.Effects.WaiRoutes.IO
 import Galley.Env
 import Galley.External
+import Galley.Intra.BackendNotificationQueue
 import Galley.Intra.Effects
 import Galley.Intra.Federator
 import Galley.Keys
@@ -150,6 +151,10 @@ validateOptions l o = do
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings ^. setMaxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
+  case (o ^. optFederator, o ^. optRabbitmq) of
+    (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
+    (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
+    _ -> pure ()
 
 createEnv :: Metrics -> Opts -> Logger -> IORef FederationDomainConfigs -> IO Env
 createEnv m o l r = do
@@ -164,6 +169,7 @@ createEnv m o l r = do
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
     <*> loadAllMLSKeys (fold (o ^. optSettings . setMlsPrivateKeyPaths))
+    <*> mkRabbitMqChannel l o
     <*> pure r
 
 initCassandra :: Opts -> Logger -> IO ClientState
@@ -281,6 +287,7 @@ evalGalley e =
     . interpretClientStoreToCassandra
     . interpretFireAndForget
     . interpretBotAccess
+    . interpretBackendNotificationQueueAccess
     . interpretFederatorAccess
     . interpretExternalAccess
     . interpretGundeckAccess

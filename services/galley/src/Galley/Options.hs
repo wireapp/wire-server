@@ -37,6 +37,7 @@ module Galley.Options
     defDeleteConvThrottleMillis,
     defFanoutLimit,
     JournalOpts (JournalOpts),
+    RabbitMqOpts (..),
     awsQueueName,
     awsEndpoint,
     Opts,
@@ -46,6 +47,7 @@ module Galley.Options
     optGundeck,
     optSpar,
     optFederator,
+    optRabbitmq,
     optDiscoUrl,
     optSettings,
     optJournal,
@@ -53,11 +55,9 @@ module Galley.Options
     optLogNetStrings,
     optLogFormat,
     optRabbitMq,
-    RabbitMqOpts,
-    rmqHost,
-    rmqPort,
-    rmqVhost,
-    rmqQueue,
+    rabbitmqHost,
+    rabbitmqPort,
+    rabbitmqVHost
   )
 where
 
@@ -151,16 +151,13 @@ deriveFromJSON toOptionFieldName ''JournalOpts
 
 makeLenses ''JournalOpts
 
--- Based on Wire.BackgroundWorker.Options
 data RabbitMqOpts = RabbitMqOpts
-  { _rmqHost :: !String,
-    _rmqPort :: !Int,
-    _rmqVhost :: !Text,
-    _rmqQueue :: !Text
+  { _rabbitmqHost :: !String,
+    _rabbitmqPort :: !Int,
+    _rabbitmqVHost :: !Text
   }
   deriving (Show, Generic)
-
-makeLenses ''RabbitMqOpts
+makeLenses 'RabbitMqOpts
 deriveFromJSON toOptionFieldName ''RabbitMqOpts
 
 data Opts = Opts
@@ -176,6 +173,8 @@ data Opts = Opts
     _optSpar :: !Endpoint,
     -- | Federator endpoint
     _optFederator :: !(Maybe Endpoint),
+    -- | RabbitMQ settings, required when federation is enabled.
+    _optRabbitmq :: !(Maybe RabbitMqOpts),
     -- | Disco URL
     _optDiscoUrl :: !(Maybe Text),
     -- | Other settings
