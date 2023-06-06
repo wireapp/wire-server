@@ -228,8 +228,8 @@ signedURL path mbHost = do
       Left e -> do
         Log.err $
           "remote" .= val "S3"
+            ~~ "error" .= show e
             ~~ msg (val "Failed to generate a signed URI")
-            ~~ msg (show e)
         throwE serverError
       Right u -> pure u
 
