@@ -148,7 +148,7 @@ testIndependentESIndices = do
   uid2 <- objId u2
   connectUsers u1 u2
   Internal.refreshIndex OwnDomain
-  bindResponse (Public.searchContacts u1 (u2 %. "name")) $ \resp -> do
+  bindResponse (Public.searchContacts u1 (u2 %. "name") OwnDomain) $ \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList
     case docs of
@@ -157,7 +157,7 @@ testIndependentESIndices = do
   startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain -> do
     uD1 <- randomUser dynDomain def
     -- searching for u1 on the dyn backend should yield no result
-    bindResponse (Public.searchContacts uD1 (u2 %. "name")) $ \resp -> do
+    bindResponse (Public.searchContacts uD1 (u2 %. "name") dynDomain) $ \resp -> do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "documents" >>= asList
       null docs `shouldMatchBool` True
@@ -166,12 +166,21 @@ testIndependentESIndices = do
     connectUsers uD1 uD2
     Internal.refreshIndex dynDomain
     -- searching for uD2 on the dyn backend should yield a result
-    bindResponse (Public.searchContacts uD1 (uD2 %. "name")) $ \resp -> do
+    bindResponse (Public.searchContacts uD1 (uD2 %. "name") dynDomain) $ \resp -> do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "documents" >>= asList
       case docs of
         [] -> assertFailure "Expected a non empty result, but got an empty one"
         doc : _ -> doc %. "id" `shouldMatch` uidD2
+
+-- testDynamicBackendsFederation :: HasCallStack => App ()
+-- testDynamicBackendsFederation =
+--   startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain1 ->
+--     startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain2 -> do
+--       ud1 <- randomUser dynDomain1 def
+--       ud2 <- randomUser dynDomain2 def
+--       bindResponse (Public.searchContacts ud1 (ud2 %. "name") dynDomain2) $ \resp -> do
+--         resp.status `shouldMatchInt` 200
 
 testWebSockets :: HasCallStack => App ()
 testWebSockets = do
