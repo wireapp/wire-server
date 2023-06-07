@@ -21,11 +21,13 @@ module Galley.API.MLS.Welcome
   )
 where
 
+import qualified Data.ByteString as BS
 import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.Time
+import Debug.Trace (traceM)
 import Galley.API.Push
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
@@ -87,6 +89,8 @@ sendLocalWelcomes ::
   Local [(UserId, ClientId)] ->
   Sem r ()
 sendLocalWelcomes qcnv qusr con now welcome lclients = do
+  let nWelcome = BS.length welcome.raw
+  traceM ("welcome size: " <> show nWelcome)
   let e = Event qcnv Nothing qusr now $ EdMLSWelcome welcome.raw
   runMessagePush lclients (Just qcnv) $
     newMessagePush mempty con defMessageMetadata (tUnqualified lclients) e

@@ -83,7 +83,8 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
       newUserClients = Map.assocs (paAdd action)
 
   -- check all pending proposals are referenced in the commit
-  allPendingProposals <- getAllPendingProposalRefs (cnvmlsGroupId convOrSub.meta) epoch
+
+  allPendingProposals <- timedTrace "  getAllPendingProposalRefs" $ getAllPendingProposalRefs (cnvmlsGroupId convOrSub.meta) epoch
   let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) commit.proposals
   unless (all (`Set.member` referencedProposals) allPendingProposals) $
     throwS @'MLSCommitMissingReferences
@@ -109,7 +110,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
           -- Furthermore, subconversation clients can be removed arbitrarily, so this
           -- processing is only necessary for main conversations. In the
           -- subconversation case, an empty list is returned.
-          membersToRemove <- case convOrSub of
+          membersToRemove <- timedTrace "  computing membersToRemove" $ case convOrSub of
             SubConv _ _ -> pure []
             Conv _ -> mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
               \(qtarget, Map.keysSet -> clients) -> runError @() $ do
@@ -131,7 +132,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
                 pure qtarget
 
           -- for each user, we compare their clients with the ones being added to the conversation
-          failedAddFetching <- fmap catMaybes . forM newUserClients $
+          failedAddFetching <- timedTrace "computing 'for each user'..." . fmap catMaybes . forM newUserClients $
             \(qtarget, newclients) -> case Map.lookup qtarget cm of
               -- user is already present, skip check in this case
               Just _ -> do
@@ -167,15 +168,17 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
 
           -- remove users from the conversation and send events
           removeEvents <-
-            foldMap
-              (removeMembers qusr con lConvOrSub)
-              (nonEmpty membersToRemove)
+            timedTrace "  computing removeEvents" $
+              foldMap
+                (removeMembers qusr con lConvOrSub)
+                (nonEmpty membersToRemove)
 
           -- add users to the conversation and send events
           addEvents <-
-            foldMap (addMembers qusr con lConvOrSub)
-              . nonEmpty
-              . map fst
+            timedTrace "  computing addEvents"
+              $ foldMap (addMembers qusr con lConvOrSub)
+                . nonEmpty
+                . map fst
               $ newUserClients
           pure (addEvents <> removeEvents)
         else pure []
@@ -186,7 +189,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
       removeMLSClients (cnvmlsGroupId convOrSub.meta) qtarget (Map.keysSet clients)
 
     -- add clients to the conversation state
-    for_ newUserClients $ \(qtarget, newClients) -> do
+    timedTrace "  computing 'add clients in the conversation state'" $ for_ newUserClients $ \(qtarget, newClients) -> do
       addMLSClients (cnvmlsGroupId convOrSub.meta) qtarget (Set.fromList (Map.assocs newClients))
 
     -- increment epoch number

@@ -21,6 +21,8 @@ import Control.Comonad
 import Data.Id
 import Data.Qualified
 import qualified Data.Text as T
+import Data.Time.Clock
+import Debug.Trace (traceM)
 import Galley.Data.Conversation.Types hiding (Conversation)
 import qualified Galley.Data.Conversation.Types as Data
 import Galley.Data.Types
@@ -32,10 +34,12 @@ import Galley.Effects.SubConversationStore
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input (Input, input)
 import Polysemy.Resource (Resource, bracket)
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as TinyLog
 import qualified System.Logger as Log
+import Text.Printf (printf)
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Epoch
@@ -127,3 +131,13 @@ withCommitLock lConvOrSubId gid epoch action =
 
 getConvFromGroupId :: Member (Error MLSProtocolError) r => GroupId -> Sem r (Qualified ConvOrSubConvId)
 getConvFromGroupId = either (throw . mlsProtocolError . T.pack) (pure . fst) . groupIdToConv
+
+timedTrace :: Members '[Input UTCTime] r => String -> Sem r a -> Sem r a
+timedTrace label action = do
+  tBefore <- input @UTCTime
+  res <- action
+  tAfter <- input @UTCTime
+  let x = fromIntegral (truncate @_ @Int (nominalDiffTimeToSeconds (diffUTCTime tAfter tBefore) * 1000)) / (1000.0 :: Double)
+  let msg :: String = printf "TRACE %s (%.1f)" label x
+  traceM msg
+  pure res

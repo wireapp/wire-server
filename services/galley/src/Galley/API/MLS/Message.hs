@@ -200,20 +200,21 @@ postMLSCommitBundleToLocalConv ::
   Local ConvOrSubConvId ->
   Sem r [LocalConversationUpdate]
 postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
-  lConvOrSub <- fetchConvOrSub qusr lConvOrSubId
-  senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
+  lConvOrSub <- timedTrace "fetchConvOrSub" (fetchConvOrSub qusr lConvOrSubId)
+  senderIdentity <- timedTrace "getSenderIdentity" $ getSenderIdentity qusr c bundle.sender lConvOrSub
 
   (events, newClients) <- case bundle.sender of
     SenderMember _index -> do
-      action <- getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
+      action <- timedTrace "getSenderIdentity" $ getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
       events <-
-        processInternalCommit
-          senderIdentity
-          conn
-          lConvOrSub
-          bundle.epoch
-          action
-          bundle.commit.value
+        timedTrace "processInternalCommit" $
+          processInternalCommit
+            senderIdentity
+            conn
+            lConvOrSub
+            bundle.epoch
+            action
+            bundle.commit.value
       pure (events, cmIdentities (paAdd action))
     SenderExternal _ -> throw (mlsProtocolError "Unexpected sender")
     SenderNewMemberProposal -> throw (mlsProtocolError "Unexpected sender")
@@ -227,12 +228,13 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
         bundle.commit.value.path
       pure ([], [])
 
-  storeGroupInfo (tUnqualified lConvOrSub).id bundle.groupInfo
+  timedTrace "storeGroupInfo" (storeGroupInfo (tUnqualified lConvOrSub).id bundle.groupInfo)
 
-  propagateMessage qusr lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
-    >>= mapM_ throwUnreachableUsers
+  timedTrace "propagateMessage" $
+    propagateMessage qusr lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
+      >>= mapM_ throwUnreachableUsers
 
-  traverse_ (sendWelcomes lConvOrSubId qusr conn newClients) bundle.welcome
+  timedTrace "sendWelcomes" $ traverse_ (sendWelcomes lConvOrSubId qusr conn newClients) bundle.welcome
   pure events
 
 postMLSCommitBundleToRemoteConv ::
