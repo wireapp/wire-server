@@ -161,6 +161,8 @@ accountAPI =
     :<|> Named @"createUserNoVerifySpar" (callsFed (exposeAnnotations createUserNoVerifySpar))
     :<|> Named @"putSelfEmail" changeSelfEmailMaybeSendH
     :<|> Named @"iDeleteUser" deleteUserNoAuthH
+    :<|> Named @"iPutUserStatus" changeAccountStatusH
+    :<|> Named @"iGetUserStatus" getAccountStatusH
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -313,14 +315,6 @@ sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
     accept "application" "json"
       .&. (param "email" ||| param "phone")
       .&. def False (query "includePendingInvitations")
-
-  put "/i/users/:uid/status" (continue changeAccountStatusH) $
-    capture "uid"
-      .&. jsonRequest @AccountStatusUpdate
-
-  get "/i/users/:uid/status" (continue getAccountStatusH) $
-    accept "application" "json"
-      .&. capture "uid"
 
   get "/i/users/:uid/contacts" (continue getContactListH) $
     accept "application" "json"
@@ -626,18 +620,18 @@ newtype GetPasswordResetCodeResp = GetPasswordResetCodeResp (PasswordResetKey, P
 instance ToJSON GetPasswordResetCodeResp where
   toJSON (GetPasswordResetCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-changeAccountStatusH :: UserId ::: JsonRequest AccountStatusUpdate -> (Handler r) Response
-changeAccountStatusH (usr ::: req) = do
-  status <- suStatus <$> parseJsonBody req
-  wrapHttpClientE (API.changeSingleAccountStatus usr status) !>> accountStatusError
-  pure empty
+changeAccountStatusH :: UserId -> AccountStatusUpdate -> (Handler r) NoContent
+changeAccountStatusH usr (suStatus -> status) = do
+  wrapHttpClientE (API.changeSingleAccountStatus usr status) !>> accountStatusError -- FUTUREWORK: use CanThrow and related machinery
+  pure NoContent
 
-getAccountStatusH :: JSON ::: UserId -> (Handler r) Response
-getAccountStatusH (_ ::: usr) = do
-  status <- lift $ wrapClient $ API.lookupStatus usr
-  pure $ case status of
-    Just s -> json $ AccountStatusResp s
-    Nothing -> setStatus status404 empty
+getAccountStatusH :: UserId -> (Handler r) AccountStatusResp
+getAccountStatusH uid = do
+  status <- lift $ wrapClient $ API.lookupStatus uid
+  maybe
+    (throwStd (errorToWai @'E.UserNotFound))
+    (pure . AccountStatusResp)
+    status
 
 getConnectionsStatusUnqualified :: ConnectionsStatusRequest -> Maybe Relation -> (Handler r) [ConnectionStatus]
 getConnectionsStatusUnqualified ConnectionsStatusRequest {csrFrom, csrTo} flt = lift $ do

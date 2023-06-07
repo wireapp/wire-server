@@ -203,6 +203,22 @@ type AccountAPI =
                      ]
                     DeleteUserResponse
            )
+    :<|> Named
+           "iPutUserStatus"
+           ( "users"
+               -- FUTUREWORK: `:> CanThrow ...`
+               :> Capture "uid" UserId
+               :> "status"
+               :> ReqBody '[Servant.JSON] AccountStatusUpdate
+               :> Put '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iGetUserStatus"
+           ( "users"
+               :> CanThrow 'UserNotFound
+               :> Capture "uid" UserId
+               :> Get '[Servant.JSON] AccountStatusResp
+           )
 
 -- | The missing ref is implicit by the capture
 data NewKeyPackageRef = NewKeyPackageRef
