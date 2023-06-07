@@ -2,19 +2,35 @@
 
 ## Background on "why cassandra?"
 
-Cassandra was chosen back in ~2014 in the context of massive scalability (expectations of billions of users), as well as the wish for redundancy and cloud-always-on high-availability.
+Cassandra was chosen back in ~2014 in the context of massive scalability (expectations of billions
+of users), as well as the wish for redundancy and cloud-always-on high-availability.
 
-From an operational standpoint, high-availability and redundancy are well served with this: any single node/VM can crash at any moment without data loss, and version upgrades, server maintenance, and server migrations can be done without stopping the system (and causing user-observable downtime).
+From an operational standpoint, high-availability and redundancy are well served with this: any
+single node/VM can crash at any moment without data loss, and version upgrades, server maintenance,
+and server migrations can be done without stopping the system (and causing user-observable
+downtime).
 
-From a developer perspective, wishing for a mental model of strong consistency across multiple tables in multiple services to make easier assumptions when writing code makes working with cassandra sometimes a bit harder. (That said, this document has some sections below to make working with strong consistency within the same service easier).
+From a developer perspective, wishing for a mental model of strong consistency across multiple
+tables in multiple services to make easier assumptions when writing code makes working with
+cassandra sometimes a bit harder. (That said, this document has some sections below to make working
+with strong consistency within the same service easier).
 
-Questions have come up whether another technology may serve our needs better in the evolved technical and product context of 2023 and beyond. These questions are valid, and a change can always be discussed, if the time is at hand to put this effort in.
+Questions have come up whether another technology may serve our needs better in the evolved
+technical and product context of 2023 and beyond. These questions are valid, and a change can always
+be discussed, if the time is at hand to put this effort in.
 
 ## Guidelines for designing database schemas
 
-In a lot of relational databases, you design tables with their relations, and think about the exact access patterns later, as you can always add an index on a certain column. In the cassandra world, you need to make some mental gymnastics and get used to design your tables **by the access patterns to this data**. You can only look up data by what's in the primary key, and you always need the single partition key at hand to do this lookup.
+In a lot of relational databases, you design tables with their relations, and think about the exact
+access patterns later, as you can always add an index on a certain column. In the cassandra world,
+you need to make some mental gymnastics and get used to design your tables **by the access patterns
+to this data**. You can only look up data by what's in the primary key, and you always need the
+single partition key at hand to do this lookup.
 
-Therefore, you may need multiple tables that relate, such as a `conversation_by_user_id` and a `user_by_conversation_id` table (or even more of them). That's perfectly fine and the correct pattern to use. Please read some online resources about data modeling with cassandra, such as the [datastax official data modelling documentation](https://cassandra.apache.org/doc/latest/cassandra/data_modeling/index.html).
+Therefore, you may need multiple tables that relate, such as a `conversation_by_user_id` and a
+`user_by_conversation_id` table (or even more of them). That's perfectly fine and the correct
+pattern to use. Please read some online resources about data modeling with cassandra, such as the
+[datastax official data modelling documentation](https://cassandra.apache.org/doc/latest/cassandra/data_modeling/index.html).
 
 ## Guidelines on per-table query consistency level and replication level
 
@@ -22,13 +38,17 @@ Therefore, you may need multiple tables that relate, such as a `conversation_by_
 
 We currently operate all our production and production-like environments with
 
-* a **replication factor of 3** (per datacentre, but except for a brief phase of controlled datacentre migration there is only one datacentre in use)
+* a **replication factor of 3** (per datacentre, but except for a brief phase of controlled
+  datacentre migration there is only one datacentre in use)
 * a number of cassandra nodes >= 3 (depending on load and disk/machine size)
 * Everywhere where some consistency matters, **Quorum writes and Quorum reads**
 
-These three things together give us **strong consistency on a per-table** basis. A quorum write followed by a quorum read will guarantee that you see the data you inserted, even if one replica of cassandra that holds that partition key dies in the middle.
+These three things together give us **strong consistency on a per-table** basis. A quorum write
+followed by a quorum read will guarantee that you see the data you inserted, even if one replica of
+cassandra that holds that partition key dies in the middle.
 
-The replication factor is specified when creating or migrating schemas, which is done in the `cassandra-migrations` subchart of the `wire-server` chart:
+The replication factor is specified when creating or migrating schemas, which is done in the
+`cassandra-migrations` subchart of the `wire-server` chart:
 
 ```{grepinclude} ../charts/cassandra-migrations/values.yaml host name and replication
 ---
@@ -37,9 +57,11 @@ language: yaml
 ---
 ```
 
-The number of cassandra nodes in use is specified on the infrastructure level (k8ssandra on kubernetes, or the inventory list when using ansible-cassandra)
+The number of cassandra nodes in use is specified on the infrastructure level (k8ssandra on
+kubernetes, or the inventory list when using ansible-cassandra)
 
-Quorum consistency (or, in our case, `LocalQuorum` consistency) is specified in our code. Random example:
+Quorum consistency (or, in our case, `LocalQuorum` consistency) is specified in our code. Random
+example:
 
 ```{grepinclude} ../services/brig/src/Brig/Data/User.hs userEmailUpdate \(params
 ---
@@ -47,21 +69,35 @@ language: Haskell
 ---
 ```
 
-Note that `Quorum` and `LocalQuorum` behave exactly the same in the context of a single datacentre (each datacentre can have multiple racks or availability zones). We switched from `Quorum` to `LocalQuorum` in [this PR](https://github.com/wireapp/wire-server/pull/1884) in preparation of a datacentre migration. As it doesn't hurt, and more datacentre migrations may be done in the future by us or the people hosting on-premise, let's stick to `LocalQuorum` for the time being.
+Note that `Quorum` and `LocalQuorum` behave exactly the same in the context of a single datacentre
+(each datacentre can have multiple racks or availability zones). We switched from `Quorum` to
+`LocalQuorum` in [this PR](https://github.com/wireapp/wire-server/pull/1884) in preparation of a
+datacentre migration. As it doesn't hurt, and more datacentre migrations may be done in the future
+by us or the people hosting on-premise, let's stick to `LocalQuorum` for the time being.
 
-***To summarize: In case of doubt, just follow the examples and use `LocalQuorum` Writes and Reads in your queries, unless there is a very good reason not to.***
+***To summarize: In case of doubt, just follow the examples and use `LocalQuorum` Writes and Reads
+in your queries, unless there is a very good reason not to.***
 
 (batch-statements)=
 ## Guidelines for across-table consistency
 
-Given that we have strong consistency for a single operation (see section above), in some cases your data access patterns mandate that you have multiple tables with seemingly duplicated data.
+Given that we have strong consistency for a single operation (see section above), in some cases your
+data access patterns mandate that you have multiple tables with seemingly duplicated data.
 
-Good ✅ example: For instance, a 'teamInvitation' needs to be queried by team ID (for the team admin - which pending invitations exist?), by email (during user registration), and by code (to check whether an invitation is valid before embarking on the user registration). Therefore, there are three tables holding similar
-data about a team invitation, but with different primary keys. This is a correct and recommended data design for cassandra.
+Good ✅ example: For instance, a 'teamInvitation' needs to be queried
+* by team ID (for the team admin- which pending invitations exist?)
+* by email (during user registration), and
+* by code (to check whether an invitation is valid before embarking on the user registration).
 
-Now, any insert, update or delete of this data should either all work, or all fail, to not have weird data integrity issues. Now, cassandra provides for this, and it's called `batch` statements.
+Therefore, there are three tables holding similar data about a team invitation, but with different
+primary keys. This is a correct and recommended data design for cassandra.
 
-> Batches are atomic by default. In the context of a Cassandra batch operation, atomic means that if any of the batch succeeds, all of it will.
+Now, any insert, update or delete of this data should either all work, or all fail, to not have
+weird data integrity issues. Now, cassandra provides for this, and it's called `batch` statements.
+
+> Batches are atomic by default. In the context of a Cassandra batch operation, atomic means that if
+> any of the batch succeeds, all of it will.
+
 > Statement order does not matter within a batch
 
 [reference documentation of batch](https://docs.datastax.com/en/archived/cql/3.1/cql/cql_reference/batch_r.html)
@@ -75,37 +111,59 @@ lines-after: 18
 ---
 ```
 
-While writing this documentation, I grepped for batch across our codebase, and saw that the use of batch statements seems to have fallen into disuse over the past months and years. That's a mistake! For related data, batch statements should be used to keep strong consistency across multiple tables for related data.
+While writing this documentation, I grepped for batch across our codebase, and saw that the use of
+batch statements seems to have fallen into disuse over the past months and years. That's a mistake!
+For related data, batch statements should be used to keep strong consistency across multiple tables
+for related data.
 
-*Sidenote:* Batch statements have a confusing name perhaps. They are not intended to speed up inserting multiple records into the same table; that is an antipattern, see [this documentation](https://docs.datastax.com/en/cql-oss/3.x/cql/cql_using/useBatchBadExample.html).
+*Sidenote:* Batch statements have a confusing name perhaps. They are not intended to speed up
+inserting multiple records into the same table; that is an antipattern, see [this
+documentation](https://docs.datastax.com/en/cql-oss/3.x/cql/cql_using/useBatchBadExample.html).
 
-***To summarize: When working on multiple tables with related data (e.g. user_by_conversation_id and conversation_by_user_id), use 'batch' statements to achieve strong consisteny! When inserting lots of data into the same table, do not use batch statements.***
+***To summarize: When working on multiple tables with related data (e.g. user_by_conversation_id and
+conversation_by_user_id), use 'batch' statements to achieve strong consisteny! When inserting lots
+of data into the same table, do not use batch statements.***
 
 ## Examples of code design for optimal user-level consistency in complex scenarios
 
 ### Introduction
 
-As we saw above, we can achieve strong consistency for a single table, and for related tables in the same database, if the code path allows grouping inserts/updates/deletes together. In some scenarios, where some data is held by brig and some data is held by galley, this isn't easily achievable, and we need to think harder abour ordering and possibly apply some tricks. There's no easy answer to always have strong consistency, so instead here are some examples to guide future complex scenarios:
+As we saw above, we can achieve strong consistency for a single table, and for related tables in the
+same database, if the code path allows grouping inserts/updates/deletes together. In some scenarios,
+where some data is held by brig and some data is held by galley, this isn't easily achievable, and
+we need to think harder abour ordering and possibly apply some tricks. There's no easy answer to
+always have strong consistency, so instead here are some examples to guide future complex scenarios:
 
 ### Creating a user account
 
-Upon creating a user, some resources are created by brig, some by galley (such as a self conversation). Since LocalQuorum+batch statements are not an option here, and the services can crash mid-way their request, we still wish to ensure that no inconsistent half-written data leads to a broken experience (we can accept garbage data lingering around, but we don't wish to accept a user being able to log in but having a broken state. Instead, we want to rely on some (in this case, user-level) retry.
-To achieve this, there is a boolean flag 'activated'. In the past, what happened was:
+Upon creating a user, some resources are created by brig, some by galley (such as a self
+conversation). Since LocalQuorum+batch statements are not an option here, and the services can crash
+mid-way their request, we still wish to ensure that no inconsistent half-written data leads to a
+broken experience (we can accept garbage data lingering around, but we don't wish to accept a user
+being able to log in but having a broken state. Instead, we want to rely on some (in this case,
+user-level) retry. To achieve this, there is a boolean flag 'activated'. In the past, what happened was:
 
 * write a user entry with activated=false
 * perform other operations in brig and galley and elsewhere
 * update the user entry and set activated=true
 * when doing a user lookup, filter out any results with activated=false (or null)
 
-This way, if the code fails halfway through, even though there might be some data in the database, as it is being filtered out, the user can retry the account creation and is not left in a halfway-there broken state. This is not "pretty", but works for practial purposes.
+This way, if the code fails halfway through, even though there might be some data in the database,
+as it is being filtered out, the user can retry the account creation and is not left in a
+halfway-there broken state. This is not "pretty", but works for practial purposes.
 
-The code around this has been refactored and there are many scenarios of user creation, so the initial trick explained above may not hold true in all cases (thus potentially having broken the desired data integrity properties).
+The code around this has been refactored and there are many scenarios of user creation, so the
+initial trick explained above may not hold true in all cases (thus potentially having broken the
+desired data integrity properties).
 
 ### Deleting a user account
 
 When deleting a user, also handles, clients, conversations, assets etc must be deleted.
 
-To guard against this failing midway due to a crashing/restarting service, the `deleteAccount` function is used in a "automated retry-logic" way. For this, it's wrapped with some queue logic (push "this user should be deleted" onto a queue, start deleting things and only remove that item from the queue once all has completed).
+To guard against this failing midway due to a crashing/restarting service, the `deleteAccount`
+function is used in a "automated retry-logic" way. For this, it's wrapped with some queue logic
+(push "this user should be deleted" onto a queue, start deleting things and only remove that item
+from the queue once all has completed).
 
 The function in question:
 
@@ -137,17 +195,28 @@ lines-before: 0
 ---
 ```
 
-Also, default SQS queue settings mean that events are only removed from the queue after the client code finishes processing. If the client fails mid-way, the event re-appears for consumption (after a timeout passes).
+Also, default SQS queue settings mean that events are only removed from the queue after the client
+code finishes processing. If the client fails mid-way, the event re-appears for consumption (after a
+timeout passes).
 
 ### Designing for consistent data
 
-As we saw above, within a single batch request we can guarantee strong consistency for a single service. If possible, try to not put some data in brig and some data in galley, as these cases will make it hard to stay consistent. Instead, think about merging the services, or the database access, to allow you to make use of batch queries. Or, try to keep related data within one service.
+As we saw above, within a single batch request we can guarantee strong consistency for a single
+service. If possible, try to not put some data in brig and some data in galley, as these cases will
+make it hard to stay consistent. Instead, think about merging the services, or the database access,
+to allow you to make use of batch queries. Or, try to keep related data within one service.
 
 ### The future: Cassandra 5.0 and true ACID
 
-Right now, we have `batch` statements (see above), which are atomic, which is usually good enough. But the 'i' for isolation from an ACID perspective is missing, so in a race condition another query from another thread could read one of the table updates but not the other. Usually that's not a problem though.
+Right now, we have `batch` statements (see above), which are atomic, which is usually good enough.
+But the 'i' for isolation from an ACID perspective is missing, so in a race condition another query
+from another thread could read one of the table updates but not the other. Usually that's not a
+problem though.
 
-See [this post](https://thenewstack.io/an-apache-cassandra-breakthrough-acid-transactions-at-scale/) on full ACID support coming to cassandra in the future. Note these true transactions will also not work if one piece of your data is in galley and the other is in brig. They wouldn't in a postgres scenario either. So, first steps first: move your data together!
+See [this post](https://thenewstack.io/an-apache-cassandra-breakthrough-acid-transactions-at-scale/)
+on full ACID support coming to cassandra in the future. Note these true transactions will also not
+work if one piece of your data is in galley and the other is in brig. They wouldn't in a postgres
+scenario either. So, first steps first: move your data together!
 
 ## Guidelines for deciding where correctness and consistency matters most, and where it's okay to be inconsistent
 
@@ -160,37 +229,65 @@ FUTUREWORK.
 (discover-and-repair)=
 ## We made a mistake. How to detect data inconsistency across some tables?
 
-This is a little time consuming to do. It involves writing a kind of script which does a paginated full table scan on one or more table and compares (and possibly repairs) data. We have some examples like this, see <https://github.com/wireapp/wire-server/tree/develop/tools/db/inconsistencies>. A on-access ad-hoc detection/repair can in some cases also occur during normal code path execution if you know/suspect data integrity problems from previous buggy code that was deployed.
+This is a little time consuming to do. It involves writing a kind of script which does a paginated
+full table scan on one or more table and compares (and possibly repairs) data. We have some examples
+like this, see <https://github.com/wireapp/wire-server/tree/develop/tools/db/inconsistencies>. A
+on-access ad-hoc detection/repair can in some cases also occur during normal code path execution if
+you know/suspect data integrity problems from previous buggy code that was deployed.
 
 ## Anti-patterns, pain points and gotchas
 
 ### Gotcha: update x set y=z WHERE id=<id>
 
-Note that `UPDATE` statements really are exactly the same as `INSERT` statements, and a `update my_table set y = z WHERE id=<id>` statement will **insert** a row with these values even if `<id>` does not yet exist. Knowing this, you can opt for read-before-write, use a LWT, or program defensively with the knowledge that this may create some rows where not all columns have a value.
+Note that `UPDATE` statements really are exactly the same as `INSERT` statements, and a `update
+my_table set y = z WHERE id=<id>` statement will **insert** a row with these values even if `<id>`
+does not yet exist. Knowing this, you can opt for read-before-write, use a LWT, or program
+defensively with the knowledge that this may create some rows where not all columns have a value.
 
-You may wish to always use `INSERT` statements, or beware of this confusion and add some comments to your code to prevent your co-workers from incorrectly using the update statements.
+You may wish to always use `INSERT` statements, or beware of this confusion and add some comments to
+your code to prevent your co-workers from incorrectly using the update statements.
 
 ### Pain point: inconsistent data
 
 > My biggest pain point so far was hunting reasons for users having inconsistent data.
 
-Most likely the code is not using batch statements, or is spreading data across multiple databases and doesn't employ creative tricks. First, remedy the situation and introduce `batch` statements, see {ref}`batch statements <batch-statements>`. Next, if needed, create a {ref}`discover-and-repair script <discover-and-repair>`.
+Most likely the code is not using batch statements, or is spreading data across multiple databases
+and doesn't employ creative tricks. First, remedy the situation and introduce `batch` statements,
+see {ref}`batch statements <batch-statements>`. Next, if needed, create a {ref}`discover-and-repair
+script <discover-and-repair>`.
 
 ### Anti-pattern: Using full table scans in production code
 
-Queries such as `select some_field from some_table;` are full table scans. Cassandra is not optimized at all for such queries, and even with a small amount of data, a single such query can completely mess up your whole cluster performance. We had an example of that which made our staging environment unusable. Luckily, it was caught in time and [fixed](https://github.com/wireapp/wire-server/pull/1574/files) before making its way to production.
+Queries such as `select some_field from some_table;` are full table scans. Cassandra is not
+optimized at all for such queries, and even with a small amount of data, a single such query can
+completely mess up your whole cluster performance. We had an example of that which made our staging
+environment unusable. Luckily, it was caught in time and
+[fixed](https://github.com/wireapp/wire-server/pull/1574/files) before making its way to production.
 
-Suggested alternative: Design your tables in a way to make use of a primary key, and always make use of a `WHERE` clause: `SELECT some_field FROM some_table WHERE some_key = ?`.
+Suggested alternative: Design your tables in a way to make use of a primary key, and always make use
+of a `WHERE` clause: `SELECT some_field FROM some_table WHERE some_key = ?`.
 
-In some rare circumstances you might not easily think of a good primary key. In this case, you could for instance use a single default value that is hardcoded: `SELECT some_field FROM some_table WHERE some_key = 1`. We use this strategy in the `meta` table which stores the cassandra version migration information, and we use it for a [default idp](https://github.com/wireapp/wire-server/blob/4814afd88b8c832c4bd8c24674886c5d295aff78/services/spar/schema/src/V7.hs). `some_field` might be of type `set`, which allows you to have some guarantees. See the implementation of unique claims and the [note on guarantees of CQL
-sets](https://github.com/wireapp/wire-server/blob/develop/services/brig/src/Brig/Unique.hs#L110) for more information on sets.
+In some rare circumstances you might not easily think of a good primary key. In this case, you could
+for instance use a single default value that is hardcoded: `SELECT some_field FROM some_table WHERE
+some_key = 1`. We use this strategy in the `meta` table which stores the cassandra version migration
+information, and we use it for a 
+[default idp](https://github.com/wireapp/wire-server/blob/4814afd88b8c832c4bd8c24674886c5d295aff78/services/spar/schema/src/V7.hs).
+`some_field` might be of type `set`, which allows you to have some guarantees.
+See the implementation of unique claims and the
+[note on guarantees of CQL sets](https://github.com/wireapp/wire-server/blob/develop/services/brig/src/Brig/Unique.hs#L110)
+for more information on sets.
 
 ### Anti-pattern: Using IN queries on a field in the partition key
 
-Larger `IN` queries lead to performance problems. See [blog post](https://lostechies.com/ryansvihla/2014/09/22/cassandra-query-patterns-not-using-the-in-query-for-multiple-partitions/)
+Larger `IN` queries lead to performance problems. See [blog
+post](https://lostechies.com/ryansvihla/2014/09/22/cassandra-query-patterns-not-using-the-in-query-for-multiple-partitions/)
 
-A preferred way to do this lookup here is to use queries operating on single keys, and make concurrent requests. In some cases `mapConcurrently` might be good, for large sets of data you may wish to use the `pooledMapConcurrentlyN` function. To be conservative, you can use N=8 or N=32, we've done this in other places and not seen problematic performance yet. Knowing what N should be or if `mapConcurrently` is fine, we would ideally need load testing including performance metrics (which we
-currently don't have - but which we should develop).
+A preferred way to do this lookup here is to use queries operating on single keys, and make
+concurrent requests. In some cases `mapConcurrently` might be good, for large sets of data you may
+wish to use the `pooledMapConcurrentlyN` function. To be conservative, you can use N=8 or N=32,
+we've done this in other places and not seen problematic performance yet. Knowing what N should be
+or if `mapConcurrently` is fine, we would ideally need load testing including performance metrics
+(which we currently don't have - but which we should develop).
 
 ### Anti-pattern: Designing for a lot of deletes or updates
 
@@ -215,7 +312,9 @@ See the thoughts in https://github.com/wireapp/wire-server/pull/1345#discussion_
 
 ### Backwards compatible schema changes
 
-Most cassandra schema changes are backwards compatible, or *should* be designed to be so. Looking at the changes under `services/{brig,spar,galley,gundeck}/schema` you'll find this to be mostly the case.
+Most cassandra schema changes are backwards compatible, or *should* be designed to be so. Looking at
+the changes under `services/{brig,spar,galley,gundeck}/schema` you'll find this to be mostly the
+case.
 
 The general deployment setup for services interacting with cassandra have the following assumption:
 
