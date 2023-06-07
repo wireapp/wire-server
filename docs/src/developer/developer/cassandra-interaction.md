@@ -174,7 +174,7 @@ You may wish to always use `INSERT` statements, or beware of this confusion and 
 
 > My biggest pain point so far was hunting reasons for users having inconsistent data.
 
-Most likely the code is not using batch statements, or is spreading data across multiple databases and doesn't employ creative tricks. First, remedy the situation and introduce `batch` statements, see :{ref}`batch statements <batch-statements>`. Next, if needed, create a :{ref}`discover-and-repair script <discover-and-repair>`.
+Most likely the code is not using batch statements, or is spreading data across multiple databases and doesn't employ creative tricks. First, remedy the situation and introduce `batch` statements, see {ref}`batch statements <batch-statements>`. Next, if needed, create a {ref}`discover-and-repair script <discover-and-repair>`.
 
 ### Anti-pattern: Using full table scans in production code
 
