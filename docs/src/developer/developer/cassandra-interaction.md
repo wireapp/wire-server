@@ -1,95 +1,20 @@
 # Writing code interacting with cassandra
 
-## Anti-patterns
-
-### Anti-pattern: Using full table scans in production code
-
-Queries such as `select some_field from some_table;` are full table scans. Cassandra is not optimized at all for such queries, and even with a small amount of data, a single such query can completely mess up your whole cluster performance. We had an example of that which made our staging environment unusable. Luckily, it was caught in time and [fixed](https://github.com/wireapp/wire-server/pull/1574/files) before making its way to production.
-
-Suggested alternative: Design your tables in a way to make use of a primary key, and always make use of a `WHERE` clause: `SELECT some_field FROM some_table WHERE some_key = ?`.
-
-In some rare circumstances you might not easily think of a good primary key. In this case, you could for instance use a single default value that is hardcoded: `SELECT some_field FROM some_table WHERE some_key = 1`. We use this strategy in the `meta` table which stores the cassandra version migration information, and we use it for a [default idp](https://github.com/wireapp/wire-server/blob/4814afd88b8c832c4bd8c24674886c5d295aff78/services/spar/schema/src/V7.hs). `some_field` might be of type `set`, which allows you to have some guarantees. See the implementation of unique claims and the [note on guarantees of CQL
-sets](https://github.com/wireapp/wire-server/blob/develop/services/brig/src/Brig/Unique.hs#L110) for more information on sets.
-
-### Anti-pattern: Using IN queries on a field in the partition key
-
-Larger `IN` queries lead to performance problems. See [blog post](https://lostechies.com/ryansvihla/2014/09/22/cassandra-query-patterns-not-using-the-in-query-for-multiple-partitions/)
-
-A preferred way to do this lookup here is to use queries operating on single keys, and make concurrent requests. In some cases `mapConcurrently` might be good, for large sets of data you may wish to use the `pooledMapConcurrentlyN` function. To be conservative, you can use N=8 or N=32, we've done this in other places and not seen problematic performance yet. Knowing what N should be or if `mapConcurrently` is fine, we would ideally need load testing including performance metrics (which we
-currently don't have - but which we should develop).
-
-### Anti-pattern: Designing for a lot of deletes or updates
-
-Cassandra works best for write-once read-many scenarios.
-
-Read e.g.
-- <https://www.datastax.com/blog/cassandra-anti-patterns-queues-and-queue-datasets>
-- <https://www.instaclustr.com/support/documentation/cassandra/using-cassandra/managing-tombstones-in-cassandra/#>
-- search the internet some more for 'cassandra' and 'tombstones' and if you find good posts, add them here.
-
-## Understanding more about cassandra
-
-### primary partition clustering keys
-
-Confused about primary key, partition key, and clustering key? See e.g. [this post](https://blog.devgenius.io/cassandra-primary-vs-partitioning-vs-clustering-keys-3b3fa0e317f4) or [this one](https://dzone.com/articles/cassandra-data-modeling-primary-clustering-partiti)
-
-### optimizing parallel request performance
-
-See the thoughts in https://github.com/wireapp/wire-server/pull/1345#discussion_r567829234 - measuring overall and per-request performance and trying out different settings here might be worthwhile if increasing read or write performance is critical.
-
-## Cassandra schema migrations
-
-### Backwards compatible schema changes
-
-Most cassandra schema changes are backwards compatible, or *should* be designed to be so. Looking at the changes under `services/{brig,spar,galley,gundeck}/schema` you'll find this to be mostly the case.
-
-The general deployment setup for services interacting with cassandra have the following assumption:
-
-* cassandra schema updates happen *before* new code is deployed.
-  * This is safeguarded by the concourse deployment pipelines
-  * This is also safeguarded by the `wire-server` helm chart, which deploys the `cassandra-migrations` job as part of a helm [pre-install/pre-upgrade hook](https://github.com/wireapp/wire-server/blob/b3b1af6757194aa1dc86a8f387887936f2afd2fb/charts/cassandra-migrations/templates/migrate-schema.yaml#L10-L13): that means the schema changes are applied, and helm waits before launching the new code in the brig/galley/spar/gundeck pods until the changes have completed applying.
-  * This is further safeguarded by the code e.g. in brig refusing to even start the service up if the applied schema migration is not at least at a version the code expects it to. See [versionCheck](https://github.com/wireapp/wire-server/blob/b3b1af6757194aa1dc86a8f387887936f2afd2fb/services/brig/src/Brig/App.hs#L411) and [schemaVersion](https://github.com/wireapp/wire-server/blob/b3b1af6757194aa1dc86a8f387887936f2afd2fb/services/brig/src/Brig/App.hs#L136-L137)
-
-So usually with these safeguards in place, and backwards-compatible changes, we have the following:
-
-* At time t=0, old schema, old code serves traffic; all good.
-* At time t=1, new schema, old code serves traffic: all good since backwards compatible.
-* At time t=2, new schema, old code AND new code serve traffic: all good since backwards compatible.
-* At time t=3, new schema, new code serves traffic: all good!
-
-If this order (apply schema first; then deploy code) is not safeguarded, then there will be code running in e.g. production which `SELECT my_new_field FROM my_new_table` even though this doesn't yet exist, leading to 500 server errors for as long as the mismatch between applied schema and code version persists.
-
-### Backwards incompatible schema changes
-
-In the case where a schema migration is **not backwards compatible**, such as in the form of `ALTER TABLE my_table DROP my_column`, the reverse problem exists:
-
-During a deployment:
-
-* At time t=0, old schema, old code serves traffic; all good.
-* At time t=1, new schema, old code serves traffic: 500 server errors as the old code is still active, bit columns or tables have been deleted, so old queries of `SELECT x from my_table` cause exceptions / HTTP 5xx results.
-    * In the worst deployment scenario, this could raise an alarm and lead operators or automation to stop the deployment or roll back; but that doesn't solve the issue, 500s will continue being thrown until the new code is deployed.
-* At time t=2, new schema, old code AND new code serve traffic: partial 500s (all traffic still serves by old code)
-* At time t=3, new schema, new code serves traffic: all good again.
-
-#### What to do about backwards incompatible schema changes
-
-Options from most to least desirable:
-
-* Never make backwards-incompatbile changes to the database schema :)
-* Do changes in a two-step process:
-    * First make a change that stops the code from using queries involving `my_column` or `my_table` (assuming you wish to remove those), and deploy this all the way across all of your environments (staging, prod, customers, ...).
-    * After all deployments have gone through (this can take weeks or months), do the schema change removing that column or table from the database. Often there is no urgency with removal of data, so it's fine to do this e.g. 6 months later.
-* Do changes in a one-step process, but accept partial service interruption for several minutes up to a few hours, accept communication overhead across teams to warn them about upcoming interruption or explain previous interruption; accept communication and documentation to warn all operators deploying that or a future version of the code, and accept some amount of frustration that may arise from a lack of said communication and understanding of what is happening.
-
 ## Background on "why cassandra?"
 
 Cassandra was chosen back in ~2014 in the context of massive scalability (expectations of billions of users), as well as the wish for redundancy and cloud-always-on high-availability.
 
 From an operational standpoint, high-availability and redundancy are well served with this: any single node/VM can crash at any moment without data loss, and version upgrades, server maintenance, and server migrations can be done without stopping the system (and causing user-observable downtime).
 
-From a developer perspective, wishing for a mental model of strong consistency across multiple tables to make easier assumptions when writing code makes working with cassandra sometimes a bit harder.
+From a developer perspective, wishing for a mental model of strong consistency across multiple tables in multiple services to make easier assumptions when writing code makes working with cassandra sometimes a bit harder. (That said, this document has some sections below to make working with strong consistency within the same service easier).
 
 Questions have come up whether another technology may serve our needs better in the evolved technical and product context of 2023 and beyond. These questions are valid, and a change can always be discussed, if the time is at hand to put this effort in.
+
+## Guidelines for designing database schemas
+
+In a lot of relational databases, you design tables with their relations, and think about the exact access patterns later, as you can always add an index on a certain column. In the cassandra world, you need to make some mental gymnastics and get used to design your tables **by the access patterns to this data**. You can only look up data by what's in the primary key, and you always need the single partition key at hand to do this lookup.
+
+Therefore, you may need multiple tables that relate, such as a `conversation_by_user_id` and a `user_by_conversation_id` table (or even more of them). That's perfectly fine and the correct pattern to use. Please read some online resources about data modeling with cassandra, such as the [datastax official data modelling documentation](https://cassandra.apache.org/doc/latest/cassandra/data_modeling/index.html).
 
 ## Guidelines on per-table query consistency level and replication level
 
@@ -126,6 +51,7 @@ Note that `Quorum` and `LocalQuorum` behave exactly the same in the context of a
 
 ***To summarize: In case of doubt, just follow the examples and use `LocalQuorum` Writes and Reads in your queries, unless there is a very good reason not to.***
 
+(batch-statements)=
 ## Guidelines for across-table consistency
 
 Given that we have strong consistency for a single operation (see section above), in some cases your data access patterns mandate that you have multiple tables with seemingly duplicated data.
@@ -213,10 +139,118 @@ lines-before: 0
 
 Also, default SQS queue settings mean that events are only removed from the queue after the client code finishes processing. If the client fails mid-way, the event re-appears for consumption (after a timeout passes).
 
-## Guidelines for deciding where correctness and consistency matters most
+### Designing for consistent data
+
+As we saw above, within a single batch request we can guarantee strong consistency for a single service. If possible, try to not put some data in brig and some data in galley, as these cases will make it hard to stay consistent. Instead, think about merging the services, or the database access, to allow you to make use of batch queries. Or, try to keep related data within one service.
+
+### The future: Cassandra 5.0 and true ACID
+
+Right now, we have `batch` statements (see above), which are atomic, which is usually good enough. But the 'i' for isolation from an ACID perspective is missing, so in a race condition another query from another thread could read one of the table updates but not the other. Usually that's not a problem though.
+
+See [this post](https://thenewstack.io/an-apache-cassandra-breakthrough-acid-transactions-at-scale/) on full ACID support coming to cassandra in the future. Note these true transactions will also not work if one piece of your data is in galley and the other is in brig. They wouldn't in a postgres scenario either. So, first steps first: move your data together!
+
+## Guidelines for deciding where correctness and consistency matters most, and where it's okay to be inconsistent
 
 FUTUREWORK.
 
 ## Guidelines for taking decisions on performance
 
 FUTUREWORK.
+
+(discover-and-repair)=
+## We made a mistake. How to detect data inconsistency across some tables?
+
+This is a little time consuming to do. It involves writing a kind of script which does a paginated full table scan on one or more table and compares (and possibly repairs) data. We have some examples like this, see <https://github.com/wireapp/wire-server/tree/develop/tools/db/inconsistencies>. A on-access ad-hoc detection/repair can in some cases also occur during normal code path execution if you know/suspect data integrity problems from previous buggy code that was deployed.
+
+## Anti-patterns, pain points and gotchas
+
+### Gotcha: update x set y=z WHERE id=<id>
+
+Note that `UPDATE` statements really are exactly the same as `INSERT` statements, and a `update my_table set y = z WHERE id=<id>` statement will **insert** a row with these values even if `<id>` does not yet exist. Knowing this, you can opt for read-before-write, use a LWT, or program defensively with the knowledge that this may create some rows where not all columns have a value.
+
+You may wish to always use `INSERT` statements, or beware of this confusion and add some comments to your code to prevent your co-workers from incorrectly using the update statements.
+
+### Pain point: inconsistent data
+
+> My biggest pain point so far was hunting reasons for users having inconsistent data.
+
+Most likely the code is not using batch statements, or is spreading data across multiple databases and doesn't employ creative tricks. First, remedy the situation and introduce `batch` statements, see :{ref}`batch statements <batch-statements>`. Next, if needed, create a :{ref}`discover-and-repair script <discover-and-repair>`.
+
+### Anti-pattern: Using full table scans in production code
+
+Queries such as `select some_field from some_table;` are full table scans. Cassandra is not optimized at all for such queries, and even with a small amount of data, a single such query can completely mess up your whole cluster performance. We had an example of that which made our staging environment unusable. Luckily, it was caught in time and [fixed](https://github.com/wireapp/wire-server/pull/1574/files) before making its way to production.
+
+Suggested alternative: Design your tables in a way to make use of a primary key, and always make use of a `WHERE` clause: `SELECT some_field FROM some_table WHERE some_key = ?`.
+
+In some rare circumstances you might not easily think of a good primary key. In this case, you could for instance use a single default value that is hardcoded: `SELECT some_field FROM some_table WHERE some_key = 1`. We use this strategy in the `meta` table which stores the cassandra version migration information, and we use it for a [default idp](https://github.com/wireapp/wire-server/blob/4814afd88b8c832c4bd8c24674886c5d295aff78/services/spar/schema/src/V7.hs). `some_field` might be of type `set`, which allows you to have some guarantees. See the implementation of unique claims and the [note on guarantees of CQL
+sets](https://github.com/wireapp/wire-server/blob/develop/services/brig/src/Brig/Unique.hs#L110) for more information on sets.
+
+### Anti-pattern: Using IN queries on a field in the partition key
+
+Larger `IN` queries lead to performance problems. See [blog post](https://lostechies.com/ryansvihla/2014/09/22/cassandra-query-patterns-not-using-the-in-query-for-multiple-partitions/)
+
+A preferred way to do this lookup here is to use queries operating on single keys, and make concurrent requests. In some cases `mapConcurrently` might be good, for large sets of data you may wish to use the `pooledMapConcurrentlyN` function. To be conservative, you can use N=8 or N=32, we've done this in other places and not seen problematic performance yet. Knowing what N should be or if `mapConcurrently` is fine, we would ideally need load testing including performance metrics (which we
+currently don't have - but which we should develop).
+
+### Anti-pattern: Designing for a lot of deletes or updates
+
+Cassandra works best for write-once read-many scenarios.
+
+Read e.g.
+- <https://www.datastax.com/blog/cassandra-anti-patterns-queues-and-queue-datasets>
+- <https://www.instaclustr.com/support/documentation/cassandra/using-cassandra/managing-tombstones-in-cassandra/#>
+- search the internet some more for 'cassandra' and 'tombstones' and if you find good posts, add them here.
+
+## Understanding more about cassandra
+
+### primary partition clustering keys
+
+Confused about primary key, partition key, and clustering key? See e.g. [this post](https://blog.devgenius.io/cassandra-primary-vs-partitioning-vs-clustering-keys-3b3fa0e317f4) or [this one](https://dzone.com/articles/cassandra-data-modeling-primary-clustering-partiti)
+
+### optimizing parallel request performance
+
+See the thoughts in https://github.com/wireapp/wire-server/pull/1345#discussion_r567829234 - measuring overall and per-request performance and trying out different settings here might be worthwhile if increasing read or write performance is critical.
+
+## Cassandra schema migrations
+
+### Backwards compatible schema changes
+
+Most cassandra schema changes are backwards compatible, or *should* be designed to be so. Looking at the changes under `services/{brig,spar,galley,gundeck}/schema` you'll find this to be mostly the case.
+
+The general deployment setup for services interacting with cassandra have the following assumption:
+
+* cassandra schema updates happen *before* new code is deployed.
+  * This is safeguarded by the concourse deployment pipelines
+  * This is also safeguarded by the `wire-server` helm chart, which deploys the `cassandra-migrations` job as part of a helm [pre-install/pre-upgrade hook](https://github.com/wireapp/wire-server/blob/b3b1af6757194aa1dc86a8f387887936f2afd2fb/charts/cassandra-migrations/templates/migrate-schema.yaml#L10-L13): that means the schema changes are applied, and helm waits before launching the new code in the brig/galley/spar/gundeck pods until the changes have completed applying.
+  * This is further safeguarded by the code e.g. in brig refusing to even start the service up if the applied schema migration is not at least at a version the code expects it to. See [versionCheck](https://github.com/wireapp/wire-server/blob/b3b1af6757194aa1dc86a8f387887936f2afd2fb/services/brig/src/Brig/App.hs#L411) and [schemaVersion](https://github.com/wireapp/wire-server/blob/b3b1af6757194aa1dc86a8f387887936f2afd2fb/services/brig/src/Brig/App.hs#L136-L137)
+
+So usually with these safeguards in place, and backwards-compatible changes, we have the following:
+
+* At time t=0, old schema, old code serves traffic; all good.
+* At time t=1, new schema, old code serves traffic: all good since backwards compatible.
+* At time t=2, new schema, old code AND new code serve traffic: all good since backwards compatible.
+* At time t=3, new schema, new code serves traffic: all good!
+
+If this order (apply schema first; then deploy code) is not safeguarded, then there will be code running in e.g. production which `SELECT my_new_field FROM my_new_table` even though this doesn't yet exist, leading to 500 server errors for as long as the mismatch between applied schema and code version persists.
+
+### Backwards incompatible schema changes
+
+In the case where a schema migration is **not backwards compatible**, such as in the form of `ALTER TABLE my_table DROP my_column`, the reverse problem exists:
+
+During a deployment:
+
+* At time t=0, old schema, old code serves traffic; all good.
+* At time t=1, new schema, old code serves traffic: 500 server errors as the old code is still active, bit columns or tables have been deleted, so old queries of `SELECT x from my_table` cause exceptions / HTTP 5xx results.
+    * In the worst deployment scenario, this could raise an alarm and lead operators or automation to stop the deployment or roll back; but that doesn't solve the issue, 500s will continue being thrown until the new code is deployed.
+* At time t=2, new schema, old code AND new code serve traffic: partial 500s (all traffic still serves by old code)
+* At time t=3, new schema, new code serves traffic: all good again.
+
+#### What to do about backwards incompatible schema changes
+
+Options from most to least desirable:
+
+* Never make backwards-incompatbile changes to the database schema :)
+* Do changes in a two-step process:
+    * First make a change that stops the code from using queries involving `my_column` or `my_table` (assuming you wish to remove those), and deploy this all the way across all of your environments (staging, prod, customers, ...).
+    * After all deployments have gone through (this can take weeks or months), do the schema change removing that column or table from the database. Often there is no urgency with removal of data, so it's fine to do this e.g. 6 months later.
+* Do changes in a one-step process, but accept partial service interruption for several minutes up to a few hours, accept communication overhead across teams to warn them about upcoming interruption or explain previous interruption; accept communication and documentation to warn all operators deploying that or a future version of the code, and accept some amount of frustration that may arise from a lack of said communication and understanding of what is happening.
