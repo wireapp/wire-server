@@ -7,9 +7,9 @@ ENDPOINT_URL=$1
 
 # Assumes this to be run in an environment with `aws` installed
 echo 'Creating AWS resources'
-aws configure set aws_access_key_id dummykey
-aws configure set aws_secret_access_key dummysecret
-aws configure set region eu-west-1
+aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
+aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
+aws configure set region "$AWS_REGION"
 
 for i in $(seq "$INTEGRATION_DYNAMIC_BACKENDS_POOLSIZE"); do
     suffix=$((i + 2))
