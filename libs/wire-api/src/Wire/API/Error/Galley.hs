@@ -88,6 +88,7 @@ data GalleyError
   | MLSUnexpectedSenderClient
   | MLSSubConvUnsupportedConvType
   | MLSSubConvClientNotInParent
+  | MLSMigrationCriteriaNotSatisfied
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -229,6 +230,8 @@ type instance MapError 'MLSMissingGroupInfo = 'StaticError 404 "mls-missing-grou
 type instance MapError 'MLSSubConvUnsupportedConvType = 'StaticError 403 "mls-subconv-unsupported-convtype" "MLS subconversations are only supported for regular conversations"
 
 type instance MapError 'MLSSubConvClientNotInParent = 'StaticError 403 "mls-subconv-join-parent-missing" "MLS client cannot join the subconversation because it is not member of the parent conversation"
+
+type instance MapError 'MLSMigrationCriteriaNotSatisfied = 'StaticError 400 "mls-migration-criteria-not-satisfied" "The migration criteria for mixed to MLS protocol transition are not satisfied for this conversation"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 

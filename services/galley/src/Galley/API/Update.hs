@@ -689,15 +689,25 @@ updateConversationProtocolWithLocalUser ::
     Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
+    Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'TeamNotFound) r,
     Member (Input UTCTime) r,
+    Member (Input Env) r,
     Member (Input (Local ())) r,
+    Member (Input Opts) r,
     Member BrigAccess r,
+    Member ConversationStore r,
     Member MemberStore r,
     Member TinyLog r,
     Member GundeckAccess r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member ConversationStore r
+    Member ProposalStore r,
+    Member SubConversationStore r,
+    Member TeamFeatureStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->

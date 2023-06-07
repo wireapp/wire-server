@@ -423,6 +423,18 @@ updateToMixedProtocol lcnv cs = do
     addPrepQuery Cql.updateToMixedConv (tUnqualified lcnv, ProtocolMixedTag, gid, epoch, cs)
   pure ()
 
+updateToMLSProtocol ::
+  Members
+    '[ Embed IO,
+       Input ClientState
+     ]
+    r =>
+  Local ConvId ->
+  Sem r ()
+updateToMLSProtocol lcnv =
+  embedClient . retry x5 $
+    write Cql.updateToMLSConv (params LocalQuorum (tUnqualified lcnv, ProtocolMLSTag))
+
 interpretConversationStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
@@ -453,3 +465,4 @@ interpretConversationStoreToCassandra = interpret $ \case
   AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl
   ReleaseCommitLock gId epoch -> embedClient $ releaseCommitLock gId epoch
   UpdateToMixedProtocol cid cs -> updateToMixedProtocol cid cs
+  UpdateToMLSProtocol cid -> updateToMLSProtocol cid

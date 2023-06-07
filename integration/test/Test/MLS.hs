@@ -217,6 +217,46 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
     resp.status `shouldMatchInt` 422
     resp.json %. "label" `shouldMatch` "mls-unsupported-message"
 
+testMLSProtocolUpgrade :: HasCallStack => Domain -> App ()
+testMLSProtocolUpgrade secondDomain = do
+  (alice, bob, conv) <- simpleMixedConversationSetup secondDomain
+  charlie <- randomUser OwnDomain def
+
+  -- alice creates MLS group and bob joins
+  [alice1, bob1, charlie1] <- traverse createMLSClient [alice, bob, charlie]
+  createGroup alice1 conv
+  void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit bob1 Nothing >>= sendAndConsumeCommitBundle
+
+  -- charlie is added to the group
+  void $ uploadNewKeyPackage charlie1
+  void $ createAddCommit alice1 [charlie] >>= sendAndConsumeCommitBundle
+
+  supportMLS alice
+  bindResponse (putConversationProtocol bob conv "mls") $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-migration-criteria-not-satisfied"
+  bindResponse (getConversation alice conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "protocol" `shouldMatch` "mixed"
+
+  supportMLS bob
+
+  withWebSockets [alice1, bob1] $ \wss -> do
+    bindResponse (putConversationProtocol bob conv "mls") $ \resp -> do
+      resp.status `shouldMatchInt` 200
+    for_ wss $ \ws -> do
+      let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
+      n <- awaitMatch 3 isMessage ws
+      msg <- asByteString (nPayload n %. "data") >>= showMessage alice1
+      let leafIndexCharlie = 2
+      msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexCharlie
+      msg %. "message.content.sender.External" `shouldMatchInt` 0
+
+  bindResponse (getConversation alice conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "protocol" `shouldMatch` "mls"
+
 testAddUser :: HasCallStack => App ()
 testAddUser = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]

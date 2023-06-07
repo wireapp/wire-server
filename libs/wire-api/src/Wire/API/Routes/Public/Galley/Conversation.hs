@@ -843,6 +843,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "leave-conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> Until 'V2
                :> ZLocalUser
                :> ZConn
@@ -863,6 +864,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "leave-conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
@@ -882,6 +884,7 @@ type ConversationAPI =
                :> Description "Use `PUT /conversations/:cnv_domain/:cnv/members/:usr_domain/:usr` instead"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> ZLocalUser
                :> ZConn
                :> CanThrow 'ConvNotFound
@@ -906,6 +909,7 @@ type ConversationAPI =
                :> Description "**Note**: at least one field has to be provided."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> ZLocalUser
                :> ZConn
                :> CanThrow 'ConvNotFound
@@ -932,6 +936,7 @@ type ConversationAPI =
                :> Description "Use `/conversations/:domain/:conv/name` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
@@ -952,6 +957,7 @@ type ConversationAPI =
                :> Description "Use `/conversations/:domain/:conv/name` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
@@ -972,6 +978,7 @@ type ConversationAPI =
            ( Summary "Update conversation name"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
@@ -995,6 +1002,7 @@ type ConversationAPI =
                :> Description "Use `/conversations/:domain/:cnv/message-timer` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'ModifyConversationMessageTimer)
@@ -1016,6 +1024,7 @@ type ConversationAPI =
            ( Summary "Update the message timer for a conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'ModifyConversationMessageTimer)
@@ -1041,6 +1050,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "update-conversation"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'ModifyConversationReceiptMode)
@@ -1063,6 +1073,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "update-conversation"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'ModifyConversationReceiptMode)
@@ -1087,6 +1098,7 @@ type ConversationAPI =
            ( Summary "Update access modes for a conversation (deprecated)"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> Until 'V3
                :> Description "Use PUT `/conversations/:domain/:cnv/access` instead."
                :> ZLocalUser
@@ -1112,6 +1124,7 @@ type ConversationAPI =
            ( Summary "Update access modes for a conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> Until 'V3
                :> ZLocalUser
                :> ZConn
@@ -1136,6 +1149,7 @@ type ConversationAPI =
            ( Summary "Update access modes for a conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> From 'V3
                :> ZLocalUser
                :> ZConn
@@ -1206,6 +1220,10 @@ type ConversationAPI =
                :> CanThrow 'ConvInvalidProtocolTransition
                :> CanThrow ('ActionDenied 'LeaveConversation)
                :> CanThrow 'InvalidOperation
+               :> CanThrow 'MLSMigrationCriteriaNotSatisfied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'TeamNotFound
                :> ZLocalUser
                :> ZConn
                :> "conversations"
