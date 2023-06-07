@@ -21,6 +21,9 @@ module Galley.Run
     mkLogger,
     -- Exported for tests
     deleteFederationDomain,
+    publishRabbitMsg,
+    readRabbitMq,
+    ensureQueue
   )
 where
 
@@ -175,8 +178,9 @@ complexFederationUpdate env clientEnv rmq = void $ Codensity $ Async.withAsync $
           -- This exception should _NOT_ be caught, or if it is it needs to be rethrown. This
           -- will kill the thread. This handler is then used to start a new one.
           ensureQueue channel mqq
-          writeRabbitMq clientEnv env channel mqq threadRef
-          readRabbitMq channel mqq env
+          writeRabbitMq clientEnv (env ^. applog) (env ^. fedDomains) channel mqq threadRef
+          let performDelete = runApp env . deleteFederationDomain
+          readRabbitMq channel mqq (env ^. applog) performDelete
 
           -- Keep this thread around until it is killed.
           forever $ threadDelay maxBound
@@ -204,13 +208,14 @@ ensureQueue channel mqq = do
 -- this channel thread. We don't want to leak those resources.
 writeRabbitMq ::
   ClientEnv ->
-  Env ->
+  Log.Logger ->
+  IORef FederationDomainConfigs ->
   AMQP.Channel ->
   Text ->
   IORef (Maybe (Async.Async ())) ->
   IO ()
-writeRabbitMq clientEnv env channel mqq threadRef = do
-  threadId <- updateFedDomains' ioref clientEnv (env ^. applog) $ \old new -> do
+writeRabbitMq clientEnv logger ioref channel mqq threadRef = do
+  threadId <- updateFedDomains' ioref clientEnv logger $ \old new -> do
     let fromFedList = Set.fromList . remotes
         prevDoms = fromFedList old
         currDoms = fromFedList new
@@ -220,15 +225,16 @@ writeRabbitMq clientEnv env channel mqq threadRef = do
     for_ deletedDomains $ \fedCfg -> do
       -- We're using the default exchange. This will deliver the
       -- message to the queue name used for the routing key
-      void $
-        AMQP.publishMsg channel "" mqq $
-          AMQP.newMsg
-            { AMQP.msgBody = Aeson.encode @MsgData $ domain fedCfg,
-              AMQP.msgDeliveryMode = pure AMQP.Persistent
-            }
+      void $ publishRabbitMsg channel mqq $ domain fedCfg
   atomicWriteIORef threadRef $ pure threadId
-  where
-    ioref = env ^. fedDomains
+
+-- Split out to help with integration testing
+publishRabbitMsg :: AMQP.Channel -> Text -> MsgData -> IO (Maybe Int)
+publishRabbitMsg channel mqq dom = AMQP.publishMsg channel "" mqq $
+  AMQP.newMsg
+    { AMQP.msgBody = Aeson.encode @MsgData dom
+    , AMQP.msgDeliveryMode = pure AMQP.Persistent
+    }
 
 -- Read messages from RabbitMQ, process the message, and ACK or NACK it as appropriate.
 -- This is automatically killed by `amqp`, we don't need to handle it.
@@ -238,14 +244,14 @@ writeRabbitMq clientEnv env channel mqq threadRef = do
 -- that is set when the queue is created. When the active consumer disconnects for
 -- whatever reason, rabbit will pick another of the subscribed clients to be the new
 -- active consumer.
-readRabbitMq :: AMQP.Channel -> Text -> Env -> IO ()
-readRabbitMq channel mqq env = void $ AMQP.consumeMsgs channel mqq AMQP.Ack $ \(message, envelope) ->
+readRabbitMq :: AMQP.Channel -> Text -> Log.Logger -> (Domain -> IO ()) -> IO ()
+readRabbitMq channel mqq logger go = void $ AMQP.consumeMsgs channel mqq AMQP.Ack $ \(message, envelope) ->
   case Aeson.eitherDecode @MsgData (AMQP.msgBody message) of
     Left e -> do
-      Log.err (env ^. applog) $ Log.msg @Text "Could not decode message from RabbitMQ" . Log.field "error" (show e)
+      Log.err logger $ Log.msg @Text "Could not decode message from RabbitMQ" . Log.field "error" (show e)
       AMQP.nackEnv envelope
     Right dom -> do
-      runApp env $ deleteFederationDomain dom
+      go dom
       AMQP.ackEnv envelope
 
 mkApp :: Opts -> IORef FederationDomainConfigs -> Log.Logger -> Codensity IO (Application, Env)
@@ -407,6 +413,8 @@ deleteFederationDomainLocal dom = do
   for_ (Map.toList rCnvMap) $ \(cnv, lUsers) -> do
     Log.err (env ^. applog) $ Log.field "(cnv, lUsers)" (show (cnv, lUsers))
     liftIO $
+      -- All errors, either exceptions or Either e, get thrown into IO
+      
       -- All errors, either exceptions or Either e, get thrown into IO
       evalGalleyToIO env $
         mapError @NoChanges (const (InternalErrorWithDescription "No Changes: Could not remove a local member from a remote conversation.")) $
