@@ -18,4 +18,4 @@ migrate_schema() {
 
 export -f migrate_schema
 
-genargs | parallel -P "$(grep -c ^processor /proc/cpuinfo)" migrate_schema "{1//}" "{1/}" "$@"
+genargs | parallel --jobs 100% migrate_schema "{1//}" "{1/}" "$@"
