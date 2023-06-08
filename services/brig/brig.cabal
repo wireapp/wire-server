@@ -261,7 +261,7 @@ library
     , polysemy-wire-zoo
     , proto-lens                 >=0.1
     , random-shuffle             >=0.0.3
-    , resource-pool              >=0.4
+    , resource-pool              >=0.2
     , resourcet                  >=1.1
     , retry                      >=0.7
     , ropes                      >=0.4.20

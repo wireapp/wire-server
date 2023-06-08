@@ -124,7 +124,7 @@ initSMTP' timeoutDuration lg host port credentials connType = do
         flush lg
         error $ "Failed to close test connection with SMTP server: " ++ show e
     )
-  SMTP <$> newPool (defaultPoolConfig create destroy 5 5 & setNumStripes (Just 1))
+  SMTP <$> createPool create destroy 1 5 5
   where
     ensureTimeout :: IO a -> IO a
     ensureTimeout = ensureSMTPConnectionTimeout timeoutDuration

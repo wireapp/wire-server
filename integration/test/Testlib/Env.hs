@@ -171,35 +171,27 @@ mkGlobalEnv cfgFile = do
 
 mkEnv :: GlobalEnv -> Codensity IO Env
 mkEnv ge = do
-  pks <- liftIO $ newIORef (zip [1 ..] somePrekeys)
-  lpks <- liftIO $ newIORef someLastPrekeys
   mls <- liftIO . newIORef =<< mkMLSState
-  resources <- liftIO $ newIORef $ backendResources 3
-  pool <-
-    liftIO $
-      newPool $
-        ( defaultPoolConfig
-            (create resources)
-            (destroy resources)
-            (fromIntegral $ maxBound @Int)
-            3
-            & setNumStripes (Just 1)
-        )
-  pure
-    Env
-      { serviceMap = gServiceMap ge,
-        domain1 = gDomain1 ge,
-        domain2 = gDomain2 ge,
-        defaultAPIVersion = gDefaultAPIVersion ge,
-        manager = gManager ge,
-        serviceConfigsDir = gServiceConfigsDir ge,
-        servicesCwdBase = gServicesCwdBase ge,
-        removalKeyPath = gRemovalKeyPath ge,
-        prekeys = pks,
-        lastPrekeys = lpks,
-        mls = mls,
-        resourcePool = pool
-      }
+  liftIO $ do
+    pks <- newIORef (zip [1 ..] somePrekeys)
+    lpks <- newIORef someLastPrekeys
+    resources <- newIORef $ backendResources 3
+    pool <- createPool (create resources) (destroy resources) 1 120 3
+    pure
+      Env
+        { serviceMap = gServiceMap ge,
+          domain1 = gDomain1 ge,
+          domain2 = gDomain2 ge,
+          defaultAPIVersion = gDefaultAPIVersion ge,
+          manager = gManager ge,
+          serviceConfigsDir = gServiceConfigsDir ge,
+          servicesCwdBase = gServicesCwdBase ge,
+          removalKeyPath = gRemovalKeyPath ge,
+          prekeys = pks,
+          lastPrekeys = lpks,
+          mls = mls,
+          resourcePool = pool
+        }
 
 destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
 destroy ioRef = modifyIORef' ioRef . Set.insert

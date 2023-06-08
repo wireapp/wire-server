@@ -37,7 +37,7 @@ import Data.Aeson
 import qualified Data.ByteString.Lazy as LB
 import Data.Id (InvitationId)
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Pool (Pool, defaultPoolConfig, newPool, setNumStripes, withResource)
+import Data.Pool (Pool, createPool, withResource)
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as T
@@ -84,7 +84,7 @@ loadMailboxConfig p = do
 
 newMailbox :: MailboxSettings -> IO Mailbox
 newMailbox s@(MailboxSettings host usr pwd conns) =
-  Mailbox s <$> newPool (defaultPoolConfig connect logout 60 (fromIntegral conns) & setNumStripes (Just 1))
+  Mailbox s <$> createPool connect logout 1 60 (fromIntegral conns)
   where
     connect = do
       c <- connectIMAPSSLWithSettings host defaultSettingsIMAPSSL
