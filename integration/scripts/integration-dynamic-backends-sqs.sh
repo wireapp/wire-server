@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2004
 
 set -eo pipefail
 

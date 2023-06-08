@@ -237,6 +237,13 @@ let
     checkPhase = "";
   };
 
+  integration-dynamic-backends-vhosts = pkgs.writeShellApplication {
+    name = "integration-dynamic-backends-vhosts.sh";
+    text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-vhosts.sh}";
+    runtimeInputs = [ pkgs.parallel ];
+    checkPhase = "";
+  };
+
   # Some images require extra things which is not possible to specify using
   # cabal file dependencies, so cabal2nix cannot automatically add these.
   #
@@ -266,6 +273,7 @@ let
       integration-dynamic-backends-sqs
       integration-dynamic-backends-ses
       integration-dynamic-backends-s3
+      integration-dynamic-backends-vhosts
     ];
   };
 

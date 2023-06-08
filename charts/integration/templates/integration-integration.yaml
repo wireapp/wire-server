@@ -64,6 +64,16 @@ spec:
       value: "dummysecret"
     - name: AWS_REGION
       value: "eu-west-1"
+    - name: RABBITMQ_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: brig
+          key: rabbitmqUsername
+    - name: RABBITMQ_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: brig
+          key: rabbitmqPassword
     command:
       - /bin/sh
       - -c
@@ -72,7 +82,8 @@ spec:
         integration-dynamic-backends-brig-index.sh --elasticsearch-server http://{{ .Values.config.elasticsearch.host }}:9200;
         integration-dynamic-backends-sqs.sh {{ .Values.config.sqsEndpointUrl }};
         integration-dynamic-backends-ses.sh {{ .Values.config.sesEndpointUrl }};
-        integration-dynamic-backends-s3.sh {{ .Values.config.s3EndpointUrl }}
+        integration-dynamic-backends-s3.sh {{ .Values.config.s3EndpointUrl }};
+        integration-dynamic-backends-vhosts.sh {{ .Values.config.rabbitmqPutVHostUrl }}
     resources:
       requests:
         memory: "512Mi"
