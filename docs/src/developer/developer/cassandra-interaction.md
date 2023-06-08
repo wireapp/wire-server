@@ -82,7 +82,7 @@ by us or the people hosting on-premise, let's stick to `LocalQuorum` for the tim
 in your queries, unless there is a very good reason not to.***
 
 (batch-statements)=
-## Guidelines for across-table consistency
+## Guidelines for across-table (atomic) consistency
 
 Given that we have strong consistency for a single operation (see section above), in some cases your
 data access patterns mandate that you have multiple tables with seemingly duplicated data.
@@ -135,6 +135,48 @@ is worse, as there you're guaranteed to get long-lasting data inconsistencies ac
 ***To summarize: When working on multiple tables with related data (e.g. user_by_conversation_id and
 conversation_by_user_id), use 'batch' statements to achieve atomicity! When inserting lots
 of data into the same table, do not use batch statements.***
+
+## The case for more 'batch' statement usage
+
+Adding to the section before, an example taken out of thin air to argue for more usage of `batch`
+statements:
+
+*Example: Let's say there's a new Wire chat, and I add you to this chat X. In the database we have
+one table users_by_conversation with primary key conversationId, and one table
+conversations_by_users with primary key userId.*
+
+Then, there are two ways of writing code for that:
+
+* way 1: use a batch statement to insert the user->conv and conv->user entries of chatX-User-A and
+User-A-chatX.
+* way 2: insert these rows separately in some order of your choosing.
+
+Now, if the Haskell process crashes midway, then we can have these outcomes:
+- with way 1: either the write succeeded or it didn't. So either User-A is in chat X (way-1-A) or
+  they are not (way-1-B). But either way it's in both tables or in none, depending on when the crash
+  happened.
+- with way 2: there's a chance one write to one table went through but the other didn't.
+
+So with way-1-A - 5 minutes later - both User-A looking at their conversation list sees chat X
+appear; and other members of chat X looking at the member list of that chat see User-A as a
+member. With way-1-B: User-A doesn't see chat-X and other members of the chat don't see User-A
+as a member. With way-2: It's inconsistent: User-A sees the chat, but other people can't see
+him, or when accessing the chat some error occurs, and it's weird. Or he's in the chat but
+doesn't see the chat appear in their UI and it's weird.
+
+Now, way-1-B can be retried. I can try and add User-A again to chat X.
+
+That there is no isolation as the I in [ACID](https://en.wikipedia.org/wiki/ACID) - well, here I
+don't care. Anyway we have a race condition: User-B refreshing the member list of chat X will see no
+User-A until t=`<addition-time>` and thereafter sees User-A appear. That in theory there is a time gap
+between the writes of two tables where user-A is in one table but not the other doesn't matter for
+User-B, it's a state change from not-in-chat to in-chat. Similarly for User-A himself, it's a state
+change from not-in-chat to in-chat, the access pattern of reading the member list in a weird order
+isn't relevant here. At worst a refresh will show the new state of things.
+
+But way-2 is terrible! It will forever remain weird and appear as a bug either for User-A, or
+all other users in that chat, or all of us, and not resolve. In this case a batch statement is
+**miles** better from a user perspective in the Wire context.
 
 ## Examples of code design for optimal user-level consistency in complex scenarios
 
