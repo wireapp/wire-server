@@ -254,7 +254,8 @@ data BackendResource = BackendResource
     berBrigInternalEvents :: String,
     berEmailSMSSesQueue :: String,
     berEmailSMSEmailSender :: String,
-    berGalleyJournal :: String
+    berGalleyJournal :: String,
+    berVHost :: String
   }
   deriving (Show, Eq, Ord)
 
@@ -278,7 +279,8 @@ backendResources n =
                 berBrigInternalEvents = "integration-brig-events-internal" <> suffix i,
                 berEmailSMSSesQueue = "integration-brig-events" <> suffix i,
                 berEmailSMSEmailSender = "backend-integration" <> suffix i <> "@wire.com",
-                berGalleyJournal = "integration-team-events.fifo" <> suffix i
+                berGalleyJournal = "integration-team-events.fifo" <> suffix i,
+                berVHost = mkVHost i
               }
         )
     & Set.fromList
@@ -297,3 +299,6 @@ backendResources n =
     -- Fixed domain for a backend resource, e.g. for dynamic backends: 1 -> "c.example.com", 2 -> "d.example.com", etc.
     domain :: Integral a => a -> String
     domain i = [chr (ord 'c' + fromIntegral i - 1)] <> ".example.com"
+
+    mkVHost :: Integral a => a -> String
+    mkVHost = domain

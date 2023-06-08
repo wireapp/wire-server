@@ -103,9 +103,12 @@ startDynamicBackend beOverrides action = do
           >=> setFieldIfExists "internalEvents.queueName" resource.berBrigInternalEvents
           >=> setFieldIfExists "emailSMS.email.sesQueue" resource.berEmailSMSSesQueue
           >=> setFieldIfExists "emailSMS.general.emailSender" resource.berEmailSMSEmailSender
+          >=> setField "rabbitmq.vHost" resource.berVHost
       Cargohold -> setFieldIfExists "aws.s3Bucket" resource.berAwsS3Bucket
       Gundeck -> setFieldIfExists "aws.queueName" resource.berAwsQueueName
-      Galley -> setFieldIfExists "journal.queueName" resource.berGalleyJournal
+      Galley ->
+        setFieldIfExists "journal.queueName" resource.berGalleyJournal
+          >=> setField "rabbitmq.vHost" resource.berVHost
       _ -> pure
 
     setFederationSettings :: BackendResource -> Service -> Value -> App Value
@@ -135,6 +138,7 @@ startDynamicBackend beOverrides action = do
     backGroundWorkerOverrides resource remoteDomains =
       setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
         >=> setField "remoteDomains" remoteDomains
+        >=> setField "rabbitmq.vHost" resource.berVHost
 
     setKeyspace :: BackendResource -> Service -> Value -> App Value
     setKeyspace resource = \case
