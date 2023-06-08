@@ -219,21 +219,21 @@ let
   integration-dynamic-backends-sqs = pkgs.writeShellApplication {
     name = "integration-dynamic-backends-sqs.sh";
     text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-sqs.sh}";
-    runtimeInputs = [ pkgs.parallel ];
+    runtimeInputs = [ pkgs.parallel pkgs.awscli2 ];
     checkPhase = "";
   };
 
   integration-dynamic-backends-ses = pkgs.writeShellApplication {
     name = "integration-dynamic-backends-ses.sh";
     text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-ses.sh}";
-    runtimeInputs = [ pkgs.parallel ];
+    runtimeInputs = [ pkgs.parallel pkgs.awscli2 ];
     checkPhase = "";
   };
 
   integration-dynamic-backends-s3 = pkgs.writeShellApplication {
     name = "integration-dynamic-backends-s3.sh";
     text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-s3.sh}";
-    runtimeInputs = [ pkgs.parallel ];
+    runtimeInputs = [ pkgs.parallel pkgs.awscli2 ];
     checkPhase = "";
   };
 

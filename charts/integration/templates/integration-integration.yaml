@@ -58,6 +58,12 @@ spec:
     env:
     - name: INTEGRATION_DYNAMIC_BACKENDS_POOLSIZE
       value: "{{ .Values.config.dynamicBackendsPoolsize }}"
+    - name: AWS_ACCESS_KEY_ID
+      value: "dummy"
+    - name: AWS_SECRET_ACCESS_KEY
+      value: "dummy"
+    - name: AWS_REGION
+      value: "eu-west-1"
     command:
       - /bin/sh
       - -c
