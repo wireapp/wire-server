@@ -51,6 +51,7 @@ import Data.Yaml (FromJSON (..), ToJSON (..), (.:), (.:?))
 import qualified Data.Yaml as Y
 import Galley.Types.Teams (unImplicitLockStatus)
 import Imports
+import Network.AMQP.Extended
 import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
@@ -94,15 +95,6 @@ data ElasticSearchOpts = ElasticSearchOpts
   deriving (Show, Generic)
 
 instance FromJSON ElasticSearchOpts
-
-data RabbitMqOpts = RabbitMqOpts
-  { host :: !String,
-    port :: !Int,
-    vHost :: !Text
-  }
-  deriving (Show, Generic)
-
-instance FromJSON RabbitMqOpts
 
 data AWSOpts = AWSOpts
   { -- | Event journal queue for user events
