@@ -12,6 +12,7 @@ import qualified Network.AMQP.Lifted as QL
 import qualified System.Logger.Class as Log
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
+import Wire.BackgroundWorker.Defederation (defederateDomains)
 import Wire.BackgroundWorker.Env
 
 startPushingNotifications ::
@@ -19,8 +20,8 @@ startPushingNotifications ::
   Domain ->
   AppT IO Q.ConsumerTag
 startPushingNotifications chan domain = do
-  lift $ ensureQueue chan domain
-  QL.consumeMsgs chan (routingKey domain) Q.Ack (pushNotification domain)
+  lift $ ensureQueue chan $ domainText domain
+  QL.consumeMsgs chan (routingKey $ domainText domain) Q.Ack (pushNotification domain)
 
 -- | This class exists to help with testing, making the envelope in unit test is
 -- too difficult. So we use fake envelopes in the unit tests.
@@ -86,4 +87,6 @@ startWorker remoteDomains chan = do
   -- delivered in order.
   lift $ Q.qos chan 0 1 False
   mapM_ (startPushingNotifications chan) remoteDomains
+  -- Begin a listener for domains that need to be deleted
+  defederateDomains chan
   forever $ threadDelay maxBound

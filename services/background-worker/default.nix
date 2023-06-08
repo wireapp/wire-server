@@ -5,19 +5,28 @@
 { mkDerivation
 , aeson
 , amqp
+, brig
+, cassandra-util
 , exceptions
 , extended
 , federator
+, galley
+, galley-types
 , gitignoreSource
 , HsOpenSSL
 , hspec
+, http-client
 , http2-manager
 , imports
 , lib
 , monad-control
+, polysemy
+, polysemy-wire-zoo
 , QuickCheck
 , retry
+, text
 , tinylog
+, transformers
 , transformers-base
 , types-common
 , wire-api
@@ -32,14 +41,23 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
+    brig
+    cassandra-util
     exceptions
     extended
+    galley
+    galley-types
     HsOpenSSL
+    http-client
     http2-manager
     imports
     monad-control
+    polysemy
+    polysemy-wire-zoo
     retry
+    text
     tinylog
+    transformers
     transformers-base
     types-common
     wire-api-federation
@@ -48,8 +66,10 @@ mkDerivation {
   testHaskellDepends = [
     aeson
     amqp
+    cassandra-util
     federator
     hspec
+    http-client
     imports
     QuickCheck
     tinylog

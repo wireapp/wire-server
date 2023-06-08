@@ -11,7 +11,8 @@ data Opts = Opts
     logFormat :: !(Maybe (Last LogFormat)),
     federatorInternal :: !Endpoint,
     rabbitmq :: !RabbitMqOpts,
-    remoteDomains :: [Domain]
+    remoteDomains :: [Domain],
+    localDomain :: Domain
   }
   deriving (Show, Generic)
 

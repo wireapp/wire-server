@@ -3,11 +3,16 @@
 
 module Wire.BackgroundWorker.Env where
 
+import Cassandra (ClientState)
+import qualified Cassandra as Cass
+import qualified Cassandra.Settings as Cass
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
+import Data.Domain (Domain)
 import HTTP2.Client.Manager
 import Imports
+import Network.HTTP.Client
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import qualified System.Logger as Log
@@ -17,16 +22,22 @@ import Util.Options
 import Wire.BackgroundWorker.Options
 
 data Env = Env
-  { http2Manager :: Http2Manager,
+  { manager :: Manager,
+    http2Manager :: Http2Manager,
     logger :: Logger,
-    federatorInternal :: Endpoint
+    federatorInternal :: Endpoint,
+    localDomain :: Domain,
+    cassandra :: ClientState
   }
 
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
+  manager <- newManager defaultManagerSettings
   http2Manager <- initHttp2Manager
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
   let federatorInternal = opts.federatorInternal
+      localDomain = opts.localDomain
+  cassandra <- Cass.init $ Cass.defSettings -- TODO: Update these settings
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager

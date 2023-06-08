@@ -22,8 +22,11 @@ module Galley.Run
     -- Exported for tests
     deleteFederationDomain,
     publishRabbitMsg,
-    readRabbitMq,
-    ensureQueue
+    ensureQueue,
+    runApp,
+    deleteFederationDomainRemote',
+    deleteFederationDomainLocal',
+    deleteFederationDomainOneOnOne',
   )
 where
 
@@ -63,7 +66,13 @@ import qualified Galley.App as App
 import Galley.Aws (awsEnv)
 import Galley.Cassandra
 import Galley.Data.Conversation.Types (convMetadata)
+import Galley.Effects.BrigAccess
+import Galley.Effects.CodeStore
+import Galley.Effects.ConversationStore
+import Galley.Effects.ExternalAccess
+import Galley.Effects.GundeckAccess
 import qualified Galley.Effects.MemberStore as E
+import Galley.Effects.TeamStore
 import Galley.Env
 import Galley.Monad
 import Galley.Options
@@ -81,7 +90,10 @@ import Network.Wai
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
+import Polysemy (Member, Sem)
+import Polysemy.Embed.Type (Embed)
 import Polysemy.Error
+import Polysemy.Input (Input)
 import Servant hiding (route)
 import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http), defaultMakeClientRequest)
 import qualified System.Logger as Log
@@ -93,11 +105,13 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.Error
 import Wire.API.FederationUpdate
 import Wire.API.Routes.API
 import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
+import Wire.Sem.Logger
 
 -- This type is used to tie the amqp sending and receiving message types together.
 type MsgData = Domain
@@ -125,12 +139,10 @@ run opts = lowerCodensity $ do
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
 
   maybe
-    -- Update federation domains without talking to rabbitmq
-    -- This doesn't need a call back as there isn't anything
-    -- we need to do beyond updating the IORef, which is done
-    -- for us.
-    (simpleFederationUpdate ioref clientEnv l)
-    (complexFederationUpdate env clientEnv)
+    -- RabbitMQ is required for federation, so if we don't
+    -- have it, don't worry about it!
+    (pure ())
+    (federationUpdate env clientEnv)
     $ opts ^. optRabbitMq
 
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
@@ -138,26 +150,15 @@ run opts = lowerCodensity $ do
   void $ Codensity $ Async.withAsync $ runApp env undefined
   lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
 
--- The simple update where rabbitmq isn't defined, so our processing is cut down a lot.
---
--- TODO: We still need to delete things, so we'll have to come up with some other processing
--- and non-volatile data storage to replace rabbit
-simpleFederationUpdate :: IORef FederationDomainConfigs -> ClientEnv -> Log.Logger -> Codensity IO ()
-simpleFederationUpdate ioref clientEnv l = void $
-  Codensity $
-    Async.withAsync $
-      updateFedDomains' ioref clientEnv l $
-        \_ _ -> pure ()
-
 -- Complex handling. Most of the complexity comes from interweaving both rabbit queue handling
 -- and the HTTP calls out to brig for the new lists of federation domains. Rabbit handles the
 -- heavey lifting of ensuring single threaded processing of the domains to be deleted.
-complexFederationUpdate ::
+federationUpdate ::
   Env ->
   ClientEnv ->
   RabbitMqOpts ->
   Codensity IO ()
-complexFederationUpdate env clientEnv rmq = void $ Codensity $ Async.withAsync $ do
+federationUpdate env clientEnv rmq = void $ Codensity $ Async.withAsync $ do
   -- This ioref is needed so that we can kill the async thread that
   -- is forked by updateFedDomains'
   threadRef <- newIORef Nothing
@@ -179,8 +180,6 @@ complexFederationUpdate env clientEnv rmq = void $ Codensity $ Async.withAsync $
           -- will kill the thread. This handler is then used to start a new one.
           ensureQueue channel mqq
           writeRabbitMq clientEnv (env ^. applog) (env ^. fedDomains) channel mqq threadRef
-          let performDelete = runApp env . deleteFederationDomain
-          readRabbitMq channel mqq (env ^. applog) performDelete
 
           -- Keep this thread around until it is killed.
           forever $ threadDelay maxBound
@@ -230,29 +229,12 @@ writeRabbitMq clientEnv logger ioref channel mqq threadRef = do
 
 -- Split out to help with integration testing
 publishRabbitMsg :: AMQP.Channel -> Text -> MsgData -> IO (Maybe Int)
-publishRabbitMsg channel mqq dom = AMQP.publishMsg channel "" mqq $
-  AMQP.newMsg
-    { AMQP.msgBody = Aeson.encode @MsgData dom
-    , AMQP.msgDeliveryMode = pure AMQP.Persistent
-    }
-
--- Read messages from RabbitMQ, process the message, and ACK or NACK it as appropriate.
--- This is automatically killed by `amqp`, we don't need to handle it.
---
--- We can run this on every galley instance, and rabbitmq will handle the single
--- consumer constraint for us. This is done via the x-single-active-consumer header
--- that is set when the queue is created. When the active consumer disconnects for
--- whatever reason, rabbit will pick another of the subscribed clients to be the new
--- active consumer.
-readRabbitMq :: AMQP.Channel -> Text -> Log.Logger -> (Domain -> IO ()) -> IO ()
-readRabbitMq channel mqq logger go = void $ AMQP.consumeMsgs channel mqq AMQP.Ack $ \(message, envelope) ->
-  case Aeson.eitherDecode @MsgData (AMQP.msgBody message) of
-    Left e -> do
-      Log.err logger $ Log.msg @Text "Could not decode message from RabbitMQ" . Log.field "error" (show e)
-      AMQP.nackEnv envelope
-    Right dom -> do
-      go dom
-      AMQP.ackEnv envelope
+publishRabbitMsg channel mqq dom =
+  AMQP.publishMsg channel "" mqq $
+    AMQP.newMsg
+      { AMQP.msgBody = Aeson.encode @MsgData dom,
+        AMQP.msgDeliveryMode = pure AMQP.Persistent
+      }
 
 mkApp :: Opts -> IORef FederationDomainConfigs -> Log.Logger -> Codensity IO (Application, Env)
 mkApp opts fedDoms logger =
@@ -346,8 +328,6 @@ insertIntoMap (cnvId, user) m = Map.alter (pure . maybe (pure user) (N.cons user
 -- out so that it can be redelivered.
 deleteFederationDomain :: Domain -> App ()
 deleteFederationDomain d = do
-  env <- ask
-  Log.err (env ^. applog) $ Log.field "domain" $ show d
   deleteFederationDomainRemote d
   deleteFederationDomainLocal d
   deleteFederationDomainOneOnOne d
@@ -400,6 +380,61 @@ deleteFederationDomainRemote dom = do
             undefined
             ()
 
+-- Remove remote members from local conversations
+deleteFederationDomainRemote' ::
+  ( Member (Logger (Log.Msg -> Log.Msg)) r,
+    Member (Error InternalError) r,
+    Member (Error FederationError) r,
+    Member E.MemberStore r,
+    Member ConversationStore r,
+    Member CodeStore r,
+    Member TeamStore r
+  ) =>
+  Domain ->
+  Domain ->
+  Sem r ()
+deleteFederationDomainRemote' localDomain dom = do
+  remoteUsers <- E.getRemoteMembersByDomain dom
+  let lCnvMap = foldr insertIntoMap mempty remoteUsers
+  for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
+    let lCnvId = toLocalUnsafe localDomain cnvId
+    -- This value contains an event that we might need to
+    -- send out to all of the local clients that are a party
+    -- to the conversation. However we also don't want to DOS
+    -- clients. Maybe suppress and send out a bulk version?
+    mapToRuntimeError @F.RemoveFromConversationError (InternalErrorWithDescription "Federation domain removal: Remove from conversation error")
+      . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Federation domain removal: Conversation not found")
+      . mapToRuntimeError @('ActionDenied 'RemoveConversationMember) (InternalErrorWithDescription "Federation domain removal: Action denied, remove conversation member")
+      . mapToRuntimeError @'InvalidOperation (InternalErrorWithDescription "Federation domain removal: Invalid operation")
+      . mapToRuntimeError @'NotATeamMember (InternalErrorWithDescription "Federation domain removal: Not a team member")
+      . mapError @NoChanges (const (InternalErrorWithDescription "Federation domain removal: No changes"))
+      -- This is allowed to send notifications to _local_ clients.
+      -- But we are suppressing those events as we don't want to
+      -- DOS our users if a large and deeply interconnected federation
+      -- member is removed. Sending out hundreds or thousands of events
+      -- to each client isn't something we want to be doing.
+      $ do
+        conv <- getConversationWithError lCnvId
+        let lConv = toLocalUnsafe localDomain conv
+
+        updateLocalConversationUserUnchecked
+          @'ConversationRemoveMembersTag
+          lConv
+          undefined
+          $ tUntagged . rmId <$> rUsers -- This field can be undefined as the path for ConversationRemoveMembersTag doens't use it
+
+        -- Check if the conversation if type 2 or 3, one-on-one conversations.
+        -- If it is, then we need to remove the entire conversation as users
+        -- aren't able to delete those types of conversations themselves.
+        -- Check that we are in a type 2 or a type 3 conversation
+        when (cnvmType (convMetadata conv) `elem` [One2OneConv, ConnectConv]) $
+          -- If we are, delete it.
+          updateLocalConversationUserUnchecked
+            @'ConversationDeleteTag
+            lConv
+            undefined
+            ()
+
 -- Remove local members from remote conversations
 deleteFederationDomainLocal :: Domain -> App ()
 deleteFederationDomainLocal dom = do
@@ -414,7 +449,7 @@ deleteFederationDomainLocal dom = do
     Log.err (env ^. applog) $ Log.field "(cnv, lUsers)" (show (cnv, lUsers))
     liftIO $
       -- All errors, either exceptions or Either e, get thrown into IO
-      
+
       -- All errors, either exceptions or Either e, get thrown into IO
       evalGalleyToIO env $
         mapError @NoChanges (const (InternalErrorWithDescription "No Changes: Could not remove a local member from a remote conversation.")) $
@@ -437,6 +472,47 @@ deleteFederationDomainLocal dom = do
               -- remote federation server to delete the conversation. They will have to do a
               -- similar processing run for removing the local domain from their federation list.
               onConversationUpdated dom convUpdate
+
+-- Remove local members from remote conversations
+deleteFederationDomainLocal' ::
+  ( Member (Input (Local ())) r,
+    Member (Error InternalError) r,
+    Member (Logger (Log.Msg -> Log.Msg)) r,
+    Member E.MemberStore r,
+    Member (Embed IO) r,
+    Member BrigAccess r,
+    Member GundeckAccess r,
+    Member ExternalAccess r
+  ) =>
+  Domain ->
+  Domain ->
+  Sem r ()
+deleteFederationDomainLocal' localDomain dom = do
+  localUsers <- E.getLocalMembersByDomain dom
+  -- As above, build the map so we can get all local users per conversation
+  let rCnvMap = foldr insertIntoMap mempty localUsers
+  -- Process each user.
+  for_ (Map.toList rCnvMap) $ \(cnv, lUsers) -> do
+    mapError @NoChanges (const (InternalErrorWithDescription "No Changes: Could not remove a local member from a remote conversation.")) $
+      do
+        now <- liftIO $ getCurrentTime
+        for_ lUsers $ \user -> do
+          let lUser = toLocalUnsafe localDomain user
+              convUpdate =
+                F.ConversationUpdate
+                  { cuTime = now,
+                    cuOrigUserId = tUntagged lUser,
+                    cuConvId = cnv,
+                    cuAlreadyPresentUsers = [user],
+                    cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ()
+                  }
+          -- These functions are used directly rather than as part of a larger conversation
+          -- delete function, as we don't have an originating user, and we can't send data
+          -- to the remote backend.
+          -- We don't need to check the conversation type here, as we can't tell the
+          -- remote federation server to delete the conversation. They will have to do a
+          -- similar processing run for removing the local domain from their federation list.
+          onConversationUpdated dom convUpdate
 
 -- let rcnv = toRemoteUnsafe dom cnv
 -- notifyRemoteConversationAction lUser (qualifyAs rcnv convUpdate) Nothing
@@ -462,3 +538,15 @@ deleteFederationDomainOneOnOne dom = do
       pure
   where
     mkClientEnv mgr (Endpoint h p) = ClientEnv mgr (BaseUrl Http (unpack h) (fromIntegral p) "") Nothing defaultMakeClientRequest
+
+deleteFederationDomainOneOnOne' :: Member (Embed IO) r => Log.Logger -> ClientEnv -> Domain -> Sem r ()
+deleteFederationDomainOneOnOne' logger client dom = do
+  liftIO (deleteFederationRemoteGalley dom client)
+    >>= either
+      ( \e -> do
+          Log.err logger $ Log.msg @Text "Could not delete one-on-one messages in Brig" . Log.field "error" (show e)
+          -- Throw the error into IO to match the other functions and to prevent the
+          -- message from rabbit being ACKed.
+          liftIO $ throwIO e
+      )
+      pure

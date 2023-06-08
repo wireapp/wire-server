@@ -14,6 +14,8 @@ library
   exposed-modules:
     Wire.BackendNotificationPusher
     Wire.BackgroundWorker
+    Wire.BackgroundWorker.Defederation
+    Wire.BackgroundWorker.Defederation.Types
     Wire.BackgroundWorker.Env
     Wire.BackgroundWorker.Options
 
@@ -27,14 +29,23 @@ library
   build-depends:
       aeson
     , amqp
+    , brig
+    , cassandra-util
     , exceptions
     , extended
+    , galley
+    , galley-types
     , HsOpenSSL
+    , http-client
     , http2-manager
     , imports
     , monad-control
+    , polysemy
+    , polysemy-wire-zoo
     , retry
+    , text
     , tinylog
+    , transformers
     , transformers-base
     , types-common
     , wire-api-federation
@@ -159,8 +170,10 @@ test-suite background-worker-test
       aeson
     , amqp
     , background-worker
+    , cassandra-util
     , federator
     , hspec
+    , http-client
     , imports
     , QuickCheck
     , tinylog

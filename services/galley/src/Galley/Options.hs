@@ -57,7 +57,7 @@ module Galley.Options
     optRabbitMq,
     rabbitmqHost,
     rabbitmqPort,
-    rabbitmqVHost
+    rabbitmqVHost,
   )
 where
 
@@ -157,6 +157,7 @@ data RabbitMqOpts = RabbitMqOpts
     _rabbitmqVHost :: !Text
   }
   deriving (Show, Generic)
+
 makeLenses 'RabbitMqOpts
 deriveFromJSON toOptionFieldName ''RabbitMqOpts
 

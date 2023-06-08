@@ -2,12 +2,15 @@
 
 module Test.Wire.BackendNotificationPusherSpec where
 
+import qualified Cassandra as Cass
+import qualified Cassandra.Settings as Cass
 import qualified Data.Aeson as Aeson
 import Data.Domain
 import Data.Range
 import Federator.MockServer
 import Imports
 import qualified Network.AMQP as Q
+import Network.HTTP.Client
 import qualified System.Logger as Logger
 import Test.Hspec
 import Test.QuickCheck
@@ -24,7 +27,10 @@ runTestAppT :: AppT IO a -> Int -> IO a
 runTestAppT app port = do
   http2Manager <- initHttp2Manager
   logger <- Logger.new Logger.defSettings
+  manager <- newManager defaultManagerSettings
+  cassandra <- Cass.init Cass.defSettings
   let federatorInternal = Endpoint "localhost" (fromIntegral port)
+      localDomain = Domain "example.com"
       env = Env {..}
   runAppT env app
 

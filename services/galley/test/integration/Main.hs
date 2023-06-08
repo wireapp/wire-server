@@ -44,6 +44,7 @@ import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
+import RabbitMQ (rabbitPubSub)
 import qualified System.Logger.Class as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -54,7 +55,6 @@ import Util.Options
 import Util.Options.Common
 import Util.Test
 import qualified Util.Test.SQS as SQS
-import RabbitMQ (rabbitPubSub)
 
 newtype ServiceConfigFile = ServiceConfigFile String
   deriving (Eq, Ord, Typeable)
