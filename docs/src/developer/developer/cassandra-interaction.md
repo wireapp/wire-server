@@ -43,9 +43,12 @@ We currently operate all our production and production-like environments with
 * a number of cassandra nodes >= 3 (depending on load and disk/machine size)
 * Everywhere where some consistency matters, **Quorum writes and Quorum reads**
 
-These three things together give us **strong consistency on a per-table** basis. A quorum write
-followed by a quorum read will guarantee that you see the data you inserted, even if one replica of
-cassandra that holds that partition key dies in the middle.
+These three things together give us **strong consistency on a per-table** basis. *(well, actually,
+it's monotonic read consistency we get here - concurrent requests may still see the old value until
+the quorum write finishes. In practice, you most likely do not need to care about that difference in
+the Wire context though.)*. A quorum write followed by a quorum read will guarantee that you see the
+data you inserted, even if one replica of cassandra that holds that partition key dies in the
+middle.
 
 The replication factor is specified when creating or migrating schemas, which is done in the
 `cassandra-migrations` subchart of the `wire-server` chart:
@@ -113,15 +116,24 @@ lines-after: 18
 
 While writing this documentation, I grepped for batch across our codebase, and saw that the use of
 batch statements seems to have fallen into disuse over the past months and years. That's a mistake!
-For related data, batch statements should be used to keep strong consistency across multiple tables
+For related data, batch statements should be used to keep data integrity across multiple tables
 for related data.
 
 *Sidenote:* Batch statements have a confusing name perhaps. They are not intended to speed up
 inserting multiple records into the same table; that is an antipattern, see [this
 documentation](https://docs.datastax.com/en/cql-oss/3.x/cql/cql_using/useBatchBadExample.html).
 
+*Sidenote 2:*: Batch statements do not have the I for isolation of an ACID transaction. While
+writing to table A and B of a batch, another process might read table A and B and already see the
+update in A but not see the update in B yet. As this is a transient problem, and in practice in the
+wire-server codebase most lookups read only table A *or* table B and not both concurrently (as often
+only one primary key needed for a lookup is available in context of a http request leading to
+lookup), I propose to ignore this by default. At least so far using batch statements hasn't bitten
+us / caused any bugs that I'm aware of. Don't let this scare you off - *not* using batch statements
+is worse, as there you're guaranteed to get long-lasting data inconsistencies across tables.
+
 ***To summarize: When working on multiple tables with related data (e.g. user_by_conversation_id and
-conversation_by_user_id), use 'batch' statements to achieve strong consisteny! When inserting lots
+conversation_by_user_id), use 'batch' statements to achieve atomicity! When inserting lots
 of data into the same table, do not use batch statements.***
 
 ## Examples of code design for optimal user-level consistency in complex scenarios
