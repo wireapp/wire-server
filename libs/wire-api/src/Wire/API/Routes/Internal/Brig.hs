@@ -205,8 +205,8 @@ type AccountAPI =
            )
     :<|> Named
            "iPutUserStatus"
-           ( "users"
-               -- FUTUREWORK: `:> CanThrow ...`
+           ( -- FUTUREWORK: `CanThrow ... :>`
+             "users"
                :> Capture "uid" UserId
                :> "status"
                :> ReqBody '[Servant.JSON] AccountStatusUpdate
@@ -214,9 +214,10 @@ type AccountAPI =
            )
     :<|> Named
            "iGetUserStatus"
-           ( "users"
-               :> CanThrow 'UserNotFound
+           ( CanThrow 'UserNotFound
+               :> "users"
                :> Capture "uid" UserId
+               :> "status"
                :> Get '[Servant.JSON] AccountStatusResp
            )
 
