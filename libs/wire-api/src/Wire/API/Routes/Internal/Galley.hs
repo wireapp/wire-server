@@ -197,6 +197,7 @@ type InternalAPIBase =
            "connect"
            ( Summary "Create a connect conversation (deprecated)"
                :> MakesFederatedCall 'Galley "on-conversation-created"
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NotConnected

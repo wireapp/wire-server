@@ -24,6 +24,7 @@ module Galley.Effects.FederatorAccess
     runFederatedEither,
     runFederatedConcurrently,
     runFederatedConcurrentlyEither,
+    runFederatedConcurrentlyBucketsEither,
     runFederatedConcurrently_,
     isFederationConfigured,
   )
@@ -57,6 +58,12 @@ data FederatorAccess m a where
     (KnownComponent c, Foldable f, Functor f) =>
     f (Remote x) ->
     (Remote [x] -> FederatorClient c a) ->
+    FederatorAccess m [Either (Remote [x], FederationError) (Remote a)]
+  RunFederatedConcurrentlyBucketsEither ::
+    forall (c :: Component) a m x y.
+    (KnownComponent c) =>
+    [(Remote [x], y)] ->
+    ((Remote [x], y) -> FederatorClient c a) ->
     FederatorAccess m [Either (Remote [x], FederationError) (Remote a)]
   IsFederationConfigured :: FederatorAccess m Bool
 

@@ -29,6 +29,7 @@ import Data.Id as Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword6, PlainTextPassword8)
 import Data.Qualified
@@ -69,6 +70,7 @@ import qualified Polysemy.TinyLog as P
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -763,9 +765,11 @@ registerRemoteConversationMemberships ::
 registerRemoteConversationMemberships now lc = do
   let c = tUnqualified lc
       allRemoteMembers = nubOrd (Data.convRemoteMembers c)
+      allRemoteMembersQualified = remoteMemberQualify <$> allRemoteMembers
+      allRemoteBuckets :: [Remote [RemoteMember]] = bucketRemote allRemoteMembersQualified
       rc = toConversationCreated now c
-  fmap (Set.map (fmap (tUnqualified . rmId)) . toSet) $
-    runFederatedConcurrentlyEither (remoteMemberQualify <$> allRemoteMembers) $
+  failedToNotify <- fmap (foldMap (either (sequenceA . fst) mempty)) $
+    runFederatedConcurrentlyEither allRemoteMembersQualified $
       \rrms ->
         fedClient @'Galley @"on-conversation-created" $
           ( rc
@@ -773,10 +777,42 @@ registerRemoteConversationMemberships now lc = do
                   toMembers (tUnqualified rrms)
               }
           )
+  let failedToNotifySet :: Set (Remote UserId) =
+        Set.map (fmap (tUnqualified . rmId)) . Set.fromList $ failedToNotify
+  let -- unreachable domains
+      failedToNotifyDomains :: Set Domain = Set.fromList . foldMap (pure . tDomain) $ failedToNotify
+      -- reachable members in buckets per remote domain
+      joined :: [Remote [RemoteMember]] =
+        filter
+          (\rmems -> Set.notMember (tDomain rmems) failedToNotifyDomains)
+          allRemoteBuckets
+      newJoiners :: [(Remote [RemoteMember], NonEmpty (Qualified UserId))] =
+        foldMap
+          ( \ruids ->
+              let nj = foldMap (fmap (tUntagged . rmId) . tUnqualified) $ filter (\r -> tDomain r /= tDomain ruids) joined
+               in case NE.nonEmpty nj of
+                    Nothing -> []
+                    Just v -> [(ruids, v)]
+          )
+          joined
+  void $ runFederatedConcurrentlyBucketsEither newJoiners $ \(toNotify, newMembers) -> do
+    fedClient @'Galley @"on-conversation-updated" $
+      ConversationUpdate
+        { cuTime = now,
+          cuOrigUserId = tUntagged . qualifyAs lc $ creator,
+          cuConvId = DataTypes.convId . tUnqualified $ lc,
+          cuAlreadyPresentUsers = fmap (tUnqualified . rmId) . tUnqualified $ toNotify,
+          -- \| Information on the specific action that caused the update.
+          cuAction =
+            SomeConversationAction
+              (sing @'ConversationJoinTag)
+              (ConversationJoin newMembers (rmConvRoleName undefined))
+        }
+  pure failedToNotifySet
   where
-    toSet :: forall a x e. Ord x => [Either (Remote [x], e) a] -> Set (Remote x)
-    toSet =
-      Set.fromList . foldMap (either (sequenceA . fst) mempty)
+    -- toSet :: forall a x e. Ord x => [Either (Remote [x], e) a] -> Set (Remote x)
+    -- toSet =
+    --   Set.fromList . foldMap (either (sequenceA . fst) mempty)
     creator = cnvmCreator . DataTypes.convMetadata . tUnqualified $ lc
     localNonCreators =
       fmap (localMemberToOther . tDomain $ lc)
