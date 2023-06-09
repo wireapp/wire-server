@@ -29,7 +29,6 @@ import Bilge hiding (accept, head, timeout)
 import qualified Bilge
 import Bilge.Assert
 import qualified Brig.Options as Opt
-import Brig.Types.Intra
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch)

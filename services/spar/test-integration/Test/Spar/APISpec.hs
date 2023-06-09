@@ -25,7 +25,6 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra (AccountStatus (Deleted))
 import Cassandra as Cas hiding (Value)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadThrow)

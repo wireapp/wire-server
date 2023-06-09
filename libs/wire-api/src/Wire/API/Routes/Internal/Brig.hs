@@ -17,6 +17,7 @@
 
 module Wire.API.Routes.Internal.Brig
   ( API,
+    IStatusAPI,
     EJPD_API,
     AccountAPI,
     MLSAPI,
@@ -61,6 +62,7 @@ import Wire.API.Routes.Internal.Brig.SearchIndex (ISearchIndexAPI)
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
+import Wire.API.Routes.Public (ZUser {- yes, this is a bit weird -})
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Auth
@@ -164,6 +166,59 @@ type AccountAPI =
                :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ReqBody '[Servant.JSON] NewUserSpar
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
+           )
+    :<|> Named
+           "putSelfEmail"
+           ( Summary
+               "internal email activation (used in tests and in spar for validating emails obtained as \
+               \SAML user identifiers).  if the validate query parameter is false or missing, only set \
+               \the activation timeout, but do not send an email, and do not do anything about \
+               \activating the email."
+               :> ZUser
+               :> "self"
+               :> "email"
+               :> ReqBody '[Servant.JSON] EmailUpdate
+               :> QueryParam' [Optional, Strict, Description "whether to send validation email, or activate"] "validate" Bool
+               :> MultiVerb
+                    'PUT
+                    '[Servant.JSON]
+                    '[ Respond 202 "Update accepted and pending activation of the new email" (),
+                       Respond 204 "No update, current and new email address are the same" ()
+                     ]
+                    ChangeEmailResponse
+           )
+    :<|> Named
+           "iDeleteUser"
+           ( Summary
+               "This endpoint will lead to the following events being sent: UserDeleted event to all of \
+               \its contacts, MemberLeave event to members for all conversations the user was in (via galley)"
+               :> CanThrow 'UserNotFound
+               :> "users"
+               :> Capture "uid" UserId
+               :> MultiVerb
+                    'DELETE
+                    '[Servant.JSON]
+                    '[ Respond 200 "UserResponseAccountAlreadyDeleted" (),
+                       Respond 202 "UserResponseAccountDeleted" ()
+                     ]
+                    DeleteUserResponse
+           )
+    :<|> Named
+           "iPutUserStatus"
+           ( -- FUTUREWORK: `CanThrow ... :>`
+             "users"
+               :> Capture "uid" UserId
+               :> "status"
+               :> ReqBody '[Servant.JSON] AccountStatusUpdate
+               :> Put '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iGetUserStatus"
+           ( CanThrow 'UserNotFound
+               :> "users"
+               :> Capture "uid" UserId
+               :> "status"
+               :> Get '[Servant.JSON] AccountStatusResp
            )
 
 -- | The missing ref is implicit by the capture
@@ -321,7 +376,8 @@ type GetVerificationCode =
 
 type API =
   "i"
-    :> ( EJPD_API
+    :> ( IStatusAPI
+           :<|> EJPD_API
            :<|> AccountAPI
            :<|> MLSAPI
            :<|> GetVerificationCode
@@ -331,6 +387,14 @@ type API =
            :<|> OAuthAPI
            :<|> ISearchIndexAPI
        )
+
+type IStatusAPI =
+  Named
+    "get-status"
+    ( Summary "do nothing, just check liveness (NB: this works for both get, head)"
+        :> "status"
+        :> Get '[Servant.JSON] NoContent
+    )
 
 type TeamsAPI =
   Named

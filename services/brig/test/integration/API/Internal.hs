@@ -30,7 +30,6 @@ import Bilge
 import Bilge.Assert
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
 import qualified Brig.Options as Opt
-import Brig.Types.Intra
 import qualified Cassandra as C
 import qualified Cassandra as Cass
 import Cassandra.Util
