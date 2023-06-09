@@ -79,6 +79,7 @@ import Wire.API.Team
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
+import Wire.API.User
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -422,7 +423,7 @@ createOne2OneConversationUnchecked self zcon name mtid other = do
           self
           createOne2OneConversationLocally
           createOne2OneConversationRemotely
-  create (one2OneConvId (tUntagged self) other) self zcon name mtid other
+  create (one2OneConvId BaseProtocolProteusTag (tUntagged self) other) self zcon name mtid other
 
 createOne2OneConversationLocally ::
   ( Member ConversationStore r,

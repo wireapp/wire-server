@@ -30,6 +30,7 @@ import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Tagged as U
 import Imports
+import Wire.API.User
 
 -- | The hash function used to obtain the 1-1 conversation ID for a pair of users.
 --
@@ -39,8 +40,9 @@ hash = convert . Crypto.hash @ByteString @Crypto.SHA256
 
 -- | A randomly-generated UUID to use as a namespace for the UUIDv5 of 1-1
 -- conversation IDs
-namespace :: UUID
-namespace = UUID.fromWords 0x9a51edb8 0x060c0d9a 0x0c2950a8 0x5d152982
+namespace :: BaseProtocolTag -> UUID
+namespace BaseProtocolProteusTag = UUID.fromWords 0x9a51edb8 0x060c0d9a 0x0c2950a8 0x5d152982
+namespace BaseProtocolMLSTag = UUID.fromWords 0x95589dd5 0xb04540dc 0xa6aadd9c 0x4fad1c2f
 
 compareDomains :: Ord a => Qualified a -> Qualified a -> Ordering
 compareDomains (Qualified a1 dom1) (Qualified a2 dom2) =
@@ -88,13 +90,13 @@ quidToByteString (Qualified uid domain) = toByteString' uid <> toByteString' dom
 -- the most significant bit of the octet at index 16) is 0, and B otherwise.
 -- This is well-defined, because we assumed the number of bits of x to be
 -- strictly larger than 128.
-one2OneConvId :: Qualified UserId -> Qualified UserId -> Qualified ConvId
-one2OneConvId a b = case compareDomains a b of
-  GT -> one2OneConvId b a
+one2OneConvId :: BaseProtocolTag -> Qualified UserId -> Qualified UserId -> Qualified ConvId
+one2OneConvId protocol a b = case compareDomains a b of
+  GT -> one2OneConvId protocol b a
   _ ->
     let c =
           mconcat
-            [ L.toStrict (UUID.toByteString namespace),
+            [ L.toStrict (UUID.toByteString (namespace protocol)),
               quidToByteString a,
               quidToByteString b
             ]
