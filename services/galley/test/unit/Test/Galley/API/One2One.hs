@@ -26,6 +26,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit (Assertion, testCase, (@?=))
 import Test.Tasty.QuickCheck
+import Wire.API.User
 
 tests :: TestTree
 tests =
@@ -35,8 +36,8 @@ tests =
       testCase "non-collision" one2OneConvIdNonCollision
     ]
 
-one2OneConvIdSymmetry :: Qualified UserId -> Qualified UserId -> Property
-one2OneConvIdSymmetry quid1 quid2 = one2OneConvId quid1 quid2 === one2OneConvId quid2 quid1
+one2OneConvIdSymmetry :: BaseProtocolTag -> Qualified UserId -> Qualified UserId -> Property
+one2OneConvIdSymmetry proto quid1 quid2 = one2OneConvId proto quid1 quid2 === one2OneConvId proto quid2 quid1
 
 -- | Make sure that we never get the same conversation ID for a pair of
 -- (assumingly) distinct qualified user IDs
@@ -46,5 +47,5 @@ one2OneConvIdNonCollision = do
   -- A generator of lists of length 'len' of qualified user ID pairs
   let gen = vectorOf len arbitrary
   quids <- nubOrd <$> generate gen
-  let hashes = nubOrd (fmap (uncurry one2OneConvId) quids)
+  let hashes = nubOrd (fmap (uncurry (one2OneConvId BaseProtocolProteusTag)) quids)
   length hashes @?= length quids

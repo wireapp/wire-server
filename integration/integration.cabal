@@ -93,6 +93,7 @@ library
     Test.Demo
     Test.MLS
     Test.MLS.KeyPackage
+    Test.MLS.One2One
     Test.User
     Testlib.App
     Testlib.Assertions
