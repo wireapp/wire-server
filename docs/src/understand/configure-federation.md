@@ -437,9 +437,9 @@ the sysadmin:
 * [`GET`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_federation_remotes)
 
   - this serves an object with 3 fields:
-     - `remotes` (from cassandra): the list of remote domains with search strategy (and
+     - `remotes` (from cassandra): the list of remote domains with search policy (and
        possibly other information in the future);
-     - `strategy` (from config): one of `allowNone`, `allowDynamic`, `allowAll` (see above)
+     - `strategy` (from config): federation strategy; one of `allowNone`, `allowDynamic`, `allowAll` (see above)
      - `update_interval` (from config): the suggested update frequency with which calling
        services should refresh their information.
 
@@ -472,6 +472,7 @@ The `remotes` list looks like this:
   },
   {
     "domain": "evil.example.com"
+    "search_policy": "no_search"
   },
   ...
 ]
@@ -485,7 +486,8 @@ It serves two purposes:
 2. Independently of the federation strategy, the list provides
   information about remote backends that may change dynamically (at
   the time of writing this: search policy, see
-  {ref}`searching-users-on-another-federated-backend`)
+  {ref}`searching-users-on-another-federated-backend` and
+  {ref}`user-searchability` for more context)
 
 The search policy for a remote backend can be:
 
