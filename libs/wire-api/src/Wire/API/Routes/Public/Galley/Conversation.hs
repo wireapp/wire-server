@@ -588,6 +588,16 @@ type ConversationAPI =
                :> ReqBody '[JSON] NewConv
                :> ConversationVerb
            )
+    :<|> Named
+           "get-one-to-one-mls-conversation"
+           ( Summary "Get an MLS 1:1 conversation"
+               :> ZLocalUser
+               :> CanThrow 'MLSNotEnabled
+               :> "conversations"
+               :> "one2one"
+               :> QualifiedCapture "usr" UserId
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "MLS 1-1 conversation" Conversation)
+           )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to members
     :<|> Named
