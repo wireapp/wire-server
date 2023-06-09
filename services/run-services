@@ -53,7 +53,10 @@ class Service:
             return self._internal_name
 
     def path(self):
-        return os.path.join(ROOT, "dist", self.name)
+        if self.name in ['galley']:
+            return os.path.join(ROOT, "dist", self.name + '-restricted')
+        else:
+            return os.path.join(ROOT, "dist", self.name)
 
     def config_file(self):
         if self.config is None:
@@ -65,7 +68,11 @@ class Service:
 
 
     def spawn(self, config_file, environment):
-        return subprocess.Popen([self.path(), "-c", config_file],
+        args = [self.path(), "-c", config_file]
+        if self.name in ['galley']:
+            args += ['+RTS', '-p', '-RTS']
+        print(args)
+        return subprocess.Popen(args,
                                encoding='utf-8',
                                cwd=os.path.join(ROOT, "services", self.name),
                                env=environment,
@@ -416,13 +423,12 @@ if __name__ == '__main__':
     if ROOT is None:
         error("This script needs to be run within the wire-server direnv")
 
-    environment = {
-        'AWS_REGION': "eu-west-1",
-        'AWS_ACCESS_KEY_ID': "dummykey",
-        'AWS_SECRET_ACCESS_KEY': "dummysecret",
-        'RABBITMQ_USERNAME': os.environ.get("RABBITMQ_USERNAME"),
-        'RABBITMQ_PASSWORD': os.environ.get("RABBITMQ_PASSWORD")
-    }
+
+    environment = dict(os.environ)
+    environment['AWS_REGION'] = "eu-west-1"
+    environment['AWS_ACCESS_KEY_ID'] = "dummykey"
+    environment['AWS_SECRET_ACCESS_KEY'] =  "dummysecret"
+
 
     backend_a = [
         Instance(BRIG, 8082),

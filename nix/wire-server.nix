@@ -396,6 +396,7 @@ in
       pkgs.kind
       pkgs.netcat
       pkgs.niv
+      pkgs.haskellPackages.profiteur
       (pkgs.python3.withPackages
         (ps: with ps; [
           black

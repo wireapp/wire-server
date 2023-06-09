@@ -763,7 +763,8 @@ uncheckedAddTeamMember ::
   NewTeamMember ->
   Sem r ()
 uncheckedAddTeamMember tid nmem = do
-  mems <- getTeamMembersForFanout tid
+  -- mems <- getTeamMembersForFanout tid
+  let mems = newTeamMemberList [] ListTruncated
   (TeamSize sizeBeforeJoin) <- E.getSize tid
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
@@ -1274,9 +1275,10 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = 
   E.createTeamMember tid new
   now <- input
   let e = newEvent tid now (EdMemberJoin (new ^. userId))
-  E.push1 $
-    newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
-  APITeamQueue.pushTeamEvent tid e
+  when False $ do
+    E.push1 $
+      newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
+    APITeamQueue.pushTeamEvent tid e
   pure sizeBeforeAdd
   where
     recipients (Just o) n =

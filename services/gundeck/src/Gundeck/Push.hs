@@ -81,6 +81,9 @@ push ps = do
     Right () -> pure ()
     Left exs -> do
       forM_ exs $ Log.err . msg . (val "Push failed: " +++) . show
+      (Log.err . msg) ("Number of pushes: " <> show (length ps))
+      forM_ ps $ \p ->
+        (Log.err . msg) ("Push:\n" <> show p)
       throwM (mkError status500 "server-error" "Server Error")
 
 -- | Abstract over all effects in 'pushAll' (for unit testing).
@@ -198,23 +201,24 @@ pushAll pushes = do
     unless (ntfTransient ctNotification) $
       mpaStreamAdd (ntfId ctNotification) ctNotificationTargets (ntfPayload ctNotification)
         =<< mpaNotificationTTL
-  mpaForkIO $ do
-    -- websockets
-    wsTargets <- mapM mkWSTargets newNotifications
-    resp <- compilePushResps wsTargets <$> mpaBulkPush (compilePushReq <$> wsTargets)
-    -- native push
-    perPushConcurrency <- mntgtPerPushConcurrency
-    forM_ resp $ \((notif :: Notification, psh :: Push), alreadySent :: [Presence]) -> do
-      let rcps' = nativeTargetsRecipients psh
-          cost = maybe (length rcps') (min (length rcps')) perPushConcurrency
-      -- this is a rough budget cost, since there may be more than one device in a
-      -- 'Presence', so one budget token may trigger at most 8 push notifications
-      -- to be sent out.
-      -- If perPushConcurrency is defined, we take the min with 'perNativePushConcurrency', as native push requests
-      -- to cassandra and SNS are limited to 'perNativePushConcurrency' in parallel.
-      unless (psh ^. pushTransient) $
-        mpaRunWithBudget cost () $
-          mpaPushNative notif (psh ^. pushNativePriority) =<< nativeTargets psh rcps' alreadySent
+  when False $ do
+    mpaForkIO $ do
+      -- websockets
+      wsTargets <- mapM mkWSTargets newNotifications
+      resp <- compilePushResps wsTargets <$> mpaBulkPush (compilePushReq <$> wsTargets)
+      -- native push
+      perPushConcurrency <- mntgtPerPushConcurrency
+      forM_ resp $ \((notif :: Notification, psh :: Push), alreadySent :: [Presence]) -> do
+        let rcps' = nativeTargetsRecipients psh
+            cost = maybe (length rcps') (min (length rcps')) perPushConcurrency
+        -- this is a rough budget cost, since there may be more than one device in a
+        -- 'Presence', so one budget token may trigger at most 8 push notifications
+        -- to be sent out.
+        -- If perPushConcurrency is defined, we take the min with 'perNativePushConcurrency', as native push requests
+        -- to cassandra and SNS are limited to 'perNativePushConcurrency' in parallel.
+        unless (psh ^. pushTransient) $
+          mpaRunWithBudget cost () $
+            mpaPushNative notif (psh ^. pushNativePriority) =<< nativeTargets psh rcps' alreadySent
 
 -- | A new notification to be stored in C* and pushed over websockets
 data NewNotification = NewNotification

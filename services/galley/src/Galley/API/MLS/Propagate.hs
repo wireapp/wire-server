@@ -25,6 +25,7 @@ import qualified Data.Map as Map
 import Data.Qualified
 import Data.Time
 import Galley.API.MLS.Types
+import Galley.API.MLS.Util (timedTrace)
 import Galley.API.Push
 import Galley.Data.Services
 import Galley.Effects
@@ -80,8 +81,9 @@ propagateMessage qusr lConvOrSub con msg cm = do
       qcnv = fst <$> qt
       sconv = snd (qUnqualified qt)
       e = Event qcnv sconv qusr now $ EdMLSMessage msg.raw
-  runMessagePush mlsConv (Just qcnv) $
-    newMessagePush botMap con mm (lmems >>= localMemberMLSClients mlsConv) e
+
+  mp <- timedTrace "  computing newMessagePush" $ pure (newMessagePush botMap con mm (lmems >>= localMemberMLSClients mlsConv) e)
+  timedTrace "  runMessagePush" $ runMessagePush mlsConv (Just qcnv) mp
 
   -- send to remotes
   unreachableFromList . concat

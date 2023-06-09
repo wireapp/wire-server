@@ -27,12 +27,15 @@ where
 
 import Cassandra as C
 import Control.Lens ((^.), _1)
+import Control.Monad.Catch (MonadCatch, catch)
 import qualified Data.Aeson as JSON
+import qualified Data.ByteString.Lazy as BSL
 import Data.Id
 import Data.List1 (List1)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
 import qualified Data.Sequence as Seq
+import Debug.Trace
 import Gundeck.Options (NotificationTTL (..))
 import Imports hiding (cs)
 import UnliftIO (pooledForConcurrentlyN_)
@@ -52,17 +55,22 @@ data ResultPage = ResultPage
 
 -- FUTUREWORK: the magic 32 should be made configurable, so it can be tuned
 add ::
-  (MonadClient m, MonadUnliftIO m) =>
+  (MonadClient m, MonadUnliftIO m, MonadCatch m) =>
   NotificationId ->
   List1 NotificationTarget ->
   List1 JSON.Object ->
   NotificationTTL ->
   m ()
-add n tgts (Blob . JSON.encode -> p) (notificationTTLSeconds -> t) =
+add n tgts (Blob . JSON.encode -> p) (notificationTTLSeconds -> t) = do
+  let size = BSL.length (fromBlob p)
+  traceM ("add: payload size: " <> show size)
   pooledForConcurrentlyN_ 32 tgts $ \tgt ->
     let u = tgt ^. targetUser
         cs = C.Set (tgt ^. targetClients)
-     in write cqlInsert (params LocalQuorum (u, n, p, cs, fromIntegral t)) & retry x5
+     in catch
+          (write cqlInsert (params LocalQuorum (u, n, p, cs, fromIntegral t)) & retry x5)
+          (\(e :: SomeException) -> traceM (displayException e))
+  traceM ("add complete ")
   where
     cqlInsert :: PrepQuery W (UserId, NotificationId, Blob, C.Set ClientId, Int32) ()
     cqlInsert =
