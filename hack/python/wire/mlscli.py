@@ -144,6 +144,16 @@ class ClientState:
             state._load_attr(name, typ)
         return state
 
+    def back_up(self):
+        os.system('rm -rf /tmp/client_state_backup')
+        os.system(f'cp -r {self.client_dir} /tmp/client_state_backup')
+
+    @staticmethod
+    def restore_backup_into(client_dir):
+        os.system(f'rm -rf {client_dir}')
+        os.system(f'cp -r /tmp/client_state_backup {client_dir}')
+        return ClientState.load(client_dir)
+
 
 def key_package_file(state, ref):
     return os.path.join(state.client_dir, cid2str(state.client_identity), ref.hex())
@@ -179,7 +189,6 @@ def add_member(state, kpfiles):
     # note: these files are saved in the sender's client dir
     welcome_file = os.path.join(state.client_dir, "welcome")
     pgs_file = os.path.join(state.client_dir, "pgs")
-    print("pgs_file", pgs_file)
 
     args = [
         "member",

@@ -143,10 +143,10 @@ def mls_post_commit_bundle(ctx, client, commit_bundle):
     )
 
 
-def mls_send_message(ctx, msg):
+def mls_send_message(ctx, msg, **kwargs):
     headers = {"Content-Type": "message/mls"}
     url = ctx.mkurl("galley", f"/mls/messages")
-    return ctx.request("POST", url, headers=headers, data=msg)
+    return ctx.request("POST", url, headers=headers, data=msg, **kwargs)
 
 
 def upload_key_packages(ctx, user, client, key_packages):
