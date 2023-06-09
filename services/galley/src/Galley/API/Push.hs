@@ -82,6 +82,7 @@ runMessagePush ::
   MessagePush ->
   Sem r ()
 runMessagePush loc mqcnv mp@(MessagePush _ _ _ botMembers event) = do
+  -- TODO: respect max 1000(?) recipients per push
   push (toPush mp)
   for_ mqcnv $ \qcnv ->
     if tDomain loc /= qDomain qcnv
