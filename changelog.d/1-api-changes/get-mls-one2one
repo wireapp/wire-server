@@ -1,0 +1,1 @@
+Add new endpoint `GET /conversations/one2one/:domain/:uid` to fetch the MLS 1-1 conversation with another user
