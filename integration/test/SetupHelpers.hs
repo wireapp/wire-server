@@ -94,3 +94,11 @@ supportMLS u = do
   let prots' = "mls" : prots
   bindResponse (putUserSupportedProtocols u prots') $ \resp ->
     resp.status `shouldMatchInt` 200
+
+addUserToTeam :: (HasCallStack, MakesValue u) => u -> App Value
+addUserToTeam u = do
+  inv <- postInvitation u def >>= getJSON 201
+  email <- inv %. "email" & asString
+  resp <- getInvitationCode u inv >>= getJSON 200
+  code <- resp %. "code" & asString
+  addUser u def {email = Just email, teamCode = Just code} >>= getJSON 201

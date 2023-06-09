@@ -476,10 +476,10 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
           <$> E.selectTeamMembers tid newUsers
       let userMembershipMap = map (id &&& flip Map.lookup tms) newUsers
       ensureAccessRole (convAccessRoles conv) userMembershipMap
-      ensureConnectedOrSameTeam lusr newUsers
+      ensureConnectedToLocalsOrSameTeam lusr newUsers
     checkLocals lusr Nothing newUsers = do
       ensureAccessRole (convAccessRoles conv) (zip newUsers $ repeat Nothing)
-      ensureConnectedOrSameTeam lusr newUsers
+      ensureConnectedToLocalsOrSameTeam lusr newUsers
 
     checkRemotes ::
       ( Member BrigAccess r,

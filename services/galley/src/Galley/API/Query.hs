@@ -745,14 +745,18 @@ getMLSSelfConversation lusr = do
 -- fly, but not persisted. The conversation will only be stored in the database
 -- when its first commit arrives.
 getMLSOne2OneConversation ::
-  ( Member (Input Env) r,
-    Member (ErrorS 'MLSNotEnabled) r
+  ( Member BrigAccess r,
+    Member (Input Env) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'NotConnected) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   Qualified UserId ->
   Sem r Conversation
 getMLSOne2OneConversation lself qother = do
   assertMLSEnabled
+  ensureConnectedOrSameTeam lself [qother]
   let convId = one2OneConvId BaseProtocolMLSTag (tUntagged lself) qother
       metadata =
         ( defConversationMetadata

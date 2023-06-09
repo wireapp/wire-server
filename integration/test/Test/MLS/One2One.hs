@@ -35,3 +35,9 @@ testGetMLSOne2OneUnconnected otherDomain = do
 
   bindResponse (getMLSOne2OneConversation alice bob) $ \resp ->
     resp.status `shouldMatchInt` 403
+
+testGetMLSOne2OneSameTeam :: App ()
+testGetMLSOne2OneSameTeam = do
+  (alice, _) <- createTeam OwnDomain
+  bob <- addUserToTeam alice
+  void $ getMLSOne2OneConversation alice bob >>= getJSON 200

@@ -593,6 +593,7 @@ type ConversationAPI =
            ( Summary "Get an MLS 1:1 conversation"
                :> ZLocalUser
                :> CanThrow 'MLSNotEnabled
+               :> CanThrow 'NotConnected
                :> "conversations"
                :> "one2one"
                :> QualifiedCapture "usr" UserId

@@ -8,6 +8,29 @@ import qualified Data.Text.Encoding as T
 import GHC.Stack
 import Testlib.Prelude
 
+data AddUser = AddUser
+  { name :: Maybe String,
+    email :: Maybe String,
+    teamCode :: Maybe String,
+    password :: Maybe String
+  }
+
+instance Default AddUser where
+  def = AddUser Nothing Nothing Nothing Nothing
+
+addUser :: (HasCallStack, MakesValue dom) => dom -> AddUser -> App Response
+addUser dom opts = do
+  req <- baseRequest dom Brig Versioned "register"
+  name <- maybe randomName pure opts.name
+  submit "POST" $
+    req
+      & addJSONObject
+        [ "name" .= name,
+          "email" .= opts.email,
+          "team_code" .= opts.teamCode,
+          "password" .= fromMaybe defPassword opts.password
+        ]
+
 getUser ::
   (HasCallStack, MakesValue user, MakesValue target) =>
   user ->
@@ -213,3 +236,24 @@ putUserSupportedProtocols user ps = do
     baseRequest user Brig Versioned $
       joinHttpPath ["self", "supported-protocols"]
   submit "PUT" (req & addJSONObject ["supported_protocols" .= ps])
+
+data PostInvitation = PostInvitation
+  { email :: Maybe String
+  }
+
+instance Default PostInvitation where
+  def = PostInvitation Nothing
+
+postInvitation ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  PostInvitation ->
+  App Response
+postInvitation user inv = do
+  tid <- user %. "team" & asString
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath ["teams", tid, "invitations"]
+  email <- maybe randomEmail pure inv.email
+  submit "POST" $
+    req & addJSONObject ["email" .= email]
