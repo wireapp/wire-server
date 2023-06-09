@@ -23,8 +23,10 @@ module Wire.API.Conversation.Member
 
     -- * Member
     Member (..),
+    defMember,
     MutedStatus (..),
     OtherMember (..),
+    defOtherMember,
 
     -- * Member Update
     MemberUpdate (..),
@@ -88,6 +90,20 @@ data Member = Member
   deriving (Arbitrary) via (GenericUniform Member)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Member
 
+defMember :: Qualified UserId -> Member
+defMember uid =
+  Member
+    { memId = uid,
+      memService = Nothing,
+      memOtrMutedStatus = Nothing,
+      memOtrMutedRef = Nothing,
+      memOtrArchived = False,
+      memOtrArchivedRef = Nothing,
+      memHidden = False,
+      memHiddenRef = Nothing,
+      memConvRoleName = roleNameWireMember
+    }
+
 instance ToSchema Member where
   schema =
     object "Member" $
@@ -132,6 +148,14 @@ data OtherMember = OtherMember
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OtherMember)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema OtherMember
+
+defOtherMember :: Qualified UserId -> OtherMember
+defOtherMember uid =
+  OtherMember
+    { omQualifiedId = uid,
+      omService = Nothing,
+      omConvRoleName = roleNameWireMember
+    }
 
 instance ToSchema OtherMember where
   schema =
