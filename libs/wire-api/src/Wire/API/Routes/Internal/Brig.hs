@@ -39,7 +39,6 @@ where
 
 import Control.Lens ((.~))
 import Data.Aeson (FromJSON, ToJSON)
-import Data.ByteString.Conversion (List)
 import qualified Data.Code as Code
 import Data.CommaSeparatedList
 import Data.Handle (Handle)
@@ -250,6 +249,29 @@ type AccountAPI =
                     "includePendingInvitations"
                     Bool
                :> Get '[Servant.JSON] [UserAccount]
+           )
+    :<|> Named
+           "iGetUserContacts"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "contacts"
+               :> Get '[Servant.JSON] UserIds
+           )
+    :<|> Named
+           "iGetUserActivationCode"
+           ( "users"
+               :> "activation-code"
+               :> QueryParam' [Optional, Strict] "email" Email
+               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> Get '[Servant.JSON] GetActivationCodeResp
+           )
+    :<|> Named
+           "iGetUserPasswordResetCode"
+           ( "users"
+               :> "password-reset-code"
+               :> QueryParam' [Optional, Strict] "email" Email
+               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> Get '[Servant.JSON] GetPasswordResetCodeResp
            )
 
 -- | The missing ref is implicit by the capture

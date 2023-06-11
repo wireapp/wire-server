@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -32,14 +30,8 @@ import Data.Aeson
 import Data.Id (UserId)
 import Data.Qualified
 import Imports
+import Wire.API.User (UserIds (..))
 import Wire.Arbitrary
-
--- | Response type for endpoints returning lists of users with a specific connection state.
--- E.g. 'getContactList' returns a 'UserIds' containing the list of connections in an
--- 'Accepted' state.
-data UserIds = UserIds
-  {cUsers :: [UserId]}
-  deriving (Eq, Show, Generic)
 
 -- FUTUREWORK: This needs to get Qualified IDs when implementing
 -- Legalhold + Federation, as it's used in the internal
@@ -59,15 +51,3 @@ instance FromJSON UpdateConnectionsInternal
 
 -- | `{"tag":"BlockForMissingLHConsent","contents":["3ae7f23a-bd47-11eb-932d-5fccbbcde454",["3ae7f23a-bd47-11eb-932d-5fccbbcde454"]]}`
 instance ToJSON UpdateConnectionsInternal
-
-----------------------------------------------------------------------------
--- JSON instances
-
-instance FromJSON UserIds where
-  parseJSON = withObject "userids" $ \o ->
-    UserIds <$> o .: "ids"
-
-instance ToJSON UserIds where
-  toJSON (UserIds us) =
-    object
-      ["ids" .= us]

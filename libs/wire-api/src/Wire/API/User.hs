@@ -22,6 +22,7 @@
 module Wire.API.User
   ( ListUsersById (..),
     UserIdList (..),
+    UserIds (..),
     QualifiedUserIdList (..),
     LimitedQualifiedUserIdList (..),
     ScimUserInfo (..),
@@ -115,6 +116,10 @@ module Wire.API.User
     -- * List Users
     ListUsersQuery (..),
 
+    -- * misc internal
+    GetActivationCodeResp (..),
+    GetPasswordResetCodeResp (..),
+
     -- * re-exports
     module Wire.API.User.Identity,
     module Wire.API.User.Profile,
@@ -182,9 +187,10 @@ import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
 import Wire.API.Team.Role
-import Wire.API.User.Activation (ActivationCode)
+import Wire.API.User.Activation (ActivationCode, ActivationKey)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
+import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -223,6 +229,52 @@ instance ToSchema UserIdList where
       UserIdList
         <$> mUsers
           .= field "user_ids" (array schema)
+
+-- | Response type for endpoints returning lists of users with a specific connection state.
+-- E.g. 'getContactList' returns a 'UserIds' containing the list of connections in an
+-- 'Accepted' state.
+--
+-- There really shouldn't be both types `UserIds` and `UserIdList`, but refactoring them
+-- away requires changing the api.
+newtype UserIds = UserIds
+  {cUsers :: [UserId]}
+  deriving (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UserIds
+
+instance ToSchema UserIds where
+  schema =
+    object "UserIds" $
+      UserIds
+        <$> cUsers
+          .= field "ids" (array schema)
+
+--------------------------------------------------------------------------------
+-- misc internal
+
+newtype GetActivationCodeResp = GetActivationCodeResp {fromGetActivationCodeResp :: (ActivationKey, ActivationCode)}
+  deriving (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GetActivationCodeResp
+
+instance ToSchema GetActivationCodeResp where
+  schema =
+    object "GetActivationCodeResp" $
+      curry GetActivationCodeResp
+        <$> (fst . fromGetActivationCodeResp) .= field "key" schema
+        <*> (snd . fromGetActivationCodeResp) .= field "code" schema
+
+newtype GetPasswordResetCodeResp = GetPasswordResetCodeResp {fromGetPasswordResetCodeResp :: (PasswordResetKey, PasswordResetCode)}
+  deriving (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GetPasswordResetCodeResp
+
+instance ToSchema GetPasswordResetCodeResp where
+  schema =
+    object "GetPasswordResetCodeResp" $
+      curry GetPasswordResetCodeResp
+        <$> (fst . fromGetPasswordResetCodeResp) .= field "key" schema
+        <*> (snd . fromGetPasswordResetCodeResp) .= field "code" schema
 
 --------------------------------------------------------------------------------
 -- QualifiedUserIdList

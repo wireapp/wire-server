@@ -38,9 +38,7 @@ sitemap ::
   ( Member BlacklistPhonePrefixStore r,
     Member BlacklistStore r,
     Member GalleyProvider r,
-    Member CodeStore r,
     Member (Concurrency 'Unsafe) r,
-    Member PasswordResetStore r,
     Member (UserPendingActivationStore p) r
   ) =>
   Routes () (Handler r) ()

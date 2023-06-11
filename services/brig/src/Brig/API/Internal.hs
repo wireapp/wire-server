@@ -62,7 +62,6 @@ import qualified Brig.User.EJPD
 import qualified Brig.User.Search.Index as Index
 import Control.Error hiding (bool)
 import Control.Lens (view)
-import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
 import Data.CommaSeparatedList
@@ -72,6 +71,7 @@ import qualified Data.Map.Strict as Map
 import Data.Qualified
 import qualified Data.Set as Set
 import Imports hiding (cs, head)
+import qualified Imports
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (result, setStatus)
@@ -98,7 +98,6 @@ import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client
-import Wire.API.User.Password
 import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------
@@ -107,6 +106,8 @@ import Wire.API.User.RichInfo
 servantSitemap ::
   forall r p.
   ( Member BlacklistStore r,
+    Member CodeStore r,
+    Member PasswordResetStore r,
     Member GalleyProvider r,
     Member (UserPendingActivationStore p) r
   ) =>
@@ -153,6 +154,8 @@ mlsAPI =
 
 accountAPI ::
   ( Member BlacklistStore r,
+    Member CodeStore r,
+    Member PasswordResetStore r,
     Member GalleyProvider r,
     Member (UserPendingActivationStore p) r
   ) =>
@@ -166,6 +169,9 @@ accountAPI =
     :<|> Named @"iGetUserStatus" getAccountStatusH
     :<|> Named @"iGetUsersByEmailOrPhone" listAccountsByIdentityH
     :<|> Named @"iGetUsersByIdsOrHandles" listActivatedAccountsH
+    :<|> Named @"iGetUserContacts" getContactListH
+    :<|> Named @"iGetUserActivationCode" getActivationCodeH
+    :<|> Named @"iGetUserPasswordResetCode" getPasswordResetCodeH
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -293,9 +299,7 @@ internalSearchIndexAPI =
 -- Sitemap (wai-route)
 
 sitemap ::
-  ( Member CodeStore r,
-    Member PasswordResetStore r,
-    Member BlacklistStore r,
+  ( Member BlacklistStore r,
     Member BlacklistPhonePrefixStore r,
     Member GalleyProvider r,
     Member (UserPendingActivationStore p) r
@@ -305,18 +309,6 @@ sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
   put "/i/connections/connection-update" (continue updateConnectionInternalH) $
     accept "application" "json"
       .&. jsonRequest @UpdateConnectionsInternal
-
-  get "/i/users/:uid/contacts" (continue getContactListH) $
-    accept "application" "json"
-      .&. capture "uid"
-
-  get "/i/users/activation-code" (continue getActivationCodeH) $
-    accept "application" "json"
-      .&. (param "email" ||| param "phone")
-
-  get "/i/users/password-reset-code" (continue getPasswordResetCodeH) $
-    accept "application" "json"
-      .&. (param "email" ||| param "phone")
 
   -- This endpoint can lead to the following events being sent:
   -- - UserIdentityRemoved event to target user
@@ -579,42 +571,35 @@ listAccountsByIdentityH mbEmail mbPhone (fromMaybe False -> includePendingInvita
     u2 <- maybe (pure []) (\phone -> API.lookupAccountsByIdentity (Right phone) includePendingInvitations) mbPhone
     pure $ u1 <> u2
 
-getActivationCodeH :: JSON ::: Either Email Phone -> (Handler r) Response
-getActivationCodeH (_ ::: emailOrPhone) = do
-  json <$> getActivationCode emailOrPhone
+getActivationCodeH :: Maybe Email -> Maybe Phone -> (Handler r) GetActivationCodeResp
+getActivationCodeH (Just email) Nothing = getActivationCode (Left email)
+getActivationCodeH Nothing (Just phone) = getActivationCode (Right phone)
+getActivationCodeH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
 
 getActivationCode :: Either Email Phone -> (Handler r) GetActivationCodeResp
 getActivationCode emailOrPhone = do
   apair <- lift . wrapClient $ API.lookupActivationCode emailOrPhone
   maybe (throwStd activationKeyNotFound) (pure . GetActivationCodeResp) apair
 
-newtype GetActivationCodeResp = GetActivationCodeResp (ActivationKey, ActivationCode)
-
-instance ToJSON GetActivationCodeResp where
-  toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
-
 getPasswordResetCodeH ::
   ( Member CodeStore r,
     Member PasswordResetStore r
   ) =>
-  JSON ::: Either Email Phone ->
-  (Handler r) Response
-getPasswordResetCodeH (_ ::: emailOrPhone) = do
-  maybe (throwStd (errorToWai @'E.InvalidPasswordResetKey)) (pure . json) =<< lift (getPasswordResetCode emailOrPhone)
+  Maybe Email ->
+  Maybe Phone ->
+  (Handler r) GetPasswordResetCodeResp
+getPasswordResetCodeH (Just email) Nothing = getPasswordResetCode (Left email)
+getPasswordResetCodeH Nothing (Just phone) = getPasswordResetCode (Right phone)
+getPasswordResetCodeH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
 
 getPasswordResetCode ::
   ( Member CodeStore r,
     Member PasswordResetStore r
   ) =>
   Either Email Phone ->
-  (AppT r) (Maybe GetPasswordResetCodeResp)
+  (Handler r) GetPasswordResetCodeResp
 getPasswordResetCode emailOrPhone =
-  GetPasswordResetCodeResp <$$> API.lookupPasswordResetCode emailOrPhone
-
-newtype GetPasswordResetCodeResp = GetPasswordResetCodeResp (PasswordResetKey, PasswordResetCode)
-
-instance ToJSON GetPasswordResetCodeResp where
-  toJSON (GetPasswordResetCodeResp (k, c)) = object ["key" .= k, "code" .= c]
+  (GetPasswordResetCodeResp <$$> lift (API.lookupPasswordResetCode emailOrPhone)) >>= maybe (throwStd (errorToWai @'E.InvalidPasswordResetKey)) pure
 
 changeAccountStatusH :: UserId -> AccountStatusUpdate -> (Handler r) NoContent
 changeAccountStatusH usr (suStatus -> status) = do
@@ -798,7 +783,5 @@ checkHandleInternalH =
     API.CheckHandleFound -> pure $ setStatus status200 empty
     API.CheckHandleNotFound -> pure $ setStatus status404 empty
 
-getContactListH :: JSON ::: UserId -> (Handler r) Response
-getContactListH (_ ::: uid) = do
-  contacts <- lift . wrapClient $ API.lookupContactList uid
-  pure $ json $ UserIds contacts
+getContactListH :: UserId -> (Handler r) UserIds
+getContactListH uid = lift . wrapClient $ UserIds <$> API.lookupContactList uid

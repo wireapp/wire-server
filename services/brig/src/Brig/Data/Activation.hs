@@ -18,8 +18,6 @@
 -- | Activation of 'Email' addresses and 'Phone' numbers.
 module Brig.Data.Activation
   ( Activation (..),
-    ActivationKey (..),
-    ActivationCode (..),
     ActivationEvent (..),
     ActivationError (..),
     activationErrorToRegisterError,
