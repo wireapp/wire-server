@@ -495,7 +495,8 @@ The search policy for a remote backend can be:
 - `exact_handle_search`: Only users where the handle exactly matches are returned.
 - `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
 
-Default is `no_search`.
+If federation strategy is `allowAll`, and there is no entry for a
+domain in the database, default is `no_search`.
 
 Also see {ref}`configuring-remote-connections-dev-perspective` for the
 developer's point of view on this topic.
