@@ -106,6 +106,12 @@ module Wire.API.User
     AccountStatusUpdate (..),
     AccountStatusResp (..),
 
+    -- * Account
+    UserAccount (..),
+
+    -- * Scim invitations
+    NewUserScimInvitation (..),
+
     -- * List Users
     ListUsersQuery (..),
 
@@ -1553,6 +1559,51 @@ instance Schema.ToSchema AccountStatusUpdate where
   schema =
     object "AccountStatusUpdate" $
       AccountStatusUpdate <$> suStatus .= field "status" schema
+
+-------------------------------------------------------------------------------
+-- UserAccount
+
+-- | A UserAccount is targeted to be used by our \"backoffice\" and represents
+-- all the data related to a user in our system, regardless of whether they
+-- are active or not, their status, etc.
+data UserAccount = UserAccount
+  { accountUser :: !User,
+    accountStatus :: !AccountStatus
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserAccount)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema UserAccount
+
+instance Schema.ToSchema UserAccount where
+  schema =
+    Schema.object "UserAccount" $
+      UserAccount
+        <$> accountUser Schema..= userObjectSchema
+        <*> accountStatus Schema..= Schema.field "status" Schema.schema
+
+-------------------------------------------------------------------------------
+-- NewUserScimInvitation
+
+data NewUserScimInvitation = NewUserScimInvitation
+  { newUserScimInvTeamId :: TeamId,
+    newUserScimInvLocale :: Maybe Locale,
+    newUserScimInvName :: Name,
+    newUserScimInvEmail :: Email,
+    newUserScimInvRole :: Role
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewUserScimInvitation)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema NewUserScimInvitation
+
+instance Schema.ToSchema NewUserScimInvitation where
+  schema =
+    Schema.object "NewUserScimInvitation" $
+      NewUserScimInvitation
+        <$> newUserScimInvTeamId Schema..= Schema.field "team_id" Schema.schema
+        <*> newUserScimInvLocale Schema..= maybe_ (optField "locale" Schema.schema)
+        <*> newUserScimInvName Schema..= Schema.field "name" Schema.schema
+        <*> newUserScimInvEmail Schema..= Schema.field "email" Schema.schema
+        <*> newUserScimInvRole Schema..= Schema.field "role" Schema.schema
 
 -----------------------------------------------------------------------------
 -- SndFactorPasswordChallenge

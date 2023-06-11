@@ -84,8 +84,6 @@ library
     , containers             >=0.5
     , imports
     , QuickCheck             >=2.9
-    , schema-profunctor
-    , swagger2               >=2.5
     , text                   >=0.11
     , time                   >=1.1
     , tinylog

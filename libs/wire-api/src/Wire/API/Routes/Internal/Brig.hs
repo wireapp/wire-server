@@ -220,6 +220,20 @@ type AccountAPI =
                :> "status"
                :> Get '[Servant.JSON] AccountStatusResp
            )
+    :<|> Named
+           "iGetUsersByEmailOrPhone"
+           ( "users"
+               :> QueryParam' [Optional, Strict] "email" Email
+               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Also return new accounts with team invitation pending"
+                    ]
+                    "includePendingInvitations"
+                    Bool
+               :> Get '[Servant.JSON] [UserAccount]
+           )
 
 -- | The missing ref is implicit by the capture
 data NewKeyPackageRef = NewKeyPackageRef

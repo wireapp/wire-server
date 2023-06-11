@@ -65,9 +65,6 @@ instance Arbitrary RichInfoUpdate where
 instance Arbitrary ReAuthUser where
   arbitrary = ReAuthUser <$> arbitrary <*> arbitrary <*> arbitrary
 
-instance Arbitrary NewUserScimInvitation where
-  arbitrary = NewUserScimInvitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
 testCaseUserAccount :: TestTree
 testCaseUserAccount = testCase "UserAcccount" $ do
   assertEqual "1" (Just json1) (encode <$> decode @UserAccount json1)

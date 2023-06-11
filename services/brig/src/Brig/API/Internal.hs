@@ -163,6 +163,7 @@ accountAPI =
     :<|> Named @"iDeleteUser" deleteUserNoAuthH
     :<|> Named @"iPutUserStatus" changeAccountStatusH
     :<|> Named @"iGetUserStatus" getAccountStatusH
+    :<|> Named @"iGetUsersByEmailOrPhone" listAccountsByIdentityH
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -309,11 +310,6 @@ sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
   get "/i/users" (continue listActivatedAccountsH) $
     accept "application" "json"
       .&. (param "ids" ||| param "handles")
-      .&. def False (query "includePendingInvitations")
-
-  get "/i/users" (continue listAccountsByIdentityH) $
-    accept "application" "json"
-      .&. (param "email" ||| param "phone")
       .&. def False (query "includePendingInvitations")
 
   get "/i/users/:uid/contacts" (continue getContactListH) $
@@ -577,11 +573,12 @@ listActivatedAccounts elh includePendingInvitations = do
           (Deleted, _, _) -> pure True
           (Ephemeral, _, _) -> pure True
 
-listAccountsByIdentityH :: JSON ::: Either Email Phone ::: Bool -> (Handler r) Response
-listAccountsByIdentityH (_ ::: emailOrPhone ::: includePendingInvitations) =
-  lift $
-    json
-      <$> API.lookupAccountsByIdentity emailOrPhone includePendingInvitations
+listAccountsByIdentityH :: Maybe Email -> Maybe Phone -> Maybe Bool -> (Handler r) [UserAccount]
+listAccountsByIdentityH mbEmail mbPhone (fromMaybe False -> includePendingInvitations) =
+  lift $ do
+    u1 <- maybe (pure []) (\email -> API.lookupAccountsByIdentity (Left email) includePendingInvitations) mbEmail
+    u2 <- maybe (pure []) (\phone -> API.lookupAccountsByIdentity (Right phone) includePendingInvitations) mbPhone
+    pure $ u1 <> u2
 
 getActivationCodeH :: JSON ::: Either Email Phone -> (Handler r) Response
 getActivationCodeH (_ ::: emailOrPhone) = do
