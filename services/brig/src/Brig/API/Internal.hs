@@ -65,6 +65,7 @@ import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
+import Data.CommaSeparatedList
 import Data.Handle
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
@@ -164,6 +165,7 @@ accountAPI =
     :<|> Named @"iPutUserStatus" changeAccountStatusH
     :<|> Named @"iGetUserStatus" getAccountStatusH
     :<|> Named @"iGetUsersByEmailOrPhone" listAccountsByIdentityH
+    :<|> Named @"iGetUsersByIdsOrHandles" listActivatedAccountsH
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -303,14 +305,6 @@ sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
   put "/i/connections/connection-update" (continue updateConnectionInternalH) $
     accept "application" "json"
       .&. jsonRequest @UpdateConnectionsInternal
-
-  -- NOTE: this is only *activated* accounts, ie. accounts with @isJust . userIdentity@!!
-  -- FUTUREWORK: this should be much more obvious in the UI.  or behavior should just be
-  -- different.
-  get "/i/users" (continue listActivatedAccountsH) $
-    accept "application" "json"
-      .&. (param "ids" ||| param "handles")
-      .&. def False (query "includePendingInvitations")
 
   get "/i/users/:uid/contacts" (continue getContactListH) $
     accept "application" "json"
@@ -538,17 +532,22 @@ changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
     ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
-listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) ::: Bool -> (Handler r) Response
-listActivatedAccountsH (_ ::: qry ::: includePendingInvitations) = do
-  json <$> lift (listActivatedAccounts qry includePendingInvitations)
+listActivatedAccountsH :: Maybe (CommaSeparatedList UserId) -> Maybe (CommaSeparatedList Handle) -> Maybe Bool -> (Handler r) [UserAccount]
+listActivatedAccountsH
+  (maybe [] fromCommaSeparatedList -> uids)
+  (maybe [] fromCommaSeparatedList -> handles)
+  (fromMaybe False -> includePendingInvitations) = lift $ do
+    u1 <- listActivatedAccounts (Left uids) includePendingInvitations
+    u2 <- listActivatedAccounts (Right handles) includePendingInvitations
+    pure $ u1 <> u2
 
-listActivatedAccounts :: Either (List UserId) (List Handle) -> Bool -> (AppT r) [UserAccount]
+listActivatedAccounts :: Either [UserId] [Handle] -> Bool -> (AppT r) [UserAccount]
 listActivatedAccounts elh includePendingInvitations = do
   Log.debug (Log.msg $ "listActivatedAccounts: " <> show (elh, includePendingInvitations))
   case elh of
-    Left us -> byIds (fromList us)
+    Left us -> byIds us
     Right hs -> do
-      us <- mapM (wrapClient . API.lookupHandle) (fromList hs)
+      us <- mapM (wrapClient . API.lookupHandle) hs
       byIds (catMaybes us)
   where
     byIds :: [UserId] -> (AppT r) [UserAccount]

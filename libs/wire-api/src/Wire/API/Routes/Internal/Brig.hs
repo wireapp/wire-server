@@ -39,7 +39,10 @@ where
 
 import Control.Lens ((.~))
 import Data.Aeson (FromJSON, ToJSON)
+import Data.ByteString.Conversion (List)
 import qualified Data.Code as Code
+import Data.CommaSeparatedList
+import Data.Handle (Handle)
 import Data.Id as Id
 import Data.Qualified (Qualified)
 import Data.Schema hiding (swaggerDoc)
@@ -225,6 +228,20 @@ type AccountAPI =
            ( "users"
                :> QueryParam' [Optional, Strict] "email" Email
                :> QueryParam' [Optional, Strict] "phone" Phone
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Also return new accounts with team invitation pending"
+                    ]
+                    "includePendingInvitations"
+                    Bool
+               :> Get '[Servant.JSON] [UserAccount]
+           )
+    :<|> Named
+           "iGetUsersByIdsOrHandles"
+           ( "users"
+               :> QueryParam' [Optional, Strict] "ids" (CommaSeparatedList UserId)
+               :> QueryParam' [Optional, Strict] "handles" (CommaSeparatedList Handle)
                :> QueryParam'
                     [ Optional,
                       Strict,

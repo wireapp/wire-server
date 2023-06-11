@@ -26,7 +26,6 @@ module Stern.API.Routes
   )
 where
 
-import Brig.Types.Intra (UserAccount)
 import Control.Lens
 import Control.Monad.Trans.Except
 import qualified Data.Aeson as A
