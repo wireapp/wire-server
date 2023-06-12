@@ -42,7 +42,6 @@ module Spar.Scim.User
   )
 where
 
-import Brig.Types.User (HavePendingInvitations (..))
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens hiding (op)
 import Control.Monad.Error.Class (MonadError)

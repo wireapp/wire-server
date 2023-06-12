@@ -79,7 +79,6 @@ import Brig.App (Env, currentTime, settings, viewFederationDomain, zauthEnv)
 import Brig.Data.Instances ()
 import Brig.Options
 import Brig.Types.Intra
-import Brig.Types.User (HavePendingInvitations (NoPendingInvitations, WithPendingInvitations))
 import qualified Brig.ZAuth as ZAuth
 import Cassandra hiding (Set)
 import Control.Error

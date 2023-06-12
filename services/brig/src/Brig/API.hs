@@ -25,9 +25,7 @@ import qualified Brig.API.Internal as Internal
 import qualified Brig.API.Public as Public
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
-import Brig.Effects.CodeStore
 import Brig.Effects.GalleyProvider (GalleyProvider)
-import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Network.Wai.Routing (Routes)
 import Polysemy

@@ -72,6 +72,7 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
+import Wire.API.User.RichInfo
 
 type EJPDRequest =
   Summary
@@ -272,6 +273,162 @@ type AccountAPI =
                :> QueryParam' [Optional, Strict] "email" Email
                :> QueryParam' [Optional, Strict] "phone" Phone
                :> Get '[Servant.JSON] GetPasswordResetCodeResp
+           )
+    :<|> Named
+           "iRevokeIdentity"
+           ( Summary "This endpoint can lead to the following events being sent: UserIdentityRemoved event to target user"
+               :> "users"
+               :> "revoke-identity"
+               :> QueryParam' [Optional, Strict] "email" Email
+               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> Post '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iHeadBlacklist"
+           ( "users"
+               :> "blacklist"
+               :> QueryParam' [Optional, Strict] "email" Email
+               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> MultiVerb
+                    'HEAD
+                    '[Servant.JSON]
+                    '[ Respond 404 "Not blacklisted" (),
+                       Respond 200 "Yes blacklisted" ()
+                     ]
+                    CheckBlacklistResponse
+           )
+    :<|> Named
+           "iDeleteBlacklist"
+           ( "users"
+               :> "blacklist"
+               :> QueryParam' [Optional, Strict] "email" Email
+               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> Delete '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iPostBlacklist"
+           ( "users"
+               :> "blacklist"
+               :> QueryParam' [Optional, Strict] "email" Email
+               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> Post '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iGetPhonePrefix"
+           ( Summary
+               "given a phone number (or phone number prefix), see whether it is blocked \
+               \via a prefix (and if so, via which specific prefix)"
+               :> "users"
+               :> "phone-prefixes"
+               :> Capture "prefix" PhonePrefix
+               :> MultiVerb
+                    'GET
+                    '[Servant.JSON]
+                    '[ RespondEmpty 404 "PhonePrefixNotFound",
+                       Respond 200 "PhonePrefixesFound" [ExcludedPrefix]
+                     ]
+                    GetPhonePrefixResponse
+           )
+    :<|> Named
+           "iDeletePhonePrefix"
+           ( "users"
+               :> "phone-prefixes"
+               :> Capture "prefix" PhonePrefix
+               :> Delete '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iPostPhonePrefix"
+           ( "users"
+               :> "phone-prefixes"
+               :> ReqBody '[Servant.JSON] ExcludedPrefix
+               :> Post '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iPutUserSsoId"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "sso-id"
+               :> ReqBody '[Servant.JSON] UserSSOId
+               :> MultiVerb
+                    'PUT
+                    '[Servant.JSON]
+                    '[ RespondEmpty 200 "UpdateSSOIdSuccess",
+                       RespondEmpty 404 "UpdateSSOIdNotFound"
+                     ]
+                    UpdateSSOIdResponse
+           )
+    :<|> Named
+           "iDeleteUserSsoId"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "sso-id"
+               :> MultiVerb
+                    'DELETE
+                    '[Servant.JSON]
+                    '[ RespondEmpty 200 "UpdateSSOIdSuccess",
+                       RespondEmpty 404 "UpdateSSOIdNotFound"
+                     ]
+                    UpdateSSOIdResponse
+           )
+    :<|> Named
+           "iPutManagedBy"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "managed-by"
+               :> ReqBody '[Servant.JSON] ManagedByUpdate
+               :> Put '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iPutRichInfo"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "rich-info"
+               :> ReqBody '[Servant.JSON] RichInfoUpdate
+               :> Put '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iPutHandle"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "handle"
+               :> ReqBody '[Servant.JSON] HandleUpdate
+               :> Put '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iPutHandle"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "name"
+               :> ReqBody '[Servant.JSON] NameUpdate
+               :> Put '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iGetRichInfo"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "rich-info"
+               :> Get '[Servant.JSON] RichInfo
+           )
+    :<|> Named
+           "iGetRichInfoMulti"
+           ( "users"
+               :> "rich-info"
+               :> Capture "ids" (CommaSeparatedList UserId)
+               :> Get '[Servant.JSON] [(UserId, RichInfo)]
+           )
+    :<|> Named
+           "iHeadHandle"
+           ( CanThrow 'InvalidHandle
+               :> "users"
+               :> "handles"
+               :> Capture "handle" Handle
+               :> MultiVerb
+                    'HEAD
+                    '[Servant.JSON]
+                    '[ RespondEmpty 200 "CheckHandleResponseFound",
+                       RespondEmpty 404 "CheckHandleResponseNotFound"
+                     ]
+                    CheckHandleResponse
            )
 
 -- | The missing ref is implicit by the capture

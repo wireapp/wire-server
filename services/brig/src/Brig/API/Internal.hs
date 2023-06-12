@@ -31,7 +31,6 @@ import Brig.API.MLS.KeyPackages.Validation
 import Brig.API.OAuth (internalOauthAPI)
 import Brig.API.Types
 import qualified Brig.API.User as API
-import qualified Brig.API.User as Api
 import Brig.API.Util
 import Brig.App
 import qualified Brig.Code as Code
@@ -62,8 +61,6 @@ import qualified Brig.User.EJPD
 import qualified Brig.User.Search.Index as Index
 import Control.Error hiding (bool)
 import Control.Lens (view)
-import Data.ByteString.Conversion
-import qualified Data.ByteString.Conversion as List
 import Data.CommaSeparatedList
 import Data.Handle
 import Data.Id as Id
@@ -107,6 +104,7 @@ servantSitemap ::
   forall r p.
   ( Member BlacklistStore r,
     Member CodeStore r,
+    Member BlacklistPhonePrefixStore r,
     Member PasswordResetStore r,
     Member GalleyProvider r,
     Member (UserPendingActivationStore p) r
@@ -155,6 +153,7 @@ mlsAPI =
 accountAPI ::
   ( Member BlacklistStore r,
     Member CodeStore r,
+    Member BlacklistPhonePrefixStore r,
     Member PasswordResetStore r,
     Member GalleyProvider r,
     Member (UserPendingActivationStore p) r
@@ -172,6 +171,22 @@ accountAPI =
     :<|> Named @"iGetUserContacts" getContactListH
     :<|> Named @"iGetUserActivationCode" getActivationCodeH
     :<|> Named @"iGetUserPasswordResetCode" getPasswordResetCodeH
+    :<|> Named @"iRevokeIdentity" revokeIdentityH
+    :<|> Named @"iHeadBlacklist" checkBlacklistH
+    :<|> Named @"iDeleteBlacklist" deleteFromBlacklistH
+    :<|> Named @"iPostBlacklist" addBlacklistH
+    :<|> Named @"iGetPhonePrefix" (callsFed (exposeAnnotations getPhonePrefixesH))
+    :<|> Named @"iDeletePhonePrefix" deleteFromPhonePrefixH
+    :<|> Named @"iPostPhonePrefix" addPhonePrefixH
+    :<|> Named @"iPutUserSsoId" updateSSOIdH
+    :<|> Named @"iDeleteUserSsoId" deleteSSOIdH
+    :<|> Named @"iPutManagedBy" updateManagedByH
+    :<|> Named @"iPutRichInfo" updateRichInfoH
+    :<|> Named @"iPutHandle" updateHandleH
+    :<|> Named @"iPutHandle" updateUserNameH
+    :<|> Named @"iGetRichInfo" getRichInfoH
+    :<|> Named @"iGetRichInfoMulti" getRichInfoMultiH
+    :<|> Named @"iHeadHandle" checkHandleInternalH
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -280,7 +295,7 @@ mapKeyPackageRefsInternal bundle = do
 
 getVerificationCode :: UserId -> VerificationAction -> Handler r (Maybe Code.Value)
 getVerificationCode uid action = do
-  user <- wrapClientE $ Api.lookupUser NoPendingInvitations uid
+  user <- wrapClientE $ API.lookupUser NoPendingInvitations uid
   maybe (pure Nothing) (lookupCode action) (userEmail =<< user)
   where
     lookupCode :: VerificationAction -> Email -> (Handler r) (Maybe Code.Value)
@@ -300,7 +315,6 @@ internalSearchIndexAPI =
 
 sitemap ::
   ( Member BlacklistStore r,
-    Member BlacklistPhonePrefixStore r,
     Member GalleyProvider r,
     Member (UserPendingActivationStore p) r
   ) =>
@@ -309,70 +323,6 @@ sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
   put "/i/connections/connection-update" (continue updateConnectionInternalH) $
     accept "application" "json"
       .&. jsonRequest @UpdateConnectionsInternal
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserIdentityRemoved event to target user
-  post "/i/users/revoke-identity" (continue revokeIdentityH) $
-    param "email" ||| param "phone"
-
-  head "/i/users/blacklist" (continue checkBlacklistH) $
-    param "email" ||| param "phone"
-
-  delete "/i/users/blacklist" (continue deleteFromBlacklistH) $
-    param "email" ||| param "phone"
-
-  post "/i/users/blacklist" (continue addBlacklistH) $
-    param "email" ||| param "phone"
-
-  -- given a phone number (or phone number prefix), see whether
-  -- it is blocked via a prefix (and if so, via which specific prefix)
-  get "/i/users/phone-prefixes/:prefix" (continue getPhonePrefixesH) $
-    capture "prefix"
-
-  delete "/i/users/phone-prefixes/:prefix" (continue deleteFromPhonePrefixH) $
-    capture "prefix"
-
-  post "/i/users/phone-prefixes" (continue addPhonePrefixH) $
-    accept "application" "json"
-      .&. jsonRequest @ExcludedPrefix
-
-  put "/i/users/:uid/sso-id" (continue updateSSOIdH) $
-    capture "uid"
-      .&. accept "application" "json"
-      .&. jsonRequest @UserSSOId
-
-  delete "/i/users/:uid/sso-id" (continue deleteSSOIdH) $
-    capture "uid"
-      .&. accept "application" "json"
-
-  put "/i/users/:uid/managed-by" (continue updateManagedByH) $
-    capture "uid"
-      .&. accept "application" "json"
-      .&. jsonRequest @ManagedByUpdate
-
-  put "/i/users/:uid/rich-info" (continue updateRichInfoH) $
-    capture "uid"
-      .&. accept "application" "json"
-      .&. jsonRequest @RichInfoUpdate
-
-  put "/i/users/:uid/handle" (continue updateHandleH) $
-    capture "uid"
-      .&. accept "application" "json"
-      .&. jsonRequest @HandleUpdate
-
-  put "/i/users/:uid/name" (continue updateUserNameH) $
-    capture "uid"
-      .&. accept "application" "json"
-      .&. jsonRequest @NameUpdate
-
-  get "/i/users/:uid/rich-info" (continue getRichInfoH) $
-    capture "uid"
-
-  get "/i/users/rich-info" (continue getRichInfoMultiH) $
-    param "ids"
-
-  head "/i/users/handles/:handle" (continue checkHandleInternalH) $
-    capture "handle"
 
   post "/i/clients" (continue internalListClientsH) $
     accept "application" "json"
@@ -638,10 +588,10 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
   where
     filterByRelation l rel = filter ((== rel) . csv2Status) l
 
-revokeIdentityH :: Either Email Phone -> (Handler r) Response
-revokeIdentityH emailOrPhone = do
-  lift $ API.revokeIdentity emailOrPhone
-  pure $ setStatus status200 empty
+revokeIdentityH :: Maybe Email -> Maybe Phone -> (Handler r) NoContent
+revokeIdentityH (Just email) Nothing = lift $ NoContent <$ API.revokeIdentity (Left email)
+revokeIdentityH Nothing (Just phone) = lift $ NoContent <$ API.revokeIdentity (Right phone)
+revokeIdentityH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
 
 updateConnectionInternalH :: JSON ::: JsonRequest UpdateConnectionsInternal -> (Handler r) Response
 updateConnectionInternalH (_ ::: req) = do
@@ -649,79 +599,77 @@ updateConnectionInternalH (_ ::: req) = do
   API.updateConnectionInternal updateConn !>> connError
   pure $ setStatus status200 empty
 
-checkBlacklistH :: Member BlacklistStore r => Either Email Phone -> (Handler r) Response
-checkBlacklistH emailOrPhone = do
-  bl <- lift $ API.isBlacklisted emailOrPhone
-  pure $ setStatus (bool status404 status200 bl) empty
+checkBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) CheckBlacklistResponse
+checkBlacklistH (Just email) Nothing = checkBlacklist (Left email)
+checkBlacklistH Nothing (Just phone) = checkBlacklist (Right phone)
+checkBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
 
-deleteFromBlacklistH :: Member BlacklistStore r => Either Email Phone -> (Handler r) Response
-deleteFromBlacklistH emailOrPhone = do
-  void . lift $ API.blacklistDelete emailOrPhone
-  pure empty
+checkBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) CheckBlacklistResponse
+checkBlacklist emailOrPhone = lift $ bool NotBlacklisted YesBlacklisted <$> API.isBlacklisted emailOrPhone
 
-addBlacklistH :: Member BlacklistStore r => Either Email Phone -> (Handler r) Response
-addBlacklistH emailOrPhone = do
-  void . lift $ API.blacklistInsert emailOrPhone
-  pure empty
+deleteFromBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) NoContent
+deleteFromBlacklistH (Just email) Nothing = deleteFromBlacklist (Left email)
+deleteFromBlacklistH Nothing (Just phone) = deleteFromBlacklist (Right phone)
+deleteFromBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+
+deleteFromBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) NoContent
+deleteFromBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistDelete emailOrPhone
+
+addBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) NoContent
+addBlacklistH (Just email) Nothing = addBlacklist (Left email)
+addBlacklistH Nothing (Just phone) = addBlacklist (Right phone)
+addBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+
+addBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) NoContent
+addBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistInsert emailOrPhone
 
 -- | Get any matching prefixes. Also try for shorter prefix matches,
 -- i.e. checking for +123456 also checks for +12345, +1234, ...
-getPhonePrefixesH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) Response
-getPhonePrefixesH prefix = do
-  results <- lift $ API.phonePrefixGet prefix
+getPhonePrefixesH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) GetPhonePrefixResponse
+getPhonePrefixesH prefix = lift $ do
+  results <- API.phonePrefixGet prefix
   pure $ case results of
-    [] -> setStatus status404 empty
-    _ -> json results
+    [] -> PhonePrefixNotFound
+    (_ : _) -> PhonePrefixesFound results
 
 -- | Delete a phone prefix entry (must be an exact match)
-deleteFromPhonePrefixH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) Response
-deleteFromPhonePrefixH prefix = do
-  void . lift $ API.phonePrefixDelete prefix
-  pure empty
+deleteFromPhonePrefixH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) NoContent
+deleteFromPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixDelete prefix
 
-addPhonePrefixH :: Member BlacklistPhonePrefixStore r => JSON ::: JsonRequest ExcludedPrefix -> (Handler r) Response
-addPhonePrefixH (_ ::: req) = do
-  prefix :: ExcludedPrefix <- parseJsonBody req
-  void . lift $ API.phonePrefixInsert prefix
-  pure empty
+addPhonePrefixH :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (Handler r) NoContent
+addPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixInsert prefix
 
-updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> (Handler r) Response
-updateSSOIdH (uid ::: _ ::: req) = do
-  ssoid :: UserSSOId <- parseJsonBody req
+updateSSOIdH :: UserId -> UserSSOId -> (Handler r) UpdateSSOIdResponse
+updateSSOIdH uid ssoid = do
   success <- lift $ wrapClient $ Data.updateSSOId uid (Just ssoid)
   if success
     then do
       lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
-      pure empty
-    else pure . setStatus status404 $ plain "User does not exist or has no team."
+      pure UpdateSSOIdSuccess
+    else pure UpdateSSOIdNotFound
 
-deleteSSOIdH :: UserId ::: JSON -> (Handler r) Response
-deleteSSOIdH (uid ::: _) = do
+deleteSSOIdH :: UserId -> (Handler r) UpdateSSOIdResponse
+deleteSSOIdH uid = do
   success <- lift $ wrapClient $ Data.updateSSOId uid Nothing
   if success
     then do
       lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
-      pure empty
-    else pure . setStatus status404 $ plain "User does not exist or has no team."
+      pure UpdateSSOIdSuccess
+    else pure UpdateSSOIdNotFound
 
-updateManagedByH :: UserId ::: JSON ::: JsonRequest ManagedByUpdate -> (Handler r) Response
-updateManagedByH (uid ::: _ ::: req) = do
-  ManagedByUpdate managedBy <- parseJsonBody req
-  lift $ wrapClient $ Data.updateManagedBy uid managedBy
-  pure empty
+updateManagedByH :: UserId -> ManagedByUpdate -> (Handler r) NoContent
+updateManagedByH uid (ManagedByUpdate managedBy) = do
+  NoContent <$ (lift $ wrapClient $ Data.updateManagedBy uid managedBy)
 
-updateRichInfoH :: UserId ::: JSON ::: JsonRequest RichInfoUpdate -> (Handler r) Response
-updateRichInfoH (uid ::: _ ::: req) = do
-  empty <$ (updateRichInfo uid =<< parseJsonBody req)
-
-updateRichInfo :: UserId -> RichInfoUpdate -> (Handler r) ()
-updateRichInfo uid rup = do
-  let (unRichInfoAssocList -> richInfo) = normalizeRichInfoAssocList . riuRichInfo $ rup
-  maxSize <- setRichInfoLimit <$> view settings
-  when (richInfoSize (RichInfo (mkRichInfoAssocList richInfo)) > maxSize) $ throwStd tooLargeRichInfo
-  -- FUTUREWORK: send an event
-  -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
-  lift $ wrapClient $ Data.updateRichInfo uid (mkRichInfoAssocList richInfo)
+updateRichInfoH :: UserId -> RichInfoUpdate -> (Handler r) NoContent
+updateRichInfoH uid rup =
+  NoContent <$ do
+    let (unRichInfoAssocList -> richInfo) = normalizeRichInfoAssocList . riuRichInfo $ rup
+    maxSize <- setRichInfoLimit <$> view settings
+    when (richInfoSize (RichInfo (mkRichInfoAssocList richInfo)) > maxSize) $ throwStd tooLargeRichInfo
+    -- FUTUREWORK: send an event
+    -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
+    lift $ wrapClient $ Data.updateRichInfo uid (mkRichInfoAssocList richInfo)
 
 updateLocale :: UserId -> LocaleUpdate -> (Handler r) LocaleUpdate
 updateLocale uid locale = do
@@ -738,50 +686,40 @@ getDefaultUserLocale = do
   defLocale <- setDefaultUserLocale <$> view settings
   pure $ LocaleUpdate defLocale
 
-getRichInfoH :: UserId -> (Handler r) Response
-getRichInfoH uid = json <$> getRichInfo uid
+getRichInfoH :: UserId -> (Handler r) RichInfo
+getRichInfoH uid = RichInfo . fromMaybe mempty <$> lift (wrapClient $ API.lookupRichInfo uid)
 
-getRichInfo :: UserId -> (Handler r) RichInfo
-getRichInfo uid = RichInfo . fromMaybe mempty <$> lift (wrapClient $ API.lookupRichInfo uid)
+getRichInfoMultiH :: CommaSeparatedList UserId -> (Handler r) [(UserId, RichInfo)]
+getRichInfoMultiH (CommaSeparatedList uids) =
+  lift $ wrapClient $ API.lookupRichInfoMultiUsers uids
 
-getRichInfoMultiH :: List UserId -> (Handler r) Response
-getRichInfoMultiH uids = json <$> getRichInfoMulti (List.fromList uids)
+updateHandleH :: UserId -> HandleUpdate -> (Handler r) NoContent
+updateHandleH uid (HandleUpdate handleUpd) =
+  NoContent <$ do
+    handle <- validateHandle handleUpd
+    API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
 
-getRichInfoMulti :: [UserId] -> (Handler r) [(UserId, RichInfo)]
-getRichInfoMulti uids =
-  lift (wrapClient $ API.lookupRichInfoMultiUsers uids)
+updateUserNameH :: UserId -> NameUpdate -> (Handler r) NoContent
+updateUserNameH uid (NameUpdate nameUpd) =
+  NoContent <$ do
+    name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd
+    let uu =
+          UserUpdate
+            { uupName = Just name,
+              uupPict = Nothing,
+              uupAssets = Nothing,
+              uupAccentId = Nothing
+            }
+    lift (wrapClient $ Data.lookupUser WithPendingInvitations uid) >>= \case
+      Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
+      Nothing -> throwStd (errorToWai @'E.InvalidUser)
 
-updateHandleH :: UserId ::: JSON ::: JsonRequest HandleUpdate -> (Handler r) Response
-updateHandleH (uid ::: _ ::: body) = empty <$ (updateHandle uid =<< parseJsonBody body)
-
-updateHandle :: UserId -> HandleUpdate -> (Handler r) ()
-updateHandle uid (HandleUpdate handleUpd) = do
-  handle <- validateHandle handleUpd
-  API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
-
-updateUserNameH :: UserId ::: JSON ::: JsonRequest NameUpdate -> (Handler r) Response
-updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJsonBody body)
-
-updateUserName :: UserId -> NameUpdate -> (Handler r) ()
-updateUserName uid (NameUpdate nameUpd) = do
-  name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd
-  let uu =
-        UserUpdate
-          { uupName = Just name,
-            uupPict = Nothing,
-            uupAssets = Nothing,
-            uupAccentId = Nothing
-          }
-  lift (wrapClient $ Data.lookupUser WithPendingInvitations uid) >>= \case
-    Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
-    Nothing -> throwStd (errorToWai @'E.InvalidUser)
-
-checkHandleInternalH :: Text -> (Handler r) Response
-checkHandleInternalH =
-  API.checkHandle >=> \case
+checkHandleInternalH :: Handle -> (Handler r) CheckHandleResponse
+checkHandleInternalH (Handle h) =
+  API.checkHandle h >>= \case
     API.CheckHandleInvalid -> throwE (StdError (errorToWai @'E.InvalidHandle))
-    API.CheckHandleFound -> pure $ setStatus status200 empty
-    API.CheckHandleNotFound -> pure $ setStatus status404 empty
+    API.CheckHandleFound -> pure CheckHandleResponseFound
+    API.CheckHandleNotFound -> pure CheckHandleResponseNotFound
 
 getContactListH :: UserId -> (Handler r) UserIds
 getContactListH uid = lift . wrapClient $ UserIds <$> API.lookupContactList uid

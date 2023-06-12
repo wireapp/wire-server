@@ -65,16 +65,9 @@ import Wire.Arbitrary (Arbitrary (arbitrary))
 -- | A 'RichInfoAssocList' that parses and renders as 'RichInfoMapAndList'.
 newtype RichInfo = RichInfo {unRichInfo :: RichInfoAssocList}
   deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
   deriving newtype (ToSchema)
-
-instance A.ToJSON RichInfo where
-  toJSON = A.toJSON . fromRichInfoAssocList . unRichInfo
-
-instance A.FromJSON RichInfo where
-  parseJSON = fmap (RichInfo . toRichInfoAssocList) . A.parseJSON
-
-instance Arbitrary RichInfo where
-  arbitrary = RichInfo <$> arbitrary
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema RichInfo
 
 instance Monoid RichInfo where
   mempty = RichInfo mempty

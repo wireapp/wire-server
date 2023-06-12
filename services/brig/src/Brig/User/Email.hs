@@ -39,7 +39,6 @@ import qualified Brig.Email as Email
 import Brig.Locale (formatDateTime, timeLocale)
 import Brig.Template
 import Brig.Types.Activation (ActivationPair)
-import Brig.Types.User (PasswordResetPair)
 import Brig.User.Template
 import Control.Lens (view)
 import qualified Data.Code as Code

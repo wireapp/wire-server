@@ -31,11 +31,6 @@ import Wire.Arbitrary
 instance Arbitrary ExcludedPrefix where
   arbitrary = ExcludedPrefix <$> arbitrary <*> arbitrary
 
-instance Arbitrary PhonePrefix where
-  arbitrary = do
-    digits <- take 8 <$> listOf1 (elements ['0' .. '9'])
-    pure . PhonePrefix . cs $ "+" <> digits
-
 instance Arbitrary LegalHoldClientRequest where
   arbitrary =
     LegalHoldClientRequest

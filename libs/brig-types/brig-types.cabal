@@ -85,7 +85,6 @@ library
     , imports
     , QuickCheck             >=2.9
     , text                   >=0.11
-    , time                   >=1.1
     , tinylog
     , types-common           >=0.16
     , wire-api
