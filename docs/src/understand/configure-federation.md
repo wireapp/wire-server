@@ -437,9 +437,9 @@ the sysadmin:
 * [`GET`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_federation_remotes)
 
   - this serves an object with 3 fields:
-     - `remotes` (from cassandra): the list of remote domains with search strategy (and
+     - `remotes` (from cassandra): the list of remote domains with search policy (and
        possibly other information in the future);
-     - `strategy` (from config): one of `allowNone`, `allowDynamic`, `allowAll` (see above)
+     - `strategy` (from config): federation strategy; one of `allowNone`, `allowDynamic`, `allowAll` (see above)
      - `update_interval` (from config): the suggested update frequency with which calling
        services should refresh their information.
 
@@ -472,6 +472,7 @@ The `remotes` list looks like this:
   },
   {
     "domain": "evil.example.com"
+    "search_policy": "no_search"
   },
   ...
 ]
@@ -485,7 +486,8 @@ It serves two purposes:
 2. Independently of the federation strategy, the list provides
   information about remote backends that may change dynamically (at
   the time of writing this: search policy, see
-  {ref}`searching-users-on-another-federated-backend`)
+  {ref}`searching-users-on-another-federated-backend` and
+  {ref}`user-searchability` for more context)
 
 The search policy for a remote backend can be:
 
@@ -493,7 +495,8 @@ The search policy for a remote backend can be:
 - `exact_handle_search`: Only users where the handle exactly matches are returned.
 - `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
 
-Default is `no_search`.
+If federation strategy is `allowAll`, and there is no entry for a
+domain in the database, default is `no_search`.
 
 Also see {ref}`configuring-remote-connections-dev-perspective` for the
 developer's point of view on this topic.

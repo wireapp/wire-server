@@ -1,3 +1,5 @@
+(user-searchability)=
+
 # User Searchability
 
 You can configure how search is limited or not based on user membership in a given team.
