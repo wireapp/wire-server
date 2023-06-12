@@ -37,6 +37,7 @@ module Galley.API.Query
     ensureConvAdmin,
     getMLSSelfConversation,
     getMLSSelfConversationWithError,
+    getMLSOne2OneConversation,
   )
 where
 
@@ -58,6 +59,7 @@ import Galley.API.MLS.Keys
 import Galley.API.MLS.Types
 import Galley.API.Mapping
 import qualified Galley.API.Mapping as Mapping
+import Galley.API.One2One
 import Galley.API.Util
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Types (Code (codeConversation))
@@ -85,6 +87,7 @@ import qualified System.Logger.Class as Logger
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Code
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
@@ -93,9 +96,13 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Group.Serialisation
+import Wire.API.MLS.SubConversation
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
+import Wire.API.User
 import Wire.Sem.Paging.Cassandra
 
 getBotConversationH ::
@@ -733,6 +740,50 @@ getMLSSelfConversation lusr = do
   mconv <- E.getConversation selfConvId
   cnv <- maybe (E.createMLSSelfConversation lusr) pure mconv
   conversationView lusr cnv
+
+-- | Get an MLS 1-1 conversation. The conversation object is created on the
+-- fly, but not persisted. The conversation will only be stored in the database
+-- when its first commit arrives.
+getMLSOne2OneConversation ::
+  ( Member BrigAccess r,
+    Member (Input Env) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'NotConnected) r,
+    Member TeamStore r
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Sem r Conversation
+getMLSOne2OneConversation lself qother = do
+  assertMLSEnabled
+  ensureConnectedOrSameTeam lself [qother]
+  let convId = one2OneConvId BaseProtocolMLSTag (tUntagged lself) qother
+      metadata =
+        ( defConversationMetadata
+            (tUnqualified lself)
+        )
+          { cnvmType = One2OneConv
+          }
+      groupId = convToGroupId' (fmap Conv convId)
+      mlsData =
+        ConversationMLSData
+          { cnvmlsGroupId = groupId,
+            cnvmlsEpoch = Epoch 0,
+            cnvmlsEpochTimestamp = Nothing,
+            cnvmlsCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+          }
+  let members =
+        ConvMembers
+          { cmSelf = defMember (tUntagged lself),
+            cmOthers = [defOtherMember qother]
+          }
+  pure
+    Conversation
+      { cnvQualifiedId = convId,
+        cnvMetadata = metadata,
+        cnvMembers = members,
+        cnvProtocol = ProtocolMLS mlsData
+      }
 
 -------------------------------------------------------------------------------
 -- Helpers

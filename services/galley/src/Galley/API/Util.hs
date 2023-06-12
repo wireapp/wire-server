@@ -108,12 +108,27 @@ ensureAccessRole roles users = do
     let botsExist = any (isJust . User.userService) activated
     unless (not botsExist || ServiceAccessRole `Set.member` roles) $ throwS @'ConvAccessDenied
 
+-- | Check that the given user is either part of the same team as the other
+-- users OR that there is a connection.
+ensureConnectedOrSameTeam ::
+  ( Member BrigAccess r,
+    Member (ErrorS 'NotConnected) r,
+    Member TeamStore r
+  ) =>
+  Local UserId ->
+  [Qualified UserId] ->
+  Sem r ()
+ensureConnectedOrSameTeam lusr others = do
+  let (locals, remotes) = partitionQualified lusr others
+  ensureConnectedToLocalsOrSameTeam lusr locals
+  ensureConnectedToRemotes lusr remotes
+
 -- | Check that the given user is either part of the same team(s) as the other
 -- users OR that there is a connection.
 --
 -- Team members are always considered connected, so we only check 'ensureConnected'
 -- for non-team-members of the _given_ user
-ensureConnectedOrSameTeam ::
+ensureConnectedToLocalsOrSameTeam ::
   ( Member BrigAccess r,
     Member (ErrorS 'NotConnected) r,
     Member TeamStore r
@@ -121,8 +136,8 @@ ensureConnectedOrSameTeam ::
   Local UserId ->
   [UserId] ->
   Sem r ()
-ensureConnectedOrSameTeam _ [] = pure ()
-ensureConnectedOrSameTeam (tUnqualified -> u) uids = do
+ensureConnectedToLocalsOrSameTeam _ [] = pure ()
+ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
   uTeams <- getUserTeams u
   -- We collect all the relevant uids from same teams as the origin user
   sameTeamUids <- forM uTeams $ \team ->

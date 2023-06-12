@@ -17,10 +17,14 @@ defPassword :: String
 defPassword = "hunter2!"
 
 randomEmail :: App String
-randomEmail = liftIO $ do
-  n <- randomRIO (8, 15)
-  u <- replicateM n pick
+randomEmail = do
+  u <- randomName
   pure $ u <> "@example.com"
+
+randomName :: App String
+randomName = liftIO $ do
+  n <- randomRIO (8, 15)
+  replicateM n pick
   where
     chars :: Array.Array Int Char
     chars = mkArray $ ['A' .. 'Z'] <> ['a' .. 'z'] <> ['0' .. '9']
