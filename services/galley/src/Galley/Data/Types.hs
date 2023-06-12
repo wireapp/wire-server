@@ -27,6 +27,7 @@ module Galley.Data.Types
     generate,
     mkKey,
     LockAcquired (..),
+    MemberAddStatus (..),
   )
 where
 
@@ -34,6 +35,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Code
 import Data.Id
+import Data.Qualified
 import Data.Range
 import qualified Data.Text.Ascii as Ascii
 import Galley.Data.Conversation
@@ -99,3 +101,9 @@ data LockAcquired
   = Acquired
   | NotAcquired
   deriving (Show, Eq)
+
+data MemberAddStatus = MemberAddStatus
+  { added :: Set (Remote UserId),
+    notAdded :: Set (Remote UserId)
+  }
+  deriving (Eq, Show)
