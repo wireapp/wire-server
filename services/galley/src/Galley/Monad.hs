@@ -36,40 +36,14 @@ import Galley.Options (optSettings, setDeleteConvThrottleMillis)
 import Data.Misc
 import qualified OpenSSL.Session as SSL
 
-newtype App a = App {unApp :: ReaderT Env IO a}
-  deriving
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadCatch,
-      MonadIO,
-      MonadMask,
-      MonadReader Env,
-      MonadThrow,
-      MonadUnliftIO
-    )
+-- Keep a compatible App kind around so existing code doesn't break.
+-- also pin the Reader input just to be safe.
+type App = App' Env
+unApp :: App' Env a -> ReaderT Env IO a
+unApp = unApp'
 
 runApp :: Env -> App a -> IO a
 runApp env = flip runReaderT env . unApp
-
-instance HasRequestId App where
-  getRequestId = App $ view reqId
-
-instance MonadHttp App where
-  handleRequestWithCont req h = do
-    m <- view manager
-    liftIO $ withResponse req m h
-
-instance MonadClient App where
-  liftClient m = do
-    cs <- view cstate
-    liftIO $ runClient cs m
-  localState f = locally cstate f
-
-instance LC.MonadLogger App where
-  log lvl m = do
-    env <- ask
-    log (env ^. applog) lvl (reqIdMsg (env ^. reqId) . m)
 
 embedApp ::
   ( Member (Embed IO) r,
@@ -77,11 +51,11 @@ embedApp ::
   ) =>
   App a ->
   Sem r a
-embedApp action = do
-  env <- input
-  embed $ runApp env action
+embedApp = embedApp'
 
-newtype App' c a = App' {unApp' :: ReaderT c IO a}
+-- This newtype is very much like the original App, except that it isn't pinned to the Galley Env object.
+-- A type alias keeps old code working while also allowing more flexible inputs for the Reader
+newtype App' c a = App {unApp' :: ReaderT c IO a}
   deriving
     ( Functor,
       Applicative,
@@ -94,8 +68,23 @@ newtype App' c a = App' {unApp' :: ReaderT c IO a}
       MonadUnliftIO
     )
 
+embedApp' :: forall c r a.
+  ( Member (Embed IO) r
+  , Member (Input c) r
+  ) => App' c a -> Sem r a
+embedApp' action = do
+  o <- input
+  embed $ runReaderT (unApp' action) o
+
+--
+-- Classes and Instances
+--
+-- Keep all of the existing instances and add more so that we can be more flexible in
+-- what we need to give to interpreters so we aren't stuck with just `Env`
+-- This is so we can more easily call galley code in background worker.
+
 instance HasRequestId' c => HasRequestId (App' c) where
-  getRequestId = App' $ view requestId
+  getRequestId = App $ view requestId
 
 class HasManager c where
   manager' :: Lens' c Manager
@@ -148,11 +137,3 @@ class HasExtGetManager c where
 
 instance HasExtGetManager Env where
   getExtGetManager = view (extEnv . extGetManager)
-
-embedApp' :: forall c r a.
-  ( Member (Embed IO) r
-  , Member (Input c) r
-  ) => App' c a -> Sem r a
-embedApp' action = do
-  o <- input
-  embed $ runReaderT (unApp' action) o
