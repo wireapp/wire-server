@@ -38,6 +38,7 @@ import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.SearchResultContact
 import Test.Wire.API.Golden.Manual.TeamSize
 import Test.Wire.API.Golden.Manual.Token
+import Test.Wire.API.Golden.Manual.UnreachabilityEvent
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserIdList
 import Test.Wire.API.Golden.Runner
@@ -158,5 +159,10 @@ tests =
           [ (testObject_CreateGroupConversation_1, "testObject_CreateGroupConversation_1.json"),
             (testObject_CreateGroupConversation_2, "testObject_CreateGroupConversation_2.json"),
             (testObject_CreateGroupConversation_3, "testObject_CreateGroupConversation_3.json")
+          ],
+      testGroup "UnreachabilityEvent" $
+        testObjects
+          [ (testObject_UnreachabilityEvent_1, "testObject_UnreachabilityEvent_1.json"),
+            (testObject_UnreachabilityEvent_2, "testObject_UnreachabilityEvent_2.json")
           ]
     ]
