@@ -3,6 +3,7 @@
 {-# HLINT ignore "Use tuple-section" #-}
 module Testlib.ModService where
 
+import Control.Applicative ((<|>))
 import Control.Concurrent.Async (mapConcurrently_)
 import Control.Exception (finally)
 import qualified Control.Exception as E
@@ -11,6 +12,8 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Control (MonadBaseControl (liftBaseWith))
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
+import Data.Attoparsec.ByteString.Char8
+import Data.Either.Extra (eitherToMaybe)
 import Data.Foldable
 import Data.Function
 import Data.Functor
@@ -85,7 +88,7 @@ startDynamicBackend beOverrides action = do
                     $ defaultDynBackendConfigOverridesToMap beOverrides
             startBackend
               resource.berDomain
-              resource.berNginzSslPort
+              (Just resource.berNginzSslPort)
               (Just $ setFederatorConfig resource)
               (Just $ backGroundWorkerOverrides resource (remoteDomains resource.berDomain))
               services
@@ -173,7 +176,7 @@ setFederatorPorts resource sm =
 withModifiedServices :: Map.Map Service (Value -> App Value) -> (String -> App a) -> App a
 withModifiedServices services action = do
   domain <- asks (.domain1)
-  startBackend domain (error "todo") Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain) action
+  startBackend domain Nothing Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain) action
 
 updateServiceMap :: Map.Map Service Word16 -> ServiceMap -> ServiceMap
 updateServiceMap ports serviceMap =
@@ -193,7 +196,7 @@ updateServiceMap ports serviceMap =
 
 startBackend ::
   String ->
-  Word16 ->
+  Maybe Word16 ->
   Maybe (Value -> App Value) ->
   Maybe (Value -> App Value) ->
   Map.Map Service (Value -> App Value) ->
@@ -283,8 +286,8 @@ startBackend domain nginzSslPort mFederatorOverrides mBgWorkerOverrides services
                   mPid <- getPid ph
                   for_ mPid (signalProcess killProcess)
                   void $ waitForProcess ph
-          whenM (doesFileExist path) $ removeFile path
-          whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
+  -- whenM (doesFileExist path) $ removeFile path
+  -- whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
   let modifyEnv env =
         env {serviceMap = modifyBackends (fromIntegral . fst <$> ports) env.serviceMap}
@@ -384,15 +387,8 @@ openFreePort =
               Nothing
               Nothing
 
-startNginz :: String -> Word16 -> Word16 -> ServiceMap -> App (ProcessHandle, FilePath)
-startNginz domain port sslPort sm = do
-  nginzConf <-
-    liftIO $
-      NginzConfig port
-        <$> (openFreePort >>= \(p, s) -> N.close s $> fromIntegral p)
-        <*> pure sslPort
-        <*> pure sm.federatorExternal.port
-
+startNginz :: String -> Word16 -> Maybe Word16 -> ServiceMap -> App (ProcessHandle, FilePath)
+startNginz domain port mSslPort sm = do
   -- Create a whole temporary directory and copy all nginx's config files.
   -- This is necessary because nginx assumes local imports are relative to
   -- the location of the main configuration file.
@@ -407,6 +403,33 @@ startNginz domain port sslPort sm = do
     copyDirectoryRecursively (from </> "conf" </> "nginz") (tmpDir </> "conf" </> "nginz")
     copyDirectoryRecursively (from </> "resources") (tmpDir </> "resources")
 
+  let integrationConfFile = tmpDir </> "conf" </> "nginz" </> "integration.conf"
+  conf <- Prelude.lines <$> liftIO (readFile integrationConfFile)
+  let sslPortParser = do
+        _ <- string (cs "listen")
+        _ <- many1 space
+        p <- many1 digit
+        _ <- many1 space
+        _ <- string (cs "ssl")
+        _ <- many1 space
+        _ <- string (cs "http2")
+        _ <- many1 space
+        _ <- char ';'
+        pure (read p :: Word16)
+
+  let mParsedPort =
+        mapMaybe (eitherToMaybe . parseOnly sslPortParser . cs) conf
+          & (\case [] -> Nothing; (p : _) -> Just p)
+
+  sslPort <- maybe (failApp "could not determine nginz's ssl port") pure (mSslPort <|> mParsedPort)
+
+  nginzConf <-
+    liftIO $
+      NginzConfig port
+        <$> (openFreePort >>= \(p, s) -> N.close s $> fromIntegral p)
+        <*> pure sslPort
+        <*> pure sm.federatorExternal.port
+
   -- override port configuration
   let portConfigTemplate =
         cs $
@@ -420,8 +443,7 @@ listen [::]:{ssl_port} ssl http2;
           & replace (cs "{port}") (cs $ show nginzConf.localPort)
           & replace (cs "{http2_port}") (cs $ show nginzConf.http2Port)
           & replace (cs "{ssl_port}") (cs $ show nginzConf.sslPort)
-  let integrationConfFile = tmpDir </> "conf" </> "nginz" </> "integration.conf"
-  liftIO $ whenM (doesFileExist $ integrationConfFile) $ removeFile integrationConfFile
+  liftIO $ whenM (doesFileExist integrationConfFile) $ removeFile integrationConfFile
   liftIO $ writeFile integrationConfFile (cs portConfig)
 
   -- override upstreams

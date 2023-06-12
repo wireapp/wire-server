@@ -3,10 +3,8 @@ module Test.Demo where
 
 import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
-import qualified API.Galley as Public
 import qualified API.GalleyInternal as Internal
 import qualified API.Nginz as Nginz
-import Control.Concurrent
 import Control.Monad.Cont
 import qualified Data.Map as Map
 import GHC.Stack

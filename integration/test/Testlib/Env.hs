@@ -52,7 +52,8 @@ data GlobalEnv = GlobalEnv
     gManager :: HTTP.Manager,
     gServiceConfigsDir :: FilePath,
     gServicesCwdBase :: Maybe FilePath,
-    gRemovalKeyPath :: FilePath
+    gRemovalKeyPath :: FilePath,
+    gResourcePool :: Pool BackendResource
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -154,6 +155,8 @@ mkGlobalEnv cfgFile = do
           Nothing -> "/etc/wire"
 
   manager <- HTTP.newManager HTTP.defaultManagerSettings
+  resources <- newIORef $ backendResources 3
+  pool <- createPool (create resources) (destroy resources) 1 120 3
   pure
     GlobalEnv
       { gServiceMap =
@@ -167,7 +170,8 @@ mkGlobalEnv cfgFile = do
         gManager = manager,
         gServiceConfigsDir = configsDir,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
-        gRemovalKeyPath = error "Uninitialised removal key path"
+        gRemovalKeyPath = error "Uninitialised removal key path",
+        gResourcePool = pool
       }
 
 mkEnv :: GlobalEnv -> Codensity IO Env
@@ -176,8 +180,6 @@ mkEnv ge = do
   liftIO $ do
     pks <- newIORef (zip [1 ..] somePrekeys)
     lpks <- newIORef someLastPrekeys
-    resources <- newIORef $ backendResources 3
-    pool <- createPool (create resources) (destroy resources) 1 120 3
     pure
       Env
         { serviceMap = gServiceMap ge,
@@ -191,20 +193,20 @@ mkEnv ge = do
           prekeys = pks,
           lastPrekeys = lpks,
           mls = mls,
-          resourcePool = pool
+          resourcePool = ge.gResourcePool
         }
 
 destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
 destroy ioRef = modifyIORef' ioRef . Set.insert
 
 create :: IORef (Set.Set BackendResource) -> IO BackendResource
-create ioRef = do
-  resources <- Set.toList <$> readIORef ioRef
-  case resources of
-    [] -> error "No resources available"
-    (r : rs) -> do
-      writeIORef ioRef (Set.fromList rs)
-      pure r
+create ioRef =
+  atomicModifyIORef
+    ioRef
+    $ \s ->
+      case Set.minView s of
+        Nothing -> error "No resources available"
+        Just (r, s') -> (s', r)
 
 data MLSState = MLSState
   { baseDir :: FilePath,

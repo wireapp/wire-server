@@ -113,6 +113,7 @@ library
     , aeson-pretty
     , array
     , async
+    , attoparsec
     , base
     , base64-bytestring
     , bytestring
