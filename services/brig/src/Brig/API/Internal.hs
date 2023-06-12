@@ -187,6 +187,7 @@ accountAPI =
     :<|> Named @"iGetRichInfo" getRichInfoH
     :<|> Named @"iGetRichInfoMulti" getRichInfoMultiH
     :<|> Named @"iHeadHandle" checkHandleInternalH
+    :<|> Named @"iConnectionUpdate" updateConnectionInternalH
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -320,10 +321,6 @@ sitemap ::
   ) =>
   Routes a (Handler r) ()
 sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
-  put "/i/connections/connection-update" (continue updateConnectionInternalH) $
-    accept "application" "json"
-      .&. jsonRequest @UpdateConnectionsInternal
-
   post "/i/clients" (continue internalListClientsH) $
     accept "application" "json"
       .&. jsonRequest @UserSet
@@ -593,11 +590,10 @@ revokeIdentityH (Just email) Nothing = lift $ NoContent <$ API.revokeIdentity (L
 revokeIdentityH Nothing (Just phone) = lift $ NoContent <$ API.revokeIdentity (Right phone)
 revokeIdentityH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
 
-updateConnectionInternalH :: JSON ::: JsonRequest UpdateConnectionsInternal -> (Handler r) Response
-updateConnectionInternalH (_ ::: req) = do
-  updateConn <- parseJsonBody req
+updateConnectionInternalH :: UpdateConnectionsInternal -> (Handler r) NoContent
+updateConnectionInternalH updateConn = do
   API.updateConnectionInternal updateConn !>> connError
-  pure $ setStatus status200 empty
+  pure NoContent
 
 checkBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) CheckBlacklistResponse
 checkBlacklistH (Just email) Nothing = checkBlacklist (Left email)

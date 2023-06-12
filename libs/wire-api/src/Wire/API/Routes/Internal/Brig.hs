@@ -430,6 +430,13 @@ type AccountAPI =
                      ]
                     CheckHandleResponse
            )
+    :<|> Named
+           "iConnectionUpdate"
+           ( "connections"
+               :> "connection-update"
+               :> ReqBody '[Servant.JSON] UpdateConnectionsInternal
+               :> Put '[Servant.JSON] NoContent
+           )
 
 -- | The missing ref is implicit by the capture
 data NewKeyPackageRef = NewKeyPackageRef

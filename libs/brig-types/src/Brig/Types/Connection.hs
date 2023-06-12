@@ -26,28 +26,4 @@ module Brig.Types.Connection
 where
 
 import Brig.Types.Common as C
-import Data.Aeson
-import Data.Id (UserId)
-import Data.Qualified
-import Imports
-import Wire.API.User (UserIds (..))
-import Wire.Arbitrary
-
--- FUTUREWORK: This needs to get Qualified IDs when implementing
--- Legalhold + Federation, as it's used in the internal
--- putConnectionInternal / galley->Brig "/i/users/connections-status"
--- endpoint.
--- Internal RPCs need to be updated accordingly.
--- See https://wearezeta.atlassian.net/browse/SQCORE-973
-data UpdateConnectionsInternal
-  = BlockForMissingLHConsent UserId [UserId]
-  | RemoveLHBlocksInvolving UserId
-  | -- | This must only be used by tests
-    CreateConnectionForTest UserId (Qualified UserId)
-  deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UpdateConnectionsInternal)
-
-instance FromJSON UpdateConnectionsInternal
-
--- | `{"tag":"BlockForMissingLHConsent","contents":["3ae7f23a-bd47-11eb-932d-5fccbbcde454",["3ae7f23a-bd47-11eb-932d-5fccbbcde454"]]}`
-instance ToJSON UpdateConnectionsInternal
+import Wire.API.User

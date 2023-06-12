@@ -33,8 +33,7 @@ import Wire.Sem.Concurrency
 
 sitemap ::
   forall r p.
-  ( Member BlacklistPhonePrefixStore r,
-    Member BlacklistStore r,
+  ( Member BlacklistStore r,
     Member GalleyProvider r,
     Member (Concurrency 'Unsafe) r,
     Member (UserPendingActivationStore p) r

@@ -37,7 +37,6 @@ where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
-import Brig.Types.Connection (UpdateConnectionsInternal)
 import qualified Brig.Types.Intra as Brig
 import Control.Error hiding (bool, isRight)
 import Control.Lens (view, (^.))
