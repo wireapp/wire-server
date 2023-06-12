@@ -26,7 +26,6 @@ import Brig.Data.Instances ()
 import Brig.Data.UserKey
 import Brig.Email (EmailKey (..), mkEmailKey)
 import Brig.Phone (PhoneKey (..), mkPhoneKey)
-import Brig.Types.Intra
 import Cassandra
 import Cassandra.Util
 import Conduit

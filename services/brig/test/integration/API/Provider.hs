@@ -28,7 +28,6 @@ import qualified API.Team.Util as Team
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
 import qualified Brig.Code as Code
-import qualified Brig.Types.Intra as Intra
 import qualified Cassandra as DB
 import Control.Arrow ((&&&))
 import qualified Control.Concurrent.Async as Async
@@ -96,7 +95,7 @@ import Wire.API.Provider.Service.Tag
 import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.Permission
-import Wire.API.User hiding (EmailUpdate, PasswordChange, mkName)
+import Wire.API.User as User hiding (EmailUpdate, PasswordChange, mkName)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
@@ -793,8 +792,8 @@ testDeleteTeamBotTeam config db brig galley cannon = withTestService config db b
   svcAssertEventuallyConvDelete buf quid1 qcid
   -- Wait until all users have been deleted (can take a while)
   forM_ [uid1, uid2] $ \uid -> do
-    void $ retryWhileN 20 (/= Intra.Deleted) (getStatus brig uid)
-    chkStatus brig uid Intra.Deleted
+    void $ retryWhileN 20 (/= User.Deleted) (getStatus brig uid)
+    chkStatus brig uid User.Deleted
     aFewTimes 11 (getConversationQualified galley uid qcid) ((== 404) . statusCode)
   -- Check the bot cannot see the conversation either
   getBotConv galley bid cid !!! const 404 === statusCode

@@ -72,7 +72,6 @@ executable inconsistencies
       aeson
     , base
     , brig
-    , brig-types
     , bytestring
     , cassandra-util
     , conduit

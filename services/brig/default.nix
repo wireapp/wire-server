@@ -387,7 +387,6 @@ mkDerivation {
     aeson
     base
     binary
-    brig-types
     bytestring
     containers
     data-timeout
