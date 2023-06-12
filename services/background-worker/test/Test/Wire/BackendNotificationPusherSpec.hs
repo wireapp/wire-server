@@ -27,6 +27,7 @@ import Data.Misc
 import qualified Data.Proxy as P
 import Galley.Types.Teams
 import Data.Id
+import Galley.Env (ExtEnv (..), initExtEnv)
 
 runTestAppT :: AppT IO a -> Int -> IO a
 runTestAppT app port = do
@@ -34,6 +35,7 @@ runTestAppT app port = do
   logger <- Logger.new Logger.defSettings
   manager <- newManager defaultManagerSettings
   cassandra' <- Cass.init Cass.defSettings
+  extGetManager' <- _extGetManager <$> initExtEnv
   let federatorInternal = Endpoint "localhost" (fromIntegral port)
       localDomain = Domain "example.com"
       -- TODO: Check these vales

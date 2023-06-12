@@ -289,7 +289,7 @@ evalGalley e =
     . interpretBotAccess @Env
     . interpretBackendNotificationQueueAccess
     . interpretFederatorAccess
-    . interpretExternalAccess
+    . interpretExternalAccess @Env
     . interpretGundeckAccess @Env
     . interpretSparAccess @Env
     . interpretBrigAccess @Env

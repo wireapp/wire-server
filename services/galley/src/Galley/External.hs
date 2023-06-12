@@ -28,9 +28,7 @@ import Galley.Cassandra.Services
 import Galley.Data.Services (BotMember, botMemId, botMemService)
 import Galley.Effects
 import Galley.Effects.ExternalAccess (ExternalAccess (..))
-import Galley.Env
 import Galley.Intra.User
-import Galley.Monad
 import Galley.Types.Bot.Service (Service, serviceEnabled, serviceFingerprints, serviceToken, serviceUrl)
 import Imports
 import qualified Network.HTTP.Client as Http
@@ -45,41 +43,61 @@ import URI.ByteString
 import UnliftIO (Async, async, waitCatch)
 import Wire.API.Event.Conversation (Event)
 import Wire.API.Provider.Service (serviceRefId, serviceRefProvider)
+import Control.Monad.Catch
+import Cassandra
+import Bilge
+import Bilge.RPC
+import Galley.Intra.Util
+import Galley.Monad
 
 interpretExternalAccess ::
+  forall c r a.
   ( Member (Embed IO) r,
-    Member (Input Env) r
+    Member (Input c) r,
+    HasCassandra c,
+    HasRequestId' c,
+    HasLogger c,
+    HasManager c,
+    HasIntraComponentEndpoints c,
+    HasExtGetManager c
   ) =>
   Sem (ExternalAccess ': r) a ->
   Sem r a
 interpretExternalAccess = interpret $ \case
-  Deliver pp -> embedApp $ deliver (toList pp)
-  DeliverAsync pp -> embedApp $ deliverAsync (toList pp)
-  DeliverAndDeleteAsync cid pp -> embedApp $ deliverAndDeleteAsync cid (toList pp)
+  Deliver pp -> embedApp' @c $ deliver (toList pp)
+  DeliverAsync pp -> embedApp' @c $ deliverAsync (toList pp)
+  DeliverAndDeleteAsync cid pp -> embedApp' @c $ deliverAndDeleteAsync cid (toList pp)
 
 -- | Like deliver, but ignore orphaned bots and return immediately.
 --
 -- FUTUREWORK: Check if this can be removed.
-deliverAsync :: [(BotMember, Event)] -> App ()
+deliverAsync :: (MonadUnliftIO m, Log.MonadLogger m, MonadClient m, MonadMask m, HasExtGetManager c,
+          MonadReader c m) => [(BotMember, Event)] -> m ()
 deliverAsync = void . forkIO . void . deliver
 
 -- | Like deliver, but remove orphaned bots and return immediately.
-deliverAndDeleteAsync :: ConvId -> [(BotMember, Event)] -> App ()
+deliverAndDeleteAsync :: (MonadReader c m, MonadMask m, MonadClient m, Log.MonadLogger m,
+          MonadUnliftIO m, MonadHttp m, HasRequestId m, HasExtGetManager c,
+          HasIntraComponentEndpoints c) => ConvId -> [(BotMember, Event)] -> m ()
 deliverAndDeleteAsync cnv pushes = void . forkIO $ do
   gone <- deliver pushes
   mapM_ (deleteBot cnv . botMemId) gone
 
-deliver :: [(BotMember, Event)] -> App [BotMember]
+deliver :: forall c m. (Log.MonadLogger m,
+          MonadClient m,
+          MonadMask m, MonadReader c m,
+          HasExtGetManager c,
+          MonadUnliftIO m) => [(BotMember, Event)] -> m [BotMember]
 deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
-    exec :: (BotMember, Event) -> App Bool
+    exec :: (BotMember, Event) -> m Bool
     exec (b, e) =
       lookupService (botMemService b) >>= \case
         Nothing -> pure False
         Just s -> do
           deliver1 s b e
           pure True
-    eval :: [BotMember] -> (BotMember, Async Bool) -> App [BotMember]
+    eval :: [BotMember] -> (BotMember, Async Bool) -> m [BotMember]
     eval gone (b, a) = do
       let s = botMemService b
       r <- waitCatch a
@@ -118,7 +136,7 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
 
 -- Internal -------------------------------------------------------------------
 
-deliver1 :: Service -> BotMember -> Event -> App ()
+deliver1 :: (MonadIO m, MonadMask m, MonadReader c m, HasExtGetManager c) => Service -> BotMember -> Event -> m ()
 deliver1 s bm e
   | s ^. serviceEnabled = do
       let t = toByteString' (s ^. serviceToken)
@@ -148,9 +166,9 @@ urlPort (HttpsUrl u) = do
   p <- a ^. authorityPortL
   pure (fromIntegral (p ^. portNumberL))
 
-sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> App ()
+sendMessage :: (MonadReader c m, MonadIO m, HasExtGetManager c) => [Fingerprint Rsa] -> (Request -> Request) -> m ()
 sendMessage fprs reqBuilder = do
-  (man, verifyFingerprints) <- view (extEnv . extGetManager)
+  (man, verifyFingerprints) <- asks getExtGetManager
   liftIO . withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->
     Http.withResponse req man (const $ pure ())
 

@@ -31,6 +31,7 @@ import Control.Lens.Combinators (lens)
 import Galley.Intra.Util
 import Data.Id
 import Galley.Monad
+import Galley.Env (initExtEnv, ExtEnv (..))
 
 data Env = Env
   { manager :: Manager,
@@ -47,7 +48,8 @@ data Env = Env
     spar' :: Endpoint,
     gundeck' :: Endpoint,
     requestId' :: RequestId,
-    deleteConvThrottle :: Maybe Int
+    deleteConvThrottle :: Maybe Int,
+    extGetManager' :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
   }
 
 instance HasCodeStoreEnv Env where
@@ -79,6 +81,12 @@ instance HasRequestId' Env where
 instance DeleteConvThrottle Env where
   deleteConvThrottleMillis = deleteConvThrottle
 
+instance HasCassandra Env where
+  cassandra = lens cassandra' (\s a -> s { cassandra' = a })
+
+instance HasExtGetManager Env where
+  getExtGetManager = extGetManager'
+
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
   manager <- newManager defaultManagerSettings
@@ -96,6 +104,7 @@ mkEnv opts = do
       requestId' = opts.requestId
       deleteConvThrottle = Nothing
   cassandra' <- Cass.init $ Cass.defSettings -- TODO: Update these settings
+  extGetManager' <- _extGetManager <$> initExtEnv
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager

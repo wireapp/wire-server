@@ -33,6 +33,8 @@ import System.Logger
 import qualified System.Logger.Class as LC
 import Data.Id
 import Galley.Options (optSettings, setDeleteConvThrottleMillis)
+import Data.Misc
+import qualified OpenSSL.Session as SSL
 
 newtype App a = App {unApp :: ReaderT Env IO a}
   deriving
@@ -140,6 +142,12 @@ class DeleteConvThrottle c where
 
 instance DeleteConvThrottle Env where
   deleteConvThrottleMillis = view (options . optSettings . setDeleteConvThrottleMillis)
+
+class HasExtGetManager c where
+  getExtGetManager :: c -> (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
+
+instance HasExtGetManager Env where
+  getExtGetManager = view (extEnv . extGetManager)
 
 embedApp' :: forall c r a.
   ( Member (Embed IO) r

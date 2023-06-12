@@ -175,6 +175,7 @@ test-suite background-worker-test
     , base
     , cassandra-util
     , federator
+    , galley
     , galley-types
     , hspec
     , http-client

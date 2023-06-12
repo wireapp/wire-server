@@ -5,12 +5,10 @@ import Wire.BackgroundWorker.Env
 import Imports
 import qualified Data.Aeson as Aeson
 import System.Logger
-import Control.Lens ((^.))
 import qualified System.Logger as Log
 import Data.Domain
 import Wire.API.Federation.BackendNotifications
 import qualified Galley.Run as G
-import qualified Galley.Env as G
 import qualified Brig.Data.Connection as B
 import qualified Cassandra as Cass
 import Polysemy
@@ -32,9 +30,6 @@ import Galley.Cassandra.Team (interpretTeamStoreToCassandra)
 import Galley.Intra.Effects (interpretBrigAccess, interpretGundeckAccess)
 import Galley.External (interpretExternalAccess)
 import Data.Text.Lazy (unpack)
-import Galley.Options (setFederationDomain, optSettings, setFeatureFlags)
-import Galley.Env hiding (Env)
-import Galley.Types.Teams
 
 -- This type is used to tie the amqp sending and receiving message types together.
 type MsgData = Domain
@@ -60,9 +55,8 @@ defederateDomains chan = do
               Log.err log' $ Log.msg @Text "Could not decode message from RabbitMQ" . Log.field "error" e'
               nackEnv envelope
             -- TODO test that this doesn't explode EVER, or better yet work out how to avoid the problem altogether
-            gEnv = undefined
-            localDom = gEnv ^. options . optSettings . setFederationDomain
-        either failure success <=< runExceptT . interpretGalley e gEnv $ do
+            localDom = localDomain e
+        either failure success <=< runExceptT . interpretGalley e $ do
           -- Run code from galley to clean up conversations
           G.deleteFederationDomainRemote' localDom dom
           G.deleteFederationDomainLocal' localDom dom
@@ -80,7 +74,6 @@ type Effects =
   , L.Logger (Msg -> Msg)
   , Input Cass.ClientState
   , Input (Local ())
-  , Input G.Env
   , Input Env
   , Embed IO
   , Error String
@@ -89,16 +82,14 @@ type Effects =
 
 interpretGalley
   :: Env
-  -> G.Env
   -> Sem Effects ()
   -> ExceptT String IO ()
-interpretGalley env gEnv action = do
+interpretGalley env action = do
   ExceptT
     . runFinal @IO
     . runError
     . embedToFinal @IO
-    . runInputConst @Env env
-    . runInputConst @G.Env gEnv
+    . runInputConst env
     . runInputConst (toLocalUnsafe localDom ())
     . runInputConst cass
     . interpretTinyLog log'
@@ -110,13 +101,13 @@ interpretGalley env gEnv action = do
     . interpretTeamStoreToCassandra @Wire.BackgroundWorker.Env.Env lh
     . interpretBrigAccess @Wire.BackgroundWorker.Env.Env
     . interpretGundeckAccess @Wire.BackgroundWorker.Env.Env
-    . interpretExternalAccess
+    . interpretExternalAccess @Wire.BackgroundWorker.Env.Env
     $ action
   where
     localDom = localDomain env
     log' = logger env
     cass = cassandra' env
-    lh = gEnv ^. options . optSettings . setFeatureFlags . flagLegalHold
+    lh = legalHoldFlag env
 
 interpretTinyLog ::
   Member (Embed IO) r =>
