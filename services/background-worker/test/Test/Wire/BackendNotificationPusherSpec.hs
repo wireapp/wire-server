@@ -22,15 +22,29 @@ import Wire.API.Federation.BackendNotifications
 import Wire.API.RawJson
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
+import URI.ByteString
+import Data.Misc
+import qualified Data.Proxy as P
+import Galley.Types.Teams
+import Data.Id
 
 runTestAppT :: AppT IO a -> Int -> IO a
 runTestAppT app port = do
   http2Manager <- initHttp2Manager
   logger <- Logger.new Logger.defSettings
   manager <- newManager defaultManagerSettings
-  cassandra <- Cass.init Cass.defSettings
+  cassandra' <- Cass.init Cass.defSettings
   let federatorInternal = Endpoint "localhost" (fromIntegral port)
       localDomain = Domain "example.com"
+      -- TODO: Check these vales
+      galleyConversationCodeUri = HttpsUrl $ URI (Scheme "https") (pure $ Authority Nothing (Host "example.com") Nothing) "/" mempty Nothing
+      legalHoldFlag = FeatureLegalHoldDisabledByDefault
+      awsEnv = Nothing
+      currentFanoutLimit = toRange $ P.Proxy @10
+      brig' = Endpoint "" 0
+      spar' = Endpoint "" 0
+      gundeck' = Endpoint "" 0
+      requestId' = RequestId ""
       env = Env {..}
   runAppT env app
 

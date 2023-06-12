@@ -273,7 +273,7 @@ evalGalley e =
     . interpretConversationListToCassandra
     . interpretTeamMemberStoreToCassandraWithPaging lh
     . interpretTeamMemberStoreToCassandra lh
-    . interpretTeamStoreToCassandra lh
+    . interpretTeamStoreToCassandra @Env lh
     . interpretTeamNotificationStoreToCassandra
     . interpretTeamFeatureStoreToCassandra
     . interpretServiceStoreToCassandra
@@ -283,7 +283,7 @@ evalGalley e =
     . interpretCustomBackendStoreToCassandra
     . interpretConversationStoreToCassandra
     . interpretProposalStoreToCassandra
-    . interpretCodeStoreToCassandra
+    . interpretCodeStoreToCassandra @Env
     . interpretClientStoreToCassandra
     . interpretFireAndForget
     . interpretBotAccess
@@ -292,6 +292,6 @@ evalGalley e =
     . interpretExternalAccess
     . interpretGundeckAccess
     . interpretSparAccess
-    . interpretBrigAccess
+    . interpretBrigAccess @Env
   where
     lh = view (options . optSettings . setFeatureFlags . Teams.flagLegalHold) e

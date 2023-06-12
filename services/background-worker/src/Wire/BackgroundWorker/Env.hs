@@ -20,6 +20,17 @@ import System.Logger.Class
 import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.BackgroundWorker.Options
+import Galley.Cassandra.Code
+import Galley.Cassandra.Team
+import Data.Misc
+import Galley.Types.Teams
+import qualified Galley.Aws as Aws
+import Data.Range
+import Wire.API.Team.Member
+import Galley.Monad
+import Control.Lens.Combinators (lens)
+import Galley.Intra.Util
+import Data.Id
 
 data Env = Env
   { manager :: Manager,
@@ -27,8 +38,42 @@ data Env = Env
     logger :: Logger,
     federatorInternal :: Endpoint,
     localDomain :: Domain,
-    cassandra :: ClientState
+    cassandra' :: ClientState,
+    galleyConversationCodeUri :: HttpsUrl,
+    legalHoldFlag :: FeatureLegalHold,
+    awsEnv :: Maybe Aws.Env,
+    currentFanoutLimit :: Range 1 HardTruncationLimit Int32,
+    brig' :: Endpoint,
+    spar' :: Endpoint,
+    gundeck' :: Endpoint,
+    requestId' :: RequestId
   }
+
+instance HasCodeStoreEnv Env where
+  conversationCodeUri = Wire.BackgroundWorker.Env.galleyConversationCodeUri
+
+instance HasFeatureFlagLegalHold Env where
+  getFlagLegalHold = Wire.BackgroundWorker.Env.legalHoldFlag
+
+instance HasAwsEnv Env where
+  getAwsEnv = awsEnv
+
+instance HasCurrentFanoutLimit Env where
+  getCurrentFanoutLimit = Wire.BackgroundWorker.Env.currentFanoutLimit
+
+instance HasManager Env where
+  manager' = lens manager (\e m -> e { manager = m } )
+
+instance HasIntraComponentEndpoints Env where
+  brig = lens brig' (\s a -> s { brig' = a } )
+  spar = lens spar' (\s a -> s { spar' = a } )
+  gundeck = lens gundeck' (\s a -> s { gundeck' = a } )
+
+instance HasLogger Env where
+  logger' = lens logger (\s a -> s { logger = a })
+
+instance HasRequestId' Env where
+  requestId = lens requestId' (\s a -> s { requestId' = a })
 
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
@@ -37,7 +82,15 @@ mkEnv opts = do
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
   let federatorInternal = opts.federatorInternal
       localDomain = opts.localDomain
-  cassandra <- Cass.init $ Cass.defSettings -- TODO: Update these settings
+      galleyConversationCodeUri = opts.galleyConversationCodeUri
+      awsEnv = Nothing
+      legalHoldFlag = opts.legalHoldFlag
+      currentFanoutLimit = opts.currentFanoutLimit
+      brig' = opts.brig
+      spar' = opts.spar
+      gundeck' = opts.gundeck
+      requestId' = opts.requestId
+  cassandra' <- Cass.init $ Cass.defSettings -- TODO: Update these settings
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager

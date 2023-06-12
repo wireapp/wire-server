@@ -41,18 +41,24 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified UnliftIO
+import Galley.Intra.Util (HasIntraComponentEndpoints)
 
 interpretBrigAccess ::
+  forall c r a.
   ( Member (Embed IO) r,
     Member (Error InternalError) r,
     Member P.TinyLog r,
-    Member (Input Env) r
+    Member (Input Env) r,
+    Member (Input c) r,
+    HasIntraComponentEndpoints c,
+    HasManager c,
+    HasRequestId' c
   ) =>
   Sem (BrigAccess ': r) a ->
   Sem r a
 interpretBrigAccess = interpret $ \case
   GetConnectionsUnqualified uids muids mrel ->
-    embedApp $ getConnectionsUnqualified uids muids mrel
+    embedApp' @c $ unApp' $ getConnectionsUnqualified uids muids mrel
   GetConnectionsUnqualifiedBidi uids1 uids2 mrel1 mrel2 ->
     embedApp $
       UnliftIO.concurrently

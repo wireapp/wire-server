@@ -31,6 +31,7 @@ import Polysemy
 import Polysemy.Input
 import System.Logger
 import qualified System.Logger.Class as LC
+import Data.Id
 
 newtype App a = App {unApp :: ReaderT Env IO a}
   deriving
@@ -76,3 +77,70 @@ embedApp ::
 embedApp action = do
   env <- input
   embed $ runApp env action
+
+newtype App' c a = App' {unApp' :: ReaderT c IO a}
+  deriving
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadCatch,
+      MonadIO,
+      MonadMask,
+      MonadReader c,
+      MonadThrow,
+      MonadUnliftIO
+    )
+
+runApp' :: c -> App' c a -> IO a
+runApp' env = flip runReaderT env . unApp'
+
+instance HasRequestId' c => HasRequestId (App' c) where
+  getRequestId = App' $ view requestId
+
+class HasManager c where
+  manager' :: Lens' c Manager
+
+instance HasManager Env where
+  manager' = manager
+
+instance HasManager c => MonadHttp (App' c) where
+  handleRequestWithCont req h = do
+    m <- view manager'
+    liftIO $ withResponse req m h
+
+class HasCassandra c where
+  cassandra :: Lens' c ClientState
+
+instance HasCassandra Env where
+  cassandra = cstate
+
+instance HasCassandra c => MonadClient (App' c) where
+  liftClient m = do
+    cs <- view cassandra
+    liftIO $ runClient cs m
+  localState f = locally cassandra f
+
+class HasLogger c where
+  logger' :: Lens' c Logger
+
+class HasRequestId' c where
+  requestId :: Lens' c RequestId
+
+instance HasLogger Env where
+  logger' = applog
+
+instance HasRequestId' Env where
+  requestId = reqId
+
+instance (HasLogger c, HasRequestId' c) => LC.MonadLogger (App' c) where
+  log lvl m = do
+    c <- ask
+    log (c ^. logger') lvl (reqIdMsg (c ^. requestId) . m)
+
+embedApp' :: forall c r a.
+  ( Member (Embed IO) r
+  , Member (Input c) r
+  ) => ReaderT c IO a -> Sem r a
+embedApp' action = do
+  o <- input
+  embed $ runReaderT action o

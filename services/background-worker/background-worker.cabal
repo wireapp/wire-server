@@ -49,6 +49,7 @@ library
     , transformers
     , transformers-base
     , types-common
+    , wire-api
     , wire-api-federation
 
   default-extensions:
@@ -171,14 +172,17 @@ test-suite background-worker-test
       aeson
     , amqp
     , background-worker
+    , base
     , cassandra-util
     , federator
+    , galley-types
     , hspec
     , http-client
     , imports
     , QuickCheck
     , tinylog
     , types-common
+    , uri-bytestring
     , wire-api
     , wire-api-federation
 

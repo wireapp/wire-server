@@ -55,6 +55,7 @@ pushNotification targetDomain (msg, envelope) = do
              ]
   recovering policy handlers $ const go
   where
+    -- Just using 'arbitrary' could generate a very big list, making tests very
     go :: AppT IO ()
     go = case A.eitherDecode @BackendNotification (Q.msgBody msg) of
       Left e -> do

@@ -17,6 +17,8 @@
 
 module Galley.Cassandra.Code
   ( interpretCodeStoreToCassandra,
+    HasCodeStoreEnv,
+    conversationCodeUri
   )
 where
 
@@ -34,11 +36,19 @@ import Imports
 import Polysemy
 import Polysemy.Input
 import Wire.API.Password
+import Data.Misc (HttpsUrl)
 
-interpretCodeStoreToCassandra ::
-  ( Member (Embed IO) r,
+class HasCodeStoreEnv e where
+  conversationCodeUri :: e -> HttpsUrl
+
+instance HasCodeStoreEnv Env where
+  conversationCodeUri = view (options . optSettings . setConversationCodeURI)  
+
+interpretCodeStoreToCassandra :: forall e r a.
+  ( HasCodeStoreEnv e,
+    Member (Embed IO) r,
     Member (Input ClientState) r,
-    Member (Input Env) r
+    Member (Input e) r
   ) =>
   Sem (CodeStore ': r) a ->
   Sem r a
@@ -49,7 +59,7 @@ interpretCodeStoreToCassandra = interpret $ \case
   MakeKey cid -> Code.mkKey cid
   GenerateCode cid s t -> Code.generate cid s t
   GetConversationCodeURI ->
-    view (options . optSettings . setConversationCodeURI) <$> input
+    conversationCodeUri <$> (input @e)
 
 -- | Insert a conversation code
 insertCode :: Code -> Maybe Password -> Client ()

@@ -21,6 +21,9 @@ module Galley.Cassandra.Team
     interpretTeamListToCassandra,
     interpretInternalTeamListToCassandra,
     interpretTeamMemberStoreToCassandraWithPaging,
+    HasFeatureFlagLegalHold (..),
+    HasAwsEnv (..),
+    HasCurrentFanoutLimit (..)
   )
 where
 
@@ -48,7 +51,6 @@ import Galley.Effects.ListItems
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore (TeamStore (..))
 import Galley.Env
-import Galley.Monad
 import Galley.Options
 import Galley.Types.Teams
 import Imports hiding (Set, max)
@@ -62,9 +64,31 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (SetBilling), Permissions, self)
 import Wire.Sem.Paging.Cassandra
 
+class HasFeatureFlagLegalHold e where
+  getFlagLegalHold :: e -> FeatureLegalHold
+
+instance HasFeatureFlagLegalHold Env where
+  getFlagLegalHold = view (options . optSettings . setFeatureFlags . flagLegalHold)
+
+class HasAwsEnv e where
+  getAwsEnv :: e -> Maybe Aws.Env
+
+instance HasAwsEnv Env where
+  getAwsEnv = view aEnv
+
+class HasCurrentFanoutLimit e where
+  getCurrentFanoutLimit :: e -> Range 1 HardTruncationLimit Int32
+
+instance HasCurrentFanoutLimit Env where
+  getCurrentFanoutLimit = view (options . to currentFanoutLimit)
+
 interpretTeamStoreToCassandra ::
-  ( Member (Embed IO) r,
-    Member (Input Env) r,
+  forall e r a.
+  ( HasFeatureFlagLegalHold e,
+    HasAwsEnv e,
+    HasCurrentFanoutLimit e,
+    Member (Embed IO) r,
+    Member (Input e) r,
     Member (Input ClientState) r
   ) =>
   FeatureLegalHold ->
@@ -96,11 +120,10 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   DeleteTeamConversation tid cid -> embedClient $ removeTeamConv tid cid
   SetTeamData tid upd -> embedClient $ updateTeam tid upd
   SetTeamStatus tid st -> embedClient $ updateTeamStatus tid st
-  FanoutLimit -> embedApp $ currentFanoutLimit <$> view options
-  GetLegalHoldFlag ->
-    view (options . optSettings . setFeatureFlags . flagLegalHold) <$> input
+  FanoutLimit -> getCurrentFanoutLimit <$> input @e
+  GetLegalHoldFlag -> getFlagLegalHold <$> input @e
   EnqueueTeamEvent e -> do
-    menv <- inputs (view aEnv)
+    menv <- inputs @e getAwsEnv
     for_ menv $ \env ->
       embed @IO $ Aws.execute env (Aws.enqueue e)
 

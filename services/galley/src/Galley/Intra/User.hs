@@ -79,10 +79,17 @@ import Wire.API.User.RichInfo (RichInfo)
 -- When a connection does not exist, it is skipped.
 -- Calls 'Brig.API.Internal.getConnectionsStatusUnqualified'.
 getConnectionsUnqualified ::
+  ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) =>
   [UserId] ->
   Maybe [UserId] ->
   Maybe Relation ->
-  App [ConnectionStatus]
+  m [ConnectionStatus]
 getConnectionsUnqualified uFrom uTo rlt = do
   r <-
     call Brig $
@@ -252,7 +259,7 @@ updateSearchVisibilityInbound =
 runHereClientM :: HasCallStack => Client.ClientM a -> App (Either Client.ClientError a)
 runHereClientM action = do
   mgr <- view manager
-  brigep <- view brig
+  brigep <- view Galley.Env.brig
   let env = Client.mkClientEnv mgr baseurl
       baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. epHost) (fromIntegral $ brigep ^. epPort) ""
   liftIO $ Client.runClientM action env

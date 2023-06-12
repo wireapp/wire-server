@@ -313,7 +313,6 @@ deleteFederationDomainRemote' localDomain dom = do
         conv <- getConversationWithError lCnvId
         let lConv = toLocalUnsafe localDomain conv
 
-        -- Memberstore, what is it using Env for, and can I minimmise it?
         updateLocalConversationUserUnchecked
           @'ConversationRemoveMembersTag
           lConv
@@ -326,6 +325,15 @@ deleteFederationDomainRemote' localDomain dom = do
         -- Check that we are in a type 2 or a type 3 conversation
         when (cnvmType (convMetadata conv) `elem` [One2OneConv, ConnectConv]) $
           -- If we are, delete it.
+
+          -- Member TeamStore r
+          --   Embed IO
+          --   Input Env <-- Problem
+          --   Input ClientState 
+          -- Member ConversationStore r
+          --   Embed IO
+          --   Input ClientState
+          --   TinyLog
           updateLocalConversationUserUnchecked
             @'ConversationDeleteTag
             lConv
@@ -368,6 +376,24 @@ deleteFederationDomainLocal dom = do
               -- We don't need to check the conversation type here, as we can't tell the
               -- remote federation server to delete the conversation. They will have to do a
               -- similar processing run for removing the local domain from their federation list.
+
+              -- BrigAccess
+              --   Embed IO
+              --   Error InternalError
+              --   TinyLog
+              --   Input Env <-- Problem
+              -- GundeckAccess
+              --   Embed IO
+              --   Input Env <-- Problem
+              -- ExternalAccess
+              --   Embed IO
+              --   Input Env <-- Problem
+              -- Input (Local ())
+              -- MemberStore
+              --   Embed IO
+              --   Input ClientState
+              -- TinyLog
+              --   Embed
               onConversationUpdated dom convUpdate
 
 -- Remove local members from remote conversations

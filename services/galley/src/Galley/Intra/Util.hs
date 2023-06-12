@@ -19,20 +19,20 @@ module Galley.Intra.Util
   ( IntraComponent (..),
     call,
     asyncCall,
+    HasIntraComponentEndpoints (..)
   )
 where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
 import Bilge.Retry
-import Control.Lens (view, (^.))
+import Control.Lens ((^.), Lens')
 import Control.Monad.Catch
 import Control.Retry
 import qualified Data.ByteString.Lazy as LB
 import Data.Misc (portNumber)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as LT
-import Galley.Env
 import Galley.Monad
 import Galley.Options
 import Imports hiding (log)
@@ -40,6 +40,7 @@ import Network.HTTP.Types
 import System.Logger
 import qualified System.Logger.Class as LC
 import Util.Options
+import Galley.Env (Env, options)
 
 data IntraComponent = Brig | Spar | Gundeck
   deriving (Show)
@@ -49,16 +50,26 @@ componentName Brig = "brig"
 componentName Spar = "spar"
 componentName Gundeck = "gundeck"
 
-componentRequest :: IntraComponent -> Opts -> Request -> Request
+class HasIntraComponentEndpoints opts where
+  brig :: Lens' opts Endpoint
+  gundeck :: Lens' opts Endpoint
+  spar :: Lens' opts Endpoint
+
+instance HasIntraComponentEndpoints Env where
+  brig = options . optBrig
+  spar = options . optSpar
+  gundeck = options . optGundeck
+
+componentRequest :: HasIntraComponentEndpoints c => IntraComponent -> c -> Request -> Request
 componentRequest Brig o =
-  host (encodeUtf8 (o ^. optBrig . epHost))
-    . port (portNumber (fromIntegral (o ^. optBrig . epPort)))
+  host (encodeUtf8 (o ^. brig . epHost))
+    . port (portNumber (fromIntegral (o ^. brig . epPort)))
 componentRequest Spar o =
-  host (encodeUtf8 (o ^. optSpar . epHost))
-    . port (portNumber (fromIntegral (o ^. optSpar . epPort)))
+  host (encodeUtf8 (o ^. spar . epHost))
+    . port (portNumber (fromIntegral (o ^. spar . epPort)))
 componentRequest Gundeck o =
-  host (encodeUtf8 $ o ^. optGundeck . epHost)
-    . port (portNumber $ fromIntegral (o ^. optGundeck . epPort))
+  host (encodeUtf8 $ o ^. gundeck . epHost)
+    . port (portNumber $ fromIntegral (o ^. gundeck . epPort))
     . method POST
     . path "/i/push/v2"
     . expect2xx
@@ -69,11 +80,18 @@ componentRetryPolicy Spar = x1
 componentRetryPolicy Gundeck = x3
 
 call ::
-  IntraComponent ->
+  ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  )
+  => IntraComponent ->
   (Request -> Request) ->
-  App (Response (Maybe LB.ByteString))
+  m (Response (Maybe LB.ByteString))
 call comp r = do
-  o <- view options
+  o <- ask
   let r0 = componentRequest comp o
   let n = LT.pack (componentName comp)
   recovering (componentRetryPolicy comp) rpcHandlers (const (rpc n (r . r0)))

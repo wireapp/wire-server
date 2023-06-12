@@ -33,7 +33,7 @@ import Galley.Intra.Effects (interpretBrigAccess, interpretGundeckAccess)
 import Galley.External (interpretExternalAccess)
 import Data.Text.Lazy (unpack)
 import Galley.Options (setFederationDomain, optSettings, setFeatureFlags)
-import Galley.Env
+import Galley.Env hiding (Env)
 import Galley.Types.Teams
 
 -- This type is used to tie the amqp sending and receiving message types together.
@@ -44,7 +44,7 @@ defederateDomains :: Channel -> AppT IO ()
 defederateDomains chan = do
   e <- ask
   let log' = logger e
-      cass = cassandra e
+      cass = cassandra' e
   liftIO $ ensureQueue chan defederateQueue
   liftIO $ void $ consumeMsgs chan (routingKey defederateQueue) Ack $ \(message, envelope) ->
       case Aeson.eitherDecode @MsgData (msgBody message) of
@@ -62,7 +62,7 @@ defederateDomains chan = do
             -- TODO test that this doesn't explode EVER, or better yet work out how to avoid the problem altogether
             gEnv = undefined
             localDom = gEnv ^. options . optSettings . setFederationDomain
-        either failure success <=< runExceptT . interpretGalley gEnv $ do
+        either failure success <=< runExceptT . interpretGalley e gEnv $ do
           -- Run code from galley to clean up conversations
           G.deleteFederationDomainRemote' localDom dom
           G.deleteFederationDomainLocal' localDom dom
@@ -81,39 +81,42 @@ type Effects =
   , Input Cass.ClientState
   , Input (Local ())
   , Input G.Env
+  , Input Env
   , Embed IO
   , Error String
   , Final IO
   ]
 
 interpretGalley
-  :: G.Env
+  :: Env
+  -> G.Env
   -> Sem Effects ()
   -> ExceptT String IO ()
-interpretGalley env action = do
+interpretGalley env gEnv action = do
   ExceptT
     . runFinal @IO
     . runError
     . embedToFinal @IO
-    . runInputConst @G.Env env
-    . runInputConst (toLocalUnsafe localDomain ())
+    . runInputConst @Env env
+    . runInputConst @G.Env gEnv
+    . runInputConst (toLocalUnsafe localDom ())
     . runInputConst cass
     . interpretTinyLog log'
     . mapError @InternalError (unpack . internalErrorDescription)
     . mapError @FederationError show
     . interpretMemberStoreToCassandra
     . interpretConversationStoreToCassandra
-    . interpretCodeStoreToCassandra
-    . interpretTeamStoreToCassandra lh
-    . interpretBrigAccess
+    . interpretCodeStoreToCassandra @Wire.BackgroundWorker.Env.Env
+    . interpretTeamStoreToCassandra @Wire.BackgroundWorker.Env.Env lh
+    . interpretBrigAccess @Wire.BackgroundWorker.Env.Env
     . interpretGundeckAccess
     . interpretExternalAccess
     $ action
   where
-    localDomain = env ^. options . optSettings . setFederationDomain
-    log' = env ^. applog
-    cass = env ^. cstate
-    lh = env ^. options . optSettings . setFeatureFlags . flagLegalHold
+    localDom = localDomain env
+    log' = logger env
+    cass = cassandra' env
+    lh = gEnv ^. options . optSettings . setFeatureFlags . flagLegalHold
 
 interpretTinyLog ::
   Member (Embed IO) r =>
