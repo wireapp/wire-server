@@ -145,7 +145,7 @@ getLegalHoldAuthToken ::
   Sem r OpaqueAuthToken
 getLegalHoldAuthToken uid pw = do
   r <-
-    embedApp' @c $ unApp' . call Brig $
+    embedApp' @c $ call Brig $
       method POST
         . path "/i/legalhold-login"
         . queryItem "persist" "true"

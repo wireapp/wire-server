@@ -286,12 +286,12 @@ evalGalley e =
     . interpretCodeStoreToCassandra @Env
     . interpretClientStoreToCassandra
     . interpretFireAndForget
-    . interpretBotAccess
+    . interpretBotAccess @Env
     . interpretBackendNotificationQueueAccess
     . interpretFederatorAccess
     . interpretExternalAccess
-    . interpretGundeckAccess
-    . interpretSparAccess
+    . interpretGundeckAccess @Env
+    . interpretSparAccess @Env
     . interpretBrigAccess @Env
   where
     lh = view (options . optSettings . setFeatureFlags . Teams.flagLegalHold) e

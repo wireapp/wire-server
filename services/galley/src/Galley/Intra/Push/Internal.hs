@@ -20,7 +20,7 @@
 module Galley.Intra.Push.Internal where
 
 import Bilge hiding (options)
-import Control.Lens (makeLenses, set, view, (.~))
+import Control.Lens (makeLenses, set, (.~))
 import Data.Aeson (Object)
 import Data.Id (ConnId, UserId)
 import Data.Json.Util
@@ -29,9 +29,7 @@ import Data.List1
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Galley.Env
 import Galley.Intra.Util
-import Galley.Monad
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
@@ -42,6 +40,11 @@ import Wire.API.Event.Conversation (Event (evtFrom))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import qualified Wire.API.Event.Team as Teams
 import Wire.API.Team.Member
+import Control.Monad.Catch
+import Galley.Cassandra.Team (HasCurrentFanoutLimit (getCurrentFanoutLimit))
+import System.Logger.Class
+import Bilge.RPC (HasRequestId)
+import Galley.Monad
 
 data PushEvent
   = ConvEvent Event
@@ -80,7 +83,17 @@ makeLenses ''PushTo
 
 type Push = PushTo UserId
 
-push :: Foldable f => f Push -> App ()
+push ::
+  ( Foldable f
+  , MonadReader c m
+  , MonadUnliftIO m
+  , HasCurrentFanoutLimit c
+  , MonadMask m
+  , MonadHttp m
+  , MonadLogger m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) => f Push -> m ()
 push ps = do
   let pushes = foldMap (toList . mkPushTo) ps
   traverse_ pushLocal (nonEmpty pushes)
@@ -93,10 +106,18 @@ push ps = do
 -- | Asynchronously send multiple pushes, aggregating them into as
 -- few requests as possible, such that no single request targets
 -- more than 128 recipients.
-pushLocal :: NonEmpty (PushTo UserId) -> App ()
+pushLocal ::
+  ( MonadReader c m
+  , MonadUnliftIO m
+  , HasCurrentFanoutLimit c
+  , MonadMask m
+  , MonadHttp m
+  , MonadLogger m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) => NonEmpty (PushTo UserId) -> m ()
 pushLocal ps = do
-  opts <- view options
-  let limit = currentFanoutLimit opts
+  limit <- asks getCurrentFanoutLimit
   -- Do not fan out for very large teams
   let (asyncs, syncs) = partition _pushAsync (removeIfLargeFanout limit $ toList ps)
   traverse_ (asyncCall Gundeck <=< jsonChunkedIO) (pushes asyncs)
@@ -186,9 +207,20 @@ newConversationEventPush e users =
   let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
    in newPush ListComplete musr (ConvEvent e) (map userRecipient (tUnqualified users))
 
-pushSlowly :: Foldable f => f Push -> App ()
+pushSlowly ::
+  ( Foldable f
+  , MonadReader c m
+  , MonadUnliftIO m
+  , MonadMask m
+  , MonadHttp m
+  , MonadLogger m
+  , HasRequestId m
+  , DeleteConvThrottle c
+  , HasCurrentFanoutLimit c
+  , HasIntraComponentEndpoints c
+  ) => f Push ->  m ()
 pushSlowly ps = do
-  mmillis <- view (options . optSettings . setDeleteConvThrottleMillis)
+  mmillis <- asks deleteConvThrottleMillis
   let delay = 1000 * fromMaybe defDeleteConvThrottleMillis mmillis
   forM_ ps $ \p -> do
     push [p]

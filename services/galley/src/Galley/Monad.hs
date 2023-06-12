@@ -32,6 +32,7 @@ import Polysemy.Input
 import System.Logger
 import qualified System.Logger.Class as LC
 import Data.Id
+import Galley.Options (optSettings, setDeleteConvThrottleMillis)
 
 newtype App a = App {unApp :: ReaderT Env IO a}
   deriving
@@ -91,9 +92,6 @@ newtype App' c a = App' {unApp' :: ReaderT c IO a}
       MonadUnliftIO
     )
 
-runApp' :: c -> App' c a -> IO a
-runApp' env = flip runReaderT env . unApp'
-
 instance HasRequestId' c => HasRequestId (App' c) where
   getRequestId = App' $ view requestId
 
@@ -136,11 +134,17 @@ instance (HasLogger c, HasRequestId' c) => LC.MonadLogger (App' c) where
   log lvl m = do
     c <- ask
     log (c ^. logger') lvl (reqIdMsg (c ^. requestId) . m)
+  
+class DeleteConvThrottle c where
+  deleteConvThrottleMillis :: c -> Maybe Int
+
+instance DeleteConvThrottle Env where
+  deleteConvThrottleMillis = view (options . optSettings . setDeleteConvThrottleMillis)
 
 embedApp' :: forall c r a.
   ( Member (Embed IO) r
   , Member (Input c) r
-  ) => ReaderT c IO a -> Sem r a
+  ) => App' c a -> Sem r a
 embedApp' action = do
   o <- input
-  embed $ runReaderT action o
+  embed $ runReaderT (unApp' action) o

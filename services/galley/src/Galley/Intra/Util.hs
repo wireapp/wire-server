@@ -33,7 +33,6 @@ import qualified Data.ByteString.Lazy as LB
 import Data.Misc (portNumber)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as LT
-import Galley.Monad
 import Galley.Options
 import Imports hiding (log)
 import Network.HTTP.Types
@@ -96,7 +95,15 @@ call comp r = do
   let n = LT.pack (componentName comp)
   recovering (componentRetryPolicy comp) rpcHandlers (const (rpc n (r . r0)))
 
-asyncCall :: IntraComponent -> (Request -> Request) -> App ()
+asyncCall ::
+  ( MonadUnliftIO m
+  , MonadReader c m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  , LC.MonadLogger m
+  ) => IntraComponent -> (Request -> Request) -> m ()
 asyncCall comp req = void $ do
   let n = LT.pack (componentName comp)
   forkIO $ catches (void (call comp req)) (handlers n)

@@ -26,13 +26,21 @@ import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.Set as Set
 import Galley.Intra.Util
-import Galley.Monad
 import Imports
 import Network.HTTP.Types.Method
 import Wire.API.User (ScimUserInfo, UserSet (..), scimUserInfos)
+import Control.Monad.Catch
+import Bilge.RPC
 
 -- | Notify Spar that a team is being deleted.
-deleteTeam :: TeamId -> App ()
+deleteTeam :: 
+  ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) => TeamId -> m ()
 deleteTeam tid = do
   void . call Spar $
     method DELETE
@@ -40,7 +48,14 @@ deleteTeam tid = do
       . expect2xx
 
 -- | Get the SCIM user info for a user.
-lookupScimUserInfos :: [UserId] -> App [ScimUserInfo]
+lookupScimUserInfos ::
+  ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) => [UserId] -> m [ScimUserInfo]
 lookupScimUserInfos uids = do
   response <-
     call Spar $

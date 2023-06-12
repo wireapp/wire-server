@@ -28,7 +28,6 @@ import Galley.Effects.BotAccess (BotAccess (..))
 import Galley.Effects.BrigAccess (BrigAccess (..))
 import Galley.Effects.GundeckAccess (GundeckAccess (..))
 import Galley.Effects.SparAccess (SparAccess (..))
-import Galley.Env
 import Galley.Intra.Client
 import qualified Galley.Intra.Push.Internal as G
 import Galley.Intra.Spar
@@ -42,6 +41,7 @@ import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified UnliftIO
 import Galley.Intra.Util (HasIntraComponentEndpoints)
+import Galley.Cassandra.Team
 
 interpretBrigAccess ::
   forall c r a.
@@ -57,74 +57,89 @@ interpretBrigAccess ::
   Sem r a
 interpretBrigAccess = interpret $ \case
   GetConnectionsUnqualified uids muids mrel ->
-    embedApp' @c $ unApp' $ getConnectionsUnqualified uids muids mrel
+    embedApp' @c $ getConnectionsUnqualified uids muids mrel
   GetConnectionsUnqualifiedBidi uids1 uids2 mrel1 mrel2 ->
-    embedApp' @c $ unApp' $
+    embedApp' @c $
       UnliftIO.concurrently
         (getConnectionsUnqualified uids1 (Just uids2) mrel1)
         (getConnectionsUnqualified uids2 (Just uids1) mrel2)
   GetConnections uids mquids mrel ->
-    embedApp' @c $ unApp' $
+    embedApp' @c $
       getConnections uids mquids mrel
-  PutConnectionInternal uc -> embedApp' @c $ unApp' $ putConnectionInternal uc
-  ReauthUser uid reauth -> embedApp' @c $ unApp' $ reAuthUser uid reauth
-  LookupActivatedUsers uids -> embedApp' @c $ unApp' $ lookupActivatedUsers uids
-  GetUsers uids -> embedApp' @c $ unApp' $ getUsers uids
-  DeleteUser uid -> embedApp' @c $ unApp' $ deleteUser uid
-  GetContactList uid -> embedApp' @c $ unApp' $ getContactList uid
-  GetRichInfoMultiUser uids -> embedApp' @c $ unApp' $ getRichInfoMultiUser uids
-  GetSize tid -> embedApp' @c $ unApp' $ getSize tid
-  LookupClients uids -> embedApp' @c $ unApp' $ lookupClients uids
-  LookupClientsFull uids -> embedApp' @c $ unApp' $ lookupClientsFull uids
+  PutConnectionInternal uc -> embedApp' @c $ putConnectionInternal uc
+  ReauthUser uid reauth -> embedApp' @c $ reAuthUser uid reauth
+  LookupActivatedUsers uids -> embedApp' @c $ lookupActivatedUsers uids
+  GetUsers uids -> embedApp' @c $ getUsers uids
+  DeleteUser uid -> embedApp' @c $ deleteUser uid
+  GetContactList uid -> embedApp' @c $ getContactList uid
+  GetRichInfoMultiUser uids -> embedApp' @c $ getRichInfoMultiUser uids
+  GetSize tid -> embedApp' @c $ getSize tid
+  LookupClients uids -> embedApp' @c $ lookupClients uids
+  LookupClientsFull uids -> embedApp' @c $ lookupClientsFull uids
   NotifyClientsAboutLegalHoldRequest self other pk ->
-    embedApp' @c $ unApp' $ notifyClientsAboutLegalHoldRequest self other pk
+    embedApp' @c $ notifyClientsAboutLegalHoldRequest self other pk
   GetLegalHoldAuthToken uid mpwd -> getLegalHoldAuthToken @c uid mpwd
   AddLegalHoldClientToUserEither uid conn pks lpk ->
-    embedApp' @c $ unApp' $ addLegalHoldClientToUser uid conn pks lpk
+    embedApp' @c $ addLegalHoldClientToUser uid conn pks lpk
   RemoveLegalHoldClientFromUser uid ->
-    embedApp' @c $ unApp' $ removeLegalHoldClientFromUser uid
+    embedApp' @c $ removeLegalHoldClientFromUser uid
   GetAccountConferenceCallingConfigClient uid ->
-    embedApp' @c $ unApp' $ getAccountConferenceCallingConfigClient uid
+    embedApp' @c $ getAccountConferenceCallingConfigClient uid
   GetClientByKeyPackageRef ref ->
-    embedApp' @c $ unApp' $ getClientByKeyPackageRef ref
-  GetLocalMLSClients qusr ss -> embedApp' @c $ unApp' $ getLocalMLSClients qusr ss
+    embedApp' @c $ getClientByKeyPackageRef ref
+  GetLocalMLSClients qusr ss -> embedApp' @c $ getLocalMLSClients qusr ss
   AddKeyPackageRef ref qusr cl qcnv ->
-    embedApp' @c $ unApp' $
+    embedApp' @c $
       addKeyPackageRef ref qusr cl qcnv
   ValidateAndAddKeyPackageRef nkp ->
-    embedApp' @c $ unApp' $
+    embedApp' @c $
       validateAndAddKeyPackageRef nkp
   UpdateKeyPackageRef update ->
-    embedApp' @c $ unApp' $
+    embedApp' @c $
       updateKeyPackageRef update
   UpdateSearchVisibilityInbound status ->
-    embedApp' @c $ unApp' $ updateSearchVisibilityInbound status
+    embedApp' @c $ updateSearchVisibilityInbound status
 
 interpretSparAccess ::
+  forall c r a.
   ( Member (Embed IO) r,
-    Member (Input Env) r
+    Member (Input c) r,
+    HasIntraComponentEndpoints c,
+    HasManager c,
+    HasRequestId' c
   ) =>
   Sem (SparAccess ': r) a ->
   Sem r a
 interpretSparAccess = interpret $ \case
-  DeleteTeam tid -> embedApp $ deleteTeam tid
-  LookupScimUserInfos uids -> embedApp $ lookupScimUserInfos uids
+  DeleteTeam tid -> embedApp' @c $ deleteTeam tid
+  LookupScimUserInfos uids -> embedApp' @c $ lookupScimUserInfos uids
 
 interpretBotAccess ::
+  forall c r a.
   ( Member (Embed IO) r,
-    Member (Input Env) r
+    Member (Input c) r,
+    HasIntraComponentEndpoints c,
+    HasManager c,
+    HasRequestId' c
   ) =>
   Sem (BotAccess ': r) a ->
   Sem r a
 interpretBotAccess = interpret $ \case
-  DeleteBot cid bid -> embedApp $ deleteBot cid bid
+  DeleteBot cid bid -> embedApp' @c $ deleteBot cid bid
 
 interpretGundeckAccess ::
+  forall c r a.
   ( Member (Embed IO) r,
-    Member (Input Env) r
+    Member (Input c) r,
+    HasIntraComponentEndpoints c,
+    HasManager c,
+    HasRequestId' c,
+    HasCurrentFanoutLimit c,
+    HasLogger c,
+    DeleteConvThrottle c
   ) =>
   Sem (GundeckAccess ': r) a ->
   Sem r a
 interpretGundeckAccess = interpret $ \case
-  Push ps -> embedApp $ G.push ps
-  PushSlowly ps -> embedApp $ G.pushSlowly ps
+  Push ps -> embedApp' @c $ G.push ps
+  PushSlowly ps -> embedApp' @c $ G.pushSlowly ps

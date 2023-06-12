@@ -27,10 +27,10 @@ import Galley.Types.Teams
 import qualified Galley.Aws as Aws
 import Data.Range
 import Wire.API.Team.Member
-import Galley.Monad
 import Control.Lens.Combinators (lens)
 import Galley.Intra.Util
 import Data.Id
+import Galley.Monad
 
 data Env = Env
   { manager :: Manager,
@@ -46,7 +46,8 @@ data Env = Env
     brig' :: Endpoint,
     spar' :: Endpoint,
     gundeck' :: Endpoint,
-    requestId' :: RequestId
+    requestId' :: RequestId,
+    deleteConvThrottle :: Maybe Int
   }
 
 instance HasCodeStoreEnv Env where
@@ -75,6 +76,9 @@ instance HasLogger Env where
 instance HasRequestId' Env where
   requestId = lens requestId' (\s a -> s { requestId' = a })
 
+instance DeleteConvThrottle Env where
+  deleteConvThrottleMillis = deleteConvThrottle
+
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
   manager <- newManager defaultManagerSettings
@@ -90,6 +94,7 @@ mkEnv opts = do
       spar' = opts.spar
       gundeck' = opts.gundeck
       requestId' = opts.requestId
+      deleteConvThrottle = Nothing
   cassandra' <- Cass.init $ Cass.defSettings -- TODO: Update these settings
   pure Env {..}
 

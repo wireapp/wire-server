@@ -109,7 +109,7 @@ interpretGalley env gEnv action = do
     . interpretCodeStoreToCassandra @Wire.BackgroundWorker.Env.Env
     . interpretTeamStoreToCassandra @Wire.BackgroundWorker.Env.Env lh
     . interpretBrigAccess @Wire.BackgroundWorker.Env.Env
-    . interpretGundeckAccess
+    . interpretGundeckAccess @Wire.BackgroundWorker.Env.Env
     . interpretExternalAccess
     $ action
   where

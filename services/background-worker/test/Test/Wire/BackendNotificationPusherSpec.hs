@@ -45,6 +45,7 @@ runTestAppT app port = do
       spar' = Endpoint "" 0
       gundeck' = Endpoint "" 0
       requestId' = RequestId ""
+      deleteConvThrottle = Nothing
       env = Env {..}
   runAppT env app
 
