@@ -286,8 +286,8 @@ startBackend domain nginzSslPort mFederatorOverrides mBgWorkerOverrides services
                   mPid <- getPid ph
                   for_ mPid (signalProcess killProcess)
                   void $ waitForProcess ph
-  -- whenM (doesFileExist path) $ removeFile path
-  -- whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
+          whenM (doesFileExist path) $ removeFile path
+          whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
   let modifyEnv env =
         env {serviceMap = modifyBackends (fromIntegral . fst <$> ports) env.serviceMap}
