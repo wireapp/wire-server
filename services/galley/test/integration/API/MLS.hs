@@ -1131,7 +1131,7 @@ testAppMessageSomeReachable = do
     let unreachables = Set.singleton (Domain "charlie.example.com")
     let sendMocks =
           messageSentMockByDomain [bobDomain]
-            <|> mlsMockUnreachableFor unreachables
+            <|> mockUnreachableFor unreachables
 
     withTempMockFederator' sendMocks $ do
       message <- createApplicationMessage alice1 "hi, bob!"
