@@ -1,0 +1,1 @@
+In a setting where remote participants are included in a freshly created Proteus conversation, the backend now sends a conversation.create event as long as a conversation.member-join event once all remote participants are confirmed.
