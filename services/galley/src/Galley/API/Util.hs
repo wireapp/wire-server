@@ -754,14 +754,14 @@ fromConversationCreated loc rc@ConversationCreated {..} =
         ProtocolProteus
 
 -- | Notify remote users of being added to a new conversation. The return value
--- consists of users that could not be notified; they will not be considered to
--- be conversation members.
+-- consists of a split of users that could not be notified. Users that could not
+-- be notified will not be considered to be conversation members.
 registerRemoteConversationMemberships ::
   (Member FederatorAccess r) =>
   -- | The time stamp when the conversation was created
   UTCTime ->
   Local Data.Conversation ->
-  Sem r (Set (Remote UserId))
+  Sem r DataTypes.MemberAddStatus
 registerRemoteConversationMemberships now lc = do
   let c = tUnqualified lc
       allRemoteMembers = nubOrd (Data.convRemoteMembers c)
@@ -786,33 +786,27 @@ registerRemoteConversationMemberships now lc = do
         filter
           (\rmems -> Set.notMember (tDomain rmems) failedToNotifyDomains)
           allRemoteBuckets
-      newJoiners :: [(Remote [RemoteMember], NonEmpty (Qualified UserId))] =
+      joinedFlat = Set.fromList $ foldMap (fmap rmId . tUnqualified) joined
+      joinedCoupled =
         foldMap
           ( \ruids ->
-              let nj = foldMap (fmap (tUntagged . rmId) . tUnqualified) $ filter (\r -> tDomain r /= tDomain ruids) joined
+              let nj =
+                    foldMap (fmap rmId . tUnqualified) $
+                      filter (\r -> tDomain r /= tDomain ruids) joined
                in case NE.nonEmpty nj of
                     Nothing -> []
                     Just v -> [(ruids, v)]
           )
           joined
-  void $ runFederatedConcurrentlyBucketsEither newJoiners $ \(toNotify, newMembers) -> do
-    fedClient @'Galley @"on-conversation-updated" $
-      ConversationUpdate
-        { cuTime = now,
-          cuOrigUserId = tUntagged . qualifyAs lc $ creator,
-          cuConvId = DataTypes.convId . tUnqualified $ lc,
-          cuAlreadyPresentUsers = fmap (tUnqualified . rmId) . tUnqualified $ toNotify,
-          -- \| Information on the specific action that caused the update.
-          cuAction =
-            SomeConversationAction
-              (sing @'ConversationJoinTag)
-              (ConversationJoin newMembers (rmConvRoleName undefined))
-        }
-  pure failedToNotifySet
+  -- Send an update to remotes about the final list of participants
+  void . runFederatedConcurrentlyBucketsEither joinedCoupled $
+    fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
+  pure $
+    DataTypes.MemberAddStatus
+      { added = joinedFlat,
+        notAdded = failedToNotifySet
+      }
   where
-    -- toSet :: forall a x e. Ord x => [Either (Remote [x], e) a] -> Set (Remote x)
-    -- toSet =
-    --   Set.fromList . foldMap (either (sequenceA . fst) mempty)
     creator = cnvmCreator . DataTypes.convMetadata . tUnqualified $ lc
     localNonCreators =
       fmap (localMemberToOther . tDomain $ lc)
@@ -824,6 +818,19 @@ registerRemoteConversationMemberships now lc = do
       [RemoteMember] ->
       Set OtherMember
     toMembers rs = Set.fromList $ localNonCreators <> fmap remoteMemberToOther rs
+    convUpdateJoin (toNotify, newMembers) =
+      ConversationUpdate
+        { cuTime = now,
+          cuOrigUserId = tUntagged . qualifyAs lc $ creator,
+          cuConvId = DataTypes.convId . tUnqualified $ lc,
+          cuAlreadyPresentUsers = fmap (tUnqualified . rmId) . tUnqualified $ toNotify,
+          cuAction =
+            SomeConversationAction
+              (sing @'ConversationJoinTag)
+              -- FUTUREWORK(md): replace the member role with whatever is provided in
+              -- the NewConv input
+              (ConversationJoin (tUntagged <$> newMembers) roleNameWireMember)
+        }
 
 --------------------------------------------------------------------------------
 -- Legalhold
