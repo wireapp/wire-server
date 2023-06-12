@@ -72,21 +72,22 @@ startDynamicBackend beOverrides action = do
         pool
         ( \resource -> runInBase $ do
             defDomain <- asks (.domain1)
+            defDomain2 <- asks (.domain2)
             let services =
                   Map.mapWithKey
                     ( \srv conf ->
                         conf
                           >=> setKeyspace resource srv
                           >=> setEsIndex resource srv
-                          >=> setFederationSettings resource srv
+                          >=> setFederationSettings defDomain defDomain2 resource srv
                           >=> setAwsAdnQueuesConfigs resource srv
                     )
                     $ defaultDynBackendConfigOverridesToMap beOverrides
             startBackend
               resource.berDomain
+              resource.berNginzSslPort
               (Just $ setFederatorConfig resource)
-              -- TODO(leif): add remote domains
-              (Just $ backGroundWorkerOverrides resource [])
+              (Just $ backGroundWorkerOverrides resource (remoteDomains resource.berDomain))
               services
               ( \ports sm -> do
                   let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
@@ -111,12 +112,19 @@ startDynamicBackend beOverrides action = do
           >=> setField "rabbitmq.vHost" resource.berVHost
       _ -> pure
 
-    setFederationSettings :: BackendResource -> Service -> Value -> App Value
-    setFederationSettings resource =
+    setFederationSettings :: String -> String -> BackendResource -> Service -> Value -> App Value
+    setFederationSettings ownDomain otherDomain resource =
       \case
         Brig ->
           setField "optSettings.setFederationDomain" resource.berDomain
-            >=> setField "optSettings.setFederationDomainConfigs" [object ["domain" .= resource.berDomain, "search_policy" .= "full_search"]]
+            >=> setField
+              "optSettings.setFederationDomainConfigs"
+              ( [ object ["domain" .= resource.berDomain, "search_policy" .= "full_search"],
+                  object ["domain" .= ownDomain, "search_policy" .= "full_search"],
+                  object ["domain" .= otherDomain, "search_policy" .= "full_search"]
+                ]
+                  <> [object ["domain" .= d, "search_policy" .= "full_search"] | d <- remoteDomains resource.berDomain]
+              )
             >=> setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
         Cargohold ->
           setField "settings.federationDomain" resource.berDomain
@@ -135,9 +143,9 @@ startDynamicBackend beOverrides action = do
         >=> setFieldIfExists "optSettings.setFederationDomain" resource.berDomain
 
     backGroundWorkerOverrides :: BackendResource -> [String] -> Value -> App Value
-    backGroundWorkerOverrides resource remoteDomains =
+    backGroundWorkerOverrides resource rds =
       setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
-        >=> setField "remoteDomains" remoteDomains
+        >=> setField "remoteDomains" rds
         >=> setField "rabbitmq.vHost" resource.berVHost
 
     setKeyspace :: BackendResource -> Service -> Value -> App Value
@@ -165,7 +173,7 @@ setFederatorPorts resource sm =
 withModifiedServices :: Map.Map Service (Value -> App Value) -> (String -> App a) -> App a
 withModifiedServices services action = do
   domain <- asks (.domain1)
-  startBackend domain Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain) action
+  startBackend domain (error "todo") Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain) action
 
 updateServiceMap :: Map.Map Service Word16 -> ServiceMap -> ServiceMap
 updateServiceMap ports serviceMap =
@@ -185,13 +193,14 @@ updateServiceMap ports serviceMap =
 
 startBackend ::
   String ->
+  Word16 ->
   Maybe (Value -> App Value) ->
   Maybe (Value -> App Value) ->
   Map.Map Service (Value -> App Value) ->
   (Map.Map Service Word16 -> Map.Map String ServiceMap -> Map.Map String ServiceMap) ->
   (String -> App a) ->
   App a
-startBackend domain mFederatorOverrides mBgWorkerOverrides services modifyBackends action = do
+startBackend domain nginzSslPort mFederatorOverrides mBgWorkerOverrides services modifyBackends action = do
   ports <- Map.traverseWithKey (\_ _ -> liftIO openFreePort) services
 
   let updateServiceMapInConfig :: Maybe Service -> Value -> App Value
@@ -229,7 +238,7 @@ startBackend domain mFederatorOverrides mBgWorkerOverrides services modifyBacken
       Just override ->
         readServiceConfig' "background-worker"
           >>= override
-          >>= startProcess "background-worker"
+          >>= startProcess domain "background-worker"
           <&> (: [])
 
   fedInstance <-
@@ -239,7 +248,7 @@ startBackend domain mFederatorOverrides mBgWorkerOverrides services modifyBacken
         readServiceConfig' "federator"
           >>= updateServiceMapInConfig Nothing
           >>= override
-          >>= startProcess "federator"
+          >>= startProcess domain "federator"
           <&> (: [])
 
   otherInstances <- for (Map.assocs services) $ \case
@@ -247,13 +256,13 @@ startBackend domain mFederatorOverrides mBgWorkerOverrides services modifyBacken
       env <- ask
       sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (modifyBackends (fromIntegral . fst <$> ports) env.serviceMap))
       port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral . fst) (Map.lookup Nginz ports)
-      startNginz port sm
+      startNginz domain port nginzSslPort sm
     (srv, modifyConfig) -> do
       let srvName = serviceName srv
       readServiceConfig srv
         >>= updateServiceMapInConfig (Just srv)
         >>= modifyConfig
-        >>= startProcess srvName
+        >>= startProcess domain srvName
 
   let instances = bgWorkerInstance <> fedInstance <> otherInstances
 
@@ -274,7 +283,7 @@ startBackend domain mFederatorOverrides mBgWorkerOverrides services modifyBacken
                   mPid <- getPid ph
                   for_ mPid (signalProcess killProcess)
                   void $ waitForProcess ph
-          -- whenM (doesFileExist path) $ removeFile path
+          whenM (doesFileExist path) $ removeFile path
           whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
   let modifyEnv env =
@@ -302,8 +311,8 @@ startBackend domain mFederatorOverrides mBgWorkerOverrides services modifyBacken
             `finally` stopInstances
       )
 
-startProcess :: String -> Value -> App (ProcessHandle, FilePath)
-startProcess srvName config = do
+startProcess :: String -> String -> Value -> App (ProcessHandle, FilePath)
+startProcess domain srvName config = do
   processEnv <- liftIO $ do
     environment <- getEnvironment
     rabbitMqUserName <- getEnv "RABBITMQ_USERNAME"
@@ -318,7 +327,7 @@ startProcess srvName config = do
              ]
       )
 
-  tempFile <- liftIO $ writeTempFile "/tmp" (srvName <> ".yaml") (cs $ Yaml.encode config)
+  tempFile <- liftIO $ writeTempFile "/tmp" (srvName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
 
   (cwd, exe) <-
     asks (.servicesCwdBase) <&> \case
@@ -375,19 +384,19 @@ openFreePort =
               Nothing
               Nothing
 
-startNginz :: Word16 -> ServiceMap -> App (ProcessHandle, FilePath)
-startNginz port sm = do
+startNginz :: String -> Word16 -> Word16 -> ServiceMap -> App (ProcessHandle, FilePath)
+startNginz domain port sslPort sm = do
   nginzConf <-
     liftIO $
       NginzConfig port
         <$> (openFreePort >>= \(p, s) -> N.close s $> fromIntegral p)
-        <*> (openFreePort >>= \(p, s) -> N.close s $> fromIntegral p)
+        <*> pure sslPort
         <*> pure sm.federatorExternal.port
 
   -- Create a whole temporary directory and copy all nginx's config files.
   -- This is necessary because nginx assumes local imports are relative to
   -- the location of the main configuration file.
-  tmpDir <- liftIO $ createTempDirectory "/tmp" "nginz"
+  tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
   mBaseDir <- asks (.servicesCwdBase)
   basedir <- maybe (failApp "service cwd base not found") pure mBaseDir
   let srvName = serviceName Nginz

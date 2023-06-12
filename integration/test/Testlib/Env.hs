@@ -9,6 +9,7 @@ import Data.Char
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
+import Data.List.Extra ((\\))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Pool
@@ -255,7 +256,8 @@ data BackendResource = BackendResource
     berEmailSMSSesQueue :: String,
     berEmailSMSEmailSender :: String,
     berGalleyJournal :: String,
-    berVHost :: String
+    berVHost :: String,
+    berNginzSslPort :: Word16
   }
   deriving (Show, Eq, Ord)
 
@@ -280,7 +282,8 @@ backendResources n =
                 berEmailSMSSesQueue = "integration-brig-events" <> suffix i,
                 berEmailSMSEmailSender = "backend-integration" <> suffix i <> "@wire.com",
                 berGalleyJournal = "integration-team-events.fifo" <> suffix i,
-                berVHost = mkVHost i
+                berVHost = mkVHost i,
+                berNginzSslPort = mkNginzSslPort i
               }
         )
     & Set.fromList
@@ -288,13 +291,16 @@ backendResources n =
     suffix :: Word16 -> String
     suffix i = show $ i + 2
 
+    mkNginzSslPort :: Word16 -> Word16
+    mkNginzSslPort i = 8443 + ((1 + i) * 1000)
+
     -- Fixed internal port for federator, e.g. for dynamic backends: 1 -> 10097, 2 -> 11097, etc.
     federatorInternalPort :: Num a => a -> a
-    federatorInternalPort i = 8097 + (2 * 1000 * i)
+    federatorInternalPort i = 8097 + ((1 + i) * 1000)
 
     -- Fixed external port for federator, e.g. for dynamic backends: 1 -> 10098, 2 -> 11098, etc.
     federatorExternalPort :: Num a => a -> a
-    federatorExternalPort i = 8098 + (2 * 1000 * i)
+    federatorExternalPort i = 8098 + ((1 + i) * 1000)
 
     -- Fixed domain for a backend resource, e.g. for dynamic backends: 1 -> "c.example.com", 2 -> "d.example.com", etc.
     domain :: Integral a => a -> String
@@ -302,3 +308,6 @@ backendResources n =
 
     mkVHost :: Integral a => a -> String
     mkVHost = domain
+
+remoteDomains :: String -> [String]
+remoteDomains domain = ["c.example.com", "d.example.com", "e.example.com"] \\ [domain]

@@ -3,8 +3,11 @@ module Test.Demo where
 
 import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
+import qualified API.Galley as Public
 import qualified API.GalleyInternal as Internal
 import qualified API.Nginz as Nginz
+import Control.Concurrent
+import Control.Monad.Cont
 import qualified Data.Map as Map
 import GHC.Stack
 import SetupHelpers
@@ -173,14 +176,20 @@ testIndependentESIndices = do
         [] -> assertFailure "Expected a non empty result, but got an empty one"
         doc : _ -> doc %. "id" `shouldMatch` uidD2
 
--- testDynamicBackendsFederation :: HasCallStack => App ()
--- testDynamicBackendsFederation =
---   startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain1 ->
---     startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain2 -> do
---       ud1 <- randomUser dynDomain1 def
---       ud2 <- randomUser dynDomain2 def
---       bindResponse (Public.searchContacts ud1 (ud2 %. "name") dynDomain2) $ \resp -> do
---         resp.status `shouldMatchInt` 200
+testDynamicBackendsFederation :: HasCallStack => App ()
+testDynamicBackendsFederation = do
+  startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain1 ->
+    startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain2 -> do
+      u1 <- randomUser dynDomain1 def
+      u2 <- randomUser dynDomain2 def
+      uid2 <- objId u2
+      Internal.refreshIndex dynDomain2
+      bindResponse (Public.searchContacts u1 (u2 %. "name") dynDomain2) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        docs <- resp.json %. "documents" >>= asList
+        case docs of
+          [] -> assertFailure "Expected a non empty result, but got an empty one"
+          doc : _ -> doc %. "id" `shouldMatch` uid2
 
 testWebSockets :: HasCallStack => App ()
 testWebSockets = do
