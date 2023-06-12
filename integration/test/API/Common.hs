@@ -20,17 +20,6 @@ randomEmail :: App String
 randomEmail = do
   u <- randomName
   pure $ u <> "@example.com"
-  where
-    chars :: Array.Array Int Char
-    chars = mkArray $ ['A' .. 'Z'] <> ['a' .. 'z'] <> ['0' .. '9']
-
-    mkArray :: [a] -> Array.Array Int a
-    mkArray l = Array.listArray (0, length l - 1) l
-
-    pick :: IO Char
-    pick = do
-      i <- randomRIO (Array.bounds chars)
-      pure (chars Array.! i)
 
 randomName :: App String
 randomName = liftIO $ do
