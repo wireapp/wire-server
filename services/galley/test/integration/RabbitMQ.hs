@@ -1,17 +1,9 @@
 module RabbitMQ where
 
-import Control.Lens (view, (^.))
 import Data.Domain
 import Data.Text (pack)
-import Galley.Options
-import Galley.Run (ensureQueue, publishRabbitMsg)
 import Imports
-import Network.AMQP.Extended (RabbitMqHooks (RabbitMqHooks), openConnectionWithRetries)
-import qualified Network.AMQP.Extended as AMQP
-import qualified System.Logger as Log
 import System.Random
-import Test.Tasty.HUnit
-import TestSetup
 
 -- compete and timeout are from https://wiki.haskell.org/Timing_out_computations
 compete :: [IO a] -> IO a
@@ -27,10 +19,10 @@ timeout usec action = compete [fmap Just action, threadDelay usec >> pure Nothin
 
 -- Test the round trip to rabbit from galley
 -- and especially that we get out the domain we put in.`
-rabbitPubSub :: TestM ()
-rabbitPubSub =
-  view (tsGConf . optRabbitmq)
-    >>= maybe (pure ()) withRabbitOpts
+-- rabbitPubSub :: TestM ()
+-- rabbitPubSub =
+--   view (tsGConf . optRabbitmq)
+--     >>= maybe (pure ()) withRabbitOpts
 
 -- Generate a simple random string
 randomString :: MonadIO m => m String
@@ -49,6 +41,7 @@ randomDomain =
     b <- randomString
     pure $ pack $ a <> "." <> b
 
+{-
 withRabbitOpts :: RabbitMqOpts -> TestM ()
 withRabbitOpts rabbitOpts = do
   log' <- liftIO $ Log.new Log.defSettings
@@ -94,3 +87,4 @@ withRabbitOpts rabbitOpts = do
     host = rabbitOpts ^. rabbitmqHost
     port = rabbitOpts ^. rabbitmqPort
     vhost = rabbitOpts ^. rabbitmqVHost
+-}

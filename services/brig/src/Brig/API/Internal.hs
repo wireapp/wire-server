@@ -105,6 +105,9 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
+import Wire.API.Federation.BackendNotifications (ensureQueue, defederateQueue, routingKey)
+import qualified Network.AMQP as AMQP
+import qualified Data.Aeson as Aeson
 
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
@@ -225,7 +228,7 @@ assertNoDivergingDomainInConfigFiles fedComConf = do
         Just fedComConf' -> fedComConf' /= fedComConf
   when diverges $ do
     throwError . fedError . FederationUnexpectedError $
-      "keeping track of remote domains in the brig config file is deprecated, but as long as we \
+      "keeping track of routingKeyremote domains in the brig config file is deprecated, but as long as we \
       \do that, adding a domain with different settings than in the config file is nto allowed.  want "
         <> ( "Just "
                <> cs (show fedComConf)
@@ -301,6 +304,18 @@ deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemotes dom = do
   lift . wrapClient . Data.deleteFederationRemote $ dom
   assertNoDomainsFromConfigFiles dom
+  -- TODO: Push to RabbitMQ so that the background worker can start removing things.
+  mChan <- view rabbitmqChannel
+  case mChan of
+    Nothing -> pure ()
+    Just mvar -> liftIO $ do
+      chan <- readMVar mvar
+      ensureQueue chan defederateQueue
+      void $ AMQP.publishMsg chan "" (routingKey defederateQueue) $ AMQP.newMsg
+        { AMQP.msgBody = Aeson.encode dom
+        , AMQP.msgDeliveryMode = pure AMQP.Persistent
+        }
+    
 
 -- | Remove one-on-one conversations for the given remote domain. This is called from Galley as
 -- part of the defederation process, and should not be called duriung the initial domain removal

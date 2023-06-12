@@ -21,8 +21,6 @@ module Galley.Run
     mkLogger,
     -- Exported for tests
     deleteFederationDomain,
-    publishRabbitMsg,
-    ensureQueue,
     runApp,
     deleteFederationDomainRemote',
     deleteFederationDomainLocal',
@@ -51,7 +49,6 @@ import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
 import Data.Qualified
-import qualified Data.Set as Set
 import Data.Singletons
 import Data.Text (unpack)
 import Data.Time (getCurrentTime)
@@ -73,16 +70,11 @@ import Galley.Effects.ExternalAccess
 import Galley.Effects.GundeckAccess
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.TeamStore
-import Galley.Env
 import Galley.Monad
 import Galley.Options
 import qualified Galley.Queue as Q
 import Galley.Types.Conversations.Members
 import Imports
-import qualified Network.AMQP as AMQP
-import Network.AMQP.Extended (RabbitMqHooks (RabbitMqHooks), openConnectionWithRetries)
-import qualified Network.AMQP.Extended as AMQP
-import qualified Network.AMQP.Types as AMQP
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import qualified Network.HTTP.Media.RenderHeader as HTTPMedia
 import qualified Network.HTTP.Types as HTTP
@@ -113,9 +105,6 @@ import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
 import Wire.Sem.Logger
 
--- This type is used to tie the amqp sending and receiving message types together.
-type MsgData = Domain
-
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
   l <- lift $ mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
@@ -138,103 +127,10 @@ run opts = lowerCodensity $ do
   forM_ (env ^. aEnv) $ \aws ->
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
 
-  maybe
-    -- RabbitMQ is required for federation, so if we don't
-    -- have it, don't worry about it!
-    (pure ())
-    (federationUpdate env clientEnv)
-    $ opts ^. optRabbitMq
-
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
   void $ Codensity $ Async.withAsync $ runApp env undefined
   lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
-
--- Complex handling. Most of the complexity comes from interweaving both rabbit queue handling
--- and the HTTP calls out to brig for the new lists of federation domains. Rabbit handles the
--- heavey lifting of ensuring single threaded processing of the domains to be deleted.
-federationUpdate ::
-  Env ->
-  ClientEnv ->
-  RabbitMqOpts ->
-  Codensity IO ()
-federationUpdate env clientEnv rmq = void $ Codensity $ Async.withAsync $ do
-  -- This ioref is needed so that we can kill the async thread that
-  -- is forked by updateFedDomains'
-  threadRef <- newIORef Nothing
-  let mqh = rmq ^. rabbitmqHost
-      mqp = rmq ^. rabbitmqPort
-      mqv = rmq ^. rabbitmqVHost
-      mqq = "domain-deletion-queue"
-  openConnectionWithRetries (env ^. applog) mqh mqp mqv $
-    RabbitMqHooks
-      { AMQP.onConnectionClose = do
-          Log.info (env ^. applog) $ Log.msg @Text "AMQP connection closed"
-          killForkedThread threadRef,
-        AMQP.onChannelException = \e -> do
-          Log.err (env ^. applog) $ Log.msg @Text "AMQP channel exception" . Log.field "exception" (show e)
-          killForkedThread threadRef,
-        AMQP.onNewChannel = \channel -> do
-          -- NOTE: `amqp` uses ChanThreadKilledException to signal that this channel is closed
-          -- This exception should _NOT_ be caught, or if it is it needs to be rethrown. This
-          -- will kill the thread. This handler is then used to start a new one.
-          ensureQueue channel mqq
-          writeRabbitMq clientEnv (env ^. applog) (env ^. fedDomains) channel mqq threadRef
-
-          -- Keep this thread around until it is killed.
-          forever $ threadDelay maxBound
-      }
-  where
-    killForkedThread ref =
-      readIORef ref
-        >>= maybe
-          (pure ())
-          ( \t -> do
-              Async.cancel t
-              atomicWriteIORef ref Nothing
-          )
-
--- Ensure that the queue exists and is single active consumer.
--- Queue declaration is idempotent
-ensureQueue :: AMQP.Channel -> Text -> IO ()
-ensureQueue channel mqq = do
-  void $ AMQP.declareQueue channel $ AMQP.newQueue {AMQP.queueName = mqq, AMQP.queueHeaders = headers}
-  where
-    headers = AMQP.FieldTable $ Map.fromList [("x-single-active-consumer", AMQP.FVBool True)]
-
--- Update federation domains, write deleted domains to rabbitmq
--- Push this thread id somewhere so we can make sure it is killed with
--- this channel thread. We don't want to leak those resources.
-writeRabbitMq ::
-  ClientEnv ->
-  Log.Logger ->
-  IORef FederationDomainConfigs ->
-  AMQP.Channel ->
-  Text ->
-  IORef (Maybe (Async.Async ())) ->
-  IO ()
-writeRabbitMq clientEnv logger ioref channel mqq threadRef = do
-  threadId <- updateFedDomains' ioref clientEnv logger $ \old new -> do
-    let fromFedList = Set.fromList . remotes
-        prevDoms = fromFedList old
-        currDoms = fromFedList new
-        deletedDomains = Set.difference prevDoms currDoms
-    -- Write to the queue
-    -- NOTE: This type must be compatible with what is being read from the queue.
-    for_ deletedDomains $ \fedCfg -> do
-      -- We're using the default exchange. This will deliver the
-      -- message to the queue name used for the routing key
-      void $ publishRabbitMsg channel mqq $ domain fedCfg
-  atomicWriteIORef threadRef $ pure threadId
-
--- Split out to help with integration testing
-publishRabbitMsg :: AMQP.Channel -> Text -> MsgData -> IO (Maybe Int)
-publishRabbitMsg channel mqq dom =
-  AMQP.publishMsg channel "" mqq $
-    AMQP.newMsg
-      { AMQP.msgBody = Aeson.encode @MsgData dom,
-        AMQP.msgDeliveryMode = pure AMQP.Persistent
-      }
 
 mkApp :: Opts -> IORef FederationDomainConfigs -> Log.Logger -> Codensity IO (Application, Env)
 mkApp opts fedDoms logger =
@@ -417,6 +313,7 @@ deleteFederationDomainRemote' localDomain dom = do
         conv <- getConversationWithError lCnvId
         let lConv = toLocalUnsafe localDomain conv
 
+        -- Memberstore, what is it using Env for, and can I minimmise it?
         updateLocalConversationUserUnchecked
           @'ConversationRemoveMembersTag
           lConv

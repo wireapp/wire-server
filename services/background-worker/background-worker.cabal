@@ -39,6 +39,7 @@ library
     , http-client
     , http2-manager
     , imports
+    , lens
     , monad-control
     , polysemy
     , polysemy-wire-zoo

@@ -451,7 +451,6 @@ executable galley-integration
     , directory
     , errors
     , exceptions
-    , extended
     , extra                  >=1.3
     , federator
     , filepath

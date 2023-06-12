@@ -84,6 +84,12 @@ enqueue channel originDomain targetDomain deliveryMode (FedQueueClient action) =
 routingKey :: Text -> Text
 routingKey d = "backend-notifications." <> d
 
+-- Listing the queue part here so that all
+-- services that need to use this queue have a
+-- common source of truth for its name.
+defederateQueue :: Text
+defederateQueue = "defederate"
+
 -- | If you ever change this function and modify
 -- queue parameters, know that it will start failing in the
 -- next release! So be prepared to write migrations.

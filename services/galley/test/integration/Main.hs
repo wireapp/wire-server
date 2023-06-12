@@ -44,7 +44,6 @@ import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
-import RabbitMQ (rabbitPubSub)
 import qualified System.Logger.Class as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -98,8 +97,8 @@ main = withOpenSSL $ runTests go
               (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.sitemap),
           API.tests setup,
           test setup "Federation Domains" updateFedDomainsTest,
-          test setup "isConvMemberL" isConvMemberLTests,
-          test setup "RabbitMQ round-trip" rabbitPubSub
+          test setup "isConvMemberL" isConvMemberLTests
+          -- test setup "RabbitMQ round-trip" rabbitPubSub
         ]
     getOpts gFile iFile = do
       m <- newManager tlsManagerSettings {managerResponseTimeout = responseTimeoutMicro 300000000}
