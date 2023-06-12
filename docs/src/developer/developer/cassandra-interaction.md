@@ -178,6 +178,23 @@ But way-2 is terrible! It will forever remain weird and appear as a bug either f
 all other users in that chat, or all of us, and not resolve. In this case a batch statement is
 **miles** better from a user perspective in the Wire context.
 
+## Lightweight transactions
+
+In some cases, it is important to make sure that a write is conditional to the existence (or non-existence) of a record. One example is uploading the public MLS signature key for a client: only one such key should be uploaded (per supported ciphersuite), so any attempts to write a new key when one is already present should fail.
+
+This sort of "compare-and-swap" semantics can be achieved using Cassandra's lightweight transaction (LWT) mechanism. One can include the condition `IF EXISTS` or `IF NOT EXISTS` in a write query, which can then be executed using the `trans` function from the Cassandra Haskell driver. It is important to set `serialConsistency` to `LocalSerialConsistency` on the `QueryParams` structure passed to `trans`, since that is required for Cassandra to take into account other concurrent lightweight transactions when reading the value initially.
+
+The result of a ligthweight transaction is a single row containing a boolean value, which indicates whether the update was successful.
+
+Here is the code corresponding to the above example:
+
+```{grepinclude} ../services/brig/src/Brig/Data/Client.hs addMLSPublicKey ::
+---
+language: Haskell
+lines-after: 22
+---
+```
+
 ## Examples of code design for optimal user-level consistency in complex scenarios
 
 ### Introduction
