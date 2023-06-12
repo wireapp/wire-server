@@ -1140,6 +1140,29 @@ listRemoteConvs remoteDomain uid = do
       =<< getConvPage uid Nothing (Just 100) <!! const 200 === statusCode
   pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
 
+postQualifiedMembersV2 ::
+  (MonadReader TestSetup m, MonadHttp m, HasGalley m) =>
+  UserId ->
+  NonEmpty (Qualified UserId) ->
+  Qualified ConvId ->
+  m ResponseLBS
+postQualifiedMembersV2 zusr invitees conv = do
+  g <- view tsUnversionedGalley
+  let invite = InviteQualified invitees roleNameWireAdmin
+  post $
+    g
+      . paths
+        [ "v2",
+          "conversations",
+          toByteString' . qDomain $ conv,
+          toByteString' . qUnqualified $ conv,
+          "members"
+        ]
+      . zUser zusr
+      . zConn "conn"
+      . zType "access"
+      . json invite
+
 postQualifiedMembers ::
   (MonadReader TestSetup m, MonadHttp m, HasGalley m) =>
   UserId ->
@@ -1169,6 +1192,29 @@ postMembers ::
   Qualified ConvId ->
   m ResponseLBS
 postMembers u us c = postMembersWithRole u us c roleNameWireAdmin
+
+postMembersV2 ::
+  (MonadIO m, MonadHttp m, HasGalley m, MonadReader TestSetup m) =>
+  UserId ->
+  NonEmpty (Qualified UserId) ->
+  Qualified ConvId ->
+  m ResponseLBS
+postMembersV2 u us c = do
+  g <- view tsUnversionedGalley
+  let i = InviteQualified us roleNameWireAdmin
+  post $
+    g
+      . paths
+        [ "v2",
+          "conversations",
+          toByteString' (qDomain c),
+          toByteString' (qUnqualified c),
+          "members"
+        ]
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json i
 
 postMembersWithRole ::
   (MonadIO m, MonadHttp m, HasGalley m) =>
