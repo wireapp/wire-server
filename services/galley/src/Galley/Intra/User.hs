@@ -49,7 +49,6 @@ import Data.Id
 import Data.Qualified
 import qualified Data.Text.Lazy as Lazy
 import Galley.API.Error
-import Galley.Env
 import Galley.Intra.Util
 import Galley.Monad
 import Imports
@@ -109,10 +108,17 @@ getConnectionsUnqualified uFrom uTo rlt = do
 -- When a connection does not exist, it is skipped.
 -- Calls 'Brig.API.Internal.getConnectionsStatus'.
 getConnections ::
+  ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) =>
   [UserId] ->
   Maybe [Qualified UserId] ->
   Maybe Relation ->
-  App [ConnectionStatusV2]
+  m [ConnectionStatusV2]
 getConnections [] _ _ = pure []
 getConnections uFrom uTo rlt = do
   r <-
@@ -124,8 +130,15 @@ getConnections uFrom uTo rlt = do
   parseResponse (mkError status502 "server-error") r
 
 putConnectionInternal ::
+ ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) =>
   UpdateConnectionsInternal ->
-  App Status
+  m Status
 putConnectionInternal updateConn = do
   response <-
     call Brig $
@@ -135,9 +148,16 @@ putConnectionInternal updateConn = do
   pure $ responseStatus response
 
 deleteBot ::
+ ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) =>
   ConvId ->
   BotId ->
-  App ()
+  m ()
 deleteBot cid bot = do
   void $
     call Brig $
@@ -150,9 +170,16 @@ deleteBot cid bot = do
 
 -- | Calls 'Brig.User.API.Auth.reAuthUserH'.
 reAuthUser ::
+ ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) =>
   UserId ->
   ReAuthUser ->
-  App (Either AuthenticationError ())
+  m (Either AuthenticationError ())
 reAuthUser uid auth = do
   let req =
         method GET
@@ -179,7 +206,15 @@ check allowed r =
     }
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-lookupActivatedUsers :: [UserId] -> App [User]
+lookupActivatedUsers :: 
+ ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) =>
+  [UserId] -> m [User]
 lookupActivatedUsers = chunkify $ \uids -> do
   let users = BSC.intercalate "," $ toByteString' <$> uids
   r <-
@@ -205,7 +240,15 @@ chunkify doChunk keys = mconcat <$> (doChunk `mapM` chunks keys)
     chunks uids = case splitAt maxSize uids of (h, t) -> h : chunks t
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-getUsers :: [UserId] -> App [Brig.UserAccount]
+getUsers ::
+ ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) =>
+ [UserId] -> m [Brig.UserAccount]
 getUsers = chunkify $ \uids -> do
   resp <-
     call Brig $
@@ -216,7 +259,15 @@ getUsers = chunkify $ \uids -> do
   pure . fromMaybe [] . responseJsonMaybe $ resp
 
 -- | Calls 'Brig.API.deleteUserNoAuthH'.
-deleteUser :: UserId -> App ()
+deleteUser :: 
+ ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) =>
+  UserId -> m ()
 deleteUser uid = do
   void $
     call Brig $
@@ -225,7 +276,14 @@ deleteUser uid = do
         . expect2xx
 
 -- | Calls 'Brig.API.getContactListH'.
-getContactList :: UserId -> App [UserId]
+getContactList ::
+ ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) => UserId -> m [UserId]
 getContactList uid = do
   r <-
     call Brig $
@@ -235,7 +293,15 @@ getContactList uid = do
   cUsers <$> parseResponse (mkError status502 "server-error") r
 
 -- | Calls 'Brig.API.Internal.getRichInfoMultiH'
-getRichInfoMultiUser :: [UserId] -> App [(UserId, RichInfo)]
+getRichInfoMultiUser :: 
+  ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) =>
+  [UserId] -> m [(UserId, RichInfo)]
 getRichInfoMultiUser = chunkify $ \uids -> do
   resp <-
     call Brig $
@@ -245,27 +311,61 @@ getRichInfoMultiUser = chunkify $ \uids -> do
         . expect2xx
   parseResponse (mkError status502 "server-error") resp
 
-getAccountConferenceCallingConfigClient :: HasCallStack => UserId -> App (WithStatusNoLock ConferenceCallingConfig)
+getAccountConferenceCallingConfigClient ::
+  ( HasCallStack
+  , MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  , HasManager c
+  ) => UserId -> m (WithStatusNoLock ConferenceCallingConfig)
 getAccountConferenceCallingConfigClient uid =
   runHereClientM (namedClient @IAPI.API @"get-account-conference-calling-config" uid)
     >>= handleServantResp
 
-updateSearchVisibilityInbound :: Multi.TeamStatus SearchVisibilityInboundConfig -> App ()
+updateSearchVisibilityInbound :: 
+  ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  , HasManager c
+  ) =>
+  Multi.TeamStatus SearchVisibilityInboundConfig -> m ()
 updateSearchVisibilityInbound =
   handleServantResp
     <=< runHereClientM
       . namedClient @IAPI.API @"updateSearchVisibilityInbound"
 
-runHereClientM :: HasCallStack => Client.ClientM a -> App (Either Client.ClientError a)
+runHereClientM ::
+  ( HasCallStack, MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  , HasManager c
+  )
+  => Client.ClientM a -> m (Either Client.ClientError a)
 runHereClientM action = do
-  mgr <- view manager
-  brigep <- view Galley.Env.brig
+  mgr <- view manager'
+  brigep <- view brig
   let env = Client.mkClientEnv mgr baseurl
       baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. epHost) (fromIntegral $ brigep ^. epPort) ""
   liftIO $ Client.runClientM action env
 
 handleServantResp ::
+  ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  ) =>
   Either Client.ClientError a ->
-  App a
+  m a
 handleServantResp (Right cfg) = pure cfg
 handleServantResp (Left errmsg) = throwM . internalErrorWithDescription . cs . show $ errmsg

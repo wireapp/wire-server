@@ -23,13 +23,21 @@ import Brig.Types.Team
 import Data.ByteString.Conversion
 import Data.Id
 import Galley.Intra.Util
-import Galley.Monad
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import Control.Monad.Catch
 
-getSize :: TeamId -> App TeamSize
+getSize :: 
+ ( MonadReader c m
+  , MonadIO m
+  , MonadMask m
+  , MonadHttp m
+  , HasRequestId m
+  , HasIntraComponentEndpoints c
+  )
+  => TeamId -> m TeamSize
 getSize tid = do
   r <-
     call Brig $

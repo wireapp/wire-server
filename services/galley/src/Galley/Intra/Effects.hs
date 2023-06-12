@@ -48,7 +48,6 @@ interpretBrigAccess ::
   ( Member (Embed IO) r,
     Member (Error InternalError) r,
     Member P.TinyLog r,
-    Member (Input Env) r,
     Member (Input c) r,
     HasIntraComponentEndpoints c,
     HasManager c,
@@ -60,46 +59,46 @@ interpretBrigAccess = interpret $ \case
   GetConnectionsUnqualified uids muids mrel ->
     embedApp' @c $ unApp' $ getConnectionsUnqualified uids muids mrel
   GetConnectionsUnqualifiedBidi uids1 uids2 mrel1 mrel2 ->
-    embedApp $
+    embedApp' @c $ unApp' $
       UnliftIO.concurrently
         (getConnectionsUnqualified uids1 (Just uids2) mrel1)
         (getConnectionsUnqualified uids2 (Just uids1) mrel2)
   GetConnections uids mquids mrel ->
-    embedApp $
+    embedApp' @c $ unApp' $
       getConnections uids mquids mrel
-  PutConnectionInternal uc -> embedApp $ putConnectionInternal uc
-  ReauthUser uid reauth -> embedApp $ reAuthUser uid reauth
-  LookupActivatedUsers uids -> embedApp $ lookupActivatedUsers uids
-  GetUsers uids -> embedApp $ getUsers uids
-  DeleteUser uid -> embedApp $ deleteUser uid
-  GetContactList uid -> embedApp $ getContactList uid
-  GetRichInfoMultiUser uids -> embedApp $ getRichInfoMultiUser uids
-  GetSize tid -> embedApp $ getSize tid
-  LookupClients uids -> embedApp $ lookupClients uids
-  LookupClientsFull uids -> embedApp $ lookupClientsFull uids
+  PutConnectionInternal uc -> embedApp' @c $ unApp' $ putConnectionInternal uc
+  ReauthUser uid reauth -> embedApp' @c $ unApp' $ reAuthUser uid reauth
+  LookupActivatedUsers uids -> embedApp' @c $ unApp' $ lookupActivatedUsers uids
+  GetUsers uids -> embedApp' @c $ unApp' $ getUsers uids
+  DeleteUser uid -> embedApp' @c $ unApp' $ deleteUser uid
+  GetContactList uid -> embedApp' @c $ unApp' $ getContactList uid
+  GetRichInfoMultiUser uids -> embedApp' @c $ unApp' $ getRichInfoMultiUser uids
+  GetSize tid -> embedApp' @c $ unApp' $ getSize tid
+  LookupClients uids -> embedApp' @c $ unApp' $ lookupClients uids
+  LookupClientsFull uids -> embedApp' @c $ unApp' $ lookupClientsFull uids
   NotifyClientsAboutLegalHoldRequest self other pk ->
-    embedApp $ notifyClientsAboutLegalHoldRequest self other pk
-  GetLegalHoldAuthToken uid mpwd -> getLegalHoldAuthToken uid mpwd
+    embedApp' @c $ unApp' $ notifyClientsAboutLegalHoldRequest self other pk
+  GetLegalHoldAuthToken uid mpwd -> getLegalHoldAuthToken @c uid mpwd
   AddLegalHoldClientToUserEither uid conn pks lpk ->
-    embedApp $ addLegalHoldClientToUser uid conn pks lpk
+    embedApp' @c $ unApp' $ addLegalHoldClientToUser uid conn pks lpk
   RemoveLegalHoldClientFromUser uid ->
-    embedApp $ removeLegalHoldClientFromUser uid
+    embedApp' @c $ unApp' $ removeLegalHoldClientFromUser uid
   GetAccountConferenceCallingConfigClient uid ->
-    embedApp $ getAccountConferenceCallingConfigClient uid
+    embedApp' @c $ unApp' $ getAccountConferenceCallingConfigClient uid
   GetClientByKeyPackageRef ref ->
-    embedApp $ getClientByKeyPackageRef ref
-  GetLocalMLSClients qusr ss -> embedApp $ getLocalMLSClients qusr ss
+    embedApp' @c $ unApp' $ getClientByKeyPackageRef ref
+  GetLocalMLSClients qusr ss -> embedApp' @c $ unApp' $ getLocalMLSClients qusr ss
   AddKeyPackageRef ref qusr cl qcnv ->
-    embedApp $
+    embedApp' @c $ unApp' $
       addKeyPackageRef ref qusr cl qcnv
   ValidateAndAddKeyPackageRef nkp ->
-    embedApp $
+    embedApp' @c $ unApp' $
       validateAndAddKeyPackageRef nkp
   UpdateKeyPackageRef update ->
-    embedApp $
+    embedApp' @c $ unApp' $
       updateKeyPackageRef update
   UpdateSearchVisibilityInbound status ->
-    embedApp $ updateSearchVisibilityInbound status
+    embedApp' @c $ unApp' $ updateSearchVisibilityInbound status
 
 interpretSparAccess ::
   ( Member (Embed IO) r,
