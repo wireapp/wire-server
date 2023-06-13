@@ -62,6 +62,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -744,7 +745,7 @@ testAdminRemovesUserFromConv = do
 
   do
     convs <- getAllConvs (qUnqualified bob)
-    clients <- getConvClients (qUnqualified alice) (qUnqualified qcnv)
+    clients <- getConvClients $ convToGroupId' (fmap Conv qcnv)
     liftIO $ do
       assertEqual
         ("Expected only one client, got " <> show clients)

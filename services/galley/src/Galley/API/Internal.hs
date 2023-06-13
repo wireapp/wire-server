@@ -91,8 +91,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.Group.Serialisation
-import Wire.API.MLS.SubConversation
 import Wire.API.Provider.Service hiding (Service)
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Galley
@@ -484,9 +482,8 @@ iGetMLSClientListForConv ::
        ErrorS 'ConvNotFound
      ]
     r =>
-  Local UserId ->
-  ConvId ->
+  GroupId ->
   Sem r ClientList
-iGetMLSClientListForConv lusr cnv = do
-  cm <- E.lookupMLSClients (convToGroupId' (Conv <$> tUntagged (qualifyAs lusr cnv)))
+iGetMLSClientListForConv gid = do
+  cm <- E.lookupMLSClients gid
   pure $ ClientList (concatMap (Map.keys . snd) (Map.assocs cm))

@@ -31,6 +31,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.MLS.Group
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
@@ -216,10 +217,9 @@ type InternalAPIBase =
     :<|> Named
            "get-conversation-clients"
            ( Summary "Get mls conversation client list"
-               :> ZLocalUser
                :> CanThrow 'ConvNotFound
-               :> "conversation"
-               :> Capture "cnv" ConvId
+               :> "group"
+               :> Capture "gid" GroupId
                :> MultiVerb1
                     'GET
                     '[Servant.JSON]
