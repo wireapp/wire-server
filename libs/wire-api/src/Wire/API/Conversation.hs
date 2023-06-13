@@ -598,7 +598,7 @@ data ConvType
   | SelfConv
   | One2OneConv
   | ConnectConv
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Enum, Generic)
   deriving (Arbitrary) via (GenericUniform ConvType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvType
 

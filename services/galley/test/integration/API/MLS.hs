@@ -745,7 +745,7 @@ testAdminRemovesUserFromConv = do
 
   do
     convs <- getAllConvs (qUnqualified bob)
-    clients <- getConvClients $ convToGroupId' (fmap Conv qcnv)
+    clients <- getConvClients $ convToGroupId (groupIdParts RegularConv $ fmap Conv qcnv)
     liftIO $ do
       assertEqual
         ("Expected only one client, got " <> show clients)
