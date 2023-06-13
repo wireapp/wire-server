@@ -76,10 +76,14 @@ spec:
           - name: GEOIPUPDATE_FREQUENCY
             value: "0" # Setting this to 0 makes the script only run geoipupdate once.
       {{- end }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: brig
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 8 }}
           volumeMounts:
           - name: "brig-secrets"
             mountPath: "/etc/wire/brig/secrets"

@@ -39,6 +39,8 @@ spec:
       - name: nginz
         image: "{{ .Values.nginzImage.repository }}:{{ .Values.nginzImage.tag }}"
         imagePullPolicy: "{{ .Values.nginzImage.pullPolicy }}"
+        securityContext:
+          {{- toYaml .Values.podSecurityContext | nindent 8 }}
         env:
         # Any file changes to this path causes nginx to reload configs without
         # restarting or breaking any connections.

@@ -40,6 +40,8 @@ spec:
         - name: background-worker
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 8 }}
           volumeMounts:
           - name: "background-worker-config"
             mountPath: "/etc/wire/background-worker/conf"

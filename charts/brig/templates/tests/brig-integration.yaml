@@ -47,6 +47,8 @@ spec:
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 8 }}
     # TODO: Add TURN tests once we have an actual way to test it
     # The brig-integration tests mutate the turn settings files before tests
     # to get certain behaviour. This doesn't work on kubernetes because brig
