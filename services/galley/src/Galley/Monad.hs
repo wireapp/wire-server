@@ -25,20 +25,21 @@ import Cassandra
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Except
+import Data.Id
+import Data.Misc
 import Galley.Env
+import Galley.Options (optSettings, setDeleteConvThrottleMillis)
 import Imports hiding (cs, log)
+import qualified OpenSSL.Session as SSL
 import Polysemy
 import Polysemy.Input
 import System.Logger
 import qualified System.Logger.Class as LC
-import Data.Id
-import Galley.Options (optSettings, setDeleteConvThrottleMillis)
-import Data.Misc
-import qualified OpenSSL.Session as SSL
 
 -- Keep a compatible App kind around so existing code doesn't break.
 -- also pin the Reader input just to be safe.
 type App = App' Env
+
 unApp :: App' Env a -> ReaderT Env IO a
 unApp = unApp'
 
@@ -68,10 +69,13 @@ newtype App' c a = App {unApp' :: ReaderT c IO a}
       MonadUnliftIO
     )
 
-embedApp' :: forall c r a.
-  ( Member (Embed IO) r
-  , Member (Input c) r
-  ) => App' c a -> Sem r a
+embedApp' ::
+  forall c r a.
+  ( Member (Embed IO) r,
+    Member (Input c) r
+  ) =>
+  App' c a ->
+  Sem r a
 embedApp' action = do
   o <- input
   embed $ runReaderT (unApp' action) o
@@ -125,7 +129,7 @@ instance (HasLogger c, HasRequestId' c) => LC.MonadLogger (App' c) where
   log lvl m = do
     c <- ask
     log (c ^. logger') lvl (reqIdMsg (c ^. requestId) . m)
-  
+
 class DeleteConvThrottle c where
   deleteConvThrottleMillis :: c -> Maybe Int
 

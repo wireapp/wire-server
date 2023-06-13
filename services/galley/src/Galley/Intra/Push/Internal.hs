@@ -20,7 +20,9 @@
 module Galley.Intra.Push.Internal where
 
 import Bilge hiding (options)
+import Bilge.RPC (HasRequestId)
 import Control.Lens (makeLenses, set, (.~))
+import Control.Monad.Catch
 import Data.Aeson (Object)
 import Data.Id (ConnId, UserId)
 import Data.Json.Util
@@ -29,22 +31,20 @@ import Data.List1
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Galley.Cassandra.Team (HasCurrentFanoutLimit (getCurrentFanoutLimit))
 import Galley.Intra.Util
+import Galley.Monad
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import qualified Gundeck.Types.Push.V2 as Gundeck
 import Imports hiding (forkIO)
+import System.Logger.Class
 import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Event.Conversation (Event (evtFrom))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import qualified Wire.API.Event.Team as Teams
 import Wire.API.Team.Member
-import Control.Monad.Catch
-import Galley.Cassandra.Team (HasCurrentFanoutLimit (getCurrentFanoutLimit))
-import System.Logger.Class
-import Bilge.RPC (HasRequestId)
-import Galley.Monad
 
 data PushEvent
   = ConvEvent Event
@@ -83,17 +83,23 @@ makeLenses ''PushTo
 
 type Push = PushTo UserId
 
+type CanCall c m =
+  ( MonadReader c m,
+    MonadUnliftIO m,
+    HasCurrentFanoutLimit c,
+    MonadMask m,
+    MonadHttp m,
+    MonadLogger m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
+  )
+
 push ::
-  ( Foldable f
-  , MonadReader c m
-  , MonadUnliftIO m
-  , HasCurrentFanoutLimit c
-  , MonadMask m
-  , MonadHttp m
-  , MonadLogger m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) => f Push -> m ()
+  ( Foldable f,
+    CanCall c m
+  ) =>
+  f Push ->
+  m ()
 push ps = do
   let pushes = foldMap (toList . mkPushTo) ps
   traverse_ pushLocal (nonEmpty pushes)
@@ -107,15 +113,7 @@ push ps = do
 -- few requests as possible, such that no single request targets
 -- more than 128 recipients.
 pushLocal ::
-  ( MonadReader c m
-  , MonadUnliftIO m
-  , HasCurrentFanoutLimit c
-  , MonadMask m
-  , MonadHttp m
-  , MonadLogger m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) => NonEmpty (PushTo UserId) -> m ()
+  CanCall c m => NonEmpty (PushTo UserId) -> m ()
 pushLocal ps = do
   limit <- asks getCurrentFanoutLimit
   -- Do not fan out for very large teams
@@ -208,17 +206,12 @@ newConversationEventPush e users =
    in newPush ListComplete musr (ConvEvent e) (map userRecipient (tUnqualified users))
 
 pushSlowly ::
-  ( Foldable f
-  , MonadReader c m
-  , MonadUnliftIO m
-  , MonadMask m
-  , MonadHttp m
-  , MonadLogger m
-  , HasRequestId m
-  , DeleteConvThrottle c
-  , HasCurrentFanoutLimit c
-  , HasIntraComponentEndpoints c
-  ) => f Push ->  m ()
+  ( Foldable f,
+    CanCall c m,
+    DeleteConvThrottle c
+  ) =>
+  f Push ->
+  m ()
 pushSlowly ps = do
   mmillis <- asks deleteConvThrottleMillis
   let delay = 1000 * fromMaybe defDeleteConvThrottleMillis mmillis

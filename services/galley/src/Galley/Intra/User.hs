@@ -71,6 +71,17 @@ import Wire.API.User
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.RichInfo (RichInfo)
 
+-- The common constraints required for these calls.
+-- A few need a couple extra and are added as needed.
+type CanCall c m =
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
+  )
+
 -- | Get statuses of all connections between two groups of users (the usual
 -- pattern is to check all connections from one user to several, or from
 -- several users to one).
@@ -78,13 +89,7 @@ import Wire.API.User.RichInfo (RichInfo)
 -- When a connection does not exist, it is skipped.
 -- Calls 'Brig.API.Internal.getConnectionsStatusUnqualified'.
 getConnectionsUnqualified ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) =>
+  CanCall c m =>
   [UserId] ->
   Maybe [UserId] ->
   Maybe Relation ->
@@ -108,13 +113,7 @@ getConnectionsUnqualified uFrom uTo rlt = do
 -- When a connection does not exist, it is skipped.
 -- Calls 'Brig.API.Internal.getConnectionsStatus'.
 getConnections ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) =>
+  CanCall c m =>
   [UserId] ->
   Maybe [Qualified UserId] ->
   Maybe Relation ->
@@ -130,13 +129,7 @@ getConnections uFrom uTo rlt = do
   parseResponse (mkError status502 "server-error") r
 
 putConnectionInternal ::
- ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) =>
+  CanCall c m =>
   UpdateConnectionsInternal ->
   m Status
 putConnectionInternal updateConn = do
@@ -148,13 +141,7 @@ putConnectionInternal updateConn = do
   pure $ responseStatus response
 
 deleteBot ::
- ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) =>
+  CanCall c m =>
   ConvId ->
   BotId ->
   m ()
@@ -170,13 +157,7 @@ deleteBot cid bot = do
 
 -- | Calls 'Brig.User.API.Auth.reAuthUserH'.
 reAuthUser ::
- ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) =>
+  CanCall c m =>
   UserId ->
   ReAuthUser ->
   m (Either AuthenticationError ())
@@ -206,15 +187,10 @@ check allowed r =
     }
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-lookupActivatedUsers :: 
- ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) =>
-  [UserId] -> m [User]
+lookupActivatedUsers ::
+  CanCall c m =>
+  [UserId] ->
+  m [User]
 lookupActivatedUsers = chunkify $ \uids -> do
   let users = BSC.intercalate "," $ toByteString' <$> uids
   r <-
@@ -241,14 +217,9 @@ chunkify doChunk keys = mconcat <$> (doChunk `mapM` chunks keys)
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
 getUsers ::
- ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) =>
- [UserId] -> m [Brig.UserAccount]
+  CanCall c m =>
+  [UserId] ->
+  m [Brig.UserAccount]
 getUsers = chunkify $ \uids -> do
   resp <-
     call Brig $
@@ -259,15 +230,7 @@ getUsers = chunkify $ \uids -> do
   pure . fromMaybe [] . responseJsonMaybe $ resp
 
 -- | Calls 'Brig.API.deleteUserNoAuthH'.
-deleteUser :: 
- ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) =>
-  UserId -> m ()
+deleteUser :: CanCall c m => UserId -> m ()
 deleteUser uid = do
   void $
     call Brig $
@@ -276,14 +239,7 @@ deleteUser uid = do
         . expect2xx
 
 -- | Calls 'Brig.API.getContactListH'.
-getContactList ::
- ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) => UserId -> m [UserId]
+getContactList :: CanCall c m => UserId -> m [UserId]
 getContactList uid = do
   r <-
     call Brig $
@@ -293,15 +249,7 @@ getContactList uid = do
   cUsers <$> parseResponse (mkError status502 "server-error") r
 
 -- | Calls 'Brig.API.Internal.getRichInfoMultiH'
-getRichInfoMultiUser :: 
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) =>
-  [UserId] -> m [(UserId, RichInfo)]
+getRichInfoMultiUser :: CanCall c m => [UserId] -> m [(UserId, RichInfo)]
 getRichInfoMultiUser = chunkify $ \uids -> do
   resp <-
     call Brig $
@@ -312,44 +260,28 @@ getRichInfoMultiUser = chunkify $ \uids -> do
   parseResponse (mkError status502 "server-error") resp
 
 getAccountConferenceCallingConfigClient ::
-  ( HasCallStack
-  , MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  , HasManager c
-  ) => UserId -> m (WithStatusNoLock ConferenceCallingConfig)
+  (CanCall c m, HasManager c) =>
+  UserId ->
+  m (WithStatusNoLock ConferenceCallingConfig)
 getAccountConferenceCallingConfigClient uid =
   runHereClientM (namedClient @IAPI.API @"get-account-conference-calling-config" uid)
     >>= handleServantResp
 
-updateSearchVisibilityInbound :: 
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  , HasManager c
+updateSearchVisibilityInbound ::
+  ( CanCall c m,
+    HasManager c
   ) =>
-  Multi.TeamStatus SearchVisibilityInboundConfig -> m ()
+  Multi.TeamStatus SearchVisibilityInboundConfig ->
+  m ()
 updateSearchVisibilityInbound =
   handleServantResp
     <=< runHereClientM
       . namedClient @IAPI.API @"updateSearchVisibilityInbound"
 
 runHereClientM ::
-  ( HasCallStack, MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  , HasManager c
-  )
-  => Client.ClientM a -> m (Either Client.ClientError a)
+  (HasCallStack, CanCall c m, HasManager c) =>
+  Client.ClientM a ->
+  m (Either Client.ClientError a)
 runHereClientM action = do
   mgr <- view manager'
   brigep <- view brig
@@ -358,13 +290,7 @@ runHereClientM action = do
   liftIO $ Client.runClientM action env
 
 handleServantResp ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) =>
+  CanCall c m =>
   Either Client.ClientError a ->
   m a
 handleServantResp (Right cfg) = pure cfg

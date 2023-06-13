@@ -5,6 +5,7 @@
 { mkDerivation
 , aeson
 , amqp
+, base
 , brig
 , cassandra-util
 , exceptions
@@ -18,6 +19,7 @@
 , http-client
 , http2-manager
 , imports
+, lens
 , lib
 , monad-control
 , polysemy
@@ -29,6 +31,7 @@
 , transformers
 , transformers-base
 , types-common
+, uri-bytestring
 , wire-api
 , wire-api-federation
 }:
@@ -51,6 +54,7 @@ mkDerivation {
     http-client
     http2-manager
     imports
+    lens
     monad-control
     polysemy
     polysemy-wire-zoo
@@ -60,20 +64,25 @@ mkDerivation {
     transformers
     transformers-base
     types-common
+    wire-api
     wire-api-federation
   ];
   executableHaskellDepends = [ HsOpenSSL imports types-common ];
   testHaskellDepends = [
     aeson
     amqp
+    base
     cassandra-util
     federator
+    galley
+    galley-types
     hspec
     http-client
     imports
     QuickCheck
     tinylog
     types-common
+    uri-bytestring
     wire-api
     wire-api-federation
   ];

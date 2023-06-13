@@ -6,14 +6,20 @@ import qualified Cassandra as Cass
 import qualified Cassandra.Settings as Cass
 import qualified Data.Aeson as Aeson
 import Data.Domain
+import Data.Id
+import Data.Misc
+import qualified Data.Proxy as P
 import Data.Range
 import Federator.MockServer
+import Galley.Env (ExtEnv (..), initExtEnv)
+import Galley.Types.Teams
 import Imports
 import qualified Network.AMQP as Q
 import Network.HTTP.Client
 import qualified System.Logger as Logger
 import Test.Hspec
 import Test.QuickCheck
+import URI.ByteString
 import Util.Options
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
@@ -22,12 +28,6 @@ import Wire.API.Federation.BackendNotifications
 import Wire.API.RawJson
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
-import URI.ByteString
-import Data.Misc
-import qualified Data.Proxy as P
-import Galley.Types.Teams
-import Data.Id
-import Galley.Env (ExtEnv (..), initExtEnv)
 
 runTestAppT :: AppT IO a -> Int -> IO a
 runTestAppT app port = do

@@ -329,7 +329,7 @@ deleteFederationDomainRemote' localDomain dom = do
           -- Member TeamStore r
           --   Embed IO
           --   Input Env <-- Problem
-          --   Input ClientState 
+          --   Input ClientState
           -- Member ConversationStore r
           --   Embed IO
           --   Input ClientState

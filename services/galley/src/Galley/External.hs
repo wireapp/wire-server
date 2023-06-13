@@ -17,9 +17,13 @@
 
 module Galley.External (interpretExternalAccess) where
 
+import Bilge
+import Bilge.RPC
 import Bilge.Request
 import Bilge.Retry (httpHandlers)
+import Cassandra
 import Control.Lens
+import Control.Monad.Catch
 import Control.Retry
 import Data.ByteString.Conversion.To
 import Data.Id
@@ -29,6 +33,8 @@ import Galley.Data.Services (BotMember, botMemId, botMemService)
 import Galley.Effects
 import Galley.Effects.ExternalAccess (ExternalAccess (..))
 import Galley.Intra.User
+import Galley.Intra.Util
+import Galley.Monad
 import Galley.Types.Bot.Service (Service, serviceEnabled, serviceFingerprints, serviceToken, serviceUrl)
 import Imports
 import qualified Network.HTTP.Client as Http
@@ -43,12 +49,6 @@ import URI.ByteString
 import UnliftIO (Async, async, waitCatch)
 import Wire.API.Event.Conversation (Event)
 import Wire.API.Provider.Service (serviceRefId, serviceRefProvider)
-import Control.Monad.Catch
-import Cassandra
-import Bilge
-import Bilge.RPC
-import Galley.Intra.Util
-import Galley.Monad
 
 interpretExternalAccess ::
   forall c r a.
@@ -68,26 +68,28 @@ interpretExternalAccess = interpret $ \case
   DeliverAsync pp -> embedApp' @c $ deliverAsync (toList pp)
   DeliverAndDeleteAsync cid pp -> embedApp' @c $ deliverAndDeleteAsync cid (toList pp)
 
+type CanCall c m =
+  ( MonadUnliftIO m,
+    Log.MonadLogger m,
+    MonadClient m,
+    MonadMask m,
+    HasExtGetManager c,
+    MonadReader c m
+  )
+
 -- | Like deliver, but ignore orphaned bots and return immediately.
 --
 -- FUTUREWORK: Check if this can be removed.
-deliverAsync :: (MonadUnliftIO m, Log.MonadLogger m, MonadClient m, MonadMask m, HasExtGetManager c,
-          MonadReader c m) => [(BotMember, Event)] -> m ()
+deliverAsync :: CanCall c m => [(BotMember, Event)] -> m ()
 deliverAsync = void . forkIO . void . deliver
 
 -- | Like deliver, but remove orphaned bots and return immediately.
-deliverAndDeleteAsync :: (MonadReader c m, MonadMask m, MonadClient m, Log.MonadLogger m,
-          MonadUnliftIO m, MonadHttp m, HasRequestId m, HasExtGetManager c,
-          HasIntraComponentEndpoints c) => ConvId -> [(BotMember, Event)] -> m ()
+deliverAndDeleteAsync :: (CanCall c m, HasRequestId m, MonadHttp m, HasIntraComponentEndpoints c) => ConvId -> [(BotMember, Event)] -> m ()
 deliverAndDeleteAsync cnv pushes = void . forkIO $ do
   gone <- deliver pushes
   mapM_ (deleteBot cnv . botMemId) gone
 
-deliver :: forall c m. (Log.MonadLogger m,
-          MonadClient m,
-          MonadMask m, MonadReader c m,
-          HasExtGetManager c,
-          MonadUnliftIO m) => [(BotMember, Event)] -> m [BotMember]
+deliver :: forall c m. CanCall c m => [(BotMember, Event)] -> m [BotMember]
 deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
     exec :: (BotMember, Event) -> m Bool

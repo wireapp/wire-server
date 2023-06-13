@@ -22,6 +22,8 @@ module Galley.Intra.Spar
 where
 
 import Bilge
+import Bilge.RPC
+import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.Set as Set
@@ -29,18 +31,18 @@ import Galley.Intra.Util
 import Imports
 import Network.HTTP.Types.Method
 import Wire.API.User (ScimUserInfo, UserSet (..), scimUserInfos)
-import Control.Monad.Catch
-import Bilge.RPC
 
 -- | Notify Spar that a team is being deleted.
-deleteTeam :: 
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) => TeamId -> m ()
+deleteTeam ::
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
+  ) =>
+  TeamId ->
+  m ()
 deleteTeam tid = do
   void . call Spar $
     method DELETE
@@ -49,13 +51,15 @@ deleteTeam tid = do
 
 -- | Get the SCIM user info for a user.
 lookupScimUserInfos ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) => [UserId] -> m [ScimUserInfo]
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
+  ) =>
+  [UserId] ->
+  m [ScimUserInfo]
 lookupScimUserInfos uids = do
   response <-
     call Spar $

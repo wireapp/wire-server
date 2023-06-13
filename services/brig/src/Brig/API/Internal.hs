@@ -64,6 +64,7 @@ import qualified Brig.User.Search.Index as Index
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
 import Data.Aeson hiding (json)
+import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
 import Data.Domain (Domain)
@@ -74,6 +75,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Imports hiding (cs, head)
+import qualified Network.AMQP as AMQP
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (result, setStatus)
@@ -90,6 +92,7 @@ import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.API
+import Wire.API.Federation.BackendNotifications (defederateQueue, ensureQueue, routingKey)
 import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -105,9 +108,6 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
-import Wire.API.Federation.BackendNotifications (ensureQueue, defederateQueue, routingKey)
-import qualified Network.AMQP as AMQP
-import qualified Data.Aeson as Aeson
 
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
@@ -319,11 +319,12 @@ deleteFederationRemotes dom = do
     Just mvar -> liftIO $ do
       chan <- readMVar mvar
       ensureQueue chan defederateQueue
-      void $ AMQP.publishMsg chan "" (routingKey defederateQueue) $ AMQP.newMsg
-        { AMQP.msgBody = Aeson.encode dom
-        , AMQP.msgDeliveryMode = pure AMQP.Persistent
-        }
-    
+      void $
+        AMQP.publishMsg chan "" (routingKey defederateQueue) $
+          AMQP.newMsg
+            { AMQP.msgBody = Aeson.encode dom,
+              AMQP.msgDeliveryMode = pure AMQP.Persistent
+            }
 
 -- | Remove one-on-one conversations for the given remote domain. This is called from Galley as
 -- part of the defederation process, and should not be called duriung the initial domain removal

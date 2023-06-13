@@ -20,6 +20,7 @@ module Galley.Intra.Team where
 import Bilge
 import Bilge.RPC
 import Brig.Types.Team
+import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id
 import Galley.Intra.Util
@@ -27,17 +28,17 @@ import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
-import Control.Monad.Catch
 
-getSize :: 
- ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  )
-  => TeamId -> m TeamSize
+getSize ::
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
+  ) =>
+  TeamId ->
+  m TeamSize
 getSize tid = do
   r <-
     call Brig $

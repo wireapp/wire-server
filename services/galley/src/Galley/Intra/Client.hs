@@ -69,15 +69,16 @@ import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
 -- | Calls 'Brig.API.internalListClientsH'.
-lookupClients :: 
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
+lookupClients ::
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
   ) =>
-  [UserId] -> m UserClients
+  [UserId] ->
+  m UserClients
 lookupClients uids = do
   r <-
     call Brig $
@@ -90,12 +91,12 @@ lookupClients uids = do
 
 -- | Calls 'Brig.API.internalListClientsFullH'.
 lookupClientsFull ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
   ) =>
   [UserId] ->
   m UserClientsFull
@@ -111,12 +112,12 @@ lookupClientsFull uids = do
 
 -- | Calls 'Brig.API.legalHoldClientRequestedH'.
 notifyClientsAboutLegalHoldRequest ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
   ) =>
   UserId ->
   UserId ->
@@ -145,12 +146,13 @@ getLegalHoldAuthToken ::
   Sem r OpaqueAuthToken
 getLegalHoldAuthToken uid pw = do
   r <-
-    embedApp' @c $ call Brig $
-      method POST
-        . path "/i/legalhold-login"
-        . queryItem "persist" "true"
-        . json (LegalHoldLogin uid pw Nothing)
-        . expect2xx
+    embedApp' @c $
+      call Brig $
+        method POST
+          . path "/i/legalhold-login"
+          . queryItem "persist" "true"
+          . json (LegalHoldLogin uid pw Nothing)
+          . expect2xx
   case getCookieValue "zuid" r of
     Nothing -> do
       P.warn $ Logger.msg @Text "Response from login missing auth cookie"
@@ -159,12 +161,12 @@ getLegalHoldAuthToken uid pw = do
 
 -- | Calls 'Brig.API.addClientInternalH'.
 addLegalHoldClientToUser ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
   ) =>
   UserId ->
   ConnId ->
@@ -190,12 +192,12 @@ addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
 
 -- | Calls 'Brig.API.removeLegalHoldClientH'.
 removeLegalHoldClientFromUser ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
   ) =>
   UserId ->
   m ()
@@ -208,14 +210,17 @@ removeLegalHoldClientFromUser targetUid = do
 
 -- | Calls 'Brig.API.addClientInternalH'.
 brigAddClient ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
   ) =>
- UserId -> ConnId -> NewClient -> m (Either AuthenticationError Client)
+  UserId ->
+  ConnId ->
+  NewClient ->
+  m (Either AuthenticationError Client)
 brigAddClient uid connId client = do
   r <-
     call Brig $
@@ -231,14 +236,15 @@ brigAddClient uid connId client = do
 
 -- | Calls 'Brig.API.Internal.getClientByKeyPackageRef'.
 getClientByKeyPackageRef ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
   ) =>
-  KeyPackageRef -> m (Maybe ClientIdentity)
+  KeyPackageRef ->
+  m (Maybe ClientIdentity)
 getClientByKeyPackageRef ref = do
   r <-
     call Brig $
@@ -251,14 +257,16 @@ getClientByKeyPackageRef ref = do
 
 -- | Calls 'Brig.API.Internal.getMLSClients'.
 getLocalMLSClients ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
   ) =>
-  Local UserId -> SignatureSchemeTag -> m (Set ClientInfo)
+  Local UserId ->
+  SignatureSchemeTag ->
+  m (Set ClientInfo)
 getLocalMLSClients lusr ss =
   call
     Brig
@@ -275,13 +283,18 @@ getLocalMLSClients lusr ss =
     >>= parseResponse (mkError status502 "server-error")
 
 addKeyPackageRef ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) =>KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> m ()
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
+  ) =>
+  KeyPackageRef ->
+  Qualified UserId ->
+  ClientId ->
+  Qualified ConvId ->
+  m ()
 addKeyPackageRef ref qusr cl qcnv =
   void $
     call
@@ -293,13 +306,15 @@ addKeyPackageRef ref qusr cl qcnv =
       )
 
 updateKeyPackageRef ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) => KeyPackageUpdate -> m ()
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
+  ) =>
+  KeyPackageUpdate ->
+  m ()
 updateKeyPackageRef keyPackageRef =
   void $
     call
@@ -311,13 +326,15 @@ updateKeyPackageRef keyPackageRef =
       )
 
 validateAndAddKeyPackageRef ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  ) => NewKeyPackage -> m (Either Text NewKeyPackageResult)
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
+  ) =>
+  NewKeyPackage ->
+  m (Either Text NewKeyPackageResult)
 validateAndAddKeyPackageRef nkp = do
   res <-
     call

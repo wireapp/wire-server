@@ -6,10 +6,21 @@ module Wire.BackgroundWorker.Env where
 import Cassandra (ClientState)
 import qualified Cassandra as Cass
 import qualified Cassandra.Settings as Cass
+import Control.Lens.Combinators (lens)
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Data.Domain (Domain)
+import Data.Id
+import Data.Misc
+import Data.Range
+import qualified Galley.Aws as Aws
+import Galley.Cassandra.Code
+import Galley.Cassandra.Team
+import Galley.Env (ExtEnv (..), initExtEnv)
+import Galley.Intra.Util
+import Galley.Monad
+import Galley.Types.Teams
 import HTTP2.Client.Manager
 import Imports
 import Network.HTTP.Client
@@ -19,19 +30,8 @@ import qualified System.Logger as Log
 import System.Logger.Class
 import qualified System.Logger.Extended as Log
 import Util.Options
-import Wire.BackgroundWorker.Options
-import Galley.Cassandra.Code
-import Galley.Cassandra.Team
-import Data.Misc
-import Galley.Types.Teams
-import qualified Galley.Aws as Aws
-import Data.Range
 import Wire.API.Team.Member
-import Control.Lens.Combinators (lens)
-import Galley.Intra.Util
-import Data.Id
-import Galley.Monad
-import Galley.Env (initExtEnv, ExtEnv (..))
+import Wire.BackgroundWorker.Options
 
 data Env = Env
   { manager :: Manager,
@@ -65,24 +65,24 @@ instance HasCurrentFanoutLimit Env where
   getCurrentFanoutLimit = Wire.BackgroundWorker.Env.currentFanoutLimit
 
 instance HasManager Env where
-  manager' = lens manager (\e m -> e { manager = m } )
+  manager' = lens manager (\e m -> e {manager = m})
 
 instance HasIntraComponentEndpoints Env where
-  brig = lens brig' (\s a -> s { brig' = a } )
-  spar = lens spar' (\s a -> s { spar' = a } )
-  gundeck = lens gundeck' (\s a -> s { gundeck' = a } )
+  brig = lens brig' (\s a -> s {brig' = a})
+  spar = lens spar' (\s a -> s {spar' = a})
+  gundeck = lens gundeck' (\s a -> s {gundeck' = a})
 
 instance HasLogger Env where
-  logger' = lens logger (\s a -> s { logger = a })
+  logger' = lens logger (\s a -> s {logger = a})
 
 instance HasRequestId' Env where
-  requestId = lens requestId' (\s a -> s { requestId' = a })
+  requestId = lens requestId' (\s a -> s {requestId' = a})
 
 instance DeleteConvThrottle Env where
   deleteConvThrottleMillis = deleteConvThrottle
 
 instance HasCassandra Env where
-  cassandra = lens cassandra' (\s a -> s { cassandra' = a })
+  cassandra = lens cassandra' (\s a -> s {cassandra' = a})
 
 instance HasExtGetManager Env where
   getExtGetManager = extGetManager'

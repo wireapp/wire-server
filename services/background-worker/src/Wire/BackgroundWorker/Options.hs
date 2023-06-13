@@ -2,14 +2,14 @@ module Wire.BackgroundWorker.Options where
 
 import Data.Aeson
 import Data.Domain
+import Data.Id
+import Data.Misc (HttpsUrl)
+import Data.Range
+import Galley.Types.Teams
 import Imports
 import System.Logger.Extended
 import Util.Options
-import Data.Misc (HttpsUrl)
-import Galley.Types.Teams
 import Wire.API.Team.Member
-import Data.Range
-import Data.Id
 
 data Opts = Opts
   { logLevel :: !Level,

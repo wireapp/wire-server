@@ -18,13 +18,14 @@
 module Galley.Cassandra.Code
   ( interpretCodeStoreToCassandra,
     HasCodeStoreEnv,
-    conversationCodeUri
+    conversationCodeUri,
   )
 where
 
 import Cassandra
 import Control.Lens
 import Data.Code
+import Data.Misc (HttpsUrl)
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store
 import Galley.Data.Types
@@ -36,15 +37,15 @@ import Imports
 import Polysemy
 import Polysemy.Input
 import Wire.API.Password
-import Data.Misc (HttpsUrl)
 
 class HasCodeStoreEnv e where
   conversationCodeUri :: e -> HttpsUrl
 
 instance HasCodeStoreEnv Env where
-  conversationCodeUri = view (options . optSettings . setConversationCodeURI)  
+  conversationCodeUri = view (options . optSettings . setConversationCodeURI)
 
-interpretCodeStoreToCassandra :: forall e r a.
+interpretCodeStoreToCassandra ::
+  forall e r a.
   ( HasCodeStoreEnv e,
     Member (Embed IO) r,
     Member (Input ClientState) r,

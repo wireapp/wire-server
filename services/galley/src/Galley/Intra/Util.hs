@@ -19,27 +19,27 @@ module Galley.Intra.Util
   ( IntraComponent (..),
     call,
     asyncCall,
-    HasIntraComponentEndpoints (..)
+    HasIntraComponentEndpoints (..),
   )
 where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
 import Bilge.Retry
-import Control.Lens ((^.), Lens')
+import Control.Lens (Lens', (^.))
 import Control.Monad.Catch
 import Control.Retry
 import qualified Data.ByteString.Lazy as LB
 import Data.Misc (portNumber)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as LT
+import Galley.Env (Env, options)
 import Galley.Options
 import Imports hiding (log)
 import Network.HTTP.Types
 import System.Logger
 import qualified System.Logger.Class as LC
 import Util.Options
-import Galley.Env (Env, options)
 
 data IntraComponent = Brig | Spar | Gundeck
   deriving (Show)
@@ -79,14 +79,14 @@ componentRetryPolicy Spar = x1
 componentRetryPolicy Gundeck = x3
 
 call ::
-  ( MonadReader c m
-  , MonadIO m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  )
-  => IntraComponent ->
+  ( MonadReader c m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c
+  ) =>
+  IntraComponent ->
   (Request -> Request) ->
   m (Response (Maybe LB.ByteString))
 call comp r = do
@@ -96,14 +96,17 @@ call comp r = do
   recovering (componentRetryPolicy comp) rpcHandlers (const (rpc n (r . r0)))
 
 asyncCall ::
-  ( MonadUnliftIO m
-  , MonadReader c m
-  , MonadMask m
-  , MonadHttp m
-  , HasRequestId m
-  , HasIntraComponentEndpoints c
-  , LC.MonadLogger m
-  ) => IntraComponent -> (Request -> Request) -> m ()
+  ( MonadUnliftIO m,
+    MonadReader c m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    HasIntraComponentEndpoints c,
+    LC.MonadLogger m
+  ) =>
+  IntraComponent ->
+  (Request -> Request) ->
+  m ()
 asyncCall comp req = void $ do
   let n = LT.pack (componentName comp)
   forkIO $ catches (void (call comp req)) (handlers n)

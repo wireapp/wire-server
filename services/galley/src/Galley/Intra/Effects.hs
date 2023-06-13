@@ -24,6 +24,7 @@ module Galley.Intra.Effects
 where
 
 import Galley.API.Error
+import Galley.Cassandra.Team
 import Galley.Effects.BotAccess (BotAccess (..))
 import Galley.Effects.BrigAccess (BrigAccess (..))
 import Galley.Effects.GundeckAccess (GundeckAccess (..))
@@ -33,6 +34,7 @@ import qualified Galley.Intra.Push.Internal as G
 import Galley.Intra.Spar
 import Galley.Intra.Team
 import Galley.Intra.User
+import Galley.Intra.Util (HasIntraComponentEndpoints)
 import Galley.Monad
 import Imports
 import Polysemy
@@ -40,8 +42,6 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified UnliftIO
-import Galley.Intra.Util (HasIntraComponentEndpoints)
-import Galley.Cassandra.Team
 
 interpretBrigAccess ::
   forall c r a.

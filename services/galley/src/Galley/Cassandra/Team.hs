@@ -23,7 +23,7 @@ module Galley.Cassandra.Team
     interpretTeamMemberStoreToCassandraWithPaging,
     HasFeatureFlagLegalHold (..),
     HasAwsEnv (..),
-    HasCurrentFanoutLimit (..)
+    HasCurrentFanoutLimit (..),
   )
 where
 
