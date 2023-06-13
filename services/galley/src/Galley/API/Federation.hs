@@ -23,7 +23,7 @@ module Galley.API.Federation
   )
 where
 
-import Control.Error
+import Control.Error hiding (note)
 import Control.Lens
 import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
@@ -45,10 +45,12 @@ import Galley.API.Error
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Message
+import Galley.API.MLS.One2One
 import Galley.API.MLS.Removal
 import Galley.API.MLS.SubConversation hiding (leaveSubConversation)
 import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome
+import Galley.API.Mapping
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
 import Galley.API.Push
@@ -62,6 +64,7 @@ import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
 import Galley.Options
 import Galley.Types.Conversations.Members
+import Galley.Types.Conversations.One2One
 import Galley.Types.UserList (UserList (UserList))
 import Imports
 import Polysemy
@@ -93,6 +96,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
+import Wire.API.User (BaseProtocolTag (..))
 
 type FederationAPI = "federation" :> FedApi 'Galley
 
@@ -119,6 +123,7 @@ federationSitemap =
     :<|> Named @"get-sub-conversation" getSubConversationForRemoteUser
     :<|> Named @"delete-sub-conversation" (callsFed deleteSubConversationForRemoteUser)
     :<|> Named @"leave-sub-conversation" (callsFed leaveSubConversation)
+    :<|> Named @"get-one2one-conversation" getOne2OneConversation
 
 onClientRemoved ::
   ( Member ConversationStore r,
@@ -806,6 +811,36 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
           dsc = DeleteSubConversationRequest dscreqGroupId dscreqEpoch
       lconv <- qualifyLocal dscreqConv
       deleteLocalSubConversation qusr lconv dscreqSubConv dsc
+
+getOne2OneConversation ::
+  ( Member ConversationStore r,
+    Member (Input (Local ())) r,
+    Member (Error InternalError) r,
+    Member BrigAccess r
+  ) =>
+  Domain ->
+  GetOne2OneConversationRequest ->
+  Sem r GetOne2OneConversationResponse
+getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
+  fmap (either (const GetOne2OneConversationNotConnected) id)
+    . runError @(Tagged 'NotConnected ())
+    $ do
+      lother <- qualifyLocal other
+      let rself = toRemoteUnsafe domain self
+      ensureConnectedToRemotes lother [rself]
+      let getLocal lconv = do
+            mconv <- E.getConversation (tUnqualified lconv)
+            fmap GetOne2OneConversationOk $ case mconv of
+              Nothing -> pure (localMLSOne2OneConversationAsRemote rself lother lconv)
+              Just conv ->
+                note
+                  (InternalErrorWithDescription "Unexpected member list in 1-1 conversation")
+                  (conversationToRemote (tDomain lother) rself conv)
+      foldQualified
+        lother
+        getLocal
+        (const (pure GetOne2OneConversationBackendMismatch))
+        (one2OneConvId BaseProtocolMLSTag (tUntagged lother) (tUntagged rself))
 
 --------------------------------------------------------------------------------
 -- Error handling machinery

@@ -28,6 +28,7 @@ testGetMLSOne2One otherDomain = do
 
   conv2 %. "type" `shouldMatchInt` 2
   conv2 %. "qualified_id" `shouldMatch` convId
+  conv2 %. "epoch" `shouldMatch` (conv %. "epoch")
 
 testGetMLSOne2OneUnconnected :: HasCallStack => Domain -> App ()
 testGetMLSOne2OneUnconnected otherDomain = do
