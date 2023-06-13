@@ -30,6 +30,7 @@ module Galley.API.MLS.Message
 where
 
 import Control.Comonad
+import qualified Data.ByteString as BS
 import Data.Domain
 import Data.Id
 import Data.Json.Util
@@ -38,6 +39,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
 import Data.Tuple.Extra
+import Debug.Trace (traceM)
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.Commit.Core (getCommitData)
@@ -200,6 +202,11 @@ postMLSCommitBundleToLocalConv ::
   Local ConvOrSubConvId ->
   Sem r [LocalConversationUpdate]
 postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
+  traceM ("Commit size: " <> show (BS.length bundle.commit.raw))
+  traceM ("Message size: " <> show (BS.length bundle.rawMessage.raw))
+  traceM ("Welcome size: " <> show (maybe 0 (BS.length . (.raw)) bundle.welcome))
+  traceM ("Group info size: " <> show (BS.length (unGroupInfoData bundle.groupInfo)))
+
   lConvOrSub <- timedTrace "fetchConvOrSub" (fetchConvOrSub qusr lConvOrSubId)
   senderIdentity <- timedTrace "getSenderIdentity" $ getSenderIdentity qusr c bundle.sender lConvOrSub
 
