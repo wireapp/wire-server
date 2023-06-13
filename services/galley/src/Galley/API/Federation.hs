@@ -822,7 +822,7 @@ getOne2OneConversation ::
   GetOne2OneConversationRequest ->
   Sem r GetOne2OneConversationResponse
 getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
-  fmap (either (const GetOne2OneConversationNotConnected) id)
+  fmap (Imports.fromRight GetOne2OneConversationNotConnected)
     . runError @(Tagged 'NotConnected ())
     $ do
       lother <- qualifyLocal other

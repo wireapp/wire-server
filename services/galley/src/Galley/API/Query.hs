@@ -799,7 +799,7 @@ getRemoteMLSOne2OneConversation ::
 getRemoteMLSOne2OneConversation lself qother rconv = do
   -- a conversation can only be remote if it is hosted on the other user's domain
   rother <-
-    if (qDomain qother == tDomain rconv)
+    if qDomain qother == tDomain rconv
       then pure (toRemoteUnsafe (tDomain rconv) (qUnqualified qother))
       else throw (InternalErrorWithDescription "Unexpected 1-1 conversation domain")
 
