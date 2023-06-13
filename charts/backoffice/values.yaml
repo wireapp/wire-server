@@ -18,12 +18,3 @@ config:
   galebHost: galeb.integrations
   ibisHost: ibis.integrations
 baseUrl: http://localhost:8080
-
-podSecurityContext:
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-      - ALL
-  runAsNonRoot: true
-  seccompProfile:
-    type: RuntimeDefault

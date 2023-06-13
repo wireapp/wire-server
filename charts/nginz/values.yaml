@@ -649,12 +649,3 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
-
-podSecurityContext:
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-      - ALL
-  runAsNonRoot: true
-  seccompProfile:
-    type: RuntimeDefault
