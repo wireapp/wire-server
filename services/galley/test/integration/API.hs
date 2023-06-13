@@ -391,7 +391,7 @@ postConvWithRemoteUsersOk rbs = do
     (rsp, federatedRequests) <-
       withTempMockFederator'
         ( asum
-            [ mockUnreachable unreachableBackends,
+            [ mockUnreachableFor unreachableBackends,
               "on-conversation-created" ~> (),
               "on-conversation-updated" ~> ()
             ]
@@ -460,11 +460,6 @@ postConvWithRemoteUsersOk rbs = do
         SomeConversationAction SConversationJoinTag _action -> pure ()
         _ -> assertFailure @() "Unexpected update action"
   where
-    mockUnreachable :: Set Domain -> Mock LByteString
-    mockUnreachable unreachable = do
-      t <- frTargetDomain <$> getRequest
-      guard (t `elem` unreachable)
-      throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
     connectBackend :: UserId -> Remote Backend -> TestM [Qualified UserId]
     connectBackend usr (tDomain &&& bUsers . tUnqualified -> (d, c)) = do
       users <- replicateM (fromIntegral c) (randomQualifiedId d)
