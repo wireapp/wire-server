@@ -41,6 +41,7 @@ import Testlib.App
 import Testlib.Env
 import Testlib.HTTP
 import Testlib.JSON
+import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ
 import Prelude
