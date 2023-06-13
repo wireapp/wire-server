@@ -40,7 +40,7 @@ spec:
         image: "{{ .Values.nginzImage.repository }}:{{ .Values.nginzImage.tag }}"
         imagePullPolicy: "{{ .Values.nginzImage.pullPolicy }}"
         securityContext:
-          {{- toYaml .Values.podSecurityContext | nindent 8 }}
+          {{- toYaml .Values.podSecurityContext | nindent 10 }}
         env:
         # Any file changes to this path causes nginx to reload configs without
         # restarting or breaking any connections.
@@ -84,6 +84,8 @@ spec:
       {{- end }}
       - name: cannon
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        securityContext:
+          {{- toYaml .Values.podSecurityContext | nindent 10 }}
         volumeMounts:
         - name: empty
           mountPath: /etc/wire/cannon/externalHost
