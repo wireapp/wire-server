@@ -82,12 +82,14 @@ library
   exposed-modules:
     API.Brig
     API.BrigInternal
+    API.Cargohold
     API.Common
     API.Galley
     API.GalleyInternal
     MLS.Util
     RunAllTests
     SetupHelpers
+    Test.AssetDownload
     Test.B2B
     Test.Brig
     Test.Demo
@@ -126,6 +128,7 @@ library
     , http-client
     , http-types
     , kan-extensions
+    , mime
     , mtl
     , network
     , network-uri

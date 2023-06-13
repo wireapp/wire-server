@@ -107,10 +107,10 @@ updateToken own key tok = do
 randToken :: MonadIO m => m V3.AssetToken
 randToken = liftIO $ V3.AssetToken . Ascii.encodeBase64Url <$> getRandomBytes 16
 
-download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Handler (Maybe URI)
-download own key tok = runMaybeT $ do
+download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Maybe Text -> Handler (Maybe URI)
+download own key tok mbHost = runMaybeT $ do
   checkMetadata (Just own) key tok
-  lift $ genSignedURL (S3.mkKey key)
+  lift $ genSignedURL (S3.mkKey key) mbHost
 
 checkMetadata :: Maybe V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> MaybeT Handler ()
 checkMetadata mown key tok = do
