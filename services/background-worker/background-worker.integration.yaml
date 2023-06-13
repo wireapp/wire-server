@@ -11,3 +11,18 @@ rabbitmq:
 
 remoteDomains:
   - b.example.com
+
+galleyConversationCodeUri: https://account.wire.com/conversation-join/
+localDomain: example.com
+legalHoldFlag: whitelist-teams-and-implicit-consent
+currentFanoutLimit: 10
+brig:
+  host: 0.0.0.0
+  port: 8082
+spar:
+  host: 127.0.0.1
+  port: 8088
+gundeck:
+  host: 127.0.0.1
+  port: 8086
+requestId: "background-worker-request"
