@@ -69,8 +69,8 @@ main = hspec $ do
       toResult (Just 16) (Just token) `shouldBe` Left MissingExpError
       toResult (Just 17) Nothing `shouldBe` Left ExpMismatchError
       toResult (Just 17) (Just token) `shouldBe` Left ExpMismatchError
-      toResult (Just 18) Nothing `shouldBe` Left ExpError
-      toResult (Just 18) (Just token) `shouldBe` Left ExpError
+      toResult (Just 18) Nothing `shouldBe` Left Expired
+      toResult (Just 18) (Just token) `shouldBe` Left Expired
       toResult Nothing Nothing `shouldBe` Left UnknownError
   where
     token = ""

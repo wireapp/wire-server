@@ -278,6 +278,50 @@ data DPoPTokenGenerationError
     MissingExpError
   | -- | (exp) claim in DPoP token is larger than supplied [max_expiration]
     ExpMismatchError
-  | -- | (exp) claim in DPoP token is sooner than now (with [max_skew_secs] leeway)
-    ExpError
+  | -- (exp) claim in DPoP token is sooner than now (with [max_skew_secs] leeway)
+    Expired
+  | -- userId supplied across the FFI is invalid
+    InvalidUserId
+  | -- Client DPoP token "nbf" claim is in the future
+    NotYetValid
+  | -- Bubbling up errors
+    JwtSimpleError
+  | -- Bubbling up errors
+    RandError
+  | -- Bubbling up errors
+    Sec1Error
+  | -- Bubbling up errors
+    UrlParseError
+  | -- Bubbling up errors
+    UuidError
+  | -- Bubbling up errors
+    Utf8Error
+  | -- Bubbling up errors
+    Base64DecodeError
+  | -- Bubbling up errors
+    JsonError
+  | -- Bubbling up errors
+    InvalidJsonPath
+  | -- Bubbling up errors
+    JsonPathError
+  | -- Bubbling up errors
+    InvalidJwkThumbprint
+  | -- Bubbling up errors
+    MissingDpopHeader
+  | -- Bubbling up errors
+    MissingIssuer
+  | -- Bubbling up errors
+    DpopChallengeMismatch
+  | -- Bubbling up errors
+    DpopHtuMismatch
+  | -- Bubbling up errors
+    DpopHtmMismatch
+  | -- Bubbling up errors
+    InvalidBackendKeys
+  | -- Bubbling up errors
+    InvalidClientId
+  | -- Bubbling up errors
+    UnsupportedApiVersion
+  | -- Bubbling up errors
+    UnsupportedScope
   deriving (Eq, Show, Generic, Bounded, Enum)
