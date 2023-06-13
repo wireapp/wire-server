@@ -31,8 +31,6 @@ import qualified API.Util as Util
 import qualified API.Util.TeamFeature as Util
 import Bilge hiding (head, timeout)
 import Bilge.Assert
-import Brig.Types.Intra (fromAccountStatusResp)
-import qualified Brig.Types.Intra as Brig
 import Control.Arrow ((>>>))
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
@@ -1028,8 +1026,8 @@ testDeleteBindingTeamMoreThanOneMember = do
   let ensureDeleted :: UserId -> TestM ()
       ensureDeleted uid = do
         resp <- get (b . paths ["/i/users", toByteString' uid, "status"]) <!! const 200 === statusCode
-        let mbStatus = fmap fromAccountStatusResp . responseJsonUnsafe $ resp
-        liftIO $ mbStatus @?= Just Brig.Deleted
+        let mbStatus = fmap Public.fromAccountStatusResp . responseJsonUnsafe $ resp
+        liftIO $ mbStatus @?= Just Public.Deleted
 
   ensureDeleted alice
   for_ members ensureDeleted

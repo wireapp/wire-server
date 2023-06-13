@@ -98,7 +98,13 @@ module Wire.API.User
     VerifyDeleteUser (..),
     mkVerifyDeleteUser,
     DeletionCodeTimeout (..),
+    DeleteUserResponse (..),
     DeleteUserResult (..),
+
+    -- * Account Status
+    AccountStatus (..),
+    AccountStatusUpdate (..),
+    AccountStatusResp (..),
 
     -- * List Users
     ListUsersQuery (..),
@@ -145,6 +151,7 @@ import Data.Qualified
 import Data.Range
 import Data.SOP
 import Data.Schema
+import qualified Data.Schema as Schema
 import qualified Data.Set as Set
 import qualified Data.Swagger as S
 import qualified Data.Text as T
@@ -1353,11 +1360,13 @@ data ChangeEmailResponse
 
 instance
   AsUnion
-    '[Respond 202 desc1 (), Respond 204 desc2 ()]
+    '[ Respond 202 "Update accepted and pending activation of the new email" (),
+       Respond 204 "No update, current and new email address are the same" ()
+     ]
     ChangeEmailResponse
   where
-  toUnion ChangeEmailResponseIdempotent = S (Z (I ()))
   toUnion ChangeEmailResponseNeedsActivation = Z (I ())
+  toUnion ChangeEmailResponseIdempotent = S (Z (I ()))
   fromUnion (Z (I ())) = ChangeEmailResponseNeedsActivation
   fromUnion (S (Z (I ()))) = ChangeEmailResponseIdempotent
   fromUnion (S (S x)) = case x of {}
@@ -1436,6 +1445,24 @@ instance FromJSON DeletionCodeTimeout where
   parseJSON = A.withObject "DeletionCodeTimeout" $ \o ->
     DeletionCodeTimeout <$> o A..: "expires_in"
 
+-- | Like `DeleteUserResult`, but without the exception case.
+data DeleteUserResponse
+  = UserResponseAccountAlreadyDeleted
+  | UserResponseAccountDeleted
+
+instance
+  AsUnion
+    '[ Respond 200 "UserResponseAccountAlreadyDeleted" (),
+       Respond 202 "UserResponseAccountDeleted" ()
+     ]
+    DeleteUserResponse
+  where
+  toUnion UserResponseAccountAlreadyDeleted = Z (I ())
+  toUnion UserResponseAccountDeleted = S (Z (I ()))
+  fromUnion (Z (I ())) = UserResponseAccountAlreadyDeleted
+  fromUnion (S (Z (I ()))) = UserResponseAccountDeleted
+  fromUnion (S (S x)) = case x of {}
+
 -- | Result of an internal user/account deletion
 data DeleteUserResult
   = -- | User never existed
@@ -1479,6 +1506,53 @@ instance S.ToSchema ListUsersQuery where
           & S.description ?~ "exactly one of qualified_ids or qualified_handles must be provided."
           & S.properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
           & S.example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])
+
+-------------------------------------------------------------------------------
+-- AccountStatus
+
+data AccountStatus
+  = Active
+  | Suspended
+  | Deleted
+  | Ephemeral
+  | -- | for most intents & purposes, this is another form of inactive.  it is used for
+    -- allowing scim to find users that have not accepted their invitation yet after
+    -- creating via scim.
+    PendingInvitation
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AccountStatus)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema AccountStatus
+
+instance Schema.ToSchema AccountStatus where
+  schema =
+    Schema.enum @Text "AccountStatus" $
+      mconcat
+        [ Schema.element "active" Active,
+          Schema.element "suspended" Suspended,
+          Schema.element "deleted" Deleted,
+          Schema.element "ephemeral" Ephemeral,
+          Schema.element "pending-invitation" PendingInvitation
+        ]
+
+data AccountStatusResp = AccountStatusResp {fromAccountStatusResp :: AccountStatus}
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AccountStatusResp)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema AccountStatusResp
+
+instance Schema.ToSchema AccountStatusResp where
+  schema =
+    object "AccountStatusResp" $
+      AccountStatusResp <$> fromAccountStatusResp .= field "status" schema
+
+newtype AccountStatusUpdate = AccountStatusUpdate {suStatus :: AccountStatus}
+  deriving (Generic)
+  deriving (Arbitrary) via (GenericUniform AccountStatusUpdate)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema AccountStatusUpdate
+
+instance Schema.ToSchema AccountStatusUpdate where
+  schema =
+    object "AccountStatusUpdate" $
+      AccountStatusUpdate <$> suStatus .= field "status" schema
 
 -----------------------------------------------------------------------------
 -- SndFactorPasswordChallenge
