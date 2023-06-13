@@ -138,6 +138,19 @@ generateDpopToken ::
   PemBundle ->
   ExceptT DPoPTokenGenerationError m ByteString
 generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpiration now backendPubkeyBundle = do
+  putStrLn "Calling generate_dpop_access_token FFI"
+
+  putStrLn $ "dpop_proof=" <> cs (_unProof dpopProof)
+  putStrLn $ "user=" <> cs (_unUserId uid)
+  putStrLn $ "client=" <> cs (show $ _unClientId cid)
+  putStrLn $ "domain=" <> cs (_unDomain domain)
+  putStrLn $ "nonce=" <> cs (_unNonce nonce)
+  putStrLn $ "uri=" <> cs (_unUri uri)
+  putStrLn $ "method=" <> cs (show method)
+  putStrLn $ "max_skew_secs=" <> cs (show $ _unMaxSkewSecs maxSkewSecs)
+  putStrLn $ "expiration=" <> cs (show $ _unExpiryEpoch maxExpiration)
+  putStrLn $ "now=" <> cs (show $ _unNowEpoch now)
+
   dpopProofCStr <- toCStr dpopProof
   uidCStr <- toCStr uid
   domainCStr <- toCStr domain

@@ -97,7 +97,7 @@ import qualified System.Logger.Class as Log
 import Wire.API.Federation.API.Brig (GetUserClients (GetUserClients))
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential (ClientIdentity (..))
-import Wire.API.MLS.Epoch (addToEpoch)
+import Wire.API.MLS.Epoch
 import qualified Wire.API.Message as Message
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User
@@ -499,6 +499,18 @@ createAccessToken luid cid method link proof = do
   let expiresAt = now & addToEpoch expiresIn
   pathToKeys <- ExceptT $ note KeyBundleError . Opt.setPublicKeyBundle <$> view settings
   pubKeyBundle <- ExceptT $ note KeyBundleError <$> liftSem (PublicKeyBundle.get pathToKeys)
+  Log.info $
+    field "user" (toByteString uid)
+      ~~ field "domain" (toByteString domain)
+      ~~ field "client_id" (toByteString cid)
+      ~~ field "proof" (toByteString proof)
+      ~~ field "nonce" (toByteString nonce)
+      ~~ field "https_url" (toByteString httpsUrl)
+      ~~ field "method" (toByteString $ show method)
+      ~~ field "max_skew_seconds" (toByteString maxSkewSeconds)
+      ~~ field "expires_at" (toByteString $ epochNumber expiresAt)
+      ~~ field "now" (toByteString $ epochNumber now)
+      ~~ msg (val "Creating DPoP access token called")
   token <-
     ExceptT $
       liftSem $
