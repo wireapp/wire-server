@@ -7,6 +7,7 @@
 , aeson-pretty
 , array
 , async
+, attoparsec
 , base
 , base64-bytestring
 , bytestring
@@ -63,6 +64,7 @@ mkDerivation {
     aeson-pretty
     array
     async
+    attoparsec
     base
     base64-bytestring
     bytestring
