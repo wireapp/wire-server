@@ -37,7 +37,6 @@ module Galley.Options
     defDeleteConvThrottleMillis,
     defFanoutLimit,
     JournalOpts (JournalOpts),
-    RabbitMqOpts (..),
     awsQueueName,
     awsEndpoint,
     Opts,
@@ -66,6 +65,7 @@ import Data.Range
 import Galley.Keys
 import Galley.Types.Teams
 import Imports
+import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
@@ -146,15 +146,6 @@ data JournalOpts = JournalOpts
 deriveFromJSON toOptionFieldName ''JournalOpts
 
 makeLenses ''JournalOpts
-
-data RabbitMqOpts = RabbitMqOpts
-  { _rabbitmqHost :: !String,
-    _rabbitmqPort :: !Int,
-    _rabbitmqVHost :: !Text
-  }
-  deriving (Show, Generic)
-
-deriveFromJSON toOptionFieldName ''RabbitMqOpts
 
 data Opts = Opts
   { -- | Host and port to bind to
