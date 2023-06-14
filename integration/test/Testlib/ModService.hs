@@ -20,8 +20,9 @@ import Data.Functor
 import qualified Data.Map.Strict as Map
 import Data.Maybe
 import Data.Pool (withResource)
+import qualified Data.Set as Set
 import Data.String.Conversions (cs)
-import Data.Text hiding (elem, head)
+import Data.Text hiding (elem, head, zip)
 import Data.Traversable
 import Data.Word (Word16)
 import qualified Data.Yaml as Yaml
@@ -67,41 +68,51 @@ copyDirectoryRecursively from to = do
       then copyDirectoryRecursively fromPath toPath
       else copyFile fromPath toPath
 
+startDynamicBackends :: [DynBackendConfigOverrides] -> ([String] -> App ()) -> App ()
+startDynamicBackends beOverrides action = do
+  pool <- asks (.resourcePool')
+  resources <- Set.toList <$> liftIO (acquireResources (Prelude.length beOverrides) pool)
+  let recStartBackends :: [String] -> [(BackendResource, DynBackendConfigOverrides)] -> App ()
+      recStartBackends domains = \case
+        [] -> action domains
+        (res, o) : xs -> startDynamicBackend' res o (\d -> recStartBackends (d : domains) xs)
+  recStartBackends [] (zip resources beOverrides)
+
 startDynamicBackend :: DynBackendConfigOverrides -> (String -> App a) -> App a
 startDynamicBackend beOverrides action = do
   pool <- asks (.resourcePool)
   liftBaseWith $
     \runInBase ->
-      withResource
-        pool
-        ( \resource -> runInBase $ do
-            defDomain <- asks (.domain1)
-            defDomain2 <- asks (.domain2)
-            let services =
-                  Map.mapWithKey
-                    ( \srv conf ->
-                        conf
-                          >=> setKeyspace resource srv
-                          >=> setEsIndex resource srv
-                          >=> setFederationSettings defDomain defDomain2 resource srv
-                          >=> setAwsAdnQueuesConfigs resource srv
-                    )
-                    $ defaultDynBackendConfigOverridesToMap beOverrides
-            startBackend
-              resource.berDomain
-              (Just resource.berNginzSslPort)
-              (Just $ setFederatorConfig resource)
-              (Just $ backGroundWorkerOverrides resource (remoteDomains resource.berDomain))
-              services
-              ( \ports sm -> do
-                  let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
-                   in Map.insert resource.berDomain (setFederatorPorts resource $ updateServiceMap ports templateBackend) sm
-              )
-              action
-        )
+      withResource pool (\resource -> runInBase $ startDynamicBackend' resource beOverrides action)
+
+startDynamicBackend' :: BackendResource -> DynBackendConfigOverrides -> (String -> App a) -> App a
+startDynamicBackend' resource beOverrides action = do
+  defDomain <- asks (.domain1)
+  defDomain2 <- asks (.domain2)
+  let services =
+        Map.mapWithKey
+          ( \srv conf ->
+              conf
+                >=> setKeyspace srv
+                >=> setEsIndex srv
+                >=> setFederationSettings defDomain defDomain2 srv
+                >=> setAwsAdnQueuesConfigs srv
+          )
+          $ defaultDynBackendConfigOverridesToMap beOverrides
+  startBackend
+    resource.berDomain
+    (Just resource.berNginzSslPort)
+    (Just setFederatorConfig)
+    (Just $ backGroundWorkerOverrides (remoteDomains resource.berDomain))
+    services
+    ( \ports sm -> do
+        let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
+         in Map.insert resource.berDomain (setFederatorPorts resource $ updateServiceMap ports templateBackend) sm
+    )
+    (action resource.berDomain)
   where
-    setAwsAdnQueuesConfigs :: BackendResource -> Service -> Value -> App Value
-    setAwsAdnQueuesConfigs resource = \case
+    setAwsAdnQueuesConfigs :: Service -> Value -> App Value
+    setAwsAdnQueuesConfigs = \case
       Brig ->
         setFieldIfExists "aws.userJournalQueue" resource.berAwsUserJournalQueue
           >=> setFieldIfExists "aws.prekeyTable" resource.berAwsPrekeyTable
@@ -116,8 +127,8 @@ startDynamicBackend beOverrides action = do
           >=> setField "rabbitmq.vHost" resource.berVHost
       _ -> pure
 
-    setFederationSettings :: String -> String -> BackendResource -> Service -> Value -> App Value
-    setFederationSettings ownDomain otherDomain resource =
+    setFederationSettings :: String -> String -> Service -> Value -> App Value
+    setFederationSettings ownDomain otherDomain =
       \case
         Brig ->
           setField "optSettings.setFederationDomain" resource.berDomain
@@ -140,20 +151,20 @@ startDynamicBackend beOverrides action = do
         Gundeck -> setField "settings.federationDomain" resource.berDomain
         _ -> pure
 
-    setFederatorConfig :: BackendResource -> Value -> App Value
-    setFederatorConfig resource =
+    setFederatorConfig :: Value -> App Value
+    setFederatorConfig =
       setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
         >=> setFieldIfExists "federatorExternal.port" resource.berFederatorExternal
         >=> setFieldIfExists "optSettings.setFederationDomain" resource.berDomain
 
-    backGroundWorkerOverrides :: BackendResource -> [String] -> Value -> App Value
-    backGroundWorkerOverrides resource rds =
+    backGroundWorkerOverrides :: [String] -> Value -> App Value
+    backGroundWorkerOverrides rds =
       setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
         >=> setField "remoteDomains" rds
         >=> setField "rabbitmq.vHost" resource.berVHost
 
-    setKeyspace :: BackendResource -> Service -> Value -> App Value
-    setKeyspace resource = \case
+    setKeyspace :: Service -> Value -> App Value
+    setKeyspace = \case
       Galley -> setFieldIfExists "cassandra.keyspace" resource.berGalleyKeyspace
       Brig -> setFieldIfExists "cassandra.keyspace" resource.berBrigKeyspace
       Spar -> setFieldIfExists "cassandra.keyspace" resource.berSparKeyspace
@@ -161,8 +172,8 @@ startDynamicBackend beOverrides action = do
       -- other services do not have a DB
       _ -> pure
 
-    setEsIndex :: BackendResource -> Service -> Value -> App Value
-    setEsIndex resource = \case
+    setEsIndex :: Service -> Value -> App Value
+    setEsIndex = \case
       Brig -> setFieldIfExists "elasticsearch.index" resource.berElasticsearchIndex
       -- other services do not have an ES index
       _ -> pure
@@ -177,7 +188,7 @@ setFederatorPorts resource sm =
 withModifiedServices :: Map.Map Service (Value -> App Value) -> (String -> App a) -> App a
 withModifiedServices services action = do
   domain <- asks (.domain1)
-  startBackend domain Nothing Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain) action
+  startBackend domain Nothing Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain) (action domain)
 
 updateServiceMap :: Map.Map Service Word16 -> ServiceMap -> ServiceMap
 updateServiceMap ports serviceMap =
@@ -202,7 +213,7 @@ startBackend ::
   Maybe (Value -> App Value) ->
   Map.Map Service (Value -> App Value) ->
   (Map.Map Service Word16 -> Map.Map String ServiceMap -> Map.Map String ServiceMap) ->
-  (String -> App a) ->
+  App a ->
   App a
 startBackend domain nginzSslPort mFederatorOverrides mBgWorkerOverrides services modifyBackends action = do
   ports <- Map.traverseWithKey (\_ _ -> liftIO openFreePort) services
@@ -308,7 +319,7 @@ startBackend domain nginzSslPort mFederatorOverrides mBgWorkerOverrides services
                 modifyEnv
                 ( unApp $ do
                     waitForAllServices
-                    action domain
+                    action
                 )
             )
             env

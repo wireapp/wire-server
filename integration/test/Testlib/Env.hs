@@ -39,7 +39,8 @@ data Env = Env
     prekeys :: IORef [(Int, String)],
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
-    resourcePool :: Pool BackendResource
+    resourcePool :: Pool BackendResource,
+    resourcePool' :: ResourcePool BackendResource
   }
 
 -- | Initialised once per testsuite.
@@ -52,7 +53,8 @@ data GlobalEnv = GlobalEnv
     gServiceConfigsDir :: FilePath,
     gServicesCwdBase :: Maybe FilePath,
     gRemovalKeyPath :: FilePath,
-    gResourcePool :: Pool BackendResource
+    gResourcePool :: Pool BackendResource,
+    gBackendResourcePool :: ResourcePool BackendResource
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -154,6 +156,7 @@ mkGlobalEnv cfgFile = do
           Nothing -> "/etc/wire"
 
   manager <- HTTP.newManager HTTP.defaultManagerSettings
+  resourcePool <- createBackendResourcePool
   pool <- createPool
   pure
     GlobalEnv
@@ -169,7 +172,8 @@ mkGlobalEnv cfgFile = do
         gServiceConfigsDir = configsDir,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gRemovalKeyPath = error "Uninitialised removal key path",
-        gResourcePool = pool
+        gResourcePool = pool,
+        gBackendResourcePool = resourcePool
       }
 
 mkEnv :: GlobalEnv -> Codensity IO Env
@@ -191,7 +195,8 @@ mkEnv ge = do
           prekeys = pks,
           lastPrekeys = lpks,
           mls = mls,
-          resourcePool = ge.gResourcePool
+          resourcePool = ge.gResourcePool,
+          resourcePool' = ge.gBackendResourcePool
         }
 
 destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()

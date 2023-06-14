@@ -1,23 +1,58 @@
-module Testlib.ResourcePool (ResourcePool, BackendResource (..), backendResources, remoteDomains, createPool) where
+module Testlib.ResourcePool
+  ( ResourcePool,
+    BackendResource (..),
+    backendResources,
+    remoteDomains,
+    createPool,
+    createBackendResourcePool,
+    acquireResources,
+    releaseResources,
+  )
+where
 
-import Control.Concurrent (MVar)
+import Control.Concurrent
 import Data.Char
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
 import Data.List.Extra ((\\))
-import qualified Data.Pool
+import Data.Pool hiding (createPool)
+import qualified Data.Pool as Pool
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.String
+import Data.Tuple
 import Data.Word
 import System.IO
 import Prelude
 
-data ResourcePool = ResourcePool
-  { mvar :: MVar (),
-    resources :: IORef (Set.Set BackendResource)
+type MLock = MVar ()
+
+data ResourcePool a = ResourcePool
+  { lock :: MLock,
+    sem :: QSemN,
+    resources :: IORef (Set.Set a)
   }
+
+newResourcePool :: Ord a => Set a -> IO (ResourcePool a)
+newResourcePool xs =
+  ResourcePool
+    <$> newMVar ()
+    <*> newQSemN (length xs)
+    <*> newIORef xs
+
+acquireResources :: Ord a => Int -> ResourcePool a -> IO (Set a)
+acquireResources n pool = withMVar pool.lock $ \_ -> do
+  waitQSemN pool.sem n
+  atomicModifyIORef pool.resources $ swap . Set.splitAt n
+
+releaseResources :: Ord a => ResourcePool a -> [a] -> IO ()
+releaseResources pool xs = withMVar pool.lock $ \_ -> do
+  modifyIORef pool.resources $ Set.union (Set.fromList xs)
+  signalQSemN pool.sem (length xs)
+
+createBackendResourcePool :: IO (ResourcePool BackendResource)
+createBackendResourcePool = newResourcePool (backendResources 3)
 
 data BackendResource = BackendResource
   { berBrigKeyspace :: String,
@@ -95,9 +130,10 @@ remoteDomains domain = ["c.example.com", "d.example.com", "e.example.com"] \\ [d
 -------------------------------------------------------------------------
 -- resource-pool lib (FUTUREWORK: remove)
 
+createPool :: IO (Pool BackendResource)
 createPool = do
   resources <- newIORef $ backendResources 3
-  Data.Pool.createPool (create resources) (destroy resources) 1 120 3
+  Pool.createPool (create resources) (destroy resources) 1 120 3
 
 destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
 destroy ioRef = modifyIORef' ioRef . Set.insert

@@ -142,48 +142,6 @@ testStartMultipleDynamicBackends = do
         assertCorrectDomain dynDomain2
         assertCorrectDomain dynDomain3
 
-testStartMultipleDynamicBackends4 :: HasCallStack => App ()
-testStartMultipleDynamicBackends4 = do
-  let assertCorrectDomain domain =
-        bindResponse (Public.getAPIVersion domain) $
-          \resp -> do
-            resp.status `shouldMatchInt` 200
-            (resp.json %. "domain") `shouldMatch` domain
-  startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain1 -> do
-    startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain2 -> do
-      startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain3 -> do
-        assertCorrectDomain dynDomain1
-        assertCorrectDomain dynDomain2
-        assertCorrectDomain dynDomain3
-
-testStartMultipleDynamicBackends1 :: HasCallStack => App ()
-testStartMultipleDynamicBackends1 = do
-  let assertCorrectDomain domain =
-        bindResponse (Public.getAPIVersion domain) $
-          \resp -> do
-            resp.status `shouldMatchInt` 200
-            (resp.json %. "domain") `shouldMatch` domain
-  startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain1 -> do
-    startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain2 -> do
-      startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain3 -> do
-        assertCorrectDomain dynDomain1
-        assertCorrectDomain dynDomain2
-        assertCorrectDomain dynDomain3
-
-testStartMultipleDynamicBackends2 :: HasCallStack => App ()
-testStartMultipleDynamicBackends2 = do
-  let assertCorrectDomain domain =
-        bindResponse (Public.getAPIVersion domain) $
-          \resp -> do
-            resp.status `shouldMatchInt` 200
-            (resp.json %. "domain") `shouldMatch` domain
-  startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain1 -> do
-    startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain2 -> do
-      startDynamicBackend defaultDynBackendConfigOverrides $ \dynDomain3 -> do
-        assertCorrectDomain dynDomain1
-        assertCorrectDomain dynDomain2
-        assertCorrectDomain dynDomain3
-
 testIndependentESIndices :: HasCallStack => App ()
 testIndependentESIndices = do
   u1 <- randomUser OwnDomain def
