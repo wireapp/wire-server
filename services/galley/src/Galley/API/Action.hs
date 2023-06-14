@@ -645,7 +645,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
     False
     con
     lconv
-    (convBotsAndMembers conv <> extraTargets)
+    (convBotsAndMembers conv, extraTargets)
     action'
 
 -- --------------------------------------------------------------------------------
@@ -706,80 +706,69 @@ notifyConversationAction ::
   Bool ->
   Maybe ConnId ->
   Local Conversation ->
-  BotsAndMembers ->
+  (BotsAndMembers, BotsAndMembers) ->
   ConversationAction (tag :: ConversationActionTag) ->
   Sem r (LocalConversationUpdate, FailedToProcess)
-notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
+notifyConversationAction tag quid notifyOrigDomain con lconv (targets, extraTargets) action = do
   now <- input
   let lcnv = fmap convId lconv
       conv = tUnqualified lconv
       e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
 
-  let mkUpdate uids =
-        ConversationUpdate
-          now
-          quid
-          (tUnqualified lcnv)
-          uids
-          (SomeConversationAction tag action)
-
   -- call `on-new-remote-conversation` on backends that are seeing this
   -- conversation for the first time
   let newDomains =
         Set.difference
-          (Set.map void (bmRemotes targets))
+          (Set.map void (bmRemotes $ targets <> extraTargets))
           (Set.fromList (map (void . rmId) (convRemoteMembers conv)))
       newRemotes =
         Set.filter (\r -> Set.member (void r) newDomains)
           . bmRemotes
-          $ targets
+          $ targets <> extraTargets
   let nrc =
         NewRemoteConversation
           { nrcConvId = convId conv,
             nrcProtocol = convProtocol conv
           }
   (update, failedToProcess) <- do
-    notifyEithers <-
+    notifyNewConv <-
       E.runFederatedConcurrentlyEither (toList newRemotes) $ \_ -> do
         void $ fedClient @'Galley @"on-new-remote-conversation" nrc
     -- For now these users will not be able to join the conversation until
     -- queueing and retrying is implemented.
-    let failedNotifies = lefts notifyEithers
-    for_ failedNotifies $
+    let failedNewConvNotifies = lefts notifyNewConv
+    for_ failedNewConvNotifies $
       logError
         "on-new-remote-conversation"
         "An error occurred while communicating with federated server: "
-    for_ failedNotifies $ \case
+    for_ failedNewConvNotifies $ \case
       -- rethrow invalid-domain errors and mis-configured federation errors
       (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 422 _) _ _ _)))) -> throw ex
       (_, ex@(FederationCallFailure (FederatorClientHTTP2Error (FederatorClientConnectionError _)))) -> throw ex
       _ -> pure ()
-    updates <-
-      E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
-        \ruids -> do
-          let update = mkUpdate (tUnqualified ruids)
-          -- if notifyOrigDomain is false, filter out user from quid's domain,
-          -- because quid's backend will update local state and notify its users
-          -- itself using the ConversationUpdate returned by this function
-          if notifyOrigDomain || tDomain ruids /= qDomain quid
-            then fedClient @'Galley @"on-conversation-updated" update $> Nothing
-            else pure (Just update)
-    let f = fromMaybe (mkUpdate []) . asum . map tUnqualified . rights
-        update = f updates
-        failedUpdates = lefts updates
+    -- 'targets' and 'extraTargets' are sent the update separately because they
+    -- are treated differently in case of federation failures (i.e., unreachable
+    -- remote backends).
+    targetUpdates <- sendUpdate now targets
+    extraTargetUpdates <- sendUpdate now extraTargets
+    let f = fromMaybe (mkUpdate now []) . asum . map tUnqualified . rights
+        update = f targetUpdates
+        failedTargetUpdates = lefts targetUpdates
+        failedExtraTargetUpdates = lefts extraTargetUpdates
         toFailedToProcess :: [Qualified UserId] -> FailedToProcess
         toFailedToProcess us = case tag of
           SConversationJoinTag -> failedToAdd us
           SConversationLeaveTag -> failedToRemove us
           SConversationRemoveMembersTag -> failedToRemove us
           _ -> mempty
-    for_ failedUpdates $
+    for_ (failedTargetUpdates <> failedExtraTargetUpdates) $
       logError
         "on-conversation-updated"
         "An error occurred while communicating with federated server: "
     let totalFailedToProcess =
-          failedToAdd (qualifiedFails failedNotifies)
-            <> toFailedToProcess (qualifiedFails failedUpdates)
+          failedToSend (qualifiedFails failedNewConvNotifies)
+            <> failedToSend (qualifiedFails failedTargetUpdates)
+            <> toFailedToProcess (qualifiedFails failedExtraTargetUpdates)
     pure (update, totalFailedToProcess)
 
   -- notify local participants and bots
@@ -789,6 +778,24 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   -- to the originating domain (if it is remote)
   pure $ (LocalConversationUpdate e update, failedToProcess)
   where
+    sendUpdate now recipients =
+      E.runFederatedConcurrentlyEither (toList (bmRemotes recipients)) $
+        \ruids -> do
+          let update = mkUpdate now (tUnqualified ruids)
+          -- if notifyOrigDomain is false, filter out user from quid's domain,
+          -- because quid's backend will update local state and notify its users
+          -- itself using the ConversationUpdate returned by this function
+          if notifyOrigDomain || tDomain ruids /= qDomain quid
+            then fedClient @'Galley @"on-conversation-updated" update $> Nothing
+            else pure (Just update)
+    mkUpdate now uids =
+      ConversationUpdate
+        now
+        quid
+        (tUnqualified . fmap convId $ lconv)
+        uids
+        (SomeConversationAction tag action)
+
     qualifiedFails :: [(QualifiedWithTag t [a], b)] -> [Qualified a]
     qualifiedFails = foldMap (sequenceA . tUntagged . fst)
     logError :: Show a => String -> String -> (a, FederationError) -> Sem r ()
@@ -875,7 +882,7 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
     True
     Nothing
     lconv
-    (targets <> extraTargets)
+    (targets, extraTargets)
     (pure victim)
 
 notifyTypingIndicator ::

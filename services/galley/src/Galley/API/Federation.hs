@@ -286,7 +286,7 @@ leaveConversation requestingDomain lc = do
               False
               Nothing
               (qualifyAs lcnv conv)
-              botsAndMembers
+              (botsAndMembers, mempty)
               ()
         case outcome of
           Left e -> do
@@ -422,7 +422,7 @@ onUserDeleted origDomain udcn = do
                     False
                     Nothing
                     (qualifyAs lc conv)
-                    botsAndMembers
+                    (botsAndMembers, mempty)
                     ()
               whenLeft outcome . logFederationError $ lc
   pure EmptyResponse

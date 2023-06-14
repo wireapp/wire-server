@@ -780,7 +780,7 @@ joinConversation lusr zcon conv access = do
         False
         (Just zcon)
         (qualifyAs lusr conv)
-        (convBotsAndMembers conv <> extraTargets)
+        (convBotsAndMembers conv <> extraTargets, mempty)
         action
 
 addMembers ::
