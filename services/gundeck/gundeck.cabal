@@ -321,6 +321,7 @@ executable gundeck-schema
   other-modules:
     Paths_gundeck
     V1
+    V10
     V2
     V3
     V4
