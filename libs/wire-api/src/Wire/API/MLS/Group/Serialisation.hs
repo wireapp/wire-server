@@ -62,8 +62,8 @@ convToGroupId :: GroupIdParts -> GroupId
 convToGroupId parts = GroupId . L.toStrict . runPut $ do
   let cs = qUnqualified parts.qConvId
       subId = foldMap unSubConvId cs.subconv
-  putWord64be 1 -- Version 1 of the GroupId format
-  putWord32be (fromIntegral $ fromEnum parts.convType)
+  putWord16be 1 -- Version 1 of the GroupId format
+  putWord16be (fromIntegral $ fromEnum parts.convType)
   putLazyByteString . UUID.toByteString . toUUID $ cs.conv
   putWord8 $ fromIntegral (T.length subId)
   putByteString $ T.encodeUtf8 subId
@@ -82,8 +82,8 @@ groupIdToConv gid = do
       }
   where
     readConv = do
-      version <- getWord64be
-      ct <- getWord32be
+      version <- getWord16be
+      ct <- getWord16be
       unless (version == 1) $ fail "unsupported groupId version"
       mUUID <- UUID.fromByteString . L.fromStrict <$> getByteString 16
       uuid <- maybe (fail "invalid conversation UUID in groupId") pure mUUID
