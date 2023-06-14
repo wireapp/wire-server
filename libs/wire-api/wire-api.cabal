@@ -134,6 +134,7 @@ library
     Wire.API.Team.Invitation
     Wire.API.Team.LegalHold
     Wire.API.Team.LegalHold.External
+    Wire.API.Team.LegalHold.Internal
     Wire.API.Team.Member
     Wire.API.Team.Permission
     Wire.API.Team.Role

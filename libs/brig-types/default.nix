@@ -19,7 +19,6 @@
 , tasty-hunit
 , tasty-quickcheck
 , text
-, time
 , tinylog
 , types-common
 , wire-api
@@ -39,7 +38,6 @@ mkDerivation {
     imports
     QuickCheck
     text
-    time
     tinylog
     types-common
     wire-api

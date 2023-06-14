@@ -66,6 +66,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZUser {- yes, this is a bit weird -})
 import Wire.API.Team.Feature
+import Wire.API.Team.LegalHold.Internal
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
@@ -436,6 +437,55 @@ type AccountAPI =
                :> "connection-update"
                :> ReqBody '[Servant.JSON] UpdateConnectionsInternal
                :> Put '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iListClients"
+           ( "clients"
+               :> ReqBody '[Servant.JSON] UserSet
+               :> Post '[Servant.JSON] UserClients
+           )
+    :<|> Named
+           "iListClientsFull"
+           ( "clients"
+               :> "full"
+               :> ReqBody '[Servant.JSON] UserSet
+               :> Post '[Servant.JSON] UserClientsFull
+           )
+    :<|> Named
+           "iAddClient"
+           ( Summary
+               "This endpoint can lead to the following events being sent: ClientAdded event to the user; \
+               \ClientRemoved event to the user, if removing old clients due to max number of clients; \
+               \UserLegalHoldEnabled event to contacts of the user, if client type is legalhold."
+               :> "clients"
+               :> Capture "uid" UserId
+               :> QueryParam' [Optional, Strict] "skip_reauth" Bool
+               :> ReqBody '[Servant.JSON] NewClient
+               :> Header' [Optional, Strict] "Z-Connection" ConnId
+               :> Verb 'POST 201 '[Servant.JSON] Client
+           )
+    :<|> Named
+           "iLegalholdAddClient"
+           ( Summary
+               "This endpoint can lead to the following events being sent: \
+               \LegalHoldClientRequested event to contacts of the user"
+               :> "clients"
+               :> "legalhold"
+               :> Capture "uid" UserId
+               :> "request"
+               :> ReqBody '[Servant.JSON] LegalHoldClientRequest
+               :> Post '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iLegalholdDeleteClient"
+           ( Summary
+               "This endpoint can lead to the following events being sent: \
+               \ClientRemoved event to the user; UserLegalHoldDisabled event \
+               \to contacts of the user"
+               :> "clients"
+               :> "legalhold"
+               :> Capture "uid" UserId
+               :> Delete '[Servant.JSON] NoContent
            )
 
 -- | The missing ref is implicit by the capture

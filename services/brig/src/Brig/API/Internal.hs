@@ -69,12 +69,8 @@ import Data.Qualified
 import qualified Data.Set as Set
 import Imports hiding (cs, head)
 import qualified Imports
-import Network.HTTP.Types.Status
-import Network.Wai (Response)
-import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
-import Network.Wai.Utilities.ZAuth (zauthConnId)
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
@@ -188,6 +184,11 @@ accountAPI =
     :<|> Named @"iGetRichInfoMulti" getRichInfoMultiH
     :<|> Named @"iHeadHandle" checkHandleInternalH
     :<|> Named @"iConnectionUpdate" updateConnectionInternalH
+    :<|> Named @"iListClients" internalListClientsH
+    :<|> Named @"iListClientsFull" internalListFullClientsH
+    :<|> Named @"iAddClient" addClientInternalH
+    :<|> Named @"iLegalholdAddClient" legalHoldClientRequestedH
+    :<|> Named @"iLegalholdDeleteClient" removeLegalHoldClientH
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -321,39 +322,6 @@ sitemap ::
   ) =>
   Routes a (Handler r) ()
 sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
-  post "/i/clients" (continue internalListClientsH) $
-    accept "application" "json"
-      .&. jsonRequest @UserSet
-
-  post "/i/clients/full" (continue internalListFullClientsH) $
-    accept "application" "json"
-      .&. jsonRequest @UserSet
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ClientAdded event to the user
-  -- - ClientRemoved event to the user, if removing old clients due to max number of clients
-  -- - UserLegalHoldEnabled event to contacts of the user, if client type is legalhold
-  post "/i/clients/:uid" (continue addClientInternalH) $
-    capture "uid"
-      .&. opt (param "skip_reauth")
-      .&. jsonRequest @NewClient
-      .&. opt zauthConnId
-      .&. accept "application" "json"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - LegalHoldClientRequested event to contacts of the user
-  post "/i/clients/legalhold/:uid/request" (continue legalHoldClientRequestedH) $
-    capture "uid"
-      .&. jsonRequest @LegalHoldClientRequest
-      .&. accept "application" "json"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ClientRemoved event to the user
-  -- - UserLegalHoldDisabled event to contacts of the user
-  delete "/i/clients/legalhold/:uid" (continue removeLegalHoldClientH) $
-    capture "uid"
-      .&. accept "application" "json"
-
   Provider.routesInternal
   Team.routesInternal
 
@@ -363,51 +331,32 @@ sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
 -- | Add a client without authentication checks
 addClientInternalH ::
   (Member GalleyProvider r) =>
-  UserId ::: Maybe Bool ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON ->
-  (Handler r) Response
-addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
-  new <- parseJsonBody req
-  setStatus status201 . json <$> addClientInternal usr mSkipReAuth new connId
-
-addClientInternal ::
-  (Member GalleyProvider r) =>
   UserId ->
   Maybe Bool ->
   NewClient ->
   Maybe ConnId ->
   (Handler r) Client
-addClientInternal usr mSkipReAuth new connId = do
+addClientInternalH usr mSkipReAuth new connId = do
   let policy
         | mSkipReAuth == Just True = \_ _ -> False
         | otherwise = Data.reAuthForNewClients
   API.addClientWithReAuthPolicy policy usr connId Nothing new !>> clientError
 
-legalHoldClientRequestedH :: UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> (Handler r) Response
-legalHoldClientRequestedH (targetUser ::: req ::: _) = do
-  clientRequest <- parseJsonBody req
-  lift $ API.legalHoldClientRequested targetUser clientRequest
-  pure $ setStatus status200 empty
+legalHoldClientRequestedH :: UserId -> LegalHoldClientRequest -> (Handler r) NoContent
+legalHoldClientRequestedH targetUser clientRequest = do
+  lift $ NoContent <$ API.legalHoldClientRequested targetUser clientRequest
 
-removeLegalHoldClientH :: UserId ::: JSON -> (Handler r) Response
-removeLegalHoldClientH (uid ::: _) = do
-  lift $ API.removeLegalHoldClient uid
-  pure $ setStatus status200 empty
+removeLegalHoldClientH :: UserId -> (Handler r) NoContent
+removeLegalHoldClientH uid = do
+  lift $ NoContent <$ API.removeLegalHoldClient uid
 
-internalListClientsH :: JSON ::: JsonRequest UserSet -> (Handler r) Response
-internalListClientsH (_ ::: req) = do
-  json <$> (lift . internalListClients =<< parseJsonBody req)
-
-internalListClients :: UserSet -> (AppT r) UserClients
-internalListClients (UserSet usrs) = do
+internalListClientsH :: UserSet -> (Handler r) UserClients
+internalListClientsH (UserSet usrs) = lift $ do
   UserClients . Map.fromList
     <$> wrapClient (API.lookupUsersClientIds (Set.toList usrs))
 
-internalListFullClientsH :: JSON ::: JsonRequest UserSet -> (Handler r) Response
-internalListFullClientsH (_ ::: req) =
-  json <$> (lift . internalListFullClients =<< parseJsonBody req)
-
-internalListFullClients :: UserSet -> (AppT r) UserClientsFull
-internalListFullClients (UserSet usrs) =
+internalListFullClientsH :: UserSet -> (Handler r) UserClientsFull
+internalListFullClientsH (UserSet usrs) = lift $ do
   UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
 
 createUserNoVerify ::
@@ -655,7 +604,7 @@ deleteSSOIdH uid = do
 
 updateManagedByH :: UserId -> ManagedByUpdate -> (Handler r) NoContent
 updateManagedByH uid (ManagedByUpdate managedBy) = do
-  NoContent <$ (lift $ wrapClient $ Data.updateManagedBy uid managedBy)
+  NoContent <$ lift (wrapClient $ Data.updateManagedBy uid managedBy)
 
 updateRichInfoH :: UserId -> RichInfoUpdate -> (Handler r) NoContent
 updateRichInfoH uid rup =

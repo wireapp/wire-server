@@ -359,6 +359,18 @@ newtype UserClientsFull = UserClientsFull
   deriving stock (Eq, Show, Generic)
   deriving newtype (Semigroup, Monoid)
 
+-- | Json rendering of `UserClientsFull` is dynamic in the object fields, so it's unclear how
+-- machine-generated swagger would look like.  We just leave the manual aeson instances in
+-- place and write something in English into the docs here.
+instance Swagger.ToSchema UserClientsFull where
+  declareNamedSchema _ = do
+    return $
+      NamedSchema (Just "UserClientsFull") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & description ?~ "Dictionary object of `Client` objects indexed by `UserId`."
+          & example ?~ "{\"1355c55a-0ac8-11ee-97ee-db1a6351f093\": <Client object>, ...}"
+
 instance ToJSON UserClientsFull where
   toJSON =
     toJSON . Map.foldrWithKey' fn Map.empty . userClientsFull
