@@ -3,7 +3,6 @@ module Testlib.ResourcePool
     BackendResource (..),
     backendResources,
     remoteDomains,
-    createPool,
     createBackendResourcePool,
     acquireResources,
     releaseResources,
@@ -16,8 +15,6 @@ import Data.Function ((&))
 import Data.Functor
 import Data.IORef
 import Data.List.Extra ((\\))
-import Data.Pool hiding (createPool)
-import qualified Data.Pool as Pool
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.String
@@ -126,23 +123,3 @@ backendResources n =
 
 remoteDomains :: String -> [String]
 remoteDomains domain = ["c.example.com", "d.example.com", "e.example.com"] \\ [domain]
-
--------------------------------------------------------------------------
--- resource-pool lib (FUTUREWORK: remove)
-
-createPool :: IO (Pool BackendResource)
-createPool = do
-  resources <- newIORef $ backendResources 3
-  Pool.createPool (create resources) (destroy resources) 1 120 3
-
-destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
-destroy ioRef = modifyIORef' ioRef . Set.insert
-
-create :: IORef (Set.Set BackendResource) -> IO BackendResource
-create ioRef =
-  atomicModifyIORef
-    ioRef
-    $ \s ->
-      case Set.minView s of
-        Nothing -> error "No resources available"
-        Just (r, s') -> (s', r)

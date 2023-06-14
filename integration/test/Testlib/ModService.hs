@@ -9,7 +9,6 @@ import Control.Exception (finally)
 import qualified Control.Exception as E
 import Control.Monad.Extra
 import Control.Monad.Reader
-import Control.Monad.Trans.Control (MonadBaseControl (liftBaseWith))
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
 import Data.Attoparsec.ByteString.Char8
@@ -19,7 +18,6 @@ import Data.Function
 import Data.Functor
 import qualified Data.Map.Strict as Map
 import Data.Maybe
-import Data.Pool (withResource)
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Text hiding (elem, head, zip)
@@ -70,20 +68,14 @@ copyDirectoryRecursively from to = do
 
 startDynamicBackends :: [DynBackendConfigOverrides] -> ([String] -> App ()) -> App ()
 startDynamicBackends beOverrides action = do
-  pool <- asks (.resourcePool')
+  pool <- asks (.resourcePool)
   resources <- Set.toList <$> liftIO (acquireResources (Prelude.length beOverrides) pool)
   let recStartBackends :: [String] -> [(BackendResource, DynBackendConfigOverrides)] -> App ()
       recStartBackends domains = \case
         [] -> action domains
         (res, o) : xs -> startDynamicBackend' res o (\d -> recStartBackends (d : domains) xs)
   recStartBackends [] (zip resources beOverrides)
-
-startDynamicBackend :: DynBackendConfigOverrides -> (String -> App a) -> App a
-startDynamicBackend beOverrides action = do
-  pool <- asks (.resourcePool)
-  liftBaseWith $
-    \runInBase ->
-      withResource pool (\resource -> runInBase $ startDynamicBackend' resource beOverrides action)
+  liftIO $ releaseResources pool resources
 
 startDynamicBackend' :: BackendResource -> DynBackendConfigOverrides -> (String -> App a) -> App a
 startDynamicBackend' resource beOverrides action = do

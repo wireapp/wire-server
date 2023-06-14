@@ -10,7 +10,6 @@ import Data.Functor
 import Data.IORef
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Pool (Pool)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.String
@@ -39,8 +38,7 @@ data Env = Env
     prekeys :: IORef [(Int, String)],
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
-    resourcePool :: Pool BackendResource,
-    resourcePool' :: ResourcePool BackendResource
+    resourcePool :: ResourcePool BackendResource
   }
 
 -- | Initialised once per testsuite.
@@ -53,7 +51,6 @@ data GlobalEnv = GlobalEnv
     gServiceConfigsDir :: FilePath,
     gServicesCwdBase :: Maybe FilePath,
     gRemovalKeyPath :: FilePath,
-    gResourcePool :: Pool BackendResource,
     gBackendResourcePool :: ResourcePool BackendResource
   }
 
@@ -157,7 +154,6 @@ mkGlobalEnv cfgFile = do
 
   manager <- HTTP.newManager HTTP.defaultManagerSettings
   resourcePool <- createBackendResourcePool
-  pool <- createPool
   pure
     GlobalEnv
       { gServiceMap =
@@ -172,7 +168,6 @@ mkGlobalEnv cfgFile = do
         gServiceConfigsDir = configsDir,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gRemovalKeyPath = error "Uninitialised removal key path",
-        gResourcePool = pool,
         gBackendResourcePool = resourcePool
       }
 
@@ -195,8 +190,7 @@ mkEnv ge = do
           prekeys = pks,
           lastPrekeys = lpks,
           mls = mls,
-          resourcePool = ge.gResourcePool,
-          resourcePool' = ge.gBackendResourcePool
+          resourcePool = ge.gBackendResourcePool
         }
 
 destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
