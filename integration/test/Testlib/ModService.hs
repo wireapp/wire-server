@@ -73,12 +73,12 @@ startDynamicBackends beOverrides action = do
   let recStartBackends :: [String] -> [(BackendResource, DynBackendConfigOverrides)] -> App ()
       recStartBackends domains = \case
         [] -> action domains
-        (res, o) : xs -> startDynamicBackend' res o (\d -> recStartBackends (d : domains) xs)
+        (res, o) : xs -> startDynamicBackend res o (\d -> recStartBackends (d : domains) xs)
   recStartBackends [] (zip resources beOverrides)
   liftIO $ releaseResources pool resources
 
-startDynamicBackend' :: BackendResource -> DynBackendConfigOverrides -> (String -> App a) -> App a
-startDynamicBackend' resource beOverrides action = do
+startDynamicBackend :: BackendResource -> DynBackendConfigOverrides -> (String -> App a) -> App a
+startDynamicBackend resource beOverrides action = do
   defDomain <- asks (.domain1)
   defDomain2 <- asks (.domain2)
   let services =
