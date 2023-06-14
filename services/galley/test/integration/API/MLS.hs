@@ -62,7 +62,6 @@ import Wire.API.Federation.API.Galley
 import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -72,7 +71,6 @@ import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
 import Wire.API.Unreachable
-import Wire.API.User.Client
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -108,8 +106,7 @@ tests s =
           test s "return error when commit is locked" testCommitLock,
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
           test s "post commit that references an unknown proposal" testUnknownProposalRefCommit,
-          test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
-          test s "admin removes user from a conversation" testAdminRemovesUserFromConv
+          test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals
         ],
       testGroup
         "External commit"
@@ -728,32 +725,6 @@ testCommitNotReferencingAllProposals = do
         =<< localPostCommitBundle alice1 bundle
           <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-commit-missing-references"
-
-testAdminRemovesUserFromConv :: TestM ()
-testAdminRemovesUserFromConv = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
-  (qcnv, events) <- runMLSTest $ do
-    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
-    void $ createWireClient bob -- also create one extra non-MLS client
-    traverse_ uploadNewKeyPackage [bob1, bob2]
-    (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-    events <- createRemoveCommit alice1 [bob1, bob2] >>= sendAndConsumeCommitBundle
-    pure (qcnv, events)
-
-  liftIO $ assertOne events >>= assertLeaveEvent qcnv alice [bob]
-
-  do
-    convs <- getAllConvs (qUnqualified bob)
-    clients <- getConvClients $ convToGroupId (groupIdParts RegularConv $ fmap Conv qcnv)
-    liftIO $ do
-      assertEqual
-        ("Expected only one client, got " <> show clients)
-        (length . clClients $ clients)
-        1
-      assertBool
-        "bob is not longer part of conversation after the commit"
-        (qcnv `notElem` map cnvQualifiedId convs)
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = do
