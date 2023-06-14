@@ -253,6 +253,8 @@ let
             pkgs.cacert
             pkgs.iana-etc
             pkgs.dumb-init
+            pkgs.dockerTools.fakeNss
+            pkgs.dockerTools.usrBinEnv
             drv
             tmpDir
           ] ++ debugUtils ++ pkgs.lib.optionals (builtins.hasAttr execName (extraContents exes)) (builtins.getAttr execName (extraContents exes));
@@ -265,6 +267,7 @@ let
           config = {
             Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}" ];
             Env = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt" ];
+            User = "nobody";
           };
         }
       )
