@@ -24,6 +24,7 @@
 , http-types
 , kan-extensions
 , lib
+, mime
 , mtl
 , network
 , network-uri
@@ -73,6 +74,7 @@ mkDerivation {
     http-client
     http-types
     kan-extensions
+    mime
     mtl
     network
     network-uri

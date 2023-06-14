@@ -96,7 +96,7 @@ data HostPort = HostPort
 
 instance FromJSON HostPort
 
-data Service = Brig | Galley | Cannon
+data Service = Brig | Galley | Cannon | Cargohold
   deriving (Show, Eq, Ord)
 
 serviceName :: Service -> String
@@ -106,6 +106,7 @@ serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
 serviceHostPort m Galley = m.galley
 serviceHostPort m Cannon = m.cannon
+serviceHostPort m Cargohold = m.cargohold
 
 mkGlobalEnv :: FilePath -> IO GlobalEnv
 mkGlobalEnv cfgFile = do

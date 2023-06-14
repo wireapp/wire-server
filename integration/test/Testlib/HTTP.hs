@@ -9,15 +9,19 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
 import Data.Function
+import Data.Functor ((<&>))
 import Data.List
 import Data.List.Split (splitOn)
+import Data.Maybe
 import Data.String
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Types (hLocation)
 import qualified Network.HTTP.Types as HTTP
+import Network.URI (URI (..), URIAuth (..), parseURI)
 import Testlib.Assertions
 import Testlib.Env
 import Testlib.JSON
@@ -34,11 +38,14 @@ addJSONObject :: [Aeson.Pair] -> HTTP.Request -> HTTP.Request
 addJSONObject = addJSON . Aeson.object
 
 addJSON :: Aeson.ToJSON a => a -> HTTP.Request -> HTTP.Request
-addJSON obj req =
+addJSON obj = addBody (HTTP.RequestBodyLBS (Aeson.encode obj)) "application/json"
+
+addBody :: HTTP.RequestBody -> String -> HTTP.Request -> HTTP.Request
+addBody body contentType req =
   req
-    { HTTP.requestBody = HTTP.RequestBodyLBS (Aeson.encode obj),
+    { HTTP.requestBody = body,
       HTTP.requestHeaders =
-        (fromString "Content-Type", fromString "application/json")
+        (fromString "Content-Type", fromString contentType)
           : HTTP.requestHeaders req
     }
 
@@ -61,6 +68,9 @@ addQueryParams params req =
 
 zType :: String -> HTTP.Request -> HTTP.Request
 zType = addHeader "Z-Type"
+
+zHost :: String -> HTTP.Request -> HTTP.Request
+zHost = addHeader "Z-Host"
 
 contentTypeJSON :: HTTP.Request -> HTTP.Request
 contentTypeJSON = addHeader "Content-Type" "application/json"
@@ -142,3 +152,16 @@ submit method req0 = do
         headers = HTTP.responseHeaders res,
         request = req
       }
+
+locationHeaderHost :: Response -> String
+locationHeaderHost resp =
+  let location = C8.unpack . snd . fromJust $ locationHeader resp
+      locationURI = fromJust $ parseURI location
+      locationHost = fromJust $ locationURI & uriAuthority <&> uriRegName
+   in locationHost
+
+locationHeader :: Response -> Maybe (HTTP.HeaderName, ByteString)
+locationHeader = findHeader hLocation
+
+findHeader :: HTTP.HeaderName -> Response -> Maybe (HTTP.HeaderName, ByteString)
+findHeader name resp = find (\(name', _) -> name == name') resp.headers
