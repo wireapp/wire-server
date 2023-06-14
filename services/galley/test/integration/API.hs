@@ -2755,8 +2755,11 @@ testAddRemoteMember = do
   let alice = qUnqualified qalice
   let localDomain = qDomain qalice
   bobId <- randomId
-  let remoteDomain = Domain "far-away.example.com"
-      remoteBob = Qualified bobId remoteDomain
+  chadId <- randomId
+  let bobDomain = Domain "bob.example.com"
+      chadDomain = Domain "chad.example.com"
+      remoteBob = Qualified bobId bobDomain
+      remoteChad = Qualified chadId chadDomain
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   let qconvId = Qualified convId localDomain
 
@@ -2772,7 +2775,7 @@ testAddRemoteMember = do
         postQualifiedMembers alice (remoteBob :| []) qconvId
           <!! const 200 === statusCode
     liftIO $ do
-      map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
+      map frTargetDomain reqs @?= [bobDomain, bobDomain]
       map frRPC reqs @?= ["on-new-remote-conversation", "on-conversation-updated"]
 
     let UnreachabilityEvent e _ = responseJsonUnsafe resp
@@ -2787,6 +2790,32 @@ testAddRemoteMember = do
       let actual = cmOthers $ cnvMembers conv
       let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]
       assertEqual "other members should include remoteBob" expected actual
+
+  -- test adding Chad when their backend is unreachable
+  do
+    (resp, _reqs) <-
+      withTempMockFederator'
+        ( asum
+            [ mockUnreachableFor (Set.singleton chadDomain),
+              respond remoteBob
+            ]
+        )
+        $ postQualifiedMembers alice (remoteChad :| []) qconvId
+          <!! const 200 === statusCode
+    UnreachabilityEvent e ftp <- responseJsonError resp
+    let chadMember = SimpleMember remoteChad roleNameWireAdmin
+    -- as far as the conversation-owning backend (the local backend) is
+    -- concerned, Chad has been added to the conversation. Bob sees Chad as
+    -- well. However, Chad was unreachable at the moment so we both fail to
+    -- notify his backend of the new conversation and of being added to the
+    -- conversation.
+    liftIO $ do
+      evtConv e @?= qconvId
+      evtType e @?= MemberJoin
+      evtData e @?= EdMembersJoin (SimpleMembers [chadMember])
+      evtFrom e @?= qalice
+      add ftp @?= unreachableFromList [remoteChad]
+      send ftp @?= unreachableFromList [remoteChad]
   where
     respond :: Qualified UserId -> Mock LByteString
     respond bob =
