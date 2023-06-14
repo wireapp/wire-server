@@ -145,6 +145,10 @@ type GalleyApi =
            "leave-sub-conversation"
            LeaveSubConversationRequest
            LeaveSubConversationResponse
+    :<|> FedEndpoint
+           "get-one2one-conversation"
+           GetOne2OneConversationRequest
+           GetOne2OneConversationResponse
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
   { tdurTypingStatus :: TypingStatus,
@@ -189,6 +193,16 @@ data GetConversationsRequest = GetConversationsRequest
   deriving (Arbitrary) via (GenericUniform GetConversationsRequest)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsRequest)
 
+data GetOne2OneConversationRequest = GetOne2OneConversationRequest
+  { -- The user on the sender's domain
+    goocSenderUser :: UserId,
+    -- The user on the receiver's domain
+    goocReceiverUser :: UserId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetOne2OneConversationRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetOne2OneConversationRequest)
+
 data RemoteConvMembers = RemoteConvMembers
   { rcmSelfRole :: RoleName,
     rcmOthers :: [OtherMember]
@@ -219,6 +233,18 @@ newtype GetConversationsResponse = GetConversationsResponse
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsResponse)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponse)
+
+data GetOne2OneConversationResponse
+  = GetOne2OneConversationOk RemoteConversation
+  | -- | This is returned when the local backend is asked for a 1-1 conversation
+    -- that should reside on the other backend.
+    GetOne2OneConversationBackendMismatch
+  | -- | This is returned when a 1-1 conversation between two unconnected users
+    -- is requested.
+    GetOne2OneConversationNotConnected
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetOne2OneConversationResponse)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetOne2OneConversationResponse)
 
 -- | A record type describing a new federated conversation
 --

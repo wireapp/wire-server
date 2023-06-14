@@ -29,7 +29,7 @@
 --     corresponding to a failure at the level of the federator client. It
 --     includes, for example, a failure to reach a remote federator, or an
 --     error on the remote side.
---  * 'FederatorError': this is created by users of the federator client. It
+--  * 'FederationError': this is created by users of the federator client. It
 --     can either wrap a 'FederatorClientError', or be an error that is outside
 --     the scope of the client, such as when a federated request succeeds with
 --     an unexpected result.
