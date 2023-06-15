@@ -34,9 +34,10 @@ let
   # have to create it ourself.
   tmpDir = runCommand "tmp-dir" { } ''
     mkdir -p $out/tmp
-    mkdir -p $out/var/tmp
-    mkdir -p $out/var/log/nginx
     mkdir -p $out/var/cache/nginx
+    mkdir -p $out/var/log/nginx
+    mkdir -p $out/var/run
+    mkdir -p $out/var/tmp
   '';
 
   nginzImage = dockerTools.streamLayeredImage {
