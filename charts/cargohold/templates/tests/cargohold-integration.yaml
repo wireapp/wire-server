@@ -17,6 +17,8 @@ spec:
     # If using the wire-server/fake-aws-s3 chart, `dummy-bucket` will already be created.
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 6 }}
     volumeMounts:
     - name: "cargohold-integration"
       mountPath: "/etc/wire/integration"

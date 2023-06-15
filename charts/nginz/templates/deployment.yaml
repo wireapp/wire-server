@@ -32,6 +32,8 @@ spec:
       containers:
       - name: nginz-disco
         image: "{{ .Values.images.nginzDisco.repository }}:{{ .Values.images.nginzDisco.tag }}"
+        securityContext:
+          {{- toYaml .Values.podSecurityContext | nindent 10 }}
         volumeMounts:
         - name: config
           mountPath: /etc/wire/nginz/conf
@@ -41,6 +43,8 @@ spec:
           readOnly: false
       - name: nginz
         image: "{{ .Values.images.nginz.repository }}:{{ .Values.images.nginz.tag }}"
+        securityContext:
+          {{- toYaml .Values.podSecurityContext | nindent 10 }}
         volumeMounts:
         - name: secrets
           mountPath: /etc/wire/nginz/secrets

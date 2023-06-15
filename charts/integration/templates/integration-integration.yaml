@@ -55,6 +55,8 @@ spec:
   # FUTUREWORK: reproduce brig's initContainers (for geoip)
   - name: integration-setup
     image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+    securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 6 }}
     env:
     - name: INTEGRATION_DYNAMIC_BACKENDS_POOLSIZE
       value: "{{ .Values.config.dynamicBackendsPoolsize }}"
@@ -88,12 +90,12 @@ spec:
       requests:
         memory: "512Mi"
         cpu: "2"
-    securityContext:
-      {{- toYaml .Values.podSecurityContext | nindent 8 }}
 
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+    securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 6 }}
     command: [ "integration", "--config", "/etc/wire/integration/integration.yaml" ]
     resources:
       requests:
@@ -149,5 +151,3 @@ spec:
         secretKeyRef:
           name: brig
           key: rabbitmqPassword
-    securityContext:
-      {{- toYaml .Values.podSecurityContext | nindent 8 }}

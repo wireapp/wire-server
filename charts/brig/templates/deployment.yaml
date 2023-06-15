@@ -172,6 +172,8 @@ spec:
         - name: geoipupdate
           image: "{{ .Values.config.geoip.image.repository }}:{{ .Values.config.geoip.image.tag }}"
           imagePullPolicy: {{ default "" .Values.config.geoip.imagePullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           volumeMounts:
           - name: "geoip"
             mountPath: "/usr/share/GeoIP"

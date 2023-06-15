@@ -40,6 +40,8 @@ spec:
         - name: galley
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           volumeMounts:
           - name: "galley-config"
             mountPath: "/etc/wire/galley/conf"

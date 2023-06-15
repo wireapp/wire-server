@@ -30,6 +30,8 @@ spec:
         {{- else }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         {{- end }}
+        securityContext:
+          {{- toYaml .Values.podSecurityContext | nindent 10 }}
         env:
           - name: BACKEND_REST
             value: https://{{ .Values.config.externalUrls.backendRest }}

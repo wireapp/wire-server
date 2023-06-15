@@ -38,6 +38,8 @@ spec:
         - name: proxy
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           volumeMounts:
           - name: "proxy-secrets"
             mountPath: "/etc/wire/proxy/secrets"

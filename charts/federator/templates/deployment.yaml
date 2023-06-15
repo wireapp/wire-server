@@ -57,6 +57,8 @@ spec:
         - name: federator
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           volumeMounts:
             - name: "federator-config"
               mountPath: "/etc/wire/federator/conf"
