@@ -58,6 +58,9 @@ let
     fakeRootCommands = ''
       chmod 1777 tmp
       chmod 1777 var/tmp
+      chmod 1777 var/run
+      chmod 1777 var/log/nginx
+      chmod 1777 var/cache/nginx
     '';
     config = {
       Entrypoint = [ "${dumb-init}/bin/dumb-init" "--" "${nginzWithReloader}/bin/nginz_reload.sh" "-g" "daemon off;" "-c" "/etc/wire/nginz/conf/nginx.conf" ];
