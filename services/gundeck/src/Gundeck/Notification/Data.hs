@@ -14,10 +14,12 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module Gundeck.Notification.Data
   ( ResultPage (..),
     add,
+    addDeduplicated,
     fetch,
     fetchId,
     fetchLast,
@@ -27,12 +29,15 @@ where
 
 import Cassandra as C
 import Control.Lens ((^.), _1)
+import Control.Monad.Catch
 import qualified Data.Aeson as JSON
+import qualified Data.ByteString.Lazy as BSL
 import Data.Id
 import Data.List1 (List1)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
 import qualified Data.Sequence as Seq
+import Debug.Trace (traceM)
 import Gundeck.Options (NotificationTTL (..))
 import Imports hiding (cs)
 import UnliftIO (pooledForConcurrentlyN_)
@@ -50,7 +55,42 @@ data ResultPage = ResultPage
     resultGap :: !Bool
   }
 
--- FUTUREWORK: the magic 32 should be made configurable, so it can be tuned
+data Payload = Payload
+
+type PayloadId = Id 'Payload
+
+addDeduplicated ::
+  (MonadClient m, MonadUnliftIO m, MonadCatch m) =>
+  NotificationId ->
+  List1 NotificationTarget ->
+  BSL.ByteString ->
+  NotificationTTL ->
+  m ()
+addDeduplicated n tgts b (notificationTTLSeconds -> t) = do
+  payloadId <- randomId
+  write cqlInsertPayload (params LocalQuorum (payloadId, Blob b, fromIntegral t)) & retry x5
+
+  pooledForConcurrentlyN_ 32 tgts $ \tgt ->
+    let u = tgt ^. targetUser
+        cs = C.Set (tgt ^. targetClients)
+     in catch
+          (write cqlInsert (params LocalQuorum (u, n, payloadId, cs, fromIntegral t)) & retry x5)
+          (\(e :: SomeException) -> traceM (displayException e))
+  where
+    cqlInsert :: PrepQuery W (UserId, NotificationId, PayloadId, C.Set ClientId, Int32) ()
+    cqlInsert =
+      "INSERT INTO notifications \
+      \(user, id, payload_ref, clients) VALUES \
+      \(?   , ? , ?      , ?) \
+      \USING TTL ?"
+
+    cqlInsertPayload :: PrepQuery W (PayloadId, Blob, Int32) ()
+    cqlInsertPayload =
+      "INSERT INTO notifications \
+      \(id, payload) VALUES \
+      \(?   , ?) \
+      \USING TTL ?"
+
 add ::
   (MonadClient m, MonadUnliftIO m) =>
   NotificationId ->

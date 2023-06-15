@@ -37,6 +37,7 @@ import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
 import Data.Aeson as Aeson (Object)
+import qualified Data.Aeson as JSON
 import Data.Id
 import qualified Data.List.Extra as List
 import Data.List1 (List1, list1)
@@ -99,7 +100,8 @@ instance MonadPushAll Gundeck where
   mpaMkNotificationId = mkNotificationId
   mpaListAllPresences = runWithDefaultRedis . Presence.listAll
   mpaBulkPush = Web.bulkPush
-  mpaStreamAdd = Stream.add
+
+  mpaStreamAdd n targets payload ttl = Stream.addDeduplicated n targets (JSON.encode payload) ttl
   mpaPushNative = pushNative
   mpaForkIO = void . forkIO
   mpaRunWithBudget = runWithBudget''
@@ -195,7 +197,8 @@ pushAll pushes = do
   let cassandraTargets :: [CassandraTargets]
       cassandraTargets = map mkCassandraTargets newNotifications
   forM_ cassandraTargets $ \CassandraTargets {..} ->
-    unless (ntfTransient ctNotification) $
+    unless (ntfTransient ctNotification) $ do
+      -- TODO
       mpaStreamAdd (ntfId ctNotification) ctNotificationTargets (ntfPayload ctNotification)
         =<< mpaNotificationTTL
   mpaForkIO $ do
