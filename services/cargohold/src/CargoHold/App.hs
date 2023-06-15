@@ -26,6 +26,7 @@ module CargoHold.App
     newEnv,
     closeEnv,
     aws,
+    multiIngress,
     httpManager,
     http2Manager,
     metrics,
@@ -55,10 +56,11 @@ import qualified CargoHold.AWS as AWS
 import CargoHold.Options as Opt
 import Control.Error (ExceptT, exceptT)
 import Control.Exception (throw)
-import Control.Lens (Lens', makeLenses, view, (^.))
+import Control.Lens (Lens', makeLenses, non, view, (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Data.Default (def)
+import qualified Data.Map as Map
 import Data.Metrics.Middleware (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Qualified
@@ -71,6 +73,7 @@ import OpenSSL.Session (SSLContext, SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import System.Logger.Class hiding (settings)
 import qualified System.Logger.Extended as Log
+import Util.Options
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -83,7 +86,8 @@ data Env = Env
     _http2Manager :: Http2Manager,
     _requestId :: RequestId,
     _options :: Opt.Opts,
-    _localUnit :: Local ()
+    _localUnit :: Local (),
+    _multiIngress :: Map String AWS.Env
   }
 
 makeLenses ''Env
@@ -95,11 +99,48 @@ newEnv :: Opts -> IO Env
 newEnv o = do
   met <- Metrics.metrics
   lgr <- Log.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
+  checkOpts o lgr
   mgr <- initHttpManager (o ^. optAws . awsS3Compatibility)
   h2mgr <- initHttp2Manager
   ama <- initAws (o ^. optAws) lgr mgr
+  multiIngressAWS <- initMultiIngressAWS lgr mgr
   let loc = toLocalUnsafe (o ^. optSettings . Opt.setFederationDomain) ()
-  pure $ Env ama met lgr mgr h2mgr def o loc
+  pure $ Env ama met lgr mgr h2mgr def o loc multiIngressAWS
+  where
+    initMultiIngressAWS :: Logger -> Manager -> IO (Map String AWS.Env)
+    initMultiIngressAWS lgr mgr =
+      Map.fromList
+        <$> mapM
+          ( \(k, v) ->
+              initAws (patchS3DownloadEndpoint v) lgr mgr >>= \v' -> pure (k, v')
+          )
+          (Map.assocs (o ^. optAws . Opt.optMultiIngress . non Map.empty))
+
+    patchS3DownloadEndpoint :: AWSEndpoint -> AWSOpts
+    patchS3DownloadEndpoint endpoint = (o ^. optAws) & awsS3DownloadEndpoint ?~ endpoint
+
+-- | Validate (some) options (`Opts`)
+--
+-- Logs and throws if an invalid combination is found.
+checkOpts :: Opts -> Logger -> IO ()
+checkOpts opts lgr = do
+  when (multiIngressConfigured && cloudFrontConfigured) $ do
+    let errorMsg = "Invalid configuration: multiIngress and cloudFront cannot be combined!"
+    Log.fatal lgr $ Log.msg @String errorMsg
+    error errorMsg
+  when (multiIngressConfigured && singleAwsDownloadEndpointConfigured) $ do
+    let errorMsg = "Invalid configuration: multiIngress and s3DownloadEndpoint cannot be combined!"
+    Log.fatal lgr $ Log.msg @String errorMsg
+    error errorMsg
+  where
+    multiIngressConfigured :: Bool
+    multiIngressConfigured = (not . null) (opts ^. (optAws . Opt.optMultiIngress . non Map.empty))
+
+    cloudFrontConfigured :: Bool
+    cloudFrontConfigured = isJust (opts ^. (optAws . Opt.awsCloudFront))
+
+    singleAwsDownloadEndpointConfigured :: Bool
+    singleAwsDownloadEndpointConfigured = isJust (opts ^. (optAws . Opt.awsS3DownloadEndpoint))
 
 initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
 initAws o l = AWS.mkEnv l (o ^. awsS3Endpoint) addrStyle downloadEndpoint (o ^. awsS3Bucket) (o ^. awsCloudFront)

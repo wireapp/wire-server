@@ -673,3 +673,72 @@ config.disabledAPIVersions: [ v3 ]
 ```
 
 The default setting is that no API version is disabled.
+
+## Settings in cargohold
+
+### (Fake) AWS
+
+AWS S3 (or an alternative provider / service) is used to upload and download
+assets. The Haddock of
+[`CargoHold.Options.AWSOpts`](https://github.com/wireapp/wire-server/blob/develop/services/cargohold/src/CargoHold/Options.hs#L64)
+provides a lot of useful information.
+
+#### Multi-Ingress setup
+
+In a multi-ingress setup the backend is reachable via several domains, each
+handled by a separate Kubernetes ingress. This is useful to obfuscate the
+relationship of clients to each other, as an attacker on TCP/IP-level could only
+see domains and IPs that do not obviously relate to each other.
+
+In case of a fake AWS S3 service its identity needs to be obfuscated by making
+it accessible via several domains, too. Thus, there isn't one
+`s3DownloadEndpoint`, but one per domain at which the backend is reachable. Each
+of these backend domains represents a virtual backend. N.B. these backend
+domains are *DNS domains*. Do not confuse them with the federation domain! The
+latter is just an identifier, and may or may not be equal to the backend's DNS
+domain. Backend DNS domain(s) and federation domain are usually set equal by
+convention. But, this is not true for multi-ingress setups!
+
+The backend domain of a download request is defined by its `Z-Host` header which
+is set by `nginz`. (Multi-ingress handlling only applies to download requests as
+these are implemented by redirects to the S3 assets host for local assets.
+Uploads are handled by cargohold directly itself.)
+
+The config `aws.multiIngress` is a map from backend domain (`Z-Host` header
+value) to a S3 download endpoint. The `Z-Host` header is set by `nginz` to the
+value of the incoming requests `Host` header. If there's no config map entry for
+a provided `Z-Host` in a download request for a local asset, then an error is
+returned.
+
+This example shows a setup with fake backends *red*, *green* and *blue*:
+
+```yaml
+aws:
+  # S3 endpoint for internal communication (cargohold -> S3)
+  s3Endpoint: http://s3.internal.example
+
+  # This option is ignored when multiIngress is configured
+  s3DownloadEndpoint: https://assets.default.example.com
+
+  # Other settings can still be used
+  # ...
+
+  # Map from backend domain to S3 download domain
+  multiIngress:
+    - nginz-https.red.example.com: https://assets.red.example.com
+    - nginz-https.blue.example.com: https://assets.blue.example.com
+    - nginz-https.green.example.com: https://assets.green.example.com
+```
+
+
+This sequence diagram illustrates how users on different virtual backends
+(represented by different Kubernetes ingresses) download local assets according
+to the configuration example above:
+
+![Sequence Diagram: Alice and Bob download an asset](./multi-ingress-example-sequence.svg)
+
+<!-- 
+Unfortunately, kroki currently doesn't work on our CI: SQPIT-1810
+Link to diagram:
+https://mermaid.live/edit#pako:eNrdVbFu2zAQ_ZUDJ7ewDdhtUkBDgBRB0CHIYCNL4eVEnmWiMk8lKbttkH8vJbsW5dCOUXSqBkHiPT6-e3yinoVkRSITEC5H32syku40FhbXCwP7C6VnC1hqSQNL6l1XeWRPwBuKqxk8OXKwpRyrahxGxvQD11VJY8mvSHPOB4UlMknSrtonbcfStBVar6Wu0HjQJgCdGwUNKfaonMGMax8WeH9acIq5FXKOuwVE7BcqN4U2v9IlibbgFZcqXZ5_ABeMxYK6uiXpwRb5YHp1NYTJ9FN7ixw3jW6ri5UHXva28rZ5BsVbUzIqB-gc-WgTD9DRzU3Pz7v9FChZYnk8L4KGiW23Gdyz3aJVQW7IoYvQbT3gDq2_wsIIbpWCr6MvHF5WhIpsL2p6g6HFhHePvdajFR6Yv0Fd7ZTDquF9mj3AMoR2t0zHcZg1CiJj92akdGP-OLBJ9JpDFOa73YGNxnRAFZ3Te9rxey5L3gZHdmueMrsLyBnHDwpScerGQr_9dn1tzfFeR_2k2MioRFIn15MhTD82Sb0-ndT4fPjM-emcdsDItf23eVlSW_D_ltXYv0uzenTknU_rOd_fzOsfy_9xYvtN_21ixVCsya5Rq_D3fG6KC-FXtKaFyMKjoiXWpV-IhXkJUKw9z38aKTJvaxqKulKBff-jFdkSS0cvvwHKl250
+-->

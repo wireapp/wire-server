@@ -37,7 +37,6 @@ module Galley.Options
     defDeleteConvThrottleMillis,
     defFanoutLimit,
     JournalOpts (JournalOpts),
-    RabbitMqOpts (..),
     awsQueueName,
     awsEndpoint,
     Opts,
@@ -53,11 +52,7 @@ module Galley.Options
     optJournal,
     optLogLevel,
     optLogNetStrings,
-    optLogFormat,
-    optRabbitMq,
-    rabbitmqHost,
-    rabbitmqPort,
-    rabbitmqVHost
+    optLogFormat
   )
 where
 
@@ -70,6 +65,7 @@ import Data.Range
 import Galley.Keys
 import Galley.Types.Teams
 import Imports
+import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
@@ -151,15 +147,6 @@ deriveFromJSON toOptionFieldName ''JournalOpts
 
 makeLenses ''JournalOpts
 
-data RabbitMqOpts = RabbitMqOpts
-  { _rabbitmqHost :: !String,
-    _rabbitmqPort :: !Int,
-    _rabbitmqVHost :: !Text
-  }
-  deriving (Show, Generic)
-makeLenses 'RabbitMqOpts
-deriveFromJSON toOptionFieldName ''RabbitMqOpts
-
 data Opts = Opts
   { -- | Host and port to bind to
     _optGalley :: !Endpoint,
@@ -189,9 +176,7 @@ data Opts = Opts
     --  <http://cr.yp.to/proto/netstrings.txt>
     _optLogNetStrings :: !(Maybe (Last Bool)),
     -- | What log format to use
-    _optLogFormat :: !(Maybe (Last LogFormat)),
-    -- | RabbitMQ
-    _optRabbitMq :: !(Maybe RabbitMqOpts)
+    _optLogFormat :: !(Maybe (Last LogFormat))
   }
 
 deriveFromJSON toOptionFieldName ''Opts

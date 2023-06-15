@@ -6,7 +6,6 @@
 , aeson
 , base
 , brig
-, brig-types
 , bytestring
 , cassandra-util
 , conduit
@@ -32,7 +31,6 @@ mkDerivation {
     aeson
     base
     brig
-    brig-types
     bytestring
     cassandra-util
     conduit

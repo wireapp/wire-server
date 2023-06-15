@@ -24,6 +24,7 @@ data CargoholdError
   | Unauthorised
   | AssetTooLarge
   | InvalidLength
+  | NoMatchingAssetEndpoint
 
 instance KnownError (MapError e) => IsSwaggerError (e :: CargoholdError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
@@ -35,3 +36,6 @@ type instance MapError 'Unauthorised = 'StaticError 403 "unauthorised" "Unauthor
 type instance MapError 'AssetTooLarge = 'StaticError 413 "client-error" "Asset too large"
 
 type instance MapError 'InvalidLength = 'StaticError 400 "invalid-length" "Invalid content length"
+
+-- | Return `AssetNotFound` to hide there's a multi-ingress setup.
+type instance MapError 'NoMatchingAssetEndpoint = MapError 'AssetNotFound

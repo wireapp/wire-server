@@ -207,9 +207,15 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
         & copyObject_metadataDirective ?~ MetadataDirective_REPLACE
         & copyObject_metadata .~ metaHeaders tok prc
 
-signedURL :: (ToByteString p) => p -> ExceptT Error App URI
-signedURL path = do
-  e <- view aws
+-- | Generate an `URI` for asset download redirects
+--
+-- If @aws.multiIngress@ is configured, the endpoint is looked up from this
+-- `Map` with the @Z-Host@ header's value as key. Otherwise (the default case
+-- that applies to most deployments), use the default AWS environment; i.e. the
+-- environment with @aws.s3DownloadEndpoint@.
+signedURL :: (ToByteString p) => p -> Maybe Text -> ExceptT Error App URI
+signedURL path mbHost = do
+  e <- awsEnvForHost
   let b = view AWS.s3Bucket e
   now <- liftIO getCurrentTime
   ttl <- view (settings . setDownloadLinkTTL)
@@ -222,10 +228,43 @@ signedURL path = do
       Left e -> do
         Log.err $
           "remote" .= val "S3"
+            ~~ "error" .= show e
             ~~ msg (val "Failed to generate a signed URI")
-            ~~ msg (show e)
         throwE serverError
       Right u -> pure u
+
+    awsEnvForHost :: ExceptT Error App AWS.Env
+    awsEnvForHost = do
+      multiIngressConf <- view multiIngress
+      if null multiIngressConf
+        then view aws
+        else awsEnvForHost' mbHost multiIngressConf
+      where
+        awsEnvForHost' :: Maybe Text -> Map String AWS.Env -> ExceptT Error App AWS.Env
+        awsEnvForHost' Nothing _ = do
+          Log.debug $
+            msg (val "awsEnvForHost - multiIngress configured, but no Z-Host header provided.")
+          throwE noMatchingAssetEndpoint
+        awsEnvForHost' (Just host) multiIngressConf = do
+          Log.debug $
+            "host"
+              .= host
+              ~~ msg (val "awsEnvForHost - Looking up multiIngress config.")
+          case multiIngressConf ^. at (Text.unpack host) of
+            Nothing -> do
+              Log.debug $
+                "host"
+                  .= host
+                  ~~ msg (val "awsEnvForHost - multiIngress lookup failed, no config for provided Z-Host header.")
+              throwE noMatchingAssetEndpoint
+            Just hostAwsEnv -> do
+              Log.debug $
+                "host"
+                  .= host
+                  ~~ "s3DownloadEndpoint"
+                    .= show (hostAwsEnv ^. AWS.amazonkaDownloadEndpoint)
+                  ~~ msg (val "awsEnvForHost - multiIngress lookup succeed, using specific AWS env.")
+              pure hostAwsEnv
 
 mkKey :: V3.AssetKey -> S3AssetKey
 mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key

@@ -21,7 +21,6 @@
 
 module Work where
 
-import Brig.Types.Intra (AccountStatus (..))
 import Cassandra
 import Cassandra.Util (Writetime, writetimeToUTC)
 import Conduit
@@ -36,6 +35,7 @@ import qualified Database.Bloodhound as ES
 import Imports
 import System.Logger (Logger)
 import qualified System.Logger as Log
+import Wire.API.User (AccountStatus (..))
 
 runCommand :: Logger -> ClientState -> ES.BHEnv -> String -> String -> IO ()
 runCommand l cas es indexStr mappingStr = do

@@ -3,6 +3,7 @@ module Wire.BackgroundWorker.Options where
 import Data.Aeson
 import Data.Domain
 import Imports
+import Network.AMQP.Extended
 import System.Logger.Extended
 import Util.Options
 
@@ -16,12 +17,3 @@ data Opts = Opts
   deriving (Show, Generic)
 
 instance FromJSON Opts
-
-data RabbitMqOpts = RabbitMqOpts
-  { host :: !String,
-    port :: !Int,
-    vHost :: !Text
-  }
-  deriving (Show, Generic)
-
-instance FromJSON RabbitMqOpts

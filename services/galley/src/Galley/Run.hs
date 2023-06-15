@@ -124,30 +124,13 @@ run opts = lowerCodensity $ do
   forM_ (env ^. aEnv) $ \aws ->
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
 
-  maybe
-    -- Update federation domains without talking to rabbitmq
-    -- This doesn't need a call back as there isn't anything
-    -- we need to do beyond updating the IORef, which is done
-    -- for us.
-    (simpleFederationUpdate ioref clientEnv l)
-    (complexFederationUpdate env clientEnv)
-    $ opts ^. optRabbitMq
+  -- If rabbit is defined, we can do federation work
+  traverse_ (complexFederationUpdate env clientEnv)$ opts ^. optRabbitmq
 
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
   void $ Codensity $ Async.withAsync $ runApp env undefined
   lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
-
--- The simple update where rabbitmq isn't defined, so our processing is cut down a lot.
---
--- TODO: We still need to delete things, so we'll have to come up with some other processing
--- and non-volatile data storage to replace rabbit
-simpleFederationUpdate :: IORef FederationDomainConfigs -> ClientEnv -> Log.Logger -> Codensity IO ()
-simpleFederationUpdate ioref clientEnv l = void $
-  Codensity $
-    Async.withAsync $
-      updateFedDomains' ioref clientEnv l $
-        \_ _ -> pure ()
 
 -- Complex handling. Most of the complexity comes from interweaving both rabbit queue handling
 -- and the HTTP calls out to brig for the new lists of federation domains. Rabbit handles the
@@ -155,15 +138,15 @@ simpleFederationUpdate ioref clientEnv l = void $
 complexFederationUpdate ::
   Env ->
   ClientEnv ->
-  RabbitMqOpts ->
+  AMQP.RabbitMqOpts ->
   Codensity IO ()
 complexFederationUpdate env clientEnv rmq = void $ Codensity $ Async.withAsync $ do
   -- This ioref is needed so that we can kill the async thread that
   -- is forked by updateFedDomains'
   threadRef <- newIORef Nothing
-  let mqh = rmq ^. rabbitmqHost
-      mqp = rmq ^. rabbitmqPort
-      mqv = rmq ^. rabbitmqVHost
+  let mqh = AMQP.host rmq
+      mqp = AMQP.port rmq
+      mqv = AMQP.vHost rmq
       mqq = "domain-deletion-queue"
   openConnectionWithRetries (env ^. applog) mqh mqp mqv $
     RabbitMqHooks

@@ -5,7 +5,7 @@ import Imports
 import TestSetup
 import Network.AMQP.Extended (RabbitMqHooks (RabbitMqHooks), openConnectionWithRetries)
 import qualified Network.AMQP.Extended as AMQP
-import Control.Lens ((^.), view)
+import Control.Lens (view)
 import Data.Domain
 import Galley.Options
 import Galley.Run (publishRabbitMsg, readRabbitMq, ensureQueue)
@@ -47,7 +47,7 @@ randomDomain = Domain <$> do
   b <- randomString
   pure $ pack $ a <> "." <> b
 
-withRabbitOpts :: RabbitMqOpts -> TestM ()
+withRabbitOpts :: AMQP.RabbitMqOpts -> TestM ()
 withRabbitOpts rabbitOpts = do
   log' <- liftIO $ Log.new Log.defSettings
   -- If this IORef has a Just in it, that will contain
@@ -85,6 +85,6 @@ withRabbitOpts rabbitOpts = do
     assertFailure
   where
     timeout_us = 5 * 1_000_000 -- seconds scale
-    host = rabbitOpts ^. rabbitmqHost
-    port = rabbitOpts ^. rabbitmqPort
-    vhost = rabbitOpts ^. rabbitmqVHost
+    host =  AMQP.host rabbitOpts
+    port =  AMQP.port rabbitOpts
+    vhost = AMQP.vHost rabbitOpts

@@ -69,7 +69,6 @@ executable find-undead
       aeson
     , base
     , bloodhound
-    , brig-types
     , cassandra-util
     , conduit
     , containers
@@ -80,5 +79,6 @@ executable find-undead
     , text
     , tinylog
     , uuid
+    , wire-api
 
   default-language:   Haskell2010
