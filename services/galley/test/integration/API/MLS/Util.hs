@@ -521,7 +521,7 @@ setupFakeMLSGroup ::
   MLSTest (GroupId, Qualified ConvId)
 setupFakeMLSGroup creator mSubId = do
   qcnv <- randomQualifiedId (ciDomain creator)
-  let groupId = convToGroupId' $ maybe (Conv <$> qcnv) ((<$> qcnv) . flip SubConv) mSubId
+  let groupId = convToGroupId . groupIdParts RegularConv $ maybe (Conv <$> qcnv) ((<$> qcnv) . flip SubConv) mSubId
   createGroup creator (fmap Conv qcnv) groupId
   pure (groupId, qcnv)
 

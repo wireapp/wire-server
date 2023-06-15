@@ -1,6 +1,9 @@
 module API.Galley where
 
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Base64 as B64
+import qualified Data.ByteString.Base64.URL as B64U
+import qualified Data.ByteString.Char8 as BS
 import Testlib.Prelude
 
 data CreateConv = CreateConv
@@ -211,4 +214,18 @@ getMLSOne2OneConversation self other = do
   req <-
     baseRequest self Galley Versioned $
       joinHttpPath ["conversations", "one2one", domain, uid]
+  submit "GET" req
+
+getGroupClients ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  App Response
+getGroupClients user groupId = do
+  req <-
+    baseRequest
+      user
+      Galley
+      Unversioned
+      (joinHttpPath ["i", "group", BS.unpack . B64U.encodeUnpadded . B64.decodeLenient $ BS.pack groupId])
   submit "GET" req

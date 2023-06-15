@@ -126,4 +126,4 @@ withCommitLock lConvOrSubId gid epoch action =
     ttl = fromIntegral (600 :: Int) -- 10 minutes
 
 getConvFromGroupId :: Member (Error MLSProtocolError) r => GroupId -> Sem r (Qualified ConvOrSubConvId)
-getConvFromGroupId = either (throw . mlsProtocolError . T.pack) (pure . fst) . groupIdToConv
+getConvFromGroupId = either (throw . mlsProtocolError . T.pack) (pure . qConvId) . groupIdToConv

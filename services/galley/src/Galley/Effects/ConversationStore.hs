@@ -99,7 +99,7 @@ data ConversationStore m a where
   SetGroupInfo :: ConvId -> GroupInfoData -> ConversationStore m ()
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
-  UpdateToMixedProtocol :: Local ConvId -> CipherSuiteTag -> ConversationStore m ()
+  UpdateToMixedProtocol :: Local ConvId -> ConvType -> CipherSuiteTag -> ConversationStore m ()
   UpdateToMLSProtocol :: Local ConvId -> ConversationStore m ()
 
 makeSem ''ConversationStore

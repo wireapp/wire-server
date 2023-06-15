@@ -38,6 +38,7 @@ import Data.Aeson hiding (json)
 import qualified Data.Aeson as A
 import Data.Aeson.Lens (key, _String)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base64.URL as B64U
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
@@ -1008,15 +1009,13 @@ getConvs u cids = do
       . zConn "conn"
       . json (ListConversations (unsafeRange cids))
 
-getConvClients :: HasCallStack => UserId -> ConvId -> TestM ClientList
-getConvClients usr cnv = do
+getConvClients :: HasCallStack => GroupId -> TestM ClientList
+getConvClients gid = do
   g <- viewGalley
   responseJsonError
     =<< get
       ( g
-          . paths ["i", "conversation", toByteString' cnv]
-          . zUser usr
-          . zConn "conn"
+          . paths ["i", "group", B64U.encode $ unGroupId gid]
       )
 
 getAllConvs :: HasCallStack => UserId -> TestM [Conversation]

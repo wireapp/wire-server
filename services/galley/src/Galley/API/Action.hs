@@ -417,7 +417,7 @@ performAction tag origUser lconv action = do
     SConversationUpdateProtocolTag -> do
       case (protocolTag (convProtocol (tUnqualified lconv)), action, convTeam (tUnqualified lconv)) of
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
-          E.updateToMixedProtocol lcnv MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+          E.updateToMixedProtocol lcnv (convType (tUnqualified lconv)) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
           pure (mempty, action)
         (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
           mig <- getFeatureStatus @MlsMigrationConfig DontDoAuth tid

@@ -27,6 +27,7 @@ import Servant hiding (JSON, WithStatus)
 import qualified Servant hiding (WithStatus)
 import Servant.Swagger
 import Wire.API.ApplyMods
+import Wire.API.Conversation
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -216,10 +217,9 @@ type InternalAPIBase =
     :<|> Named
            "get-conversation-clients"
            ( Summary "Get mls conversation client list"
-               :> ZLocalUser
                :> CanThrow 'ConvNotFound
-               :> "conversation"
-               :> Capture "cnv" ConvId
+               :> "group"
+               :> Capture "gid" GroupId
                :> MultiVerb1
                     'GET
                     '[Servant.JSON]

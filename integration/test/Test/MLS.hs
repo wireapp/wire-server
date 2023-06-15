@@ -484,3 +484,32 @@ testRemoveClientsIncomplete = do
 
   err <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 409
   err %. "label" `shouldMatch` "mls-client-mismatch"
+
+testAdminRemovesUserFromConv :: HasCallStack => App ()
+testAdminRemovesUserFromConv = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+  void $ createWireClient bob
+  traverse_ uploadNewKeyPackage [bob1, bob2]
+  (gid, qcnv) <- createNewGroup alice1
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+  events <- createRemoveCommit alice1 [bob1, bob2] >>= sendAndConsumeCommitBundle
+
+  do
+    event <- assertOne =<< asList (events %. "events")
+    event %. "qualified_conversation" `shouldMatch` qcnv
+    event %. "type" `shouldMatch` "conversation.member-leave"
+    event %. "from" `shouldMatch` objId alice
+    members <- event %. "data" %. "qualified_user_ids" & asList
+    bobQid <- bob %. "qualified_id"
+    shouldMatch members [bobQid]
+
+  convs <- getAllConvs bob
+  convIds <- traverse (%. "qualified_id") convs
+  clients <- bindResponse (getGroupClients alice gid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "client_ids" & asList
+  void $ assertOne clients
+  assertBool
+    "bob is not longer part of conversation after the commit"
+    (qcnv `notElem` convIds)
