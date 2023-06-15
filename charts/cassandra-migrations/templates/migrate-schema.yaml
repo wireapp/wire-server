@@ -27,6 +27,8 @@ spec:
         - name: gundeck-schema
           image: "{{ .Values.images.gundeck }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           command:
             - gundeck-schema
             - --host
@@ -43,6 +45,8 @@ spec:
         - name: brig-schema
           image: "{{ .Values.images.brig }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           command:
             - brig-schema
             - --host
@@ -59,6 +63,8 @@ spec:
         - name: galley-schema
           image: "{{ .Values.images.galley }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           command:
             - galley-schema
             - --host
@@ -75,6 +81,8 @@ spec:
         - name: spar-schema
           image: "{{ .Values.images.spar }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           command:
             - spar-schema
             - --host
@@ -90,4 +98,6 @@ spec:
       containers:
         - name: job-done
           image: busybox:1.32.0
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           command: ['sh', '-c', 'echo "gundeck, brig, galley, spar schema cassandra-migrations completed. See initContainers for details with e.g. kubectl logs ... -c gundeck-schema"']

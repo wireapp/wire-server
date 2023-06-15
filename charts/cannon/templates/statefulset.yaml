@@ -110,7 +110,9 @@ spec:
 {{ toYaml .Values.resources | indent 12 }}
       initContainers:
       - name: cannon-configurator
-        image: alpine:3.15.4
+        image: alpine:3.18.2
+        securityContext:
+          {{- toYaml .Values.podSecurityContext | nindent 10 }}
         command:
         - /bin/sh
         args:

@@ -27,6 +27,8 @@ spec:
         - name: brig-index-create
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           args:
             - create
             - --elasticsearch-server
@@ -44,6 +46,8 @@ spec:
         - name: brig-index-update-mapping
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           args:
             - update-mapping
             - --elasticsearch-server

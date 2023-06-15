@@ -31,6 +31,8 @@ spec:
         - name: galley-migrate-data
           image: "{{ .Values.images.galleyMigrateData }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           args:
            - --cassandra-host
            - "{{ template "cassandraGalleyHost" . }}"
