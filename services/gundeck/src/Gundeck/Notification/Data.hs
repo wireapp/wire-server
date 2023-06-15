@@ -53,7 +53,42 @@ data ResultPage = ResultPage
     resultGap :: !Bool
   }
 
--- FUTUREWORK: the magic 32 should be made configurable, so it can be tuned
+data Payload = Payload
+
+type PayloadId = Id 'Payload
+
+addDeduplicated ::
+  (MonadClient m, MonadUnliftIO m, MonadCatch m) =>
+  NotificationId ->
+  List1 NotificationTarget ->
+  BSL.ByteString ->
+  NotificationTTL ->
+  m ()
+addDeduplicated n tgts b (notificationTTLSeconds -> t) = do
+  payloadId <- randomId
+  write cqlInsertPayload (params LocalQuorum (payloadId, Blob b, fromIntegral t)) & retry x5
+
+  pooledForConcurrentlyN_ 32 tgts $ \tgt ->
+    let u = tgt ^. targetUser
+        cs = C.Set (tgt ^. targetClients)
+     in catch
+          (write cqlInsert (params LocalQuorum (u, n, payloadId, cs, fromIntegral t)) & retry x5)
+          (\(e :: SomeException) -> traceM (displayException e))
+  where
+    cqlInsert :: PrepQuery W (UserId, NotificationId, PayloadId, C.Set ClientId, Int32) ()
+    cqlInsert =
+      "INSERT INTO notifications \
+      \(user, id, payload_ref, clients) VALUES \
+      \(?   , ? , ?      , ?) \
+      \USING TTL ?"
+
+    cqlInsertPayload :: PrepQuery W (PayloadId, Blob, Int32) ()
+    cqlInsertPayload =
+      "INSERT INTO notifications \
+      \(id, payload) VALUES \
+      \(?   , ?) \
+      \USING TTL ?"
+
 add ::
   (MonadClient m, MonadUnliftIO m, MonadCatch m) =>
   NotificationId ->
@@ -61,16 +96,22 @@ add ::
   List1 JSON.Object ->
   NotificationTTL ->
   m ()
-add n tgts (Blob . JSON.encode -> p) (notificationTTLSeconds -> t) = do
-  let size = BSL.length (fromBlob p)
-  traceM ("add: payload size: " <> show size)
-  pooledForConcurrentlyN_ 32 tgts $ \tgt ->
-    let u = tgt ^. targetUser
-        cs = C.Set (tgt ^. targetClients)
-     in catch
-          (write cqlInsert (params LocalQuorum (u, n, p, cs, fromIntegral t)) & retry x5)
-          (\(e :: SomeException) -> traceM (displayException e))
-  traceM ("add complete ")
+add n tgts (JSON.encode -> payload) ttl = do
+  let size = BSL.length payload
+  -- TODO: which threshold makes sense? TODO: maybe remove the whole 1024 recipients per push limitation
+  -- then decide on payload * recipients
+  if size > 5 * 1024
+    then do
+      traceM "inserting deduplicated!"
+      addDeduplicated n tgts payload ttl
+    else do
+      -- FUTUREWORK: the magic 32 should be made configurable, so it can be tuned
+      pooledForConcurrentlyN_ 32 tgts $ \tgt ->
+        let u = tgt ^. targetUser
+            cs = C.Set (tgt ^. targetClients)
+         in catch
+              (write cqlInsert (params LocalQuorum (u, n, Blob payload, cs, fromIntegral (notificationTTLSeconds ttl))) & retry x5)
+              (\(e :: SomeException) -> traceM (displayException e))
   where
     cqlInsert :: PrepQuery W (UserId, NotificationId, Blob, C.Set ClientId, Int32) ()
     cqlInsert =

@@ -198,7 +198,8 @@ pushAll pushes = do
   let cassandraTargets :: [CassandraTargets]
       cassandraTargets = map mkCassandraTargets newNotifications
   forM_ cassandraTargets $ \CassandraTargets {..} ->
-    unless (ntfTransient ctNotification) $
+    unless (ntfTransient ctNotification) $ do
+      -- TODO
       mpaStreamAdd (ntfId ctNotification) ctNotificationTargets (ntfPayload ctNotification)
         =<< mpaNotificationTTL
   when False $ do
