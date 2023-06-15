@@ -1,1 +1,1 @@
-In a setting where remote participants are included in a freshly created Proteus conversation, the backend now sends a conversation.create event as long as a conversation.member-join event once all remote participants are confirmed.
+In a setting where remote participants are included in a freshly created Proteus conversation, the backend now sends a conversation.create and a conversation.member-join event per user once all remote participants are confirmed.  This fixes a bug where remote conv members would get false entries in the member lists in these events.
