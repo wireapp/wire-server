@@ -48,27 +48,27 @@ data LegalHoldService = LegalHoldService
 
 instance ToJSON LegalHoldService where
   toJSON s =
-    object
-      $ "team_id" .= legalHoldServiceTeam s
-      # "base_url" .= legalHoldServiceUrl s
-      # "fingerprint" .= legalHoldServiceFingerprint s
-      # "auth_token" .= legalHoldServiceToken s
-      # "public_key" .= legalHoldServiceKey s
-      # []
+    object $
+      "team_id" .= legalHoldServiceTeam s
+        # "base_url" .= legalHoldServiceUrl s
+        # "fingerprint" .= legalHoldServiceFingerprint s
+        # "auth_token" .= legalHoldServiceToken s
+        # "public_key" .= legalHoldServiceKey s
+        # []
 
 instance FromJSON LegalHoldService where
   parseJSON = withObject "LegalHoldService" $ \o ->
     LegalHoldService
       <$> o
-      .: "team_id"
+        .: "team_id"
       <*> o
-      .: "base_url"
+        .: "base_url"
       <*> o
-      .: "fingerprint"
+        .: "fingerprint"
       <*> o
-      .: "auth_token"
+        .: "auth_token"
       <*> o
-      .: "public_key"
+        .: "public_key"
 
 legalHoldService :: TeamId -> Fingerprint Rsa -> NewLegalHoldService -> ServiceKey -> LegalHoldService
 legalHoldService tid fpr (NewLegalHoldService u _ t) = LegalHoldService tid u fpr t

@@ -364,7 +364,7 @@ newtype UserClientsFull = UserClientsFull
 -- place and write something in English into the docs here.
 instance Swagger.ToSchema UserClientsFull where
   declareNamedSchema _ = do
-    return $
+    pure $
       NamedSchema (Just "UserClientsFull") $
         mempty
           & type_ ?~ SwaggerObject
