@@ -97,7 +97,9 @@ spec:
 
       containers:
         - name: job-done
-          image: busybox:1.32.0
+          image: alpine:3.18.2
           securityContext:
+            runAsUser: 65534
+            fsGroup: 65534
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
           command: ['sh', '-c', 'echo "gundeck, brig, galley, spar schema cassandra-migrations completed. See initContainers for details with e.g. kubectl logs ... -c gundeck-schema"']
