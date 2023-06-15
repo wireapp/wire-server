@@ -1,7 +1,14 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use tuple-section" #-}
-module Testlib.ModService where
+module Testlib.ModService
+  ( withModifiedService,
+    withModifiedServices,
+    startOneDynBackend,
+    startTwoDynBackends,
+    startThreeDynBackends,
+  )
+where
 
 import Control.Applicative ((<|>))
 import Control.Concurrent.Async (mapConcurrently_)
@@ -64,6 +71,21 @@ copyDirectoryRecursively from to = do
     if isDirectory
       then copyDirectoryRecursively fromPath toPath
       else copyFile fromPath toPath
+
+startOneDynBackend :: DynBackendConfigOverrides -> (String -> App ()) -> App ()
+startOneDynBackend o a = startDynamicBackends [o] $ \case
+  [d] -> a d
+  _ -> assertFailure "Expected one dynamic backend to be started, but got more or less"
+
+startTwoDynBackends :: DynBackendConfigOverrides -> DynBackendConfigOverrides -> (String -> String -> App ()) -> App ()
+startTwoDynBackends o1 o2 a = startDynamicBackends [o1, o2] $ \case
+  [d1, d2] -> a d1 d2
+  _ -> assertFailure "Expected two dynamic backends to be started, but got more or less"
+
+startThreeDynBackends :: DynBackendConfigOverrides -> DynBackendConfigOverrides -> DynBackendConfigOverrides -> (String -> String -> String -> App ()) -> App ()
+startThreeDynBackends o1 o2 o3 a = startDynamicBackends [o1, o2, o3] $ \case
+  [d1, d2, d3] -> a d1 d2 d3
+  _ -> assertFailure "Expected three dynamic backends to be started, but got more or less"
 
 startDynamicBackends :: [DynBackendConfigOverrides] -> ([String] -> App ()) -> App ()
 startDynamicBackends beOverrides action = do

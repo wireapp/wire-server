@@ -107,28 +107,26 @@ testDynamicBackend = do
     resp.status `shouldMatchInt` 200
     (resp.json %. "id") `shouldMatch` objId user
 
-  startDynamicBackends [defaultDynBackendConfigOverrides] $ \case
-    (dynDomain : _) -> do
-      bindResponse (Nginz.getSystemSettingsUnAuthorized dynDomain) $
-        \resp -> do
-          resp.status `shouldMatchInt` 200
-          resp.json %. "setRestrictUserCreation" `shouldMatchBool` False
-
-      -- user created in own domain should not be found in dynamic backend
-      bindResponse (Public.getSelf dynDomain uid) $ \resp -> do
-        resp.status `shouldMatchInt` 404
-
-      -- now create a user in the dynamic backend
-      userD1 <- randomUser dynDomain def
-      uidD1 <- objId userD1
-      bindResponse (Public.getSelf dynDomain uidD1) $ \resp -> do
+  startOneDynBackend defaultDynBackendConfigOverrides $ \dynDomain -> do
+    bindResponse (Nginz.getSystemSettingsUnAuthorized dynDomain) $
+      \resp -> do
         resp.status `shouldMatchInt` 200
-        (resp.json %. "id") `shouldMatch` objId userD1
+        resp.json %. "setRestrictUserCreation" `shouldMatchBool` False
 
-      -- the d1 user should not be found in the own domain
-      bindResponse (Public.getSelf ownDomain uidD1) $ \resp -> do
-        resp.status `shouldMatchInt` 404
-    _ -> assertFailure "No dynamic backend found"
+    -- user created in own domain should not be found in dynamic backend
+    bindResponse (Public.getSelf dynDomain uid) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+
+    -- now create a user in the dynamic backend
+    userD1 <- randomUser dynDomain def
+    uidD1 <- objId userD1
+    bindResponse (Public.getSelf dynDomain uidD1) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      (resp.json %. "id") `shouldMatch` objId userD1
+
+    -- the d1 user should not be found in the own domain
+    bindResponse (Public.getSelf ownDomain uidD1) $ \resp -> do
+      resp.status `shouldMatchInt` 404
 
 testStartMultipleDynamicBackends :: HasCallStack => App ()
 testStartMultipleDynamicBackends = do
@@ -137,8 +135,10 @@ testStartMultipleDynamicBackends = do
           \resp -> do
             resp.status `shouldMatchInt` 200
             (resp.json %. "domain") `shouldMatch` domain
-  startDynamicBackends [defaultDynBackendConfigOverrides, defaultDynBackendConfigOverrides, defaultDynBackendConfigOverrides] $ \ds ->
-    forM_ ds $ \dynDomain -> assertCorrectDomain dynDomain
+  startThreeDynBackends defaultDynBackendConfigOverrides defaultDynBackendConfigOverrides defaultDynBackendConfigOverrides $ \d1 d2 d3 -> do
+    assertCorrectDomain d1
+    assertCorrectDomain d2
+    assertCorrectDomain d3
 
 testIndependentESIndices :: HasCallStack => App ()
 testIndependentESIndices = do
@@ -153,42 +153,38 @@ testIndependentESIndices = do
     case docs of
       [] -> assertFailure "Expected a non empty result, but got an empty one"
       doc : _ -> doc %. "id" `shouldMatch` uid2
-  startDynamicBackends [defaultDynBackendConfigOverrides] $ \case
-    (dynDomain : _) -> do
-      uD1 <- randomUser dynDomain def
-      -- searching for u1 on the dyn backend should yield no result
-      bindResponse (Public.searchContacts uD1 (u2 %. "name") dynDomain) $ \resp -> do
-        resp.status `shouldMatchInt` 200
-        docs <- resp.json %. "documents" >>= asList
-        null docs `shouldMatchBool` True
-      uD2 <- randomUser dynDomain def
-      uidD2 <- objId uD2
-      connectUsers uD1 uD2
-      Internal.refreshIndex dynDomain
-      -- searching for uD2 on the dyn backend should yield a result
-      bindResponse (Public.searchContacts uD1 (uD2 %. "name") dynDomain) $ \resp -> do
-        resp.status `shouldMatchInt` 200
-        docs <- resp.json %. "documents" >>= asList
-        case docs of
-          [] -> assertFailure "Expected a non empty result, but got an empty one"
-          doc : _ -> doc %. "id" `shouldMatch` uidD2
-    _ -> assertFailure "No dynamic backend found"
+  startOneDynBackend defaultDynBackendConfigOverrides $ \dynDomain -> do
+    uD1 <- randomUser dynDomain def
+    -- searching for u1 on the dyn backend should yield no result
+    bindResponse (Public.searchContacts uD1 (u2 %. "name") dynDomain) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      null docs `shouldMatchBool` True
+    uD2 <- randomUser dynDomain def
+    uidD2 <- objId uD2
+    connectUsers uD1 uD2
+    Internal.refreshIndex dynDomain
+    -- searching for uD2 on the dyn backend should yield a result
+    bindResponse (Public.searchContacts uD1 (uD2 %. "name") dynDomain) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      case docs of
+        [] -> assertFailure "Expected a non empty result, but got an empty one"
+        doc : _ -> doc %. "id" `shouldMatch` uidD2
 
 testDynamicBackendsFederation :: HasCallStack => App ()
 testDynamicBackendsFederation = do
-  startDynamicBackends [defaultDynBackendConfigOverrides, defaultDynBackendConfigOverrides] $ \case
-    (dynDomain1 : dynDomain2 : _) -> do
-      u1 <- randomUser dynDomain1 def
-      u2 <- randomUser dynDomain2 def
-      uid2 <- objId u2
-      Internal.refreshIndex dynDomain2
-      bindResponse (Public.searchContacts u1 (u2 %. "name") dynDomain2) $ \resp -> do
-        resp.status `shouldMatchInt` 200
-        docs <- resp.json %. "documents" >>= asList
-        case docs of
-          [] -> assertFailure "Expected a non empty result, but got an empty one"
-          doc : _ -> doc %. "id" `shouldMatch` uid2
-    _ -> assertFailure "Expected at least two dynamic backends"
+  startTwoDynBackends defaultDynBackendConfigOverrides defaultDynBackendConfigOverrides $ \dynDomain1 dynDomain2 -> do
+    u1 <- randomUser dynDomain1 def
+    u2 <- randomUser dynDomain2 def
+    uid2 <- objId u2
+    Internal.refreshIndex dynDomain2
+    bindResponse (Public.searchContacts u1 (u2 %. "name") dynDomain2) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      case docs of
+        [] -> assertFailure "Expected a non empty result, but got an empty one"
+        doc : _ -> doc %. "id" `shouldMatch` uid2
 
 testWebSockets :: HasCallStack => App ()
 testWebSockets = do

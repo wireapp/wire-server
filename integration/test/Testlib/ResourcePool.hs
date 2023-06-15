@@ -28,18 +28,19 @@ data ResourcePool a = ResourcePool
     resources :: IORef (Set.Set a)
   }
 
-withResources :: (Ord a, MonadIO m, MonadMask m) => Int -> ResourcePool a -> ([a] -> m b) -> m b
-withResources n pool f =
-  bracket
-    ( liftIO $ do
-        waitQSemN pool.sem n
-        atomicModifyIORef pool.resources $ swap . Set.splitAt n
-    )
-    ( \s -> liftIO $ do
+withResources :: forall m a b. (Ord a, MonadIO m, MonadMask m) => Int -> ResourcePool a -> ([a] -> m b) -> m b
+withResources n pool f = bracket acquire release (f . Set.toList)
+  where
+    release :: Set.Set a -> m ()
+    release s =
+      liftIO $ do
         atomicModifyIORef pool.resources $ (,()) . Set.union s
         signalQSemN pool.sem (length s)
-    )
-    (f . Set.toList)
+
+    acquire :: m (Set.Set a)
+    acquire = liftIO $ do
+      waitQSemN pool.sem n
+      atomicModifyIORef pool.resources $ swap . Set.splitAt n
 
 createBackendResourcePool :: IO (ResourcePool BackendResource)
 createBackendResourcePool =
