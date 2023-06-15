@@ -59,6 +59,9 @@ data FederatorAccess m a where
     f (Remote x) ->
     (Remote [x] -> FederatorClient c a) ->
     FederatorAccess m [Either (Remote [x], FederationError) (Remote a)]
+  -- | An action similar to 'RunFederatedConcurrentlyEither', but whose input is
+  -- already in buckets. The buckets are paired with arbitrary data that affect
+  -- the payload of the request for each remote backend.
   RunFederatedConcurrentlyBucketsEither ::
     forall (c :: Component) a m x y.
     (KnownComponent c) =>
