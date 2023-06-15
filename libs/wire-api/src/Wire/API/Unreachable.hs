@@ -29,7 +29,7 @@ module Wire.API.Unreachable
     failedToAddMaybe,
     failedToRemove,
     failedToRemoveMaybe,
-    UnreachabilityEvent (..),
+    EventWithUnreachables (..),
   )
 where
 
@@ -128,21 +128,21 @@ failedToRemove = failedToRemoveMaybe . unreachableFromList
 failedToRemoveMaybe :: Maybe UnreachableUsers -> FailedToProcess
 failedToRemoveMaybe us = mempty {remove = us}
 
-data UnreachabilityEvent = UnreachabilityEvent
+data EventWithUnreachables = EventWithUnreachables
   { event :: Event,
     failedToProcess :: FailedToProcess
   }
   deriving (Eq, Show)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema UnreachabilityEvent
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema EventWithUnreachables
 
-instance ToSchema UnreachabilityEvent where
+instance ToSchema EventWithUnreachables where
   schema =
     objectWithDocModifier
-      "UnreachabilityEvent"
+      "EventWithUnreachables"
       ( description
           ?~ "A conversation event combined with information on\
              \ failed-to-process entities due to unreachable backends"
       )
-      $ UnreachabilityEvent
+      $ EventWithUnreachables
         <$> event .= field "event" schema
         <*> failedToProcess .= failedToProcessObjectSchema

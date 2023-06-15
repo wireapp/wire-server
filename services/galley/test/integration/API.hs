@@ -2778,7 +2778,7 @@ testAddRemoteMember = do
       map frTargetDomain reqs @?= [bobDomain, bobDomain]
       map frRPC reqs @?= ["on-new-remote-conversation", "on-conversation-updated"]
 
-    let UnreachabilityEvent e _ = responseJsonUnsafe resp
+    let EventWithUnreachables e _ = responseJsonUnsafe resp
     let bobMember = SimpleMember remoteBob roleNameWireAdmin
     liftIO $ do
       evtConv e @?= qconvId
@@ -2802,7 +2802,7 @@ testAddRemoteMember = do
         )
         $ postQualifiedMembers alice (remoteChad :| []) qconvId
           <!! const 200 === statusCode
-    UnreachabilityEvent e ftp <- responseJsonError resp
+    EventWithUnreachables e ftp <- responseJsonError resp
     let chadMember = SimpleMember remoteChad roleNameWireAdmin
     -- as far as the conversation-owning backend (the local backend) is
     -- concerned, Chad has been added to the conversation. Bob sees Chad as
@@ -3172,7 +3172,7 @@ postMembersOk = do
   connectUsers eve (singleton bob)
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   let qconv = Qualified conv (qDomain qalice)
-  UnreachabilityEvent e _ <-
+  EventWithUnreachables e _ <-
     responseJsonError =<< postMembers alice (pure qeve) qconv <!! const 200 === statusCode
   liftIO $ do
     evtConv e @?= qconv

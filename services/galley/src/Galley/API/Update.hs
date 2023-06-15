@@ -813,10 +813,10 @@ addMembers ::
   ConnId ->
   Qualified ConvId ->
   InviteQualified ->
-  Sem r (UpdateResult UnreachabilityEvent)
+  Sem r (UpdateResult EventWithUnreachables)
 addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
-  getUpdateResult . fmap (uncurry UnreachabilityEvent . first lcuEvent) $
+  getUpdateResult . fmap (uncurry EventWithUnreachables . first lcuEvent) $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
       ConversationJoin users role
 

@@ -29,6 +29,7 @@ import Test.Wire.API.Golden.Manual.ConversationPagingState
 import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.CreateGroupConversation
 import Test.Wire.API.Golden.Manual.CreateScimToken
+import Test.Wire.API.Golden.Manual.EventWithUnreachables
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.GroupId
@@ -38,7 +39,6 @@ import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.SearchResultContact
 import Test.Wire.API.Golden.Manual.TeamSize
 import Test.Wire.API.Golden.Manual.Token
-import Test.Wire.API.Golden.Manual.UnreachabilityEvent
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserIdList
 import Test.Wire.API.Golden.Runner
@@ -160,9 +160,9 @@ tests =
             (testObject_CreateGroupConversation_2, "testObject_CreateGroupConversation_2.json"),
             (testObject_CreateGroupConversation_3, "testObject_CreateGroupConversation_3.json")
           ],
-      testGroup "UnreachabilityEvent" $
+      testGroup "EventWithUnreachables" $
         testObjects
-          [ (testObject_UnreachabilityEvent_1, "testObject_UnreachabilityEvent_1.json"),
-            (testObject_UnreachabilityEvent_2, "testObject_UnreachabilityEvent_2.json")
+          [ (testObject_EventWithUnreachables_1, "testObject_EventWithUnreachables_1.json"),
+            (testObject_EventWithUnreachables_2, "testObject_EventWithUnreachables_2.json")
           ]
     ]

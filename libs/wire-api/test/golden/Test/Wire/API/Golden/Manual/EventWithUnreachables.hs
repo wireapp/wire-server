@@ -1,4 +1,4 @@
-module Test.Wire.API.Golden.Manual.UnreachabilityEvent where
+module Test.Wire.API.Golden.Manual.EventWithUnreachables where
 
 import Data.Domain
 import Data.Id
@@ -8,16 +8,16 @@ import Imports
 import Test.Wire.API.Golden.Generated.Event_user
 import Wire.API.Unreachable
 
-testObject_UnreachabilityEvent_1 :: UnreachabilityEvent
-testObject_UnreachabilityEvent_1 =
-  UnreachabilityEvent
+testObject_EventWithUnreachables_1 :: EventWithUnreachables
+testObject_EventWithUnreachables_1 =
+  EventWithUnreachables
     { event = testObject_Event_user_12,
       failedToProcess = mempty
     }
 
-testObject_UnreachabilityEvent_2 :: UnreachabilityEvent
-testObject_UnreachabilityEvent_2 =
-  UnreachabilityEvent
+testObject_EventWithUnreachables_2 :: EventWithUnreachables
+testObject_EventWithUnreachables_2 =
+  EventWithUnreachables
     { event = testObject_Event_user_12,
       failedToProcess =
         mempty

@@ -123,8 +123,8 @@ type CreateConversationCodeVerb =
 
 type ConvUpdateResponses = UpdateResponses "Conversation unchanged" "Conversation updated" Event
 
-type UnreachabilityConvUpdateResponses =
-  UpdateResponses "Conversation unchanged" "Conversation updated" UnreachabilityEvent
+type ConvUpdateResponsesUnreachable =
+  UpdateResponses "Conversation unchanged" "Conversation updated" EventWithUnreachables
 
 type ConvJoinResponses = UpdateResponses "Conversation unchanged" "Conversation joined" Event
 
@@ -616,8 +616,8 @@ type ConversationAPI =
                :> MultiVerb
                     'POST
                     '[Servant.JSON]
-                    UnreachabilityConvUpdateResponses
-                    (UpdateResult UnreachabilityEvent)
+                    ConvUpdateResponsesUnreachable
+                    (UpdateResult EventWithUnreachables)
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to members
