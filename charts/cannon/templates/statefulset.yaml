@@ -114,7 +114,6 @@ spec:
         securityContext:
           {{- toYaml .Values.podSecurityContext | nindent 10 }}
           runAsUser: 65534
-          fsGroup: 65534
         command:
         - /bin/sh
         args:

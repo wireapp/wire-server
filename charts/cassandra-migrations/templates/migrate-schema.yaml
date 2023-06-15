@@ -101,5 +101,4 @@ spec:
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
             runAsUser: 65534
-            fsGroup: 65534
           command: ['sh', '-c', 'echo "gundeck, brig, galley, spar schema cassandra-migrations completed. See initContainers for details with e.g. kubectl logs ... -c gundeck-schema"']
