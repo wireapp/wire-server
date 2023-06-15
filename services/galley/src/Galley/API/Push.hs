@@ -21,18 +21,11 @@
 module Galley.API.Push
   ( -- * Message pushes
     MessagePush (..),
-    MessageType (..),
-    newBotPush,
 
     -- * Executing message pushes
     BotMap,
-    MessagePushEffects,
     newMessagePush,
     runMessagePush,
-
-    -- * Singleton definitions
-    NormalMessageSym0,
-    BroadcastSym0,
   )
 where
 
@@ -41,7 +34,6 @@ import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
 import Data.Semigroup.Generic
-import Data.Singletons.TH
 import Galley.Data.Services
 import Galley.Effects.ExternalAccess
 import Galley.Effects.GundeckAccess hiding (Push)
@@ -54,76 +46,47 @@ import qualified System.Logger.Class as Log
 import Wire.API.Event.Conversation
 import Wire.API.Message
 
-data MessageType = NormalMessage | Broadcast
-
-$(genSingletons [''MessageType])
-
-data family MessagePush (t :: MessageType)
-
-data instance MessagePush 'NormalMessage = NormalMessagePush
+data MessagePush = NormalMessagePush
   { userPushes :: [Push],
     botPushes :: [(BotMember, Event)]
   }
   deriving stock (Generic, Show)
-  deriving (Semigroup, Monoid) via GenericSemigroupMonoid (MessagePush 'NormalMessage)
+  deriving (Semigroup, Monoid) via GenericSemigroupMonoid MessagePush
 
-data instance MessagePush 'Broadcast = BroadcastPush
-  {broadcastPushes :: [Push]}
-  deriving stock (Generic, Show)
-  deriving (Semigroup, Monoid) via GenericSemigroupMonoid (MessagePush 'Broadcast)
-
-newUserPush :: forall t. SingI t => Push -> MessagePush t
-newUserPush p = withSing @t $ \case
-  SNormalMessage -> NormalMessagePush {userPushes = pure p, botPushes = mempty}
-  SBroadcast -> BroadcastPush (pure p)
-
-newBotPush :: BotMember -> Event -> MessagePush 'NormalMessage
-newBotPush b e = NormalMessagePush {userPushes = mempty, botPushes = pure (b, e)}
+newUserPush :: Push -> MessagePush
+newUserPush p = NormalMessagePush {userPushes = pure p, botPushes = mempty}
 
 type BotMap = Map UserId BotMember
 
-type family MessagePushEffects (t :: MessageType) :: [Effect]
-
-type instance MessagePushEffects 'NormalMessage = '[ExternalAccess, GundeckAccess, TinyLog]
-
-type instance MessagePushEffects 'Broadcast = '[GundeckAccess]
-
 newMessagePush ::
-  forall t x.
-  SingI t =>
+  forall x.
   Local x ->
   BotMap ->
   Maybe ConnId ->
   MessageMetadata ->
   (UserId, ClientId) ->
   Event ->
-  MessagePush t
-newMessagePush loc bots mconn mm (user, client) e = withSing @t $ \case
-  SNormalMessage -> case Map.lookup user bots of
-    Just bm -> newBotPush bm e
+  MessagePush
+newMessagePush loc bots mconn mm (user, client) e =
+  case Map.lookup user bots of
+    Just bm -> NormalMessagePush {userPushes = mempty, botPushes = pure (bm, e)}
     Nothing -> fold $ newUserMessagePush loc mconn mm user client e
-  SBroadcast -> fold $ newUserMessagePush loc mconn mm user client e
 
 runMessagePush ::
-  forall t x r.
-  SingI t =>
-  Members (MessagePushEffects t) r =>
+  forall x r.
+  ( Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member TinyLog r
+  ) =>
   Local x ->
   Maybe (Qualified ConvId) ->
-  MessagePush t ->
+  MessagePush ->
   Sem r ()
-runMessagePush loc mqcnv mp = withSing @t $ \case
-  SNormalMessage -> do
-    push (userPushes mp)
-    pushToBots (botPushes mp)
-  SBroadcast -> push (broadcastPushes mp)
+runMessagePush loc mqcnv mp = do
+  push (userPushes mp)
+  pushToBots (botPushes mp)
   where
-    pushToBots ::
-      ( Member ExternalAccess r,
-        Member TinyLog r
-      ) =>
-      [(BotMember, Event)] ->
-      Sem r ()
+    pushToBots [] = pure ()
     pushToBots pushes = for_ mqcnv $ \qcnv ->
       if tDomain loc /= qDomain qcnv
         then unless (null pushes) $ do
@@ -131,14 +94,13 @@ runMessagePush loc mqcnv mp = withSing @t $ \case
         else deliverAndDeleteAsync (qUnqualified qcnv) pushes
 
 newUserMessagePush ::
-  SingI t =>
   Local x ->
   Maybe ConnId ->
   MessageMetadata ->
   UserId ->
   ClientId ->
   Event ->
-  Maybe (MessagePush t)
+  Maybe MessagePush
 newUserMessagePush loc mconn mm user cli e =
   fmap newUserPush $
     newConversationEventPush e (qualifyAs loc [user])

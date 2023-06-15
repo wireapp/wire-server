@@ -35,6 +35,7 @@ import Galley.Data.Conversation
 import Galley.Effects.BrigAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
+import Galley.Effects.ExternalAccess
 import Galley.Env
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
@@ -58,6 +59,7 @@ postMLSWelcome ::
   ( Member BrigAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
+    Member ExternalAccess r,
     Member (ErrorS 'MLSKeyPackageRefNotFound) r,
     Member (Input UTCTime) r,
     Member P.TinyLog r
@@ -77,6 +79,7 @@ postMLSWelcomeFromLocalUser ::
   ( Member BrigAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
+    Member ExternalAccess r,
     Member (ErrorS 'MLSKeyPackageRefNotFound) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (Input UTCTime) r,
@@ -107,6 +110,8 @@ welcomeRecipients =
 
 sendLocalWelcomes ::
   Member GundeckAccess r =>
+  Member P.TinyLog r =>
+  Member ExternalAccess r =>
   Maybe ConnId ->
   UTCTime ->
   ByteString ->
@@ -116,7 +121,7 @@ sendLocalWelcomes con now rawWelcome lclients = do
   runMessagePush lclients Nothing $
     foldMap (uncurry mkPush) (tUnqualified lclients)
   where
-    mkPush :: UserId -> ClientId -> MessagePush 'Broadcast
+    mkPush :: UserId -> ClientId -> MessagePush
     mkPush u c =
       -- FUTUREWORK: use the conversation ID stored in the key package mapping table
       let lcnv = qualifyAs lclients (selfConv u)
