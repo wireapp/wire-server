@@ -140,8 +140,8 @@ instance ToSchema EventWithUnreachables where
     objectWithDocModifier
       "EventWithUnreachables"
       ( description
-          ?~ "A conversation event combined with information on\
-             \ failed-to-process entities due to unreachable backends"
+          ?~ "A collection of a conversation event and optional lists of users\
+             \ that could not be processed due to unreachable backends"
       )
       $ EventWithUnreachables
         <$> event .= field "event" schema
