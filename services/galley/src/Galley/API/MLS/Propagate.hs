@@ -75,9 +75,10 @@ propagateMessage qusr lconv cm con raw = do
       qcnv = tUntagged lcnv
       e = Event qcnv Nothing qusr now $ EdMLSMessage raw
       mkPush :: UserId -> ClientId -> MessagePush
-      mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
-  runMessagePush lconv (Just qcnv) $
-    foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients lcnv)
+      mkPush u c = newMessagePush botMap con mm [(u, c)] e
+
+  for_ (lmems >>= localMemberMLSClients lcnv) $ \(u, c) ->
+    runMessagePush lconv (Just qcnv) (mkPush u c)
 
   -- send to remotes
   unreachableFromList . concat

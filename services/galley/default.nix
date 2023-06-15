@@ -79,7 +79,6 @@
 , safe-exceptions
 , saml2-web-sso
 , schema-profunctor
-, semigroups
 , servant
 , servant-client
 , servant-client-core
@@ -187,7 +186,6 @@ mkDerivation {
     safe-exceptions
     saml2-web-sso
     schema-profunctor
-    semigroups
     servant
     servant-client
     servant-server

@@ -1,3 +1,5 @@
+{-# OPTIONS -Wno-redundant-constraints#-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -30,12 +32,10 @@ import Data.Qualified
 import Data.Time
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.KeyPackage
-import Galley.API.Push
-import Galley.Data.Conversation
 import Galley.Effects.BrigAccess
+import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
-import Galley.Effects.ExternalAccess
 import Galley.Env
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
@@ -46,14 +46,12 @@ import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Logger
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
-import Wire.API.Message
 
 postMLSWelcome ::
   ( Member BrigAccess r,
@@ -109,25 +107,14 @@ welcomeRecipients =
     . welSecrets
 
 sendLocalWelcomes ::
-  Member GundeckAccess r =>
-  Member P.TinyLog r =>
-  Member ExternalAccess r =>
   Maybe ConnId ->
   UTCTime ->
   ByteString ->
   Local [(UserId, ClientId)] ->
   Sem r ()
-sendLocalWelcomes con now rawWelcome lclients = do
-  runMessagePush lclients Nothing $
-    foldMap (uncurry mkPush) (tUnqualified lclients)
-  where
-    mkPush :: UserId -> ClientId -> MessagePush
-    mkPush u c =
-      -- FUTUREWORK: use the conversation ID stored in the key package mapping table
-      let lcnv = qualifyAs lclients (selfConv u)
-          lusr = qualifyAs lclients u
-          e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now $ EdMLSWelcome rawWelcome
-       in newMessagePush lclients mempty con defMessageMetadata (u, c) e
+sendLocalWelcomes _con _now _rawWelcome _lclients = do
+  -- This function is only implemented on the MLS branch.
+  pure ()
 
 sendRemoteWelcomes ::
   ( Member FederatorAccess r,
