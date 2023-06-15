@@ -26,6 +26,8 @@
 , http-types
 , kan-extensions
 , lib
+, mime
+, monad-control
 , mtl
 , network
 , network-uri
@@ -33,7 +35,6 @@
 , process
 , random
 , raw-strings-qq
-, resource-pool
 , retry
 , scientific
 , split
@@ -79,8 +80,8 @@ mkDerivation {
     http-client
     http-types
     kan-extensions
-    monad-control
     mime
+    monad-control
     mtl
     network
     network-uri
@@ -88,7 +89,6 @@ mkDerivation {
     process
     random
     raw-strings-qq
-    resource-pool
     retry
     scientific
     split
