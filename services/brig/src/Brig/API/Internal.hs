@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -105,6 +107,8 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
+import qualified Network.AMQP as Q
+import Wire.API.Federation.BackendNotifications
 
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
@@ -309,6 +313,20 @@ deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemotes dom = do
   lift . wrapClient . Data.deleteFederationRemote $ dom
   assertNoDomainsFromConfigFiles dom
+  env <- ask
+  for_ (env ^. rabbitmqChannel) $ \chan -> liftIO . withMVar chan $ \chan' -> do
+    -- ensureQueue uses routingKey internally
+    ensureQueue chan' defederationQueue
+    Q.publishMsg chan' "" queue $ Q.newMsg
+      -- Check that this message type is compatible with what
+      -- background worker is expecting
+      { Q.msgBody = encode @DefederationDomain dom
+      , Q.msgDeliveryMode = pure Q.Persistent
+      , Q.msgContentType = pure "application/json"
+      }
+  where
+    -- Ensure that this is kept in sync with background worker
+    queue = routingKey defederationQueue
 
 -- | Remove one-on-one conversations for the given remote domain. This is called from Galley as
 -- part of the defederation process, and should not be called duriung the initial domain removal

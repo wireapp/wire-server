@@ -84,6 +84,13 @@ enqueue channel originDomain targetDomain deliveryMode (FedQueueClient action) =
 routingKey :: Text -> Text
 routingKey t = "backend-notifications." <> t
 
+-- Shared values for both brig and background worker so they are
+-- kept in sync about what types they are expecting and where
+-- they are stored in Rabbit.
+type DefederationDomain = Domain
+defederationQueue :: Text
+defederationQueue = "delete-federation"
+
 -- | If you ever change this function and modify
 -- queue parameters, know that it will start failing in the
 -- next release! So be prepared to write migrations.

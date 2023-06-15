@@ -110,7 +110,7 @@ deleteFederationDomain chan = do
         resp <- liftIO $ httpLbs (req d) manager
         go envelope resp
       )
-      $ A.eitherDecode (Q.msgBody msg)
+      $ A.eitherDecode @DefederationDomain (Q.msgBody msg)
     
   where
     go :: Q.Envelope -> Response L.ByteString -> AppT IO ()
