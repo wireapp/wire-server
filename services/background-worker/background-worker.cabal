@@ -27,13 +27,19 @@ library
   build-depends:
       aeson
     , amqp
+    , bytestring
+    , bytestring-conversion
     , exceptions
     , extended
     , HsOpenSSL
+    , http-client
+    , http-types
     , http2-manager
     , imports
+    , lens
     , monad-control
     , retry
+    , text
     , tinylog
     , transformers-base
     , types-common
@@ -161,6 +167,7 @@ test-suite background-worker-test
     , background-worker
     , federator
     , hspec
+    , http-client
     , imports
     , QuickCheck
     , tinylog

@@ -81,17 +81,17 @@ enqueue :: Q.Channel -> Domain -> Domain -> Q.DeliveryMode -> FedQueueClient c (
 enqueue channel originDomain targetDomain deliveryMode (FedQueueClient action) =
   runReaderT action FedQueueEnv {..}
 
-routingKey :: Domain -> Text
-routingKey d = "backend-notifications." <> domainText d
+routingKey :: Text -> Text
+routingKey t = "backend-notifications." <> t
 
 -- | If you ever change this function and modify
 -- queue parameters, know that it will start failing in the
 -- next release! So be prepared to write migrations.
-ensureQueue :: Q.Channel -> Domain -> IO ()
-ensureQueue chan domain = do
+ensureQueue :: Q.Channel -> Text -> IO ()
+ensureQueue chan queue = do
   let opts =
         Q.QueueOpts
-          { Q.queueName = routingKey domain,
+          { Q.queueName = routingKey queue,
             Q.queuePassive = False,
             Q.queueDurable = True,
             Q.queueExclusive = False,
@@ -155,8 +155,8 @@ instance KnownComponent c => RunClient (FedQueueClient c) where
         -- Empty string means default exchange
         exchange = ""
     liftIO $ do
-      ensureQueue env.channel env.targetDomain
-      void $ Q.publishMsg env.channel exchange (routingKey env.targetDomain) msg
+      ensureQueue env.channel env.targetDomain._domainText
+      void $ Q.publishMsg env.channel exchange (routingKey env.targetDomain._domainText) msg
     pure $
       Response
         { responseHttpVersion = http20,

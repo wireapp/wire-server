@@ -15,18 +15,23 @@ import System.Logger.Class
 import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.BackgroundWorker.Options
+import Network.HTTP.Client
 
 data Env = Env
   { http2Manager :: Http2Manager,
+    httpManager :: Manager,
     logger :: Logger,
-    federatorInternal :: Endpoint
+    federatorInternal :: Endpoint,
+    galley :: Endpoint
   }
 
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
   http2Manager <- initHttp2Manager
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
+  httpManager <- newManager defaultManagerSettings
   let federatorInternal = opts.federatorInternal
+      galley = opts.galley
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager

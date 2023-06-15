@@ -19,12 +19,15 @@ import Wire.API.Federation.BackendNotifications
 import Wire.API.RawJson
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
+import Network.HTTP.Client
 
 runTestAppT :: AppT IO a -> Int -> IO a
-runTestAppT app port = do
+runTestAppT app federatorPort = do
   http2Manager <- initHttp2Manager
   logger <- Logger.new Logger.defSettings
-  let federatorInternal = Endpoint "localhost" (fromIntegral port)
+  httpManager <- newManager defaultManagerSettings
+  let federatorInternal = Endpoint "localhost" (fromIntegral federatorPort)
+      galley = Endpoint "localhost" 8080 -- TODO: Find the correct port
       env = Env {..}
   runAppT env app
 

@@ -11,6 +11,7 @@ data Opts = Opts
   { logLevel :: !Level,
     logFormat :: !(Maybe (Last LogFormat)),
     federatorInternal :: !Endpoint,
+    galley :: !Endpoint,
     rabbitmq :: !RabbitMqOpts,
     remoteDomains :: [Domain]
   }
