@@ -1,0 +1,1 @@
+Containers now run as non-root, to improve compatibility with default PodSecurityPolicies in more recent versions of Kubernetes. (#3352)
