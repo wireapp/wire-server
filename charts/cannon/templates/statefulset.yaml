@@ -113,6 +113,8 @@ spec:
         image: alpine:3.18.2
         securityContext:
           {{- toYaml .Values.podSecurityContext | nindent 10 }}
+          runAsUser: 65534
+          fsGroup: 65534
         command:
         - /bin/sh
         args:
