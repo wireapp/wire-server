@@ -47,6 +47,8 @@ import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.MultiTablePaging
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.User.Search
+import Galley.App
+import Galley.API.Internal
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
@@ -118,8 +120,9 @@ deleteFederationDomains old new = do
   let prev = fromFedList old
       curr = fromFedList new
       deletedDomains = Set.difference prev curr
+  env <- ask
   -- Call into the galley code
-  for_ deletedDomains deleteFederationDomain
+  for_ deletedDomains $ liftIO . evalGalleyToIO env . deleteFederationDomain
 
 constHandlers :: MonadIO m => [RetryStatus -> Handler m Bool]
 constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]
@@ -245,13 +248,6 @@ updateFedDomainRemoveLocalFromRemote env remoteDomain interval = recovering x3 c
 
   -- Remove the remote user from the local domain
   liftIO $ runApp env $ deleteFederationDomains old new
-
-  -- Get the list of remote conversations for the user.
-  -- convIds <- liftIO $ evalGalleyToIO env $
-  --   pageToConvIdPage Public.PagingRemotes
-  --   . fmap (tUntagged @'QRemote)
-  --   <$> E.listItems alice Nothing (toRange $ Proxy @1000)
-
   convIds <-
     liftIO $
       C.runClient (env ^. cstate) $

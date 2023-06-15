@@ -21,6 +21,8 @@ module Galley.API.Internal
     InternalAPI,
     deleteLoop,
     safeForever,
+    -- Exported for tests
+    deleteFederationDomain
   )
 where
 
@@ -70,7 +72,7 @@ import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.UserList
 import Imports hiding (head)
 import qualified Network.AMQP as Q
-import Network.Wai.Predicate hiding (Error, err)
+import Network.Wai.Predicate hiding (Error, err, setStatus)
 import qualified Network.Wai.Predicate as Predicate
 import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
@@ -88,6 +90,7 @@ import Wire.API.CustomBackend
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.FederationUpdate
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
@@ -96,10 +99,25 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
-import Wire.API.Team.Feature
+import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.Team.Member
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Data.Domain
+import qualified Data.Map as Map
+import qualified Wire.API.Federation.API.Galley as F
+import qualified Data.List.NonEmpty as N
+import qualified Galley.Effects.MemberStore as E
+import Galley.API.Action
+import Util.Options
+import Wire.API.Conversation.Role
+import Network.HTTP.Types
+import Network.Wai
+import Data.Text (unpack)
+import Galley.Data.Conversation.Types
+import Galley.API.Federation (onConversationUpdated)
+import Servant.Client (ClientEnv (ClientEnv), BaseUrl (BaseUrl), Scheme (Http), defaultMakeClientRequest)
+import Control.Exception
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
@@ -298,6 +316,10 @@ internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed 
   delete "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalDeleteCustomBackendByDomainH) $
     capture "domain"
       .&. accept "application" "json"
+    
+  delete "/i/federation/:domain" (continue internalDeleteFederationDomainH) $
+    capture "domain"
+      .&. accept "application" "json"
 
 rmUser ::
   forall p1 p2 r.
@@ -466,3 +488,137 @@ guardLegalholdPolicyConflictsH ::
 guardLegalholdPolicyConflictsH glh = do
   mapError @LegalholdConflicts (const $ Tagged @'MissingLegalholdConsent ()) $
     guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
+
+-- Build the map, keyed by conversations to the list of members
+insertIntoMap :: (ConvId, a) -> Map ConvId (N.NonEmpty a) -> Map ConvId (N.NonEmpty a)
+insertIntoMap (cnvId, user) m = Map.alter (pure . maybe (pure user) (N.cons user)) cnvId m
+
+-- Bundle all of the deletes together for easy calling
+-- Errors & exceptions are thrown to IO to stop the message being ACKed, eventually timing it
+-- out so that it can be redelivered.
+deleteFederationDomain :: (Member (Input Env) r, Member (P.Logger (Msg -> Msg)) r,
+          Member (Error InternalError) r, Member (Error FederationError) r, Member (Input (Local ())) r,
+          Member MemberStore r, Member ConversationStore r, Member (Embed IO) r,
+          Member CodeStore r, Member TeamStore r, Member BrigAccess r, Member GundeckAccess r, Member ExternalAccess r) => Domain -> Sem r ()
+deleteFederationDomain d = do
+  deleteFederationDomainRemote d
+  deleteFederationDomainLocal d
+  deleteFederationDomainOneOnOne d
+
+
+internalDeleteFederationDomainH :: (Member (Input Env) r, Member (P.Logger (Msg -> Msg)) r,
+          Member (Error InternalError) r, Member (Error FederationError) r, Member (Input (Local ())) r,
+          Member MemberStore r, Member ConversationStore r, Member (Embed IO) r,
+          Member CodeStore r, Member TeamStore r, Member BrigAccess r, Member GundeckAccess r, Member ExternalAccess r) => Domain ::: JSON -> Sem r Response
+internalDeleteFederationDomainH (domain ::: _) = do
+  deleteFederationDomain domain
+  -- TODO: Do we generally also accept HTTP 204, No Content?
+  pure (empty & setStatus status200)
+
+-- Remove remote members from local conversations
+deleteFederationDomainRemote :: (Member (Input Env) r, Member (P.Logger (Msg -> Msg)) r,
+          Member (Error InternalError) r, Member (Error FederationError) r,
+          Member MemberStore r, Member ConversationStore r,
+          Member CodeStore r, Member TeamStore r) => Domain -> Sem r ()
+deleteFederationDomainRemote dom = do
+  remoteUsers <- E.getRemoteMembersByDomain dom
+  env <- input
+  let lCnvMap = foldr insertIntoMap mempty remoteUsers
+      localDomain = env ^. Galley.App.options . optSettings . setFederationDomain
+  for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
+    let lCnvId = toLocalUnsafe localDomain cnvId
+    -- This value contains an event that we might need to
+    -- send out to all of the local clients that are a party
+    -- to the conversation. However we also don't want to DOS
+    -- clients. Maybe suppress and send out a bulk version?
+    -- All errors, either exceptions or Either e, get thrown into IO
+    mapToRuntimeError @F.RemoveFromConversationError (InternalErrorWithDescription "Federation domain removal: Remove from conversation error")
+      . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Federation domain removal: Conversation not found")
+      . mapToRuntimeError @('ActionDenied 'RemoveConversationMember) (InternalErrorWithDescription "Federation domain removal: Action denied, remove conversation member")
+      . mapToRuntimeError @'InvalidOperation (InternalErrorWithDescription "Federation domain removal: Invalid operation")
+      . mapToRuntimeError @'NotATeamMember (InternalErrorWithDescription "Federation domain removal: Not a team member")
+      . mapError @NoChanges (const (InternalErrorWithDescription "Federation domain removal: No changes"))
+      -- This is allowed to send notifications to _local_ clients.
+      -- But we are suppressing those events as we don't want to
+      -- DOS our users if a large and deeply interconnected federation
+      -- member is removed. Sending out hundreds or thousands of events
+      -- to each client isn't something we want to be doing.
+      $ do
+        conv <- getConversationWithError lCnvId
+        let lConv = toLocalUnsafe localDomain conv
+        updateLocalConversationUserUnchecked
+          @'ConversationRemoveMembersTag
+          lConv
+          undefined
+          $ tUntagged . rmId <$> rUsers -- This field can be undefined as the path for ConversationRemoveMembersTag doens't use it
+
+        -- Check if the conversation if type 2 or 3, one-on-one conversations.
+        -- If it is, then we need to remove the entire conversation as users
+        -- aren't able to delete those types of conversations themselves.
+        -- Check that we are in a type 2 or a type 3 conversation
+        when (cnvmType (convMetadata conv) `elem` [One2OneConv, ConnectConv]) $
+          -- If we are, delete it.
+          updateLocalConversationUserUnchecked
+            @'ConversationDeleteTag
+            lConv
+            undefined
+            ()
+
+-- Remove local members from remote conversations
+deleteFederationDomainLocal :: (Member (Input (Local ())) r, Member (Input Env) r,
+          Member (Error InternalError) r, Member (P.Logger (Msg -> Msg)) r,
+          Member MemberStore r, Member (Embed IO) r, Member BrigAccess r,
+          Member GundeckAccess r, Member ExternalAccess r) => Domain -> Sem r ()
+deleteFederationDomainLocal dom = do
+  localUsers <- E.getLocalMembersByDomain dom
+  env <- input
+  -- As above, build the map so we can get all local users per conversation
+  let rCnvMap = foldr insertIntoMap mempty localUsers
+      localDomain = env ^. Galley.App.options . optSettings . setFederationDomain
+  -- Process each user.
+  for_ (Map.toList rCnvMap) $ \(cnv, lUsers) -> do
+    -- All errors, either exceptions or Either e, get thrown into IO
+    mapError @NoChanges (const (InternalErrorWithDescription "No Changes: Could not remove a local member from a remote conversation.")) $ do
+      now <- liftIO $ getCurrentTime
+      for_ lUsers $ \user -> do
+        let lUser = toLocalUnsafe localDomain user
+            convUpdate =
+              F.ConversationUpdate
+                { cuTime = now,
+                  cuOrigUserId = tUntagged lUser,
+                  cuConvId = cnv,
+                  cuAlreadyPresentUsers = [user],
+                  cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ()
+                }
+        -- These functions are used directly rather than as part of a larger conversation
+        -- delete function, as we don't have an originating user, and we can't send data
+        -- to the remote backend.
+        -- We don't need to check the conversation type here, as we can't tell the
+        -- remote federation server to delete the conversation. They will have to do a
+        -- similar processing run for removing the local domain from their federation list.
+        onConversationUpdated dom convUpdate
+
+-- let rcnv = toRemoteUnsafe dom cnv
+-- notifyRemoteConversationAction lUser (qualifyAs rcnv convUpdate) Nothing
+
+-- TODO: The DB table that this tries to update aren't available to
+-- Galley and need to be moved into brig. This will complicate the calling
+-- to delete a domain, but likely we can expose it as an internal API and
+-- eat the coverhead cost of the http call. This should also allow for the
+-- senario where galley falls over and has to redo the domain deletion so
+-- that request isn't lost.
+deleteFederationDomainOneOnOne :: (Member (Input Env) r, Member (Embed IO) r, Member (P.Logger (Msg -> Msg)) r) => Domain -> Sem r ()
+deleteFederationDomainOneOnOne dom = do
+  env <- input
+  let c = mkClientEnv (env ^. manager) (env ^. brig)
+  liftIO (deleteFederationRemoteGalley dom c)
+    >>= either
+      ( \e -> do
+          P.err $ Log.msg @String "Could not delete one-on-one messages in Brig" . Log.field "error" (show e)
+          -- Throw the error into IO to match the other functions and to prevent the
+          -- message from rabbit being ACKed.
+          liftIO $ throwIO e
+      )
+      pure
+  where
+    mkClientEnv mgr (Endpoint h p) = ClientEnv mgr (BaseUrl Http (unpack h) (fromIntegral p) "") Nothing defaultMakeClientRequest

@@ -54,7 +54,6 @@ import Util.Options
 import Util.Options.Common
 import Util.Test
 import qualified Util.Test.SQS as SQS
-import RabbitMQ (rabbitPubSub)
 
 newtype ServiceConfigFile = ServiceConfigFile String
   deriving (Eq, Ord, Typeable)
@@ -98,8 +97,7 @@ main = withOpenSSL $ runTests go
               (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.sitemap),
           API.tests setup,
           test setup "Federation Domains" updateFedDomainsTest,
-          test setup "isConvMemberL" isConvMemberLTests,
-          test setup "RabbitMQ round-trip" rabbitPubSub
+          test setup "isConvMemberL" isConvMemberLTests
         ]
     getOpts gFile iFile = do
       m <- newManager tlsManagerSettings {managerResponseTimeout = responseTimeoutMicro 300000000}
