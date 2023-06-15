@@ -18,7 +18,6 @@ import Data.Function
 import Data.Functor
 import qualified Data.Map.Strict as Map
 import Data.Maybe
-import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Text hiding (elem, head, zip)
 import Data.Traversable
@@ -69,13 +68,12 @@ copyDirectoryRecursively from to = do
 startDynamicBackends :: [DynBackendConfigOverrides] -> ([String] -> App ()) -> App ()
 startDynamicBackends beOverrides action = do
   pool <- asks (.resourcePool)
-  resources <- Set.toList <$> liftIO (acquireResources (Prelude.length beOverrides) pool)
-  let recStartBackends :: [String] -> [(BackendResource, DynBackendConfigOverrides)] -> App ()
-      recStartBackends domains = \case
-        [] -> action domains
-        (res, o) : xs -> startDynamicBackend res o (\d -> recStartBackends (d : domains) xs)
-  recStartBackends [] (zip resources beOverrides)
-  liftIO $ releaseResources pool resources
+  withResources (Prelude.length beOverrides) pool $ \resources -> do
+    let recStartBackends :: [String] -> [(BackendResource, DynBackendConfigOverrides)] -> App ()
+        recStartBackends domains = \case
+          [] -> action domains
+          (res, o) : xs -> startDynamicBackend res o (\d -> recStartBackends (d : domains) xs)
+    recStartBackends [] (zip resources beOverrides)
 
 startDynamicBackend :: BackendResource -> DynBackendConfigOverrides -> (String -> App a) -> App a
 startDynamicBackend resource beOverrides action = do

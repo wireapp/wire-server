@@ -4,18 +4,18 @@ module Testlib.ResourcePool
     backendResources,
     remoteDomains,
     createBackendResourcePool,
-    acquireResources,
-    releaseResources,
+    withResources,
   )
 where
 
 import Control.Concurrent
+import Control.Monad.Catch
+import Control.Monad.IO.Class
 import Data.Char
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
 import Data.List.Extra ((\\))
-import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.String
 import Data.Tuple
@@ -23,33 +23,30 @@ import Data.Word
 import System.IO
 import Prelude
 
-type MLock = MVar ()
-
 data ResourcePool a = ResourcePool
-  { lock :: MLock,
-    sem :: QSemN,
+  { sem :: QSemN,
     resources :: IORef (Set.Set a)
   }
 
-newResourcePool :: Ord a => Set a -> IO (ResourcePool a)
-newResourcePool xs =
-  ResourcePool
-    <$> newMVar ()
-    <*> newQSemN (length xs)
-    <*> newIORef xs
-
-acquireResources :: Ord a => Int -> ResourcePool a -> IO (Set a)
-acquireResources n pool = withMVar pool.lock $ \_ -> do
-  waitQSemN pool.sem n
-  atomicModifyIORef pool.resources $ swap . Set.splitAt n
-
-releaseResources :: Ord a => ResourcePool a -> [a] -> IO ()
-releaseResources pool xs = withMVar pool.lock $ \_ -> do
-  modifyIORef pool.resources $ Set.union (Set.fromList xs)
-  signalQSemN pool.sem (length xs)
+withResources :: (Ord a, MonadIO m, MonadMask m) => Int -> ResourcePool a -> ([a] -> m b) -> m b
+withResources n pool f =
+  bracket
+    ( liftIO $ do
+        waitQSemN pool.sem n
+        atomicModifyIORef pool.resources $ swap . Set.splitAt n
+    )
+    ( \s -> liftIO $ do
+        atomicModifyIORef pool.resources $ (,()) . Set.union s
+        signalQSemN pool.sem (length s)
+    )
+    (f . Set.toList)
 
 createBackendResourcePool :: IO (ResourcePool BackendResource)
-createBackendResourcePool = newResourcePool (backendResources 3)
+createBackendResourcePool =
+  let resources = backendResources 3
+   in ResourcePool
+        <$> newQSemN 3
+        <*> newIORef resources
 
 data BackendResource = BackendResource
   { berBrigKeyspace :: String,
