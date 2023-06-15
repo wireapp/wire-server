@@ -26,7 +26,6 @@
 , http-types
 , kan-extensions
 , lib
-, monad-control
 , mtl
 , network
 , network-uri
@@ -81,6 +80,7 @@ mkDerivation {
     http-types
     kan-extensions
     monad-control
+    mime
     mtl
     network
     network-uri

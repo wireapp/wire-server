@@ -82,6 +82,7 @@ library
   exposed-modules:
     API.Brig
     API.BrigInternal
+    API.Cargohold
     API.Common
     API.Galley
     API.GalleyInternal
@@ -89,6 +90,7 @@ library
     MLS.Util
     RunAllTests
     SetupHelpers
+    Test.AssetDownload
     Test.B2B
     Test.Brig
     Test.Demo
@@ -130,6 +132,7 @@ library
     , http-client
     , http-types
     , kan-extensions
+    , mime
     , monad-control
     , mtl
     , network
@@ -138,7 +141,6 @@ library
     , process
     , random
     , raw-strings-qq
-    , resource-pool          >=0.2
     , retry
     , scientific
     , split
