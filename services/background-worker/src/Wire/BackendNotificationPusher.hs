@@ -97,6 +97,7 @@ deleteFederationDomain chan = do
         , port = galley env ^. epPort . to fromIntegral
         , path = "/i/federation/" <> toByteString' dom
         , requestHeaders = ("Accept", "application/json") : requestHeaders defaultRequest
+        , responseTimeout = defederationTimeout env
         }
   lift $ ensureQueue chan queue
   QL.consumeMsgs chan (routingKey queue) Q.Ack $ \(msg, envelope) -> do

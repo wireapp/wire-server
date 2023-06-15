@@ -4,6 +4,10 @@ federatorInternal:
   host: 127.0.0.1
   port: 8097
 
+galley:
+  host: 127.0.0.1
+  port: 8085
+
 rabbitmq:
   host: 127.0.0.1
   port: 5672

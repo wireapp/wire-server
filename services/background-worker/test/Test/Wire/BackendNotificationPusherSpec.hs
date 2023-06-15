@@ -27,7 +27,8 @@ runTestAppT app federatorPort = do
   logger <- Logger.new Logger.defSettings
   httpManager <- newManager defaultManagerSettings
   let federatorInternal = Endpoint "localhost" (fromIntegral federatorPort)
-      galley = Endpoint "localhost" 8080 -- TODO: Find the correct port
+      galley = Endpoint "localhost" 8085
+      defederationTimeout = responseTimeoutNone
       env = Env {..}
   runAppT env app
 

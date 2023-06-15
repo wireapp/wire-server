@@ -22,7 +22,8 @@ data Env = Env
     httpManager :: Manager,
     logger :: Logger,
     federatorInternal :: Endpoint,
-    galley :: Endpoint
+    galley :: Endpoint,
+    defederationTimeout :: ResponseTimeout
   }
 
 mkEnv :: Opts -> IO Env
@@ -32,6 +33,10 @@ mkEnv opts = do
   httpManager <- newManager defaultManagerSettings
   let federatorInternal = opts.federatorInternal
       galley = opts.galley
+      defederationTimeout = maybe
+        responseTimeoutNone
+        (\t -> responseTimeoutMicro $ 1000000 * t) -- seconds to microseconds
+        opts.defederationTimeout
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager
