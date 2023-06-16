@@ -180,8 +180,6 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
                     sub
                     convOrSub.meta.cnvmlsCipherSuite
                     convOrSub.meta.cnvmlsGroupId
-
-              pure ()
             _ -> pure () -- FUTUREWORK: create 1-1 conversation at epoch 0
 
           -- remove users from the conversation and send events
