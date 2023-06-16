@@ -24,7 +24,7 @@ import Test.Tasty
 import TestSetup
 
 tests :: IO TestSetup -> TestTree
-tests s =
+tests _s =
   testGroup
     "MLS"
     []
