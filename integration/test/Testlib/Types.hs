@@ -13,6 +13,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
+import Data.Default
 import Data.Functor
 import Data.Hex
 import Data.IORef
@@ -179,7 +180,7 @@ modifyFailure modifyAssertion action = do
         )
     )
 
-data DynBackendConfigOverrides = DynBackendConfigOverrides
+data ServiceOverrides = ServiceOverrides
   { dbBrig :: Value -> App Value,
     dbCannon :: Value -> App Value,
     dbCargohold :: Value -> App Value,
@@ -189,9 +190,12 @@ data DynBackendConfigOverrides = DynBackendConfigOverrides
     dbSpar :: Value -> App Value
   }
 
-defaultDynBackendConfigOverrides :: DynBackendConfigOverrides
-defaultDynBackendConfigOverrides =
-  DynBackendConfigOverrides
+instance Default ServiceOverrides where
+  def = defaultServiceOverrides
+
+defaultServiceOverrides :: ServiceOverrides
+defaultServiceOverrides =
+  ServiceOverrides
     { dbBrig = pure,
       dbCannon = pure,
       dbCargohold = pure,
@@ -201,8 +205,8 @@ defaultDynBackendConfigOverrides =
       dbSpar = pure
     }
 
-defaultDynBackendConfigOverridesToMap :: DynBackendConfigOverrides -> Map.Map Service (Value -> App Value)
-defaultDynBackendConfigOverridesToMap overrides =
+defaultServiceOverridesToMap :: ServiceOverrides -> Map.Map Service (Value -> App Value)
+defaultServiceOverridesToMap overrides =
   Map.fromList
     [ (Brig, dbBrig overrides),
       (Cannon, dbCannon overrides),

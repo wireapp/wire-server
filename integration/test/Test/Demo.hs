@@ -96,7 +96,7 @@ testModifiedServices = do
     bindResponse (Nginz.getSystemSettingsUnAuthorized OwnDomain) $
       \resp -> do
         resp.status `shouldMatchInt` 200
-        resp.json %. "setRestrictUserCreation" `shouldMatchBool` False
+        resp.json %. "setRestrictUserCreation" `shouldMatch` False
 
 testDynamicBackend :: HasCallStack => App ()
 testDynamicBackend = do
@@ -107,11 +107,11 @@ testDynamicBackend = do
     resp.status `shouldMatchInt` 200
     (resp.json %. "id") `shouldMatch` objId user
 
-  startOneDynBackend defaultDynBackendConfigOverrides $ \dynDomain -> do
+  startOneDynBackend def $ \dynDomain -> do
     bindResponse (Nginz.getSystemSettingsUnAuthorized dynDomain) $
       \resp -> do
         resp.status `shouldMatchInt` 200
-        resp.json %. "setRestrictUserCreation" `shouldMatchBool` False
+        resp.json %. "setRestrictUserCreation" `shouldMatch` False
 
     -- user created in own domain should not be found in dynamic backend
     bindResponse (Public.getSelf dynDomain uid) $ \resp -> do
@@ -135,7 +135,7 @@ testStartMultipleDynamicBackends = do
           \resp -> do
             resp.status `shouldMatchInt` 200
             (resp.json %. "domain") `shouldMatch` domain
-  startThreeDynBackends defaultDynBackendConfigOverrides defaultDynBackendConfigOverrides defaultDynBackendConfigOverrides $ \d1 d2 d3 -> do
+  startThreeDynBackends def def def $ \d1 d2 d3 -> do
     assertCorrectDomain d1
     assertCorrectDomain d2
     assertCorrectDomain d3
@@ -153,13 +153,13 @@ testIndependentESIndices = do
     case docs of
       [] -> assertFailure "Expected a non empty result, but got an empty one"
       doc : _ -> doc %. "id" `shouldMatch` uid2
-  startOneDynBackend defaultDynBackendConfigOverrides $ \dynDomain -> do
+  startOneDynBackend def $ \dynDomain -> do
     uD1 <- randomUser dynDomain def
     -- searching for u1 on the dyn backend should yield no result
     bindResponse (Public.searchContacts uD1 (u2 %. "name") dynDomain) $ \resp -> do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "documents" >>= asList
-      null docs `shouldMatchBool` True
+      null docs `shouldMatch` True
     uD2 <- randomUser dynDomain def
     uidD2 <- objId uD2
     connectUsers uD1 uD2
@@ -174,7 +174,7 @@ testIndependentESIndices = do
 
 testDynamicBackendsFederation :: HasCallStack => App ()
 testDynamicBackendsFederation = do
-  startTwoDynBackends defaultDynBackendConfigOverrides defaultDynBackendConfigOverrides $ \aDynDomain anotherDynDomain -> do
+  startTwoDynBackends def def $ \aDynDomain anotherDynDomain -> do
     u1 <- randomUser aDynDomain def
     u2 <- randomUser anotherDynDomain def
     uid2 <- objId u2
