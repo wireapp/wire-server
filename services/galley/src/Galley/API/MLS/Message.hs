@@ -336,7 +336,7 @@ getSenderIdentity ::
   Sem r ClientIdentity
 getSenderIdentity qusr c mSender lConvOrSubConv = do
   let cid = mkClientIdentity qusr c
-  let epoch = epochNumber . cnvmlsEpoch . (.meta) . tUnqualified $ lConvOrSubConv
+  let epoch = epochNumber . cnvmlsEpoch . (.mlsMeta) . tUnqualified $ lConvOrSubConv
   case mSender of
     SenderMember idx | epoch > 0 -> do
       cid' <- note (mlsProtocolError "unknown sender leaf index") $ imLookup (tUnqualified lConvOrSubConv).indexMap idx

@@ -80,16 +80,16 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
   let convOrSub = tUnqualified lConvOrSub
       qusr = cidQualifiedUser senderIdentity
       cm = convOrSub.members
-      ss = csSignatureScheme (cnvmlsCipherSuite convOrSub.meta)
+      ss = csSignatureScheme (cnvmlsCipherSuite convOrSub.mlsMeta)
       newUserClients = Map.assocs (paAdd action)
 
   -- check all pending proposals are referenced in the commit
-  allPendingProposals <- getAllPendingProposalRefs (cnvmlsGroupId convOrSub.meta) epoch
+  allPendingProposals <- getAllPendingProposalRefs (cnvmlsGroupId convOrSub.mlsMeta) epoch
   let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) commit.proposals
   unless (all (`Set.member` referencedProposals) allPendingProposals) $
     throwS @'MLSCommitMissingReferences
 
-  withCommitLock (fmap (.id) lConvOrSub) (cnvmlsGroupId convOrSub.meta) epoch $ do
+  withCommitLock (fmap (.id) lConvOrSub) (cnvmlsGroupId convOrSub.mlsMeta) epoch $ do
     -- no client can be directly added to a subconversation
     when (is _SubConv convOrSub && any ((senderIdentity /=) . fst) (cmAssocs (paAdd action))) $
       throw (mlsProtocolError "Add proposals in subconversations are not supported")
@@ -178,8 +178,8 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
                   createSubConversation
                     cnv
                     sub
-                    convOrSub.meta.cnvmlsCipherSuite
-                    convOrSub.meta.cnvmlsGroupId
+                    convOrSub.mlsMeta.cnvmlsCipherSuite
+                    convOrSub.mlsMeta.cnvmlsGroupId
             _ -> pure () -- FUTUREWORK: create 1-1 conversation at epoch 0
 
           -- remove users from the conversation and send events
@@ -200,11 +200,11 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
     -- Remove clients from the conversation state. This includes client removals
     -- of all types (see Note [client removal]).
     for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
-      removeMLSClients (cnvmlsGroupId convOrSub.meta) qtarget (Map.keysSet clients)
+      removeMLSClients (cnvmlsGroupId convOrSub.mlsMeta) qtarget (Map.keysSet clients)
 
     -- add clients to the conversation state
     for_ newUserClients $ \(qtarget, newClients) -> do
-      addMLSClients (cnvmlsGroupId convOrSub.meta) qtarget (Set.fromList (Map.assocs newClients))
+      addMLSClients (cnvmlsGroupId convOrSub.mlsMeta) qtarget (Set.fromList (Map.assocs newClients))
 
     -- increment epoch number
     for_ lConvOrSub incrementEpoch

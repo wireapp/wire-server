@@ -192,7 +192,7 @@ toPublicSubConv (Qualified (SubConversation {..}) domain) =
 
 type ConvOrSubConv = ConvOrSubChoice MLSConversation SubConversation
 
-instance HasField "meta" ConvOrSubConv ConversationMLSData where
+instance HasField "mlsMeta" ConvOrSubConv ConversationMLSData where
   getField (Conv c) = mcMLSData c
   getField (SubConv _ s) = scMLSData s
 

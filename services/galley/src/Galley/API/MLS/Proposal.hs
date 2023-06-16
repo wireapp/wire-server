@@ -239,7 +239,7 @@ processProposal ::
   RawMLS Proposal ->
   Sem r ()
 processProposal qusr lConvOrSub groupId epoch pub prop = do
-  let mlsMeta = (tUnqualified lConvOrSub).meta
+  let mlsMeta = (tUnqualified lConvOrSub).mlsMeta
   -- Check if the epoch number matches that of a conversation
   unless (epoch == cnvmlsEpoch mlsMeta) $ throwS @'MLSStaleMessage
   -- Check if the group ID matches that of a conversation

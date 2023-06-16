@@ -69,8 +69,8 @@ getExternalCommitData ::
   Sem r ExternalCommitAction
 getExternalCommitData senderIdentity lConvOrSub epoch commit = do
   let convOrSub = tUnqualified lConvOrSub
-      curEpoch = cnvmlsEpoch convOrSub.meta
-      groupId = cnvmlsGroupId convOrSub.meta
+      curEpoch = cnvmlsEpoch convOrSub.mlsMeta
+      groupId = cnvmlsGroupId convOrSub.mlsMeta
   when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
   when (epoch == Epoch 0) $
     throw $
@@ -94,7 +94,7 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
 
   evalState convOrSub.indexMap $ do
     -- process optional removal
-    propAction <- applyProposals convOrSub.meta groupId proposals
+    propAction <- applyProposals convOrSub.mlsMeta groupId proposals
     removedIndex <- case cmAssocs (paRemove propAction) of
       [(cid, idx)]
         | cid /= senderIdentity ->
@@ -146,8 +146,8 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
       <$> note
         (mlsProtocolError "External commits need an update path")
         updatePath
-  let cs = cnvmlsCipherSuite (tUnqualified lConvOrSub).meta
-  let groupId = cnvmlsGroupId convOrSub.meta
+  let cs = cnvmlsCipherSuite (tUnqualified lConvOrSub).mlsMeta
+  let groupId = cnvmlsGroupId convOrSub.mlsMeta
   let extra = LeafNodeTBSExtraCommit groupId action.add
   case validateLeafNode cs (Just senderIdentity) extra leafNode.value of
     Left errMsg ->
@@ -182,7 +182,7 @@ executeExternalCommitAction ::
   ExternalCommitAction ->
   Sem r ()
 executeExternalCommitAction lconvOrSub senderIdentity action = do
-  let mlsMeta = (tUnqualified lconvOrSub).meta
+  let mlsMeta = (tUnqualified lconvOrSub).mlsMeta
 
   -- Remove deprecated sender client from conversation state.
   for_ action.remove $ \_ ->
