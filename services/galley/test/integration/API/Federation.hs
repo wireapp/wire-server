@@ -1160,7 +1160,7 @@ updateConversationByRemoteAdmin = do
           fedGalleyClient <- view tsFedGalleyClient
           runFedClient @"update-conversation" fedGalleyClient bdomain cnvUpdateRequest
 
-        cnvUpdate' <- liftIO $ case resp of
+        Just cnvUpdate' <- liftIO $ case resp of
           ConversationUpdateResponseError err -> assertFailure ("Expected ConversationUpdateResponseUpdate but got " <> show err)
           ConversationUpdateResponseNoChanges -> assertFailure "Expected ConversationUpdateResponseUpdate but got ConversationUpdateResponseNoChanges"
           ConversationUpdateResponseUpdate up _ftp -> pure up

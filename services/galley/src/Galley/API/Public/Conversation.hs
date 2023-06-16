@@ -54,6 +54,7 @@ conversationAPI =
     <@> mkNamedAPI @"create-one-to-one-conversation" (callsFed createOne2OneConversation)
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" (callsFed addMembersUnqualified)
     <@> mkNamedAPI @"add-members-to-conversation-unqualified2" (callsFed addMembersUnqualifiedV2)
+    <@> mkNamedAPI @"add-members-to-conversation@v2" (callsFed addMembersV2)
     <@> mkNamedAPI @"add-members-to-conversation" (callsFed addMembers)
     <@> mkNamedAPI @"join-conversation-by-id-unqualified" (callsFed joinConversationById)
     <@> mkNamedAPI @"join-conversation-by-code-unqualified" (callsFed joinConversationByReusableCode)

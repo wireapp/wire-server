@@ -107,6 +107,7 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Teams
+import Wire.API.Unreachable
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
@@ -2522,8 +2523,11 @@ testAddRemoteMember = do
   let alice = qUnqualified qalice
   let localDomain = qDomain qalice
   bobId <- randomId
-  let remoteDomain = Domain "far-away.example.com"
-      remoteBob = Qualified bobId remoteDomain
+  chadId <- randomId
+  let bobDomain = Domain "bob.example.com"
+      chadDomain = Domain "chad.example.com"
+      remoteBob = Qualified bobId bobDomain
+      remoteChad = Qualified chadId chadDomain
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   let qconvId = Qualified convId localDomain
 
@@ -2531,28 +2535,56 @@ testAddRemoteMember = do
     const 403 === statusCode
     const (Right (Just "not-connected")) === fmap (view (at "label")) . responseJsonEither @Object
 
-  connectWithRemoteUser alice remoteBob
+  mapM_ (connectWithRemoteUser alice) [remoteBob, remoteChad]
 
-  (resp, reqs) <-
-    withTempMockFederator' (respond remoteBob) $
-      postQualifiedMembers alice (remoteBob :| []) qconvId
-        <!! const 200 === statusCode
-  liftIO $ do
-    map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
-    map frRPC reqs @?= ["on-new-remote-conversation", "on-conversation-updated"]
+  do
+    (resp, reqs) <-
+      withTempMockFederator' (respond remoteBob) $
+        postQualifiedMembers alice (remoteBob :| []) qconvId
+          <!! const 200 === statusCode
+    liftIO $ do
+      map frTargetDomain reqs @?= [bobDomain, bobDomain]
+      map frRPC reqs @?= ["on-new-remote-conversation", "on-conversation-updated"]
 
-  let e = responseJsonUnsafe resp
-  let bobMember = SimpleMember remoteBob roleNameWireAdmin
-  liftIO $ do
-    evtConv e @?= qconvId
-    evtType e @?= MemberJoin
-    evtData e @?= EdMembersJoin (SimpleMembers [bobMember])
-    evtFrom e @?= qalice
-  conv <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified alice qconvId
-  liftIO $ do
-    let actual = cmOthers $ cnvMembers conv
-    let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]
-    assertEqual "other members should include remoteBob" expected actual
+    let EventWithUnreachables (Just e) _ = responseJsonUnsafe resp
+    let bobMember = SimpleMember remoteBob roleNameWireAdmin
+    liftIO $ do
+      evtConv e @?= qconvId
+      evtType e @?= MemberJoin
+      evtData e @?= EdMembersJoin (SimpleMembers [bobMember])
+      evtFrom e @?= qalice
+    conv <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified alice qconvId
+    liftIO $ do
+      let actual = cmOthers $ cnvMembers conv
+      let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]
+      assertEqual "other members should include remoteBob" expected actual
+
+  -- test adding Chad when their backend is unreachable
+  do
+    (resp, _reqs) <-
+      withTempMockFederator'
+        ( asum
+            [ mockUnreachableFor (Set.singleton chadDomain),
+              "on-new-remote-conversation" ~> EmptyResponse,
+              "on-conversation-updated" ~> ()
+            ]
+        )
+        $ postQualifiedMembers alice (remoteChad :| []) qconvId
+          -- TODO(md): this should likely be a 204 assertion (as Chad should not
+          -- be added to the conversation, hence no update). The empty response
+          -- of 204 should be changed to have a "failed_to_add" field and
+          -- probably "failed_to_send" too.
+          <!! const 200 === statusCode
+    EventWithUnreachables (Just e) ftp <- responseJsonError resp
+    let chadMember = SimpleMember remoteChad roleNameWireAdmin
+    liftIO $ do
+      -- TODO(md): the 204 response should have no event
+      evtConv e @?= qconvId
+      evtType e @?= MemberJoin
+      evtData e @?= EdMembersJoin (SimpleMembers [chadMember])
+      evtFrom e @?= qalice
+      add ftp @?= unreachableFromList [remoteChad]
+      send ftp @?= unreachableFromList [remoteChad]
   where
     respond :: Qualified UserId -> Mock LByteString
     respond bob =
@@ -2906,7 +2938,8 @@ postMembersOk = do
   connectUsers eve (singleton bob)
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   let qconv = Qualified conv (qDomain qalice)
-  e <- responseJsonError =<< postMembers alice (pure qeve) qconv <!! const 200 === statusCode
+  EventWithUnreachables (Just e) _ <-
+    responseJsonError =<< postMembers alice (pure qeve) qconv <!! const 200 === statusCode
   liftIO $ do
     evtConv e @?= qconv
     evtType e @?= MemberJoin
@@ -3875,7 +3908,9 @@ putRemoteReceiptModeOk = do
             cuAction =
               SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action
           }
-  let mockResponse = mockReply (ConversationUpdateResponseUpdate responseConvUpdate mempty)
+  let mockResponse =
+        mockReply
+          (ConversationUpdateResponseUpdate (Just responseConvUpdate) mempty)
 
   WS.bracketR c adam $ \wsAdam -> do
     (res, federatedRequests) <- withTempMockFederator' mockResponse $ do

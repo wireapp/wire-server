@@ -44,6 +44,7 @@ import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature
+import Wire.API.Unreachable
 
 type ConversationResponse = ResponseForExistedCreated Conversation
 
@@ -125,6 +126,9 @@ type CreateConversationCodeVerb =
     AddCodeResult
 
 type ConvUpdateResponses = UpdateResponses "Conversation unchanged" "Conversation updated" Event
+
+type ConvUpdateResponsesUnreachable =
+  UpdateResponses "Conversation unchanged" "Conversation updated" EventWithUnreachables
 
 type ConvJoinResponses = UpdateResponses "Conversation unchanged" "Conversation joined" Event
 
@@ -568,12 +572,13 @@ type ConversationAPI =
                :> MultiVerb 'POST '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
            )
     :<|> Named
-           "add-members-to-conversation"
+           "add-members-to-conversation@v2"
            ( Summary "Add qualified members to an existing conversation."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> From 'V2
+               :> Until 'V4
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
                :> CanThrow 'ConvNotFound
@@ -590,6 +595,34 @@ type ConversationAPI =
                :> "members"
                :> ReqBody '[Servant.JSON] InviteQualified
                :> MultiVerb 'POST '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
+           )
+    :<|> Named
+           "add-members-to-conversation"
+           ( Summary "Add qualified members to an existing conversation."
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
+               :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> From 'V4
+               :> CanThrow ('ActionDenied 'AddConversationMember)
+               :> CanThrow ('ActionDenied 'LeaveConversation)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'TooManyMembers
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow 'MissingLegalholdConsent
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> "members"
+               :> ReqBody '[Servant.JSON] InviteQualified
+               :> MultiVerb
+                    'POST
+                    '[Servant.JSON]
+                    ConvUpdateResponsesUnreachable
+                    (UpdateResult EventWithUnreachables)
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to members

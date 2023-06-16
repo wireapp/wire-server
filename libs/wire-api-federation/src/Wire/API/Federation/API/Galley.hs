@@ -400,7 +400,7 @@ data ConversationUpdateRequest = ConversationUpdateRequest
 
 data ConversationUpdateResponse
   = ConversationUpdateResponseError GalleyError
-  | ConversationUpdateResponseUpdate ConversationUpdate FailedToProcess
+  | ConversationUpdateResponseUpdate (Maybe ConversationUpdate) FailedToProcess
   | ConversationUpdateResponseNoChanges
   deriving stock (Eq, Show, Generic)
   deriving
