@@ -107,7 +107,8 @@ testDynamicBackend = do
     resp.status `shouldMatchInt` 200
     (resp.json %. "id") `shouldMatch` objId user
 
-  startOneDynBackend def $ \dynDomain -> do
+  startDynamicBackends [def] $ \dynDomains -> do
+    [dynDomain] <- pure dynDomains
     bindResponse (Nginz.getSystemSettingsUnAuthorized dynDomain) $
       \resp -> do
         resp.status `shouldMatchInt` 200
@@ -135,10 +136,7 @@ testStartMultipleDynamicBackends = do
           \resp -> do
             resp.status `shouldMatchInt` 200
             (resp.json %. "domain") `shouldMatch` domain
-  startThreeDynBackends def def def $ \d1 d2 d3 -> do
-    assertCorrectDomain d1
-    assertCorrectDomain d2
-    assertCorrectDomain d3
+  startDynamicBackends [def, def, def] $ mapM_ assertCorrectDomain
 
 testIndependentESIndices :: HasCallStack => App ()
 testIndependentESIndices = do
@@ -153,7 +151,8 @@ testIndependentESIndices = do
     case docs of
       [] -> assertFailure "Expected a non empty result, but got an empty one"
       doc : _ -> doc %. "id" `shouldMatch` uid2
-  startOneDynBackend def $ \dynDomain -> do
+  startDynamicBackends [def] $ \dynDomains -> do
+    [dynDomain] <- pure dynDomains
     uD1 <- randomUser dynDomain def
     -- searching for u1 on the dyn backend should yield no result
     bindResponse (Public.searchContacts uD1 (u2 %. "name") dynDomain) $ \resp -> do
@@ -174,7 +173,8 @@ testIndependentESIndices = do
 
 testDynamicBackendsFederation :: HasCallStack => App ()
 testDynamicBackendsFederation = do
-  startTwoDynBackends def def $ \aDynDomain anotherDynDomain -> do
+  startDynamicBackends [def, def] $ \dynDomains -> do
+    [aDynDomain, anotherDynDomain] <- pure dynDomains
     u1 <- randomUser aDynDomain def
     u2 <- randomUser anotherDynDomain def
     uid2 <- objId u2

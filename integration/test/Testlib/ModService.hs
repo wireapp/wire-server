@@ -4,9 +4,7 @@
 module Testlib.ModService
   ( withModifiedService,
     withModifiedServices,
-    startOneDynBackend,
-    startTwoDynBackends,
-    startThreeDynBackends,
+    startDynamicBackends,
   )
 where
 
@@ -72,23 +70,9 @@ copyDirectoryRecursively from to = do
       then copyDirectoryRecursively fromPath toPath
       else copyFile fromPath toPath
 
-startOneDynBackend :: ServiceOverrides -> (String -> App ()) -> App ()
-startOneDynBackend o a = startDynamicBackends [o] $ \case
-  [d] -> a d
-  _ -> assertFailure "Expected one dynamic backend to be started, but got more or less"
-
-startTwoDynBackends :: ServiceOverrides -> ServiceOverrides -> (String -> String -> App ()) -> App ()
-startTwoDynBackends o1 o2 a = startDynamicBackends [o1, o2] $ \case
-  [d1, d2] -> a d1 d2
-  _ -> assertFailure "Expected two dynamic backends to be started, but got more or less"
-
-startThreeDynBackends :: ServiceOverrides -> ServiceOverrides -> ServiceOverrides -> (String -> String -> String -> App ()) -> App ()
-startThreeDynBackends o1 o2 o3 a = startDynamicBackends [o1, o2, o3] $ \case
-  [d1, d2, d3] -> a d1 d2 d3
-  _ -> assertFailure "Expected three dynamic backends to be started, but got more or less"
-
 startDynamicBackends :: [ServiceOverrides] -> ([String] -> App ()) -> App ()
 startDynamicBackends beOverrides action = do
+  when (Prelude.length beOverrides > 3) $ failApp "Too many backends. Currently only 3 are supported."
   pool <- asks (.resourcePool)
   withResources (Prelude.length beOverrides) pool $ \resources -> do
     let recStartBackends :: [String] -> [(BackendResource, ServiceOverrides)] -> App ()
@@ -126,16 +110,16 @@ startDynamicBackend resource beOverrides action = do
     setAwsAdnQueuesConfigs :: Service -> Value -> App Value
     setAwsAdnQueuesConfigs = \case
       Brig ->
-        setFieldIfExists "aws.userJournalQueue" resource.berAwsUserJournalQueue
-          >=> setFieldIfExists "aws.prekeyTable" resource.berAwsPrekeyTable
-          >=> setFieldIfExists "internalEvents.queueName" resource.berBrigInternalEvents
-          >=> setFieldIfExists "emailSMS.email.sesQueue" resource.berEmailSMSSesQueue
-          >=> setFieldIfExists "emailSMS.general.emailSender" resource.berEmailSMSEmailSender
+        setField "aws.userJournalQueue" resource.berAwsUserJournalQueue
+          >=> setField "aws.prekeyTable" resource.berAwsPrekeyTable
+          >=> setField "internalEvents.queueName" resource.berBrigInternalEvents
+          >=> setField "emailSMS.email.sesQueue" resource.berEmailSMSSesQueue
+          >=> setField "emailSMS.general.emailSender" resource.berEmailSMSEmailSender
           >=> setField "rabbitmq.vHost" resource.berVHost
-      Cargohold -> setFieldIfExists "aws.s3Bucket" resource.berAwsS3Bucket
-      Gundeck -> setFieldIfExists "aws.queueName" resource.berAwsQueueName
+      Cargohold -> setField "aws.s3Bucket" resource.berAwsS3Bucket
+      Gundeck -> setField "aws.queueName" resource.berAwsQueueName
       Galley ->
-        setFieldIfExists "journal.queueName" resource.berGalleyJournal
+        setField "journal.queueName" resource.berGalleyJournal
           >=> setField "rabbitmq.vHost" resource.berVHost
       _ -> pure
 
@@ -152,41 +136,41 @@ startDynamicBackend resource beOverrides action = do
                 ]
                   <> [object ["domain" .= d, "search_policy" .= "full_search"] | d <- remoteDomains resource.berDomain]
               )
-            >=> setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
+            >=> setField "federatorInternal.port" resource.berFederatorInternal
         Cargohold ->
           setField "settings.federationDomain" resource.berDomain
-            >=> setFieldIfExists "federator.port" resource.berFederatorInternal
+            >=> setField "federator.port" resource.berFederatorInternal
         Galley ->
           setField "settings.federationDomain" resource.berDomain
             >=> setField "settings.featureFlags.classifiedDomains.config.domains" [resource.berDomain]
-            >=> setFieldIfExists "federator.port" resource.berFederatorInternal
+            >=> setField "federator.port" resource.berFederatorInternal
         Gundeck -> setField "settings.federationDomain" resource.berDomain
         _ -> pure
 
     setFederatorConfig :: Value -> App Value
     setFederatorConfig =
-      setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
-        >=> setFieldIfExists "federatorExternal.port" resource.berFederatorExternal
-        >=> setFieldIfExists "optSettings.setFederationDomain" resource.berDomain
+      setField "federatorInternal.port" resource.berFederatorInternal
+        >=> setField "federatorExternal.port" resource.berFederatorExternal
+        >=> setField "optSettings.setFederationDomain" resource.berDomain
 
     backGroundWorkerOverrides :: [String] -> Value -> App Value
     backGroundWorkerOverrides rds =
-      setFieldIfExists "federatorInternal.port" resource.berFederatorInternal
+      setField "federatorInternal.port" resource.berFederatorInternal
         >=> setField "remoteDomains" rds
         >=> setField "rabbitmq.vHost" resource.berVHost
 
     setKeyspace :: Service -> Value -> App Value
     setKeyspace = \case
-      Galley -> setFieldIfExists "cassandra.keyspace" resource.berGalleyKeyspace
-      Brig -> setFieldIfExists "cassandra.keyspace" resource.berBrigKeyspace
-      Spar -> setFieldIfExists "cassandra.keyspace" resource.berSparKeyspace
-      Gundeck -> setFieldIfExists "cassandra.keyspace" resource.berGundeckKeyspace
+      Galley -> setField "cassandra.keyspace" resource.berGalleyKeyspace
+      Brig -> setField "cassandra.keyspace" resource.berBrigKeyspace
+      Spar -> setField "cassandra.keyspace" resource.berSparKeyspace
+      Gundeck -> setField "cassandra.keyspace" resource.berGundeckKeyspace
       -- other services do not have a DB
       _ -> pure
 
     setEsIndex :: Service -> Value -> App Value
     setEsIndex = \case
-      Brig -> setFieldIfExists "elasticsearch.index" resource.berElasticsearchIndex
+      Brig -> setField "elasticsearch.index" resource.berElasticsearchIndex
       -- other services do not have an ES index
       _ -> pure
 
