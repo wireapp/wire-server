@@ -24,6 +24,7 @@ module Galley.Effects.FederatorAccess
     runFederatedEither,
     runFederatedConcurrently,
     runFederatedConcurrentlyEither,
+    runFederatedConcurrentlyBucketsEither,
     runFederatedConcurrently_,
     isFederationConfigured,
   )
@@ -57,6 +58,15 @@ data FederatorAccess m a where
     (KnownComponent c, Foldable f, Functor f) =>
     f (Remote x) ->
     (Remote [x] -> FederatorClient c a) ->
+    FederatorAccess m [Either (Remote [x], FederationError) (Remote a)]
+  -- | An action similar to 'RunFederatedConcurrentlyEither', but whose input is
+  -- already in buckets. The buckets are paired with arbitrary data that affect
+  -- the payload of the request for each remote backend.
+  RunFederatedConcurrentlyBucketsEither ::
+    forall (c :: Component) a m x y.
+    (KnownComponent c) =>
+    [(Remote [x], y)] ->
+    ((Remote [x], y) -> FederatorClient c a) ->
     FederatorAccess m [Either (Remote [x], FederationError) (Remote a)]
   IsFederationConfigured :: FederatorAccess m Bool
 

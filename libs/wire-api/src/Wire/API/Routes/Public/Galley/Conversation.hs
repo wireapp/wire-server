@@ -367,6 +367,7 @@ type ConversationAPI =
            ( Summary "Create a new conversation"
                :> DescriptionOAuthScope 'WriteConversations
                :> MakesFederatedCall 'Galley "on-conversation-created"
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> Until 'V3
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSMissingSenderClient
@@ -389,6 +390,7 @@ type ConversationAPI =
            ( Summary "Create a new conversation"
                :> DescriptionOAuthScope 'WriteConversations
                :> MakesFederatedCall 'Galley "on-conversation-created"
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> From 'V3
                :> Until 'V4
                :> CanThrow 'ConvAccessDenied
@@ -411,6 +413,7 @@ type ConversationAPI =
            "create-group-conversation"
            ( Summary "Create a new conversation"
                :> MakesFederatedCall 'Galley "on-conversation-created"
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> From 'V4
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSMissingSenderClient

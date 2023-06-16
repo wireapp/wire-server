@@ -43,7 +43,11 @@ data RemoteMember = RemoteMember
   { rmId :: Remote UserId,
     rmConvRoleName :: RoleName
   }
-  deriving stock (Show)
+  deriving stock (Eq, Show)
+
+instance Ord RemoteMember where
+  compare :: RemoteMember -> RemoteMember -> Ordering
+  compare = compare `on` rmId
 
 remoteMemberToOther :: RemoteMember -> OtherMember
 remoteMemberToOther x =
