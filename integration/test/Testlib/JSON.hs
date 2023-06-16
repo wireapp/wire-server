@@ -1,7 +1,6 @@
 module Testlib.JSON where
 
 import Control.Monad
-import Control.Monad.Extra (ifM)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding ((.=))
