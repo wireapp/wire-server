@@ -86,6 +86,7 @@ library
     API.Common
     API.Galley
     API.GalleyInternal
+    API.Nginz
     MLS.Util
     RunAllTests
     SetupHelpers
@@ -106,6 +107,7 @@ library
     Testlib.Prelude
     Testlib.Printing
     Testlib.PTest
+    Testlib.ResourcePool
     Testlib.Run
     Testlib.Types
 
@@ -114,6 +116,7 @@ library
     , aeson-pretty
     , array
     , async
+    , attoparsec
     , base
     , base64-bytestring
     , bytestring
@@ -123,12 +126,14 @@ library
     , data-default
     , directory
     , exceptions
+    , extra
     , filepath
     , hex
     , http-client
     , http-types
     , kan-extensions
     , mime
+    , monad-control
     , mtl
     , network
     , network-uri
@@ -146,6 +151,7 @@ library
     , text
     , time
     , transformers
+    , transformers-base
     , unix
     , unliftio
     , uuid

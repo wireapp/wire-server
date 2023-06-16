@@ -73,3 +73,9 @@ deleteOAuthClient user cid = do
   clientId <- objId cid
   req <- baseRequest user Brig Unversioned $ "i/oauth/clients/" <> clientId
   submit "DELETE" req
+
+refreshIndex :: (HasCallStack, MakesValue domain) => domain -> App ()
+refreshIndex domain = do
+  req <- baseRequest domain Brig Unversioned "i/index/refresh"
+  res <- submit "POST" req
+  res.status `shouldMatchInt` 200

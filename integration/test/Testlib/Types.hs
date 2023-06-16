@@ -1,8 +1,11 @@
 module Testlib.Types where
 
 import Control.Exception as E
+import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Reader
+import Control.Monad.Trans.Control
+import Data.Aeson (Value)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import Data.ByteString (ByteString)
@@ -10,6 +13,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
+import Data.Default
 import Data.Functor
 import Data.Hex
 import Data.IORef
@@ -100,8 +104,14 @@ newtype App a = App {unApp :: ReaderT Env IO a}
       MonadMask,
       MonadCatch,
       MonadThrow,
-      MonadReader Env
+      MonadReader Env,
+      MonadBase IO
     )
+
+instance MonadBaseControl IO App where
+  type StM App a = StM (ReaderT Env IO) a
+  liftBaseWith f = App (liftBaseWith (\g -> f (g . unApp)))
+  restoreM = App . restoreM
 
 runAppWithEnv :: Env -> App a -> IO a
 runAppWithEnv e m = runReaderT (unApp m) e
@@ -169,3 +179,40 @@ modifyFailure modifyAssertion action = do
             E.throw (modifyAssertion e)
         )
     )
+
+data ServiceOverrides = ServiceOverrides
+  { dbBrig :: Value -> App Value,
+    dbCannon :: Value -> App Value,
+    dbCargohold :: Value -> App Value,
+    dbGalley :: Value -> App Value,
+    dbGundeck :: Value -> App Value,
+    dbNginz :: Value -> App Value,
+    dbSpar :: Value -> App Value
+  }
+
+instance Default ServiceOverrides where
+  def = defaultServiceOverrides
+
+defaultServiceOverrides :: ServiceOverrides
+defaultServiceOverrides =
+  ServiceOverrides
+    { dbBrig = pure,
+      dbCannon = pure,
+      dbCargohold = pure,
+      dbGalley = pure,
+      dbGundeck = pure,
+      dbNginz = pure,
+      dbSpar = pure
+    }
+
+defaultServiceOverridesToMap :: ServiceOverrides -> Map.Map Service (Value -> App Value)
+defaultServiceOverridesToMap overrides =
+  Map.fromList
+    [ (Brig, dbBrig overrides),
+      (Cannon, dbCannon overrides),
+      (Cargohold, dbCargohold overrides),
+      (Galley, dbGalley overrides),
+      (Gundeck, dbGundeck overrides),
+      (Nginz, dbNginz overrides),
+      (Spar, dbSpar overrides)
+    ]
