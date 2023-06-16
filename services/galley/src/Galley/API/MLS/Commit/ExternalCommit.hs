@@ -72,6 +72,9 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
       curEpoch = cnvmlsEpoch convOrSub.meta
       groupId = cnvmlsGroupId convOrSub.meta
   when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
+  when (epoch == Epoch 0) $
+    throw $
+      mlsProtocolError "The first commit in a group cannot be external"
   proposals <- traverse getInlineProposal commit.proposals
 
   -- According to the spec, an external commit must contain:

@@ -117,6 +117,21 @@ getSubConversation user conv sub = do
         ]
   submit "GET" req
 
+deleteSubConversation ::
+  (HasCallStack, MakesValue user, MakesValue sub) =>
+  user ->
+  sub ->
+  App Response
+deleteSubConversation user sub = do
+  (conv, Just subId) <- objSubConv sub
+  (domain, convId) <- objQid conv
+  groupId <- sub %. "group_id" & asString
+  epoch :: Int <- sub %. "epoch" & asIntegral
+  req <-
+    baseRequest user Galley Versioned $
+      joinHttpPath ["conversations", domain, convId, "subconversations", subId]
+  submit "DELETE" $ req & addJSONObject ["group_id" .= groupId, "epoch" .= epoch]
+
 getSelfConversation :: (HasCallStack, MakesValue user) => user -> App Response
 getSelfConversation user = do
   req <- baseRequest user Galley Versioned "/conversations/mls-self"

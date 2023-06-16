@@ -125,30 +125,9 @@ getLocalSubConversation qusr lconv sconv = do
         MLSMigrationMixed -> throwS @'MLSSubConvUnsupportedConvType
         MLSMigrationMLS -> pure ()
 
-      -- deriving this detemernistically to prevent race condition between
+      -- deriving this deterministically to prevent race conditions with
       -- multiple threads creating the subconversation
-      let groupId =
-            convToGroupId
-              . groupIdParts (Data.convType c)
-              $ flip SubConv sconv <$> tUntagged lconv
-          epoch = Epoch 0
-          suite = cnvmlsCipherSuite mlsMeta
-      Eff.createSubConversation (tUnqualified lconv) sconv suite epoch groupId Nothing
-      let sub =
-            SubConversation
-              { scParentConvId = tUnqualified lconv,
-                scSubConvId = sconv,
-                scMLSData =
-                  ConversationMLSData
-                    { cnvmlsGroupId = groupId,
-                      cnvmlsEpoch = epoch,
-                      cnvmlsEpochTimestamp = Nothing,
-                      cnvmlsCipherSuite = suite
-                    },
-                scMembers = mkClientMap [],
-                scIndexMap = mempty
-              }
-      pure sub
+      pure (newSubConversationFromParent lconv sconv mlsMeta)
     Just sub -> pure sub
   pure (toPublicSubConv (tUntagged (qualifyAs lconv sub)))
 
@@ -307,7 +286,7 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
             $ nextGenGroupId gid
 
     -- the following overwrites any prior information about the subconversation
-    Eff.createSubConversation cnvId scnvId cs (Epoch 0) newGid Nothing
+    void $ Eff.createSubConversation cnvId scnvId cs newGid
 
 deleteRemoteSubConversation ::
   ( Members

@@ -351,17 +351,11 @@ testJoinSubConv = do
   traverse_ uploadNewKeyPackage [bob1, bob2]
   (_, qcnv) <- createNewGroup alice1
   void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-
-  sub <- bindResponse (getSubConversation bob qcnv "conference") $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json
-  resetGroup bob1 sub
+  void $ createSubConv bob1 "conference"
 
   -- bob adds his first client to the subconversation
   void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
-  sub' <- bindResponse (getSubConversation bob qcnv "conference") $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json
+  sub' <- getSubConversation bob qcnv "conference" >>= getJSON 200
   do
     tm <- sub' %. "epoch_timestamp"
     assertBool "Epoch timestamp should not be null" (tm /= Null)
@@ -381,11 +375,7 @@ testDeleteParentOfSubConv secondDomain = do
   traverse_ uploadNewKeyPackage [alice1, bob1]
   (_, qcnv) <- createNewGroup alice1
   void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-
-  sub <- bindResponse (getSubConversation bob qcnv "conference") $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json
-  resetGroup bob1 sub
+  void $ createSubConv bob1 "conference"
 
   -- bob adds his client to the subconversation
   void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle

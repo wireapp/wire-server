@@ -94,6 +94,7 @@ library
     Test.MLS
     Test.MLS.KeyPackage
     Test.MLS.One2One
+    Test.MLS.SubConversation
     Test.User
     Testlib.App
     Testlib.Assertions
