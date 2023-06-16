@@ -63,12 +63,19 @@ insertSubConversation ::
   ConvId ->
   SubConvId ->
   CipherSuiteTag ->
-  Epoch ->
   GroupId ->
-  Maybe GroupInfoData ->
-  Client ()
-insertSubConversation convId subConvId suite epoch groupId mGroupInfo =
-  retry x5 (write Cql.insertSubConversation (params LocalQuorum (convId, subConvId, suite, epoch, groupId, mGroupInfo)))
+  Client SubConversation
+insertSubConversation convId subConvId suite groupId = do
+  retry
+    x5
+    ( write
+        Cql.insertSubConversation
+        ( params
+            LocalQuorum
+            (convId, subConvId, suite, Epoch 0, groupId, Nothing)
+        )
+    )
+  pure (newSubConversation convId subConvId suite groupId)
 
 updateSubConvGroupInfo :: ConvId -> SubConvId -> Maybe GroupInfoData -> Client ()
 updateSubConvGroupInfo convId subConvId mGroupInfo =
@@ -110,8 +117,8 @@ interpretSubConversationStoreToCassandra ::
   Sem (SubConversationStore ': r) a ->
   Sem r a
 interpretSubConversationStoreToCassandra = interpret $ \case
-  CreateSubConversation convId subConvId suite epoch groupId mGroupInfo ->
-    embedClient (insertSubConversation convId subConvId suite epoch groupId mGroupInfo)
+  CreateSubConversation convId subConvId suite groupId ->
+    embedClient (insertSubConversation convId subConvId suite groupId)
   GetSubConversation convId subConvId -> embedClient (selectSubConversation convId subConvId)
   GetSubConversationGroupInfo convId subConvId -> embedClient (selectSubConvGroupInfo convId subConvId)
   GetSubConversationEpoch convId subConvId -> embedClient (selectSubConvEpoch convId subConvId)

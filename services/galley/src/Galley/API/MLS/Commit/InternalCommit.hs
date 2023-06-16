@@ -38,6 +38,7 @@ import qualified Galley.Data.Conversation.Types as Data
 import Galley.Effects
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
+import Galley.Effects.SubConversationStore
 import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
@@ -164,6 +165,22 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
                         throwS @'MLSClientMismatch
                     pure Nothing
           for_ (unreachableFromList failedAddFetching) throwUnreachableUsers
+
+          -- Some types of conversations are created lazily on the first
+          -- commit. We do that here, with the commit lock held, but before
+          -- applying changes to the member list.
+          case convOrSub.id of
+            SubConv cnv sub | epoch == Epoch 0 -> do
+              -- create subconversation if it doesn't exist
+              msub' <- getSubConversation cnv sub
+              when (isNothing msub') $
+                void $
+                  createSubConversation
+                    cnv
+                    sub
+                    convOrSub.meta.cnvmlsCipherSuite
+                    convOrSub.meta.cnvmlsGroupId
+            _ -> pure () -- FUTUREWORK: create 1-1 conversation at epoch 0
 
           -- remove users from the conversation and send events
           removeEvents <-

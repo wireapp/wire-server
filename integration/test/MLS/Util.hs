@@ -193,9 +193,16 @@ createGroup cid conv = do
     Nothing -> pure ()
   resetGroup cid conv
 
+createSubConv :: ClientIdentity -> String -> App ()
+createSubConv cid subId = do
+  mls <- getMLSState
+  sub <- getSubConversation cid mls.convId subId >>= getJSON 200
+  resetGroup cid sub
+  void $ createPendingProposalCommit cid >>= sendAndConsumeCommitBundle
+
 resetGroup :: MakesValue conv => ClientIdentity -> conv -> App ()
 resetGroup cid conv = do
-  convId <- make conv
+  convId <- objSubConvObject conv
   groupId <- conv %. "group_id" & asString
   modifyMLSState $ \s ->
     s

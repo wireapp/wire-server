@@ -210,9 +210,6 @@ tests s =
               test s "fail to add another client to a subconversation via internal commit" testAddClientSubConvFailure,
               test s "remove another client from a subconversation" testRemoveClientSubConv,
               test s "send an application message in a subconversation" testSendMessageSubConv,
-              test s "reset a subconversation as a creator" (testDeleteSubConv SubConvMember),
-              test s "reset a subconversation as a conversation member" (testDeleteSubConv ConvMember),
-              test s "reset a subconversation as a random user" (testDeleteSubConv RandomUser),
               test s "reset a subconversation and assert no leftover proposals" testJoinDeletedSubConvWithRemoval,
               test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale,
               test s "leave a subconversation as a creator" (testLeaveSubConv True),
@@ -238,9 +235,7 @@ tests s =
             "Remote Sender/Local SubConversation"
             [ test s "get subconversation as a remote member" (testRemoteMemberGetSubConv True),
               test s "get subconversation as a remote non-member" (testRemoteMemberGetSubConv False),
-              test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv,
-              test s "delete subconversation as a remote member" (testRemoteMemberDeleteSubConv True),
-              test s "delete subconversation as a remote non-member" (testRemoteMemberDeleteSubConv False)
+              test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv
             ],
           testGroup
             "Remote Sender/Remote SubConversation"
@@ -2470,111 +2465,6 @@ testRemoteMemberGetSubConv isAMember = do
     expectSubConvError :: GalleyError -> GetSubConversationsResponse -> TestM ()
     expectSubConvError _errExpected (GetSubConversationsResponseSuccess _) = liftIO $ assertFailure "Unexpected GetSubConversationsResponseSuccess"
     expectSubConvError errExpected (GetSubConversationsResponseError err) = liftIO $ err @?= errExpected
-
-testRemoteMemberDeleteSubConv :: HasCallStack => Bool -> TestM ()
-testRemoteMemberDeleteSubConv isAMember = do
-  -- alice is local, bob is remote
-  -- alice creates a local conversation and invites bob
-  -- bob deletes a subconversation via federated enpdoint
-
-  let bobDomain = Domain "faraway.example.com"
-      scnv = SubConvId "conference"
-  [alice, bob] <- createAndConnectUsers [Nothing, Just (domainText bobDomain)]
-
-  (cnv, groupId, epoch) <- runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient [alice, bob]
-    (_cnvGroupId, qcnv) <- setupMLSGroup alice1
-    mp <- createAddCommit alice1 [bob]
-
-    let mock = receiveCommitMock [bob1] <|> welcomeMock
-    void . withTempMockFederator' mock . sendAndConsumeCommitBundle $ mp
-
-    sub <-
-      liftTest $
-        responseJsonError
-          =<< getSubConv (qUnqualified alice) qcnv scnv
-    resetGroup alice1 (fmap (flip SubConv scnv) qcnv) (pscGroupId sub)
-
-    pure (qUnqualified qcnv, pscGroupId sub, pscEpoch sub)
-
-  randUser <- randomId
-  let delReq =
-        DeleteSubConversationFedRequest
-          { dscreqUser = if isAMember then qUnqualified bob else randUser,
-            dscreqConv = cnv,
-            dscreqSubConv = scnv,
-            dscreqGroupId = groupId,
-            dscreqEpoch = epoch
-          }
-
-  -- Bob is a member of the parent conversation so he's allowed to delete the
-  -- subconversation.
-  (res, _reqs) <-
-    withTempMockFederator' deleteMLSConvMock $ do
-      fedGalleyClient <- view tsFedGalleyClient
-      runFedClient @"delete-sub-conversation" fedGalleyClient bobDomain delReq
-
-  if isAMember then expectSuccess res else expectFailure ConvNotFound res
-  where
-    expectSuccess :: DeleteSubConversationResponse -> TestM ()
-    expectSuccess DeleteSubConversationResponseSuccess = pure ()
-    expectSuccess (DeleteSubConversationResponseError err) =
-      liftIO . assertFailure $
-        "Unexpected DeleteSubConversationResponseError: " <> show err
-
-    expectFailure :: GalleyError -> DeleteSubConversationResponse -> TestM ()
-    expectFailure _errExpected DeleteSubConversationResponseSuccess =
-      liftIO . assertFailure $
-        "Unexpected DeleteSubConversationResponseSuccess"
-    expectFailure errExpected (DeleteSubConversationResponseError err) =
-      liftIO $ err @?= errExpected
-
--- | A choice on who is deleting a subconversation
-data SubConvDeleterType
-  = ConvMember
-  | SubConvMember
-  | RandomUser
-  deriving (Eq)
-
-testDeleteSubConv :: SubConvDeleterType -> TestM ()
-testDeleteSubConv deleterType = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
-  randUser <- randomId
-  let sconv = SubConvId "conference"
-  qcnv <- runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient [alice, bob]
-    void $ uploadNewKeyPackage bob1
-    (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-    void $ createSubConv qcnv alice1 sconv
-    pure qcnv
-
-  sub <-
-    responseJsonError
-      =<< getSubConv (qUnqualified alice) qcnv sconv
-        <!! const 200 === statusCode
-  let dsc = DeleteSubConversationRequest (pscGroupId sub) (pscEpoch sub)
-  let (deleter, expectedCode) = case deleterType of
-        ConvMember -> (qUnqualified bob, 200)
-        SubConvMember -> (qUnqualified alice, 200)
-        RandomUser -> (randUser, 403)
-  deleteSubConv deleter qcnv sconv dsc !!! const expectedCode === statusCode
-
-  newSub <-
-    responseJsonError
-      =<< getSubConv (qUnqualified alice) qcnv sconv
-        <!! do const 200 === statusCode
-
-  liftIO $
-    if deleterType == ConvMember || deleterType == SubConvMember
-      then
-        assertBool
-          "Old and new subconversation are equal"
-          (sub /= newSub)
-      else
-        assertBool
-          "Old and new subconversation are not equal"
-          (sub == newSub)
 
 -- In this test case, Alice creates a subconversation, Bob joins and Alice
 -- leaves. The leaving causes the backend to generate an external remove

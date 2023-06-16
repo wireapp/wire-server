@@ -205,7 +205,9 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
 
   (events, newClients) <- case bundle.sender of
     SenderMember _index -> do
+      -- extract added/removed clients from bundle
       action <- getCommitData senderIdentity lConvOrSub bundle.epoch bundle.commit.value
+      -- process additions and removals
       events <-
         processInternalCommit
           senderIdentity
@@ -445,7 +447,8 @@ fetchConvOrSub qusr convOrSubId = for convOrSubId $ \case
   SubConv convId sconvId -> do
     let lconv = qualifyAs convOrSubId convId
     c <- getMLSConv qusr lconv
-    subconv <- getSubConversation convId sconvId >>= noteS @'ConvNotFound
+    msubconv <- getSubConversation convId sconvId
+    let subconv = fromMaybe (newSubConversationFromParent lconv sconvId (mcMLSData c)) msubconv
     pure (SubConv c subconv)
   where
     getMLSConv :: Qualified UserId -> Local ConvId -> Sem r MLSConversation
