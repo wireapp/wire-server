@@ -1,6 +1,9 @@
 module Test.MLS.One2One where
 
 import API.Galley
+import qualified Data.ByteString.Base64 as Base64
+import qualified Data.ByteString.Char8 as B8
+import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
 
@@ -9,7 +12,6 @@ testGetMLSOne2One otherDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
 
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-
   conv %. "type" `shouldMatchInt` 2
   others <- conv %. "members.others" & asList
   other <- assertOne others
@@ -42,3 +44,21 @@ testGetMLSOne2OneSameTeam = do
   (alice, _) <- createTeam OwnDomain
   bob <- addUserToTeam alice
   void $ getMLSOne2OneConversation alice bob >>= getJSON 200
+
+testMLSOne2One :: HasCallStack => Domain -> App ()
+testMLSOne2One otherDomain = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
+  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+  traverse_ uploadNewKeyPackage [bob1]
+
+  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  resetGroup alice1 conv
+
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+  withWebSocket bob1 $ \ws -> do
+    mp <- createApplicationMessage alice1 "hello, world"
+    void $ sendAndConsumeMessage mp
+    let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
+    n <- awaitMatch 3 isMessage ws
+    nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode (mp.message))
