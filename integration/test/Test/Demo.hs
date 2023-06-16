@@ -174,12 +174,12 @@ testIndependentESIndices = do
 
 testDynamicBackendsFederation :: HasCallStack => App ()
 testDynamicBackendsFederation = do
-  startTwoDynBackends defaultDynBackendConfigOverrides defaultDynBackendConfigOverrides $ \dynDomain1 dynDomain2 -> do
-    u1 <- randomUser dynDomain1 def
-    u2 <- randomUser dynDomain2 def
+  startTwoDynBackends defaultDynBackendConfigOverrides defaultDynBackendConfigOverrides $ \aDynDomain anotherDynDomain -> do
+    u1 <- randomUser aDynDomain def
+    u2 <- randomUser anotherDynDomain def
     uid2 <- objId u2
-    Internal.refreshIndex dynDomain2
-    bindResponse (Public.searchContacts u1 (u2 %. "name") dynDomain2) $ \resp -> do
+    Internal.refreshIndex anotherDynDomain
+    bindResponse (Public.searchContacts u1 (u2 %. "name") anotherDynDomain) $ \resp -> do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "documents" >>= asList
       case docs of

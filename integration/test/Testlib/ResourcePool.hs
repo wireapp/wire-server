@@ -11,7 +11,6 @@ where
 import Control.Concurrent
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Data.Char
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
@@ -112,12 +111,12 @@ backendResources n =
     federatorExternalPort :: Num a => a -> a
     federatorExternalPort i = 8098 + ((1 + i) * 1000)
 
-    -- Fixed domain for a backend resource, e.g. for dynamic backends: 1 -> "c.example.com", 2 -> "d.example.com", etc.
+    -- Fixed domain for a backend resource, e.g. for dynamic backends: 1 -> "d1.example.com", 2 -> "d2.example.com", etc.
     domain :: Integral a => a -> String
-    domain i = [chr (ord 'c' + fromIntegral i - 1)] <> ".example.com"
+    domain i = "d" <> show @Int (fromIntegral i) <> ".example.com"
 
     mkVHost :: Integral a => a -> String
     mkVHost = domain
 
 remoteDomains :: String -> [String]
-remoteDomains domain = ["c.example.com", "d.example.com", "e.example.com"] \\ [domain]
+remoteDomains domain = ["d1.example.com", "d2.example.com", "d3.example.com"] \\ [domain]
