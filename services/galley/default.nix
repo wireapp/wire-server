@@ -14,7 +14,6 @@
 , base
 , base64-bytestring
 , bilge
-, binary
 , brig-types
 , bytestring
 , bytestring-conversion
@@ -223,7 +222,6 @@ mkDerivation {
     base
     base64-bytestring
     bilge
-    binary
     brig-types
     bytestring
     bytestring-conversion
