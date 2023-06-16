@@ -43,6 +43,7 @@ module Wire.API.User.RichInfo
   )
 where
 
+import Control.Lens ((?~))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -66,8 +67,24 @@ import Wire.Arbitrary (Arbitrary (arbitrary))
 newtype RichInfo = RichInfo {unRichInfo :: RichInfoAssocList}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
-  deriving newtype (ToSchema)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema RichInfo
+  deriving (S.ToSchema) via Schema RichInfo
+
+instance A.ToJSON RichInfo where
+  toJSON = A.toJSON . fromRichInfoAssocList . unRichInfo
+
+instance A.FromJSON RichInfo where
+  parseJSON = fmap (RichInfo . toRichInfoAssocList) . A.parseJSON
+
+-- | WARNING!  do not derive this, and do not use it for deriving aeson instances.
+-- Serialization is going via `RichInfoMapAndList`, somewhat surprisingly, not via the
+-- wrapped `RichInfoAssocList`.
+instance ToSchema RichInfo where
+  schema =
+    objectWithDocModifier "RichInfo" descr $
+      RichInfo . toRichInfoAssocList <$> (fromRichInfoAssocList . unRichInfo) .= richInfoMapAndListObjectSchema
+    where
+      descr :: NamedSwaggerDoc -> NamedSwaggerDoc
+      descr = description ?~ "NB: Note the dynamic object fields in `richInfoMap`!"
 
 instance Monoid RichInfo where
   mempty = RichInfo mempty
@@ -97,6 +114,31 @@ data RichInfoMapAndList = RichInfoMapAndList
     richInfoAssocList :: [RichField]
   }
   deriving stock (Eq, Show, Generic)
+
+-- | WARNING!  do not derive this, and do not use it for deriving aeson instances.  The parser
+-- generates objects with dynamic fields.
+instance ToSchema RichInfoMapAndList where
+  schema = objectWithDocModifier "RichInfoMapAndList" descr richInfoMapAndListObjectSchema
+    where
+      descr :: NamedSwaggerDoc -> NamedSwaggerDoc
+      descr = description ?~ "NB: Note the dynamic object fields in `richInfoMap`!"
+
+-- | WARNING!  do not use for deriving aeson instances.
+richInfoMapAndListObjectSchema :: ObjectSchemaP SwaggerDoc RichInfoMapAndList RichInfoMapAndList
+richInfoMapAndListObjectSchema =
+  RichInfoMapAndList
+    <$> richInfoMap .= field (undefined richInfoMapURN) richInfoMapSchema
+    <*> richInfoAssocList .= field (undefined richInfoAssocListURN) (array schema)
+
+-- | WARNING!  do not use for deriving aeson instances.
+richInfoMapSchema :: ValueSchema SwaggerDoc (Map (CI Text) Text)
+richInfoMapSchema = mkSchema mempty prs gen
+  where
+    prs :: Aeson.Value -> Aeson.Parser (Map (CI Text) Text)
+    prs = undefined
+
+    gen :: (Map (CI Text) Text) -> Maybe Aeson.Value
+    gen = undefined
 
 -- | Uses 'normalizeRichInfoMapAndList'.
 mkRichInfoMapAndList :: [RichField] -> RichInfoMapAndList

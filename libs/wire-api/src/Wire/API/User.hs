@@ -493,7 +493,12 @@ data UpdateConnectionsInternal
     CreateConnectionForTest UserId (Qualified UserId)
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateConnectionsInternal)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UpdateConnectionsInternal
+  deriving (S.ToSchema) via Schema UpdateConnectionsInternal
+
+instance FromJSON UpdateConnectionsInternal
+
+-- | `{"tag":"BlockForMissingLHConsent","contents":["3ae7f23a-bd47-11eb-932d-5fccbbcde454",["3ae7f23a-bd47-11eb-932d-5fccbbcde454"]]}`
+instance ToJSON UpdateConnectionsInternal
 
 instance ToSchema UpdateConnectionsInternal where
   schema =
