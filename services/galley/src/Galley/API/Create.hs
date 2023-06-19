@@ -294,7 +294,7 @@ createProteusSelfConversation lusr = do
     create lcnv = do
       let nc =
             NewConversation
-              { ncMetadata = (defConversationMetadata (tUnqualified lusr)) {cnvmType = SelfConv},
+              { ncMetadata = (defConversationMetadata (Just (tUnqualified lusr))) {cnvmType = SelfConv},
                 ncUsers = ulFromLocals [toUserRole (tUnqualified lusr)],
                 ncProtocol = ProtocolCreateProteusTag
               }
@@ -383,7 +383,7 @@ createLegacyOne2OneConversationUnchecked ::
 createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   lcnv <- localOne2OneConvId self other
   let meta =
-        (defConversationMetadata (tUnqualified self))
+        (defConversationMetadata (Just (tUnqualified self)))
           { cnvmType = One2OneConv,
             cnvmTeam = mtid,
             cnvmName = fmap fromRange name
@@ -447,7 +447,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
     Just c -> conversationExisted self c
     Nothing -> do
       let meta =
-            (defConversationMetadata (tUnqualified self))
+            (defConversationMetadata (Just (tUnqualified self)))
               { cnvmType = One2OneConv,
                 cnvmTeam = mtid,
                 cnvmName = fmap fromRange name
@@ -495,7 +495,7 @@ createConnectConversation lusr conn j = do
   lrecipient <- ensureLocal lusr (cRecipient j)
   n <- rangeCheckedMaybe (cName j)
   let meta =
-        (defConversationMetadata (tUnqualified lusr))
+        (defConversationMetadata (Just (tUnqualified lusr)))
           { cnvmType = ConnectConv,
             cnvmName = fmap fromRange n
           }
@@ -588,7 +588,7 @@ newRegularConversation lusr newConv = do
           { ncMetadata =
               ConversationMetadata
                 { cnvmType = RegularConv,
-                  cnvmCreator = tUnqualified lusr,
+                  cnvmCreator = Just (tUnqualified lusr),
                   cnvmAccess = access newConv,
                   cnvmAccessRoles = accessRoles newConv,
                   cnvmName = fmap fromRange (newConvName newConv),
@@ -649,7 +649,7 @@ notifyCreatedConversation lusr conn c = do
   now <- input
   -- Ask remote server to store conversation membership and notify remote users
   -- of being added to a conversation
-  failedToNotify <- registerRemoteConversationMemberships now (tDomain lusr) c
+  failedToNotify <- registerRemoteConversationMemberships now lusr c
   let allRemotes = Data.convRemoteMembers c
       notifiedRemotes =
         filter

@@ -1595,7 +1595,7 @@ assertConv ::
   HasCallStack =>
   Response (Maybe Lazy.ByteString) ->
   ConvType ->
-  UserId ->
+  Maybe UserId ->
   Qualified UserId ->
   [Qualified UserId] ->
   Maybe Text ->
@@ -1607,7 +1607,7 @@ assertConvWithRole ::
   HasCallStack =>
   Response (Maybe Lazy.ByteString) ->
   ConvType ->
-  UserId ->
+  Maybe UserId ->
   Qualified UserId ->
   [Qualified UserId] ->
   Maybe Text ->
@@ -2428,7 +2428,7 @@ mkProteusConv cnvId creator selfRole otherMembers =
     cnvId
     ( ConversationMetadata
         RegularConv
-        creator
+        (Just creator)
         []
         (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
         (Just "federated gossip")

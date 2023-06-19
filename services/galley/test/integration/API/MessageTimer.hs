@@ -80,7 +80,7 @@ messageTimerInit mtimer = do
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing mtimer
       <!! const 201 === statusCode
-  cid <- assertConv rsp RegularConv alice qalice [qbob, qjane] Nothing mtimer
+  cid <- assertConv rsp RegularConv (Just alice) qalice [qbob, qjane] Nothing mtimer
   -- Check that the timer is indeed what it should be
   getConvQualified jane cid
     !!! const mtimer === (cnvMessageTimer <=< responseJsonUnsafe)
@@ -93,7 +93,7 @@ messageTimerChange = do
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
-  qcid <- assertConv rsp RegularConv alice qalice [qbob, qjane] Nothing Nothing
+  qcid <- assertConv rsp RegularConv (Just alice) qalice [qbob, qjane] Nothing Nothing
   let cid = qUnqualified qcid
   -- Set timer to null and observe 204
   putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate Nothing)
@@ -122,7 +122,7 @@ messageTimerChangeQualified = do
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
-  qcid <- assertConv rsp RegularConv alice qalice [qbob, qjane] Nothing Nothing
+  qcid <- assertConv rsp RegularConv (Just alice) qalice [qbob, qjane] Nothing Nothing
   -- Set timer to null and observe 204
   putMessageTimerUpdateQualified alice qcid (ConversationMessageTimerUpdate Nothing)
     !!! const 204 === statusCode
@@ -255,7 +255,7 @@ messageTimerChangeO2O = do
   rsp <-
     postO2OConv alice bob Nothing
       <!! const 200 === statusCode
-  qcid <- assertConv rsp One2OneConv alice qalice [qbob] Nothing Nothing
+  qcid <- assertConv rsp One2OneConv (Just alice) qalice [qbob] Nothing Nothing
   let cid = qUnqualified qcid
   -- Try to change the timer and observe failure
   putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate timer1sec) !!! do
@@ -273,7 +273,7 @@ messageTimerEvent = do
   rsp <-
     postConv alice [bob] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
-  qcid <- assertConv rsp RegularConv alice qalice [qbob] Nothing Nothing
+  qcid <- assertConv rsp RegularConv (Just alice) qalice [qbob] Nothing Nothing
   let cid = qUnqualified qcid
   -- Set timer to 1 second and check that all participants got the event
   WS.bracketR2 ca alice bob $ \(wsA, wsB) -> do

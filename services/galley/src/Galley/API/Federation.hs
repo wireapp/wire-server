@@ -837,7 +837,7 @@ getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
       let getLocal lconv = do
             mconv <- E.getConversation (tUnqualified lconv)
             fmap GetOne2OneConversationOk $ case mconv of
-              Nothing -> pure (localMLSOne2OneConversationAsRemote rself lother lconv)
+              Nothing -> pure (localMLSOne2OneConversationAsRemote lother lconv)
               Just conv ->
                 note
                   (InternalErrorWithDescription "Unexpected member list in 1-1 conversation")

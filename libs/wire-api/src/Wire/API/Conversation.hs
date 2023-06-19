@@ -125,7 +125,7 @@ import Wire.Arbitrary
 data ConversationMetadata = ConversationMetadata
   { cnvmType :: ConvType,
     -- FUTUREWORK: Make this a qualified user ID.
-    cnvmCreator :: UserId,
+    cnvmCreator :: Maybe UserId,
     cnvmAccess :: [Access],
     cnvmAccessRoles :: Set AccessRole,
     cnvmName :: Maybe Text,
@@ -139,11 +139,11 @@ data ConversationMetadata = ConversationMetadata
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
   deriving (FromJSON, ToJSON) via Schema ConversationMetadata
 
-defConversationMetadata :: UserId -> ConversationMetadata
-defConversationMetadata creator =
+defConversationMetadata :: Maybe UserId -> ConversationMetadata
+defConversationMetadata mCreator =
   ConversationMetadata
     { cnvmType = RegularConv,
-      cnvmCreator = creator,
+      cnvmCreator = mCreator,
       cnvmAccess = [PrivateAccess],
       cnvmAccessRoles = mempty,
       cnvmName = Nothing,
@@ -192,10 +192,10 @@ conversationMetadataObjectSchema sch =
   ConversationMetadata
     <$> cnvmType .= field "type" schema
     <*> cnvmCreator
-      .= fieldWithDocModifier
+      .= optFieldWithDocModifier
         "creator"
         (description ?~ "The creator's user ID")
-        schema
+        (maybeWithDefault A.Null schema)
     <*> cnvmAccess .= field "access" (array schema)
     <*> cnvmAccessRoles .= sch
     <*> cnvmName .= optField "name" (maybeWithDefault A.Null schema)
@@ -241,7 +241,7 @@ data Conversation = Conversation
 cnvType :: Conversation -> ConvType
 cnvType = cnvmType . cnvMetadata
 
-cnvCreator :: Conversation -> UserId
+cnvCreator :: Conversation -> Maybe UserId
 cnvCreator = cnvmCreator . cnvMetadata
 
 cnvAccess :: Conversation -> [Access]

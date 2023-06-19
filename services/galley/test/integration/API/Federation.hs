@@ -1152,7 +1152,7 @@ updateConversationByRemoteAdmin = do
         postConvQualified alice Nothing defNewProteusConv {newConvName = checked convName, newConvQualifiedUsers = [qbob, qcharlie]}
           <!! const 201 === statusCode
 
-    cnv <- assertConv rsp RegularConv alice qalice [qbob, qcharlie] (Just convName) Nothing
+    cnv <- assertConv rsp RegularConv (Just alice) qalice [qbob, qcharlie] (Just convName) Nothing
 
     let newReceiptMode = ReceiptMode 41
     let action = SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) (ConversationReceiptModeUpdate newReceiptMode)

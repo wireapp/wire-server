@@ -46,7 +46,7 @@ localMLSOne2OneConversation lself qother (tUntagged -> convId) =
           { cmSelf = defMember (tUntagged lself),
             cmOthers = [defOtherMember qother]
           }
-      (metadata, protocol) = localMLSOne2OneConversationMetadata (tUntagged lself) convId
+      (metadata, protocol) = localMLSOne2OneConversationMetadata convId
    in Conversation
         { cnvQualifiedId = convId,
           cnvMetadata = metadata,
@@ -57,17 +57,16 @@ localMLSOne2OneConversation lself qother (tUntagged -> convId) =
 -- | Construct a 'RemoteConversation' structure for a local MLS 1-1
 -- conversation to be returned to a remote backend.
 localMLSOne2OneConversationAsRemote ::
-  Remote UserId ->
   Local UserId ->
   Local ConvId ->
   RemoteConversation
-localMLSOne2OneConversationAsRemote rself lother lcnv =
+localMLSOne2OneConversationAsRemote lother lcnv =
   let members =
         RemoteConvMembers
           { rcmSelfRole = roleNameWireMember,
             rcmOthers = [defOtherMember (tUntagged lother)]
           }
-      (metadata, protocol) = localMLSOne2OneConversationMetadata (tUntagged rself) (tUntagged lcnv)
+      (metadata, protocol) = localMLSOne2OneConversationMetadata (tUntagged lcnv)
    in RemoteConversation
         { rcnvId = tUnqualified lcnv,
           rcnvMetadata = metadata,
@@ -76,14 +75,11 @@ localMLSOne2OneConversationAsRemote rself lother lcnv =
         }
 
 localMLSOne2OneConversationMetadata ::
-  Qualified UserId ->
   Qualified ConvId ->
   (ConversationMetadata, Protocol)
-localMLSOne2OneConversationMetadata self convId =
+localMLSOne2OneConversationMetadata convId =
   let metadata =
-        ( defConversationMetadata
-            (qUnqualified self)
-        )
+        (defConversationMetadata Nothing)
           { cnvmType = One2OneConv
           }
       groupId = convToGroupId $ groupIdParts One2OneConv (fmap Conv convId)

@@ -341,7 +341,7 @@ postProteusConvOk = do
     rsp <-
       postConv alice [bob, jane] (Just nameMaxSize) [] Nothing Nothing
         <!! const 201 === statusCode
-    qcid <- assertConv rsp RegularConv alice qalice [qbob, qjane] (Just nameMaxSize) Nothing
+    qcid <- assertConv rsp RegularConv (Just alice) qalice [qbob, qjane] (Just nameMaxSize) Nothing
     let cid = qUnqualified qcid
     cvs <- mapM (convView cid) [alice, bob, jane]
     liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs qalice) (zip cvs [wsA, wsB, wsJ])
@@ -400,7 +400,7 @@ postConvWithRemoteUsersOk rbs = do
       assertConv
         rsp
         RegularConv
-        alice
+        (Just alice)
         qAlice
         shouldBePresent
         (Just nameMaxSize)
@@ -2491,8 +2491,8 @@ postSelfConvOk = do
   let alice = qUnqualified qalice
   m <- postSelfConv alice <!! const 200 === statusCode
   n <- postSelfConv alice <!! const 200 === statusCode
-  mId <- assertConv m SelfConv alice qalice [] Nothing Nothing
-  nId <- assertConv n SelfConv alice qalice [] Nothing Nothing
+  mId <- assertConv m SelfConv (Just alice) qalice [] Nothing Nothing
+  nId <- assertConv n SelfConv (Just alice) qalice [] Nothing Nothing
   liftIO $ mId @=? nId
 
 postO2OConvOk :: TestM ()
@@ -2502,8 +2502,8 @@ postO2OConvOk = do
   connectUsers alice (singleton bob)
   a <- postO2OConv alice bob Nothing <!! const 200 === statusCode
   c <- postO2OConv alice bob Nothing <!! const 200 === statusCode
-  aId <- assertConv a One2OneConv alice qalice [qbob] Nothing Nothing
-  cId <- assertConv c One2OneConv alice qalice [qbob] Nothing Nothing
+  aId <- assertConv a One2OneConv (Just alice) qalice [qbob] Nothing Nothing
+  cId <- assertConv c One2OneConv (Just alice) qalice [qbob] Nothing Nothing
   liftIO $ aId @=? cId
 
 postConvO2OFailWithSelf :: TestM ()
@@ -2526,8 +2526,8 @@ postConnectConvOk = do
   n <-
     postConnectConv alice bob "Alice" "connect with me!" Nothing
       <!! const 200 === statusCode
-  mId <- assertConv m ConnectConv alice qalice [] (Just "Alice") Nothing
-  nId <- assertConv n ConnectConv alice qalice [] (Just "Alice") Nothing
+  mId <- assertConv m ConnectConv (Just alice) qalice [] (Just "Alice") Nothing
+  nId <- assertConv n ConnectConv (Just alice) qalice [] (Just "Alice") Nothing
   liftIO $ mId @=? nId
 
 postConnectConvOk2 :: TestM ()
@@ -2572,13 +2572,13 @@ postMutualConnectConvOk = do
   ac <-
     postConnectConv alice bob "A" "a" Nothing
       <!! const 201 === statusCode
-  acId <- assertConv ac ConnectConv alice qalice [] (Just "A") Nothing
+  acId <- assertConv ac ConnectConv (Just alice) qalice [] (Just "A") Nothing
   bc <-
     postConnectConv bob alice "B" "b" Nothing
       <!! const 200 === statusCode
   -- The connect conversation was simply accepted, thus the
   -- conversation name and message sent in Bob's request ignored.
-  bcId <- assertConv bc One2OneConv alice qbob [qalice] (Just "A") Nothing
+  bcId <- assertConv bc One2OneConv (Just alice) qbob [qalice] (Just "A") Nothing
   liftIO $ acId @=? bcId
 
 postRepeatConnectConvCancel :: TestM ()
@@ -2709,7 +2709,7 @@ accessConvMeta = do
   let meta =
         ConversationMetadata
           RegularConv
-          alice
+          (Just alice)
           [InviteAccess]
           (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole])
           (Just "gossip")
