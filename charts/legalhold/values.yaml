@@ -13,12 +13,3 @@
 
 # The shared secret that the backend uses to authenticate to legalhold
 # serviceToken: ""
-
-podSecurityContext:
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-      - ALL
-  # runAsNonRoot: true
-  seccompProfile:
-    type: RuntimeDefault
