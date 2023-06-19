@@ -16,7 +16,7 @@ testSearchContactForExternalUsers = do
   bindResponse (Internal.putTeamMember partner (partner %. "team") (API.teamRole "partner")) $ \resp ->
     resp.status `shouldMatchInt` 200
 
-  bindResponse (Public.searchContacts partner (owner %. "name")) $ \resp ->
+  bindResponse (Public.searchContacts partner (owner %. "name") OwnDomain) $ \resp ->
     resp.status `shouldMatchInt` 403
 
 testCrudOAuthClient :: HasCallStack => App ()

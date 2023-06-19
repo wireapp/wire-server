@@ -17,6 +17,7 @@
 , case-insensitive
 , conduit
 , conduit-extra
+, containers
 , cryptonite
 , data-default
 , errors
@@ -88,6 +89,7 @@ mkDerivation {
     case-insensitive
     conduit
     conduit-extra
+    containers
     cryptonite
     data-default
     errors
@@ -133,6 +135,7 @@ mkDerivation {
     bytestring-conversion
     cargohold-types
     conduit
+    containers
     cryptonite
     federator
     HsOpenSSL

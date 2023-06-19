@@ -32,7 +32,6 @@ import qualified Brig.Options as Opt
 import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
 import Brig.Types.Activation
-import Brig.Types.Intra
 import qualified Brig.ZAuth as ZAuth
 import Control.Concurrent.Async
 import Control.Exception (throw)
@@ -112,7 +111,8 @@ import Wire.API.Internal.Notification
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Member hiding (userId)
-import Wire.API.User
+import Wire.API.User hiding (AccountStatus (..))
+import qualified Wire.API.User as WU
 import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
@@ -817,22 +817,22 @@ isMember g usr cnv = do
     Nothing -> pure False
     Just m -> pure (tUntagged usr == memId m)
 
-getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m AccountStatus
+getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m WU.AccountStatus
 getStatus brig u =
-  (^?! key "status" . (_JSON @Value @AccountStatus)) . (responseJsonUnsafe @Value)
+  (^?! key "status" . (_JSON @Value @WU.AccountStatus)) . (responseJsonUnsafe @Value)
     <$> get
       ( brig
           . paths ["i", "users", toByteString' u, "status"]
           . expect2xx
       )
 
-chkStatus :: HasCallStack => Brig -> UserId -> AccountStatus -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
+chkStatus :: HasCallStack => Brig -> UserId -> WU.AccountStatus -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
 chkStatus brig u s =
   get (brig . paths ["i", "users", toByteString' u, "status"]) !!! do
     const 200 === statusCode
     const (Just (toJSON s)) === ((^? key "status") <=< responseBody)
 
-setStatus :: Brig -> UserId -> AccountStatus -> Http ()
+setStatus :: Brig -> UserId -> WU.AccountStatus -> Http ()
 setStatus brig u s =
   let js = RequestBodyLBS . encode $ AccountStatusUpdate s
    in put

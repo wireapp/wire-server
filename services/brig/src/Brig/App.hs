@@ -136,7 +136,6 @@ import qualified Database.Bloodhound as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports
 import qualified Network.AMQP as Q
-import Network.AMQP.Extended (RabbitMqHooks (RabbitMqHooks))
 import qualified Network.AMQP.Extended as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -259,7 +258,7 @@ newEnv o = do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
-  rabbitChan <- mkRabbitMqChannel lgr o
+  rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -311,18 +310,6 @@ newEnv o = do
       smtp <- SMTP.initSMTP lgr host port smtpCredentials (Opt.smtpConnType s)
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
-
-mkRabbitMqChannel :: Logger -> Opts -> IO (Maybe (MVar Q.Channel))
-mkRabbitMqChannel l (Opt.rabbitmq -> Just Opt.RabbitMqOpts {..}) = do
-  chan <- newEmptyMVar
-  Q.openConnectionWithRetries l host port vHost $
-    RabbitMqHooks
-      { onNewChannel = putMVar chan,
-        onChannelException = \_ -> void $ tryTakeMVar chan,
-        onConnectionClose = void $ tryTakeMVar chan
-      }
-  pure $ Just chan
-mkRabbitMqChannel _ _ = pure Nothing
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
 mkIndexEnv o lgr mgr mtr galleyEndpoint =

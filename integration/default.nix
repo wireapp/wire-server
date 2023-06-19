@@ -7,6 +7,7 @@
 , aeson-pretty
 , array
 , async
+, attoparsec
 , base
 , base64-bytestring
 , bytestring
@@ -17,6 +18,7 @@
 , data-default
 , directory
 , exceptions
+, extra
 , filepath
 , gitignoreSource
 , hex
@@ -24,6 +26,8 @@
 , http-types
 , kan-extensions
 , lib
+, mime
+, monad-control
 , mtl
 , network
 , network-uri
@@ -41,6 +45,7 @@
 , text
 , time
 , transformers
+, transformers-base
 , unix
 , unliftio
 , uuid
@@ -59,6 +64,7 @@ mkDerivation {
     aeson-pretty
     array
     async
+    attoparsec
     base
     base64-bytestring
     bytestring
@@ -68,11 +74,14 @@ mkDerivation {
     data-default
     directory
     exceptions
+    extra
     filepath
     hex
     http-client
     http-types
     kan-extensions
+    mime
+    monad-control
     mtl
     network
     network-uri
@@ -90,6 +99,7 @@ mkDerivation {
     text
     time
     transformers
+    transformers-base
     unix
     unliftio
     uuid

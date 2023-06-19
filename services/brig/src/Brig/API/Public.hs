@@ -60,7 +60,7 @@ import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
-import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
+import Brig.Types.Intra (UserAccount (UserAccount, accountUser))
 import Brig.Types.User (HavePendingInvitations (..))
 import qualified Brig.User.API.Handle as Handle
 import Brig.User.API.Search (teamUserSearch)
@@ -696,7 +696,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <-
     Auth.toWebCookie =<< case acc of
-      UserAccount _ Ephemeral ->
+      UserAccount _ Public.Ephemeral ->
         lift . wrapHttpClient $
           Auth.newCookie @ZAuth.User userId Nothing Public.SessionCookie newUserLabel
       UserAccount _ _ ->

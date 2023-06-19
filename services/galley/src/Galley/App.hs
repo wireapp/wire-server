@@ -89,6 +89,7 @@ import qualified Galley.Queue as Q
 import qualified Galley.Types.Teams as Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (forkIO)
+import Network.AMQP.Extended
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import qualified Network.Wai.Utilities.Error as Wai
@@ -168,7 +169,7 @@ createEnv m o = do
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
     <*> loadAllMLSKeys (fold (o ^. optSettings . setMlsPrivateKeyPaths))
-    <*> mkRabbitMqChannel l o
+    <*> traverse (mkRabbitMqChannelMVar l) (o ^. optRabbitmq)
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do

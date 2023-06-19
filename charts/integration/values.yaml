@@ -11,3 +11,8 @@ config:
 
   elasticsearch:
     host: elasticsearch-ephemeral
+
+  sqsEndpointUrl: http://fake-aws-sqs:4568
+  sesEndpointUrl: http://fake-aws-ses:4569
+  s3EndpointUrl: http://fake-aws-s3:9000
+  rabbitmqPutVHostUrl: http://rabbitmq:15672/api/vhosts

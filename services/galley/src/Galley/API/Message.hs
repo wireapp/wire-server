@@ -49,7 +49,6 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Data.Set.Lens
-import Data.Singletons
 import Data.Time.Clock (UTCTime)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.Push
@@ -254,6 +253,7 @@ postBroadcast ::
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
     Member GundeckAccess r,
+    Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
@@ -466,7 +466,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
             $ guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
         throw e
       failedToSend <-
-        sendMessages @'NormalMessage
+        sendMessages
           now
           sender
           senderClient
@@ -525,13 +525,11 @@ makeUserMap keys = (<> Map.fromSet (const mempty) keys)
 -- | Send both local and remote messages, return the set of clients for which
 -- sending has failed.
 sendMessages ::
-  forall t r.
-  ( t ~ 'NormalMessage,
-    ( Member GundeckAccess r,
-      Member ExternalAccess r,
-      Member FederatorAccess r,
-      Member P.TinyLog r
-    )
+  forall r.
+  ( Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member P.TinyLog r
   ) =>
   UTCTime ->
   Qualified UserId ->
@@ -547,13 +545,16 @@ sendMessages now sender senderClient mconn lcnv botMap metadata messages = do
   let send dom =
         foldQualified
           lcnv
-          (\l -> sendLocalMessages @t l now sender senderClient mconn (Just (tUntagged lcnv)) botMap metadata)
+          (\l -> sendLocalMessages l now sender senderClient mconn (Just (tUntagged lcnv)) botMap metadata)
           (\r -> sendRemoteMessages r now sender senderClient lcnv metadata)
           (Qualified () dom)
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
 
 sendBroadcastMessages ::
-  Member GundeckAccess r =>
+  ( Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member P.TinyLog r
+  ) =>
   Local x ->
   UTCTime ->
   Qualified UserId ->
@@ -565,7 +566,7 @@ sendBroadcastMessages ::
 sendBroadcastMessages loc now sender senderClient mconn metadata messages = do
   let messageMap = byDomain $ fmap toBase64Text messages
       localMessages = Map.findWithDefault mempty (tDomain loc) messageMap
-  failed <- sendLocalMessages @'Broadcast loc now sender senderClient mconn Nothing mempty metadata localMessages
+  failed <- sendLocalMessages loc now sender senderClient mconn Nothing mempty metadata localMessages
   pure . mkQualifiedUserClientsByDomain $ Map.singleton (tDomain loc) failed
 
 byDomain :: Map (Domain, UserId, ClientId) a -> Map Domain (Map (UserId, ClientId) a)
@@ -575,10 +576,10 @@ byDomain =
     mempty
 
 sendLocalMessages ::
-  forall t r x.
-  ( SingI t,
-    Members (MessagePushEffects t) r,
-    Monoid (MessagePush t)
+  forall r x.
+  ( Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member P.TinyLog r
   ) =>
   Local x ->
   UTCTime ->
@@ -603,8 +604,8 @@ sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMe
       pushes =
         events
           & itraversed
-            %@~ newMessagePush loc botMap mconn metadata
-  runMessagePush @t loc qcnv (pushes ^. traversed)
+            %@~ (\(u, c) -> newMessagePush botMap mconn metadata [(u, c)])
+  for_ pushes $ runMessagePush loc qcnv
   pure mempty
 
 -- | Send remote messages to the backend given by the domain argument, and
