@@ -597,7 +597,6 @@ executable galley-schema
     V82_MLSSubconversation
     V83_MLSDraft17
     V84_TeamFeatureMlsMigration
-    V85_DropUserClientThresholdFromTeamFeatureMlsMigration
 
   hs-source-dirs:     schema/src
   default-extensions: TemplateHaskell

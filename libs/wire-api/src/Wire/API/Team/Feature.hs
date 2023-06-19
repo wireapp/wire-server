@@ -1063,18 +1063,9 @@ instance Arbitrary MlsMigrationConfig where
 instance ToSchema MlsMigrationConfig where
   schema =
     object "MlsMigration" $
-      withParser
-        ( MlsMigrationConfig
-            <$> startTime .= maybe_ (optField "startTime" utcTimeSchema)
-            <*> finaliseRegardlessAfter .= maybe_ (optField "finaliseRegardlessAfter" utcTimeSchema)
-        )
-        checkConfig
-    where
-      checkConfig c = do
-        when
-          (isNothing c.finaliseRegardlessAfter)
-          $ fail "At least one of finaliseRegardlessAfter, usersThreshold or clientsThreshold must be set"
-        pure c
+      MlsMigrationConfig
+        <$> startTime .= maybe_ (optField "startTime" utcTimeSchema)
+        <*> finaliseRegardlessAfter .= maybe_ (optField "finaliseRegardlessAfter" utcTimeSchema)
 
 instance IsFeatureConfig MlsMigrationConfig where
   type FeatureSymbol MlsMigrationConfig = "mlsMigration"
