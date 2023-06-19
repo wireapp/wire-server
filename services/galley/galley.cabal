@@ -250,12 +250,10 @@ library
     , safe-exceptions        >=0.1
     , saml2-web-sso          >=0.19
     , schema-profunctor
-    , semigroups
     , servant
     , servant-client
     , servant-server
     , singletons
-    , singletons-th
     , split                  >=0.2
     , ssl-util               >=0.1
     , stm                    >=2.4
@@ -431,7 +429,6 @@ executable galley-integration
     , base
     , base64-bytestring
     , bilge
-    , binary
     , brig-types
     , bytestring
     , bytestring-conversion
