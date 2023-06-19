@@ -19,6 +19,8 @@ There are several ways to interpret this kind of documentation:
 ## Swagger docs (Swagger 2.0)
 
 The Swagger documentation for endpoints depends on the API version.
+For a list of all versions of swagger docs, [curl-get
+`https://staging-nginz-https.zinfra.io/api/swagger-ui`](https://staging-nginz-https.zinfra.io/api/swagger-ui).
 
 The pages below show [Swagger / OpenAPI 2.0](https://swagger.io/specification/v2/)
 docs.

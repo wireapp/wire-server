@@ -94,6 +94,17 @@ shouldMatchSet a b = do
   lb <- fmap sort (asList b)
   la `shouldMatch` lb
 
+shouldContainString ::
+  HasCallStack =>
+  -- | The actual value
+  String ->
+  -- | The expected value
+  String ->
+  App ()
+super `shouldContainString` sub = do
+  unless (sub `isInfixOf` super) $ do
+    assertFailure $ "String:\n" <> show super <> "\nDoes not contain:\n" <> show sub
+
 liftP2 ::
   (MakesValue a, MakesValue b, HasCallStack) =>
   (Value -> Value -> c) ->
