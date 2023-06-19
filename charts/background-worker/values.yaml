@@ -20,7 +20,10 @@ config:
     host: rabbitmq
     port: 5672
     vHost: /
-  remoteDomains: []
+    adminPort: 15672
+    adminEnableTLS: false
+  backendNotificationPusher:
+    remotesRefreshInterval: 60 # seconds
 
 serviceAccount:
   # When setting this to 'false', either make sure that a service account named
