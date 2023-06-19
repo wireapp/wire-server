@@ -88,6 +88,8 @@ spec:
       requests:
         memory: "512Mi"
         cpu: "2"
+    securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 8 }}
 
   containers:
   - name: integration
@@ -147,3 +149,5 @@ spec:
         secretKeyRef:
           name: brig
           key: rabbitmqPassword
+    securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 8 }}
