@@ -78,7 +78,7 @@ import Network.Wai (Response)
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
-import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import Network.Wai.Utilities.ZAuth (zauthConnId)
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
@@ -116,7 +116,8 @@ servantSitemap ::
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
-  ejpdAPI
+  istatusAPI
+    :<|> ejpdAPI
     :<|> accountAPI
     :<|> mlsAPI
     :<|> getVerificationCode
@@ -126,6 +127,9 @@ servantSitemap =
     :<|> internalOauthAPI
     :<|> internalSearchIndexAPI
     :<|> federationRemotesAPI
+
+istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
+istatusAPI = Named @"get-status" (pure NoContent)
 
 ejpdAPI ::
   Member GalleyProvider r =>
@@ -161,6 +165,10 @@ accountAPI ::
 accountAPI =
   Named @"createUserNoVerify" (callsFed (exposeAnnotations createUserNoVerify))
     :<|> Named @"createUserNoVerifySpar" (callsFed (exposeAnnotations createUserNoVerifySpar))
+    :<|> Named @"putSelfEmail" changeSelfEmailMaybeSendH
+    :<|> Named @"iDeleteUser" deleteUserNoAuthH
+    :<|> Named @"iPutUserStatus" changeAccountStatusH
+    :<|> Named @"iGetUserStatus" getAccountStatusH
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -416,24 +424,6 @@ sitemap ::
   ) =>
   Routes a (Handler r) ()
 sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
-  get "/i/status" (continue $ const $ pure empty) true
-  head "/i/status" (continue $ const $ pure empty) true
-
-  -- internal email activation (used in tests and in spar for validating emails obtained as
-  -- SAML user identifiers).  if the validate query parameter is false or missing, only set
-  -- the activation timeout, but do not send an email, and do not do anything about activating
-  -- the email.
-  put "/i/self/email" (continue changeSelfEmailMaybeSendH) $
-    zauthUserId
-      .&. def False (query "validate")
-      .&. jsonRequest @EmailUpdate
-
-  -- This endpoint will lead to the following events being sent:
-  -- - UserDeleted event to all of its contacts
-  -- - MemberLeave event to members for all conversations the user was in (via galley)
-  delete "/i/users/:uid" (continue deleteUserNoAuthH) $
-    capture "uid"
-
   put "/i/connections/connection-update" (continue updateConnectionInternalH) $
     accept "application" "json"
       .&. jsonRequest @UpdateConnectionsInternal
@@ -450,14 +440,6 @@ sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
     accept "application" "json"
       .&. (param "email" ||| param "phone")
       .&. def False (query "includePendingInvitations")
-
-  put "/i/users/:uid/status" (continue changeAccountStatusH) $
-    capture "uid"
-      .&. jsonRequest @AccountStatusUpdate
-
-  get "/i/users/:uid/status" (continue getAccountStatusH) $
-    accept "application" "json"
-      .&. capture "uid"
 
   get "/i/users/:uid/contacts" (continue getContactListH) $
     accept "application" "json"
@@ -662,20 +644,18 @@ createUserNoVerifySpar uData =
        in API.activate key code (Just uid) !>> CreateUserSparRegistrationError . activationErrorToRegisterError
     pure . SelfProfile $ usr
 
-deleteUserNoAuthH :: UserId -> (Handler r) Response
+deleteUserNoAuthH :: UserId -> (Handler r) DeleteUserResponse
 deleteUserNoAuthH uid = do
   r <- lift $ wrapHttp $ API.ensureAccountDeleted uid
   case r of
     NoUser -> throwStd (errorToWai @'E.UserNotFound)
-    AccountAlreadyDeleted -> pure $ setStatus ok200 empty
-    AccountDeleted -> pure $ setStatus accepted202 empty
+    AccountAlreadyDeleted -> pure UserResponseAccountAlreadyDeleted
+    AccountDeleted -> pure UserResponseAccountDeleted
 
-changeSelfEmailMaybeSendH :: Member BlacklistStore r => UserId ::: Bool ::: JsonRequest EmailUpdate -> (Handler r) Response
-changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
-  email <- euEmail <$> parseJsonBody req
-  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates >>= \case
-    ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
-    ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
+changeSelfEmailMaybeSendH :: Member BlacklistStore r => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
+  let email = euEmail body
+  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
@@ -765,18 +745,18 @@ newtype GetPasswordResetCodeResp = GetPasswordResetCodeResp (PasswordResetKey, P
 instance ToJSON GetPasswordResetCodeResp where
   toJSON (GetPasswordResetCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-changeAccountStatusH :: UserId ::: JsonRequest AccountStatusUpdate -> (Handler r) Response
-changeAccountStatusH (usr ::: req) = do
-  status <- suStatus <$> parseJsonBody req
-  wrapHttpClientE (API.changeSingleAccountStatus usr status) !>> accountStatusError
-  pure empty
+changeAccountStatusH :: UserId -> AccountStatusUpdate -> (Handler r) NoContent
+changeAccountStatusH usr (suStatus -> status) = do
+  wrapHttpClientE (API.changeSingleAccountStatus usr status) !>> accountStatusError -- FUTUREWORK: use CanThrow and related machinery
+  pure NoContent
 
-getAccountStatusH :: JSON ::: UserId -> (Handler r) Response
-getAccountStatusH (_ ::: usr) = do
-  status <- lift $ wrapClient $ API.lookupStatus usr
-  pure $ case status of
-    Just s -> json $ AccountStatusResp s
-    Nothing -> setStatus status404 empty
+getAccountStatusH :: UserId -> (Handler r) AccountStatusResp
+getAccountStatusH uid = do
+  status <- lift $ wrapClient $ API.lookupStatus uid
+  maybe
+    (throwStd (errorToWai @'E.UserNotFound))
+    (pure . AccountStatusResp)
+    status
 
 getConnectionsStatusUnqualified :: ConnectionsStatusRequest -> Maybe Relation -> (Handler r) [ConnectionStatus]
 getConnectionsStatusUnqualified ConnectionsStatusRequest {csrFrom, csrTo} flt = lift $ do

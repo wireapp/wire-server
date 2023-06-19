@@ -793,7 +793,6 @@ test-suite brig-tests
     , base
     , binary
     , brig
-    , brig-types
     , bytestring
     , containers
     , data-timeout

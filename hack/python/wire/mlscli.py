@@ -7,7 +7,6 @@ import json
 import string
 import tempfile
 import shutil
-from . import mls_pb2
 import pickle
 import uuid
 
@@ -145,6 +144,16 @@ class ClientState:
             state._load_attr(name, typ)
         return state
 
+    def back_up(self):
+        os.system('rm -rf /tmp/client_state_backup')
+        os.system(f'cp -r {self.client_dir} /tmp/client_state_backup')
+
+    @staticmethod
+    def restore_backup_into(client_dir):
+        os.system(f'rm -rf {client_dir}')
+        os.system(f'cp -r /tmp/client_state_backup {client_dir}')
+        return ClientState.load(client_dir)
+
 
 def key_package_file(state, ref):
     return os.path.join(state.client_dir, cid2str(state.client_identity), ref.hex())
@@ -180,7 +189,6 @@ def add_member(state, kpfiles):
     # note: these files are saved in the sender's client dir
     welcome_file = os.path.join(state.client_dir, "welcome")
     pgs_file = os.path.join(state.client_dir, "pgs")
-    print("pgs_file", pgs_file)
 
     args = [
         "member",
@@ -213,25 +221,21 @@ def add_member(state, kpfiles):
     }
     return message_package
 
+i = 0
 
 def make_bundle(message_package):
     mp = message_package
-
-    # GroupInfoBundle UnencryptedGroupInfo TreeFull pgsB
-    gib = mls_pb2.GroupInfoBundle()
-    # GROUP_INFO corresponds to UnencryptedGroupInfo in the haskell types
-    gib.group_info_type = mls_pb2.GroupInfoType.GROUP_INFO
-    # FULL correseponds to TreeFull in the haskell types
-    gib.ratchet_tree_type = mls_pb2.RatchetTreeType.FULL
-    gib.group_info = mp["public_group_state"]
-
-    cb = mls_pb2.CommitBundle()
-    cb.commit = mp["message"]
-    cb.welcome = mp["welcome"]
-    cb.group_info_bundle.CopyFrom(gib)
-
-    return cb.SerializeToString()
-
+    b = mp['message']
+    global i
+    if mp['public_group_state']:
+        b += b'\x00\x01\x00\x04'
+        b += mp['public_group_state']
+        with open(f'/tmp/pgs-{i}.bin', 'wb') as f:
+            f.write(mp['public_group_state'])
+    if mp['welcome']:
+        b += mp['welcome']
+    i += 1
+    return b
 
 def consume_welcome(state, welcome):
     args = [

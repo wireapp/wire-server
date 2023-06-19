@@ -25,7 +25,7 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
 import Brig.Types.Connection
-import Brig.Types.Intra (UserAccount (..))
+import Brig.Types.Intra
 import Control.Applicative
 import Control.Concurrent.Async
 import Control.Exception (throw)
@@ -139,7 +139,7 @@ import Wire.API.Team.Member hiding (userId)
 import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
-import Wire.API.User
+import Wire.API.User hiding (AccountStatus (..))
 import Wire.API.User.Auth hiding (Access)
 import Wire.API.User.Client
 import qualified Wire.API.User.Client as Client

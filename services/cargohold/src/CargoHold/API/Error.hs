@@ -63,6 +63,9 @@ uploadTooLarge =
     "The current chunk size + offset \
     \is larger than the full upload size."
 
+noMatchingAssetEndpoint :: Error
+noMatchingAssetEndpoint = errorToWai @'NoMatchingAssetEndpoint
+
 clientError :: LText -> Error
 clientError = mkError status400 "client-error"
 

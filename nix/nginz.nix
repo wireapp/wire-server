@@ -30,39 +30,13 @@ let
     '';
   };
 
-  # copied from nixpkgs fakeNss, but using nginx as username
-  nginxFakeNss = symlinkJoin {
-    name = "fake-nss";
-    paths = [
-      (writeTextDir "etc/passwd" ''
-        root:x:0:0:root user:/var/empty:/bin/sh
-        nginx:x:101:101:nginx:/var/empty:/bin/sh
-        nobody:x:65534:65534:nobody:/var/empty:/bin/sh
-      '')
-      (writeTextDir "etc/group" ''
-        root:x:0:
-        nginx:x:101:
-        nobody:x:65534:
-      '')
-      (writeTextDir "etc/nsswitch.conf" ''
-        hosts: files dns
-      '')
-      (runCommand "var-empty" { } ''
-        mkdir -p $out/var/empty
-      '')
-      # it seems nginx still tries to log, and doesn't create
-      # these directories automatically
-      (runCommand "nginx-misc" { } ''
-        mkdir -p $out/var/log/nginx
-        mkdir -p $out/var/cache/nginx
-      '')
-    ];
-  };
-
   # Docker tools doesn't create tmp directories but nginx needs this and so we
   # have to create it ourself.
   tmpDir = runCommand "tmp-dir" { } ''
     mkdir -p $out/tmp
+    mkdir -p $out/var/cache/nginx
+    mkdir -p $out/var/log/nginx
+    mkdir -p $out/var/run
     mkdir -p $out/var/tmp
   '';
 
@@ -75,7 +49,8 @@ let
       gnugrep
       which
       coreutils
-      nginxFakeNss
+      dockerTools.fakeNss
+      dockerTools.usrBinEnv
       nginz # so preStop lifecycle hook in cannon can nginx -c … quit
       tmpDir
     ];
@@ -84,10 +59,14 @@ let
     fakeRootCommands = ''
       chmod 1777 tmp
       chmod 1777 var/tmp
+      chmod 1777 var/run
+      chmod 1777 var/log/nginx
+      chmod 1777 var/cache/nginx
     '';
     config = {
       Entrypoint = [ "${dumb-init}/bin/dumb-init" "--" "${nginzWithReloader}/bin/nginz_reload.sh" "-g" "daemon off;" "-c" "/etc/wire/nginz/conf/nginx.conf" ];
       Env = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt" ];
+      User = "nobody";
     };
   };
 in
