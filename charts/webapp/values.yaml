@@ -50,3 +50,12 @@ envVars: {}
 #   CSP_EXTRA_PREFETCH_SRC: "https://*.example.com"
 #   CSP_EXTRA_STYLE_SRC: "https://*.example.com"
 #   CSP_EXTRA_WORKER_SRC: "https://*.example.com"
+
+podSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  # runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
