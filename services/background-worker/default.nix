@@ -5,6 +5,7 @@
 { mkDerivation
 , aeson
 , amqp
+, containers
 , exceptions
 , extended
 , federator
@@ -17,6 +18,8 @@
 , monad-control
 , QuickCheck
 , retry
+, servant-client
+, text
 , tinylog
 , transformers-base
 , types-common
@@ -32,6 +35,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
+    containers
     exceptions
     extended
     HsOpenSSL
@@ -39,6 +43,8 @@ mkDerivation {
     imports
     monad-control
     retry
+    servant-client
+    text
     tinylog
     transformers-base
     types-common

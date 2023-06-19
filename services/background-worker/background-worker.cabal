@@ -27,6 +27,7 @@ library
   build-depends:
       aeson
     , amqp
+    , containers
     , exceptions
     , extended
     , HsOpenSSL
@@ -34,6 +35,8 @@ library
     , imports
     , monad-control
     , retry
+    , servant-client
+    , text
     , tinylog
     , transformers-base
     , types-common

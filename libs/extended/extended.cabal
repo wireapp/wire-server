@@ -20,6 +20,7 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Network.AMQP.Extended
+    Network.RabbitMqAdmin
     Options.Applicative.Extended
     Servant.API.Extended
     Servant.API.Extended.RawM
@@ -85,6 +86,10 @@ library
     , errors
     , exceptions
     , extra
+    , first-class-families
+    , HsOpenSSL
+    , http-client
+    , http-client-openssl
     , http-types
     , imports
     , metrics-wai
@@ -93,6 +98,10 @@ library
     , resourcet
     , retry
     , servant
+    , servant-client
+    , servant-client-core
+    , servant-queryparam-client
+    , servant-queryparam-core
     , servant-server
     , servant-swagger
     , text

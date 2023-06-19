@@ -8,8 +8,11 @@ import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import HTTP2.Client.Manager
 import Imports
+import Network.AMQP.Extended
+import qualified Network.RabbitMqAdmin as RabbitMqAdmin
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
+import qualified Servant.Client as Servant
 import qualified System.Logger as Log
 import System.Logger.Class
 import qualified System.Logger.Extended as Log
@@ -18,6 +21,9 @@ import Wire.BackgroundWorker.Options
 
 data Env = Env
   { http2Manager :: Http2Manager,
+    rabbitmqAdminClientEnv :: Servant.ClientEnv,
+    rabbitmqAdminClient :: RabbitMqAdmin.AdminAPI (Servant.AsClientT Servant.ClientM),
+    rabbitmqVHost :: Text,
     logger :: Logger,
     federatorInternal :: Endpoint
   }
@@ -27,6 +33,8 @@ mkEnv opts = do
   http2Manager <- initHttp2Manager
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
   let federatorInternal = opts.federatorInternal
+  (rabbitmqAdminClientEnv, rabbitmqAdminClient) <- mkRabbitMqAdminClientEnv opts.rabbitmq
+  let rabbitmqVHost = opts.rabbitmq.vHost
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager

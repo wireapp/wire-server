@@ -12,9 +12,13 @@
 , errors
 , exceptions
 , extra
+, first-class-families
 , gitignoreSource
+, HsOpenSSL
 , hspec
 , hspec-discover
+, http-client
+, http-client-openssl
 , http-types
 , imports
 , lib
@@ -24,6 +28,10 @@
 , resourcet
 , retry
 , servant
+, servant-client
+, servant-client-core
+, servant-queryparam-client
+, servant-queryparam-core
 , servant-server
 , servant-swagger
 , temporary
@@ -45,6 +53,10 @@ mkDerivation {
     errors
     exceptions
     extra
+    first-class-families
+    HsOpenSSL
+    http-client
+    http-client-openssl
     http-types
     imports
     metrics-wai
@@ -53,6 +65,10 @@ mkDerivation {
     resourcet
     retry
     servant
+    servant-client
+    servant-client-core
+    servant-queryparam-client
+    servant-queryparam-core
     servant-server
     servant-swagger
     text

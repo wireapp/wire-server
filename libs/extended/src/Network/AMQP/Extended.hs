@@ -1,12 +1,23 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Network.AMQP.Extended where
 
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Control.Retry
-import Data.Aeson (FromJSON)
+import Data.Aeson
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Imports
 import qualified Network.AMQP as Q
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Client.OpenSSL as HTTP
+import Network.RabbitMqAdmin
+import OpenSSL.Session (SSLOption (..))
+import qualified OpenSSL.Session as SSL
+import qualified Servant
+import Servant.Client
+import qualified Servant.Client as Servant
 import System.Logger (Logger)
 import qualified System.Logger as Log
 
@@ -22,20 +33,62 @@ data RabbitMqHooks m = RabbitMqHooks
     onChannelException :: SomeException -> m ()
   }
 
+data RabbitMqAdminOpts = RabbitMqAdminOpts
+  { host :: !String,
+    port :: !Int,
+    vHost :: !Text,
+    adminPort :: !Int,
+    adminEnableTLS :: !Bool,
+    -- | When CA is not specified and TLS is enabled, system CA will be used.
+    adminCA :: !(Maybe Text)
+  }
+  deriving (Show, Generic)
+
+instance FromJSON RabbitMqAdminOpts
+
+mkRabbitMqAdminClientEnv :: RabbitMqAdminOpts -> IO (Servant.ClientEnv, AdminAPI (AsClientT ClientM))
+mkRabbitMqAdminClientEnv opts = do
+  (username, password) <- readCredsFromEnv
+  managerSettings <-
+    if opts.adminEnableTLS
+      then tlsManagerSettings
+      else pure HTTP.defaultManagerSettings
+  manager <- HTTP.newManager managerSettings
+  let clientEnv = Servant.mkClientEnv manager (Servant.BaseUrl scheme opts.host opts.adminPort "")
+      basicAuthData = Servant.BasicAuthData (Text.encodeUtf8 username) (Text.encodeUtf8 password)
+      scheme = if opts.adminEnableTLS then Servant.Https else Servant.Http
+  pure (clientEnv, adminClient basicAuthData)
+  where
+    tlsManagerSettings = do
+      ctx <- SSL.context
+      SSL.contextAddOption ctx SSL_OP_NO_SSLv2
+      SSL.contextAddOption ctx SSL_OP_NO_SSLv3
+      SSL.contextAddOption ctx SSL_OP_NO_TLSv1
+      SSL.contextSetCiphers ctx "HIGH"
+      SSL.contextSetVerificationMode ctx $
+        SSL.VerifyPeer True True Nothing
+      SSL.contextSetDefaultVerifyPaths ctx
+      pure $ HTTP.opensslManagerSettings (pure ctx)
+
+-- | When admin opts are needed use `RabbitMqOpts Identity`, otherwise use
+-- `RabbitMqOpts NoAdmin`.
 data RabbitMqOpts = RabbitMqOpts
   { host :: !String,
     port :: !Int,
     vHost :: !Text
   }
-  deriving (Show, Generic)
+  deriving (Generic, Show)
 
 instance FromJSON RabbitMqOpts
+
+demoteOpts :: RabbitMqAdminOpts -> RabbitMqOpts
+demoteOpts RabbitMqAdminOpts {..} = RabbitMqOpts {..}
 
 -- | Useful if the application only pushes into some queues.
 mkRabbitMqChannelMVar :: Logger -> RabbitMqOpts -> IO (MVar Q.Channel)
 mkRabbitMqChannelMVar l opts = do
   chan <- newEmptyMVar
-  openConnectionWithRetries l opts.host opts.port opts.vHost $
+  openConnectionWithRetries l opts $
     RabbitMqHooks
       { onNewChannel = putMVar chan,
         onChannelException = \_ -> void $ tryTakeMVar chan,
@@ -50,14 +103,11 @@ openConnectionWithRetries ::
   forall m.
   (MonadIO m, MonadMask m, MonadBaseControl IO m) =>
   Logger ->
-  String ->
-  Int ->
-  Text ->
+  RabbitMqOpts ->
   RabbitMqHooks m ->
   m ()
-openConnectionWithRetries l host port vHost hooks = do
-  username <- liftIO $ Text.pack <$> getEnv "RABBITMQ_USERNAME"
-  password <- liftIO $ Text.pack <$> getEnv "RABBITMQ_PASSWORD"
+openConnectionWithRetries l RabbitMqOpts {..} hooks = do
+  (username, password) <- liftIO $ readCredsFromEnv
   connectWithRetries username password
   where
     connectWithRetries :: Text -> Text -> m ()
@@ -119,3 +169,9 @@ logException l m (SomeException e) = do
   Log.err l $
     Log.msg m
       . Log.field "error" (displayException e)
+
+readCredsFromEnv :: IO (Text, Text)
+readCredsFromEnv = do
+  username <- Text.pack <$> getEnv "RABBITMQ_USERNAME"
+  password <- Text.pack <$> getEnv "RABBITMQ_PASSWORD"
+  pure (username, password)

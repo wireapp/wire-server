@@ -8,6 +8,5 @@ rabbitmq:
   host: 127.0.0.1
   port: 5672
   vHost: /
-
-remoteDomains:
-  - b.example.com
+  adminPort: 15672
+  adminEnableTLS: false

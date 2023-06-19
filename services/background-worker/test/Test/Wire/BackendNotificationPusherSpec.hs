@@ -25,6 +25,9 @@ runTestAppT app port = do
   http2Manager <- initHttp2Manager
   logger <- Logger.new Logger.defSettings
   let federatorInternal = Endpoint "localhost" (fromIntegral port)
+      rabbitmqAdminClient = undefined
+      rabbitmqAdminClientEnv = undefined
+      rabbitmqVHost = undefined
       env = Env {..}
   runAppT env app
 

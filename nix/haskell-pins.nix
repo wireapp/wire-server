@@ -224,6 +224,14 @@ let
       version = "4.1.0";
       sha256 = "sha256-D6RWYBguoj+W1LwNeX04h4csXV69rrs0tZpeNr7ZBqE=";
     };
+    servant-queryparam-core = {
+      version = "2.0.1";
+      sha256 = "sha256-muuAzqNGusm+ElHXRs5sn+UjtKhyghkYw0qAXyezR5Q=";
+    };
+    servant-queryparam-client = {
+      version = "2.0.0";
+      sha256 = "sha256-YgkqBdoRf0n6+efcD0jb0aQk4GT2JYrqfV7WNoun5BE=";
+    };
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:
