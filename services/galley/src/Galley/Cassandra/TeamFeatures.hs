@@ -143,21 +143,19 @@ getFeatureConfig FeatureSingletonMlsMigration tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   retry x1 q <&> \case
     Nothing -> Nothing
-    Just (Nothing, _, _, _, _) -> Nothing
-    Just (Just fs, startTime, finaliseRegardlessAfter, usersThreshold, clientsThreshold) ->
+    Just (Nothing, _, _) -> Nothing
+    Just (Just fs, startTime, finaliseRegardlessAfter) ->
       Just $
         WithStatusNoLock
           fs
           MlsMigrationConfig
             { startTime = startTime,
-              finaliseRegardlessAfter = finaliseRegardlessAfter,
-              usersThreshold = fmap fromIntegral usersThreshold,
-              clientsThreshold = fmap fromIntegral clientsThreshold
+              finaliseRegardlessAfter = finaliseRegardlessAfter
             }
           FeatureTTLUnlimited
   where
-    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe UTCTime, Maybe UTCTime, Maybe Int32, Maybe Int32)
-    select = "select mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after, mls_migration_users_threshold, mls_migration_clients_threshold from team_features where team_id = ?"
+    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe UTCTime, Maybe UTCTime)
+    select = "select mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after from team_features where team_id = ?"
 getFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid = getTrivialConfigC "expose_invitation_urls_to_team_admin" tid
 getFeatureConfig FeatureSingletonOutlookCalIntegrationConfig tid = getTrivialConfigC "outlook_cal_integration_status" tid
 
@@ -239,11 +237,11 @@ setFeatureConfig FeatureSingletonMlsMigration tid status = do
   let statusValue = wssStatus status
       config = wssConfig status
 
-  retry x5 $ write insert (params LocalQuorum (tid, statusValue, config.startTime, config.finaliseRegardlessAfter, fmap fromIntegral config.usersThreshold, fmap fromIntegral config.clientsThreshold))
+  retry x5 $ write insert (params LocalQuorum (tid, statusValue, config.startTime, config.finaliseRegardlessAfter))
   where
-    insert :: PrepQuery W (TeamId, FeatureStatus, Maybe UTCTime, Maybe UTCTime, Maybe Int32, Maybe Int32) ()
+    insert :: PrepQuery W (TeamId, FeatureStatus, Maybe UTCTime, Maybe UTCTime) ()
     insert =
-      "insert into team_features (team_id, mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after, mls_migration_users_threshold, mls_migration_clients_threshold) values (?, ?, ?, ?, ?, ?)"
+      "insert into team_features (team_id, mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after) values (?, ?, ?, ?)"
 setFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid statusNoLock = setFeatureStatusC "expose_invitation_urls_to_team_admin" tid (wssStatus statusNoLock)
 setFeatureConfig FeatureSingletonOutlookCalIntegrationConfig tid statusNoLock = setFeatureStatusC "outlook_cal_integration_status" tid (wssStatus statusNoLock)
 

@@ -114,7 +114,6 @@ import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
-import Test.QuickCheck.Modifiers
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
 import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
 import Wire.API.Routes.Named (RenderableSymbol (renderSymbol))
@@ -1044,9 +1043,7 @@ instance IsFeatureConfig MlsE2EIdConfig where
 
 data MlsMigrationConfig = MlsMigrationConfig
   { startTime :: Maybe UTCTime,
-    finaliseRegardlessAfter :: Maybe UTCTime,
-    usersThreshold :: Maybe Int,
-    clientsThreshold :: Maybe Int
+    finaliseRegardlessAfter :: Maybe UTCTime
   }
   deriving stock (Eq, Show, Generic)
 
@@ -1057,17 +1054,10 @@ instance Arbitrary MlsMigrationConfig where
   arbitrary = do
     startTime <- fmap fromUTCTimeMillis <$> arbitrary
     finaliseRegardlessAfter <- fmap fromUTCTimeMillis <$> arbitrary
-    usersThreshold <- fmap getNonNegative <$> arbitrary
-    clientsThreshold <- fmap (fmap getNonNegative) $
-      case (finaliseRegardlessAfter, usersThreshold) of
-        (Nothing, Nothing) -> Just <$> arbitrary
-        _ -> arbitrary
     pure
       MlsMigrationConfig
         { startTime = startTime,
-          finaliseRegardlessAfter = finaliseRegardlessAfter,
-          usersThreshold = usersThreshold,
-          clientsThreshold = clientsThreshold
+          finaliseRegardlessAfter = finaliseRegardlessAfter
         }
 
 instance ToSchema MlsMigrationConfig where
@@ -1077,17 +1067,12 @@ instance ToSchema MlsMigrationConfig where
         ( MlsMigrationConfig
             <$> startTime .= maybe_ (optField "startTime" utcTimeSchema)
             <*> finaliseRegardlessAfter .= maybe_ (optField "finaliseRegardlessAfter" utcTimeSchema)
-            <*> usersThreshold .= maybe_ (optField "usersThreshold" schema)
-            <*> clientsThreshold .= maybe_ (optField "clientsThreshold" schema)
         )
         checkConfig
     where
       checkConfig c = do
         when
-          ( isNothing c.finaliseRegardlessAfter
-              && isNothing c.usersThreshold
-              && isNothing c.clientsThreshold
-          )
+          (isNothing c.finaliseRegardlessAfter)
           $ fail "At least one of finaliseRegardlessAfter, usersThreshold or clientsThreshold must be set"
         pure c
 
@@ -1095,7 +1080,7 @@ instance IsFeatureConfig MlsMigrationConfig where
   type FeatureSymbol MlsMigrationConfig = "mlsMigration"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked defValue FeatureTTLUnlimited
     where
-      defValue = MlsMigrationConfig Nothing Nothing Nothing Nothing
+      defValue = MlsMigrationConfig Nothing Nothing
   featureSingleton = FeatureSingletonMlsMigration
   objectSchema = field "config" schema
 
