@@ -25,7 +25,8 @@ data Env = Env
     rabbitmqAdminClient :: RabbitMqAdmin.AdminAPI (Servant.AsClientT Servant.ClientM),
     rabbitmqVHost :: Text,
     logger :: Logger,
-    federatorInternal :: Endpoint
+    federatorInternal :: Endpoint,
+    backendNotificationPusher :: BackendNotificationPusherOpts
   }
 
 mkEnv :: Opts -> IO Env
@@ -35,6 +36,7 @@ mkEnv opts = do
   let federatorInternal = opts.federatorInternal
   (rabbitmqAdminClientEnv, rabbitmqAdminClient) <- mkRabbitMqAdminClientEnv opts.rabbitmq
   let rabbitmqVHost = opts.rabbitmq.vHost
+      backendNotificationPusher = opts.backendNotificationPusher
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager

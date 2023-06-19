@@ -18,6 +18,7 @@ import qualified System.Logger.Class as Log
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.BackgroundWorker.Env
+import Wire.BackgroundWorker.Options
 
 startPushingNotifications ::
   Q.Channel ->
@@ -75,7 +76,7 @@ pushNotification targetDomain (msg, envelope) = do
         -- deal with this.
         lift $ reject envelope False
       Right notif -> do
-        ceFederator <- asks federatorInternal
+        ceFederator <- asks (.federatorInternal)
         ceHttp2Manager <- asks http2Manager
         let ceOriginDomain = notif.ownDomain
             ceTargetDomain = targetDomain
@@ -91,15 +92,17 @@ startPusher chan = do
   -- delivered in order.
   lift $ Q.qos chan 0 1 False
   consumers <- newTVarIO mempty
+  BackendNotificationPusherOpts {..} <- asks (.backendNotificationPusher)
   forever $ do
     remoteDomains <- getRemoteDomains
     mapM_ (ensureConsumer consumers chan) remoteDomains
-    threadDelay 60_000_000
+    threadDelay (1_000_000 * remotesRefreshInterval)
 
 ensureConsumer :: TVar (Map Domain Q.ConsumerTag) -> Q.Channel -> Domain -> AppT IO ()
 ensureConsumer consumers chan domain = do
   consumerExists <- Map.member domain <$> readTVarIO consumers
   unless consumerExists $ do
+    Log.info $ Log.msg (Log.val "Starting consumer") . Log.field "domain" (domainText domain)
     tag <- startPushingNotifications chan domain
     atomically $ modifyTVar consumers $ Map.insert domain tag
 

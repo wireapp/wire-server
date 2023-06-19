@@ -10,3 +10,6 @@ rabbitmq:
   vHost: /
   adminPort: 15672
   adminEnableTLS: false
+
+backendNotificationPusher:
+  remotesRefreshInterval: 1

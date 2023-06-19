@@ -19,6 +19,7 @@ import Wire.API.Federation.BackendNotifications
 import Wire.API.RawJson
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
+import Wire.BackgroundWorker.Options
 
 runTestAppT :: AppT IO a -> Int -> IO a
 runTestAppT app port = do
@@ -28,6 +29,7 @@ runTestAppT app port = do
       rabbitmqAdminClient = undefined
       rabbitmqAdminClientEnv = undefined
       rabbitmqVHost = undefined
+      backendNotificationPusher = BackendNotificationPusherOpts 1
       env = Env {..}
   runAppT env app
 
