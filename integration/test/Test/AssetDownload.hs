@@ -29,13 +29,13 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
   key <- doUploadAsset user
   checkAssetDownload user key
 
-  withModifiedService Cargohold modifyConfig $ do
+  withModifiedService Cargohold modifyConfig $ \_ -> do
     -- multi-ingress enabled
     key' <- doUploadAsset user
     checkAssetDownload user key'
   where
     checkAssetDownload :: Value -> Value -> App ()
-    checkAssetDownload user key = withModifiedService Cargohold modifyConfig $ do
+    checkAssetDownload user key = withModifiedService Cargohold modifyConfig $ \_ -> do
       bindResponse (downloadAsset user key noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 404
       bindResponse (downloadAsset' user key "red.example.com" noRedirects) $ \resp -> do

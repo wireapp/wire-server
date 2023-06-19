@@ -78,7 +78,7 @@ spec:
           - name: NO_PROXY
             value: {{ join "," .noProxyList | quote }}
           {{- end }}
-          {{- end }} 
+          {{- end }}
           ports:
             - containerPort: {{ .Values.service.internalPort }}
           livenessProbe:

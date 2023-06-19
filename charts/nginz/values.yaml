@@ -173,6 +173,9 @@ nginx_conf:
     - path: /self/password
       envs:
       - all
+    - path: /self/supported-protocols
+      envs:
+      - all
     - path: /self/locale
       envs:
       - all

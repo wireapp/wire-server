@@ -19,7 +19,6 @@
 
 module API.Federation where
 
-import API.MLS.Util
 import API.Search.Util (refreshIndex)
 import API.User.Util
 import Bilge hiding (head)
@@ -28,7 +27,6 @@ import qualified Brig.Options as Opt
 import Control.Arrow (Arrow (first), (&&&))
 import Control.Lens ((?~))
 import Data.Aeson
-import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Handle (Handle (..))
 import Data.Id
@@ -45,17 +43,13 @@ import Test.QuickCheck hiding ((===))
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import UnliftIO.Temporary
 import Util
-import Web.HttpApiData
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import qualified Wire.API.Federation.API.Brig as S
 import Wire.API.Federation.Component
 import Wire.API.Federation.Version
-import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -86,9 +80,7 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
         test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
         test m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient),
-        test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient),
-        test m "POST /federation/claim-key-packages : 200" (testClaimKeyPackages brig fedBrigClient),
-        test m "POST /federation/claim-key-packages (MLS disabled) : 200" (testClaimKeyPackagesMLSDisabled opts brig)
+        test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient)
       ]
 
 allowFullSearch :: Domain -> Opt.Opts -> Opt.Opts
@@ -407,43 +399,6 @@ testAPIVersion :: Brig -> FedClient 'Brig -> Http ()
 testAPIVersion _brig fedBrigClient = do
   vinfo <- runFedClient @"api-version" fedBrigClient (Domain "far-away.example.com") ()
   liftIO $ vinfoSupported vinfo @?= toList supportedVersions
-
-testClaimKeyPackages :: HasCallStack => Brig -> FedClient 'Brig -> Http ()
-testClaimKeyPackages brig fedBrigClient = do
-  alice <- fakeRemoteUser
-  bob <- userQualifiedId <$> randomUser brig
-
-  bobClients <- for (take 2 someLastPrekeys) $ \lpk -> do
-    let new = defNewClient PermanentClientType [] lpk
-    fmap clientId $ responseJsonError =<< addClient brig (qUnqualified bob) new
-
-  withSystemTempDirectory "mls" $ \tmp ->
-    for_ bobClients $ \c ->
-      uploadKeyPackages brig tmp def bob c 2
-
-  Just bundle <-
-    runFedClient @"claim-key-packages" fedBrigClient (qDomain alice) $
-      ClaimKeyPackageRequest (qUnqualified alice) (qUnqualified bob)
-
-  liftIO $
-    Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle)
-      @?= Set.fromList [(bob, c) | c <- bobClients]
-
-  -- check that we have one fewer key package now
-  for_ bobClients $ \c -> do
-    count <- getKeyPackageCount brig bob c
-    liftIO $ count @?= 1
-
-  -- check that the package refs are correctly mapped
-  for_ (kpbEntries bundle) $ \e -> do
-    cid <-
-      responseJsonError
-        =<< get (brig . paths ["i", "mls", "key-packages", toHeader (kpbeRef e)])
-          <!! const 200 === statusCode
-    liftIO $ do
-      ciDomain cid @?= qDomain bob
-      ciUser cid @?= qUnqualified bob
-      ciClient cid @?= kpbeClient e
 
 testClaimKeyPackagesMLSDisabled :: HasCallStack => Opt.Opts -> Brig -> Http ()
 testClaimKeyPackagesMLSDisabled opts brig = do
