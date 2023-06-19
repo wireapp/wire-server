@@ -6,7 +6,6 @@
 , aeson
 , base
 , brig
-, brig-types
 , bytestring
 , cassandra-util
 , conduit
@@ -16,7 +15,6 @@
 , imports
 , lib
 , optparse-applicative
-, string-conversions
 , text
 , tinylog
 , types-common
@@ -33,7 +31,6 @@ mkDerivation {
     aeson
     base
     brig
-    brig-types
     bytestring
     cassandra-util
     conduit
@@ -41,7 +38,6 @@ mkDerivation {
     extra
     imports
     optparse-applicative
-    string-conversions
     text
     tinylog
     types-common

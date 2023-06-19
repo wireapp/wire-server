@@ -75,7 +75,6 @@ executable repair-handles
     , lens
     , mtl
     , optparse-applicative
-    , string-conversions
     , text
     , tinylog
     , types-common

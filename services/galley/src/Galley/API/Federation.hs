@@ -1,3 +1,7 @@
+{-# OPTIONS -Wno-redundant-constraints #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -14,8 +18,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Federation where
 
@@ -338,7 +340,7 @@ onMessageSent domain rmUnqualified = do
           )
   loc <- qualifyLocal ()
   void $
-    sendLocalMessages @'NormalMessage
+    sendLocalMessages
       loc
       (F.rmTime rm)
       (F.rmSender rm)
@@ -548,8 +550,7 @@ sendMLSCommitBundle remoteDomain msr =
       let msg = rmValue (cbCommitMsg bundle)
       qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
       when (Conv (qUnqualified qcnv) /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
-      uncurry F.MLSMessageResponseUpdates
-        . first (map lcuUpdate)
+      uncurry F.MLSMessageResponseUpdates . (,mempty) . map lcuUpdate
         <$> postMLSCommitBundle loc (tUntagged sender) Nothing qcnv Nothing bundle
 
 sendMLSMessage ::
@@ -622,6 +623,8 @@ mlsSendWelcome ::
   ( Member BrigAccess r,
     Member (Error InternalError) r,
     Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member P.TinyLog r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r
@@ -686,11 +689,9 @@ onMLSMessageSent domain rmm =
       let e =
             Event (tUntagged rcnv) Nothing (F.rmmSender rmm) (F.rmmTime rmm) $
               EdMLSMessage (fromBase64ByteString (F.rmmMessage rmm))
-      let mkPush :: (UserId, ClientId) -> MessagePush 'NormalMessage
-          mkPush uc = newMessagePush loc mempty Nothing (F.rmmMetadata rmm) uc e
 
       runMessagePush loc (Just (tUntagged rcnv)) $
-        foldMap mkPush recipients
+        newMessagePush mempty Nothing (F.rmmMetadata rmm) recipients e
 
 queryGroupInfo ::
   ( Member ConversationStore r,

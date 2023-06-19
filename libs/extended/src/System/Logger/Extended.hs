@@ -40,7 +40,6 @@ import qualified Data.Aeson.Key as Key
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.Map.Lazy as Map
-import Data.String.Conversions (cs)
 import GHC.Generics
 import Imports
 import System.Logger as Log

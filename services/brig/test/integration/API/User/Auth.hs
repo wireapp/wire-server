@@ -1,5 +1,4 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
@@ -32,7 +31,6 @@ import qualified Bilge as Http
 import Bilge.Assert hiding (assert)
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opts
-import Brig.Types.Intra
 import Brig.User.Auth.Cookie (revokeAllCookies)
 import Brig.ZAuth (ZAuth, runZAuth)
 import qualified Brig.ZAuth as ZAuth
@@ -59,7 +57,7 @@ import qualified Data.Text.Lazy as Lazy
 import Data.Time.Clock
 import qualified Data.UUID.V4 as UUID
 import qualified Data.ZAuth.Token as ZAuth
-import Imports
+import Imports hiding (cs)
 import Network.HTTP.Client (equivCookie)
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty

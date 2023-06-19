@@ -9,7 +9,8 @@ data CreateUser = CreateUser
   { email :: Maybe String,
     password :: Maybe String,
     name :: Maybe String,
-    team :: Bool
+    team :: Bool,
+    supportedProtocols :: Maybe [String]
   }
 
 instance Default CreateUser where
@@ -18,7 +19,8 @@ instance Default CreateUser where
       { email = Nothing,
         password = Nothing,
         name = Nothing,
-        team = False
+        team = False,
+        supportedProtocols = Nothing
       }
 
 createUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Response
@@ -35,6 +37,7 @@ createUser domain cu = do
             "password" .= password,
             "icon" .= "default"
           ]
+            <> ["supported_protocols" .= prots | prots <- toList cu.supportedProtocols]
             <> [ "team"
                    .= object
                      [ "name" .= "integration test team",
@@ -70,3 +73,9 @@ deleteOAuthClient user cid = do
   clientId <- objId cid
   req <- baseRequest user Brig Unversioned $ "i/oauth/clients/" <> clientId
   submit "DELETE" req
+
+refreshIndex :: (HasCallStack, MakesValue domain) => domain -> App ()
+refreshIndex domain = do
+  req <- baseRequest domain Brig Unversioned "i/index/refresh"
+  res <- submit "POST" req
+  res.status `shouldMatchInt` 200

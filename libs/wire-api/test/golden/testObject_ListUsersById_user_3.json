@@ -9,6 +9,7 @@
     , "assets" : []
     , "accent_id" : 0
     , "legalhold_status" : "disabled"
+    , "supported_protocols" : ["proteus"]
     }
   ]
 , "failed" :

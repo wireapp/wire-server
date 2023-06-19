@@ -25,7 +25,7 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
 import Brig.Types.Connection
-import Brig.Types.Intra (UserAccount (..))
+import Brig.Types.Intra
 import Control.Applicative
 import Control.Concurrent.Async
 import Control.Exception (throw)
@@ -65,7 +65,6 @@ import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
 import Data.Singletons
-import Data.String.Conversions (ST, cs)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy.Encoding as T
@@ -139,7 +138,7 @@ import Wire.API.Team.Member hiding (userId)
 import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
-import Wire.API.User
+import Wire.API.User hiding (AccountStatus (..))
 import Wire.API.User.Auth hiding (Access)
 import Wire.API.User.Client
 import qualified Wire.API.User.Client as Client
@@ -1856,7 +1855,7 @@ testResponse status mlabel = do
     Just label -> responseJsonEither === const (Right label)
     Nothing -> (isLeft <$> responseJsonEither @TestErrorLabel) === const True
 
-newtype TestErrorLabel = TestErrorLabel {fromTestErrorLabel :: ST}
+newtype TestErrorLabel = TestErrorLabel {fromTestErrorLabel :: Text}
   deriving (Eq, Show)
 
 instance IsString TestErrorLabel where
@@ -2590,7 +2589,8 @@ mkProfile quid name =
       profileExpire = Nothing,
       profileTeam = Nothing,
       profileEmail = Nothing,
-      profileLegalholdStatus = defUserLegalHoldStatus
+      profileLegalholdStatus = defUserLegalHoldStatus,
+      profileSupportedProtocols = defSupportedProtocols
     }
 
 -- mock federator

@@ -71,13 +71,12 @@ import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
-import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams
-import Imports
+import Imports hiding (cs)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, result, setStatus)
@@ -653,7 +652,7 @@ getConversationMeta cnv = do
       pure Nothing
 
 getConversationByReusableCode ::
-  forall db r.
+  forall r.
   ( Member BrigAccess r,
     Member CodeStore r,
     Member ConversationStore r,
@@ -664,9 +663,8 @@ getConversationByReusableCode ::
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'NotATeamMember) r,
     Member TeamStore r,
-    Member (TeamFeatureStore db) r,
-    Member (Input Opts) r,
-    FeaturePersistentConstraint db GuestLinksConfig
+    Member TeamFeatureStore r,
+    Member (Input Opts) r
   ) =>
   Local UserId ->
   Key ->
@@ -676,7 +674,7 @@ getConversationByReusableCode lusr key value = do
   c <- verifyReusableCode False Nothing (ConversationCode key value Nothing)
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   ensureConversationAccess (tUnqualified lusr) conv CodeAccess
-  ensureGuestLinksEnabled @db (Data.convTeam conv)
+  ensureGuestLinksEnabled (Data.convTeam conv)
   pure $ coverView c conv
   where
     coverView :: Data.Code -> Data.Conversation -> ConversationCoverView
@@ -688,27 +686,25 @@ getConversationByReusableCode lusr key value = do
         }
 
 ensureGuestLinksEnabled ::
-  forall db r.
+  forall r.
   ( Member (ErrorS 'GuestLinksDisabled) r,
-    Member (TeamFeatureStore db) r,
-    Member (Input Opts) r,
-    FeaturePersistentConstraint db GuestLinksConfig
+    Member TeamFeatureStore r,
+    Member (Input Opts) r
   ) =>
   Maybe TeamId ->
   Sem r ()
 ensureGuestLinksEnabled mbTid =
-  getConversationGuestLinksFeatureStatus @db mbTid >>= \ws -> case wsStatus ws of
+  getConversationGuestLinksFeatureStatus mbTid >>= \ws -> case wsStatus ws of
     FeatureStatusEnabled -> pure ()
     FeatureStatusDisabled -> throwS @'GuestLinksDisabled
 
 getConversationGuestLinksStatus ::
-  forall db r.
+  forall r.
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Input Opts) r,
-    Member (TeamFeatureStore db) r,
-    FeaturePersistentConstraint db GuestLinksConfig
+    Member TeamFeatureStore r
   ) =>
   UserId ->
   ConvId ->
@@ -716,13 +712,12 @@ getConversationGuestLinksStatus ::
 getConversationGuestLinksStatus uid convId = do
   conv <- E.getConversation convId >>= noteS @'ConvNotFound
   ensureConvAdmin (Data.convLocalMembers conv) uid
-  getConversationGuestLinksFeatureStatus @db (Data.convTeam conv)
+  getConversationGuestLinksFeatureStatus (Data.convTeam conv)
 
 getConversationGuestLinksFeatureStatus ::
-  forall db r.
-  ( Member (TeamFeatureStore db) r,
-    Member (Input Opts) r,
-    FeaturePersistentConstraint db GuestLinksConfig
+  forall r.
+  ( Member TeamFeatureStore r,
+    Member (Input Opts) r
   ) =>
   Maybe TeamId ->
   Sem r (WithStatus GuestLinksConfig)
@@ -731,8 +726,8 @@ getConversationGuestLinksFeatureStatus mbTid = do
   case mbTid of
     Nothing -> pure defaultStatus
     Just tid -> do
-      mbConfigNoLock <- TeamFeatures.getFeatureConfig @db (Proxy @GuestLinksConfig) tid
-      mbLockStatus <- TeamFeatures.getFeatureLockStatus @db (Proxy @GuestLinksConfig) tid
+      mbConfigNoLock <- TeamFeatures.getFeatureConfig FeatureSingletonGuestLinksConfig tid
+      mbLockStatus <- TeamFeatures.getFeatureLockStatus FeatureSingletonGuestLinksConfig tid
       pure $ computeFeatureConfigForTeamUser mbConfigNoLock mbLockStatus defaultStatus
 
 -- | The same as 'getMLSSelfConversation', but it throws an error in case the

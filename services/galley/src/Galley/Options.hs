@@ -46,6 +46,7 @@ module Galley.Options
     optGundeck,
     optSpar,
     optFederator,
+    optRabbitmq,
     optDiscoUrl,
     optSettings,
     optJournal,
@@ -64,6 +65,7 @@ import Data.Range
 import Galley.Keys
 import Galley.Types.Teams
 import Imports
+import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
@@ -158,6 +160,8 @@ data Opts = Opts
     _optSpar :: !Endpoint,
     -- | Federator endpoint
     _optFederator :: !(Maybe Endpoint),
+    -- | RabbitMQ settings, required when federation is enabled.
+    _optRabbitmq :: !(Maybe RabbitMqOpts),
     -- | Disco URL
     _optDiscoUrl :: !(Maybe Text),
     -- | Other settings

@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, amqp
 , base
 , bytestring
 , cassandra-util
@@ -18,13 +19,15 @@
 , imports
 , lib
 , metrics-wai
+, monad-control
 , optparse-applicative
 , resourcet
+, retry
 , servant
 , servant-server
 , servant-swagger
-, string-conversions
 , temporary
+, text
 , tinylog
 , wai
 }:
@@ -34,6 +37,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    amqp
     base
     bytestring
     cassandra-util
@@ -44,23 +48,18 @@ mkDerivation {
     http-types
     imports
     metrics-wai
+    monad-control
     optparse-applicative
     resourcet
+    retry
     servant
     servant-server
     servant-swagger
-    string-conversions
+    text
     tinylog
     wai
   ];
-  testHaskellDepends = [
-    aeson
-    base
-    hspec
-    imports
-    string-conversions
-    temporary
-  ];
+  testHaskellDepends = [ aeson base hspec imports temporary ];
   testToolDepends = [ hspec-discover ];
   description = "Extended versions of common modules";
   license = lib.licenses.agpl3Only;

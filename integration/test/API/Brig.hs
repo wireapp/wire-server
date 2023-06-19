@@ -8,6 +8,18 @@ import qualified Data.Text.Encoding as T
 import GHC.Stack
 import Testlib.Prelude
 
+getUser ::
+  (HasCallStack, MakesValue user, MakesValue target) =>
+  user ->
+  target ->
+  App Response
+getUser user target = do
+  (domain, uid) <- objQid target
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath ["users", domain, uid]
+  submit "GET" req
+
 data AddClient = AddClient
   { ctype :: String,
     internal :: Bool,
@@ -101,16 +113,19 @@ deleteClient user client = do
         ]
 
 searchContacts ::
-  ( MakesValue searchingUserId,
-    MakesValue searchTerm
+  ( MakesValue user,
+    MakesValue searchTerm,
+    MakesValue domain
   ) =>
-  searchingUserId ->
+  user ->
   searchTerm ->
+  domain ->
   App Response
-searchContacts searchingUserId searchTerm = do
-  req <- baseRequest searchingUserId Brig Versioned "/search/contacts"
+searchContacts user searchTerm domain = do
+  req <- baseRequest user Brig Versioned "/search/contacts"
   q <- asString searchTerm
-  submit "GET" (req & addQueryParams [("q", q)])
+  d <- objDomain domain
+  submit "GET" (req & addQueryParams [("q", q), ("domain", d)])
 
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do
@@ -168,3 +183,32 @@ claimKeyPackages u v = do
     baseRequest u Brig Versioned $
       "/mls/key-packages/claim/" <> targetDom <> "/" <> targetUid
   submit "POST" req
+
+getSelf :: HasCallStack => String -> String -> App Response
+getSelf domain uid = do
+  let user = object ["domain" .= domain, "id" .= uid]
+  req <- baseRequest user Brig Versioned "/self"
+  submit "GET" req
+
+getUserSupportedProtocols ::
+  (HasCallStack, MakesValue user, MakesValue target) =>
+  user ->
+  target ->
+  App Response
+getUserSupportedProtocols user target = do
+  (domain, uid) <- objQid target
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath ["users", domain, uid, "supported-protocols"]
+  submit "GET" req
+
+putUserSupportedProtocols ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  [String] ->
+  App Response
+putUserSupportedProtocols user ps = do
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath ["self", "supported-protocols"]
+  submit "PUT" (req & addJSONObject ["supported_protocols" .= ps])

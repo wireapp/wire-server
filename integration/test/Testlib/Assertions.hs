@@ -84,6 +84,16 @@ shouldMatchInt ::
   App ()
 shouldMatchInt = shouldMatch
 
+shouldMatchSet ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  a ->
+  b ->
+  App ()
+shouldMatchSet a b = do
+  la <- fmap sort (asList a)
+  lb <- fmap sort (asList b)
+  la `shouldMatch` lb
+
 liftP2 ::
   (MakesValue a, MakesValue b, HasCallStack) =>
   (Value -> Value -> c) ->

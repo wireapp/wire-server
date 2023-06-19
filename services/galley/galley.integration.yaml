@@ -25,6 +25,11 @@ federator:
   host: 127.0.0.1
   port: 8097
 
+rabbitmq:
+  host: 127.0.0.1
+  port: 5672
+  vHost: /
+
 settings:
   httpPoolSize: 128
   maxTeamSize: 32

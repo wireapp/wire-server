@@ -9,6 +9,7 @@
 , amazonka-dynamodb
 , amazonka-ses
 , amazonka-sqs
+, amqp
 , async
 , attoparsec
 , auto-update
@@ -34,7 +35,6 @@
 , data-timeout
 , dns
 , dns-util
-, either
 , email-validate
 , enclosed-exceptions
 , errors
@@ -119,7 +119,6 @@
 , statistics
 , stomp-queue
 , streaming-commons
-, string-conversions
 , swagger2
 , tasty
 , tasty-cannon
@@ -171,6 +170,7 @@ mkDerivation {
     amazonka-dynamodb
     amazonka-ses
     amazonka-sqs
+    amqp
     async
     auto-update
     base
@@ -193,7 +193,6 @@ mkDerivation {
     data-timeout
     dns
     dns-util
-    either
     enclosed-exceptions
     errors
     exceptions
@@ -249,7 +248,6 @@ mkDerivation {
     schema-profunctor
     scientific
     servant
-    servant-client
     servant-server
     servant-swagger
     servant-swagger-ui
@@ -258,7 +256,6 @@ mkDerivation {
     ssl-util
     statistics
     stomp-queue
-    string-conversions
     swagger2
     template
     template-haskell
@@ -353,7 +350,6 @@ mkDerivation {
     servant-client-core
     spar
     streaming-commons
-    string-conversions
     tasty
     tasty-cannon
     tasty-hunit
@@ -386,7 +382,6 @@ mkDerivation {
     aeson
     base
     binary
-    brig-types
     bytestring
     containers
     data-timeout

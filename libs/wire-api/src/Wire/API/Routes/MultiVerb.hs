@@ -71,7 +71,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Typeable
 import GHC.TypeLits
 import Generics.SOP as GSOP
-import Imports
+import Imports hiding (cs)
 import qualified Network.HTTP.Media as M
 import Network.HTTP.Types (hContentType)
 import qualified Network.HTTP.Types as HTTP

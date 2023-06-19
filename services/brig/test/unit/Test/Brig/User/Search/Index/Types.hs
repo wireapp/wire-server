@@ -19,7 +19,6 @@
 
 module Test.Brig.User.Search.Index.Types where
 
-import Brig.Types.Intra (AccountStatus (..))
 import Brig.User.Search.Index
 import Data.Aeson
 import Data.Fixed

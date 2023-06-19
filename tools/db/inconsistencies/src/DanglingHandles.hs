@@ -22,7 +22,6 @@
 module DanglingHandles where
 
 import Brig.Data.Instances ()
-import Brig.Types.Intra
 import Cassandra
 import Cassandra.Util
 import Conduit
@@ -32,13 +31,13 @@ import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Handle
 import Data.Id
-import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Imports
 import System.Logger
 import qualified System.Logger as Log
 import UnliftIO.Async
+import qualified Wire.API.User as WU
 
 runCommand :: Logger -> ClientState -> FilePath -> IO ()
 runCommand l brig inconsistenciesFile = do
@@ -81,7 +80,7 @@ data HandleInfo = HandleInfo
     claimedHandle :: Handle,
     userId :: UserId,
     handleClaimTime :: Writetime Handle,
-    status :: Maybe (WithWritetime AccountStatus),
+    status :: Maybe (WithWritetime WU.AccountStatus),
     -- | Handle in the user table
     userHandle :: Maybe (WithWritetime Handle)
   }
@@ -112,7 +111,7 @@ getHandles = paginateC cql (paramsP LocalQuorum () pageSize) x5
     cql :: PrepQuery R () (Handle, UserId, Writetime UserId)
     cql = "SELECT handle, user, writetime(user) from user_handle"
 
-type UserDetailsRow = (Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe Handle, Maybe (Writetime Handle))
+type UserDetailsRow = (Maybe WU.AccountStatus, Maybe (Writetime WU.AccountStatus), Maybe Handle, Maybe (Writetime Handle))
 
 getUserDetails :: UserId -> Client (Maybe UserDetailsRow)
 getUserDetails uid = retry x1 $ query1 cql (params LocalQuorum (Identity uid))
@@ -154,7 +153,7 @@ checkUser l brig claimedHandle userId handleClaimTime' fixClaim = do
           userHandle = WithWritetime <$> mHandle <*> mHandleWriteTime
           statusError = case mStatus of
             Nothing -> True
-            Just Deleted -> True
+            Just WU.Deleted -> True
             _ -> False
           handleError = mHandle /= Just claimedHandle
       if statusError || handleError

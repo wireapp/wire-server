@@ -83,6 +83,7 @@ library
     Wire.API.Routes.Internal.Brig.Connection
     Wire.API.Routes.Internal.Brig.EJPD
     Wire.API.Routes.Internal.Brig.OAuth
+    Wire.API.Routes.Internal.Brig.SearchIndex
     Wire.API.Routes.Internal.Cannon
     Wire.API.Routes.Internal.Cargohold
     Wire.API.Routes.Internal.Galley
@@ -283,7 +284,6 @@ library
     , singletons-base
     , singletons-th
     , sop-core
-    , string-conversions
     , swagger2
     , tagged
     , text                       >=0.11
@@ -742,7 +742,6 @@ test-suite wire-api-tests
     , schema-profunctor
     , servant
     , servant-server
-    , string-conversions
     , swagger2
     , tasty
     , tasty-hspec

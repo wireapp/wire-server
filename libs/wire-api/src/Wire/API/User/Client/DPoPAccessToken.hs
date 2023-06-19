@@ -24,7 +24,6 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), fromByteString', toByteString')
 import Data.SOP
 import Data.Schema
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import Data.Swagger.ParamSchema (ToParamSchema (..))
 import Data.Text as T

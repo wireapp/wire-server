@@ -27,7 +27,6 @@ import Brig.Options
 import qualified Brig.Options as Opt
 import Data.Aeson
 import qualified Data.ByteString.Char8 as C
-import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import Imports
 import qualified Network.Wai.Utilities.Error as Error

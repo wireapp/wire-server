@@ -5,6 +5,7 @@
 { mkDerivation
 , aeson
 , aeson-pretty
+, amqp
 , base
 , bytestring
 , bytestring-conversion
@@ -25,6 +26,7 @@
 , lib
 , metrics-wai
 , mtl
+, polysemy
 , QuickCheck
 , schema-profunctor
 , servant
@@ -49,6 +51,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    amqp
     base
     bytestring
     bytestring-conversion
@@ -64,6 +67,7 @@ mkDerivation {
     lens
     metrics-wai
     mtl
+    polysemy
     QuickCheck
     schema-profunctor
     servant

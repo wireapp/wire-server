@@ -41,7 +41,7 @@ import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
-import Brig.Types.Intra (AccountStatus (..), NewUserScimInvitation (..), UserAccount (..))
+import Brig.Types.Intra (NewUserScimInvitation (..), UserAccount (..))
 import Brig.Types.Team (TeamSize)
 import qualified Brig.User.Search.TeamSize as TeamSize
 import Control.Lens (view, (^.))
@@ -51,7 +51,6 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import qualified Data.List1 as List1
 import Data.Range
-import Data.String.Conversions (cs)
 import qualified Galley.Types.Teams as Team
 import Imports hiding (head)
 import Network.HTTP.Types.Status

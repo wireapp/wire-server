@@ -10,6 +10,8 @@ The following processes only apply to Wire employees working on this code base.
 
 *See the `CHARTS` variable in the top-level Makefile for the current default list of charts.*
 
+(run-wire-server-integration-tests-inside-kubernetes-using-helm)=
+
 ## Run wire-server integration tests inside kubernetes using helm
 
 You need kubectl, helm, and a configured kubernetes cluster
@@ -47,4 +49,3 @@ make upload-charts
 # Upload a single chart, e.g. wire-server
 make upload-wire-server
 ```
-

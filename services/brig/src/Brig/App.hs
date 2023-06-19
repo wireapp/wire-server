@@ -1,4 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 -- FUTUREWORK: Get rid of this option once Polysemy is fully introduced to Brig
@@ -60,6 +62,7 @@ module Brig.App
     emailSender,
     randomPrekeyLocalLock,
     keyPackageLocalLock,
+    rabbitmqChannel,
     fsWatcher,
 
     -- * App Monad
@@ -132,6 +135,8 @@ import Data.Yaml (FromJSON)
 import qualified Database.Bloodhound as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports
+import qualified Network.AMQP as Q
+import qualified Network.AMQP.Extended as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
@@ -191,13 +196,22 @@ data Env = Env
     _digestMD5 :: Digest,
     _indexEnv :: IndexEnv,
     _randomPrekeyLocalLock :: Maybe (MVar ()),
-    _keyPackageLocalLock :: MVar ()
+    _keyPackageLocalLock :: MVar (),
+    _rabbitmqChannel :: Maybe (MVar Q.Channel)
   }
 
 makeLenses ''Env
 
+validateOptions :: Opts -> IO ()
+validateOptions o =
+  case (o.federatorInternal, o.rabbitmq) of
+    (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
+    (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
+    _ -> pure ()
+
 newEnv :: Opts -> IO Env
 newEnv o = do
+  validateOptions o
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"
@@ -244,6 +258,7 @@ newEnv o = do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
+  rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -279,7 +294,8 @@ newEnv o = do
         _digestSHA256 = sha256,
         _indexEnv = mkIndexEnv o lgr mgr mtr (Opt.galley o),
         _randomPrekeyLocalLock = prekeyLocalLock,
-        _keyPackageLocalLock = kpLock
+        _keyPackageLocalLock = kpLock,
+        _rabbitmqChannel = rabbitChan
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)

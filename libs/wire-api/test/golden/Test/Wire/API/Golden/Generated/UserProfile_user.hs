@@ -29,12 +29,6 @@ import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 import Wire.API.User
-  ( ColourId (ColourId, fromColourId),
-    Email (Email, emailDomain, emailLocal),
-    Name (Name, fromName),
-    Pict (Pict, fromPict),
-    UserProfile (..),
-  )
 
 testObject_UserProfile_user_1 :: UserProfile
 testObject_UserProfile_user_1 =
@@ -54,7 +48,8 @@ testObject_UserProfile_user_1 =
       profileExpire = Nothing,
       profileTeam = Nothing,
       profileEmail = Nothing,
-      profileLegalholdStatus = UserLegalHoldDisabled
+      profileLegalholdStatus = UserLegalHoldDisabled,
+      profileSupportedProtocols = defSupportedProtocols
     }
 
 testObject_UserProfile_user_2 :: UserProfile
@@ -87,5 +82,6 @@ testObject_UserProfile_user_2 =
       profileExpire = Just (fromJust (readUTCTimeMillis "1864-05-09T01:42:22.437Z")),
       profileTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000002"))),
       profileEmail = Just (Email {emailLocal = "\172353 ", emailDomain = ""}),
-      profileLegalholdStatus = UserLegalHoldNoConsent
+      profileLegalholdStatus = UserLegalHoldNoConsent,
+      profileSupportedProtocols = defSupportedProtocols
     }

@@ -24,7 +24,6 @@ module Spar.Sem.SAML2.Library (saml2ToSaml2WebSso) where
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
 import Data.Id (TeamId)
-import Data.String.Conversions (cs)
 import Imports
 import Polysemy
 import Polysemy.Error

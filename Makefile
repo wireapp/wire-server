@@ -85,10 +85,9 @@ endif
 	./hack/bin/cabal-install-artefacts.sh $(package)
 
 # ci here doesn't refer to continuous integration, but to cabal-run-integration.sh
-# Usage: make ci                        - build & run all tests
-#        make ci package=brig           - build brig & run "brig-integration" and "integration"
-#        make ci package=brig suite=old - build brig & run "brig-integration"
-#        make ci package=brig suite=new - build brig & run "integration"
+# Usage: make ci                        - build & run all tests, excluding integration
+#        make ci package=all            - build & run all tests, including integration
+#        make ci package=brig           - build brig & run "brig-integration" 
 #        make ci package=integration    - build & run "integration"
 #
 # You can pass environment variables to all the suites, like so
@@ -98,31 +97,10 @@ endif
 .PHONY: ci
 ci: c db-migrate
 ifeq ("$(package)", "all")
-    ifneq ("$(suite)", "new")
-		./hack/bin/cabal-run-integration.sh all
-    endif
-    ifneq ("$(suite)", "old")
-		make c package=integration
-		./hack/bin/cabal-run-integration.sh integration
-    endif
-else
-  ifeq ("$(package)", "integration")
+	./hack/bin/cabal-run-integration.sh all
 	./hack/bin/cabal-run-integration.sh integration
-  else
-    ifeq ("$(suite)", "old")
-		./hack/bin/cabal-run-integration.sh $(package)
-    else
-      ifeq ("$(suite)", "new")
-		make c package=integration
-		./hack/bin/cabal-run-integration.sh integration
-      else
-		make c package=integration
-		./hack/bin/cabal-run-integration.sh $(package)
-		./hack/bin/cabal-run-integration.sh integration
-      endif
-    endif
-  endif
 endif
+	./hack/bin/cabal-run-integration.sh $(package)
 
 # Compile and run services
 # Usage: make crun `OR` make crun package=galley
@@ -291,17 +269,10 @@ db-migrate-package:
 	@echo "Deprecated! Please use 'db-migrate' instead"
 	$(MAKE) db-migrate package=$(package)
 
-# Usage:
-#
-# Migrate all keyspaces and reset the ES index
-# make db-migrate
-#
-# Migrate keyspace for only one service, say galley:
-# make db-migrate package=galley
+# Reset all keyspaces and reset the ES index
 .PHONY: db-reset
 db-reset: c
 	@echo "Make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
-ifeq ($(package), all)
 	./dist/brig-schema --keyspace brig_test --replication-factor 1 --reset
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --reset
@@ -310,20 +281,14 @@ ifeq ($(package), all)
 	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 --reset
 	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 --reset
 	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 --reset
-else
-	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1 --reset
-	$(EXE_SCHEMA) --keyspace $(package)_test2 --replication-factor 1 --reset
-endif
+	./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 --reset
 	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 > /dev/null
 	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 > /dev/null
+	./integration/scripts/integration-dynamic-backends-brig-index.sh --elasticsearch-server http://localhost:9200 > /dev/null
 
-# Usage:
-#
+
+
 # Migrate all keyspaces and reset the ES index
-# make db-migrate
-#
-# Migrate keyspace for only one service, say galley:
-# make db-migrate package=galley
 .PHONY: db-migrate
 db-migrate: c
 	./dist/brig-schema --keyspace brig_test --replication-factor 1 > /dev/null
@@ -334,8 +299,10 @@ db-migrate: c
 	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 > /dev/null
 	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 > /dev/null
 	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 > /dev/null
+	./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 > /dev/null
 	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 > /dev/null
 	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 > /dev/null
+	./integration/scripts/integration-dynamic-backends-brig-index.sh --elasticsearch-server http://localhost:9200 > /dev/null
 
 #################################
 ## dependencies

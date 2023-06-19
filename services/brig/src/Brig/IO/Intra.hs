@@ -75,8 +75,6 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Conduit.List as C
-import Data.Domain
-import Data.Either.Combinators (whenLeft)
 import Data.Id
 import Data.Json.Util ((#))
 import Data.List.Split (chunksOf)
@@ -296,7 +294,8 @@ notifyUserDeletionRemotes ::
   forall m.
   ( MonadReader Env m,
     MonadClient m,
-    MonadLogger m
+    MonadLogger m,
+    MonadMask m
   ) =>
   UserId ->
   m ()
@@ -317,17 +316,7 @@ notifyUserDeletionRemotes deleted = do
           pure ()
         Just rangedUids -> do
           luidDeleted <- qualifyLocal deleted
-          eitherFErr <- runExceptT (notifyUserDeleted luidDeleted (qualifyAs uids rangedUids))
-          whenLeft eitherFErr $
-            logFederationError (tDomain uids)
-
-    logFederationError :: Domain -> FederationError -> m ()
-    logFederationError domain fErr =
-      Log.err $
-        Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
-          . Log.field "user_id" (show deleted)
-          . Log.field "domain" (domainText domain)
-          . Log.field "error" (show fErr)
+          notifyUserDeleted luidDeleted (qualifyAs uids rangedUids)
 
 -- | Push events to other users.
 push ::
@@ -522,7 +511,7 @@ toPushFormat (UserEvent (UserActivated u)) =
       [ "type" .= ("user.activate" :: Text),
         "user" .= SelfProfile u
       ]
-toPushFormat (UserEvent (UserUpdated (UserUpdatedData i n pic acc ass hdl loc mb ssoId ssoIdDel))) =
+toPushFormat (UserEvent (UserUpdated (UserUpdatedData i n pic acc ass hdl loc mb ssoId ssoIdDel prots))) =
   Just $
     KeyMap.fromList
       [ "type" .= ("user.update" :: Text),
@@ -538,6 +527,7 @@ toPushFormat (UserEvent (UserUpdated (UserUpdatedData i n pic acc ass hdl loc mb
                 # "managed_by" .= mb
                 # "sso_id" .= ssoId
                 # "sso_id_deleted" .= ssoIdDel
+                # "supported_protocols" .= prots
                 # []
             )
       ]

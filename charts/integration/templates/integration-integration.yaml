@@ -33,7 +33,62 @@ spec:
       configMap:
         name: "turn"
 
+    - name: "cannon-config"
+      configMap:
+        name: cannon
+
+    - name: "gundeck-config"
+      configMap:
+        name: "gundeck"
+
+    - name: "cargohold-config"
+      configMap:
+        name: "cargohold"
+
+    - name: "spar-config"
+      configMap:
+        name: "spar"
+
   restartPolicy: Never
+
+  initContainers:
+  # FUTUREWORK: reproduce brig's initContainers (for geoip)
+  - name: integration-setup
+    image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+    env:
+    - name: INTEGRATION_DYNAMIC_BACKENDS_POOLSIZE
+      value: "{{ .Values.config.dynamicBackendsPoolsize }}"
+    - name: AWS_ACCESS_KEY_ID
+      value: "dummykey"
+    - name: AWS_SECRET_ACCESS_KEY
+      value: "dummysecret"
+    - name: AWS_REGION
+      value: "eu-west-1"
+    - name: RABBITMQ_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: brig
+          key: rabbitmqUsername
+    - name: RABBITMQ_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: brig
+          key: rabbitmqPassword
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        integration-dynamic-backends-db-schemas.sh --host {{ .Values.config.cassandra.host }} --port 9042 --replication-factor {{ .Values.config.cassandra.replicationFactor }};
+        integration-dynamic-backends-brig-index.sh --elasticsearch-server http://{{ .Values.config.elasticsearch.host }}:9200;
+        integration-dynamic-backends-sqs.sh {{ .Values.config.sqsEndpointUrl }};
+        integration-dynamic-backends-ses.sh {{ .Values.config.sesEndpointUrl }};
+        integration-dynamic-backends-s3.sh {{ .Values.config.s3EndpointUrl }};
+        integration-dynamic-backends-vhosts.sh {{ .Values.config.rabbitmqPutVHostUrl }}
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "2"
+
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -44,23 +99,35 @@ spec:
         cpu: "2"
     volumeMounts:
 
-    - name: "integration-config"
-      mountPath: "/etc/wire/integration"
+    - name: integration-config
+      mountPath: /etc/wire/integration
 
-    - name: "galley-config"
-      mountPath: "/etc/wire/galley/conf"
+    - name: galley-config
+      mountPath: /etc/wire/galley/conf
 
-    - name: "galley-secrets"
-      mountPath: "/etc/wire/galley/secrets"
+    - name: galley-secrets
+      mountPath: /etc/wire/galley/secrets
 
-    - name: "brig-config"
-      mountPath: "/etc/wire/brig/conf"
+    - name: brig-config
+      mountPath: /etc/wire/brig/conf
 
-    - name: "brig-secrets"
-      mountPath: "/etc/wire/brig/secrets"
+    - name: brig-secrets
+      mountPath: /etc/wire/brig/secrets
 
-    - name: "turn-servers"
-      mountPath: "/etc/wire/brig/turn"
+    - name: turn-servers
+      mountPath: /etc/wire/brig/turn
+
+    - name: cannon-config
+      mountPath: /etc/wire/cannon/conf
+
+    - name: gundeck-config
+      mountPath: /etc/wire/gundeck/conf
+
+    - name: cargohold-config
+      mountPath: /etc/wire/cargohold/conf
+
+    - name: "spar-config"
+      mountPath: "/etc/wire/spar/conf"
 
     env:
     # these dummy values are necessary for Amazonka's "Discover"
@@ -71,6 +138,12 @@ spec:
     - name: AWS_REGION
       value: "eu-west-1"
     - name: RABBITMQ_USERNAME
-      value: "guest"
+      valueFrom:
+        secretKeyRef:
+          name: brig
+          key: rabbitmqUsername
     - name: RABBITMQ_PASSWORD
-      value: "guest"
+      valueFrom:
+        secretKeyRef:
+          name: brig
+          key: rabbitmqPassword

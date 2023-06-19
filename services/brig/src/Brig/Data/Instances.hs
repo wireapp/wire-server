@@ -24,7 +24,6 @@ module Brig.Data.Instances
 where
 
 import Brig.Types.Common
-import Brig.Types.Intra
 import Brig.Types.Search
 import Cassandra.CQL
 import Control.Error (note)
@@ -35,7 +34,6 @@ import Data.Domain (Domain, domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id ()
 import Data.Range ()
-import Data.String.Conversions (LBS, ST, cs)
 import Data.Text.Ascii ()
 import Data.Text.Encoding (encodeUtf8)
 import Imports
@@ -88,7 +86,7 @@ instance Cql UserSSOId where
     Left msg -> Left $ "fromCql: Invalid UserSSOId: " ++ msg
   fromCql _ = Left "fromCql: UserSSOId: CqlText expected"
 
-  toCql = toCql . cs @LBS @ST . encode
+  toCql = toCql . cs @LByteString @Text . encode
 
 instance Cql RelationWithHistory where
   ctype = Tagged IntColumn
@@ -288,3 +286,10 @@ instance Cql SearchVisibilityInbound where
   fromCql (CqlInt 0) = pure SearchableByOwnTeam
   fromCql (CqlInt 1) = pure SearchableByAllTeams
   fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
+
+instance Cql (Imports.Set BaseProtocolTag) where
+  ctype = Tagged IntColumn
+
+  toCql = CqlInt . fromIntegral . protocolSetBits
+  fromCql (CqlInt bits) = pure $ protocolSetFromBits (fromIntegral bits)
+  fromCql _ = Left "Protocol set: Int expected"

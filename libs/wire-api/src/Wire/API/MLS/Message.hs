@@ -54,7 +54,7 @@ import Data.Kind
 import Data.Schema
 import Data.Singletons.TH
 import qualified Data.Swagger as S
-import Imports
+import Imports hiding (cs)
 import Test.QuickCheck hiding (label)
 import Wire.API.Event.Conversation
 import Wire.API.MLS.CipherSuite
@@ -319,7 +319,10 @@ instance SerialiseMLS (MessagePayload 'MLSPlainText) where
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],
     mmssTime :: UTCTimeMillis,
-    mmssUnreachableUsers :: Maybe UnreachableUsers
+    -- | An optional list of unreachable users an application message could not
+    -- be sent to. In case of commits and unreachable users use the
+    -- MLSMessageResponseUnreachableBackends data constructor.
+    mmssFailedToSendTo :: Maybe UnreachableUsers
   }
   deriving (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema MLSMessageSendingStatus
@@ -338,7 +341,7 @@ instance ToSchema MLSMessageSendingStatus where
             "time"
             (description ?~ "The time of sending the message.")
             schema
-        <*> mmssUnreachableUsers
+        <*> mmssFailedToSendTo
           .= maybe_
             ( optFieldWithDocModifier
                 "failed_to_send"

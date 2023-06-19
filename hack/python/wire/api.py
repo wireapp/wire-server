@@ -17,8 +17,8 @@ def random_letters(n=10):
     return "".join(random.choices(string.ascii_letters, k=n))
 
 
-def random_email():
-    return "test-email" + "-" + random_letters(10) + "@example.com"
+def random_email(domain='example.com'):
+    return "test-email" + "-" + random_letters(10) + "@" + domain
 
 
 def create_user(ctx, email=None, password=None, name=None, create_team=False, **kwargs):
@@ -132,20 +132,21 @@ def mls_welcome(ctx, user, welcome):
     return ctx.request("POST", url, user=user, data=welcome, headers=headers)
 
 
-def mls_post_commit_bundle(ctx, commit_bundle):
+def mls_post_commit_bundle(ctx, client, commit_bundle):
     url = ctx.mkurl("galley", f"/mls/commit-bundles")
     return ctx.request(
         "POST",
         url,
-        headers={"Content-Type": "application/x-protobuf"},
+        headers={"Content-Type": "message/mls"},
+        client=client,
         data=commit_bundle,
     )
 
 
-def mls_send_message(ctx, msg):
+def mls_send_message(ctx, msg, **kwargs):
     headers = {"Content-Type": "message/mls"}
     url = ctx.mkurl("galley", f"/mls/messages")
-    return ctx.request("POST", url, headers=headers, data=msg)
+    return ctx.request("POST", url, headers=headers, data=msg, **kwargs)
 
 
 def upload_key_packages(ctx, user, client, key_packages):

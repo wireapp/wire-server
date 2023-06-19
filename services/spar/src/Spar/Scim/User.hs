@@ -42,7 +42,7 @@ module Spar.Scim.User
   )
 where
 
-import Brig.Types.Intra (AccountStatus, UserAccount (accountStatus, accountUser))
+import Brig.Types.Intra (UserAccount (accountStatus, accountUser))
 import Brig.Types.User (HavePendingInvitations (..))
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens hiding (op)
@@ -57,7 +57,6 @@ import Data.ByteString.Conversion (fromByteString, toByteString, toByteString')
 import Data.Handle (Handle (Handle), parseHandle)
 import Data.Id (Id (..), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
-import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Galley.Types.Teams as Galley

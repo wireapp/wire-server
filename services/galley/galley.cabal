@@ -28,6 +28,7 @@ library
     Galley.API.Internal
     Galley.API.LegalHold
     Galley.API.LegalHold.Conflicts
+    Galley.API.LegalHold.Team
     Galley.API.Mapping
     Galley.API.Message
     Galley.API.MLS
@@ -59,6 +60,7 @@ library
     Galley.API.Query
     Galley.API.Teams
     Galley.API.Teams.Features
+    Galley.API.Teams.Features.Get
     Galley.API.Teams.Notifications
     Galley.API.Update
     Galley.API.Util
@@ -90,6 +92,7 @@ library
     Galley.Data.TeamNotifications
     Galley.Data.Types
     Galley.Effects
+    Galley.Effects.BackendNotificationQueueAccess
     Galley.Effects.BotAccess
     Galley.Effects.BrigAccess
     Galley.Effects.ClientStore
@@ -119,6 +122,7 @@ library
     Galley.External.LegalHoldService
     Galley.External.LegalHoldService.Internal
     Galley.External.LegalHoldService.Types
+    Galley.Intra.BackendNotificationQueue
     Galley.Intra.Client
     Galley.Intra.Effects
     Galley.Intra.Federator
@@ -166,6 +170,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -193,6 +198,7 @@ library
       aeson                  >=2.0.1.0
     , amazonka               >=1.4.5
     , amazonka-sqs           >=1.4.5
+    , amqp
     , asn1-encoding
     , asn1-types
     , async                  >=2.0
@@ -244,16 +250,13 @@ library
     , safe-exceptions        >=0.1
     , saml2-web-sso          >=0.19
     , schema-profunctor
-    , semigroups
     , servant
     , servant-client
     , servant-server
     , singletons
-    , singletons-th
     , split                  >=0.2
     , ssl-util               >=0.1
     , stm                    >=2.4
-    , string-conversions
     , tagged
     , text                   >=0.11
     , time                   >=1.4
@@ -307,6 +310,7 @@ executable galley
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -394,6 +398,7 @@ executable galley-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -424,7 +429,6 @@ executable galley-integration
     , base
     , base64-bytestring
     , bilge
-    , binary
     , brig-types
     , bytestring
     , bytestring-conversion
@@ -482,7 +486,6 @@ executable galley-integration
     , sop-core
     , ssl-util
     , streaming-commons
-    , string-conversions
     , tagged
     , tasty                  >=0.8
     , tasty-cannon           >=0.3.2
@@ -549,6 +552,7 @@ executable galley-migrate-data
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -689,6 +693,7 @@ executable galley-schema
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -761,6 +766,7 @@ test-suite galley-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports

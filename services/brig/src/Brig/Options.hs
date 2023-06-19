@@ -51,6 +51,7 @@ import Data.Yaml (FromJSON (..), ToJSON (..), (.:), (.:?))
 import qualified Data.Yaml as Y
 import Galley.Types.Teams (unImplicitLockStatus)
 import Imports
+import Network.AMQP.Extended
 import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
@@ -433,6 +434,8 @@ data Opts = Opts
     cassandra :: !CassandraOpts,
     -- | ElasticSearch settings
     elasticsearch :: !ElasticSearchOpts,
+    -- | RabbitMQ settings, required when federation is enabled.
+    rabbitmq :: !(Maybe RabbitMqOpts),
     -- | AWS settings
     aws :: !AWSOpts,
     -- | Enable Random Prekey Strategy

@@ -19,7 +19,6 @@
 
 module Galley.Effects.TeamFeatureStore
   ( TeamFeatureStore (..),
-    FeaturePersistentConstraint,
     getFeatureConfig,
     getFeatureConfigMulti,
     setFeatureConfig,
@@ -29,42 +28,32 @@ module Galley.Effects.TeamFeatureStore
 where
 
 import Data.Id
-import Data.Kind
-import Data.Proxy
 import Imports
 import Polysemy
 import Wire.API.Team.Feature
 
-type family FeaturePersistentConstraint db :: Type -> Constraint
-
-data TeamFeatureStore db m a where
-  -- the proxy argument makes sure that makeSem below generates type-inference-friendly code
+data TeamFeatureStore m a where
   GetFeatureConfig ::
-    FeaturePersistentConstraint db cfg =>
-    Proxy cfg ->
+    FeatureSingleton cfg ->
     TeamId ->
-    TeamFeatureStore db m (Maybe (WithStatusNoLock cfg))
+    TeamFeatureStore m (Maybe (WithStatusNoLock cfg))
   GetFeatureConfigMulti ::
-    FeaturePersistentConstraint db cfg =>
-    Proxy cfg ->
+    FeatureSingleton cfg ->
     [TeamId] ->
-    TeamFeatureStore db m [(TeamId, Maybe (WithStatusNoLock cfg))]
+    TeamFeatureStore m [(TeamId, Maybe (WithStatusNoLock cfg))]
   SetFeatureConfig ::
-    FeaturePersistentConstraint db cfg =>
-    Proxy cfg ->
+    FeatureSingleton cfg ->
     TeamId ->
     WithStatusNoLock cfg ->
-    TeamFeatureStore db m ()
+    TeamFeatureStore m ()
   GetFeatureLockStatus ::
-    FeaturePersistentConstraint db cfg =>
-    Proxy cfg ->
+    FeatureSingleton cfg ->
     TeamId ->
-    TeamFeatureStore db m (Maybe LockStatus)
+    TeamFeatureStore m (Maybe LockStatus)
   SetFeatureLockStatus ::
-    FeaturePersistentConstraint db cfg =>
-    Proxy cfg ->
+    FeatureSingleton cfg ->
     TeamId ->
     LockStatus ->
-    TeamFeatureStore db m ()
+    TeamFeatureStore m ()
 
 makeSem ''TeamFeatureStore

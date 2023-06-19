@@ -25,18 +25,23 @@ module Brig.Federation.Client where
 import Brig.App
 import Control.Lens
 import Control.Monad
+import Control.Monad.Catch (MonadMask, throwM)
 import Control.Monad.Trans.Except (ExceptT (..), throwE)
+import Control.Retry
+import Control.Timeout
 import Data.Domain
 import Data.Handle
 import Data.Id (ClientId, UserId)
 import Data.Qualified
 import Data.Range (Range)
 import qualified Data.Text as T
+import Data.Time.Units
 import Imports
-import Servant.Client hiding (client)
+import qualified Network.AMQP as Q
 import qualified System.Logger.Class as Log
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
+import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 import Wire.API.User
@@ -137,18 +142,48 @@ sendConnectionAction self (tUntagged -> other) action = do
 notifyUserDeleted ::
   ( MonadReader Env m,
     MonadIO m,
-    HasFedEndpoint 'Brig api "on-user-deleted-connections",
-    HasClient (FederatorClient 'Brig) api
+    MonadMask m,
+    Log.MonadLogger m
   ) =>
   Local UserId ->
   Remote (Range 1 1000 [UserId]) ->
-  ExceptT FederationError m ()
+  m ()
 notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
-  void $
-    runBrigFederatorClient (tDomain remotes) $
-      fedClient @'Brig @"on-user-deleted-connections" $
-        UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
+  let notif = UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
+      remoteDomain = tDomain remotes
+  view rabbitmqChannel >>= \case
+    Just chanVar -> do
+      enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $ void $ fedQueueClient @'Brig @"on-user-deleted-connections" notif
+    Nothing ->
+      Log.err $
+        Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
+          . Log.field "user_id" (show self)
+          . Log.field "domain" (domainText remoteDomain)
+          . Log.field "error" (show FederationNotConfigured)
+
+-- | Enqueues notifications in RabbitMQ. Retries 3 times with a delay of 1s.
+enqueueNotification :: (MonadReader Env m, MonadIO m, MonadMask m, Log.MonadLogger m) => Domain -> Domain -> Q.DeliveryMode -> MVar Q.Channel -> FedQueueClient c () -> m ()
+enqueueNotification ownDomain remoteDomain deliveryMode chanVar action = do
+  let policy = limitRetries 3 <> constantDelay 1_000_000
+  recovering policy [logRetries (const $ pure True) logError] (const go)
+  where
+    logError willRetry (SomeException e) status = do
+      Log.err $
+        Log.msg @Text "failed to enqueue notification in RabbitMQ"
+          . Log.field "error" (displayException e)
+          . Log.field "willRetry" willRetry
+          . Log.field "retryCount" status.rsIterNumber
+    go = do
+      mChan <- timeout (1 :: Second) (readMVar chanVar)
+      case mChan of
+        Nothing -> throwM NoRabbitMqChannel
+        Just chan -> liftIO $ enqueue chan ownDomain remoteDomain deliveryMode action
+
+data NoRabbitMqChannel = NoRabbitMqChannel
+  deriving (Show)
+
+instance Exception NoRabbitMqChannel
 
 runBrigFederatorClient ::
   (MonadReader Env m, MonadIO m) =>

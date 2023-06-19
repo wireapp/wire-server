@@ -269,6 +269,18 @@ type UserAPI =
                     '[Respond 200 "Rich info about the user" RichInfoAssocList]
                     RichInfoAssocList
            )
+    :<|> Named
+           "get-supported-protocols"
+           ( Summary "Get a user's supported protocols"
+               :> ZLocalUser
+               :> "users"
+               :> QualifiedCaptureUserId "uid"
+               :> "supported-protocols"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "Protocols supported by the user" (Set BaseProtocolTag))
+           )
 
 type SelfAPI =
   Named
@@ -299,7 +311,6 @@ type SelfAPI =
           :> CanThrow 'MissingAuth
           :> CanThrow 'DeleteCodePending
           :> CanThrow 'OwnerDeletingSelf
-          :> MakesFederatedCall 'Brig "on-user-deleted-connections"
           :> ZUser
           :> "self"
           :> ReqBody '[JSON] DeleteUser
@@ -311,7 +322,6 @@ type SelfAPI =
     Named
       "put-self"
       ( Summary "Update your profile."
-          :> MakesFederatedCall 'Brig "on-user-deleted-connections"
           :> ZUser
           :> ZConn
           :> "self"
@@ -337,7 +347,6 @@ type SelfAPI =
           :> Description
                "Your phone number can only be removed if you also have an \
                \email address and a password."
-          :> MakesFederatedCall 'Brig "on-user-deleted-connections"
           :> ZUser
           :> ZConn
           :> "self"
@@ -353,7 +362,6 @@ type SelfAPI =
           :> Description
                "Your email address can only be removed if you also have a \
                \phone number."
-          :> MakesFederatedCall 'Brig "on-user-deleted-connections"
           :> ZUser
           :> ZConn
           :> "self"
@@ -386,7 +394,6 @@ type SelfAPI =
     :<|> Named
            "change-locale"
            ( Summary "Change your locale."
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ZUser
                :> ZConn
                :> "self"
@@ -397,13 +404,22 @@ type SelfAPI =
     :<|> Named
            "change-handle"
            ( Summary "Change your handle."
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ZUser
                :> ZConn
                :> "self"
                :> "handle"
                :> ReqBody '[JSON] HandleUpdate
                :> MultiVerb 'PUT '[JSON] ChangeHandleResponses (Maybe ChangeHandleError)
+           )
+    :<|> Named
+           "change-supported-protocols"
+           ( Summary "Change your supported protocols"
+               :> ZLocalUser
+               :> ZConn
+               :> "self"
+               :> "supported-protocols"
+               :> ReqBody '[JSON] SupportedProtocolUpdate
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Supported protocols changed")
            )
 
 type UserHandleAPI =
@@ -449,7 +465,6 @@ type AccountAPI =
              "If the environment where the registration takes \
              \place is private and a registered email address or phone \
              \number is not whitelisted, a 403 error is returned."
-        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
         :> "register"
         :> ReqBody '[JSON] NewUserPublic
         :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
@@ -460,7 +475,6 @@ type AccountAPI =
     :<|> Named
            "verify-delete"
            ( Summary "Verify account deletion with a code."
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> CanThrow 'InvalidCode
                :> "delete"
                :> ReqBody '[JSON] VerifyDeleteUser
@@ -473,7 +487,6 @@ type AccountAPI =
            "get-activate"
            ( Summary "Activate (i.e. confirm) an email address or phone number."
                :> Description "See also 'POST /activate' which has a larger feature set."
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidActivationCodeWrongUser
                :> CanThrow 'InvalidActivationCodeWrongCode
@@ -499,7 +512,6 @@ type AccountAPI =
                :> Description
                     "Activation only succeeds once and the number of \
                     \failed attempts for a valid key is limited."
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidActivationCodeWrongUser
                :> CanThrow 'InvalidActivationCodeWrongCode
@@ -704,7 +716,6 @@ type UserClientAPI =
   Named
     "add-client"
     ( Summary "Register a new client"
-        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
         :> CanThrow 'TooManyClients
         :> CanThrow 'MissingAuth
         :> CanThrow 'MalformedPrekeys
@@ -1261,7 +1272,6 @@ type AuthAPI =
              \ Every other combination is invalid.\
              \ Access tokens can be given as query parameter or authorisation\
              \ header, with the latter being preferred."
-        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
         :> QueryParam "client_id" ClientId
         :> Cookies '["zuid" ::: SomeUserToken]
         :> Bearer SomeAccessToken
@@ -1292,7 +1302,6 @@ type AuthAPI =
            ( "login"
                :> Summary "Authenticate a user to obtain a cookie and first access token"
                :> Description "Logins are throttled at the server's discretion"
-               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ReqBody '[JSON] Login
                :> QueryParam'
                     [ Optional,

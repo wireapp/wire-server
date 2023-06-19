@@ -7,13 +7,13 @@
 , aeson-qq
 , amazonka
 , amazonka-sqs
+, amqp
 , asn1-encoding
 , asn1-types
 , async
 , base
 , base64-bytestring
 , bilge
-, binary
 , brig-types
 , bytestring
 , bytestring-conversion
@@ -78,19 +78,16 @@
 , safe-exceptions
 , saml2-web-sso
 , schema-profunctor
-, semigroups
 , servant
 , servant-client
 , servant-client-core
 , servant-server
 , singletons
-, singletons-th
 , sop-core
 , split
 , ssl-util
 , stm
 , streaming-commons
-, string-conversions
 , tagged
 , tasty
 , tasty-cannon
@@ -136,6 +133,7 @@ mkDerivation {
     aeson
     amazonka
     amazonka-sqs
+    amqp
     asn1-encoding
     asn1-types
     async
@@ -187,16 +185,13 @@ mkDerivation {
     safe-exceptions
     saml2-web-sso
     schema-profunctor
-    semigroups
     servant
     servant-client
     servant-server
     singletons
-    singletons-th
     split
     ssl-util
     stm
-    string-conversions
     tagged
     text
     time
@@ -227,7 +222,6 @@ mkDerivation {
     base
     base64-bytestring
     bilge
-    binary
     brig-types
     bytestring
     bytestring-conversion
@@ -287,7 +281,6 @@ mkDerivation {
     sop-core
     ssl-util
     streaming-commons
-    string-conversions
     tagged
     tasty
     tasty-cannon

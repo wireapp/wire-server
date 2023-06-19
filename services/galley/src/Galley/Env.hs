@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -31,6 +32,7 @@ import Galley.Options
 import qualified Galley.Queue as Q
 import HTTP2.Client.Manager (Http2Manager)
 import Imports
+import qualified Network.AMQP as Q
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest
@@ -59,7 +61,8 @@ data Env = Env
     _deleteQueue :: Q.Queue DeleteItem,
     _extEnv :: ExtEnv,
     _aEnv :: Maybe Aws.Env,
-    _mlsKeys :: SignaturePurpose -> MLSKeys
+    _mlsKeys :: SignaturePurpose -> MLSKeys,
+    _rabbitmqChannel :: Maybe (MVar Q.Channel)
   }
 
 -- | Environment specific to the communication with external

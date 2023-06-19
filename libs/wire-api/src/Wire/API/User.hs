@@ -98,7 +98,13 @@ module Wire.API.User
     VerifyDeleteUser (..),
     mkVerifyDeleteUser,
     DeletionCodeTimeout (..),
+    DeleteUserResponse (..),
     DeleteUserResult (..),
+
+    -- * Account Status
+    AccountStatus (..),
+    AccountStatusUpdate (..),
+    AccountStatusResp (..),
 
     -- * List Users
     ListUsersQuery (..),
@@ -110,6 +116,13 @@ module Wire.API.User
     -- * 2nd factor auth
     VerificationAction (..),
     SendVerificationCode (..),
+
+    -- * Protocol preferences
+    BaseProtocolTag (..),
+    SupportedProtocolUpdate (..),
+    defSupportedProtocols,
+    protocolSetBits,
+    protocolSetFromBits,
   )
 where
 
@@ -119,6 +132,7 @@ import Control.Lens (over, view, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson.Types as A
 import qualified Data.Attoparsec.ByteString as Parser
+import Data.Bits
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
@@ -131,13 +145,14 @@ import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import Data.LegalHold (UserLegalHoldStatus)
-import Data.List.NonEmpty
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Misc (PlainTextPassword6, PlainTextPassword8)
 import Data.Qualified
 import Data.Range
 import Data.SOP
 import Data.Schema
-import Data.String.Conversions (cs)
+import qualified Data.Schema as Schema
+import qualified Data.Set as Set
 import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Data.Text.Ascii
@@ -261,7 +276,8 @@ data UserProfile = UserProfile
     profileExpire :: Maybe UTCTimeMillis,
     profileTeam :: Maybe TeamId,
     profileEmail :: Maybe Email,
-    profileLegalholdStatus :: UserLegalHoldStatus
+    profileLegalholdStatus :: UserLegalHoldStatus,
+    profileSupportedProtocols :: Set BaseProtocolTag
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserProfile)
@@ -297,6 +313,7 @@ instance ToSchema UserProfile where
           .= maybe_ (optField "email" schema)
         <*> profileLegalholdStatus
           .= field "legalhold_status" schema
+        <*> profileSupportedProtocols .= supportedProtocolsObjectSchema
 
 --------------------------------------------------------------------------------
 -- SelfProfile
@@ -348,7 +365,8 @@ data User = User
     userTeam :: Maybe TeamId,
     -- | How is the user profile managed (e.g. if it's via SCIM then the user profile
     -- can't be edited via normal means)
-    userManagedBy :: ManagedBy
+    userManagedBy :: ManagedBy,
+    userSupportedProtocols :: Set BaseProtocolTag
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform User)
@@ -389,6 +407,7 @@ userObjectSchema =
       .= maybe_ (optField "team" schema)
     <*> userManagedBy
       .= (fromMaybe ManagedByWire <$> optField "managed_by" schema)
+    <*> userSupportedProtocols .= supportedProtocolsObjectSchema
 
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
@@ -439,7 +458,8 @@ connectedProfile u legalHoldStatus =
       -- We don't want to show the email by default;
       -- However we do allow adding it back in intentionally later.
       profileEmail = Nothing,
-      profileLegalholdStatus = legalHoldStatus
+      profileLegalholdStatus = legalHoldStatus,
+      profileSupportedProtocols = userSupportedProtocols u
     }
 
 -- FUTUREWORK: should public and conect profile be separate types?
@@ -459,7 +479,8 @@ publicProfile u legalHoldStatus =
           profileDeleted,
           profileExpire,
           profileTeam,
-          profileLegalholdStatus
+          profileLegalholdStatus,
+          profileSupportedProtocols
         } = connectedProfile u legalHoldStatus
    in UserProfile
         { profileEmail = Nothing,
@@ -473,7 +494,8 @@ publicProfile u legalHoldStatus =
           profileDeleted,
           profileExpire,
           profileTeam,
-          profileLegalholdStatus
+          profileLegalholdStatus,
+          profileSupportedProtocols
         }
 
 --------------------------------------------------------------------------------
@@ -711,7 +733,8 @@ newUserFromSpar new =
       newUserPassword = Nothing,
       newUserExpiresIn = Nothing,
       newUserManagedBy = Just $ newUserSparManagedBy new,
-      newUserLocale = newUserSparLocale new
+      newUserLocale = newUserSparLocale new,
+      newUserSupportedProtocols = Nothing
     }
 
 data NewUser = NewUser
@@ -730,7 +753,8 @@ data NewUser = NewUser
     newUserLocale :: Maybe Locale,
     newUserPassword :: Maybe PlainTextPassword8,
     newUserExpiresIn :: Maybe ExpiresIn,
-    newUserManagedBy :: Maybe ManagedBy
+    newUserManagedBy :: Maybe ManagedBy,
+    newUserSupportedProtocols :: Maybe (Set BaseProtocolTag)
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUser)
@@ -751,7 +775,8 @@ emptyNewUser name =
       newUserLocale = Nothing,
       newUserPassword = Nothing,
       newUserExpiresIn = Nothing,
-      newUserManagedBy = Nothing
+      newUserManagedBy = Nothing,
+      newUserSupportedProtocols = Nothing
     }
 
 -- | 1 second - 1 week
@@ -778,7 +803,8 @@ data NewUserRaw = NewUserRaw
     newUserRawLocale :: Maybe Locale,
     newUserRawPassword :: Maybe PlainTextPassword8,
     newUserRawExpiresIn :: Maybe ExpiresIn,
-    newUserRawManagedBy :: Maybe ManagedBy
+    newUserRawManagedBy :: Maybe ManagedBy,
+    newUserRawSupportedProtocols :: Maybe (Set BaseProtocolTag)
   }
 
 newUserRawObjectSchema :: ObjectSchema SwaggerDoc NewUserRaw
@@ -822,6 +848,8 @@ newUserRawObjectSchema =
       .= maybe_ (optField "expires_in" schema)
     <*> newUserRawManagedBy
       .= maybe_ (optField "managed_by" schema)
+    <*> newUserRawSupportedProtocols
+      .= maybe_ (optField "supported_protocols" (set schema))
 
 instance ToSchema NewUser where
   schema =
@@ -849,7 +877,8 @@ newUserToRaw NewUser {..} =
           newUserRawLocale = newUserLocale,
           newUserRawPassword = newUserPassword,
           newUserRawExpiresIn = newUserExpiresIn,
-          newUserRawManagedBy = newUserManagedBy
+          newUserRawManagedBy = newUserManagedBy,
+          newUserRawSupportedProtocols = newUserSupportedProtocols
         }
 
 newUserFromRaw :: NewUserRaw -> A.Parser NewUser
@@ -880,7 +909,8 @@ newUserFromRaw NewUserRaw {..} = do
         newUserLocale = newUserRawLocale,
         newUserPassword = newUserRawPassword,
         newUserExpiresIn = expiresIn,
-        newUserManagedBy = newUserRawManagedBy
+        newUserManagedBy = newUserRawManagedBy,
+        newUserSupportedProtocols = newUserRawSupportedProtocols
       }
 
 -- FUTUREWORK: align more with FromJSON instance?
@@ -900,6 +930,7 @@ instance Arbitrary NewUser where
     newUserPassword <- genUserPassword newUserIdentity newUserOrigin
     newUserExpiresIn <- genUserExpiresIn newUserIdentity
     newUserManagedBy <- arbitrary
+    newUserSupportedProtocols <- arbitrary
     pure NewUser {..}
     where
       genUserOrigin newUserIdentity = do
@@ -1329,11 +1360,13 @@ data ChangeEmailResponse
 
 instance
   AsUnion
-    '[Respond 202 desc1 (), Respond 204 desc2 ()]
+    '[ Respond 202 "Update accepted and pending activation of the new email" (),
+       Respond 204 "No update, current and new email address are the same" ()
+     ]
     ChangeEmailResponse
   where
-  toUnion ChangeEmailResponseIdempotent = S (Z (I ()))
   toUnion ChangeEmailResponseNeedsActivation = Z (I ())
+  toUnion ChangeEmailResponseIdempotent = S (Z (I ()))
   fromUnion (Z (I ())) = ChangeEmailResponseNeedsActivation
   fromUnion (S (Z (I ()))) = ChangeEmailResponseIdempotent
   fromUnion (S (S x)) = case x of {}
@@ -1412,6 +1445,24 @@ instance FromJSON DeletionCodeTimeout where
   parseJSON = A.withObject "DeletionCodeTimeout" $ \o ->
     DeletionCodeTimeout <$> o A..: "expires_in"
 
+-- | Like `DeleteUserResult`, but without the exception case.
+data DeleteUserResponse
+  = UserResponseAccountAlreadyDeleted
+  | UserResponseAccountDeleted
+
+instance
+  AsUnion
+    '[ Respond 200 "UserResponseAccountAlreadyDeleted" (),
+       Respond 202 "UserResponseAccountDeleted" ()
+     ]
+    DeleteUserResponse
+  where
+  toUnion UserResponseAccountAlreadyDeleted = Z (I ())
+  toUnion UserResponseAccountDeleted = S (Z (I ()))
+  fromUnion (Z (I ())) = UserResponseAccountAlreadyDeleted
+  fromUnion (S (Z (I ()))) = UserResponseAccountDeleted
+  fromUnion (S (S x)) = case x of {}
+
 -- | Result of an internal user/account deletion
 data DeleteUserResult
   = -- | User never existed
@@ -1455,6 +1506,53 @@ instance S.ToSchema ListUsersQuery where
           & S.description ?~ "exactly one of qualified_ids or qualified_handles must be provided."
           & S.properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
           & S.example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])
+
+-------------------------------------------------------------------------------
+-- AccountStatus
+
+data AccountStatus
+  = Active
+  | Suspended
+  | Deleted
+  | Ephemeral
+  | -- | for most intents & purposes, this is another form of inactive.  it is used for
+    -- allowing scim to find users that have not accepted their invitation yet after
+    -- creating via scim.
+    PendingInvitation
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AccountStatus)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema AccountStatus
+
+instance Schema.ToSchema AccountStatus where
+  schema =
+    Schema.enum @Text "AccountStatus" $
+      mconcat
+        [ Schema.element "active" Active,
+          Schema.element "suspended" Suspended,
+          Schema.element "deleted" Deleted,
+          Schema.element "ephemeral" Ephemeral,
+          Schema.element "pending-invitation" PendingInvitation
+        ]
+
+data AccountStatusResp = AccountStatusResp {fromAccountStatusResp :: AccountStatus}
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AccountStatusResp)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema AccountStatusResp
+
+instance Schema.ToSchema AccountStatusResp where
+  schema =
+    object "AccountStatusResp" $
+      AccountStatusResp <$> fromAccountStatusResp .= field "status" schema
+
+newtype AccountStatusUpdate = AccountStatusUpdate {suStatus :: AccountStatus}
+  deriving (Generic)
+  deriving (Arbitrary) via (GenericUniform AccountStatusUpdate)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema AccountStatusUpdate
+
+instance Schema.ToSchema AccountStatusUpdate where
+  schema =
+    object "AccountStatusUpdate" $
+      AccountStatusUpdate <$> suStatus .= field "status" schema
 
 -----------------------------------------------------------------------------
 -- SndFactorPasswordChallenge
@@ -1520,3 +1618,58 @@ instance ToSchema SendVerificationCode where
           .= field "action" schema
         <*> svcEmail
           .= field "email" schema
+
+--------------------------------------------------------------------------------
+-- Protocol preferences
+
+-- | High-level protocols supported by clients.
+--
+-- Unlike 'ProtocolTag', this does not include any transitional protocols used
+-- for migration.
+data BaseProtocolTag = BaseProtocolProteusTag | BaseProtocolMLSTag
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform BaseProtocolTag)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema BaseProtocolTag)
+
+baseProtocolMask :: BaseProtocolTag -> Word32
+baseProtocolMask BaseProtocolProteusTag = 1
+baseProtocolMask BaseProtocolMLSTag = 2
+
+instance ToSchema BaseProtocolTag where
+  schema =
+    enum @Text "BaseProtocol" $
+      mconcat
+        [ element "proteus" BaseProtocolProteusTag,
+          element "mls" BaseProtocolMLSTag
+        ]
+
+defSupportedProtocols :: Set BaseProtocolTag
+defSupportedProtocols = Set.singleton BaseProtocolProteusTag
+
+supportedProtocolsObjectSchema :: ObjectSchema SwaggerDoc (Set BaseProtocolTag)
+supportedProtocolsObjectSchema =
+  fmap
+    (fromMaybe defSupportedProtocols)
+    (optField "supported_protocols" (set schema))
+
+protocolSetBits :: Set BaseProtocolTag -> Word32
+protocolSetBits = foldr (\p x -> baseProtocolMask p .|. x) 0
+
+protocolSetFromBits :: Word32 -> Set BaseProtocolTag
+protocolSetFromBits w =
+  foldr
+    (\x -> if w .&. baseProtocolMask x /= 0 then Set.insert x else id)
+    mempty
+    [BaseProtocolProteusTag, BaseProtocolMLSTag]
+
+newtype SupportedProtocolUpdate = SupportedProtocolUpdate
+  {unSupportedProtocolUpdate :: Set BaseProtocolTag}
+  deriving stock (Eq, Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema SupportedProtocolUpdate)
+
+instance ToSchema SupportedProtocolUpdate where
+  schema =
+    object "SupportedProtocolUpdate" $
+      SupportedProtocolUpdate
+        <$> unSupportedProtocolUpdate
+          .= field "supported_protocols" (set schema)

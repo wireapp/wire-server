@@ -203,6 +203,9 @@ galley:
           -----BEGIN PRIVATE KEY-----
           MC4CAQAwBQYDK2VwBCIEIAocCDXsKIAjb65gOUn5vEF0RIKnVJkKR4ebQzuZ709c
           -----END PRIVATE KEY-----
+    rabbitmq:
+      username: {{ .Values.rabbitmqUsername }}
+      password: {{ .Values.rabbitmqPassword }}
 
 gundeck:
   replicaCount: 1
@@ -300,3 +303,16 @@ federator:
       federationStrategy:
         allowAll: true
       useSystemCAStore: false
+
+background-worker:
+  replicaCount: 1
+  resources:
+    requests: {}
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
+  config:
+    # See helmfile for the real value
+    remoteDomains: []
+  secrets:
+    rabbitmq:
+      username: {{ .Values.rabbitmqUsername }}
+      password: {{ .Values.rabbitmqPassword }}

@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE NumericUnderscores #-}
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 -- This file is part of the Wire Server implementation.
@@ -33,7 +32,6 @@ import qualified Brig.Options as Opt
 import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
 import Brig.Types.Activation
-import Brig.Types.Intra
 import qualified Brig.ZAuth as ZAuth
 import Control.Concurrent.Async
 import Control.Exception (throw)
@@ -63,7 +61,6 @@ import Data.Proxy
 import Data.Qualified hiding (isLocal)
 import Data.Range
 import qualified Data.Sequence as Seq
-import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
@@ -113,7 +110,8 @@ import Wire.API.Federation.Domain
 import Wire.API.Internal.Notification
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Member hiding (userId)
-import Wire.API.User
+import Wire.API.User hiding (AccountStatus (..))
+import qualified Wire.API.User as WU
 import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
@@ -799,22 +797,22 @@ isMember g usr cnv = do
     Nothing -> pure False
     Just m -> pure (tUntagged usr == memId m)
 
-getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m AccountStatus
+getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m WU.AccountStatus
 getStatus brig u =
-  (^?! key "status" . (_JSON @Value @AccountStatus)) . (responseJsonUnsafe @Value)
+  (^?! key "status" . (_JSON @Value @WU.AccountStatus)) . (responseJsonUnsafe @Value)
     <$> get
       ( brig
           . paths ["i", "users", toByteString' u, "status"]
           . expect2xx
       )
 
-chkStatus :: HasCallStack => Brig -> UserId -> AccountStatus -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
+chkStatus :: HasCallStack => Brig -> UserId -> WU.AccountStatus -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
 chkStatus brig u s =
   get (brig . paths ["i", "users", toByteString' u, "status"]) !!! do
     const 200 === statusCode
     const (Just (toJSON s)) === ((^? key "status") <=< responseBody)
 
-setStatus :: Brig -> UserId -> AccountStatus -> Http ()
+setStatus :: Brig -> UserId -> WU.AccountStatus -> Http ()
 setStatus brig u s =
   let js = RequestBodyLBS . encode $ AccountStatusUpdate s
    in put
@@ -1242,11 +1240,11 @@ instance VersionedMonad v WaiTestFedClient where
 
 fromServantRequest :: Domain -> Servant.Request -> WaiTest.SRequest
 fromServantRequest domain r =
-  let pathBS = "/federation" <> Data.String.Conversions.cs (toLazyByteString (Servant.requestPath r))
+  let pathBS = "/federation" <> cs (toLazyByteString (Servant.requestPath r))
       bodyBS = case Servant.requestBody r of
         Nothing -> ""
         Just (bdy, _) -> case bdy of
-          Servant.RequestBodyLBS lbs -> Data.String.Conversions.cs lbs
+          Servant.RequestBodyLBS lbs -> cs lbs
           Servant.RequestBodyBS bs -> bs
           Servant.RequestBodySource _ -> error "fromServantRequest: not implemented for RequestBodySource"
 
@@ -1279,7 +1277,7 @@ fromServantRequest domain r =
                 <> headers
                 <> [(originDomainHeaderName, T.encodeUtf8 (domainText domain))],
             Wai.isSecure = True,
-            Wai.pathInfo = filter (not . T.null) (map Data.String.Conversions.cs (B8.split '/' pathBS)),
+            Wai.pathInfo = filter (not . T.null) (map cs (B8.split '/' pathBS)),
             Wai.queryString = toList (Servant.requestQueryString r)
           }
    in WaiTest.SRequest req (cs bodyBS)

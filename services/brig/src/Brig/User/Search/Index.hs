@@ -57,7 +57,6 @@ import Bilge.Response (responseJsonThrow)
 import Bilge.Retry (rpcHandlers)
 import Brig.Data.Instances ()
 import Brig.Index.Types (CreateIndexSettings (..))
-import Brig.Types.Intra
 import Brig.Types.Search (SearchVisibilityInbound, defaultSearchVisibilityInbound, searchVisibilityInboundFromFeatureStatus)
 import Brig.User.Search.Index.Types as Types
 import qualified Cassandra as C
@@ -77,7 +76,6 @@ import Data.Handle (Handle)
 import Data.Id
 import qualified Data.Map as Map
 import Data.Metrics
-import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)

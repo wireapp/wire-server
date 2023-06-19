@@ -31,7 +31,7 @@ module Wire.API.Routes.Public
     ZConversation,
     ZProvider,
     DescriptionOAuthScope,
-    ZHost,
+    ZHostOpt,
   )
 where
 
@@ -43,7 +43,6 @@ import Data.Id as Id
 import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
-import Data.String.Conversions
 import Data.Swagger hiding (Header)
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
@@ -188,12 +187,13 @@ type ZOptClient = ZAuthServant 'ZAuthClient '[Servant.Optional, Servant.Strict]
 
 type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict]
 
-data ZHost
+-- | Optional @Z-Host@ header (added by @nginz@)
+data ZHostOpt
 
-type ZHostHeader =
-  Header' '[Required, Strict] "Z-Host" Text
+type ZOptHostHeader =
+  Header' '[Servant.Optional, Strict] "Z-Host" Text
 
-instance HasSwagger api => HasSwagger (ZHost :> api) where
+instance HasSwagger api => HasSwagger (ZHostOpt :> api) where
   toSwagger _ = toSwagger (Proxy @api)
 
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) where
@@ -226,15 +226,15 @@ instance
   ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
     HasServer api ctx
   ) =>
-  HasServer (ZHost :> api) ctx
+  HasServer (ZHostOpt :> api) ctx
   where
-  type ServerT (ZHost :> api) m = Text -> ServerT api m
+  type ServerT (ZHostOpt :> api) m = Maybe Text -> ServerT api m
   route ::
-    Proxy (ZHost :> api) ->
+    Proxy (ZHostOpt :> api) ->
     Context ctx ->
-    Delayed env (Server (ZHost :> api)) ->
+    Delayed env (Server (ZHostOpt :> api)) ->
     Router env
-  route _ = route (Proxy @(ZHostHeader :> api))
+  route _ = route (Proxy @(ZOptHostHeader :> api))
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
 instance
@@ -277,7 +277,7 @@ instance
 instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts :> api) where
   getRoutes = getRoutes @api
 
-instance RoutesToPaths api => RoutesToPaths (ZHost :> api) where
+instance RoutesToPaths api => RoutesToPaths (ZHostOpt :> api) where
   getRoutes = getRoutes @api
 
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance

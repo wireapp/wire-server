@@ -48,7 +48,7 @@ import Brig.Provider.Email
 import qualified Brig.Provider.RPC as RPC
 import qualified Brig.Queue as Queue
 import Brig.Team.Util
-import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
+import Brig.Types.Intra (UserAccount (..))
 import Brig.Types.User
 import qualified Brig.ZAuth as ZAuth
 import Cassandra (MonadClient)
@@ -949,7 +949,7 @@ addBot zuid zcon cid add = do
   let colour = fromMaybe defaultAccentId (Ext.rsNewBotColour rs)
   let pict = Pict [] -- Legacy
   let sref = newServiceRef sid pid
-  let usr = User (botUserId bid) (Qualified (botUserId bid) domain) Nothing name pict assets colour False locale (Just sref) Nothing Nothing Nothing ManagedByWire
+  let usr = User (botUserId bid) (Qualified (botUserId bid) domain) Nothing name pict assets colour False locale (Just sref) Nothing Nothing Nothing ManagedByWire defSupportedProtocols
   let newClt =
         (newClient PermanentClientType (Ext.rsNewBotLastPrekey rs))
           { newClientPrekeys = Ext.rsNewBotPrekeys rs

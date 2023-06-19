@@ -24,7 +24,6 @@ module EmailLessUsers where
 import Brig.Data.Instances ()
 import Brig.Data.UserKey
 import Brig.Email
-import Brig.Types.Intra
 import Cassandra
 import Cassandra.Util
 import Conduit
@@ -35,13 +34,13 @@ import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Either.Extra
 import Data.Id
-import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Imports
 import System.Logger
 import qualified System.Logger as Log
 import UnliftIO.Async
+import Wire.API.User hiding (userEmail)
 
 runCommand :: Logger -> ClientState -> FilePath -> IO ()
 runCommand l brig inconsistenciesFile = do

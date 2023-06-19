@@ -85,6 +85,7 @@ let
     inconsistencies = [ "inconsistencies" ];
     api-simulations = [ "api-smoketest" "api-loadtest" ];
     zauth = [ "zauth" ];
+    background-worker = [ "background-worker" ];
     integration = [ "integration" ];
   };
 
@@ -201,6 +202,48 @@ let
     '';
   };
 
+  integration-dynamic-backends-db-schemas = pkgs.writeShellApplication {
+    name = "integration-dynamic-backends-db-schemas.sh";
+    text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-db-schemas.sh}";
+    runtimeInputs = [ pkgs.parallel ];
+    checkPhase = "";
+  };
+
+  integration-dynamic-backends-brig-index = pkgs.writeShellApplication {
+    name = "integration-dynamic-backends-brig-index.sh";
+    text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-brig-index.sh}";
+    runtimeInputs = [ pkgs.parallel ];
+    checkPhase = "";
+  };
+
+  integration-dynamic-backends-sqs = pkgs.writeShellApplication {
+    name = "integration-dynamic-backends-sqs.sh";
+    text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-sqs.sh}";
+    runtimeInputs = [ pkgs.parallel pkgs.awscli2 ];
+    checkPhase = "";
+  };
+
+  integration-dynamic-backends-ses = pkgs.writeShellApplication {
+    name = "integration-dynamic-backends-ses.sh";
+    text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-ses.sh}";
+    runtimeInputs = [ pkgs.parallel pkgs.awscli2 ];
+    checkPhase = "";
+  };
+
+  integration-dynamic-backends-s3 = pkgs.writeShellApplication {
+    name = "integration-dynamic-backends-s3.sh";
+    text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-s3.sh}";
+    runtimeInputs = [ pkgs.parallel pkgs.awscli2 ];
+    checkPhase = "";
+  };
+
+  integration-dynamic-backends-vhosts = pkgs.writeShellApplication {
+    name = "integration-dynamic-backends-vhosts.sh";
+    text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-vhosts.sh}";
+    runtimeInputs = [ pkgs.parallel ];
+    checkPhase = "";
+  };
+
   # Some images require extra things which is not possible to specify using
   # cabal file dependencies, so cabal2nix cannot automatically add these.
   #
@@ -209,7 +252,29 @@ let
     brig = [ brig-templates ];
     brig-integration = [ brig-templates pkgs.mls-test-cli ];
     galley-integration = [ pkgs.mls-test-cli ];
-    integration = with exes; [ brig cannon cargohold federator galley gundeck proxy spar stern brig-templates ];
+    integration = with exes; [
+      brig
+      brig-index
+      brig-schema
+      cannon
+      cargohold
+      federator
+      galley
+      galley-schema
+      gundeck
+      gundeck-schema
+      proxy
+      spar
+      spar-schema
+      stern
+      brig-templates
+      integration-dynamic-backends-db-schemas
+      integration-dynamic-backends-brig-index
+      integration-dynamic-backends-sqs
+      integration-dynamic-backends-ses
+      integration-dynamic-backends-s3
+      integration-dynamic-backends-vhosts
+    ];
   };
 
   # useful to poke around a container during a 'kubectl exec'
@@ -238,6 +303,8 @@ let
             pkgs.cacert
             pkgs.iana-etc
             pkgs.dumb-init
+            pkgs.dockerTools.fakeNss
+            pkgs.dockerTools.usrBinEnv
             drv
             tmpDir
           ] ++ debugUtils ++ pkgs.lib.optionals (builtins.hasAttr execName (extraContents exes)) (builtins.getAttr execName (extraContents exes));
@@ -250,6 +317,7 @@ let
           config = {
             Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}" ];
             Env = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt" ];
+            User = "nobody";
           };
         }
       )
@@ -289,11 +357,14 @@ let
       pkgs.coreutils
       pkgs.bashInteractive
       pkgs.dumb-init
+      pkgs.dockerTools.fakeNss
+      pkgs.dockerTools.usrBinEnv
       hoogle
     ];
     config = {
       Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${hoogle}/bin/hoogle" "server" "--local" "--host=*" ];
       Env = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt" ];
+      User = "nobody";
     };
   };
 
@@ -357,6 +428,7 @@ let
   };
 in
 {
+
   inherit ciImage hoogleImage;
 
   images = images localModsEnableAll;
@@ -373,6 +445,8 @@ in
   devEnv = pkgs.buildEnv {
     name = "wire-server-dev-env";
     paths = commonTools ++ [
+      pkgs.bash
+      pkgs.dash
       (pkgs.haskell-language-server.override { supportedGhcVersions = [ "92" ]; })
       pkgs.ghcid
       pkgs.kind
@@ -385,7 +459,6 @@ in
           flake8
           ipdb
           ipython
-          protobuf
           pylint
           pyyaml
           requests

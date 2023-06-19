@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE NumericUnderscores #-}
 
 module Galley.Run
   ( run,
@@ -39,7 +38,6 @@ import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
-import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import qualified Galley.API as API
 import Galley.API.Federation (FederationAPI, federationSitemap)

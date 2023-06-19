@@ -30,7 +30,7 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra (AccountStatus (Active, PendingInvitation, Suspended), UserAccount (..), accountStatus, accountUser)
+import Brig.Types.Intra (UserAccount (..), accountStatus, accountUser)
 import Brig.Types.User as Brig
 import qualified Control.Exception
 import Control.Lens
@@ -51,7 +51,6 @@ import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
 import Data.LanguageCodes (ISO639_1 (..))
 import Data.Misc (HttpsUrl, mkHttpsUrl)
-import Data.String.Conversions (cs)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Vector as V
 import qualified Data.ZAuth.Token as ZAuth

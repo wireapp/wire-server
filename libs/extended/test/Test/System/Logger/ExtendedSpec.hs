@@ -19,7 +19,6 @@ module Test.System.Logger.ExtendedSpec where
 
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Aeson
-import Data.String.Conversions (cs)
 import Imports
 import System.IO.Temp
 import System.Logger.Extended hiding ((.=))

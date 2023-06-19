@@ -15,7 +15,6 @@
 , metrics-core
 , servant
 , servant-multipart
-, string-conversions
 , text
 , wai
 , wai-middleware-prometheus
@@ -35,7 +34,6 @@ mkDerivation {
     metrics-core
     servant
     servant-multipart
-    string-conversions
     text
     wai
     wai-middleware-prometheus

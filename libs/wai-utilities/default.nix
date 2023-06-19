@@ -22,7 +22,6 @@
 , prometheus-client
 , servant-server
 , streaming-commons
-, string-conversions
 , swagger2
 , text
 , tinylog
@@ -56,7 +55,6 @@ mkDerivation {
     prometheus-client
     servant-server
     streaming-commons
-    string-conversions
     swagger2
     text
     tinylog
