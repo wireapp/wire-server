@@ -31,8 +31,6 @@ migration = Migration 84 "Add feature config for team feature MLS Migration" $ d
           mls_migration_status int,
           mls_migration_lock_status int,
           mls_migration_start_time timestamp,
-          mls_migration_finalise_regardless_after timestamp,
-          mls_migration_users_threshold int,
-          mls_migration_clients_threshold int
+          mls_migration_finalise_regardless_after timestamp
         )
      |]
