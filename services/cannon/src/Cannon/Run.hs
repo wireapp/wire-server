@@ -52,6 +52,8 @@ import System.Posix.Signals
 import qualified System.Posix.Signals as Signals
 import System.Random.MWC (createSystemRandom)
 import UnliftIO.Concurrent (myThreadId, throwTo)
+import Util.Options (Endpoint (..))
+import Wire.API.FederationUpdate
 import qualified Wire.API.Routes.Internal.Cannon as Internal
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version.Wai
@@ -75,6 +77,12 @@ run o = do
       <*> mkClock
   refreshMetricsThread <- Async.async $ runCannon' e refreshMetrics
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) m (Just idleTimeout)
+
+  -- Get the federation domain list from Brig and start the updater loop
+  let brigEndpoint = Endpoint bh bp
+      Brig bh bp = o ^. brig
+  (_, updateDomainsThread) <- updateFedDomains brigEndpoint g (\_ _ -> pure ())
+
   let middleware :: Wai.Middleware
       middleware =
         versionMiddleware (fold (o ^. disabledAPIVersions))
@@ -96,6 +104,7 @@ run o = do
     -- the same time and then calling the drain script. I suspect this might be due to some
     -- cleanup in wai.  this needs to be tested very carefully when touched.
     Async.cancel refreshMetricsThread
+    Async.cancel updateDomainsThread
     L.close (applog e)
   where
     idleTimeout = fromIntegral $ maxPingInterval + 3

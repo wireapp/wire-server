@@ -52,6 +52,7 @@ import qualified Servant
 import qualified System.Logger as Log
 import qualified UnliftIO.Async as Async
 import Util.Options
+import Wire.API.FederationUpdate
 import Wire.API.Routes.Public.Gundeck (GundeckAPI)
 import Wire.API.Routes.Version.Wai
 
@@ -64,6 +65,10 @@ run o = do
   let l = e ^. applog
   s <- newSettings $ defaultServer (unpack $ o ^. optGundeck . epHost) (o ^. optGundeck . epPort) l m
   let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (optSettings . setSqsThrottleMillis)
+
+  -- Get the federation domain list from Brig and start the updater loop
+  (_, updateDomainsThread) <- updateFedDomains (o ^. optBrig) l (\_ _ -> pure ())
+
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 10
   wCollectAuth <- Async.async (collectAuthMetrics m (Aws._awsEnv (Env._awsEnv e)))
@@ -72,6 +77,7 @@ run o = do
     shutdown (e ^. cstate)
     Async.cancel lst
     Async.cancel wCollectAuth
+    Async.cancel updateDomainsThread
     forM_ wtbs Async.cancel
     forM_ rThreads Async.cancel
     Redis.disconnect =<< takeMVar (e ^. rstate)

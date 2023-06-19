@@ -47,10 +47,12 @@ import Federator.Options as Opt
 import Imports
 import qualified Network.DNS as DNS
 import qualified Network.HTTP.Client as HTTP
-import qualified System.Logger.Class as Log
+import qualified System.Logger as Log
 import qualified System.Logger.Extended as LogExt
 import Util.Options
 import Wire.API.Federation.Component
+import Wire.API.FederationUpdate
+import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.Network.DNS.Helper as DNS
 
 ------------------------------------------------------------------------------
@@ -59,15 +61,17 @@ import qualified Wire.Network.DNS.Helper as DNS
 -- FUTUREWORK(federation): Add metrics and status endpoints
 run :: Opts -> IO ()
 run opts = do
+  logger <- LogExt.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
-  DNS.withCachingResolver resolvConf $ \res ->
-    bracket (newEnv opts res) closeEnv $ \env -> do
+  DNS.withCachingResolver resolvConf $ \res -> do
+    (ioref, updateAllowedDomainsThread) <- updateFedDomains (brig opts) logger (\_ _ -> pure ())
+    bracket (newEnv opts res logger ioref) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
-      withMonitor (env ^. applog) (onNewSSLContext env) (optSettings opts) $ do
+      withMonitor logger (onNewSSLContext env) (optSettings opts) $ do
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
-        void $ waitAnyCancel [internalServerThread, externalServerThread]
+        void $ waitAnyCancel [updateAllowedDomainsThread, internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort
@@ -87,13 +91,12 @@ run opts = do
 -------------------------------------------------------------------------------
 -- Environment
 
-newEnv :: Opts -> DNS.Resolver -> IO Env
-newEnv o _dnsResolver = do
+newEnv :: Opts -> DNS.Resolver -> Log.Logger -> IORef FederationDomainConfigs -> IO Env
+newEnv o _dnsResolver _applog _allowedRemoteDomains = do
   _metrics <- Metrics.metrics
-  _applog <- LogExt.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def
-  let _runSettings = Opt.optSettings o
-  let _service Brig = Opt.brig o
+      _runSettings = Opt.optSettings o
+      _service Brig = Opt.brig o
       _service Galley = Opt.galley o
       _service Cargohold = Opt.cargohold o
   _httpManager <- initHttpManager

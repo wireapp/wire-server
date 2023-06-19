@@ -51,6 +51,7 @@ import Polysemy.Internal
 import Polysemy.TinyLog
 import Servant.Client.Core
 import Servant.Types.SourceT
+import Wire.API.Routes.FederationDomainConfig
 import Wire.Network.DNS.Effect
 import Wire.Sem.Logger.TinyLog
 
@@ -119,6 +120,7 @@ type AllEffects =
      ServiceStreaming,
      Input RunSettings,
      Input Http2Manager, -- needed by Remote
+     Input FederationDomainConfigs, -- needed for the domain list.
      Input Env, -- needed by Service
      Error ValidationError,
      Error RemoteError,
@@ -143,6 +145,7 @@ runFederator env =
           DiscoveryFailure
         ]
     . runInputConst env
+    . runInputSem (embed @IO (readIORef (view allowedRemoteDomains env)))
     . runInputSem (embed @IO (readIORef (view http2Manager env)))
     . runInputConst (view runSettings env)
     . interpretServiceHTTP
