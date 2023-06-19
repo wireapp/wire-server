@@ -77,7 +77,7 @@ data RabbitMqOpts = RabbitMqOpts
     port :: !Int,
     vHost :: !Text
   }
-  deriving (Generic, Show)
+  deriving (Show, Generic)
 
 instance FromJSON RabbitMqOpts
 
