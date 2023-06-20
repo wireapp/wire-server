@@ -693,11 +693,11 @@ This can be changed in the Brig config, with this option:
    
 ```{note}
 
-   Note however that some messages need to be fanned out to all members of a team, and due to End to End Encryption (E2EE), this is very computationally expensive for large numbers of recipients.
+If you create a team with more than 2000 members then clients won't receive certain team update events (e.g. new member joining) live via websocket anymore, but most of the app will still function normally.
 
-   Therefore, it is recommended to leave the maximum number of users at 500, and to instead create additional teams.
+Irrespective of team size conversations can have at most 2000 members. This limit cannot be overridden.
 
-   Very large teams could cause issues with dropped messages and with Legal Hold being unavailable.
+Wire's backend currently only supports fanning out a single message to at most 2000 recipients, hence the limitations on conversation size. Increasing this limit is work in progress.
 
 ```
 
