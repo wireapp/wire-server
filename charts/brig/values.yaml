@@ -110,7 +110,7 @@ config:
     enabled: false
     image:
       repository: docker.io/maxmindinc/geoipupdate
-      tag: v4.9
+      tag: v5.1.1
 turnStatic:
   v1:
   - turn:localhost:3478
