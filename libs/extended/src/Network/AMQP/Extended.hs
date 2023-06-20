@@ -20,6 +20,7 @@ import Servant.Client
 import qualified Servant.Client as Servant
 import System.Logger (Logger)
 import qualified System.Logger as Log
+import UnliftIO.Async
 
 data RabbitMqHooks m = RabbitMqHooks
   { -- | Called whenever there is a new channel. At any time there should be at
@@ -88,9 +89,10 @@ demoteOpts RabbitMqAdminOpts {..} = RabbitMqOpts {..}
 mkRabbitMqChannelMVar :: Logger -> RabbitMqOpts -> IO (MVar Q.Channel)
 mkRabbitMqChannelMVar l opts = do
   chan <- newEmptyMVar
-  openConnectionWithRetries l opts $
+  -- TODO: Keep track of this thread
+  void . async . openConnectionWithRetries l opts $
     RabbitMqHooks
-      { onNewChannel = putMVar chan,
+      { onNewChannel = \conn -> putMVar chan conn >> forever (threadDelay maxBound),
         onChannelException = \_ -> void $ tryTakeMVar chan,
         onConnectionClose = void $ tryTakeMVar chan
       }
@@ -121,26 +123,23 @@ openConnectionWithRetries l RabbitMqOpts {..} hooks = do
                 . Log.field "error" (displayException @SomeException e)
                 . Log.field "willRetry" willRetry
                 . Log.field "retryCount" retryStatus.rsIterNumber
-      recovering
-        policy
-        ( skipAsyncExceptions
-            <> [ logRetries (const $ pure True) logError
-               ]
-        )
-        ( const $ do
-            Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
-            connect username password
-        )
-
-    connect :: Text -> Text -> m ()
-    connect username password = do
-      conn <- liftIO $ Q.openConnection' host (fromIntegral port) vHost username password
-      liftBaseWith $ \runInIO ->
-        Q.addConnectionClosedHandler conn True $ void $ runInIO $ do
-          hooks.onConnectionClose
-            `catch` logException l "onConnectionClose hook threw an exception, reconnecting to RabbitMQ anyway"
-          connectWithRetries username password
-      openChan conn
+          getConn =
+            recovering
+              policy
+              ( skipAsyncExceptions
+                  <> [logRetries (const $ pure True) logError]
+              )
+              ( const $ do
+                  Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
+                  liftIO $ Q.openConnection' host (fromIntegral port) vHost username password
+              )
+      bracket getConn (liftIO . Q.closeConnection) $ \conn -> do
+        liftBaseWith $ \runInIO ->
+          Q.addConnectionClosedHandler conn True $ void $ runInIO $ do
+            hooks.onConnectionClose
+              `catch` logException l "onConnectionClose hook threw an exception, reconnecting to RabbitMQ anyway"
+            connectWithRetries username password
+        openChan conn
 
     openChan :: Q.Connection -> m ()
     openChan conn = do

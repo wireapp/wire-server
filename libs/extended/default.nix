@@ -37,6 +37,7 @@
 , temporary
 , text
 , tinylog
+, unliftio
 , wai
 }:
 mkDerivation {
@@ -73,6 +74,7 @@ mkDerivation {
     servant-swagger
     text
     tinylog
+    unliftio
     wai
   ];
   testHaskellDepends = [ aeson base hspec imports temporary ];
