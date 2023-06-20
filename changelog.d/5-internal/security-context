@@ -1,1 +1,1 @@
-All wire-server containers now run in a restricted securityContext
+All wire-server containers now run in a restricted securityContext when run on k8s >= 1.24
