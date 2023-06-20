@@ -2,6 +2,15 @@ image:
   repository: quay.io/wire/integration
   tag: do-not-use
 
+podSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
 config:
   dynamicBackendsPoolsize: 3
 
