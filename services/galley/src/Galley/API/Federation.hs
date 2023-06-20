@@ -677,8 +677,10 @@ onMLSMessageSent domain rmm =
             Event (tUntagged rcnv) (F.rmmSubConversation rmm) (F.rmmSender rmm) (F.rmmTime rmm) $
               EdMLSMessage (fromBase64ByteString (F.rmmMessage rmm))
 
-      runMessagePush loc (Just (tUntagged rcnv)) $
-        newMessagePush mempty Nothing (F.rmmMetadata rmm) recipients e
+      -- FUTUREWORK: Send only 1 push, after broken Eq, Ord instances of Recipient is fixed. Find other place via tag [FTRPUSHORD]
+      for_ recipients $ \(u, c) -> do
+        runMessagePush loc (Just (tUntagged rcnv)) $
+          newMessagePush mempty Nothing (F.rmmMetadata rmm) [(u, c)] e
 
 queryGroupInfo ::
   ( Member ConversationStore r,

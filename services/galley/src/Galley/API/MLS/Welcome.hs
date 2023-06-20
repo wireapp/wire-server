@@ -87,7 +87,7 @@ sendLocalWelcomes ::
   Sem r ()
 sendLocalWelcomes qcnv qusr con now welcome lclients = do
   let e = Event qcnv Nothing qusr now $ EdMLSWelcome welcome.raw
-  -- FUTUREWORK: Send only 1 push, after broken Eq, Ord instances of Recipient is fixed
+  -- FUTUREWORK: Send only 1 push, after broken Eq, Ord instances of Recipient is fixed. Find other place via tag [FTRPUSHORD]
   for_ (tUnqualified lclients) $ \(u, c) ->
     runMessagePush lclients (Just qcnv) $
       newMessagePush mempty con defMessageMetadata [(u, c)] e
