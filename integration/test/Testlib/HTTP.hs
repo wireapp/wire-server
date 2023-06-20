@@ -22,7 +22,6 @@ import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Types (hLocation)
 import qualified Network.HTTP.Types as HTTP
 import Network.URI (URI (..), URIAuth (..), parseURI)
-import Testlib.App
 import Testlib.Assertions
 import Testlib.Env
 import Testlib.JSON
@@ -102,9 +101,8 @@ onFailureAddResponse r m = App $ do
 
 data Versioned = Versioned | Unversioned | ExplicitVersion Int
 
-localRawBaseRequest :: HasCallStack => Service -> Versioned -> String -> App HTTP.Request
-localRawBaseRequest = rawBaseRequest OwnDomain
-
+-- | If you don't know what domain is for or what you should put in there, try `rawBaseRequest
+-- OwnDomain ...`.
 rawBaseRequest :: (HasCallStack, MakesValue domain) => domain -> Service -> Versioned -> String -> App HTTP.Request
 rawBaseRequest domain service versioned path = do
   pathSegsPrefix <- case versioned of
