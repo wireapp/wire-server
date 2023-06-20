@@ -18,8 +18,8 @@
 module Wire.API.Routes.FederationDomainConfig
   ( FederationDomainConfig (..),
     FederationDomainConfigs (..),
-    FederationStrategy (..),
     defFederationDomainConfigs,
+    FederationStrategy (..),
   )
 where
 
