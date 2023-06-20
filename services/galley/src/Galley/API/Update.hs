@@ -1425,7 +1425,6 @@ memberTyping lusr zcon qcnv ts = do
                   tdurUserId = tUnqualified lusr,
                   tdurConvId = tUnqualified rcnv
                 }
-        -- TODO(elland): check if queueable
         res <- E.runFederated rcnv (fedClient @'Galley @"update-typing-indicator" rpc)
         case res of
           TypingDataUpdateSuccess (TypingDataUpdated {..}) -> do

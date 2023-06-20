@@ -156,7 +156,7 @@ onConversationCreated ::
   ) =>
   Domain ->
   F.ConversationCreated ConvId ->
-  Sem r EmptyResponse
+  Sem r ()
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
   loc <- qualifyLocal ()
@@ -189,17 +189,17 @@ onConversationCreated domain rc = do
             (F.ccTime qrcConnected)
             (EdConversation c)
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
-  pure EmptyResponse
 
 onNewRemoteConversation ::
   Member ConversationStore r =>
   Domain ->
   F.NewRemoteConversation ->
-  Sem r ()
-onNewRemoteConversation domain nrc =
+  Sem r EmptyResponse
+onNewRemoteConversation domain nrc = do
   -- update group_id -> conv_id mapping
   for_ (preview (to F.nrcProtocol . _ProtocolMLS) nrc) $ \mls ->
     E.setGroupId (cnvmlsGroupId mls) (Qualified (F.nrcConvId nrc) domain)
+  pure EmptyResponse
 
 getConversations ::
   ( Member ConversationStore r,
@@ -227,10 +227,9 @@ onConversationUpdated ::
   ) =>
   Domain ->
   F.ConversationUpdate ->
-  Sem r EmptyResponse
-onConversationUpdated requestingDomain cu = do
+  Sem r ()
+onConversationUpdated requestingDomain cu =
   updateLocalStateOfRemoteConv requestingDomain cu
-  pure EmptyResponse
 
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
@@ -315,7 +314,7 @@ onMessageSent ::
   ) =>
   Domain ->
   F.RemoteMessage ConvId ->
-  Sem r EmptyResponse
+  Sem r ()
 onMessageSent domain rmUnqualified = do
   let rm = fmap (toRemoteUnsafe domain) rmUnqualified
       convId = tUntagged $ F.rmConversation rm
@@ -352,7 +351,6 @@ onMessageSent domain rmUnqualified = do
       mempty
       msgMetadata
       (Map.filterWithKey (\(uid, _) _ -> Set.member uid members) msgs)
-  pure EmptyResponse
 
 sendMessage ::
   ( Member BrigAccess r,
