@@ -118,8 +118,8 @@ spec:
         {{- if eq (include "includeSecurityContext" .) "true" }}
         securityContext:
           {{- toYaml .Values.podSecurityContext | nindent 10 }}
-        {{- end }}
           runAsUser: 65534
+        {{- end }}
         command:
         - /bin/sh
         args:

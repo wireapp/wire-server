@@ -109,6 +109,6 @@ spec:
         {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
-        {{- end }}
             runAsUser: 65534
+        {{- end }}
           command: ['sh', '-c', 'echo "gundeck, brig, galley, spar schema cassandra-migrations completed. See initContainers for details with e.g. kubectl logs ... -c gundeck-schema"']
