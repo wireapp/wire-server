@@ -105,11 +105,11 @@ import Wire.API.Team.Feature as Public hiding (setStatus)
 import Wire.Sem.Paging.Cassandra
 
 getFederationStatus :: Member FederatorAccess r => Local UserId -> RemoteDomains -> Sem r FederationStatusResponse
-getFederationStatus _ (RemoteDomains allRemoteDomains) = do
+getFederationStatus _ req = do
   firstConflictOrFullyConnected
     <$> E.runFederatedConcurrently
-      ((\d -> toRemoteUnsafe d d) <$> Set.toList allRemoteDomains)
-      (\qds -> fedClient @'Brig @"get-federation-status" (DomainSet (tDomain qds `Set.delete` allRemoteDomains)))
+      (flip toRemoteUnsafe () <$> Set.toList req.rdDomains)
+      (\qds -> fedClient @'Brig @"get-federation-status" (DomainSet (tDomain qds `Set.delete` req.rdDomains)))
 
 firstConflictOrFullyConnected :: [Remote Fed.FederationStatusResponse] -> FederationStatusResponse
 firstConflictOrFullyConnected =
@@ -553,6 +553,10 @@ listConversations luser (Public.ListConversations ids) = do
       fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> failedConvs
       remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map tUntagged remoteIds
   unless (null remoteNotFoundRemoteIds) $
+    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
+    -- current user should be considered removed from this conversation at this
+    -- point.
+
     -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
     -- current user should be considered removed from this conversation at this
     -- point.

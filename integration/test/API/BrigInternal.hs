@@ -146,3 +146,15 @@ refreshIndex domain = do
   req <- baseRequest domain Brig Unversioned "i/index/refresh"
   res <- submit "POST" req
   res.status `shouldMatchInt` 200
+
+addFederationRemotes :: (HasCallStack, MakesValue domain) => domain -> String -> App ()
+addFederationRemotes domain remoteDomain = do
+  req <- baseRequest domain Brig Unversioned "i/federation/remotes"
+  res <- submit "POST" $ req & addJSONObject ["domain" .= remoteDomain, "search_policy" .= "full_search"]
+  res.status `shouldMatchInt` 200
+
+deleteFederationRemotes :: (HasCallStack, MakesValue domain) => domain -> String -> App ()
+deleteFederationRemotes domain remoteDomain = do
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "federation", "remotes", remoteDomain]
+  res <- submit "DELETE" req
+  res.status `shouldMatchInt` 200

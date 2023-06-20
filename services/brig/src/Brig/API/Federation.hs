@@ -23,6 +23,7 @@ import qualified Brig.API.Client as API
 import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error
 import Brig.API.Handler (Handler)
+import Brig.API.Internal hiding (getMLSClients)
 import qualified Brig.API.Internal as Internal
 import Brig.API.MLS.KeyPackages
 import Brig.API.MLS.Util
@@ -45,12 +46,11 @@ import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Qualified
 import Data.Range
-import Data.Set ((\\))
+import Data.Set (fromList, (\\))
 import qualified Gundeck.Types.Push as Push
 import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
-import Polysemy.Input
 import Servant (ServerT)
 import Servant.API
 import UnliftIO.Async (pooledForConcurrentlyN_)
@@ -59,6 +59,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Version
 import Wire.API.MLS.KeyPackage
+import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
@@ -73,8 +74,7 @@ type FederationAPI = "federation" :> BrigApi
 
 federationSitemap ::
   ( Member GalleyProvider r,
-    Member (Concurrency 'Unsafe) r,
-    Member (Input (Set Domain)) r
+    Member (Concurrency 'Unsafe) r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -92,9 +92,9 @@ federationSitemap =
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
     :<|> Named @"get-federation-status" getFederationStatus
 
-getFederationStatus :: Member (Input (Set Domain)) r => Domain -> DomainSet -> Handler r FederationStatusResponse
+getFederationStatus :: Domain -> DomainSet -> Handler r FederationStatusResponse
 getFederationStatus _ request = do
-  fedDomains <- lift $ liftSem $ input @(Set Domain)
+  fedDomains <- fromList . fmap (.domain) . (.remotes) <$> getFederationRemotes
   pure $ FederationStatusResponse (request.dsDomains \\ fedDomains)
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse

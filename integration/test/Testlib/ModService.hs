@@ -78,7 +78,7 @@ startDynamicBackends beOverrides action = do
     let recStartBackends :: [String] -> [(BackendResource, ServiceOverrides)] -> App ()
         recStartBackends domains = \case
           [] -> action domains
-          (res, o) : xs -> startDynamicBackend res o (\d -> recStartBackends (d : domains) xs)
+          (res, o) : xs -> startDynamicBackend res o (\d -> recStartBackends (domains <> [d]) xs)
     recStartBackends [] (zip resources beOverrides)
 
 startDynamicBackend :: BackendResource -> ServiceOverrides -> (String -> App a) -> App a
@@ -86,15 +86,17 @@ startDynamicBackend resource beOverrides action = do
   defDomain <- asks (.domain1)
   defDomain2 <- asks (.domain2)
   let services =
-        Map.mapWithKey
-          ( \srv conf ->
-              conf
-                >=> setKeyspace srv
-                >=> setEsIndex srv
-                >=> setFederationSettings defDomain defDomain2 srv
-                >=> setAwsAdnQueuesConfigs srv
-          )
-          $ defaultServiceOverridesToMap beOverrides
+        withOverrides beOverrides $
+          Map.mapWithKey
+            ( \srv conf ->
+                conf
+                  >=> setKeyspace srv
+                  >=> setEsIndex srv
+                  >=> setFederationSettings defDomain defDomain2 srv
+                  >=> setAwsAdnQueuesConfigs srv
+                  >=> setField "logLevel" "Warn"
+            )
+            defaultServiceOverridesToMap
   startBackend
     resource.berDomain
     (Just resource.berNginzSslPort)
