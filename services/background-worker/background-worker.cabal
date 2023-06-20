@@ -16,6 +16,8 @@ library
     Wire.BackgroundWorker
     Wire.BackgroundWorker.Env
     Wire.BackgroundWorker.Options
+    Wire.BackgroundWorker.Util
+    Wire.Defederation
 
   hs-source-dirs:     src
   default-language:   Haskell2010
@@ -27,6 +29,7 @@ library
   build-depends:
       aeson
     , amqp
+    , async
     , bytestring
     , bytestring-conversion
     , exceptions
@@ -145,6 +148,86 @@ executable background-worker
     UndecidableInstances
     ViewPatterns
 
+executable background-worker-integration
+  default-language:   Haskell2010
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Main.hs
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -threaded -with-rtsopts=-N
+    -Wredundant-constraints -Wunused-packages
+
+  -- cabal-fmt: expand test
+  other-modules:
+    Main
+    Test.Wire.BackendNotificationPusherSpec
+    Test.Wire.Defederation
+    Test.Wire.Util
+
+  build-depends:
+      aeson
+    , amqp
+    , background-worker
+    , base
+    , exceptions
+    , federator
+    , HsOpenSSL
+    , hspec
+    , imports
+    , optparse-applicative
+    , QuickCheck
+    , tagged
+    , tasty
+    , tasty-hunit
+    , types-common
+    , wire-api
+    , wire-api-federation
+    , yaml
+
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
 test-suite background-worker-test
   default-language:   Haskell2010
   type:               exitcode-stdio-1.0
@@ -160,20 +243,28 @@ test-suite background-worker-test
   other-modules:
     Main
     Test.Wire.BackendNotificationPusherSpec
+    Test.Wire.Defederation
+    Test.Wire.Util
 
   build-depends:
       aeson
     , amqp
     , background-worker
+    , base
+    , exceptions
     , federator
+    , HsOpenSSL
     , hspec
-    , http-client
     , imports
+    , optparse-applicative
     , QuickCheck
-    , tinylog
+    , tagged
+    , tasty
+    , tasty-hunit
     , types-common
     , wire-api
     , wire-api-federation
+    , yaml
 
   default-extensions:
     NoImplicitPrelude

@@ -13,13 +13,8 @@ import qualified System.Logger.Class as Log
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.BackgroundWorker.Env
-import Network.HTTP.Client
-import Network.HTTP.Types
-import Util.Options
-import Control.Lens ((^.), to)
-import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as L
-import Data.Text.Encoding
+import Wire.BackgroundWorker.Util
+import Control.Concurrent.Async
 
 startPushingNotifications ::
   Q.Channel ->
@@ -28,16 +23,6 @@ startPushingNotifications ::
 startPushingNotifications chan domain = do
   lift $ ensureQueue chan domain._domainText
   QL.consumeMsgs chan (routingKey domain._domainText) Q.Ack (pushNotification domain)
-
--- | This class exists to help with testing, making the envelope in unit test is
--- too difficult. So we use fake envelopes in the unit tests.
-class RabbitMQEnvelope e where
-  ack :: e -> IO ()
-  reject :: e -> Bool -> IO ()
-
-instance RabbitMQEnvelope Q.Envelope where
-  ack = Q.ackEnv
-  reject = Q.rejectEnv
 
 pushNotification :: RabbitMQEnvelope e => Domain -> (Q.Message, e) -> AppT IO ()
 pushNotification targetDomain (msg, envelope) = do
@@ -85,54 +70,14 @@ pushNotification targetDomain (msg, envelope) = do
         liftIO $ either throwM pure =<< sendNotification fcEnv notif.targetComponent notif.path notif.body
         lift $ ack envelope
 
-deleteFederationDomain :: Q.Channel -> AppT IO Q.ConsumerTag
-deleteFederationDomain chan = do
-  env <- ask
-  let manager = httpManager env
-      req :: Domain -> Request
-      req dom = defaultRequest
-        { method = methodDelete
-        , secure = False
-        , host = galley env ^. epHost . to encodeUtf8
-        , port = galley env ^. epPort . to fromIntegral
-        , path = "/i/federation/" <> toByteString' dom
-        , requestHeaders = ("Accept", "application/json") : requestHeaders defaultRequest
-        , responseTimeout = defederationTimeout env
-        }
-  lift $ ensureQueue chan queue
-  QL.consumeMsgs chan (routingKey queue) Q.Ack $ \(msg, envelope) -> do
-    either
-      (\e -> do
-        logErr e
-        liftIO $ Q.nackEnv envelope
-      )
-      (\d -> do
-        resp <- liftIO $ httpLbs (req d) manager
-        go envelope resp
-      )
-      $ A.eitherDecode @DefederationDomain (Q.msgBody msg)
-    
-  where
-    go :: Q.Envelope -> Response L.ByteString -> AppT IO ()
-    go envelope resp = do
-      let code = statusCode $ responseStatus resp
-      if code >= 200 && code <= 299
-      then do
-        logErr $ show resp
-        liftIO $ Q.ackEnv envelope
-      else liftIO $ Q.nackEnv envelope
-    logErr err = Log.err $
-      Log.msg (Log.val "Failed delete federation domain")
-        . Log.field "error" err
-    queue = "background-worker-delete-federation"
-
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.
-startWorker :: [Domain] -> Q.Channel -> AppT IO ()
+startWorker :: [Domain] -> Q.Channel -> AppT IO (Async ())
 startWorker remoteDomains chan = do
   -- This ensures that we receive notifications 1 by 1 which ensures they are
   -- delivered in order.
   lift $ Q.qos chan 0 1 False
-  mapM_ (startPushingNotifications chan) remoteDomains
-  void $ deleteFederationDomain chan
-  forever $ threadDelay maxBound
+  env <- ask
+  liftIO $ async $ do
+    mapM_ (runAppT env . startPushingNotifications chan) remoteDomains
+    forever $ threadDelay maxBound
