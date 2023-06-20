@@ -319,9 +319,9 @@ testAddUserWithBundle = do
 
     events <- mlsBracket bobClients $ \wss -> do
       events <- sendAndConsumeCommitBundle commit
-      for_ (zip bobClients wss) $ \(c, ws) ->
+      for_ (zip bobClients wss) $ \(_, ws) ->
         WS.assertMatch (5 # Second) ws $
-          wsAssertMLSWelcome (cidQualifiedUser c) qcnv welcome
+          wsAssertMLSWelcome alice qcnv welcome
       pure events
 
     event <- assertOne events
@@ -1689,7 +1689,7 @@ sendRemoteMLSWelcome = do
     -- check that the corresponding event is received
     liftIO $ do
       WS.assertMatch_ (5 # WS.Second) wsB $
-        wsAssertMLSWelcome bob qcid welcome
+        wsAssertMLSWelcome alice qcid welcome
 
 testBackendRemoveProposalLocalConvLocalLeaverCreator :: TestM ()
 testBackendRemoveProposalLocalConvLocalLeaverCreator = do

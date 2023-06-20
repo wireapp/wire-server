@@ -902,7 +902,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
         let e = List1.head (WS.unpackPayload n)
         ntfTransient n @?= False
         evtType e @?= MLSWelcome
-        evtFrom e @?= userQualifiedId alice
+        evtFrom e @?= userQualifiedId bob
         evtData e @?= EdMLSWelcome welcome
 
       -- verify that alice receives a join event
@@ -1107,7 +1107,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
         let e = List1.head (WS.unpackPayload n)
         ntfTransient n @?= False
         evtType e @?= MLSWelcome
-        evtFrom e @?= userQualifiedId alice
+        evtFrom e @?= userQualifiedId bob
         evtData e @?= EdMLSWelcome welcome
 
       -- verify that alice receives a join event
