@@ -79,6 +79,7 @@ spec:
         {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
+            runAsUser: 1000 # see https://github.com/maxmind/geoipupdate/issues/233
         {{- end }}
       containers:
         - name: brig
@@ -179,6 +180,7 @@ spec:
         {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
+            runAsUser: 1000 # see https://github.com/maxmind/geoipupdate/issues/233
         {{- end }}
           volumeMounts:
           - name: "geoip"
