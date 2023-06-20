@@ -503,3 +503,33 @@ testAdminRemovesUserFromConv = do
   assertBool
     "bob is not longer part of conversation after the commit"
     (qcnv `notElem` convIds)
+
+testLocalWelcome :: HasCallStack => App ()
+testLocalWelcome = do
+  users@[alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+
+  [alice1, bob1] <- traverse createMLSClient users
+
+  void $ uploadNewKeyPackage bob1
+
+  (_, qcnv) <- createNewGroup alice1
+
+  commit <- createAddCommit alice1 [bob]
+  Just welcome <- pure commit.welcome
+
+  es <- withWebSocket bob1 $ \wsBob -> do
+    es <- sendAndConsumeCommitBundle commit
+    let isWelcome n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
+
+    n <- awaitMatch 5 isWelcome wsBob
+
+    shouldMatch (nPayload n %. "conversation") (objId qcnv)
+    shouldMatch (nPayload n %. "from") (objId alice)
+    shouldMatch (nPayload n %. "data") (B8.unpack (Base64.encode welcome))
+    pure es
+
+  event <- assertOne =<< asList (es %. "events")
+  event %. "type" `shouldMatch` "conversation.member-join"
+  event %. "conversation" `shouldMatch` objId qcnv
+  addedUser <- (event %. "data.users") >>= asList >>= assertOne
+  objQid addedUser `shouldMatch` objQid bob

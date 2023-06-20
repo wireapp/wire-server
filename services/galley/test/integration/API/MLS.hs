@@ -83,8 +83,7 @@ tests s =
         ],
       testGroup
         "Welcome"
-        [ test s "local welcome" testLocalWelcome,
-          test s "post a remote MLS welcome message" sendRemoteMLSWelcome
+        [ test s "post a remote MLS welcome message" sendRemoteMLSWelcome
         ],
       testGroup
         "Creation"
@@ -306,28 +305,6 @@ testSenderNotInConversation = do
           <!! const 404 === statusCode
 
     liftIO $ Wai.label err @?= "no-conversation"
-
-testLocalWelcome :: TestM ()
-testLocalWelcome = do
-  users@[alice, bob] <- createAndConnectUsers [Nothing, Nothing]
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient users
-    void $ uploadNewKeyPackage bob1
-    (_, qcnv) <- setupMLSGroup alice1
-    commit <- createAddCommit alice1 [bob]
-    welcome <- liftIO $ case mpWelcome commit of
-      Nothing -> assertFailure "Expected welcome message"
-      Just w -> pure w
-    events <- mlsBracket [bob1] $ \wss -> do
-      es <- sendAndConsumeCommitBundle commit
-
-      WS.assertMatchN_ (5 # Second) wss $
-        wsAssertMLSWelcome (cidQualifiedUser bob1) qcnv welcome
-
-      pure es
-
-    event <- assertOne events
-    liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
 
 testAddUserWithBundle :: TestM ()
 testAddUserWithBundle = do
