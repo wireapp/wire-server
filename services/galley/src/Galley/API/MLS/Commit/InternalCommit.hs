@@ -28,11 +28,14 @@ import Data.Qualified
 import qualified Data.Set as Set
 import Data.Tuple.Extra
 import Galley.API.Action
+import Galley.API.Error
 import Galley.API.MLS.Commit.Core
 import Galley.API.MLS.Conversation
+import Galley.API.MLS.One2One
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Types
 import Galley.API.MLS.Util
+import Galley.API.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
 import qualified Galley.Data.Conversation.Types as Data
 import Galley.Effects
@@ -44,6 +47,8 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Resource (Resource)
+import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -180,21 +185,61 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
                     sub
                     convOrSub.mlsMeta.cnvmlsCipherSuite
                     convOrSub.mlsMeta.cnvmlsGroupId
-            _ -> pure () -- FUTUREWORK: create 1-1 conversation at epoch 0
+              pure []
+            Conv _
+              | convOrSub.meta.cnvmType == One2OneConv
+                  && epoch == Epoch 0 -> do
+                  -- create 1-1 conversation with the users as members, set
+                  -- epoch to 0 for now, it will be incremented later
+                  let senderUser = cidQualifiedUser senderIdentity
+                      mlsConv = fmap (.conv) lConvOrSub
+                      lconv = fmap mcConv mlsConv
+                  conv <- case filter ((/= senderUser) . fst) newUserClients of
+                    [(otherUser, _)] ->
+                      createMLSOne2OneConversation
+                        senderUser
+                        otherUser
+                        mlsConv
+                    _ ->
+                      throw
+                        ( mlsProtocolError
+                            "The first commit in a 1-1 conversation should add exactly 1 other user"
+                        )
+                  -- notify otherUser about being added to this 1-1 conversation
+                  let bm = convBotsAndMembers conv
+                  members <-
+                    note
+                      ( InternalErrorWithDescription
+                          "Unexpected empty member list in MLS 1-1 conversation"
+                      )
+                      $ nonEmpty (bmQualifiedMembers lconv bm)
+                  (update, _) <-
+                    notifyConversationAction
+                      SConversationJoinTag
+                      senderUser
+                      False
+                      con
+                      lconv
+                      bm
+                      ConversationJoin
+                        { cjUsers = members,
+                          cjRole = roleNameWireMember
+                        }
+                  pure [update]
+            _ -> do
+              -- remove users from the conversation and send events
+              removeEvents <-
+                foldMap
+                  (removeMembers qusr con lConvOrSub)
+                  (nonEmpty membersToRemove)
 
-          -- remove users from the conversation and send events
-          removeEvents <-
-            foldMap
-              (removeMembers qusr con lConvOrSub)
-              (nonEmpty membersToRemove)
-
-          -- add users to the conversation and send events
-          addEvents <-
-            foldMap (addMembers qusr con lConvOrSub)
-              . nonEmpty
-              . map fst
-              $ newUserClients
-          pure (addEvents <> removeEvents)
+              -- add users to the conversation and send events
+              addEvents <-
+                foldMap (addMembers qusr con lConvOrSub)
+                  . nonEmpty
+                  . map fst
+                  $ newUserClients
+              pure (addEvents <> removeEvents)
         else pure []
 
     -- Remove clients from the conversation state. This includes client removals

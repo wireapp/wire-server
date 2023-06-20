@@ -45,15 +45,42 @@ testGetMLSOne2OneSameTeam = do
   bob <- addUserToTeam alice
   void $ getMLSOne2OneConversation alice bob >>= getJSON 200
 
-testMLSOne2One :: HasCallStack => Domain -> App ()
-testMLSOne2One otherDomain = do
-  [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
+data One2OneScenario
+  = -- | Both users are local
+    One2OneScenarioLocal
+  | -- | One user is remote, conversation is local
+    One2OneScenarioLocalConv
+  | -- | One user is remote, conversation is remote
+    One2OneScenarioRemoteConv
+
+instance HasTests x => HasTests (One2OneScenario -> x) where
+  mkTests m n s f x =
+    mkTests m (n <> "[domain=own]") s f (x One2OneScenarioLocal)
+      <> mkTests m (n <> "[domain=other;conv=own]") s f (x One2OneScenarioLocalConv)
+      <> mkTests m (n <> "[domain=other;conv=other]") s f (x One2OneScenarioRemoteConv)
+
+one2OneScenarioDomain :: One2OneScenario -> Domain
+one2OneScenarioDomain One2OneScenarioLocal = OwnDomain
+one2OneScenarioDomain _ = OtherDomain
+
+one2OneScenarioConvDomain :: One2OneScenario -> Domain
+one2OneScenarioConvDomain One2OneScenarioLocal = OwnDomain
+one2OneScenarioConvDomain One2OneScenarioLocalConv = OwnDomain
+one2OneScenarioConvDomain One2OneScenarioRemoteConv = OtherDomain
+
+testMLSOne2One :: HasCallStack => One2OneScenario -> App ()
+testMLSOne2One scenario = do
+  alice <- randomUser OwnDomain def
+  let otherDomain = one2OneScenarioDomain scenario
+      convDomain = one2OneScenarioConvDomain scenario
+  bob <- createMLSOne2OnePartner otherDomain alice convDomain
   [alice1, bob1] <- traverse createMLSClient [alice, bob]
   traverse_ uploadNewKeyPackage [bob1]
 
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   resetGroup alice1 conv
 
+  -- TODO: check that bob receives a welcome message
   void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
   withWebSocket bob1 $ \ws -> do

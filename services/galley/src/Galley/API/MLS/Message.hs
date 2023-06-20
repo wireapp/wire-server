@@ -46,6 +46,7 @@ import Galley.API.MLS.Commit.InternalCommit
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.IncomingMessage
+import Galley.API.MLS.One2One
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Types
@@ -66,6 +67,7 @@ import Polysemy.Internal
 import Polysemy.Output
 import Polysemy.Resource (Resource)
 import Polysemy.TinyLog
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -137,10 +139,10 @@ postMLSMessageFromLocalUser ::
 postMLSMessageFromLocalUser lusr c conn smsg = do
   assertMLSEnabled
   imsg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage smsg
-  cnvOrSub <- getConvFromGroupId imsg.groupId
+  (ctype, cnvOrSub) <- getConvFromGroupId imsg.groupId
   (events, unreachables) <-
     first (map lcuEvent)
-      <$> postMLSMessage lusr (tUntagged lusr) c cnvOrSub (Just conn) imsg
+      <$> postMLSMessage lusr (tUntagged lusr) c ctype cnvOrSub (Just conn) imsg
   t <- toUTCTimeMillis <$> input
   pure $ MLSMessageSendingStatus events t unreachables
 
@@ -154,15 +156,16 @@ postMLSCommitBundle ::
   Local x ->
   Qualified UserId ->
   ClientId ->
+  ConvType ->
   Qualified ConvOrSubConvId ->
   Maybe ConnId ->
   IncomingBundle ->
   Sem r [LocalConversationUpdate]
-postMLSCommitBundle loc qusr c qConvOrSub conn bundle =
+postMLSCommitBundle loc qusr c ctype qConvOrSub conn bundle =
   foldQualified
     loc
-    (postMLSCommitBundleToLocalConv qusr c conn bundle)
-    (postMLSCommitBundleToRemoteConv loc qusr c conn bundle)
+    (postMLSCommitBundleToLocalConv qusr c conn bundle ctype)
+    (postMLSCommitBundleToRemoteConv loc qusr c conn bundle ctype)
     qConvOrSub
 
 postMLSCommitBundleFromLocalUser ::
@@ -180,10 +183,10 @@ postMLSCommitBundleFromLocalUser ::
 postMLSCommitBundleFromLocalUser lusr c conn bundle = do
   assertMLSEnabled
   ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
-  qConvOrSub <- getConvFromGroupId ibundle.groupId
+  (ctype, qConvOrSub) <- getConvFromGroupId ibundle.groupId
   events <-
     map lcuEvent
-      <$> postMLSCommitBundle lusr (tUntagged lusr) c qConvOrSub (Just conn) ibundle
+      <$> postMLSCommitBundle lusr (tUntagged lusr) c ctype qConvOrSub (Just conn) ibundle
   t <- toUTCTimeMillis <$> input
   pure $ MLSMessageSendingStatus events t mempty
 
@@ -198,10 +201,11 @@ postMLSCommitBundleToLocalConv ::
   ClientId ->
   Maybe ConnId ->
   IncomingBundle ->
+  ConvType ->
   Local ConvOrSubConvId ->
   Sem r [LocalConversationUpdate]
-postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
-  lConvOrSub <- fetchConvOrSub qusr lConvOrSubId
+postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
+  lConvOrSub <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
   (events, newClients) <- case bundle.sender of
@@ -258,14 +262,16 @@ postMLSCommitBundleToRemoteConv ::
   ClientId ->
   Maybe ConnId ->
   IncomingBundle ->
+  ConvType ->
   Remote ConvOrSubConvId ->
   Sem r [LocalConversationUpdate]
-postMLSCommitBundleToRemoteConv loc qusr c con bundle rConvOrSubId = do
+postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
   -- only members may send commit bundles to a remote conversation
 
-  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
+  unless (bundle.epoch == Epoch 0 && ctype == One2OneConv) $
+    flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
 
   resp <-
     runFederated rConvOrSubId $
@@ -314,14 +320,15 @@ postMLSMessage ::
   Local x ->
   Qualified UserId ->
   ClientId ->
+  ConvType ->
   Qualified ConvOrSubConvId ->
   Maybe ConnId ->
   IncomingMessage ->
   Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
-postMLSMessage loc qusr c qconvOrSub con msg = do
+postMLSMessage loc qusr c ctype qconvOrSub con msg = do
   foldQualified
     loc
-    (postMLSMessageToLocalConv qusr c con msg)
+    (postMLSMessageToLocalConv qusr c con msg ctype)
     (postMLSMessageToRemoteConv loc qusr c con msg)
     qconvOrSub
 
@@ -356,10 +363,11 @@ postMLSMessageToLocalConv ::
   ClientId ->
   Maybe ConnId ->
   IncomingMessage ->
+  ConvType ->
   Local ConvOrSubConvId ->
   Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
-postMLSMessageToLocalConv qusr c con msg convOrSubId = do
-  lConvOrSub <- fetchConvOrSub qusr convOrSubId
+postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
+  lConvOrSub <- fetchConvOrSub qusr msg.groupId ctype convOrSubId
 
   for_ msg.sender $ \sender ->
     void $ getSenderIdentity qusr c sender lConvOrSub
@@ -439,23 +447,51 @@ fetchConvOrSub ::
   forall r.
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
+    Member (Error MLSProtocolError) r,
     Member MemberStore r,
     Member SubConversationStore r
   ) =>
   Qualified UserId ->
+  GroupId ->
+  ConvType ->
   Local ConvOrSubConvId ->
   Sem r (Local ConvOrSubConv)
-fetchConvOrSub qusr convOrSubId = for convOrSubId $ \case
-  Conv convId -> Conv <$> getMLSConv qusr (qualifyAs convOrSubId convId)
+fetchConvOrSub qusr groupId ctype convOrSubId = for convOrSubId $ \case
+  Conv convId -> Conv <$> getMLSConv qusr (Just groupId) ctype (qualifyAs convOrSubId convId)
   SubConv convId sconvId -> do
     let lconv = qualifyAs convOrSubId convId
-    c <- getMLSConv qusr lconv
+    c <- getMLSConv qusr Nothing ctype lconv
     msubconv <- getSubConversation convId sconvId
+    -- TODO: check group ID of subconversation
     let subconv = fromMaybe (newSubConversationFromParent lconv sconvId (mcMLSData c)) msubconv
     pure (SubConv c subconv)
-  where
-    getMLSConv :: Qualified UserId -> Local ConvId -> Sem r MLSConversation
-    getMLSConv u =
-      getLocalConvForUser u
-        >=> mkMLSConversation
-        >=> noteS @'ConvNotFound
+
+getMLSConv ::
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member (Error MLSProtocolError) r,
+    Member ConversationStore r,
+    Member MemberStore r
+  ) =>
+  Qualified UserId ->
+  Maybe GroupId ->
+  ConvType ->
+  Local ConvId ->
+  Sem r MLSConversation
+getMLSConv u mGroupId ctype lcnv = do
+  mlsConv <- case ctype of
+    One2OneConv -> do
+      mconv <- getConversation (tUnqualified lcnv)
+      case mconv of
+        Just conv -> mkMLSConversation conv >>= noteS @'ConvNotFound
+        Nothing ->
+          let (meta, mlsData) = localMLSOne2OneConversationMetadata (tUntagged lcnv)
+           in pure (newMLSConversation lcnv meta mlsData)
+    _ ->
+      getLocalConvForUser u lcnv
+        >>= mkMLSConversation
+        >>= noteS @'ConvNotFound
+  -- check that the group ID in the message matches that of the conversation
+  for_ mGroupId $ \groupId ->
+    when (groupId /= mlsConv.mcMLSData.cnvmlsGroupId) $
+      throw (mlsProtocolError "The message group ID does not match the conversation")
+  pure mlsConv

@@ -36,10 +36,10 @@ import Polysemy.Resource (Resource, bracket)
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as TinyLog
 import qualified System.Logger as Log
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Epoch
-import Wire.API.MLS.Group
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal
@@ -125,5 +125,10 @@ withCommitLock lConvOrSubId gid epoch action =
   where
     ttl = fromIntegral (600 :: Int) -- 10 minutes
 
-getConvFromGroupId :: Member (Error MLSProtocolError) r => GroupId -> Sem r (Qualified ConvOrSubConvId)
-getConvFromGroupId = either (throw . mlsProtocolError . T.pack) (pure . qConvId) . groupIdToConv
+getConvFromGroupId ::
+  Member (Error MLSProtocolError) r =>
+  GroupId ->
+  Sem r (ConvType, Qualified ConvOrSubConvId)
+getConvFromGroupId gid = case groupIdToConv gid of
+  Left e -> throw (mlsProtocolError (T.pack e))
+  Right parts -> pure (parts.convType, parts.qConvId)

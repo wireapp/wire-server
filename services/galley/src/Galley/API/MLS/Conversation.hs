@@ -17,15 +17,19 @@
 
 module Galley.API.MLS.Conversation
   ( mkMLSConversation,
+    newMLSConversation,
     mcConv,
   )
 where
 
+import Data.Id
+import Data.Qualified
 import Galley.API.MLS.Types
 import Galley.Data.Conversation.Types as Data
 import Galley.Effects.MemberStore
 import Imports
 import Polysemy
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 
 mkMLSConversation ::
@@ -46,6 +50,20 @@ mkMLSConversation conv =
           mcIndexMap = im,
           mcMigrationState = migrationState
         }
+
+-- | Creates a new MLS conversation with members but no clients.
+newMLSConversation :: Local ConvId -> ConversationMetadata -> ConversationMLSData -> MLSConversation
+newMLSConversation lcnv meta mlsData =
+  MLSConversation
+    { mcId = tUnqualified lcnv,
+      mcMetadata = meta,
+      mcMLSData = mlsData,
+      mcLocalMembers = [],
+      mcRemoteMembers = [],
+      mcMembers = mempty,
+      mcIndexMap = mempty,
+      mcMigrationState = MLSMigrationMLS
+    }
 
 mcConv :: MLSConversation -> Data.Conversation
 mcConv mlsConv =

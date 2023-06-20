@@ -110,3 +110,20 @@ resetFedConns owndom = do
       rawlist <- resp.json %. "remotes" & asList
       (asString . (%. "domain")) `mapM` rawlist
     deleteFedConn' owndom `mapM_` rdoms
+
+-- | Create a user on the given domain, such that the 1-1 conversation with
+-- 'other' resides on 'convDomain'. This connects the two users as a side-effect.
+createMLSOne2OnePartner :: MakesValue user => Domain -> user -> Domain -> App Value
+createMLSOne2OnePartner domain other convDomain = loop
+  where
+    loop = do
+      u <- randomUser domain def
+      connectUsers2 u other
+      conv <- getMLSOne2OneConversation other u >>= getJSON 200
+
+      desiredConvDomain <- make convDomain & asString
+      actualConvDomain <- conv %. "qualified_id.domain" & asString
+
+      if desiredConvDomain == actualConvDomain
+        then pure u
+        else loop
