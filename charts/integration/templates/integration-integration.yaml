@@ -55,8 +55,10 @@ spec:
   # FUTUREWORK: reproduce brig's initContainers (for geoip)
   - name: integration-setup
     image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        {{- if eq (include "includeSecurityContext" .) "true" }}
     securityContext:
       {{- toYaml .Values.podSecurityContext | nindent 6 }}
+        {{- end }}
     env:
     - name: INTEGRATION_DYNAMIC_BACKENDS_POOLSIZE
       value: "{{ .Values.config.dynamicBackendsPoolsize }}"
@@ -94,8 +96,10 @@ spec:
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        {{- if eq (include "includeSecurityContext" .) "true" }}
     securityContext:
       {{- toYaml .Values.podSecurityContext | nindent 6 }}
+        {{- end }}
     command: [ "integration", "--config", "/etc/wire/integration/integration.yaml" ]
     resources:
       requests:

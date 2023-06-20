@@ -25,8 +25,10 @@ spec:
   - name: integration
     command: ["federator-integration"]
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+        {{- if eq (include "includeSecurityContext" .) "true" }}
     securityContext:
       {{- toYaml .Values.podSecurityContext | nindent 6 }}
+        {{- end }}
     volumeMounts:
     - name: "federator-integration"
       mountPath: "/etc/wire/integration"

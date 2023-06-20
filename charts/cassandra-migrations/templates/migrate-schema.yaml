@@ -27,8 +27,10 @@ spec:
         - name: gundeck-schema
           image: "{{ .Values.images.gundeck }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+        {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
+        {{- end }}
           command:
             - gundeck-schema
             - --host
@@ -45,8 +47,10 @@ spec:
         - name: brig-schema
           image: "{{ .Values.images.brig }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+        {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
+        {{- end }}
           command:
             - brig-schema
             - --host
@@ -63,8 +67,10 @@ spec:
         - name: galley-schema
           image: "{{ .Values.images.galley }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+        {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
+        {{- end }}
           command:
             - galley-schema
             - --host
@@ -81,8 +87,10 @@ spec:
         - name: spar-schema
           image: "{{ .Values.images.spar }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+        {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
+        {{- end }}
           command:
             - spar-schema
             - --host
@@ -98,7 +106,9 @@ spec:
       containers:
         - name: job-done
           image: alpine:3.18.2
+        {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
+        {{- end }}
             runAsUser: 65534
           command: ['sh', '-c', 'echo "gundeck, brig, galley, spar schema cassandra-migrations completed. See initContainers for details with e.g. kubectl logs ... -c gundeck-schema"']

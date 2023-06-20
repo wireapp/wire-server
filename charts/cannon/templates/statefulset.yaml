@@ -39,8 +39,10 @@ spec:
       - name: nginz
         image: "{{ .Values.nginzImage.repository }}:{{ .Values.nginzImage.tag }}"
         imagePullPolicy: "{{ .Values.nginzImage.pullPolicy }}"
+        {{- if eq (include "includeSecurityContext" .) "true" }}
         securityContext:
           {{- toYaml .Values.podSecurityContext | nindent 10 }}
+        {{- end }}
         env:
         # Any file changes to this path causes nginx to reload configs without
         # restarting or breaking any connections.
@@ -84,8 +86,10 @@ spec:
       {{- end }}
       - name: cannon
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        {{- if eq (include "includeSecurityContext" .) "true" }}
         securityContext:
           {{- toYaml .Values.podSecurityContext | nindent 10 }}
+        {{- end }}
         volumeMounts:
         - name: empty
           mountPath: /etc/wire/cannon/externalHost
@@ -111,8 +115,10 @@ spec:
       initContainers:
       - name: cannon-configurator
         image: alpine:3.18.2
+        {{- if eq (include "includeSecurityContext" .) "true" }}
         securityContext:
           {{- toYaml .Values.podSecurityContext | nindent 10 }}
+        {{- end }}
           runAsUser: 65534
         command:
         - /bin/sh
