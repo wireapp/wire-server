@@ -303,8 +303,8 @@ assertNoDomainsFromConfigFiles dom = do
 --
 -- The ordering on this delete then check seems weird, but allows us to default all the
 -- way back to config file state for a federation domain.
-deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
-deleteFederationRemotes dom = do
+deleteFederationRemote :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
+deleteFederationRemote dom = do
   lift . wrapClient . Data.deleteFederationRemote $ dom
   assertNoDomainsFromConfigFiles dom
 
