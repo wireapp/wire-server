@@ -469,8 +469,8 @@ type AuthAPI =
            )
 
 -- | This is located in brig, not in federator, because brig has a cassandra instance.  This
--- is not ideal, but since all services have a local in-ram copy of this table and keep track
--- of changes via rabbitmq, we argue it's "fine" for federators to ask brig once on startup.
+-- is not ideal, and other services could keep their local in-ram copy of this table up to date
+-- via rabbitmq, but FUTUREWORK.
 type FederationRemotesAPI =
   Named
     "add-federation-remotes"
