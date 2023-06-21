@@ -1,3 +1,7 @@
+{-# OPTIONS -Wno-redundant-constraints #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -14,7 +18,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Federation
   ( FederationAPI,
@@ -335,7 +338,7 @@ onMessageSent domain rmUnqualified = do
           )
   loc <- qualifyLocal ()
   void $
-    sendLocalMessages @'NormalMessage
+    sendLocalMessages
       loc
       (F.rmTime rm)
       (F.rmSender rm)
@@ -616,6 +619,8 @@ sendMLSMessage remoteDomain msr =
 mlsSendWelcome ::
   ( Member (Error InternalError) r,
     Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member P.TinyLog r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r
@@ -623,7 +628,7 @@ mlsSendWelcome ::
   Domain ->
   F.MLSWelcomeRequest ->
   Sem r F.MLSWelcomeResponse
-mlsSendWelcome _origDomain req = do
+mlsSendWelcome origDomain req = do
   fmap (either (const MLSWelcomeMLSNotEnabled) (const MLSWelcomeSent))
     . runError @(Tagged 'MLSNotEnabled ())
     $ do
@@ -633,7 +638,7 @@ mlsSendWelcome _origDomain req = do
       welcome <-
         either (throw . InternalErrorWithDescription . LT.fromStrict) pure $
           decodeMLS' (fromBase64ByteString req.welcomeMessage)
-      sendLocalWelcomes req.qualifiedConvId Nothing now welcome (qualifyAs loc req.recipients)
+      sendLocalWelcomes req.qualifiedConvId (Qualified req.originatingUser origDomain) Nothing now welcome (qualifyAs loc req.recipients)
 
 onMLSMessageSent ::
   ( Member ExternalAccess r,
@@ -671,11 +676,11 @@ onMLSMessageSent domain rmm =
       let e =
             Event (tUntagged rcnv) (F.rmmSubConversation rmm) (F.rmmSender rmm) (F.rmmTime rmm) $
               EdMLSMessage (fromBase64ByteString (F.rmmMessage rmm))
-      let mkPush :: (UserId, ClientId) -> MessagePush 'NormalMessage
-          mkPush uc = newMessagePush loc mempty Nothing (F.rmmMetadata rmm) uc e
 
-      runMessagePush loc (Just (tUntagged rcnv)) $
-        foldMap mkPush recipients
+      -- FUTUREWORK: Send only 1 push, after broken Eq, Ord instances of Recipient is fixed. Find other place via tag [FTRPUSHORD]
+      for_ recipients $ \(u, c) -> do
+        runMessagePush loc (Just (tUntagged rcnv)) $
+          newMessagePush mempty Nothing (F.rmmMetadata rmm) [(u, c)] e
 
 queryGroupInfo ::
   ( Member ConversationStore r,

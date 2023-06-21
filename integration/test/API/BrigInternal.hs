@@ -82,3 +82,9 @@ getInvitationCode user inv = do
     baseRequest user Brig Unversioned $
       "i/teams/invitation-code?team=" <> tid <> "&invitation_id=" <> invId
   submit "GET" req
+
+refreshIndex :: (HasCallStack, MakesValue domain) => domain -> App ()
+refreshIndex domain = do
+  req <- baseRequest domain Brig Unversioned "i/index/refresh"
+  res <- submit "POST" req
+  res.status `shouldMatchInt` 200

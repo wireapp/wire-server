@@ -33,6 +33,8 @@ Note that the lock status is required but has no effect, as it is currently not 
 
 Currently the 2nd factor password challenge if enabled has no effect for SSO users.
 
+As there is currently no feasible way for bots to use the 2nd factor password challenge, bots and the service API are blocked when this feature is enabled.
+
 ## Rate limiting of code generation requests
 
 The default delay between code generation requests is 5 minutes. This setting can be overridden in the Helm charts:

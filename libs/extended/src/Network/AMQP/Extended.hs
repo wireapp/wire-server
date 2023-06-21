@@ -3,6 +3,7 @@ module Network.AMQP.Extended where
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Control.Retry
+import Data.Aeson (FromJSON)
 import qualified Data.Text as Text
 import Imports
 import qualified Network.AMQP as Q
@@ -20,6 +21,27 @@ data RabbitMqHooks m = RabbitMqHooks
     -- be logged and ignored.
     onChannelException :: SomeException -> m ()
   }
+
+data RabbitMqOpts = RabbitMqOpts
+  { host :: !String,
+    port :: !Int,
+    vHost :: !Text
+  }
+  deriving (Show, Generic)
+
+instance FromJSON RabbitMqOpts
+
+-- | Useful if the application only pushes into some queues.
+mkRabbitMqChannelMVar :: Logger -> RabbitMqOpts -> IO (MVar Q.Channel)
+mkRabbitMqChannelMVar l opts = do
+  chan <- newEmptyMVar
+  openConnectionWithRetries l opts.host opts.port opts.vHost $
+    RabbitMqHooks
+      { onNewChannel = putMVar chan,
+        onChannelException = \_ -> void $ tryTakeMVar chan,
+        onConnectionClose = void $ tryTakeMVar chan
+      }
+  pure chan
 
 -- | Connects with RabbitMQ and opens a channel. If the channel is closed for
 -- some reasons, reopens the channel. If the connection is closed for some

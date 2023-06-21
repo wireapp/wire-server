@@ -83,8 +83,7 @@ tests s =
         ],
       testGroup
         "Welcome"
-        [ test s "local welcome" testLocalWelcome,
-          test s "post a remote MLS welcome message" sendRemoteMLSWelcome
+        [ test s "post a remote MLS welcome message" sendRemoteMLSWelcome
         ],
       testGroup
         "Creation"
@@ -307,28 +306,6 @@ testSenderNotInConversation = do
 
     liftIO $ Wai.label err @?= "no-conversation"
 
-testLocalWelcome :: TestM ()
-testLocalWelcome = do
-  users@[alice, bob] <- createAndConnectUsers [Nothing, Nothing]
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient users
-    void $ uploadNewKeyPackage bob1
-    (_, qcnv) <- setupMLSGroup alice1
-    commit <- createAddCommit alice1 [bob]
-    welcome <- liftIO $ case mpWelcome commit of
-      Nothing -> assertFailure "Expected welcome message"
-      Just w -> pure w
-    events <- mlsBracket [bob1] $ \wss -> do
-      es <- sendAndConsumeCommitBundle commit
-
-      WS.assertMatchN_ (5 # Second) wss $
-        wsAssertMLSWelcome (cidQualifiedUser bob1) qcnv welcome
-
-      pure es
-
-    event <- assertOne events
-    liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
-
 testAddUserWithBundle :: TestM ()
 testAddUserWithBundle = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
@@ -342,9 +319,9 @@ testAddUserWithBundle = do
 
     events <- mlsBracket bobClients $ \wss -> do
       events <- sendAndConsumeCommitBundle commit
-      for_ (zip bobClients wss) $ \(c, ws) ->
+      for_ (zip bobClients wss) $ \(_, ws) ->
         WS.assertMatch (5 # Second) ws $
-          wsAssertMLSWelcome (cidQualifiedUser c) qcnv welcome
+          wsAssertMLSWelcome alice qcnv welcome
       pure events
 
     event <- assertOne events
@@ -1704,6 +1681,7 @@ sendRemoteMLSWelcome = do
     void $
       runFedClient @"mls-welcome" fedGalleyClient (qDomain alice) $
         MLSWelcomeRequest
+          (qUnqualified alice)
           (Base64ByteString welcome)
           [qUnqualified (cidQualifiedClient bob1)]
           qcid
@@ -1711,7 +1689,7 @@ sendRemoteMLSWelcome = do
     -- check that the corresponding event is received
     liftIO $ do
       WS.assertMatch_ (5 # WS.Second) wsB $
-        wsAssertMLSWelcome bob qcid welcome
+        wsAssertMLSWelcome alice qcid welcome
 
 testBackendRemoveProposalLocalConvLocalLeaverCreator :: TestM ()
 testBackendRemoveProposalLocalConvLocalLeaverCreator = do

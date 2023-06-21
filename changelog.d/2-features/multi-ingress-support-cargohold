@@ -1,0 +1,1 @@
+Let cargohold redirect to different s3 download endpoints according to a `multiIngress` configuration. This is part of a larger multi-ingress story where one backend can pretend to be multiple ones by using different domains for different users.
