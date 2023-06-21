@@ -424,7 +424,7 @@ The default strategy of `allowNone` effectively disables federation
 user uses in a search.  `allowDynamic` only federates with known
 remote backends listed in cassandra.
 
-The update frequence determines how often other services will refresh
+The update frequency determines how often other services will refresh
 the information about remote connections from brig.
 
 More information about individual remote connections is stored in
