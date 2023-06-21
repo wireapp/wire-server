@@ -86,7 +86,6 @@ library
     , errors
     , exceptions
     , extra
-    , first-class-families
     , HsOpenSSL
     , http-client
     , http-client-openssl
@@ -100,8 +99,6 @@ library
     , servant
     , servant-client
     , servant-client-core
-    , servant-queryparam-client
-    , servant-queryparam-core
     , servant-server
     , servant-swagger
     , text

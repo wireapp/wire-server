@@ -129,7 +129,7 @@ getRemoteDomains = do
       client <- asks rabbitmqAdminClient
       clientEnv <- asks rabbitmqAdminClientEnv
       vhost <- asks rabbitmqVHost
-      queues <- liftIO $ either throwM pure =<< Servant.runClientM (listQueuesByVHost client vhost noPaginationParams) clientEnv
+      queues <- liftIO $ either throwM pure =<< Servant.runClientM (listQueuesByVHost client vhost) clientEnv
       let notifQueuesSuffixes = mapMaybe (\q -> Text.stripPrefix "backend-notifications." q.name) queues
       catMaybes <$> traverse (\d -> either (\e -> logInvalidDomain d e >> pure Nothing) (pure . Just) $ mkDomain d) notifQueuesSuffixes
     logInvalidDomain d e =
