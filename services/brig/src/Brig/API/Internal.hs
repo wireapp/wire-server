@@ -272,8 +272,8 @@ getFederationRemotes = lift $ do
     & maybe id (\v cfg -> cfg {updateInterval = min 1 v}) mu
     & pure
 
-updateFederationRemotes :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
-updateFederationRemotes dom fedcfg = do
+updateFederationRemote :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+updateFederationRemote dom fedcfg = do
   assertDomainIsNotUpdated dom fedcfg
   assertNoDomainsFromConfigFiles dom
   (lift . wrapClient . Data.updateFederationRemote $ fedcfg) >>= \case
