@@ -34,7 +34,7 @@ getAllowedDomainsInitial logger clientEnv =
         getAllowedDomains clientEnv >>= \case
           Right s -> pure $ Just s
           Left e -> do
-            L.log logger L.Debug $
+            L.log logger L.Info $
               L.msg (L.val "Could not retrieve an initial list of federation domains from Brig.")
                 L.~~ "error" L..= show e
             pure Nothing
@@ -54,7 +54,7 @@ getAllowedDomainsLoop :: L.Logger -> ClientEnv -> FedUpdateCallback -> IORef Fed
 getAllowedDomainsLoop logger clientEnv callback env = forever $ do
   getAllowedDomains clientEnv >>= \case
     Left e ->
-      L.log logger L.Fatal $
+      L.log logger L.Info $
         L.msg (L.val "Could not retrieve an updated list of federation domains from Brig; I'll keep trying!")
           L.~~ "error" L..= show e
     Right new -> do

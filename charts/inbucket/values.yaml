@@ -2,6 +2,9 @@
 # E.g. 'inbucket.my-test-env.wire.link'
 host: "inbucket.example.com"
 
+config:
+  ingressClass: "nginx"
+
 # Configure the inbucket "parent" chart
 inbucket:
   image:

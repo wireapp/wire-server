@@ -264,7 +264,7 @@ getFederationRemotes = lift $ do
   unless (maybe True (> 0) mu) $
     randomRIO (0 :: Int, 1000)
       >>= \case
-        0 -> Log.warn (Log.msg (Log.val "Invalid brig configuration: setFederationDomainConfigsUpdateFreq must be > 0, using default 10 seconds."))
+        0 -> Log.warn (Log.msg (Log.val "Invalid brig configuration: setFederationDomainConfigsUpdateFreq must be > 0.  setting to 1 second."))
         _ -> pure ()
 
   defFederationDomainConfigs

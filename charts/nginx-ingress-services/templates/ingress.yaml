@@ -1,12 +1,18 @@
 {{- $apiIsStable := eq (include "ingress.isStable" .) "true" -}}
+{{- $ingressFieldNotAnnotation := eq (include "ingress.FieldNotAnnotation" .) "true" -}}
 {{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
 apiVersion: {{ include "ingress.apiVersion" . }}
 kind: Ingress
 metadata:
   name: nginx-ingress
   annotations:
+    {{- if not $ingressFieldNotAnnotation }}
     kubernetes.io/ingress.class: "{{ .Values.config.ingressClass }}"
+    {{- end }}
 spec:
+  {{- if $ingressFieldNotAnnotation }}
+  ingressClassName: "{{ .Values.config.ingressClass }}"
+  {{- end }}
   # This assumes you have created the given cert (see secret.yaml)
   # https://github.com/kubernetes/ingress-nginx/blob/master/docs/examples/PREREQUISITES.md#tls-certificates
   tls:
