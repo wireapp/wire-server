@@ -300,6 +300,9 @@ assertNoDomainsFromConfigFiles dom = do
 -- | Remove the entry from the database if present (or do nothing if not).  This responds with
 -- 533 if the entry was also present in the config file, but only *after* it has removed the
 -- entry from cassandra.
+--
+-- The ordering on this delete then check seems weird, but allows us to default all the
+-- way back to config file state for a federation domain.
 deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemotes dom = do
   lift . wrapClient . Data.deleteFederationRemote $ dom
