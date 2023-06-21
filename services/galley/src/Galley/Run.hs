@@ -63,15 +63,12 @@ import System.Logger.Extended (mkLogger)
 import Util.Options
 import Wire.API.FederationUpdate
 import Wire.API.Routes.API
-import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
-  l <- lift $ mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
-  (ioref, _) <- lift $ updateFedDomains (opts ^. optBrig) l $ \_ _ -> pure ()
-  (app, env) <- mkApp opts ioref l
+  (app, env) <- mkApp opts
   settings <-
     lift $
       newSettings $
@@ -85,12 +82,13 @@ run opts = lowerCodensity $ do
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
-  void $ Codensity $ Async.withAsync $ runApp env undefined
   lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
 
-mkApp :: Opts -> IORef FederationDomainConfigs -> Log.Logger -> Codensity IO (Application, Env)
-mkApp opts fedDoms logger =
+mkApp :: Opts -> Codensity IO (Application, Env)
+mkApp opts =
   do
+    logger <- lift $ mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
+    (fedDoms, _) <- lift $ updateFedDomains (opts ^. optBrig) logger $ \_ _ -> pure ()
     metrics <- lift $ M.metrics
     env <- lift $ App.createEnv metrics opts logger fedDoms
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion

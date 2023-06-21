@@ -71,7 +71,7 @@ run opts = do
       withMonitor logger (onNewSSLContext env) (optSettings opts) $ do
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
-        void $ waitAnyCancel [updateAllowedDomainsThread, internalServerThread, externalServerThread]
+        void $ waitAnyCancel [updateFedDomainsThread, internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort
