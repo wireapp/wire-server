@@ -2,6 +2,7 @@
 
 module Network.AMQP.Extended where
 
+import Control.Exception (throwIO)
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Control.Retry
@@ -88,15 +89,23 @@ demoteOpts RabbitMqAdminOpts {..} = RabbitMqOpts {..}
 -- | Useful if the application only pushes into some queues.
 mkRabbitMqChannelMVar :: Logger -> RabbitMqOpts -> IO (MVar Q.Channel)
 mkRabbitMqChannelMVar l opts = do
-  chan <- newEmptyMVar
-  -- TODO: Keep track of this thread
-  void . async . openConnectionWithRetries l opts $
-    RabbitMqHooks
-      { onNewChannel = \conn -> putMVar chan conn >> forever (threadDelay maxBound),
-        onChannelException = \_ -> void $ tryTakeMVar chan,
-        onConnectionClose = void $ tryTakeMVar chan
-      }
-  pure chan
+  chanMVar <- newEmptyMVar
+  connThread <-
+    async . openConnectionWithRetries l opts $
+      RabbitMqHooks
+        { onNewChannel = \conn -> putMVar chanMVar conn >> forever (threadDelay maxBound),
+          onChannelException = \_ -> void $ tryTakeMVar chanMVar,
+          onConnectionClose = void $ tryTakeMVar chanMVar
+        }
+  waitForConnThread <- async $ withMVar chanMVar $ \_ -> pure ()
+  waitEither connThread waitForConnThread >>= \case
+    Left () -> throwIO $ RabbitMqConnectionFailed "connection thread finished before getting connection"
+    Right () -> pure chanMVar
+
+data RabbitMqConnectionError = RabbitMqConnectionFailed String
+  deriving (Show)
+
+instance Exception RabbitMqConnectionError
 
 -- | Connects with RabbitMQ and opens a channel. If the channel is closed for
 -- some reasons, reopens the channel. If the connection is closed for some
