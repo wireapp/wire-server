@@ -117,9 +117,7 @@ richInfoMapAndListSchema =
                  <$> optField
                    richInfoAssocListURN
                    ( unRichInfoAssocList
-                       <$> ( object "RichInfoAssocList" $
-                               RichInfoAssocList .= field "richInfo" schema
-                           )
+                       <$> object "RichInfoAssocList" (RichInfoAssocList .= field "richInfo" schema)
                    )
              )
     )
