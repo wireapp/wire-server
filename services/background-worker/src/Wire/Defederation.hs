@@ -17,14 +17,23 @@ import Control.Lens ((^.), to)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as L
 import Data.Text.Encoding
+import Control.Retry
 
 deleteFederationDomain :: Q.Channel -> AppT IO Q.ConsumerTag
 deleteFederationDomain chan = do
   lift $ ensureQueue chan defederationQueue
   QL.consumeMsgs chan (routingKey defederationQueue) Q.Ack deleteFederationDomainInner
 
+-- What should we do with non-recoverable (unparsable) errors/messages?
+-- should we deadletter, or do something else?
+-- Deadlettering has a privacy implication
+--
+-- We should also throttle the messages being retried.
+--
+-- Can we ensure that messages are handled in-order, one at a time?
+-- Is this a `amqp` or rabbit thing?
 deleteFederationDomainInner :: RabbitMQEnvelope e => (Q.Message, e) -> AppT IO ()
-deleteFederationDomainInner (msg, envelope) = do
+deleteFederationDomainInner (msg, envelope) = do -- recovering _ $ do -- retry x times, NACK after that?
   env <- ask
   let manager = httpManager env
       req :: Domain -> Request
@@ -53,7 +62,6 @@ deleteFederationDomainInner (msg, envelope) = do
       let code = statusCode $ responseStatus resp
       if code >= 200 && code <= 299
       then do
-        logErr $ show resp
         liftIO $ ack envelope
       else liftIO $ reject envelope True -- ensure that the message is requeued
     logErr err = Log.err $

@@ -501,6 +501,7 @@ deleteFederationDomain :: (Member (Input Env) r, Member (P.Logger (Msg -> Msg)) 
           Member MemberStore r, Member ConversationStore r, Member (Embed IO) r,
           Member CodeStore r, Member TeamStore r, Member BrigAccess r, Member GundeckAccess r, Member ExternalAccess r) => Domain -> Sem r ()
 deleteFederationDomain d = do
+  -- TODO rename a wee bit
   deleteFederationDomainRemote d
   deleteFederationDomainLocal d
   deleteFederationDomainOneOnOne d
@@ -607,6 +608,8 @@ deleteFederationDomainLocal dom = do
 -- eat the coverhead cost of the http call. This should also allow for the
 -- senario where galley falls over and has to redo the domain deletion so
 -- that request isn't lost.
+--
+-- These need to be recoverable? TODO
 deleteFederationDomainOneOnOne :: (Member (Input Env) r, Member (Embed IO) r, Member (P.Logger (Msg -> Msg)) r) => Domain -> Sem r ()
 deleteFederationDomainOneOnOne dom = do
   env <- input

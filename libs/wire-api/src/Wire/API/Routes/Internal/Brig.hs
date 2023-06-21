@@ -513,7 +513,7 @@ type FederationRemotesAPI =
     -- some records hanging around. Galley uses a Rabbit queue to track
     -- what is has done and can recover from a service falling over.
     :<|> Named
-           "delete-federation-remote-galley"
+           "delete-federation-remote-from-galley"
            ( Description FederationRemotesAPIDescription
                :> Description FederationRemotesAPIDeleteDescription
                :> "federation"
