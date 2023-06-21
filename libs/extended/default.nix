@@ -12,7 +12,6 @@
 , errors
 , exceptions
 , extra
-, first-class-families
 , gitignoreSource
 , HsOpenSSL
 , hspec
@@ -30,8 +29,6 @@
 , servant
 , servant-client
 , servant-client-core
-, servant-queryparam-client
-, servant-queryparam-core
 , servant-server
 , servant-swagger
 , temporary
@@ -54,7 +51,6 @@ mkDerivation {
     errors
     exceptions
     extra
-    first-class-families
     HsOpenSSL
     http-client
     http-client-openssl
@@ -68,8 +64,6 @@ mkDerivation {
     servant
     servant-client
     servant-client-core
-    servant-queryparam-client
-    servant-queryparam-core
     servant-server
     servant-swagger
     text
