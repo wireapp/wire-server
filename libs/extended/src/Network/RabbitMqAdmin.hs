@@ -17,12 +17,7 @@ type VHost = Text
 -- | Upstream Docs:
 -- https://rawcdn.githack.com/rabbitmq/rabbitmq-server/v3.12.0/deps/rabbitmq_management/priv/www/api/index.html#pagination
 data AdminAPI route = AdminAPI
-  { listQueues ::
-      route
-        :- "api"
-          :> "queues"
-          :> Get '[JSON] [Queue],
-    listQueuesByVHost ::
+  { listQueuesByVHost ::
       route
         :- "api"
           :> "queues"
