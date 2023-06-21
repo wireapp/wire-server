@@ -13,6 +13,10 @@ data:
       host: 0.0.0.0
       port: {{ $.Values.service.internalPort }}
 
+    brig:
+      host: brig
+      port: 8080
+
     cassandra:
       endpoint:
         host: {{ .cassandra.host }}
