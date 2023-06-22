@@ -53,7 +53,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertBool, assertFailure, (@?=))
 import TestHelpers (eventually, test)
 import TestSetup
-import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolMLSTag, ProtocolProteusTag))
+import Wire.API.Conversation.Protocol
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import Wire.API.Internal.Notification (Notification)
 import Wire.API.MLS.CipherSuite
@@ -137,6 +137,7 @@ tests s =
                   ProtocolProteusTag
                   [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519]
                   MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+                  [ProtocolProteusTag, ProtocolMLSTag]
               )
               validMLSConfigGen,
           test s (unpack $ featureNameBS @FileSharingConfig) $
@@ -164,7 +165,7 @@ validMLSConfigGen :: Gen (WithStatusPatch MLSConfig)
 validMLSConfigGen =
   arbitrary
     `suchThat` ( \cfg -> case wspConfig cfg of
-                   Just (MLSConfig us _ cTags ctag) ->
+                   Just (MLSConfig us _ cTags ctag _) ->
                      sortedAndNoDuplicates us
                        && sortedAndNoDuplicates cTags
                        && elem ctag cTags
@@ -1046,7 +1047,7 @@ testAllFeatures = do
           afcSelfDeletingMessages = withStatus FeatureStatusEnabled lockStateSelfDeleting (SelfDeletingMessagesConfig 0) FeatureTTLUnlimited,
           afcGuestLink = withStatus FeatureStatusEnabled LockStatusUnlocked GuestLinksConfig FeatureTTLUnlimited,
           afcSndFactorPasswordChallenge = withStatus FeatureStatusDisabled LockStatusLocked SndFactorPasswordChallengeConfig FeatureTTLUnlimited,
-          afcMLS = withStatus FeatureStatusDisabled LockStatusUnlocked (MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519) FeatureTTLUnlimited,
+          afcMLS = withStatus FeatureStatusDisabled LockStatusUnlocked (MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 [ProtocolProteusTag, ProtocolMLSTag]) FeatureTTLUnlimited,
           afcSearchVisibilityInboundConfig = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig FeatureTTLUnlimited,
           afcExposeInvitationURLsToTeamAdmin = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited,
           afcOutlookCalIntegration = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited,
@@ -1252,17 +1253,17 @@ testMLS = do
   let defaultConfig =
         WithStatusNoLock
           FeatureStatusDisabled
-          (MLSConfig [] ProtocolProteusTag [cipherSuite] cipherSuite)
+          (MLSConfig [] ProtocolProteusTag [cipherSuite] cipherSuite [ProtocolProteusTag, ProtocolMLSTag])
           FeatureTTLUnlimited
   let config2 =
         WithStatusNoLock
           FeatureStatusEnabled
-          (MLSConfig [member] ProtocolMLSTag [] cipherSuite)
+          (MLSConfig [member] ProtocolMLSTag [] cipherSuite [ProtocolProteusTag, ProtocolMLSTag])
           FeatureTTLUnlimited
   let config3 =
         WithStatusNoLock
           FeatureStatusDisabled
-          (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite)
+          (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite [ProtocolProteusTag, ProtocolMLSTag])
           FeatureTTLUnlimited
 
   getViaEndpoints defaultConfig

@@ -114,7 +114,7 @@ import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
-import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
+import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
 import Wire.API.Routes.Named (RenderableSymbol (renderSymbol))
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -912,7 +912,8 @@ data MLSConfig = MLSConfig
   { mlsProtocolToggleUsers :: [UserId],
     mlsDefaultProtocol :: ProtocolTag,
     mlsAllowedCipherSuites :: [CipherSuiteTag],
-    mlsDefaultCipherSuite :: CipherSuiteTag
+    mlsDefaultCipherSuite :: CipherSuiteTag,
+    mlsSupportedProtocols :: [ProtocolTag]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform MLSConfig)
@@ -928,11 +929,18 @@ instance ToSchema MLSConfig where
         <*> mlsDefaultProtocol .= field "defaultProtocol" schema
         <*> mlsAllowedCipherSuites .= field "allowedCipherSuites" (array schema)
         <*> mlsDefaultCipherSuite .= field "defaultCipherSuite" schema
+        <*> mlsSupportedProtocols .= field "supportedProtocols" (array schema)
 
 instance IsFeatureConfig MLSConfig where
   type FeatureSymbol MLSConfig = "mls"
   defFeatureStatus =
-    let config = MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+    let config =
+          MLSConfig
+            []
+            ProtocolProteusTag
+            [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519]
+            MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+            [ProtocolProteusTag, ProtocolMLSTag]
      in withStatus FeatureStatusDisabled LockStatusUnlocked config FeatureTTLUnlimited
   featureSingleton = FeatureSingletonMLSConfig
   objectSchema = field "config" schema
