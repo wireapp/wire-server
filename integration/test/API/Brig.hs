@@ -112,6 +112,28 @@ deleteClient user client = do
         [ "password" .= defPassword
         ]
 
+getClientsQualified ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue domain,
+    MakesValue otherUser
+  ) =>
+  user ->
+  domain ->
+  otherUser ->
+  App Response
+getClientsQualified user domain otherUser = do
+  ouid <- objId otherUser
+  d <- objDomain domain
+  req <-
+    baseRequest user Brig Versioned $
+      "/users/"
+        <> d
+        <> "/"
+        <> ouid
+        <> "/clients"
+  submit "GET" req
+
 searchContacts ::
   ( MakesValue user,
     MakesValue searchTerm,

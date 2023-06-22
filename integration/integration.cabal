@@ -114,6 +114,8 @@ library
   build-depends:
     , aeson
     , aeson-pretty
+    , lens-aeson
+    , lens
     , array
     , async
     , attoparsec
