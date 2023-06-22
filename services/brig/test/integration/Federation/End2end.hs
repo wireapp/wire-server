@@ -110,6 +110,7 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
         test mg "send a message to a remote user" $ testSendMessage brig brigTwo galleyTwo cannon,
         test mg "send a message in a remote conversation" $ testSendMessageToRemoteConv brig brigTwo galley galleyTwo cannon,
         test mg "delete user connected to remotes and in conversation with remotes" $ testDeleteUser brig brigTwo galley galleyTwo cannon,
+        test mg "remove temporary client" $ testRemoveTempClient brig brigTwo,
         test mg "download remote asset" $ testRemoteAsset brig brigTwo cargohold cargoholdTwo,
         test mg "claim remote key packages" $ claimRemoteKeyPackages brig brigTwo,
         test mg "remote typing indicator" $
@@ -647,6 +648,30 @@ testDeleteUser brig1 brig2 galley1 galley2 cannon1 = do
     WS.assertMatch_ (5 # Second) wsAlice $ matchDeleteUserNotification bobDel
     WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv1 bobDel [bobDel]
     WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv2 bobDel [bobDel]
+
+testRemoveTempClient :: Brig -> Brig -> Http ()
+testRemoveTempClient brig1 brig2 = do
+  alice <- randomUser brig1
+  bob <- randomUser brig2
+  let prekeys = take 2 (zip somePrekeys someLastPrekeys)
+  let mkClient (pk, lpk) = defNewClient PermanentClientType [pk] lpk
+      nclients = map mkClient prekeys
+      tc = defNewClient TemporaryClientType [somePrekeys !! 2] (someLastPrekeys !! 2)
+  clients <- traverse (responseJsonError <=< addClient brig2 (userId bob)) nclients
+  tempClient <- responseJsonError =<< addClient brig2 (userId bob) tc
+  resp <- getUserClientsQualified brig1 (userId alice) (qDomain (userQualifiedId bob)) (userId bob)
+  let expected = map pubClient clients <> [tempClient]
+      actual = responseJsonUnsafe resp
+  liftIO $ Set.fromList actual @?= Set.fromList expected
+
+  void $
+    deleteClient brig2 bob.userId tempClient.pubClientId Nothing
+      <!! const 200 === statusCode
+  resp1 <-
+    getUserClientsQualified brig1 (userId alice) (qDomain (userQualifiedId bob)) (userId bob)
+  let expected1 = map pubClient clients
+      actual1 = responseJsonUnsafe resp1
+  liftIO $ Set.fromList actual1 @?= Set.fromList expected1
 
 testRemoteAsset :: Brig -> Brig -> CargoHold -> CargoHold -> Http ()
 testRemoteAsset brig1 brig2 ch1 ch2 = do
