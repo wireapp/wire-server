@@ -2,7 +2,7 @@
 
 module Test.MLS where
 
-import API.Brig (claimKeyPackages)
+import API.Brig (claimKeyPackages, deleteClient)
 import API.Galley
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
@@ -303,6 +303,26 @@ testRemoteAddUser = do
   bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
     resp.status `shouldMatchInt` 500
     resp.json %. "label" `shouldMatch` "federation-not-implemented"
+
+testRemoteRemoveClient :: HasCallStack => App ()
+testRemoteRemoveClient = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+  void $ uploadNewKeyPackage bob1
+  (_, conv) <- createNewGroup alice1
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+  withWebSocket alice $ \wsAlice -> do
+    void $ deleteClient bob bob1.client >>= getBody 200
+    let predicate n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
+    n <- awaitMatch 5 predicate wsAlice
+    shouldMatch (nPayload n %. "conversation") (objId conv)
+    shouldMatch (nPayload n %. "from") (objId bob)
+
+    msg <- asByteString (nPayload n %. "data") >>= showMessage alice1
+    let leafIndexBob = 1
+    msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
+    msg %. "message.content.sender.External" `shouldMatchInt` 0
 
 testCreateSubConv :: HasCallStack => App ()
 testCreateSubConv = do
