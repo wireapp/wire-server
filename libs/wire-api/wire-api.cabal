@@ -618,6 +618,7 @@ test-suite wire-api-golden-tests
 
   build-depends:
       aeson                    >=2.0.1.0
+    , aeson-diff
     , aeson-pretty
     , base
     , bytestring
