@@ -13,7 +13,6 @@ import qualified Network.AMQP as Q
 import Network.AMQP.Extended
 import qualified Network.AMQP.Lifted as QL
 import Network.RabbitMqAdmin
-import qualified Servant.Client as Servant
 import qualified System.Logger.Class as Log
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
@@ -127,9 +126,8 @@ getRemoteDomains = do
     go :: AppT IO [Domain]
     go = do
       client <- asks rabbitmqAdminClient
-      clientEnv <- asks rabbitmqAdminClientEnv
       vhost <- asks rabbitmqVHost
-      queues <- liftIO $ either throwM pure =<< Servant.runClientM (listQueuesByVHost client vhost) clientEnv
+      queues <- liftIO $ listQueuesByVHost client vhost
       let notifQueuesSuffixes = mapMaybe (\q -> Text.stripPrefix "backend-notifications." q.name) queues
       catMaybes <$> traverse (\d -> either (\e -> logInvalidDomain d e >> pure Nothing) (pure . Just) $ mkDomain d) notifQueuesSuffixes
     logInvalidDomain d e =

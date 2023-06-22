@@ -7,6 +7,7 @@ import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Control.Retry
 import Data.Aeson
+import Data.Proxy
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Imports
@@ -16,7 +17,7 @@ import qualified Network.HTTP.Client.OpenSSL as HTTP
 import Network.RabbitMqAdmin
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
-import qualified Servant
+import Servant
 import Servant.Client
 import qualified Servant.Client as Servant
 import System.Logger (Logger)
@@ -48,7 +49,7 @@ data RabbitMqAdminOpts = RabbitMqAdminOpts
 
 instance FromJSON RabbitMqAdminOpts
 
-mkRabbitMqAdminClientEnv :: RabbitMqAdminOpts -> IO (Servant.ClientEnv, AdminAPI (AsClientT ClientM))
+mkRabbitMqAdminClientEnv :: RabbitMqAdminOpts -> IO (AdminAPI (AsClientT IO))
 mkRabbitMqAdminClientEnv opts = do
   (username, password) <- readCredsFromEnv
   managerSettings <-
@@ -56,10 +57,14 @@ mkRabbitMqAdminClientEnv opts = do
       then tlsManagerSettings
       else pure HTTP.defaultManagerSettings
   manager <- HTTP.newManager managerSettings
-  let clientEnv = Servant.mkClientEnv manager (Servant.BaseUrl scheme opts.host opts.adminPort "")
-      basicAuthData = Servant.BasicAuthData (Text.encodeUtf8 username) (Text.encodeUtf8 password)
+  let basicAuthData = Servant.BasicAuthData (Text.encodeUtf8 username) (Text.encodeUtf8 password)
       scheme = if opts.adminEnableTLS then Servant.Https else Servant.Http
-  pure (clientEnv, adminClient basicAuthData)
+      clientEnv = Servant.mkClientEnv manager (Servant.BaseUrl scheme opts.host opts.adminPort "")
+  pure . fromServant $
+    hoistClient
+      (Proxy @(ToServant AdminAPI AsApi))
+      (either throwM pure <=< flip runClientM clientEnv)
+      (toServant $ adminClient basicAuthData)
   where
     tlsManagerSettings = do
       ctx <- SSL.context

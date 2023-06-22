@@ -21,8 +21,7 @@ import Wire.BackgroundWorker.Options
 
 data Env = Env
   { http2Manager :: Http2Manager,
-    rabbitmqAdminClientEnv :: Servant.ClientEnv,
-    rabbitmqAdminClient :: RabbitMqAdmin.AdminAPI (Servant.AsClientT Servant.ClientM),
+    rabbitmqAdminClient :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO),
     rabbitmqVHost :: Text,
     logger :: Logger,
     federatorInternal :: Endpoint,
@@ -34,7 +33,7 @@ mkEnv opts = do
   http2Manager <- initHttp2Manager
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
   let federatorInternal = opts.federatorInternal
-  (rabbitmqAdminClientEnv, rabbitmqAdminClient) <- mkRabbitMqAdminClientEnv opts.rabbitmq
+  rabbitmqAdminClient <- mkRabbitMqAdminClientEnv opts.rabbitmq
   let rabbitmqVHost = opts.rabbitmq.vHost
       backendNotificationPusher = opts.backendNotificationPusher
   pure Env {..}
@@ -51,8 +50,7 @@ initHttp2Manager = do
   SSL.contextSetDefaultVerifyPaths ctx
   http2ManagerWithSSLCtx ctx
 
-newtype AppT m a where
-  AppT :: {unAppT :: ReaderT Env m a} -> AppT m a
+newtype AppT m a = AppT {unAppT :: ReaderT Env m a}
   deriving
     ( Functor,
       Applicative,
