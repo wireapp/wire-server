@@ -8,7 +8,7 @@ module Wire.API.FederationUpdate
 where
 
 import Control.Concurrent.Async
-import Control.Exception (ErrorCall (ErrorCall), throwIO)
+import Control.Exception (ErrorCall (ErrorCall), finally, throwIO)
 import qualified Control.Retry as R
 import Data.Domain
 import qualified Data.Set as Set
@@ -27,7 +27,7 @@ getFedRemotes :: ClientM FederationDomainConfigs
 getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
 
 deleteFedRemoteGalley :: Domain -> ClientM ()
-deleteFedRemoteGalley dom = namedClient @IAPI.API @"delete-federation-remote-galley" dom
+deleteFedRemoteGalley dom = namedClient @IAPI.API @"delete-federation-remote-from-galley" dom
 
 -- Initial function for getting the set of domains from brig, and an update interval
 getAllowedDomainsInitial :: L.Logger -> ClientEnv -> IO FederationDomainConfigs
@@ -41,7 +41,7 @@ getAllowedDomainsInitial logger clientEnv =
         getAllowedDomains clientEnv >>= \case
           Right s -> pure $ Just s
           Left e -> do
-            L.log logger L.Debug $
+            L.log logger L.Info $
               L.msg (L.val "Could not retrieve an initial list of federation domains from Brig.")
                 L.~~ "error" L..= show e
             pure Nothing
@@ -64,7 +64,7 @@ getAllowedDomainsLoop :: L.Logger -> ClientEnv -> FedUpdateCallback -> IORef Fed
 getAllowedDomainsLoop logger clientEnv callback env = forever $ do
   getAllowedDomains clientEnv >>= \case
     Left e ->
-      L.log logger L.Fatal $
+      L.log logger L.Info $
         L.msg (L.val "Could not retrieve an updated list of federation domains from Brig; I'll keep trying!")
           L.~~ "error" L..= show e
     Right new -> do
@@ -82,7 +82,16 @@ updateFedDomains :: Endpoint -> L.Logger -> FedUpdateCallback -> IO (IORef Feder
 updateFedDomains (Endpoint h p) log' cb = do
   clientEnv <- newManager defaultManagerSettings <&> \mgr -> ClientEnv mgr baseUrl Nothing defaultMakeClientRequest
   ioref <- newIORef =<< getAllowedDomainsInitial log' clientEnv
-  (ioref,) <$> updateFedDomains' ioref clientEnv log' cb
+  updateDomainsThread <-
+    async $
+      let go = finally
+            (getAllowedDomainsLoop log' clientEnv cb ioref)
+            $ do
+              L.log log' L.Error $ L.msg (L.val "Federation domain sync thread died, restarting domain synchronization.")
+              go
+       in go
+
+  pure (ioref, updateDomainsThread)
   where
     baseUrl = BaseUrl Http (unpack h) (fromIntegral p) ""
 

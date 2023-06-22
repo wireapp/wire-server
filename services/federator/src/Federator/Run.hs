@@ -64,14 +64,14 @@ run opts = do
   logger <- LogExt.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
   DNS.withCachingResolver resolvConf $ \res -> do
-    (ioref, updateAllowedDomainsThread) <- updateFedDomains (brig opts) logger (\_ _ -> pure ())
+    (ioref, updateFedDomainsThread) <- updateFedDomains (brig opts) logger (\_ _ -> pure ())
     bracket (newEnv opts res logger ioref) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
       withMonitor logger (onNewSSLContext env) (optSettings opts) $ do
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
-        void $ waitAnyCancel [updateAllowedDomainsThread, internalServerThread, externalServerThread]
+        void $ waitAnyCancel [updateFedDomainsThread, internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort

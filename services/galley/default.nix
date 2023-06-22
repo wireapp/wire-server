@@ -14,7 +14,6 @@
 , base
 , base64-bytestring
 , bilge
-, binary
 , brig-types
 , bytestring
 , bytestring-conversion
@@ -79,13 +78,11 @@
 , safe-exceptions
 , saml2-web-sso
 , schema-profunctor
-, semigroups
 , servant
 , servant-client
 , servant-client-core
 , servant-server
 , singletons
-, singletons-th
 , sop-core
 , split
 , ssl-util
@@ -188,12 +185,10 @@ mkDerivation {
     safe-exceptions
     saml2-web-sso
     schema-profunctor
-    semigroups
     servant
     servant-client
     servant-server
     singletons
-    singletons-th
     split
     ssl-util
     stm
@@ -227,7 +222,6 @@ mkDerivation {
     base
     base64-bytestring
     bilge
-    binary
     brig-types
     bytestring
     bytestring-conversion

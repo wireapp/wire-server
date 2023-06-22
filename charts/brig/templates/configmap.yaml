@@ -248,10 +248,10 @@ data:
       setDeleteThrottleMillis: {{ .setDeleteThrottleMillis }}
       setFederationDomain: {{ .setFederationDomain }}
       {{- if .setFederationStrategy }}
-      setFederationStrategy: {{ toYaml .setFederationStrategy | nindent 8 }}
+      setFederationStrategy: {{ .setFederationStrategy }}
       {{- end }}
       {{- if .setFederationDomainConfigsUpdateFreq }}
-      setFederationDomainConfigsUpdateFreq: {{ toYaml .setFederationDomainConfigsUpdateFreq | nindent 8 }}
+      setFederationDomainConfigsUpdateFreq: {{ .setFederationDomainConfigsUpdateFreq }}
       {{- end }}
       {{- if .setFederationDomainConfigs }}
       # 'setFederationDomainConfigs' is deprecated as of https://github.com/wireapp/wire-server/pull/3260.  See

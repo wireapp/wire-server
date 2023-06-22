@@ -22,7 +22,7 @@ else
 fi
 
 . "$DIR/helm_overrides.sh"
-helmfile --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy
+helmfile --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy --skip-deps --skip-charts --concurrency 0
 
 kubectl delete namespace "$NAMESPACE_1"
 kubectl delete namespace "$NAMESPACE_2"

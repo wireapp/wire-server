@@ -11,6 +11,7 @@ import Data.IORef
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.String
 import Data.Word
 import qualified Data.Yaml as Yaml
@@ -21,6 +22,7 @@ import System.FilePath
 import System.IO
 import System.IO.Temp
 import Testlib.Prekeys
+import Testlib.ResourcePool
 import Prelude
 
 -- | Initialised once per test.
@@ -35,7 +37,8 @@ data Env = Env
     removalKeyPath :: FilePath,
     prekeys :: IORef [(Int, String)],
     lastPrekeys :: IORef [String],
-    mls :: IORef MLSState
+    mls :: IORef MLSState,
+    resourcePool :: ResourcePool BackendResource
   }
 
 -- | Initialised once per testsuite.
@@ -47,13 +50,15 @@ data GlobalEnv = GlobalEnv
     gManager :: HTTP.Manager,
     gServiceConfigsDir :: FilePath,
     gServicesCwdBase :: Maybe FilePath,
-    gRemovalKeyPath :: FilePath
+    gRemovalKeyPath :: FilePath,
+    gBackendResourcePool :: ResourcePool BackendResource
   }
 
 data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig
   }
+  deriving (Show, Generic)
 
 instance FromJSON IntegrationConfig where
   parseJSON v =
@@ -70,7 +75,8 @@ data ServiceMap = ServiceMap
     galley :: HostPort,
     gundeck :: HostPort,
     nginz :: HostPort,
-    spar :: HostPort
+    spar :: HostPort,
+    proxy :: HostPort
   }
   deriving (Show, Generic)
 
@@ -80,7 +86,7 @@ data BackendConfig = BackendConfig
   { beServiceMap :: ServiceMap,
     originDomain :: String
   }
-  deriving (Show)
+  deriving (Show, Generic)
 
 instance FromJSON BackendConfig where
   parseJSON v =
@@ -96,8 +102,22 @@ data HostPort = HostPort
 
 instance FromJSON HostPort
 
-data Service = Brig | Galley | Cannon | Cargohold
-  deriving (Show, Eq, Ord)
+data NginzConfig = NginzConfig
+  { localPort :: Word16,
+    http2Port :: Word16,
+    sslPort :: Word16,
+    fedPort :: Word16
+  }
+  deriving (Show, Generic)
+
+data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar
+  deriving
+    ( Show,
+      Eq,
+      Ord,
+      Enum,
+      Bounded
+    )
 
 serviceName :: Service -> String
 serviceName srv = map toLower (show srv)
@@ -106,7 +126,10 @@ serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
 serviceHostPort m Galley = m.galley
 serviceHostPort m Cannon = m.cannon
+serviceHostPort m Gundeck = m.gundeck
 serviceHostPort m Cargohold = m.cargohold
+serviceHostPort m Nginz = m.nginz
+serviceHostPort m Spar = m.spar
 
 mkGlobalEnv :: FilePath -> IO GlobalEnv
 mkGlobalEnv cfgFile = do
@@ -130,6 +153,7 @@ mkGlobalEnv cfgFile = do
           Nothing -> "/etc/wire"
 
   manager <- HTTP.newManager HTTP.defaultManagerSettings
+  resourcePool <- createBackendResourcePool
   pure
     GlobalEnv
       { gServiceMap =
@@ -143,28 +167,43 @@ mkGlobalEnv cfgFile = do
         gManager = manager,
         gServiceConfigsDir = configsDir,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
-        gRemovalKeyPath = error "Uninitialised removal key path"
+        gRemovalKeyPath = error "Uninitialised removal key path",
+        gBackendResourcePool = resourcePool
       }
 
 mkEnv :: GlobalEnv -> Codensity IO Env
 mkEnv ge = do
-  pks <- liftIO $ newIORef (zip [1 ..] somePrekeys)
-  lpks <- liftIO $ newIORef someLastPrekeys
   mls <- liftIO . newIORef =<< mkMLSState
-  pure
-    Env
-      { serviceMap = gServiceMap ge,
-        domain1 = gDomain1 ge,
-        domain2 = gDomain2 ge,
-        defaultAPIVersion = gDefaultAPIVersion ge,
-        manager = gManager ge,
-        serviceConfigsDir = gServiceConfigsDir ge,
-        servicesCwdBase = gServicesCwdBase ge,
-        removalKeyPath = gRemovalKeyPath ge,
-        prekeys = pks,
-        lastPrekeys = lpks,
-        mls = mls
-      }
+  liftIO $ do
+    pks <- newIORef (zip [1 ..] somePrekeys)
+    lpks <- newIORef someLastPrekeys
+    pure
+      Env
+        { serviceMap = gServiceMap ge,
+          domain1 = gDomain1 ge,
+          domain2 = gDomain2 ge,
+          defaultAPIVersion = gDefaultAPIVersion ge,
+          manager = gManager ge,
+          serviceConfigsDir = gServiceConfigsDir ge,
+          servicesCwdBase = gServicesCwdBase ge,
+          removalKeyPath = gRemovalKeyPath ge,
+          prekeys = pks,
+          lastPrekeys = lpks,
+          mls = mls,
+          resourcePool = ge.gBackendResourcePool
+        }
+
+destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
+destroy ioRef = modifyIORef' ioRef . Set.insert
+
+create :: IORef (Set.Set BackendResource) -> IO BackendResource
+create ioRef =
+  atomicModifyIORef
+    ioRef
+    $ \s ->
+      case Set.minView s of
+        Nothing -> error "No resources available"
+        Just (r, s') -> (s', r)
 
 data MLSState = MLSState
   { baseDir :: FilePath,

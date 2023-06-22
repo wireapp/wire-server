@@ -195,8 +195,8 @@ federationRemotesAPI :: ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
   Named @"add-federation-remotes" addFederationRemote
     :<|> Named @"get-federation-remotes" getFederationRemotes
-    :<|> Named @"update-federation-remotes" updateFederationRemotes
-    :<|> Named @"delete-federation-remotes" deleteFederationRemotes
+    :<|> Named @"update-federation-remotes" updateFederationRemote
+    :<|> Named @"delete-federation-remotes" deleteFederationRemote
     :<|> Named @"delete-federation-remote-galley" deleteFederationRemoteGalley
 
 addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
@@ -269,10 +269,7 @@ getFederationRemotes = lift $ do
   unless (maybe True (> 0) mu) $
     randomRIO (0 :: Int, 1000)
       >>= \case
-        0 -> do
-          let n = updateInterval defFederationDomainConfigs
-          -- Use the value from defFederationDomainConfig rather than hard coding it.
-          Log.warn $ Log.msg $ Log.val $ fromString $ "Invalid brig configuration: setFederationDomainConfigsUpdateFreq must be > 0, using default " <> show n <> " seconds."
+        0 -> Log.warn (Log.msg (Log.val "Invalid brig configuration: setFederationDomainConfigsUpdateFreq must be > 0.  setting to 1 second."))
         _ -> pure ()
 
   defFederationDomainConfigs
@@ -281,8 +278,8 @@ getFederationRemotes = lift $ do
     & maybe id (\v cfg -> cfg {updateInterval = min 1 v}) mu
     & pure
 
-updateFederationRemotes :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
-updateFederationRemotes dom fedcfg = do
+updateFederationRemote :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+updateFederationRemote dom fedcfg = do
   assertDomainIsNotUpdated dom fedcfg
   assertNoDomainsFromConfigFiles dom
   (lift . wrapClient . Data.updateFederationRemote $ fedcfg) >>= \case
@@ -309,8 +306,11 @@ assertNoDomainsFromConfigFiles dom = do
 -- | Remove the entry from the database if present (or do nothing if not).  This responds with
 -- 533 if the entry was also present in the config file, but only *after* it has removed the
 -- entry from cassandra.
-deleteFederationRemotes :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
-deleteFederationRemotes dom = do
+--
+-- The ordering on this delete then check seems weird, but allows us to default all the
+-- way back to config file state for a federation domain.
+deleteFederationRemote :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
+deleteFederationRemote dom = do
   lift . wrapClient . Data.deleteFederationRemote $ dom
   assertNoDomainsFromConfigFiles dom
   env <- ask

@@ -38,10 +38,12 @@ getLastPrekey = App $ do
     lastPrekeyId = 65535
 
 readServiceConfig :: Service -> App Value
-readServiceConfig srv = do
+readServiceConfig = readServiceConfig' . serviceName
+
+readServiceConfig' :: String -> App Value
+readServiceConfig' srvName = do
   basedir <- asks (.serviceConfigsDir)
-  let srvName = serviceName srv
-      cfgFile = basedir </> srvName </> "conf" </> (srvName <> ".yaml")
+  let cfgFile = basedir </> srvName </> "conf" </> (srvName <> ".yaml")
   eith <- liftIO (Yaml.decodeFileEither cfgFile)
   case eith of
     Left err -> failApp ("Error while parsing " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err)

@@ -32,10 +32,13 @@ let
     contents = [
       bashInteractive
       coreutils
+      dockerTools.usrBinEnv
+      dockerTools.fakeNss
       which
     ];
     config = {
       Entrypoint = [ "${dumb-init}/bin/dumb-init" "--" "${nginz-disco}/bin/nginz_disco.sh" ];
+      User = "65534";
     };
   };
 in

@@ -401,6 +401,9 @@ cargohold:
 
 **Since [PR#3260](https://github.com/wireapp/wire-server/pull/3260).**
 
+Also see {ref}`configuring-remote-connections-dev-perspective` for the
+developer's point of view on this topic.
+
 You also need to define the federation strategy (whom to federate
 with), and the frequency with which the other backend services will
 refresh their cache of this configuration.
@@ -421,7 +424,7 @@ The default strategy of `allowNone` effectively disables federation
 user uses in a search.  `allowDynamic` only federates with known
 remote backends listed in cassandra.
 
-The update frequence determines how often other services will refresh
+The update frequency determines how often other services will refresh
 the information about remote connections from brig.
 
 More information about individual remote connections is stored in
@@ -496,10 +499,9 @@ The search policy for a remote backend can be:
 - `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
 
 If federation strategy is `allowAll`, and there is no entry for a
-domain in the database, default is `no_search`.
-
-Also see {ref}`configuring-remote-connections-dev-perspective` for the
-developer's point of view on this topic.
+domain in the database, default is `no_search`.  The field in
+cassandra is not nullable, ie., you always have to explicitly name a
+search policy if you create an entry.
 
 #### If your instance has been federating before
 

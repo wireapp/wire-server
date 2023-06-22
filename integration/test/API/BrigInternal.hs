@@ -64,12 +64,6 @@ instance ToJSON FedConn where
 instance MakesValue FedConn where
   make = pure . toJSON
 
-instance FromJSON FedConn where
-  parseJSON = withObject "FedConn" $ \obj -> do
-    FedConn
-      <$> obj .: fromString "domain"
-      <*> obj .: fromString "search_policy"
-
 createFedConn :: (HasCallStack, MakesValue dom, MakesValue fedConn) => dom -> fedConn -> App Response
 createFedConn dom fedConn = do
   res <- createFedConn' dom fedConn
@@ -140,3 +134,9 @@ deleteOAuthClient user cid = do
   clientId <- objId cid
   req <- baseRequest user Brig Unversioned $ "i/oauth/clients/" <> clientId
   submit "DELETE" req
+
+refreshIndex :: (HasCallStack, MakesValue domain) => domain -> App ()
+refreshIndex domain = do
+  req <- baseRequest domain Brig Unversioned "i/index/refresh"
+  res <- submit "POST" req
+  res.status `shouldMatchInt` 200

@@ -1,5 +1,4 @@
 {{- define "cannon_nginz_nginx.conf" }}
-user {{ .Values.nginx_conf.user }} {{ .Values.nginx_conf.group }};
 worker_processes {{ .Values.nginx_conf.worker_processes }};
 worker_rlimit_nofile {{ .Values.nginx_conf.worker_rlimit_nofile | default 1024 }};
 pid /var/run/nginz.pid;

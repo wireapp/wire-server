@@ -24,8 +24,6 @@ config:
     useProxyProtocol: true
 terminationGracePeriodSeconds: 30
 nginx_conf:
-  user: nginx
-  group: nginx
   upstream_config: /etc/wire/nginz/upstreams/upstreams.conf
   zauth_keystore: /etc/wire/nginz/secrets/zauth.conf
   zauth_acl: /etc/wire/nginz/conf/zauth.acl
@@ -173,6 +171,9 @@ nginx_conf:
       envs:
       - all
     - path: /self/password
+      envs:
+      - all
+    - path: /self/supported-protocols
       envs:
       - all
     - path: /self/locale
@@ -648,3 +649,12 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
+
+podSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
