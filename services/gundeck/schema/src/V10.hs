@@ -26,7 +26,8 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 10 "Add notification payload references" $ do
-  schema' [r| ALTER COLUMNFAMILY notifications ADD payload_ref uuid; |]
+  schema' [r| ALTER TABLE notifications ADD payload_ref uuid; |]
+
   schema'
     [r|
         CREATE COLUMNFAMILY IF NOT EXISTS notification_payload
