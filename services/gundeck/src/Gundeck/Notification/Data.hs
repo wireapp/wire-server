@@ -86,7 +86,7 @@ addDeduplicated n tgts b (notificationTTLSeconds -> t) = do
 
     cqlInsertPayload :: PrepQuery W (PayloadId, Blob, Int32) ()
     cqlInsertPayload =
-      "INSERT INTO notifications \
+      "INSERT INTO notification_payload \
       \(id, payload) VALUES \
       \(?   , ?) \
       \USING TTL ?"
