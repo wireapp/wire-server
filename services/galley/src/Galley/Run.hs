@@ -52,7 +52,6 @@ import Galley.Monad
 import Galley.Options
 import qualified Galley.Queue as Q
 import Imports
-import Network.HTTP.Client (defaultManagerSettings, newManager)
 import qualified Network.HTTP.Media.RenderHeader as HTTPMedia
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai
@@ -60,7 +59,6 @@ import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
 import Servant hiding (route)
-import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http), defaultMakeClientRequest)
 import qualified System.Logger as Log
 import System.Logger.Extended (mkLogger)
 import Util.Options

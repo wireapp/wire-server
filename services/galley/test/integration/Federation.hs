@@ -88,9 +88,7 @@ updateFedDomainsTest = do
   let opts = s ^. tsGConf
   -- Don't need the actual server, and we certainly don't want it running.
   -- But this is how the env is made, so it is what we do
-  l <- liftIO $ mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
-  r <- newIORef defFederationDomainConfigs
-  (_, env) <- liftIO $ lowerCodensity $ mkApp opts r l
+  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
   -- Common variables.
   let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
       remoteDomain = Domain "far-away.example.com"

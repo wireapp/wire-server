@@ -17,7 +17,6 @@ import Control.Lens ((^.), to)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as L
 import Data.Text.Encoding
-import Control.Retry
 
 deleteFederationDomain :: Q.Channel -> AppT IO Q.ConsumerTag
 deleteFederationDomain chan = do

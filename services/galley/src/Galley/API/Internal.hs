@@ -502,8 +502,8 @@ deleteFederationDomain :: (Member (Input Env) r, Member (P.Logger (Msg -> Msg)) 
           Member CodeStore r, Member TeamStore r, Member BrigAccess r, Member GundeckAccess r, Member ExternalAccess r) => Domain -> Sem r ()
 deleteFederationDomain d = do
   -- TODO rename a wee bit
-  deleteFederationDomainRemote d
-  deleteFederationDomainLocal d
+  deleteFederationDomainRemoteUserFromLocalConversations d
+  deleteFederationDomainLocalUserFromRemoteConversation d
   deleteFederationDomainOneOnOne d
 
 
@@ -517,11 +517,11 @@ internalDeleteFederationDomainH (domain ::: _) = do
   pure (empty & setStatus status200)
 
 -- Remove remote members from local conversations
-deleteFederationDomainRemote :: (Member (Input Env) r, Member (P.Logger (Msg -> Msg)) r,
+deleteFederationDomainRemoteUserFromLocalConversations :: (Member (Input Env) r, Member (P.Logger (Msg -> Msg)) r,
           Member (Error InternalError) r, Member (Error FederationError) r,
           Member MemberStore r, Member ConversationStore r,
           Member CodeStore r, Member TeamStore r) => Domain -> Sem r ()
-deleteFederationDomainRemote dom = do
+deleteFederationDomainRemoteUserFromLocalConversations dom = do
   remoteUsers <- E.getRemoteMembersByDomain dom
   env <- input
   let lCnvMap = foldr insertIntoMap mempty remoteUsers
@@ -566,11 +566,11 @@ deleteFederationDomainRemote dom = do
             ()
 
 -- Remove local members from remote conversations
-deleteFederationDomainLocal :: (Member (Input (Local ())) r, Member (Input Env) r,
+deleteFederationDomainLocalUserFromRemoteConversation :: (Member (Input (Local ())) r, Member (Input Env) r,
           Member (Error InternalError) r, Member (P.Logger (Msg -> Msg)) r,
           Member MemberStore r, Member (Embed IO) r, Member BrigAccess r,
           Member GundeckAccess r, Member ExternalAccess r) => Domain -> Sem r ()
-deleteFederationDomainLocal dom = do
+deleteFederationDomainLocalUserFromRemoteConversation dom = do
   localUsers <- E.getLocalMembersByDomain dom
   env <- input
   -- As above, build the map so we can get all local users per conversation

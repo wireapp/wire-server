@@ -197,7 +197,7 @@ federationRemotesAPI =
     :<|> Named @"get-federation-remotes" getFederationRemotes
     :<|> Named @"update-federation-remotes" updateFederationRemote
     :<|> Named @"delete-federation-remotes" deleteFederationRemote
-    :<|> Named @"delete-federation-remote-galley" deleteFederationRemoteGalley
+    :<|> Named @"delete-federation-remote-from-galley" deleteFederationRemoteGalley
 
 addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 addFederationRemote fedDomConf = do
