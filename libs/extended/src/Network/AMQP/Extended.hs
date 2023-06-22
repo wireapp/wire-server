@@ -1,5 +1,6 @@
 module Network.AMQP.Extended where
 
+import qualified Control.Exception as E
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Control.Retry
@@ -65,12 +66,15 @@ openConnectionWithRetries l host port vHost hooks = do
       -- Jittered exponential backoff with 1ms as starting delay and 5s as max
       -- delay.
       let policy = capDelay 5_000_000 $ fullJitterBackoff 1000
-          logError willRetry e retryStatus = do
+          logError willRetry e retryStatus = when (isSync e) $ do
             Log.err l $
               Log.msg (Log.val "Failed to connect to RabbitMQ")
                 . Log.field "error" (displayException @SomeException e)
                 . Log.field "willRetry" willRetry
                 . Log.field "retryCount" retryStatus.rsIterNumber
+          isSync e = case E.fromException e of
+            Just (SomeAsyncException _) -> False
+            _ -> True
       recovering
         policy
         [logRetries (const $ pure True) logError]

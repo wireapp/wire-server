@@ -29,7 +29,9 @@ import qualified Cannon.Dict as D
 import Cannon.Options
 import Cannon.Types (Cannon, applog, clients, env, mkEnv, monitor, runCannon', runCannonToServant)
 import Cannon.WS hiding (env)
+import Control.Concurrent
 import qualified Control.Concurrent.Async as Async
+import qualified Control.Exception as E
 import Control.Exception.Safe (catchAny)
 import Control.Lens ((^.))
 import Control.Monad.Catch (MonadCatch, finally)
@@ -39,7 +41,9 @@ import Data.Metrics.Servant
 import Data.Proxy
 import Data.Text (pack, strip)
 import Data.Text.Encoding (encodeUtf8)
-import Imports hiding (head)
+import Data.Typeable
+import qualified GHC.Conc
+import Imports hiding (head, threadDelay)
 import qualified Network.Wai as Wai
 import Network.Wai.Handler.Warp hiding (run)
 import qualified Network.Wai.Middleware.Gzip as Gzip
@@ -51,7 +55,6 @@ import qualified System.Logger.Extended as L
 import System.Posix.Signals
 import qualified System.Posix.Signals as Signals
 import System.Random.MWC (createSystemRandom)
-import UnliftIO.Concurrent (myThreadId, throwTo)
 import qualified Wire.API.Routes.Internal.Cannon as Internal
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version.Wai
@@ -88,6 +91,7 @@ run o = do
         hoistServer (Proxy @PublicAPI) (runCannonToServant e) publicAPIServer
           :<|> hoistServer (Proxy @Internal.API) (runCannonToServant e) internalServer
   tid <- myThreadId
+  GHC.Conc.setUncaughtExceptionHandler uncaughtExceptionHandler
   void $ installHandler sigTERM (signalHandler (env e) tid) Nothing
   void $ installHandler sigINT (signalHandler (env e) tid) Nothing
   runSettings s app `finally` do
@@ -113,8 +117,14 @@ signalHandler e mainThread = CatchOnce $ do
   runWS e drain
   throwTo mainThread SignalledToExit
 
+uncaughtExceptionHandler :: SomeException -> IO ()
+uncaughtExceptionHandler e = do
+  case E.fromException e of
+    Just SignalledToExit -> pure () -- swallow
+    _ -> putStrLn $ "Uncaught exception: " <> displayException e
+
 data SignalledToExit = SignalledToExit
-  deriving (Show)
+  deriving (Typeable, Show)
 
 instance Exception SignalledToExit
 
@@ -125,11 +135,11 @@ refreshMetrics = do
   safeForever $ do
     s <- D.size c
     gaugeSet (fromIntegral s) (path "net.websocket.clients") m
-    threadDelay 1000000
+    liftIO $ threadDelay 1000000
   where
     safeForever :: (MonadIO m, LC.MonadLogger m, MonadCatch m) => m () -> m ()
     safeForever action =
       forever $
         action `catchAny` \exc -> do
           LC.err $ "error" LC..= show exc LC.~~ LC.msg (LC.val "refreshMetrics failed")
-          threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
+          liftIO $ threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
