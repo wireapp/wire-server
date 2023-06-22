@@ -763,7 +763,8 @@ uncheckedAddTeamMember ::
   NewTeamMember ->
   Sem r ()
 uncheckedAddTeamMember tid nmem = do
-  mems <- getTeamMembersForFanout tid
+  -- mems <- getTeamMembersForFanout tid
+  let mems = newTeamMemberList [] ListTruncated
   (TeamSize sizeBeforeJoin) <- E.getSize tid
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems

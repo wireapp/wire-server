@@ -32,10 +32,10 @@ rabbitmq:
 
 settings:
   httpPoolSize: 128
-  maxTeamSize: 32
-  maxFanoutSize: 18
+  maxTeamSize: 10000
+  maxFanoutSize: 10000
   exposeInvitationURLsTeamAllowlist: []
-  maxConvSize: 16
+  maxConvSize: 10000
   intraListing: false
   conversationCodeURI: https://account.wire.com/conversation-join/
   concurrentDeletionEvents: 1024
