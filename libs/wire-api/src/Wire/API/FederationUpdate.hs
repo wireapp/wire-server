@@ -5,7 +5,7 @@ module Wire.API.FederationUpdate
 where
 
 import Control.Concurrent.Async
-import Control.Exception (ErrorCall (ErrorCall), throwIO)
+import Control.Exception (ErrorCall (ErrorCall), finally, throwIO)
 import qualified Control.Retry as R
 import qualified Data.Set as Set
 import Data.Text (unpack)
@@ -72,7 +72,15 @@ updateFedDomains :: Endpoint -> L.Logger -> FedUpdateCallback -> IO (IORef Feder
 updateFedDomains (Endpoint h p) log' cb = do
   clientEnv <- newManager defaultManagerSettings <&> \mgr -> ClientEnv mgr baseUrl Nothing defaultMakeClientRequest
   ioref <- newIORef =<< getAllowedDomainsInitial log' clientEnv
-  updateDomainsThread <- async $ getAllowedDomainsLoop log' clientEnv cb ioref
+  updateDomainsThread <-
+    async $
+      let go = finally
+            (getAllowedDomainsLoop log' clientEnv cb ioref)
+            $ do
+              L.log log' L.Error $ L.msg (L.val "Federation domain sync thread died, restarting domain synchronization.")
+              go
+       in go
+
   pure (ioref, updateDomainsThread)
   where
     baseUrl = BaseUrl Http (unpack h) (fromIntegral p) ""

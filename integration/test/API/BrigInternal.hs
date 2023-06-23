@@ -64,12 +64,6 @@ instance ToJSON FedConn where
 instance MakesValue FedConn where
   make = pure . toJSON
 
-instance FromJSON FedConn where
-  parseJSON = withObject "FedConn" $ \obj -> do
-    FedConn
-      <$> obj .: fromString "domain"
-      <*> obj .: fromString "search_policy"
-
 createFedConn :: (HasCallStack, MakesValue dom, MakesValue fedConn) => dom -> fedConn -> App Response
 createFedConn dom fedConn = do
   res <- createFedConn' dom fedConn

@@ -163,9 +163,7 @@ createEnv m o l r = do
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   validateOptions l o
-
-  let brigEndpoint = o ^. optBrig
-  Env def m o l mgr h2mgr (o ^. optFederator) brigEndpoint cass
+  Env def m o l mgr h2mgr (o ^. optFederator) (o ^. optBrig) cass
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)

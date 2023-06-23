@@ -285,14 +285,11 @@ startBackend domain nginzSslPort mFederatorOverrides mBgWorkerOverrides services
         for_ instances $ \(ph, path) -> do
           terminateProcess ph
           timeout 50000 (waitForProcess ph) >>= \case
-            Just _ -> do
-              putStrLn ("killing " <> path)
+            Just _ -> pure ()
             Nothing -> do
               timeout 100000 (waitForProcess ph) >>= \case
-                Just _ -> do
-                  putStrLn ("killing again" <> path)
+                Just _ -> pure ()
                 Nothing -> do
-                  putStrLn ("force-killing " <> path)
                   mPid <- getPid ph
                   for_ mPid (signalProcess killProcess)
                   void $ waitForProcess ph
