@@ -752,7 +752,12 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
     for_ failedNotifies $ \case
       -- rethrow invalid-domain errors and mis-configured federation errors
       (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 422 _) _ _ _)))) -> throw ex
+      -- FUTUREWORK: This error occurs when federation strategy is set to `allowDynamic`
+      -- and the remote domain is not in the allow list
+      -- Is it ok to throw all 400 errors?
+      (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 400 _) _ _ _)))) -> throw ex
       (_, ex@(FederationCallFailure (FederatorClientHTTP2Error (FederatorClientConnectionError _)))) -> throw ex
+      -- FUTUREWORK: Do we really want to ignore any other errors?
       _ -> pure ()
     updates <-
       E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
