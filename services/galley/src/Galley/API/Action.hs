@@ -937,7 +937,15 @@ addLocalUsersToRemoteConv ::
 addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
   connStatus <- E.getConnections localUsers (Just [qAdder]) (Just Accepted)
   let localUserIdsSet = Set.fromList localUsers
-      connected = Set.fromList $ fmap csv2From connStatus
+      adder = qUnqualified qAdder
+      -- If alice@A creates a 1-1 conversation on B, it can appear as if alice is
+      -- adding herself to a remote conversation. To make sure this is allowed, we
+      -- always consider a user as connected to themself.
+      connected =
+        Set.fromList (fmap csv2From connStatus)
+          <> if Set.member adder localUserIdsSet
+            then Set.singleton adder
+            else mempty
       unconnected = Set.difference localUserIdsSet connected
       connectedList = Set.toList connected
 
