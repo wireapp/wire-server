@@ -95,6 +95,7 @@ config:
   ingressClass: "nginx"
 # You will need to supply some DNS names, namely
 #   dns:
+#     base: <domain>
 #     https: nginz-https.<domain>
 #     ssl: nginz-ssl.<domain> # For websockets
 #     ^ ssl is ignored if websockets.enabled == false
