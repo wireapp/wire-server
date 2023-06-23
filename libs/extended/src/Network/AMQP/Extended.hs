@@ -73,7 +73,10 @@ openConnectionWithRetries l host port vHost hooks = do
                 . Log.field "retryCount" retryStatus.rsIterNumber
       recovering
         policy
-        [logRetries (const $ pure True) logError]
+        ( skipAsyncExceptions
+            <> [ logRetries (const $ pure True) logError
+               ]
+        )
         ( const $ do
             Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
             connect username password

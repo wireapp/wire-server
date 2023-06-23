@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, aeson-diff
 , aeson-pretty
 , aeson-qq
 , async
@@ -213,6 +214,7 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson
+    aeson-diff
     aeson-pretty
     aeson-qq
     async
