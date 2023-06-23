@@ -324,6 +324,8 @@ newtype Positive x y a = Positive {runPositive :: (a -> x) -> y}
 -- This can be used when the input type 'v' of the parser is not exactly a
 -- 'A.Object', but it contains one. The first argument is a lens that can
 -- extract the 'A.Object' contained in 'v'.
+--
+-- See 'bind' for use cases.
 fieldOverF ::
   forall f doc' doc v v' a b.
   (HasField doc' doc, FieldFunctor doc f) =>
@@ -513,7 +515,7 @@ mapWithKeys keyToText textToKey sch =
 setMinItems :: (HasMinItems doc (Maybe Integer)) => Integer -> ValueSchema doc a -> ValueSchema doc a
 setMinItems m = doc . minItems ?~ m
 
--- | Ad-hoc class for types corresponding to a JSON primitive types.
+-- | Ad-hoc class for types corresponding to JSON primitive types.
 class A.ToJSON a => With a where
   with :: String -> (a -> A.Parser b) -> A.Value -> A.Parser b
 
