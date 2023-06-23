@@ -757,8 +757,18 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
       -- Is it ok to throw all 400 errors?
       (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 400 _) _ _ _)))) -> throw ex
       (_, ex@(FederationCallFailure (FederatorClientHTTP2Error (FederatorClientConnectionError _)))) -> throw ex
-      -- FUTUREWORK: Do we really want to ignore any other errors?
-      _ -> pure ()
+      -- FUTUREWORK: Default case (`_ -> pure ()`) is now explicit. Do we really want to ignore all these errors?
+      (_, FederationCallFailure (FederatorClientHTTP2Error _)) -> pure ()
+      (_, FederationCallFailure (FederatorClientError _)) -> pure ()
+      (_, FederationCallFailure FederatorClientStreamingNotSupported) -> pure ()
+      (_, FederationCallFailure (FederatorClientServantError _)) -> pure ()
+      (_, FederationCallFailure (FederatorClientVersionNegotiationError _)) -> pure ()
+      (_, FederationCallFailure FederatorClientVersionMismatch) -> pure ()
+      (_, FederationNotImplemented) -> pure ()
+      (_, FederationNotConfigured) -> pure ()
+      (_, FederationUnexpectedBody _) -> pure ()
+      (_, FederationUnexpectedError _) -> pure ()
+      (_, FederationUnreachableDomains _) -> pure ()
     updates <-
       E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
         \ruids -> do
