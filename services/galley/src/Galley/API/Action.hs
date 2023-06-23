@@ -35,7 +35,6 @@ module Galley.API.Action
     ensureConversationActionAllowed,
     addMembersToLocalConversation,
     notifyConversationAction,
-    notifyRemoteConversationAction,
     updateLocalStateOfRemoteConv,
     addLocalUsersToRemoteConv,
     ConversationUpdate,
@@ -801,50 +800,6 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
     logError field msg e =
       P.warn $
         Log.field "federation call" field . Log.msg (msg <> show e)
-
--- | Notify all local members about a remote conversation update that originated
--- from a local user
-notifyRemoteConversationAction ::
-  ( Member ExternalAccess r,
-    Member GundeckAccess r,
-    Member MemberStore r,
-    Member P.TinyLog r
-  ) =>
-  Local x ->
-  Remote ConversationUpdate ->
-  Maybe ConnId ->
-  Sem r Event
-notifyRemoteConversationAction loc rconvUpdate con = do
-  let convUpdate = tUnqualified rconvUpdate
-      rconvId = qualifyAs rconvUpdate . cuConvId $ convUpdate
-
-  let event =
-        case cuAction convUpdate of
-          SomeConversationAction tag action ->
-            conversationActionToEvent tag (cuTime convUpdate) (cuOrigUserId convUpdate) (tUntagged rconvId) Nothing action
-
-  -- Note: we generally do not send notifications to users that are not part of
-  -- the conversation (from our point of view), to prevent spam from the remote
-  -- backend.
-  (presentUsers, allUsersArePresent) <-
-    E.selectRemoteMembers (cuAlreadyPresentUsers convUpdate) rconvId
-  let localPresentUsers = qualifyAs loc presentUsers
-
-  unless allUsersArePresent $
-    P.warn $
-      Log.field "conversation" (toByteString' . tUnqualified $ rconvId)
-        . Log.field "domain" (toByteString' (tDomain rconvUpdate))
-        . Log.msg
-          ( "Attempt to send notification about conversation update \
-            \to users not in the conversation" ::
-              ByteString
-          )
-
-  -- FUTUREWORK: Check if presentUsers contain bots when federated bots are
-  -- implemented.
-  let bots = []
-
-  pushConversationEvent con event localPresentUsers bots $> event
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
