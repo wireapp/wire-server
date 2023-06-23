@@ -119,20 +119,14 @@ data Recipient = Recipient
     _recipientRoute :: !Route,
     _recipientClients :: !RecipientClients
   }
-  deriving (Show)
-
-instance Eq Recipient where
-  (Recipient uid1 _ _) == (Recipient uid2 _ _) = uid1 == uid2
-
-instance Ord Recipient where
-  compare r r' = compare (_recipientId r) (_recipientId r')
+  deriving (Show, Eq, Ord)
 
 data RecipientClients
   = -- | All clients of some user
     RecipientClientsAll
   | -- | An explicit list of clients
     RecipientClientsSome (List1 ClientId)
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
 makeLenses ''Recipient
 
