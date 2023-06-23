@@ -227,7 +227,9 @@ onConversationUpdated ::
   Domain ->
   F.ConversationUpdate ->
   Sem r ()
-onConversationUpdated requestingDomain cu = updateLocalStateOfRemoteConv requestingDomain cu
+onConversationUpdated requestingDomain cu = do
+  let rcu = toRemoteUnsafe requestingDomain cu
+  void $ updateLocalStateOfRemoteConv rcu Nothing
 
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::

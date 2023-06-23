@@ -370,8 +370,7 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
     ConversationUpdateResponseError err' -> rethrowErrors @(HasConversationActionGalleyErrors tag) err'
     ConversationUpdateResponseUpdate convUpdate _failedToProcess -> pure convUpdate
 
-  updateLocalStateOfRemoteConv (tDomain rcnv) convUpdate
-  notifyRemoteConversationAction lusr (qualifyAs rcnv convUpdate) (Just conn)
+  updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) (Just conn) >>= note NoChanges
 
 updateConversationReceiptModeUnqualified ::
   ( Member BrigAccess r,

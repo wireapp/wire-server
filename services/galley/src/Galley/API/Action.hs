@@ -45,12 +45,11 @@ where
 import Control.Arrow ((&&&))
 import Control.Lens
 import Data.ByteString.Conversion (toByteString')
-import Data.Domain
 import Data.Id
 import Data.Kind
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
-import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
+import Data.List.NonEmpty (nonEmpty)
 import qualified Data.Map as Map
 import Data.Misc
 import Data.Qualified
@@ -857,12 +856,13 @@ updateLocalStateOfRemoteConv ::
     Member MemberStore r,
     Member P.TinyLog r
   ) =>
-  Domain ->
-  F.ConversationUpdate ->
-  Sem r ()
-updateLocalStateOfRemoteConv requestingDomain cu = do
+  Remote F.ConversationUpdate ->
+  Maybe ConnId ->
+  Sem r (Maybe Event)
+updateLocalStateOfRemoteConv rcu con = do
   loc <- qualifyLocal ()
-  let rconvId = toRemoteUnsafe requestingDomain (F.cuConvId cu)
+  let cu = tUnqualified rcu
+      rconvId = fmap F.cuConvId rcu
       qconvId = tUntagged rconvId
 
   -- Note: we generally do not send notifications to users that are not part of
@@ -880,16 +880,19 @@ updateLocalStateOfRemoteConv requestingDomain cu = do
   -- updated, we do **not** add them to the list of targets, because we have no
   -- way to make sure that they are actually supposed to receive that notification.
 
-  (mActualAction :: Maybe SomeConversationAction, extraTargets :: [UserId]) <- case F.cuAction cu of
+  (mActualAction, extraTargets) <- case F.cuAction cu of
     sca@(SomeConversationAction singTag action) -> case singTag of
       SConversationJoinTag -> do
         let ConversationJoin toAdd role = action
         let (localUsers, remoteUsers) = partitionQualified loc toAdd
         addedLocalUsers <- Set.toList <$> addLocalUsersToRemoteConv rconvId (F.cuOrigUserId cu) localUsers
         let allAddedUsers = map (tUntagged . qualifyAs loc) addedLocalUsers <> map tUntagged remoteUsers
-        case allAddedUsers of
-          [] -> pure (Nothing, []) -- If no users get added, its like no action was performed.
-          (u : us) -> pure (Just (SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (u :| us) role)), addedLocalUsers)
+        pure $
+          ( fmap
+              (\users -> SomeConversationAction SConversationJoinTag (ConversationJoin users role))
+              (nonEmpty allAddedUsers),
+            addedLocalUsers
+          )
       SConversationLeaveTag -> do
         let users = foldQualified loc (pure . tUnqualified) (const []) (F.cuOrigUserId cu)
         E.deleteMembersInRemoteConversation rconvId users
@@ -911,7 +914,7 @@ updateLocalStateOfRemoteConv requestingDomain cu = do
   unless allUsersArePresent $
     P.warn $
       Log.field "conversation" (toByteString' (F.cuConvId cu))
-        . Log.field "domain" (toByteString' requestingDomain)
+        . Log.field "domain" (toByteString' (tDomain rcu))
         . Log.msg
           ( "Attempt to send notification about conversation update \
             \to users not in the conversation" ::
@@ -919,11 +922,11 @@ updateLocalStateOfRemoteConv requestingDomain cu = do
           )
 
   -- Send notifications
-  for_ mActualAction $ \(SomeConversationAction tag action) -> do
+  for mActualAction $ \(SomeConversationAction tag action) -> do
     let event = conversationActionToEvent tag (F.cuTime cu) (F.cuOrigUserId cu) qconvId Nothing action
         targets = nubOrd $ presentUsers <> extraTargets
     -- FUTUREWORK: support bots?
-    pushConversationEvent Nothing event (qualifyAs loc targets) []
+    pushConversationEvent con event (qualifyAs loc targets) [] $> event
 
 addLocalUsersToRemoteConv ::
   ( Member BrigAccess r,
