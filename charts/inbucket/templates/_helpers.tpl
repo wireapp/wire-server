@@ -24,3 +24,7 @@
 {{- define "ingress.supportsPathType" -}}
   {{- or (eq (include "ingress.isStable" .) "true") (and (eq (include "ingress.apiVersion" .) "networking.k8s.io/v1beta1") (semverCompare ">= 1.18-0" (include "kubeVersion" .))) -}}
 {{- end -}}
+
+{{- define "ingress.FieldNotAnnotation" -}}
+  {{- (semverCompare ">= 1.27-0" (include "kubeVersion" .)) -}}
+{{- end -}}

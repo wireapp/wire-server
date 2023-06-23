@@ -109,6 +109,10 @@ asList x =
     (Array arr) -> pure (toList arr)
     v -> assertFailureWithJSON x ("Array" `typeWasExpectedButGot` v)
 
+asListOf :: HasCallStack => (Value -> App b) -> MakesValue a => a -> App [b]
+asListOf makeElem x =
+  asList x >>= mapM makeElem
+
 asBool :: HasCallStack => MakesValue a => a -> App Bool
 asBool x =
   make x >>= \case

@@ -43,6 +43,10 @@ spec:
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+        {{- if eq (include "includeSecurityContext" .) "true" }}
+    securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 6 }}
+        {{- end }}
     volumeMounts:
     - name: "galley-integration"
       mountPath: "/etc/wire/integration"

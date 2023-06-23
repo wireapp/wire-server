@@ -266,3 +266,48 @@ postInvitation user inv = do
   email <- maybe randomEmail pure inv.email
   submit "POST" $
     req & addJSONObject ["email" .= email]
+
+getApiVersions :: HasCallStack => App Response
+getApiVersions = do
+  req <-
+    rawBaseRequest OwnDomain Brig Unversioned $
+      joinHttpPath ["api-version"]
+  submit "GET" req
+
+getSwaggerPublicTOC :: HasCallStack => App Response
+getSwaggerPublicTOC = do
+  req <-
+    rawBaseRequest OwnDomain Brig Unversioned $
+      joinHttpPath ["api", "swagger-ui"]
+  submit "GET" req
+
+getSwaggerInternalTOC :: HasCallStack => App Response
+getSwaggerInternalTOC = error "FUTUREWORK: this API end-point does not exist."
+
+getSwaggerPublicAllUI :: HasCallStack => Int -> App Response
+getSwaggerPublicAllUI version = do
+  req <-
+    rawBaseRequest OwnDomain Brig (ExplicitVersion version) $
+      joinHttpPath ["api", "swagger-ui"]
+  submit "GET" req
+
+getSwaggerPublicAllJson :: HasCallStack => Int -> App Response
+getSwaggerPublicAllJson version = do
+  req <-
+    rawBaseRequest OwnDomain Brig (ExplicitVersion version) $
+      joinHttpPath ["api", "swagger.json"]
+  submit "GET" req
+
+getSwaggerInternalUI :: HasCallStack => String -> App Response
+getSwaggerInternalUI service = do
+  req <-
+    rawBaseRequest OwnDomain Brig Unversioned $
+      joinHttpPath ["api-internal", "swagger-ui", service]
+  submit "GET" req
+
+getSwaggerInternalJson :: HasCallStack => String -> App Response
+getSwaggerInternalJson service = do
+  req <-
+    rawBaseRequest OwnDomain Nginz Unversioned $
+      joinHttpPath ["api-internal", "swagger-ui", service <> "-swagger.json"]
+  submit "GET" req

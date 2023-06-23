@@ -1,4 +1,5 @@
 {{- $apiIsStable := eq (include "ingress.isStable" .) "true" -}}
+{{- $ingressFieldNotAnnotation := eq (include "ingress.FieldNotAnnotation" .) "true" -}}
 {{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
 {{- if .Values.federator.enabled }}
 # We use a separate ingress for federator so that we can require client
@@ -8,7 +9,9 @@ kind: Ingress
 metadata:
   name: federator-ingress
   annotations:
+    {{- if not $ingressFieldNotAnnotation }}
     kubernetes.io/ingress.class: "{{ .Values.config.ingressClass }}"
+    {{- end }}
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
@@ -17,6 +20,9 @@ metadata:
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_set_header "X-SSL-Certificate" $ssl_client_escaped_cert;
 spec:
+  {{- if $ingressFieldNotAnnotation }}
+  ingressClassName: "{{ .Values.config.ingressClass }}"
+  {{- end }}
   tls:
   - hosts:
       - {{ .Values.config.dns.federator }}

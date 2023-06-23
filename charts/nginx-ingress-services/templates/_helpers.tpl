@@ -90,3 +90,7 @@ Returns the Letsencrypt API server URL based on whether testMode is enabled or d
 {{- define "integrationTestHelperNewLabels" -}}
   {{- (semverCompare ">= 1.23-0" (include "kubeVersion" .)) -}}
 {{- end -}}
+
+{{- define "ingress.FieldNotAnnotation" -}}
+  {{- (semverCompare ">= 1.27-0" (include "kubeVersion" .)) -}}
+{{- end -}}
