@@ -6,6 +6,9 @@ secret because cert-manager interferes with the ca.crt field when setting the
 certificate in a secret. */ -}}
 
 {{- if .Values.federator.enabled -}}
+{{- if .Values.config.isAdditionalIngress -}}
+  {{ fail "Federation and multi-backend-domain (multi-ingress) cannot be configured together." }}
+{{- end -}}
 apiVersion: v1
 kind: Secret
 metadata:
