@@ -104,7 +104,7 @@ data RichInfoMapAndList = RichInfoMapAndList
 instance ToSchema RichInfoMapAndList where
   schema = object "RichInfoMapAndList" richInfoMapAndListSchema
 
-richInfoMapAndListSchema :: ObjectSchemaP SwaggerDoc RichInfoMapAndList RichInfoMapAndList
+richInfoMapAndListSchema :: ObjectSchema SwaggerDoc RichInfoMapAndList
 richInfoMapAndListSchema =
   withParser
     ( RichInfoMapAndList
@@ -123,19 +123,8 @@ richInfoMapAndListSchema =
     )
     (pure . normalizeRichInfoMapAndList)
 
--- | FUTUREWORK: This implementation is use `map_`, but we may want to enhance `map_` a little
--- to avoid having to provide an orphan instance for `Aeson.FromJSONKey (CI Text)`.
 richInfoMapSchema :: ValueSchema SwaggerDoc (Map (CI Text) Text)
-richInfoMapSchema = mkSchema mempty prs (Just . gen)
-  where
-    prs :: Aeson.Value -> Aeson.Parser (Map (CI Text) Text)
-    prs = Aeson.withObject "Map (CI Text) Text" (extractMap . Map.mapKeys CI.mk . KeyMap.toMapText)
-      where
-        extractMap :: Map (CI Text) A.Value -> Aeson.Parser (Map (CI Text) Text)
-        extractMap = traverse (A.withText "Text Value" pure)
-
-    gen :: Map (CI Text) Text -> Aeson.Value
-    gen = A.toJSON . Map.mapKeys CI.original
+richInfoMapSchema = mapWithKeys CI.original CI.mk schema
 
 -- | Uses 'normalizeRichInfoMapAndList'.
 mkRichInfoMapAndList :: [RichField] -> RichInfoMapAndList
