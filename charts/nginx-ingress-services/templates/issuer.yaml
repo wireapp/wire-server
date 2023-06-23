@@ -6,7 +6,7 @@ kind: "{{ .Values.tls.issuer.kind }}"
 {{- fail (cat ".tls.issuer.kind can only be one of Issuer or ClusterIssuer, got: " .tls.issuer.kind )}}
 {{- end }}
 metadata:
-  name: {{ .Values.tls.issuer.name }}
+  name: {{ .Values.tls.issuer.name }}-{{ .Values.color }}
   {{- if eq .Values.tls.issuer.kind "Issuer" }}
   namespace: {{ .Release.Namespace }}
   {{- end }}
