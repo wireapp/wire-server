@@ -75,8 +75,8 @@ def simplify_body(content):
             else:
                 return content
         except Exception:
-            b = b64encode(content).decode("utf8")
-            return {"base64data": b, "comment": "binary blob has been replaced"}
+            b = b64encode(content).decode("utf8")[:1000]
+            return {"base64data": b, "comment": "binary blob has been replaced (and truncated)"}
 
 
 def simplify_response(response):
@@ -323,7 +323,7 @@ def save(res, path):
     if not os.path.exists(d):
         os.makedirs(d)
     save_json_file(b, path)
-    print(f"Saving to {path}")
+    # print(f"Saving to {path}")
     return b
 
 
