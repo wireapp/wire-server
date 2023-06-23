@@ -9,6 +9,10 @@ metadata:
     {{- if not $ingressFieldNotAnnotation }}
     kubernetes.io/ingress.class: "{{ .Values.config.ingressClass }}"
     {{- end }}
+    {{ if .Values.config.renderCSPInIngress }}
+    {{ if ne .Values.config.ingressClass "nginx"}}
+        {{ fail "In ingress CSP header setting only works with 'nginx' controller." }}
+    {{ end }}
     nginx.ingress.kubernetes.io/configuration-snippet: |
       set $CSP "connect-src 'self' blob: data: https://*.giphy.com https://{{ .Values.config.dns.https }}";
       {{if .Values.websockets.enabled}}
@@ -22,7 +26,7 @@ metadata:
       set $CSP "${CSP} manifest-src 'self';";
       set $CSP "${CSP} media-src 'self' blob: data:;";
       set $CSP "${CSP} object-src 'none';";
-      set $CSP "${CSP} script-src 'self' 'unsafe-eval' https://*.{{ .Values.config.dns.base }}; ";
+      set $CSP "${CSP} script-src 'self' 'unsafe-eval' https://*.{{ required "Need a 'base' domain for CSP headers." .Values.config.dns.base }}; ";
       set $CSP "${CSP} style-src 'self' 'unsafe-inline';";
       set $CSP "${CSP} worker-src 'self' blob:;";
       set $CSP "${CSP} base-uri 'self';";
@@ -31,6 +35,7 @@ metadata:
       set $CSP "${CSP} script-src-attr 'none';";
       set $CSP "${CSP} upgrade-insecure-requests";
       more_set_headers "content-security-policy: $CSP";
+    {{ end }}
 spec:
   {{- if $ingressFieldNotAnnotation }}
   ingressClassName: "{{ .Values.config.ingressClass }}"
