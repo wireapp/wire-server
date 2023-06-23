@@ -42,6 +42,14 @@ tls:
     name: letsencrypt-http01
     kind: Issuer # Issuer | ClusterIssuer
 
+# Name of the ingress.
+#
+# If there is only one backend domain to be served, this can stay 'default'
+# (doesn't need to be changed.) If there are multiple backend domains
+# (multi-ingress setup), use a descriptive name per backend domain. Technically,
+# this value can be any string.
+ingressName: default
+
 certManager:
   # Indicates whether Letsencrypt's staging API server is used and therefore certificates are NOT trusted
   # default: production API server is used and certificates are trusted
