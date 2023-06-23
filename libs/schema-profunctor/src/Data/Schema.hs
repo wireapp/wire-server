@@ -497,7 +497,7 @@ map_ sch = mkSchema d i o
     o = fmap A.toJSON . traverse (schemaOut sch)
 
 -- | A schema for a JSON object with arbitrary keys of type 'k', where 'k' can
--- be converted to and from 'Text.
+-- be converted to and from 'Text'.
 mapWithKeys ::
   forall ndoc doc k a.
   (HasMap ndoc doc, Ord k) =>
