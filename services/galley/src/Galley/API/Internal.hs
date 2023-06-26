@@ -552,7 +552,6 @@ deleteFederationDomainRemoteUserFromLocalConversations dom = do
           lConv
           undefined
           $ tUntagged . rmId <$> rUsers -- This field can be undefined as the path for ConversationRemoveMembersTag doens't use it
-
         -- Check if the conversation if type 2 or 3, one-on-one conversations.
         -- If it is, then we need to remove the entire conversation as users
         -- aren't able to delete those types of conversations themselves.
