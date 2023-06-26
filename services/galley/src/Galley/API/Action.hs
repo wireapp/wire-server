@@ -35,7 +35,8 @@ module Galley.API.Action
     ensureConversationActionAllowed,
     addMembersToLocalConversation,
     notifyConversationAction,
-    notifyRemoteConversationAction,
+    updateLocalStateOfRemoteConv,
+    addLocalUsersToRemoteConv,
     ConversationUpdate,
   )
 where
@@ -46,6 +47,7 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Kind
 import qualified Data.List as List
+import Data.List.Extra (nubOrd)
 import Data.List.NonEmpty (nonEmpty)
 import qualified Data.Map as Map
 import Data.Misc
@@ -86,6 +88,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger as Log
+import Wire.API.Connection (Relation (Accepted))
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
@@ -96,7 +99,9 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API (Component (Galley), fedClient)
 import Wire.API.Federation.API.Galley
+import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
+import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.Unreachable
@@ -811,49 +816,116 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
       P.warn $
         Log.field "federation call" field . Log.msg (msg <> show e)
 
--- | Notify all local members about a remote conversation update that originated
--- from a local user
-notifyRemoteConversationAction ::
-  ( Member ExternalAccess r,
+-- | Update the local database with information on conversation members joining
+-- or leaving. Finally, push out notifications to local users.
+updateLocalStateOfRemoteConv ::
+  ( Member BrigAccess r,
     Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member (Input (Local ())) r,
     Member MemberStore r,
     Member P.TinyLog r
   ) =>
-  Local x ->
-  Remote ConversationUpdate ->
+  Remote F.ConversationUpdate ->
   Maybe ConnId ->
-  Sem r Event
-notifyRemoteConversationAction loc rconvUpdate con = do
-  let convUpdate = tUnqualified rconvUpdate
-      rconvId = qualifyAs rconvUpdate . cuConvId $ convUpdate
-
-  let event =
-        case cuAction convUpdate of
-          SomeConversationAction tag action ->
-            conversationActionToEvent tag (cuTime convUpdate) (cuOrigUserId convUpdate) (tUntagged rconvId) Nothing action
+  Sem r (Maybe Event)
+updateLocalStateOfRemoteConv rcu con = do
+  loc <- qualifyLocal ()
+  let cu = tUnqualified rcu
+      rconvId = fmap F.cuConvId rcu
+      qconvId = tUntagged rconvId
 
   -- Note: we generally do not send notifications to users that are not part of
   -- the conversation (from our point of view), to prevent spam from the remote
-  -- backend.
+  -- backend. See also the comment below.
   (presentUsers, allUsersArePresent) <-
-    E.selectRemoteMembers (cuAlreadyPresentUsers convUpdate) rconvId
-  let localPresentUsers = qualifyAs loc presentUsers
+    E.selectRemoteMembers (F.cuAlreadyPresentUsers cu) rconvId
+
+  -- Perform action, and determine extra notification targets.
+  --
+  -- When new users are being added to the conversation, we consider them as
+  -- notification targets. Since we check connections before letting
+  -- people being added, this is safe against spam. However, if users that
+  -- are not in the conversations are being removed or have their membership state
+  -- updated, we do **not** add them to the list of targets, because we have no
+  -- way to make sure that they are actually supposed to receive that notification.
+
+  (mActualAction, extraTargets) <- case F.cuAction cu of
+    sca@(SomeConversationAction singTag action) -> case singTag of
+      SConversationJoinTag -> do
+        let ConversationJoin toAdd role = action
+        let (localUsers, remoteUsers) = partitionQualified loc toAdd
+        addedLocalUsers <- Set.toList <$> addLocalUsersToRemoteConv rconvId (F.cuOrigUserId cu) localUsers
+        let allAddedUsers = map (tUntagged . qualifyAs loc) addedLocalUsers <> map tUntagged remoteUsers
+        pure $
+          ( fmap
+              (\users -> SomeConversationAction SConversationJoinTag (ConversationJoin users role))
+              (nonEmpty allAddedUsers),
+            addedLocalUsers
+          )
+      SConversationLeaveTag -> do
+        let users = foldQualified loc (pure . tUnqualified) (const []) (F.cuOrigUserId cu)
+        E.deleteMembersInRemoteConversation rconvId users
+        pure (Just sca, [])
+      SConversationRemoveMembersTag -> do
+        let localUsers = getLocalUsers (tDomain loc) action
+        E.deleteMembersInRemoteConversation rconvId localUsers
+        pure (Just sca, [])
+      SConversationMemberUpdateTag ->
+        pure (Just sca, [])
+      SConversationDeleteTag -> do
+        E.deleteMembersInRemoteConversation rconvId presentUsers
+        pure (Just sca, [])
+      SConversationRenameTag -> pure (Just sca, [])
+      SConversationMessageTimerUpdateTag -> pure (Just sca, [])
+      SConversationReceiptModeUpdateTag -> pure (Just sca, [])
+      SConversationAccessDataTag -> pure (Just sca, [])
 
   unless allUsersArePresent $
     P.warn $
-      Log.field "conversation" (toByteString' . tUnqualified $ rconvId)
-        . Log.field "domain" (toByteString' (tDomain rconvUpdate))
+      Log.field "conversation" (toByteString' (F.cuConvId cu))
+        . Log.field "domain" (toByteString' (tDomain rcu))
         . Log.msg
           ( "Attempt to send notification about conversation update \
             \to users not in the conversation" ::
               ByteString
           )
 
-  -- FUTUREWORK: Check if presentUsers contain bots when federated bots are
-  -- implemented.
-  let bots = []
+  -- Send notifications
+  for mActualAction $ \(SomeConversationAction tag action) -> do
+    let event = conversationActionToEvent tag (F.cuTime cu) (F.cuOrigUserId cu) qconvId Nothing action
+        targets = nubOrd $ presentUsers <> extraTargets
+    -- FUTUREWORK: support bots?
+    pushConversationEvent con event (qualifyAs loc targets) [] $> event
 
-  pushConversationEvent con event localPresentUsers bots $> event
+addLocalUsersToRemoteConv ::
+  ( Member BrigAccess r,
+    Member MemberStore r,
+    Member P.TinyLog r
+  ) =>
+  Remote ConvId ->
+  Qualified UserId ->
+  [UserId] ->
+  Sem r (Set UserId)
+addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
+  connStatus <- E.getConnections localUsers (Just [qAdder]) (Just Accepted)
+  let localUserIdsSet = Set.fromList localUsers
+      connected = Set.fromList $ fmap csv2From connStatus
+      unconnected = Set.difference localUserIdsSet connected
+      connectedList = Set.toList connected
+
+  -- FUTUREWORK: Consider handling the discrepancy between the views of the
+  -- conversation-owning backend and the local backend
+  unless (Set.null unconnected) $
+    P.warn $
+      Log.msg ("A remote user is trying to add unconnected local users to a remote conversation" :: Text)
+        . Log.field "remote_user" (show qAdder)
+        . Log.field "local_unconnected_users" (show unconnected)
+
+  -- Update the local view of the remote conversation by adding only those local
+  -- users that are connected to the adder
+  E.createMembersInRemoteConversation remoteConvId connectedList
+  pure connected
 
 -- | Kick a user from a conversation and send notifications.
 --
