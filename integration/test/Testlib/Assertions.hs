@@ -92,14 +92,10 @@ shouldMatchRange ::
   (Int, Int) ->
   App ()
 shouldMatchRange a (lower, upper) = do
-  xa <- make a
-  xl <- make lower
-  xu <- make upper
-  when (xa < xl || xa > xu) $ do
+  xa :: Int <- asInt a
+  when (xa < lower || xa > upper) $ do
     pa <- prettyJSON xa
-    pu <- prettyJSON xu
-    pl <- prettyJSON xl
-    assertFailure $ "Actual:\n" <> pa <> "\nExpected:\n(" <> pl <> "," <> pu <> ")"
+    assertFailure $ "Actual:\n" <> pa <> "\nExpected:\nin range (" <> show lower <> ", " <> show upper <> ") (including bounds)"
 
 shouldMatchSet ::
   (MakesValue a, MakesValue b, HasCallStack) =>
