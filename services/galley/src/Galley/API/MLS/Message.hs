@@ -63,6 +63,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
+import Polysemy.Output
 import Polysemy.Resource (Resource)
 import Polysemy.TinyLog
 import Wire.API.Conversation.Protocol
@@ -71,7 +72,7 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.Commit
+import Wire.API.MLS.Commit hiding (output)
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
@@ -240,18 +241,17 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
   pure events
 
 postMLSCommitBundleToRemoteConv ::
-  ( Members MLSBundleStaticErrors r,
-    ( Member BrigAccess r,
-      Member (Error FederationError) r,
-      Member (Error InternalError) r,
-      Member (Error MLSProtocolError) r,
-      Member (Error MLSProposalFailure) r,
-      Member ExternalAccess r,
-      Member FederatorAccess r,
-      Member GundeckAccess r,
-      Member MemberStore r,
-      Member TinyLog r
-    )
+  ( Member BrigAccess r,
+    Members MLSBundleStaticErrors r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (Error MLSProtocolError) r,
+    Member (Error MLSProposalFailure) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member MemberStore r,
+    Member TinyLog r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -288,9 +288,10 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle rConvOrSubId = do
           \non-empty list of users an application message could not be \
           \sent to. The remote end returned: "
             <> LT.pack (intercalate ", " (show <$> NE.toList (unreachableUsers us)))
-      for updates $ \update -> do
-        e <- notifyRemoteConversationAction loc (qualifyAs rConvOrSubId update) con
-        pure (LocalConversationUpdate e update)
+      fmap fst . runOutputList . runInputConst (void loc) $
+        for_ updates $ \update -> do
+          me <- updateLocalStateOfRemoteConv (qualifyAs rConvOrSubId update) con
+          for_ me $ \e -> output (LocalConversationUpdate e update)
 
 postMLSMessage ::
   ( HasProposalEffects r,
@@ -379,9 +380,7 @@ postMLSMessageToLocalConv qusr c con msg convOrSubId = do
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
-    ( Member (Error FederationError) r,
-      Member TinyLog r
-    ),
+    Member (Error FederationError) r,
     HasProposalEffects r
   ) =>
   Local x ->
@@ -418,9 +417,11 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
         \sent to. The remote end returned: "
           <> LT.pack (intercalate ", " (show <$> Set.toList (Set.map domainText ds)))
     MLSMessageResponseUpdates updates unreachables -> do
-      lcus <- for updates $ \update -> do
-        e <- notifyRemoteConversationAction loc (qualifyAs rConvOrSubId update) con
-        pure (LocalConversationUpdate e update)
+      lcus <- fmap fst . runOutputList $
+        for_ updates $ \update -> do
+          me <- updateLocalStateOfRemoteConv (qualifyAs rConvOrSubId update) con
+          for_ me $ \e -> output (LocalConversationUpdate e update)
+
       pure (lcus, unreachables)
 
 storeGroupInfo ::

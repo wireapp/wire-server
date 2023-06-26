@@ -301,10 +301,11 @@ data ConversationUpdate = ConversationUpdate
   { cuTime :: UTCTime,
     cuOrigUserId :: Qualified UserId,
     -- | The unqualified ID of the conversation where the update is happening.
-    -- The ID is local to prevent putting arbitrary domain that is different
-    -- than that of the backend making a conversation membership update request.
+    -- The ID is local to the sender to prevent putting arbitrary domain that
+    -- is different than that of the backend making a conversation membership
+    -- update request.
     cuConvId :: ConvId,
-    -- | A list of users from a remote backend that need to be sent
+    -- | A list of users from the receiving backend that need to be sent
     -- notifications about this change. This is required as we do not expect a
     -- non-conversation owning backend to have an indexed mapping of
     -- conversation to users.

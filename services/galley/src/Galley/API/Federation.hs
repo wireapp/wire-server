@@ -57,7 +57,6 @@ import Galley.API.Mapping
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
 import Galley.API.Push
-import Galley.API.Update
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
@@ -225,7 +224,9 @@ onConversationUpdated ::
   Domain ->
   F.ConversationUpdate ->
   Sem r ()
-onConversationUpdated requestingDomain cu = updateLocalStateOfRemoteConv requestingDomain cu
+onConversationUpdated requestingDomain cu = do
+  let rcu = toRemoteUnsafe requestingDomain cu
+  void $ updateLocalStateOfRemoteConv rcu Nothing
 
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
