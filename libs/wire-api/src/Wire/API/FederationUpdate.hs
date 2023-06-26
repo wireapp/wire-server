@@ -19,9 +19,6 @@ import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (domain), 
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Named (namedClient)
 
-getFedRemotes :: ClientM FederationDomainConfigs
-getFedRemotes = namedClient @IAPI.API @"get-federation-remotes"
-
 -- Initial function for getting the set of domains from brig, and an update interval
 getAllowedDomainsInitial :: L.Logger -> ClientEnv -> IO FederationDomainConfigs
 getAllowedDomainsInitial logger clientEnv =
@@ -35,7 +32,7 @@ getAllowedDomainsInitial logger clientEnv =
           Right s -> pure $ Just s
           Left e -> do
             L.log logger L.Info $
-              L.msg (L.val "Could not retrieve an initial list of federation domains from Brig.")
+              L.msg (L.val "Failed to reach brig for federation setup, retrying...")
                 L.~~ "error" L..= show e
             pure Nothing
    in R.retrying policy (const (pure . isNothing)) (const go) >>= \case
@@ -43,12 +40,12 @@ getAllowedDomainsInitial logger clientEnv =
         Nothing -> throwIO $ ErrorCall "*** Failed to reach brig for federation setup, giving up!"
 
 getAllowedDomains :: ClientEnv -> IO (Either ClientError FederationDomainConfigs)
-getAllowedDomains = runClientM getFedRemotes
+getAllowedDomains = runClientM (namedClient @IAPI.API @"get-federation-remotes")
 
--- Old value -> new value -> action
+-- | old value -> new value -> action
 type FedUpdateCallback = FederationDomainConfigs -> FederationDomainConfigs -> IO ()
 
--- The callback takes the previous and the new values of the federation domain configs
+-- | The callback takes the previous and the new values of the federation domain configs
 -- and runs a given action. This function is not called if a new config value cannot be fetched.
 getAllowedDomainsLoop :: L.Logger -> ClientEnv -> FedUpdateCallback -> IORef FederationDomainConfigs -> IO ()
 getAllowedDomainsLoop logger clientEnv callback env = forever $ do
