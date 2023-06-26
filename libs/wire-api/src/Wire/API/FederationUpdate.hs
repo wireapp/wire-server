@@ -1,5 +1,6 @@
 module Wire.API.FederationUpdate
   ( FedUpdateCallback,
+    emptyFedUpdateCallback,
     updateFedDomains,
   )
 where
@@ -42,13 +43,20 @@ getAllowedDomainsInitial logger clientEnv =
 getAllowedDomains :: ClientEnv -> IO (Either ClientError FederationDomainConfigs)
 getAllowedDomains = runClientM (namedClient @IAPI.API @"get-federation-remotes")
 
--- | old value -> new value -> action
-type FedUpdateCallback = FederationDomainConfigs -> FederationDomainConfigs -> IO ()
-
 -- | The callback takes the previous and the new values of the federation domain configs
 -- and runs a given action. This function is not called if a new config value cannot be fetched.
+newtype FedUpdateCallback = FedUpdateCallback
+  { fromFedUpdateCallback ::
+      FederationDomainConfigs -> -- old value
+      FederationDomainConfigs -> -- new value
+      IO ()
+  }
+
+emptyFedUpdateCallback :: FedUpdateCallback
+emptyFedUpdateCallback = FedUpdateCallback $ \_ _ -> pure ()
+
 getAllowedDomainsLoop :: L.Logger -> ClientEnv -> FedUpdateCallback -> IORef FederationDomainConfigs -> IO ()
-getAllowedDomainsLoop logger clientEnv callback env = forever $ do
+getAllowedDomainsLoop logger clientEnv (FedUpdateCallback callback) env = forever $ do
   getAllowedDomains clientEnv >>= \case
     Left e ->
       L.log logger L.Info $

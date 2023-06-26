@@ -88,7 +88,7 @@ mkApp :: Opts -> Codensity IO (Application, Env)
 mkApp opts =
   do
     logger <- lift $ mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
-    (fedDoms, _) <- lift $ updateFedDomains (opts ^. optBrig) logger $ \_ _ -> pure ()
+    (fedDoms, _) <- lift $ updateFedDomains (opts ^. optBrig) logger emptyFedUpdateCallback
     metrics <- lift $ M.metrics
     env <- lift $ App.createEnv metrics opts logger fedDoms
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
