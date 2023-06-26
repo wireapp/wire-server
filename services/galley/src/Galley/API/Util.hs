@@ -672,24 +672,22 @@ toConversationCreated ::
   Data.Conversation ->
   -- | The resulting information to be sent to a remote Galley
   ConversationCreated ConvId
-toConversationCreated
-  now
-  Data.Conversation {convMetadata = ConversationMetadata {..}, ..} = do
-    ConversationCreated
-      { ccTime = now,
-        ccOrigUserId = cnvmCreator,
-        ccCnvId = convId,
-        ccCnvType = cnvmType,
-        ccCnvAccess = cnvmAccess,
-        ccCnvAccessRoles = cnvmAccessRoles,
-        ccCnvName = cnvmName,
-        -- non-creator members are a function of the remote backend and will be
-        -- overridden when fanning out the notification to remote backends.
-        ccNonCreatorMembers = Set.empty,
-        ccMessageTimer = cnvmMessageTimer,
-        ccReceiptMode = cnvmReceiptMode,
-        ccProtocol = convProtocol
-      }
+toConversationCreated now Data.Conversation {convMetadata = ConversationMetadata {..}, ..} = do
+  ConversationCreated
+    { ccTime = now,
+      ccOrigUserId = cnvmCreator,
+      ccCnvId = convId,
+      ccCnvType = cnvmType,
+      ccCnvAccess = cnvmAccess,
+      ccCnvAccessRoles = cnvmAccessRoles,
+      ccCnvName = cnvmName,
+      -- non-creator members are a function of the remote backend and will be
+      -- overridden when fanning out the notification to remote backends.
+      ccNonCreatorMembers = Set.empty,
+      ccMessageTimer = cnvmMessageTimer,
+      ccReceiptMode = cnvmReceiptMode,
+      ccProtocol = convProtocol
+    }
 
 -- | The function converts a 'ConversationCreated' value to a
 -- 'Wire.API.Conversation.Conversation' value for each user that is on the given
