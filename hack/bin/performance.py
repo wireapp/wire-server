@@ -816,13 +816,14 @@ def main_send(basedir):
 
         msg = random_msg()
         log.log("message_send_begin")
+        msg = create_application_message(admin_client_state, msg)["message"]
+        tbefore = time.time()
         res_test_msg = save(
-            api.mls_send_message(
-                ctx, create_application_message(admin_client_state, msg)["message"],
-                client=client_id
-            ),
+            api.mls_send_message(ctx, msg, client=client_id),
             j(ud, "res_test_msg.json"),
         )
+        tafter = time.time()
+        print(f'Message sending took {tafter-tbefore}')
         log.log("message_send_end")
         simple_expect_status(201, res_test_msg)
 
