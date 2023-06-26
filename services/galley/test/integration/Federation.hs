@@ -20,6 +20,7 @@ import qualified Data.Set as Set
 import Data.Singletons
 import Data.Time (getCurrentTime)
 import qualified Data.UUID as UUID
+import Data.UUID.V4 (nextRandom)
 import Federator.MockServer
 import Galley.API.Util
 import Galley.Cassandra.Queries
@@ -56,9 +57,11 @@ x3 = limitRetries 3 <> exponentialBackoff 100000
 isConvMemberLTests :: TestM ()
 isConvMemberLTests = do
   s <- ask
-  let opts = s ^. tsGConf
+  uuid <- liftIO nextRandom
+  let uuid' = UUID.toText uuid
+      opts = s ^. tsGConf
       localDomain = opts ^. optSettings . setFederationDomain
-      remoteDomain = Domain "far-away.example.com"
+      remoteDomain = Domain $ "far-away.example.com" <> uuid'
       convId = Id $ fromJust $ UUID.fromString "8cc34301-6949-46c5-bb93-00a72268e2f5"
       convLocalMembers = [LocalMember userId defMemberStatus Nothing roleNameWireMember]
       convRemoteMembers = [RemoteMember rUserId roleNameWireMember]
@@ -82,17 +85,19 @@ isConvMemberLTests = do
   liftIO $ assertBool "Qualified UserId (local)" $ isConvMemberL lconv $ tUntagged lUserId
   liftIO $ assertBool "Qualified UserId (remote)" $ isConvMemberL lconv $ tUntagged rUserId
 
-updateFedDomainsTest :: TestM ()
-updateFedDomainsTest = do
+updateFedDomainsTestNoop' :: TestM ()
+updateFedDomainsTestNoop' = do
   s <- ask
   let opts = s ^. tsGConf
   -- Don't need the actual server, and we certainly don't want it running.
   -- But this is how the env is made, so it is what we do
   (_, env) <- liftIO $ lowerCodensity $ mkApp opts
   -- Common variables.
-  let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
-      remoteDomain = Domain "far-away.example.com"
-      remoteDomain2 = Domain "far-away-two.example.com"
+  uuid <- liftIO nextRandom
+  let uuid' = UUID.toText uuid
+      interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
+      remoteDomain = Domain $ "far-away.example.com" <> uuid'
+      remoteDomain2 = Domain $ "far-away-two.example.com" <> uuid'
   liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. optSettings . setFederationDomain
   liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
   -- Setup a conversation for a known remote domain.
@@ -101,11 +106,59 @@ updateFedDomainsTest = do
   -- working on the domain.
   updateFedDomainsTestNoop env remoteDomain interval
 
+updateFedDomainsTestAddRemote' :: TestM ()
+updateFedDomainsTestAddRemote' = do
+  s <- ask
+  let opts = s ^. tsGConf
+  -- Don't need the actual server, and we certainly don't want it running.
+  -- But this is how the env is made, so it is what we do
+  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
+  -- Common variables.
+  uuid <- liftIO nextRandom
+  let uuid' = UUID.toText uuid
+      interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
+      remoteDomain = Domain $ "far-away.example.com" <> uuid'
+      remoteDomain2 = Domain $ "far-away-two.example.com" <> uuid'
+  liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. optSettings . setFederationDomain
+  liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
+
   -- Adding a new federation domain, this too should be a no-op
   updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval
 
+updateFedDomainsTestRemoveRemoteFromLocal' :: TestM ()
+updateFedDomainsTestRemoveRemoteFromLocal' = do
+  s <- ask
+  let opts = s ^. tsGConf
+  -- Don't need the actual server, and we certainly don't want it running.
+  -- But this is how the env is made, so it is what we do
+  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
+  -- Common variables.
+  uuid <- liftIO nextRandom
+  let uuid' = UUID.toText uuid
+      interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
+      remoteDomain = Domain $ "far-away.example.com" <> uuid'
+      remoteDomain2 = Domain $ "far-away-two.example.com" <> uuid'
+  liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. optSettings . setFederationDomain
+  liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
+  
   -- Remove a remote domain from local conversations
   updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval
+
+updateFedDomainsTestRemoveLocalFromRemote' :: TestM ()
+updateFedDomainsTestRemoveLocalFromRemote' = do
+  s <- ask
+  let opts = s ^. tsGConf
+  -- Don't need the actual server, and we certainly don't want it running.
+  -- But this is how the env is made, so it is what we do
+  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
+  -- Common variables.
+  uuid <- liftIO nextRandom
+  let uuid' = UUID.toText uuid
+      interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
+      remoteDomain = Domain $ "far-away.example.com" <> uuid'
+      remoteDomain2 = Domain $ "far-away-two.example.com" <> uuid'
+  liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. optSettings . setFederationDomain
+  liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
 
   -- Remove a local domain from remote conversations
   updateFedDomainRemoveLocalFromRemote env remoteDomain interval

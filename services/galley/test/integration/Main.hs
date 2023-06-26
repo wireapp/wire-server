@@ -96,7 +96,13 @@ main = withOpenSSL $ runTests go
               mempty
               (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.sitemap),
           API.tests setup,
-          test setup "Federation Domains" updateFedDomainsTest,
+          testGroup "Federation Domains"
+            [ test setup "No-Op" updateFedDomainsTestNoop'
+            , test setup "Add Remote" updateFedDomainsTestAddRemote'
+            , test setup "Remove Remote From Local" updateFedDomainsTestRemoveRemoteFromLocal'
+            , test setup "Remove Local From Remote" updateFedDomainsTestRemoveLocalFromRemote'
+            ],
+          
           test setup "isConvMemberL" isConvMemberLTests
         ]
     getOpts gFile iFile = do
