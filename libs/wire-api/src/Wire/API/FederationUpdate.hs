@@ -1,7 +1,7 @@
 module Wire.API.FederationUpdate
-  ( FedUpdateCallback,
-    emptyFedUpdateCallback,
-    updateFedDomains,
+  ( syncFedDomainConfigs,
+    SyncFedDomainConfigsCallback (..),
+    emptySyncFedDomainConfigsCallback,
   )
 where
 
@@ -13,23 +13,41 @@ import Data.Text (unpack)
 import Imports
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, Scheme (Http), runClientM)
-import Servant.Client.Internal.HttpClient (ClientM, defaultMakeClientRequest)
+import Servant.Client.Internal.HttpClient (defaultMakeClientRequest)
 import qualified System.Logger as L
 import Util.Options (Endpoint (..))
 import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (domain), FederationDomainConfigs (remotes, updateInterval))
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Named (namedClient)
 
--- Initial function for getting the set of domains from brig, and an update interval
-getAllowedDomainsInitial :: L.Logger -> ClientEnv -> IO FederationDomainConfigs
-getAllowedDomainsInitial logger clientEnv =
+-- | 'FedUpdateCallback' is not called if a new settings cannot be fetched, or if they are
+-- equal to the old settings.
+syncFedDomainConfigs :: Endpoint -> L.Logger -> SyncFedDomainConfigsCallback -> IO (IORef FederationDomainConfigs, Async ())
+syncFedDomainConfigs (Endpoint h p) log' cb = do
+  let baseUrl = BaseUrl Http (unpack h) (fromIntegral p) ""
+  clientEnv <- newManager defaultManagerSettings <&> \mgr -> ClientEnv mgr baseUrl Nothing defaultMakeClientRequest
+  ioref <- newIORef =<< initialize log' clientEnv
+  updateDomainsThread <-
+    async $
+      let go = finally
+            (loop log' clientEnv cb ioref)
+            $ do
+              L.log log' L.Error $ L.msg (L.val "Federation domain sync thread died, restarting domain synchronization.")
+              go
+       in go
+
+  pure (ioref, updateDomainsThread)
+
+-- | Initial function for getting the set of domains from brig, and an update interval
+initialize :: L.Logger -> ClientEnv -> IO FederationDomainConfigs
+initialize logger clientEnv =
   let -- keep trying every 3s for one minute
       policy :: R.RetryPolicy
       policy = R.constantDelay 3_081_003 <> R.limitRetries 20
 
       go :: IO (Maybe FederationDomainConfigs)
       go = do
-        getAllowedDomains clientEnv >>= \case
+        fetch clientEnv >>= \case
           Right s -> pure $ Just s
           Left e -> do
             L.log logger L.Info $
@@ -40,24 +58,9 @@ getAllowedDomainsInitial logger clientEnv =
         Just c -> pure c
         Nothing -> throwIO $ ErrorCall "*** Failed to reach brig for federation setup, giving up!"
 
-getAllowedDomains :: ClientEnv -> IO (Either ClientError FederationDomainConfigs)
-getAllowedDomains = runClientM (namedClient @IAPI.API @"get-federation-remotes")
-
--- | The callback takes the previous and the new values of the federation domain configs
--- and runs a given action. This function is not called if a new config value cannot be fetched.
-newtype FedUpdateCallback = FedUpdateCallback
-  { fromFedUpdateCallback ::
-      FederationDomainConfigs -> -- old value
-      FederationDomainConfigs -> -- new value
-      IO ()
-  }
-
-emptyFedUpdateCallback :: FedUpdateCallback
-emptyFedUpdateCallback = FedUpdateCallback $ \_ _ -> pure ()
-
-getAllowedDomainsLoop :: L.Logger -> ClientEnv -> FedUpdateCallback -> IORef FederationDomainConfigs -> IO ()
-getAllowedDomainsLoop logger clientEnv (FedUpdateCallback callback) env = forever $ do
-  getAllowedDomains clientEnv >>= \case
+loop :: L.Logger -> ClientEnv -> SyncFedDomainConfigsCallback -> IORef FederationDomainConfigs -> IO ()
+loop logger clientEnv (SyncFedDomainConfigsCallback callback) env = forever $ do
+  fetch clientEnv >>= \case
     Left e ->
       L.log logger L.Info $
         L.msg (L.val "Could not retrieve an updated list of federation domains from Brig; I'll keep trying!")
@@ -73,19 +76,16 @@ getAllowedDomainsLoop logger clientEnv (FedUpdateCallback callback) env = foreve
       Set.fromList (domain <$> remotes o)
         == Set.fromList (domain <$> remotes n)
 
-updateFedDomains :: Endpoint -> L.Logger -> FedUpdateCallback -> IO (IORef FederationDomainConfigs, Async ())
-updateFedDomains (Endpoint h p) log' cb = do
-  clientEnv <- newManager defaultManagerSettings <&> \mgr -> ClientEnv mgr baseUrl Nothing defaultMakeClientRequest
-  ioref <- newIORef =<< getAllowedDomainsInitial log' clientEnv
-  updateDomainsThread <-
-    async $
-      let go = finally
-            (getAllowedDomainsLoop log' clientEnv cb ioref)
-            $ do
-              L.log log' L.Error $ L.msg (L.val "Federation domain sync thread died, restarting domain synchronization.")
-              go
-       in go
+fetch :: ClientEnv -> IO (Either ClientError FederationDomainConfigs)
+fetch = runClientM (namedClient @IAPI.API @"get-federation-remotes")
 
-  pure (ioref, updateDomainsThread)
-  where
-    baseUrl = BaseUrl Http (unpack h) (fromIntegral p) ""
+-- | The callback takes the previous and the new settings and runs a given action.
+newtype SyncFedDomainConfigsCallback = SyncFedDomainConfigsCallback
+  { fromFedUpdateCallback ::
+      FederationDomainConfigs -> -- old value
+      FederationDomainConfigs -> -- new value
+      IO ()
+  }
+
+emptySyncFedDomainConfigsCallback :: SyncFedDomainConfigsCallback
+emptySyncFedDomainConfigsCallback = SyncFedDomainConfigsCallback $ \_ _ -> pure ()

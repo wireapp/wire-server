@@ -85,7 +85,7 @@ run o = do
   -- Get the federation domain list from Brig and start the updater loop
   let brigEndpoint = Endpoint bh bp
       Brig bh bp = o ^. brig
-  (_, updateDomainsThread) <- updateFedDomains brigEndpoint g emptyFedUpdateCallback
+  (_, updateDomainsThread) <- syncFedDomainConfigs brigEndpoint g emptySyncFedDomainConfigsCallback
 
   let middleware :: Wai.Middleware
       middleware =

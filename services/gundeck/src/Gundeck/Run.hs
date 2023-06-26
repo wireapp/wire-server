@@ -67,7 +67,7 @@ run o = do
   let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (optSettings . setSqsThrottleMillis)
 
   -- Get the federation domain list from Brig and start the updater loop
-  (_, updateDomainsThread) <- updateFedDomains (o ^. optBrig) l emptyFedUpdateCallback
+  (_, updateDomainsThread) <- syncFedDomainConfigs (o ^. optBrig) l emptySyncFedDomainConfigsCallback
 
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 10

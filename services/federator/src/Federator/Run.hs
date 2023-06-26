@@ -64,7 +64,7 @@ run opts = do
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
   DNS.withCachingResolver resolvConf $ \res -> do
     logger <- LogExt.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
-    (ioref, updateFedDomainsThread) <- updateFedDomains (brig opts) logger emptyFedUpdateCallback
+    (ioref, updateFedDomainsThread) <- syncFedDomainConfigs (brig opts) logger emptySyncFedDomainConfigsCallback
     bracket (newEnv opts res logger ioref) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
