@@ -501,7 +501,6 @@ deleteFederationDomain :: (Member (Input Env) r, Member (P.Logger (Msg -> Msg)) 
           Member MemberStore r, Member ConversationStore r, Member (Embed IO) r,
           Member CodeStore r, Member TeamStore r, Member BrigAccess r, Member GundeckAccess r, Member ExternalAccess r) => Domain -> Sem r ()
 deleteFederationDomain d = do
-  -- TODO rename a wee bit
   deleteFederationDomainRemoteUserFromLocalConversations d
   deleteFederationDomainLocalUserFromRemoteConversation d
   deleteFederationDomainOneOnOne d
@@ -601,13 +600,6 @@ deleteFederationDomainLocalUserFromRemoteConversation dom = do
 -- let rcnv = toRemoteUnsafe dom cnv
 -- notifyRemoteConversationAction lUser (qualifyAs rcnv convUpdate) Nothing
 
--- TODO: The DB table that this tries to update aren't available to
--- Galley and need to be moved into brig. This will complicate the calling
--- to delete a domain, but likely we can expose it as an internal API and
--- eat the coverhead cost of the http call. This should also allow for the
--- senario where galley falls over and has to redo the domain deletion so
--- that request isn't lost.
---
 -- These need to be recoverable? TODO
 deleteFederationDomainOneOnOne :: (Member (Input Env) r, Member (Embed IO) r, Member (P.Logger (Msg -> Msg)) r) => Domain -> Sem r ()
 deleteFederationDomainOneOnOne dom = do
