@@ -162,12 +162,26 @@ test-suite background-worker-test
       aeson
     , amqp
     , background-worker
+    , base
+    , bytestring
+    , containers
+    , extended
     , federator
     , hspec
+    , http-media
+    , http-types
     , imports
     , QuickCheck
+    , servant
+    , servant-client
+    , servant-client-core
+    , servant-server
+    , text
     , tinylog
+    , transformers
     , types-common
+    , unliftio
+    , wai
     , wire-api
     , wire-api-federation
 

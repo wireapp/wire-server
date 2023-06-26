@@ -39,6 +39,8 @@ data Queue = Queue {name :: Text, vhost :: Text}
 
 instance FromJSON Queue
 
+instance ToJSON Queue
+
 adminClient :: BasicAuthData -> AdminAPI (AsClientT ClientM)
 adminClient ba = fromServant $ clientWithAuth.api ba
   where
