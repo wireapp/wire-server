@@ -230,14 +230,13 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
     E.deleteMembers (convId conv)
       . ulFromRemotes
       . Set.toList
-      . Data.notAdded
       $ notifyStatus
     pure notifyStatus
   conv <-
     E.getConversation (tUnqualified lcnv)
       >>= note (BadConvState (tUnqualified lcnv))
 
-  convCreated (Data.notAdded notifyStatus) lusr conv
+  convCreated notifyStatus lusr conv
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
@@ -667,8 +666,7 @@ notifyCreatedConversation lusr conn c = do
   now <- input
   -- Ask remote server to store conversation membership and notify remote users
   -- of being added to a conversation
-  notifyStatus <- registerRemoteConversationMemberships now (qualifyAs lusr c)
-  let failedToNotify = Data.notAdded notifyStatus
+  failedToNotify <- registerRemoteConversationMemberships now (qualifyAs lusr c)
   let allRemotes = Data.convRemoteMembers c
       notifiedRemotes =
         filter
@@ -688,7 +686,7 @@ notifyCreatedConversation lusr conn c = do
           localOthers
       )
       (Data.convLocalMembers c)
-  pure notifyStatus
+  pure failedToNotify
   where
     route
       | Data.convType c == RegularConv = RouteAny

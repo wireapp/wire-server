@@ -786,7 +786,6 @@ registerRemoteConversationMemberships now lc = do
         filter
           (\rmems -> Set.notMember (tDomain rmems) failedToNotifyDomains)
           allRemoteBuckets
-      joinedFlat = Set.fromList $ foldMap (fmap rmId . tUnqualified) joined
       joinedCoupled =
         foldMap
           ( \ruids ->
@@ -801,11 +800,7 @@ registerRemoteConversationMemberships now lc = do
   -- Send an update to remotes about the final list of participants
   void . runFederatedConcurrentlyBucketsEither joinedCoupled $
     fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
-  pure $
-    DataTypes.MemberAddStatus
-      { added = joinedFlat,
-        notAdded = failedToNotifySet
-      }
+  pure failedToNotifySet
   where
     creator = cnvmCreator . DataTypes.convMetadata . tUnqualified $ lc
     localNonCreators =

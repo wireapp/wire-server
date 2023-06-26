@@ -27,7 +27,7 @@ module Galley.Data.Types
     generate,
     mkKey,
     LockAcquired (..),
-    MemberAddStatus (..),
+    MemberAddStatus,
   )
 where
 
@@ -102,8 +102,4 @@ data LockAcquired
   | NotAcquired
   deriving (Show, Eq)
 
-data MemberAddStatus = MemberAddStatus
-  { added :: Set (Remote UserId),
-    notAdded :: Set (Remote UserId)
-  }
-  deriving (Eq, Show)
+type MemberAddStatus = Set (Remote UserId)
