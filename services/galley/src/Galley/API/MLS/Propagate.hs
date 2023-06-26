@@ -43,6 +43,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -58,12 +59,13 @@ propagateMessage ::
     Member TinyLog r
   ) =>
   Qualified UserId ->
+  Maybe ClientId ->
   Local ConvOrSubConv ->
   Maybe ConnId ->
   RawMLS Message ->
   ClientMap ->
   Sem r (Maybe UnreachableUsers)
-propagateMessage qusr lConvOrSub con msg cm = do
+propagateMessage qusr mci lConvOrSub con msg cm = do
   now <- input @UTCTime
   let mlsConv = (.conv) <$> lConvOrSub
       lmems = mcLocalMembers . tUnqualified $ mlsConv
@@ -102,13 +104,14 @@ propagateMessage qusr lConvOrSub con msg cm = do
             rmmMessage = Base64ByteString msg.raw
           }
   where
+    cmWithoutSender = maybe cm (flip cmRemoveClient cm . mkClientIdentity qusr) mci
     localMemberMLSClients :: Local x -> LocalMember -> [(UserId, ClientId)]
     localMemberMLSClients loc lm =
       let localUserQId = tUntagged (qualifyAs loc localUserId)
           localUserId = lmId lm
        in map
             (\(c, _) -> (localUserId, c))
-            (Map.assocs (Map.findWithDefault mempty localUserQId cm))
+            (Map.assocs (Map.findWithDefault mempty localUserQId cmWithoutSender))
 
     remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
     remoteMemberMLSClients rm =
@@ -116,7 +119,7 @@ propagateMessage qusr lConvOrSub con msg cm = do
           remoteUserId = qUnqualified remoteUserQId
        in map
             (\(c, _) -> (remoteUserId, c))
-            (Map.assocs (Map.findWithDefault mempty remoteUserQId cm))
+            (Map.assocs (Map.findWithDefault mempty remoteUserQId cmWithoutSender))
 
     remotesToQIds = fmap (tUntagged . rmId)
 
