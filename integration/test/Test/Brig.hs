@@ -4,9 +4,12 @@ import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import qualified API.Common as API
 import qualified API.GalleyInternal as Internal
+import Control.Monad.IO.Class (liftIO)
 import Data.Aeson.Types
 import qualified Data.Set as Set
 import Data.String.Conversions
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
 import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
@@ -69,10 +72,13 @@ testCrudFederationRemotes = do
         res <- Internal.updateFedConn' OwnDomain domain fedConn
         addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
 
+  dom1 :: String <- (<> ".example.com") . UUID.toString <$> liftIO UUID.nextRandom
+  dom2 :: String <- (<> ".example.com") . UUID.toString <$> liftIO UUID.nextRandom
+
   let remote1, remote1', remote1'' :: Internal.FedConn
-      remote1 = Internal.FedConn (cs "good.example.com") "no_search"
+      remote1 = Internal.FedConn dom1 "no_search"
       remote1' = remote1 {Internal.searchStrategy = "full_search"}
-      remote1'' = remote1 {Internal.domain = "meh.example.com"}
+      remote1'' = remote1 {Internal.domain = dom2}
 
       cfgRemotesExpect :: Internal.FedConn
       cfgRemotesExpect = Internal.FedConn (cs "example.com") "full_search"
