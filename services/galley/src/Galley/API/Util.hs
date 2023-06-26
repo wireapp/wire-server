@@ -766,7 +766,7 @@ registerRemoteConversationMemberships now lc = do
       allRemoteMembersQualified = remoteMemberQualify <$> allRemoteMembers
       allRemoteBuckets :: [Remote [RemoteMember]] = bucketRemote allRemoteMembersQualified
       rc = toConversationCreated now c
-  failedToNotify <- fmap (foldMap (either (sequenceA . fst) mempty)) $
+  failedToNotify :: [Remote RemoteMember] <- fmap (foldMap (either (sequenceA . fst) mempty)) $
     runFederatedConcurrentlyEither allRemoteMembersQualified $
       \rrms ->
         fedClient @'Galley @"on-conversation-created" $
