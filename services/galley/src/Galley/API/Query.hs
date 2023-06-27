@@ -556,10 +556,6 @@ listConversations luser (Public.ListConversations ids) = do
     -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
     -- current user should be considered removed from this conversation at this
     -- point.
-
-    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
-    -- current user should be considered removed from this conversation at this
-    -- point.
     P.warn $
       Logger.msg ("Some locally found conversation ids were not returned by remotes" :: ByteString)
         . Logger.field "convIds" (show remoteNotFoundRemoteIds)
