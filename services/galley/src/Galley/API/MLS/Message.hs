@@ -232,7 +232,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle lConvOrSubId = do
 
   storeGroupInfo (tUnqualified lConvOrSub).id bundle.groupInfo
 
-  propagateMessage qusr lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
+  propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
     >>= mapM_ throwUnreachableUsers
 
   for_ bundle.welcome $ \welcome ->
@@ -375,7 +375,7 @@ postMLSMessageToLocalConv qusr c con msg convOrSubId = do
       when ((tUnqualified lConvOrSub).migrationState == MLSMigrationMixed) $
         throwS @'MLSUnsupportedMessage
 
-  unreachables <- propagateMessage qusr lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
+  unreachables <- propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
   pure ([], unreachables)
 
 postMLSMessageToRemoteConv ::

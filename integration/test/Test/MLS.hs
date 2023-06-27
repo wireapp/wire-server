@@ -11,6 +11,34 @@ import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
 
+testSendMessageNoReturnToSender :: HasCallStack => App ()
+testSendMessageNoReturnToSender = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, alice2, bob1, bob2] <- traverse createMLSClient [alice, alice, bob, bob]
+  traverse_ uploadNewKeyPackage [alice2, bob1, bob2]
+  void $ createNewGroup alice1
+  void $ createAddCommit alice1 [alice, bob] >>= sendAndConsumeCommitBundle
+
+  -- alice1 sends a message to the conversation, all clients but alice1 receive
+  -- the message
+  withWebSockets [alice1, alice2, bob1, bob2] $ \(wsSender : wss) -> do
+    mp <- createApplicationMessage alice1 "hello, bob"
+    void . bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+    for_ wss $ \ws -> do
+      n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
+      nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode mp.message)
+    expectFailure (const $ pure ()) $
+      awaitMatch
+        3
+        ( \n ->
+            liftM2
+              (&&)
+              (nPayload n %. "type" `isEqual` "conversation.mls-message-add")
+              (nPayload n %. "data" `isEqual` T.decodeUtf8 (Base64.encode mp.message))
+        )
+        wsSender
+
 testMixedProtocolUpgrade :: HasCallStack => Domain -> App ()
 testMixedProtocolUpgrade secondDomain = do
   (alice, tid) <- createTeam OwnDomain

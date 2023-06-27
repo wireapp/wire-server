@@ -967,9 +967,10 @@ testAppMessage = do
     mlsBracket clients $ \wss -> do
       (events, _) <- sendAndConsumeMessage message
       liftIO $ events @?= []
-      liftIO $
-        WS.assertMatchN_ (5 # WS.Second) wss $
+      liftIO $ do
+        WS.assertMatchN_ (5 # WS.Second) (tail wss) $
           wsAssertMLSMessage (fmap Conv qcnv) alice (mpMessage message)
+        WS.assertNoEvent (2 # WS.Second) [head wss]
 
 testAppMessage2 :: TestM ()
 testAppMessage2 = do
@@ -992,15 +993,16 @@ testAppMessage2 = do
 
     message <- createApplicationMessage bob1 "some text"
 
-    mlsBracket (alice1 : clients) $ \wss -> do
+    mlsBracket (alice1 : clients) $ \[wsAlice1, wsBob1, wsBob2, wsCharlie1] -> do
       (events, _) <- sendAndConsumeMessage message
       liftIO $ events @?= []
 
-      -- check that the corresponding event is received
-
-      liftIO $
-        WS.assertMatchN_ (5 # WS.Second) wss $
+      -- check that the corresponding event is received by everyone except bob1
+      -- (the sender) and no message is received by bob1
+      liftIO $ do
+        WS.assertMatchN_ (5 # WS.Second) [wsAlice1, wsBob2, wsCharlie1] $
           wsAssertMLSMessage (fmap Conv conversation) bob (mpMessage message)
+        WS.assertNoEvent (2 # WS.Second) [wsBob1]
 
 testAppMessageSomeReachable :: TestM ()
 testAppMessageSomeReachable = do
@@ -1829,7 +1831,7 @@ testBackendRemoveProposalLocalConvLocalClient = do
       WS.assertMatch_ (5 # WS.Second) wsB $
         wsAssertClientRemoved (ciClient bob1)
 
-      msg <- WS.assertMatch (5 # WS.Second) wsA $ \notification -> do
+      (msg : _) <- WS.assertMatchN (5 # WS.Second) [wsA, wsC] $ \notification -> do
         wsAssertBackendRemoveProposal bob (Conv <$> qcnv) idxBob1 notification
 
       for_ [alice1, bob2, charlie1] $
@@ -1838,8 +1840,9 @@ testBackendRemoveProposalLocalConvLocalClient = do
       mp <- createPendingProposalCommit charlie1
       events <- sendAndConsumeCommitBundle mp
       liftIO $ events @?= []
-      WS.assertMatchN_ (5 # WS.Second) [wsA, wsC] $ \n -> do
+      WS.assertMatchN_ (5 # WS.Second) [wsA] $ \n -> do
         wsAssertMLSMessage (Conv <$> qcnv) charlie (mpMessage mp) n
+      WS.assertNoEvent (2 # WS.Second) [wsC]
 
 testBackendRemoveProposalLocalConvRemoteClient :: TestM ()
 testBackendRemoveProposalLocalConvRemoteClient = do
@@ -2700,7 +2703,7 @@ testLeaveSubConv isSubConvCreator = do
     -- a member commits the pending proposal
     do
       leaveCommit <- createPendingProposalCommit (head others)
-      mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
+      mlsBracket (firstLeaver : tail others) $ \(wsLeaver : wss) -> do
         events <-
           fst
             <$$> withTempMockFederator' ("on-mls-message-sent" ~> RemoteMLSMessageOk)
@@ -2713,7 +2716,7 @@ testLeaveSubConv isSubConvCreator = do
     -- send an application message
     do
       message <- createApplicationMessage (head others) "some text"
-      mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
+      mlsBracket (firstLeaver : tail others) $ \(wsLeaver : wss) -> do
         (events, _) <- sendAndConsumeMessage message
         liftIO $ events @?= []
         WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
