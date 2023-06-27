@@ -51,6 +51,8 @@ import Wire.API.Message
 import Wire.API.Unreachable
 
 -- | Propagate a message.
+-- The message will not be propagated to the sender client if provided. This is
+-- a requirement from Core Crypto and the clients.
 propagateMessage ::
   ( Member ExternalAccess r,
     Member FederatorAccess r,
@@ -65,7 +67,7 @@ propagateMessage ::
   RawMLS Message ->
   ClientMap ->
   Sem r (Maybe UnreachableUsers)
-propagateMessage qusr mci lConvOrSub con msg cm = do
+propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
   now <- input @UTCTime
   let mlsConv = (.conv) <$> lConvOrSub
       lmems = mcLocalMembers . tUnqualified $ mlsConv
@@ -104,7 +106,7 @@ propagateMessage qusr mci lConvOrSub con msg cm = do
             rmmMessage = Base64ByteString msg.raw
           }
   where
-    cmWithoutSender = maybe cm (flip cmRemoveClient cm . mkClientIdentity qusr) mci
+    cmWithoutSender = maybe cm (flip cmRemoveClient cm . mkClientIdentity qusr) mSenderClient
     localMemberMLSClients :: Local x -> LocalMember -> [(UserId, ClientId)]
     localMemberMLSClients loc lm =
       let localUserQId = tUntagged (qualifyAs loc localUserId)
