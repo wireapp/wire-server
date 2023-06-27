@@ -2471,7 +2471,7 @@ instance HasSettingsOverrides TestM where
     ts :: TestSetup <- ask
     let opts = f (ts ^. tsGConf)
     liftIO . lowerCodensity $ do
-      (galleyApp, _env) <- Run.mkApp opts
+      (galleyApp, _env, _thread) <- Run.mkApp opts -- FUTUREWORK: always call Run.closeApp at the end.
       port' <- withMockServer galleyApp
       liftIO $
         runReaderT

@@ -46,6 +46,7 @@
 , hspec
 , hspec-wai
 , http-api-data
+, http-client
 , http-media
 , http-types
 , imports
@@ -70,6 +71,7 @@
 , quickcheck-instances
 , random
 , resourcet
+, retry
 , saml2-web-sso
 , schema-profunctor
 , scientific
@@ -93,6 +95,7 @@
 , tasty-quickcheck
 , text
 , time
+, tinylog
 , transitive-anns
 , types-common
 , unliftio
@@ -116,6 +119,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    async
     attoparsec
     base
     base64-bytestring
@@ -149,6 +153,7 @@ mkDerivation {
     hscim
     HsOpenSSL
     http-api-data
+    http-client
     http-media
     http-types
     imports
@@ -170,6 +175,7 @@ mkDerivation {
     quickcheck-instances
     random
     resourcet
+    retry
     saml2-web-sso
     schema-profunctor
     scientific
@@ -189,6 +195,7 @@ mkDerivation {
     tagged
     text
     time
+    tinylog
     transitive-anns
     types-common
     unordered-containers

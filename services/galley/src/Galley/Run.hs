@@ -18,6 +18,7 @@
 module Galley.Run
   ( run,
     mkApp,
+    mkLogger,
   )
 where
 
@@ -58,14 +59,16 @@ import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
 import Servant hiding (route)
 import qualified System.Logger as Log
+import System.Logger.Extended (mkLogger)
 import Util.Options
+import Wire.API.FederationUpdate
 import Wire.API.Routes.API
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
-  (app, env) <- mkApp opts
+  (app, env, syndFedDomainConfigsThread) <- mkApp opts
   settings <-
     lift $
       newSettings $
@@ -79,17 +82,16 @@ run opts = lowerCodensity $ do
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
-  lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
+  lift $ finally (runSettingsWithShutdown settings app Nothing) (closeApp env syndFedDomainConfigsThread)
 
-mkApp :: Opts -> Codensity IO (Application, Env)
+mkApp :: Opts -> Codensity IO (Application, Env, Async.Async ())
 mkApp opts =
   do
+    logger <- lift $ mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
+    (fedDoms, syndFedDomainConfigsThread) <- lift $ syncFedDomainConfigs (opts ^. optBrig) logger emptySyncFedDomainConfigsCallback
     metrics <- lift $ M.metrics
-    env <- lift $ App.createEnv metrics opts
+    env <- lift $ App.createEnv metrics opts logger fedDoms
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
-
-    let logger = env ^. App.applog
-
     let middlewares =
           versionMiddleware (opts ^. optSettings . setDisabledAPIVersions . traverse)
             . servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
@@ -100,7 +102,7 @@ mkApp opts =
       Log.info logger $ Log.msg @Text "Galley application finished."
       Log.flush logger
       Log.close logger
-    pure (middlewares $ servantApp env, env)
+    pure (middlewares $ servantApp env, env, syndFedDomainConfigsThread)
   where
     rtree = compile API.sitemap
     runGalley e r k = evalGalleyToIO e (route rtree r k)
@@ -122,6 +124,11 @@ mkApp opts =
 
     lookupReqId :: Request -> RequestId
     lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
+
+closeApp :: Env -> Async.Async () -> IO ()
+closeApp env syndFedDomainConfigsThread = do
+  shutdown (env ^. cstate)
+  Async.cancel syndFedDomainConfigsThread
 
 customFormatters :: Servant.ErrorFormatters
 customFormatters =

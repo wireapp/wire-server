@@ -102,3 +102,11 @@ addUserToTeam u = do
   resp <- getInvitationCode u inv >>= getJSON 200
   code <- resp %. "code" & asString
   addUser u def {email = Just email, teamCode = Just code} >>= getJSON 201
+
+resetFedConns :: (HasCallStack, MakesValue owndom) => owndom -> App ()
+resetFedConns owndom = do
+  bindResponse (readFedConns owndom) $ \resp -> do
+    rdoms :: [String] <- do
+      rawlist <- resp.json %. "remotes" & asList
+      (asString . (%. "domain")) `mapM` rawlist
+    deleteFedConn' owndom `mapM_` rdoms

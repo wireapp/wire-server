@@ -78,11 +78,15 @@ brig:
       # See helmfile for the real value
       setFederationDomain: integration.example.com
       setFederationDomainConfigs:
-        # See helmfile for the real value
+        # 'setFederationDomainConfigs' is deprecated as of https://github.com/wireapp/wire-server/pull/3260.  See
+        # https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+        # for details.
         - domain: integration.example.com
           search_policy: full_search
         - domain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
           search_policy: full_search
+      setFederationStrategy: allowAll
+      setFederationDomainConfigsUpdateFreq: 10
       set2FACodeGenerationDelaySecs: 5
       setNonceTtlSecs: 300
       setDpopMaxSkewSecs: 1
@@ -309,8 +313,6 @@ federator:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     optSettings:
-      federationStrategy:
-        allowAll: true
       useSystemCAStore: false
 
 background-worker:

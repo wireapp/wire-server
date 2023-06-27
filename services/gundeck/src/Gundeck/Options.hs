@@ -116,6 +116,7 @@ deriveFromJSON toOptionFieldName ''Settings
 data Opts = Opts
   { -- | Hostname and port to bind to
     _optGundeck :: !Endpoint,
+    _optBrig :: !Endpoint,
     _optCassandra :: !CassandraOpts,
     _optRedis :: !RedisEndpoint,
     _optRedisAdditionalWrite :: !(Maybe RedisEndpoint),

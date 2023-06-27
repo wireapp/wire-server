@@ -24,6 +24,7 @@ module Wire.API.Routes.Internal.Brig
     TeamsAPI,
     UserAPI,
     AuthAPI,
+    FederationRemotesAPI,
     EJPDRequest,
     ISearchIndexAPI,
     GetAccountConferenceCallingConfig,
@@ -37,6 +38,7 @@ where
 import Control.Lens ((.~))
 import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Code as Code
+import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Qualified (Qualified)
 import Data.Schema hiding (swaggerDoc)
@@ -51,6 +53,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.MLS.CipherSuite (SignatureSchemeTag)
 import Wire.API.MakesFederatedCall
+import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Brig.OAuth (OAuthAPI)
@@ -267,6 +270,7 @@ type API =
            :<|> AuthAPI
            :<|> OAuthAPI
            :<|> ISearchIndexAPI
+           :<|> FederationRemotesAPI
        )
 
 type IStatusAPI =
@@ -344,6 +348,51 @@ type AuthAPI =
                :> ReqBody '[JSON] ReAuthUser
                :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "OK")
            )
+
+-- | This is located in brig, not in federator, because brig has a cassandra instance.  This
+-- is not ideal, and other services could keep their local in-ram copy of this table up to date
+-- via rabbitmq, but FUTUREWORK.
+type FederationRemotesAPI =
+  Named
+    "add-federation-remotes"
+    ( Description FederationRemotesAPIDescription
+        :> "federation"
+        :> "remotes"
+        :> ReqBody '[JSON] FederationDomainConfig
+        :> Post '[JSON] ()
+    )
+    :<|> Named
+           "get-federation-remotes"
+           ( Description FederationRemotesAPIDescription
+               :> "federation"
+               :> "remotes"
+               :> Get '[JSON] FederationDomainConfigs
+           )
+    :<|> Named
+           "update-federation-remotes"
+           ( Description FederationRemotesAPIDescription
+               :> "federation"
+               :> "remotes"
+               :> Capture "domain" Domain
+               :> ReqBody '[JSON] FederationDomainConfig
+               :> Put '[JSON] ()
+           )
+    :<|> Named
+           "delete-federation-remotes"
+           ( Description FederationRemotesAPIDescription
+               :> Description FederationRemotesAPIDeleteDescription
+               :> "federation"
+               :> "remotes"
+               :> Capture "domain" Domain
+               :> Delete '[JSON] ()
+           )
+
+type FederationRemotesAPIDescription =
+  "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "
+
+type FederationRemotesAPIDeleteDescription =
+  "**WARNING!** If you remove a remote connection, all users from that remote will be removed from local conversations, and all \
+  \group conversations hosted by that remote will be removed from the local backend. This cannot be reverted! "
 
 swaggerDoc :: Swagger
 swaggerDoc =

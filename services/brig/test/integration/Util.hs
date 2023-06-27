@@ -29,7 +29,6 @@ import Brig.App (applog, fsWatcher, sftEnv, turnEnv)
 import Brig.Calling as Calling
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opt
-import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
 import Brig.Types.Activation
 import qualified Brig.ZAuth as ZAuth
@@ -98,6 +97,7 @@ import Test.Tasty (TestName, TestTree)
 import Test.Tasty.Cannon
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
+import Test.Tasty.Pending (flakyTestCase)
 import Text.Printf (printf)
 import qualified UnliftIO.Async as Async
 import Util.Options
@@ -226,6 +226,9 @@ instance ToJSON SESNotification where
 
 test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)
+
+flakyTest :: Manager -> TestName -> Http a -> TestTree
+flakyTest m n h = flakyTestCase n (void $ runHttpT m h)
 
 twoRandomUsers :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m (Qualified UserId, UserId, Qualified UserId, UserId)
 twoRandomUsers brig = do
@@ -1071,7 +1074,7 @@ circumventSettingsOverride = runHttpT
 --
 --   Beware: (1) Not all async parts of brig are running in this.  (2) other services will
 --   see the old, unaltered brig.
-withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
+withSettingsOverrides :: MonadIO m => Opt.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
   (brigApp, env) <- Run.mkApp opts
   sftDiscovery <-
@@ -1085,10 +1088,10 @@ withSettingsOverrides opts action = liftIO $ do
 
 -- | When we remove the customer-specific extension of domain blocking, this test will fail to
 -- compile.
-withDomainsBlockedForRegistration :: (MonadIO m) => Opts.Opts -> [Text] -> WaiTest.Session a -> m a
+withDomainsBlockedForRegistration :: (MonadIO m) => Opt.Opts -> [Text] -> WaiTest.Session a -> m a
 withDomainsBlockedForRegistration opts domains sess = do
-  let opts' = opts {Opts.optSettings = (Opts.optSettings opts) {Opts.setCustomerExtensions = Just blocked}}
-      blocked = Opts.CustomerExtensions (Opts.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
+  let opts' = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setCustomerExtensions = Just blocked}}
+      blocked = Opt.CustomerExtensions (Opt.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
       unsafeMkDomain = either error id . mkDomain
   withSettingsOverrides opts' sess
 

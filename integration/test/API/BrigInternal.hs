@@ -1,6 +1,7 @@
 module API.BrigInternal where
 
 import API.Common
+import qualified Data.Aeson as Aeson
 import Data.Function
 import Data.Maybe
 import Testlib.Prelude
@@ -46,6 +47,68 @@ createUser domain cu = do
                  | cu.team
                ]
         )
+
+data FedConn = FedConn
+  { domain :: String,
+    searchStrategy :: String
+  }
+  deriving (Eq, Ord, Show)
+
+instance ToJSON FedConn where
+  toJSON (FedConn d s) =
+    Aeson.object
+      [ "domain" .= d,
+        "search_policy" .= s
+      ]
+
+instance MakesValue FedConn where
+  make = pure . toJSON
+
+createFedConn :: (HasCallStack, MakesValue dom, MakesValue fedConn) => dom -> fedConn -> App Response
+createFedConn dom fedConn = do
+  bindResponse (createFedConn' dom fedConn) $ \res -> do
+    res.status `shouldMatchRange` (200, 299)
+    pure res
+
+createFedConn' :: (HasCallStack, MakesValue dom, MakesValue fedConn) => dom -> fedConn -> App Response
+createFedConn' dom fedConn = do
+  req <- rawBaseRequest dom Brig Unversioned "/i/federation/remotes"
+  conn <- make fedConn
+  submit "POST" $ req & addJSON conn
+
+readFedConns :: (HasCallStack, MakesValue dom) => dom -> App Response
+readFedConns dom = do
+  bindResponse (readFedConns' dom) $ \res -> do
+    res.status `shouldMatchRange` (200, 299)
+    pure res
+
+readFedConns' :: (HasCallStack, MakesValue dom) => dom -> App Response
+readFedConns' dom = do
+  req <- rawBaseRequest dom Brig Unversioned "/i/federation/remotes"
+  submit "GET" req
+
+updateFedConn :: (HasCallStack, MakesValue owndom, MakesValue fedConn) => owndom -> String -> fedConn -> App Response
+updateFedConn owndom dom fedConn = do
+  bindResponse (updateFedConn' owndom dom fedConn) $ \res -> do
+    res.status `shouldMatchRange` (200, 299)
+    pure res
+
+updateFedConn' :: (HasCallStack, MakesValue owndom, MakesValue fedConn) => owndom -> String -> fedConn -> App Response
+updateFedConn' owndom dom fedConn = do
+  req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes/" <> dom)
+  conn <- make fedConn
+  submit "PUT" $ addJSON conn req
+
+deleteFedConn :: (HasCallStack, MakesValue owndom) => owndom -> String -> App Response
+deleteFedConn owndom dom = do
+  bindResponse (deleteFedConn' owndom dom) $ \res -> do
+    res.status `shouldMatchRange` (200, 299)
+    pure res
+
+deleteFedConn' :: (HasCallStack, MakesValue owndom) => owndom -> String -> App Response
+deleteFedConn' owndom dom = do
+  req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes/" <> dom)
+  submit "DELETE" req
 
 registerOAuthClient :: (HasCallStack, MakesValue user, MakesValue name, MakesValue url) => user -> name -> url -> App Response
 registerOAuthClient user name url = do

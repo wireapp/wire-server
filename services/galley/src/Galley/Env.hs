@@ -42,6 +42,7 @@ import System.Logger
 import Util.Options
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
+import Wire.API.Routes.FederationDomainConfig (FederationDomainConfigs)
 import Wire.API.Team.Member
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
@@ -62,7 +63,8 @@ data Env = Env
     _extEnv :: ExtEnv,
     _aEnv :: Maybe Aws.Env,
     _mlsKeys :: SignaturePurpose -> MLSKeys,
-    _rabbitmqChannel :: Maybe (MVar Q.Channel)
+    _rabbitmqChannel :: Maybe (MVar Q.Channel),
+    _fedDomains :: IORef FederationDomainConfigs
   }
 
 -- | Environment specific to the communication with external
