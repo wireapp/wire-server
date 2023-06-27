@@ -184,7 +184,7 @@ logException l m (SomeException e) = do
       . Log.field "error" (displayException e)
 
 readCredsFromEnv :: IO (Text, Text)
-readCredsFromEnv = do
-  username <- Text.pack <$> getEnv "RABBITMQ_USERNAME"
-  password <- Text.pack <$> getEnv "RABBITMQ_PASSWORD"
-  pure (username, password)
+readCredsFromEnv =
+  (,)
+    <$> (Text.pack <$> getEnv "RABBITMQ_USERNAME")
+    <*> (Text.pack <$> getEnv "RABBITMQ_PASSWORD")
