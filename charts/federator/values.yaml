@@ -41,8 +41,6 @@ config:
     # A client certificate and corresponding private key can be specified
     # similarly to a custom CA store.
     useSystemCAStore: true
-    federationStrategy:
-      allowedDomains: []
 
 podSecurityContext:
   allowPrivilegeEscalation: false

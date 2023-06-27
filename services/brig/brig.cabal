@@ -51,6 +51,7 @@ library
     Brig.Data.Activation
     Brig.Data.Client
     Brig.Data.Connection
+    Brig.Data.Federation
     Brig.Data.Instances
     Brig.Data.LoginCode
     Brig.Data.MLS.KeyPackage
@@ -209,6 +210,7 @@ library
     , conduit                    >=1.2.8
     , containers                 >=0.5
     , cookie                     >=0.4
+    , cql
     , cryptobox-haskell          >=0.1.1
     , currency-codes             >=2.0
     , data-default               >=0.5
@@ -260,6 +262,7 @@ library
     , polysemy-plugin
     , polysemy-wire-zoo
     , proto-lens                 >=0.1
+    , random
     , random-shuffle             >=0.0.3
     , resource-pool              >=0.2
     , resourcet                  >=1.1
@@ -658,6 +661,7 @@ executable brig-schema
     V74_AddOAuthTables
     V75_AddOAuthCodeChallenge
     V76_AddSupportedProtocols
+    V77_FederationRemotes
     V_FUTUREWORK
 
   hs-source-dirs:     schema/src

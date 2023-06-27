@@ -55,10 +55,10 @@ import Network.AMQP.Extended
 import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
+import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
-import Wire.API.User.Search (FederatedUserSearchPolicy)
 import Wire.Arbitrary (Arbitrary, arbitrary)
 
 newtype Timeout = Timeout
@@ -401,20 +401,6 @@ instance ToSchema ListAllSFTServers where
           element "disabled" HideAllSFTServers
         ]
 
-data FederationDomainConfig = FederationDomainConfig
-  { domain :: Domain,
-    cfgSearchPolicy :: FederatedUserSearchPolicy
-  }
-  deriving (Show, Generic)
-  deriving (ToJSON, FromJSON) via Schema FederationDomainConfig
-
-instance ToSchema FederationDomainConfig where
-  schema =
-    object "FederationDomainConfig" $
-      FederationDomainConfig
-        <$> domain .= field "domain" schema
-        <*> cfgSearchPolicy .= field "search_policy" schema
-
 -- | Options that are consumed on startup
 data Opts = Opts
   -- services
@@ -553,24 +539,34 @@ data Settings = Settings
     -- returns users from the same team
     setSearchSameTeamOnly :: !(Maybe Bool),
     -- | FederationDomain is required, even when not wanting to federate with other backends
-    -- (in that case the 'allowedDomains' can be set to empty in Federator)
+    -- (in that case the 'setFederationStrategy' can be set to `allowNone` below, or to
+    -- `allowDynamic` while keeping the list of allowed domains empty, see
+    -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections)
     -- Federation domain is used to qualify local IDs and handles,
     -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
     -- It should also match the SRV DNS records under which other wire-server installations can find this backend:
-    --    _wire-server-federator._tcp.<federationDomain>
-    -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
+    -- >>>   _wire-server-federator._tcp.<federationDomain>
+    -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working.
     -- Remember to keep it the same in all services.
-    -- Example:
-    --   allowedDomains:
-    --     - wire.com
-    --     - example.com
     setFederationDomain :: !Domain,
+    -- | See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+    -- default: AllowNone
+    setFederationStrategy :: !(Maybe FederationStrategy),
+    -- | 'setFederationDomainConfigs' is introduced in
+    -- https://github.com/wireapp/wire-server/pull/3260 for the sole purpose of transitioning
+    -- to dynamic federation remote configuration.  See
+    -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+    -- for details.
+    -- default: []
     setFederationDomainConfigs :: !(Maybe [FederationDomainConfig]),
+    -- | In seconds.  Default: 10 seconds.  Values <1 are silently replaced by 1.  See
+    -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+    setFederationDomainConfigsUpdateFreq :: !(Maybe Int),
     -- | The amount of time in milliseconds to wait after reading from an SQS queue
     -- returns no message, before asking for messages from SQS again.
     -- defaults to 'defSqsThrottleMillis'.
     -- When using real SQS from AWS, throttling isn't needed as much, since using
-    --   SQS.rmWaitTimeSeconds (Just 20) in Brig.AWS.listen
+    -- >>> SQS.rmWaitTimeSeconds (Just 20) in Brig.AWS.listen
     -- ensures that there is only one request every 20 seconds.
     -- However, that parameter is not honoured when using fake-sqs
     -- (where throttling can thus make sense)

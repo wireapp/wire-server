@@ -393,43 +393,7 @@ settings:
 
 ### Federation allow list
 
-As of 2021-07, federation (whatever is implemented by the time you read this) is turned off by default by means of having an empty allow list:
-
-```yaml
-# federator.yaml
-optSettings:
-  federationStrategy:
-    allowedDomains: []
-```
-
-You can choose to federate with a specific list of allowed servers:
-
-
-```yaml
-# federator.yaml
-optSettings:
-  federationStrategy:
-    allowedDomains:
-      - server1.example.com
-      - server2.example.com
-```
-
-or, you can federate with everyone:
-
-```yaml
-# federator.yaml
-optSettings:
-  federationStrategy:
-    # note the 'empty' value after 'allowAll'
-    allowAll:
-
-# when configuring helm charts, this becomes (note 'true' after 'allowAll')
-# inside helm_vars/wire-server:
-federator:
-  optSettings:
-    federationStrategy:
-      allowAll: true
-```
+See {ref}`configure-federation-strategy-in-brig` (since [PR#3260](https://github.com/wireapp/wire-server/pull/3260)).
 
 ### Federation TLS Config
 
@@ -611,24 +575,11 @@ any key package whose expiry date is set further than 15 days after upload time 
 
 
 ### Federated domain specific configuration settings
+
 #### Restrict user search
 
-The lookup and search of users on a wire instance can be configured. This can be done per federated domain.
+See {ref}`configure-federation-strategy-in-brig` (since [PR#3260](https://github.com/wireapp/wire-server/pull/3260)).
 
-```yaml
-# [brig.yaml]
-optSettings:
-  setFederationDomainConfigs:
-    - domain: example.com
-      search_policy: no_search
-```
-
-Valid values for `search_policy` are:
-- `no_search`: No users are returned by federated searches.
-- `exact_handle_search`: Only users where the handle exactly matches are returned.
-- `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
-
-If there is no configuration for a domain, it's defaulted to `no_search`.
 
 ### API Versioning
 

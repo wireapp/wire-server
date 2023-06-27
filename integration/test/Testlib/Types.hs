@@ -37,6 +37,7 @@ data Response = Response
     headers :: [HTTP.Header],
     request :: HTTP.Request
   }
+  deriving (Show)
 
 instance HasField "json" Response (App Aeson.Value) where
   getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody

@@ -100,6 +100,8 @@ config:
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
     # setDisabledAPIVersions: [ v3 ]
+    setFederationStrategy: allowNone
+    setFederationDomainConfigsUpdateFreq: 10
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}
