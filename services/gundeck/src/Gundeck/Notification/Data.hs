@@ -177,6 +177,7 @@ fetch u c since (fromRange -> size) = do
             ResultPage xs more False
       _ -> ResultPage (x <| xs) more (isJust since)
   where
+    -- collect :: Seq QueuedNotification -> Int -> Page (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe (C.Set ClientId)) -> (Seq QueuedNotification, Bool)
     collect acc num page =
       let ns = splitAt num $ foldr (toNotif c) [] (result page)
           nseq = Seq.fromList (fst ns)
@@ -191,15 +192,15 @@ fetch u c since (fromRange -> size) = do
       | otherwise = case Seq.viewr ns of
           EmptyR -> ns
           xs :> _ -> xs
-    cqlStart :: PrepQuery R (Identity UserId) (TimeUuid, Blob, Maybe (C.Set ClientId))
+    cqlStart :: PrepQuery R (Identity UserId) (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe (C.Set ClientId))
     cqlStart =
-      "SELECT id, payload, clients \
+      "SELECT id, payload, payload_ref, clients \
       \FROM notifications \
       \WHERE user = ? \
       \ORDER BY id ASC"
-    cqlSince :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Blob, Maybe (C.Set ClientId))
+    cqlSince :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe (C.Set ClientId))
     cqlSince =
-      "SELECT id, payload, clients \
+      "SELECT id, payload, payload_ref, clients \
       \FROM notifications \
       \WHERE user = ? AND id >= ? \
       \ORDER BY id ASC"
