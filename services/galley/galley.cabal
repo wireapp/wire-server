@@ -667,6 +667,7 @@ executable galley-schema
     V79_TeamFeatureMlsE2EId
     V80_AddConversationCodePassword
     V81_TeamFeatureMlsE2EIdUpdate
+    V82_RemoteDomainIndexes
 
   hs-source-dirs:     schema/src
   default-extensions:

@@ -2,6 +2,7 @@ module Wire.API.FederationUpdate
   ( syncFedDomainConfigs,
     SyncFedDomainConfigsCallback (..),
     emptySyncFedDomainConfigsCallback,
+    deleteFederationRemoteGalley
   )
 where
 
@@ -13,7 +14,7 @@ import qualified Data.Set as Set
 import Data.Text (unpack)
 import Imports
 import Network.HTTP.Client (defaultManagerSettings, newManager)
-import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, Scheme (Http), runClientM)
+import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, Scheme (Http), runClientM, ClientM)
 import Servant.Client.Internal.HttpClient (defaultMakeClientRequest)
 import qualified System.Logger as L
 import Util.Options (Endpoint (..))
@@ -61,9 +62,6 @@ initialize logger clientEnv =
         Just c -> pure c
         Nothing -> throwIO $ ErrorCall "*** Failed to reach brig for federation setup, giving up!"
 
-getAllowedDomains :: ClientEnv -> IO (Either ClientError FederationDomainConfigs)
-getAllowedDomains = runClientM getFedRemotes
-
 deleteFederationRemoteGalley :: Domain -> ClientEnv -> IO (Either ClientError ())
 deleteFederationRemoteGalley dom = runClientM $ deleteFedRemoteGalley dom
 
@@ -87,9 +85,6 @@ loop logger clientEnv (SyncFedDomainConfigsCallback callback) env = forever $ do
 
 fetch :: ClientEnv -> IO (Either ClientError FederationDomainConfigs)
 fetch = runClientM (namedClient @IAPI.API @"get-federation-remotes")
-
-updateFedDomains' :: IORef FederationDomainConfigs -> ClientEnv -> L.Logger -> FedUpdateCallback -> IO (Async ())
-updateFedDomains' ioref clientEnv log' cb = async $ getAllowedDomainsLoop log' clientEnv cb ioref
 
 -- | The callback takes the previous and the new settings and runs a given action.
 newtype SyncFedDomainConfigsCallback = SyncFedDomainConfigsCallback

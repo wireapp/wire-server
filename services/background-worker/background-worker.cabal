@@ -30,6 +30,7 @@ library
       aeson
     , amqp
     , async
+    , bilge
     , bytestring
     , bytestring-conversion
     , exceptions

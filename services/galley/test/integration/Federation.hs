@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
 
 module Federation where
 
@@ -20,7 +21,6 @@ import qualified Data.Set as Set
 import Data.Singletons
 import Data.Time (getCurrentTime)
 import qualified Data.UUID as UUID
-import Data.UUID.V4 (nextRandom)
 import Federator.MockServer
 import Galley.API.Util
 import Galley.Cassandra.Queries
@@ -50,6 +50,7 @@ import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.User.Search
 import Galley.App
 import Galley.API.Internal
+-- import Control.Concurrent.Async
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
@@ -57,11 +58,9 @@ x3 = limitRetries 3 <> exponentialBackoff 100000
 isConvMemberLTests :: TestM ()
 isConvMemberLTests = do
   s <- ask
-  uuid <- liftIO nextRandom
-  let uuid' = UUID.toText uuid
-      opts = s ^. tsGConf
+  let opts = s ^. tsGConf
       localDomain = opts ^. optSettings . setFederationDomain
-      remoteDomain = Domain $ "far-away.example.com" <> uuid'
+      remoteDomain = Domain "far-away.example.com"
       convId = Id $ fromJust $ UUID.fromString "8cc34301-6949-46c5-bb93-00a72268e2f5"
       convLocalMembers = [LocalMember userId defMemberStatus Nothing roleNameWireMember]
       convRemoteMembers = [RemoteMember rUserId roleNameWireMember]
@@ -91,13 +90,13 @@ updateFedDomainsTestNoop' = do
   let opts = s ^. tsGConf
   -- Don't need the actual server, and we certainly don't want it running.
   -- But this is how the env is made, so it is what we do
-  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
+  (_, env, _) <- liftIO $ lowerCodensity $ mkApp opts
   -- Common variables.
-  uuid <- liftIO nextRandom
-  let uuid' = UUID.toText uuid
-      interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
-      remoteDomain = Domain $ "far-away.example.com" <> uuid'
-      remoteDomain2 = Domain $ "far-away-two.example.com" <> uuid'
+  -- FUTUREWORK, NEWTICKET: These uuid strings side step issues with the tests hanging.
+  -- FUTUREWORK, NEWTICKET: Figure out the underlying issue as to why these tests occasionally hang.
+  let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
+      remoteDomain = Domain "far-away.example.com"
+      remoteDomain2 = Domain "far-away-two.example.com"
   liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. optSettings . setFederationDomain
   liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
   -- Setup a conversation for a known remote domain.
@@ -112,13 +111,11 @@ updateFedDomainsTestAddRemote' = do
   let opts = s ^. tsGConf
   -- Don't need the actual server, and we certainly don't want it running.
   -- But this is how the env is made, so it is what we do
-  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
+  (_, env, _) <- liftIO $ lowerCodensity $ mkApp opts
   -- Common variables.
-  uuid <- liftIO nextRandom
-  let uuid' = UUID.toText uuid
-      interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
-      remoteDomain = Domain $ "far-away.example.com" <> uuid'
-      remoteDomain2 = Domain $ "far-away-two.example.com" <> uuid'
+  let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
+      remoteDomain = Domain "far-away.example.com"
+      remoteDomain2 = Domain "far-away-two.example.com"
   liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. optSettings . setFederationDomain
   liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
 
@@ -131,13 +128,11 @@ updateFedDomainsTestRemoveRemoteFromLocal' = do
   let opts = s ^. tsGConf
   -- Don't need the actual server, and we certainly don't want it running.
   -- But this is how the env is made, so it is what we do
-  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
+  (_, env, _) <- liftIO $ lowerCodensity $ mkApp opts
   -- Common variables.
-  uuid <- liftIO nextRandom
-  let uuid' = UUID.toText uuid
-      interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
-      remoteDomain = Domain $ "far-away.example.com" <> uuid'
-      remoteDomain2 = Domain $ "far-away-two.example.com" <> uuid'
+  let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
+      remoteDomain = Domain "far-away.example.com"
+      remoteDomain2 = Domain "far-away-two.example.com"
   liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. optSettings . setFederationDomain
   liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
   
@@ -150,13 +145,11 @@ updateFedDomainsTestRemoveLocalFromRemote' = do
   let opts = s ^. tsGConf
   -- Don't need the actual server, and we certainly don't want it running.
   -- But this is how the env is made, so it is what we do
-  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
+  (_, env, _) <- liftIO $ lowerCodensity $ mkApp opts
   -- Common variables.
-  uuid <- liftIO nextRandom
-  let uuid' = UUID.toText uuid
-      interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
-      remoteDomain = Domain $ "far-away.example.com" <> uuid'
-      remoteDomain2 = Domain $ "far-away-two.example.com" <> uuid'
+  let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
+      remoteDomain = Domain "far-away.example.com"
+      remoteDomain2 = Domain "far-away-two.example.com"
   liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. optSettings . setFederationDomain
   liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
 

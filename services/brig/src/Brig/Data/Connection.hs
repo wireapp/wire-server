@@ -397,7 +397,7 @@ remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
 remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right_user = ?"
 
 remoteConnectionSelectFromDomain :: PrepQuery R (Identity Domain) (UserId, Domain, UserId)
-remoteConnectionSelectFromDomain = "SELECT left, right_domain, right_user FROM connection_remote where right_domain = ? ALLOW FILTERING"
+remoteConnectionSelectFromDomain = "SELECT left, right_domain, right_user FROM connection_remote where right_domain = ?"
 
 remoteConnectionClear :: PrepQuery W (Identity UserId) ()
 remoteConnectionClear = "DELETE FROM connection_remote where left = ?"

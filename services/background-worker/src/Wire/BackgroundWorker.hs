@@ -15,6 +15,11 @@ run :: Opts -> IO ()
 run opts = do
   env <- mkEnv opts
   threadsRef <- newIORef []
+  let cancelThreads = do
+        -- Kill all of the threads and clean up the IORef
+        threads <- readIORef threadsRef
+        traverse_ cancel threads
+        atomicWriteIORef threadsRef []
   openConnectionWithRetries env.logger opts.rabbitmq.host opts.rabbitmq.port opts.rabbitmq.vHost $
     RabbitMqHooks
       { onNewChannel = \chan -> runAppT env $ do
@@ -25,6 +30,8 @@ run opts = do
           let threads = [pushThread, deleteThread]
           -- Write out the handles for the threads
           atomicWriteIORef threadsRef threads
+          -- Wait for all the threads. This shouldn't occure
+          -- as the threads all have `forever $ threadDelay ...`
           liftIO $ traverse_ wait threads
           -- clear the threadRef if the threads finish
           atomicWriteIORef threadsRef []
@@ -32,13 +39,7 @@ run opts = do
         --
         -- When the channel dies for whatever reason, kill all of the async
         -- threads and clean up the threadsRef state
-        , onChannelException = const $ do
-            threads <- readIORef threadsRef
-            traverse_ cancel threads
-            atomicWriteIORef threadsRef []
-        , onConnectionClose = do
-            threads <- readIORef threadsRef
-            traverse_ cancel threads
-            atomicWriteIORef threadsRef []
+        , onChannelException = const cancelThreads
+        , onConnectionClose = cancelThreads
       }
   forever $ threadDelay maxBound

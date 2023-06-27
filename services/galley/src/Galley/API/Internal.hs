@@ -512,7 +512,6 @@ internalDeleteFederationDomainH :: (Member (Input Env) r, Member (P.Logger (Msg 
           Member CodeStore r, Member TeamStore r, Member BrigAccess r, Member GundeckAccess r, Member ExternalAccess r) => Domain ::: JSON -> Sem r Response
 internalDeleteFederationDomainH (domain ::: _) = do
   deleteFederationDomain domain
-  -- TODO: Do we generally also accept HTTP 204, No Content?
   pure (empty & setStatus status200)
 
 -- Remove remote members from local conversations
@@ -600,7 +599,13 @@ deleteFederationDomainLocalUserFromRemoteConversation dom = do
 -- let rcnv = toRemoteUnsafe dom cnv
 -- notifyRemoteConversationAction lUser (qualifyAs rcnv convUpdate) Nothing
 
--- These need to be recoverable? TODO
+-- These need to be recoverable?
+-- This is recoverable with the following flow conditions.
+-- 1) Deletion calls to the Brig endpoint `delete-federation-remote-from-galley` are idempotent for a given domain.
+-- 2) This call is made from a function that is backed by a RabbitMQ queue.
+--    The calling function needs to catch thrown exceptions and NACK the deletion
+--    message. This will allow Rabbit to redeliver the message and give us a second
+--    go at performing the deletion.
 deleteFederationDomainOneOnOne :: (Member (Input Env) r, Member (Embed IO) r, Member (P.Logger (Msg -> Msg)) r) => Domain -> Sem r ()
 deleteFederationDomainOneOnOne dom = do
   env <- input

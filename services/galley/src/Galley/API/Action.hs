@@ -88,7 +88,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import qualified Polysemy.TinyLog as P
-import qualified Polysemy.TinyLog as TinyLog
 import qualified System.Logger as Log
 import Wire.API.Connection (Relation (Accepted))
 import Wire.API.Conversation hiding (Conversation, Member)
@@ -340,21 +339,6 @@ performAction tag origUser lconv action = do
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
-      -- _ <-
-      --   error $
-      --     "-----------------------------\n\n\n"
-      --       <> "lconv = "
-      --       <> show lconv
-      --       <> "\n\n\n"
-      --       <> "action = "
-      --       <> show action
-      --       <> "\n\n\n"
-      --       <> "presentVictims = "
-      --       <> show presentVictims
-      --       <> "\n\n\n"
-      --       <> "-----------------------------"
-      TinyLog.err $ Log.msg ("action" :: String) . Log.field "values" (show action)
-      TinyLog.err $ Log.msg ("presentVictims" :: String) . Log.field "values" (show presentVictims)
       when (null presentVictims) noChanges
       E.deleteMembers (tUnqualified lcnv) (toUserList lconv presentVictims)
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
