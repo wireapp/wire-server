@@ -13,10 +13,7 @@ testGetMLSOne2One otherDomain = do
 
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   conv %. "type" `shouldMatchInt` 2
-  others <- conv %. "members.others" & asList
-  other <- assertOne others
-  other %. "conversation_role" `shouldMatch` "wire_member"
-  other %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
+  shouldBeEmpty (conv %. "members.others")
 
   conv %. "members.self.conversation_role" `shouldMatch` "wire_member"
   conv %. "members.self.qualified_id" `shouldMatch` (alice %. "qualified_id")

@@ -45,14 +45,13 @@ import Wire.API.User
 -- (possibly remote) user.
 localMLSOne2OneConversation ::
   Local UserId ->
-  Qualified UserId ->
   Local ConvId ->
   Conversation
-localMLSOne2OneConversation lself qother (tUntagged -> convId) =
+localMLSOne2OneConversation lself (tUntagged -> convId) =
   let members =
         ConvMembers
           { cmSelf = defMember (tUntagged lself),
-            cmOthers = [defOtherMember qother]
+            cmOthers = []
           }
       (metadata, mlsData) = localMLSOne2OneConversationMetadata convId
    in Conversation
@@ -65,14 +64,13 @@ localMLSOne2OneConversation lself qother (tUntagged -> convId) =
 -- | Construct a 'RemoteConversation' structure for a local MLS 1-1
 -- conversation to be returned to a remote backend.
 localMLSOne2OneConversationAsRemote ::
-  Local UserId ->
   Local ConvId ->
   RemoteConversation
-localMLSOne2OneConversationAsRemote lother lcnv =
+localMLSOne2OneConversationAsRemote lcnv =
   let members =
         RemoteConvMembers
           { rcmSelfRole = roleNameWireMember,
-            rcmOthers = [defOtherMember (tUntagged lother)]
+            rcmOthers = []
           }
       (metadata, mlsData) = localMLSOne2OneConversationMetadata (tUntagged lcnv)
    in RemoteConversation
@@ -111,7 +109,7 @@ remoteMLSOne2OneConversation lself rother rc =
   let members =
         ConvMembers
           { cmSelf = defMember (tUntagged lself),
-            cmOthers = [defOtherMember (tUntagged rother)]
+            cmOthers = []
           }
    in Conversation
         { cnvQualifiedId = tUntagged (qualifyAs rother (rcnvId rc)),

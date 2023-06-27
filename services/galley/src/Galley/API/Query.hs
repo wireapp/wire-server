@@ -767,7 +767,7 @@ getMLSOne2OneConversation lself qother = do
   let convId = one2OneConvId BaseProtocolMLSTag (tUntagged lself) qother
   foldQualified
     lself
-    (getLocalMLSOne2OneConversation lself qother)
+    (getLocalMLSOne2OneConversation lself)
     (getRemoteMLSOne2OneConversation lself qother)
     convId
 
@@ -777,13 +777,12 @@ getLocalMLSOne2OneConversation ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Qualified UserId ->
   Local ConvId ->
   Sem r Conversation
-getLocalMLSOne2OneConversation lself qother lconv = do
+getLocalMLSOne2OneConversation lself lconv = do
   mconv <- E.getConversation (tUnqualified lconv)
   case mconv of
-    Nothing -> pure (localMLSOne2OneConversation lself qother lconv)
+    Nothing -> pure (localMLSOne2OneConversation lself lconv)
     Just conv -> conversationView lself conv
 
 getRemoteMLSOne2OneConversation ::
