@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+
+'''This script creates a user on development backends that expose internal
+endpoints to basicauth-authenticated users.
+
+This script is different than create_team.py which requires access to the brig service directly.
+
+Run with --help to see the args.
+
+Requirements of this script: the "requests" library.
+
+'''
+
+import requests
+import string
+import random
+import argparse
+import time
+import sys
+import os
+import json
+import base64
+
+
+def random_string(n):
+    return ''.join(random.choice(string.ascii_lowercase) for i in range(n))
+
+def random_email():
+    rnd = random_string(8)
+    return f'doesnotexist+{rnd}@wire.com'
+
+def create_user(baseurl, basic_auth, create_team):
+    email = random_email()
+    password = random_string(20)
+
+    body = {
+        "accent_id": 1,
+        'locale': 'en-US',
+        'name': email,
+        'email': email,
+        'password': password
+    }
+    if create_team:
+        body['team'] = {'name': 'My test team', 'icon': 'default'}
+
+    r = requests.post(f'{baseurl}/register', json=body)
+    user = r.json()
+
+    headers = {'Authorization': f'Basic {basic_auth}'}
+    r = requests.get(f'{baseurl}/i/users/activation-code', params={'email': email}, headers=headers)
+    assert r.status_code == 200
+
+    code = r.json()
+
+    r = requests.post(f'{baseurl}/activate', json={'code': code['code'], 'key': code['key'], 'email': email, 'dryrun': False})
+    assert r.status_code == 200
+
+    admin = {
+        'email': email,
+        'password': password,
+        'user_id': user["id"],
+        'team': user.get("team")
+    }
+    return admin
+
+
+def invite_user():
+    pass
+
+def maybe_to_list(x):
+    if x is not None:
+        return [x]
+    else:
+        return []
+
+
+def main():
+    known_envs = {
+        'staging': {
+            'baseurl': 'https://staging-nginz-https.zinfra.io',
+            'webapp': 'https://wire-webapp-master.zinfra.io/'
+        },
+        'anta': {
+            'baseurl': 'https://nginz-https.anta.wire.link',
+            'webapp': 'https://webapp.anta.wire.link/',
+            'teams': 'https://teams.anta.wire.link/'
+        },
+        'bella': {
+            'baseurl': 'https://nginz-https.bella.wire.link',
+            'webapp': 'https://webapp.bella.wire.link/'
+        },
+        'chala': {
+            'baseurl': 'https://nginz-https.chala.wire.link',
+            'webapp': 'https://webapp.chala.wire.link/'
+        },
+        'foma': {
+            'baseurl': 'https://nginz-https.foma.wire.link',
+            'webapp': 'https://webapp.foma.wire.link/'
+        },
+        'ninjas': {
+            'baseurl': 'https://nginz-https.ninjas.dogfood.wire.link',
+            'webapp': 'https://webapp.ninjas.dogfood.wire.link/'
+        },
+        'pirates': {
+            'baseurl': 'https://nginz-https.pirates.dogfood.wire.link',
+            'webapp': 'https://webapp.pirates.dogfood.wire.link/'
+        },
+        'unicorns': {
+            'baseurl': 'https://nginz-https.unicorns.dogfood.wire.link',
+            'webapp': 'https://webapp.unicorns.dogfood.wire.link/'
+        },
+    }
+
+    parser = argparse.ArgumentParser(
+        prog=sys.argv[0], description="Create a user on a testing environment."
+    )
+    parser.add_argument('-e', '--env', default='staging', help=f'One of: {", ".join(known_envs.keys())}. Default: staging.')
+    parser.add_argument('-n', '--no-team', action='store_true', help="Don't create a team admin, but a personal user.")
+    args = parser.parse_args()
+
+    env = known_envs.get(args.env)
+    if env is None:
+        print(f'Unknown environment: {args.env}')
+        sys.exit(1)
+
+    ename_user = f'CREATE_TEAM_BASICAUTH_USER_{args.env.upper()}'
+    ename_password = f'CREATE_TEAM_BASICAUTH_PASSWORD_{args.env.upper()}'
+
+    b_user = os.environ.get(ename_user)
+    b_password = os.environ.get(ename_password)
+
+    if b_user is None or b_password is None:
+        print(f'Environment variables {ename_user} and {ename_password} are not set. Please set them to the basic auth that configured for this environment.')
+        sys.exit(1)
+
+    basic_auth = base64.b64encode(f'{b_user}:{b_password}'.encode('utf8')).decode('utf8')
+
+    admin = create_user(env['baseurl'], basic_auth, not args.no_team)
+
+    result = {'admin': admin}
+
+    links = maybe_to_list(env.get('webapp')) + maybe_to_list(env.get('teams'))
+    if links:
+        result['comment'] = f'These credentials can be used at: {", ".join(links)}'
+
+    print(json.dumps(result, indent=4))
+
+if __name__ == '__main__':
+    main()
