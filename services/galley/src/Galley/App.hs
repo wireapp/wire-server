@@ -107,9 +107,11 @@ import System.Logger.Class
 import qualified System.Logger.Extended as Logger
 import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
+import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Federation.Error
 import Wire.API.Routes.FederationDomainConfig
+import Wire.API.Team.Feature
 import qualified Wire.Sem.Logger
 import Wire.Sem.Random.IO
 
@@ -157,6 +159,14 @@ validateOptions l o = do
     (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
     _ -> pure ()
+  let mlsFlag = o ^. optSettings . setFeatureFlags . Teams.flagMLS . Teams.unDefaults . Teams.unImplicitLockStatus
+      mlsStatus = wsStatus mlsFlag
+      mlsConfig = wsConfig mlsFlag
+      migrationStatus = wsStatus $ o ^. optSettings . setFeatureFlags . Teams.flagMlsMigration . Teams.unDefaults
+  when (migrationStatus == FeatureStatusEnabled && (mlsStatus == FeatureStatusDisabled || ProtocolMLSTag `notElem` mlsSupportedProtocols mlsConfig)) $
+    error "For starting MLS migration, MLS must be enabled and in the supportedProtocol list"
+  unless (mlsDefaultProtocol mlsConfig `elem` mlsSupportedProtocols mlsConfig) $
+    error "The list 'settings.featureFlags.mls.supportedProtocols' must include the value in the field 'settings.featureFlags.mls.defaultProtocol'"
 
 createEnv :: Metrics -> Opts -> Logger -> IORef FederationDomainConfigs -> IO Env
 createEnv m o l r = do
