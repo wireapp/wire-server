@@ -101,7 +101,7 @@ createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
           (publicMessageRef (cnvmlsCipherSuite meta) pmsg)
           ProposalOriginBackend
           proposal
-        propagateMessage qusr lConvOrSubConv Nothing msg cm
+        propagateMessage qusr Nothing lConvOrSubConv Nothing msg cm
 
 removeClientsWithClientMapRecursively ::
   ( Members
