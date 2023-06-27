@@ -56,7 +56,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
-import Wire.API.Internal.Notification (ntfTransient)
+import Wire.API.Internal.Notification
 import Wire.API.MLS.KeyPackage
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging

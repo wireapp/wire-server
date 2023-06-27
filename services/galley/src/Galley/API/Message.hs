@@ -56,6 +56,7 @@ import Galley.API.Util
 import Galley.Data.Conversation
 import Galley.Data.Services
 import Galley.Effects
+import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
@@ -65,6 +66,7 @@ import Galley.Options
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Conversations.Members
 import Imports hiding (forkIO)
+import qualified Network.AMQP as Q
 import Polysemy hiding (send)
 import Polysemy.Error
 import Polysemy.Input
@@ -367,6 +369,7 @@ postQualifiedOtrMessage ::
     Member ClientStore r,
     Member ConversationStore r,
     Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member GundeckAccess r,
     Member ExternalAccess r,
     Member (Input Opts) r,
@@ -528,7 +531,7 @@ sendMessages ::
   forall r.
   ( Member GundeckAccess r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member P.TinyLog r
   ) =>
   UTCTime ->
@@ -613,7 +616,7 @@ sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMe
 -- failure, the empty set is returned.
 sendRemoteMessages ::
   forall r x.
-  ( Member FederatorAccess r,
+  ( Member BackendNotificationQueueAccess r,
     Member P.TinyLog r
   ) =>
   Remote x ->
@@ -642,8 +645,8 @@ sendRemoteMessages domain now sender senderClient lcnv metadata messages = (hand
             rmTransient = mmTransient metadata,
             rmRecipients = UserClientMap rcpts
           }
-  let rpc = fedClient @'Galley @"on-message-sent" rm
-  runFederatedEither domain rpc
+  let rpc = void $ fedQueueClient @'Galley @"on-message-sent" rm
+  enqueueNotification domain Q.Persistent rpc
   where
     handle :: Either FederationError a -> Sem r (Set (UserId, ClientId))
     handle (Right _) = pure mempty

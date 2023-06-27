@@ -72,7 +72,7 @@ type GalleyApi =
            LeaveConversationResponse
     -- used to notify this backend that a new message has been posted to a
     -- remote conversation
-    :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) ()
+    :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) EmptyResponse
     -- used by a remote backend to send a message to a conversation owned by
     -- this backend
     :<|> FedEndpointWithMods

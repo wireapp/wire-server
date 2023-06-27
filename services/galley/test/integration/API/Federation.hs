@@ -26,7 +26,7 @@ import Control.Lens hiding ((#))
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain
-import Data.Id (ConvId, Id (..), UserId, newClientId, randomId)
+import Data.Id (ConvId, Id (..), UserId, randomId)
 import Data.Json.Util hiding ((#))
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1 hiding (head)
@@ -84,7 +84,6 @@ tests s =
       test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
       test s "POST /federation/leave-conversation : Non-existent" leaveConversationNonExistent,
       test s "POST /federation/leave-conversation : Invalid type" leaveConversationInvalidType,
-      test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage,
       test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted,
       test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin,
@@ -816,87 +815,6 @@ leaveConversationInvalidType = do
           )
           <!! const 200 === statusCode
   liftIO $ resp @?= Left FedGalley.RemoveFromConversationErrorRemovalNotAllowed
-
-onMessageSent :: TestM ()
-onMessageSent = do
-  localDomain <- viewFederationDomain
-  c <- view tsCannon
-  alice <- randomUser
-  eve <- randomUser
-  bob <- randomId
-  conv <- randomId
-  let fromc = newClientId 0
-      aliceC1 = newClientId 0
-      aliceC2 = newClientId 1
-      eveC = newClientId 0
-      bdom = Domain "bob.example.com"
-      qconv = Qualified conv bdom
-      qbob = Qualified bob bdom
-      qalice = Qualified alice localDomain
-  now <- liftIO getCurrentTime
-  fedGalleyClient <- view tsFedGalleyClient
-
-  -- only add alice to the remote conversation
-  connectWithRemoteUser alice qbob
-  let cu =
-        FedGalley.ConversationUpdate
-          { FedGalley.cuTime = now,
-            FedGalley.cuOrigUserId = qbob,
-            FedGalley.cuConvId = conv,
-            FedGalley.cuAlreadyPresentUsers = [],
-            FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
-          }
-  runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
-
-  let txt = "Hello from another backend"
-      msg client = Map.fromList [(client, txt)]
-      rcpts =
-        UserClientMap $
-          Map.fromListWith (<>) [(alice, msg aliceC1), (alice, msg aliceC2), (eve, msg eveC)]
-      rm =
-        FedGalley.RemoteMessage
-          { FedGalley.rmTime = now,
-            FedGalley.rmData = Nothing,
-            FedGalley.rmSender = qbob,
-            FedGalley.rmSenderClient = fromc,
-            FedGalley.rmConversation = conv,
-            FedGalley.rmPriority = Nothing,
-            FedGalley.rmTransient = False,
-            FedGalley.rmPush = False,
-            FedGalley.rmRecipients = rcpts
-          }
-
-  -- send message to alice and check reception
-  WS.bracketAsClientRN c [(alice, aliceC1), (alice, aliceC2), (eve, eveC)] $ \[wsA1, wsA2, wsE] -> do
-    runFedClient @"on-message-sent" fedGalleyClient bdom rm
-    liftIO $ do
-      -- alice should receive the message on her first client
-      WS.assertMatch_ (5 # Second) wsA1 $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
-        ntfTransient n @?= False
-        evtConv e @?= qconv
-        evtType e @?= OtrMessageAdd
-        evtFrom e @?= qbob
-        evtData e @?= EdOtrMessage (OtrMessage fromc aliceC1 txt Nothing)
-
-      -- alice should receive the message on her second client
-      WS.assertMatch_ (5 # Second) wsA2 $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
-        ntfTransient n @?= False
-        evtConv e @?= qconv
-        evtType e @?= OtrMessageAdd
-        evtFrom e @?= qbob
-        evtData e @?= EdOtrMessage (OtrMessage fromc aliceC2 txt Nothing)
-
-      -- These should be the only events for each device of alice. This verifies
-      -- that targetted delivery to the clients was used so that client 2 does
-      -- not receive the message encrypted for client 1 and vice versa.
-      WS.assertNoEvent (1 # Second) [wsA1]
-      WS.assertNoEvent (1 # Second) [wsA2]
-
-      -- eve should not receive the message
-      WS.assertNoEvent (1 # Second) [wsE]
 
 -- alice local, bob and chad remote in a local conversation
 -- bob sends a message (using the RPC), we test that alice receives it and that

@@ -114,8 +114,6 @@ library
   build-depends:
     , aeson
     , aeson-pretty
-    , lens-aeson
-    , lens
     , array
     , async
     , attoparsec
@@ -134,6 +132,8 @@ library
     , http-client
     , http-types
     , kan-extensions
+    , lens
+    , lens-aeson
     , mime
     , monad-control
     , mtl

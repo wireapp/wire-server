@@ -314,7 +314,7 @@ onMessageSent ::
   ) =>
   Domain ->
   F.RemoteMessage ConvId ->
-  Sem r ()
+  Sem r EmptyResponse
 onMessageSent domain rmUnqualified = do
   let rm = fmap (toRemoteUnsafe domain) rmUnqualified
       convId = tUntagged $ F.rmConversation rm
@@ -351,6 +351,7 @@ onMessageSent domain rmUnqualified = do
       mempty
       msgMetadata
       (Map.filterWithKey (\(uid, _) _ -> Set.member uid members) msgs)
+  pure EmptyResponse
 
 sendMessage ::
   ( Member BrigAccess r,
@@ -358,6 +359,7 @@ sendMessage ::
     Member ConversationStore r,
     Member (Error InvalidInput) r,
     Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
