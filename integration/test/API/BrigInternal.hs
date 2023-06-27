@@ -66,20 +66,21 @@ instance MakesValue FedConn where
 
 createFedConn :: (HasCallStack, MakesValue dom, MakesValue fedConn) => dom -> fedConn -> App Response
 createFedConn dom fedConn = do
-  res <- createFedConn' dom fedConn
-  res.status `shouldMatchRange` (200, 299)
-  pure res
+  bindResponse (createFedConn' dom fedConn) $ \res -> do
+    res.status `shouldMatchRange` (200, 299)
+    pure res
 
 createFedConn' :: (HasCallStack, MakesValue dom, MakesValue fedConn) => dom -> fedConn -> App Response
 createFedConn' dom fedConn = do
   req <- rawBaseRequest dom Brig Unversioned "/i/federation/remotes"
-  make fedConn >>= \v -> submit "POST" $ req & addJSON v
+  conn <- make fedConn
+  submit "POST" $ req & addJSON conn
 
 readFedConns :: (HasCallStack, MakesValue dom) => dom -> App Response
 readFedConns dom = do
-  res <- readFedConns' dom
-  res.status `shouldMatchRange` (200, 299)
-  pure res
+  bindResponse (readFedConns' dom) $ \res -> do
+    res.status `shouldMatchRange` (200, 299)
+    pure res
 
 readFedConns' :: (HasCallStack, MakesValue dom) => dom -> App Response
 readFedConns' dom = do
@@ -88,20 +89,21 @@ readFedConns' dom = do
 
 updateFedConn :: (HasCallStack, MakesValue owndom, MakesValue fedConn) => owndom -> String -> fedConn -> App Response
 updateFedConn owndom dom fedConn = do
-  res <- updateFedConn' owndom dom fedConn
-  res.status `shouldMatchRange` (200, 299)
-  pure res
+  bindResponse (updateFedConn' owndom dom fedConn) $ \res -> do
+    res.status `shouldMatchRange` (200, 299)
+    pure res
 
 updateFedConn' :: (HasCallStack, MakesValue owndom, MakesValue fedConn) => owndom -> String -> fedConn -> App Response
 updateFedConn' owndom dom fedConn = do
   req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes/" <> dom)
-  make fedConn >>= \v -> submit "PUT" $ addJSON v req
+  conn <- make fedConn
+  submit "PUT" $ addJSON conn req
 
 deleteFedConn :: (HasCallStack, MakesValue owndom) => owndom -> String -> App Response
 deleteFedConn owndom dom = do
-  res <- deleteFedConn' owndom dom
-  res.status `shouldMatchRange` (200, 299)
-  pure res
+  bindResponse (deleteFedConn' owndom dom) $ \res -> do
+    res.status `shouldMatchRange` (200, 299)
+    pure res
 
 deleteFedConn' :: (HasCallStack, MakesValue owndom) => owndom -> String -> App Response
 deleteFedConn' owndom dom = do

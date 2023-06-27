@@ -4,9 +4,12 @@ import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import qualified API.Common as API
 import qualified API.GalleyInternal as Internal
+import Control.Monad.IO.Class (liftIO)
 import Data.Aeson.Types
 import qualified Data.Set as Set
 import Data.String.Conversions
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
 import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
@@ -35,44 +38,47 @@ testCrudFederationRemotes = do
 
       addOnce :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => fedConn -> [fedConn2] -> App ()
       addOnce fedConn want = do
-        res <- Internal.createFedConn OwnDomain fedConn
-        addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
-        res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
-        sort res2 `shouldMatch` sort want
+        bindResponse (Internal.createFedConn OwnDomain fedConn) $ \res -> do
+          addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
+          res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
+          sort res2 `shouldMatch` sort want
 
       addFail :: HasCallStack => MakesValue fedConn => fedConn -> App ()
       addFail fedConn = do
-        res <- Internal.createFedConn' OwnDomain fedConn
-        addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
+        bindResponse (Internal.createFedConn' OwnDomain fedConn) $ \res -> do
+          addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
 
       deleteOnce :: (Ord fedConn, ToJSON fedConn, MakesValue fedConn) => String -> [fedConn] -> App ()
       deleteOnce domain want = do
-        res <- Internal.deleteFedConn OwnDomain domain
-        addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
-        res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
-        sort res2 `shouldMatch` sort want
+        bindResponse (Internal.deleteFedConn OwnDomain domain) $ \res -> do
+          addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
+          res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
+          sort res2 `shouldMatch` sort want
 
       deleteFail :: HasCallStack => String -> App ()
       deleteFail del = do
-        res <- Internal.deleteFedConn' OwnDomain del
-        addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
+        bindResponse (Internal.deleteFedConn' OwnDomain del) $ \res -> do
+          addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
 
       updateOnce :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => String -> fedConn -> [fedConn2] -> App ()
       updateOnce domain fedConn want = do
-        res <- Internal.updateFedConn OwnDomain domain fedConn
-        addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
-        res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
-        sort res2 `shouldMatch` sort want
+        bindResponse (Internal.updateFedConn OwnDomain domain fedConn) $ \res -> do
+          addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
+          res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
+          sort res2 `shouldMatch` sort want
 
       updateFail :: (MakesValue fedConn, HasCallStack) => String -> fedConn -> App ()
       updateFail domain fedConn = do
-        res <- Internal.updateFedConn' OwnDomain domain fedConn
-        addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
+        bindResponse (Internal.updateFedConn' OwnDomain domain fedConn) $ \res -> do
+          addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
+
+  dom1 :: String <- (<> ".example.com") . UUID.toString <$> liftIO UUID.nextRandom
+  dom2 :: String <- (<> ".example.com") . UUID.toString <$> liftIO UUID.nextRandom
 
   let remote1, remote1', remote1'' :: Internal.FedConn
-      remote1 = Internal.FedConn (cs "good.example.com") "no_search"
+      remote1 = Internal.FedConn dom1 "no_search"
       remote1' = remote1 {Internal.searchStrategy = "full_search"}
-      remote1'' = remote1 {Internal.domain = "meh.example.com"}
+      remote1'' = remote1 {Internal.domain = dom2}
 
       cfgRemotesExpect :: Internal.FedConn
       cfgRemotesExpect = Internal.FedConn (cs "example.com") "full_search"

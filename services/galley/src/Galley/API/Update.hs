@@ -53,7 +53,6 @@ module Galley.API.Update
     removeMemberUnqualified,
     removeMemberFromLocalConv,
     removeMemberFromRemoteConv,
-    addLocalUsersToRemoteConv,
 
     -- * Talking
     postProteusMessage,
@@ -75,13 +74,9 @@ where
 import Control.Error.Util (hush)
 import Control.Lens
 import Control.Monad.State
-import Data.ByteString.Conversion
 import Data.Code
-import Data.Domain
 import Data.Id
 import Data.Json.Util
-import Data.List.Extra (nubOrd)
-import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
 import qualified Data.Map.Strict as Map
 import Data.Qualified
@@ -99,7 +94,6 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
-import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ClientStore as E
 import qualified Galley.Effects.CodeStore as E
 import qualified Galley.Effects.ConversationStore as E
@@ -125,10 +119,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
-import qualified Polysemy.TinyLog as P
 import System.Logger (Msg)
-import qualified System.Logger.Class as Log
-import Wire.API.Connection (Relation (Accepted))
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
@@ -139,12 +130,10 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
-import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Password (mkSafePassword)
 import Wire.API.Provider.Service (ServiceRef)
-import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
@@ -380,8 +369,8 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
     ConversationUpdateResponseNoChanges -> throw NoChanges
     ConversationUpdateResponseError err' -> rethrowErrors @(HasConversationActionGalleyErrors tag) err'
     ConversationUpdateResponseUpdate convUpdate _failedToProcess -> pure convUpdate
-  updateLocalStateOfRemoteConv (tDomain rcnv) convUpdate
-  notifyRemoteConversationAction lusr (qualifyAs rcnv convUpdate) (Just conn)
+  updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) (Just conn) >>= note NoChanges
+  notifyRemoteConversationAction lusr (qualifyAs rcnv convUpdate) (Just conn) -- TODO still needed?
 
 updateConversationReceiptModeUnqualified ::
   ( Member BrigAccess r,
@@ -1609,6 +1598,7 @@ rmBot lusr zcon b = do
         E.deliverAsync (bots `zip` repeat e)
         pure $ Updated e
 
+<<<<<<< HEAD
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
 updateLocalStateOfRemoteConv ::
@@ -1718,6 +1708,8 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
   E.createMembersInRemoteConversation remoteConvId connectedList
   pure connected
 
+=======
+>>>>>>> lepsa/FS-1115
 -------------------------------------------------------------------------------
 -- Helpers
 

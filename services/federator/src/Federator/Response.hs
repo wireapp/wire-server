@@ -145,7 +145,7 @@ runFederator env =
           DiscoveryFailure
         ]
     . runInputConst env
-    . runInputSem (embed @IO (readIORef (view allowedRemoteDomains env)))
+    . runInputSem (embed @IO (readIORef (view domainConfigs env)))
     . runInputSem (embed @IO (readIORef (view http2Manager env)))
     . runInputConst (view runSettings env)
     . interpretServiceHTTP
