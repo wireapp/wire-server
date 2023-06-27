@@ -86,6 +86,7 @@ library
     API.Common
     API.Galley
     API.GalleyInternal
+    API.Gundeck
     API.Nginz
     MLS.Util
     RunAllTests
@@ -95,6 +96,7 @@ library
     Test.Brig
     Test.Conversation
     Test.Demo
+    Test.Gundeck
     Test.MLS
     Test.MLS.KeyPackage
     Test.MLS.One2One
