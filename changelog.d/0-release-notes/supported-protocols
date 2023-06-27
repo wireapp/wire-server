@@ -1,0 +1,10 @@
+New field for Supported protocols in Galley's MLS feature config
+
+Galley will refuse to start if the list `supportedProtocols` does not contain
+the value of the field `defaultProtocol`. Galley will also refuse to start if
+MLS migration is enabled and MLS is not part of `supportedProtocols`.
+
+The default value for `supportedProtocols` is:
+```
+[proteus, mls]
+```
