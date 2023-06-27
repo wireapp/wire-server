@@ -360,7 +360,12 @@ instance SetFeatureConfig SearchVisibilityInboundConfig where
     updateSearchVisibilityInbound $ toTeamStatus tid wsnl
     persistAndPushEvent tid wsnl
 
-instance SetFeatureConfig MLSConfig
+instance SetFeatureConfig MLSConfig where
+  type SetConfigForTeamConstraints MLSConfig (r :: EffectRow) = Member (Error TeamFeatureError) r
+  setConfigForTeam tid wsnl = do
+    let valid mlsConfig = mlsDefaultProtocol mlsConfig `elem` mlsSupportedProtocols mlsConfig
+    unless (valid . wssConfig $ wsnl) $ throw MLSProtocolMismatch
+    persistAndPushEvent tid wsnl
 
 instance SetFeatureConfig ExposeInvitationURLsToTeamAdminConfig
 

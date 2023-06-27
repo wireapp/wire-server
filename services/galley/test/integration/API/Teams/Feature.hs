@@ -1239,31 +1239,42 @@ testMLS = do
         getForTeamInternal expected
         getForUser expected
 
-      setForTeam :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
-      setForTeam wsnl =
+      setForTeamWithStatusCode :: HasCallStack => Int -> WithStatusNoLock MLSConfig -> TestM ()
+      setForTeamWithStatusCode resStatusCode wsnl =
         putTeamFeatureFlagWithGalley @MLSConfig galley owner tid wsnl
           !!! statusCode
-            === const 200
+            === const resStatusCode
+
+      setForTeam :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
+      setForTeam = setForTeamWithStatusCode 200
+
+      setForTeamInternalWithStatusCode :: HasCallStack => (Request -> Request) -> WithStatusNoLock MLSConfig -> TestM ()
+      setForTeamInternalWithStatusCode expect wsnl =
+        void $ putTeamFeatureFlagInternal @MLSConfig expect tid wsnl
 
       setForTeamInternal :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
-      setForTeamInternal wsnl =
-        void $ putTeamFeatureFlagInternal @MLSConfig expect2xx tid wsnl
+      setForTeamInternal = setForTeamInternalWithStatusCode expect2xx
 
   let cipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-  let defaultConfig =
+      defaultConfig =
         WithStatusNoLock
           FeatureStatusDisabled
           (MLSConfig [] ProtocolProteusTag [cipherSuite] cipherSuite [ProtocolProteusTag, ProtocolMLSTag])
           FeatureTTLUnlimited
-  let config2 =
+      config2 =
         WithStatusNoLock
           FeatureStatusEnabled
           (MLSConfig [member] ProtocolMLSTag [] cipherSuite [ProtocolProteusTag, ProtocolMLSTag])
           FeatureTTLUnlimited
-  let config3 =
+      config3 =
         WithStatusNoLock
           FeatureStatusDisabled
           (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite [ProtocolProteusTag, ProtocolMLSTag])
+          FeatureTTLUnlimited
+      invalidConfig =
+        WithStatusNoLock
+          FeatureStatusEnabled
+          (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite [ProtocolProteusTag])
           FeatureTTLUnlimited
 
   getViaEndpoints defaultConfig
@@ -1276,10 +1287,22 @@ testMLS = do
   getViaEndpoints config2
 
   WS.bracketR cannon member $ \ws -> do
+    setForTeamWithStatusCode 400 invalidConfig
+    void . liftIO $
+      WS.assertNoEvent (2 # Second) [ws]
+  getViaEndpoints config2
+
+  WS.bracketR cannon member $ \ws -> do
     setForTeamInternal config3
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
         wsAssertFeatureConfigUpdate @MLSConfig config3 LockStatusUnlocked
+  getViaEndpoints config3
+
+  WS.bracketR cannon member $ \ws -> do
+    setForTeamInternalWithStatusCode expect4xx invalidConfig
+    void . liftIO $
+      WS.assertNoEvent (2 # Second) [ws]
   getViaEndpoints config3
 
 testExposeInvitationURLsToTeamAdminTeamIdInAllowList :: TestM ()
