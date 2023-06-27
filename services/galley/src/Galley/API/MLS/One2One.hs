@@ -39,6 +39,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.API.User
 
 -- | Construct a local MLS 1-1 'Conversation' between a local user and another
 -- (possibly remote) user.
@@ -133,5 +134,5 @@ createMLSOne2OneConversation self other lconv = do
     Data.NewConversation
       { ncMetadata = mcMetadata (tUnqualified lconv),
         ncUsers = fmap (,roleNameWireMember) (toUserList lconv [self, other]),
-        ncProtocol = ProtocolCreateMLSTag
+        ncProtocol = BaseProtocolMLSTag
       }

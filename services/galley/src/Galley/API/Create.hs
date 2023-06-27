@@ -194,12 +194,12 @@ createGroupConversationGeneric lusr conn newConv convCreated = do
   ensureNoLegalholdConflicts allUsers
 
   case newConvProtocol newConv of
-    ProtocolCreateMLSTag -> do
+    BaseProtocolMLSTag -> do
       -- Here we fail early in order to notify users of this misconfiguration
       assertMLSEnabled
       unlessM (isJust <$> getMLSRemovalKey) $
         throw (InternalErrorWithDescription "No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Refusing to create MLS conversation.")
-    ProtocolCreateProteusTag -> pure ()
+    BaseProtocolProteusTag -> pure ()
 
   lcnv <- traverse (const E.createConversationId) lusr
   -- FUTUREWORK: Invoke the creating a conversation action only once
@@ -296,7 +296,7 @@ createProteusSelfConversation lusr = do
             NewConversation
               { ncMetadata = (defConversationMetadata (Just (tUnqualified lusr))) {cnvmType = SelfConv},
                 ncUsers = ulFromLocals [toUserRole (tUnqualified lusr)],
-                ncProtocol = ProtocolCreateProteusTag
+                ncProtocol = BaseProtocolProteusTag
               }
       c <- E.createConversation lcnv nc
       conversationCreated lusr c
@@ -391,7 +391,7 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   let nc =
         NewConversation
           { ncUsers = ulFromLocals (map (toUserRole . tUnqualified) [self, other]),
-            ncProtocol = ProtocolCreateProteusTag,
+            ncProtocol = BaseProtocolProteusTag,
             ncMetadata = meta
           }
   mc <- E.getConversation (tUnqualified lcnv)
@@ -456,7 +456,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
             NewConversation
               { ncMetadata = meta,
                 ncUsers = fmap toUserRole (toUserList lcnv [tUntagged self, other]),
-                ncProtocol = ProtocolCreateProteusTag
+                ncProtocol = BaseProtocolProteusTag
               }
       c <- E.createConversation lcnv nc
       void $ notifyCreatedConversation self (Just zcon) c
@@ -505,7 +505,7 @@ createConnectConversation lusr conn j = do
           { -- We add only one member, second one gets added later,
             -- when the other user accepts the connection request.
             ncUsers = ulFromLocals (map (toUserRole . tUnqualified) [lusr]),
-            ncProtocol = ProtocolCreateProteusTag,
+            ncProtocol = BaseProtocolProteusTag,
             ncMetadata = meta
           }
   E.getConversation (tUnqualified lcnv)
@@ -579,8 +579,8 @@ newRegularConversation lusr newConv = do
   o <- input
   let uncheckedUsers = newConvMembers lusr newConv
   users <- case newConvProtocol newConv of
-    ProtocolCreateProteusTag -> checkedConvSize o uncheckedUsers
-    ProtocolCreateMLSTag -> do
+    BaseProtocolProteusTag -> checkedConvSize o uncheckedUsers
+    BaseProtocolMLSTag -> do
       unless (null uncheckedUsers) $ throwS @'MLSNonEmptyMemberList
       pure mempty
   let nc =

@@ -62,8 +62,6 @@ module Wire.API.Conversation
     maybeRole,
 
     -- * create
-    ProtocolCreateTag (..),
-    protocolCreateToProtocolTag,
     NewConv (..),
     ConvTeamInfo (..),
 
@@ -117,6 +115,7 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
+import Wire.API.User
 import Wire.Arbitrary
 
 --------------------------------------------------------------------------------
@@ -633,26 +632,6 @@ instance ToSchema ReceiptMode where
 --------------------------------------------------------------------------------
 -- create
 
--- | This is distinct from 'ProtocolTag', which also include ProtocolMixedTag
-data ProtocolCreateTag = ProtocolCreateProteusTag | ProtocolCreateMLSTag
-  deriving stock (Eq, Show, Enum, Bounded, Generic)
-  deriving (Arbitrary) via GenericUniform ProtocolCreateTag
-
-instance ToSchema ProtocolCreateTag where
-  schema =
-    enum @Text "ProtocolCreateTag" $
-      mconcat
-        [ element "proteus" ProtocolCreateProteusTag,
-          element "mls" ProtocolCreateMLSTag
-        ]
-
-protocolCreateToProtocolTag :: ProtocolCreateTag -> ProtocolTag
-protocolCreateToProtocolTag ProtocolCreateProteusTag = ProtocolProteusTag
-protocolCreateToProtocolTag ProtocolCreateMLSTag = ProtocolMLSTag
-
-protocolCreateTagSchema :: ObjectSchema SwaggerDoc ProtocolCreateTag
-protocolCreateTagSchema = fmap (fromMaybe ProtocolCreateProteusTag) (optField "protocol" schema)
-
 data NewConv = NewConv
   { newConvUsers :: [UserId],
     -- | A list of qualified users, which can include some local qualified users
@@ -667,7 +646,7 @@ data NewConv = NewConv
     -- | Every member except for the creator will have this role
     newConvUsersRole :: RoleName,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
-    newConvProtocol :: ProtocolCreateTag
+    newConvProtocol :: BaseProtocolTag
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -726,7 +705,10 @@ newConvSchema sch =
         .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
                <|> pure roleNameWireAdmin
            )
-      <*> newConvProtocol .= protocolCreateTagSchema
+      <*> newConvProtocol
+        .= fmap
+          (fromMaybe BaseProtocolProteusTag)
+          (optField "protocol" schema)
   where
     usersDesc =
       "List of user IDs (excluding the requestor) to be \

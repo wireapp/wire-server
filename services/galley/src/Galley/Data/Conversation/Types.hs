@@ -24,6 +24,7 @@ import Imports
 import Wire.API.Conversation hiding (Conversation)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.User
 
 -- | Internal conversation type, corresponding directly to database schema.
 -- Should never be sent to users (and therefore doesn't have 'FromJSON' or
@@ -41,7 +42,7 @@ data Conversation = Conversation
 data NewConversation = NewConversation
   { ncMetadata :: ConversationMetadata,
     ncUsers :: UserList (UserId, RoleName),
-    ncProtocol :: ProtocolCreateTag
+    ncProtocol :: BaseProtocolTag
   }
 
 data MLSMigrationState

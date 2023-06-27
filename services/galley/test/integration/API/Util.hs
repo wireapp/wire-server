@@ -622,7 +622,7 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
   g <- viewGalley
   let tinfo = ConvTeamInfo tid
   let conv =
-        NewConv us [] (name >>= checked) (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole) ProtocolCreateProteusTag
+        NewConv us [] (name >>= checked) (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole) BaseProtocolProteusTag
   post
     ( g
         . path "/conversations"
@@ -658,7 +658,7 @@ createMLSTeamConv lusr c tid users name access role timer convRole = do
             newConvMessageTimer = timer,
             newConvUsersRole = fromMaybe roleNameWireAdmin convRole,
             newConvReceiptMode = Nothing,
-            newConvProtocol = ProtocolCreateMLSTag
+            newConvProtocol = BaseProtocolMLSTag
           }
   r <-
     post
@@ -689,7 +689,7 @@ createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM Respo
 createOne2OneTeamConv u1 u2 n tid = do
   g <- viewGalley
   let conv =
-        NewConv [u2] [] (n >>= checked) mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin ProtocolCreateProteusTag
+        NewConv [u2] [] (n >>= checked) mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv ::
@@ -703,12 +703,12 @@ postConv ::
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
 defNewProteusConv :: NewConv
-defNewProteusConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolCreateProteusTag
+defNewProteusConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
 
 defNewMLSConv :: NewConv
 defNewMLSConv =
   defNewProteusConv
-    { newConvProtocol = ProtocolCreateMLSTag
+    { newConvProtocol = BaseProtocolMLSTag
     }
 
 postConvQualified ::
@@ -747,7 +747,7 @@ postConvWithRemoteUsers u c n =
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
   g <- viewGalley
-  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin ProtocolCreateProteusTag
+  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin BaseProtocolProteusTag
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
@@ -785,7 +785,7 @@ postConvWithRole u members name access arole timer role =
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
   g <- viewGalley
-  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin ProtocolCreateProteusTag
+  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin BaseProtocolProteusTag
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -796,7 +796,7 @@ postSelfConv u = do
 postO2OConv :: UserId -> UserId -> Maybe Text -> TestM ResponseLBS
 postO2OConv u1 u2 n = do
   g <- viewGalley
-  let conv = NewConv [u2] [] (n >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolCreateProteusTag
+  let conv = NewConv [u2] [] (n >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS

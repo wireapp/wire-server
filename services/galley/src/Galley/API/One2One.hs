@@ -49,7 +49,7 @@ newConnectConversationWithRemote creator users =
           { cnvmType = One2OneConv
           },
       ncUsers = fmap toUserRole users,
-      ncProtocol = ProtocolCreateProteusTag
+      ncProtocol = BaseProtocolProteusTag
     }
 
 iUpsertOne2OneConversation ::

@@ -59,6 +59,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
+import Wire.API.User
 
 createMLSSelfConversation ::
   Local UserId ->
@@ -71,7 +72,7 @@ createMLSSelfConversation lusr = do
           { ncMetadata =
               (defConversationMetadata (Just usr)) {cnvmType = SelfConv},
             ncUsers = ulFromLocals [toUserRole usr],
-            ncProtocol = ProtocolCreateMLSTag
+            ncProtocol = BaseProtocolMLSTag
           }
       meta = ncMetadata nc
       gid = convToGroupId . groupIdParts meta.cnvmType . fmap Conv . tUntagged . qualifyAs lusr $ cnv
@@ -121,8 +122,8 @@ createConversation :: Local ConvId -> NewConversation -> Client Conversation
 createConversation lcnv nc = do
   let meta = ncMetadata nc
       (proto, mgid, mep, mcs) = case ncProtocol nc of
-        ProtocolCreateProteusTag -> (ProtocolProteus, Nothing, Nothing, Nothing)
-        ProtocolCreateMLSTag ->
+        BaseProtocolProteusTag -> (ProtocolProteus, Nothing, Nothing, Nothing)
+        BaseProtocolMLSTag ->
           let gid = convToGroupId . groupIdParts meta.cnvmType $ Conv <$> tUntagged lcnv
               ep = Epoch 0
               cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
@@ -156,7 +157,7 @@ createConversation lcnv nc = do
         cnvmTeam meta,
         cnvmMessageTimer meta,
         cnvmReceiptMode meta,
-        protocolCreateToProtocolTag (ncProtocol nc),
+        baseProtocolToProtocol (ncProtocol nc),
         mgid,
         mep,
         mcs
