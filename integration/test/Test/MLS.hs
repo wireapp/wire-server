@@ -28,9 +28,16 @@ testSendMessageNoReturnToSender = do
     for_ wss $ \ws -> do
       n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
       nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode mp.message)
-    expectFailure (const $ pure ()) $ do
-      n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") wsSender
-      nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode mp.message)
+    expectFailure (const $ pure ()) $
+      awaitMatch
+        3
+        ( \n ->
+            liftM2
+              (&&)
+              (nPayload n %. "type" `isEqual` "conversation.mls-message-add")
+              (nPayload n %. "data" `isEqual` T.decodeUtf8 (Base64.encode mp.message))
+        )
+        wsSender
 
 testMixedProtocolUpgrade :: HasCallStack => Domain -> App ()
 testMixedProtocolUpgrade secondDomain = do
