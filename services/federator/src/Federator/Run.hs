@@ -61,10 +61,10 @@ import qualified Wire.Network.DNS.Helper as DNS
 -- FUTUREWORK(federation): Add metrics and status endpoints
 run :: Opts -> IO ()
 run opts = do
-  logger <- LogExt.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
   DNS.withCachingResolver resolvConf $ \res -> do
-    (ioref, updateFedDomainsThread) <- updateFedDomains (brig opts) logger (\_ _ -> pure ())
+    logger <- LogExt.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
+    (ioref, updateFedDomainsThread) <- syncFedDomainConfigs (brig opts) logger emptySyncFedDomainConfigsCallback
     bracket (newEnv opts res logger ioref) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
@@ -92,7 +92,7 @@ run opts = do
 -- Environment
 
 newEnv :: Opts -> DNS.Resolver -> Log.Logger -> IORef FederationDomainConfigs -> IO Env
-newEnv o _dnsResolver _applog _allowedRemoteDomains = do
+newEnv o _dnsResolver _applog _domainConfigs = do
   _metrics <- Metrics.metrics
   let _requestId = def
       _runSettings = Opt.optSettings o
