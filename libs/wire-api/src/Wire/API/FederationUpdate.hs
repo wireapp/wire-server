@@ -2,7 +2,7 @@ module Wire.API.FederationUpdate
   ( syncFedDomainConfigs,
     SyncFedDomainConfigsCallback (..),
     emptySyncFedDomainConfigsCallback,
-    deleteFederationRemoteGalley
+    deleteFederationRemoteGalley,
   )
 where
 
@@ -14,7 +14,7 @@ import qualified Data.Set as Set
 import Data.Text (unpack)
 import Imports
 import Network.HTTP.Client (defaultManagerSettings, newManager)
-import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, Scheme (Http), runClientM, ClientM)
+import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, ClientM, Scheme (Http), runClientM)
 import Servant.Client.Internal.HttpClient (defaultMakeClientRequest)
 import qualified System.Logger as L
 import Util.Options (Endpoint (..))

@@ -5,23 +5,37 @@
 { mkDerivation
 , aeson
 , amqp
+, async
+, base
+, bilge
+, bytestring
+, bytestring-conversion
 , exceptions
 , extended
 , federator
 , gitignoreSource
 , HsOpenSSL
 , hspec
+, http-client
+, http-types
 , http2-manager
 , imports
+, lens
 , lib
 , monad-control
+, optparse-applicative
 , QuickCheck
 , retry
+, tagged
+, tasty
+, tasty-hunit
+, text
 , tinylog
 , transformers-base
 , types-common
 , wire-api
 , wire-api-federation
+, yaml
 }:
 mkDerivation {
   pname = "background-worker";
@@ -32,32 +46,68 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
+    async
+    base
+    bilge
+    bytestring
+    bytestring-conversion
     exceptions
     extended
     HsOpenSSL
+    http-client
+    http-types
     http2-manager
     imports
+    lens
     monad-control
     retry
+    text
     tinylog
     transformers-base
-    types-common
-    wire-api-federation
-  ];
-  executableHaskellDepends = [ HsOpenSSL imports types-common ];
-  testHaskellDepends = [
-    aeson
-    amqp
-    federator
-    hspec
-    imports
-    QuickCheck
-    tinylog
     types-common
     wire-api
     wire-api-federation
   ];
+  executableHaskellDepends = [
+    aeson
+    amqp
+    async
+    base
+    exceptions
+    federator
+    HsOpenSSL
+    hspec
+    imports
+    optparse-applicative
+    QuickCheck
+    tagged
+    tasty
+    tasty-hunit
+    types-common
+    wire-api
+    wire-api-federation
+    yaml
+  ];
+  testHaskellDepends = [
+    aeson
+    amqp
+    async
+    base
+    exceptions
+    federator
+    HsOpenSSL
+    hspec
+    imports
+    optparse-applicative
+    QuickCheck
+    tagged
+    tasty
+    tasty-hunit
+    types-common
+    wire-api
+    wire-api-federation
+    yaml
+  ];
   description = "Runs background work";
   license = lib.licenses.agpl3Only;
-  mainProgram = "background-worker";
 }

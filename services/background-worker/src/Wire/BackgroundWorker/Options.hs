@@ -1,7 +1,6 @@
 module Wire.BackgroundWorker.Options where
 
 import Data.Aeson
-import Data.Domain
 import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended
@@ -12,8 +11,8 @@ data Opts = Opts
     logFormat :: !(Maybe (Last LogFormat)),
     federatorInternal :: !Endpoint,
     galley :: !Endpoint,
+    brig :: !Endpoint,
     rabbitmq :: !RabbitMqOpts,
-    remoteDomains :: [Domain],
     defederationTimeout :: Maybe Int -- Seconds, Nothing for no timeout
   }
   deriving (Show, Generic)

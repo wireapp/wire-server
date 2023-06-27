@@ -22,7 +22,9 @@ import Data.Singletons
 import Data.Time (getCurrentTime)
 import qualified Data.UUID as UUID
 import Federator.MockServer
+import Galley.API.Internal
 import Galley.API.Util
+import Galley.App
 import Galley.Cassandra.Queries
 import qualified Galley.Data.Conversation.Types as Types
 import Galley.Env
@@ -48,8 +50,7 @@ import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.MultiTablePaging
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.User.Search
-import Galley.App
-import Galley.API.Internal
+
 -- import Control.Concurrent.Async
 
 x3 :: RetryPolicy
@@ -135,7 +136,7 @@ updateFedDomainsTestRemoveRemoteFromLocal' = do
       remoteDomain2 = Domain "far-away-two.example.com"
   liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. optSettings . setFederationDomain
   liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
-  
+
   -- Remove a remote domain from local conversations
   updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval
 

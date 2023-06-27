@@ -2,6 +2,7 @@
 
 module Wire.BackendNotificationPusher where
 
+import Control.Concurrent.Async
 import Control.Monad.Catch
 import Control.Retry
 import qualified Data.Aeson as A
@@ -14,7 +15,6 @@ import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
-import Control.Concurrent.Async
 
 startPushingNotifications ::
   Q.Channel ->

@@ -88,6 +88,7 @@ routingKey t = "backend-notifications." <> t
 -- kept in sync about what types they are expecting and where
 -- they are stored in Rabbit.
 type DefederationDomain = Domain
+
 defederationQueue :: Text
 defederationQueue = "delete-federation"
 

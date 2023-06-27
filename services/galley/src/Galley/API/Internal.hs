@@ -22,22 +22,29 @@ module Galley.API.Internal
     deleteLoop,
     safeForever,
     -- Exported for tests
-    deleteFederationDomain
+    deleteFederationDomain,
   )
 where
 
+import Control.Exception
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
+import Data.Domain
 import Data.Id as Id
+import qualified Data.List.NonEmpty as N
 import Data.List1 (maybeList1)
+import qualified Data.Map as Map
 import Data.Qualified
 import Data.Range
 import Data.Singletons
+import Data.Text (unpack)
 import Data.Time
+import Galley.API.Action
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
 import Galley.API.Error
+import Galley.API.Federation (onConversationUpdated)
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.MLS.Removal
@@ -52,6 +59,7 @@ import qualified Galley.API.Update as Update
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
@@ -60,6 +68,7 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore
+import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.ProposalStore
 import Galley.Effects.TeamStore
 import qualified Galley.Intra.Push as Intra
@@ -72,6 +81,8 @@ import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.UserList
 import Imports hiding (head)
 import qualified Network.AMQP as Q
+import Network.HTTP.Types
+import Network.Wai
 import Network.Wai.Predicate hiding (Error, err, setStatus)
 import qualified Network.Wai.Predicate as Predicate
 import Network.Wai.Routing hiding (App, route, toList)
@@ -82,18 +93,22 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import Servant hiding (JSON, WithStatus)
+import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http), defaultMakeClientRequest)
 import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
+import Util.Options
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Role
 import Wire.API.CustomBackend
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.FederationUpdate
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
+import Wire.API.FederationUpdate
 import Wire.API.Provider.Service hiding (Service)
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Galley
@@ -103,21 +118,6 @@ import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.Team.Member
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
-import Data.Domain
-import qualified Data.Map as Map
-import qualified Wire.API.Federation.API.Galley as F
-import qualified Data.List.NonEmpty as N
-import qualified Galley.Effects.MemberStore as E
-import Galley.API.Action
-import Util.Options
-import Wire.API.Conversation.Role
-import Network.HTTP.Types
-import Network.Wai
-import Data.Text (unpack)
-import Galley.Data.Conversation.Types
-import Galley.API.Federation (onConversationUpdated)
-import Servant.Client (ClientEnv (ClientEnv), BaseUrl (BaseUrl), Scheme (Http), defaultMakeClientRequest)
-import Control.Exception
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
@@ -316,7 +316,7 @@ internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed 
   delete "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalDeleteCustomBackendByDomainH) $
     capture "domain"
       .&. accept "application" "json"
-    
+
   delete "/i/federation/:domain" (continue internalDeleteFederationDomainH) $
     capture "domain"
       .&. accept "application" "json"
@@ -496,29 +496,62 @@ insertIntoMap (cnvId, user) m = Map.alter (pure . maybe (pure user) (N.cons user
 -- Bundle all of the deletes together for easy calling
 -- Errors & exceptions are thrown to IO to stop the message being ACKed, eventually timing it
 -- out so that it can be redelivered.
-deleteFederationDomain :: (Member (Input Env) r, Member (P.Logger (Msg -> Msg)) r,
-          Member (Error InternalError) r, Member (Error FederationError) r, Member (Input (Local ())) r,
-          Member MemberStore r, Member ConversationStore r, Member (Embed IO) r,
-          Member CodeStore r, Member TeamStore r, Member BrigAccess r, Member GundeckAccess r, Member ExternalAccess r) => Domain -> Sem r ()
+deleteFederationDomain ::
+  ( Member (Input Env) r,
+    Member (P.Logger (Msg -> Msg)) r,
+    Member (Error InternalError) r,
+    Member (Error FederationError) r,
+    Member (Input (Local ())) r,
+    Member MemberStore r,
+    Member ConversationStore r,
+    Member (Embed IO) r,
+    Member CodeStore r,
+    Member TeamStore r,
+    Member BrigAccess r,
+    Member GundeckAccess r,
+    Member ExternalAccess r
+  ) =>
+  Domain ->
+  Sem r ()
 deleteFederationDomain d = do
   deleteFederationDomainRemoteUserFromLocalConversations d
   deleteFederationDomainLocalUserFromRemoteConversation d
   deleteFederationDomainOneOnOne d
 
-
-internalDeleteFederationDomainH :: (Member (Input Env) r, Member (P.Logger (Msg -> Msg)) r,
-          Member (Error InternalError) r, Member (Error FederationError) r, Member (Input (Local ())) r,
-          Member MemberStore r, Member ConversationStore r, Member (Embed IO) r,
-          Member CodeStore r, Member TeamStore r, Member BrigAccess r, Member GundeckAccess r, Member ExternalAccess r) => Domain ::: JSON -> Sem r Response
+internalDeleteFederationDomainH ::
+  ( Member (Input Env) r,
+    Member (P.Logger (Msg -> Msg)) r,
+    Member (Error InternalError) r,
+    Member (Error FederationError) r,
+    Member (Input (Local ())) r,
+    Member MemberStore r,
+    Member ConversationStore r,
+    Member (Embed IO) r,
+    Member CodeStore r,
+    Member TeamStore r,
+    Member BrigAccess r,
+    Member GundeckAccess r,
+    Member ExternalAccess r
+  ) =>
+  Domain ::: JSON ->
+  Sem r Response
 internalDeleteFederationDomainH (domain ::: _) = do
   deleteFederationDomain domain
   pure (empty & setStatus status200)
 
 -- Remove remote members from local conversations
-deleteFederationDomainRemoteUserFromLocalConversations :: (Member (Input Env) r, Member (P.Logger (Msg -> Msg)) r,
-          Member (Error InternalError) r, Member (Error FederationError) r,
-          Member MemberStore r, Member ConversationStore r,
-          Member CodeStore r, Member TeamStore r) => Domain -> Sem r ()
+deleteFederationDomainRemoteUserFromLocalConversations ::
+  ( Member (Input Env) r,
+    Member (P.Logger (Msg -> Msg)) r,
+    Member (Error InternalError) r,
+    Member (Error FederationError) r,
+    Member MemberStore r,
+    Member ConversationStore r,
+    Member CodeStore r,
+    Member TeamStore r
+  ) =>
+  Domain ->
+  Sem r ()
 deleteFederationDomainRemoteUserFromLocalConversations dom = do
   remoteUsers <- E.getRemoteMembersByDomain dom
   env <- input
@@ -550,10 +583,10 @@ deleteFederationDomainRemoteUserFromLocalConversations dom = do
           lConv
           undefined
           $ tUntagged . rmId <$> rUsers -- This field can be undefined as the path for ConversationRemoveMembersTag doens't use it
-        -- Check if the conversation if type 2 or 3, one-on-one conversations.
-        -- If it is, then we need to remove the entire conversation as users
-        -- aren't able to delete those types of conversations themselves.
-        -- Check that we are in a type 2 or a type 3 conversation
+          -- Check if the conversation if type 2 or 3, one-on-one conversations.
+          -- If it is, then we need to remove the entire conversation as users
+          -- aren't able to delete those types of conversations themselves.
+          -- Check that we are in a type 2 or a type 3 conversation
         when (cnvmType (convMetadata conv) `elem` [One2OneConv, ConnectConv]) $
           -- If we are, delete it.
           updateLocalConversationUserUnchecked
@@ -563,10 +596,19 @@ deleteFederationDomainRemoteUserFromLocalConversations dom = do
             ()
 
 -- Remove local members from remote conversations
-deleteFederationDomainLocalUserFromRemoteConversation :: (Member (Input (Local ())) r, Member (Input Env) r,
-          Member (Error InternalError) r, Member (P.Logger (Msg -> Msg)) r,
-          Member MemberStore r, Member (Embed IO) r, Member BrigAccess r,
-          Member GundeckAccess r, Member ExternalAccess r) => Domain -> Sem r ()
+deleteFederationDomainLocalUserFromRemoteConversation ::
+  ( Member (Input (Local ())) r,
+    Member (Input Env) r,
+    Member (Error InternalError) r,
+    Member (P.Logger (Msg -> Msg)) r,
+    Member MemberStore r,
+    Member (Embed IO) r,
+    Member BrigAccess r,
+    Member GundeckAccess r,
+    Member ExternalAccess r
+  ) =>
+  Domain ->
+  Sem r ()
 deleteFederationDomainLocalUserFromRemoteConversation dom = do
   localUsers <- E.getLocalMembersByDomain dom
   env <- input

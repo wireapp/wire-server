@@ -68,7 +68,7 @@ import Control.Lens (view, (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
-import Data.Domain (Domain)
+import Data.Domain (Domain, domainText)
 import Data.Handle
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
@@ -76,6 +76,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Imports hiding (cs, head)
+import qualified Network.AMQP as Q
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (result, setStatus)
@@ -85,6 +86,7 @@ import Network.Wai.Utilities.ZAuth (zauthConnId)
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
+import qualified System.Logger as Lg
 import qualified System.Logger.Class as Log
 import System.Random (randomRIO)
 import UnliftIO.Async
@@ -92,6 +94,7 @@ import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.API
+import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -107,8 +110,6 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
-import qualified Network.AMQP as Q
-import Wire.API.Federation.BackendNotifications
 
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
@@ -317,13 +318,21 @@ deleteFederationRemote dom = do
   for_ (env ^. rabbitmqChannel) $ \chan -> liftIO . withMVar chan $ \chan' -> do
     -- ensureQueue uses routingKey internally
     ensureQueue chan' defederationQueue
-    Q.publishMsg chan' "" queue $ Q.newMsg
-      -- Check that this message type is compatible with what
-      -- background worker is expecting
-      { Q.msgBody = encode @DefederationDomain dom
-      , Q.msgDeliveryMode = pure Q.Persistent
-      , Q.msgContentType = pure "application/json"
-      }
+    void $
+      Q.publishMsg chan' "" queue $
+        Q.newMsg
+          { -- Check that this message type is compatible with what
+            -- background worker is expecting
+            Q.msgBody = encode @DefederationDomain dom,
+            Q.msgDeliveryMode = pure Q.Persistent,
+            Q.msgContentType = pure "application/json"
+          }
+    -- Drop the notification queue for the domain.
+    -- This will also drop all of the messages in the queue
+    -- as we will no longer be able to communicate with this
+    -- domain.
+    num <- Q.deleteQueue chan' . routingKey $ domainText dom
+    Lg.info (env ^. applog) $ Log.msg @String "Dropped Notifications" . Log.field "domain" (domainText dom) . Log.field "count" (show num)
   where
     -- Ensure that this is kept in sync with background worker
     queue = routingKey defederationQueue

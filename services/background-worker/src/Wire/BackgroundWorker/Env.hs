@@ -3,19 +3,23 @@
 
 module Wire.BackgroundWorker.Env where
 
+import Control.Concurrent.Async
+import Control.Concurrent.Chan
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import HTTP2.Client.Manager
 import Imports
+import Network.HTTP.Client
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import qualified System.Logger as Log
-import System.Logger.Class
+import System.Logger.Class (Logger, MonadLogger (..))
 import qualified System.Logger.Extended as Log
 import Util.Options
+import Wire.API.FederationUpdate
+import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Options
-import Network.HTTP.Client
 
 data Env = Env
   { http2Manager :: Http2Manager,
@@ -23,21 +27,33 @@ data Env = Env
     logger :: Logger,
     federatorInternal :: Endpoint,
     galley :: Endpoint,
-    defederationTimeout :: ResponseTimeout
+    brig :: Endpoint,
+    defederationTimeout :: ResponseTimeout,
+    remoteDomains :: IORef FederationDomainConfigs,
+    remoteDomainsChan :: Chan FederationDomainConfigs
   }
 
-mkEnv :: Opts -> IO Env
+mkEnv :: Opts -> IO (Env, Async ())
 mkEnv opts = do
   http2Manager <- initHttp2Manager
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
   httpManager <- newManager defaultManagerSettings
+  remoteDomainsChan <- newChan
   let federatorInternal = opts.federatorInternal
       galley = opts.galley
-      defederationTimeout = maybe
-        responseTimeoutNone
-        (\t -> responseTimeoutMicro $ 1000000 * t) -- seconds to microseconds
-        opts.defederationTimeout
-  pure Env {..}
+      defederationTimeout =
+        maybe
+          responseTimeoutNone
+          (\t -> responseTimeoutMicro $ 1000000 * t) -- seconds to microseconds
+          opts.defederationTimeout
+      brig = opts.brig
+      callback =
+        SyncFedDomainConfigsCallback
+          { fromFedUpdateCallback = \_old new -> do
+              writeChan remoteDomainsChan new
+          }
+  (remoteDomains, syncThread) <- syncFedDomainConfigs brig logger callback
+  pure (Env {..}, syncThread)
 
 initHttp2Manager :: IO Http2Manager
 initHttp2Manager = do

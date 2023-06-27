@@ -18,7 +18,7 @@
 module Galley.Run
   ( run,
     mkApp,
-    mkLogger
+    mkLogger,
   )
 where
 

@@ -52,7 +52,7 @@ module Galley.Options
     optJournal,
     optLogLevel,
     optLogNetStrings,
-    optLogFormat
+    optLogFormat,
   )
 where
 

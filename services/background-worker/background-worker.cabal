@@ -30,6 +30,7 @@ library
       aeson
     , amqp
     , async
+    , base
     , bilge
     , bytestring
     , bytestring-conversion
@@ -47,6 +48,7 @@ library
     , tinylog
     , transformers-base
     , types-common
+    , wire-api
     , wire-api-federation
 
   default-extensions:
@@ -170,6 +172,7 @@ executable background-worker-integration
   build-depends:
       aeson
     , amqp
+    , async
     , background-worker
     , base
     , exceptions
@@ -250,6 +253,7 @@ test-suite background-worker-test
   build-depends:
       aeson
     , amqp
+    , async
     , background-worker
     , base
     , exceptions
