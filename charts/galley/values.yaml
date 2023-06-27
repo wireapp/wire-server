@@ -71,7 +71,7 @@ config:
             defaultProtocol: proteus
             allowedCipherSuites: [1]
             defaultCipherSuite: 1
-            supportedProtocols: [proteus, mls] # must contain in defaultProtocol
+            supportedProtocols: [proteus, mls] # must contain defaultProtocol
       searchVisibilityInbound:
         defaults:
           status: disabled
