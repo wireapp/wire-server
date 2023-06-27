@@ -165,10 +165,11 @@ validMLSConfigGen :: Gen (WithStatusPatch MLSConfig)
 validMLSConfigGen =
   arbitrary
     `suchThat` ( \cfg -> case wspConfig cfg of
-                   Just (MLSConfig us _ cTags ctag _) ->
+                   Just (MLSConfig us defProtocol cTags ctag supProtocol) ->
                      sortedAndNoDuplicates us
                        && sortedAndNoDuplicates cTags
                        && elem ctag cTags
+                       && elem defProtocol supProtocol
                    _ -> True
                )
   where
