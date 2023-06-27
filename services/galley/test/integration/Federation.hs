@@ -27,7 +27,6 @@ import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Queries
 import qualified Galley.Data.Conversation.Types as Types
-import Galley.Env
 import Galley.Monad
 import Galley.Options
 import Galley.Run
