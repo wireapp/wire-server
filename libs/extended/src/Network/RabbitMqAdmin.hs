@@ -12,7 +12,7 @@ type RabbitMqBasicAuth = BasicAuth "RabbitMq Management" BasicAuthData
 type VHost = Text
 
 -- | Upstream Docs:
--- https://rawcdn.githack.com/rabbitmq/rabbitmq-server/v3.12.0/deps/rabbitmq_management/priv/www/api/index.html#pagination
+-- https://rawcdn.githack.com/rabbitmq/rabbitmq-server/v3.12.0/deps/rabbitmq_management/priv/www/api/index.html
 data AdminAPI route = AdminAPI
   { -- | NOTE: This endpoint can be made paginated, but that complicates
     -- consumer code a little. This might be needed for performance tuning
