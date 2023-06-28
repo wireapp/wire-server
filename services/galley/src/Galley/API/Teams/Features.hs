@@ -379,4 +379,13 @@ instance SetFeatureConfig OutlookCalIntegrationConfig
 
 instance SetFeatureConfig MlsE2EIdConfig
 
-instance SetFeatureConfig MlsMigrationConfig
+instance SetFeatureConfig MlsMigrationConfig where
+  type SetConfigForTeamConstraints MlsMigrationConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)
+  setConfigForTeam tid wsnl = do
+    mlsConfig <- getConfigForTeam @MlsMigrationConfig tid
+    unless
+      ( -- when MLS migration is enabled, MLS needs to be enabled as well
+        wssStatus wsnl == FeatureStatusDisabled || wsStatus mlsConfig == FeatureStatusEnabled
+      )
+      $ throw MLSProtocolMismatch
+    persistAndPushEvent tid wsnl
