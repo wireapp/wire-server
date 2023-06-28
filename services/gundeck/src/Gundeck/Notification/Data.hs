@@ -165,9 +165,12 @@ fetchPayload c (id_, mbPayload, mbPayloadRef, mbPayloadRefSize, mbClients) =
   case (mbPayload, mbPayloadRef) of
     (Just payload, _) -> pure $ toNotifSingle c (id_, payload, mbClients)
     (_, Just payloadRef) -> runMaybeT $ do
-      pl <- MaybeT $ error "TODO"
+      pl <- MaybeT $ fmap (fmap runIdentity) (query1 cqlSelectPayload (params LocalQuorum (Identity payloadRef)))
       maybe mzero pure $ toNotifSingle c (id_, pl, mbClients)
     _ -> pure Nothing
+  where
+    cqlSelectPayload :: PrepQuery R (Identity PayloadId) (Identity Blob)
+    cqlSelectPayload = "SELECT payload from notification_payload where id = ?"
 
 type PRow = (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int32, Maybe (C.Set ClientId))
 
