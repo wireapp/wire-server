@@ -101,6 +101,8 @@ onFailureAddResponse r m = App $ do
 
 data Versioned = Versioned | Unversioned | ExplicitVersion Int
 
+-- | If you don't know what domain is for or what you should put in there, try `rawBaseRequest
+-- OwnDomain ...`.
 rawBaseRequest :: (HasCallStack, MakesValue domain) => domain -> Service -> Versioned -> String -> App HTTP.Request
 rawBaseRequest domain service versioned path = do
   pathSegsPrefix <- case versioned of
