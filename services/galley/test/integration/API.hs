@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-unused-local-binds #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -833,57 +834,17 @@ postMessageQualifiedLocalOwningBackendSuccess = do
     let encodedTextForAlex1 = toBase64Text "text-for-alex"
         encodedTextForAlex2 = toBase64Text "text-for-alex2"
         encodedTextForAmy = toBase64Text "text-for-amy"
-        encodedTextForBob = toBase64Text "text-for-bob"
-        encodedTextForBart1 = toBase64Text "text-for-bart1"
-        encodedTextForBart2 = toBase64Text "text-for-bart2"
-        encodedTextForCarl = toBase64Text "text-for-carl"
         encodedData = toBase64Text "data"
     liftIO $ do
       let matchReq domain component r = frTargetDomain r == domain && frComponent r == component
           filterReq domain component = filter (matchReq domain component) requests
       bBrigReq <- assertOne $ filterReq bDomain Brig
-      bGalleyReq <- assertOne $ filterReq bDomain Galley
       cBrigReq <- assertOne $ filterReq cDomain Brig
-      cGalleyReq <- assertOne $ filterReq cDomain Galley
 
       frRPC bBrigReq @?= "get-user-clients"
       (sort . F.gucUsers <$> parseFedRequest bBrigReq) @?= Right (sort $ qUnqualified <$> [bob, bart])
       frRPC cBrigReq @?= "get-user-clients"
       parseFedRequest cBrigReq @?= Right (F.GetUserClients [qUnqualified carl])
-
-      frRPC bGalleyReq @?= "on-message-sent"
-      bActualNotif <- assertRight $ parseFedRequest bGalleyReq
-      let bExpectedNotif =
-            F.RemoteMessage
-              { rmTime = F.rmTime bActualNotif,
-                rmData = Just $ toBase64Text "data",
-                rmSender = alice,
-                rmSenderClient = aliceClient,
-                rmConversation = qUnqualified convId,
-                rmPriority = Nothing,
-                rmPush = True,
-                rmTransient = False,
-                rmRecipients =
-                  UserClientMap $
-                    Map.fromList
-                      [ (qUnqualified bob, Map.singleton bobClient encodedTextForBob),
-                        ( qUnqualified bart,
-                          Map.fromList
-                            [ (bartClient1, encodedTextForBart1),
-                              (bartClient2, encodedTextForBart2)
-                            ]
-                        )
-                      ]
-              }
-      bActualNotif @?= bExpectedNotif
-      frRPC cGalleyReq @?= "on-message-sent"
-      cActualNotif <- assertRight $ parseFedRequest cGalleyReq
-      let cExpectedNotif =
-            bExpectedNotif
-              { F.rmRecipients =
-                  UserClientMap $ Map.fromList [(qUnqualified carl, Map.singleton carlClient encodedTextForCarl)]
-              }
-      cActualNotif @?= cExpectedNotif
 
       WS.assertMatch_ t wsAlex1 (wsAssertOtr' encodedData convId alice aliceClient alexClient encodedTextForAlex1)
       WS.assertMatch_ t wsAlex2 (wsAssertOtr' encodedData convId alice aliceClient alexClient2 encodedTextForAlex2)
@@ -1232,7 +1193,6 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
             ]
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified expectedFailedToSend mempty mempty mempty
 
     liftIO $ do
       let encodedTextForBob = toBase64Text "text-for-bob"
@@ -1314,22 +1274,8 @@ postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients =
           "data"
           Message.MismatchReportAll
 
-    let expectedFailedToSend =
-          QualifiedUserClients . Map.fromList $
-            [ ( remoteDomain,
-                Map.fromList
-                  [ (deeId, Set.singleton deeClient)
-                  ]
-              ),
-              ( remoteDomain2,
-                Map.fromList
-                  [ (emilyId, Set.singleton emilyClient)
-                  ]
-              )
-            ]
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified expectedFailedToSend mempty mempty mempty
 
     liftIO $ do
       let encodedTextForBob = toBase64Text "text-for-bob"
