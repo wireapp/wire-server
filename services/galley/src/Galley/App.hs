@@ -160,11 +160,10 @@ validateOptions l o = do
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
     _ -> pure ()
   let mlsFlag = o ^. optSettings . setFeatureFlags . Teams.flagMLS . Teams.unDefaults . Teams.unImplicitLockStatus
-      mlsStatus = wsStatus mlsFlag
       mlsConfig = wsConfig mlsFlag
       migrationStatus = wsStatus $ o ^. optSettings . setFeatureFlags . Teams.flagMlsMigration . Teams.unDefaults
-  when (migrationStatus == FeatureStatusEnabled && (mlsStatus == FeatureStatusDisabled || ProtocolMLSTag `notElem` mlsSupportedProtocols mlsConfig)) $
-    error "For starting MLS migration, MLS must be enabled and in the supportedProtocol list"
+  when (migrationStatus == FeatureStatusEnabled && ProtocolMLSTag `notElem` mlsSupportedProtocols mlsConfig) $
+    error "For starting MLS migration, MLS must be included in the supportedProtocol list"
   unless (mlsDefaultProtocol mlsConfig `elem` mlsSupportedProtocols mlsConfig) $
     error "The list 'settings.featureFlags.mls.supportedProtocols' must include the value in the field 'settings.featureFlags.mls.defaultProtocol'"
 

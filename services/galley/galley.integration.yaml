@@ -77,15 +77,6 @@ settings:
       defaults:
         status: disabled
         lockStatus: locked
-    mls:
-      defaults:
-        status: enabled
-        config:
-          protocolToggleUsers: []
-          defaultProtocol: proteus
-          allowedCipherSuites: [1]
-          defaultCipherSuite: 1
-          supportedProtocols: [proteus, mls] # must contain defaultProtocol
     mlsE2EId:
       defaults:
         status: disabled
