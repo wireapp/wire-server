@@ -27,7 +27,7 @@ module Galley.Data.Types
     generate,
     mkKey,
     LockAcquired (..),
-    MemberAddStatus,
+    MemberAddFailed,
   )
 where
 
@@ -102,4 +102,6 @@ data LockAcquired
   | NotAcquired
   deriving (Show, Eq)
 
-type MemberAddStatus = Set (Remote UserId)
+-- | Set of users that could not be notified of their addition to a new conversation, and
+-- should be removed from the conv for consistenty.
+type MemberAddFailed = Set (Remote UserId)

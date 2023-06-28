@@ -759,7 +759,7 @@ registerRemoteConversationMemberships ::
   -- | The time stamp when the conversation was created
   UTCTime ->
   Local Data.Conversation ->
-  Sem r DataTypes.MemberAddStatus
+  Sem r DataTypes.MemberAddFailed
 registerRemoteConversationMemberships now lc = do
   let c = tUnqualified lc
       allRemoteMembers = nubOrd (Data.convRemoteMembers c)

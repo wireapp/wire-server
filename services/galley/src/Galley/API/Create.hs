@@ -661,7 +661,7 @@ notifyCreatedConversation ::
   Local UserId ->
   Maybe ConnId ->
   Data.Conversation ->
-  Sem r Data.MemberAddStatus
+  Sem r Data.MemberAddFailed
 notifyCreatedConversation lusr conn c = do
   now <- input
   -- Ask remote server to store conversation membership and notify remote users
