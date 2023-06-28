@@ -1,4 +1,4 @@
-Introduce background-worker (#3276, #3314, #3333)
+Introduce background-worker (#3276, #3314, #3333, #3366)
 
 This release introduces a new component: background-worker. This is currently
 only used to forward notifications to federated backends. Enabling federation in
@@ -36,7 +36,7 @@ background-worker:
       host: rabbitmq
       port: 5672
       vHost: /
-    remoteDomains: []
+      adminPort: 15672
   secrets:
     rabbitmq:
       username: <YOUR_USERNAME>
@@ -45,6 +45,3 @@ background-worker:
 
 The above are the default values (except for secrets, which do not have
 defaults), if they work they are not required to be configured.
-`background-worker.config.remoteDomains` should contain all the remote domains
-with which the wire-server instance allows federating. This change is
-incompatible with open-federation.
