@@ -30,6 +30,7 @@ import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.CreateGroupConversation
 import Test.Wire.API.Golden.Manual.CreateScimToken
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
+import Test.Wire.API.Golden.Manual.FederationStatus
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.GroupId
 import Test.Wire.API.Golden.Manual.ListConversations
@@ -158,5 +159,10 @@ tests =
           [ (testObject_CreateGroupConversation_1, "testObject_CreateGroupConversation_1.json"),
             (testObject_CreateGroupConversation_2, "testObject_CreateGroupConversation_2.json"),
             (testObject_CreateGroupConversation_3, "testObject_CreateGroupConversation_3.json")
+          ],
+      testGroup "FederationStatus" $
+        testObjects
+          [ (testObject_FederationStatus_1, "testObject_FederationStatus_1.json"),
+            (testObject_FederationStatus_2, "testObject_FederationStatus_2.json")
           ]
     ]

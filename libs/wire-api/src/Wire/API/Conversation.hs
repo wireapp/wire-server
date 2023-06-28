@@ -21,11 +21,7 @@
 -- FUTUREWORK: There's still a lot of stuff we should factor out into separate
 -- modules.
 module Wire.API.Conversation
-  ( FederationStatus (..),
-    RemoteDomains (..),
-    FederationStatusResponse (..),
-
-    -- * Conversation
+  ( -- * Conversation
     ConversationMetadata (..),
     defConversationMetadata,
     Conversation (..),
@@ -944,54 +940,6 @@ namespaceMLSSelfConv =
   -- a V5 uuid created with the nil namespace
   fromJust . UUID.fromString $ "3eac2a2c-3850-510b-bd08-8a98e80dd4d9"
 
---------------------------------------------------------------------------------
--- Federation status
-
-newtype RemoteDomains = RemoteDomains
-  { rdDomains :: Set Domain
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform RemoteDomains)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema RemoteDomains
-
-instance ToSchema RemoteDomains where
-  schema =
-    objectWithDocModifier "RemoteDomains" (description ?~ "A set of remote domains") $
-      RemoteDomains
-        <$> rdDomains .= field "domains" (set schema)
-
-data FederationStatus = FullyConnected | NonFullyConnected
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform FederationStatus)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema FederationStatus
-
-instance ToSchema FederationStatus where
-  schema =
-    enum @Text "FederationStatus" $
-      mconcat
-        [ element "fully-connected" FullyConnected,
-          element "non-fully-connected" NonFullyConnected
-        ]
-
--- TODO(leif): Refactor
-data FederationStatusResponse = FederationStatusResponse
-  { status :: FederationStatus,
-    notConnected :: Maybe RemoteDomains
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform FederationStatusResponse)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema FederationStatusResponse
-
-instance ToSchema FederationStatusResponse where
-  schema =
-    objectWithDocModifier
-      "FederationStatusResponse"
-      (description ?~ "The federation status of remote domains. Either `fully-connected` or `non-fully-connected`. If `non-fully-connected`, the `not_connected` field will contain a non-exhaustive list of remote domains that are not fully connected.")
-      $ FederationStatusResponse
-        <$> status .= field "status" schema
-        <*> notConnected .= maybe_ (optField "not_connected" schema)
-
---------------------------------------------------------------------------------
 -- MultiVerb instances
 
 instance AsHeaders '[ConvId] Conversation Conversation where

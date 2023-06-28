@@ -27,11 +27,11 @@ import Servant hiding (JSON, WithStatus)
 import qualified Servant hiding (WithStatus)
 import Servant.Swagger
 import Wire.API.ApplyMods
-import Wire.API.Conversation (FederationStatusResponse, RemoteDomains)
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.FederationStatus
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
@@ -418,7 +418,7 @@ type IFederationAPI =
         :> ZLocalUser
         :> "federation-status"
         :> ReqBody '[Servant.JSON] RemoteDomains
-        :> Get '[Servant.JSON] FederationStatusResponse
+        :> Get '[Servant.JSON] FederationStatus
     )
 
 swaggerDoc :: Swagger

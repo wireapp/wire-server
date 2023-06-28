@@ -207,6 +207,7 @@ modifyField selector up x = do
       ob <- asObject v
       pure $ Object $ KM.insert (KM.fromString k) newValue ob
 
+-- | `removeField "a.b" {"a": {"b": 3}, "c": true} == {"a": {}, "c": true}`
 removeField :: (HasCallStack, MakesValue a) => String -> a -> App Value
 removeField selector x = do
   v <- make x
@@ -220,8 +221,8 @@ removeField selector x = do
       let k' = KM.fromString k
       pure $ Object $ KM.delete k' ob
     go k (k2 : ks) v = do
-      val <- v %. k
-      newValue <- go k2 ks val
+      v' <- v %. k
+      newValue <- go k2 ks v'
       ob <- asObject v
       pure $ Object $ KM.insert (KM.fromString k) newValue ob
 

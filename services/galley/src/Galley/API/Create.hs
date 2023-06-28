@@ -76,6 +76,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.Error
+import Wire.API.FederationStatus
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team
@@ -158,10 +159,9 @@ createGroupConversation ::
   Sem r CreateGroupConversationResponse
 createGroupConversation lusr mCreatorClient conn newConv = do
   let remoteDomains = tDomain <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
-  fedStatus <- getFederationStatus lusr $ RemoteDomains $ Set.fromList remoteDomains
-  case Set.toList . (.rdDomains) <$> fedStatus.notConnected of
-    Just (rd1 : rd2 : _) -> pure $ GroupConversationFailedToCreate $ CreateConversationRejected (rd1, rd2)
-    _ ->
+  getFederationStatus lusr (RemoteDomains $ Set.fromList remoteDomains) >>= \case
+    NotConnectedDomains rd1 rd2 -> pure $ GroupConversationFailedToCreate $ CreateConversationRejected (rd1, rd2)
+    FullyConnected ->
       createGroupConversationGeneric
         lusr
         mCreatorClient

@@ -47,11 +47,7 @@ getFederationStatus ::
 getFederationStatus user domains =
   let domainList = Aeson.Array (Vector.fromList $ Aeson.String . cs <$> domains)
    in do
-        uid <- objId user
         req <- baseRequest user Galley Unversioned $ joinHttpPath ["i", "federation-status"]
         submit
           "GET"
-          ( req
-              & zUser uid
-              & addJSONObject ["domains" .= domainList]
-          )
+          $ req & addJSONObject ["domains" .= domainList]

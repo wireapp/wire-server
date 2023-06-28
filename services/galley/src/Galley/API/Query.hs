@@ -98,23 +98,24 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.API.FederationStatus
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
 import Wire.Sem.Paging.Cassandra
 
-getFederationStatus :: Member FederatorAccess r => Local UserId -> RemoteDomains -> Sem r FederationStatusResponse
+getFederationStatus :: Member FederatorAccess r => Local UserId -> RemoteDomains -> Sem r FederationStatus
 getFederationStatus _ req = do
   firstConflictOrFullyConnected
     <$> E.runFederatedConcurrently
       (flip toRemoteUnsafe () <$> Set.toList req.rdDomains)
       (\qds -> fedClient @'Brig @"get-federation-status" (DomainSet (tDomain qds `Set.delete` req.rdDomains)))
 
-firstConflictOrFullyConnected :: [Remote NonConnectedBackends] -> FederationStatusResponse
+firstConflictOrFullyConnected :: [Remote NonConnectedBackends] -> FederationStatus
 firstConflictOrFullyConnected =
   maybe
-    (FederationStatusResponse FullyConnected Nothing)
-    mkFederationStatusResponse
+    FullyConnected
+    (uncurry NotConnectedDomains)
     . headMay
     . mapMaybe (toMaybeConflict . (\r -> (tDomain r, tUnqualified r)))
   where
@@ -123,12 +124,6 @@ firstConflictOrFullyConnected =
       case Set.toList conflictingDomains of
         [] -> Nothing
         conflictingDomain : _ -> Just (d, conflictingDomain)
-
-    mkFederationStatusResponse :: (Domain, Domain) -> FederationStatusResponse
-    mkFederationStatusResponse (d1, d2) =
-      FederationStatusResponse
-        NonFullyConnected
-        (Just $ RemoteDomains $ Set.fromList [d1, d2])
 
 getBotConversationH ::
   ( Member ConversationStore r,
