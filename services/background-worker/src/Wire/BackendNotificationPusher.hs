@@ -90,20 +90,21 @@ startPusher chan = do
   -- This ensures that we receive notifications 1 by 1 which ensures they are
   -- delivered in order.
   lift $ Q.qos chan 0 1 False
-  consumers <- newTVarIO mempty
+  consumers <- newIORef mempty
   BackendNotificationPusherOpts {..} <- asks (.backendNotificationPusher)
   forever $ do
     remoteDomains <- getRemoteDomains
     mapM_ (ensureConsumer consumers chan) remoteDomains
     threadDelay (1_000_000 * remotesRefreshInterval)
 
-ensureConsumer :: TVar (Map Domain Q.ConsumerTag) -> Q.Channel -> Domain -> AppT IO ()
+ensureConsumer :: IORef (Map Domain Q.ConsumerTag) -> Q.Channel -> Domain -> AppT IO ()
 ensureConsumer consumers chan domain = do
-  consumerExists <- Map.member domain <$> readTVarIO consumers
+  consumerExists <- Map.member domain <$> readIORef consumers
   unless consumerExists $ do
     Log.info $ Log.msg (Log.val "Starting consumer") . Log.field "domain" (domainText domain)
     tag <- startPushingNotifications chan domain
-    atomically $ modifyTVar consumers $ Map.insert domain tag
+    oldTag <- atomicModifyIORef consumers $ \c -> (Map.insert domain tag c, Map.lookup domain c)
+    liftIO $ forM_ oldTag $ Q.cancelConsumer chan
 
 getRemoteDomains :: AppT IO [Domain]
 getRemoteDomains = do
