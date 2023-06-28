@@ -218,6 +218,15 @@ defaultServiceOverridesToMap =
       (Spar, pure)
     ]
 
+-- | Overrides the service configurations with the given overrides.
+-- e.g.
+-- `let overrides =
+--    def
+--      { dbBrig =
+--          setField "optSettings.setFederationStrategy" "allowDynamic"
+--            >=> removeField "optSettings.setFederationDomainConfigs"
+--      }
+--  withOverrides overrides defaultServiceOverridesToMap`
 withOverrides :: ServiceOverrides -> Map.Map Service (Value -> App Value) -> Map.Map Service (Value -> App Value)
 withOverrides overrides =
   Map.mapWithKey

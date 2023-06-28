@@ -24,8 +24,8 @@ import Galley.API.Query
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit (testCase, (@?=))
-import Wire.API.Conversation
 import Wire.API.Federation.API.Brig
+import Wire.API.FederationStatus
 
 tests :: TestTree
 tests =
@@ -37,7 +37,7 @@ tests =
         <$> testTable
     )
 
-testTable :: [([Char], [Remote NonConnectedBackends], FederationStatusResponse)]
+testTable :: [([Char], [Remote NonConnectedBackends], FederationStatus)]
 testTable =
   [ ("empty", [], FullyConnected),
     ("single response", [mkResponse (Domain "a.com") []], FullyConnected),
