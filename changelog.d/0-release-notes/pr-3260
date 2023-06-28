@@ -54,4 +54,4 @@ The search policy for a remote backend can be:
 Once the upgrade has been deployed, it is safe to remove the lines
 from the federator config.
 
-[See also.](http://docs.wire.com/understand/configure-federation.html#if-your-instance-has-been-federating-before) (#3260)
+[See also.](http://docs.wire.com/understand/configure-federation.html#if-your-instance-has-been-federating-before) (#3260, #3384)
