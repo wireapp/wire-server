@@ -11,6 +11,7 @@ import qualified Data.ByteString.Lazy as L
 import Data.Domain
 import Data.Text.Encoding
 import Imports
+import Network.AMQP (cancelConsumer)
 import qualified Network.AMQP as Q
 import qualified Network.AMQP.Lifted as QL
 import Network.HTTP.Client
@@ -20,7 +21,6 @@ import Util.Options
 import Wire.API.Federation.BackendNotifications
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
-import Network.AMQP (cancelConsumer)
 
 deleteFederationDomain :: Q.Channel -> AppT IO Q.ConsumerTag
 deleteFederationDomain chan = do

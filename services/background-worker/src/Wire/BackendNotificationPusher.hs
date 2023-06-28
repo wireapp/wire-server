@@ -2,22 +2,22 @@
 
 module Wire.BackendNotificationPusher where
 
+import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Monad.Catch
 import Control.Retry
 import qualified Data.Aeson as A
 import Data.Domain
 import Imports
+import Network.AMQP (ConsumerTag, cancelConsumer)
 import qualified Network.AMQP as Q
 import qualified Network.AMQP.Lifted as QL
 import qualified System.Logger.Class as Log
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
+import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
-import Network.AMQP (cancelConsumer, ConsumerTag)
-import Control.Concurrent
-import Wire.API.Routes.FederationDomainConfig
 
 startPushingNotifications ::
   Q.Channel ->
@@ -95,7 +95,7 @@ startWorker chan = do
   consumersRef <- newIORef []
   let cleanup :: AsyncCancelled -> IO ()
       cleanup e = do
-        consumers <-  readIORef consumersRef
+        consumers <- readIORef consumersRef
         traverse_ (cancelConsumer chan) consumers
         throwM e
   -- If this thread is cancelled, catch the exception, kill the consumers, and carry on.
