@@ -92,10 +92,10 @@ federationSitemap =
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
     :<|> Named @"get-federation-status" getFederationStatus
 
-getFederationStatus :: Domain -> DomainSet -> Handler r FederationStatusResponse
+getFederationStatus :: Domain -> DomainSet -> Handler r NonConnectedBackends
 getFederationStatus _ request = do
   fedDomains <- fromList . fmap (.domain) . (.remotes) <$> getFederationRemotes
-  pure $ FederationStatusResponse (request.dsDomains \\ fedDomains)
+  pure $ NonConnectedBackends (request.dsDomains \\ fedDomains)
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do
