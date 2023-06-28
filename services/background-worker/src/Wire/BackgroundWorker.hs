@@ -43,7 +43,7 @@ run opts = do
                   -- When we have new domains, kill the previous pusher thread
                   liftIO $ cancel asyncThread
                   -- Start a new pusher thread and then wait for new domains
-                  -- TODO: There is a nicer way of doing this using
+                  -- TODO: There is a nicer way of doing this, but I'm failing to see it.
                   go =<< BackendNotificationPusher.startWorker (domain <$> remotes.remotes) chan
             go thread
 
