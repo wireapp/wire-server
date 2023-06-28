@@ -21,7 +21,6 @@ config:
     port: 5672
     vHost: /
     adminPort: 15672
-    adminEnableTLS: false
   backendNotificationPusher:
     remotesRefreshInterval: 60 # seconds
 

@@ -37,7 +37,6 @@ background-worker:
       port: 5672
       vHost: /
       adminPort: 15672
-      adminEnableTLS: false
   secrets:
     rabbitmq:
       username: <YOUR_USERNAME>

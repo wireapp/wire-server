@@ -40,10 +40,7 @@ data RabbitMqAdminOpts = RabbitMqAdminOpts
   { host :: !String,
     port :: !Int,
     vHost :: !Text,
-    adminPort :: !Int,
-    adminEnableTLS :: !Bool,
-    -- | When CA is not specified and TLS is enabled, system CA will be used.
-    adminCA :: !(Maybe Text)
+    adminPort :: !Int
   }
   deriving (Show, Generic)
 
@@ -52,30 +49,14 @@ instance FromJSON RabbitMqAdminOpts
 mkRabbitMqAdminClientEnv :: RabbitMqAdminOpts -> IO (AdminAPI (AsClientT IO))
 mkRabbitMqAdminClientEnv opts = do
   (username, password) <- readCredsFromEnv
-  managerSettings <-
-    if opts.adminEnableTLS
-      then tlsManagerSettings
-      else pure HTTP.defaultManagerSettings
-  manager <- HTTP.newManager managerSettings
+  manager <- HTTP.newManager HTTP.defaultManagerSettings
   let basicAuthData = Servant.BasicAuthData (Text.encodeUtf8 username) (Text.encodeUtf8 password)
-      scheme = if opts.adminEnableTLS then Servant.Https else Servant.Http
-      clientEnv = Servant.mkClientEnv manager (Servant.BaseUrl scheme opts.host opts.adminPort "")
+      clientEnv = Servant.mkClientEnv manager (Servant.BaseUrl Servant.Http opts.host opts.adminPort "")
   pure . fromServant $
     hoistClient
       (Proxy @(ToServant AdminAPI AsApi))
       (either throwM pure <=< flip runClientM clientEnv)
       (toServant $ adminClient basicAuthData)
-  where
-    tlsManagerSettings = do
-      ctx <- SSL.context
-      SSL.contextAddOption ctx SSL_OP_NO_SSLv2
-      SSL.contextAddOption ctx SSL_OP_NO_SSLv3
-      SSL.contextAddOption ctx SSL_OP_NO_TLSv1
-      SSL.contextSetCiphers ctx "HIGH"
-      SSL.contextSetVerificationMode ctx $
-        SSL.VerifyPeer True True Nothing
-      SSL.contextSetDefaultVerifyPaths ctx
-      pure $ HTTP.opensslManagerSettings (pure ctx)
 
 -- | When admin opts are needed use `RabbitMqOpts Identity`, otherwise use
 -- `RabbitMqOpts NoAdmin`.
