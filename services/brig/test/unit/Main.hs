@@ -26,6 +26,7 @@ import qualified Test.Brig.Calling.Internal
 import qualified Test.Brig.InternalNotification
 import qualified Test.Brig.MLS
 import qualified Test.Brig.Roundtrip
+import qualified Test.Brig.Swagger
 import qualified Test.Brig.User.Search.Index.Types
 import Test.Tasty
 
@@ -34,10 +35,11 @@ main =
   defaultMain $
     testGroup
       "Tests"
-      [ Test.Brig.User.Search.Index.Types.tests,
+      [ Test.Brig.Calling.Internal.tests,
         Test.Brig.Calling.tests,
-        Test.Brig.Calling.Internal.tests,
-        Test.Brig.Roundtrip.tests,
+        Test.Brig.InternalNotification.tests,
         Test.Brig.MLS.tests,
-        Test.Brig.InternalNotification.tests
+        Test.Brig.Roundtrip.tests,
+        Test.Brig.Swagger.tests,
+        Test.Brig.User.Search.Index.Types.tests
       ]
