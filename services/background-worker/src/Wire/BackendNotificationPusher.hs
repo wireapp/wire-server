@@ -15,6 +15,9 @@ import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
+import Network.AMQP (cancelConsumer, ConsumerTag)
+import Control.Concurrent
+import Wire.API.Routes.FederationDomainConfig
 
 startPushingNotifications ::
   Q.Channel ->
@@ -72,12 +75,33 @@ pushNotification targetDomain (msg, envelope) = do
 
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.
-startWorker :: [Domain] -> Q.Channel -> AppT IO (Async ())
-startWorker remoteDomains chan = do
+startWorker :: Q.Channel -> AppT IO (Async ())
+startWorker chan = do
   -- This ensures that we receive notifications 1 by 1 which ensures they are
   -- delivered in order.
   lift $ Q.qos chan 0 1 False
   env <- ask
-  liftIO $ async $ do
-    mapM_ (runAppT env . startPushingNotifications chan) remoteDomains
-    forever $ threadDelay maxBound
+  let go :: [ConsumerTag] -> IO ()
+      go consumers = do
+        -- Wait for a new set of domains
+        chanRemotes <- readChan $ env.remoteDomainsChan
+        -- Cancel all of the existing consumers
+        traverse_ (cancelConsumer chan) consumers
+        -- Make new consumers for the new domains
+        consumers' <- traverse (runAppT env . startPushingNotifications chan) $ domain <$> chanRemotes.remotes
+        -- Repeat
+        go consumers'
+  initRemotes <- liftIO $ readIORef env.remoteDomains
+  consumersRef <- newIORef []
+  let cleanup :: AsyncCancelled -> IO ()
+      cleanup e = do
+        consumers <-  readIORef consumersRef
+        traverse_ (cancelConsumer chan) consumers
+        throwM e
+  -- If this thread is cancelled, catch the exception, kill the consumers, and carry on.
+  liftIO $ async $ handle cleanup $ do
+    -- Get an initial set of consumers for the domains pulled from the IORef
+    consumers <- traverse (runAppT env . startPushingNotifications chan) $ domain <$> initRemotes.remotes
+    atomicWriteIORef consumersRef consumers
+    -- Loop on waiting for new domains, tearing down consumers, and building new ones
+    go consumers

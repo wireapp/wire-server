@@ -20,6 +20,7 @@ import Util.Options
 import Wire.API.Federation.BackendNotifications
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
+import Network.AMQP (cancelConsumer)
 
 deleteFederationDomain :: Q.Channel -> AppT IO Q.ConsumerTag
 deleteFederationDomain chan = do
@@ -86,6 +87,13 @@ deleteWorker :: Q.Channel -> AppT IO (Async ())
 deleteWorker chan = do
   lift $ Q.qos chan 0 1 False
   env <- ask
-  liftIO $ async $ do
-    void $ runAppT env $ deleteFederationDomain chan
+  consumerRef <- newIORef Nothing
+  let cleanup :: AsyncCancelled -> IO ()
+      cleanup e = do
+        consumer <- readIORef consumerRef
+        traverse_ (cancelConsumer chan) consumer
+        throwM e
+  liftIO $ async $ handle cleanup $ do
+    consumer <- runAppT env $ deleteFederationDomain chan
+    atomicWriteIORef consumerRef $ pure consumer
     forever $ threadDelay maxBound

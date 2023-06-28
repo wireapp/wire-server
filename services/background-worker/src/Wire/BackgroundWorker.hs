@@ -3,22 +3,24 @@
 module Wire.BackgroundWorker where
 
 import Control.Concurrent.Async
-import Control.Concurrent.Chan
 import Imports
 import Network.AMQP.Extended
-import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.BackendNotificationPusher as BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 import Wire.Defederation
 
 -- FUTUREWORK: Start an http service with status and metrics endpoints
+-- NOTE: Use atomic IORef writes to impose an ordering barrier on
+--       reads and writes. This stops the CPU from being too clever
+--       with its memory model and what it thinks it can get away with.
 run :: Opts -> IO ()
 run opts = do
   (env, syncThread) <- mkEnv opts
   threadsRef <- newIORef []
   let cancelThreads = do
         -- Kill all of the threads and clean up the IORef
+        -- The threads should handle the cleanup of their AMQP consumers.
         threads <- readIORef threadsRef
         traverse_ cancel threads
         atomicWriteIORef threadsRef []
@@ -32,20 +34,7 @@ run opts = do
           -- Since this is feeding off a Rabbit queue, it should
           -- be safe to kill and start these threads. At worst, we
           -- will double deliver some messages
-          pushThread <- do
-            -- get an initial list of domains from the IORef
-            initRemotes <- liftIO $ readIORef env.remoteDomains
-            -- Start the notification pusher using the initial domains
-            thread <- BackendNotificationPusher.startWorker (domain <$> initRemotes.remotes) chan
-            let go asyncThread = do
-                  -- Wait for a new set of domains from the Chan
-                  remotes <- liftIO $ readChan $ env.remoteDomainsChan
-                  -- When we have new domains, kill the previous pusher thread
-                  liftIO $ cancel asyncThread
-                  -- Start a new pusher thread and then wait for new domains
-                  -- TODO: There is a nicer way of doing this, but I'm failing to see it.
-                  go =<< BackendNotificationPusher.startWorker (domain <$> remotes.remotes) chan
-            go thread
+          pushThread <- BackendNotificationPusher.startWorker chan
 
           let threads = [pushThread, deleteThread]
           -- Write out the handles for the threads
@@ -54,6 +43,7 @@ run opts = do
           -- as the threads all have `forever $ threadDelay ...`
           liftIO $ traverse_ wait threads
           -- clear the threadRef if the threads finish
+          -- This should never happen, but there is no harm in preventative cleanup
           atomicWriteIORef threadsRef [],
         -- FUTUREWORK: Use these for metrics
         --
