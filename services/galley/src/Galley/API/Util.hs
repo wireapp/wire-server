@@ -762,10 +762,12 @@ registerRemoteConversationMemberships ::
   Sem r DataTypes.MemberAddFailed
 registerRemoteConversationMemberships now lc = do
   let c = tUnqualified lc
-      allRemoteMembers = nubOrd (Data.convRemoteMembers c)
+      rc = toConversationCreated now c
+
+      allRemoteMembers = nubOrd {- (but why would there be duplicates?) -} (Data.convRemoteMembers c)
       allRemoteMembersQualified = remoteMemberQualify <$> allRemoteMembers
       allRemoteBuckets :: [Remote [RemoteMember]] = bucketRemote allRemoteMembersQualified
-      rc = toConversationCreated now c
+
   failedToNotify :: [Remote RemoteMember] <- fmap (foldMap (either (sequenceA . fst) mempty)) $
     runFederatedConcurrentlyEither allRemoteMembersQualified $
       \rrms ->
@@ -775,15 +777,19 @@ registerRemoteConversationMemberships now lc = do
                   toMembers (tUnqualified rrms)
               }
           )
+
   let failedToNotifySet :: Set (Remote UserId) =
         Set.map (fmap (tUnqualified . rmId)) . Set.fromList $ failedToNotify
-  let -- unreachable domains
+
+      -- unreachable domains
       failedToNotifyDomains :: Set Domain = Set.fromList . foldMap (pure . tDomain) $ failedToNotify
+
       -- reachable members in buckets per remote domain
       joined :: [Remote [RemoteMember]] =
         filter
           (\rmems -> Set.notMember (tDomain rmems) failedToNotifyDomains)
           allRemoteBuckets
+
       joinedCoupled =
         foldMap
           ( \ruids ->
@@ -795,22 +801,29 @@ registerRemoteConversationMemberships now lc = do
                     Just v -> [(ruids, v)]
           )
           joined
+
   -- Send an update to remotes about the final list of participants
   void . runFederatedConcurrentlyBucketsEither joinedCoupled $
     fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
+
   pure failedToNotifySet
   where
+    creator :: UserId
     creator = cnvmCreator . DataTypes.convMetadata . tUnqualified $ lc
+
+    localNonCreators :: [OtherMember]
     localNonCreators =
       fmap (localMemberToOther . tDomain $ lc)
         . filter (\lm -> lmId lm /= creator)
         . Data.convLocalMembers
         . tUnqualified
         $ lc
-    toMembers ::
-      [RemoteMember] ->
-      Set OtherMember
+
+    -- Total set of members living on one remote backend (rs) or the hosting backend.
+    toMembers :: [RemoteMember] -> Set OtherMember
     toMembers rs = Set.fromList $ localNonCreators <> fmap remoteMemberToOther rs
+
+    convUpdateJoin :: (QualifiedWithTag t [RemoteMember], NonEmpty (QualifiedWithTag t' UserId)) -> ConversationUpdate
     convUpdateJoin (toNotify, newMembers) =
       ConversationUpdate
         { cuTime = now,
