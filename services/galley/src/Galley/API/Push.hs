@@ -1,5 +1,5 @@
-{-# LANGUAGE StandaloneKindSignatures #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -21,129 +21,79 @@
 module Galley.API.Push
   ( -- * Message pushes
     MessagePush (..),
-    MessageType (..),
-    newBotPush,
 
     -- * Executing message pushes
     BotMap,
-    MessagePushEffects,
     newMessagePush,
     runMessagePush,
-
-    -- * Singleton definitions
-    NormalMessageSym0,
-    BroadcastSym0,
   )
 where
 
 import Control.Lens (set)
 import Data.Id
+import qualified Data.List1 as List1
 import qualified Data.Map as Map
 import Data.Qualified
-import Data.Semigroup.Generic
-import Data.Singletons.TH
 import Galley.Data.Services
 import Galley.Effects.ExternalAccess
 import Galley.Effects.GundeckAccess hiding (Push)
 import Galley.Intra.Push
-import Gundeck.Types.Push.V2 (RecipientClients (..))
+import Galley.Intra.Push.Internal hiding (push)
+import Gundeck.Types.Push (RecipientClients (RecipientClientsSome))
 import Imports
 import Polysemy
 import Polysemy.TinyLog
 import qualified System.Logger.Class as Log
 import Wire.API.Event.Conversation
 import Wire.API.Message
+import Wire.API.Team.Member
 
-data MessageType = NormalMessage | Broadcast
-
-$(genSingletons [''MessageType])
-
-data family MessagePush (t :: MessageType)
-
-data instance MessagePush 'NormalMessage = NormalMessagePush
-  { userPushes :: [Push],
-    botPushes :: [(BotMember, Event)]
-  }
-  deriving stock (Generic, Show)
-  deriving (Semigroup, Monoid) via GenericSemigroupMonoid (MessagePush 'NormalMessage)
-
-data instance MessagePush 'Broadcast = BroadcastPush
-  {broadcastPushes :: [Push]}
-  deriving stock (Generic, Show)
-  deriving (Semigroup, Monoid) via GenericSemigroupMonoid (MessagePush 'Broadcast)
-
-newUserPush :: forall t. SingI t => Push -> MessagePush t
-newUserPush p = withSing @t $ \case
-  SNormalMessage -> NormalMessagePush {userPushes = pure p, botPushes = mempty}
-  SBroadcast -> BroadcastPush (pure p)
-
-newBotPush :: BotMember -> Event -> MessagePush 'NormalMessage
-newBotPush b e = NormalMessagePush {userPushes = mempty, botPushes = pure (b, e)}
+data MessagePush
+  = MessagePush (Maybe ConnId) MessageMetadata [Recipient] [BotMember] Event
 
 type BotMap = Map UserId BotMember
 
-type family MessagePushEffects (t :: MessageType) :: [Effect]
-
-type instance MessagePushEffects 'NormalMessage = '[ExternalAccess, GundeckAccess, TinyLog]
-
-type instance MessagePushEffects 'Broadcast = '[GundeckAccess]
-
 newMessagePush ::
-  forall t x.
-  SingI t =>
-  Local x ->
   BotMap ->
   Maybe ConnId ->
   MessageMetadata ->
-  (UserId, ClientId) ->
+  [(UserId, ClientId)] ->
   Event ->
-  MessagePush t
-newMessagePush loc bots mconn mm (user, client) e = withSing @t $ \case
-  SNormalMessage -> case Map.lookup user bots of
-    Just bm -> newBotPush bm e
-    Nothing -> fold $ newUserMessagePush loc mconn mm user client e
-  SBroadcast -> fold $ newUserMessagePush loc mconn mm user client e
+  MessagePush
+newMessagePush botMap mconn mm userOrBots event =
+  let (recipients, botMembers) =
+        foldMap
+          ( \(u, c) ->
+              case Map.lookup u botMap of
+                Just botMember -> ([], [botMember])
+                Nothing -> ([Recipient u (RecipientClientsSome (List1.singleton c))], [])
+          )
+          userOrBots
+   in MessagePush mconn mm recipients botMembers event
 
 runMessagePush ::
-  forall t x r.
-  SingI t =>
-  Members (MessagePushEffects t) r =>
+  forall x r.
+  ( Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member TinyLog r
+  ) =>
   Local x ->
   Maybe (Qualified ConvId) ->
-  MessagePush t ->
+  MessagePush ->
   Sem r ()
-runMessagePush loc mqcnv mp = withSing @t $ \case
-  SNormalMessage -> do
-    push (userPushes mp)
-    pushToBots (botPushes mp)
-  SBroadcast -> push (broadcastPushes mp)
-  where
-    pushToBots ::
-      ( Member ExternalAccess r,
-        Member TinyLog r
-      ) =>
-      [(BotMember, Event)] ->
-      Sem r ()
-    pushToBots pushes = for_ mqcnv $ \qcnv ->
-      if tDomain loc /= qDomain qcnv
-        then unless (null pushes) $ do
-          warn $ Log.msg ("Ignoring messages for local bots in a remote conversation" :: ByteString) . Log.field "conversation" (show qcnv)
-        else deliverAndDeleteAsync (qUnqualified qcnv) pushes
+runMessagePush loc mqcnv mp@(MessagePush _ _ _ botMembers event) = do
+  push (toPush mp)
+  for_ mqcnv $ \qcnv ->
+    if tDomain loc /= qDomain qcnv
+      then unless (null botMembers) $ do
+        warn $ Log.msg ("Ignoring messages for local bots in a remote conversation" :: ByteString) . Log.field "conversation" (show qcnv)
+      else deliverAndDeleteAsync (qUnqualified qcnv) (map (,event) botMembers)
 
-newUserMessagePush ::
-  SingI t =>
-  Local x ->
-  Maybe ConnId ->
-  MessageMetadata ->
-  UserId ->
-  ClientId ->
-  Event ->
-  Maybe (MessagePush t)
-newUserMessagePush loc mconn mm user cli e =
-  fmap newUserPush $
-    newConversationEventPush e (qualifyAs loc [user])
-      <&> set pushConn mconn
-        . set pushNativePriority (mmNativePriority mm)
-        . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))
-        . set pushTransient (mmTransient mm)
-        . set (pushRecipients . traverse . recipientClients) (RecipientClientsSome (pure cli))
+toPush :: MessagePush -> Maybe Push
+toPush (MessagePush mconn mm userRecipients _ event) =
+  let usr = qUnqualified (evtFrom event)
+   in newPush ListComplete (Just usr) (ConvEvent event) userRecipients
+        <&> set pushConn mconn
+          . set pushNativePriority (mmNativePriority mm)
+          . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))
+          . set pushTransient (mmTransient mm)

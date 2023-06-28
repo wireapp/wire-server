@@ -11,12 +11,12 @@ tls:
 config:
   ingressClass: "nginx-{{ .Release.Namespace }}"
   dns:
-    https: nginz-https.integration.example.com
-    ssl: nginz-ssl.integration.example.com
-    webapp: webapp.integration.example.com
-    fakeS3: assets.integration.example.com
-    teamSettings: teams.integration.example.com
-    accountPages: account.integration.example.com
+    https: "nginz-https.{{ .Release.Namespace }}-integration.example.com"
+    ssl: "nginz-ssl.{{ .Release.Namespace }}-integration.example.com"
+    webapp: "webapp.{{ .Release.Namespace }}-integration.example.com"
+    fakeS3: "assets.{{ .Release.Namespace }}-integration.example.com"
+    teamSettings: "teams.{{ .Release.Namespace }}-integration.example.com"
+    accountPages: "account.{{ .Release.Namespace }}-integration.example.com"
     # federator: dynamically set by hack/helmfile.yaml
 
 # secrets/tlsWildcardCert, secrets/tlsWildcardKey and secrets/tlsClientCA

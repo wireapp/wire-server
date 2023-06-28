@@ -1,3 +1,7 @@
+{-# OPTIONS -Wno-redundant-constraints #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -14,8 +18,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Federation where
 
@@ -47,7 +49,6 @@ import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
 import Galley.API.Push
-import Galley.API.Update
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
@@ -226,7 +227,9 @@ onConversationUpdated ::
   Domain ->
   F.ConversationUpdate ->
   Sem r ()
-onConversationUpdated requestingDomain cu = updateLocalStateOfRemoteConv requestingDomain cu
+onConversationUpdated requestingDomain cu = do
+  let rcu = toRemoteUnsafe requestingDomain cu
+  void $ updateLocalStateOfRemoteConv rcu Nothing
 
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
@@ -338,7 +341,7 @@ onMessageSent domain rmUnqualified = do
           )
   loc <- qualifyLocal ()
   void $
-    sendLocalMessages @'NormalMessage
+    sendLocalMessages
       loc
       (F.rmTime rm)
       (F.rmSender rm)
@@ -621,6 +624,8 @@ mlsSendWelcome ::
   ( Member BrigAccess r,
     Member (Error InternalError) r,
     Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member P.TinyLog r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r
@@ -685,11 +690,9 @@ onMLSMessageSent domain rmm =
       let e =
             Event (tUntagged rcnv) Nothing (F.rmmSender rmm) (F.rmmTime rmm) $
               EdMLSMessage (fromBase64ByteString (F.rmmMessage rmm))
-      let mkPush :: (UserId, ClientId) -> MessagePush 'NormalMessage
-          mkPush uc = newMessagePush loc mempty Nothing (F.rmmMetadata rmm) uc e
 
       runMessagePush loc (Just (tUntagged rcnv)) $
-        foldMap mkPush recipients
+        newMessagePush mempty Nothing (F.rmmMetadata rmm) recipients e
 
 queryGroupInfo ::
   ( Member ConversationStore r,

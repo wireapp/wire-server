@@ -30,3 +30,12 @@ Create chart name and version as used by the chart label.
 {{- define "demo-smtp.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
+
+{{/* Allow KubeVersion to be overridden. */}}
+{{- define "kubeVersion" -}}
+  {{- default .Capabilities.KubeVersion.Version .Values.kubeVersionOverride -}}
+{{- end -}}
+
+{{- define "includeSecurityContext" -}}
+  {{- (semverCompare ">= 1.24-0" (include "kubeVersion" .)) -}}
+{{- end -}}

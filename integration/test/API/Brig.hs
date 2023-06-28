@@ -113,16 +113,19 @@ deleteClient user client = do
         ]
 
 searchContacts ::
-  ( MakesValue searchingUserId,
-    MakesValue searchTerm
+  ( MakesValue user,
+    MakesValue searchTerm,
+    MakesValue domain
   ) =>
-  searchingUserId ->
+  user ->
   searchTerm ->
+  domain ->
   App Response
-searchContacts searchingUserId searchTerm = do
-  req <- baseRequest searchingUserId Brig Versioned "/search/contacts"
+searchContacts user searchTerm domain = do
+  req <- baseRequest user Brig Versioned "/search/contacts"
   q <- asString searchTerm
-  submit "GET" (req & addQueryParams [("q", q)])
+  d <- objDomain domain
+  submit "GET" (req & addQueryParams [("q", q), ("domain", d)])
 
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do
@@ -181,6 +184,12 @@ claimKeyPackages u v = do
       "/mls/key-packages/claim/" <> targetDom <> "/" <> targetUid
   submit "POST" req
 
+getSelf :: HasCallStack => String -> String -> App Response
+getSelf domain uid = do
+  let user = object ["domain" .= domain, "id" .= uid]
+  req <- baseRequest user Brig Versioned "/self"
+  submit "GET" req
+
 getUserSupportedProtocols ::
   (HasCallStack, MakesValue user, MakesValue target) =>
   user ->
@@ -203,3 +212,48 @@ putUserSupportedProtocols user ps = do
     baseRequest user Brig Versioned $
       joinHttpPath ["self", "supported-protocols"]
   submit "PUT" (req & addJSONObject ["supported_protocols" .= ps])
+
+getApiVersions :: HasCallStack => App Response
+getApiVersions = do
+  req <-
+    rawBaseRequest OwnDomain Brig Unversioned $
+      joinHttpPath ["api-version"]
+  submit "GET" req
+
+getSwaggerPublicTOC :: HasCallStack => App Response
+getSwaggerPublicTOC = do
+  req <-
+    rawBaseRequest OwnDomain Brig Unversioned $
+      joinHttpPath ["api", "swagger-ui"]
+  submit "GET" req
+
+getSwaggerInternalTOC :: HasCallStack => App Response
+getSwaggerInternalTOC = error "FUTUREWORK: this API end-point does not exist."
+
+getSwaggerPublicAllUI :: HasCallStack => Int -> App Response
+getSwaggerPublicAllUI version = do
+  req <-
+    rawBaseRequest OwnDomain Brig (ExplicitVersion version) $
+      joinHttpPath ["api", "swagger-ui"]
+  submit "GET" req
+
+getSwaggerPublicAllJson :: HasCallStack => Int -> App Response
+getSwaggerPublicAllJson version = do
+  req <-
+    rawBaseRequest OwnDomain Brig (ExplicitVersion version) $
+      joinHttpPath ["api", "swagger.json"]
+  submit "GET" req
+
+getSwaggerInternalUI :: HasCallStack => String -> App Response
+getSwaggerInternalUI service = do
+  req <-
+    rawBaseRequest OwnDomain Brig Unversioned $
+      joinHttpPath ["api-internal", "swagger-ui", service]
+  submit "GET" req
+
+getSwaggerInternalJson :: HasCallStack => String -> App Response
+getSwaggerInternalJson service = do
+  req <-
+    rawBaseRequest OwnDomain Nginz Unversioned $
+      joinHttpPath ["api-internal", "swagger-ui", service <> "-swagger.json"]
+  submit "GET" req

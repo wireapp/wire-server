@@ -38,6 +38,7 @@ library
     Wire.API.Event.Conversation
     Wire.API.Event.FeatureConfig
     Wire.API.Event.Team
+    Wire.API.FederationUpdate
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
     Wire.API.MakesFederatedCall
@@ -79,6 +80,7 @@ library
     Wire.API.Routes.ClientAlgebra
     Wire.API.Routes.Cookies
     Wire.API.Routes.CSV
+    Wire.API.Routes.FederationDomainConfig
     Wire.API.Routes.Internal.Brig
     Wire.API.Routes.Internal.Brig.Connection
     Wire.API.Routes.Internal.Brig.EJPD
@@ -191,6 +193,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -215,6 +218,7 @@ library
 
   build-depends:
       aeson                      >=2.0.1.0
+    , async
     , attoparsec                 >=0.10
     , base                       >=4       && <5
     , base64-bytestring          >=1.0
@@ -248,6 +252,7 @@ library
     , hscim
     , HsOpenSSL
     , http-api-data
+    , http-client
     , http-media
     , http-types
     , imports
@@ -269,6 +274,7 @@ library
     , quickcheck-instances       >=0.3.16
     , random                     >=1.2.0
     , resourcet
+    , retry
     , saml2-web-sso
     , schema-profunctor
     , scientific
@@ -288,6 +294,7 @@ library
     , tagged
     , text                       >=0.11
     , time                       >=1.4
+    , tinylog
     , transitive-anns
     , types-common               >=0.16
     , unordered-containers       >=0.2
@@ -612,6 +619,7 @@ test-suite wire-api-golden-tests
 
   build-depends:
       aeson                    >=2.0.1.0
+    , aeson-diff
     , aeson-pretty
     , base
     , bytestring

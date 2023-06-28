@@ -45,6 +45,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
+import Wire.API.User.Search
 
 deriving instance Cql Name
 
@@ -285,6 +286,18 @@ instance Cql SearchVisibilityInbound where
 
   fromCql (CqlInt 0) = pure SearchableByOwnTeam
   fromCql (CqlInt 1) = pure SearchableByAllTeams
+  fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
+
+instance Cql FederatedUserSearchPolicy where
+  ctype = Tagged IntColumn
+
+  toCql NoSearch = CqlInt 0
+  toCql ExactHandleSearch = CqlInt 1
+  toCql FullSearch = CqlInt 2
+
+  fromCql (CqlInt 0) = pure NoSearch
+  fromCql (CqlInt 1) = pure ExactHandleSearch
+  fromCql (CqlInt 2) = pure FullSearch
   fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
 
 instance Cql (Imports.Set BaseProtocolTag) where

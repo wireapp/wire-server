@@ -2,6 +2,15 @@ image:
   repository: quay.io/wire/integration
   tag: do-not-use
 
+podSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
 config:
   dynamicBackendsPoolsize: 3
 
@@ -11,3 +20,8 @@ config:
 
   elasticsearch:
     host: elasticsearch-ephemeral
+
+  sqsEndpointUrl: http://fake-aws-sqs:4568
+  sesEndpointUrl: http://fake-aws-ses:4569
+  s3EndpointUrl: http://fake-aws-s3:9000
+  rabbitmqPutVHostUrl: http://rabbitmq:15672/api/vhosts

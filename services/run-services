@@ -343,7 +343,7 @@ def cleanup_instances(instances):
             instance.thread.join(timeout=0.1)
         if instance.thread.is_alive():
             print("force-killing", instance.service.name)
-            instance.process.send_signal(signal.SIGKILl)
+            instance.process.send_signal(signal.SIGKILL)
             instance.thread.join()
 
 def start_backend(services, suffix, domain, remoteDomains, backend_name):

@@ -55,3 +55,12 @@ enableGalleyMigrations: true
 enableBrigMigrations: true
 enableGundeckMigrations: true
 enableSparMigrations: true
+
+podSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault

@@ -84,6 +84,19 @@ shouldMatchInt ::
   App ()
 shouldMatchInt = shouldMatch
 
+shouldMatchRange ::
+  (MakesValue a, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The expected range, inclusive both sides
+  (Int, Int) ->
+  App ()
+shouldMatchRange a (lower, upper) = do
+  xa :: Int <- asInt a
+  when (xa < lower || xa > upper) $ do
+    pa <- prettyJSON xa
+    assertFailure $ "Actual:\n" <> pa <> "\nExpected:\nin range (" <> show lower <> ", " <> show upper <> ") (including bounds)"
+
 shouldMatchSet ::
   (MakesValue a, MakesValue b, HasCallStack) =>
   a ->
@@ -93,6 +106,17 @@ shouldMatchSet a b = do
   la <- fmap sort (asList a)
   lb <- fmap sort (asList b)
   la `shouldMatch` lb
+
+shouldContainString ::
+  HasCallStack =>
+  -- | The actual value
+  String ->
+  -- | The expected value
+  String ->
+  App ()
+super `shouldContainString` sub = do
+  unless (sub `isInfixOf` super) $ do
+    assertFailure $ "String:\n" <> show super <> "\nDoes not contain:\n" <> show sub
 
 liftP2 ::
   (MakesValue a, MakesValue b, HasCallStack) =>

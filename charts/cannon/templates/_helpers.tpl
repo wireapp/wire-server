@@ -14,3 +14,12 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- $name := default .Chart.Name .Values.nameOverride -}}
 {{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
+
+{{/* Allow KubeVersion to be overridden. */}}
+{{- define "kubeVersion" -}}
+  {{- default .Capabilities.KubeVersion.Version .Values.kubeVersionOverride -}}
+{{- end -}}
+
+{{- define "includeSecurityContext" -}}
+  {{- (semverCompare ">= 1.24-0" (include "kubeVersion" .)) -}}
+{{- end -}}

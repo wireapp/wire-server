@@ -38,6 +38,7 @@ import qualified Brig.Code as Code
 import Brig.Data.Activation
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
+import qualified Brig.Data.Federation as Data
 import qualified Brig.Data.MLS.KeyPackage as Data
 import qualified Brig.Data.User as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
@@ -61,16 +62,17 @@ import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
 import qualified Brig.User.Search.Index as Index
 import Control.Error hiding (bool)
-import Control.Lens (view)
+import Control.Lens (view, (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
+import Data.Domain (Domain)
 import Data.Handle
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Qualified
 import qualified Data.Set as Set
-import Imports hiding (cs, head)
+import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (result, setStatus)
@@ -81,14 +83,17 @@ import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
 import qualified System.Logger.Class as Log
+import System.Random (randomRIO)
 import UnliftIO.Async
 import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.API
+import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
+import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
@@ -121,6 +126,7 @@ servantSitemap =
     :<|> authAPI
     :<|> internalOauthAPI
     :<|> internalSearchIndexAPI
+    :<|> federationRemotesAPI
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
@@ -179,6 +185,128 @@ authAPI =
     :<|> Named @"sso-login" (callsFed (exposeAnnotations ssoLogin))
     :<|> Named @"login-code" getLoginCode
     :<|> Named @"reauthenticate" reauthenticate
+
+federationRemotesAPI :: ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
+federationRemotesAPI =
+  Named @"add-federation-remotes" addFederationRemote
+    :<|> Named @"get-federation-remotes" getFederationRemotes
+    :<|> Named @"update-federation-remotes" updateFederationRemote
+    :<|> Named @"delete-federation-remotes" deleteFederationRemote
+
+addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+addFederationRemote fedDomConf = do
+  assertNoDivergingDomainInConfigFiles fedDomConf
+  result <- lift . wrapClient $ Data.addFederationRemote fedDomConf
+  case result of
+    Data.AddFederationRemoteSuccess -> pure ()
+    Data.AddFederationRemoteMaxRemotesReached ->
+      throwError . fedError . FederationUnexpectedError $
+        "Maximum number of remote backends reached.  If you need to create more connections, \
+        \please contact wire.com."
+
+-- | Compile config file list into a map indexed by domains.  Use this to make sure the config
+-- file is consistent (ie., no two entries for the same domain).
+remotesMapFromCfgFile :: AppT r (Map Domain FederationDomainConfig)
+remotesMapFromCfgFile = do
+  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
+  let dict = [(domain cnf, cnf) | cnf <- cfg]
+      merge c c' =
+        if c == c'
+          then c
+          else error $ "error in config file: conflicting parameters on domain: " <> show (c, c')
+  pure $ Map.fromListWith merge dict
+
+-- | Return the config file list.  Use this to make sure the config file is consistent (ie.,
+-- no two entries for the same domain).  Based on `remotesMapFromCfgFile`.
+remotesListFromCfgFile :: AppT r [FederationDomainConfig]
+remotesListFromCfgFile = Map.elems <$> remotesMapFromCfgFile
+
+-- | If remote domain is registered in config file, the version that can be added to the
+-- database must be the same.
+assertNoDivergingDomainInConfigFiles :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+assertNoDivergingDomainInConfigFiles fedComConf = do
+  cfg <- lift remotesMapFromCfgFile
+  let diverges = case Map.lookup (domain fedComConf) cfg of
+        Nothing -> False
+        Just fedComConf' -> fedComConf' /= fedComConf
+  when diverges $ do
+    throwError . fedError . FederationUnexpectedError $
+      "keeping track of remote domains in the brig config file is deprecated, but as long as we \
+      \do that, adding a domain with different settings than in the config file is nto allowed.  want "
+        <> ( "Just "
+               <> cs (show fedComConf)
+               <> "or Nothing, "
+           )
+        <> ( "got "
+               <> cs (show (Map.lookup (domain fedComConf) cfg))
+           )
+
+getFederationRemotes :: ExceptT Brig.API.Error.Error (AppT r) FederationDomainConfigs
+getFederationRemotes = lift $ do
+  -- FUTUREWORK: we should solely rely on `db` in the future for remote domains; merging
+  -- remote domains from `cfg` is just for providing an easier, more robust migration path.
+  -- See
+  -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
+  -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
+  db <- wrapClient Data.getFederationRemotes
+  (ms :: Maybe FederationStrategy, mf :: [FederationDomainConfig], mu :: Maybe Int) <- do
+    cfg <- ask
+    domcfgs <- remotesListFromCfgFile -- (it's not very elegant to prove the env twice here, but this code is transitory.)
+    pure
+      ( setFederationStrategy (cfg ^. settings),
+        domcfgs,
+        setFederationDomainConfigsUpdateFreq (cfg ^. settings)
+      )
+
+  -- update frequency settings of `<1` are interpreted as `1 second`.  only warn about this every now and
+  -- then, that'll be noise enough for the logs given the traffic on this end-point.
+  unless (maybe True (> 0) mu) $
+    randomRIO (0 :: Int, 1000)
+      >>= \case
+        0 -> Log.warn (Log.msg (Log.val "Invalid brig configuration: setFederationDomainConfigsUpdateFreq must be > 0.  setting to 1 second."))
+        _ -> pure ()
+
+  defFederationDomainConfigs
+    & maybe id (\v cfg -> cfg {strategy = v}) ms
+    & (\cfg -> cfg {remotes = nub $ db <> mf})
+    & maybe id (\v cfg -> cfg {updateInterval = min 1 v}) mu
+    & pure
+
+updateFederationRemote :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+updateFederationRemote dom fedcfg = do
+  assertDomainIsNotUpdated dom fedcfg
+  assertNoDomainsFromConfigFiles dom
+  (lift . wrapClient . Data.updateFederationRemote $ fedcfg) >>= \case
+    True -> pure ()
+    False ->
+      throwError . fedError . FederationUnexpectedError . cs $
+        "federation domain does not exist and cannot be updated: " <> show (dom, fedcfg)
+
+assertDomainIsNotUpdated :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+assertDomainIsNotUpdated dom fedcfg = do
+  when (dom /= domain fedcfg) $
+    throwError . fedError . FederationUnexpectedError . cs $
+      "federation domain of a given peer cannot be changed from " <> show (domain fedcfg) <> " to " <> show dom <> "."
+
+-- | FUTUREWORK: should go away in the future; see 'getFederationRemotes'.
+assertNoDomainsFromConfigFiles :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
+assertNoDomainsFromConfigFiles dom = do
+  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
+  when (dom `elem` (domain <$> cfg)) $ do
+    throwError . fedError . FederationUnexpectedError $
+      "keeping track of remote domains in the brig config file is deprecated, but as long as we \
+      \do that, removing or updating items listed in the config file is not allowed."
+
+-- | Remove the entry from the database if present (or do nothing if not).  This responds with
+-- 533 if the entry was also present in the config file, but only *after* it has removed the
+-- entry from cassandra.
+--
+-- The ordering on this delete then check seems weird, but allows us to default all the
+-- way back to config file state for a federation domain.
+deleteFederationRemote :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
+deleteFederationRemote dom = do
+  lift . wrapClient . Data.deleteFederationRemote $ dom
+  assertNoDomainsFromConfigFiles dom
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
@@ -255,8 +383,8 @@ getMLSClients usr _ss = do
   pure . Set.fromList . map (uncurry ClientInfo) $ clientInfo
   where
     getResult [] = pure mempty
-    getResult ((u, cs) : rs)
-      | u == usr = pure cs
+    getResult ((u, cs') : rs)
+      | u == usr = pure cs'
       | otherwise = getResult rs
 
     getValidity lusr cid =

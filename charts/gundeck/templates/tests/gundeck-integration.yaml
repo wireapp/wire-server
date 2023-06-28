@@ -18,6 +18,10 @@ spec:
     # TODO: When deployed to staging (or real AWS env), _all_ tests should be run
     command: ["gundeck-integration", "--pattern", "!/RealAWS/"]
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+        {{- if eq (include "includeSecurityContext" .) "true" }}
+    securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 6 }}
+        {{- end }}
     volumeMounts:
     - name: "gundeck-integration"
       mountPath: "/etc/wire/integration"

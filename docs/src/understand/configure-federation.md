@@ -62,7 +62,7 @@ backend.
     domain. Your user known to you as Alice, and known on your
     server with ID `ac41a202-2555-11ec-9341-00163e5e6c00` will
     become known for other servers you federate with as
-    
+
     ``` json
     {
       "user": {
@@ -73,7 +73,7 @@ backend.
     ```
 
 -   This domain is shown in the User Interface
-    alongside user information. 
+    alongside user information.
 
     Example: Using the same example as above, for backends you
     federate with, Alice would be displayed with the
@@ -138,7 +138,7 @@ The SRV record would look as follows:
 _wire-server-federator._tcp.example.com. 600 IN SRV 0        10     443  federator.wire.example.org.
 ```
 
-### DNS A record for the federator 
+### DNS A record for the federator
 
 Background: `federator` is the server component responsible for incoming
 and outgoing requests to other backend; but it is proxied on the
@@ -151,7 +151,7 @@ also needs to point to the IP of your ingress, i.e. the IP you want to
 provide services on.
 
 (federation-certificate-setup)=
-## Generate and configure TLS server and client certificates 
+## Generate and configure TLS server and client certificates
 
 Are your servers on the public internet? Then you have the option of
 using TLS certificates from [Let\'s encrypt](https://letsencrypt.org/).
@@ -196,7 +196,7 @@ FS-33 and FS-49 (tickets only visible to Wire employees).
 ```
 
 
-### (A) Let\'s encrypt TLS server and client certificate generation and renewal 
+### (A) Let\'s encrypt TLS server and client certificate generation and renewal
 
 The following will make use of [Let\'s
 encrypt](https://letsencrypt.org/) for both server certificates (used
@@ -395,7 +395,171 @@ cargohold:
       federationDomain: example.com # your chosen "backend domain"
 ```
 
-### Configure federator process to run and allow incoming traffic 
+(configure-federation-strategy-in-brig)=
+
+### Configure federation strategy (whom to federate with) in brig
+
+**Since [PR#3260](https://github.com/wireapp/wire-server/pull/3260).**
+
+Also see {ref}`configuring-remote-connections-dev-perspective` for the
+developer's point of view on this topic.
+
+You also need to define the federation strategy (whom to federate
+with), and the frequency with which the other backend services will
+refresh their cache of this configuration.
+
+``` yaml
+# override values for wire-server
+# (e.g. under ./helm_vars/wire-server/values.yaml)
+brig:
+  config:
+    optSettings:
+      setFederationStrategy: allowNone # [allowAll | allowDynamic | allowNone]
+      setFederationDomainConfigsUpdateFreq: 10 # seconds
+```
+
+The default strategy of `allowNone` effectively disables federation
+(and probably isn't what you want if you are reading this).
+`allowAll` federates with any backend that requests contact or that a
+user uses in a search.  `allowDynamic` only federates with known
+remote backends listed in cassandra.
+
+The update frequency determines how often other services will refresh
+the information about remote connections from brig.
+
+More information about individual remote connections is stored in
+brig's cassandra, and maintained via internal brig api end-points by
+the sysadmin:
+
+* [`POST`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_federation_remotes)
+
+  - after adding a new remote backend, wait for the other end to do
+    the same with you, and then wait a few moments for things to
+    stabilize (at least `update_interval * 2`; see below).
+
+* [`GET`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_federation_remotes)
+
+  - this serves an object with 3 fields:
+     - `remotes` (from cassandra): the list of remote domains with search policy (and
+       possibly other information in the future);
+     - `strategy` (from config): federation strategy; one of `allowNone`, `allowDynamic`, `allowAll` (see above)
+     - `update_interval` (from config): the suggested update frequency with which calling
+       services should refresh their information.
+
+  - It doesn't serve the local domain, which needs to be configured
+   for every service that needs to know it individually.  This may
+   change in the future.
+
+  - This end-point enjoys a comparably high amount of traffic.  If you
+   have many pods (a large instance with say, >100 pods), *and* you set a very
+   short update interval (<10s), you should monitor brig's service and
+   database load closely in the beginning.
+
+* [`PUT`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/put_i_federation_remotes__domain_)
+
+* [`DELETE`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/delete_i_federation_remotes__domain_)
+  - **WARNING:** If you delete a connection, all users from that
+   remote will be removed from local conversations, and all
+   conversations hosted by that remote will be removed from the local
+   backend.  Connections between local and remote users that are
+   removed will be archived, and can be re-established should you
+   decide to add the same backend later.
+
+The `remotes` list looks like this:
+
+```
+[
+  {
+    "domain": "wire.example.com",
+    "search_policy": "full_search"
+  },
+  {
+    "domain": "evil.example.com"
+    "search_policy": "no_search"
+  },
+  ...
+]
+```
+
+It serves two purposes:
+
+1. If federation strategy is `allowDynamic`, only backends that are
+  listed can be reached by us and can reach us;
+
+2. Independently of the federation strategy, the list provides
+  information about remote backends that may change dynamically (at
+  the time of writing this: search policy, see
+  {ref}`searching-users-on-another-federated-backend` and
+  {ref}`user-searchability` for more context)
+
+The search policy for a remote backend can be:
+
+- `no_search`: No users are returned by federated searches.  default.
+- `exact_handle_search`: Only users where the handle exactly matches are returned.
+- `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
+
+If federation strategy is `allowAll`, and there is no entry for a
+domain in the database, default is `no_search`.  The field in
+cassandra is not nullable, ie., you always have to explicitly name a
+search policy if you create an entry.
+
+#### If your instance has been federating before
+
+You only need to read this section if your instance has been
+federating with other instances prior to
+[PR#3260](https://github.com/wireapp/wire-server/pull/3260), and you
+are upgrading to the release containing that PR.
+
+From now on the federation policy set in the federator config under
+`federationStrategy` is ignored.  Instead, the federation strategy is
+pulled by all services from brig, who in turn gets it from a
+combination of config file and database (see
+{ref}`configure-federation-strategy-in-brig` above).
+
+In order to achieve a zero-downtime upgrade, follow these steps:
+
+1. Update the brig config values file as described above.
+
+2. If you have chosen `brig.config.optSettings.setFederationStrategy:
+  allowDynamic` you need to make sure the list of all domains you want
+  to allow federation with is complete (before, there was a search
+  policy default; now wire will stop federating with removes that are
+  not listed here).  Example:
+
+    ```yaml
+    brig:
+      config:
+        optSettings:
+          setFederationDomainConfigs:
+          - domain: red.example.com
+            search_policy: full_search
+          - domain: blue.example.com
+            search_policy: no_search
+    ```
+
+    This change is to cover the time window between upgrading the brig
+    pods and populating cassandra with the information needed (see
+    Step 3 below).
+
+    Any later lookup of this information will return the union of what
+    is in cassandra and what is in the config file.  Any attempt to
+    write data to cassandra that contradicts data in the config file
+    will result in an error.  Before you change any remote domain
+    config, remove it from the config file.
+
+3. Populate cassandra with remote domain configs as described above.
+
+4. At any time after you are done with the upgrade and have convinced
+  yourself everything went smoothly, remove outdated brig and
+  federator config values, in particular:
+    - `brig.config.optSettings.setFederationDomainConfigs`
+    - `federator.config.optSettings.federationStrategy`
+
+    At a later point, wire-server will start ignoring
+    `setFederationDomainConfigs` altogether (follow future entries in
+    the changelog to learn when that happens).
+
+### Configure federator process to run and allow incoming traffic
 
 For federation to work, the `federator` subchart of wire-server has to
 be enabled:
@@ -422,7 +586,7 @@ config:
     federator: federator.wire.example.org # set this to your "infra" domain
 ```
 
-### Configure the validation depth when handling client certificates 
+### Configure the validation depth when handling client certificates
 
 By default, `verify_depth` is `1`, meaning that in order to validate an
 incoming request from another backend, this backend needs to have a
@@ -482,14 +646,14 @@ federator:
         allowAll: true
 ```
 
-## Applying all configuration changes 
+## Applying all configuration changes
 
 Depending on your installation method and time you initially installed
 your first version of wire-server, commands to run to apply all of the
 above configrations may vary. You want to ensure that you upgrade the
 `nginx-ingress-services` and `wire-server` helm charts at a minimum.
 
-## Manually test that your configurations work as expected 
+## Manually test that your configurations work as expected
 
 ### Manually test DNS
 
@@ -518,7 +682,7 @@ DOMAIN to your
 {ref}`federation infrastructure domain <glossary_infra_domain>`. They should include your domain as part of the SAN (Subject
 Alternative Names) and not have expired.
 
-### Manually test that federation works 
+### Manually test that federation works
 
 Prerequisites:
 
