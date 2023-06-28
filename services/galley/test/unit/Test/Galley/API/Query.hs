@@ -39,21 +39,15 @@ tests =
 
 testTable :: [([Char], [Remote NonConnectedBackends], FederationStatusResponse)]
 testTable =
-  [ ("empty", [], FederationStatusResponse FullyConnected Nothing),
-    ("single response", [mkResponse (Domain "a.com") []], ok),
-    ("multiple responses", [mkResponse (Domain "a.com") [], mkResponse (Domain "b.com") []], ok),
-    ("single bad responses", [mkResponse (Domain "a.com") [Domain "b.com"]], notOk (Domain "a.com") (Domain "b.com")),
-    ("one good one bad response", [mkResponse (Domain "a.com") [], mkResponse (Domain "b.com") [Domain "c.com"]], notOk (Domain "b.com") (Domain "c.com")),
-    ("one bad one good response", [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") []], notOk (Domain "b.com") (Domain "c.com")),
-    ("one bad multiple good responses", [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") []], notOk (Domain "b.com") (Domain "c.com")),
-    ("multiple bad responses", [mkResponse (Domain "a.com") [Domain "b.com"], mkResponse (Domain "b.com") [Domain "a.com"]], notOk (Domain "a.com") (Domain "b.com"))
+  [ ("empty", [], FullyConnected),
+    ("single response", [mkResponse (Domain "a.com") []], FullyConnected),
+    ("multiple responses", [mkResponse (Domain "a.com") [], mkResponse (Domain "b.com") []], FullyConnected),
+    ("single bad responses", [mkResponse (Domain "a.com") [Domain "b.com"]], NotConnectedDomains (Domain "a.com") (Domain "b.com")),
+    ("one good one bad response", [mkResponse (Domain "a.com") [], mkResponse (Domain "b.com") [Domain "c.com"]], NotConnectedDomains (Domain "b.com") (Domain "c.com")),
+    ("one bad one good response", [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") []], NotConnectedDomains (Domain "b.com") (Domain "c.com")),
+    ("one bad multiple good responses", [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") []], NotConnectedDomains (Domain "b.com") (Domain "c.com")),
+    ("multiple bad responses", [mkResponse (Domain "a.com") [Domain "b.com"], mkResponse (Domain "b.com") [Domain "a.com"]], NotConnectedDomains (Domain "a.com") (Domain "b.com"))
   ]
   where
     mkResponse :: Domain -> [Domain] -> Remote NonConnectedBackends
     mkResponse d = toRemoteUnsafe d . NonConnectedBackends . Set.fromList
-
-    notOk :: Domain -> Domain -> FederationStatusResponse
-    notOk d1 d2 = FederationStatusResponse NonFullyConnected (Just $ RemoteDomains $ Set.fromList [d1, d2])
-
-    ok :: FederationStatusResponse
-    ok = FederationStatusResponse FullyConnected Nothing

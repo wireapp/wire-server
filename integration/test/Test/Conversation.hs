@@ -101,7 +101,7 @@ testDynamicBackendsNotFullyConnected = do
         $ \resp -> do
           resp.status `shouldMatchInt` 200
           resp.json %. "status" `shouldMatch` "non-fully-connected"
-          resp.json %. "not_connected.domains" `shouldMatchSet` [domainB, domainC]
+          resp.json %. "not_connected" `shouldMatchSet` [domainB, domainC]
 
 testFederationStatus :: HasCallStack => App ()
 testFederationStatus = do

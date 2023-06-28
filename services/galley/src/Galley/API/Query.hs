@@ -113,8 +113,8 @@ getFederationStatus _ req = do
 firstConflictOrFullyConnected :: [Remote NonConnectedBackends] -> FederationStatusResponse
 firstConflictOrFullyConnected =
   maybe
-    (FederationStatusResponse FullyConnected Nothing)
-    mkFederationStatusResponse
+    FullyConnected
+    (uncurry NotConnectedDomains)
     . headMay
     . mapMaybe (toMaybeConflict . (\r -> (tDomain r, tUnqualified r)))
   where
@@ -123,12 +123,6 @@ firstConflictOrFullyConnected =
       case Set.toList conflictingDomains of
         [] -> Nothing
         conflictingDomain : _ -> Just (d, conflictingDomain)
-
-    mkFederationStatusResponse :: (Domain, Domain) -> FederationStatusResponse
-    mkFederationStatusResponse (d1, d2) =
-      FederationStatusResponse
-        NonFullyConnected
-        (Just $ RemoteDomains $ Set.fromList [d1, d2])
 
 getBotConversationH ::
   ( Member ConversationStore r,

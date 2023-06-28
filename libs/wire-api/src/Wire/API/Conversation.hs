@@ -21,9 +21,8 @@
 -- FUTUREWORK: There's still a lot of stuff we should factor out into separate
 -- modules.
 module Wire.API.Conversation
-  ( FederationStatus (..),
+  ( FederationStatusResponse (..),
     RemoteDomains (..),
-    FederationStatusResponse (..),
 
     -- * Conversation
     ConversationMetadata (..),
@@ -90,8 +89,9 @@ where
 
 import Control.Applicative
 import Control.Lens ((?~))
-import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson (FromJSON (..), ToJSON (..), (.:))
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id
@@ -936,35 +936,39 @@ instance ToSchema RemoteDomains where
       RemoteDomains
         <$> rdDomains .= field "domains" (set schema)
 
-data FederationStatus = FullyConnected | NonFullyConnected
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform FederationStatus)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema FederationStatus
-
-instance ToSchema FederationStatus where
-  schema =
-    enum @Text "FederationStatus" $
-      mconcat
-        [ element "fully-connected" FullyConnected,
-          element "non-fully-connected" NonFullyConnected
-        ]
-
-data FederationStatusResponse = FederationStatusResponse
-  { status :: FederationStatus,
-    notConnected :: Maybe RemoteDomains
-  }
+data FederationStatusResponse
+  = FullyConnected
+  | NotConnectedDomains Domain Domain
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform FederationStatusResponse)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema FederationStatusResponse
 
 instance ToSchema FederationStatusResponse where
-  schema =
-    objectWithDocModifier
-      "FederationStatusResponse"
-      (description ?~ "The federation status of remote domains. Either `fully-connected` or `non-fully-connected`. If `non-fully-connected`, the `not_connected` field will contain a non-exhaustive list of remote domains that are not fully connected.")
-      $ FederationStatusResponse
-        <$> status .= field "status" schema
-        <*> notConnected .= maybe_ (optField "not_connected" schema)
+  schema = mkSchema descr toFederationStatusResponse fromFederationStatusResponse
+    where
+      toFederationStatusResponse :: A.Value -> A.Parser FederationStatusResponse
+      toFederationStatusResponse = A.withObject "FederationStatusResponse" $ \o -> do
+        status :: Text <- o .: "status"
+        case status of
+          "fully-connected" -> pure FullyConnected
+          "non-fully-connected" -> do
+            domains <- o .: "not_connected"
+            case domains of
+              [a, b] -> pure $ NotConnectedDomains a b
+              _ -> A.parseFail "Expected exactly two domains."
+          _ -> A.parseFail "Expected 'fully-connected' or 'non-fully-connected'."
+
+      fromFederationStatusResponse :: FederationStatusResponse -> Maybe A.Value
+      fromFederationStatusResponse = \case
+        FullyConnected -> Just $ A.object ["status" A..= ("fully-connected" :: Text)]
+        NotConnectedDomains a b -> Just $ A.object ["status" A..= ("non-fully-connected" :: Text), "not_connected" A..= [a, b]]
+
+      descr :: NamedSwaggerDoc
+      descr =
+        swaggerDoc @Text
+          & S.schema . S.description ?~ "This value expresses if the requested remote domains are fully connected or not. If not, it contains a non-exhaustive list of remote domains that are not fully connected."
+          & S.schema . S.example ?~ "{ \"status\": \"fully-connected\", \"not_connected\": [] }"
+          & S.schema . S.example ?~ "{ \"status\": \"non-fully-connected\", \"not_connected\": [\"d.example.com\", \"e.example.com\"] }"
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

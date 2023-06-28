@@ -115,6 +115,7 @@ tests =
       testRoundTrip @Conversation.ConversationReceiptModeUpdate,
       testRoundTrip @Conversation.ConversationMessageTimerUpdate,
       testRoundTrip @Conversation.ConversationMetadata,
+      testRoundTrip @Conversation.FederationStatusResponse,
       testRoundTrip @Conversation.Bot.AddBot,
       testRoundTrip @Conversation.Bot.AddBotResponse,
       testRoundTrip @Conversation.Bot.RemoveBotResponse,
