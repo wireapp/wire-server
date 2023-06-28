@@ -28,6 +28,8 @@ migration :: Migration
 migration = Migration 10 "Add notification payload references" $ do
   schema' [r| ALTER TABLE notifications ADD payload_ref uuid; |]
 
+  schema' [r| ALTER TABLE notifications ADD payload_ref_size int; |]
+
   schema'
     [r|
         CREATE COLUMNFAMILY IF NOT EXISTS notification_payload
