@@ -752,8 +752,8 @@ fromConversationCreated loc rc@ConversationCreated {..} =
         ProtocolProteus
 
 -- | Notify remote users of being added to a new conversation. The return value
--- consists of a split of users that could not be notified. Users that could not
--- be notified will not be considered to be conversation members.
+-- consists of a set of users that could not be notified. Users that could not
+-- be notified will effectively not be added to the conversation.
 registerRemoteConversationMemberships ::
   (Member FederatorAccess r) =>
   -- | The time stamp when the conversation was created
