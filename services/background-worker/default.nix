@@ -53,7 +53,9 @@ mkDerivation {
     imports
     monad-control
     retry
+    servant
     servant-client
+    servant-server
     text
     tinylog
     transformers-base

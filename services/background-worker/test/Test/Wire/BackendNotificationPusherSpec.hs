@@ -46,9 +46,11 @@ runTestAppT :: AppT IO a -> Int -> IO a
 runTestAppT app port = do
   http2Manager <- initHttp2Manager
   logger <- Logger.new Logger.defSettings
+  statuses <- newIORef mempty
   let federatorInternal = Endpoint "localhost" (fromIntegral port)
       rabbitmqAdminClient = undefined
       rabbitmqVHost = undefined
+      metrics = undefined
       backendNotificationPusher = BackendNotificationPusherOpts 1
       env = Env {..}
   runAppT env app
@@ -164,6 +166,8 @@ spec = do
       logger <- Logger.new Logger.defSettings
       let federatorInternal = undefined
           http2Manager = undefined
+          statuses = undefined
+          metrics = undefined
           backendNotificationPusher = BackendNotificationPusherOpts 1
           rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
@@ -176,6 +180,8 @@ spec = do
       logger <- Logger.new Logger.defSettings
       let federatorInternal = undefined
           http2Manager = undefined
+          statuses = undefined
+          metrics = undefined
           backendNotificationPusher = BackendNotificationPusherOpts 1
           rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
