@@ -281,7 +281,7 @@ instance RunClient WaiClient where
             }
     app <- ask
     respMVar <- newEmptyMVar
-    _ <- liftIO $ app waiReq $ \res -> do
+    void $ liftIO $ app waiReq $ \res -> do
       putMVar respMVar res
       pure Wai.ResponseReceived
     res <- waiResponseToServant =<< takeMVar respMVar
