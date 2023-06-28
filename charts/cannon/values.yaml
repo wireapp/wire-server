@@ -52,16 +52,22 @@ nginx_conf:
     ciphers_tls13: "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384"
 
   # The origins from which we allow CORS requests. These are combined with
-  # 'external_env_domain' to form a full url
+  # 'external_env_domain' and 'additional_external_env_domains' to form a full
+  # url.
   allowlisted_origins:
     - webapp
     - teams
     - account
+
   # The origins from which we allow CORS requests at random ports. This is
   # useful for testing with HTTP proxies and should not be used in production.
   # The list entries must be full hostnames (they are **not** combined with
   # 'external_env_domain'). http and https URLs are allow listed.
   randomport_allowlisted_origins: [] # default is empty by intention
+
+  # Configure multiple root domains for one backend. This is only advised in
+  # very specicial cases. Usually, this list should be empty.
+  additional_external_env_domains: []
 
   # Setting this value does nothing as the only upstream recongnized here is
   # 'cannon' and is forwarded to localhost. This is here only to make sure that

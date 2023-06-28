@@ -742,3 +742,46 @@ Unfortunately, kroki currently doesn't work on our CI: SQPIT-1810
 Link to diagram:
 https://mermaid.live/edit#pako:eNrdVbFu2zAQ_ZUDJ7ewDdhtUkBDgBRB0CHIYCNL4eVEnmWiMk8lKbttkH8vJbsW5dCOUXSqBkHiPT6-e3yinoVkRSITEC5H32syku40FhbXCwP7C6VnC1hqSQNL6l1XeWRPwBuKqxk8OXKwpRyrahxGxvQD11VJY8mvSHPOB4UlMknSrtonbcfStBVar6Wu0HjQJgCdGwUNKfaonMGMax8WeH9acIq5FXKOuwVE7BcqN4U2v9IlibbgFZcqXZ5_ABeMxYK6uiXpwRb5YHp1NYTJ9FN7ixw3jW6ri5UHXva28rZ5BsVbUzIqB-gc-WgTD9DRzU3Pz7v9FChZYnk8L4KGiW23Gdyz3aJVQW7IoYvQbT3gDq2_wsIIbpWCr6MvHF5WhIpsL2p6g6HFhHePvdajFR6Yv0Fd7ZTDquF9mj3AMoR2t0zHcZg1CiJj92akdGP-OLBJ9JpDFOa73YGNxnRAFZ3Te9rxey5L3gZHdmueMrsLyBnHDwpScerGQr_9dn1tzfFeR_2k2MioRFIn15MhTD82Sb0-ndT4fPjM-emcdsDItf23eVlSW_D_ltXYv0uzenTknU_rOd_fzOsfy_9xYvtN_21ixVCsya5Rq_D3fG6KC-FXtKaFyMKjoiXWpV-IhXkJUKw9z38aKTJvaxqKulKBff-jFdkSS0cvvwHKl250
 -->
+
+## Settings in cannon
+
+### Multi-Ingress setup
+
+*cannon* sets [CORS
+headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) for direct API
+accesses by clients. To generate them for multiple domains (usually, *cannon*
+works with only one root domain) these need to be defined with
+`nginx_conf.additional_external_env_domains`.
+
+E.g.
+
+```yaml
+nginx_conf:
+  additional_external_env_domains:
+    - red.example.com
+    - green.example.org
+    - blue.example.net
+```
+
+This setting has a dual in the *nginz* configuration.
+
+## Settings in nginz
+
+### Multi-Ingress setup
+
+nginz sets [CORS
+headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS). To generate
+them for multiple domains (usually, *nginz* works with only one root domain)
+these need to be defined with `nginx_conf.additional_external_env_domains`.
+
+E.g.
+
+```yaml
+nginx_conf:
+  additional_external_env_domains:
+    - red.example.com
+    - green.example.org
+    - blue.example.net
+```
+
+This setting has a dual in the *cannon* configuration.
