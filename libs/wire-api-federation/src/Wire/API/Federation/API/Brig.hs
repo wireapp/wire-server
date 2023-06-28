@@ -72,7 +72,7 @@ type BrigApi =
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
     :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
     :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)
-    :<|> FedEndpoint "get-federation-status" DomainSet FederationStatusResponse
+    :<|> FedEndpoint "get-federation-status" DomainSet NonConnectedBackends
 
 newtype DomainSet = DomainSet
   { dsDomains :: Set Domain
@@ -80,11 +80,11 @@ newtype DomainSet = DomainSet
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded DomainSet)
 
-newtype FederationStatusResponse = FederationStatusResponse
-  { notConnectedTo :: Set Domain
+newtype NonConnectedBackends = NonConnectedBackends
+  { nonConnectedBackends :: Set Domain
   }
   deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded FederationStatusResponse)
+  deriving (ToJSON, FromJSON) via (CustomEncoded NonConnectedBackends)
 
 newtype GetUserClients = GetUserClients
   { gucUsers :: [UserId]

@@ -94,8 +94,7 @@ import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
-import Wire.API.Federation.API.Brig (DomainSet (DomainSet))
-import qualified Wire.API.Federation.API.Brig as Fed
+import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
@@ -111,7 +110,7 @@ getFederationStatus _ req = do
       (flip toRemoteUnsafe () <$> Set.toList req.rdDomains)
       (\qds -> fedClient @'Brig @"get-federation-status" (DomainSet (tDomain qds `Set.delete` req.rdDomains)))
 
-firstConflictOrFullyConnected :: [Remote Fed.FederationStatusResponse] -> FederationStatusResponse
+firstConflictOrFullyConnected :: [Remote NonConnectedBackends] -> FederationStatusResponse
 firstConflictOrFullyConnected =
   maybe
     (FederationStatusResponse FullyConnected Nothing)
@@ -119,8 +118,8 @@ firstConflictOrFullyConnected =
     . headMay
     . mapMaybe (toMaybeConflict . (\r -> (tDomain r, tUnqualified r)))
   where
-    toMaybeConflict :: (Domain, Fed.FederationStatusResponse) -> Maybe (Domain, Domain)
-    toMaybeConflict (d, Fed.FederationStatusResponse conflictingDomains) =
+    toMaybeConflict :: (Domain, NonConnectedBackends) -> Maybe (Domain, Domain)
+    toMaybeConflict (d, NonConnectedBackends conflictingDomains) =
       case Set.toList conflictingDomains of
         [] -> Nothing
         conflictingDomain : _ -> Just (d, conflictingDomain)

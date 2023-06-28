@@ -25,7 +25,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit (testCase, (@?=))
 import Wire.API.Conversation
-import qualified Wire.API.Federation.API.Brig as Fed
+import Wire.API.Federation.API.Brig
 
 tests :: TestTree
 tests =
@@ -37,7 +37,7 @@ tests =
         <$> testTable
     )
 
-testTable :: [([Char], [Remote Fed.FederationStatusResponse], FederationStatusResponse)]
+testTable :: [([Char], [Remote NonConnectedBackends], FederationStatusResponse)]
 testTable =
   [ ("empty", [], FederationStatusResponse FullyConnected Nothing),
     ("single response", [mkResponse (Domain "a.com") []], ok),
@@ -49,8 +49,8 @@ testTable =
     ("multiple bad responses", [mkResponse (Domain "a.com") [Domain "b.com"], mkResponse (Domain "b.com") [Domain "a.com"]], notOk (Domain "a.com") (Domain "b.com"))
   ]
   where
-    mkResponse :: Domain -> [Domain] -> Remote Fed.FederationStatusResponse
-    mkResponse d = toRemoteUnsafe d . Fed.FederationStatusResponse . Set.fromList
+    mkResponse :: Domain -> [Domain] -> Remote NonConnectedBackends
+    mkResponse d = toRemoteUnsafe d . NonConnectedBackends . Set.fromList
 
     notOk :: Domain -> Domain -> FederationStatusResponse
     notOk d1 d2 = FederationStatusResponse NonFullyConnected (Just $ RemoteDomains $ Set.fromList [d1, d2])
