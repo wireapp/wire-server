@@ -361,10 +361,16 @@ instance SetFeatureConfig SearchVisibilityInboundConfig where
     persistAndPushEvent tid wsnl
 
 instance SetFeatureConfig MLSConfig where
-  type SetConfigForTeamConstraints MLSConfig (r :: EffectRow) = Member (Error TeamFeatureError) r
+  type SetConfigForTeamConstraints MLSConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)
   setConfigForTeam tid wsnl = do
-    let valid mlsConfig = mlsDefaultProtocol mlsConfig `elem` mlsSupportedProtocols mlsConfig
-    unless (valid . wssConfig $ wsnl) $ throw MLSProtocolMismatch
+    mlsMigrationConfig <- getConfigForTeam @MlsMigrationConfig tid
+    unless
+      ( -- default protocol needs to be included in supported protocols
+        mlsDefaultProtocol (wssConfig wsnl) `elem` mlsSupportedProtocols (wssConfig wsnl)
+          -- when MLS migration is enabled, MLS needs to be enabled as well
+          && (wsStatus mlsMigrationConfig == FeatureStatusDisabled || wssStatus wsnl == FeatureStatusEnabled)
+      )
+      $ throw MLSProtocolMismatch
     persistAndPushEvent tid wsnl
 
 instance SetFeatureConfig ExposeInvitationURLsToTeamAdminConfig

@@ -1269,8 +1269,8 @@ testMLS = do
           FeatureTTLUnlimited
       config3 =
         WithStatusNoLock
-          FeatureStatusDisabled
-          (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite [ProtocolProteusTag, ProtocolMLSTag])
+          FeatureStatusEnabled
+          (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite [ProtocolMLSTag])
           FeatureTTLUnlimited
       invalidConfig =
         WithStatusNoLock
