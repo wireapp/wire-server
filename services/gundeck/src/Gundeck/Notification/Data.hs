@@ -70,22 +70,23 @@ addDeduplicated ::
   NotificationTTL ->
   m ()
 addDeduplicated n tgts b (notificationTTLSeconds -> t) = do
+  traceM ("addDeduplicated: " <> show (tgts, b))
   payloadId <- randomId
+  traceM "inserting payload"
   write cqlInsertPayload (params LocalQuorum (payloadId, Blob b, fromIntegral t)) & retry x5
-  let payloadRefSize = BSL.length b
+  let payloadRefSize = fromIntegral $ BSL.length b
 
-  pooledForConcurrentlyN_ 32 tgts $ \tgt ->
+  pooledForConcurrentlyN_ 32 tgts $ \tgt -> do
     let u = tgt ^. targetUser
         cs = C.Set (tgt ^. targetClients)
-     in catch
-          (write cqlInsert (params LocalQuorum (u, n, payloadId, payloadRefSize, cs, fromIntegral t)) & retry x5)
-          (\(e :: SomeException) -> traceM (displayException e))
+    traceM "inserting notfications"
+    catch (write cqlInsert (params LocalQuorum (u, n, payloadId, payloadRefSize, cs, fromIntegral t)) & retry x5) (\(e :: SomeException) -> traceM (displayException e))
   where
-    cqlInsert :: PrepQuery W (UserId, NotificationId, PayloadId, Int64, C.Set ClientId, Int32) ()
+    cqlInsert :: PrepQuery W (UserId, NotificationId, PayloadId, Int32, C.Set ClientId, Int32) ()
     cqlInsert =
       "INSERT INTO notifications \
       \(user, id, payload_ref, payload_ref_size, clients) VALUES \
-      \(?   , ? , ?          , ?,              , ?) \
+      \(?, ?, ?, ?, ?) \
       \USING TTL ?"
 
     cqlInsertPayload :: PrepQuery W (PayloadId, Blob, Int32) ()
@@ -168,18 +169,18 @@ fetchPayload c (id_, mbPayload, mbPayloadRef, mbPayloadRefSize, mbClients) =
       maybe mzero pure $ toNotifSingle c (id_, pl, mbClients)
     _ -> pure Nothing
 
-type PRow = (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int64, Maybe (C.Set ClientId))
+type PRow = (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int32, Maybe (C.Set ClientId))
 
-payloadSize :: PRow -> Int64
+payloadSize :: PRow -> Int32
 payloadSize (_, mbPayload, _, mbPayloadRefSize, _) =
   case (mbPayload, mbPayloadRefSize) of
-    (Just blob, _) -> BSL.length (fromBlob blob)
+    (Just blob, _) -> fromIntegral $ BSL.length (fromBlob blob)
     (_, Just size) -> size
     _ -> 0
 
 -- | Fetches referenced payloads until maxTotalSize payload bytes are fetched from the database.
 -- At least the first row is fetched regardless of the payload size.
-fetchPayloads :: (MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Int64 -> [PRow] -> m (Seq QueuedNotification)
+fetchPayloads :: (MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Int32 -> [PRow] -> m (Seq QueuedNotification)
 fetchPayloads c maxTotalSize rows = do
   let rows' = truncateNotifs [] (0 :: Int) maxTotalSize rows
   Seq.fromList . catMaybes <$> pooledMapConcurrentlyN 16 (fetchPayload c) rows'
@@ -205,6 +206,7 @@ collect c acc lastPageHasMore remaining getPage
 
 fetch :: (MonadClient m, MonadUnliftIO m) => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
 fetch u c since (fromRange -> size) = do
+  traceM "this is fetch"
   -- We always need to look for one more than requested in order to correctly
   -- report whether there are more results.
   let size' = bool (+ 1) (+ 2) (isJust since) size
@@ -226,28 +228,18 @@ fetch u c since (fromRange -> size) = do
             ResultPage xs more False
       _ -> ResultPage (x <| xs) more (isJust since)
   where
-    -- collect :: Seq QueuedNotification -> Int -> Page (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe (C.Set ClientId)) -> (Seq QueuedNotification, Bool)
-    -- collect acc num page =
-    --   let ns = splitAt num $ foldr (toNotif c) [] (result page)
-    --       nseq = Seq.fromList (fst ns)
-    --       more = hasMore page
-    --       num' = num - Seq.length nseq
-    --       acc' = acc >< nseq
-    --    in if not more || num' == 0
-    --         then pure (acc', more || not (null (snd ns)))
-    --         else liftClient (nextPage page) >>= collect acc' num'
     trim l ns
       | Seq.length ns <= l = ns
       | otherwise = case Seq.viewr ns of
           EmptyR -> ns
           xs :> _ -> xs
-    cqlStart :: PrepQuery R (Identity UserId) (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int64, Maybe (C.Set ClientId))
+    cqlStart :: PrepQuery R (Identity UserId) (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int32, Maybe (C.Set ClientId))
     cqlStart =
       "SELECT id, payload, payload_ref, payload_ref_size, clients \
       \FROM notifications \
       \WHERE user = ? \
       \ORDER BY id ASC"
-    cqlSince :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int64, Maybe (C.Set ClientId))
+    cqlSince :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int32, Maybe (C.Set ClientId))
     cqlSince =
       "SELECT id, payload, payload_ref, payload_ref_size, clients \
       \FROM notifications \
