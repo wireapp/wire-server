@@ -13,11 +13,9 @@
 , exceptions
 , extra
 , gitignoreSource
-, HsOpenSSL
 , hspec
 , hspec-discover
 , http-client
-, http-client-openssl
 , http-types
 , imports
 , lib
@@ -51,9 +49,7 @@ mkDerivation {
     errors
     exceptions
     extra
-    HsOpenSSL
     http-client
-    http-client-openssl
     http-types
     imports
     metrics-wai
