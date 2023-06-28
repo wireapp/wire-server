@@ -49,7 +49,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
-import Wire.API.Conversation hiding (FederationStatusResponse)
+import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
@@ -736,7 +736,7 @@ leaveConversationSuccess = do
           ]
 
   (convId, _) <-
-    withTempMockFederator' ("get-federation-status" ~> FederationStatusResponse mempty <|> mock <|> mockReply ()) $
+    withTempMockFederator' ("get-federation-status" ~> NonConnectedBackends mempty <|> mock <|> mockReply ()) $
       decodeConvId
         <$> postConvQualified
           alice
@@ -748,7 +748,7 @@ leaveConversationSuccess = do
 
   (_, federatedRequests) <-
     WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
-      withTempMockFederator' ("get-federation-status" ~> FederationStatusResponse mempty <|> mock <|> mockReply ()) $ do
+      withTempMockFederator' ("get-federation-status" ~> NonConnectedBackends mempty <|> mock <|> mockReply ()) $ do
         g <- viewGalley
         let leaveRequest = FedGalley.LeaveConversationRequest convId (qUnqualified qChad)
         respBS <-
@@ -924,7 +924,7 @@ sendMessage = do
   -- conversation
   let responses1 = guardComponent Brig *> mockReply [bobProfile, chadProfile]
   (convId, requests1) <-
-    withTempMockFederator' ("get-federation-status" ~> FederationStatusResponse mempty <|> responses1 <|> mockReply ()) $
+    withTempMockFederator' ("get-federation-status" ~> NonConnectedBackends mempty <|> responses1 <|> mockReply ()) $
       fmap decodeConvId $
         postConvQualified
           aliceId
@@ -1149,7 +1149,7 @@ updateConversationByRemoteAdmin = do
   let convName = "Test Conv"
   WS.bracketR c alice $ \wsAlice -> do
     (rsp, _federatedRequests) <- do
-      let mock = ("get-federation-status" ~> FederationStatusResponse mempty) <|> mockReply ()
+      let mock = ("get-federation-status" ~> NonConnectedBackends mempty) <|> mockReply ()
       withTempMockFederator' mock $ do
         postConvQualified alice Nothing defNewProteusConv {newConvName = checked convName, newConvQualifiedUsers = [qbob, qcharlie]}
           <!! const 201 === statusCode

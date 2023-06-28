@@ -105,7 +105,7 @@ import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
 import Wire.API.Connection
-import Wire.API.Conversation hiding (FederationStatusResponse)
+import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code hiding (Value)
 import Wire.API.Conversation.Protocol
@@ -734,7 +734,7 @@ postConvWithRemoteUsers ::
   TestM (Response (Maybe LByteString))
 postConvWithRemoteUsers u c n = do
   let mock =
-        ("get-federation-status" ~> FederationStatusResponse mempty)
+        ("get-federation-status" ~> NonConnectedBackends mempty)
           <|> mockReply ()
   fmap fst $
     withTempMockFederator' mock $
