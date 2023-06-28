@@ -13,10 +13,7 @@ import qualified Data.Text.Encoding as Text
 import Imports
 import qualified Network.AMQP as Q
 import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.OpenSSL as HTTP
 import Network.RabbitMqAdmin
-import OpenSSL.Session (SSLOption (..))
-import qualified OpenSSL.Session as SSL
 import Servant
 import Servant.Client
 import qualified Servant.Client as Servant
