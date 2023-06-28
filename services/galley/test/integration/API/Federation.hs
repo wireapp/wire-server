@@ -49,10 +49,11 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (FederationStatusResponse)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
+import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as FedGalley
@@ -735,7 +736,7 @@ leaveConversationSuccess = do
           ]
 
   (convId, _) <-
-    withTempMockFederator' (mock <|> mockReply ()) $
+    withTempMockFederator' ("get-federation-status" ~> FederationStatusResponse mempty <|> mock <|> mockReply ()) $
       decodeConvId
         <$> postConvQualified
           alice
@@ -747,7 +748,7 @@ leaveConversationSuccess = do
 
   (_, federatedRequests) <-
     WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
-      withTempMockFederator' (mock <|> mockReply ()) $ do
+      withTempMockFederator' ("get-federation-status" ~> FederationStatusResponse mempty <|> mock <|> mockReply ()) $ do
         g <- viewGalley
         let leaveRequest = FedGalley.LeaveConversationRequest convId (qUnqualified qChad)
         respBS <-
@@ -923,7 +924,7 @@ sendMessage = do
   -- conversation
   let responses1 = guardComponent Brig *> mockReply [bobProfile, chadProfile]
   (convId, requests1) <-
-    withTempMockFederator' (responses1 <|> mockReply ()) $
+    withTempMockFederator' ("get-federation-status" ~> FederationStatusResponse mempty <|> responses1 <|> mockReply ()) $
       fmap decodeConvId $
         postConvQualified
           aliceId
@@ -934,8 +935,8 @@ sendMessage = do
           <!! const 201 === statusCode
 
   liftIO $ do
-    [galleyReq] <- case requests1 of
-      xs@[_] -> pure xs
+    galleyReq <- case requests1 of
+      [_, r] -> pure r
       _ -> assertFailure "unexpected number of requests"
     frComponent galleyReq @?= Galley
     frRPC galleyReq @?= "on-conversation-created"
@@ -1147,8 +1148,9 @@ updateConversationByRemoteAdmin = do
 
   let convName = "Test Conv"
   WS.bracketR c alice $ \wsAlice -> do
-    (rsp, _federatedRequests) <-
-      withTempMockFederator' (mockReply ()) $ do
+    (rsp, _federatedRequests) <- do
+      let mock = ("get-federation-status" ~> FederationStatusResponse mempty) <|> mockReply ()
+      withTempMockFederator' mock $ do
         postConvQualified alice Nothing defNewProteusConv {newConvName = checked convName, newConvQualifiedUsers = [qbob, qcharlie]}
           <!! const 201 === statusCode
 

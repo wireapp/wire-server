@@ -105,7 +105,7 @@ import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
 import Wire.API.Connection
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (FederationStatusResponse)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code hiding (Value)
 import Wire.API.Conversation.Protocol
@@ -116,6 +116,7 @@ import qualified Wire.API.Event.Conversation as Conv
 import Wire.API.Event.Team
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Internal.Notification hiding (target)
@@ -731,12 +732,14 @@ postConvWithRemoteUsers ::
   Maybe ClientId ->
   NewConv ->
   TestM (Response (Maybe LByteString))
-postConvWithRemoteUsers u c n =
+postConvWithRemoteUsers u c n = do
+  let mock =
+        ("get-federation-status" ~> FederationStatusResponse mempty)
+          <|> mockReply ()
   fmap fst $
-    withTempMockFederator' (mockReply ()) $
+    withTempMockFederator' mock $
       postConvQualified u c n {newConvName = setName (newConvName n)}
-        <!! const 201
-          === statusCode
+        <!! const 201 === statusCode
   where
     setName :: (KnownNat n, KnownNat m, Within Text n m) => Maybe (Range n m Text) -> Maybe (Range n m Text)
     setName Nothing = checked "federated gossip"

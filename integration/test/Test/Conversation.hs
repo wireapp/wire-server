@@ -1,6 +1,7 @@
 module Test.Conversation where
 
 import qualified API.BrigInternal as Internal
+import API.Galley (defProteus, postConversation, qualifiedUsers)
 import qualified API.GalleyInternal as API
 import Control.Applicative
 import qualified Data.Aeson as Aeson
@@ -143,3 +144,43 @@ testFederationStatus = do
         resp.status `shouldMatchInt` 400
         resp.json %. "label" `shouldMatch` "discovery-failure"
     )
+
+testCreateConversationFullyConnected :: HasCallStack => App ()
+testCreateConversationFullyConnected = do
+  let setFederationConfig =
+        setField "optSettings.setFederationStrategy" "allowDynamic"
+          >=> removeField "optSettings.setFederationDomainConfigs"
+          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
+  startDynamicBackends
+    [ def {dbBrig = setFederationConfig},
+      def {dbBrig = setFederationConfig},
+      def {dbBrig = setFederationConfig}
+    ]
+    $ \dynDomains -> do
+      domains@[domainA, domainB, domainC] <- pure dynDomains
+      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains]
+      [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
+      bindResponse (postConversation u1 (defProteus {qualifiedUsers = [u2, u3]})) $ \resp -> do
+        resp.status `shouldMatchInt` 201
+
+testCreateConversationNonFullyConnected :: HasCallStack => App ()
+testCreateConversationNonFullyConnected = do
+  let setFederationConfig =
+        setField "optSettings.setFederationStrategy" "allowDynamic"
+          >=> removeField "optSettings.setFederationDomainConfigs"
+          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
+  startDynamicBackends
+    [ def {dbBrig = setFederationConfig},
+      def {dbBrig = setFederationConfig},
+      def {dbBrig = setFederationConfig}
+    ]
+    $ \dynDomains -> do
+      domains@[domainA, domainB, domainC] <- pure dynDomains
+      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains]
+      [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
+      -- stop federation between B and C
+      void $ Internal.deleteFedConn domainB domainC
+      void $ Internal.deleteFedConn domainC domainB
+      bindResponse (postConversation u1 (defProteus {qualifiedUsers = [u2, u3]})) $ \resp -> do
+        resp.status `shouldMatchInt` 409
+        resp.json %. "non_federating_backends" `shouldMatchSet` [domainB, domainC]

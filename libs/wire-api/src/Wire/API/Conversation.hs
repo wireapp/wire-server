@@ -39,6 +39,7 @@ module Wire.API.Conversation
     cnvReceiptMode,
     cnvAccessRoles,
     CreateGroupConversation (..),
+    CreateConversationRejected (..),
     ConversationCoverView (..),
     ConversationList (..),
     ListConversations (..),
@@ -92,6 +93,7 @@ import Control.Applicative
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id
@@ -316,6 +318,28 @@ instance ToSchema CreateGroupConversation where
         (\(d, s) -> flip Qualified d <$> Set.toList s) =<< Map.assocs m
       fromFlatList :: Ord a => [Qualified a] -> Map Domain (Set a)
       fromFlatList = fmap Set.fromList . indexQualified
+
+newtype CreateConversationRejected = CreateConversationRejected
+  { nonFederatingBackends :: (Domain, Domain)
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CreateConversationRejected)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CreateConversationRejected
+
+instance ToSchema CreateConversationRejected where
+  schema =
+    objectWithDocModifier
+      "CreateConversationRejected"
+      (description ?~ "A rejected conversation creation object extended with a list of non-federating backends")
+      $ CreateConversationRejected
+        <$> (fromTuple . nonFederatingBackends) .= field "non_federating_backends" (array schema `withParser` validate)
+    where
+      fromTuple :: (Domain, Domain) -> [Domain]
+      fromTuple (d, d1) = [d, d1]
+
+      validate :: [Domain] -> A.Parser (Domain, Domain)
+      validate [d, d1] = pure (d, d1)
+      validate _ = fail "expected exactly two domains"
 
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
 -- link about the conversation.
@@ -949,6 +973,7 @@ instance ToSchema FederationStatus where
           element "non-fully-connected" NonFullyConnected
         ]
 
+-- TODO(leif): Refactor
 data FederationStatusResponse = FederationStatusResponse
   { status :: FederationStatus,
     notConnected :: Maybe RemoteDomains

@@ -14,7 +14,7 @@ To develop a new test in a fast-loading ghci session:
 1. Run `make cr` to build the whole project and start all services
    OR run `make cr package=galley` to build galley and start all services
    OR run `./services/run-services` to just start all services without rebuilding
-2.`TEST_INCLUDE=testFederationDomain make devtest` to start a ghcid session that re-runs the test after each succesful build of the test suite
+2.`TEST_INCLUDE=testFederationDomain make devtest` to start a ghcid session that re-runs the test after each successful build of the test suite
 
 Original design guidelines / goals:
 
