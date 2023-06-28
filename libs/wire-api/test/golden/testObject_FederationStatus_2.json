@@ -1,0 +1,7 @@
+{
+    "not_connected": [
+        "d.example.com",
+        "e.example.com"
+    ],
+    "status": "non-fully-connected"
+}
