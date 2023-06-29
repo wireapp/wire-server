@@ -35,6 +35,7 @@ library
     , http2-manager
     , imports
     , metrics-core
+    , metrics-wai
     , monad-control
     , retry
     , servant-client

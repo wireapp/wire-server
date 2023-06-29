@@ -20,6 +20,7 @@
 , imports
 , lib
 , metrics-core
+, metrics-wai
 , monad-control
 , QuickCheck
 , retry
@@ -54,6 +55,7 @@ mkDerivation {
     http2-manager
     imports
     metrics-core
+    metrics-wai
     monad-control
     retry
     servant-client

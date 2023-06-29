@@ -1,5 +1,6 @@
 module Wire.BackgroundWorker where
 
+import qualified Data.Metrics.Servant as Metrics
 import Imports
 import Network.Wai.Utilities.Server
 import Servant
@@ -23,4 +24,7 @@ run opts = do
   runSettingsWithShutdown settings (servantApp env) Nothing
 
 servantApp :: Env -> Application
-servantApp = genericServe . Health.api
+servantApp env =
+  Metrics.servantPrometheusMiddleware (Proxy @(ToServant Health.HealthAPI AsApi)) $
+    genericServe $
+      Health.api env
