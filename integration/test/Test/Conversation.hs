@@ -32,14 +32,11 @@ testDynamicBackendsNotFederating = do
   let overrides =
         def
           { dbBrig =
-              setField "optSettings.setFederationStrategy" "allowDynamic"
-                >=> removeField "optSettings.setFederationDomainConfigs"
+              setField "optSettings.setFederationStrategy" "allowNone"
           }
   startDynamicBackends [overrides, overrides, overrides] $
     \dynDomains -> do
-      domains@[domainA, domainB, domainC] <- pure dynDomains
-      -- clean federation config
-      sequence_ [Internal.deleteFedConn x y | x <- domains, y <- domains]
+      [domainA, domainB, domainC] <- pure dynDomains
       uidA <- randomUser domainA def {Internal.team = True}
       unrace
         $ bindResponse
@@ -50,14 +47,14 @@ testDynamicBackendsNotFederating = do
 
 testDynamicBackendsFullyConnectedWhenAllowDynamic :: HasCallStack => App ()
 testDynamicBackendsFullyConnectedWhenAllowDynamic = do
-  let setFederationConfig =
+  let overrides =
         setField "optSettings.setFederationStrategy" "allowDynamic"
           >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
-    [ def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig}
+    [ def {dbBrig = overrides},
+      def {dbBrig = overrides},
+      def {dbBrig = overrides}
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
@@ -111,35 +108,30 @@ testFederationStatus = do
   let invalidDomain = "c.example.com" -- has no srv record
   bindResponse
     (API.getFederationStatus uid [])
-    ( \resp -> do
-        resp.status `shouldMatchInt` 200
-        resp.json %. "status" `shouldMatch` "fully-connected"
-    )
+    $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "status" `shouldMatch` "fully-connected"
 
   bindResponse
     (API.getFederationStatus uid [unknownDomain])
-    ( \resp -> do
-        resp.status `shouldMatchInt` 400
-        resp.json %. "label" `shouldMatch` "discovery-failure"
-    )
+    $ \resp -> do
+      resp.status `shouldMatchInt` 400
+      resp.json %. "label" `shouldMatch` "discovery-failure"
 
   bindResponse
     (API.getFederationStatus uid [invalidDomain])
-    ( \resp -> do
-        resp.status `shouldMatchInt` 422
-        resp.json %. "label" `shouldMatch` "invalid-domain"
-    )
+    $ \resp -> do
+      resp.status `shouldMatchInt` 422
+      resp.json %. "label" `shouldMatch` "invalid-domain"
 
   bindResponse
     (API.getFederationStatus uid [federatingRemoteDomain])
-    ( \resp -> do
-        resp.status `shouldMatchInt` 200
-        resp.json %. "status" `shouldMatch` "fully-connected"
-    )
+    $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "status" `shouldMatch` "fully-connected"
 
   bindResponse
     (API.getFederationStatus uid [federatingRemoteDomain, unknownDomain])
-    ( \resp -> do
-        resp.status `shouldMatchInt` 400
-        resp.json %. "label" `shouldMatch` "discovery-failure"
-    )
+    $ \resp -> do
+      resp.status `shouldMatchInt` 400
+      resp.json %. "label" `shouldMatch` "discovery-failure"

@@ -119,13 +119,11 @@ firstConflictOrFullyConnected =
     FullyConnected
     (uncurry NotConnectedDomains)
     . headMay
-    . mapMaybe (toMaybeConflict . (\r -> (tDomain r, tUnqualified r)))
+    . mapMaybe toMaybeConflict
   where
-    toMaybeConflict :: (Domain, NonConnectedBackends) -> Maybe (Domain, Domain)
-    toMaybeConflict (d, NonConnectedBackends conflictingDomains) =
-      case Set.toList conflictingDomains of
-        [] -> Nothing
-        conflictingDomain : _ -> Just (d, conflictingDomain)
+    toMaybeConflict :: Remote NonConnectedBackends -> Maybe (Domain, Domain)
+    toMaybeConflict r =
+      headMay (Set.toList (nonConnectedBackends (tUnqualified r))) <&> (tDomain r,)
 
 getBotConversationH ::
   ( Member ConversationStore r,
