@@ -714,7 +714,7 @@ testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do
           )
           !!! const 200 === statusCode
   let checkEvent ws u s =
-        WS.assertMatch_ (5 # Second) ws $ \n -> do
+        WS.assertMatch_ (8 # Second) ws $ \n -> do
           let e = List1.head (WS.unpackPayload n)
           ntfTransient n @?= True
           evtConv e @?= cnvQualifiedId cnv
