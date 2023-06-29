@@ -31,6 +31,8 @@ run opts = do
       env.logger
       (demoteOpts opts.rabbitmq)
       $ RabbitMqHooks
+        -- If the function in onNewChannel throws an exception it will bubble up the stack as this is OUTSIDE of the
+        -- connection and channel error handling. This will kill the pod, which should be restarted by kubernetes.
         { onNewChannel = \chan -> runAppT env $ do
             -- Channels are threadsafe: https://hackage.haskell.org/package/amqp-0.22.1/docs/Network-AMQP.html
             -- So we can async them for concurrency.
@@ -46,10 +48,7 @@ run opts = do
             atomicWriteIORef threadsRef threads
             -- Wait for all the threads. This shouldn't occure
             -- as the threads all have `forever $ threadDelay ...`
-            liftIO $ traverse_ wait threads
-            -- clear the threadRef if the threads finish
-            -- This should never happen, but there is no harm in preventative cleanup
-            atomicWriteIORef threadsRef [],
+            liftIO $ traverse_ wait threads,
           -- FUTUREWORK: Use these for metrics
           --
           -- When the channel dies for whatever reason, kill all of the async

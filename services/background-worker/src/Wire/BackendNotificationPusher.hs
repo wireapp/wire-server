@@ -87,13 +87,20 @@ startWorker chan = do
   env <- ask
   consumersRef <- newIORef mempty
   -- Make sure threads aren't dangling if/when this async thread is killed
-  let cleanup :: AsyncCancelled -> IO ()
+  let cleanup :: Exception e => e -> IO ()
       cleanup e = do
         consumers <- readIORef consumersRef
         traverse_ (cancelConsumer chan) $ Map.elems consumers
         throwM e
+
   -- If this thread is cancelled, catch the exception, kill the consumers, and carry on.
-  liftIO $ async $ handle cleanup $ runAppT env $ do
+  -- FUTUREWORK?:
+  -- If this throws an exception on the Chan / in the forever loop, the exception will
+  -- bubble all the way up and kill the pod. Kubernetes should restart the pod automatically.
+  liftIO $ async $ flip catches
+    [ Handler $ cleanup @SomeException
+    , Handler $ cleanup @SomeAsyncException
+    ] $ runAppT env $ do
     -- Get an initial set of domains from the sync thread
     -- The Chan that we will be waiting on isn't initialised with a
     -- value until the domain update loop runs the callback for the
@@ -139,6 +146,7 @@ ensureConsumer consumers chan domain = do
   unless consumerExists $ do
     Log.info $ Log.msg (Log.val "Starting consumer") . Log.field "domain" (domainText domain)
     tag <- startPushingNotifications chan domain
+    -- TODO: Check if the map is spine strict. This strict call might not be needed.
     -- The ' version of atomicModifyIORef is strict in the function update and is useful
     -- for not leaking memory.
     oldTag <- atomicModifyIORef' consumers $ \c -> (Map.insert domain tag c, Map.lookup domain c)

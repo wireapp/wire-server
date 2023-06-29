@@ -107,6 +107,12 @@ ensureQueue chan queue = do
             Q.queueHeaders =
               Q.FieldTable $
                 Map.fromList
+                  -- single-active-consumer is used because it is order
+                  -- preserving, especially into databases and to remote servers,
+                  -- exactly what we are doing here!
+                  -- Without single active consumer, messages will be delivered
+                  -- round-robbin to all consumers, but then we lose effect-ordering
+                  -- due to processing and network times.
                   [ ("x-single-active-consumer", Q.FVBool True),
                     ("x-queue-type", Q.FVString "quorum")
                   ]

@@ -20,8 +20,8 @@ runTestAppT app port = do
   remoteDomains <- newIORef defFederationDomainConfigs
   remoteDomainsChan <- newChan
   let federatorInternal = Endpoint "localhost" (fromIntegral port)
-      galley = Endpoint "localhost" undefined -- TODO
-      brig = Endpoint "localhost" undefined -- TODO
+      galley = Endpoint "localhost" 8085
+      brig = Endpoint "localhost" 8082
       defederationTimeout = responseTimeoutNone
       rabbitmqAdminClient = undefined
       rabbitmqVHost = undefined

@@ -30,6 +30,25 @@ deleteFederationDomain chan = do
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
 
+-- Exposed for testing purposes so we can decode without further processing
+deleteFederationDomainInner' :: RabbitMQEnvelope e => (DefederationDomain -> AppT IO ()) -> (Q.Message, e) -> AppT IO ()
+deleteFederationDomainInner' go (msg, envelope) = do
+  either
+    ( \e -> do
+        void $ logErr e
+        -- ensure that the message is _NOT_ requeued
+        -- This means that we won't process this message again
+        -- as it is unparsable.
+        liftIO $ reject envelope False
+    )
+    go
+    $ A.eitherDecode @DefederationDomain (Q.msgBody msg)
+  where
+    logErr err =
+      Log.err $
+        Log.msg (Log.val "Failed to delete federation domain")
+          . Log.field "error" err
+
 -- What should we do with non-recoverable (unparsable) errors/messages?
 -- should we deadletter, or do something else?
 -- Deadlettering has a privacy implication -- FUTUREWORK.
@@ -48,15 +67,7 @@ deleteFederationDomainInner (msg, envelope) = do
             requestHeaders = ("Accept", "application/json") : requestHeaders defaultRequest,
             responseTimeout = defederationTimeout env
           }
-  either
-    ( \e -> do
-        logErr e
-        -- ensure that the message is _NOT_ requeued
-        -- This means that we won't process this message again
-        -- as it is unparsable.
-        liftIO $ reject envelope False
-    )
-    ( \d -> do
+  let callGalley d = do
         -- Retry the request a couple of times. If the final one fails, catch the exception\
         -- so that we can NACK the message and requeue it.
         resp <- try $ recovering x3 httpHandlers $ \_ -> liftIO $ httpLbs (req d) manager
@@ -65,8 +76,7 @@ deleteFederationDomainInner (msg, envelope) = do
           (\(e :: SomeException) -> liftIO (reject envelope True) >> throwM e)
           go
           resp
-    )
-    $ A.eitherDecode @DefederationDomain (Q.msgBody msg)
+  deleteFederationDomainInner' callGalley (msg, envelope)
   where
     go :: Response L.ByteString -> AppT IO ()
     go resp = do
@@ -78,10 +88,6 @@ deleteFederationDomainInner (msg, envelope) = do
         -- This message was able to be parsed but something
         -- else in our stack failed and we should try again.
           liftIO $ reject envelope True
-    logErr err =
-      Log.err $
-        Log.msg (Log.val "Failed to delete federation domain")
-          . Log.field "error" err
 
 deleteWorker :: Q.Channel -> AppT IO (Async ())
 deleteWorker chan = do
