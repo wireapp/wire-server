@@ -19,6 +19,7 @@ module Brig.API.Internal
     servantSitemap,
     BrigIRoutes.API,
     getMLSClients,
+    getFederationRemotes,
   )
 where
 

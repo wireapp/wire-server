@@ -93,6 +93,7 @@ library
     Test.AssetDownload
     Test.B2B
     Test.Brig
+    Test.Conversation
     Test.Demo
     Test.User
     Testlib.App
@@ -155,5 +156,6 @@ library
     , unix
     , unliftio
     , uuid
+    , vector
     , websockets
     , yaml

@@ -19,6 +19,7 @@
 , http2-manager
 , imports
 , lib
+, metrics-core
 , monad-control
 , QuickCheck
 , retry
@@ -33,6 +34,7 @@
 , types-common
 , unliftio
 , wai
+, wai-utilities
 , wire-api
 , wire-api-federation
 }:
@@ -51,13 +53,17 @@ mkDerivation {
     HsOpenSSL
     http2-manager
     imports
+    metrics-core
     monad-control
     retry
     servant-client
+    servant-server
     text
     tinylog
     transformers-base
     types-common
+    unliftio
+    wai-utilities
     wire-api-federation
   ];
   executableHaskellDepends = [ HsOpenSSL imports types-common ];

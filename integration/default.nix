@@ -49,6 +49,7 @@
 , unix
 , unliftio
 , uuid
+, vector
 , websockets
 , yaml
 }:
@@ -103,6 +104,7 @@ mkDerivation {
     unix
     unliftio
     uuid
+    vector
     websockets
     yaml
   ];

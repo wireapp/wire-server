@@ -15,27 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
-  )
-where
+module Test.Wire.API.Golden.Manual.FederationStatus where
 
-import Imports
-import qualified Test.Galley.API.Message
-import qualified Test.Galley.API.One2One
-import qualified Test.Galley.API.Query
-import qualified Test.Galley.Intra.User
-import qualified Test.Galley.Mapping
-import Test.Tasty
+import Data.Domain (Domain (..))
+import qualified Data.Set as Set
+import Imports (Monoid (mempty), ($))
+import Wire.API.FederationStatus
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Galley.API.Message.tests,
-        Test.Galley.API.One2One.tests,
-        Test.Galley.Intra.User.tests,
-        Test.Galley.Mapping.tests,
-        Test.Galley.API.Query.tests
-      ]
+testObject_FederationStatus_1 :: FederationStatus
+testObject_FederationStatus_1 = FullyConnected
+
+testObject_FederationStatus_2 :: FederationStatus
+testObject_FederationStatus_2 = NotConnectedDomains (Domain "d.example.com") (Domain "e.example.com")
+
+testObject_RemoteDomains_1 :: RemoteDomains
+testObject_RemoteDomains_1 = RemoteDomains $ Set.fromList [Domain "a.example.com", Domain "b.example.com"]
+
+testObject_RemoteDomains_2 :: RemoteDomains
+testObject_RemoteDomains_2 = RemoteDomains mempty
