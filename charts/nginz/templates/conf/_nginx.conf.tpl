@@ -128,7 +128,12 @@ http {
   map $http_origin $cors_header {
       default "";
     {{ range $origin := .Values.nginx_conf.allowlisted_origins }}
-      "https://{{ $origin }}.{{ $.Values.nginx_conf.external_env_domain}}" "$http_origin";
+    {{- range $domain := (prepend
+                            $.Values.nginx_conf.additional_external_env_domains
+                            $.Values.nginx_conf.external_env_domain)
+    -}}
+      "https://{{ $origin }}.{{ $domain }}" "$http_origin";
+    {{ end }}
     {{ end }}
 
     # Allow additional origins at random ports. This is useful for testing with an HTTP proxy.

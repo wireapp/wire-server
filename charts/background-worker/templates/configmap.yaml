@@ -13,11 +13,15 @@ data:
     logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
 
+    backgroundWorker:
+      host: 0.0.0.0
+      port: {{ $.Values.service.internalPort }}
+
     federatorInternal:
       host: federator
       port: 8080
     rabbitmq:
 {{toYaml .rabbitmq | indent 6 }}
-    remoteDomains:
-{{toYaml .remoteDomains | indent 6 }}
+    backendNotificationPusher:
+{{toYaml .backendNotificationPusher | indent 6 }}
   {{- end }}
