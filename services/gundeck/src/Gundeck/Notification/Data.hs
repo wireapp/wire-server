@@ -20,7 +20,6 @@
 module Gundeck.Notification.Data
   ( ResultPage (..),
     add,
-    addDeduplicated,
     fetch,
     fetchId,
     fetchLast,
@@ -31,15 +30,14 @@ where
 import Cassandra as C
 import Control.Error (MaybeT (..))
 import Control.Lens ((^.), _1)
-import Control.Monad.Catch
 import qualified Data.Aeson as JSON
 import qualified Data.ByteString.Lazy as BSL
 import Data.Id
-import Data.List1 (List1)
+import qualified Data.List.NonEmpty as NonEmpty
+import Data.List1 (List1, toNonEmpty)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL ((:<)))
 import qualified Data.Sequence as Seq
-import Debug.Trace (traceM)
 import Gundeck.Options (NotificationTTL (..))
 import Imports hiding (cs)
 import UnliftIO (pooledForConcurrentlyN_)
@@ -62,28 +60,40 @@ data Payload = Payload
 
 type PayloadId = Id 'Payload
 
-addDeduplicated ::
-  (MonadClient m, MonadUnliftIO m, MonadCatch m) =>
+add ::
+  (MonadClient m, MonadUnliftIO m) =>
   NotificationId ->
   List1 NotificationTarget ->
-  BSL.ByteString ->
+  List1 JSON.Object ->
   NotificationTTL ->
   m ()
-addDeduplicated n tgts b (notificationTTLSeconds -> t) = do
-  traceM ("addDeduplicated: " <> show (tgts, b))
-  payloadId <- randomId
-  traceM "inserting payload"
-  write cqlInsertPayload (params LocalQuorum (payloadId, Blob b, fromIntegral t)) & retry x5
-  let payloadRefSize = fromIntegral $ BSL.length b
+add n tgts (JSON.encode -> payload) (notificationTTLSeconds -> t) = do
+  -- inline payload when there is exactly one target
+  let inlinePayload = null (NonEmpty.tail (toNonEmpty tgts))
+  if inlinePayload
+    then do
+      pooledForConcurrentlyN_ 32 tgts $ \tgt ->
+        let u = tgt ^. targetUser
+            cs = C.Set (tgt ^. targetClients)
+         in retry x5 $ write cqlInsertInline (params LocalQuorum (u, n, Blob payload, cs, fromIntegral t))
+    else do
+      payloadId <- randomId
+      write cqlInsertPayload (params LocalQuorum (payloadId, Blob payload, fromIntegral t)) & retry x5
+      let payloadRefSize = fromIntegral $ BSL.length payload
 
-  pooledForConcurrentlyN_ 32 tgts $ \tgt -> do
-    let u = tgt ^. targetUser
-        cs = C.Set (tgt ^. targetClients)
-    traceM "inserting notfications"
-    catch (write cqlInsert (params LocalQuorum (u, n, payloadId, payloadRefSize, cs, fromIntegral t)) & retry x5) (\(e :: SomeException) -> traceM (displayException e))
+      pooledForConcurrentlyN_ 32 tgts $ \tgt ->
+        let u = tgt ^. targetUser
+            cs = C.Set (tgt ^. targetClients)
+         in retry x5 $ write cqlInsertReference (params LocalQuorum (u, n, payloadId, payloadRefSize, cs, fromIntegral t))
   where
-    cqlInsert :: PrepQuery W (UserId, NotificationId, PayloadId, Int32, C.Set ClientId, Int32) ()
-    cqlInsert =
+    cqlInsertInline :: PrepQuery W (UserId, NotificationId, Blob, C.Set ClientId, Int32) ()
+    cqlInsertInline =
+      "INSERT INTO notifications \
+      \(user, id, payload, clients) VALUES \
+      \(?   , ? , ?      , ?) \
+      \USING TTL ?"
+    cqlInsertReference :: PrepQuery W (UserId, NotificationId, PayloadId, Int32, C.Set ClientId, Int32) ()
+    cqlInsertReference =
       "INSERT INTO notifications \
       \(user, id, payload_ref, payload_ref_size, clients) VALUES \
       \(?, ?, ?, ?, ?) \
@@ -94,26 +104,6 @@ addDeduplicated n tgts b (notificationTTLSeconds -> t) = do
       "INSERT INTO notification_payload \
       \(id, payload) VALUES \
       \(?   , ?) \
-      \USING TTL ?"
-
-add ::
-  (MonadClient m, MonadUnliftIO m) =>
-  NotificationId ->
-  List1 NotificationTarget ->
-  List1 JSON.Object ->
-  NotificationTTL ->
-  m ()
-add n tgts (Blob . JSON.encode -> p) (notificationTTLSeconds -> t) =
-  pooledForConcurrentlyN_ 32 tgts $ \tgt ->
-    let u = tgt ^. targetUser
-        cs = C.Set (tgt ^. targetClients)
-     in write cqlInsert (params LocalQuorum (u, n, p, cs, fromIntegral t)) & retry x5
-  where
-    cqlInsert :: PrepQuery W (UserId, NotificationId, Blob, C.Set ClientId, Int32) ()
-    cqlInsert =
-      "INSERT INTO notifications \
-      \(user, id, payload, clients) VALUES \
-      \(?   , ? , ?      , ?) \
       \USING TTL ?"
 
 fetchId :: MonadClient m => UserId -> NotificationId -> Maybe ClientId -> m (Maybe QueuedNotification)

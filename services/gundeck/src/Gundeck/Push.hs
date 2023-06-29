@@ -37,7 +37,6 @@ import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
 import Data.Aeson as Aeson (Object)
-import qualified Data.Aeson as JSON
 import Data.Id
 import qualified Data.List.Extra as List
 import Data.List1 (List1, list1)
@@ -52,7 +51,7 @@ import qualified Gundeck.Aws as Aws
 import Gundeck.Aws.Arn
 import Gundeck.Env
 import Gundeck.Monad
-import qualified Gundeck.Notification.Data as Stream
+import qualified Gundeck.Notification.Data as Data
 import Gundeck.Options
 import qualified Gundeck.Presence.Data as Presence
 import qualified Gundeck.Push.Data as Data
@@ -101,7 +100,7 @@ instance MonadPushAll Gundeck where
   mpaListAllPresences = runWithDefaultRedis . Presence.listAll
   mpaBulkPush = Web.bulkPush
 
-  mpaStreamAdd n targets payload ttl = Stream.addDeduplicated n targets (JSON.encode payload) ttl
+  mpaStreamAdd = Data.add
   mpaPushNative = pushNative
   mpaForkIO = void . forkIO
   mpaRunWithBudget = runWithBudget''
