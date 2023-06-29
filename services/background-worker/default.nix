@@ -10,6 +10,7 @@
 , bilge
 , bytestring
 , bytestring-conversion
+, containers
 , exceptions
 , extended
 , federator
@@ -17,6 +18,7 @@
 , HsOpenSSL
 , hspec
 , http-client
+, http-media
 , http-types
 , http2-manager
 , imports
@@ -29,10 +31,17 @@
 , tagged
 , tasty
 , tasty-hunit
+, servant
+, servant-client
+, servant-client-core
+, servant-server
 , text
 , tinylog
+, transformers
 , transformers-base
 , types-common
+, unliftio
+, wai
 , wire-api
 , wire-api-federation
 , yaml
@@ -51,6 +60,7 @@ mkDerivation {
     bilge
     bytestring
     bytestring-conversion
+    containers
     exceptions
     extended
     HsOpenSSL
@@ -61,34 +71,40 @@ mkDerivation {
     lens
     monad-control
     retry
+    servant-client
     text
     tinylog
     transformers-base
     types-common
+    wire-api-federation
+  ];
+  testHaskellDepends = [
+    aeson
+    amqp
+    base
+    bytestring
+    containers
+    extended
+    federator
+    hspec
+    http-media
+    http-types
+    imports
+    QuickCheck
+    servant
+    servant-client
+    servant-client-core
+    servant-server
+    text
+    tinylog
+    transformers
+    types-common
+    unliftio
+    wai
     wire-api
     wire-api-federation
   ];
   executableHaskellDepends = [
-    aeson
-    amqp
-    async
-    base
-    exceptions
-    federator
-    HsOpenSSL
-    hspec
-    imports
-    optparse-applicative
-    QuickCheck
-    tagged
-    tasty
-    tasty-hunit
-    types-common
-    wire-api
-    wire-api-federation
-    yaml
-  ];
-  testHaskellDepends = [
     aeson
     amqp
     async

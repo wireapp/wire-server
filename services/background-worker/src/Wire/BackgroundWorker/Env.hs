@@ -11,8 +11,11 @@ import Control.Monad.Trans.Control
 import HTTP2.Client.Manager
 import Imports
 import Network.HTTP.Client
+import Network.AMQP.Extended
+import qualified Network.RabbitMqAdmin as RabbitMqAdmin
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
+import qualified Servant.Client as Servant
 import qualified System.Logger as Log
 import System.Logger.Class (Logger, MonadLogger (..))
 import qualified System.Logger.Extended as Log
@@ -23,6 +26,7 @@ import Wire.BackgroundWorker.Options
 
 data Env = Env
   { http2Manager :: Http2Manager,
+
     httpManager :: Manager,
     logger :: Logger,
     federatorInternal :: Endpoint,
@@ -30,7 +34,10 @@ data Env = Env
     brig :: Endpoint,
     defederationTimeout :: ResponseTimeout,
     remoteDomains :: IORef FederationDomainConfigs,
-    remoteDomainsChan :: Chan FederationDomainConfigs
+    remoteDomainsChan :: Chan FederationDomainConfigs,
+
+    rabbitmqAdminClient :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO),
+    rabbitmqVHost :: Text
   }
 
 mkEnv :: Opts -> IO (Env, Async ())
@@ -47,12 +54,14 @@ mkEnv opts = do
           (\t -> responseTimeoutMicro $ 1000000 * t) -- seconds to microseconds
           opts.defederationTimeout
       brig = opts.brig
+      rabbitmqVHost = opts.rabbitmq.vHost
       callback =
         SyncFedDomainConfigsCallback
           { fromFedUpdateCallback = \_old new -> do
               writeChan remoteDomainsChan new
           }
   (remoteDomains, syncThread) <- syncFedDomainConfigs brig logger callback
+  rabbitmqAdminClient <- mkRabbitMqAdminClientEnv opts.rabbitmq
   pure (Env {..}, syncThread)
 
 initHttp2Manager :: IO Http2Manager
@@ -67,8 +76,7 @@ initHttp2Manager = do
   SSL.contextSetDefaultVerifyPaths ctx
   http2ManagerWithSSLCtx ctx
 
-newtype AppT m a where
-  AppT :: {unAppT :: ReaderT Env m a} -> AppT m a
+newtype AppT m a = AppT {unAppT :: ReaderT Env m a}
   deriving
     ( Functor,
       Applicative,

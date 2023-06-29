@@ -34,6 +34,7 @@ library
     , bilge
     , bytestring
     , bytestring-conversion
+    , containers
     , exceptions
     , extended
     , HsOpenSSL
@@ -44,6 +45,7 @@ library
     , lens
     , monad-control
     , retry
+    , servant-client
     , text
     , tinylog
     , transformers-base
@@ -172,23 +174,31 @@ executable background-worker-integration
   build-depends:
       aeson
     , amqp
-    , async
     , background-worker
     , base
-    , exceptions
+    , bytestring
+    , containers
+    , extended
     , federator
-    , HsOpenSSL
     , hspec
+    , http-client
+    , http-media
+    , http-types
+    , HUnit
     , imports
-    , optparse-applicative
     , QuickCheck
-    , tagged
-    , tasty
-    , tasty-hunit
+    , servant
+    , servant-client
+    , servant-client-core
+    , servant-server
+    , text
+    , tinylog
+    , transformers
     , types-common
+    , unliftio
+    , wai
     , wire-api
     , wire-api-federation
-    , yaml
 
   default-extensions:
     NoImplicitPrelude
@@ -253,23 +263,31 @@ test-suite background-worker-test
   build-depends:
       aeson
     , amqp
-    , async
     , background-worker
     , base
-    , exceptions
+    , bytestring
+    , containers
+    , extended
     , federator
-    , HsOpenSSL
     , hspec
+    , http-client
+    , http-media
+    , http-types
+    , HUnit
     , imports
-    , optparse-applicative
     , QuickCheck
-    , tagged
-    , tasty
-    , tasty-hunit
+    , servant
+    , servant-client
+    , servant-client-core
+    , servant-server
+    , text
+    , tinylog
+    , transformers
     , types-common
+    , unliftio
+    , wai
     , wire-api
     , wire-api-federation
-    , yaml
 
   default-extensions:
     NoImplicitPrelude

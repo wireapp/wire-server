@@ -12,8 +12,8 @@ data Opts = Opts
     federatorInternal :: !Endpoint,
     galley :: !Endpoint,
     brig :: !Endpoint,
-    rabbitmq :: !RabbitMqOpts,
-    defederationTimeout :: Maybe Int -- Seconds, Nothing for no timeout
+    defederationTimeout :: Maybe Int, -- Seconds, Nothing for no timeout
+    rabbitmq :: !RabbitMqAdminOpts
   }
   deriving (Show, Generic)
 

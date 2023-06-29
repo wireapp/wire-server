@@ -15,6 +15,7 @@
 , gitignoreSource
 , hspec
 , hspec-discover
+, http-client
 , http-types
 , imports
 , lib
@@ -24,11 +25,14 @@
 , resourcet
 , retry
 , servant
+, servant-client
+, servant-client-core
 , servant-server
 , servant-swagger
 , temporary
 , text
 , tinylog
+, unliftio
 , wai
 }:
 mkDerivation {
@@ -45,6 +49,7 @@ mkDerivation {
     errors
     exceptions
     extra
+    http-client
     http-types
     imports
     metrics-wai
@@ -53,10 +58,13 @@ mkDerivation {
     resourcet
     retry
     servant
+    servant-client
+    servant-client-core
     servant-server
     servant-swagger
     text
     tinylog
+    unliftio
     wai
   ];
   testHaskellDepends = [ aeson base hspec imports temporary ];
