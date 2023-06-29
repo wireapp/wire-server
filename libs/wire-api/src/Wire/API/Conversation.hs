@@ -940,6 +940,7 @@ namespaceMLSSelfConv =
   -- a V5 uuid created with the nil namespace
   fromJust . UUID.fromString $ "3eac2a2c-3850-510b-bd08-8a98e80dd4d9"
 
+--------------------------------------------------------------------------------
 -- MultiVerb instances
 
 instance AsHeaders '[ConvId] Conversation Conversation where
