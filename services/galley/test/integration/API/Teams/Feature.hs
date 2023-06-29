@@ -53,7 +53,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertBool, assertFailure, (@?=))
 import TestHelpers (eventually, test)
 import TestSetup
-import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolMLSTag, ProtocolProteusTag))
+import Wire.API.Conversation.Protocol
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import Wire.API.Internal.Notification (Notification)
 import Wire.API.MLS.CipherSuite
@@ -137,6 +137,7 @@ tests s =
                   ProtocolProteusTag
                   [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519]
                   MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+                  [ProtocolProteusTag, ProtocolMLSTag]
               )
               validMLSConfigGen,
           test s (unpack $ featureNameBS @FileSharingConfig) $
@@ -163,12 +164,17 @@ tests s =
 validMLSConfigGen :: Gen (WithStatusPatch MLSConfig)
 validMLSConfigGen =
   arbitrary
-    `suchThat` ( \cfg -> case wspConfig cfg of
-                   Just (MLSConfig us _ cTags ctag) ->
-                     sortedAndNoDuplicates us
-                       && sortedAndNoDuplicates cTags
-                       && elem ctag cTags
-                   _ -> True
+    `suchThat` ( \cfg ->
+                   case wspConfig cfg of
+                     Just (MLSConfig us defProtocol cTags ctag supProtocol) ->
+                       sortedAndNoDuplicates us
+                         && sortedAndNoDuplicates cTags
+                         && elem ctag cTags
+                         && notElem ProtocolMixedTag supProtocol
+                         && elem defProtocol supProtocol
+                         && sortedAndNoDuplicates supProtocol
+                     _ -> True
+                     && Just FeatureStatusEnabled == wspStatus cfg
                )
   where
     sortedAndNoDuplicates xs = (sort . nub) xs == xs
@@ -1046,7 +1052,7 @@ testAllFeatures = do
           afcSelfDeletingMessages = withStatus FeatureStatusEnabled lockStateSelfDeleting (SelfDeletingMessagesConfig 0) FeatureTTLUnlimited,
           afcGuestLink = withStatus FeatureStatusEnabled LockStatusUnlocked GuestLinksConfig FeatureTTLUnlimited,
           afcSndFactorPasswordChallenge = withStatus FeatureStatusDisabled LockStatusLocked SndFactorPasswordChallengeConfig FeatureTTLUnlimited,
-          afcMLS = withStatus FeatureStatusDisabled LockStatusUnlocked (MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519) FeatureTTLUnlimited,
+          afcMLS = withStatus FeatureStatusDisabled LockStatusUnlocked (MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 [ProtocolProteusTag, ProtocolMLSTag]) FeatureTTLUnlimited,
           afcSearchVisibilityInboundConfig = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig FeatureTTLUnlimited,
           afcExposeInvitationURLsToTeamAdmin = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited,
           afcOutlookCalIntegration = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited,
@@ -1238,31 +1244,42 @@ testMLS = do
         getForTeamInternal expected
         getForUser expected
 
-      setForTeam :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
-      setForTeam wsnl =
+      setForTeamWithStatusCode :: HasCallStack => Int -> WithStatusNoLock MLSConfig -> TestM ()
+      setForTeamWithStatusCode resStatusCode wsnl =
         putTeamFeatureFlagWithGalley @MLSConfig galley owner tid wsnl
           !!! statusCode
-            === const 200
+            === const resStatusCode
+
+      setForTeam :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
+      setForTeam = setForTeamWithStatusCode 200
+
+      setForTeamInternalWithStatusCode :: HasCallStack => (Request -> Request) -> WithStatusNoLock MLSConfig -> TestM ()
+      setForTeamInternalWithStatusCode expect wsnl =
+        void $ putTeamFeatureFlagInternal @MLSConfig expect tid wsnl
 
       setForTeamInternal :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
-      setForTeamInternal wsnl =
-        void $ putTeamFeatureFlagInternal @MLSConfig expect2xx tid wsnl
+      setForTeamInternal = setForTeamInternalWithStatusCode expect2xx
 
   let cipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-  let defaultConfig =
+      defaultConfig =
         WithStatusNoLock
           FeatureStatusDisabled
-          (MLSConfig [] ProtocolProteusTag [cipherSuite] cipherSuite)
+          (MLSConfig [] ProtocolProteusTag [cipherSuite] cipherSuite [ProtocolProteusTag, ProtocolMLSTag])
           FeatureTTLUnlimited
-  let config2 =
+      config2 =
         WithStatusNoLock
           FeatureStatusEnabled
-          (MLSConfig [member] ProtocolMLSTag [] cipherSuite)
+          (MLSConfig [member] ProtocolMLSTag [] cipherSuite [ProtocolProteusTag, ProtocolMLSTag])
           FeatureTTLUnlimited
-  let config3 =
+      config3 =
         WithStatusNoLock
-          FeatureStatusDisabled
-          (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite)
+          FeatureStatusEnabled
+          (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite [ProtocolMLSTag])
+          FeatureTTLUnlimited
+      invalidConfig =
+        WithStatusNoLock
+          FeatureStatusEnabled
+          (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite [ProtocolProteusTag])
           FeatureTTLUnlimited
 
   getViaEndpoints defaultConfig
@@ -1275,10 +1292,22 @@ testMLS = do
   getViaEndpoints config2
 
   WS.bracketR cannon member $ \ws -> do
+    setForTeamWithStatusCode 400 invalidConfig
+    void . liftIO $
+      WS.assertNoEvent (2 # Second) [ws]
+  getViaEndpoints config2
+
+  WS.bracketR cannon member $ \ws -> do
     setForTeamInternal config3
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
         wsAssertFeatureConfigUpdate @MLSConfig config3 LockStatusUnlocked
+  getViaEndpoints config3
+
+  WS.bracketR cannon member $ \ws -> do
+    setForTeamInternalWithStatusCode expect4xx invalidConfig
+    void . liftIO $
+      WS.assertNoEvent (2 # Second) [ws]
   getViaEndpoints config3
 
 testExposeInvitationURLsToTeamAdminTeamIdInAllowList :: TestM ()

@@ -343,6 +343,7 @@ data TeamFeatureError
   | LegalHoldWhitelistedOnly
   | DisableSsoNotImplemented
   | FeatureLocked
+  | MLSProtocolMismatch
 
 instance IsSwaggerError TeamFeatureError where
   -- Do not display in Swagger
@@ -372,6 +373,8 @@ type instance
 
 type instance MapError 'FeatureLocked = 'StaticError 409 "feature-locked" "Feature config cannot be updated (e.g. because it is configured to be locked, or because you need to upgrade your plan)"
 
+type instance MapError 'MLSProtocolMismatch = 'StaticError 400 "mls-protocol-mismatch" "The default protocol needs to be part of the supported protocols"
+
 type instance ErrorEffect TeamFeatureError = Error TeamFeatureError
 
 instance Member (Error DynError) r => ServerEffect (Error TeamFeatureError) r where
@@ -381,6 +384,7 @@ instance Member (Error DynError) r => ServerEffect (Error TeamFeatureError) r wh
     LegalHoldWhitelistedOnly -> dynError @(MapError 'LegalHoldWhitelistedOnly)
     DisableSsoNotImplemented -> dynError @(MapError 'DisableSsoNotImplemented)
     FeatureLocked -> dynError @(MapError 'FeatureLocked)
+    MLSProtocolMismatch -> dynError @(MapError 'MLSProtocolMismatch)
 
 --------------------------------------------------------------------------------
 -- Proposal failure

@@ -50,7 +50,7 @@ import Wire.API.MLS.SubConversation
 import Wire.Arbitrary
 
 data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag | ProtocolMixedTag
-  deriving stock (Eq, Show, Enum, Bounded, Generic)
+  deriving stock (Eq, Show, Enum, Ord, Bounded, Generic)
   deriving (Arbitrary) via GenericUniform ProtocolTag
 
 data ConversationMLSData = ConversationMLSData

@@ -87,6 +87,7 @@ import qualified V81_TeamFeatureMlsE2EIdUpdate
 import qualified V82_MLSSubconversation
 import qualified V83_MLSDraft17
 import qualified V84_TeamFeatureMlsMigration
+import qualified V85_TeamFeatureSupportedProtocols
 
 main :: IO ()
 main = do
@@ -159,7 +160,8 @@ main = do
       V81_TeamFeatureMlsE2EIdUpdate.migration,
       V82_MLSSubconversation.migration,
       V83_MLSDraft17.migration,
-      V84_TeamFeatureMlsMigration.migration
+      V84_TeamFeatureMlsMigration.migration,
+      V85_TeamFeatureSupportedProtocols.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Cassandra
       -- (see also docs/developer/cassandra-interaction.md)

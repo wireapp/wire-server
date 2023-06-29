@@ -360,7 +360,18 @@ instance SetFeatureConfig SearchVisibilityInboundConfig where
     updateSearchVisibilityInbound $ toTeamStatus tid wsnl
     persistAndPushEvent tid wsnl
 
-instance SetFeatureConfig MLSConfig
+instance SetFeatureConfig MLSConfig where
+  type SetConfigForTeamConstraints MLSConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)
+  setConfigForTeam tid wsnl = do
+    mlsMigrationConfig <- getConfigForTeam @MlsMigrationConfig tid
+    unless
+      ( -- default protocol needs to be included in supported protocols
+        mlsDefaultProtocol (wssConfig wsnl) `elem` mlsSupportedProtocols (wssConfig wsnl)
+          -- when MLS migration is enabled, MLS needs to be enabled as well
+          && (wsStatus mlsMigrationConfig == FeatureStatusDisabled || wssStatus wsnl == FeatureStatusEnabled)
+      )
+      $ throw MLSProtocolMismatch
+    persistAndPushEvent tid wsnl
 
 instance SetFeatureConfig ExposeInvitationURLsToTeamAdminConfig
 
@@ -368,4 +379,13 @@ instance SetFeatureConfig OutlookCalIntegrationConfig
 
 instance SetFeatureConfig MlsE2EIdConfig
 
-instance SetFeatureConfig MlsMigrationConfig
+instance SetFeatureConfig MlsMigrationConfig where
+  type SetConfigForTeamConstraints MlsMigrationConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)
+  setConfigForTeam tid wsnl = do
+    mlsConfig <- getConfigForTeam @MlsMigrationConfig tid
+    unless
+      ( -- when MLS migration is enabled, MLS needs to be enabled as well
+        wssStatus wsnl == FeatureStatusDisabled || wsStatus mlsConfig == FeatureStatusEnabled
+      )
+      $ throw MLSProtocolMismatch
+    persistAndPushEvent tid wsnl
