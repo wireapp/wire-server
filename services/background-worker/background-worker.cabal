@@ -167,6 +167,7 @@ executable background-worker-integration
   -- cabal-fmt: expand test
   other-modules:
     Main
+    Spec
     Test.Wire.BackendNotificationPusherSpec
     Test.Wire.DefederationSpec
     Test.Wire.Util
@@ -256,6 +257,7 @@ test-suite background-worker-test
   -- cabal-fmt: expand test
   other-modules:
     Main
+    Spec
     Test.Wire.BackendNotificationPusherSpec
     Test.Wire.DefederationSpec
     Test.Wire.Util
