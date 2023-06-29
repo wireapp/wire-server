@@ -37,7 +37,7 @@ import qualified Data.ByteString.Lazy as BSL
 import Data.Id
 import Data.List1 (List1)
 import Data.Range (Range, fromRange)
-import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
+import Data.Sequence (Seq, ViewL ((:<)))
 import qualified Data.Sequence as Seq
 import Debug.Trace (traceM)
 import Gundeck.Options (NotificationTTL (..))
@@ -213,43 +213,50 @@ collect c acc lastPageHasMore remaining getPage
       page <- getPage
       s <- fetchPayloads c 100000000 (result page)
       let remaining' = remaining - Seq.length s
-      collect c (acc >< s) (hasMore page) remaining' (liftClient (nextPage page))
+      collect c (acc <> s) (hasMore page) remaining' (liftClient (nextPage page))
+
+mkResultPage :: Int -> Bool -> Seq QueuedNotification -> ResultPage
+mkResultPage size more ns =
+  ResultPage
+    { resultSeq = Seq.take size ns,
+      resultHasMore = Seq.length ns > size || more,
+      resultGap = False
+    }
 
 fetch :: (MonadClient m, MonadUnliftIO m) => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
-fetch u c since (fromRange -> size) = do
-  traceM "this is fetch"
+fetch u c Nothing (fromIntegral . fromRange -> size) = do
+  let pageSize = 100
+  let page1 = retry x1 $ paginate cqlStart (paramsP LocalQuorum (Identity u) pageSize)
   -- We always need to look for one more than requested in order to correctly
   -- report whether there are more results.
-  let size' = bool (+ 1) (+ 2) (isJust since) size
-  let page1 = case TimeUuid . toUUID <$> since of
-        -- TODO: don't use size' here
-        Nothing -> paginate cqlStart (paramsP LocalQuorum (Identity u) size') & retry x1
-        Just s -> paginate cqlSince (paramsP LocalQuorum (u, s) size') & retry x1
-  -- Collect results, requesting more pages until we run out of data
-  -- or have found size + 1 notifications (not including the 'since').
-  -- let isize = fromIntegral size' :: Int
-  (ns, more) <- collect c Seq.empty True (fromIntegral size') page1
-  -- Drop the extra element from the end as well as the inclusive start
-  -- value (if a 'since' was given and found).
-  pure $! case Seq.viewl (trim (fromIntegral size' - 1) ns) of
-    EmptyL -> ResultPage Seq.empty False (isJust since)
-    x :< xs -> case since of
-      Just s
-        | s == x ^. queuedNotificationId ->
-            ResultPage xs more False
-      _ -> ResultPage (x <| xs) more (isJust since)
+  (ns, more) <- collect c Seq.empty True (size + 1) page1
+  -- Drop the extra element at the end if present
+  pure $! mkResultPage size more ns
   where
-    trim l ns
-      | Seq.length ns <= l = ns
-      | otherwise = case Seq.viewr ns of
-          EmptyR -> ns
-          xs :> _ -> xs
     cqlStart :: PrepQuery R (Identity UserId) NotifRow
     cqlStart =
       "SELECT id, payload, payload_ref, payload_ref_size, clients \
       \FROM notifications \
       \WHERE user = ? \
       \ORDER BY id ASC"
+fetch u c (Just since) (fromIntegral . fromRange -> size) = do
+  let pageSize = 100
+  let page1 =
+        retry x1 $
+          paginate cqlSince (paramsP LocalQuorum (u, TimeUuid (toUUID since)) pageSize)
+  -- We fetch 2 more rows than requested. The first is to accommodate the
+  -- notification corresponding to the `since` argument itself. The second is
+  -- to get an accurate `hasMore`, just like in the case above.
+  (ns, more) <- collect c Seq.empty True (size + 2) page1
+  -- Remove notification corresponding to the `since` argument, and record if it is found.
+  let (ns', sinceFound) = case Seq.viewl ns of
+        x :< xs | since == x ^. queuedNotificationId -> (xs, True)
+        _ -> (ns, False)
+  pure $!
+    (mkResultPage size more ns')
+      { resultGap = not sinceFound
+      }
+  where
     cqlSince :: PrepQuery R (UserId, TimeUuid) NotifRow
     cqlSince =
       "SELECT id, payload, payload_ref, payload_ref_size, clients \
@@ -265,27 +272,6 @@ deleteAll u = write cql (params LocalQuorum (Identity u)) & retry x5
 
 -------------------------------------------------------------------------------
 -- Conversions
-
-toNotif ::
-  Maybe ClientId ->
-  (TimeUuid, Blob, Maybe (C.Set ClientId)) ->
-  [QueuedNotification] ->
-  [QueuedNotification]
-toNotif c (i, b, cs) ns =
-  let clients = maybe [] fromSet cs
-      notifId = Id (fromTimeUuid i)
-   in case JSON.decode' (fromBlob b) of
-        Nothing -> ns
-        Just pl ->
-          -- nb. At some point we should be able to do:
-          -- @@@ if null clients || maybe False (`elem` clients) c @@@
-          -- i.e. not return notifications targeted at specific clients,
-          -- if no client ID is given. We currently return all of them
-          -- in this case for backward compatibility with existing internal
-          -- clients.
-          if null clients || maybe True (`elem` clients) c
-            then queuedNotification notifId pl : ns
-            else ns
 
 toNotifSingle ::
   Maybe ClientId ->
