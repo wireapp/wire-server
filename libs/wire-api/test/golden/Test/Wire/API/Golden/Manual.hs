@@ -164,5 +164,10 @@ tests =
         testObjects
           [ (testObject_FederationStatus_1, "testObject_FederationStatus_1.json"),
             (testObject_FederationStatus_2, "testObject_FederationStatus_2.json")
+          ],
+      testGroup "FederationStatus.RemoteDomains" $
+        testObjects
+          [ (testObject_RemoteDomains_1, "testObject_RemoteDomains_1.json"),
+            (testObject_RemoteDomains_2, "testObject_RemoteDomains_2.json")
           ]
     ]

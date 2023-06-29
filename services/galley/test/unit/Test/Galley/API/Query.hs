@@ -37,7 +37,7 @@ tests =
         <$> testTable
     )
 
-testTable :: [([Char], [Remote NonConnectedBackends], FederationStatus)]
+testTable :: [(String, [Remote NonConnectedBackends], FederationStatus)]
 testTable =
   [ ("empty", [], FullyConnected),
     ("single response", [mkResponse (Domain "a.com") []], FullyConnected),
