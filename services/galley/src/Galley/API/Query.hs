@@ -109,7 +109,7 @@ getFederationStatus _ req = do
   firstConflictOrFullyConnected
     <$> E.runFederatedConcurrently
       (flip toRemoteUnsafe () <$> Set.toList req.rdDomains)
-      (\qds -> fedClient @'Brig @"get-federation-status" (DomainSet (tDomain qds `Set.delete` req.rdDomains)))
+      (\qds -> fedClient @'Brig @"get-not-fully-connected-backends" (DomainSet (tDomain qds `Set.delete` req.rdDomains)))
 
 -- | "conflict" here means two remote domains that we are connected to
 -- but are not connected to each other.
