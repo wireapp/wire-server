@@ -415,7 +415,7 @@ type ConversationAPI =
            "create-group-conversation"
            ( Summary "Create a new conversation"
                :> MakesFederatedCall 'Galley "on-conversation-created"
-               :> MakesFederatedCall 'Brig "get-federation-status"
+               :> MakesFederatedCall 'Brig "get-not-fully-connected-backends"
                :> From 'V4
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSMissingSenderClient

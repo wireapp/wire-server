@@ -734,7 +734,7 @@ postConvWithRemoteUsers ::
   TestM (Response (Maybe LByteString))
 postConvWithRemoteUsers u c n = do
   let mock =
-        ("get-federation-status" ~> NonConnectedBackends mempty)
+        ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty)
           <|> mockReply ()
   fmap fst $
     withTempMockFederator' mock $

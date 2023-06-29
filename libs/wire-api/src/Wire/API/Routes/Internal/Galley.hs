@@ -414,7 +414,7 @@ type IFeatureNoConfigMultiGet f =
 type IFederationAPI =
   Named
     "get-federation-status"
-    ( Summary "Get the federation status"
+    ( Summary "Get the federation status (only needed for integration/QA tests at the time of writing it)"
         :> ZLocalUser
         :> "federation-status"
         :> ReqBody '[Servant.JSON] RemoteDomains

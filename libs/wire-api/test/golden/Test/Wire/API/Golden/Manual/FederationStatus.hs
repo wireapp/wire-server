@@ -18,6 +18,8 @@
 module Test.Wire.API.Golden.Manual.FederationStatus where
 
 import Data.Domain (Domain (..))
+import qualified Data.Set as Set
+import Imports (Monoid (mempty), ($))
 import Wire.API.FederationStatus
 
 testObject_FederationStatus_1 :: FederationStatus
@@ -25,3 +27,9 @@ testObject_FederationStatus_1 = FullyConnected
 
 testObject_FederationStatus_2 :: FederationStatus
 testObject_FederationStatus_2 = NotConnectedDomains (Domain "d.example.com") (Domain "e.example.com")
+
+testObject_RemoteDomains_1 :: RemoteDomains
+testObject_RemoteDomains_1 = RemoteDomains $ Set.fromList [Domain "a.example.com", Domain "b.example.com"]
+
+testObject_RemoteDomains_2 :: RemoteDomains
+testObject_RemoteDomains_2 = RemoteDomains mempty

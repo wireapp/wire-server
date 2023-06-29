@@ -90,8 +90,10 @@ federationSitemap =
     :<|> Named @"send-connection-action" sendConnectionAction
     :<|> Named @"on-user-deleted-connections" onUserDeleted
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
-    :<|> Named @"get-federation-status" getFederationStatus
+    :<|> Named @"get-not-fully-connected-backends" getFederationStatus
 
+-- Allow remote domains to send their known remote federation instances, and respond
+-- with the subset of those we aren't connected to.
 getFederationStatus :: Domain -> DomainSet -> Handler r NonConnectedBackends
 getFederationStatus _ request = do
   fedDomains <- fromList . fmap (.domain) . (.remotes) <$> getFederationRemotes

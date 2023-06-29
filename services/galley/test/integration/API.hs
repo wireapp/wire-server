@@ -391,7 +391,7 @@ postConvWithRemoteUsersOk rbs = do
               rbs
     (rsp, federatedRequests') <-
       withTempMockFederator'
-        (("get-federation-status" ~> NonConnectedBackends mempty) <|> mockUnreachable unreachableBackends)
+        (("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) <|> mockUnreachable unreachableBackends)
         $ postConvQualified
           alice
           Nothing
@@ -2417,7 +2417,7 @@ postConvQualifiedFailBlocked = do
 postConvQualifiedNoConnection :: TestM ()
 postConvQualifiedNoConnection = do
   alice <- randomUser
-  let mock = "get-federation-status" ~> NonConnectedBackends mempty
+  let mock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
   bob <- flip Qualified (Domain "far-away.example.com") <$> randomId
   void $ withTempMockFederator' mock $ do
     postConvQualified alice Nothing defNewProteusConv {newConvQualifiedUsers = [bob]}
@@ -2428,7 +2428,7 @@ postTeamConvQualifiedNoConnection = do
   (tid, alice, _) <- createBindingTeamWithQualifiedMembers 1
   bob <- randomQualifiedId (Domain "bob.example.com")
   charlie <- randomQualifiedUser
-  let mock = "get-federation-status" ~> NonConnectedBackends mempty
+  let mock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
   void $ withTempMockFederator' mock $ do
     postConvQualified
       (qUnqualified alice)
@@ -2455,7 +2455,7 @@ postConvQualifiedNonExistentDomain = do
   uBob <- randomId
   let bob = Qualified uBob remoteDomain
   connectWithRemoteUser uAlice bob
-  let mock = "get-federation-status" ~> NonConnectedBackends mempty
+  let mock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
   createdConv <-
     responseJsonError . fst
       =<< withTempMockFederator'
@@ -3345,7 +3345,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
               *> mockReply [mkProfile qEve (Name "Eve")]
           ]
   (convId, _) <-
-    withTempMockFederator' ("get-federation-status" ~> NonConnectedBackends mempty <|> mockedResponse <|> mockReply ()) $
+    withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mockedResponse <|> mockReply ()) $
       fmap decodeConvId $
         postConvQualified
           alice
@@ -3355,7 +3355,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
   let qconvId = Qualified convId localDomain
 
   (respDel, federatedRequests) <-
-    withTempMockFederator' ("get-federation-status" ~> NonConnectedBackends mempty <|> mockedResponse <|> mockReply ()) $
+    withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mockedResponse <|> mockReply ()) $
       deleteMemberQualified alice qChad qconvId
   liftIO $ do
     statusCode respDel @?= 200
@@ -3413,7 +3413,7 @@ deleteUnavailableRemoteMemberConvLocalQualifiedOk = do
                 ]
           ]
   (convId, _) <-
-    withTempMockFederator' ("get-federation-status" ~> NonConnectedBackends mempty <|> mockedGetUsers <|> mockedOther) $
+    withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mockedGetUsers <|> mockedOther) $
       fmap decodeConvId $
         postConvQualified
           alice

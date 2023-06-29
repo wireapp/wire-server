@@ -28,6 +28,9 @@ instance ToSchema RemoteDomains where
       RemoteDomains
         <$> rdDomains .= field "domains" (set schema)
 
+-- | This value expresses if the requested remote domains are fully connected or not.
+-- If not the response will contain the first pair of domains found
+-- which do not federate with each other.
 data FederationStatus
   = FullyConnected
   | NotConnectedDomains Domain Domain
@@ -47,8 +50,8 @@ instance ToSchema FederationStatus where
             domains <- o .: "not_connected"
             case domains of
               [a, b] -> pure $ NotConnectedDomains a b
-              _ -> A.parseFail "Expected exactly two domains."
-          _ -> A.parseFail "Expected 'fully-connected' or 'non-fully-connected'."
+              _ -> A.parseFail "Expected exactly two domains in field not_connected."
+          _ -> A.parseFail "Expected field status to be 'fully-connected' or 'non-fully-connected'."
 
       fromFederationStatus :: FederationStatus -> Maybe A.Value
       fromFederationStatus = \case

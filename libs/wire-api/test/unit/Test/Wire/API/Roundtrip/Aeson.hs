@@ -148,6 +148,7 @@ tests =
       testRoundTrip @FederationDomainConfig.FederationDomainConfigs,
       testRoundTrip @FederationDomainConfig.FederationStrategy,
       testRoundTrip @FederationStatus.FederationStatus,
+      testRoundTrip @FederationStatus.RemoteDomains,
       testRoundTrip @Message.Priority,
       testRoundTrip @Message.OtrRecipients,
       testRoundTrip @Message.NewOtrMessage,

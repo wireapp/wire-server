@@ -37,7 +37,7 @@ tests =
         <$> testTable
     )
 
-testTable :: [([Char], [Remote NonConnectedBackends], FederationStatus)]
+testTable :: [(String, [Remote NonConnectedBackends], FederationStatus)]
 testTable =
   [ ("empty", [], FullyConnected),
     ("single response", [mkResponse (Domain "a.com") []], FullyConnected),
@@ -45,7 +45,7 @@ testTable =
     ("single bad responses", [mkResponse (Domain "a.com") [Domain "b.com"]], NotConnectedDomains (Domain "a.com") (Domain "b.com")),
     ("one good one bad response", [mkResponse (Domain "a.com") [], mkResponse (Domain "b.com") [Domain "c.com"]], NotConnectedDomains (Domain "b.com") (Domain "c.com")),
     ("one bad one good response", [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") []], NotConnectedDomains (Domain "b.com") (Domain "c.com")),
-    ("one bad multiple good responses", [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") []], NotConnectedDomains (Domain "b.com") (Domain "c.com")),
+    ("one bad multiple good responses", [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") [], mkResponse (Domain "d.com") []], NotConnectedDomains (Domain "b.com") (Domain "c.com")),
     ("multiple bad responses", [mkResponse (Domain "a.com") [Domain "b.com"], mkResponse (Domain "b.com") [Domain "a.com"]], NotConnectedDomains (Domain "a.com") (Domain "b.com"))
   ]
   where

@@ -72,7 +72,7 @@ type BrigApi =
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
     :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
     :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)
-    :<|> FedEndpoint "get-federation-status" DomainSet NonConnectedBackends
+    :<|> FedEndpoint "get-not-fully-connected-backends" DomainSet NonConnectedBackends
 
 newtype DomainSet = DomainSet
   { dsDomains :: Set Domain

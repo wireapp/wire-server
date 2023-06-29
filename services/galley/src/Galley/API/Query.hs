@@ -109,21 +109,21 @@ getFederationStatus _ req = do
   firstConflictOrFullyConnected
     <$> E.runFederatedConcurrently
       (flip toRemoteUnsafe () <$> Set.toList req.rdDomains)
-      (\qds -> fedClient @'Brig @"get-federation-status" (DomainSet (tDomain qds `Set.delete` req.rdDomains)))
+      (\qds -> fedClient @'Brig @"get-not-fully-connected-backends" (DomainSet (tDomain qds `Set.delete` req.rdDomains)))
 
+-- | "conflict" here means two remote domains that we are connected to
+-- but are not connected to each other.
 firstConflictOrFullyConnected :: [Remote NonConnectedBackends] -> FederationStatus
 firstConflictOrFullyConnected =
   maybe
     FullyConnected
     (uncurry NotConnectedDomains)
     . headMay
-    . mapMaybe (toMaybeConflict . (\r -> (tDomain r, tUnqualified r)))
+    . mapMaybe toMaybeConflict
   where
-    toMaybeConflict :: (Domain, NonConnectedBackends) -> Maybe (Domain, Domain)
-    toMaybeConflict (d, NonConnectedBackends conflictingDomains) =
-      case Set.toList conflictingDomains of
-        [] -> Nothing
-        conflictingDomain : _ -> Just (d, conflictingDomain)
+    toMaybeConflict :: Remote NonConnectedBackends -> Maybe (Domain, Domain)
+    toMaybeConflict r =
+      headMay (Set.toList (nonConnectedBackends (tUnqualified r))) <&> (tDomain r,)
 
 getBotConversationH ::
   ( Member ConversationStore r,
