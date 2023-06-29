@@ -997,7 +997,7 @@ notifyTypingIndicator conv qusr mcon ts = do
 
   for_ (rmId <$> remoteMemsOther) $ \rmems -> do
     let rpc = void $ fedQueueClient @'Galley @"on-typing-indicator-updated" (tdu [tUnqualified rmems])
-    enqueueNotification rmems Q.NonPersistent rpc
+    enqueueNotification rmems Q.Persistent rpc
 
   pure (tdu (fmap (tUnqualified . rmId) remoteMemsOrig))
 
