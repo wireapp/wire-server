@@ -117,50 +117,58 @@ add n tgts (Blob . JSON.encode -> p) (notificationTTLSeconds -> t) =
       \USING TTL ?"
 
 fetchId :: MonadClient m => UserId -> NotificationId -> Maybe ClientId -> m (Maybe QueuedNotification)
-fetchId u n c =
-  listToMaybe . foldr' (toNotif c) []
-    <$> query cqlById (params LocalQuorum (u, n))
-    & retry x1
+fetchId u n c = runMaybeT $ do
+  row <- MaybeT $ retry x1 $ query1 cqlById (params LocalQuorum (u, n))
+  MaybeT $ fetchPayload c row
   where
-    cqlById :: PrepQuery R (UserId, NotificationId) (TimeUuid, Blob, Maybe (C.Set ClientId))
+    cqlById :: PrepQuery R (UserId, NotificationId) NotifRow
     cqlById =
-      "SELECT id, payload, clients \
+      "SELECT id, payload, payload_ref, payload_ref_size, clients \
       \FROM notifications \
       \WHERE user = ? AND id = ?"
 
 fetchLast :: MonadClient m => UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
-fetchLast u c = do
-  ls <- query cqlLast (params LocalQuorum (Identity u)) & retry x1
-  case ls of
-    [] -> pure Nothing
-    ns@(n : _) ->
-      ns `getFirstOrElse` do
-        p <- paginate cqlSeek (paramsP LocalQuorum (u, n ^. _1) 100) & retry x1
-        seek p
+fetchLast u c = go (Page True [] firstPage)
   where
-    seek p =
-      result p
-        `getFirstOrElse` if hasMore p
-          then liftClient (nextPage p) >>= seek
-          else pure Nothing
-    getFirstOrElse ns f =
-      case listToMaybe (foldr' (toNotif c) [] ns) of
-        Just n -> pure (Just n)
-        Nothing -> f
-    cqlLast :: PrepQuery R (Identity UserId) (TimeUuid, Blob, Maybe (C.Set ClientId))
+    go page = case result page of
+      (row : rows) -> do
+        mNotif <- fetchPayload c row
+        case mNotif of
+          Nothing -> go page {result = rows}
+          Just notif -> pure (Just notif)
+      [] | hasMore page -> do
+        page' <- liftClient (nextPage page)
+        go page'
+      _ -> pure Nothing
+
+    pageSize = 100
+
+    -- The first page consists of at most one row. We retrieve the first page
+    -- with a direct query with a LIMIT, and the following pages using
+    -- Cassandra pagination.
+    firstPage = do
+      results <- retry x1 $ query cqlLast (params LocalQuorum (Identity u))
+      let nextPage = case results of
+            [] -> pure emptyPage
+            (n : _) ->
+              retry x1 $
+                paginate cqlSeek (paramsP LocalQuorum (u, n ^. _1) pageSize)
+      pure $ Page True results nextPage
+
+    cqlLast :: PrepQuery R (Identity UserId) NotifRow
     cqlLast =
-      "SELECT id, payload, clients \
+      "SELECT id, payload, payload_ref, payload_ref_size, clients \
       \FROM notifications \
       \WHERE user = ? \
       \ORDER BY id DESC LIMIT 1"
-    cqlSeek :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Blob, Maybe (C.Set ClientId))
+    cqlSeek :: PrepQuery R (UserId, TimeUuid) NotifRow
     cqlSeek =
-      "SELECT id, payload, clients \
+      "SELECT id, payload, payload_ref, payload_ref_size, clients \
       \FROM notifications \
       \WHERE user = ? AND id < ? \
       \ORDER BY id DESC"
 
-fetchPayload :: MonadClient m => Maybe ClientId -> PRow -> m (Maybe QueuedNotification)
+fetchPayload :: MonadClient m => Maybe ClientId -> NotifRow -> m (Maybe QueuedNotification)
 fetchPayload c (id_, mbPayload, mbPayloadRef, mbPayloadRefSize, mbClients) =
   case (mbPayload, mbPayloadRef) of
     (Just payload, _) -> pure $ toNotifSingle c (id_, payload, mbClients)
@@ -172,9 +180,9 @@ fetchPayload c (id_, mbPayload, mbPayloadRef, mbPayloadRefSize, mbClients) =
     cqlSelectPayload :: PrepQuery R (Identity PayloadId) (Identity Blob)
     cqlSelectPayload = "SELECT payload from notification_payload where id = ?"
 
-type PRow = (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int32, Maybe (C.Set ClientId))
+type NotifRow = (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int32, Maybe (C.Set ClientId))
 
-payloadSize :: PRow -> Int32
+payloadSize :: NotifRow -> Int32
 payloadSize (_, mbPayload, _, mbPayloadRefSize, _) =
   case (mbPayload, mbPayloadRefSize) of
     (Just blob, _) -> fromIntegral $ BSL.length (fromBlob blob)
@@ -183,7 +191,7 @@ payloadSize (_, mbPayload, _, mbPayloadRefSize, _) =
 
 -- | Fetches referenced payloads until maxTotalSize payload bytes are fetched from the database.
 -- At least the first row is fetched regardless of the payload size.
-fetchPayloads :: (MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Int32 -> [PRow] -> m (Seq QueuedNotification)
+fetchPayloads :: (MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Int32 -> [NotifRow] -> m (Seq QueuedNotification)
 fetchPayloads c maxTotalSize rows = do
   let rows' = truncateNotifs [] (0 :: Int) maxTotalSize rows
   Seq.fromList . catMaybes <$> pooledMapConcurrentlyN 16 (fetchPayload c) rows'
@@ -198,7 +206,7 @@ fetchPayloads c maxTotalSize rows = do
 -- https://docs.datastax.com/en/developer/java-driver/3.2/manual/paging/).
 --
 -- The boolean indicates whether more notifications can be fetched.
-collect :: (MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Seq QueuedNotification -> Bool -> Int -> m (Page PRow) -> m (Seq QueuedNotification, Bool)
+collect :: (MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Seq QueuedNotification -> Bool -> Int -> m (Page NotifRow) -> m (Seq QueuedNotification, Bool)
 collect c acc lastPageHasMore remaining getPage
   | remaining <= 0 || not lastPageHasMore = pure (acc, lastPageHasMore)
   | otherwise = do
@@ -236,13 +244,13 @@ fetch u c since (fromRange -> size) = do
       | otherwise = case Seq.viewr ns of
           EmptyR -> ns
           xs :> _ -> xs
-    cqlStart :: PrepQuery R (Identity UserId) (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int32, Maybe (C.Set ClientId))
+    cqlStart :: PrepQuery R (Identity UserId) NotifRow
     cqlStart =
       "SELECT id, payload, payload_ref, payload_ref_size, clients \
       \FROM notifications \
       \WHERE user = ? \
       \ORDER BY id ASC"
-    cqlSince :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int32, Maybe (C.Set ClientId))
+    cqlSince :: PrepQuery R (UserId, TimeUuid) NotifRow
     cqlSince =
       "SELECT id, payload, payload_ref, payload_ref_size, clients \
       \FROM notifications \

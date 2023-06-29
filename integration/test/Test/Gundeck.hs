@@ -4,23 +4,25 @@ import API.Gundeck
 import SetupHelpers
 import Testlib.Prelude
 
-testFetchAllNotifs :: App ()
-testFetchAllNotifs = do
-  user <- randomUserId OwnDomain
-  userId <- user %. "id" & asString
+examplePush :: MakesValue u => u -> App Value
+examplePush u = do
+  userId <- u %. "id" & asString
+  pure $
+    object
+      [ "recipients"
+          .= [ object
+                 [ "user_id" .= userId,
+                   "route" .= "any",
+                   "clients" .= ([] :: [String])
+                 ]
+             ],
+        "payload" .= [object ["hello" .= "world"]]
+      ]
 
-  let payload = [object ["hello" .= "world"]]
-  let push =
-        object
-          [ "recipients"
-              .= [ object
-                     [ "user_id" .= userId,
-                       "route" .= "any",
-                       "clients" .= ([] :: [String])
-                     ]
-                 ],
-            "payload" .= payload
-          ]
+testFetchAllNotifications :: App ()
+testFetchAllNotifications = do
+  user <- randomUserId OwnDomain
+  push <- examplePush user
 
   let n = 10
   replicateM_ n $
@@ -30,19 +32,36 @@ testFetchAllNotifs = do
   let client = "deadbeeef"
   ns <- getNotifications user client def >>= getJSON 200
 
-  let expected = replicate 10 payload
-  actual <- ns %. "notifications" & asListOf (\v -> v %. "payload")
+  expected <- replicateM n (push %. "payload")
+  allNotifs <- ns %. "notifications" & asList
+  actual <- traverse (%. "payload") allNotifs
   actual `shouldMatch` expected
 
--- testFetchAllNotifs :: TestM ()
--- testFetchAllNotifs = do
---   ally <- randomId
---   let pload = textPayload "hello"
---   replicateM_ 10 (sendPush (buildPush ally [(ally, RecipientClientsAll)] pload))
---   ns <- listNotifications ally Nothing
---   liftIO $ assertEqual "Unexpected notification count" 10 (length ns)
---   liftIO $
---     assertEqual
---       "Unexpected notification payloads"
---       (replicate 10 (List1.toNonEmpty pload))
---       (map (view queuedNotificationPayload) ns)
+  firstNotif <- getNotification user client (head allNotifs %. "id") >>= getJSON 200
+  firstNotif `shouldMatch` head allNotifs
+
+  lastNotif <- getLastNotification user client >>= getJSON 200
+  lastNotif `shouldMatch` last allNotifs
+
+testLastNotification :: App ()
+testLastNotification = do
+  user <- randomUserId OwnDomain
+  userId <- user %. "id" & asString
+  let push c =
+        object
+          [ "recipients"
+              .= [ object
+                     [ "user_id" .= userId,
+                       "route" .= "any",
+                       "clients" .= [c]
+                     ]
+                 ],
+            "payload" .= [object ["client" .= c]]
+          ]
+
+  for_ ["a", "b", "c", "d", "e", "f"] $ \c ->
+    bindResponse (postPushV2 user [push c]) $ \res ->
+      res.status `shouldMatchInt` 200
+
+  lastNotif <- getLastNotification user "c" >>= getJSON 200
+  lastNotif %. "payload" `shouldMatch` [object ["client" .= "c"]]
