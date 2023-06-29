@@ -1,0 +1,1 @@
+Introduce `nginx_connf.additional_external_env_domains` (*nginz* and *cannon*) setting to configure CORS headers for multiple domains.

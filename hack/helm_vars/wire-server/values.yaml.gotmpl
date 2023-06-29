@@ -321,8 +321,8 @@ background-worker:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
-    # See helmfile for the real value
-    remoteDomains: []
+    backendNotificationPusher:
+      remotesRefreshInterval: 1
   secrets:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
