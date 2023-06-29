@@ -10,8 +10,8 @@ import Test.Hspec
 import Test.Wire.Util
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.BackendNotifications
-import Wire.Defederation
 import Wire.BackgroundWorker.Util
+import Wire.Defederation
 
 spec :: Spec
 spec = do
