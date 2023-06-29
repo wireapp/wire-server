@@ -30,8 +30,8 @@ deleteFederationDomain chan = do
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
 
--- Exposed for testing purposes so we can decode without further processing
-deleteFederationDomainInner' :: RabbitMQEnvelope e => (DefederationDomain -> AppT IO ()) -> (Q.Message, e) -> AppT IO ()
+-- Exposed for testing purposes so we can decode without further processing the message.
+deleteFederationDomainInner' :: RabbitMQEnvelope e => (e -> DefederationDomain -> AppT IO ()) -> (Q.Message, e) -> AppT IO ()
 deleteFederationDomainInner' go (msg, envelope) = do
   either
     ( \e -> do
@@ -41,7 +41,7 @@ deleteFederationDomainInner' go (msg, envelope) = do
         -- as it is unparsable.
         liftIO $ reject envelope False
     )
-    go
+    (go envelope)
     $ A.eitherDecode @DefederationDomain (Q.msgBody msg)
   where
     logErr err =
@@ -76,7 +76,7 @@ deleteFederationDomainInner (msg, envelope) = do
           (\(e :: SomeException) -> liftIO (reject envelope True) >> throwM e)
           go
           resp
-  deleteFederationDomainInner' callGalley (msg, envelope)
+  deleteFederationDomainInner' (const callGalley) (msg, envelope)
   where
     go :: Response L.ByteString -> AppT IO ()
     go resp = do

@@ -31,9 +31,9 @@ run opts = do
       env.logger
       (demoteOpts opts.rabbitmq)
       $ RabbitMqHooks
-        -- If the function in onNewChannel throws an exception it will bubble up the stack as this is OUTSIDE of the
-        -- connection and channel error handling. This will kill the pod, which should be restarted by kubernetes.
-        { onNewChannel = \chan -> runAppT env $ do
+        { -- If the function in onNewChannel throws an exception it will bubble up the stack as this is OUTSIDE of the
+          -- connection and channel error handling. This will kill the pod, which should be restarted by kubernetes.
+          onNewChannel = \chan -> runAppT env $ do
             -- Channels are threadsafe: https://hackage.haskell.org/package/amqp-0.22.1/docs/Network-AMQP.html
             -- So we can async them for concurrency.
             deleteThread <- deleteWorker chan

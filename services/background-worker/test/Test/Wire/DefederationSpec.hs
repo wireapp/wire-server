@@ -11,6 +11,7 @@ import Test.Wire.Util
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.BackendNotifications
 import Wire.Defederation
+import Wire.BackgroundWorker.Util
 
 spec :: Spec
 spec = do
@@ -24,7 +25,7 @@ spec = do
         resps <-
           withTempMockFederator [] respSuccess
             . runTestAppT
-            $ deleteFederationDomainInner (msg, envelope)
+            $ deleteFederationDomainInner' (\e _ -> liftIO $ ack e) (msg, envelope)
         case resps of
           ((), []) -> pure ()
           _ -> assertFailure "Expected call to federation"
@@ -42,7 +43,7 @@ spec = do
         resps <-
           withTempMockFederator [] respSuccess
             . runTestAppT
-            $ deleteFederationDomainInner (msg, envelope)
+            $ deleteFederationDomainInner' (\e _ -> liftIO $ ack e) (msg, envelope)
         case resps of
           ((), []) -> pure ()
           _ -> assertFailure "Expected call to federation"
