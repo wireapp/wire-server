@@ -68,6 +68,7 @@ instance FromJSON IntegrationConfig where
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
+    backgroundWorker :: HostPort,
     cannon :: HostPort,
     cargohold :: HostPort,
     federatorInternal :: HostPort,
@@ -110,7 +111,7 @@ data NginzConfig = NginzConfig
   }
   deriving (Show, Generic)
 
-data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar
+data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker
   deriving
     ( Show,
       Eq,
@@ -120,7 +121,9 @@ data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar
     )
 
 serviceName :: Service -> String
-serviceName srv = map toLower (show srv)
+serviceName srv = case show srv of
+  [] -> []
+  (x : xs) -> toLower x : xs
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
@@ -130,6 +133,7 @@ serviceHostPort m Gundeck = m.gundeck
 serviceHostPort m Cargohold = m.cargohold
 serviceHostPort m Nginz = m.nginz
 serviceHostPort m Spar = m.spar
+serviceHostPort m BackgroundWorker = m.backgroundWorker
 
 mkGlobalEnv :: FilePath -> IO GlobalEnv
 mkGlobalEnv cfgFile = do
