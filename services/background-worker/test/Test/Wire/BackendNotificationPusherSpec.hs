@@ -4,6 +4,7 @@
 
 module Test.Wire.BackendNotificationPusherSpec where
 
+import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.Trans.Except
 import qualified Data.Aeson as Aeson
@@ -17,34 +18,33 @@ import qualified Data.Text.Encoding as Text
 import Federator.MockServer
 import Imports
 import qualified Network.AMQP as Q
-import Test.Hspec
-import Test.QuickCheck
-import Test.Wire.Util
+import Network.HTTP.Client (defaultManagerSettings, newManager, responseTimeoutNone)
 import Network.HTTP.Media
 import Network.HTTP.Types
 import Network.RabbitMqAdmin
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Internal as Wai
-import Util.Options
 import Servant hiding (respond)
 import Servant.Client
 import Servant.Client.Core
 import Servant.Client.Internal.HttpClient (mkFailureResponse)
 import Servant.Server.Generic
 import Servant.Types.SourceT
+import qualified System.Logger.Class as Logger
+import Test.Hspec
+import Test.QuickCheck
+import Test.Wire.Util
 import UnliftIO.Async
+import Util.Options
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.BackendNotifications
 import Wire.API.RawJson
-import qualified System.Logger.Class as Logger
+import Wire.API.Routes.FederationDomainConfig
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
-import Network.HTTP.Client (newManager, defaultManagerSettings, responseTimeoutNone)
-import Control.Concurrent.Chan
-import Wire.API.Routes.FederationDomainConfig
 
 spec :: Spec
 spec = do

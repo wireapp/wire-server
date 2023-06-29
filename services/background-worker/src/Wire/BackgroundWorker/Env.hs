@@ -10,8 +10,8 @@ import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import HTTP2.Client.Manager
 import Imports
-import Network.HTTP.Client
 import Network.AMQP.Extended
+import Network.HTTP.Client
 import qualified Network.RabbitMqAdmin as RabbitMqAdmin
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
@@ -26,7 +26,6 @@ import Wire.BackgroundWorker.Options
 
 data Env = Env
   { http2Manager :: Http2Manager,
-
     httpManager :: Manager,
     logger :: Logger,
     federatorInternal :: Endpoint,
@@ -35,7 +34,6 @@ data Env = Env
     defederationTimeout :: ResponseTimeout,
     remoteDomains :: IORef FederationDomainConfigs,
     remoteDomainsChan :: Chan FederationDomainConfigs,
-
     rabbitmqAdminClient :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO),
     rabbitmqVHost :: Text
   }

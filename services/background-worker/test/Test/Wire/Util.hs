@@ -1,17 +1,16 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Test.Wire.Util where
 
+import Control.Concurrent.Chan
 import Imports
+import Network.HTTP.Client
 import qualified System.Logger.Class as Logger
 import Util.Options
+import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Env hiding (federatorInternal, galley)
 import qualified Wire.BackgroundWorker.Env as E
 import Wire.BackgroundWorker.Util
-import Network.HTTP.Client
-import Wire.API.Routes.FederationDomainConfig
-import Control.Concurrent.Chan
 
 runTestAppT :: AppT IO a -> Int -> IO a
 runTestAppT app port = do

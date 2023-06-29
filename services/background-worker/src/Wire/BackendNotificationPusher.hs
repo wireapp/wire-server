@@ -9,6 +9,7 @@ import Control.Retry
 import qualified Data.Aeson as A
 import Data.Domain
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Imports
 import Network.AMQP (cancelConsumer)
@@ -21,7 +22,6 @@ import Wire.API.Federation.Client
 import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
-import qualified Data.Set as Set
 
 startPushingNotifications ::
   Q.Channel ->

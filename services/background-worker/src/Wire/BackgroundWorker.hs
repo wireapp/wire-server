@@ -5,11 +5,11 @@ module Wire.BackgroundWorker where
 import Control.Concurrent.Async
 import Control.Monad.Catch
 import Imports
+import Network.AMQP.Extended
 import qualified Wire.BackendNotificationPusher as BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 import Wire.Defederation
-import Network.AMQP.Extended
 
 -- FUTUREWORK: Start an http service with status and metrics endpoints
 -- NOTE: Use atomic IORef writes to impose an ordering barrier on

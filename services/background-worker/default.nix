@@ -21,16 +21,13 @@
 , http-media
 , http-types
 , http2-manager
+, HUnit
 , imports
 , lens
 , lib
 , monad-control
-, optparse-applicative
 , QuickCheck
 , retry
-, tagged
-, tasty
-, tasty-hunit
 , servant
 , servant-client
 , servant-client-core
@@ -44,7 +41,6 @@
 , wai
 , wire-api
 , wire-api-federation
-, yaml
 }:
 mkDerivation {
   pname = "background-worker";
@@ -76,9 +72,10 @@ mkDerivation {
     tinylog
     transformers-base
     types-common
+    wire-api
     wire-api-federation
   ];
-  testHaskellDepends = [
+  executableHaskellDepends = [
     aeson
     amqp
     base
@@ -86,9 +83,12 @@ mkDerivation {
     containers
     extended
     federator
+    HsOpenSSL
     hspec
+    http-client
     http-media
     http-types
+    HUnit
     imports
     QuickCheck
     servant
@@ -104,25 +104,33 @@ mkDerivation {
     wire-api
     wire-api-federation
   ];
-  executableHaskellDepends = [
+  testHaskellDepends = [
     aeson
     amqp
-    async
     base
-    exceptions
+    bytestring
+    containers
+    extended
     federator
-    HsOpenSSL
     hspec
+    http-client
+    http-media
+    http-types
+    HUnit
     imports
-    optparse-applicative
     QuickCheck
-    tagged
-    tasty
-    tasty-hunit
+    servant
+    servant-client
+    servant-client-core
+    servant-server
+    text
+    tinylog
+    transformers
     types-common
+    unliftio
+    wai
     wire-api
     wire-api-federation
-    yaml
   ];
   description = "Runs background work";
   license = lib.licenses.agpl3Only;

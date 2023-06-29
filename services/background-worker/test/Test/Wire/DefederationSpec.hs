@@ -1,21 +1,22 @@
-module Test.Wire.Defederation where
+module Test.Wire.DefederationSpec where
 
 import qualified Data.Aeson as Aeson
 import Data.Domain
 import Federator.MockServer
 import Imports
 import qualified Network.AMQP as Q
-import Test.Wire.Util
-import Test.Hspec
 import Test.HUnit.Lang
+import Test.Hspec
+import Test.Wire.Util
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.BackendNotifications
 import Wire.Defederation
 
-deleteFederationDomainSpec :: Spec
-deleteFederationDomainSpec = do
+spec :: Spec
+spec = do
   describe
-    "Wire.BackendNotificationPusher.deleteFederationDomain" $ do
+    "Wire.BackendNotificationPusher.deleteFederationDomain"
+    $ do
       it "should fail on message decoding" $ do
         envelope <- newFakeEnvelope
         let msg = Q.newMsg {Q.msgBody = Aeson.encode @[()] [], Q.msgContentType = Just "application/json"}

@@ -168,7 +168,7 @@ executable background-worker-integration
   other-modules:
     Main
     Test.Wire.BackendNotificationPusherSpec
-    Test.Wire.Defederation
+    Test.Wire.DefederationSpec
     Test.Wire.Util
 
   build-depends:
@@ -257,7 +257,7 @@ test-suite background-worker-test
   other-modules:
     Main
     Test.Wire.BackendNotificationPusherSpec
-    Test.Wire.Defederation
+    Test.Wire.DefederationSpec
     Test.Wire.Util
 
   build-depends:
