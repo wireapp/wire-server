@@ -23,7 +23,6 @@ where
 import Brig.API.Handler (Handler)
 import qualified Brig.API.Internal as Internal
 import qualified Brig.API.Public as Public
-import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)

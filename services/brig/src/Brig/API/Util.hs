@@ -40,8 +40,7 @@ import Brig.API.Types
 import Brig.App
 import qualified Brig.Code as Code
 import qualified Brig.Data.User as Data
-import Brig.Options (FederationDomainConfig, federationDomainConfigs, set2FACodeGenerationDelaySecs)
-import qualified Brig.Options as Opts
+import Brig.Options (federationDomainConfigs, set2FACodeGenerationDelaySecs)
 import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except
@@ -63,6 +62,7 @@ import Util.Logging (sha256String)
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Federation.Error
+import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
 import qualified Wire.Sem.Concurrency as C
@@ -169,11 +169,11 @@ exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
 lookupDomainConfig :: MonadReader Env m => Domain -> m (Maybe FederationDomainConfig)
 lookupDomainConfig domain = do
   domainConfigs <- fromMaybe [] <$> view (settings . federationDomainConfigs)
-  pure $ find ((== domain) . Opts.domain) domainConfigs
+  pure $ find ((== domain) . FD.domain) domainConfigs
 
 -- | If domain is not configured fall back to `FullSearch`
 lookupSearchPolicy :: MonadReader Env m => Domain -> m FederatedUserSearchPolicy
-lookupSearchPolicy domain = fromMaybe NoSearch <$> (Opts.cfgSearchPolicy <$$> lookupDomainConfig domain)
+lookupSearchPolicy domain = fromMaybe NoSearch <$> (FD.cfgSearchPolicy <$$> lookupDomainConfig domain)
 
 -- | Convert a qualified value into a local one. Throw if the value is not actually local.
 ensureLocal :: Qualified a -> AppT r (Local a)

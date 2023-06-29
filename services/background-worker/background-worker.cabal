@@ -27,6 +27,7 @@ library
   build-depends:
       aeson
     , amqp
+    , containers
     , exceptions
     , extended
     , HsOpenSSL
@@ -34,6 +35,8 @@ library
     , imports
     , monad-control
     , retry
+    , servant-client
+    , text
     , tinylog
     , transformers-base
     , types-common
@@ -159,12 +162,26 @@ test-suite background-worker-test
       aeson
     , amqp
     , background-worker
+    , base
+    , bytestring
+    , containers
+    , extended
     , federator
     , hspec
+    , http-media
+    , http-types
     , imports
     , QuickCheck
+    , servant
+    , servant-client
+    , servant-client-core
+    , servant-server
+    , text
     , tinylog
+    , transformers
     , types-common
+    , unliftio
+    , wai
     , wire-api
     , wire-api-federation
 

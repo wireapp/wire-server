@@ -47,6 +47,7 @@ import qualified Wire.API.Provider.External as Provider.External
 import qualified Wire.API.Provider.Service as Provider.Service
 import qualified Wire.API.Provider.Service.Tag as Provider.Service.Tag
 import qualified Wire.API.Push.Token as Push.Token
+import qualified Wire.API.Routes.FederationDomainConfig as FederationDomainConfig
 import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as TeamsIntra
 import qualified Wire.API.Routes.Version as Routes.Version
 import qualified Wire.API.SystemSettings as SystemSettings
@@ -143,6 +144,8 @@ tests =
       testRoundTrip @Event.Conversation.OtrMessage,
       testRoundTrip @Event.Team.Event,
       testRoundTrip @Event.Team.EventType,
+      testRoundTrip @FederationDomainConfig.FederationDomainConfigs,
+      testRoundTrip @FederationDomainConfig.FederationStrategy,
       testRoundTrip @Message.Priority,
       testRoundTrip @Message.OtrRecipients,
       testRoundTrip @Message.NewOtrMessage,
