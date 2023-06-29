@@ -15,6 +15,7 @@ library
     Wire.BackendNotificationPusher
     Wire.BackgroundWorker
     Wire.BackgroundWorker.Env
+    Wire.BackgroundWorker.Health
     Wire.BackgroundWorker.Options
 
   hs-source-dirs:     src
@@ -33,13 +34,17 @@ library
     , HsOpenSSL
     , http2-manager
     , imports
+    , metrics-core
     , monad-control
     , retry
     , servant-client
+    , servant-server
     , text
     , tinylog
     , transformers-base
     , types-common
+    , unliftio
+    , wai-utilities
     , wire-api-federation
 
   default-extensions:
@@ -99,6 +104,7 @@ executable background-worker
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -Wredundant-constraints -Wunused-packages
+    -threaded -with-rtsopts=-N
 
   default-extensions:
     NoImplicitPrelude

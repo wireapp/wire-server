@@ -89,6 +89,7 @@ startPusher :: Q.Channel -> AppT IO ()
 startPusher chan = do
   -- This ensures that we receive notifications 1 by 1 which ensures they are
   -- delivered in order.
+  markAsWorking BackendNotificationPusher
   lift $ Q.qos chan 0 1 False
   consumers <- newIORef mempty
   BackendNotificationPusherOpts {..} <- asks (.backendNotificationPusher)
@@ -142,9 +143,10 @@ startWorker rabbitmqOpts = do
   env <- ask
   liftIO . openConnectionWithRetries env.logger (demoteOpts rabbitmqOpts) $
     RabbitMqHooks
-      { onNewChannel = runAppT env . startPusher,
-        -- FUTUREWORK: Use these for metrics
-        onChannelException = const $ pure (),
-        onConnectionClose = pure ()
+      { onNewChannel =
+          runAppT env . startPusher,
+        onChannelException = \_ ->
+          runAppT env $ markAsNotWorking BackendNotificationPusher,
+        onConnectionClose =
+          runAppT env $ markAsNotWorking BackendNotificationPusher
       }
-  forever $ threadDelay maxBound
