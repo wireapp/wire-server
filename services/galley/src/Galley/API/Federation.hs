@@ -722,7 +722,7 @@ queryGroupInfo origDomain req =
 
 updateTypingIndicator ::
   ( Member GundeckAccess r,
-    Member BackendNotificationQueueAccess r,
+    Member FederatorAccess r,
     Member ConversationStore r,
     Member (Input UTCTime) r,
     Member (Input (Local ())) r

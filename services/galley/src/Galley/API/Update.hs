@@ -1392,7 +1392,6 @@ memberTyping ::
     Member (Input UTCTime) r,
     Member ConversationStore r,
     Member MemberStore r,
-    Member BackendNotificationQueueAccess r,
     Member FederatorAccess r
   ) =>
   Local UserId ->
@@ -1431,7 +1430,6 @@ memberTypingUnqualified ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ConversationStore r,
-    Member BackendNotificationQueueAccess r,
     Member FederatorAccess r
   ) =>
   Local UserId ->
