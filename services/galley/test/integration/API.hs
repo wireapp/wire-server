@@ -419,8 +419,6 @@ postConvWithRemoteUsersOk rbs = do
 
     liftIO $
       -- as many federated requests as remote backends, i.e., one per remote backend
-
-      -- as many federated requests as remote backends, i.e., one per remote backend
       Set.size (Set.fromList $ frTargetDomain <$> federatedRequests') @?= Set.size rbs
     for_ federatedRequests' print
     -- the first federated requests are 'get-not-fully-connected-backends' requests and we want to drop them
