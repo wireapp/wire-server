@@ -206,14 +206,37 @@ defaultServiceOverrides =
       dbSpar = pure
     }
 
-defaultServiceOverridesToMap :: ServiceOverrides -> Map.Map Service (Value -> App Value)
-defaultServiceOverridesToMap overrides =
+defaultServiceOverridesToMap :: Map.Map Service (Value -> App Value)
+defaultServiceOverridesToMap =
   Map.fromList
-    [ (Brig, dbBrig overrides),
-      (Cannon, dbCannon overrides),
-      (Cargohold, dbCargohold overrides),
-      (Galley, dbGalley overrides),
-      (Gundeck, dbGundeck overrides),
-      (Nginz, dbNginz overrides),
-      (Spar, dbSpar overrides)
+    [ (Brig, pure),
+      (Cannon, pure),
+      (Cargohold, pure),
+      (Galley, pure),
+      (Gundeck, pure),
+      (Nginz, pure),
+      (Spar, pure)
     ]
+
+-- | Overrides the service configurations with the given overrides.
+-- e.g.
+-- `let overrides =
+--    def
+--      { dbBrig =
+--          setField "optSettings.setFederationStrategy" "allowDynamic"
+--            >=> removeField "optSettings.setFederationDomainConfigs"
+--      }
+--  withOverrides overrides defaultServiceOverridesToMap`
+withOverrides :: ServiceOverrides -> Map.Map Service (Value -> App Value) -> Map.Map Service (Value -> App Value)
+withOverrides overrides =
+  Map.mapWithKey
+    ( \svr f ->
+        case svr of
+          Brig -> f >=> overrides.dbBrig
+          Cannon -> f >=> overrides.dbCannon
+          Cargohold -> f >=> overrides.dbCargohold
+          Galley -> f >=> overrides.dbGalley
+          Gundeck -> f >=> overrides.dbGundeck
+          Nginz -> f >=> overrides.dbNginz
+          Spar -> f >=> overrides.dbSpar
+    )

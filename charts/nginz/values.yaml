@@ -545,6 +545,12 @@ nginx_conf:
     - path: /mls/public-keys
       envs:
       - all
+    - path: /i/federation-status$
+      envs:
+      - all
+      disable_zauth: true
+      basic_auth: true
+      versioned: false
     gundeck:
     - path: /push
       envs:
