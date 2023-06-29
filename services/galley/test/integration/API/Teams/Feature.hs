@@ -164,13 +164,17 @@ tests s =
 validMLSConfigGen :: Gen (WithStatusPatch MLSConfig)
 validMLSConfigGen =
   arbitrary
-    `suchThat` ( \cfg -> case wspConfig cfg of
-                   Just (MLSConfig us defProtocol cTags ctag supProtocol) ->
-                     sortedAndNoDuplicates us
-                       && sortedAndNoDuplicates cTags
-                       && elem ctag cTags
-                       && elem defProtocol supProtocol
-                   _ -> True
+    `suchThat` ( \cfg ->
+                   case wspConfig cfg of
+                     Just (MLSConfig us defProtocol cTags ctag supProtocol) ->
+                       sortedAndNoDuplicates us
+                         && sortedAndNoDuplicates cTags
+                         && elem ctag cTags
+                         && notElem ProtocolMixedTag supProtocol
+                         && elem defProtocol supProtocol
+                         && sortedAndNoDuplicates supProtocol
+                     _ -> True
+                     && Just FeatureStatusEnabled == wspStatus cfg
                )
   where
     sortedAndNoDuplicates xs = (sort . nub) xs == xs
