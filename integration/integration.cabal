@@ -96,11 +96,11 @@ library
     Test.Brig
     Test.Conversation
     Test.Demo
-    Test.Gundeck
     Test.MLS
     Test.MLS.KeyPackage
     Test.MLS.One2One
     Test.MLS.SubConversation
+    Test.Notifications
     Test.User
     Testlib.App
     Testlib.Assertions

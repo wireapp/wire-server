@@ -1,4 +1,4 @@
-module Test.Gundeck where
+module Test.Notifications where
 
 import API.Gundeck
 import SetupHelpers
