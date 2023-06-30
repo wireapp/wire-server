@@ -188,7 +188,8 @@ data ServiceOverrides = ServiceOverrides
     dbGalley :: Value -> App Value,
     dbGundeck :: Value -> App Value,
     dbNginz :: Value -> App Value,
-    dbSpar :: Value -> App Value
+    dbSpar :: Value -> App Value,
+    dbBackgroundWorker :: Value -> App Value
   }
 
 instance Default ServiceOverrides where
@@ -203,7 +204,8 @@ defaultServiceOverrides =
       dbGalley = pure,
       dbGundeck = pure,
       dbNginz = pure,
-      dbSpar = pure
+      dbSpar = pure,
+      dbBackgroundWorker = pure
     }
 
 defaultServiceOverridesToMap :: Map.Map Service (Value -> App Value)
@@ -239,4 +241,5 @@ withOverrides overrides =
           Gundeck -> f >=> overrides.dbGundeck
           Nginz -> f >=> overrides.dbNginz
           Spar -> f >=> overrides.dbSpar
+          BackgroundWorker -> f >=> overrides.dbBackgroundWorker
     )
