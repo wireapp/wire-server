@@ -84,8 +84,8 @@ import Imports hiding (head)
 import qualified Network.AMQP as Q
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (Error, err, setStatus)
-import qualified Network.Wai.Predicate as Predicate
+import Network.Wai.Predicate hiding (result, Error, err, setStatus)
+import qualified Network.Wai.Predicate as Predicate hiding (result)
 import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.ZAuth
@@ -105,6 +105,7 @@ import Wire.API.CustomBackend
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import qualified Wire.API.Event.Federation as Federation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
@@ -119,6 +120,13 @@ import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.Team.Member
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Galley.Effects.ExternalAccess
+import Galley.Intra.Push.Internal (pushEventJson)
+import Galley.Cassandra.Store (embedClient)
+import Cassandra (Consistency(LocalQuorum), Page (..), paramsP, ClientState)
+import Database.CQL.IO (paginate)
+import Galley.Cassandra.Queries
+import Galley.Cassandra.Conversation.Members
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
@@ -323,7 +331,7 @@ internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed 
     capture "domain"
       .&. accept "application" "json"
 
-  delete "/i/federation/:domain" (continue internalDeleteFederationDomainH) $
+  delete "/i/federation/:domain" (continue (internalDeleteFederationDomainH (toRange (Proxy @1000)))) $
     capture "domain"
       .&. accept "application" "json"
 
@@ -525,6 +533,7 @@ deleteFederationDomain d = do
   deleteFederationDomainOneOnOne d
 
 internalDeleteFederationDomainH ::
+  forall r.
   ( Member (Input Env) r,
     Member (P.Logger (Msg -> Msg)) r,
     Member (Error InternalError) r,
@@ -533,17 +542,42 @@ internalDeleteFederationDomainH ::
     Member MemberStore r,
     Member ConversationStore r,
     Member (Embed IO) r,
+    Member (Input ClientState) r,
     Member CodeStore r,
     Member TeamStore r,
     Member BrigAccess r,
     Member GundeckAccess r,
     Member ExternalAccess r
   ) =>
+  Range 1 1000 Int32 -> -- TODO what values should go here?
   Domain ::: JSON ->
   Sem r Response
-internalDeleteFederationDomainH (domain ::: _) = do
+internalDeleteFederationDomainH (fromRange -> maxPage) (domain ::: _) = do
+  -- We have to send the same event twice.
+  -- Once before and once after defederation work.
+  -- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/809238539/Use+case+Stopping+to+federate+with+a+domain
+  void sendNotifications
   deleteFederationDomain domain
+  void sendNotifications
   pure (empty & setStatus status200)
+  where
+    sendNotifications = do
+      page <- embedClient $ paginate selectAllMembers (paramsP LocalQuorum () maxPage)
+      sendNotificationPage page
+    pushEvents results = do
+      let (bots, mems) = localBotsAndUsers results
+          recipients = Intra.recipient <$> mems
+          event = Intra.FederationEvent $ Federation.Event Federation.FederationDelete [domain]
+      for_ (Intra.newPush ListComplete Nothing event recipients) $ \p ->
+        push1 $ p & Intra.pushRoute .~ Intra.RouteDirect
+      deliverAsync (bots `zip` repeat (pushEventJson event))
+    sendNotificationPage page = do
+      let res = result page
+          mems = mapMaybe toMember res
+      pushEvents mems
+      when (hasMore page) $ do
+        page' <- embedClient $ nextPage page
+        sendNotificationPage page'
 
 -- Remove remote members from local conversations
 deleteFederationDomainRemoteUserFromLocalConversations ::

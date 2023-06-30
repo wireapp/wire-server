@@ -214,6 +214,7 @@ library
     , cereal                 >=0.4
     , comonad
     , containers             >=0.5
+    , cql-io
     , cryptonite
     , currency-codes         >=2.0
     , data-default           >=0.5

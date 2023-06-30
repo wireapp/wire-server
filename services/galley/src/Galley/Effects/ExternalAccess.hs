@@ -31,10 +31,11 @@ import Galley.Data.Services
 import Imports
 import Polysemy
 import Wire.API.Event.Conversation
+import Data.Aeson
 
 data ExternalAccess m a where
   Deliver :: Foldable f => f (BotMember, Event) -> ExternalAccess m [BotMember]
-  DeliverAsync :: Foldable f => f (BotMember, Event) -> ExternalAccess m ()
+  DeliverAsync :: (ToJSON e, Foldable f) => f (BotMember, e) -> ExternalAccess m ()
   DeliverAndDeleteAsync :: Foldable f => ConvId -> f (BotMember, Event) -> ExternalAccess m ()
 
 makeSem ''ExternalAccess

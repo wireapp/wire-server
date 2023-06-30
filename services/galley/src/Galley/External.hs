@@ -45,6 +45,7 @@ import URI.ByteString
 import UnliftIO (Async, async, waitCatch)
 import Wire.API.Event.Conversation (Event)
 import Wire.API.Provider.Service (serviceRefId, serviceRefProvider)
+import Data.Aeson (ToJSON)
 
 interpretExternalAccess ::
   ( Member (Embed IO) r,
@@ -60,7 +61,7 @@ interpretExternalAccess = interpret $ \case
 -- | Like deliver, but ignore orphaned bots and return immediately.
 --
 -- FUTUREWORK: Check if this can be removed.
-deliverAsync :: [(BotMember, Event)] -> App ()
+deliverAsync :: ToJSON e => [(BotMember, e)] -> App ()
 deliverAsync = void . forkIO . void . deliver
 
 -- | Like deliver, but remove orphaned bots and return immediately.
@@ -69,10 +70,10 @@ deliverAndDeleteAsync cnv pushes = void . forkIO $ do
   gone <- deliver pushes
   mapM_ (deleteBot cnv . botMemId) gone
 
-deliver :: [(BotMember, Event)] -> App [BotMember]
+deliver :: forall e. ToJSON e => [(BotMember, e)] -> App [BotMember]
 deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
-    exec :: (BotMember, Event) -> App Bool
+    exec :: (BotMember, e) -> App Bool
     exec (b, e) =
       lookupService (botMemService b) >>= \case
         Nothing -> pure False
@@ -118,7 +119,7 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
 
 -- Internal -------------------------------------------------------------------
 
-deliver1 :: Service -> BotMember -> Event -> App ()
+deliver1 :: ToJSON e => Service -> BotMember -> e -> App ()
 deliver1 s bm e
   | s ^. serviceEnabled = do
       let t = toByteString' (s ^. serviceToken)
