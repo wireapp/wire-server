@@ -23,6 +23,7 @@ import qualified Brig.API.Client as API
 import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error
 import Brig.API.Handler (Handler)
+import Brig.API.Internal hiding (getMLSClients)
 import qualified Brig.API.Internal as Internal
 import Brig.API.MLS.KeyPackages
 import Brig.API.MLS.Util
@@ -45,8 +46,9 @@ import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Qualified
 import Data.Range
+import Data.Set (fromList, (\\))
 import qualified Gundeck.Types.Push as Push
-import Imports
+import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
 import Servant (ServerT)
@@ -57,6 +59,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Version
 import Wire.API.MLS.KeyPackage
+import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
@@ -87,6 +90,14 @@ federationSitemap =
     :<|> Named @"send-connection-action" sendConnectionAction
     :<|> Named @"on-user-deleted-connections" onUserDeleted
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
+    :<|> Named @"get-not-fully-connected-backends" getFederationStatus
+
+-- Allow remote domains to send their known remote federation instances, and respond
+-- with the subset of those we aren't connected to.
+getFederationStatus :: Domain -> DomainSet -> Handler r NonConnectedBackends
+getFederationStatus _ request = do
+  fedDomains <- fromList . fmap (.domain) . (.remotes) <$> getFederationRemotes
+  pure $ NonConnectedBackends (request.dsDomains \\ fedDomains)
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do

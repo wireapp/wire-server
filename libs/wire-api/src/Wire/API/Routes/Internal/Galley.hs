@@ -31,6 +31,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.FederationStatus
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
@@ -226,6 +227,7 @@ type InternalAPIBase =
                :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
            )
     :<|> IFeatureAPI
+    :<|> IFederationAPI
 
 type ILegalholdWhitelistedTeamsAPI =
   "legalhold"
@@ -408,6 +410,16 @@ type IFeatureNoConfigMultiGet f =
   Named
     '("igetmulti", f)
     (FeatureNoConfigMultiGetBase f)
+
+type IFederationAPI =
+  Named
+    "get-federation-status"
+    ( Summary "Get the federation status (only needed for integration/QA tests at the time of writing it)"
+        :> ZLocalUser
+        :> "federation-status"
+        :> ReqBody '[Servant.JSON] RemoteDomains
+        :> Get '[Servant.JSON] FederationStatus
+    )
 
 swaggerDoc :: Swagger
 swaggerDoc =

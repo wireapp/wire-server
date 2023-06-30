@@ -15,6 +15,7 @@ library
     Wire.BackendNotificationPusher
     Wire.BackgroundWorker
     Wire.BackgroundWorker.Env
+    Wire.BackgroundWorker.Health
     Wire.BackgroundWorker.Options
     Wire.BackgroundWorker.Util
     Wire.Defederation
@@ -43,13 +44,17 @@ library
     , http2-manager
     , imports
     , lens
+    , metrics-core
     , monad-control
     , retry
     , servant-client
+    , servant-server
     , text
     , tinylog
     , transformers-base
     , types-common
+    , unliftio
+    , wai-utilities
     , wire-api
     , wire-api-federation
 
@@ -110,6 +115,7 @@ executable background-worker
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -Wredundant-constraints -Wunused-packages
+    -threaded -with-rtsopts=-N
 
   default-extensions:
     NoImplicitPrelude
@@ -167,6 +173,7 @@ executable background-worker-integration
   -- cabal-fmt: expand test
   other-modules:
     Main
+    Spec
     Test.Wire.BackendNotificationPusherSpec
     Test.Wire.DefederationSpec
     Test.Wire.Util
@@ -256,6 +263,7 @@ test-suite background-worker-test
   -- cabal-fmt: expand test
   other-modules:
     Main
+    Spec
     Test.Wire.BackendNotificationPusherSpec
     Test.Wire.DefederationSpec
     Test.Wire.Util

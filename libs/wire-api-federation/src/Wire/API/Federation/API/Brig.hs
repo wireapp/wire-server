@@ -18,6 +18,7 @@
 module Wire.API.Federation.API.Brig where
 
 import Data.Aeson
+import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id
 import Data.Range
@@ -71,6 +72,19 @@ type BrigApi =
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
     :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
     :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)
+    :<|> FedEndpoint "get-not-fully-connected-backends" DomainSet NonConnectedBackends
+
+newtype DomainSet = DomainSet
+  { dsDomains :: Set Domain
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded DomainSet)
+
+newtype NonConnectedBackends = NonConnectedBackends
+  { nonConnectedBackends :: Set Domain
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded NonConnectedBackends)
 
 newtype GetUserClients = GetUserClients
   { gucUsers :: [UserId]

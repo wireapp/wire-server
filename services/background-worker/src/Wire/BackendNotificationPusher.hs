@@ -83,6 +83,7 @@ startWorker :: Q.Channel -> AppT IO (Async ())
 startWorker chan = do
   -- This ensures that we receive notifications 1 by 1 which ensures they are
   -- delivered in order.
+  markAsWorking BackendNotificationPusher
   lift $ Q.qos chan 0 1 False
   env <- ask
   consumersRef <- newIORef mempty
@@ -151,7 +152,6 @@ ensureConsumer consumers chan domain = do
   unless consumerExists $ do
     Log.info $ Log.msg (Log.val "Starting consumer") . Log.field "domain" (domainText domain)
     tag <- startPushingNotifications chan domain
-    -- TODO: Check if the map is spine strict. This strict call might not be needed.
     -- The ' version of atomicModifyIORef is strict in the function update and is useful
     -- for not leaking memory.
     oldTag <- atomicModifyIORef' consumers $ \c -> (Map.insert domain tag c, Map.lookup domain c)

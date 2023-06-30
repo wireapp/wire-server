@@ -8,6 +8,8 @@ import Control.Concurrent.Chan
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
+import qualified Data.Map.Strict as Map
+import qualified Data.Metrics as Metrics
 import HTTP2.Client.Manager
 import Imports
 import Network.AMQP.Extended
@@ -24,10 +26,19 @@ import Wire.API.FederationUpdate
 import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Options
 
+type IsWorking = Bool
+
+-- | Eventually this will be a sum type of all the types of workers
+data Worker
+  = BackendNotificationPusher
+  | DefederationWorker
+  deriving (Show, Eq, Ord)
+
 data Env = Env
   { http2Manager :: Http2Manager,
     httpManager :: Manager,
     logger :: Logger,
+    metrics :: Metrics.Metrics,
     federatorInternal :: Endpoint,
     galley :: Endpoint,
     brig :: Endpoint,
@@ -35,7 +46,8 @@ data Env = Env
     remoteDomains :: IORef FederationDomainConfigs,
     remoteDomainsChan :: Chan FederationDomainConfigs,
     rabbitmqAdminClient :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO),
-    rabbitmqVHost :: Text
+    rabbitmqVHost :: Text,
+    statuses :: IORef (Map Worker IsWorking)
   }
 
 mkEnv :: Opts -> IO (Env, Async ())
@@ -60,6 +72,11 @@ mkEnv opts = do
           }
   (remoteDomains, syncThread) <- syncFedDomainConfigs brig logger callback
   rabbitmqAdminClient <- mkRabbitMqAdminClientEnv opts.rabbitmq
+  statuses <- newIORef $ Map.fromList
+    [ (BackendNotificationPusher, False)
+    , (DefederationWorker, False)
+    ]
+  metrics <- Metrics.metrics
   pure (Env {..}, syncThread)
 
 initHttp2Manager :: IO Http2Manager
@@ -98,3 +115,11 @@ instance MonadIO m => MonadLogger (AppT m) where
 
 runAppT :: Env -> AppT m a -> m a
 runAppT env app = runReaderT (unAppT app) env
+
+markAsWorking :: MonadIO m => Worker -> AppT m ()
+markAsWorking worker =
+  flip modifyIORef (Map.insert worker True) =<< asks statuses
+
+markAsNotWorking :: MonadIO m => Worker -> AppT m ()
+markAsNotWorking worker =
+  flip modifyIORef (Map.insert worker False) =<< asks statuses

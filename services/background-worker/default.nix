@@ -25,6 +25,7 @@
 , imports
 , lens
 , lib
+, metrics-core
 , monad-control
 , QuickCheck
 , retry
@@ -39,6 +40,7 @@
 , types-common
 , unliftio
 , wai
+, wai-utilities
 , wire-api
 , wire-api-federation
 }:
@@ -65,9 +67,11 @@ mkDerivation {
     http2-manager
     imports
     lens
+    metrics-core
     monad-control
     retry
     servant-client
+    servant-server
     text
     tinylog
     transformers-base
@@ -102,6 +106,8 @@ mkDerivation {
     unliftio
     wai
     wire-api
+    unliftio
+    wai-utilities
     wire-api-federation
   ];
   testHaskellDepends = [

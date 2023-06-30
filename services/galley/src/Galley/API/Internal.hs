@@ -51,6 +51,7 @@ import Galley.API.MLS.Removal
 import Galley.API.One2One
 import Galley.API.Public
 import Galley.API.Public.Servant
+import Galley.API.Query (getFederationStatus)
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
@@ -130,6 +131,11 @@ internalAPI =
       <@> iTeamsAPI
       <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
       <@> featureAPI
+      <@> federationAPI
+
+federationAPI :: API IFederationAPI GalleyEffects
+federationAPI =
+  mkNamedAPI @"get-federation-status" getFederationStatus
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
 legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)

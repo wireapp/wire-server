@@ -19,12 +19,14 @@ runTestAppT app port = do
   logger <- Logger.new Logger.defSettings
   remoteDomains <- newIORef defFederationDomainConfigs
   remoteDomainsChan <- newChan
+  statuses <- newIORef mempty
   let federatorInternal = Endpoint "localhost" (fromIntegral port)
       galley = Endpoint "localhost" 8085
       brig = Endpoint "localhost" 8082
       defederationTimeout = responseTimeoutNone
       rabbitmqAdminClient = undefined
       rabbitmqVHost = undefined
+      metrics = undefined
       env = Env {..}
   runAppT env app
 

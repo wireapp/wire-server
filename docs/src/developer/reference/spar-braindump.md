@@ -1,12 +1,6 @@
 # Spar braindump
 
 Reference: {#SparBrainDump}
-/home/stefan/repos/wire-server/docs/src/how-to/install/includes/helm_dns-ingress-troubleshooting.inc.rst:147: WARNING: duplicate label trying things out, other instance in /home/stefan/repos/wire-server/docs/src/how-to/install/helm.md
-/home/stefan/repos/wire-server/docs/src/how-to/install/includes/helm_dns-ingress-troubleshooting.inc.rst:170: WARNING: duplicate label troubleshooting, other instance in /home/stefan/repos/wire-server/docs/src/how-to/install/helm.md
-/home/stefan/repos/wire-server/docs/src/developer/reference/config-options.md:33: WARNING: 'myst' reference target not found: ../../how-to/install/mls.md
-/home/stefan/repos/wire-server/docs/src/developer/reference/spar-braindump.md:116: WARNING: 'myst' reference target not found: ../../how-to/single-sign-on/understand/main.rst
-/home/stefan/repos/wire-server/docs/src/how-to/install/ansible-VMs.md:97: WARNING: undefined label: 'checks'
-/home/stefan/repos/wire-server/docs/src/understand/federation/api.md:162: WARNING: 'myst' reference target not found: ../../how-to/install/mls
 _Author: Matthias Fischmann_
 
 ---

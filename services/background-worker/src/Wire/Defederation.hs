@@ -91,6 +91,7 @@ deleteFederationDomainInner (msg, envelope) = do
 
 deleteWorker :: Q.Channel -> AppT IO (Async ())
 deleteWorker chan = do
+  markAsWorking DefederationWorker
   lift $ Q.qos chan 0 1 False
   env <- ask
   consumerRef <- newIORef Nothing

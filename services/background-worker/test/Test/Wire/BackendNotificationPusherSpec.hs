@@ -160,6 +160,8 @@ spec = do
       remoteDomainsChan <- newChan
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
+          statuses = undefined
+          metrics = undefined
           rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
@@ -178,6 +180,8 @@ spec = do
       remoteDomainsChan <- newChan
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
+          statuses = undefined
+          metrics = undefined
           rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone

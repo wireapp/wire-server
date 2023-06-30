@@ -9,6 +9,7 @@ import Util.Options
 data Opts = Opts
   { logLevel :: !Level,
     logFormat :: !(Maybe (Last LogFormat)),
+    backgroundWorker :: !Endpoint,
     federatorInternal :: !Endpoint,
     galley :: !Endpoint,
     brig :: !Endpoint,
