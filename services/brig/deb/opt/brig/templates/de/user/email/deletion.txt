@@ -2,19 +2,20 @@
 
 ${brand_label_url} [${brand_url}]
 
-LÖSCHE DEIN KONTO
-Wir haben eine Anfrage zur Löschung deines ${brand}-Benutzerkontos erhalten.
-Klicke innerhalb der nächsten 10 Minuten auf den nachstehenden Link, um alle
-deine Unterhaltungen, Nachrichten und Kontakte zu löschen.
+IHR BENUTZERKONTO LÖSCHEN
+Wir haben eine Anfrage zur Löschung Ihrer ${brand}-Benutzerkontos erhalten.
+Klicken Sie innerhalb der nächsten 10 Minuten auf den folgenden Link, um alle
+Ihre Unterhaltungen, Nachrichten und Kontakte zu löschen.
 
-Konto löschen [${url}]Falls du nicht auf den Button klicken kannst, kopiere den
-Link und füge ihn in deinem Browser ein:
+Benutzerkonto löschen [${url}]Falls Sie nicht auf den Button klicken können,
+kopieren Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}
 
-Falls du dies nicht beantragt hast, setze dein Passwort zurück [${forgot}].
+Falls Sie dies nicht angefordert haben, setzen Sie Ihr Passwort zurück
+[${forgot}].
 
-Wenn du Fragen hast, dann kontaktiere uns [${support}] bitte.
+Wenn Sie Fragen haben, dann kontaktieren Sie uns [${support}] bitte.
 
 
 --------------------------------------------------------------------------------

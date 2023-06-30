@@ -1,1 +1,1 @@
-Hallo, dein Verifizierungscode für Wire ist: ${code}. Noch einmal, dein Code lautet: ${code}
+Guten Tag, Ihr Bestätigungscode für Wire lautet: ${code}. Noch einmal, Ihr Code lautet: ${code}

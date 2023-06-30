@@ -10,12 +10,12 @@ ${brand} vereint sichere Verschlüsselung mit reichhaltigem Funktionsumfang und
 einfacher Bedienung in einer einzigen App. Unterstützt alle gängigen
 Plattformen.
 
-${brand} herunterladen [${url}]Falls du nicht auf den Button klicken kannst,
-kopiere den Link und füge ihn in deinem Browser ein:
+${brand} herunterladen [${url}]Falls Sie nicht auf den Button klicken können,
+kopieren Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}
 
-Wenn du Fragen hast, dann kontaktiere uns [${support}] bitte.
+Wenn Sie Fragen haben, dann kontaktieren Sie uns [${support}] bitte.
 
 Team ID: ${team_id}
 
