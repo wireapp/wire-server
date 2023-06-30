@@ -96,7 +96,7 @@ library
     Test.Brig
     Test.Conversation
     Test.Demo
-    Test.Gundeck
+    Test.Notifications
     Test.User
     Testlib.App
     Testlib.Assertions
