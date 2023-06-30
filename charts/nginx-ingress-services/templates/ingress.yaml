@@ -10,8 +10,8 @@ metadata:
     kubernetes.io/ingress.class: "{{ .Values.config.ingressClass }}"
     {{- end }}
     {{ if .Values.config.renderCSPInIngress }}
-    {{ if ne .Values.config.ingressClass "nginx"}}
-        {{ fail "In ingress CSP header setting only works with 'nginx' controller." }}
+    {{ if not (contains .Values.config.ingressClass "nginx") }}
+        {{ fail "In ingress CSP header setting only works with a 'nginx' controller. (Rename it to 'nginx-*' if it is one.)" }}
     {{ end }}
     nginx.ingress.kubernetes.io/configuration-snippet: |
       set $CSP "connect-src 'self' blob: data: https://*.giphy.com https://{{ .Values.config.dns.https }}";
