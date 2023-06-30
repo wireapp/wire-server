@@ -1,1 +1,2 @@
 Adding a new internal APIs to Brig and Galley to defederate domains.
+Background-Worker has been reworked to seperate AMQP channel handling from processing. This was done to allow a defederation worker to share the same connection management process with notification pusher.
