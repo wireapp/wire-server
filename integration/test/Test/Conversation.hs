@@ -59,7 +59,7 @@ testDynamicBackendsFullyConnectedWhenAllowDynamic = do
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
-      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains]
+      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
       uidA <- randomUser domainA def {Internal.team = True}
       uidB <- randomUser domainB def {Internal.team = True}
       uidC <- randomUser domainC def {Internal.team = True}
@@ -86,7 +86,7 @@ testDynamicBackendsNotFullyConnected = do
     \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
       -- clean federation config
-      sequence_ [Internal.deleteFedConn x y | x <- domains, y <- domains]
+      sequence_ [Internal.deleteFedConn x y | x <- domains, y <- domains, x /= y]
       -- A is connected to B and C, but B and C are not connected to each other
       void $ Internal.createFedConn domainA $ Internal.FedConn domainB "full_search"
       void $ Internal.createFedConn domainB $ Internal.FedConn domainA "full_search"
@@ -150,7 +150,7 @@ testCreateConversationFullyConnected = do
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
-      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains]
+      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
       [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
       bindResponse (postConversation u1 (defProteus {qualifiedUsers = [u2, u3]})) $ \resp -> do
         resp.status `shouldMatchInt` 201
@@ -168,7 +168,7 @@ testCreateConversationNonFullyConnected = do
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
-      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains]
+      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
       [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
       -- stop federation between B and C
       void $ Internal.deleteFedConn domainB domainC

@@ -326,7 +326,7 @@ instance ToSchema CreateConversationRejected where
   schema =
     objectWithDocModifier
       "CreateConversationRejected"
-      (description ?~ "A rejected conversation creation object extended with a list of non-federating backends")
+      (description ?~ "A rejected conversation creation object including a pair of remote backends that do not federate with each other")
       $ CreateConversationRejected
         <$> (fromTuple . nonFederatingBackends) .= field "non_federating_backends" (array schema `withParser` validate)
     where

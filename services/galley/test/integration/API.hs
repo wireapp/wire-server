@@ -420,7 +420,6 @@ postConvWithRemoteUsersOk rbs = do
     liftIO $
       -- as many federated requests as remote backends, i.e., one per remote backend
       Set.size (Set.fromList $ frTargetDomain <$> federatedRequests') @?= Set.size rbs
-    for_ federatedRequests' print
     -- the first federated requests are 'get-not-fully-connected-backends' requests and we want to drop them
     let federatedRequests = drop (Set.size rbs) federatedRequests'
     let fedReq = head federatedRequests
@@ -2436,7 +2435,6 @@ postTeamConvQualifiedNoConnection = do
           newConvTeam = Just (ConvTeamInfo tid)
         }
       !!! const 403 === statusCode
-  void $ withTempMockFederator' mock $ do
     postConvQualified
       (qUnqualified alice)
       Nothing
@@ -3410,14 +3408,14 @@ deleteUnavailableRemoteMemberConvLocalQualifiedOk = do
                   throw $ MockErrorResponse HTTP.status503 "Down for maintenance."
                 ]
           ]
-  (convId, _) <-
-    withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mockedGetUsers <|> mockedOther) $
-      fmap decodeConvId $
-        postConvQualified
-          alice
-          Nothing
-          defNewProteusConv {newConvQualifiedUsers = [qBob, qChad, qDee, qEve]}
-          <!! const 201 === statusCode
+  convId <-
+    fmap decodeConvId $
+      postConvWithRemoteUsersGeneric
+        (mockedGetUsers <|> mockedOther)
+        alice
+        Nothing
+        defNewProteusConv {newConvQualifiedUsers = [qBob, qChad, qDee, qEve]}
+        <!! const 201 === statusCode
   let qconvId = Qualified convId localDomain
 
   (respDel, federatedRequests) <-

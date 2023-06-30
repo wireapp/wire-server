@@ -726,16 +726,17 @@ postConvQualified u c n = do
       . zType "access"
       . json n
 
-postConvWithRemoteUsers ::
+postConvWithRemoteUsersGeneric ::
   HasCallStack =>
+  Mock LByteString ->
   UserId ->
   Maybe ClientId ->
   NewConv ->
   TestM (Response (Maybe LByteString))
-postConvWithRemoteUsers u c n = do
+postConvWithRemoteUsersGeneric m u c n = do
   let mock =
         ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty)
-          <|> mockReply ()
+          <|> m
   fmap fst $
     withTempMockFederator' mock $
       postConvQualified u c n {newConvName = setName (newConvName n)}
@@ -744,6 +745,14 @@ postConvWithRemoteUsers u c n = do
     setName :: (KnownNat n, KnownNat m, Within Text n m) => Maybe (Range n m Text) -> Maybe (Range n m Text)
     setName Nothing = checked "federated gossip"
     setName x = x
+
+postConvWithRemoteUsers ::
+  HasCallStack =>
+  UserId ->
+  Maybe ClientId ->
+  NewConv ->
+  TestM (Response (Maybe LByteString))
+postConvWithRemoteUsers = postConvWithRemoteUsersGeneric $ mockReply ()
 
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do

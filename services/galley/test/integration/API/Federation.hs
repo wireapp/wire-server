@@ -735,15 +735,15 @@ leaveConversationSuccess = do
               *> mockReply [mkProfile qEve (Name "Eve")]
           ]
 
-  (convId, _) <-
-    withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mock <|> mockReply ()) $
-      decodeConvId
-        <$> postConvQualified
-          alice
-          Nothing
-          defNewProteusConv
-            { newConvQualifiedUsers = [qBob, qChad, qDee, qEve]
-            }
+  convId <-
+    decodeConvId
+      <$> postConvWithRemoteUsersGeneric
+        (mock <|> mockReply ())
+        alice
+        Nothing
+        defNewProteusConv
+          { newConvQualifiedUsers = [qBob, qChad, qDee, qEve]
+          }
   let qconvId = Qualified convId localDomain
 
   (_, federatedRequests) <-
@@ -936,7 +936,7 @@ sendMessage = do
 
   liftIO $ do
     galleyReq <- case requests1 of
-      [_, r] -> pure r
+      [_, r] -> pure r -- (the first request is to `"get-not-fully-connected-backends"`.)
       _ -> assertFailure "unexpected number of requests"
     frComponent galleyReq @?= Galley
     frRPC galleyReq @?= "on-conversation-created"
