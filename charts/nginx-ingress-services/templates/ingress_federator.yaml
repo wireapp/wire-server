@@ -2,6 +2,9 @@
 {{- $ingressFieldNotAnnotation := eq (include "ingress.FieldNotAnnotation" .) "true" -}}
 {{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
 {{- if .Values.federator.enabled }}
+{{- if .Values.config.isAdditionalIngress -}}
+  {{ fail "Federation and multi-backend-domain (multi-ingress) cannot be configured together." }}
+{{- end -}}
 # We use a separate ingress for federator so that we can require client
 # certificates only for federation requests
 apiVersion: {{ include "ingress.apiVersion" . }}
