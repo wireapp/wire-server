@@ -44,7 +44,6 @@ module Wire.API.User.RichInfo
 where
 
 import qualified Data.Aeson as A
-import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as Aeson
 import Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
