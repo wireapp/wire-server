@@ -103,7 +103,16 @@ data RichInfoMapAndList = RichInfoMapAndList
 instance ToSchema RichInfoMapAndList where
   schema = object "RichInfoMapAndList" richInfoMapAndListSchema
 
-richInfoMapAndListSchema :: ObjectSchema SwaggerDoc RichInfoMapAndList
+-- | 'CIObjectSchema' is a bit of a hack, so it is not included in schema-profunctor even
+-- though it is pretty general.
+--
+-- [scim]{https://www.rfc-editor.org/rfc/rfc7644} requires case insensitivity in json object
+-- field names.  while this violates the json standard, it is necessary to follow this
+-- requirement in order to be interoperable.  for this purpose, 'CIObjectSchema' supports `Map
+-- (CI Text) Value` in place of `A.Object`.  only use when you know what you're doing!
+type CIObjectSchema doc a = SchemaP doc (Map (CI Text) Aeson.Value) [Aeson.Pair] a a
+
+richInfoMapAndListSchema :: CIObjectSchema SwaggerDoc RichInfoMapAndList
 richInfoMapAndListSchema =
   withParser
     ( RichInfoMapAndList
