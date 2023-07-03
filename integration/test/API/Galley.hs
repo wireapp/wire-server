@@ -165,3 +165,9 @@ getGroupInfo user conv = do
         Just sub -> ["conversations", convDomain, convId, "subconversations", sub, "groupinfo"]
   req <- baseRequest user Galley Versioned path
   submit "GET" req
+
+addMembers :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> [Value] -> App Response
+addMembers usr qcnv qUsers = do
+  (convDomain, convId) <- objQid qcnv
+  req <- baseRequest usr Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members"])
+  submit "POST" (req & addJSONObject ["qualified_users" .= qUsers])
