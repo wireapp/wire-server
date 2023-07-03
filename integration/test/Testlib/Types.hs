@@ -14,6 +14,7 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
 import Data.Default
+import Data.Function ((&))
 import Data.Functor
 import Data.Hex
 import Data.IORef
@@ -209,17 +210,7 @@ defaultServiceOverrides =
     }
 
 defaultServiceOverridesToMap :: Map.Map Service (Value -> App Value)
-defaultServiceOverridesToMap =
-  Map.fromList
-    [ (Brig, pure),
-      (Cannon, pure),
-      (Cargohold, pure),
-      (Galley, pure),
-      (Gundeck, pure),
-      (Nginz, pure),
-      (Spar, pure),
-      (BackgroundWorker, pure)
-    ]
+defaultServiceOverridesToMap = ([minBound .. maxBound] <&> (,pure)) & Map.fromList
 
 -- | Overrides the service configurations with the given overrides.
 -- e.g.

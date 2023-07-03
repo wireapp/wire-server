@@ -227,8 +227,8 @@ startBackend domain nginzSslPort mFederatorOverrides services modifyBackends act
                             <> (["externalHost" .= ("127.0.0.1" :: String) | srv == Cannon])
                         )
                     )
-              case forSrv of
-                Just Spar ->
+              case (srv, forSrv) of
+                (Spar, Just Spar) -> do
                   overridden
                     -- FUTUREWORK: override "saml.spAppUri" and "saml.spSsoUri" with correct port, too?
                     & setField "saml.spHost" ("127.0.0.1" :: String)
@@ -279,8 +279,8 @@ startBackend domain nginzSslPort mFederatorOverrides services modifyBackends act
                   mPid <- getPid ph
                   for_ mPid (signalProcess killProcess)
                   void $ waitForProcess ph
-  -- whenM (doesFileExist path) $ removeFile path
-  -- whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
+          whenM (doesFileExist path) $ removeFile path
+          whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
   let modifyEnv env =
         env {serviceMap = modifyBackends (fromIntegral . fst <$> ports) env.serviceMap}
@@ -357,7 +357,6 @@ waitUntilServiceUp domain = \case
                   )
             pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
         )
-    when isUp $ liftIO $ print ("Service " <> show srv <> " is up")
     unless isUp $
       failApp ("Time out for service " <> show srv <> " to come up")
 

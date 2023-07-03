@@ -130,8 +130,6 @@ testDynamicBackendx = do
     bindResponse (Public.getSelf ownDomain uidD1) $ \resp -> do
       resp.status `shouldMatchInt` 404
 
-    liftIO $ threadDelay (10 * 60 * 1000000)
-
 testStartMultipleDynamicBackends :: HasCallStack => App ()
 testStartMultipleDynamicBackends = do
   let assertCorrectDomain domain =
