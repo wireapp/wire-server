@@ -62,4 +62,4 @@ with the temporary contents of
 `brig.config.optSettings.setFederationDomainConfigs`, it is safe to
 remove the latter and the above lines from the federator config.
 
-[See also.](http://docs.wire.com/understand/configure-federation.html#if-your-instance-has-been-federating-before) (#3260, #3384)
+[See also.](http://docs.wire.com/understand/configure-federation.html#if-your-instance-has-been-federating-before) (#3260, #3384, #3389)
