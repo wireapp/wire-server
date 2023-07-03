@@ -5,7 +5,7 @@ internal REST API; the remote connections configured in the
 values.yaml file(s) will be honored for a transition period, but will
 be ignored starting in some future release.
 
-YOU NEED TO UPDATE YOUR BRIG HELM CHART BEFORE DEPLOYING THIS RELEASE.
+YOU NEED TO UPDATE YOUR BRIG HELM VALUES BEFORE DEPLOYING THIS RELEASE.
 
 Add the following to brig:
 
