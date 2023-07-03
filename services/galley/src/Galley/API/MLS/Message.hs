@@ -462,8 +462,12 @@ fetchConvOrSub qusr groupId ctype convOrSubId = for convOrSubId $ \case
     let lconv = qualifyAs convOrSubId convId
     c <- getMLSConv qusr Nothing ctype lconv
     msubconv <- getSubConversation convId sconvId
-    -- TODO: check group ID of subconversation
-    let subconv = fromMaybe (newSubConversationFromParent lconv sconvId (mcMLSData c)) msubconv
+    subconv <- case msubconv of
+      Nothing -> pure $ newSubConversationFromParent lconv sconvId (mcMLSData c)
+      Just subconv -> do
+        when (groupId /= subconv.scMLSData.cnvmlsGroupId) $
+          throw (mlsProtocolError "The message group ID does not match the subconversation")
+        pure subconv
     pure (SubConv c subconv)
 
 getMLSConv ::
