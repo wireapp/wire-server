@@ -51,9 +51,15 @@ The search policy for a remote backend can be:
 - `exact_handle_search`: Only users where the handle exactly matches are returned.
 - `full_search`: Additionally to exact_handle_search, users are found by a freetext search on handle and display name.
 
-Once the upgrade has been deployed *and* table
-`brig.federation_remotes` has been filled with the temporary contents
-of `brig.config.optSettings.setFederationDomainConfigs`, it is safe to
+Once the new release is deployed, you need to copy all the data from
+the config files into `brig.federation_remotes` in cassandra [internal
+CRUD
+API](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/);
+look for `/i/federation/remotes`).
+
+Once the upgrade has been deployed *and* cassandra has been filled
+with the temporary contents of
+`brig.config.optSettings.setFederationDomainConfigs`, it is safe to
 remove the latter and the above lines from the federator config.
 
 [See also.](http://docs.wire.com/understand/configure-federation.html#if-your-instance-has-been-federating-before) (#3260, #3384)
