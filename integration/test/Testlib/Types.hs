@@ -118,6 +118,12 @@ instance MonadBaseControl IO App where
 runAppWithEnv :: Env -> App a -> IO a
 runAppWithEnv e m = runReaderT (unApp m) e
 
+-- | Convert an action in the 'App' monad to an 'IO' action.
+appToIO :: App a -> App (IO a)
+appToIO action = do
+  env <- ask
+  pure $ runAppWithEnv env action
+
 getServiceMap :: String -> App ServiceMap
 getServiceMap fedDomain = do
   env <- ask
