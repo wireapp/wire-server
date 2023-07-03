@@ -37,7 +37,7 @@ To get the versions a backend (`staging-nginz-https.zinfra.io` in this case)
 supports, execute:
 
 ```sh
-curl https://wire.backend/api-version
+curl https://<nginz-host>/api-version
 {"development":[4],"domain":"staging.zinfra.io","federation":false,"supported":[0,1,2]}
 ```
 
