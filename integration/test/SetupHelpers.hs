@@ -5,6 +5,7 @@ import qualified API.BrigInternal as Internal
 import API.Galley
 import Control.Concurrent (threadDelay)
 import Data.Aeson hiding ((.=))
+import qualified Data.Aeson.Types as Aeson
 import Data.Default
 import Data.Function
 import Data.UUID.V4 (nextRandom)
@@ -104,3 +105,19 @@ fullSearchWithAll =
         ownDomain <- asString =<< val %. "optSettings.setFederationDomain"
         addFullSearchFor (remoteDomains ownDomain) val
     }
+
+withFederatingBackendsAllowDynamic :: HasCallStack => ((String, String, String) -> App a) -> App a
+withFederatingBackendsAllowDynamic a = do
+  let setFederationConfig =
+        setField "optSettings.setFederationStrategy" "allowDynamic"
+          >=> removeField "optSettings.setFederationDomainConfigs"
+          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
+  startDynamicBackends
+    [ def {dbBrig = setFederationConfig},
+      def {dbBrig = setFederationConfig},
+      def {dbBrig = setFederationConfig}
+    ]
+    $ \dynDomains -> do
+      domains@[domainA, domainB, domainC] <- pure dynDomains
+      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
+      a (domainA, domainB, domainC)
