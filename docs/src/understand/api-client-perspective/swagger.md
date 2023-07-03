@@ -31,7 +31,7 @@ If you want to get the raw json for the swagger (ie., for compiling it
 into client code in typescript, kotlin, swift, ...), replace
 `swagger-ui` with `swagger.json` in the above URL pattern.
 
-#### Example: doing it by hand
+#### Example: doing it manually
 
 To get the versions a backend (`staging-nginz-https.zinfra.io` in this case)
 supports, execute:
