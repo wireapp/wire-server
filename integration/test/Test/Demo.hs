@@ -99,8 +99,8 @@ testModifiedServices = do
         resp.status `shouldMatchInt` 200
         resp.json %. "setRestrictUserCreation" `shouldMatch` False
 
-testDynamicBackendx :: HasCallStack => App ()
-testDynamicBackendx = do
+testDynamicBackend :: HasCallStack => App ()
+testDynamicBackend = do
   ownDomain <- objDomain OwnDomain
   user <- randomUser OwnDomain def
   uid <- objId user
