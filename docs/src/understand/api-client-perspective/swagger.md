@@ -18,53 +18,31 @@ There are several ways to interpret this kind of documentation:
 
 ## Swagger docs (Swagger 2.0)
 
-The Swagger documentation for endpoints depends on the API version.
-For a list of all versions of swagger docs, [curl-get
-`https://staging-nginz-https.zinfra.io/api/swagger-ui`](https://staging-nginz-https.zinfra.io/api/swagger-ui).
+The [Swagger / OpenAPI 2.0](https://swagger.io/specification/v2/)
+documentation for endpoints depends on the API version.  For a list of
+all swagger docs for all supported API versions, [visit
+https://staging-nginz-https.zinfra.io/api/swagger-ui](https://staging-nginz-https.zinfra.io/api/swagger-ui).
 
-The pages below show [Swagger / OpenAPI 2.0](https://swagger.io/specification/v2/)
-docs.
-
-### Public endpoints
-- Version `v0`:
-    - [**public**
-      endpoints](https://staging-nginz-https.zinfra.io/v0/api/swagger-ui/)
-- Version `v1`:
-    - [**public**
-    endpoints](https://staging-nginz-https.zinfra.io/v1/api/swagger-ui/)
-- Version `v2`:
-    - [**public**
-    endpoints](https://staging-nginz-https.zinfra.io/v2/api/swagger-ui/)
-- ...
-
-The first part of the URL's path is the version.
-
-New versions are added from time to time. If you
-would like to look at the docs of another version (which did not exist at the
-time of writing this): Just update the first path element of an existing link.
-The URL pattern is `https://<nginz-host>/v<version>/api/swagger-ui/`. To figure
-out which versions are supported by your backend, query
-`https://<nginz-host>/<version>/api-version`.
+To learn which versions are supported, look at
+`https://<nginz-host>/api-version`.  ([See
+also.](../../developer/developer/api-versioning.md))
 
 If you want to get the raw json for the swagger (ie., for compiling it
 into client code in typescript, kotlin, swift, ...), replace
 `swagger-ui` with `swagger.json` in the above URL pattern.
 
-The [API versioning](../../developer/developer/api-versioning.md) article
-discusses the versioning topic in detail.
-
-#### Example
+#### Example: doing it by hand
 
 To get the versions a backend (`staging-nginz-https.zinfra.io` in this case)
 supports, execute:
 
 ```sh
-curl https://staging-nginz-https.zinfra.io/api-version
+curl https://wire.backend/api-version
 {"development":[4],"domain":"staging.zinfra.io","federation":false,"supported":[0,1,2]}
 ```
 
 The URL to open in your browser for the development version `4` is
-`https://staging-nginz-https.zinfra.io/v4/api/swagger-ui/`.
+`https://wire.backend/v4/api/swagger-ui/`.
 
 ### Internal endpoints
 
