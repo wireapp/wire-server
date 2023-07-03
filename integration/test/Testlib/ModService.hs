@@ -101,7 +101,6 @@ startDynamicBackend resource beOverrides action = do
     resource.berDomain
     (Just resource.berNginzSslPort)
     (Just setFederatorConfig)
-    (Just $ backGroundWorkerOverrides (remoteDomains resource.berDomain))
     services
     ( \ports sm -> do
         let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
@@ -147,6 +146,9 @@ startDynamicBackend resource beOverrides action = do
             >=> setField "settings.featureFlags.classifiedDomains.config.domains" [resource.berDomain]
             >=> setField "federator.port" resource.berFederatorInternal
         Gundeck -> setField "settings.federationDomain" resource.berDomain
+        BackgroundWorker ->
+          setField "federatorInternal.port" resource.berFederatorInternal
+            >=> setField "rabbitmq.vHost" resource.berVHost
         _ -> pure
 
     setFederatorConfig :: Value -> App Value
@@ -154,12 +156,6 @@ startDynamicBackend resource beOverrides action = do
       setField "federatorInternal.port" resource.berFederatorInternal
         >=> setField "federatorExternal.port" resource.berFederatorExternal
         >=> setField "optSettings.setFederationDomain" resource.berDomain
-
-    backGroundWorkerOverrides :: [String] -> Value -> App Value
-    backGroundWorkerOverrides rds =
-      setField "federatorInternal.port" resource.berFederatorInternal
-        >=> setField "remoteDomains" rds
-        >=> setField "rabbitmq.vHost" resource.berVHost
 
     setKeyspace :: Service -> Value -> App Value
     setKeyspace = \case
@@ -186,7 +182,7 @@ setFederatorPorts resource sm =
 withModifiedServices :: Map.Map Service (Value -> App Value) -> (String -> App a) -> App a
 withModifiedServices services action = do
   domain <- asks (.domain1)
-  startBackend domain Nothing Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain) (action domain)
+  startBackend domain Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain) (action domain)
 
 updateServiceMap :: Map.Map Service Word16 -> ServiceMap -> ServiceMap
 updateServiceMap ports serviceMap =
@@ -200,6 +196,7 @@ updateServiceMap ports serviceMap =
           Cargohold -> sm {cargohold = sm.cargohold {host = "127.0.0.1", port = newPort}}
           Nginz -> sm {nginz = sm.nginz {host = "127.0.0.1", port = newPort}}
           Spar -> sm {spar = sm.spar {host = "127.0.0.1", port = newPort}}
+          BackgroundWorker -> sm {backgroundWorker = sm.backgroundWorker {host = "127.0.0.1", port = newPort}}
     )
     serviceMap
     ports
@@ -208,12 +205,11 @@ startBackend ::
   String ->
   Maybe Word16 ->
   Maybe (Value -> App Value) ->
-  Maybe (Value -> App Value) ->
   Map.Map Service (Value -> App Value) ->
   (Map.Map Service Word16 -> Map.Map String ServiceMap -> Map.Map String ServiceMap) ->
   App a ->
   App a
-startBackend domain nginzSslPort mFederatorOverrides mBgWorkerOverrides services modifyBackends action = do
+startBackend domain nginzSslPort mFederatorOverrides services modifyBackends action = do
   ports <- Map.traverseWithKey (\_ _ -> liftIO openFreePort) services
 
   let updateServiceMapInConfig :: Maybe Service -> Value -> App Value
@@ -231,8 +227,8 @@ startBackend domain nginzSslPort mFederatorOverrides mBgWorkerOverrides services
                             <> (["externalHost" .= ("127.0.0.1" :: String) | srv == Cannon])
                         )
                     )
-              case forSrv of
-                Just Spar ->
+              case (srv, forSrv) of
+                (Spar, Just Spar) -> do
                   overridden
                     -- FUTUREWORK: override "saml.spAppUri" and "saml.spSsoUri" with correct port, too?
                     & setField "saml.spHost" ("127.0.0.1" :: String)
@@ -245,15 +241,6 @@ startBackend domain nginzSslPort mFederatorOverrides mBgWorkerOverrides services
   -- close all sockets before starting the services
   for_ (Map.keys services) $ \srv -> maybe (failApp "the impossible in withServices happened") (liftIO . N.close . snd) (Map.lookup srv ports)
 
-  bgWorkerInstance <-
-    case mBgWorkerOverrides of
-      Nothing -> pure []
-      Just override ->
-        readServiceConfig' "background-worker"
-          >>= override
-          >>= startProcess domain "background-worker"
-          <&> (: [])
-
   fedInstance <-
     case mFederatorOverrides of
       Nothing -> pure []
@@ -261,7 +248,7 @@ startBackend domain nginzSslPort mFederatorOverrides mBgWorkerOverrides services
         readServiceConfig' "federator"
           >>= updateServiceMapInConfig Nothing
           >>= override
-          >>= startProcess domain "federator"
+          >>= startProcess' domain "federator"
           <&> (: [])
 
   otherInstances <- for (Map.assocs services) $ \case
@@ -271,13 +258,12 @@ startBackend domain nginzSslPort mFederatorOverrides mBgWorkerOverrides services
       port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral . fst) (Map.lookup Nginz ports)
       startNginz domain port nginzSslPort sm
     (srv, modifyConfig) -> do
-      let srvName = serviceName srv
       readServiceConfig srv
         >>= updateServiceMapInConfig (Just srv)
         >>= modifyConfig
-        >>= startProcess domain srvName
+        >>= startProcess domain srv
 
-  let instances = bgWorkerInstance <> fedInstance <> otherInstances
+  let instances = fedInstance <> otherInstances
 
   let stopInstances = liftIO $ do
         -- Running waitForProcess would hang for 30 seconds when the test suite
@@ -321,8 +307,11 @@ startBackend domain nginzSslPort mFederatorOverrides mBgWorkerOverrides services
             `finally` stopInstances
       )
 
-startProcess :: String -> String -> Value -> App (ProcessHandle, FilePath)
-startProcess domain srvName config = do
+startProcess :: String -> Service -> Value -> App (ProcessHandle, FilePath)
+startProcess domain srv = startProcess' domain (configName srv)
+
+startProcess' :: String -> String -> Value -> App (ProcessHandle, FilePath)
+startProcess' domain execName config = do
   processEnv <- liftIO $ do
     environment <- getEnvironment
     rabbitMqUserName <- getEnv "RABBITMQ_USERNAME"
@@ -337,13 +326,13 @@ startProcess domain srvName config = do
              ]
       )
 
-  tempFile <- liftIO $ writeTempFile "/tmp" (srvName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
+  tempFile <- liftIO $ writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
 
   (cwd, exe) <-
     asks (.servicesCwdBase) <&> \case
-      Nothing -> (Nothing, srvName)
+      Nothing -> (Nothing, execName)
       Just dir ->
-        (Just (dir </> srvName), "../../dist" </> srvName)
+        (Just (dir </> execName), "../../dist" </> execName)
 
   (_, _, _, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, env = Just processEnv}
   pure (ph, tempFile)
@@ -402,11 +391,10 @@ startNginz domain port mSslPort sm = do
   tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
   mBaseDir <- asks (.servicesCwdBase)
   basedir <- maybe (failApp "service cwd base not found") pure mBaseDir
-  let srvName = serviceName Nginz
 
   -- copy all config files into the tmp dir
   liftIO $ do
-    let from = basedir </> srvName </> "integration-test"
+    let from = basedir </> "nginz" </> "integration-test"
     copyDirectoryRecursively (from </> "conf" </> "nginz") (tmpDir </> "conf" </> "nginz")
     copyDirectoryRecursively (from </> "resources") (tmpDir </> "resources")
 

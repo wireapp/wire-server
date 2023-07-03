@@ -38,7 +38,7 @@ getLastPrekey = App $ do
     lastPrekeyId = 65535
 
 readServiceConfig :: Service -> App Value
-readServiceConfig = readServiceConfig' . serviceName
+readServiceConfig = readServiceConfig' . configName
 
 readServiceConfig' :: String -> App Value
 readServiceConfig' srvName = do

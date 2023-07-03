@@ -35,6 +35,10 @@ nginz:
   host: 127.0.0.1
   port: 8080
 
+backgroundWorker:
+  host: 127.0.0.1
+  port: 8089
+
 # client-API:
 # webapp ---> load balancer  ---> nginx-ingress (TLS termination) ---> nginz ----> brig
 #
@@ -101,6 +105,9 @@ backendTwo:
   proxy:
     host: 127.0.0.1
     port: 9087
+  backgroundWorker:
+    host: 127.0.0.1
+    port: 9089
 
   originDomain: b.example.com
 

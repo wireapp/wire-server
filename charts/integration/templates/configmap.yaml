@@ -47,6 +47,10 @@ data:
       host: proxy.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080
 
+    backgroundWorker:
+      host: backgroundWorker.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
     originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
 
     backendTwo:
@@ -89,6 +93,10 @@ data:
 
       proxy:
         host: proxy.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
+      backgroundWorker:
+        host: backgroundWorker.{{ .Release.Namespace }}-fed2.svc.cluster.local
         port: 8080
 
       originDomain: federation-test-helper.{{ .Release.Namespace }}-fed2.svc.cluster.local
