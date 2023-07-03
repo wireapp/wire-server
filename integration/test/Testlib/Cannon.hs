@@ -50,6 +50,7 @@ import Data.Maybe
 import Data.Traversable
 import Data.Word
 import GHC.Stack
+import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client as Http
 import qualified Network.WebSockets as WS
 import System.Random (randomIO)
@@ -149,32 +150,49 @@ run wsConnect app = do
         [ ("Z-User", toByteString' (wsConnect.user)),
           ("Z-Connection", toByteString' connId)
         ]
+  request <- do
+    r <- rawBaseRequest OwnDomain Cannon Versioned path
+    pure r {HTTP.requestHeaders = caHdrs}
 
   wsapp <-
-    liftIO $
-      async $
-        WS.runClientWith
-          caHost
-          (fromIntegral caPort)
-          path
-          WS.defaultConnectionOptions
-          caHdrs
-          ( \conn ->
-              putMVar latch () >> app conn
-          )
-          `onException` tryPutMVar latch ()
+    liftIO
+      $ async
+      $ catch
+        ( WS.runClientWith
+            caHost
+            (fromIntegral caPort)
+            path
+            WS.defaultConnectionOptions
+            caHdrs
+            app
+        )
+      $ \(e :: SomeException) -> putMVar latch e
 
-  let waitForRegistry :: HasCallStack => App ()
-      waitForRegistry = unrace $ do
-        request <- baseRequest OwnDomain Cannon Unversioned ("/i/presences/" <> wsConnect.user <> "/" <> connId)
-        response <- submit "HEAD" request
-        status response `shouldMatchInt` 200
+  presenceRequest <-
+    baseRequest OwnDomain Cannon Unversioned $
+      "/i/presences/" <> wsConnect.user <> "/" <> connId
 
-  liftIO $ takeMVar latch
-  stat <- liftIO $ poll wsapp
-  case stat of
-    Just (Left ex) -> liftIO $ throwIO ex
-    _ -> waitForRegistry >> pure wsapp
+  waitForPresence <- appToIO $ unrace $ do
+    response <- submit "HEAD" presenceRequest
+    status response `shouldMatchInt` 200
+  let waitForException = do
+        ex <- takeMVar latch
+        -- Construct a "fake" response. We do not really have access to the
+        -- websocket connection requests and response, unfortunately, but it is
+        -- useful to display some information about the request in case an
+        -- exception occurs.
+        let r =
+              Response
+                { jsonBody = Nothing,
+                  body = mempty,
+                  status = 426,
+                  headers = mempty,
+                  request = request
+                }
+        throwIO (AssertionFailure callStack (Just r) (displayException ex))
+
+  liftIO $ race_ waitForPresence waitForException
+  pure wsapp
 
 close :: MonadIO m => WebSocket -> m ()
 close ws = liftIO $ do
