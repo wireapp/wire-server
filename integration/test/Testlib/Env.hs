@@ -5,7 +5,6 @@ import Control.Monad.IO.Class
 import Data.Aeson hiding ((.=))
 import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
-import Data.Char
 import Data.Functor
 import Data.IORef
 import Data.Map (Map)
@@ -121,9 +120,27 @@ data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | Bac
     )
 
 serviceName :: Service -> String
-serviceName srv = case show srv of
-  [] -> []
-  (x : xs) -> toLower x : xs
+serviceName = \case
+  Brig -> "brig"
+  Galley -> "galley"
+  Cannon -> "cannon"
+  Gundeck -> "gundeck"
+  Cargohold -> "cargohold"
+  Nginz -> "nginz"
+  Spar -> "spar"
+  BackgroundWorker -> "backgroundWorker"
+
+-- | Converts the service name to kebab-case.
+configName :: Service -> String
+configName = \case
+  Brig -> "brig"
+  Galley -> "galley"
+  Cannon -> "cannon"
+  Gundeck -> "gundeck"
+  Cargohold -> "cargohold"
+  Nginz -> "nginz"
+  Spar -> "spar"
+  BackgroundWorker -> "background-worker"
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig

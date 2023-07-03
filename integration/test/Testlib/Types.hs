@@ -217,7 +217,8 @@ defaultServiceOverridesToMap =
       (Galley, pure),
       (Gundeck, pure),
       (Nginz, pure),
-      (Spar, pure)
+      (Spar, pure),
+      (BackgroundWorker, pure)
     ]
 
 -- | Overrides the service configurations with the given overrides.

@@ -248,7 +248,7 @@ startBackend domain nginzSslPort mFederatorOverrides services modifyBackends act
         readServiceConfig' "federator"
           >>= updateServiceMapInConfig Nothing
           >>= override
-          >>= startProcess domain "federator"
+          >>= startProcess' domain "federator"
           <&> (: [])
 
   otherInstances <- for (Map.assocs services) $ \case
@@ -258,11 +258,10 @@ startBackend domain nginzSslPort mFederatorOverrides services modifyBackends act
       port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral . fst) (Map.lookup Nginz ports)
       startNginz domain port nginzSslPort sm
     (srv, modifyConfig) -> do
-      let srvName = serviceName srv
       readServiceConfig srv
         >>= updateServiceMapInConfig (Just srv)
         >>= modifyConfig
-        >>= startProcess domain srvName
+        >>= startProcess domain srv
 
   let instances = fedInstance <> otherInstances
 
@@ -280,8 +279,8 @@ startBackend domain nginzSslPort mFederatorOverrides services modifyBackends act
                   mPid <- getPid ph
                   for_ mPid (signalProcess killProcess)
                   void $ waitForProcess ph
-          whenM (doesFileExist path) $ removeFile path
-          whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
+  -- whenM (doesFileExist path) $ removeFile path
+  -- whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
   let modifyEnv env =
         env {serviceMap = modifyBackends (fromIntegral . fst <$> ports) env.serviceMap}
@@ -308,8 +307,11 @@ startBackend domain nginzSslPort mFederatorOverrides services modifyBackends act
             `finally` stopInstances
       )
 
-startProcess :: String -> String -> Value -> App (ProcessHandle, FilePath)
-startProcess domain srvName config = do
+startProcess :: String -> Service -> Value -> App (ProcessHandle, FilePath)
+startProcess domain srv = startProcess' domain (configName srv)
+
+startProcess' :: String -> String -> Value -> App (ProcessHandle, FilePath)
+startProcess' domain execName config = do
   processEnv <- liftIO $ do
     environment <- getEnvironment
     rabbitMqUserName <- getEnv "RABBITMQ_USERNAME"
@@ -324,13 +326,13 @@ startProcess domain srvName config = do
              ]
       )
 
-  tempFile <- liftIO $ writeTempFile "/tmp" (srvName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
+  tempFile <- liftIO $ writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
 
   (cwd, exe) <-
     asks (.servicesCwdBase) <&> \case
-      Nothing -> (Nothing, srvName)
+      Nothing -> (Nothing, execName)
       Just dir ->
-        (Just (dir </> srvName), "../../dist" </> srvName)
+        (Just (dir </> execName), "../../dist" </> execName)
 
   (_, _, _, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, env = Just processEnv}
   pure (ph, tempFile)
@@ -355,6 +357,7 @@ waitUntilServiceUp domain = \case
                   )
             pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
         )
+    when isUp $ liftIO $ print ("Service " <> show srv <> " is up")
     unless isUp $
       failApp ("Time out for service " <> show srv <> " to come up")
 
@@ -389,11 +392,10 @@ startNginz domain port mSslPort sm = do
   tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
   mBaseDir <- asks (.servicesCwdBase)
   basedir <- maybe (failApp "service cwd base not found") pure mBaseDir
-  let srvName = serviceName Nginz
 
   -- copy all config files into the tmp dir
   liftIO $ do
-    let from = basedir </> srvName </> "integration-test"
+    let from = basedir </> "nginz" </> "integration-test"
     copyDirectoryRecursively (from </> "conf" </> "nginz") (tmpDir </> "conf" </> "nginz")
     copyDirectoryRecursively (from </> "resources") (tmpDir </> "resources")
 

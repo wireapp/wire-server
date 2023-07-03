@@ -5,6 +5,7 @@ import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import qualified API.GalleyInternal as Internal
 import qualified API.Nginz as Nginz
+import Control.Concurrent (threadDelay)
 import Control.Monad.Cont
 import qualified Data.Map as Map
 import GHC.Stack
@@ -98,8 +99,8 @@ testModifiedServices = do
         resp.status `shouldMatchInt` 200
         resp.json %. "setRestrictUserCreation" `shouldMatch` False
 
-testDynamicBackend :: HasCallStack => App ()
-testDynamicBackend = do
+testDynamicBackendx :: HasCallStack => App ()
+testDynamicBackendx = do
   ownDomain <- objDomain OwnDomain
   user <- randomUser OwnDomain def
   uid <- objId user
@@ -128,6 +129,8 @@ testDynamicBackend = do
     -- the d1 user should not be found in the own domain
     bindResponse (Public.getSelf ownDomain uidD1) $ \resp -> do
       resp.status `shouldMatchInt` 404
+
+    liftIO $ threadDelay (10 * 60 * 1000000)
 
 testStartMultipleDynamicBackends :: HasCallStack => App ()
 testStartMultipleDynamicBackends = do
