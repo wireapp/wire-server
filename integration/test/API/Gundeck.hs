@@ -1,5 +1,6 @@
 module API.Gundeck where
 
+import API.Common
 import Testlib.Prelude
 
 data GetNotifications = GetNotifications
@@ -9,19 +10,6 @@ data GetNotifications = GetNotifications
 
 instance Default GetNotifications where
   def = GetNotifications {since = Nothing, size = Nothing}
-
-postPushV2 ::
-  ( HasCallStack,
-    MakesValue user,
-    MakesValue a
-  ) =>
-  user ->
-  [a] ->
-  App Response
-postPushV2 user payloads = do
-  req <- baseRequest user Gundeck Unversioned "/i/push/v2"
-  body <- traverse make payloads
-  submit "POST" $ req & addJSON body
 
 getNotifications ::
   (HasCallStack, MakesValue user, MakesValue client) =>
@@ -65,3 +53,38 @@ getLastNotification user client = do
   req <-
     baseRequest user Gundeck Versioned "/notifications/last"
   submit "GET" $ req & addQueryParams [("client", c)]
+
+data PostPushToken = PostPushToken
+  { transport :: String,
+    app :: String,
+    token :: Maybe String,
+    tokenSize :: Int
+  }
+
+instance Default PostPushToken where
+  def =
+    PostPushToken
+      { transport = "GCM",
+        app = "test",
+        token = Nothing,
+        tokenSize = 16
+      }
+
+postPushToken ::
+  (HasCallStack, MakesValue u, MakesValue c) =>
+  u ->
+  c ->
+  PostPushToken ->
+  App Response
+postPushToken u client args = do
+  req <- baseRequest u Gundeck Versioned "/push/tokens"
+  token <- maybe (randomHex (args.tokenSize * 2)) pure args.token
+  c <- make client
+  let t =
+        object
+          [ "transport" .= args.transport,
+            "app" .= args.app,
+            "token" .= token,
+            "client" .= c
+          ]
+  submit "POST" $ req & addJSON t

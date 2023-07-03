@@ -4,7 +4,7 @@ version:       0.1.0
 synopsis:      Extended versions of common modules
 description:
   .Extended versions of various libraries from Hackage. See
-  https://jaspervdj.be/posts/2015-01-20-haskell-design-patterns-extended-modules.html
+  <https://jaspervdj.be/posts/2015-01-20-haskell-design-patterns-extended-modules.html>
   for a description of this design pattern.
 
 category:      Utilities

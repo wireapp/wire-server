@@ -87,6 +87,7 @@ library
     API.Galley
     API.GalleyInternal
     API.Gundeck
+    API.GundeckInternal
     API.Nginz
     MLS.Util
     RunAllTests
@@ -101,6 +102,7 @@ library
     Test.MLS.One2One
     Test.MLS.SubConversation
     Test.Notifications
+    Test.Presence
     Test.User
     Testlib.App
     Testlib.Assertions

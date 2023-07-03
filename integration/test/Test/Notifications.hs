@@ -1,21 +1,17 @@
 module Test.Notifications where
 
+import API.Common
 import API.Gundeck
+import API.GundeckInternal
 import SetupHelpers
 import Testlib.Prelude
 
 examplePush :: MakesValue u => u -> App Value
 examplePush u = do
-  userId <- u %. "id" & asString
+  r <- recipient u
   pure $
     object
-      [ "recipients"
-          .= [ object
-                 [ "user_id" .= userId,
-                   "route" .= "any",
-                   "clients" .= ([] :: [String])
-                 ]
-             ],
+      [ "recipients" .= [r],
         "payload" .= [object ["hello" .= "world"]]
       ]
 
@@ -26,7 +22,7 @@ testFetchAllNotifications = do
 
   let n = 10
   replicateM_ n $
-    bindResponse (postPushV2 user [push]) $ \res ->
+    bindResponse (postPush user [push]) $ \res ->
       res.status `shouldMatchInt` 200
 
   let client = "deadbeeef"
@@ -60,7 +56,7 @@ testLastNotification = do
           ]
 
   for_ ["a", "b", "c", "d", "e", "f"] $ \c ->
-    bindResponse (postPushV2 user [push c]) $ \res ->
+    bindResponse (postPush user [push c]) $ \res ->
       res.status `shouldMatchInt` 200
 
   lastNotif <- getLastNotification user "c" >>= getJSON 200

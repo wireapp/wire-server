@@ -285,7 +285,6 @@ executable gundeck-integration
     , cassandra-util
     , containers
     , exceptions
-    , extended
     , gundeck
     , gundeck-types
     , HsOpenSSL
