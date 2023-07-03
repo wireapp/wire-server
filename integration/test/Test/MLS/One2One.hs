@@ -77,12 +77,17 @@ testMLSOne2One scenario = do
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   resetGroup alice1 conv
 
-  -- TODO: check that bob receives a welcome message
-  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+  commit <- createAddCommit alice1 [bob]
+  withWebSocket bob1 $ \ws -> do
+    void $ sendAndConsumeCommitBundle commit
+
+    let isWelcome n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
+    n <- awaitMatch 3 isWelcome ws
+    nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode (fold commit.welcome))
 
   withWebSocket bob1 $ \ws -> do
     mp <- createApplicationMessage alice1 "hello, world"
     void $ sendAndConsumeMessage mp
     let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
     n <- awaitMatch 3 isMessage ws
-    nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode (mp.message))
+    nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode mp.message)
