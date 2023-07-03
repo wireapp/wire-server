@@ -42,7 +42,7 @@ curl https://<nginz-host>/api-version
 ```
 
 The URL to open in your browser for the development version `4` is
-`https://wire.backend/v4/api/swagger-ui/`.
+`https://<nginz-host>/v4/api/swagger-ui/`.
 
 ### Internal endpoints
 
