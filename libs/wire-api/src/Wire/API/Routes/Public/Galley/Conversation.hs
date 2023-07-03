@@ -52,17 +52,20 @@ type ConversationResponse = ResponseForExistedCreated Conversation
 data CreateGroupConversationResponse
   = GroupConversationExisted Conversation
   | GroupConversationCreated CreateGroupConversation
+  | GroupConversationFailedToCreate CreateConversationRejected
 
 instance
-  (ResponseType r1 ~ Conversation, ResponseType r2 ~ CreateGroupConversation) =>
-  AsUnion '[r1, r2] CreateGroupConversationResponse
+  (ResponseType r1 ~ Conversation, ResponseType r2 ~ CreateGroupConversation, ResponseType r3 ~ CreateConversationRejected) =>
+  AsUnion '[r1, r2, r3] CreateGroupConversationResponse
   where
   toUnion (GroupConversationExisted x) = Z (I x)
   toUnion (GroupConversationCreated x) = S (Z (I x))
+  toUnion (GroupConversationFailedToCreate x) = S (S (Z (I x)))
 
   fromUnion (Z (I x)) = GroupConversationExisted x
   fromUnion (S (Z (I x))) = GroupConversationCreated x
-  fromUnion (S (S x)) = case x of {}
+  fromUnion (S (S (Z (I x)))) = GroupConversationFailedToCreate x
+  fromUnion (S (S (S x))) = case x of {}
 
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
@@ -92,7 +95,8 @@ type CreateGroupConversationVerb =
        WithHeaders
          ConversationHeaders
          CreateGroupConversation
-         (Respond 201 "Conversation created" CreateGroupConversation)
+         (Respond 201 "Conversation created" CreateGroupConversation),
+       Respond 409 "Conversation creation rejected" CreateConversationRejected
      ]
     CreateGroupConversationResponse
 
@@ -411,6 +415,7 @@ type ConversationAPI =
            "create-group-conversation"
            ( Summary "Create a new conversation"
                :> MakesFederatedCall 'Galley "on-conversation-created"
+               :> MakesFederatedCall 'Brig "get-not-fully-connected-backends"
                :> From 'V4
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSMissingSenderClient

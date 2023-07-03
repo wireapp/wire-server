@@ -91,6 +91,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Brig
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
@@ -388,9 +389,10 @@ postConvWithRemoteUsersOk rbs = do
                     $> tDomain rb
               )
               rbs
-    (rsp, federatedRequests) <-
-      withTempMockFederator' (mockUnreachable unreachableBackends) $
-        postConvQualified
+    (rsp, federatedRequests') <-
+      withTempMockFederator'
+        (("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) <|> mockUnreachable unreachableBackends)
+        $ postConvQualified
           alice
           Nothing
           defNewProteusConv
@@ -417,13 +419,14 @@ postConvWithRemoteUsersOk rbs = do
 
     liftIO $
       -- as many federated requests as remote backends, i.e., one per remote backend
-      Set.size (Set.fromList $ frTargetDomain <$> federatedRequests) @?= Set.size rbs
+      Set.size (Set.fromList $ frTargetDomain <$> federatedRequests') @?= Set.size rbs
+    -- the first federated requests are 'get-not-fully-connected-backends' requests and we want to drop them
+    let federatedRequests = drop (Set.size rbs) federatedRequests'
     let fedReq = head federatedRequests
     fedReqBody <- assertRight $ parseFedRequest fedReq
 
     liftIO $ do
       length federatedRequests @?= Set.size rbs
-
       F.ccOrigUserId fedReqBody @?= alice
       F.ccCnvId fedReqBody @?= cid
       F.ccCnvType fedReqBody @?= RegularConv
@@ -2411,31 +2414,35 @@ postConvQualifiedFailBlocked = do
 postConvQualifiedNoConnection :: TestM ()
 postConvQualifiedNoConnection = do
   alice <- randomUser
+  let mock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
   bob <- flip Qualified (Domain "far-away.example.com") <$> randomId
-  postConvQualified alice Nothing defNewProteusConv {newConvQualifiedUsers = [bob]}
-    !!! const 403 === statusCode
+  void $ withTempMockFederator' mock $ do
+    postConvQualified alice Nothing defNewProteusConv {newConvQualifiedUsers = [bob]}
+      !!! const 403 === statusCode
 
 postTeamConvQualifiedNoConnection :: TestM ()
 postTeamConvQualifiedNoConnection = do
   (tid, alice, _) <- createBindingTeamWithQualifiedMembers 1
   bob <- randomQualifiedId (Domain "bob.example.com")
   charlie <- randomQualifiedUser
-  postConvQualified
-    (qUnqualified alice)
-    Nothing
-    defNewProteusConv
-      { newConvQualifiedUsers = [bob],
-        newConvTeam = Just (ConvTeamInfo tid)
-      }
-    !!! const 403 === statusCode
-  postConvQualified
-    (qUnqualified alice)
-    Nothing
-    defNewProteusConv
-      { newConvQualifiedUsers = [charlie],
-        newConvTeam = Just (ConvTeamInfo tid)
-      }
-    !!! const 403 === statusCode
+  let mock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
+  void $ withTempMockFederator' mock $ do
+    postConvQualified
+      (qUnqualified alice)
+      Nothing
+      defNewProteusConv
+        { newConvQualifiedUsers = [bob],
+          newConvTeam = Just (ConvTeamInfo tid)
+        }
+      !!! const 403 === statusCode
+    postConvQualified
+      (qUnqualified alice)
+      Nothing
+      defNewProteusConv
+        { newConvQualifiedUsers = [charlie],
+          newConvTeam = Just (ConvTeamInfo tid)
+        }
+      !!! const 403 === statusCode
 
 postConvQualifiedNonExistentDomain :: TestM ()
 postConvQualifiedNonExistentDomain = do
@@ -2444,14 +2451,18 @@ postConvQualifiedNonExistentDomain = do
   uBob <- randomId
   let bob = Qualified uBob remoteDomain
   connectWithRemoteUser uAlice bob
+  let mock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
   createdConv <-
-    responseJsonError
-      =<< postConvQualified
-        uAlice
-        Nothing
-        defNewProteusConv {newConvQualifiedUsers = [bob]}
-        <!! do
-          const 201 === statusCode
+    responseJsonError . fst
+      =<< withTempMockFederator'
+        mock
+        ( do
+            postConvQualified
+              uAlice
+              Nothing
+              defNewProteusConv {newConvQualifiedUsers = [bob]}
+              <!! do const 201 === statusCode
+        )
   let members = cnvMembers . cgcConversation $ createdConv
   liftIO $ do
     assertEqual
@@ -3330,7 +3341,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
               *> mockReply [mkProfile qEve (Name "Eve")]
           ]
   (convId, _) <-
-    withTempMockFederator' (mockedResponse <|> mockReply ()) $
+    withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mockedResponse <|> mockReply ()) $
       fmap decodeConvId $
         postConvQualified
           alice
@@ -3340,7 +3351,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
   let qconvId = Qualified convId localDomain
 
   (respDel, federatedRequests) <-
-    withTempMockFederator' (mockedResponse <|> mockReply ()) $
+    withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mockedResponse <|> mockReply ()) $
       deleteMemberQualified alice qChad qconvId
   liftIO $ do
     statusCode respDel @?= 200
@@ -3397,14 +3408,14 @@ deleteUnavailableRemoteMemberConvLocalQualifiedOk = do
                   throw $ MockErrorResponse HTTP.status503 "Down for maintenance."
                 ]
           ]
-  (convId, _) <-
-    withTempMockFederator' (mockedGetUsers <|> mockedOther) $
-      fmap decodeConvId $
-        postConvQualified
-          alice
-          Nothing
-          defNewProteusConv {newConvQualifiedUsers = [qBob, qChad, qDee, qEve]}
-          <!! const 201 === statusCode
+  convId <-
+    fmap decodeConvId $
+      postConvWithRemoteUsersGeneric
+        (mockedGetUsers <|> mockedOther)
+        alice
+        Nothing
+        defNewProteusConv {newConvQualifiedUsers = [qBob, qChad, qDee, qEve]}
+        <!! const 201 === statusCode
   let qconvId = Qualified convId localDomain
 
   (respDel, federatedRequests) <-
