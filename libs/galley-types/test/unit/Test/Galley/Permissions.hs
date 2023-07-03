@@ -27,7 +27,7 @@ import Wire.API.Team.Role
 tests :: TestTree
 tests =
   testGroup
-    "permsToInt"
+    "Role, permsToInt"
     [ testCase "partner" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleExternalPartner) 1025,
       testCase "member" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleMember) 1587,
       testCase "admin" $ assertEqual "" (permsToInt . _self $ rolePermissions RoleAdmin) 5951,
