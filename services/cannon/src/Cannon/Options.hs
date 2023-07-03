@@ -24,8 +24,6 @@ module Cannon.Options
     port,
     cannon,
     gundeck,
-    brig,
-    Brig (..),
     externalHost,
     externalHostFile,
     logLevel,
@@ -69,15 +67,6 @@ makeFields ''Gundeck
 
 deriveApiFieldJSON ''Gundeck
 
-data Brig = Brig
-  { _brigHost :: !Text,
-    _brigPort :: !Word16
-  }
-  deriving (Eq, Show, Generic)
-
-makeFields ''Brig
-deriveApiFieldJSON ''Brig
-
 data DrainOpts = DrainOpts
   { -- | Maximum amount of time draining should take. Must not be set to 0.
     _drainOptsGracePeriodSeconds :: Word64,
@@ -98,7 +87,6 @@ deriveApiFieldJSON ''DrainOpts
 data Opts = Opts
   { _optsCannon :: !Cannon,
     _optsGundeck :: !Gundeck,
-    _optsBrig :: !Brig,
     _optsLogLevel :: !Level,
     _optsLogNetStrings :: !(Maybe (Last Bool)),
     _optsLogFormat :: !(Maybe (Last LogFormat)),
