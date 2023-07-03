@@ -6,17 +6,16 @@ module Wire.API.FederationUpdate
 where
 
 import Control.Concurrent.Async
-import Control.Exception (ErrorCall (ErrorCall), finally, throwIO)
+import Control.Exception
 import qualified Control.Retry as R
 import qualified Data.Set as Set
-import Data.Text (unpack)
+import Data.Text
 import Imports
-import Network.HTTP.Client (defaultManagerSettings, newManager)
-import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, Scheme (Http), runClientM)
-import Servant.Client.Internal.HttpClient (defaultMakeClientRequest)
+import Network.HTTP.Client
+import Servant.Client
 import qualified System.Logger as L
-import Util.Options (Endpoint (..))
-import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (domain), FederationDomainConfigs (remotes, updateInterval))
+import Util.Options
+import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Named (namedClient)
 
@@ -27,15 +26,7 @@ syncFedDomainConfigs (Endpoint h p) log' cb = do
   let baseUrl = BaseUrl Http (unpack h) (fromIntegral p) ""
   clientEnv <- newManager defaultManagerSettings <&> \mgr -> ClientEnv mgr baseUrl Nothing defaultMakeClientRequest
   ioref <- newIORef =<< initialize log' clientEnv
-  updateDomainsThread <-
-    async $
-      let go = finally
-            (loop log' clientEnv cb ioref)
-            $ do
-              L.log log' L.Error $ L.msg (L.val "Federation domain sync thread died, restarting domain synchronization.")
-              go
-       in go
-
+  updateDomainsThread <- async $ loop log' clientEnv cb ioref
   pure (ioref, updateDomainsThread)
 
 -- | Initial function for getting the set of domains from brig, and an update interval
@@ -59,19 +50,29 @@ initialize logger clientEnv =
         Nothing -> throwIO $ ErrorCall "*** Failed to reach brig for federation setup, giving up!"
 
 loop :: L.Logger -> ClientEnv -> SyncFedDomainConfigsCallback -> IORef FederationDomainConfigs -> IO ()
-loop logger clientEnv (SyncFedDomainConfigsCallback callback) env = forever $ do
-  fetch clientEnv >>= \case
-    Left e ->
-      L.log logger L.Info $
-        L.msg (L.val "Could not retrieve an updated list of federation domains from Brig; I'll keep trying!")
-          L.~~ "error" L..= show e
-    Right new -> do
-      old <- readIORef env
-      unless (domainListsEqual old new) $ callback old new
-      atomicWriteIORef env new
-  delay <- updateInterval <$> readIORef env
-  threadDelay (delay * 1_000_000)
+loop logger clientEnv (SyncFedDomainConfigsCallback callback) env = forever $
+  catch go $ \(e :: SomeException) -> do
+    -- log synchronous exceptions
+    case fromException e of
+      Just (SomeAsyncException _) -> pure ()
+      Nothing ->
+        L.log logger L.Error $
+          L.msg (L.val "Federation domain sync thread died, restarting domain synchronization.")
+            L.~~ "error" L..= displayException e
   where
+    go = do
+      fetch clientEnv >>= \case
+        Left e ->
+          L.log logger L.Info $
+            L.msg (L.val "Could not retrieve an updated list of federation domains from Brig; I'll keep trying!")
+              L.~~ "error" L..= displayException e
+        Right new -> do
+          old <- readIORef env
+          unless (domainListsEqual old new) $ callback old new
+          atomicWriteIORef env new
+      delay <- updateInterval <$> readIORef env
+      threadDelay (delay * 1_000_000)
+
     domainListsEqual o n =
       Set.fromList (domain <$> remotes o)
         == Set.fromList (domain <$> remotes n)

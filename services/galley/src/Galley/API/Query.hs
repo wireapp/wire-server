@@ -18,7 +18,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Query
-  ( getBotConversationH,
+  ( getFederationStatus,
+    getBotConversationH,
     getUnqualifiedConversation,
     getConversation,
     getConversationRoles,
@@ -38,10 +39,12 @@ module Galley.API.Query
     getMLSSelfConversation,
     getMLSSelfConversationWithError,
     getMLSOne2OneConversation,
+    firstConflictOrFullyConnected,
   )
 where
 
 import qualified Cassandra as C
+import Control.Error (headMay)
 import Control.Lens
 import qualified Data.ByteString.Lazy as LBS
 import Data.Code
@@ -49,6 +52,7 @@ import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
 import qualified Data.Map as Map
+import Data.Maybe
 import Data.Proxy
 import Data.Qualified
 import Data.Range
@@ -93,14 +97,37 @@ import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.API.FederationStatus
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
 import Wire.API.User
 import Wire.Sem.Paging.Cassandra
+
+getFederationStatus :: Member FederatorAccess r => Local UserId -> RemoteDomains -> Sem r FederationStatus
+getFederationStatus _ req = do
+  firstConflictOrFullyConnected
+    <$> E.runFederatedConcurrently
+      (flip toRemoteUnsafe () <$> Set.toList req.rdDomains)
+      (\qds -> fedClient @'Brig @"get-not-fully-connected-backends" (DomainSet (tDomain qds `Set.delete` req.rdDomains)))
+
+-- | "conflict" here means two remote domains that we are connected to
+-- but are not connected to each other.
+firstConflictOrFullyConnected :: [Remote NonConnectedBackends] -> FederationStatus
+firstConflictOrFullyConnected =
+  maybe
+    FullyConnected
+    (uncurry NotConnectedDomains)
+    . headMay
+    . mapMaybe toMaybeConflict
+  where
+    toMaybeConflict :: Remote NonConnectedBackends -> Maybe (Domain, Domain)
+    toMaybeConflict r =
+      headMay (Set.toList (nonConnectedBackends (tUnqualified r))) <&> (tDomain r,)
 
 getBotConversationH ::
   ( Member ConversationStore r,

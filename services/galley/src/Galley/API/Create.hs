@@ -46,6 +46,7 @@ import Galley.API.MLS
 import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.Mapping
 import Galley.API.One2One
+import Galley.API.Query
 import Galley.API.Util
 import Galley.App (Env)
 import qualified Galley.Data.Conversation as Data
@@ -73,6 +74,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.Error
+import Wire.API.FederationStatus
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team
@@ -149,12 +151,16 @@ createGroupConversation ::
   Maybe ConnId ->
   NewConv ->
   Sem r CreateGroupConversationResponse
-createGroupConversation lusr conn newConv =
-  createGroupConversationGeneric
-    lusr
-    conn
-    newConv
-    groupConversationCreated
+createGroupConversation lusr conn newConv = do
+  let remoteDomains = tDomain <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
+  getFederationStatus lusr (RemoteDomains $ Set.fromList remoteDomains) >>= \case
+    NotConnectedDomains rd1 rd2 -> pure $ GroupConversationFailedToCreate $ CreateConversationRejected (rd1, rd2)
+    FullyConnected ->
+      createGroupConversationGeneric
+        lusr
+        conn
+        newConv
+        groupConversationCreated
 
 createGroupConversationGeneric ::
   ( Member BrigAccess r,
