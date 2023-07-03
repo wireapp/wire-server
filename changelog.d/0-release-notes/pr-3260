@@ -1,1 +1,65 @@
-Federation only: from this release on, remote connections should be configured via an internal REST API; the config files will be honored for a transition period, but will be ignored starting in a future release.  YOU NEED TO UPDATE YOUR BRIG HELM CHART BEFORE DEPLOYING THIS RELEASE.  [Details in the docs.](http://docs.wire.com/understand/configure-federation.html#if-your-instance-has-been-federating-before)
+**Federation only**
+
+From this release on, remote connections can be configured via an
+internal REST API; the remote connections configured in the
+values.yaml file(s) will be honored for a transition period, but will
+be ignored starting in some future release.
+
+YOU NEED TO UPDATE YOUR BRIG HELM VALUES BEFORE DEPLOYING THIS RELEASE.
+
+Add the following to brig:
+
+```
+brig:
+  config:
+    optSettings:
+      setFederationStrategy: allowNone # [allowAll | allowDynamic | allowNone]
+      setFederationDomainConfigsUpdateFreq: 10 # seconds
+```
+
+`allowNone` is equivalent to `allowList` with empty list; `allowAll`
+remains the same as before; `allowDynamic` is `allowList`, but the
+list is now stored in cassandra, not the config file.
+
+If your federator config values contain something like this:
+
+```
+    federationStrategy:
+      allowedDomains:
+      - red.example.com
+      - blue.example.com
+```
+
+you need to make sure that the following lines are part of your brig
+config (after the upgrade and until you have loaded the data into
+casssandra, federation with those domains won't possible if you forget
+this):
+
+```
+brig:
+  config:
+    optSettings:
+      setFederationDomainConfigs:
+      - domain: red.example.com
+        search_policy: full_search
+      - domain: blue.example.com
+        search_policy: no_search
+```
+
+The search policy for a remote backend can be:
+- `no_search`: No users are returned by federated searches. default.
+- `exact_handle_search`: Only users where the handle exactly matches are returned.
+- `full_search`: Additionally to exact_handle_search, users are found by a freetext search on handle and display name.
+
+Once the new release is deployed, you need to copy all the data from
+the config files into `brig.federation_remotes` in cassandra [internal
+CRUD
+API](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/);
+look for `/i/federation/remotes`).
+
+Once the upgrade has been deployed *and* cassandra has been filled
+with the temporary contents of
+`brig.config.optSettings.setFederationDomainConfigs`, it is safe to
+remove the latter and the above lines from the federator config.
+
+[See also.](http://docs.wire.com/understand/configure-federation.html#if-your-instance-has-been-federating-before) (#3260, #3384)
