@@ -42,6 +42,14 @@ tls:
     name: letsencrypt-http01
     kind: Issuer # Issuer | ClusterIssuer
 
+# Name of the ingress.
+#
+# If there is only one backend domain to be served, this can stay 'default'
+# (doesn't need to be changed.) If there are multiple backend domains
+# (multi-ingress setup), use a descriptive name per backend domain. Technically,
+# this value can be any string.
+ingressName: default
+
 certManager:
   # Indicates whether Letsencrypt's staging API server is used and therefore certificates are NOT trusted
   # default: production API server is used and certificates are trusted
@@ -95,6 +103,8 @@ config:
   ingressClass: "nginx"
 # You will need to supply some DNS names, namely
 #   dns:
+#     base: <domain>
+#     ^ base is only needed to render multi-backend-domain (multi-ingress) CSP headers
 #     https: nginz-https.<domain>
 #     ssl: nginz-ssl.<domain> # For websockets
 #     ^ ssl is ignored if websockets.enabled == false
@@ -130,3 +140,15 @@ config:
 #       we do not want to create yet another service here but rather
 #       use that service instead in the ingress
 #     serviceName: minio-external
+
+# Configure CSP headers directly in the ingress.
+#
+# This is only suggested / needed in setups with multiple backend domains
+# (multi-ingress), because the webapps can only provide CSP headers for one
+# (root) domain.
+  renderCSPInIngress: false
+# Is this a chart instantiation for an additional backend domain (multi-ingress)?
+#
+# If 'true' some resources aren't created because they're expected to already
+# exist. There must be one non-additional instantiation per deployment!
+  isAdditionalIngress: false
