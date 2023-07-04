@@ -185,7 +185,8 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
             clientLocation = loc,
             clientModel = mdl,
             clientCapabilities = ClientCapabilityList (fromMaybe mempty cps),
-            clientMLSPublicKeys = mempty
+            clientMLSPublicKeys = mempty,
+            clientLastActive = Nothing
           }
 
 lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
@@ -454,7 +455,8 @@ toClient keys (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
       clientLocation = location <$> lat <*> lon,
       clientModel = mdl,
       clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps,
-      clientMLSPublicKeys = fmap (LBS.toStrict . fromBlob) (Map.fromList keys)
+      clientMLSPublicKeys = fmap (LBS.toStrict . fromBlob) (Map.fromList keys),
+      clientLastActive = Nothing -- TODO: add field
     }
 
 toPubClient :: (ClientId, Maybe ClientClass) -> PubClient
