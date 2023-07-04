@@ -63,8 +63,6 @@ module Wire.API.Conversation
     maybeRole,
 
     -- * create
-    ProtocolCreateTag (..),
-    protocolCreateToProtocolTag,
     NewConv (..),
     ConvTeamInfo (..),
 
@@ -119,6 +117,7 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
+import Wire.API.User
 import Wire.Arbitrary
 
 --------------------------------------------------------------------------------
@@ -127,7 +126,7 @@ import Wire.Arbitrary
 data ConversationMetadata = ConversationMetadata
   { cnvmType :: ConvType,
     -- FUTUREWORK: Make this a qualified user ID.
-    cnvmCreator :: UserId,
+    cnvmCreator :: Maybe UserId,
     cnvmAccess :: [Access],
     cnvmAccessRoles :: Set AccessRole,
     cnvmName :: Maybe Text,
@@ -141,11 +140,11 @@ data ConversationMetadata = ConversationMetadata
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
   deriving (FromJSON, ToJSON) via Schema ConversationMetadata
 
-defConversationMetadata :: UserId -> ConversationMetadata
-defConversationMetadata creator =
+defConversationMetadata :: Maybe UserId -> ConversationMetadata
+defConversationMetadata mCreator =
   ConversationMetadata
     { cnvmType = RegularConv,
-      cnvmCreator = creator,
+      cnvmCreator = mCreator,
       cnvmAccess = [PrivateAccess],
       cnvmAccessRoles = mempty,
       cnvmName = Nothing,
@@ -194,10 +193,10 @@ conversationMetadataObjectSchema sch =
   ConversationMetadata
     <$> cnvmType .= field "type" schema
     <*> cnvmCreator
-      .= fieldWithDocModifier
+      .= optFieldWithDocModifier
         "creator"
         (description ?~ "The creator's user ID")
-        schema
+        (maybeWithDefault A.Null schema)
     <*> cnvmAccess .= field "access" (array schema)
     <*> cnvmAccessRoles .= sch
     <*> cnvmName .= optField "name" (maybeWithDefault A.Null schema)
@@ -243,7 +242,7 @@ data Conversation = Conversation
 cnvType :: Conversation -> ConvType
 cnvType = cnvmType . cnvMetadata
 
-cnvCreator :: Conversation -> UserId
+cnvCreator :: Conversation -> Maybe UserId
 cnvCreator = cnvmCreator . cnvMetadata
 
 cnvAccess :: Conversation -> [Access]
@@ -657,26 +656,6 @@ instance ToSchema ReceiptMode where
 --------------------------------------------------------------------------------
 -- create
 
--- | This is distinct from 'ProtocolTag', which also include ProtocolMixedTag
-data ProtocolCreateTag = ProtocolCreateProteusTag | ProtocolCreateMLSTag
-  deriving stock (Eq, Show, Enum, Bounded, Generic)
-  deriving (Arbitrary) via GenericUniform ProtocolCreateTag
-
-instance ToSchema ProtocolCreateTag where
-  schema =
-    enum @Text "ProtocolCreateTag" $
-      mconcat
-        [ element "proteus" ProtocolCreateProteusTag,
-          element "mls" ProtocolCreateMLSTag
-        ]
-
-protocolCreateToProtocolTag :: ProtocolCreateTag -> ProtocolTag
-protocolCreateToProtocolTag ProtocolCreateProteusTag = ProtocolProteusTag
-protocolCreateToProtocolTag ProtocolCreateMLSTag = ProtocolMLSTag
-
-protocolCreateTagSchema :: ObjectSchema SwaggerDoc ProtocolCreateTag
-protocolCreateTagSchema = fmap (fromMaybe ProtocolCreateProteusTag) (optField "protocol" schema)
-
 data NewConv = NewConv
   { newConvUsers :: [UserId],
     -- | A list of qualified users, which can include some local qualified users
@@ -691,7 +670,7 @@ data NewConv = NewConv
     -- | Every member except for the creator will have this role
     newConvUsersRole :: RoleName,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
-    newConvProtocol :: ProtocolCreateTag
+    newConvProtocol :: BaseProtocolTag
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -750,7 +729,10 @@ newConvSchema sch =
         .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
                <|> pure roleNameWireAdmin
            )
-      <*> newConvProtocol .= protocolCreateTagSchema
+      <*> newConvProtocol
+        .= fmap
+          (fromMaybe BaseProtocolProteusTag)
+          (optField "protocol" schema)
   where
     usersDesc =
       "List of user IDs (excluding the requestor) to be \

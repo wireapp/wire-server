@@ -58,7 +58,7 @@ conv1 =
       cnvMetadata =
         ConversationMetadata
           { cnvmType = One2OneConv,
-            cnvmCreator = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001")),
+            cnvmCreator = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001"))),
             cnvmAccess = [],
             cnvmAccessRoles = Set.empty,
             cnvmName = Just " 0",
@@ -92,7 +92,7 @@ conv2 =
       cnvMetadata =
         ConversationMetadata
           { cnvmType = SelfConv,
-            cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001")),
+            cnvmCreator = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))),
             cnvmAccess =
               [ InviteAccess,
                 InviteAccess,

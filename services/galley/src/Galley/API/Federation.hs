@@ -559,13 +559,14 @@ sendMLSCommitBundle remoteDomain msr =
           decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
 
       ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
-      qConvOrSub <- getConvFromGroupId ibundle.groupId
+      (ctype, qConvOrSub) <- getConvFromGroupId ibundle.groupId
       when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
       uncurry F.MLSMessageResponseUpdates . (,mempty) . map lcuUpdate
         <$> postMLSCommitBundle
           loc
           (tUntagged sender)
           (mmsrSenderClient msr)
+          ctype
           qConvOrSub
           Nothing
           ibundle
@@ -606,13 +607,14 @@ sendMLSMessage remoteDomain msr =
       let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
       raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
       msg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage raw
-      qConvOrSub <- getConvFromGroupId msg.groupId
+      (ctype, qConvOrSub) <- getConvFromGroupId msg.groupId
       when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
       uncurry F.MLSMessageResponseUpdates . first (map lcuUpdate)
         <$> postMLSMessage
           loc
           (tUntagged sender)
           (mmsrSenderClient msr)
+          ctype
           qConvOrSub
           Nothing
           msg
@@ -837,7 +839,7 @@ getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
       let getLocal lconv = do
             mconv <- E.getConversation (tUnqualified lconv)
             fmap GetOne2OneConversationOk $ case mconv of
-              Nothing -> pure (localMLSOne2OneConversationAsRemote rself lother lconv)
+              Nothing -> pure (localMLSOne2OneConversationAsRemote lconv)
               Just conv ->
                 note
                   (InternalErrorWithDescription "Unexpected member list in 1-1 conversation")

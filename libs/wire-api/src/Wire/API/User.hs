@@ -119,6 +119,7 @@ module Wire.API.User
 
     -- * Protocol preferences
     BaseProtocolTag (..),
+    baseProtocolToProtocol,
     SupportedProtocolUpdate (..),
     defSupportedProtocols,
     protocolSetBits,
@@ -169,6 +170,7 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
 import qualified Test.QuickCheck as QC
 import URI.ByteString (serializeURIRef)
 import qualified Web.Cookie as Web
+import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Brig
 import qualified Wire.API.Error.Brig as E
@@ -1634,6 +1636,10 @@ data BaseProtocolTag = BaseProtocolProteusTag | BaseProtocolMLSTag
 baseProtocolMask :: BaseProtocolTag -> Word32
 baseProtocolMask BaseProtocolProteusTag = 1
 baseProtocolMask BaseProtocolMLSTag = 2
+
+baseProtocolToProtocol :: BaseProtocolTag -> ProtocolTag
+baseProtocolToProtocol BaseProtocolProteusTag = ProtocolProteusTag
+baseProtocolToProtocol BaseProtocolMLSTag = ProtocolMLSTag
 
 instance ToSchema BaseProtocolTag where
   schema =

@@ -108,6 +108,9 @@ shouldMatchSet a b = do
   lb <- fmap sort (asList b)
   la `shouldMatch` lb
 
+shouldBeEmpty :: (MakesValue a, HasCallStack) => a -> App ()
+shouldBeEmpty a = a `shouldMatch` (mempty :: [Value])
+
 shouldContainString ::
   HasCallStack =>
   -- | The actual value

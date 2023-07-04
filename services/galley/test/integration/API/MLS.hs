@@ -276,7 +276,7 @@ postMLSConvOk = do
     pure rsp !!! do
       const 201 === statusCode
       const Nothing === fmap Wai.label . responseJsonError
-    qcid <- assertConv rsp RegularConv alice qalice [] (Just nameMaxSize) Nothing
+    qcid <- assertConv rsp RegularConv (Just alice) qalice [] (Just nameMaxSize) Nothing
     checkConvCreateEvent (qUnqualified qcid) wsA
 
 testSenderNotInConversation :: TestM ()

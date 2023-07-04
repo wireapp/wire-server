@@ -712,22 +712,22 @@ runLocalInput = runInputConst . void
 toConversationCreated ::
   -- | The time stamp the conversation was created at
   UTCTime ->
-  -- | The domain of the user that created the conversation
-  Domain ->
+  -- | The user that created the conversation
+  Local UserId ->
   -- | The conversation to convert for sending to a remote Galley
   Data.Conversation ->
   -- | The resulting information to be sent to a remote Galley
   ConversationCreated ConvId
-toConversationCreated now localDomain Data.Conversation {convMetadata = ConversationMetadata {..}, ..} =
+toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMetadata {..}, ..} =
   ConversationCreated
     { ccTime = now,
-      ccOrigUserId = cnvmCreator,
+      ccOrigUserId = tUnqualified lusr,
       ccCnvId = convId,
       ccCnvType = cnvmType,
       ccCnvAccess = cnvmAccess,
       ccCnvAccessRoles = cnvmAccessRoles,
       ccCnvName = cnvmName,
-      ccNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= cnvmCreator) convLocalMembers) convRemoteMembers,
+      ccNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= tUnqualified lusr) convLocalMembers) convRemoteMembers,
       ccMessageTimer = cnvmMessageTimer,
       ccReceiptMode = cnvmReceiptMode,
       ccProtocol = convProtocol
@@ -739,7 +739,7 @@ toConversationCreated now localDomain Data.Conversation {convMetadata = Conversa
       Set OtherMember
     toMembers ls rs =
       Set.fromList $
-        map (localMemberToOther localDomain) ls
+        map (localMemberToOther (tDomain lusr)) ls
           <> map remoteMemberToOther rs
 
 -- | The function converts a 'ConversationCreated' value to a
@@ -791,7 +791,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
           { cnvmType = ccCnvType,
             -- FUTUREWORK: Document this is the same domain as the conversation
             -- domain
-            cnvmCreator = ccOrigUserId,
+            cnvmCreator = Just ccOrigUserId,
             cnvmAccess = ccCnvAccess,
             cnvmAccessRoles = ccCnvAccessRoles,
             cnvmName = ccCnvName,
@@ -811,13 +811,13 @@ registerRemoteConversationMemberships ::
   (Member FederatorAccess r) =>
   -- | The time stamp when the conversation was created
   UTCTime ->
-  -- | The domain of the user that created the conversation
-  Domain ->
+  -- | The user that created the conversation
+  Local UserId ->
   Data.Conversation ->
   Sem r (Set (Remote UserId))
-registerRemoteConversationMemberships now localDomain c = do
+registerRemoteConversationMemberships now lusr c = do
   let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
-      rc = toConversationCreated now localDomain c
+      rc = toConversationCreated now lusr c
   fmap toSet $ runFederatedConcurrentlyEither allRemoteMembers $ \_ ->
     fedClient @'Galley @"on-conversation-created" rc
   where

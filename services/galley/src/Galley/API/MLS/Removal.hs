@@ -78,7 +78,7 @@ createAndSendRemoveProposals ::
   ClientMap ->
   Sem r ()
 createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
-  let meta = (tUnqualified lConvOrSubConv).meta
+  let meta = (tUnqualified lConvOrSubConv).mlsMeta
   mKeyPair <- getMLSRemovalKey
   case mKeyPair of
     Nothing -> do

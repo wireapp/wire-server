@@ -45,11 +45,11 @@ newConnectConversationWithRemote ::
 newConnectConversationWithRemote creator users =
   NewConversation
     { ncMetadata =
-        (defConversationMetadata (tUnqualified creator))
+        (defConversationMetadata (Just (tUnqualified creator)))
           { cnvmType = One2OneConv
           },
       ncUsers = fmap toUserRole users,
-      ncProtocol = ProtocolCreateProteusTag
+      ncProtocol = BaseProtocolProteusTag
     }
 
 iUpsertOne2OneConversation ::

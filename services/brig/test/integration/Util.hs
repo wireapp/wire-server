@@ -735,7 +735,7 @@ createMLSConversation galley zusr c = do
           Nothing
           Nothing
           roleNameWireAdmin
-          ProtocolCreateMLSTag
+          BaseProtocolMLSTag
   post $
     galley
       . path "/conversations"
@@ -776,7 +776,7 @@ createConversation galley zusr usersToAdd = do
           Nothing
           Nothing
           roleNameWireAdmin
-          ProtocolCreateProteusTag
+          BaseProtocolProteusTag
   post $
     galley
       . path "/conversations"

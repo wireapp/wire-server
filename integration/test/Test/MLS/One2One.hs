@@ -1,6 +1,9 @@
 module Test.MLS.One2One where
 
 import API.Galley
+import qualified Data.ByteString.Base64 as Base64
+import qualified Data.ByteString.Char8 as B8
+import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
 
@@ -9,12 +12,8 @@ testGetMLSOne2One otherDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
 
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-
   conv %. "type" `shouldMatchInt` 2
-  others <- conv %. "members.others" & asList
-  other <- assertOne others
-  other %. "conversation_role" `shouldMatch` "wire_member"
-  other %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
+  shouldBeEmpty (conv %. "members.others")
 
   conv %. "members.self.conversation_role" `shouldMatch` "wire_member"
   conv %. "members.self.qualified_id" `shouldMatch` (alice %. "qualified_id")
@@ -42,3 +41,53 @@ testGetMLSOne2OneSameTeam = do
   (alice, _) <- createTeam OwnDomain
   bob <- addUserToTeam alice
   void $ getMLSOne2OneConversation alice bob >>= getJSON 200
+
+data One2OneScenario
+  = -- | Both users are local
+    One2OneScenarioLocal
+  | -- | One user is remote, conversation is local
+    One2OneScenarioLocalConv
+  | -- | One user is remote, conversation is remote
+    One2OneScenarioRemoteConv
+
+instance HasTests x => HasTests (One2OneScenario -> x) where
+  mkTests m n s f x =
+    mkTests m (n <> "[domain=own]") s f (x One2OneScenarioLocal)
+      <> mkTests m (n <> "[domain=other;conv=own]") s f (x One2OneScenarioLocalConv)
+      <> mkTests m (n <> "[domain=other;conv=other]") s f (x One2OneScenarioRemoteConv)
+
+one2OneScenarioDomain :: One2OneScenario -> Domain
+one2OneScenarioDomain One2OneScenarioLocal = OwnDomain
+one2OneScenarioDomain _ = OtherDomain
+
+one2OneScenarioConvDomain :: One2OneScenario -> Domain
+one2OneScenarioConvDomain One2OneScenarioLocal = OwnDomain
+one2OneScenarioConvDomain One2OneScenarioLocalConv = OwnDomain
+one2OneScenarioConvDomain One2OneScenarioRemoteConv = OtherDomain
+
+testMLSOne2One :: HasCallStack => One2OneScenario -> App ()
+testMLSOne2One scenario = do
+  alice <- randomUser OwnDomain def
+  let otherDomain = one2OneScenarioDomain scenario
+      convDomain = one2OneScenarioConvDomain scenario
+  bob <- createMLSOne2OnePartner otherDomain alice convDomain
+  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+  traverse_ uploadNewKeyPackage [bob1]
+
+  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  resetGroup alice1 conv
+
+  commit <- createAddCommit alice1 [bob]
+  withWebSocket bob1 $ \ws -> do
+    void $ sendAndConsumeCommitBundle commit
+
+    let isWelcome n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
+    n <- awaitMatch 3 isWelcome ws
+    nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode (fold commit.welcome))
+
+  withWebSocket bob1 $ \ws -> do
+    mp <- createApplicationMessage alice1 "hello, world"
+    void $ sendAndConsumeMessage mp
+    let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
+    n <- awaitMatch 3 isMessage ws
+    nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode mp.message)

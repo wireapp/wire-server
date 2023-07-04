@@ -18,13 +18,20 @@
 module Galley.API.MLS.One2One
   ( localMLSOne2OneConversation,
     localMLSOne2OneConversationAsRemote,
+    localMLSOne2OneConversationMetadata,
     remoteMLSOne2OneConversation,
+    createMLSOne2OneConversation,
   )
 where
 
 import Data.Id as Id
 import Data.Qualified
+import Galley.API.MLS.Types
+import qualified Galley.Data.Conversation.Types as Data
+import Galley.Effects.ConversationStore
+import Galley.Types.UserList
 import Imports hiding (cs)
+import Polysemy
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
@@ -32,58 +39,53 @@ import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.API.User
 
 -- | Construct a local MLS 1-1 'Conversation' between a local user and another
 -- (possibly remote) user.
 localMLSOne2OneConversation ::
   Local UserId ->
-  Qualified UserId ->
   Local ConvId ->
   Conversation
-localMLSOne2OneConversation lself qother (tUntagged -> convId) =
+localMLSOne2OneConversation lself (tUntagged -> convId) =
   let members =
         ConvMembers
           { cmSelf = defMember (tUntagged lself),
-            cmOthers = [defOtherMember qother]
+            cmOthers = []
           }
-      (metadata, protocol) = localMLSOne2OneConversationMetadata (tUntagged lself) convId
+      (metadata, mlsData) = localMLSOne2OneConversationMetadata convId
    in Conversation
         { cnvQualifiedId = convId,
           cnvMetadata = metadata,
           cnvMembers = members,
-          cnvProtocol = protocol
+          cnvProtocol = ProtocolMLS mlsData
         }
 
 -- | Construct a 'RemoteConversation' structure for a local MLS 1-1
 -- conversation to be returned to a remote backend.
 localMLSOne2OneConversationAsRemote ::
-  Remote UserId ->
-  Local UserId ->
   Local ConvId ->
   RemoteConversation
-localMLSOne2OneConversationAsRemote rself lother lcnv =
+localMLSOne2OneConversationAsRemote lcnv =
   let members =
         RemoteConvMembers
           { rcmSelfRole = roleNameWireMember,
-            rcmOthers = [defOtherMember (tUntagged lother)]
+            rcmOthers = []
           }
-      (metadata, protocol) = localMLSOne2OneConversationMetadata (tUntagged rself) (tUntagged lcnv)
+      (metadata, mlsData) = localMLSOne2OneConversationMetadata (tUntagged lcnv)
    in RemoteConversation
         { rcnvId = tUnqualified lcnv,
           rcnvMetadata = metadata,
           rcnvMembers = members,
-          rcnvProtocol = protocol
+          rcnvProtocol = ProtocolMLS mlsData
         }
 
 localMLSOne2OneConversationMetadata ::
-  Qualified UserId ->
   Qualified ConvId ->
-  (ConversationMetadata, Protocol)
-localMLSOne2OneConversationMetadata self convId =
+  (ConversationMetadata, ConversationMLSData)
+localMLSOne2OneConversationMetadata convId =
   let metadata =
-        ( defConversationMetadata
-            (qUnqualified self)
-        )
+        (defConversationMetadata Nothing)
           { cnvmType = One2OneConv
           }
       groupId = convToGroupId $ groupIdParts One2OneConv (fmap Conv convId)
@@ -94,7 +96,7 @@ localMLSOne2OneConversationMetadata self convId =
             cnvmlsEpochTimestamp = Nothing,
             cnvmlsCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
           }
-   in (metadata, ProtocolMLS mlsData)
+   in (metadata, mlsData)
 
 -- | Convert an MLS 1-1 conversation returned by a remote backend into a
 -- 'Conversation' to be returned to the client.
@@ -107,7 +109,7 @@ remoteMLSOne2OneConversation lself rother rc =
   let members =
         ConvMembers
           { cmSelf = defMember (tUntagged lself),
-            cmOthers = [defOtherMember (tUntagged rother)]
+            cmOthers = []
           }
    in Conversation
         { cnvQualifiedId = tUntagged (qualifyAs rother (rcnvId rc)),
@@ -115,3 +117,20 @@ remoteMLSOne2OneConversation lself rother rc =
           cnvMembers = members,
           cnvProtocol = rcnvProtocol rc
         }
+
+-- | Create a new record for an MLS 1-1 conversation in the database and add
+-- the two members to it.
+createMLSOne2OneConversation ::
+  Member ConversationStore r =>
+  Qualified UserId ->
+  Qualified UserId ->
+  Local MLSConversation ->
+  Sem r Data.Conversation
+createMLSOne2OneConversation self other lconv = do
+  createConversation
+    (fmap mcId lconv)
+    Data.NewConversation
+      { ncMetadata = mcMetadata (tUnqualified lconv),
+        ncUsers = fmap (,roleNameWireMember) (toUserList lconv [self, other]),
+        ncProtocol = BaseProtocolMLSTag
+      }

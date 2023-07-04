@@ -59,6 +59,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
+import Wire.API.User
 
 createMLSSelfConversation ::
   Local UserId ->
@@ -69,9 +70,9 @@ createMLSSelfConversation lusr = do
       nc =
         NewConversation
           { ncMetadata =
-              (defConversationMetadata usr) {cnvmType = SelfConv},
+              (defConversationMetadata (Just usr)) {cnvmType = SelfConv},
             ncUsers = ulFromLocals [toUserRole usr],
-            ncProtocol = ProtocolCreateMLSTag
+            ncProtocol = BaseProtocolMLSTag
           }
       meta = ncMetadata nc
       gid = convToGroupId . groupIdParts meta.cnvmType . fmap Conv . tUntagged . qualifyAs lusr $ cnv
@@ -121,8 +122,8 @@ createConversation :: Local ConvId -> NewConversation -> Client Conversation
 createConversation lcnv nc = do
   let meta = ncMetadata nc
       (proto, mgid, mep, mcs) = case ncProtocol nc of
-        ProtocolCreateProteusTag -> (ProtocolProteus, Nothing, Nothing, Nothing)
-        ProtocolCreateMLSTag ->
+        BaseProtocolProteusTag -> (ProtocolProteus, Nothing, Nothing, Nothing)
+        BaseProtocolMLSTag ->
           let gid = convToGroupId . groupIdParts meta.cnvmType $ Conv <$> tUntagged lcnv
               ep = Epoch 0
               cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
@@ -156,7 +157,7 @@ createConversation lcnv nc = do
         cnvmTeam meta,
         cnvmMessageTimer meta,
         cnvmReceiptMode meta,
-        protocolCreateToProtocolTag (ncProtocol nc),
+        baseProtocolToProtocol (ncProtocol nc),
         mgid,
         mep,
         mcs
@@ -191,10 +192,9 @@ conversationMeta conv =
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
     toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _, _) = do
-      c <- mc
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
-      pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm
+      pure $ ConversationMetadata t mc (defAccess t a) accessRoles n i mt rm
 
 getGroupInfo :: ConvId -> Client (Maybe GroupInfoData)
 getGroupInfo cid = do
@@ -381,7 +381,6 @@ toConv ::
   Maybe Conversation
 toConv cid ms remoteMems mconv = do
   (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs) <- mconv
-  uid <- muid
   let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
       accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
   proto <- toProtocol ptag mgid mep (writetimeToUTC <$> mts) mcs
@@ -395,7 +394,7 @@ toConv cid ms remoteMems mconv = do
         convMetadata =
           ConversationMetadata
             { cnvmType = cty,
-              cnvmCreator = uid,
+              cnvmCreator = muid,
               cnvmAccess = defAccess cty acc,
               cnvmAccessRoles = accessRoles,
               cnvmName = nme,
