@@ -29,7 +29,6 @@ import Test.Wire.API.Golden.Manual.ConversationPagingState
 import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.CreateGroupConversation
 import Test.Wire.API.Golden.Manual.CreateScimToken
-import Test.Wire.API.Golden.Manual.EventWithUnreachables
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.FederationStatus
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
@@ -170,10 +169,5 @@ tests =
         testObjects
           [ (testObject_RemoteDomains_1, "testObject_RemoteDomains_1.json"),
             (testObject_RemoteDomains_2, "testObject_RemoteDomains_2.json")
-          ],
-      testGroup "EventWithUnreachables" $
-        testObjects
-          [ (testObject_EventWithUnreachables_1, "testObject_EventWithUnreachables_1.json"),
-            (testObject_EventWithUnreachables_2, "testObject_EventWithUnreachables_2.json")
           ]
     ]
