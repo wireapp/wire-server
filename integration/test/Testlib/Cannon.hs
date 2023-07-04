@@ -73,6 +73,7 @@ data WebSocket = WebSocket
 -- Specifies how a Websocket at cannon should be opened
 data WSConnect = WSConnect
   { user :: String,
+    domain :: String,
     client :: Maybe String,
     -- | If this is Nothing then a random Z-Connection will be used
     conn :: Maybe String
@@ -86,23 +87,23 @@ instance {-# OVERLAPPING #-} ToWSConnect WSConnect where
 
 instance {-# OVERLAPPABLE #-} MakesValue user => ToWSConnect user where
   toWSConnect u = do
-    uid <- objId u & asString
+    (domain, uid) <- objQid u
     mc <- lookupField u "client_id"
     c <- traverse asString mc
-    pure (WSConnect uid c Nothing)
+    pure (WSConnect uid domain c Nothing)
 
 instance (MakesValue user, MakesValue conn) => ToWSConnect (user, conn) where
   toWSConnect (u, c) = do
-    uid <- objId u & asString
+    (domain, uid) <- objQid u
     conn <- make c & asString
-    pure (WSConnect uid Nothing (Just conn))
+    pure (WSConnect uid domain Nothing (Just conn))
 
 instance (MakesValue user, MakesValue conn, MakesValue client) => ToWSConnect (user, conn, client) where
   toWSConnect (u, c, cl) = do
-    uid <- objId u & asString
+    (domain, uid) <- objQid u
     client <- make cl & asString
     conn <- make c & asString
-    pure (WSConnect uid (Just client) (Just conn))
+    pure (WSConnect uid domain (Just client) (Just conn))
 
 connect :: HasCallStack => WSConnect -> App WebSocket
 connect wsConnect = do
@@ -128,9 +129,13 @@ clientApp wsChan latch conn = do
 
 -- | Start a client thread in 'Async' that opens a web socket to a Cannon, wait
 --   for the connection to register with Gundeck, and return the 'Async' thread.
-run :: HasCallStack => WSConnect -> WS.ClientApp () -> App (Async ())
+run ::
+  HasCallStack =>
+  WSConnect ->
+  WS.ClientApp () ->
+  App (Async ())
 run wsConnect app = do
-  domain <- OwnDomain & asString
+  domain <- asString wsConnect.domain
   serviceMap <- getServiceMap domain
 
   let HostPort caHost caPort = serviceHostPort serviceMap Cannon
@@ -151,7 +156,7 @@ run wsConnect app = do
           ("Z-Connection", toByteString' connId)
         ]
   request <- do
-    r <- rawBaseRequest OwnDomain Cannon Versioned path
+    r <- rawBaseRequest domain Cannon Versioned path
     pure r {HTTP.requestHeaders = caHdrs}
 
   wsapp <-
@@ -169,7 +174,7 @@ run wsConnect app = do
       $ \(e :: SomeException) -> putMVar latch e
 
   presenceRequest <-
-    baseRequest OwnDomain Cannon Unversioned $
+    baseRequest domain Cannon Unversioned $
       "/i/presences/" <> wsConnect.user <> "/" <> connId
 
   waitForPresence <- appToIO $ unrace $ do
