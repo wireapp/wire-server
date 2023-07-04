@@ -121,8 +121,13 @@ runAppWithEnv e m = runReaderT (unApp m) e
 -- | Convert an action in the 'App' monad to an 'IO' action.
 appToIO :: App a -> App (IO a)
 appToIO action = do
+  f <- appToIOKleisli (const action)
+  pure $ f ()
+
+appToIOKleisli :: (a -> App b) -> App (a -> IO b)
+appToIOKleisli k = do
   env <- ask
-  pure $ runAppWithEnv env action
+  pure $ \a -> runAppWithEnv env (k a)
 
 getServiceMap :: String -> App ServiceMap
 getServiceMap fedDomain = do
