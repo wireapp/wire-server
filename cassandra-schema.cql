@@ -798,6 +798,7 @@ CREATE TABLE brig_test.clients (
     cookie text,
     ip inet,
     label text,
+    last_active timestamp,
     lat double,
     lon double,
     model text,
