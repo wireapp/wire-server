@@ -91,10 +91,11 @@ import Wire.API.Push.V2.Token
 -- Route
 
 data Route
-  = RouteAny
-  | -- | 'RouteDirect' messages are different from transient messages: they do not
-    -- trigger native pushes if the web socket is unavaiable, but they are stored in
-    -- cassandra for later pickup.
+  = -- | Sends notification on all channels including push notifications to
+    -- mobile clients. Note that transient messages never cause a push
+    -- notification.
+    RouteAny
+  | -- | Avoids causing push notification for mobile clients.
     RouteDirect
   deriving (Eq, Ord, Enum, Bounded, Show)
 
