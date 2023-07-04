@@ -5,7 +5,6 @@ import Control.Monad.IO.Class
 import Data.Aeson hiding ((.=))
 import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
-import Data.Char
 import Data.Functor
 import Data.IORef
 import Data.Map (Map)
@@ -68,6 +67,7 @@ instance FromJSON IntegrationConfig where
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
+    backgroundWorker :: HostPort,
     cannon :: HostPort,
     cargohold :: HostPort,
     federatorInternal :: HostPort,
@@ -110,7 +110,7 @@ data NginzConfig = NginzConfig
   }
   deriving (Show, Generic)
 
-data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar
+data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker
   deriving
     ( Show,
       Eq,
@@ -120,7 +120,27 @@ data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar
     )
 
 serviceName :: Service -> String
-serviceName srv = map toLower (show srv)
+serviceName = \case
+  Brig -> "brig"
+  Galley -> "galley"
+  Cannon -> "cannon"
+  Gundeck -> "gundeck"
+  Cargohold -> "cargohold"
+  Nginz -> "nginz"
+  Spar -> "spar"
+  BackgroundWorker -> "backgroundWorker"
+
+-- | Converts the service name to kebab-case.
+configName :: Service -> String
+configName = \case
+  Brig -> "brig"
+  Galley -> "galley"
+  Cannon -> "cannon"
+  Gundeck -> "gundeck"
+  Cargohold -> "cargohold"
+  Nginz -> "nginz"
+  Spar -> "spar"
+  BackgroundWorker -> "background-worker"
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
@@ -130,6 +150,7 @@ serviceHostPort m Gundeck = m.gundeck
 serviceHostPort m Cargohold = m.cargohold
 serviceHostPort m Nginz = m.nginz
 serviceHostPort m Spar = m.spar
+serviceHostPort m BackgroundWorker = m.backgroundWorker
 
 mkGlobalEnv :: FilePath -> IO GlobalEnv
 mkGlobalEnv cfgFile = do
