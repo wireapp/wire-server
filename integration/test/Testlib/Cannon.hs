@@ -184,8 +184,8 @@ run wsConnect app = do
         let r =
               Response
                 { jsonBody = Nothing,
-                  body = mempty,
-                  status = 426,
+                  body = "This is a fake response. The actual response from cannon is not available.",
+                  status = 101,
                   headers = mempty,
                   request = request
                 }
