@@ -652,10 +652,10 @@ groupConversationCreated failedToAdd lusr cnv = do
     toMap :: Ord a => Set (Remote a) -> Map Domain (Set a)
     toMap = fmap Set.fromList . indexQualified @[] . foldMap (pure . tUntagged)
 
--- | The return set contains lists of all the remote users that could and could
--- not be contacted. Consequently, the unreachable users are not added to the
--- member list. This behavior might be changed later on when a message/event
--- queue per remote backend is implemented.
+-- | The return set contains all the remote users that could not be contacted.
+-- Consequently, the unreachable users are not added to the member list. This
+-- behavior might be changed later on when a message/event queue per remote
+-- backend is implemented.
 notifyCreatedConversation ::
   ( Member (Error FederationError) r,
     Member (Error InternalError) r,
