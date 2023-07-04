@@ -12,6 +12,7 @@ import Control.Applicative ((<|>))
 import Control.Concurrent.Async (mapConcurrently_)
 import Control.Exception (finally)
 import qualified Control.Exception as E
+import Control.Monad.Codensity
 import Control.Monad.Extra
 import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
@@ -53,10 +54,9 @@ withModifiedService ::
   Service ->
   -- | function that edits the config
   (Value -> App Value) ->
-  -- | This action wil access the modified spawned service
   (String -> App a) ->
   App a
-withModifiedService srv modConfig = withModifiedServices (Map.singleton srv modConfig)
+withModifiedService srv modConfig = runCodensity $ withModifiedServices (Map.singleton srv modConfig)
 
 copyDirectoryRecursively :: FilePath -> FilePath -> IO ()
 copyDirectoryRecursively from to = do
@@ -70,19 +70,15 @@ copyDirectoryRecursively from to = do
       then copyDirectoryRecursively fromPath toPath
       else copyFile fromPath toPath
 
-startDynamicBackends :: [ServiceOverrides] -> ([String] -> App ()) -> App ()
-startDynamicBackends beOverrides action = do
-  when (Prelude.length beOverrides > 3) $ failApp "Too many backends. Currently only 3 are supported."
+startDynamicBackends :: [ServiceOverrides] -> ([String] -> App a) -> App a
+startDynamicBackends beOverrides = runCodensity $ do
+  when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
   pool <- asks (.resourcePool)
-  withResources (Prelude.length beOverrides) pool $ \resources -> do
-    let recStartBackends :: [String] -> [(BackendResource, ServiceOverrides)] -> App ()
-        recStartBackends domains = \case
-          [] -> action domains
-          (res, o) : xs -> startDynamicBackend res o (\d -> recStartBackends (domains <> [d]) xs)
-    recStartBackends [] (zip resources beOverrides)
+  resources <- acquireResources (Prelude.length beOverrides) pool
+  for (zip resources beOverrides) $ uncurry startDynamicBackend
 
-startDynamicBackend :: BackendResource -> ServiceOverrides -> (String -> App a) -> App a
-startDynamicBackend resource beOverrides action = do
+startDynamicBackend :: BackendResource -> ServiceOverrides -> Codensity App String
+startDynamicBackend resource beOverrides = do
   defDomain <- asks (.domain1)
   defDomain2 <- asks (.domain2)
   let services =
@@ -106,7 +102,7 @@ startDynamicBackend resource beOverrides action = do
         let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
          in Map.insert resource.berDomain (setFederatorPorts resource $ updateServiceMap ports templateBackend) sm
     )
-    (action resource.berDomain)
+  pure resource.berDomain
   where
     setAwsAdnQueuesConfigs :: Service -> Value -> App Value
     setAwsAdnQueuesConfigs = \case
@@ -179,10 +175,11 @@ setFederatorPorts resource sm =
       federatorExternal = sm.federatorExternal {host = "127.0.0.1", port = resource.berFederatorExternal}
     }
 
-withModifiedServices :: Map.Map Service (Value -> App Value) -> (String -> App a) -> App a
-withModifiedServices services action = do
-  domain <- asks (.domain1)
-  startBackend domain Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain) (action domain)
+withModifiedServices :: Map.Map Service (Value -> App Value) -> Codensity App String
+withModifiedServices services = do
+  domain <- lift $ asks (.domain1)
+  startBackend domain Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain)
+  pure domain
 
 updateServiceMap :: Map.Map Service Word16 -> ServiceMap -> ServiceMap
 updateServiceMap ports serviceMap =
@@ -207,9 +204,8 @@ startBackend ::
   Maybe (Value -> App Value) ->
   Map.Map Service (Value -> App Value) ->
   (Map.Map Service Word16 -> Map.Map String ServiceMap -> Map.Map String ServiceMap) ->
-  App a ->
-  App a
-startBackend domain nginzSslPort mFederatorOverrides services modifyBackends action = do
+  Codensity App ()
+startBackend domain nginzSslPort mFederatorOverrides services modifyBackends = do
   ports <- Map.traverseWithKey (\_ _ -> liftIO openFreePort) services
 
   let updateServiceMapInConfig :: Maybe Service -> Value -> App Value
@@ -239,73 +235,62 @@ startBackend domain nginzSslPort mFederatorOverrides services modifyBackends act
           (Map.assocs ports)
 
   -- close all sockets before starting the services
-  for_ (Map.keys services) $ \srv -> maybe (failApp "the impossible in withServices happened") (liftIO . N.close . snd) (Map.lookup srv ports)
+  stopInstances <- lift $ do
+    for_ (Map.keys services) $ \srv -> maybe (failApp "the impossible in withServices happened") (liftIO . N.close . snd) (Map.lookup srv ports)
 
-  fedInstance <-
-    case mFederatorOverrides of
-      Nothing -> pure []
-      Just override ->
-        readServiceConfig' "federator"
-          >>= updateServiceMapInConfig Nothing
-          >>= override
-          >>= startProcess' domain "federator"
-          <&> (: [])
+    fedInstance <-
+      case mFederatorOverrides of
+        Nothing -> pure []
+        Just override ->
+          readServiceConfig' "federator"
+            >>= updateServiceMapInConfig Nothing
+            >>= override
+            >>= startProcess' domain "federator"
+            <&> (: [])
 
-  otherInstances <- for (Map.assocs services) $ \case
-    (Nginz, _) -> do
-      env <- ask
-      sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (modifyBackends (fromIntegral . fst <$> ports) env.serviceMap))
-      port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral . fst) (Map.lookup Nginz ports)
-      startNginz domain port nginzSslPort sm
-    (srv, modifyConfig) -> do
-      readServiceConfig srv
-        >>= updateServiceMapInConfig (Just srv)
-        >>= modifyConfig
-        >>= startProcess domain srv
+    otherInstances <- for (Map.assocs services) $ \case
+      (Nginz, _) -> do
+        env <- ask
+        sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (modifyBackends (fromIntegral . fst <$> ports) env.serviceMap))
+        port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral . fst) (Map.lookup Nginz ports)
+        startNginz domain port nginzSslPort sm
+      (srv, modifyConfig) -> do
+        readServiceConfig srv
+          >>= updateServiceMapInConfig (Just srv)
+          >>= modifyConfig
+          >>= startProcess domain srv
 
-  let instances = fedInstance <> otherInstances
+    let instances = fedInstance <> otherInstances
 
-  let stopInstances = liftIO $ do
-        -- Running waitForProcess would hang for 30 seconds when the test suite
-        -- is run from within ghci, so we don't wait here.
-        for_ instances $ \(ph, path) -> do
-          terminateProcess ph
-          timeout 50000 (waitForProcess ph) >>= \case
-            Just _ -> pure ()
-            Nothing -> do
-              timeout 100000 (waitForProcess ph) >>= \case
-                Just _ -> pure ()
-                Nothing -> do
-                  mPid <- getPid ph
-                  for_ mPid (signalProcess killProcess)
-                  void $ waitForProcess ph
-          whenM (doesFileExist path) $ removeFile path
-          whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
+    let stopInstances = liftIO $ do
+          -- Running waitForProcess would hang for 30 seconds when the test suite
+          -- is run from within ghci, so we don't wait here.
+          for_ instances $ \(ph, path) -> do
+            terminateProcess ph
+            timeout 50000 (waitForProcess ph) >>= \case
+              Just _ -> pure ()
+              Nothing -> do
+                timeout 100000 (waitForProcess ph) >>= \case
+                  Just _ -> pure ()
+                  Nothing -> do
+                    mPid <- getPid ph
+                    for_ mPid (signalProcess killProcess)
+                    void $ waitForProcess ph
+            whenM (doesFileExist path) $ removeFile path
+            whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
+
+    pure stopInstances
 
   let modifyEnv env =
         env {serviceMap = modifyBackends (fromIntegral . fst <$> ports) env.serviceMap}
 
-  let waitForAllServices = do
-        env <- ask
-        liftIO $
-          mapConcurrently_
-            (\srv -> runReaderT (unApp (waitUntilServiceUp domain srv)) env)
-            (Map.keys ports)
+  waitForService <- lift $ appToIOKleisli (waitUntilServiceUp domain)
+  liftIO $
+    mapConcurrently_ waitForService (Map.keys ports)
 
-  App $
-    ReaderT
-      ( \env ->
-          runReaderT
-            ( local
-                modifyEnv
-                ( unApp $ do
-                    waitForAllServices
-                    action
-                )
-            )
-            env
-            `finally` stopInstances
-      )
+  Codensity $ \action -> do
+    ioAction <- appToIO (local modifyEnv (action ()))
+    liftIO $ ioAction `finally` stopInstances
 
 startProcess :: String -> Service -> Value -> App (ProcessHandle, FilePath)
 startProcess domain srv = startProcess' domain (configName srv)
@@ -347,14 +332,10 @@ waitUntilServiceUp domain = \case
         (\_ isUp -> pure (not isUp))
         ( \_ -> do
             req <- baseRequest domain srv Unversioned "/i/status"
-            env <- ask
-            eith <-
-              liftIO $
-                E.try
-                  ( runAppWithEnv env $ do
-                      res <- submit "GET" req
-                      pure (res.status `elem` [200, 204])
-                  )
+            checkStatus <- appToIO $ do
+              res <- submit "GET" req
+              pure (res.status `elem` [200, 204])
+            eith <- liftIO (E.try checkStatus)
             pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
         )
     unless isUp $

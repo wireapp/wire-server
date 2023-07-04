@@ -4,12 +4,13 @@ module Testlib.ResourcePool
     backendResources,
     remoteDomains,
     createBackendResourcePool,
-    withResources,
+    acquireResources,
   )
 where
 
 import Control.Concurrent
 import Control.Monad.Catch
+import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Data.Function ((&))
 import Data.Functor
@@ -27,8 +28,8 @@ data ResourcePool a = ResourcePool
     resources :: IORef (Set.Set a)
   }
 
-withResources :: forall m a b. (Ord a, MonadIO m, MonadMask m) => Int -> ResourcePool a -> ([a] -> m b) -> m b
-withResources n pool f = bracket acquire release (f . Set.toList)
+acquireResources :: forall m a. (Ord a, MonadIO m, MonadMask m) => Int -> ResourcePool a -> Codensity m [a]
+acquireResources n pool = Codensity $ \f -> bracket acquire release (f . Set.toList)
   where
     release :: Set.Set a -> m ()
     release s =
