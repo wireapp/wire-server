@@ -37,6 +37,7 @@ library
     , metrics-core
     , metrics-wai
     , monad-control
+    , prometheus-client
     , retry
     , servant-client
     , servant-server
@@ -178,6 +179,7 @@ test-suite background-worker-test
     , http-media
     , http-types
     , imports
+    , prometheus-client
     , QuickCheck
     , servant
     , servant-client
