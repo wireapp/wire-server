@@ -1,1 +1,0 @@
-Anfrage genehmigen: ${brand_service}

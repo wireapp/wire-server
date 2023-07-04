@@ -1,0 +1,1 @@
+Prevent conversation creation if any two remote backends are not connected to each other

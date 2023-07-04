@@ -62,6 +62,7 @@ module Data.Schema
     set,
     nonEmptyArray,
     map_,
+    mapWithKeys,
     enum,
     maybe_,
     maybeWithDefault,
@@ -94,6 +95,7 @@ import qualified Data.Aeson.Types as A
 import Data.Bifunctor.Joker
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.Map as Map
 import Data.Monoid hiding (Product)
 import Data.Profunctor (Star (..))
 import Data.Proxy (Proxy (..))
@@ -322,6 +324,8 @@ newtype Positive x y a = Positive {runPositive :: (a -> x) -> y}
 -- This can be used when the input type 'v' of the parser is not exactly a
 -- 'A.Object', but it contains one. The first argument is a lens that can
 -- extract the 'A.Object' contained in 'v'.
+--
+-- See 'bind' for use cases.
 fieldOverF ::
   forall f doc' doc v v' a b.
   (HasField doc' doc, FieldFunctor doc f) =>
@@ -478,6 +482,10 @@ nonEmptyArray sch = setMinItems 1 $ NonEmpty.toList .= array sch `withParser` ch
       maybe (fail "Unexpected empty array found while parsing a NonEmpty") pure
         . NonEmpty.nonEmpty
 
+-- | A schema for a JSON object with arbitrary keys of type 'k'. The type of
+-- keys must have instances for 'A.FromJSONKey' and 'A.ToJSONKey'.
+--
+-- Use 'mapWithKeys' for key types that do not have such instances.
 map_ ::
   forall ndoc doc k a.
   (HasMap ndoc doc, Ord k, A.FromJSONKey k, A.ToJSONKey k) =>
@@ -490,11 +498,24 @@ map_ sch = mkSchema d i o
     i = A.parseJSON >=> traverse (schemaIn sch)
     o = fmap A.toJSON . traverse (schemaOut sch)
 
+-- | A schema for a JSON object with arbitrary keys of type 'k', where 'k' can
+-- be converted to and from 'Text'.
+mapWithKeys ::
+  forall ndoc doc k a.
+  (HasMap ndoc doc, Ord k) =>
+  (k -> Text) ->
+  (Text -> k) ->
+  ValueSchema ndoc a ->
+  ValueSchema doc (Map k a)
+mapWithKeys keyToText textToKey sch =
+  Map.mapKeys textToKey
+    <$> Map.mapKeys keyToText .= map_ sch
+
 -- Putting this in `where` clause causes compile error, maybe a bug in GHC?
 setMinItems :: (HasMinItems doc (Maybe Integer)) => Integer -> ValueSchema doc a -> ValueSchema doc a
 setMinItems m = doc . minItems ?~ m
 
--- | Ad-hoc class for types corresponding to a JSON primitive types.
+-- | Ad-hoc class for types corresponding to JSON primitive types.
 class A.ToJSON a => With a where
   with :: String -> (a -> A.Parser b) -> A.Value -> A.Parser b
 

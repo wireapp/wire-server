@@ -1,14 +1,25 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Network.AMQP.Extended where
 
+import Control.Exception (throwIO)
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Control.Retry
-import Data.Aeson (FromJSON)
+import Data.Aeson
+import Data.Proxy
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Imports
 import qualified Network.AMQP as Q
+import qualified Network.HTTP.Client as HTTP
+import Network.RabbitMqAdmin
+import Servant
+import Servant.Client
+import qualified Servant.Client as Servant
 import System.Logger (Logger)
 import qualified System.Logger as Log
+import UnliftIO.Async
 
 data RabbitMqHooks m = RabbitMqHooks
   { -- | Called whenever there is a new channel. At any time there should be at
@@ -22,6 +33,30 @@ data RabbitMqHooks m = RabbitMqHooks
     onChannelException :: SomeException -> m ()
   }
 
+data RabbitMqAdminOpts = RabbitMqAdminOpts
+  { host :: !String,
+    port :: !Int,
+    vHost :: !Text,
+    adminPort :: !Int
+  }
+  deriving (Show, Generic)
+
+instance FromJSON RabbitMqAdminOpts
+
+mkRabbitMqAdminClientEnv :: RabbitMqAdminOpts -> IO (AdminAPI (AsClientT IO))
+mkRabbitMqAdminClientEnv opts = do
+  (username, password) <- readCredsFromEnv
+  manager <- HTTP.newManager HTTP.defaultManagerSettings
+  let basicAuthData = Servant.BasicAuthData (Text.encodeUtf8 username) (Text.encodeUtf8 password)
+      clientEnv = Servant.mkClientEnv manager (Servant.BaseUrl Servant.Http opts.host opts.adminPort "")
+  pure . fromServant $
+    hoistClient
+      (Proxy @(ToServant AdminAPI AsApi))
+      (either throwM pure <=< flip runClientM clientEnv)
+      (toServant $ adminClient basicAuthData)
+
+-- | When admin opts are needed use `RabbitMqOpts Identity`, otherwise use
+-- `RabbitMqOpts NoAdmin`.
 data RabbitMqOpts = RabbitMqOpts
   { host :: !String,
     port :: !Int,
@@ -31,17 +66,29 @@ data RabbitMqOpts = RabbitMqOpts
 
 instance FromJSON RabbitMqOpts
 
+demoteOpts :: RabbitMqAdminOpts -> RabbitMqOpts
+demoteOpts RabbitMqAdminOpts {..} = RabbitMqOpts {..}
+
 -- | Useful if the application only pushes into some queues.
 mkRabbitMqChannelMVar :: Logger -> RabbitMqOpts -> IO (MVar Q.Channel)
 mkRabbitMqChannelMVar l opts = do
-  chan <- newEmptyMVar
-  openConnectionWithRetries l opts.host opts.port opts.vHost $
-    RabbitMqHooks
-      { onNewChannel = putMVar chan,
-        onChannelException = \_ -> void $ tryTakeMVar chan,
-        onConnectionClose = void $ tryTakeMVar chan
-      }
-  pure chan
+  chanMVar <- newEmptyMVar
+  connThread <-
+    async . openConnectionWithRetries l opts $
+      RabbitMqHooks
+        { onNewChannel = \conn -> putMVar chanMVar conn >> forever (threadDelay maxBound),
+          onChannelException = \_ -> void $ tryTakeMVar chanMVar,
+          onConnectionClose = void $ tryTakeMVar chanMVar
+        }
+  waitForConnThread <- async $ withMVar chanMVar $ \_ -> pure ()
+  waitEither connThread waitForConnThread >>= \case
+    Left () -> throwIO $ RabbitMqConnectionFailed "connection thread finished before getting connection"
+    Right () -> pure chanMVar
+
+data RabbitMqConnectionError = RabbitMqConnectionFailed String
+  deriving (Show)
+
+instance Exception RabbitMqConnectionError
 
 -- | Connects with RabbitMQ and opens a channel. If the channel is closed for
 -- some reasons, reopens the channel. If the connection is closed for some
@@ -50,14 +97,11 @@ openConnectionWithRetries ::
   forall m.
   (MonadIO m, MonadMask m, MonadBaseControl IO m) =>
   Logger ->
-  String ->
-  Int ->
-  Text ->
+  RabbitMqOpts ->
   RabbitMqHooks m ->
   m ()
-openConnectionWithRetries l host port vHost hooks = do
-  username <- liftIO $ Text.pack <$> getEnv "RABBITMQ_USERNAME"
-  password <- liftIO $ Text.pack <$> getEnv "RABBITMQ_PASSWORD"
+openConnectionWithRetries l RabbitMqOpts {..} hooks = do
+  (username, password) <- liftIO $ readCredsFromEnv
   connectWithRetries username password
   where
     connectWithRetries :: Text -> Text -> m ()
@@ -71,26 +115,23 @@ openConnectionWithRetries l host port vHost hooks = do
                 . Log.field "error" (displayException @SomeException e)
                 . Log.field "willRetry" willRetry
                 . Log.field "retryCount" retryStatus.rsIterNumber
-      recovering
-        policy
-        ( skipAsyncExceptions
-            <> [ logRetries (const $ pure True) logError
-               ]
-        )
-        ( const $ do
-            Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
-            connect username password
-        )
-
-    connect :: Text -> Text -> m ()
-    connect username password = do
-      conn <- liftIO $ Q.openConnection' host (fromIntegral port) vHost username password
-      liftBaseWith $ \runInIO ->
-        Q.addConnectionClosedHandler conn True $ void $ runInIO $ do
-          hooks.onConnectionClose
-            `catch` logException l "onConnectionClose hook threw an exception, reconnecting to RabbitMQ anyway"
-          connectWithRetries username password
-      openChan conn
+          getConn =
+            recovering
+              policy
+              ( skipAsyncExceptions
+                  <> [logRetries (const $ pure True) logError]
+              )
+              ( const $ do
+                  Log.info l $ Log.msg (Log.val "Trying to connect to RabbitMQ")
+                  liftIO $ Q.openConnection' host (fromIntegral port) vHost username password
+              )
+      bracket getConn (liftIO . Q.closeConnection) $ \conn -> do
+        liftBaseWith $ \runInIO ->
+          Q.addConnectionClosedHandler conn True $ void $ runInIO $ do
+            hooks.onConnectionClose
+              `catch` logException l "onConnectionClose hook threw an exception, reconnecting to RabbitMQ anyway"
+            connectWithRetries username password
+        openChan conn
 
     openChan :: Q.Connection -> m ()
     openChan conn = do
@@ -119,3 +160,9 @@ logException l m (SomeException e) = do
   Log.err l $
     Log.msg m
       . Log.field "error" (displayException e)
+
+readCredsFromEnv :: IO (Text, Text)
+readCredsFromEnv =
+  (,)
+    <$> (Text.pack <$> getEnv "RABBITMQ_USERNAME")
+    <*> (Text.pack <$> getEnv "RABBITMQ_PASSWORD")

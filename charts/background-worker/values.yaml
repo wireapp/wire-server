@@ -2,6 +2,8 @@ replicaCount: 1
 image:
   repository: quay.io/wire/background-worker
   tag: do-not-use
+service:
+  internalPort: 8080
 # FUTUREWORK: Review these values when we have some experience
 resources:
   requests:
@@ -20,7 +22,9 @@ config:
     host: rabbitmq
     port: 5672
     vHost: /
-  remoteDomains: []
+    adminPort: 15672
+  backendNotificationPusher:
+    remotesRefreshInterval: 60 # seconds
 
 serviceAccount:
   # When setting this to 'false', either make sure that a service account named
@@ -29,7 +33,6 @@ serviceAccount:
   name: background-worker
   annotations: {}
   automountServiceAccountToken: true
-
 
 secrets: {}
 

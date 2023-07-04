@@ -20,6 +20,7 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Network.AMQP.Extended
+    Network.RabbitMqAdmin
     Options.Applicative.Extended
     Servant.API.Extended
     Servant.API.Extended.RawM
@@ -85,6 +86,7 @@ library
     , errors
     , exceptions
     , extra
+    , http-client
     , http-types
     , imports
     , metrics-wai
@@ -93,10 +95,13 @@ library
     , resourcet
     , retry
     , servant
+    , servant-client
+    , servant-client-core
     , servant-server
     , servant-swagger
     , text
     , tinylog
+    , unliftio
     , wai
 
   default-language:   Haskell2010
