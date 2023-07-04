@@ -11,12 +11,13 @@ import qualified Data.Swagger as S
 import Imports
 import Wire.Arbitrary
 import Data.Domain
+import Data.Aeson (ToJSON, FromJSON)
 
 data Event = Event
   { _eventType :: EventType
   , _eventDomains :: [Domain]
   }
-  deriving (Eq, Ord)
+  deriving (Eq, Show, Ord, Generic)
 
 instance Arbitrary Event where
   arbitrary = Event
@@ -25,7 +26,7 @@ instance Arbitrary Event where
 
 data EventType
   = FederationDelete
-  deriving (Eq, Ord, Generic)
+  deriving (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema EventType
 
@@ -52,3 +53,9 @@ instance ToJSONObject Event where
 
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
+
+instance FromJSON Event where
+  parseJSON = schemaParseJSON
+
+instance ToJSON Event where
+  toJSON = schemaToJSON

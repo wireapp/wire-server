@@ -265,7 +265,8 @@ tests s =
             [ test s "send typing indicators" postTypingIndicators,
               test s "send typing indicators without domain" postTypingIndicatorsV2,
               test s "send typing indicators with invalid pyaload" postTypingIndicatorsHandlesNonsense
-            ]
+            ],
+          test s "delete federation notifications" testDefederationNotifications
         ]
     rb1, rb2, rb3 :: Remote Backend
     rb1 =
@@ -4538,3 +4539,63 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
             pure $ statusCode resp == 200
           liftIO $ found @?= ((actor, desired) == (LocalActor, Included))
       )
+
+-- Testing defederation notifications. The important thing to note for all
+-- of this is that when defederating from a remote domain only _2_ notifications
+-- are sent, and both are identical. One notification is at the start of
+-- defederation, and one is sent at the end of defederation. No other
+-- notifications about users being removed from conversations, or conversations
+-- being deleted are sent. We are do not want to DOS either our local clients,
+-- nor our own services.
+testDefederationNotifications :: TestM ()
+testDefederationNotifications = do
+  -- alice, bob are in a team
+  (tid, alice, [bob]) <- createBindingTeamWithQualifiedMembers 2
+
+  -- charlie is a local guest
+  charlie <- randomQualifiedUser
+  connectUsers (qUnqualified alice) (pure (qUnqualified charlie))
+
+  -- dee is a remote guest
+  let remoteDomain = Domain "far-away.example.com"
+  dee <- Qualified <$> randomId <*> pure remoteDomain
+
+  connectWithRemoteUser (qUnqualified alice) dee
+
+  -- they are all in a local conversation
+  conv <-
+    responseJsonError
+      =<< postConvWithRemoteUsers
+        (qUnqualified alice)
+        Nothing
+        defNewProteusConv
+          { newConvQualifiedUsers = [bob, charlie, dee],
+            newConvTeam = Just (ConvTeamInfo tid)
+          }
+        <!! const 201 === statusCode
+
+  c <- view tsCannon
+  WS.bracketRN c (map qUnqualified [alice, bob, charlie, dee]) $ \[wsA, wsB, wsC, wsD] -> do
+    -- conversation access role changes to team only
+    (_, reqs) <- withTempMockFederator' (mockReply ()) $ do
+      -- Delete the domain that Dee lives on
+      deleteFederation remoteDomain !!! const 200 === statusCode
+      -- First notification to local clients
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
+        wsAssertFederationDeleted remoteDomain
+      -- Second notification to local clients
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
+        wsAssertFederationDeleted remoteDomain
+      -- dee's remote doesn't receive a notification
+      WS.assertNoEvent (5 # Second) [wsD]
+    -- There should be not requests out to the federtaion domain
+    liftIO $ reqs @?= []
+
+  -- only alice, bob, and charlie remain
+  conv2 <-
+    responseJsonError
+      =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
+        <!! const 200 === statusCode
+  liftIO $ sort (omQualifiedId <$> cmOthers (cnvMembers conv2)) @?= sort [bob, charlie]
+
+-- @END

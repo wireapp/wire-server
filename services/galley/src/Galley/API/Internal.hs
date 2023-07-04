@@ -127,6 +127,7 @@ import Cassandra (Consistency(LocalQuorum), Page (..), paramsP, ClientState)
 import Database.CQL.IO (paginate)
 import Galley.Cassandra.Queries
 import Galley.Cassandra.Conversation.Members
+import Galley.Env (currentFanoutLimit, _options)
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
@@ -331,7 +332,7 @@ internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed 
     capture "domain"
       .&. accept "application" "json"
 
-  delete "/i/federation/:domain" (continue (internalDeleteFederationDomainH (toRange (Proxy @1000)))) $
+  delete "/i/federation/:domain" (continue internalDeleteFederationDomainH) $
     capture "domain"
       .&. accept "application" "json"
 
@@ -549,10 +550,9 @@ internalDeleteFederationDomainH ::
     Member GundeckAccess r,
     Member ExternalAccess r
   ) =>
-  Range 1 1000 Int32 -> -- TODO what values should go here?
   Domain ::: JSON ->
   Sem r Response
-internalDeleteFederationDomainH (fromRange -> maxPage) (domain ::: _) = do
+internalDeleteFederationDomainH (domain ::: _) = do
   -- We have to send the same event twice.
   -- Once before and once after defederation work.
   -- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/809238539/Use+case+Stopping+to+federate+with+a+domain
@@ -562,14 +562,19 @@ internalDeleteFederationDomainH (fromRange -> maxPage) (domain ::: _) = do
   pure (empty & setStatus status200)
   where
     sendNotifications = do
+      maxPage <- inputs $ fromRange . currentFanoutLimit . _options -- This is based on the limits in removeIfLargeFanout
       page <- embedClient $ paginate selectAllMembers (paramsP LocalQuorum () maxPage)
       sendNotificationPage page
     pushEvents results = do
       let (bots, mems) = localBotsAndUsers results
           recipients = Intra.recipient <$> mems
           event = Intra.FederationEvent $ Federation.Event Federation.FederationDelete [domain]
-      for_ (Intra.newPush ListComplete Nothing event recipients) $ \p ->
-        push1 $ p & Intra.pushRoute .~ Intra.RouteDirect
+      for_ (Intra.newPush ListComplete Nothing event recipients) $ \p -> do
+        -- TODO: Transient or not?
+        -- RouteAny is used as it will wake up mobile clients
+        -- and notify them of the changes to federation state.
+        push1 $ p & Intra.pushRoute .~ Intra.RouteAny
+                  -- & Intra.pushTransient .~ True
       deliverAsync (bots `zip` repeat (pushEventJson event))
     sendNotificationPage page = do
       let res = result page
