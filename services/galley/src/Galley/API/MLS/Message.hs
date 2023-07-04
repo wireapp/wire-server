@@ -221,7 +221,10 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           bundle.epoch
           action
           bundle.commit.value
-      pure (events, cmIdentities (paAdd action))
+      -- the sender client is included in the Add action on the first commit,
+      -- but it doesn't need to get a welcome message, so we filter it out here
+      let newClients = filter ((/=) senderIdentity) (cmIdentities (paAdd action))
+      pure (events, newClients)
     SenderExternal _ -> throw (mlsProtocolError "Unexpected sender")
     SenderNewMemberProposal -> throw (mlsProtocolError "Unexpected sender")
     SenderNewMemberCommit -> do
