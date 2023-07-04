@@ -96,20 +96,16 @@ data Route
     -- trigger native pushes if the web socket is unavaiable, but they are stored in
     -- cassandra for later pickup.
     RouteDirect
-  | -- | REFACTOR: this can probably be removed.
-    RouteNative
   deriving (Eq, Ord, Enum, Bounded, Show)
 
 instance FromJSON Route where
   parseJSON (String "any") = pure RouteAny
   parseJSON (String "direct") = pure RouteDirect
-  parseJSON (String "native") = pure RouteNative
   parseJSON x = fail $ "Invalid routing: " ++ show (encode x)
 
 instance ToJSON Route where
   toJSON RouteAny = String "any"
   toJSON RouteDirect = String "direct"
-  toJSON RouteNative = String "native"
 
 -----------------------------------------------------------------------------
 -- Recipient
