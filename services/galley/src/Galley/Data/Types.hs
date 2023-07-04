@@ -103,5 +103,5 @@ data LockAcquired
   deriving (Show, Eq)
 
 -- | Set of users that could not be notified of their addition to a new conversation, and
--- should be removed from the conv for consistenty.
+-- should be removed from the conv for consistency.
 type MemberAddFailed = Set (Remote UserId)
