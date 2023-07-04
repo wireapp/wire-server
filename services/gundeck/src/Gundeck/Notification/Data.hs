@@ -38,7 +38,9 @@ import Data.List1 (List1, toNonEmpty)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL ((:<)))
 import qualified Data.Sequence as Seq
-import Gundeck.Options (NotificationTTL (..))
+import Gundeck.Env
+import Gundeck.Options (NotificationTTL (..), optSettings, setMaxPayloadLoadSize)
+import Gundeck.Push.Native.Serialise ()
 import Imports hiding (cs)
 import UnliftIO (pooledForConcurrentlyN_)
 import UnliftIO.Async (pooledMapConcurrentlyN)
@@ -182,8 +184,8 @@ payloadSize (_, mbPayload, _, mbPayloadRefSize, _) =
 -- | Fetches referenced payloads until maxTotalSize payload bytes are fetched from the database.
 -- At least the first row is fetched regardless of the payload size.
 fetchPayloads :: (MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Int32 -> [NotifRow] -> m (Seq QueuedNotification)
-fetchPayloads c maxTotalSize rows = do
-  let rows' = truncateNotifs [] (0 :: Int) maxTotalSize rows
+fetchPayloads c maxPayloadLoadSize rows = do
+  let rows' = truncateNotifs [] (0 :: Int) maxPayloadLoadSize rows
   Seq.fromList . catMaybes <$> pooledMapConcurrentlyN 16 (fetchPayload c) rows'
   where
     truncateNotifs acc i left [] = reverse acc
@@ -196,12 +198,13 @@ fetchPayloads c maxTotalSize rows = do
 -- https://docs.datastax.com/en/developer/java-driver/3.2/manual/paging/).
 --
 -- The boolean indicates whether more notifications can be fetched.
-collect :: (MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Seq QueuedNotification -> Bool -> Int -> m (Page NotifRow) -> m (Seq QueuedNotification, Bool)
+collect :: (MonadReader Env m, MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Seq QueuedNotification -> Bool -> Int -> m (Page NotifRow) -> m (Seq QueuedNotification, Bool)
 collect c acc lastPageHasMore remaining getPage
   | remaining <= 0 || not lastPageHasMore = pure (acc, lastPageHasMore)
   | otherwise = do
+      maxPayloadLoadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . optSettings . setMaxPayloadLoadSize)
       page <- getPage
-      s <- fetchPayloads c 100000000 (result page)
+      s <- fetchPayloads c maxPayloadLoadSize (result page)
       let remaining' = remaining - Seq.length s
       collect c (acc <> s) (hasMore page) remaining' (liftClient (nextPage page))
 
@@ -213,7 +216,7 @@ mkResultPage size more ns =
       resultGap = False
     }
 
-fetch :: (MonadClient m, MonadUnliftIO m) => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
+fetch :: (MonadReader Env m, MonadClient m, MonadUnliftIO m) => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
 fetch u c Nothing (fromIntegral . fromRange -> size) = do
   let pageSize = 100
   let page1 = retry x1 $ paginate cqlStart (paramsP LocalQuorum (Identity u) pageSize)
