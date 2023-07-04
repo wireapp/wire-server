@@ -75,7 +75,7 @@ serialiseOkProp r =
 
 genRecipient :: Gen Recipient
 genRecipient = do
-  r <- recipient <$> arbitrary <*> elements [RouteAny, RouteDirect, RouteNative]
+  r <- recipient <$> arbitrary <*> elements [RouteAny, RouteDirect]
   c <- genRecipientClients
   pure $ r & set recipientClients c
 
