@@ -17,7 +17,7 @@ def random_letters(n=10):
     return "".join(random.choices(string.ascii_letters, k=n))
 
 
-def random_email(domain='example.com'):
+def random_email(domain='default.domain'):
     return "test-email" + "-" + random_letters(10) + "@" + domain
 
 

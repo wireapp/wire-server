@@ -200,7 +200,7 @@ microsoftAzure AcceptanceConfig {..} = do
                        "id": "0",
                        "meta": {
                          "resourceType": "User",
-                         "location": "https://example.com/Users/id",
+                         "location": "https://default.domain/Users/id",
                          "created": "2018-01-01T00:00:00Z",
                          "version": "W/\"testVersion\"",
                          "lastModified": "2018-01-01T00:00:00Z"
@@ -248,7 +248,7 @@ microsoftAzure AcceptanceConfig {..} = do
                        "id": "0",
                        "meta": {
                          "resourceType": "User",
-                         "location": "https://example.com/Users/id",
+                         "location": "https://default.domain/Users/id",
                          "created": "2018-01-01T00:00:00Z",
                          "version": "W/\"testVersion\"",
                          "lastModified": "2018-01-01T00:00:00Z"

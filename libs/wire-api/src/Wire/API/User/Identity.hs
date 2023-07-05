@@ -426,11 +426,11 @@ mkSampleUref :: Text -> Text -> SAML.UserRef
 mkSampleUref iseed nseed = SAML.UserRef issuer nameid
   where
     issuer :: SAML.Issuer
-    issuer = SAML.Issuer ([uri|http://example.com/|] & URI.pathL .~ cs ("/" </> cs iseed))
+    issuer = SAML.Issuer ([uri|http://default.domain/|] & URI.pathL .~ cs ("/" </> cs iseed))
 
     nameid :: SAML.NameID
     nameid = fromRight (error "impossible") $ do
-      unqualified <- SAML.mkUNameIDEmail $ "me" <> nseed <> "@example.com"
+      unqualified <- SAML.mkUNameIDEmail $ "me" <> nseed <> "@default.domain"
       SAML.mkNameID unqualified Nothing Nothing Nothing
 
 -- | @mkSampleUref "" ""@

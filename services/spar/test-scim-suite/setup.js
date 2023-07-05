@@ -2,19 +2,19 @@
 
 if (pm.environment.get("wire_setup_complete") !== "complete") {
     const randomString = function() { return Math.random().toString(36).substr(2, 5); };
-    const randomEmail = function () { return randomString() +  "@example.com";};
+    const randomEmail = function () { return randomString() +  "@default.domain";};
 
     /* Folder: User tests */
     const user1userName = randomString();
     pm.environment.set("user1userName", user1userName);
     /* NOTE: Making assumption here that externalId is an email */
-    pm.environment.set("user1externalId", user1userName + "@example.com");
+    pm.environment.set("user1externalId", user1userName + "@default.domain");
     const user2userName = randomString();
     pm.environment.set("user2userName", user2userName);
-    pm.environment.set("user2externalId", user2userName + "@example.com");
+    pm.environment.set("user2externalId", user2userName + "@default.domain");
     const user2userName2 = randomString();
     pm.environment.set("user2userName2", user2userName2);
-    pm.environment.set("user2externalId2", user2userName2 + "@example.com");
+    pm.environment.set("user2externalId2", user2userName2 + "@default.domain");
 
     /* Folder: User tests with garbage */
     pm.environment.set("garbage1_externalId", randomEmail());

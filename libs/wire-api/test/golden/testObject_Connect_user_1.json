@@ -3,7 +3,7 @@
     "message": "E",
     "name": ".🝊]G",
     "qualified_recipient": {
-        "domain": "foo.example.com",
+        "domain": "foo.default.domain",
         "id": "00000002-0000-0001-0000-000400000004"
     },
     "recipient": "00000002-0000-0001-0000-000400000004"

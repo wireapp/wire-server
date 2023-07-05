@@ -26,10 +26,10 @@ testObject_FederationStatus_1 :: FederationStatus
 testObject_FederationStatus_1 = FullyConnected
 
 testObject_FederationStatus_2 :: FederationStatus
-testObject_FederationStatus_2 = NotConnectedDomains (Domain "d.example.com") (Domain "e.example.com")
+testObject_FederationStatus_2 = NotConnectedDomains (Domain "d.default.domain") (Domain "e.default.domain")
 
 testObject_RemoteDomains_1 :: RemoteDomains
-testObject_RemoteDomains_1 = RemoteDomains $ Set.fromList [Domain "a.example.com", Domain "b.example.com"]
+testObject_RemoteDomains_1 = RemoteDomains $ Set.fromList [Domain "a.default.domain", Domain "b.default.domain"]
 
 testObject_RemoteDomains_2 :: RemoteDomains
 testObject_RemoteDomains_2 = RemoteDomains mempty

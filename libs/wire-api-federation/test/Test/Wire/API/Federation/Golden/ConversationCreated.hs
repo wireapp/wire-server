@@ -47,7 +47,7 @@ testObject_ConversationCreated1 =
               { omQualifiedId =
                   Qualified
                     (read "50e6fff1-ffbd-4235-bc73-19c093433beb")
-                    (Domain "golden.example.com"),
+                    (Domain "golden.default.domain"),
                 omService = Nothing,
                 omConvRoleName = roleNameWireAdmin
               },
@@ -55,7 +55,7 @@ testObject_ConversationCreated1 =
               { omQualifiedId =
                   Qualified
                     (read "6801e49b-918c-4eef-baed-f18522152fca")
-                    (Domain "golden.example.com"),
+                    (Domain "golden.default.domain"),
                 omService =
                   Just
                     ( ServiceRef

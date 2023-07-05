@@ -40,8 +40,8 @@ names and identifiers of users local to an individual backend in the
 context of federation.
 
 The distinction between the two domains allows the owner of a backend
-domain, e.g. `example.com`, to host their Wire backend under a
-different infrastructure domain, e.g. `wire.infra.example.com`.
+domain, e.g. `default.domain`, to host their Wire backend under a
+different infrastructure domain, e.g. `wire.infra.default.domain`.
 
 (federation_ingress)=
 

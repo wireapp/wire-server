@@ -33,7 +33,7 @@ import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
 
 domain :: Domain
-domain = Domain "golden.example.com"
+domain = Domain "golden.default.domain"
 
 testObject_ConversationsResponse_1 :: ConversationsResponse
 testObject_ConversationsResponse_1 =
@@ -41,11 +41,11 @@ testObject_ConversationsResponse_1 =
     { crFound = [conv1, conv2],
       crNotFound =
         [ Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002"))) domain,
-          Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-111111111112"))) (Domain "golden2.example.com")
+          Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-111111111112"))) (Domain "golden2.default.domain")
         ],
       crFailed =
         [ Qualified (Id (fromJust (UUID.fromString "00000018-4444-0020-0000-000e00000002"))) domain,
-          Qualified (Id (fromJust (UUID.fromString "99999999-0000-0020-0000-111111111112"))) (Domain "golden3.example.com")
+          Qualified (Id (fromJust (UUID.fromString "99999999-0000-0020-0000-111111111112"))) (Domain "golden3.default.domain")
         ]
     }
 

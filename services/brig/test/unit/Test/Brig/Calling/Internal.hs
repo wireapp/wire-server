@@ -33,16 +33,16 @@ tests =
   testGroup "Calling.API" $
     [ testGroup "sftServerFromSrvTarget" $
         [ testCase "when srvTarget ends with a dot" $ do
-            let Right expectedServer = sftServer <$> mkHttpsUrl [URI.uri|https://sft1.env.example.com:9364|]
+            let Right expectedServer = sftServer <$> mkHttpsUrl [URI.uri|https://sft1.env.default.domain:9364|]
             assertEqual
               "the dot should be stripped from sft server"
               expectedServer
-              (sftServerFromSrvTarget $ SrvTarget "sft1.env.example.com." 9364),
+              (sftServerFromSrvTarget $ SrvTarget "sft1.env.default.domain." 9364),
           testCase "when srvTarget doesn't end with a dot" $ do
-            let Right expectedServer = sftServer <$> mkHttpsUrl [URI.uri|https://sft2.env.example.com:443|]
+            let Right expectedServer = sftServer <$> mkHttpsUrl [URI.uri|https://sft2.env.default.domain:443|]
             assertEqual
               "the dot should be stripped from sft server"
               expectedServer
-              (sftServerFromSrvTarget $ SrvTarget "sft2.env.example.com" 443)
+              (sftServerFromSrvTarget $ SrvTarget "sft2.env.default.domain" 443)
         ]
     ]

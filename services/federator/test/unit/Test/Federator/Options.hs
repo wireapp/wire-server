@@ -77,7 +77,7 @@ testSettings =
           [QQ.i|
           federationStrategy:
             allowedDomains:
-              - server2.example.com
+              - server2.default.domain
           useSystemCAStore: false
           clientCertificate: client.pem
           clientPrivateKey: client-key.pem|],

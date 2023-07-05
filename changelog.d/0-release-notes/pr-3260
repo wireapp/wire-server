@@ -26,8 +26,8 @@ If your federator config values contain something like this:
 ```
     federationStrategy:
       allowedDomains:
-      - red.example.com
-      - blue.example.com
+      - red.default.domain
+      - blue.default.domain
 ```
 
 you need to make sure that the following lines are part of your brig
@@ -40,9 +40,9 @@ brig:
   config:
     optSettings:
       setFederationDomainConfigs:
-      - domain: red.example.com
+      - domain: red.default.domain
         search_policy: full_search
-      - domain: blue.example.com
+      - domain: blue.default.domain
         search_policy: no_search
 ```
 

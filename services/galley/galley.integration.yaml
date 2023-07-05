@@ -47,7 +47,7 @@ settings:
   #      _wire-server-federator._tcp.<federationDomain>
   #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
   #   Remember to keep it the same in Brig
-  federationDomain: example.com
+  federationDomain: default.domain
   mlsPrivateKeyPaths:
     removal:
       ed25519: test/resources/ed25519.pem
@@ -65,7 +65,7 @@ settings:
     classifiedDomains:
       status: enabled
       config:
-        domains: ["example.com"]
+        domains: ["default.domain"]
     fileSharing:
       defaults:
         status: enabled

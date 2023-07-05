@@ -1505,7 +1505,7 @@ instance S.ToSchema ListUsersQuery where
           & S.type_ ?~ S.SwaggerObject
           & S.description ?~ "exactly one of qualified_ids or qualified_handles must be provided."
           & S.properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
-          & S.example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])
+          & S.example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "default.domain")])
 
 -------------------------------------------------------------------------------
 -- AccountStatus

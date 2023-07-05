@@ -549,7 +549,7 @@ testSearchOtherDomain opts brig = do
   otherSearchResult :: [Contact] <- liftIO $ generate arbitrary
   let mockResponse = Aeson.encode (SearchResponse otherSearchResult ExactHandleSearch)
   (searchResult, _) <- liftIO . withTempMockFederator opts mockResponse $ do
-    executeSearchWithDomain brig (userId user) "someSearchText" (Domain "non-existent.example.com")
+    executeSearchWithDomain brig (userId user) "someSearchText" (Domain "non-existent.default.domain")
   let expectedResult =
         SearchResult
           { searchResults = otherSearchResult,

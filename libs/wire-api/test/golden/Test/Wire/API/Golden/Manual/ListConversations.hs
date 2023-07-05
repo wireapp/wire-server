@@ -29,7 +29,7 @@ testObject_ListConversations_1 :: ListConversations
 testObject_ListConversations_1 =
   ListConversations
     ( unsafeRange
-        [ Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002"))) (Domain "domain.example.com"),
-          Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-111111111112"))) (Domain "domain2.example.com")
+        [ Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002"))) (Domain "domain.default.domain"),
+          Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-111111111112"))) (Domain "domain2.default.domain")
         ]
     )

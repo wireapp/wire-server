@@ -30,7 +30,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 
 testDomain :: Domain
-testDomain = Domain "testdomain.example.com"
+testDomain = Domain "testdomain.default.domain"
 
 testObject_NewConv_user_1 :: NewConv
 testObject_NewConv_user_1 =

@@ -3202,7 +3202,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 
 ## Security improvements
 
-* Authentication cookies are set to the specific DNS name of the backend server (like nginz-https.example.com), instead of a wildcard domain (like *.example.com). This is achieved by leaving the domain empty in the Set-Cookie header, but changing the code to allow clients with old cookies to continue using them until they get renewed. (#1102)
+* Authentication cookies are set to the specific DNS name of the backend server (like nginz-https.default.domain), instead of a wildcard domain (like *.default.domain). This is achieved by leaving the domain empty in the Set-Cookie header, but changing the code to allow clients with old cookies to continue using them until they get renewed. (#1102)
 
 ## Bug Fixes
 

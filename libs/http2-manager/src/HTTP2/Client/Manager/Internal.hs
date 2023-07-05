@@ -108,8 +108,8 @@ setSSLContext ctx mgr = mgr {sslContext = ctx}
 
 -- | Remove traling dots in hostname while verifying hostname in the certificate
 -- presented by the server. For instance, when connecting with
--- 'foo.example.com.' (Note the trailing dot) by default most SSL libraries fail
--- hostname verification if the server has a certificate for 'foo.example.com'
+-- 'foo.default.domain.' (Note the trailing dot) by default most SSL libraries fail
+-- hostname verification if the server has a certificate for 'foo.default.domain'
 -- (Note the lack of a trailing dot). Setting this flag makes the hostname
 -- verification succeed for these hosts. However, this will make the hostname
 -- verification fail if the host presents a certificate which does have a

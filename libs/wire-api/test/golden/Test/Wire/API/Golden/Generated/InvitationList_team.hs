@@ -66,7 +66,7 @@ testObject_InvitationList_team_2 =
                       }
                   ),
               inInviteePhone = Just (Phone {fromPhone = "+851333011"}),
-              inInviteeUrl = Just (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14"))
+              inInviteeUrl = Just (fromRight' (parseURI strictURIParserOptions "https://default.domain/inv14"))
             }
         ],
       ilHasMore = True

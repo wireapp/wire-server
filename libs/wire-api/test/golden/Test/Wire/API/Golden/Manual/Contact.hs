@@ -27,7 +27,7 @@ import Wire.API.User.Search (Contact (..))
 testObject_Contact_1 :: Contact
 testObject_Contact_1 =
   Contact
-    { contactQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002"))) (Domain "example.com"),
+    { contactQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002"))) (Domain "default.domain"),
       contactName = "Foobar",
       contactColorId = Just 1,
       contactHandle = Just "foobar1",
@@ -37,7 +37,7 @@ testObject_Contact_1 =
 testObject_Contact_2 :: Contact
 testObject_Contact_2 =
   Contact
-    { contactQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000003"))) (Domain "another.example.com"),
+    { contactQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000003"))) (Domain "another.default.domain"),
       contactName = "Foobar2",
       contactColorId = Nothing,
       contactHandle = Nothing,

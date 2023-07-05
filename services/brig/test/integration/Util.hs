@@ -254,7 +254,7 @@ localAndRemoteUserWithConvId ::
 localAndRemoteUserWithConvId brig shouldBeLocal = do
   quid <- userQualifiedId <$> randomUser brig
   let go = do
-        other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+        other <- Qualified <$> randomId <*> pure (Domain "far-away.default.domain")
         let convId = one2OneConvId quid other
             isLocal = qDomain quid == qDomain convId
         if shouldBeLocal == isLocal
@@ -263,7 +263,7 @@ localAndRemoteUserWithConvId brig shouldBeLocal = do
   go
 
 fakeRemoteUser :: (HasCallStack, MonadIO m) => m (Qualified UserId)
-fakeRemoteUser = Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+fakeRemoteUser = Qualified <$> randomId <*> pure (Domain "far-away.default.domain")
 
 randomClient :: MonadIO m => m ClientId
 randomClient = liftIO $ generate arbitrary

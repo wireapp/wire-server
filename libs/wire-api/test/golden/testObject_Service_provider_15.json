@@ -37,7 +37,7 @@
     "auth_tokens": [
         "yA=="
     ],
-    "base_url": "https://example.com",
+    "base_url": "https://default.domain",
     "description": "",
     "enabled": true,
     "id": "00000002-0000-0002-0000-000200000000",

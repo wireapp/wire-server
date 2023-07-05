@@ -93,7 +93,7 @@ import Wire.API.User.Profile
   )
 
 domain :: Domain
-domain = Domain "golden.example.com"
+domain = Domain "golden.default.domain"
 
 testObject_NewBotRequest_provider_1 :: NewBotRequest
 testObject_NewBotRequest_provider_1 =

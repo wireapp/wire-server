@@ -4,11 +4,11 @@
     "creator": "00000001-0000-0001-0000-000200000001",
     "failed_to_add": [
         {
-            "domain": "golden-unreachable-1.example.com",
+            "domain": "golden-unreachable-1.default.domain",
             "id": "a0000001-0000-0001-0000-000200000007"
         },
         {
-            "domain": "golden-unreachable-1.example.com",
+            "domain": "golden-unreachable-1.default.domain",
             "id": "f0000001-b000-0001-0000-000200060005"
         }
     ],
@@ -27,7 +27,7 @@
             "otr_muted_ref": null,
             "otr_muted_status": null,
             "qualified_id": {
-                "domain": "golden.example.com",
+                "domain": "golden.default.domain",
                 "id": "00000001-0000-0001-0000-000100000000"
             },
             "service": null,
@@ -40,7 +40,7 @@
     "name": " 0",
     "protocol": "proteus",
     "qualified_id": {
-        "domain": "golden.example.com",
+        "domain": "golden.default.domain",
         "id": "00000001-0000-0000-0000-000000000000"
     },
     "receipt_mode": -2,

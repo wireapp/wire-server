@@ -81,7 +81,7 @@ testParseKeyPackage = do
     Right identity ->
       identity
         @?= ClientIdentity
-          { ciDomain = Domain "mls.example.com",
+          { ciDomain = Domain "mls.default.domain",
             ciUser = Id (fromJust (UUID.fromString "b455a431-9db6-4404-86e7-6a3ebe73fcaf")),
             ciClient = newClientId 0x3ae58155
           }
@@ -174,13 +174,13 @@ testRemoveProposalMessageSignature :: IO ()
 testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
   qcid <- do
     let c = newClientId 0x3ae58155
-    usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
+    usr <- flip Qualified (Domain "default.domain") <$> (Id <$> UUID.nextRandom)
     pure (userClientQid usr c)
   void . liftIO $ spawn (cli qcid tmp ["init", qcid]) Nothing
 
   qcid2 <- do
     let c = newClientId 0x4ae58157
-    usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
+    usr <- flip Qualified (Domain "default.domain") <$> (Id <$> UUID.nextRandom)
     pure (userClientQid usr c)
   void . liftIO $ spawn (cli qcid2 tmp ["init", qcid2]) Nothing
   kp <- liftIO $ decodeMLSError <$> spawn (cli qcid2 tmp ["key-package", "create"]) Nothing
@@ -220,13 +220,13 @@ testParseGroupInfoBundle :: IO ()
 testParseGroupInfoBundle = withSystemTempDirectory "mls" $ \tmp -> do
   qcid <- do
     let c = newClientId 0x3ae58155
-    usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
+    usr <- flip Qualified (Domain "default.domain") <$> (Id <$> UUID.nextRandom)
     pure (userClientQid usr c)
   void . liftIO $ spawn (cli qcid tmp ["init", qcid]) Nothing
 
   qcid2 <- do
     let c = newClientId 0x4ae58157
-    usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
+    usr <- flip Qualified (Domain "default.domain") <$> (Id <$> UUID.nextRandom)
     pure (userClientQid usr c)
   void . liftIO $ spawn (cli qcid2 tmp ["init", qcid2]) Nothing
   kp :: RawMLS KeyPackage <- liftIO $ decodeMLSError <$> spawn (cli qcid2 tmp ["key-package", "create"]) Nothing

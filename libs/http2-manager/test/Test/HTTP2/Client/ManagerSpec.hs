@@ -233,8 +233,8 @@ loadServerSSLContext = do
 loadWrongServerSSLContext :: IO SSL.SSLContext
 loadWrongServerSSLContext = do
   ctx <- SSL.context
-  SSL.contextSetCertificateFile ctx "test/resources/localhost.example.com.pem"
-  SSL.contextSetPrivateKeyFile ctx "test/resources/localhost.example.com-key.pem"
+  SSL.contextSetCertificateFile ctx "test/resources/localhost.default.domain.pem"
+  SSL.contextSetPrivateKeyFile ctx "test/resources/localhost.default.domain-key.pem"
   SSL.contextSetALPNProtos ctx ["h2"]
   SSL.contextSetCiphers ctx "HIGH"
   sslCheck <- SSL.contextCheckPrivateKey ctx

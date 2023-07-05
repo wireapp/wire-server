@@ -35,12 +35,12 @@ testModifiedBrig :: HasCallStack => App ()
 testModifiedBrig = do
   withModifiedService
     Brig
-    (setField "optSettings.setFederationDomain" "overridden.example.com")
+    (setField "optSettings.setFederationDomain" "overridden.default.domain")
     $ \_domain -> do
       bindResponse (Public.getAPIVersion OwnDomain)
       $ \resp -> do
         resp.status `shouldMatchInt` 200
-        (resp.json %. "domain") `shouldMatch` "overridden.example.com"
+        (resp.json %. "domain") `shouldMatch` "overridden.default.domain"
 
 testModifiedGalley :: HasCallStack => App ()
 testModifiedGalley = do
@@ -79,7 +79,7 @@ testModifiedServices :: HasCallStack => App ()
 testModifiedServices = do
   let serviceMap =
         Map.fromList
-          [ (Brig, setField "optSettings.setFederationDomain" "overridden.example.com"),
+          [ (Brig, setField "optSettings.setFederationDomain" "overridden.default.domain"),
             (Galley, setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
           ]
   withModifiedServices serviceMap $ \_domain -> do
@@ -91,7 +91,7 @@ testModifiedServices = do
     bindResponse (Public.getAPIVersion OwnDomain) $
       \resp -> do
         resp.status `shouldMatchInt` 200
-        (resp.json %. "domain") `shouldMatch` "overridden.example.com"
+        (resp.json %. "domain") `shouldMatch` "overridden.default.domain"
 
     bindResponse (Nginz.getSystemSettingsUnAuthorized OwnDomain) $
       \resp -> do

@@ -72,8 +72,8 @@ testCrudFederationRemotes = do
         bindResponse (Internal.updateFedConn' OwnDomain domain fedConn) $ \res -> do
           addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
 
-  dom1 :: String <- (<> ".example.com") . UUID.toString <$> liftIO UUID.nextRandom
-  dom2 :: String <- (<> ".example.com") . UUID.toString <$> liftIO UUID.nextRandom
+  dom1 :: String <- (<> ".default.domain") . UUID.toString <$> liftIO UUID.nextRandom
+  dom2 :: String <- (<> ".default.domain") . UUID.toString <$> liftIO UUID.nextRandom
 
   let remote1, remote1', remote1'' :: Internal.FedConn
       remote1 = Internal.FedConn dom1 "no_search"
@@ -81,7 +81,7 @@ testCrudFederationRemotes = do
       remote1'' = remote1 {Internal.domain = dom2}
 
       cfgRemotesExpect :: Internal.FedConn
-      cfgRemotesExpect = Internal.FedConn (cs "example.com") "full_search"
+      cfgRemotesExpect = Internal.FedConn (cs "default.domain") "full_search"
 
   remote1J <- make remote1
   remote1J' <- make remote1'
@@ -109,7 +109,7 @@ testCrudOAuthClient :: HasCallStack => App ()
 testCrudOAuthClient = do
   user <- randomUser OwnDomain def
   let appName = "foobar"
-  let url = "https://example.com/callback.html"
+  let url = "https://default.domain/callback.html"
   clientId <- bindResponse (Internal.registerOAuthClient user appName url) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "client_id"
@@ -118,7 +118,7 @@ testCrudOAuthClient = do
     resp.json %. "application_name" `shouldMatch` appName
     resp.json %. "redirect_url" `shouldMatch` url
   let newName = "barfoo"
-  let newUrl = "https://example.com/callback2.html"
+  let newUrl = "https://default.domain/callback2.html"
   bindResponse (Internal.updateOAuthClient user clientId newName newUrl) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "application_name" `shouldMatch` newName

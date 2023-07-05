@@ -628,12 +628,12 @@ testUserInvalidDomain :: Brig -> Http ()
 testUserInvalidDomain brig = do
   qself <- userQualifiedId <$> randomUser brig
   let uid = qUnqualified qself
-  get (brig . paths ["users", "invalid.example.com", toByteString' uid] . zUser uid)
+  get (brig . paths ["users", "invalid.default.domain", toByteString' uid] . zUser uid)
     !!! do
       const 422 === statusCode
       const (Just "/federation/api-version")
         === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
-      const (Just "invalid.example.com")
+      const (Just "invalid.default.domain")
         === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
 
 testExistingUserUnqualified :: Brig -> Http ()
@@ -794,9 +794,9 @@ testMultipleUsers opts brig = do
   u2 <- randomUser brig
   u3 <- createAnonUser "a" brig
   -- A remote user that can't be listed
-  u4 <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+  u4 <- Qualified <$> randomId <*> pure (Domain "far-away.default.domain")
   -- A remote user that can be listed
-  let evenFurtherAway = Domain "even-further-away.example.com"
+  let evenFurtherAway = Domain "even-further-away.default.domain"
   u5 <- Qualified <$> randomId <*> pure evenFurtherAway
   let u5Profile =
         UserProfile
@@ -835,7 +835,7 @@ testMultipleUsers opts brig = do
       -- Galley isn't needed, but this is what mock federators are available.
       galleyHandler _ = error "not mocked"
   (response, _rpcCalls, _galleyCalls) <- liftIO $
-    withMockedFederatorAndGalley opts (Domain "example.com") fedMockResponse galleyHandler $ do
+    withMockedFederatorAndGalley opts (Domain "default.domain") fedMockResponse galleyHandler $ do
       post
         ( brig
             . zUser (userId u1)
@@ -963,13 +963,13 @@ testEmailUpdate brig userJournalWatcher = do
   Util.assertEmailUpdateJournaled userJournalWatcher uid eml "user update"
   -- update email, which is exactly the same as before (idempotency)
   initiateEmailUpdateLogin brig eml (emailLogin eml defPassword Nothing) uid !!! const 204 === statusCode
-  -- ensure no other user has "test+<uuid>@example.com"
+  -- ensure no other user has "test+<uuid>@default.domain"
   -- if there is such a user, let's delete it first.  otherwise
-  -- this test fails since there can be only one user with "test+...@example.com"
-  ensureNoOtherUserWithEmail (Email "test" "example.com")
+  -- this test fails since there can be only one user with "test+...@default.domain"
+  ensureNoOtherUserWithEmail (Email "test" "default.domain")
   -- we want to use a non-trusted domain in order to verify profile changes
-  flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
-  flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
+  flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@default.domain"
+  flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@default.domain"
 
   -- adding a clean-up step seems to avoid the subsequent failures.
   -- If subsequent runs start failing, it's possible that the aggressive setting
@@ -993,7 +993,7 @@ testEmailUpdate brig userJournalWatcher = do
       Util.assertEmailUpdateJournaled userJournalWatcher uid eml "user update"
       -- Ensure login work both with the full email and the "short" version
       login brig (defEmailLogin eml) SessionCookie !!! const 200 === statusCode
-      login brig (defEmailLogin (Email "test" "example.com")) SessionCookie !!! const 200 === statusCode
+      login brig (defEmailLogin (Email "test" "default.domain")) SessionCookie !!! const 200 === statusCode
 
 testPhoneUpdate :: Brig -> Http ()
 testPhoneUpdate brig = do

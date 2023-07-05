@@ -78,11 +78,11 @@ federate:
   # # list of host/ip/cert common names / subject alt names, and optional issuer
   # # names to accept DTLS connections from. There can be multiple entries.
   # remoteWhitelist:
-  #   - host: example.com
+  #   - host: default.domain
   #     issuer: Issuer Common Name
-  #   - host: another.example.com
+  #   - host: another.default.domain
   #     issuer: "DigiCert SHA2 Extended Validation Server CA"
-  #   - host: another-host-without-issuer.example.com
+  #   - host: another-host-without-issuer.default.domain
     remoteWhitelist: []
 
 metrics:

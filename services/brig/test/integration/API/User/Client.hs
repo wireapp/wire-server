@@ -781,7 +781,7 @@ testGetUserPrekeysQualified brig opts = do
 testGetUserPrekeysInvalidDomain :: Brig -> Http ()
 testGetUserPrekeysInvalidDomain brig = do
   [(uid, _c, _lpk, _)] <- generateClients 1 brig
-  get (brig . paths ["users", "invalid.example.com", toByteString' uid, "prekeys"] . zUser uid) !!! do
+  get (brig . paths ["users", "invalid.default.domain", toByteString' uid, "prekeys"] . zUser uid) !!! do
     const 422 === statusCode
 
 testGetClientPrekey :: Brig -> Http ()

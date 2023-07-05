@@ -1,6 +1,6 @@
 { "found" :
   [ { "qualified_id" :
-      { "domain" : "example.com"
+      { "domain" : "default.domain"
       , "id" : "4f201a43-935e-4e19-8fe0-0a878d3d6e74"
       }
     , "id" : "4f201a43-935e-4e19-8fe0-0a878d3d6e74"

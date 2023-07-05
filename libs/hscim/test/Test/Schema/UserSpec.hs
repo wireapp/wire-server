@@ -92,7 +92,7 @@ spec = do
         [ ("schemas", toJSON @[Schema] mempty),
           ("name", toJSON @Name emptyName),
           ("nickName", toJSON @Text mempty),
-          ("profileUrl", toJSON @URI (URI [uri|https://example.com|])),
+          ("profileUrl", toJSON @URI (URI [uri|https://default.domain|])),
           ("title", toJSON @Text mempty),
           ("userType", toJSON @Text mempty),
           ("preferredLanguage", toJSON @Text mempty),
@@ -238,7 +238,7 @@ completeUser =
             },
       displayName = Just "sample displayName",
       nickName = Just "sample nickName",
-      profileUrl = Just (URI [uri|https://example.com|]),
+      profileUrl = Just (URI [uri|https://default.domain|]),
       title = Just "sample title",
       userType = Just "sample userType",
       preferredLanguage = Just "da, en-gb;q=0.8, en;q=0.7",
@@ -252,7 +252,7 @@ completeUser =
                 maybe
                   (error "couldn't parse email")
                   EmailAddress2
-                  (emailAddress "user@example.com"),
+                  (emailAddress "user@default.domain"),
               Email.primary = Nothing
             }
         ],
@@ -271,7 +271,7 @@ completeUser =
       photos =
         [ Photo
             { Photo.typ = Just "userpic",
-              Photo.value = Just (URI [uri|https://example.com/userpic.png|])
+              Photo.value = Just (URI [uri|https://default.domain/userpic.png|])
             }
         ],
       addresses =
@@ -332,7 +332,7 @@ completeUserJson =
   "active": true,
   "photos": [
     {
-      "value": "https://example.com/userpic.png",
+      "value": "https://default.domain/userpic.png",
       "type": "userpic"
     }
   ],
@@ -342,7 +342,7 @@ completeUserJson =
   "password": "sample password",
   "emails": [
     {
-      "value": "user@example.com",
+      "value": "user@default.domain",
       "type": "work"
     }
   ],
@@ -358,7 +358,7 @@ completeUserJson =
   ],
   "displayName": "sample displayName",
   "nickName": "sample nickName",
-  "profileUrl": "https://example.com",
+  "profileUrl": "https://default.domain",
   "title": "sample title",
   "externalId": "sample externalId",
   "userType": "sample userType"

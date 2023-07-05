@@ -1,6 +1,6 @@
 # Fully qualified domain name (FQDN) of the domain where to serve inbucket.
 # E.g. 'inbucket.my-test-env.wire.link'
-host: "inbucket.example.com"
+host: "inbucket.default.domain"
 
 config:
   ingressClass: "nginx"

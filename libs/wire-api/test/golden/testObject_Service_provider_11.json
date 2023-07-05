@@ -12,7 +12,7 @@
         "",
         ""
     ],
-    "base_url": "https://example.com",
+    "base_url": "https://default.domain",
     "description": "",
     "enabled": false,
     "id": "00000000-0000-0002-0000-000200000001",

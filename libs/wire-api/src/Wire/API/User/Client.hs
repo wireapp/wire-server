@@ -276,7 +276,7 @@ qualifiedUserClientMapSchema sch =
       Swagger.schema . Swagger.example
         ?~ toJSON
           ( Map.singleton
-              ("domain1.example.com" :: Text)
+              ("domain1.default.domain" :: Text)
               (schemaDoc innerSchema ^. Swagger.schema . Swagger.example)
           )
 
@@ -443,7 +443,7 @@ instance ToSchema QualifiedUserClients where
           & Swagger.schema . Swagger.example
             ?~ toJSON
               ( Map.singleton
-                  ("domain1.example.com" :: Text)
+                  ("domain1.default.domain" :: Text)
                   (view (Swagger.schema . Swagger.example) (schema @UserClients))
               )
 

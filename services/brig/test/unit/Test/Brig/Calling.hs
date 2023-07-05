@@ -92,13 +92,13 @@ tests =
         [ testCase "when service name is provided" $
             assertEqual
               "should use the service name to form domain"
-              "_foo._tcp.example.com."
-              (mkSFTDomain (SFTOptions "example.com" (Just "foo") Nothing Nothing)),
+              "_foo._tcp.default.domain."
+              (mkSFTDomain (SFTOptions "default.domain" (Just "foo") Nothing Nothing)),
           testCase "when service name is not provided" $
             assertEqual
               "should assume service name to be 'sft'"
-              "_sft._tcp.example.com."
-              (mkSFTDomain (SFTOptions "example.com" Nothing Nothing Nothing))
+              "_sft._tcp.default.domain."
+              (mkSFTDomain (SFTOptions "default.domain" Nothing Nothing Nothing))
         ],
       testGroup "sftDiscoveryLoop" $
         [ testCase "when service can be discovered" $ void testSFTDiscoveryLoopWhenSuccessful
@@ -129,14 +129,14 @@ tests =
 
 testSFTDiscoveryLoopWhenSuccessful :: IO SFTEnv
 testSFTDiscoveryLoopWhenSuccessful = do
-  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
-      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
-      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
+  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.default.domain." 443)
+      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.default.domain." 443)
+      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.default.domain." 443)
       returnedEntries = entry1 :| [entry2, entry3]
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
   let intervalInSeconds = 0.001
       intervalInMicroseconds = 1000
-  sftEnv <- mkSFTEnv $ SFTOptions "foo.example.com" Nothing (Just intervalInSeconds) Nothing
+  sftEnv <- mkSFTEnv $ SFTOptions "foo.default.domain" Nothing (Just intervalInSeconds) Nothing
 
   tick <- newEmptyMVar
   delayCallsTVar <- newTVarIO []
@@ -158,9 +158,9 @@ testSFTDiscoveryLoopWhenSuccessful = do
 
 testSRVDiscoveryLoopWhenSuccessful :: IO ()
 testSRVDiscoveryLoopWhenSuccessful = do
-  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
-      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
-      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
+  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.default.domain." 443)
+      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.default.domain." 443)
+      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.default.domain." 443)
       returnedEntries = entry1 :| [entry2, entry3]
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
   let intervalInMicroseconds = 1000
@@ -174,7 +174,7 @@ testSRVDiscoveryLoopWhenSuccessful = do
       . ignoreLogs
       . runDelayWithTick tick delayCallsTVar
       . runFakeDNSLookup fakeDNSEnv
-      $ srvDiscoveryLoop "foo.example.com" intervalInMicroseconds (putMVar savedSrvRecordsMVar)
+      $ srvDiscoveryLoop "foo.default.domain" intervalInMicroseconds (putMVar savedSrvRecordsMVar)
 
   Async.race_ (Async.wait discoveryLoop) (System.timeout (30 # Second) $ takeMVar tick)
 
@@ -197,7 +197,7 @@ testSRVDiscoveryLoopWhenUnsuccessful = do
       . ignoreLogs
       . runDelayWithTick tick delayCallsTVar
       . runFakeDNSLookup fakeDNSEnv
-      . srvDiscoveryLoop "foo.example.com" intervalInMicroseconds
+      . srvDiscoveryLoop "foo.default.domain" intervalInMicroseconds
       $ ( \_ ->
             liftIO $ assertFailure "shouldn't try to save SRV records when they are unavailable"
         )
@@ -212,14 +212,14 @@ testSRVDiscoveryLoopWhenUnsuccessful = do
 testSRVDiscoverWhenAvailable :: IO ()
 testSRVDiscoverWhenAvailable = do
   logRecorder <- newLogRecorder
-  let entry1 = SrvEntry 0 0 (SrvTarget "sft7.foo.example.com." 443)
-      entry2 = SrvEntry 0 0 (SrvTarget "sft8.foo.example.com." 8843)
+  let entry1 = SrvEntry 0 0 (SrvTarget "sft7.foo.default.domain." 443)
+      entry2 = SrvEntry 0 0 (SrvTarget "sft8.foo.default.domain." 8843)
       returnedEntries = entry1 :| [entry2]
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
 
   assertEqual "discovered servers should be returned" (Just returnedEntries)
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
-            discoverSRVRecords "_sft._tcp.foo.example.com"
+            discoverSRVRecords "_sft._tcp.foo.default.domain"
         )
   assertEqual "nothing should be logged" []
     =<< readIORef (recordedLogs logRecorder)
@@ -231,9 +231,9 @@ testSRVDiscoverWhenNotAvailable = do
 
   assertEqual "discovered servers should be returned" Nothing
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
-            discoverSRVRecords "_sft._tcp.foo.example.com"
+            discoverSRVRecords "_sft._tcp.foo.default.domain"
         )
-  assertEqual "should warn about it in the logs" [(Warn, "SRV Records not available, domain=_sft._tcp.foo.example.com\n")]
+  assertEqual "should warn about it in the logs" [(Warn, "SRV Records not available, domain=_sft._tcp.foo.default.domain\n")]
     =<< readIORef (recordedLogs logRecorder)
 
 testSRVDiscoverWhenDNSFails :: IO ()
@@ -243,20 +243,20 @@ testSRVDiscoverWhenDNSFails = do
 
   assertEqual "no servers should be returned" Nothing
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
-            discoverSRVRecords "_sft._tcp.foo.example.com"
+            discoverSRVRecords "_sft._tcp.foo.default.domain"
         )
-  assertEqual "should warn about it in the logs" [(Error, "SRV Lookup failed, Error=IllegalDomain, domain=_sft._tcp.foo.example.com\n")]
+  assertEqual "should warn about it in the logs" [(Error, "SRV Lookup failed, Error=IllegalDomain, domain=_sft._tcp.foo.default.domain\n")]
     =<< readIORef (recordedLogs logRecorder)
 
 testSFTManyServers :: IO ()
 testSFTManyServers = do
-  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
-      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
-      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
-      entry4 = SrvEntry 0 0 (SrvTarget "sft4.foo.example.com." 443)
-      entry5 = SrvEntry 0 0 (SrvTarget "sft5.foo.example.com." 443)
-      entry6 = SrvEntry 0 0 (SrvTarget "sft6.foo.example.com." 443)
-      entry7 = SrvEntry 0 0 (SrvTarget "sft7.foo.example.com." 443)
+  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.default.domain." 443)
+      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.default.domain." 443)
+      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.default.domain." 443)
+      entry4 = SrvEntry 0 0 (SrvTarget "sft4.foo.default.domain." 443)
+      entry5 = SrvEntry 0 0 (SrvTarget "sft5.foo.default.domain." 443)
+      entry6 = SrvEntry 0 0 (SrvTarget "sft6.foo.default.domain." 443)
+      entry7 = SrvEntry 0 0 (SrvTarget "sft7.foo.default.domain." 443)
       entries = entry1 :| [entry2, entry3, entry4, entry5, entry6, entry7]
       sftServers = mkSFTServers entries
   someServers <- getRandomElements (unsafeRange 3) . unSFTServers $ sftServers
@@ -264,10 +264,10 @@ testSFTManyServers = do
 
 testSFTFewerServers :: IO ()
 testSFTFewerServers = do
-  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
-      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
-      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
-      entry4 = SrvEntry 0 0 (SrvTarget "sft4.foo.example.com." 443)
+  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.default.domain." 443)
+      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.default.domain." 443)
+      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.default.domain." 443)
+      entry4 = SrvEntry 0 0 (SrvTarget "sft4.foo.default.domain." 443)
       entries = entry1 :| [entry2, entry3, entry4]
       sftServers = mkSFTServers entries
 
@@ -315,14 +315,14 @@ testSFTStaticDeprecatedEndpoint = do
 testSFTStaticV2NoStaticUrl :: IO ()
 testSFTStaticV2NoStaticUrl = do
   env <- fst <$> sftStaticEnv
-  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
-      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
-      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
+  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.default.domain." 443)
+      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.default.domain." 443)
+      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.default.domain." 443)
       servers = entry1 :| [entry2, entry3]
   sftEnv <-
     SFTEnv
       <$> newIORef (Discovered . mkSFTServers $ servers)
-      <*> pure "foo.example.com"
+      <*> pure "foo.default.domain"
       <*> pure 5
       <*> pure (unsafeRange 1)
   turnUri <- generate arbitrary

@@ -26,7 +26,7 @@ import Imports
 import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClientPrekeyMapV4 (..))
 
 domain1, domain2 :: Domain
-domain1 = Domain "example.com"
+domain1 = Domain "default.domain"
 domain2 = Domain "test.net"
 
 user1, user2 :: UserId

@@ -200,7 +200,7 @@ onConvCreated :: TestM ()
 onConvCreated = do
   c <- view tsCannon
   (alice, qAlice) <- randomUserTuple
-  let remoteDomain = Domain "bobland.example.com"
+  let remoteDomain = Domain "bobland.default.domain"
   qBob <- Qualified <$> randomId <*> pure remoteDomain
   qDee <- Qualified <$> randomId <*> pure remoteDomain
 
@@ -232,7 +232,7 @@ addLocalUser = do
   c <- view tsCannon
   alice <- randomUser
   let qalice = Qualified alice localDomain
-  let remoteDomain = Domain "bobland.example.com"
+  let remoteDomain = Domain "bobland.default.domain"
   bob <- randomId
   let qbob = Qualified bob remoteDomain
   charlie <- randomUser
@@ -275,7 +275,7 @@ addUnconnectedUsersOnly = do
   (alice, qAlice) <- randomUserTuple
   (_charlie, qCharlie) <- randomUserTuple
 
-  let remoteDomain = Domain "bobland.example.com"
+  let remoteDomain = Domain "bobland.default.domain"
   qBob <- Qualified <$> randomId <*> pure remoteDomain
   conv <- randomId
   let qconv = Qualified conv remoteDomain
@@ -327,7 +327,7 @@ removeLocalUser = do
   alice <- randomUser
   bob <- randomId
   let qAlice = Qualified alice localDomain
-  let remoteDomain = Domain "bobland.example.com"
+  let remoteDomain = Domain "bobland.default.domain"
   let qBob = bob `Qualified` remoteDomain
   conv <- randomId
   let qconv = Qualified conv remoteDomain
@@ -390,7 +390,7 @@ removeRemoteUser = do
   qDee <- randomQualifiedUser
   qFlo <- randomQualifiedUser
   let qAlice = Qualified alice localDomain
-      remoteDomain = Domain "bobland.example.com"
+      remoteDomain = Domain "bobland.default.domain"
       qBob = Qualified bob remoteDomain
       dee = qUnqualified qDee
       qEve = Qualified eve remoteDomain
@@ -445,7 +445,7 @@ notifyUpdate extras action etype edata = do
   bob <- randomId
   charlie <- randomUser
   conv <- randomId
-  let bdom = Domain "bob.example.com"
+  let bdom = Domain "bob.default.domain"
       qbob = Qualified bob bdom
       qconv = Qualified conv bdom
       mkMember quid = OtherMember quid Nothing roleNameWireMember
@@ -487,7 +487,7 @@ notifyUpdateUnavailable extras action etype edata = do
   bob <- randomId
   charlie <- randomUser
   conv <- randomId
-  let bdom = Domain "bob.example.com"
+  let bdom = Domain "bob.default.domain"
       qbob = Qualified bob bdom
       qconv = Qualified conv bdom
       mkMember quid = OtherMember quid Nothing roleNameWireMember
@@ -616,7 +616,7 @@ notifyDeletedConversation = do
 
   bob <- randomId
   conv <- randomId
-  let bobDomain = Domain "bob.example.com"
+  let bobDomain = Domain "bob.default.domain"
       qbob = Qualified bob bobDomain
       qconv = Qualified conv bobDomain
       mkMember quid = OtherMember quid Nothing roleNameWireMember
@@ -674,8 +674,8 @@ notifyDeletedConversation = do
 addRemoteUser :: TestM ()
 addRemoteUser = do
   c <- view tsCannon
-  let bdom = Domain "bob.example.com"
-      edom = Domain "eve.example.com"
+  let bdom = Domain "bob.default.domain"
+      edom = Domain "eve.default.domain"
   qalice <- randomQualifiedUser
   qbob <- randomQualifiedId bdom
   qcharlie <- randomQualifiedUser
@@ -715,8 +715,8 @@ leaveConversationSuccess = do
   c <- view tsCannon
   [alice, bob] <- randomUsers 2
   let qBob = Qualified bob localDomain
-      remoteDomain1 = Domain "far-away-1.example.com"
-      remoteDomain2 = Domain "far-away-2.example.com"
+      remoteDomain1 = Domain "far-away-1.default.domain"
+      remoteDomain2 = Domain "far-away-2.default.domain"
   qChad <- (`Qualified` remoteDomain1) <$> randomId
   qDee <- (`Qualified` remoteDomain1) <$> randomId
   qEve <- (`Qualified` remoteDomain2) <$> randomId
@@ -774,7 +774,7 @@ leaveConversationSuccess = do
 
 leaveConversationNonExistent :: TestM ()
 leaveConversationNonExistent = do
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
   alice <- randomQualifiedId remoteDomain
   conv <- randomId
 
@@ -795,7 +795,7 @@ leaveConversationNonExistent = do
 
 leaveConversationInvalidType :: TestM ()
 leaveConversationInvalidType = do
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
   alice <- qTagUnsafe <$> randomQualifiedUser
 
   (bob, conv) <- generateRemoteAndConvIdWithDomain remoteDomain True alice
@@ -829,7 +829,7 @@ onMessageSent = do
       aliceC1 = newClientId 0
       aliceC2 = newClientId 1
       eveC = newClientId 0
-      bdom = Domain "bob.example.com"
+      bdom = Domain "bob.default.domain"
       qconv = Qualified conv bdom
       qbob = Qualified bob bdom
       qalice = Qualified alice localDomain
@@ -904,7 +904,7 @@ onMessageSent = do
 sendMessage :: TestM ()
 sendMessage = do
   cannon <- view tsCannon
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
   localDomain <- viewFederationDomain
 
   -- users and clients
@@ -1022,8 +1022,8 @@ sendMessage = do
 onUserDeleted :: TestM ()
 onUserDeleted = do
   cannon <- view tsCannon
-  let bDomain = Domain "b.far-away.example.com"
-      cDomain = Domain "c.far-away.example.com"
+  let bDomain = Domain "b.far-away.default.domain"
+      cDomain = Domain "c.far-away.default.domain"
 
   alice <- qTagUnsafe <$> randomQualifiedUser
   alex <- randomQualifiedUser
@@ -1140,8 +1140,8 @@ updateConversationByRemoteAdmin = do
   c <- view tsCannon
   (alice, qalice) <- randomUserTuple
 
-  let bdomain = Domain "b.example.com"
-      cdomain = Domain "c.example.com"
+  let bdomain = Domain "b.default.domain"
+      cdomain = Domain "c.default.domain"
   qbob <- randomQualifiedId bdomain
   qcharlie <- randomQualifiedId cdomain
   mapM_ (connectWithRemoteUser alice) [qbob, qcharlie]

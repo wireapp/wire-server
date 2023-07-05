@@ -163,7 +163,7 @@ handleConversationRoleMember = do
 roleUpdateRemoteMember :: TestM ()
 roleUpdateRemoteMember = do
   c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
+  let remoteDomain = Domain "alice.default.domain"
   qalice <- Qualified <$> randomId <*> pure remoteDomain
   qbob <- randomQualifiedUser
   qcharlie <- Qualified <$> randomId <*> pure remoteDomain
@@ -231,7 +231,7 @@ roleUpdateRemoteMember = do
 roleUpdateWithRemotes :: TestM ()
 roleUpdateWithRemotes = do
   c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
+  let remoteDomain = Domain "alice.default.domain"
   qalice <- Qualified <$> randomId <*> pure remoteDomain
   qbob <- randomQualifiedUser
   qcharlie <- randomQualifiedUser
@@ -290,7 +290,7 @@ roleUpdateWithRemotes = do
 roleUpdateWithRemotesUnavailable :: TestM ()
 roleUpdateWithRemotesUnavailable = do
   c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
+  let remoteDomain = Domain "alice.default.domain"
   qalice <- Qualified <$> randomId <*> pure remoteDomain
   qbob <- randomQualifiedUser
   qcharlie <- randomQualifiedUser
@@ -349,7 +349,7 @@ roleUpdateWithRemotesUnavailable = do
 accessUpdateWithRemotes :: TestM ()
 accessUpdateWithRemotes = do
   c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
+  let remoteDomain = Domain "alice.default.domain"
   qalice <- Qualified <$> randomId <*> pure remoteDomain
   qbob <- randomQualifiedUser
   qcharlie <- randomQualifiedUser

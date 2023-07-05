@@ -32,7 +32,7 @@ testObject_SimpleMembers_user_1 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001f-0000-002b-0000-005500000013"))) (Domain "faraway.example.com"),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001f-0000-002b-0000-005500000013"))) (Domain "faraway.default.domain"),
               smConvRoleName = fromJust (parseRoleName "n0_wu2h66nj3lerw_blivsh6by09a")
             }
         ]

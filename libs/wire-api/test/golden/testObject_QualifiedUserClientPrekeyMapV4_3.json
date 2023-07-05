@@ -1,6 +1,6 @@
 { "qualified_user_client_prekeys" : {}
 , "failed_to_list" :
-  [ { "domain" : "example.com"
+  [ { "domain" : "default.domain"
     , "id" : "44f9c51e-0dce-4e7f-85ba-b4e5a545ce68"
     }
   , { "domain" : "test.net"

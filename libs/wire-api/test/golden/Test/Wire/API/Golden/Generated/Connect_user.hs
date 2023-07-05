@@ -30,7 +30,7 @@ testObject_Connect_user_1 =
     { cRecipient =
         Qualified
           (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000400000004")))
-          (Domain "foo.example.com"),
+          (Domain "foo.default.domain"),
       cMessage = Just "E",
       cName = Just ".\128842]G",
       cEmail = Just "test email"
@@ -42,7 +42,7 @@ testObject_Connect_user_2 =
     { cRecipient =
         Qualified
           (Id (fromJust (UUID.fromString "00000005-0000-0007-0000-000200000008")))
-          (Domain "bar.example.com"),
+          (Domain "bar.default.domain"),
       cMessage = Nothing,
       cName = Nothing,
       cEmail = Nothing

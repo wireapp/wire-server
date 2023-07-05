@@ -9,11 +9,11 @@
         },
         "from": "00000004-0000-0000-0000-000300000001",
         "qualified_conversation": {
-            "domain": "faraway.example.com",
+            "domain": "faraway.default.domain",
             "id": "00000000-0000-0002-0000-000300000001"
         },
         "qualified_from": {
-            "domain": "faraway.example.com",
+            "domain": "faraway.default.domain",
             "id": "00000004-0000-0000-0000-000300000001"
         },
         "time": "1864-05-08T19:02:58.600Z",

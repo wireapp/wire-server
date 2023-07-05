@@ -65,4 +65,4 @@ instance ToSchema FederationStatus where
             ?~ "This value expresses if the requested remote domains are fully connected or not. \
                \If not, it contains exactly two remote domains which do not federate with each other."
           & S.schema . S.example ?~ "{ \"status\": \"fully-connected\", \"not_connected\": [] }"
-          & S.schema . S.example ?~ "{ \"status\": \"non-fully-connected\", \"not_connected\": [\"d.example.com\", \"e.example.com\"] }"
+          & S.schema . S.example ?~ "{ \"status\": \"non-fully-connected\", \"not_connected\": [\"d.default.domain\", \"e.default.domain\"] }"

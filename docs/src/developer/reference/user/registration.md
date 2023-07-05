@@ -31,7 +31,7 @@ POST /register
     "name": "Pink",
 
     // 'email', 'phone', or both have to be provided
-    "email": "pink@example.com",
+    "email": "pink@default.domain",
 
     // The password is optional
     "password": "secret",
@@ -48,7 +48,7 @@ Set-Cookie: zuid=...
 {
     "accent_id": 0,
     "assets": [],
-    "email": "pink@example.com",
+    "email": "pink@default.domain",
     "id": "4e1b823a-7961-4e70-bff5-30c08555c89f",
     "locale": "en",
     "managed_by": "wire",
@@ -86,7 +86,7 @@ POST /register
     "name": "Pink",
 
     // 'email', 'phone', or both have to be provided
-    "email": "pink@example.com",
+    "email": "pink@default.domain",
 
     // The password is optional
     "password": "secret"
@@ -100,7 +100,7 @@ Set-Cookie: zuid=...
 {
     "accent_id": 0,
     "assets": [],
-    "email": "pink@example.com",
+    "email": "pink@default.domain",
     "id": "c193136a-55fb-4534-ad72-d02a72bb16af",
     "locale": "en",
     "managed_by": "wire",

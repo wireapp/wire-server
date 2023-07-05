@@ -37,13 +37,13 @@ spec = do
 
     it "should interpret an available service correctly" $ do
       let input =
-            [ (0, 1, 443, "service01.example.com."),
-              (10, 20, 8443, "service02.example.com.")
+            [ (0, 1, 443, "service01.default.domain."),
+              (10, 20, 8443, "service02.default.domain.")
             ]
       let expectedOutput =
             SrvAvailable
-              ( SrvEntry 0 1 (SrvTarget "service01.example.com." 443)
-                  :| [SrvEntry 10 20 (SrvTarget "service02.example.com." 8443)]
+              ( SrvEntry 0 1 (SrvTarget "service01.default.domain." 443)
+                  :| [SrvEntry 10 20 (SrvTarget "service02.default.domain." 8443)]
               )
       interpretResponse (Right input) `shouldBe` expectedOutput
   describe "orderSrvResult" $ do

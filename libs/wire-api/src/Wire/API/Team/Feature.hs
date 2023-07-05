@@ -1020,7 +1020,7 @@ instance ToSchema MlsE2EIdConfig where
              \The client enrolls using the Automatic Certificate Management Environment (ACME) protocol. \
              \The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for \
              \this team. It is of the form \"https://acme.{backendDomain}/acme/{provisionerName}/discovery\". For example: \
-             \`https://acme.example.com/acme/provisioner1/discovery`."
+             \`https://acme.default.domain/acme/provisioner1/discovery`."
 
 instance IsFeatureConfig MlsE2EIdConfig where
   type FeatureSymbol MlsE2EIdConfig = "mlsE2EId"

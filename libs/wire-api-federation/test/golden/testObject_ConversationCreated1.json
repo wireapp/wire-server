@@ -16,7 +16,7 @@
             "conversation_role": "wire_admin",
             "id": "50e6fff1-ffbd-4235-bc73-19c093433beb",
             "qualified_id": {
-                "domain": "golden.example.com",
+                "domain": "golden.default.domain",
                 "id": "50e6fff1-ffbd-4235-bc73-19c093433beb"
             },
             "status": 0
@@ -25,7 +25,7 @@
             "conversation_role": "wire_member",
             "id": "6801e49b-918c-4eef-baed-f18522152fca",
             "qualified_id": {
-                "domain": "golden.example.com",
+                "domain": "golden.default.domain",
                 "id": "6801e49b-918c-4eef-baed-f18522152fca"
             },
             "service": {

@@ -267,7 +267,7 @@ testObject_RTCConfiguration_user_2 =
                       Just
                         ( Authority
                             { authorityUserInfo = Nothing,
-                              authorityHost = Host {hostBS = "example.com"},
+                              authorityHost = Host {hostBS = "default.domain"},
                               authorityPort = Nothing
                             }
                         ),
@@ -284,7 +284,7 @@ testObject_RTCConfiguration_user_2 =
                              Just
                                ( Authority
                                    { authorityUserInfo = Nothing,
-                                     authorityHost = Host {hostBS = "example.com"},
+                                     authorityHost = Host {hostBS = "default.domain"},
                                      authorityPort = Nothing
                                    }
                                ),
@@ -301,7 +301,7 @@ testObject_RTCConfiguration_user_2 =
                              Just
                                ( Authority
                                    { authorityUserInfo = Nothing,
-                                     authorityHost = Host {hostBS = "example.com"},
+                                     authorityHost = Host {hostBS = "default.domain"},
                                      authorityPort = Nothing
                                    }
                                ),
@@ -318,7 +318,7 @@ testObject_RTCConfiguration_user_2 =
                              Just
                                ( Authority
                                    { authorityUserInfo = Nothing,
-                                     authorityHost = Host {hostBS = "example.com"},
+                                     authorityHost = Host {hostBS = "default.domain"},
                                      authorityPort = Nothing
                                    }
                                ),
@@ -463,7 +463,7 @@ testObject_RTCConfiguration_user_3 =
                       Just
                         ( Authority
                             { authorityUserInfo = Nothing,
-                              authorityHost = Host {hostBS = "example.com"},
+                              authorityHost = Host {hostBS = "default.domain"},
                               authorityPort = Nothing
                             }
                         ),
@@ -505,7 +505,7 @@ testObject_RTCConfiguration_user_4 =
                       Just
                         ( Authority
                             { authorityUserInfo = Nothing,
-                              authorityHost = Host {hostBS = "example.com"},
+                              authorityHost = Host {hostBS = "default.domain"},
                               authorityPort = Nothing
                             }
                         ),
@@ -522,7 +522,7 @@ testObject_RTCConfiguration_user_4 =
                              Just
                                ( Authority
                                    { authorityUserInfo = Nothing,
-                                     authorityHost = Host {hostBS = "example.com"},
+                                     authorityHost = Host {hostBS = "default.domain"},
                                      authorityPort = Nothing
                                    }
                                ),
@@ -539,7 +539,7 @@ testObject_RTCConfiguration_user_4 =
                              Just
                                ( Authority
                                    { authorityUserInfo = Nothing,
-                                     authorityHost = Host {hostBS = "example.com"},
+                                     authorityHost = Host {hostBS = "default.domain"},
                                      authorityPort = Nothing
                                    }
                                ),
@@ -556,7 +556,7 @@ testObject_RTCConfiguration_user_4 =
                              Just
                                ( Authority
                                    { authorityUserInfo = Nothing,
-                                     authorityHost = Host {hostBS = "example.com"},
+                                     authorityHost = Host {hostBS = "default.domain"},
                                      authorityPort = Nothing
                                    }
                                ),
@@ -573,7 +573,7 @@ testObject_RTCConfiguration_user_4 =
                              Just
                                ( Authority
                                    { authorityUserInfo = Nothing,
-                                     authorityHost = Host {hostBS = "example.com"},
+                                     authorityHost = Host {hostBS = "default.domain"},
                                      authorityPort = Nothing
                                    }
                                ),
@@ -590,7 +590,7 @@ testObject_RTCConfiguration_user_4 =
                              Just
                                ( Authority
                                    { authorityUserInfo = Nothing,
-                                     authorityHost = Host {hostBS = "example.com"},
+                                     authorityHost = Host {hostBS = "default.domain"},
                                      authorityPort = Nothing
                                    }
                                ),
@@ -607,7 +607,7 @@ testObject_RTCConfiguration_user_4 =
                              Just
                                ( Authority
                                    { authorityUserInfo = Nothing,
-                                     authorityHost = Host {hostBS = "example.com"},
+                                     authorityHost = Host {hostBS = "default.domain"},
                                      authorityPort = Nothing
                                    }
                                ),
@@ -624,7 +624,7 @@ testObject_RTCConfiguration_user_4 =
                              Just
                                ( Authority
                                    { authorityUserInfo = Nothing,
-                                     authorityHost = Host {hostBS = "example.com"},
+                                     authorityHost = Host {hostBS = "default.domain"},
                                      authorityPort = Nothing
                                    }
                                ),
@@ -641,7 +641,7 @@ testObject_RTCConfiguration_user_4 =
                              Just
                                ( Authority
                                    { authorityUserInfo = Nothing,
-                                     authorityHost = Host {hostBS = "example.com"},
+                                     authorityHost = Host {hostBS = "default.domain"},
                                      authorityPort = Nothing
                                    }
                                ),
@@ -658,7 +658,7 @@ testObject_RTCConfiguration_user_4 =
                              Just
                                ( Authority
                                    { authorityUserInfo = Nothing,
-                                     authorityHost = Host {hostBS = "example.com"},
+                                     authorityHost = Host {hostBS = "default.domain"},
                                      authorityPort = Nothing
                                    }
                                ),
@@ -700,7 +700,7 @@ testObject_RTCConfiguration_user_5 =
                       Just
                         ( Authority
                             { authorityUserInfo = Nothing,
-                              authorityHost = Host {hostBS = "example.com"},
+                              authorityHost = Host {hostBS = "default.domain"},
                               authorityPort = Nothing
                             }
                         ),
@@ -766,7 +766,7 @@ testObject_RTCConfiguration_user_7 =
                       Just
                         ( Authority
                             { authorityUserInfo = Nothing,
-                              authorityHost = Host {hostBS = "example.com"},
+                              authorityHost = Host {hostBS = "default.domain"},
                               authorityPort = Nothing
                             }
                         ),

@@ -71,8 +71,8 @@ spec = do
   describe "pushNotification" $ do
     it "should push notifications" $ do
       let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
-      let origDomain = Domain "origin.example.com"
-          targetDomain = Domain "target.example.com"
+      let origDomain = Domain "origin.default.domain"
+          targetDomain = Domain "target.default.domain"
       -- Just using 'arbitrary' could generate a very big list, making tests very
       -- slow. Make me wonder if notification pusher should even try to parse the
       -- actual content, seems like wasted compute power.
@@ -120,7 +120,7 @@ spec = do
               }
       (env, fedReqs) <-
         withTempMockFederator [] returnSuccess . runTestAppT $ do
-          void $ pushNotification (Domain "target.example.com") (msg, envelope)
+          void $ pushNotification (Domain "target.default.domain") (msg, envelope)
           ask
 
       readIORef envelope.acks `shouldReturn` 0
@@ -139,8 +139,8 @@ spec = do
               if isRemoteBroken
                 then ("text/html", "<marquee>down for maintenance</marquee>")
                 else ("application/json", Aeson.encode EmptyResponse)
-          origDomain = Domain "origin.example.com"
-          targetDomain = Domain "target.example.com"
+          origDomain = Domain "origin.default.domain"
+          targetDomain = Domain "target.default.domain"
       notifContent <- generate $ UserDeletedConnectionsNotification <$> arbitrary <*> (unsafeRange . (: []) <$> arbitrary)
       let notif =
             BackendNotification

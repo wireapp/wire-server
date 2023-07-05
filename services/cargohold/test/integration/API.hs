@@ -306,7 +306,7 @@ testRemoteDownloadWrongDomain = do
   uid <- liftIO $ Id <$> nextRandom
 
   let key = AssetKeyV3 assetId AssetPersistent
-      qkey = Qualified key (Domain "invalid.example.com")
+      qkey = Qualified key (Domain "invalid.default.domain")
   downloadAsset uid qkey () !!! do
     const 422 === statusCode
 
@@ -315,7 +315,7 @@ testRemoteDownloadNoAsset = do
   assetId <- liftIO $ Id <$> nextRandom
   uid <- liftIO $ Id <$> nextRandom
   let key = AssetKeyV3 assetId AssetPersistent
-      qkey = Qualified key (Domain "faraway.example.com")
+      qkey = Qualified key (Domain "faraway.default.domain")
       respond req
         | frRPC req == "get-asset" =
             pure ("application" // "json", Aeson.encode (GetAssetResponse False))
@@ -333,7 +333,7 @@ testRemoteDownloadNoAsset = do
     reqs
       @?= [ FederatedRequest
               { frOriginDomain = localDomain,
-                frTargetDomain = Domain "faraway.example.com",
+                frTargetDomain = Domain "faraway.default.domain",
                 frComponent = Cargohold,
                 frRPC = "get-asset",
                 frBody = Aeson.encode (GetAsset uid key Nothing)
@@ -345,7 +345,7 @@ testRemoteDownloadFederationFailure = do
   assetId <- liftIO $ Id <$> nextRandom
   uid <- liftIO $ Id <$> nextRandom
   let key = AssetKeyV3 assetId AssetPersistent
-      qkey = Qualified key (Domain "faraway.example.com")
+      qkey = Qualified key (Domain "faraway.default.domain")
       respond req
         | frRPC req == "get-asset" =
             pure ("application" // "json", Aeson.encode (GetAssetResponse True))
@@ -365,7 +365,7 @@ testRemoteDownload assetContent = do
   uid <- liftIO $ Id <$> nextRandom
 
   let key = AssetKeyV3 assetId AssetPersistent
-      qkey = Qualified key (Domain "faraway.example.com")
+      qkey = Qualified key (Domain "faraway.default.domain")
       respond req
         | frRPC req == "get-asset" =
             pure ("application" // "json", Aeson.encode (GetAssetResponse True))
@@ -381,14 +381,14 @@ testRemoteDownload assetContent = do
     reqs
       @?= [ FederatedRequest
               { frOriginDomain = localDomain,
-                frTargetDomain = Domain "faraway.example.com",
+                frTargetDomain = Domain "faraway.default.domain",
                 frComponent = Cargohold,
                 frRPC = "get-asset",
                 frBody = ga
               },
             FederatedRequest
               { frOriginDomain = localDomain,
-                frTargetDomain = Domain "faraway.example.com",
+                frTargetDomain = Domain "faraway.default.domain",
                 frComponent = Cargohold,
                 frRPC = "stream-asset",
                 frBody = ga

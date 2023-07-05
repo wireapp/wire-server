@@ -145,7 +145,7 @@ messageTimerChangeQualified = do
 messageTimerChangeWithRemotes :: TestM ()
 messageTimerChangeWithRemotes = do
   c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
+  let remoteDomain = Domain "alice.default.domain"
   qalice <- Qualified <$> randomId <*> pure remoteDomain
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
@@ -185,7 +185,7 @@ messageTimerChangeWithRemotes = do
 messageTimerUnavailableRemotes :: TestM ()
 messageTimerUnavailableRemotes = do
   c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
+  let remoteDomain = Domain "alice.default.domain"
   qalice <- Qualified <$> randomId <*> pure remoteDomain
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob

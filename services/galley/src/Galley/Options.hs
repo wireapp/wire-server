@@ -107,7 +107,7 @@ data Settings = Settings
     -- Example:
     --   allowedDomains:
     --     - wire.com
-    --     - example.com
+    --     - default.domain
     _setFederationDomain :: !Domain,
     -- | When true, galley will assume data in `billing_team_member` table is
     -- consistent and use it for billing.

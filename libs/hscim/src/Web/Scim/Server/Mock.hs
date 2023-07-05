@@ -223,7 +223,7 @@ createMeta rType =
       location =
         Common.URI $ -- FUTUREWORK: getting the actual schema, authority, and path here
         -- is a bit of work, but it may be required one day.
-          URI "https:" (Just $ URI.URIAuth "" "example.com" "") "/Users/id" "" ""
+          URI "https:" (Just $ URI.URIAuth "" "default.domain" "") "/Users/id" "" ""
     }
 
 -- Natural transformation from our transformer stack to the Servant stack

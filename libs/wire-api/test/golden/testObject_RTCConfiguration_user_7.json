@@ -14,7 +14,7 @@
     "sft_servers_all": [
         {
             "urls": [
-                "https://example.com"
+                "https://default.domain"
             ]
         }
     ],

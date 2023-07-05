@@ -3,7 +3,7 @@
     "auth_tokens": [
         ""
     ],
-    "base_url": "https://example.com",
+    "base_url": "https://default.domain",
     "description": "\u000bZK",
     "enabled": true,
     "id": "00000000-0000-0002-0000-000000000001",

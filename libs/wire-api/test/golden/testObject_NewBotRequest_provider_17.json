@@ -7,7 +7,7 @@
                 "conversation_role": "zi6nsx7hjs04d_1nxiaasqcb",
                 "id": "00000000-0000-0000-0000-000100000000",
                 "qualified_id": {
-                    "domain": "golden.example.com",
+                    "domain": "golden.default.domain",
                     "id": "00000000-0000-0000-0000-000100000000"
                 },
                 "service": {
@@ -20,7 +20,7 @@
                 "conversation_role": "c67nu5cxj9cru8018oquz_74mazgewq5fa6mwgwzktvep_7ftdtitzlwewqe",
                 "id": "00000000-0000-0000-0000-000100000001",
                 "qualified_id": {
-                    "domain": "golden.example.com",
+                    "domain": "golden.default.domain",
                     "id": "00000000-0000-0000-0000-000100000001"
                 },
                 "service": {

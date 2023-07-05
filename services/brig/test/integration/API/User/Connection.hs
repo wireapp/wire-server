@@ -658,7 +658,7 @@ testAllConnectionsPaging b db = do
     totalLocal = 5
     totalRemote = 3
     total = totalLocal + totalRemote
-    remoteDomain = Domain "faraway.example.com"
+    remoteDomain = Domain "faraway.default.domain"
     createRemoteConnection :: UserId -> UTCTimeMillis -> Http ()
     createRemoteConnection self now = do
       qOther <- (`Qualified` remoteDomain) <$> randomId
@@ -739,7 +739,7 @@ testConnectWithAnon brig fedBrigClient = do
   fromUser <- randomId
   toUser <- userId <$> createAnonUser "anon1234" brig
   res <-
-    runFedClient @"send-connection-action" fedBrigClient (Domain "far-away.example.com") $
+    runFedClient @"send-connection-action" fedBrigClient (Domain "far-away.default.domain") $
       NewConnectionRequest fromUser toUser RemoteConnect
   liftIO $
     assertEqual "The response should specify that the user is not activated" NewConnectionResponseUserNotActivated res
@@ -950,9 +950,9 @@ testInternalGetConnStatusesAll brig opts fedBrigClient = do
   let uids = qUnqualified <$> quids
 
   localUsers@(localUser1 : _) <- replicateM 5 $ userQualifiedId <$> randomUser brig
-  let remoteDomain1 = Domain "remote1.example.com"
+  let remoteDomain1 = Domain "remote1.default.domain"
   remoteDomain1Users@(remoteDomain1User1 : _) <- replicateM 5 $ (`Qualified` remoteDomain1) <$> randomId
-  let remoteDomain2 = Domain "remote2.example.com"
+  let remoteDomain2 = Domain "remote2.default.domain"
   remoteDomain2Users@(remoteDomain2User1 : _) <- replicateM 5 $ (`Qualified` remoteDomain2) <$> randomId
 
   for_ uids $ \uid -> do

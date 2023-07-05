@@ -8,7 +8,7 @@ set -e
 #
 # Usage:
 #   register_idp.sh idp-metadata.xml
-#   WIRE_TRACE=1 WIRE_BACKEND=our-wire-backend.example.com register_idp.sh idp-metadata.xml
+#   WIRE_TRACE=1 WIRE_BACKEND=our-wire-backend.default.domain register_idp.sh idp-metadata.xml
 #
 # the script will prompt you for your wire login and password.  your
 # user needs to be a team admin, and the idp will be registered with

@@ -12,7 +12,7 @@ extra-source-files:
   test/resources/integration-ca.pem
   test/resources/integration-leaf-key.pem
   test/resources/integration-leaf.pem
-  test/resources/unit/example.com.pem
+  test/resources/unit/default.domain.pem
   test/resources/unit/gen-certs.sh
   test/resources/unit/gen-multidomain-certs.sh
   test/resources/unit/invalid.pem
@@ -21,14 +21,14 @@ extra-source-files:
   test/resources/unit/localhost-key.pem
   test/resources/unit/localhost.client-only-key.pem
   test/resources/unit/localhost.client-only.pem
-  test/resources/unit/localhost.example.com-key.pem
-  test/resources/unit/localhost.example.com.pem
+  test/resources/unit/localhost.default.domain-key.pem
+  test/resources/unit/localhost.default.domain.pem
   test/resources/unit/localhost.pem
-  test/resources/unit/multidomain-federator.example.com-key.pem
-  test/resources/unit/multidomain-federator.example.com.pem
+  test/resources/unit/multidomain-federator.default.domain-key.pem
+  test/resources/unit/multidomain-federator.default.domain.pem
   test/resources/unit/README.md
-  test/resources/unit/second-federator.example.com-key.pem
-  test/resources/unit/second-federator.example.com.pem
+  test/resources/unit/second-federator.default.domain-key.pem
+  test/resources/unit/second-federator.default.domain.pem
   test/resources/unit/unit-ca-key.pem
   test/resources/unit/unit-ca.pem
 

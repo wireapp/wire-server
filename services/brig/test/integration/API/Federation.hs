@@ -94,7 +94,7 @@ testSearchSuccess opts brig = do
   refreshIndex brig
 
   let quid = userQualifiedId user
-  let domain = Domain "example.com"
+  let domain = Domain "default.domain"
 
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
@@ -111,7 +111,7 @@ testFulltextSearchSuccess opts brig = do
   refreshIndex brig
 
   let quid = userQualifiedId user
-  let domain = Domain "example.com"
+  let domain = Domain "default.domain"
 
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
@@ -138,7 +138,7 @@ testFulltextSearchMultipleUsers opts brig = do
 
   refreshIndex brig
 
-  let domain = Domain "example.com"
+  let domain = Domain "default.domain"
 
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
@@ -151,7 +151,7 @@ testFulltextSearchMultipleUsers opts brig = do
 
 testSearchNotFound :: Opt.Opts -> Http ()
 testSearchNotFound opts = do
-  let domain = Domain "example.com"
+  let domain = Domain "default.domain"
 
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
@@ -162,7 +162,7 @@ testSearchNotFound opts = do
 
 testSearchNotFoundEmpty :: Opt.Opts -> Http ()
 testSearchNotFoundEmpty opts = do
-  let domain = Domain "example.com"
+  let domain = Domain "default.domain"
 
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
@@ -173,10 +173,10 @@ testSearchNotFoundEmpty opts = do
 
 testSearchRestrictions :: Opt.Opts -> Brig -> Http ()
 testSearchRestrictions opts brig = do
-  let domainNoSearch = Domain "no-search.example.com"
-      domainExactHandle = Domain "exact-handle-only.example.com"
-      domainFullSearch = Domain "full-search.example.com"
-      domainUnconfigured = Domain "unconfigured.example.com"
+  let domainNoSearch = Domain "no-search.default.domain"
+      domainExactHandle = Domain "exact-handle-only.default.domain"
+      domainFullSearch = Domain "full-search.default.domain"
+      domainUnconfigured = Domain "unconfigured.default.domain"
 
   (handle, user) <- createUserWithHandle brig
   let quid = userQualifiedId user
@@ -209,10 +209,10 @@ testSearchRestrictions opts brig = do
 
 testGetUserByHandleRestrictions :: Opt.Opts -> Brig -> Http ()
 testGetUserByHandleRestrictions opts brig = do
-  let domainNoSearch = Domain "no-search.example.com"
-      domainExactHandle = Domain "exact-handle-only.example.com"
-      domainFullSearch = Domain "full-search.example.com"
-      domainUnconfigured = Domain "unconfigured.example.com"
+  let domainNoSearch = Domain "no-search.default.domain"
+      domainExactHandle = Domain "exact-handle-only.default.domain"
+      domainFullSearch = Domain "full-search.default.domain"
+      domainUnconfigured = Domain "unconfigured.default.domain"
 
   (handle, user) <- createUserWithHandle brig
   let quid = userQualifiedId user
@@ -242,7 +242,7 @@ testGetUserByHandleSuccess :: Opt.Opts -> Brig -> Http ()
 testGetUserByHandleSuccess opts brig = do
   (handle, user) <- createUserWithHandle brig
   let quid = userQualifiedId user
-  let domain = Domain "example.com"
+  let domain = Domain "default.domain"
 
   maybeProfile <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
@@ -259,7 +259,7 @@ testGetUserByHandleSuccess opts brig = do
 testGetUserByHandleNotFound :: Opt.Opts -> Http ()
 testGetUserByHandleNotFound opts = do
   hdl <- randomHandle
-  let domain = Domain "example.com"
+  let domain = Domain "default.domain"
 
   maybeProfile <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
@@ -276,7 +276,7 @@ testGetUsersByIdsSuccess brig fedBrigClient = do
       quid1 = userQualifiedId user1
       uid2 = userId user2
       quid2 = userQualifiedId user2
-  profiles <- runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") [uid1, uid2]
+  profiles <- runFedClient @"get-users-by-ids" fedBrigClient (Domain "default.domain") [uid1, uid2]
   liftIO $ do
     assertEqual "should return correct user Id" (Set.fromList [quid1, quid2]) (Set.fromList $ profileQualifiedId <$> profiles)
     assertEqual "should not have email address" [Nothing, Nothing] (map profileEmail profiles)
@@ -286,7 +286,7 @@ testGetUsersByIdsPartial brig fedBrigClient = do
   presentUser <- randomUser brig
   absentUserId :: UserId <- Id <$> lift UUIDv4.nextRandom
   profiles <-
-    runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") $
+    runFedClient @"get-users-by-ids" fedBrigClient (Domain "default.domain") $
       [userId presentUser, absentUserId]
   liftIO $
     assertEqual "should return the present user and skip the absent ones" [userQualifiedId presentUser] (profileQualifiedId <$> profiles)
@@ -295,7 +295,7 @@ testGetUsersByIdsNoneFound :: FedClient 'Brig -> Http ()
 testGetUsersByIdsNoneFound fedBrigClient = do
   absentUserId1 :: UserId <- Id <$> lift UUIDv4.nextRandom
   absentUserId2 :: UserId <- Id <$> lift UUIDv4.nextRandom
-  profiles <- runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") [absentUserId1, absentUserId2]
+  profiles <- runFedClient @"get-users-by-ids" fedBrigClient (Domain "default.domain") [absentUserId1, absentUserId2]
   liftIO $
     assertEqual "should return empty list" [] profiles
 
@@ -305,7 +305,7 @@ testClaimPrekeySuccess brig fedBrigClient = do
   let uid = userId user
   let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
   c <- responseJsonError =<< addClient brig uid new
-  mkey <- runFedClient @"claim-prekey" fedBrigClient (Domain "example.com") (uid, clientId c)
+  mkey <- runFedClient @"claim-prekey" fedBrigClient (Domain "default.domain") (uid, clientId c)
   liftIO $
     assertEqual
       "should return prekey 1"
@@ -317,7 +317,7 @@ testClaimPrekeyBundleSuccess brig fedBrigClient = do
   let prekeys = take 5 (zip somePrekeys someLastPrekeys)
   (quid, clients) <- generateClientPrekeys brig prekeys
   let sortClients = sortBy (compare `on` prekeyClient)
-  bundle <- runFedClient @"claim-prekey-bundle" fedBrigClient (Domain "example.com") (qUnqualified quid)
+  bundle <- runFedClient @"claim-prekey-bundle" fedBrigClient (Domain "default.domain") (qUnqualified quid)
   liftIO $
     assertEqual
       "bundle should contain the clients"
@@ -335,7 +335,7 @@ testClaimMultiPrekeyBundleSuccess brig fedBrigClient = do
   c2 <- first qUnqualified <$> generateClientPrekeys brig prekeys2
   let uc = UserClients (Map.fromList [mkClients <$> c1, mkClients <$> c2])
       ucm = mkUserClientPrekeyMap (Map.fromList [mkClientMap <$> c1, mkClientMap <$> c2])
-  ucmResponse <- runFedClient @"claim-multi-prekey-bundle" fedBrigClient (Domain "example.com") uc
+  ucmResponse <- runFedClient @"claim-multi-prekey-bundle" fedBrigClient (Domain "default.domain") uc
   liftIO $
     assertEqual
       "should return the UserClientMap"
@@ -353,7 +353,7 @@ testGetUserClients :: Brig -> FedClient 'Brig -> Http ()
 testGetUserClients brig fedBrigClient = do
   uid1 <- userId <$> randomUser brig
   clients :: [Client] <- addTestClients brig uid1 [0, 1, 2]
-  UserMap userClients <- runFedClient @"get-user-clients" fedBrigClient (Domain "example.com") (GetUserClients [uid1])
+  UserMap userClients <- runFedClient @"get-user-clients" fedBrigClient (Domain "default.domain") (GetUserClients [uid1])
   liftIO $
     assertEqual
       "client set for user should match"
@@ -363,7 +363,7 @@ testGetUserClients brig fedBrigClient = do
 testGetUserClientsNotFound :: FedClient 'Brig -> Http ()
 testGetUserClientsNotFound fedBrigClient = do
   absentUserId <- randomId
-  UserMap userClients <- runFedClient @"get-user-clients" fedBrigClient (Domain "example.com") (GetUserClients [absentUserId])
+  UserMap userClients <- runFedClient @"get-user-clients" fedBrigClient (Domain "default.domain") (GetUserClients [absentUserId])
   liftIO $
     assertEqual
       "client set for user should match"
@@ -398,7 +398,7 @@ testRemoteUserGetsDeleted opts brig cannon fedBrigClient = do
 
 testAPIVersion :: Brig -> FedClient 'Brig -> Http ()
 testAPIVersion _brig fedBrigClient = do
-  vinfo <- runFedClient @"api-version" fedBrigClient (Domain "far-away.example.com") ()
+  vinfo <- runFedClient @"api-version" fedBrigClient (Domain "far-away.default.domain") ()
   liftIO $ vinfoSupported vinfo @?= toList supportedVersions
 
 testClaimKeyPackagesMLSDisabled :: HasCallStack => Opt.Opts -> Brig -> Http ()

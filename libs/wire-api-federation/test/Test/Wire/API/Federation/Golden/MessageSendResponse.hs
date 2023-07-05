@@ -33,7 +33,7 @@ missing =
   QualifiedUserClients
     { qualifiedUserClients =
         fromList
-          [ ( Domain "golden.example.com",
+          [ ( Domain "golden.default.domain",
               fromList
                 [ ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002")),
                     fromList [ClientId {client = "0"}, ClientId {client = "1"}]
@@ -51,7 +51,7 @@ redundant =
   QualifiedUserClients
     { qualifiedUserClients =
         fromList
-          [ ( Domain "golden.example.com",
+          [ ( Domain "golden.default.domain",
               fromList
                 [ ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000003")),
                     fromList [ClientId {client = "0"}, ClientId {client = "1"}]
@@ -69,7 +69,7 @@ deleted =
   QualifiedUserClients
     { qualifiedUserClients =
         fromList
-          [ ( Domain "golden.example.com",
+          [ ( Domain "golden.default.domain",
               fromList
                 [ ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000005")),
                     fromList [ClientId {client = "0"}, ClientId {client = "1"}]
@@ -87,7 +87,7 @@ failed =
   QualifiedUserClients
     { qualifiedUserClients =
         fromList
-          [ ( Domain "golden.example.com",
+          [ ( Domain "golden.default.domain",
               fromList
                 [ ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000007")),
                     fromList [ClientId {client = "0"}, ClientId {client = "1"}]

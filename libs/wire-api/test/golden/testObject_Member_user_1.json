@@ -8,7 +8,7 @@
     "otr_muted_ref": "ref",
     "otr_muted_status": -2,
     "qualified_id": {
-        "domain": "golden.example.com",
+        "domain": "golden.default.domain",
         "id": "00000002-0000-0001-0000-000100000000"
     },
     "service": {

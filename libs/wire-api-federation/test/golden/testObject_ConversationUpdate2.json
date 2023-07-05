@@ -9,7 +9,7 @@
     ],
     "cuConvId": "00000000-0000-0000-0000-000100000006",
     "cuOrigUserId": {
-        "domain": "golden.example.com",
+        "domain": "golden.default.domain",
         "id": "00000000-0000-0000-0000-000100000007"
     },
     "cuTime": "1864-04-12T12:22:43.673Z"

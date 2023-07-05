@@ -123,13 +123,13 @@ buildMultipartBody header body bodyMimeType =
         }
 
 downloadAsset :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> (HTTP.Request -> HTTP.Request) -> App Response
-downloadAsset user key trans = downloadAsset' user key "nginz-https.example.com" trans
+downloadAsset user key trans = downloadAsset' user key "nginz-https.default.domain" trans
 
 downloadAsset' :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
 downloadAsset' user key zHostHeader trans = do
   uid <- user & objId
   key' <- key & asString
-  req <- baseRequest user Cargohold Versioned $ "/assets/example.com/" ++ key'
+  req <- baseRequest user Cargohold Versioned $ "/assets/default.domain/" ++ key'
   submit "GET" $
     req
       & zUser uid

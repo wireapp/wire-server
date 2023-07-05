@@ -2853,7 +2853,7 @@ createOne2OneConvWithRemote localUser remoteUser = do
       === statusCode
 
 generateRemoteAndConvId :: Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
-generateRemoteAndConvId = generateRemoteAndConvIdWithDomain (Domain "far-away.example.com")
+generateRemoteAndConvId = generateRemoteAndConvIdWithDomain (Domain "far-away.default.domain")
 
 generateRemoteAndConvIdWithDomain :: Domain -> Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
 generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId = do

@@ -14,13 +14,13 @@ REGENERATE=${REGENERATE:-0}
 CSR="$TEMP/csr.json"
 OUTPUTNAME_CA="$DIR/unit-ca"
 OUTPUTNAME_LOCALHOST_CERT="$DIR/localhost"
-OUTPUTNAME_EXAMPLE_COM_CERT="$DIR/localhost.example.com"
+OUTPUTNAME_EXAMPLE_COM_CERT="$DIR/localhost.default.domain"
 
 command -v cfssl >/dev/null 2>&1 || { echo >&2 "cfssl is not installed, aborting. See https://github.com/cloudflare/cfssl"; exit 1; }
 command -v cfssljson >/dev/null 2>&1 || { echo >&2 "cfssljson is not installed, aborting. See https://github.com/cloudflare/cfssl"; exit 1; }
 
 echo '{
-    "CN": "ca.example.com",
+    "CN": "ca.default.domain",
     "key": {
         "algo": "rsa",
         "size": 2048
@@ -50,7 +50,7 @@ generate() {
 
 generate cert and key based on CA given comma-separated hostnames as SANs
 generate "localhost" "$OUTPUTNAME_LOCALHOST_CERT"
-generate "localhost.example.com" "$OUTPUTNAME_EXAMPLE_COM_CERT"
+generate "localhost.default.domain" "$OUTPUTNAME_EXAMPLE_COM_CERT"
 
 # cleanup unneeded files
 rm -f "$OUTPUTNAME_CA.csr"

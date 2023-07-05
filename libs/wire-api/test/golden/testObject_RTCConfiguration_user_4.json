@@ -14,52 +14,52 @@
     "sft_servers": [
         {
             "urls": [
-                "https://example.com"
+                "https://default.domain"
             ]
         },
         {
             "urls": [
-                "https://example.com"
+                "https://default.domain"
             ]
         },
         {
             "urls": [
-                "https://example.com"
+                "https://default.domain"
             ]
         },
         {
             "urls": [
-                "https://example.com"
+                "https://default.domain"
             ]
         },
         {
             "urls": [
-                "https://example.com"
+                "https://default.domain"
             ]
         },
         {
             "urls": [
-                "https://example.com"
+                "https://default.domain"
             ]
         },
         {
             "urls": [
-                "https://example.com"
+                "https://default.domain"
             ]
         },
         {
             "urls": [
-                "https://example.com"
+                "https://default.domain"
             ]
         },
         {
             "urls": [
-                "https://example.com"
+                "https://default.domain"
             ]
         },
         {
             "urls": [
-                "https://example.com"
+                "https://default.domain"
             ]
         }
     ],

@@ -13,7 +13,7 @@ TEMP=${TEMP:-"$(mktemp -d)"}
 REGENERATE=${REGENERATE:-0}
 CSR="$TEMP/csr.json"
 OUTPUTNAME_CA="$DIR/unit-ca"
-OUTPUTNAME_MULTIDOMAIN_CERT="$DIR/multidomain-federator.example.com"
+OUTPUTNAME_MULTIDOMAIN_CERT="$DIR/multidomain-federator.default.domain"
 
 command -v cfssl >/dev/null 2>&1 || {
     echo >&2 "cfssl is not installed, aborting. See https://github.com/cloudflare/cfssl"
@@ -25,7 +25,7 @@ command -v cfssljson >/dev/null 2>&1 || {
 }
 
 echo '{
-    "CN": "ca.example.com",
+    "CN": "ca.default.domain",
     "key": {
         "algo": "rsa",
         "size": 2048
@@ -43,12 +43,12 @@ echo '{
         "size": 2048
     },
     "hosts": [
-      "something.example.com",
-      "somethingelse.example.com",
-      "federator.example.com",
-      "more.example.com"
+      "something.default.domain",
+      "somethingelse.default.domain",
+      "federator.default.domain",
+      "more.default.domain"
     ],
-    "CN": "webapp.example.com"
+    "CN": "webapp.default.domain"
 }' >"$CSR"
 
 generate_multi() {

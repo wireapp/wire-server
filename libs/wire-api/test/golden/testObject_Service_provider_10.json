@@ -3,7 +3,7 @@
     "auth_tokens": [
         "ZQ=="
     ],
-    "base_url": "https://example.com",
+    "base_url": "https://default.domain",
     "description": "",
     "enabled": true,
     "id": "00000000-0000-0000-0000-000100000001",

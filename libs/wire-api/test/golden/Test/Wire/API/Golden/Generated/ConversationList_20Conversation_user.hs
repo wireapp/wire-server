@@ -31,14 +31,14 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (parseRoleName)
 
 domain :: Domain
-domain = Domain "golden.example.com"
+domain = Domain "golden.default.domain"
 
 testObject_ConversationList_20Conversation_user_1 :: ConversationList Conversation
 testObject_ConversationList_20Conversation_user_1 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.default.domain"),
               cnvMetadata =
                 ConversationMetadata
                   { cnvmType = RegularConv,

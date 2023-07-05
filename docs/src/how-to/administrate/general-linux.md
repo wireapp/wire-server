@@ -29,7 +29,7 @@ The following assumes you're querying a server from outside (e.g. your laptop). 
 You can use openssl to check, with e.g.
 
 ```sh
-DOMAIN=example.com
+DOMAIN=default.domain
 PORT=443
 echo Q | openssl s_client -showcerts -connect $DOMAIN:$PORT
 ```
@@ -37,7 +37,7 @@ echo Q | openssl s_client -showcerts -connect $DOMAIN:$PORT
 or
 
 ```sh
-DOMAIN=example.com
+DOMAIN=default.domain
 PORT=443
 echo Q | openssl s_client -showcerts -connect $DOMAIN:$PORT 2>/dev/null | openssl x509 -inform pem -noout -text
 ```
@@ -45,7 +45,7 @@ echo Q | openssl s_client -showcerts -connect $DOMAIN:$PORT 2>/dev/null | openss
 To see only the validity (expiration):
 
 ```sh
-DOMAIN=example.com
+DOMAIN=default.domain
 PORT=443
 echo Q | openssl s_client -showcerts -connect $DOMAIN:$PORT 2>/dev/null | openssl x509 -inform pem -noout -text | grep Validity -A 2
 ```
@@ -61,7 +61,7 @@ IP=1.2.3.4
 # PORT can be 443 or 31773, depending on the installation
 PORT=443
 # not the root domain, but one of the 5 subdomains for which kubernetes is serving traffic
-DOMAIN=app.example.com
+DOMAIN=app.default.domain
 
 echo Q | openssl s_client -showcerts -servername $DOMAIN -connect $IP:$PORT 2>/dev/null | openssl x509 -inform pem -noout -text | grep Validity -A 2
 ```

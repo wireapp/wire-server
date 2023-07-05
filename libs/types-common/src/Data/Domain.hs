@@ -69,7 +69,7 @@ newtype Domain = Domain {_domainText :: Text}
 instance ToSchema Domain where
   schema =
     domainText .= parsedText "Domain" mkDomain
-      & doc . S.schema . S.example ?~ "example.com"
+      & doc . S.schema . S.example ?~ "default.domain"
 
 domainText :: Domain -> Text
 domainText = _domainText

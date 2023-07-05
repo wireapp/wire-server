@@ -1,7 +1,7 @@
 {
     "not_connected": [
-        "d.example.com",
-        "e.example.com"
+        "d.default.domain",
+        "e.default.domain"
     ],
     "status": "non-fully-connected"
 }

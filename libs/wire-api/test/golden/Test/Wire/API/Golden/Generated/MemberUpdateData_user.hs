@@ -32,7 +32,7 @@ testObject_MemberUpdateData_user_1 =
     { misTarget =
         Qualified
           (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001")))
-          (Domain "target.example.com"),
+          (Domain "target.default.domain"),
       misOtrMutedStatus = Just (MutedStatus {fromMutedStatus = -1}),
       misOtrMutedRef = Just "#M\95696",
       misOtrArchived = Just False,
@@ -48,7 +48,7 @@ testObject_MemberUpdateData_user_2 =
     { misTarget =
         Qualified
           (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001")))
-          (Domain "target.example.com"),
+          (Domain "target.default.domain"),
       misOtrMutedStatus = Nothing,
       misOtrMutedRef = Nothing,
       misOtrArchived = Nothing,

@@ -106,7 +106,7 @@ testFederationStatus = do
   uid <- randomUser OwnDomain def {Internal.team = True}
   federatingRemoteDomain <- asString OtherDomain
   let unknownDomain = "foobar.com"
-  let invalidDomain = "c.example.com" -- has no srv record
+  let invalidDomain = "c.default.domain" -- has no srv record
   bindResponse
     (API.getFederationStatus uid [])
     $ \resp -> do

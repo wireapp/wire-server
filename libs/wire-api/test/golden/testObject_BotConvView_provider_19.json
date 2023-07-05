@@ -5,7 +5,7 @@
             "conversation_role": "jiv6dw",
             "id": "00000002-0000-0000-0000-000100000000",
             "qualified_id": {
-                "domain": "golden.example.com",
+                "domain": "golden.default.domain",
                 "id": "00000002-0000-0000-0000-000100000000"
             },
             "service": {

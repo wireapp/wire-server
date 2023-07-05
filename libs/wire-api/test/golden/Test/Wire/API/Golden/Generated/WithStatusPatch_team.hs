@@ -45,7 +45,7 @@ testObject_WithStatusPatch_team_7 :: WithStatusPatch ClassifiedDomainsConfig
 testObject_WithStatusPatch_team_7 = withStatus (Just FeatureStatusEnabled) (Just LockStatusLocked) (Just (ClassifiedDomainsConfig []))
 
 testObject_WithStatusPatch_team_8 :: WithStatusPatch ClassifiedDomainsConfig
-testObject_WithStatusPatch_team_8 = withStatus Nothing (Just LockStatusLocked) (Just (ClassifiedDomainsConfig [Domain "example.com", Domain "test.foobar"]))
+testObject_WithStatusPatch_team_8 = withStatus Nothing (Just LockStatusLocked) (Just (ClassifiedDomainsConfig [Domain "default.domain", Domain "test.foobar"]))
 
 testObject_WithStatusPatch_team_9 :: WithStatusPatch ClassifiedDomainsConfig
 testObject_WithStatusPatch_team_9 = withStatus (Just FeatureStatusEnabled) (Just LockStatusUnlocked) (Just (ClassifiedDomainsConfig [Domain "test.foobar"]))

@@ -77,7 +77,7 @@ testObject_ViewLegalHoldService_team_3 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -129,7 +129,7 @@ testObject_ViewLegalHoldService_team_8 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -178,7 +178,7 @@ testObject_ViewLegalHoldService_team_12 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -218,7 +218,7 @@ testObject_ViewLegalHoldService_team_13 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -258,7 +258,7 @@ testObject_ViewLegalHoldService_team_14 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -301,7 +301,7 @@ testObject_ViewLegalHoldService_team_16 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -341,7 +341,7 @@ testObject_ViewLegalHoldService_team_17 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),

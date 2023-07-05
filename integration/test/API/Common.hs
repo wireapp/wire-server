@@ -20,7 +20,7 @@ randomEmail :: App String
 randomEmail = liftIO $ do
   n <- randomRIO (8, 15)
   u <- replicateM n pick
-  pure $ u <> "@example.com"
+  pure $ u <> "@default.domain"
   where
     chars :: Array.Array Int Char
     chars = mkArray $ ['A' .. 'Z'] <> ['a' .. 'z'] <> ['0' .. '9']

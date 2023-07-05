@@ -50,11 +50,11 @@ The authorization server does the authentication of the user and establishes whe
 A new OAuth client can be register *only* via the internal API of `brig` by providing an application name and a redirect URL:
 
 ```shell
-  curl -s -X POST server-internal.example.com/i/oauth/clients \
+  curl -s -X POST server-internal.default.domain/i/oauth/clients \
     -H "Content-Type: application/json" \
     -d '{
       "application_name":"Outlook Calendar Extension",
-      "redirect_url":"https://client.example.com"
+      "redirect_url":"https://client.default.domain"
     }'
 ```
 
@@ -95,7 +95,7 @@ GET /authorize?
   scope=read%3Aself%20write%3Aconversation&
   response_type=code&
   client_id=b9e65569-aa61-462d-915d-94c8d6ef17a7&
-  redirect_uri=https%3A%2F%2Fclient.example.com&
+  redirect_uri=https%3A%2F%2Fclient.default.domain&
   state=foobar&
   code_challenge=qVrqDTN8ivyWEEw6wyfUc3bwhCA2RE4V2fbiC4mC7ofqAF4t&
   code_challenge_method=S256 HTTP/1.1
@@ -122,7 +122,7 @@ HTTP/1.1 302 Found
 Transfer-Encoding: chunked
 Date: Thu, 23 Feb 2023 15:50:21 GMT
 Server: Warp/3.3.23
-Location: https://client.example.com?code=1395a1a44b72e0b81ec8fe6c791d2d3f22bc1c4df96857a88c3e2914bb687b7b&state=foobar
+Location: https://client.default.domain?code=1395a1a44b72e0b81ec8fe6c791d2d3f22bc1c4df96857a88c3e2914bb687b7b&state=foobar
 Vary: Accept-Encoding
 ```
 
@@ -131,9 +131,9 @@ Vary: Accept-Encoding
 The 3rd party app sends the authorization code together with the client credentials and the parameters shown below using the `application/x-www-form-urlencoded` format with character encoding of UTF-8 to the authorization server (6. in diagram above) to retrieve an access token and a refresh token (7.-8. in diagram above):
 
 ```shell
-curl -s -X POST server.example.com/oauth/token \
+curl -s -X POST server.default.domain/oauth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d 'code=1395a1a44b72e0b81ec8fe6c791d2d3f22bc1c4df96857a88c3e2914bb687b7b&client_id=b9e65569-aa61-462d-915d-94c8d6ef17a7&grant_type=authorization_code&redirect_uri=https%3A%2F%2Fclient.example.com&code_verifier=2dae11ce5e162e2c01180ae4f8b55103b8297408b8aab12f99f63df3c2415234'
+  -d 'code=1395a1a44b72e0b81ec8fe6c791d2d3f22bc1c4df96857a88c3e2914bb687b7b&client_id=b9e65569-aa61-462d-915d-94c8d6ef17a7&grant_type=authorization_code&redirect_uri=https%3A%2F%2Fclient.default.domain&code_verifier=2dae11ce5e162e2c01180ae4f8b55103b8297408b8aab12f99f63df3c2415234'
 ```
 
 Parameters:
@@ -170,7 +170,7 @@ Access tokens are short lived and need to be refreshed regularly. To do so, the 
 Example request:
 
 ```shell
-curl -s -X POST server.example.com/oauth/token \
+curl -s -X POST server.default.domain/oauth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d 'refresh_token=eyJhbGciOiJFZERTQSJ9.eyJzdWIiOiI4NzI1ZTRkNC01Njc5LTQwZGEtOTI3My03YTBkMmIwYjUwMGYifQ.59IICzGoli5nfwJ1ZwRH_b3T-lRgBrralE1EZZRtadI2eKrta0kaLIZpuMWPC2Icj6-LSEBsyYLXpxOm3cNaDw&client_id=b9e65569-aa61-462d-915d-94c8d6ef17a7&grant_type=refresh_token&client_secret=3f6fbd62835859b2bac411b2a2a2a54699ec56504ee32099748de3a762d41a2d'
 ```
@@ -359,8 +359,8 @@ Example token payload:
 
 ```json
 {
-  "iss": "server.example.com",
-  "aud": "server.example.com",
+  "iss": "server.default.domain",
+  "aud": "server.default.domain",
   "iat": 1311280970,
   "sub": "7cf24b6c-8c7e-4788-a532-2c998d20ce4a",
   "exp": 1311281970,

@@ -63,9 +63,9 @@ scaffoldingFederationDomainConfigs :: FederationDomainConfigs
 scaffoldingFederationDomainConfigs =
   FederationDomainConfigs
     AllowDynamic
-    [ FederationDomainConfig (Domain "foo.example.com") FullSearch,
-      FederationDomainConfig (Domain "example.com") FullSearch,
-      FederationDomainConfig (Domain "federator.example.com") FullSearch
+    [ FederationDomainConfig (Domain "foo.default.domain") FullSearch,
+      FederationDomainConfig (Domain "default.domain") FullSearch,
+      FederationDomainConfig (Domain "federator.default.domain") FullSearch
     ]
     10
 
@@ -137,7 +137,7 @@ validateDomainAllowListFailSemantic =
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
   testCase "allow list validation" $ do
-    exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
+    exampleCert <- BS.readFile "test/resources/unit/localhost.default.domain.pem"
     let settings = noClientCertSettings
     res <-
       runM
@@ -146,16 +146,16 @@ validateDomainAllowListFail =
         . mockDiscoveryTrivial
         . runInputConst settings
         . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "only.other.domain") FullSearch] 0)
-        $ validateDomain (Just exampleCert) "localhost.example.com"
-    res @?= Left (FederationDenied (Domain "localhost.example.com"))
+        $ validateDomain (Just exampleCert) "localhost.default.domain"
+    res @?= Left (FederationDenied (Domain "localhost.default.domain"))
 
 -- @END
 
 validateDomainAllowListSuccess :: TestTree
 validateDomainAllowListSuccess =
   testCase "should give parsed domain if in the allow list" $ do
-    exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
-    let domain = Domain "localhost.example.com"
+    exampleCert <- BS.readFile "test/resources/unit/localhost.default.domain.pem"
+    let domain = Domain "localhost.default.domain"
         settings = noClientCertSettings
     res <-
       runM
@@ -165,7 +165,7 @@ validateDomainAllowListSuccess =
         . runInputConst settings
         . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig domain FullSearch] 0)
         $ validateDomain (Just exampleCert) (toByteString' domain)
-    assertEqual "validateDomain should give 'localhost.example.com' as domain" domain res
+    assertEqual "validateDomain should give 'localhost.default.domain' as domain" domain res
 
 validateDomainCertMissing :: TestTree
 validateDomainCertMissing =
@@ -177,7 +177,7 @@ validateDomainCertMissing =
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         . runInputConst defFederationDomainConfigs
-        $ validateDomain Nothing "foo.example.com"
+        $ validateDomain Nothing "foo.default.domain"
     res @?= Left NoClientCertificate
 
 -- @SF.Federation @TSFI.Federate @TSFI.DNS @S2 @S3 @S7
@@ -192,7 +192,7 @@ validateDomainCertInvalid =
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
-        $ validateDomain (Just "not a certificate") "foo.example.com"
+        $ validateDomain (Just "not a certificate") "foo.default.domain"
     res @?= Left (CertificateParseError "no certificate found")
 
 -- @END
@@ -204,7 +204,7 @@ validateDomainCertInvalid =
 validateDomainCertWrongDomain :: TestTree
 validateDomainCertWrongDomain =
   testCase "should fail if the client certificate has a wrong domain" $ do
-    exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
+    exampleCert <- BS.readFile "test/resources/unit/localhost.default.domain.pem"
     res <-
       runM
         . runError
@@ -212,16 +212,16 @@ validateDomainCertWrongDomain =
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
-        $ validateDomain (Just exampleCert) "foo.example.com"
-    res @?= Left (AuthenticationFailure (pure [X509.NameMismatch "foo.example.com"]))
+        $ validateDomain (Just exampleCert) "foo.default.domain"
+    res @?= Left (AuthenticationFailure (pure [X509.NameMismatch "foo.default.domain"]))
 
 -- @END
 
 validateDomainCertCN :: TestTree
 validateDomainCertCN =
   testCase "should succeed if the certificate has subject CN but no SAN" $ do
-    exampleCert <- BS.readFile "test/resources/unit/example.com.pem"
-    let domain = Domain "foo.example.com"
+    exampleCert <- BS.readFile "test/resources/unit/default.domain.pem"
+    let domain = Domain "foo.default.domain"
     res <-
       runM
         . assertNoError @ValidationError
@@ -235,8 +235,8 @@ validateDomainCertCN =
 validateDomainCertSAN :: TestTree
 validateDomainCertSAN =
   testCase "should succeed if the certificate has a longer list of domains inside SAN, one of which is the expected one" $ do
-    exampleCert <- BS.readFile "test/resources/unit/multidomain-federator.example.com.pem"
-    let domain = Domain "federator.example.com"
+    exampleCert <- BS.readFile "test/resources/unit/multidomain-federator.default.domain.pem"
+    let domain = Domain "federator.default.domain"
     res <-
       runM
         . assertNoError @ValidationError
@@ -250,16 +250,16 @@ validateDomainCertSAN =
 validateDomainMultipleFederators :: TestTree
 validateDomainMultipleFederators =
   testCase "should succedd if certificate matches any of the given federators" $ do
-    localhostExampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
-    secondExampleCert <- BS.readFile "test/resources/unit/second-federator.example.com.pem"
+    localhostExampleCert <- BS.readFile "test/resources/unit/localhost.default.domain.pem"
+    secondExampleCert <- BS.readFile "test/resources/unit/second-federator.default.domain.pem"
     let runValidation =
           runM
             . assertNoError @ValidationError
             . assertNoError @DiscoveryFailure
-            . mockDiscoveryMapping domain ("localhost.example.com" :| ["second-federator.example.com"])
+            . mockDiscoveryMapping domain ("localhost.default.domain" :| ["second-federator.default.domain"])
             . runInputConst noClientCertSettings
             . runInputConst scaffoldingFederationDomainConfigs
-        domain = Domain "foo.example.com"
+        domain = Domain "foo.default.domain"
     resFirst <-
       runValidation $
         validateDomain (Just localhostExampleCert) (toByteString' domain)
@@ -273,7 +273,7 @@ validateDomainMultipleFederators =
 validateDomainDiscoveryFailed :: TestTree
 validateDomainDiscoveryFailed =
   testCase "should fail if discovery fails" $ do
-    exampleCert <- BS.readFile "test/resources/unit/example.com.pem"
+    exampleCert <- BS.readFile "test/resources/unit/default.domain.pem"
     res <-
       runM
         . runError
@@ -281,19 +281,19 @@ validateDomainDiscoveryFailed =
         . mockDiscoveryFailure
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
-        $ validateDomain (Just exampleCert) "example.com"
+        $ validateDomain (Just exampleCert) "default.domain"
     res @?= Left (DiscoveryFailureDNSError "mock DNS error")
 
 validateDomainNonIdentitySRV :: TestTree
 validateDomainNonIdentitySRV =
   testCase "should run discovery to look up the federator domain" $ do
-    exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
-    let domain = Domain "foo.example.com"
+    exampleCert <- BS.readFile "test/resources/unit/localhost.default.domain.pem"
+    let domain = Domain "foo.default.domain"
     res <-
       runM
         . assertNoError @ValidationError
         . assertNoError @DiscoveryFailure
-        . mockDiscoveryMapping domain ("localhost.example.com" :| [])
+        . mockDiscoveryMapping domain ("localhost.default.domain" :| [])
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
         $ validateDomain (Just exampleCert) (toByteString' domain)

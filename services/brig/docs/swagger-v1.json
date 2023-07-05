@@ -981,7 +981,7 @@
       "type": "object"
     },
     "Domain": {
-      "example": "example.com",
+      "example": "default.domain",
       "type": "string"
     },
     "Email": {
@@ -1305,7 +1305,7 @@
       "type": "object"
     },
     "HttpsUrl": {
-      "example": "https://example.com",
+      "example": "https://default.domain",
       "type": "string"
     },
     "ID": {
@@ -1541,7 +1541,7 @@
       "example": {
         "qualified_ids": [
           {
-            "domain": "example.com",
+            "domain": "default.domain",
             "id": "00000000-0000-0000-0000-000000000000"
           }
         ]
@@ -2260,7 +2260,7 @@
       },
       "description": "Clients that the message /should/ have been encrypted for, but wasn't.",
       "example": {
-        "domain1.example.com": {
+        "domain1.default.domain": {
           "000600d0-000b-9c1a-000d-a4130002c221": [
             "60f85e4b15ad3786",
             "6e323ab31554353b"
@@ -2297,7 +2297,7 @@
       },
       "description": "Map of Domain to (UserMap (Set_PubClient)).",
       "example": {
-        "domain1.example.com": {
+        "domain1.default.domain": {
           "000600d0-000b-9c1a-000d-a4130002c221": [
             {
               "class": "legalhold",
@@ -3238,7 +3238,7 @@
     },
     "VersionInfo": {
       "example": {
-        "domain": "example.com",
+        "domain": "default.domain",
         "federation": false,
         "supported": [
           0,

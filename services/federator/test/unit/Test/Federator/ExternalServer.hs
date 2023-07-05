@@ -101,7 +101,7 @@ requestBrigSuccess =
   testCase "should forward response from brig when status is 200" $ do
     request <-
       exampleRequest
-        "test/resources/unit/localhost.example.com.pem"
+        "test/resources/unit/localhost.default.domain.pem"
         "/federation/brig/get-user-by-handle"
     (actualCalls, res) <-
       runM
@@ -126,7 +126,7 @@ requestBrigFailure =
   testCase "should preserve the status code returned by the service" $ do
     request <-
       exampleRequest
-        "test/resources/unit/localhost.example.com.pem"
+        "test/resources/unit/localhost.default.domain.pem"
         "/federation/brig/get-user-by-handle"
 
     (actualCalls, res) <-
@@ -153,7 +153,7 @@ requestGalleySuccess =
   testCase "should forward response from galley when response has status 200" $ do
     request <-
       exampleRequest
-        "test/resources/unit/localhost.example.com.pem"
+        "test/resources/unit/localhost.default.domain.pem"
         "/federation/galley/get-conversations"
 
     runM $ do
@@ -177,7 +177,7 @@ requestGalleySuccess =
 requestNoDomain :: TestTree
 requestNoDomain =
   testCase "should fail with a ServerError when no origin domain header is given" $ do
-    cert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
+    cert <- BS.readFile "test/resources/unit/localhost.default.domain.pem"
     request <-
       testRequest
         def
@@ -260,7 +260,7 @@ testInvalidPaths = do
     for_ invalidPaths $ \invalidPath -> do
       request <-
         exampleRequest
-          "test/resources/unit/localhost.example.com.pem"
+          "test/resources/unit/localhost.default.domain.pem"
           invalidPath
 
       (actualCalls, res) <-
@@ -284,7 +284,7 @@ testInvalidComponent =
   testCase "a path with an invalid component should result in an error" $ do
     request <-
       exampleRequest
-        "test/resources/unit/localhost.example.com.pem"
+        "test/resources/unit/localhost.default.domain.pem"
         "/federation/mast/get-users"
 
     (actualCalls, res) <-
@@ -306,7 +306,7 @@ testInvalidComponent =
 testMethod :: TestTree
 testMethod =
   testCase "only POST should be supported" $ do
-    cert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
+    cert <- BS.readFile "test/resources/unit/localhost.default.domain.pem"
     let tr =
           def
             { trPath = "/federation/galley/send-message",
@@ -331,7 +331,7 @@ testMethod =
       void res @?= Left InvalidRoute
 
 exampleDomain :: Text
-exampleDomain = "localhost.example.com"
+exampleDomain = "localhost.default.domain"
 
 aValidDomain :: Domain
 aValidDomain = Domain exampleDomain

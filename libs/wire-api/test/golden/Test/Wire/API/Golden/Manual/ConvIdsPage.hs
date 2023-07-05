@@ -29,4 +29,4 @@ testObject_ConvIdsPage_1 :: ConvIdsPage
 testObject_ConvIdsPage_1 = ConvIdsPage [] False testObject_ConversationPagingState_1
 
 testObject_ConvIdsPage_2 :: ConvIdsPage
-testObject_ConvIdsPage_2 = ConvIdsPage [Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002"))) (Domain "domain.example.com")] True testObject_ConversationPagingState_1
+testObject_ConvIdsPage_2 = ConvIdsPage [Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002"))) (Domain "domain.default.domain")] True testObject_ConversationPagingState_1

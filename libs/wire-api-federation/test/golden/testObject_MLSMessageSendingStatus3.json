@@ -3,11 +3,11 @@
   "time": "1999-04-12T12:22:43.673Z",
   "failed_to_send": [
     {
-      "domain": "golden.example.com",
+      "domain": "golden.default.domain",
       "id": "00000000-0000-0000-0000-000200000008"
     },
     {
-      "domain": "golden.example.com",
+      "domain": "golden.default.domain",
       "id": "00000000-0000-0000-0000-000100000007"
     }
   ]

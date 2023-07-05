@@ -19,7 +19,7 @@
             "accent_id": 0,
             "created_at": null,
             "email": "@",
-            "email_unvalidated": "foobar@example.com",
+            "email_unvalidated": "foobar@default.domain",
             "handle": "",
             "id": "00000001-0000-0001-0000-000100000001",
             "managed_by": "wire",
@@ -73,7 +73,7 @@
             "saml_idp": "",
             "scim_external_id": null,
             "sso": {
-                "issuer": "https://example.com/issuer/123",
+                "issuer": "https://default.domain/issuer/123",
                 "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
             "team": null
@@ -112,7 +112,7 @@
             "accent_id": 0,
             "created_at": "1864-05-09T01:45:42.970Z",
             "email": "@",
-            "email_unvalidated": "foobar@example.com",
+            "email_unvalidated": "foobar@default.domain",
             "handle": null,
             "id": "00000001-0000-0001-0000-000000000000",
             "managed_by": null,
@@ -121,7 +121,7 @@
             "saml_idp": "",
             "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
             "sso": {
-                "issuer": "https://example.com/issuer/123",
+                "issuer": "https://default.domain/issuer/123",
                 "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
             "team": "00000001-0000-0001-0000-000100000000"
@@ -130,7 +130,7 @@
             "accent_id": null,
             "created_at": null,
             "email": null,
-            "email_unvalidated": "foobar@example.com",
+            "email_unvalidated": "foobar@default.domain",
             "handle": "",
             "id": "00000001-0000-0000-0000-000100000000",
             "managed_by": "wire",
@@ -145,7 +145,7 @@
             "accent_id": 0,
             "created_at": "1864-05-09T23:36:06.671Z",
             "email": "@",
-            "email_unvalidated": "foobar@example.com",
+            "email_unvalidated": "foobar@default.domain",
             "handle": "",
             "id": "00000000-0000-0000-0000-000000000001",
             "managed_by": "scim",
@@ -160,7 +160,7 @@
             "accent_id": 0,
             "created_at": "1864-05-09T14:01:50.906Z",
             "email": null,
-            "email_unvalidated": "foobar@example.com",
+            "email_unvalidated": "foobar@default.domain",
             "handle": "",
             "id": "00000000-0000-0000-0000-000100000001",
             "managed_by": "scim",
@@ -184,7 +184,7 @@
             "saml_idp": "",
             "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
             "sso": {
-                "issuer": "https://example.com/issuer/123",
+                "issuer": "https://default.domain/issuer/123",
                 "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
             "team": "00000001-0000-0001-0000-000100000000"

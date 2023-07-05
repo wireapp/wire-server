@@ -169,7 +169,7 @@ instance ToSchema VersionInfo where
           { vinfoSupported = VersionNumber <$> supportedVersions,
             vinfoDevelopment = [maxBound],
             vinfoFederation = False,
-            vinfoDomain = Domain "example.com"
+            vinfoDomain = Domain "default.domain"
           }
 
 type VersionAPI =

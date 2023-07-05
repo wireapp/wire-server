@@ -321,7 +321,7 @@ testGetUserByQualifiedHandleNoFederation opt brig = do
     get
       ( apiVersion "v1"
           . brig
-          . paths ["users", "by-handle", "non-existant.example.com", "oh-a-handle"]
+          . paths ["users", "by-handle", "non-existant.default.domain", "oh-a-handle"]
           . zUser (userId someUser)
       )
       !!! do

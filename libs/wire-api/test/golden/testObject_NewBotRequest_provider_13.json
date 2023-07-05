@@ -7,7 +7,7 @@
                 "conversation_role": "f5kideyd0z_wa8k_u0o3wcgbx1iea5yqmkrz3vv86ehs77akep4ttw6eznzo7tefijy5zqxnzq8u4mghhp3m2pg9kqtxnaxukzw1cn",
                 "id": "00000000-0000-0000-0000-000000000001",
                 "qualified_id": {
-                    "domain": "golden.example.com",
+                    "domain": "golden.default.domain",
                     "id": "00000000-0000-0000-0000-000000000001"
                 },
                 "service": {

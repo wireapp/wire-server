@@ -5,7 +5,7 @@
             "conversation_role": "t4vroye869mch4",
             "id": "00000001-0000-0000-0000-000000000000",
             "qualified_id": {
-                "domain": "golden.example.com",
+                "domain": "golden.default.domain",
                 "id": "00000001-0000-0000-0000-000000000000"
             },
             "service": {
@@ -18,7 +18,7 @@
             "conversation_role": "bi8z5mc78lg3bqqk29yd36x2_haz6b05t6ybil8p7zbkj",
             "id": "00000000-0000-0000-0000-000000000001",
             "qualified_id": {
-                "domain": "golden.example.com",
+                "domain": "golden.default.domain",
                 "id": "00000000-0000-0000-0000-000000000001"
             },
             "status": 0
@@ -27,7 +27,7 @@
             "conversation_role": "ncz23zan6fw786izkcx",
             "id": "00000000-0000-0000-0000-000100000001",
             "qualified_id": {
-                "domain": "golden.example.com",
+                "domain": "golden.default.domain",
                 "id": "00000000-0000-0000-0000-000100000001"
             },
             "service": {
@@ -40,7 +40,7 @@
             "conversation_role": "_brjrjrldhybr251gl72y3_nqqwhdh8k2c0oznqgiwrhzf0szdd15laruwrrm640pa_z8eg5d2mvm_nppm51rszf20dwpshy7ushykyavtq5dq2mwdqqcpv_nb7lkl",
             "id": "00000000-0000-0000-0000-000100000000",
             "qualified_id": {
-                "domain": "golden.example.com",
+                "domain": "golden.default.domain",
                 "id": "00000000-0000-0000-0000-000100000000"
             },
             "service": {
@@ -53,7 +53,7 @@
             "conversation_role": "jpy159h7vqij1p08dgsehcpyxg6_ovkcpjruqg6xp8b4lpegp7qrfr_qsyoo3qnngi7btjxrt6bbjcfmit2p6g_j5abxj4o5xliz",
             "id": "00000001-0000-0001-0000-000100000001",
             "qualified_id": {
-                "domain": "golden.example.com",
+                "domain": "golden.default.domain",
                 "id": "00000001-0000-0001-0000-000100000001"
             },
             "service": {

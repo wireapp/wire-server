@@ -75,7 +75,7 @@ testObject_TeamContact_user_3 =
       teamContactSAMLIdp = Just "\"c`",
       teamContactRole = Just RoleMember,
       teamContactScimExternalId = Nothing,
-      teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
+      teamContactSso = Just (Sso "https://default.domain/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing
     }
 
@@ -94,7 +94,7 @@ testObject_TeamContact_user_4 =
       teamContactRole = Nothing,
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
+      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "default.domain"})
     }
 
 testObject_TeamContact_user_5 :: TeamContact
@@ -148,7 +148,7 @@ testObject_TeamContact_user_7 =
       teamContactRole = Just RoleAdmin,
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
+      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "default.domain"})
     }
 
 testObject_TeamContact_user_8 :: TeamContact
@@ -201,7 +201,7 @@ testObject_TeamContact_user_10 =
       teamContactSAMLIdp = Just "P-\EM",
       teamContactRole = Just RoleMember,
       teamContactScimExternalId = Nothing,
-      teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
+      teamContactSso = Just (Sso "https://default.domain/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing
     }
 
@@ -292,7 +292,7 @@ testObject_TeamContact_user_15 =
       teamContactRole = Just RoleExternalPartner,
       teamContactScimExternalId = Nothing,
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
+      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "default.domain"})
     }
 
 testObject_TeamContact_user_16 :: TeamContact
@@ -309,8 +309,8 @@ testObject_TeamContact_user_16 =
       teamContactSAMLIdp = Just "k",
       teamContactRole = Nothing,
       teamContactScimExternalId = Nothing,
-      teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
-      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
+      teamContactSso = Just (Sso "https://default.domain/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
+      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "default.domain"})
     }
 
 testObject_TeamContact_user_17 :: TeamContact
@@ -327,7 +327,7 @@ testObject_TeamContact_user_17 =
       teamContactSAMLIdp = Just "\138052",
       teamContactRole = Just RoleOwner,
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
-      teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
+      teamContactSso = Just (Sso "https://default.domain/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing
     }
 
@@ -345,7 +345,7 @@ testObject_TeamContact_user_18 =
       teamContactSAMLIdp = Just "\DC2",
       teamContactRole = Just RoleOwner,
       teamContactScimExternalId = Nothing,
-      teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
+      teamContactSso = Just (Sso "https://default.domain/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing
     }
 
@@ -363,7 +363,7 @@ testObject_TeamContact_user_19 =
       teamContactSAMLIdp = Nothing,
       teamContactRole = Just RoleExternalPartner,
       teamContactScimExternalId = Nothing,
-      teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
+      teamContactSso = Just (Sso "https://default.domain/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
       teamContactEmailUnvalidated = Nothing
     }
 
@@ -382,5 +382,5 @@ testObject_TeamContact_user_20 =
       teamContactRole = Just RoleOwner,
       teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
       teamContactSso = Nothing,
-      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
+      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "default.domain"})
     }

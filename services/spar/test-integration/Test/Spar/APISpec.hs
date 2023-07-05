@@ -522,7 +522,7 @@ specFinalizeLogin = do
               pure subj
 
         suffix <- cs <$> replicateM 7 (getRandomR ('a', 'z'))
-        let randEmail = "email_" <> suffix <> "@example.com"
+        let randEmail = "email_" <> suffix <> "@default.domain"
 
         subj <- createEmailSubject randEmail
         mbId1 <- loginWithSubject subj
@@ -895,7 +895,7 @@ specCRUDIdentityProvider = do
       it "uses it on next auth handshake" $ do
         env <- ask
         (owner, _, (^. idpId) -> idpid, (IdPMetadataValue _ idpmeta, _)) <- registerTestIdPWithMeta
-        let idpmeta' = idpmeta & edRequestURI .~ [uri|https://www.example.com|]
+        let idpmeta' = idpmeta & edRequestURI .~ [uri|https://www.default.domain|]
         callIdpUpdate (env ^. teSpar) (Just owner) idpid (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
           `shouldRespondWith` ((== 200) . statusCode)
         (requri, _) <- call $ callAuthnReq (env ^. teSpar) idpid
@@ -1189,7 +1189,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     uname :: SAML.UnqualifiedNameID <- do
       suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
       either (error . show) pure $
-        SAML.mkUNameIDEmail ("email_" <> suffix <> "@example.com")
+        SAML.mkUNameIDEmail ("email_" <> suffix <> "@default.domain")
     let uref = SAML.UserRef tenant subj
         subj = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
         tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
@@ -1502,7 +1502,7 @@ specSparUserMigration = do
 
       (issuer, subject) <- do
         suffix <- cs <$> replicateM 7 (getRandomR ('a', 'z'))
-        let randEmail = "email_" <> suffix <> "@example.com"
+        let randEmail = "email_" <> suffix <> "@default.domain"
         uname <- either (error . show) pure (SAML.mkUNameIDEmail randEmail)
         let subj = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
         let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer

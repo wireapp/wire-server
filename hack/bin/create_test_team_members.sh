@@ -24,7 +24,7 @@ nginz and can only be used if you have direct access to brig.
 USAGE: $0 -d <email domain> [OPTIONS...]
     -d <email domain>: Domain part of the emails that the bogus
                        invitations are sent to.  No default, you need
-                       to provide that.  Consider 'example.com', or an
+                       to provide that.  Consider 'default.domain', or an
                        internal domain you control.
 
                        WARNING: This may boost your reputation as a

@@ -58,8 +58,8 @@ tests m b opts turn turnV2 = do
         testGroup
           "sft"
           [ test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts,
-            test m "SFT servers /calls/config/v2 - 200 - SFT does not respond as expected" $ testSFTUnavailable b opts "https://example.com",
-            test m "SFT servers /calls/config/v2 - 200 - SFT DNS does not resolve" $ testSFTUnavailable b opts "https://sft.example.com"
+            test m "SFT servers /calls/config/v2 - 200 - SFT does not respond as expected" $ testSFTUnavailable b opts "https://default.domain",
+            test m "SFT servers /calls/config/v2 - 200 - SFT DNS does not resolve" $ testSFTUnavailable b opts "https://sft.default.domain"
           ]
       ]
 

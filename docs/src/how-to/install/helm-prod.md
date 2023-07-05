@@ -203,7 +203,7 @@ You should see some pods being created in your first terminal as the above comma
 
 ## How to install wire-server itself
 
-Open `my-wire-server/values.yaml` and replace `example.com` and other domains and subdomains with domains of your choosing. Look for the `# change this` comments. You can try using `sed -i 's/example.com/<your-domain>/g' values.yaml`.
+Open `my-wire-server/values.yaml` and replace `default.domain` and other domains and subdomains with domains of your choosing. Look for the `# change this` comments. You can try using `sed -i 's/default.domain/<your-domain>/g' values.yaml`.
 
 1. If you are not using team settings, comment out `teamSettings` under `brig.config.externalURLs`.
 

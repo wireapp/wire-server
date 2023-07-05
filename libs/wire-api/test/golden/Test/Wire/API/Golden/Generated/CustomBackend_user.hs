@@ -54,7 +54,7 @@ testObject_CustomBackend_user_1 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -70,7 +70,7 @@ testObject_CustomBackend_user_1 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -91,7 +91,7 @@ testObject_CustomBackend_user_2 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -107,7 +107,7 @@ testObject_CustomBackend_user_2 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -128,7 +128,7 @@ testObject_CustomBackend_user_3 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -144,7 +144,7 @@ testObject_CustomBackend_user_3 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -165,7 +165,7 @@ testObject_CustomBackend_user_4 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -181,7 +181,7 @@ testObject_CustomBackend_user_4 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -202,7 +202,7 @@ testObject_CustomBackend_user_5 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -218,7 +218,7 @@ testObject_CustomBackend_user_5 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -239,7 +239,7 @@ testObject_CustomBackend_user_6 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -255,7 +255,7 @@ testObject_CustomBackend_user_6 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -276,7 +276,7 @@ testObject_CustomBackend_user_7 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -292,7 +292,7 @@ testObject_CustomBackend_user_7 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -313,7 +313,7 @@ testObject_CustomBackend_user_8 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -329,7 +329,7 @@ testObject_CustomBackend_user_8 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -350,7 +350,7 @@ testObject_CustomBackend_user_9 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -366,7 +366,7 @@ testObject_CustomBackend_user_9 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -387,7 +387,7 @@ testObject_CustomBackend_user_10 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -403,7 +403,7 @@ testObject_CustomBackend_user_10 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -424,7 +424,7 @@ testObject_CustomBackend_user_11 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -440,7 +440,7 @@ testObject_CustomBackend_user_11 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -461,7 +461,7 @@ testObject_CustomBackend_user_12 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -477,7 +477,7 @@ testObject_CustomBackend_user_12 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -498,7 +498,7 @@ testObject_CustomBackend_user_13 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -514,7 +514,7 @@ testObject_CustomBackend_user_13 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -535,7 +535,7 @@ testObject_CustomBackend_user_14 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -551,7 +551,7 @@ testObject_CustomBackend_user_14 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -572,7 +572,7 @@ testObject_CustomBackend_user_15 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -588,7 +588,7 @@ testObject_CustomBackend_user_15 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -609,7 +609,7 @@ testObject_CustomBackend_user_16 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -625,7 +625,7 @@ testObject_CustomBackend_user_16 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -646,7 +646,7 @@ testObject_CustomBackend_user_17 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -662,7 +662,7 @@ testObject_CustomBackend_user_17 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -683,7 +683,7 @@ testObject_CustomBackend_user_18 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -699,7 +699,7 @@ testObject_CustomBackend_user_18 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -720,7 +720,7 @@ testObject_CustomBackend_user_19 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -736,7 +736,7 @@ testObject_CustomBackend_user_19 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -757,7 +757,7 @@ testObject_CustomBackend_user_20 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),
@@ -773,7 +773,7 @@ testObject_CustomBackend_user_20 =
                 Just
                   ( Authority
                       { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
+                        authorityHost = Host {hostBS = "default.domain"},
                         authorityPort = Nothing
                       }
                   ),

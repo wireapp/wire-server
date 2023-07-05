@@ -94,7 +94,7 @@ testRemoteError =
         . runWaiError @RemoteError
         $ throw
           ( RemoteError
-              (SrvTarget "example.com" 7777)
+              (SrvTarget "default.domain" 7777)
               FederatorClientNoStatusCode
           )
     body <- Wai.lazyResponseBody resp

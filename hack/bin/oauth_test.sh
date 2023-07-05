@@ -46,7 +46,7 @@ CLIENT=$(
     -H "Content-Type: application/json" \
     -d '{
       "application_name":"foobar",
-      "redirect_url":"https://example.com"
+      "redirect_url":"https://default.domain"
     }'
 )
 
@@ -60,7 +60,7 @@ AUTH_CODE_RESPONSE=$(
       "client_id": "'"$CLIENT_ID"'",
       "scope": "'"$SCOPE"'",
       "response_type": "code",
-      "redirect_uri": "https://example.com",
+      "redirect_uri": "https://default.domain",
       "state": "foobar",
       "code_challenge": "'"$CODE_CHALLENGE"'",
       "code_challenge_method": "S256"
@@ -72,7 +72,7 @@ AUTH_CODE=$(echo "$AUTH_CODE_RESPONSE" | awk -F ': ' '/^Location/ {print $2}' | 
 ACCESS_TOKEN_RESPONSE=$(
   curl -s -X POST localhost:8080/oauth/token \
     -H "Content-Type: application/x-www-form-urlencoded" \
-    -d 'code='"$AUTH_CODE"'&client_id='"$CLIENT_ID"'&grant_type=authorization_code&redirect_uri=https://example.com&code_verifier='"$CODE_VERIFIER"
+    -d 'code='"$AUTH_CODE"'&client_id='"$CLIENT_ID"'&grant_type=authorization_code&redirect_uri=https://default.domain&code_verifier='"$CODE_VERIFIER"
 )
 
 ACCESS_TOKEN=$(echo "$ACCESS_TOKEN_RESPONSE" | jq -r '.access_token')

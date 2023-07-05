@@ -275,7 +275,7 @@ instance ToSchema HttpsUrl where
       & doc'
         . S.schema
         . S.example
-        ?~ toJSON ("https://example.com" :: Text)
+        ?~ toJSON ("https://default.domain" :: Text)
 
 instance Cql HttpsUrl where
   ctype = Tagged BlobColumn
@@ -285,7 +285,7 @@ instance Cql HttpsUrl where
   fromCql _ = Left "HttpsUrl: Expected CqlBlob"
 
 instance Arbitrary HttpsUrl where
-  arbitrary = pure $ HttpsUrl [URI.QQ.uri|https://example.com|]
+  arbitrary = pure $ HttpsUrl [URI.QQ.uri|https://default.domain|]
 
 --------------------------------------------------------------------------------
 -- Fingerprint

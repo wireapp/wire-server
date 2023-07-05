@@ -103,7 +103,7 @@ GET /self
 {
     "accent_id": 0,
     "assets": [],
-    "email": "pink@example.com",
+    "email": "pink@default.domain",
     "id": "2f7e582b-9d99-4d50-bbb0-e659d63491d9",
     "locale": "en",
     "managed_by": "wire",
@@ -143,8 +143,8 @@ The backend can be configured to only allow specific phone number prefixes and e
 optSettings:
   setAllowlistEmailDomains:
     - wire.com
-    - example.com
-    - notagoodexample.com
+    - default.domain
+    - notagooddefault.domain
   setAllowlistPhonePrefixes:
     - "+49"
     - "+1555555"

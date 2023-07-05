@@ -26,12 +26,12 @@ Here is a table to navigate the possible configurations:
 
 | Backend Config enabled/disabled | Backend Config Domains                         | Team Config enabled/disabled | Team Config Domains     | User's view                      |
 | ------------------------------- | ---------------------------------------------- | ---------------------------- | ----------------------- | -------------------------------- |
-| Enabled                         | \[domain1.example.com\]                        | Not configured               | Not configured          | Enabled, \[domain1.example.com\] |
-| Enabled                         | \[domain1.example.com\]\[domain1.example.com\] | Enabled                      | Not configured          | Enabled, \[domain1.example.com\] |
-| Enabled                         | \[domain1.example.com\]                        | Enabled                      | \[domain2.example.com\] | Enabled, Undefined               |
-| Enabled                         | \[domain1.example.com\]                        | Disabled                     | Anything                | Undefined                        |
+| Enabled                         | \[domain1.default.domain\]                        | Not configured               | Not configured          | Enabled, \[domain1.default.domain\] |
+| Enabled                         | \[domain1.default.domain\]\[domain1.default.domain\] | Enabled                      | Not configured          | Enabled, \[domain1.default.domain\] |
+| Enabled                         | \[domain1.default.domain\]                        | Enabled                      | \[domain2.default.domain\] | Enabled, Undefined               |
+| Enabled                         | \[domain1.default.domain\]                        | Disabled                     | Anything                | Undefined                        |
 | Disabled                        | Anything                                       | Not configured               | Not configured          | Disabled, no domains             |
-| Disabled                        | Anything                                       | Enabled                      | \[domain2.example.com\] | Undefined                        |
+| Disabled                        | Anything                                       | Enabled                      | \[domain2.default.domain\] | Undefined                        |
 
 The table assumes the following:
 

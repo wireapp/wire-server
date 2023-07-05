@@ -1,6 +1,6 @@
 {
     "domains": [
-        "a.example.com",
-        "b.example.com"
+        "a.default.domain",
+        "b.default.domain"
     ]
 }

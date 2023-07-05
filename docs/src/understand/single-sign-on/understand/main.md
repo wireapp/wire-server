@@ -456,7 +456,7 @@ A minimal definition of a user is written in JSON format and looks like this:
 
 {
    "schemas"     : ["urn:ietf:params:scim:schemas:core:2.0:User"],
-   "externalId"  : "nick@example.com",
+   "externalId"  : "nick@default.domain",
    "userName"    : "nick",
    "displayName" : "The Nick"
 }
@@ -469,7 +469,7 @@ You can store it in a variable using this sort of command:
 
 export SCIM_USER='{
    "schemas"     : ["urn:ietf:params:scim:schemas:core:2.0:User"],
-   "externalId"  : "nick@example.com",
+   "externalId"  : "nick@default.domain",
    "userName"    : "nick",
    "displayName" : "The Nick"
 }'
@@ -479,7 +479,7 @@ The `externalId` is used to construct a SAML identity.  Two cases are
 currently supported:
 
 1. `externalId` contains a valid email address.
-   The SAML `NameID` has the form `<NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">me@example.com</NameID>`.
+   The SAML `NameID` has the form `<NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">me@default.domain</NameID>`.
 2. `externalId` contains anything that is *not* an email address.
    The SAML `NameID` has the form `<NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified">...</NameID>`.
 
@@ -496,7 +496,7 @@ We also support custom fields that are used in rich profiles in this form (see: 
 
  export SCIM_USER='{
    "schemas"     : ["urn:ietf:params:scim:schemas:core:2.0:User", "urn:wire:scim:schemas:profile:1.0"],
-   "externalId"  : "rnick@example.com",
+   "externalId"  : "rnick@default.domain",
    "userName"    : "rnick",
    "displayName" : "The Rich Nick",
    "urn:wire:scim:schemas:profile:1.0": {
@@ -554,7 +554,7 @@ Email address (and/or SAML NameID, if /a):
  curl -X GET \
    --header "Authorization: Bearer $SCIM_TOKEN" \
    --header 'Content-Type: application/json;charset=utf-8' \
-   $WIRE_BACKEND/scim/v2/Users/'?filter=externalId%20eq%20%22me%40example.com%22'
+   $WIRE_BACKEND/scim/v2/Users/'?filter=externalId%20eq%20%22me%40default.domain%22'
 ```
 
 Wire handle: same request, just replace the query part with
@@ -572,7 +572,7 @@ For each put request, you need to provide the full json object.  All omitted fie
 
  export SCIM_USER='{
    "schemas"     : ["urn:ietf:params:scim:schemas:core:2.0:User"],
-   "externalId"  : "rnick@example.com",
+   "externalId"  : "rnick@default.domain",
    "userName"    : "newnick",
    "displayName" : "The New Nick"
  }'

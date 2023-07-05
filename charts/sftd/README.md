@@ -48,8 +48,8 @@ tags:
   sftd: true
 
 sftd:
-  host: sftd.example.com
-  allowOrigin: https://webapp.example.com
+  host: sftd.default.domain
+  allowOrigin: https://webapp.default.domain
   tls:
     # The https://cert-manager.io issuer to use to retrieve a certificate
     issuerRef:
@@ -69,8 +69,8 @@ very slow.
 
 ```
 helm install sftd wire/sftd \
-  --set host=sftd.example.com \
-  --set allowOrigin=https://webapp.example.com \
+  --set host=sftd.default.domain \
+  --set allowOrigin=https://webapp.default.domain \
   --set-file tls.crt=/path/to/tls.crt \
   --set-file tls.key=/path/to/tls.key
 ```
@@ -98,7 +98,7 @@ brig:
   # ...
   optSettings:
     # ...
-    setSftStaticUrl: https://sftd.example.com:443
+    setSftStaticUrl: https://sftd.default.domain:443
 ```
 
 ## Routability

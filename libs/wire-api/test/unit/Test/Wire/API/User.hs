@@ -45,7 +45,7 @@ jsonNullTests = [testGroup "JSON null" [testCase "userProfile" testUserProfile]]
 testUserProfile :: Assertion
 testUserProfile = do
   uid <- Id <$> UUID.nextRandom
-  let domain = Domain "example.com"
+  let domain = Domain "default.domain"
   let colour = ColourId 0
   let userProfile = UserProfile (Qualified uid domain) (Name "name") (Pict []) [] colour False Nothing Nothing Nothing Nothing Nothing UserLegalHoldNoConsent defSupportedProtocols
   let profileJSONAsText = show $ Aeson.encode userProfile
@@ -79,8 +79,8 @@ parseIdentityTests =
           ]
   ]
   where
-    hemail = Email "me" "example.com"
-    email = ("email", "me@example.com")
+    hemail = Email "me" "default.domain"
+    email = ("email", "me@default.domain")
     bademail = ("email", "justme")
     hphone = Phone "+493012345678"
     phone = ("phone", "+493012345678")

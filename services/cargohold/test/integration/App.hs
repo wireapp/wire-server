@@ -44,7 +44,7 @@ testMultiIngressCloudFrontFails = do
     cloudFrontOptions :: CloudFrontOpts
     cloudFrontOptions =
       CloudFrontOpts
-        { _cfDomain = Domain (T.pack "example.com"),
+        { _cfDomain = Domain (T.pack "default.domain"),
           _cfKeyPairId = KeyPairId (T.pack "anyId"),
           _cfPrivateKey = "any/path"
         }
@@ -52,8 +52,8 @@ testMultiIngressCloudFrontFails = do
 multiIngressMap :: Map String AWSEndpoint
 multiIngressMap =
   Map.singleton
-    "red.example.com"
-    (toAWSEndpoint "http://s3-download.red.example.com")
+    "red.default.domain"
+    (toAWSEndpoint "http://s3-download.red.default.domain")
 
 toAWSEndpoint :: ByteString -> AWSEndpoint
 toAWSEndpoint = fromJust . fromByteString

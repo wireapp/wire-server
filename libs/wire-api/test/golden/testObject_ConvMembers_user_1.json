@@ -4,7 +4,7 @@
             "conversation_role": "y4zf98vsd7b6zi1_3wch87_k8m0t8mpdhh8zlcq461s80oc0sl7yn85twxn89f7f4kwpd4_hj9q2m3za",
             "id": "00000004-0000-0004-0000-000400000001",
             "qualified_id": {
-                "domain": "golden.example.com",
+                "domain": "golden.default.domain",
                 "id": "00000004-0000-0004-0000-000400000001"
             },
             "service": {
@@ -24,7 +24,7 @@
         "otr_muted_ref": "",
         "otr_muted_status": null,
         "qualified_id": {
-            "domain": "golden.example.com",
+            "domain": "golden.default.domain",
             "id": "00000000-0000-0001-0000-000100000001"
         },
         "service": {

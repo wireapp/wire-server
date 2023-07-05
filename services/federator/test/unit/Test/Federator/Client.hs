@@ -54,10 +54,10 @@ import Wire.API.User (UserProfile)
 instance AddAnnotation loc comp name x
 
 targetDomain :: Domain
-targetDomain = Domain "target.example.com"
+targetDomain = Domain "target.default.domain"
 
 originDomain :: Domain
-originDomain = Domain "origin.example.com"
+originDomain = Domain "origin.default.domain"
 
 defaultHeaders :: [HTTP.Header]
 defaultHeaders = [("Content-Type", "application/json")]
@@ -220,8 +220,8 @@ testResponseHeaders = do
       let req =
             HTTP2.requestBuilder
               HTTP.methodPost
-              "/rpc/target.example.com/brig/test"
-              [("Wire-Origin-Domain", "origin.example.com")]
+              "/rpc/target.default.domain/brig/test"
+              [("Wire-Origin-Domain", "origin.default.domain")]
               "body"
       mgr <- defaultHttp2Manager
       performHTTP2Request mgr (False, "127.0.0.1", port) req

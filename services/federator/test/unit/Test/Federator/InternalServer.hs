@@ -61,8 +61,8 @@ federatedRequestSuccess :: TestTree
 federatedRequestSuccess =
   testCase "should successfully return success response" $ do
     let settings = noClientCertSettings
-    let targetDomain = Domain "target.example.com"
-        requestHeaders = [(originDomainHeaderName, "origin.example.com")]
+    let targetDomain = Domain "target.default.domain"
+        requestHeaders = [(originDomainHeaderName, "origin.default.domain")]
     request <-
       testRequest
         def
@@ -92,7 +92,7 @@ federatedRequestSuccess =
         . assertNoError @ServerError
         . discardTinyLogs
         . runInputConst settings
-        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "target.example.com") FullSearch] 10)
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "target.default.domain") FullSearch] 10)
         $ callOutward request
     Wai.responseStatus res @?= HTTP.status200
     body <- Wai.lazyResponseBody res
@@ -105,8 +105,8 @@ federatedRequestFailureAllowList :: TestTree
 federatedRequestFailureAllowList =
   testCase "should not make a call when target domain not in the allow list" $ do
     let settings = noClientCertSettings
-    let targetDomain = Domain "target.example.com"
-        headers = [(originDomainHeaderName, "origin.example.com")]
+    let targetDomain = Domain "target.default.domain"
+        headers = [(originDomainHeaderName, "origin.default.domain")]
     request <-
       testRequest
         def

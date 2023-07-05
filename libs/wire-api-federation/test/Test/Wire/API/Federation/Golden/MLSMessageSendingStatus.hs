@@ -52,12 +52,12 @@ testObject_MLSMessageSendingStatus3 =
 
 failed1 :: [Qualified UserId]
 failed1 =
-  let domain = Domain "offline.example.com"
+  let domain = Domain "offline.default.domain"
    in [Qualified (Id . fromJust . UUID.fromString $ "00000000-0000-0000-0000-000200000008") domain]
 
 failed2 :: [Qualified UserId]
 failed2 =
-  let domain = Domain "golden.example.com"
+  let domain = Domain "golden.default.domain"
    in flip Qualified domain . Id . fromJust . UUID.fromString
         <$> [ "00000000-0000-0000-0000-000200000008",
               "00000000-0000-0000-0000-000100000007"

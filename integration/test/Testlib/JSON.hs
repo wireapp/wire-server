@@ -308,7 +308,7 @@ objDomain x = do
 -- This accepts subconversation objects in the format:
 -- @
 -- { "parent_qualified_id": {
---      "domain": "example.com",
+--      "domain": "default.domain",
 --      "id": "7b6c21d1-322d-4be6-a923-85225691f398"
 --   },
 --   "subconv_id": "conference"
@@ -319,7 +319,7 @@ objDomain x = do
 -- Conversation objects can optionally contain a @subconv_id@ field. So, in
 -- particular, a flat subconversation format, like
 -- @
--- { "domain": "example.com",
+-- { "domain": "default.domain",
 --   "id": "7b6c21d1-322d-4be6-a923-85225691f398",
 --   "subconv_id": "conference"
 -- }

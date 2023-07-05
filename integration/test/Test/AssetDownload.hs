@@ -38,13 +38,13 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
     checkAssetDownload user key = withModifiedService Cargohold modifyConfig $ \_ -> do
       bindResponse (downloadAsset user key noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 404
-      bindResponse (downloadAsset' user key "red.example.com" noRedirects) $ \resp -> do
+      bindResponse (downloadAsset' user key "red.default.domain" noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 302
-        locationHeaderHost resp `shouldMatch` "s3-download.red.example.com"
-      bindResponse (downloadAsset' user key "green.example.com" noRedirects) $ \resp -> do
+        locationHeaderHost resp `shouldMatch` "s3-download.red.default.domain"
+      bindResponse (downloadAsset' user key "green.default.domain" noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 302
-        locationHeaderHost resp `shouldMatch` "s3-download.green.example.com"
-      bindResponse (downloadAsset' user key "unknown.example.com" noRedirects) $ \resp -> do
+        locationHeaderHost resp `shouldMatch` "s3-download.green.default.domain"
+      bindResponse (downloadAsset' user key "unknown.default.domain" noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 404
         resp.json %. "label" `shouldMatch` "not-found"
 
@@ -55,8 +55,8 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
     modifyConfig =
       setField "aws.multiIngress" $
         object
-          [ "red.example.com" .= "http://s3-download.red.example.com",
-            "green.example.com" .= "http://s3-download.green.example.com"
+          [ "red.default.domain" .= "http://s3-download.red.default.domain",
+            "green.default.domain" .= "http://s3-download.green.default.domain"
           ]
 
     doUploadAsset :: Value -> App Value

@@ -5,7 +5,7 @@
             "conversation_role": "mofz",
             "id": "00000002-0000-0000-0000-000000000001",
             "qualified_id": {
-                "domain": "golden.example.com",
+                "domain": "golden.default.domain",
                 "id": "00000002-0000-0000-0000-000000000001"
             },
             "status": 0

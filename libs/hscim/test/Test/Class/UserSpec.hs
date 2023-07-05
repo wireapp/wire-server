@@ -116,7 +116,7 @@ spec = with app $ do
             "id": "0",
             "meta": {
               "resourceType": "User",
-              "location": "https://example.com/Users/id",
+              "location": "https://default.domain/Users/id",
               "created": "2018-01-01T00:00:00Z",
               "version": "W/\"testVersion\"",
               "lastModified": "2018-01-01T00:00:00Z"
@@ -148,7 +148,7 @@ spec = with app $ do
             "id": "0",
             "meta": {
               "resourceType": "User",
-              "location": "https://example.com/Users/id",
+              "location": "https://default.domain/Users/id",
               "created": "2018-01-01T00:00:00Z",
               "version": "W/\"testVersion\"",
               "lastModified": "2018-01-01T00:00:00Z"
@@ -180,7 +180,7 @@ spec = with app $ do
             "id": "0",
             "meta": {
               "resourceType": "User",
-              "location": "https://example.com/Users/id",
+              "location": "https://default.domain/Users/id",
               "created": "2018-01-01T00:00:00Z",
               "version": "W/\"testVersion\"",
               "lastModified": "2018-01-01T00:00:00Z"
@@ -240,7 +240,7 @@ spec = with app $ do
             "id": "0",
             "meta": {
               "resourceType": "User",
-              "location": "https://example.com/Users/id",
+              "location": "https://default.domain/Users/id",
               "created": "2018-01-01T00:00:00Z",
               "version": "W/\"testVersion\"",
               "lastModified": "2018-01-01T00:00:00Z"
@@ -272,7 +272,7 @@ spec = with app $ do
             "id": "0",
             "meta": {
               "resourceType": "User",
-              "location": "https://example.com/Users/id",
+              "location": "https://default.domain/Users/id",
               "created": "2018-01-01T00:00:00Z",
               "version": "W/\"testVersion\"",
               "lastModified": "2018-01-01T00:00:00Z"
@@ -304,7 +304,7 @@ spec = with app $ do
             "id": "0",
             "meta": {
               "resourceType": "User",
-              "location": "https://example.com/Users/id",
+              "location": "https://default.domain/Users/id",
               "created": "2018-01-01T00:00:00Z",
               "version": "W/\"testVersion\"",
               "lastModified": "2018-01-01T00:00:00Z"
@@ -377,7 +377,7 @@ spec = with app $ do
           "id": "0",
           "meta": {
             "resourceType": "User",
-            "location": "https://example.com/Users/id",
+            "location": "https://default.domain/Users/id",
             "created": "2018-01-01T00:00:00Z",
             "version": "W/\"testVersion\"",
             "lastModified": "2018-01-01T00:00:00Z"
@@ -415,7 +415,7 @@ smallUserGet =
   "id": "0",
   "meta": {
     "resourceType": "User",
-    "location": "https://example.com/Users/id",
+    "location": "https://default.domain/Users/id",
     "created": "2018-01-01T00:00:00Z",
     "version": "W/\"testVersion\"",
     "lastModified": "2018-01-01T00:00:00Z"
@@ -463,7 +463,7 @@ barbara =
           "externalId":"bjensen",
           "meta":{
             "resourceType":"User",
-            "location":"https://example.com/Users/id",
+            "location":"https://default.domain/Users/id",
             "created":"2018-01-01T00:00:00Z",
             "version":"W/\"testVersion\"",
             "lastModified":"2018-01-01T00:00:00Z"
@@ -489,7 +489,7 @@ allUsers =
                },
                "meta":{
                  "resourceType":"User",
-                 "location":"https://example.com/Users/id",
+                 "location":"https://default.domain/Users/id",
                  "created":"2018-01-01T00:00:00Z",
                  "version":"W/\"testVersion\"",
                  "lastModified":"2018-01-01T00:00:00Z"
@@ -506,7 +506,7 @@ allUsers =
                },
                "meta":{
                  "resourceType":"User",
-                 "location":"https://example.com/Users/id",
+                 "location":"https://default.domain/Users/id",
                  "created":"2018-01-01T00:00:00Z",
                  "version":"W/\"testVersion\"",
                  "lastModified":"2018-01-01T00:00:00Z"
@@ -533,7 +533,7 @@ onlyBarbara =
                },
                "meta":{
                  "resourceType":"User",
-                 "location":"https://example.com/Users/id",
+                 "location":"https://default.domain/Users/id",
                  "created":"2018-01-01T00:00:00Z",
                  "version":"W/\"testVersion\"",
                  "lastModified":"2018-01-01T00:00:00Z"
@@ -558,7 +558,7 @@ barbUpdate0 =
           "roles":[],
           "emails":[
             {
-              "value":"bjensen@example.com"
+              "value":"bjensen@default.domain"
             },
             {
               "value":"babs@jensen.org"
@@ -581,7 +581,7 @@ updatedBarb0 =
           },
           "emails":[
             {
-              "value":"bjensen@example.com"
+              "value":"bjensen@default.domain"
             },
             {
               "value":"babs@jensen.org"
@@ -589,7 +589,7 @@ updatedBarb0 =
           ],
           "meta":{
             "resourceType":"User",
-            "location":"https://example.com/Users/id",
+            "location":"https://default.domain/Users/id",
             "created":"2018-01-01T00:00:00Z",
             "version":"W/\"testVersion\"",
             "lastModified":"2018-01-01T00:00:00Z"

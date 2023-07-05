@@ -86,7 +86,7 @@ instance FromHttpApiData RedirectUrl where
   parseHeader = bimap (T.pack . show) RedirectUrl . parseURI strictURIParserOptions
 
 instance Arbitrary RedirectUrl where
-  arbitrary = pure $ RedirectUrl [URI.QQ.uri|https://example.com|]
+  arbitrary = pure $ RedirectUrl [URI.QQ.uri|https://default.domain|]
 
 type OAuthApplicationNameMinLength = (6 :: Nat)
 

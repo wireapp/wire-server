@@ -1,11 +1,11 @@
 {
     "failed": [
         {
-            "domain": "golden.example.com",
+            "domain": "golden.default.domain",
             "id": "00000018-4444-0020-0000-000e00000002"
         },
         {
-            "domain": "golden3.example.com",
+            "domain": "golden3.default.domain",
             "id": "99999999-0000-0020-0000-111111111112"
         }
     ],
@@ -30,7 +30,7 @@
                     "otr_muted_ref": null,
                     "otr_muted_status": null,
                     "qualified_id": {
-                        "domain": "golden.example.com",
+                        "domain": "golden.default.domain",
                         "id": "00000001-0000-0001-0000-000100000000"
                     },
                     "service": null,
@@ -43,7 +43,7 @@
             "name": " 0",
             "protocol": "proteus",
             "qualified_id": {
-                "domain": "golden.example.com",
+                "domain": "golden.default.domain",
                 "id": "00000001-0000-0000-0000-000000000000"
             },
             "receipt_mode": -2,
@@ -90,7 +90,7 @@
                     "otr_muted_ref": null,
                     "otr_muted_status": -1,
                     "qualified_id": {
-                        "domain": "golden.example.com",
+                        "domain": "golden.default.domain",
                         "id": "00000000-0000-0001-0000-000100000001"
                     },
                     "service": null,
@@ -103,7 +103,7 @@
             "name": "",
             "protocol": "mls",
             "qualified_id": {
-                "domain": "golden.example.com",
+                "domain": "golden.default.domain",
                 "id": "00000000-0000-0000-0000-000000000002"
             },
             "receipt_mode": 2,
@@ -113,11 +113,11 @@
     ],
     "not_found": [
         {
-            "domain": "golden.example.com",
+            "domain": "golden.default.domain",
             "id": "00000018-0000-0020-0000-000e00000002"
         },
         {
-            "domain": "golden2.example.com",
+            "domain": "golden2.default.domain",
             "id": "00000018-0000-0020-0000-111111111112"
         }
     ]

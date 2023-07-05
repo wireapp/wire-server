@@ -3,7 +3,7 @@
     "message": null,
     "name": null,
     "qualified_recipient": {
-        "domain": "bar.example.com",
+        "domain": "bar.default.domain",
         "id": "00000005-0000-0007-0000-000200000008"
     },
     "recipient": "00000005-0000-0007-0000-000200000008"

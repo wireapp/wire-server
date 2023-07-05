@@ -32,7 +32,7 @@ FEDERATION_DOMAIN_BASE=${FEDERATION_DOMAIN_BASE:?"you must provide a FEDERATION_
 if [ ! -f "$OUTPUTNAME_CA.pem" ]; then
     echo "CA file not found, generating CA..."
     echo '{
-    "CN": "ca.example.com",
+    "CN": "ca.default.domain",
         "key": {
             "algo": "rsa",
             "size": 2048

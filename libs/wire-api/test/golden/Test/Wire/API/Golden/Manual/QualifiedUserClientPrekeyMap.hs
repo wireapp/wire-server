@@ -31,12 +31,12 @@ testObject_QualifiedUserClientPrekeyMap_1 = mkQualifiedUserClientPrekeyMap mempt
 testObject_QualifiedUserClientPrekeyMap_2 :: QualifiedUserClientPrekeyMap
 testObject_QualifiedUserClientPrekeyMap_2 =
   mkQualifiedUserClientPrekeyMap . fromList $
-    [ (Domain "alpha.example.com", testObject_UserClientPrekeyMap_1),
-      (Domain "beta.example.com", testObject_UserClientPrekeyMap_2),
-      (Domain "gamma.example.com", testObject_UserClientPrekeyMap_3),
-      (Domain "delta.example.com", testObject_UserClientPrekeyMap_4),
-      (Domain "epsilon.example.com", testObject_UserClientPrekeyMap_5),
-      (Domain "zeta.example.com", testObject_UserClientPrekeyMap_6),
-      (Domain "eta.example.com", testObject_UserClientPrekeyMap_7),
-      (Domain "theta.example.com", testObject_UserClientPrekeyMap_8)
+    [ (Domain "alpha.default.domain", testObject_UserClientPrekeyMap_1),
+      (Domain "beta.default.domain", testObject_UserClientPrekeyMap_2),
+      (Domain "gamma.default.domain", testObject_UserClientPrekeyMap_3),
+      (Domain "delta.default.domain", testObject_UserClientPrekeyMap_4),
+      (Domain "epsilon.default.domain", testObject_UserClientPrekeyMap_5),
+      (Domain "zeta.default.domain", testObject_UserClientPrekeyMap_6),
+      (Domain "eta.default.domain", testObject_UserClientPrekeyMap_7),
+      (Domain "theta.default.domain", testObject_UserClientPrekeyMap_8)
     ]

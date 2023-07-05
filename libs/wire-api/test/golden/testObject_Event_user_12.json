@@ -10,7 +10,7 @@
                 "conversation_role": "dlkagbmicz0f95d",
                 "id": "00000055-0000-004d-0000-005100000037",
                 "qualified_id": {
-                    "domain": "faraway.example.com",
+                    "domain": "faraway.default.domain",
                     "id": "00000055-0000-004d-0000-005100000037"
                 }
             },
@@ -18,7 +18,7 @@
                 "conversation_role": "2e",
                 "id": "00000001-0000-001f-0000-001500000009",
                 "qualified_id": {
-                    "domain": "faraway.example.com",
+                    "domain": "faraway.default.domain",
                     "id": "00000001-0000-001f-0000-001500000009"
                 }
             }
@@ -26,11 +26,11 @@
     },
     "from": "0000114a-0000-7da8-0000-40cb00007fcf",
     "qualified_conversation": {
-        "domain": "faraway.example.com",
+        "domain": "faraway.default.domain",
         "id": "00000838-0000-1bc6-0000-686d00003565"
     },
     "qualified_from": {
-        "domain": "faraway.example.com",
+        "domain": "faraway.default.domain",
         "id": "0000114a-0000-7da8-0000-40cb00007fcf"
     },
     "time": "1864-05-12T20:29:47.483Z",

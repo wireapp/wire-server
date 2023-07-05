@@ -448,7 +448,7 @@ testClassifiedDomainsEnabled :: TestM ()
 testClassifiedDomainsEnabled = do
   (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
   let expected =
-        WithStatusNoLock FeatureStatusEnabled (ClassifiedDomainsConfig [Domain "example.com"]) FeatureTTLUnlimited
+        WithStatusNoLock FeatureStatusEnabled (ClassifiedDomainsConfig [Domain "default.domain"]) FeatureTTLUnlimited
 
   let getClassifiedDomainsFeatureConfig ::
         (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
@@ -1038,7 +1038,7 @@ testAllFeatures = do
           afcDigitalSignatures = withStatus FeatureStatusDisabled LockStatusUnlocked DigitalSignaturesConfig FeatureTTLUnlimited,
           afcAppLock = withStatus FeatureStatusEnabled LockStatusUnlocked (AppLockConfig (EnforceAppLock False) (60 :: Int32)) FeatureTTLUnlimited,
           afcFileSharing = withStatus FeatureStatusEnabled LockStatusUnlocked FileSharingConfig FeatureTTLUnlimited,
-          afcClassifiedDomains = withStatus FeatureStatusEnabled LockStatusUnlocked (ClassifiedDomainsConfig [Domain "example.com"]) FeatureTTLUnlimited,
+          afcClassifiedDomains = withStatus FeatureStatusEnabled LockStatusUnlocked (ClassifiedDomainsConfig [Domain "default.domain"]) FeatureTTLUnlimited,
           afcConferenceCalling = withStatus confCalling LockStatusUnlocked ConferenceCallingConfig FeatureTTLUnlimited,
           afcSelfDeletingMessages = withStatus FeatureStatusEnabled lockStateSelfDeleting (SelfDeletingMessagesConfig 0) FeatureTTLUnlimited,
           afcGuestLink = withStatus FeatureStatusEnabled LockStatusUnlocked GuestLinksConfig FeatureTTLUnlimited,

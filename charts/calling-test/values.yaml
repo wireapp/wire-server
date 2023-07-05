@@ -6,7 +6,7 @@ image:
 
 envVars:
   # note: this should be overridden in every deployment
-  BACKEND_HTTPS_URL: https://nginz-https.example.com
+  BACKEND_HTTPS_URL: https://nginz-https.default.domain
 
 # These name overrides are used also for routing.
 # Wire-server's nginz subchart will route /calling-test to this chart

@@ -43,7 +43,7 @@ spec = describe "Data.Metrics.Types" $ do
                   ]
               ]
       treeLookup testPaths ["users", "some-uuid"] `shouldBe` Just "/users/:uid"
-      treeLookup testPaths ["users", "example.com", "some-uuid"] `shouldBe` Just "/users/:domain/:uid"
+      treeLookup testPaths ["users", "default.domain", "some-uuid"] `shouldBe` Just "/users/:domain/:uid"
 
     -- See Note [Trees for Metrics]
     it "should match even when prefix of a path is matched" $ do
@@ -87,8 +87,8 @@ spec = describe "Data.Metrics.Types" $ do
                   ]
               ]
 
-      treeLookup testPaths ["users", "example.com", "some-uuid"] `shouldBe` Just "/users/:domain/:uid"
-      treeLookup testPathsReverse ["users", "example.com", "some-uuid"] `shouldBe` Just "/users/:domain/:uid"
+      treeLookup testPaths ["users", "default.domain", "some-uuid"] `shouldBe` Just "/users/:domain/:uid"
+      treeLookup testPathsReverse ["users", "default.domain", "some-uuid"] `shouldBe` Just "/users/:domain/:uid"
 
       treeLookup testPaths ["users", "some-uuid", "clients"] `shouldBe` Just "/users/:uid/clients"
       treeLookup testPathsReverse ["users", "some-uuid", "clients"] `shouldBe` Just "/users/:uid/clients"
@@ -111,8 +111,8 @@ spec = describe "Data.Metrics.Types" $ do
                   ]
               ]
 
-      treeLookup testPaths ["users", "example.com", "some-uuid"] `shouldBe` Just "/users/:domain/:uid"
-      treeLookup testPathsReverse ["users", "example.com", "some-uuid"] `shouldBe` Just "/users/:domain/:uid"
+      treeLookup testPaths ["users", "default.domain", "some-uuid"] `shouldBe` Just "/users/:domain/:uid"
+      treeLookup testPathsReverse ["users", "default.domain", "some-uuid"] `shouldBe` Just "/users/:domain/:uid"
 
       treeLookup testPaths ["users", "some-uuid", "clients"] `shouldBe` Just "/users/:uid/clients"
       treeLookup testPathsReverse ["users", "some-uuid", "clients"] `shouldBe` Just "/users/:uid/clients"

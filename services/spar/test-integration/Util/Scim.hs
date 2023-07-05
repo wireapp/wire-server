@@ -130,9 +130,9 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
   (externalId, subj) <-
     getRandomR (0, 1 :: Int) <&> \case
       0 ->
-        ( "scimuser_extid_" <> suffix <> "@example.com",
+        ( "scimuser_extid_" <> suffix <> "@default.domain",
           either (error . show) id $
-            SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
+            SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@default.domain")
         )
       1 ->
         ( "scimuser_extid_" <> suffix,
@@ -152,7 +152,7 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
 randomScimUserWithEmail :: MonadRandom m => m (Scim.User.User SparTag, Email)
 randomScimUserWithEmail = do
   suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
-  let email = Email ("email" <> suffix) "example.com"
+  let email = Email ("email" <> suffix) "default.domain"
       externalId = fromEmail email
   pure
     ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra mempty))

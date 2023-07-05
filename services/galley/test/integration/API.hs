@@ -271,7 +271,7 @@ tests s =
     rb1, rb2, rb3 :: Remote Backend
     rb1 =
       toRemoteUnsafe
-        (Domain "c.example.com")
+        (Domain "c.default.domain")
         ( Backend
             { bReachable = BackendReachable,
               bUsers = 2
@@ -279,7 +279,7 @@ tests s =
         )
     rb2 =
       toRemoteUnsafe
-        (Domain "d.example.com")
+        (Domain "d.default.domain")
         ( Backend
             { bReachable = BackendReachable,
               bUsers = 1
@@ -287,7 +287,7 @@ tests s =
         )
     rb3 =
       toRemoteUnsafe
-        (Domain "e.example.com")
+        (Domain "e.default.domain")
         ( Backend
             { bReachable = BackendUnreachable,
               bUsers = 2
@@ -773,8 +773,8 @@ postMessageQualifiedLocalOwningBackendSuccess = do
   alexClient2 <- randomClient (qUnqualified alex) (someLastPrekeys !! 2)
   (amy, amyClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
 
-  let bDomain = Domain "b.far-away.example.com"
-      cDomain = Domain "c.far-away.example.com"
+  let bDomain = Domain "b.far-away.default.domain"
+      cDomain = Domain "c.far-away.default.domain"
       randomQuidAndClients d n = (,) <$> randomQualifiedId d <*> liftIO (replicateM n $ generate arbitrary)
   (bob, [bobClient]) <- randomQuidAndClients bDomain 1
   (bart, [bartClient1, bartClient2]) <- randomQuidAndClients bDomain 2
@@ -910,7 +910,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   deeId <- randomId
   deeClient <- liftIO $ generate arbitrary
 
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
       deeRemote = Qualified deeId remoteDomain
 
   let aliceUnqualified = qUnqualified aliceOwningDomain
@@ -966,7 +966,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
   cannon <- view tsCannon
   -- Domain which owns the converstaion
   owningDomain <- viewFederationDomain
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
 
   (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
   (bobOwningDomain, bobClient) <- randomUserWithClientQualified (someLastPrekeys !! 1)
@@ -1066,7 +1066,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   deeId <- randomId
   deeClient <- liftIO $ generate arbitrary
 
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
       deeRemote = Qualified deeId remoteDomain
 
   let aliceUnqualified = qUnqualified aliceOwningDomain
@@ -1189,7 +1189,7 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
   (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
   deeId <- randomId
   deeClient <- liftIO $ generate arbitrary
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
       deeRemote = Qualified deeId remoteDomain
 
   let aliceUnqualified = qUnqualified aliceOwningDomain
@@ -1263,9 +1263,9 @@ postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients =
   deeClient <- liftIO $ generate arbitrary
   emilyId <- randomId
   emilyClient <- liftIO $ generate arbitrary
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
       deeRemote = Qualified deeId remoteDomain
-      remoteDomain2 = Domain "far-away2.example.com"
+      remoteDomain2 = Domain "far-away2.default.domain"
       emilyRemote = Qualified emilyId remoteDomain2
 
   let aliceUnqualified = qUnqualified aliceOwningDomain
@@ -1346,7 +1346,7 @@ postMessageQualifiedRemoteOwningBackendFailure = do
   (aliceLocal, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
   let aliceUnqualified = qUnqualified aliceLocal
   convIdUnqualified <- randomId
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
       convId = Qualified convIdUnqualified remoteDomain
 
   let mock =
@@ -1368,7 +1368,7 @@ postMessageQualifiedRemoteOwningBackendSuccess = do
 
   let aliceUnqualified = qUnqualified aliceLocal
   convIdUnqualified <- randomId
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
       convId = Qualified convIdUnqualified remoteDomain
       deeRemote = Qualified deeId remoteDomain
 
@@ -1774,7 +1774,7 @@ testAccessUpdateGuestRemoved = do
   connectUsers (qUnqualified alice) (pure (qUnqualified charlie))
 
   -- dee is a remote guest
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
   dee <- Qualified <$> randomId <*> pure remoteDomain
 
   connectWithRemoteUser (qUnqualified alice) dee
@@ -1862,7 +1862,7 @@ testAccessUpdateGuestRemovedRemotesUnavailable = do
   connectUsers (qUnqualified alice) (pure (qUnqualified charlie))
 
   -- dee is a remote guest
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
   dee <- Qualified <$> randomId <*> pure remoteDomain
 
   connectWithRemoteUser (qUnqualified alice) dee
@@ -2182,7 +2182,7 @@ paginateConvListIds = do
       !!! const 201 === statusCode
 
   remoteChad <- randomId
-  let chadDomain = Domain "chad.example.com"
+  let chadDomain = Domain "chad.default.domain"
       qChad = Qualified remoteChad chadDomain
   connectWithRemoteUser alice qChad
   replicateM_ 25 $ do
@@ -2198,7 +2198,7 @@ paginateConvListIds = do
     runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
   remoteDee <- randomId
-  let deeDomain = Domain "dee.example.com"
+  let deeDomain = Domain "dee.default.domain"
       qDee = Qualified remoteDee deeDomain
   connectWithRemoteUser alice qDee
   replicateM_ 31 $ do
@@ -2214,7 +2214,7 @@ paginateConvListIds = do
     runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
   -- 1 Proteus self conv + 1 MLS self conv + 2 convs with bob and eve + 196
-  -- local convs + 25 convs on chad.example.com + 31 on dee.example = 256 convs.
+  -- local convs + 25 convs on chad.default.domain + 31 on dee.example = 256 convs.
   -- Getting them 16 at a time should get all them in 16 times.
   foldM_ (getChunkedConvs 16 0 alice) Nothing [16, 15 .. 0 :: Int]
 
@@ -2241,7 +2241,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
   foldM_ (getChunkedConvs 16 0 alice) Nothing [2, 1, 0 :: Int]
 
   remoteChad <- randomId
-  let chadDomain = Domain "chad.example.com"
+  let chadDomain = Domain "chad.default.domain"
       qChad = Qualified remoteChad chadDomain
   connectWithRemoteUser alice qChad
 
@@ -2259,7 +2259,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
     runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
   remoteDee <- randomId
-  let deeDomain = Domain "dee.example.com"
+  let deeDomain = Domain "dee.default.domain"
       qDee = Qualified remoteDee deeDomain
   connectWithRemoteUser alice qDee
 
@@ -2415,7 +2415,7 @@ postConvQualifiedNoConnection :: TestM ()
 postConvQualifiedNoConnection = do
   alice <- randomUser
   let mock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
-  bob <- flip Qualified (Domain "far-away.example.com") <$> randomId
+  bob <- flip Qualified (Domain "far-away.default.domain") <$> randomId
   void $ withTempMockFederator' mock $ do
     postConvQualified alice Nothing defNewProteusConv {newConvQualifiedUsers = [bob]}
       !!! const 403 === statusCode
@@ -2423,7 +2423,7 @@ postConvQualifiedNoConnection = do
 postTeamConvQualifiedNoConnection :: TestM ()
 postTeamConvQualifiedNoConnection = do
   (tid, alice, _) <- createBindingTeamWithQualifiedMembers 1
-  bob <- randomQualifiedId (Domain "bob.example.com")
+  bob <- randomQualifiedId (Domain "bob.default.domain")
   charlie <- randomQualifiedUser
   let mock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
   void $ withTempMockFederator' mock $ do
@@ -2446,7 +2446,7 @@ postTeamConvQualifiedNoConnection = do
 
 postConvQualifiedNonExistentDomain :: TestM ()
 postConvQualifiedNonExistentDomain = do
-  let remoteDomain = Domain "non-existent.example.com"
+  let remoteDomain = Domain "non-existent.default.domain"
   (uAlice, alice) <- randomUserTuple
   uBob <- randomId
   let bob = Qualified uBob remoteDomain
@@ -2481,7 +2481,7 @@ postConvQualifiedNonExistentDomain = do
 postConvQualifiedFederationNotEnabled :: TestM ()
 postConvQualifiedFederationNotEnabled = do
   alice <- randomUser
-  bob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
+  bob <- flip Qualified (Domain "some-remote-backend.default.domain") <$> randomId
   connectWithRemoteUser alice bob
   let federatorNotConfigured o =
         o
@@ -2750,7 +2750,7 @@ testAddRemoteMember = do
   let alice = qUnqualified qalice
   let localDomain = qDomain qalice
   bobId <- randomId
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
       remoteBob = Qualified bobId remoteDomain
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   let qconvId = Qualified convId localDomain
@@ -2797,7 +2797,7 @@ testDeleteTeamConversationWithRemoteMembers = do
   let qalice = Qualified alice localDomain
 
   bobId <- randomId
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
       remoteBob = Qualified bobId remoteDomain
 
   convId <- decodeConvId <$> postTeamConv tid alice [] (Just "remote gossip") [] Nothing Nothing
@@ -2831,7 +2831,7 @@ testDeleteTeamConversationWithUnavailableRemoteMembers = do
   let qalice = Qualified alice localDomain
 
   bobId <- randomId
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
       remoteBob = Qualified bobId remoteDomain
 
   convId <- decodeConvId <$> postTeamConv tid alice [] (Just "remote gossip") [] Nothing Nothing
@@ -2893,7 +2893,7 @@ testGetQualifiedRemoteConv = do
   loc <- flip toLocalUnsafe () <$> viewFederationDomain
   bobId <- randomId
   convId <- randomId
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
       bobQ = Qualified bobId remoteDomain
       remoteConvId = Qualified convId remoteDomain
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
@@ -2925,7 +2925,7 @@ testGetQualifiedRemoteConv = do
 testGetQualifiedRemoteConvNotFound :: TestM ()
 testGetQualifiedRemoteConvNotFound = do
   aliceId <- randomUser
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
   remoteConvId <- (`Qualified` remoteDomain) <$> randomId
   -- No need to mock federator as we don't expect a call to be made
   getConvQualified aliceId remoteConvId !!! do
@@ -2938,7 +2938,7 @@ testGetQualifiedRemoteConvNotFoundOnRemote = do
   let aliceId = qUnqualified aliceQ
   bobId <- randomId
   convId <- randomId
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "far-away.default.domain"
       remoteConvId = Qualified convId remoteDomain
       aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
 
@@ -2956,16 +2956,16 @@ testGetQualifiedRemoteConvNotFoundOnRemote = do
 --
 -- - A local conversation which she is part of
 --
--- - A remote conv on a.far-away.example.com (with Bob)
+-- - A remote conv on a.far-away.default.domain (with Bob)
 --
--- - A remote conv on b.far-away.example.com (with Carl)
+-- - A remote conv on b.far-away.default.domain (with Carl)
 --
--- - A remote conv on a.far-away.example.com, which is not found in the local DB
+-- - A remote conv on a.far-away.default.domain, which is not found in the local DB
 --
--- - A remote conv on b.far-away.example.com, it is found in the local DB but
+-- - A remote conv on b.far-away.default.domain, it is found in the local DB but
 --   the remote does not return it
 --
--- - A remote conv on c.far-away.example.com (with Dee), for which the federated call fails
+-- - A remote conv on c.far-away.default.domain (with Dee), for which the federated call fails
 --
 -- - A local conversation which doesn't exist
 --
@@ -2979,9 +2979,9 @@ testBulkGetQualifiedConvs = do
   bobId <- randomId
   carlId <- randomId
   deeId <- randomId
-  let remoteDomainA = Domain "a.far-away.example.com"
-      remoteDomainB = Domain "b.far-away.example.com"
-      remoteDomainC = Domain "c.far-away.example.com"
+  let remoteDomainA = Domain "a.far-away.default.domain"
+      remoteDomainB = Domain "b.far-away.default.domain"
+      remoteDomainC = Domain "c.far-away.default.domain"
       bobQ = Qualified bobId remoteDomainA
       carlQ = Qualified carlId remoteDomainB
       deeQ = Qualified deeId remoteDomainC
@@ -3064,7 +3064,7 @@ testAddRemoteMemberInvalidDomain :: TestM ()
 testAddRemoteMemberInvalidDomain = do
   alice <- randomUser
   bobId <- randomId
-  let remoteBob = Qualified bobId (Domain "invalid.example.com")
+  let remoteBob = Qualified bobId (Domain "invalid.default.domain")
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   localDomain <- viewFederationDomain
   let qconvId = Qualified convId localDomain
@@ -3076,7 +3076,7 @@ testAddRemoteMemberInvalidDomain = do
       const 422 === statusCode
       const (Just "/federation/api-version")
         === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
-      const (Just "invalid.example.com")
+      const (Just "invalid.default.domain")
         === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
 
 -- This test is a safeguard to ensure adding remote members will fail
@@ -3084,7 +3084,7 @@ testAddRemoteMemberInvalidDomain = do
 testAddRemoteMemberFederationDisabled :: TestM ()
 testAddRemoteMemberFederationDisabled = do
   alice <- randomUser
-  remoteBob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
+  remoteBob <- flip Qualified (Domain "some-remote-backend.default.domain") <$> randomId
   qconvId <- decodeQualifiedConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   connectWithRemoteUser alice remoteBob
 
@@ -3106,7 +3106,7 @@ testAddRemoteMemberFederationDisabled = do
 testAddRemoteMemberFederationUnavailable :: TestM ()
 testAddRemoteMemberFederationUnavailable = do
   alice <- randomUser
-  remoteBob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
+  remoteBob <- flip Qualified (Domain "some-remote-backend.default.domain") <$> randomId
   qconvId <- decodeQualifiedConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   connectWithRemoteUser alice remoteBob
 
@@ -3279,7 +3279,7 @@ deleteLocalMemberConvLocalQualifiedOk = do
   [alice, bob] <- randomUsers 2
   eve <- randomId
   let [qAlice, qBob] = (`Qualified` localDomain) <$> [alice, bob]
-      remoteDomain = Domain "far-away.example.com"
+      remoteDomain = Domain "far-away.default.domain"
       qEve = Qualified eve remoteDomain
 
   connectUsers alice (singleton bob)
@@ -3313,8 +3313,8 @@ deleteLocalMemberConvLocalQualifiedOk = do
     const Nothing === responseBody
 
 -- Creates a conversation with five users. Alice and Bob are on the local
--- domain. Chad and Dee are on far-away-1.example.com. Eve is on
--- far-away-2.example.com. It uses a qualified endpoint to remove Chad from the
+-- domain. Chad and Dee are on far-away-1.default.domain. Eve is on
+-- far-away-2.default.domain. It uses a qualified endpoint to remove Chad from the
 -- conversation:
 --
 -- DELETE /conversations/:domain/:cnv/members/:domain/:usr
@@ -3323,8 +3323,8 @@ deleteRemoteMemberConvLocalQualifiedOk = do
   localDomain <- viewFederationDomain
   [alice, bob] <- randomUsers 2
   let [qAlice, qBob] = (`Qualified` localDomain) <$> [alice, bob]
-      remoteDomain1 = Domain "far-away-1.example.com"
-      remoteDomain2 = Domain "far-away-2.example.com"
+      remoteDomain1 = Domain "far-away-1.default.domain"
+      remoteDomain2 = Domain "far-away-2.default.domain"
   qChad <- (`Qualified` remoteDomain1) <$> randomId
   qDee <- (`Qualified` remoteDomain1) <$> randomId
   qEve <- (`Qualified` remoteDomain2) <$> randomId
@@ -3370,9 +3370,9 @@ deleteRemoteMemberConvLocalQualifiedOk = do
     const Nothing === responseBody
 
 -- Creates a conversation with five users. Alice and Bob are on the local
--- domain. Chad and Dee are on far-away-1.example.com. Eve is on
--- far-away-2.example.com. It uses a qualified endpoint to remove Chad from the
--- conversation. The federator for far-away-2.example.com isn't availabe:
+-- domain. Chad and Dee are on far-away-1.default.domain. Eve is on
+-- far-away-2.default.domain. It uses a qualified endpoint to remove Chad from the
+-- conversation. The federator for far-away-2.default.domain isn't availabe:
 --
 -- DELETE /conversations/:domain/:cnv/members/:domain/:usr
 deleteUnavailableRemoteMemberConvLocalQualifiedOk :: TestM ()
@@ -3380,8 +3380,8 @@ deleteUnavailableRemoteMemberConvLocalQualifiedOk = do
   localDomain <- viewFederationDomain
   [alice, bob] <- randomUsers 2
   let [qAlice, qBob] = (`Qualified` localDomain) <$> [alice, bob]
-      remoteDomain1 = Domain "far-away-1.example.com"
-      remoteDomain2 = Domain "far-away-2.example.com"
+      remoteDomain1 = Domain "far-away-1.default.domain"
+      remoteDomain2 = Domain "far-away-2.default.domain"
   qChad <- (`Qualified` remoteDomain1) <$> randomId
   qDee <- (`Qualified` remoteDomain1) <$> randomId
   qEve <- (`Qualified` remoteDomain2) <$> randomId
@@ -3448,7 +3448,7 @@ leaveRemoteConvQualifiedOk = do
   let qAlice = Qualified alice localDomain
   conv <- randomId
   bob <- randomId
-  let remoteDomain = Domain "faraway.example.com"
+  let remoteDomain = Domain "faraway.default.domain"
       qconv = Qualified conv remoteDomain
       qBob = Qualified bob remoteDomain
   let mockedFederatedGalleyResponse = do
@@ -3476,7 +3476,7 @@ leaveRemoteConvQualifiedOk = do
 leaveNonExistentRemoteConv :: TestM ()
 leaveNonExistentRemoteConv = do
   alice <- randomQualifiedUser
-  let remoteDomain = Domain "faraway.example.com"
+  let remoteDomain = Domain "faraway.default.domain"
   conv <- randomQualifiedId remoteDomain
 
   let mockResponses = do
@@ -3501,7 +3501,7 @@ leaveNonExistentRemoteConv = do
 leaveRemoteConvDenied :: TestM ()
 leaveRemoteConvDenied = do
   alice <- randomQualifiedUser
-  let remoteDomain = Domain "faraway.example.com"
+  let remoteDomain = Domain "faraway.default.domain"
   conv <- randomQualifiedId remoteDomain
 
   let mockResponses = do
@@ -3533,7 +3533,7 @@ removeLocalMemberConvQualifiedFail = do
   alice <- randomUser
   conv <- randomId
   qBob <- randomQualifiedUser
-  let remoteDomain = Domain "faraway.example.com"
+  let remoteDomain = Domain "faraway.default.domain"
       qconv = Qualified conv remoteDomain
 
   deleteMemberQualified alice qBob qconv !!! do
@@ -3549,7 +3549,7 @@ removeRemoteMemberConvQualifiedFail = do
   alice <- randomUser
   conv <- randomId
   bob <- randomId
-  let remoteDomain = Domain "faraway.example.com"
+  let remoteDomain = Domain "faraway.default.domain"
       qconv = Qualified conv remoteDomain
       qBob = Qualified bob remoteDomain
 
@@ -3605,7 +3605,7 @@ putQualifiedConvRenameOk = do
 putQualifiedConvRenameWithRemotesOk :: TestM ()
 putQualifiedConvRenameWithRemotesOk = do
   c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
+  let remoteDomain = Domain "alice.default.domain"
   qalice <- Qualified <$> randomId <*> pure remoteDomain
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
@@ -3645,7 +3645,7 @@ putQualifiedConvRenameWithRemotesOk = do
 putQualifiedConvRenameWithRemotesUnavailable :: TestM ()
 putQualifiedConvRenameWithRemotesUnavailable = do
   c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
+  let remoteDomain = Domain "alice.default.domain"
   qalice <- Qualified <$> randomId <*> pure remoteDomain
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
@@ -3917,7 +3917,7 @@ putRemoteConvMemberOk update = do
   let alice = qUnqualified qalice
 
   -- create a remote conversation with alice
-  let remoteDomain = Domain "bobland.example.com"
+  let remoteDomain = Domain "bobland.default.domain"
   qbob <- Qualified <$> randomId <*> pure remoteDomain
   qconv <- Qualified <$> randomId <*> pure remoteDomain
   connectWithRemoteUser alice qbob
@@ -4063,7 +4063,7 @@ putRemoteReceiptModeOk = do
   let alice = qUnqualified qalice
 
   -- create a remote conversation at bob with alice as admin
-  let remoteDomain = Domain "bobland.example.com"
+  let remoteDomain = Domain "bobland.default.domain"
   qbob <- Qualified <$> randomId <*> pure remoteDomain
   qconv <- Qualified <$> randomId <*> pure remoteDomain
   connectWithRemoteUser alice qbob
@@ -4131,7 +4131,7 @@ putRemoteReceiptModeOk = do
 putReceiptModeWithRemotesOk :: TestM ()
 putReceiptModeWithRemotesOk = do
   c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
+  let remoteDomain = Domain "alice.default.domain"
   qalice <- Qualified <$> randomId <*> pure remoteDomain
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
@@ -4173,7 +4173,7 @@ putReceiptModeWithRemotesOk = do
 putReceiptModeWithRemotesUnavailable :: TestM ()
 putReceiptModeWithRemotesUnavailable = do
   c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
+  let remoteDomain = Domain "alice.default.domain"
   qalice <- Qualified <$> randomId <*> pure remoteDomain
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
@@ -4365,14 +4365,14 @@ removeUser = do
   [alice, alexDel, amy] <- replicateM 3 randomQualifiedUser
   let [alice', alexDel', amy'] = qUnqualified <$> [alice, alexDel, amy]
 
-  let bDomain = Domain "b.example.com"
+  let bDomain = Domain "b.default.domain"
   bart <- randomQualifiedId bDomain
   berta <- randomQualifiedId bDomain
 
-  let cDomain = Domain "c.example.com"
+  let cDomain = Domain "c.default.domain"
   carl <- randomQualifiedId cDomain
 
-  let dDomain = Domain "d.example.com"
+  let dDomain = Domain "d.default.domain"
   dwight <- randomQualifiedId dDomain
   dory <- randomQualifiedId dDomain
 

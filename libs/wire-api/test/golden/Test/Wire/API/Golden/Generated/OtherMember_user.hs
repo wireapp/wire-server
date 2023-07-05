@@ -27,7 +27,7 @@ import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 
 domain :: Domain
-domain = Domain "golden.example.com"
+domain = Domain "golden.default.domain"
 
 testObject_OtherMember_user_1 :: OtherMember
 testObject_OtherMember_user_1 =

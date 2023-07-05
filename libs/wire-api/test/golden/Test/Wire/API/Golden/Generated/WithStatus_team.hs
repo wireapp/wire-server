@@ -46,7 +46,7 @@ testObject_WithStatus_team_7 :: WithStatus ClassifiedDomainsConfig
 testObject_WithStatus_team_7 = withStatus FeatureStatusEnabled LockStatusLocked (ClassifiedDomainsConfig [])
 
 testObject_WithStatus_team_8 :: WithStatus ClassifiedDomainsConfig
-testObject_WithStatus_team_8 = withStatus FeatureStatusEnabled LockStatusLocked (ClassifiedDomainsConfig [Domain "example.com", Domain "test.foobar"])
+testObject_WithStatus_team_8 = withStatus FeatureStatusEnabled LockStatusLocked (ClassifiedDomainsConfig [Domain "default.domain", Domain "test.foobar"])
 
 testObject_WithStatus_team_9 :: WithStatus ClassifiedDomainsConfig
 testObject_WithStatus_team_9 = withStatus FeatureStatusEnabled LockStatusUnlocked (ClassifiedDomainsConfig [Domain "test.foobar"])

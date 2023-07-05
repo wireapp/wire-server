@@ -8,11 +8,11 @@
     },
     "from": "00004b11-0000-5504-0000-55d800002188",
     "qualified_conversation": {
-        "domain": "faraway.example.com",
+        "domain": "faraway.default.domain",
         "id": "00006f8c-0000-00d6-0000-1568000001e9"
     },
     "qualified_from": {
-        "domain": "faraway.example.com",
+        "domain": "faraway.default.domain",
         "id": "00004b11-0000-5504-0000-55d800002188"
     },
     "time": "1864-04-27T15:44:23.844Z",

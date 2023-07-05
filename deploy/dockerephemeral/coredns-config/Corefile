@@ -1,4 +1,4 @@
-example.com {
-    file /coredns-config/db.example.com
+default.domain {
+    file /coredns-config/db.default.domain
     log
 }

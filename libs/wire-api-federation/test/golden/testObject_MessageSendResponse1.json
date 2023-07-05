@@ -1,7 +1,7 @@
 {
     "Right": {
         "deleted": {
-            "golden.example.com": {
+            "golden.default.domain": {
                 "00000000-0000-0000-0000-000100000005": [
                     "0",
                     "1"
@@ -12,7 +12,7 @@
             }
         },
         "failed_to_send": {
-            "golden.example.com": {
+            "golden.default.domain": {
                 "00000000-0000-0000-0000-000100000007": [
                     "0",
                     "1"
@@ -23,7 +23,7 @@
             }
         },
         "missing": {
-            "golden.example.com": {
+            "golden.default.domain": {
                 "00000000-0000-0000-0000-000100000002": [
                     "0",
                     "1"
@@ -34,7 +34,7 @@
             }
         },
         "redundant": {
-            "golden.example.com": {
+            "golden.default.domain": {
                 "00000000-0000-0000-0000-000100000003": [
                     "0",
                     "1"

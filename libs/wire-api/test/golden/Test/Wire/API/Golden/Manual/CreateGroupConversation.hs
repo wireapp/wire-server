@@ -27,8 +27,8 @@ import Test.Wire.API.Golden.Generated.Conversation_user
 import Wire.API.Conversation
 
 unreachableDomain1, unreachableDomain2 :: Domain
-unreachableDomain1 = Domain "golden-unreachable-1.example.com"
-unreachableDomain2 = Domain "golden-unreachable-2.example.com"
+unreachableDomain1 = Domain "golden-unreachable-1.default.domain"
+unreachableDomain2 = Domain "golden-unreachable-2.default.domain"
 
 user1, user2 :: UserId
 user1 = Id (fromJust (UUID.fromString "a0000001-0000-0001-0000-000200000007"))

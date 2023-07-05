@@ -45,7 +45,7 @@ testObject_WithStatusNoLock_team_7 :: WithStatusNoLock ClassifiedDomainsConfig
 testObject_WithStatusNoLock_team_7 = WithStatusNoLock FeatureStatusEnabled (ClassifiedDomainsConfig []) FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_8 :: WithStatusNoLock ClassifiedDomainsConfig
-testObject_WithStatusNoLock_team_8 = WithStatusNoLock FeatureStatusEnabled (ClassifiedDomainsConfig [Domain "example.com", Domain "test.foobar"]) FeatureTTLUnlimited
+testObject_WithStatusNoLock_team_8 = WithStatusNoLock FeatureStatusEnabled (ClassifiedDomainsConfig [Domain "default.domain", Domain "test.foobar"]) FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_9 :: WithStatusNoLock ClassifiedDomainsConfig
 testObject_WithStatusNoLock_team_9 = WithStatusNoLock FeatureStatusEnabled (ClassifiedDomainsConfig [Domain "test.foobar"]) FeatureTTLUnlimited

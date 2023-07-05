@@ -37,11 +37,11 @@ qAlice, qBob :: Qualified UserId
 qAlice =
   Qualified
     (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100004007")))
-    (Domain "golden.example.com")
+    (Domain "golden.default.domain")
 qBob =
   Qualified
     (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100005007")))
-    (Domain "golden2.example.com")
+    (Domain "golden2.default.domain")
 
 chad, dee :: UserId
 chad = Id (fromJust (UUID.fromString "00000fff-0000-0000-0000-000100005007"))
@@ -54,7 +54,7 @@ testObject_ConversationUpdate1 =
       cuOrigUserId =
         Qualified
           (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000007")))
-          (Domain "golden.example.com"),
+          (Domain "golden.default.domain"),
       cuConvId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cuAlreadyPresentUsers = [],
@@ -68,7 +68,7 @@ testObject_ConversationUpdate2 =
       cuOrigUserId =
         Qualified
           (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000007")))
-          (Domain "golden.example.com"),
+          (Domain "golden.default.domain"),
       cuConvId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cuAlreadyPresentUsers = [chad, dee],

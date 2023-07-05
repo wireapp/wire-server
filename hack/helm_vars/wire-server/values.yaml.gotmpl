@@ -76,12 +76,12 @@ brig:
       setMaxTeamSize: 32
       setMaxConvSize: 16
       # See helmfile for the real value
-      setFederationDomain: integration.example.com
+      setFederationDomain: integration.default.domain
       setFederationDomainConfigs:
         # 'setFederationDomainConfigs' is deprecated as of https://github.com/wireapp/wire-server/pull/3260.  See
         # https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
         # for details.
-        - domain: integration.example.com
+        - domain: integration.default.domain
           search_policy: full_search
         - domain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
           search_policy: full_search
@@ -166,7 +166,7 @@ cargohold:
     enableFederation: true # keep in sync with brig.config.enableFederation, galley.config.enableFederation and tags.federator!
     settings:
       # See helmfile for the real value
-      federationDomain: integration.example.com
+      federationDomain: integration.default.domain
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
@@ -186,7 +186,7 @@ galley:
       conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/conversation-join/
       enableIndexedBillingTeamMembers: true
       # See helmfile for the real value
-      federationDomain: integration.example.com
+      federationDomain: integration.default.domain
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
         legalhold: whitelist-teams-and-implicit-consent
@@ -194,7 +194,7 @@ galley:
         classifiedDomains:
           status: enabled
           config:
-            domains: ["example.com"]
+            domains: ["default.domain"]
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo

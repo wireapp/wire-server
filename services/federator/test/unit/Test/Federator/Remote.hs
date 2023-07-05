@@ -171,7 +171,7 @@ certForLocalhostDot :: Warp.TLSSettings
 certForLocalhostDot = Warp.tlsSettings "test/resources/unit/localhost-dot.pem" "test/resources/unit/localhost-dot-key.pem"
 
 certForWrongDomain :: Warp.TLSSettings
-certForWrongDomain = Warp.tlsSettings "test/resources/unit/localhost.example.com.pem" "test/resources/unit/localhost.example.com-key.pem"
+certForWrongDomain = Warp.tlsSettings "test/resources/unit/localhost.default.domain.pem" "test/resources/unit/localhost.default.domain-key.pem"
 
 certWithoutServerKeyUsage :: Warp.TLSSettings
 certWithoutServerKeyUsage =

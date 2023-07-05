@@ -60,7 +60,7 @@ testObject_ConversationCode_user_1 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),

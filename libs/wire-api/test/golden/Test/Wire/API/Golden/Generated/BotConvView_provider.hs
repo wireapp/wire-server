@@ -30,7 +30,7 @@ import Wire.API.Provider.Bot (BotConvView, botConvView)
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 
 domain :: Domain
-domain = Domain "golden.example.com"
+domain = Domain "golden.default.domain"
 
 testObject_BotConvView_provider_1 :: BotConvView
 testObject_BotConvView_provider_1 =

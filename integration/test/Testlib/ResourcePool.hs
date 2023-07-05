@@ -111,12 +111,12 @@ backendResources n =
     federatorExternalPort :: Num a => a -> a
     federatorExternalPort i = 8098 + ((1 + i) * 1000)
 
-    -- Fixed domain for a backend resource, e.g. for dynamic backends: 1 -> "d1.example.com", 2 -> "d2.example.com", etc.
+    -- Fixed domain for a backend resource, e.g. for dynamic backends: 1 -> "d1.default.domain", 2 -> "d2.default.domain", etc.
     domain :: Integral a => a -> String
-    domain i = "d" <> show @Int (fromIntegral i) <> ".example.com"
+    domain i = "d" <> show @Int (fromIntegral i) <> ".default.domain"
 
     mkVHost :: Integral a => a -> String
     mkVHost = domain
 
 remoteDomains :: String -> [String]
-remoteDomains domain = ["d1.example.com", "d2.example.com", "d3.example.com"] \\ [domain]
+remoteDomains domain = ["d1.default.domain", "d2.default.domain", "d3.default.domain"] \\ [domain]

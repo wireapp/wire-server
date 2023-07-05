@@ -19,7 +19,7 @@
     "auth_tokens": [
         ""
     ],
-    "base_url": "https://example.com",
+    "base_url": "https://default.domain",
     "description": "+N",
     "enabled": false,
     "id": "00000000-0000-0000-0000-000100000000",

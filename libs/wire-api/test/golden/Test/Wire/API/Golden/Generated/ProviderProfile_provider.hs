@@ -72,7 +72,7 @@ testObject_ProviderProfile_provider_1 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -103,7 +103,7 @@ testObject_ProviderProfile_provider_2 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -134,7 +134,7 @@ testObject_ProviderProfile_provider_3 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -165,7 +165,7 @@ testObject_ProviderProfile_provider_4 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -192,7 +192,7 @@ testObject_ProviderProfile_provider_5 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -223,7 +223,7 @@ testObject_ProviderProfile_provider_6 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -254,7 +254,7 @@ testObject_ProviderProfile_provider_7 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -285,7 +285,7 @@ testObject_ProviderProfile_provider_8 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -316,7 +316,7 @@ testObject_ProviderProfile_provider_9 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -347,7 +347,7 @@ testObject_ProviderProfile_provider_10 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -378,7 +378,7 @@ testObject_ProviderProfile_provider_11 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -409,7 +409,7 @@ testObject_ProviderProfile_provider_12 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -440,7 +440,7 @@ testObject_ProviderProfile_provider_13 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -467,7 +467,7 @@ testObject_ProviderProfile_provider_14 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -498,7 +498,7 @@ testObject_ProviderProfile_provider_15 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -529,7 +529,7 @@ testObject_ProviderProfile_provider_16 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -556,7 +556,7 @@ testObject_ProviderProfile_provider_17 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -587,7 +587,7 @@ testObject_ProviderProfile_provider_18 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -618,7 +618,7 @@ testObject_ProviderProfile_provider_19 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),
@@ -645,7 +645,7 @@ testObject_ProviderProfile_provider_20 =
                     Just
                       ( Authority
                           { authorityUserInfo = Nothing,
-                            authorityHost = Host {hostBS = "example.com"},
+                            authorityHost = Host {hostBS = "default.domain"},
                             authorityPort = Nothing
                           }
                       ),

@@ -218,7 +218,7 @@ type instance
     'StaticError
       451
       "domain-blocked-for-registration"
-      "[Customer extension] the email domain example.com \
+      "[Customer extension] the email domain default.domain \
       \that you are attempting to register a user with has been \
       \blocked for creating wire users.  Please contact your IT department."
 

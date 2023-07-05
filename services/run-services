@@ -466,9 +466,9 @@ if __name__ == '__main__':
 
     try:
         instances = set()
-        instances |= start_backend(backend_a, "", "example.com", ["b.example.com"], "A")
+        instances |= start_backend(backend_a, "", "default.domain", ["b.default.domain"], "A")
         if ENABLE_FEDERATION:
-            instances |= start_backend(backend_b, "2", "b.example.com", ["example.com"], "B")
+            instances |= start_backend(backend_b, "2", "b.default.domain", ["default.domain"], "B")
 
         # run main script or just wait forever
         if len(sys.argv) == 1:

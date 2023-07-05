@@ -105,7 +105,7 @@ tests s =
 
 testCrudOAuthClient :: TestM ()
 testCrudOAuthClient = do
-  let url = fromMaybe (error "invalid url") . fromByteString $ "https://example.com"
+  let url = fromMaybe (error "invalid url") . fromByteString $ "https://default.domain"
   let name = OAuthApplicationName (unsafeRange "foobar")
   cred <- registerOAuthClient (OAuthClientConfig name url)
   c <- getOAuthClient cred.clientId

@@ -93,7 +93,7 @@ groups =
                "id":"0",
                "meta":{
                  "resourceType":"Group",
-                 "location":"https://example.com/Users/id",
+                 "location":"https://default.domain/Users/id",
                  "created":"2018-01-01T00:00:00Z",
                  "version":"W/\"testVersion\"",
                  "lastModified":"2018-01-01T00:00:00Z"
@@ -114,7 +114,7 @@ admins =
            "id":"0",
            "meta":{
              "resourceType":"Group",
-             "location":"https://example.com/Users/id",
+             "location":"https://default.domain/Users/id",
              "created":"2018-01-01T00:00:00Z",
              "version":"W/\"testVersion\"",
              "lastModified":"2018-01-01T00:00:00Z"
@@ -128,7 +128,7 @@ adminUpdate0 =
           "displayName":"Admin",
           "members":[
             { "value": "0",
-              "$ref": "https://example.com/Users/0",
+              "$ref": "https://default.domain/Users/0",
               "type": "User"
             }
           ]
@@ -141,13 +141,13 @@ updatedAdmins0 =
            "displayName":"Admin",
            "members":[
              { "value": "0",
-               "$ref": "https://example.com/Users/0",
+               "$ref": "https://default.domain/Users/0",
                "type": "User"
              }],
            "id":"0",
            "meta":{
              "resourceType":"Group",
-             "location":"https://example.com/Users/id",
+             "location":"https://default.domain/Users/id",
              "created":"2018-01-01T00:00:00Z",
              "version":"W/\"testVersion\"",
              "lastModified":"2018-01-01T00:00:00Z"

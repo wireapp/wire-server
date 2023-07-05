@@ -1,5 +1,5 @@
 {
-    "alpha.example.com": {
+    "alpha.default.domain": {
         "00000552-0000-7ae9-0000-5c84000004dd": {
             "0": {
                 "id": 79,
@@ -16,7 +16,7 @@
             }
         }
     },
-    "beta.example.com": {
+    "beta.default.domain": {
         "00000025-0000-0025-0000-00660000001d": {
             "3": {
                 "id": 123,
@@ -34,7 +34,7 @@
             }
         }
     },
-    "delta.example.com": {
+    "delta.default.domain": {
         "00000000-0000-0003-0000-000100000000": {},
         "00000003-0000-0002-0000-000500000002": {
             "0": {
@@ -68,7 +68,7 @@
             }
         }
     },
-    "epsilon.example.com": {
+    "epsilon.default.domain": {
         "00000000-0000-0004-0000-000400000005": {
             "17": null
         },
@@ -90,7 +90,7 @@
             }
         }
     },
-    "eta.example.com": {
+    "eta.default.domain": {
         "00000000-0000-0000-0000-000200000000": {
             "0": {
                 "id": 52,
@@ -129,7 +129,7 @@
         },
         "00000002-0000-0001-0000-000000000002": {}
     },
-    "gamma.example.com": {
+    "gamma.default.domain": {
         "0000000e-0000-001d-0000-00160000000b": {
             "0": {
                 "id": 109,
@@ -161,8 +161,8 @@
             }
         }
     },
-    "theta.example.com": {},
-    "zeta.example.com": {
+    "theta.default.domain": {},
+    "zeta.default.domain": {
         "0000004d-0000-001f-0000-006300000073": {
             "1": {
                 "id": 123,

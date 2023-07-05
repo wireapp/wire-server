@@ -58,7 +58,7 @@ backend.
 -   This backend domain becomes part of the underlying identity of all
     users on your servers.
 
-    Example: Let\'s say you choose `example.com` as your backend
+    Example: Let\'s say you choose `default.domain` as your backend
     domain. Your user known to you as Alice, and known on your
     server with ID `ac41a202-2555-11ec-9341-00163e5e6c00` will
     become known for other servers you federate with as
@@ -67,7 +67,7 @@ backend.
     {
       "user": {
         "id": "ac41a202-2555-11ec-9341-00163e5e6c00",
-        "domain": "example.com"
+        "domain": "default.domain"
       }
     }
     ```
@@ -77,7 +77,7 @@ backend.
 
     Example: Using the same example as above, for backends you
     federate with, Alice would be displayed with the
-    human-readable username `@alice@example.com` for users on
+    human-readable username `@alice@default.domain` for users on
     other backends.
 
 ```{warning}
@@ -123,7 +123,7 @@ The fields of the SRV record need to be populated as follows
 To give an example, assuming
 
 -   your federation
-    {ref}`Backend Domain <glossary_backend_domain>` is `example.com`
+    {ref}`Backend Domain <glossary_backend_domain>` is `default.domain`
 -   your domains for other services already set up follow the convention
     `<service>.wire.example.org`
 
@@ -135,7 +135,7 @@ The SRV record would look as follows:
 
 ``` bash
 # _service._proto.name.                  ttl IN SRV priority weight port target.
-_wire-server-federator._tcp.example.com. 600 IN SRV 0        10     443  federator.wire.example.org.
+_wire-server-federator._tcp.default.domain. 600 IN SRV 0        10     443  federator.wire.example.org.
 ```
 
 ### DNS A record for the federator
@@ -220,7 +220,7 @@ tls:
 
 certManager:
   inTestMode: false
-  certmasterEmail: "certificates@example.com"
+  certmasterEmail: "certificates@default.domain"
 ```
 
 ``` yaml
@@ -267,19 +267,19 @@ X509v3 extensions:
 ```
 
 And your {ref}`federation infrastructure domain <glossary_infra_domain>` (e.g.
-`federator.wire.example.com` from the running example) needs to either figure
+`federator.wire.default.domain` from the running example) needs to either figure
 explictly in the list of your SAN (Subject Alternative Name):
 
 ``` bash
 X509v3 Subject Alternative Name:
-    DNS:federator.wire.example.com, DNS:nginz-https.wire.example.com, ...
+    DNS:federator.wire.default.domain, DNS:nginz-https.wire.default.domain, ...
 ```
 
 Or you need to have a wildcard certificate that includes it:
 
 ``` bash
 X509v3 Subject Alternative Name: critical
-    DNS:*.wire.example.com
+    DNS:*.wire.default.domain
 ```
 
 Configure the *client certificate* and *private key* inside
@@ -324,9 +324,9 @@ secrets:
 
 ### Configure CA certificates you trust when interacting with other backends
 
-If you want to federate with servers at `othercompany.example.com`, then
+If you want to federate with servers at `othercompany.default.domain`, then
 you need to trust the CA (Certificate Authority) certificate that
-`othercompany.example.com` has used to sign its client certificates.
+`othercompany.default.domain` has used to sign its client certificates.
 
 They need to be set both for the nginx-ingress-services and the
 wire-server chart.
@@ -380,19 +380,19 @@ galley:
   config:
     enableFederation: true
     settings:
-      federationDomain: example.com # your chosen "backend domain"
+      federationDomain: default.domain # your chosen "backend domain"
 
 brig:
   config:
     enableFederation: true
     optSettings:
-      setFederationDomain: example.com # your chosen "backend domain"
+      setFederationDomain: default.domain # your chosen "backend domain"
 
 cargohold:
   config:
     enableFederation: true
     settings:
-      federationDomain: example.com # your chosen "backend domain"
+      federationDomain: default.domain # your chosen "backend domain"
 ```
 
 (configure-federation-strategy-in-brig)=
@@ -470,11 +470,11 @@ The `remotes` list looks like this:
 ```
 [
   {
-    "domain": "wire.example.com",
+    "domain": "wire.default.domain",
     "search_policy": "full_search"
   },
   {
-    "domain": "evil.example.com"
+    "domain": "evil.default.domain"
     "search_policy": "no_search"
   },
   ...
@@ -531,9 +531,9 @@ In order to achieve a zero-downtime upgrade, follow these steps:
       config:
         optSettings:
           setFederationDomainConfigs:
-          - domain: red.example.com
+          - domain: red.default.domain
             search_policy: full_search
-          - domain: blue.example.com
+          - domain: blue.default.domain
             search_policy: no_search
     ```
 
@@ -630,7 +630,7 @@ federator:
     optSettings:
       federationStrategy:
         allowedDomains:
-         - example.com
+         - default.domain
          - example.org
 ```
 
@@ -659,15 +659,15 @@ above configrations may vary. You want to ensure that you upgrade the
 
 If you use `dig` to check for SRV records, use e.g.:
 
-    dig +short SRV _wire-server-federator._tcp.wire.example.com
+    dig +short SRV _wire-server-federator._tcp.wire.default.domain
 
 Should yield something like:
 
-    0 10 443 federator.wire.example.com.
+    0 10 443 federator.wire.default.domain.
 
 The actual target:
 
-    dig +short federator.wire.example.com
+    dig +short federator.wire.default.domain
 
 should also point to an IP address:
 
@@ -693,4 +693,4 @@ Prerequisites:
 Create user accounts on both backends.
 
 With one user, search for the other user using the
-`@username-1@example.com` syntax in the UI search field of the webapp.
+`@username-1@default.domain` syntax in the UI search field of the webapp.

@@ -96,7 +96,7 @@
     "sft_servers": [
         {
             "urls": [
-                "https://example.com"
+                "https://default.domain"
             ]
         }
     ],

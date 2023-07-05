@@ -77,4 +77,4 @@ instance (Typeable a, ToSchema (UserMap a)) => ToSchema (QualifiedUserMap a) whe
           & description ?~ "Map of Domain to (UserMap (" <> valueTypeName <> "))."
           & example
             ?~ toJSON
-              (Map.singleton ("domain1.example.com" :: Text) (userMapSchema ^. example))
+              (Map.singleton ("domain1.default.domain" :: Text) (userMapSchema ^. example))

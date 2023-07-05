@@ -10,7 +10,7 @@
         "otr_muted_ref": "",
         "otr_muted_status": null,
         "qualified_id": {
-            "domain": "golden.example.com",
+            "domain": "golden.default.domain",
             "id": "00000000-0000-0000-0000-000000000000"
         },
         "service": {
