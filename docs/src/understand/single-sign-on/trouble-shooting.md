@@ -367,3 +367,22 @@ clash.
 
 Do not rely on case sensitivity of `IssuerID` or `NameID`, or on
 `NameID` qualifiers for distinguishing user identifiers.
+
+## Redirect from IdP back to wire not happening
+
+**Problem:** when logging in using SSO, the user gets redirected to the
+IdP, but after entering her credentials, does not get redirected back
+to wire, but is stuck on the IdP page in the browser.  The console log
+may mention CSP violations.
+
+**Possible cause and fix:** some browsers prevent redirects if there
+is a risk of leaking sensitive form data to the redirect target.  In
+your setup (in particular when you're using email domain-based
+redirect from the wire cloud to your on-prem instance), your browser
+may decide to not trust the wire app with the results of the IdP login
+procedure.  If this is the case, [add a Content Security
+Policy.](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/form-action)
+
+[See
+also](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy),
+and [here](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP).
