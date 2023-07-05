@@ -284,13 +284,12 @@ startBackend domain nginzSslPort mFederatorOverrides services modifyBackends = d
   let modifyEnv env =
         env {serviceMap = modifyBackends (fromIntegral . fst <$> ports) env.serviceMap}
 
-  waitForService <- lift $ appToIOKleisli (waitUntilServiceUp domain)
-  liftIO $
-    mapConcurrently_ waitForService (Map.keys ports)
-
-  Codensity $ \action -> do
-    ioAction <- appToIO (local modifyEnv (action ()))
-    liftIO $ ioAction `finally` stopInstances
+  Codensity $ \action -> local modifyEnv $ do
+    waitForService <- appToIOKleisli (waitUntilServiceUp domain)
+    ioAction <- appToIO (action ())
+    liftIO $
+      (mapConcurrently_ waitForService (Map.keys ports) >> ioAction)
+        `finally` stopInstances
 
 startProcess :: String -> Service -> Value -> App (ProcessHandle, FilePath)
 startProcess domain srv = startProcess' domain (configName srv)
