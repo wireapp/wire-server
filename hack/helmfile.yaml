@@ -17,7 +17,7 @@ environments:
     values:
       - ./helm_vars/common.yaml.gotmpl
       - imagePullPolicy: Always
-      - storageClass: hcloud-volumes
+      - storageClass: this-one-doesn-t-exist
   kind:
     values:
       - ./helm_vars/common.yaml.gotmpl
