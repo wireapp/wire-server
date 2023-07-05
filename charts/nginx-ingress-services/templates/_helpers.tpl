@@ -94,3 +94,15 @@ Returns the Letsencrypt API server URL based on whether testMode is enabled or d
 {{- define "ingress.FieldNotAnnotation" -}}
   {{- (semverCompare ">= 1.27-0" (include "kubeVersion" .)) -}}
 {{- end -}}
+
+{{/*
+Name of the ingress. Extracted as helper to reduce the complexity in the template
+itself. The default name is 'nginx-ingress' for backwards compatibility (it has
+been this name in previous versions.)
+*/}}
+{{- define "nginx-ingress-services.getIngressName" -}}
+{{- if (eq .Values.ingressName "") -}}
+nginx-ingress
+{{- else -}}
+nginx-ingress-{{ .Values.ingressName }}
+{{- end -}}
