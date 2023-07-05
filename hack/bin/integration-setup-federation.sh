@@ -49,7 +49,21 @@ export FEDERATION_DOMAIN_2="federation-test-helper.$FEDERATION_DOMAIN_BASE"
 
 echo "Installing charts..."
 
+set +e
 helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml" sync --skip-deps --concurrency 0
+EXIT_CODE=$?
+
+echo "!! Helm install failed. Attempting to get some more information ..."
+
+kubectl -n "$NAMESPACE_1" get events
+kubectl -n "$NAMESPACE_2" get events
+./kubectl-get-debug-info.sh "$NAMESPACE_1"
+./kubectl-get-debug-info.sh "$NAMESPACE_2"
+
+if (( EXIT_CODE > 0)); then
+    exit $EXIT_CODE
+fi
+set -e
 
 # wait for fakeSNS to create resources. TODO, cleaner: make initiate-fake-aws-sns a post hook. See cassandra-migrations chart for an example.
 resourcesReady() {
