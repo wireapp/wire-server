@@ -474,7 +474,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.RichField_user
     Test.Wire.API.Golden.Generated.RichInfo_user
     Test.Wire.API.Golden.Generated.RichInfoAssocList_user
-    Test.Wire.API.Golden.Generated.RichInfoMapAndList_user
     Test.Wire.API.Golden.Generated.RmClient_user
     Test.Wire.API.Golden.Generated.Role_team
     Test.Wire.API.Golden.Generated.RoleName_user

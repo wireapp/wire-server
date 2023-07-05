@@ -24,6 +24,7 @@ module Wire.API.User.RichInfo
     RichInfo (..),
     richInfoSize,
     richInfoMapURN,
+    mkRichInfo,
 
     -- * RichInfoMapAndList
     RichInfoMapAndList (richInfoMap, richInfoAssocList),
@@ -76,6 +77,9 @@ instance Monoid RichInfo where
 instance Semigroup RichInfo where
   RichInfo a <> RichInfo b = RichInfo $ a <> b
 
+mkRichInfo :: [RichField] -> RichInfo
+mkRichInfo = RichInfo . normalizeRichInfoAssocList . RichInfoAssocList
+
 --------------------------------------------------------------------------------
 -- RichInfoMapAndList
 
@@ -98,10 +102,6 @@ data RichInfoMapAndList = RichInfoMapAndList
     richInfoAssocList :: [RichField]
   }
   deriving stock (Eq, Show, Generic)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema RichInfoMapAndList
-
-instance ToSchema RichInfoMapAndList where
-  schema = object "RichInfoMapAndList" richInfoMapAndListSchema
 
 -- | 'CIObjectSchema' is a bit of a hack, so it is not included in schema-profunctor even
 -- though it is pretty general.
