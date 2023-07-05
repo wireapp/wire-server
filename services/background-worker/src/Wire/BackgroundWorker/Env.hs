@@ -87,10 +87,12 @@ mkEnv opts = do
           }
   (remoteDomains, syncThread) <- syncFedDomainConfigs brig logger callback
   rabbitmqAdminClient <- mkRabbitMqAdminClientEnv opts.rabbitmq
-  statuses <- newIORef $ Map.fromList
-    [ (BackendNotificationPusher, False)
-    , (DefederationWorker, False)
-    ]
+  statuses <-
+    newIORef $
+      Map.fromList
+        [ (BackendNotificationPusher, False),
+          (DefederationWorker, False)
+        ]
   metrics <- Metrics.metrics
   backendNotificationMetrics <- mkBackendNotificationMetrics
   pure (Env {..}, syncThread)

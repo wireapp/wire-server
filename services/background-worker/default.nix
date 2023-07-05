@@ -80,6 +80,8 @@ mkDerivation {
     tinylog
     transformers-base
     types-common
+    unliftio
+    wai-utilities
     wire-api
     wire-api-federation
   ];
@@ -98,6 +100,7 @@ mkDerivation {
     http-types
     HUnit
     imports
+    prometheus-client
     QuickCheck
     servant
     servant-client
@@ -110,8 +113,6 @@ mkDerivation {
     unliftio
     wai
     wire-api
-    unliftio
-    wai-utilities
     wire-api-federation
   ];
   testHaskellDepends = [
