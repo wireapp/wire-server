@@ -39,7 +39,7 @@ import Network.URI.Static
 import Web.Scim.Schema.Common (URI (..))
 
 genUri :: Gen URI
-genUri = Gen.element [URI [uri|https://default.domain|], URI [uri|gopher://glab.io|], URI [uri|ssh://nothing/blorg|]]
+genUri = Gen.element [URI [uri|https://example.com|], URI [uri|gopher://glab.io|], URI [uri|ssh://nothing/blorg|]]
 
 genSimpleText :: Gen Text
 genSimpleText = Gen.element ["one", "green", "sharp"]
