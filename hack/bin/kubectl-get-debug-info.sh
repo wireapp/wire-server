@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 USAGE="$0 <NAMESPACE>"
 NAMESPACE=${1:?$USAGE}
