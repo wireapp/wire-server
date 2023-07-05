@@ -4556,8 +4556,25 @@ testDefederationNotifications = do
   charlie <- randomQualifiedUser
   connectUsers (qUnqualified alice) (pure (qUnqualified charlie))
 
-  -- dee is a remote guest
+
   let remoteDomain = Domain "far-away.example.com"
+      -- This variable should be commented out if the below
+      -- section is used to insert users to the database.
+      users = []
+  -- This section of code is useful to massively increase
+  -- the amount of users in the testing database. This is
+  -- useful for checking that notifications are being fanned
+  -- out correctly, and that all users are sent a
+  -- notification. If the database already has a large
+  -- amount of users then this can be left out and will also
+  -- allow this test to run faster.
+  --     count = 10000
+  -- users <- replicateM count randomQualifiedUser
+  -- replicateM_ count $ do
+  --   connectWithRemoteUser (qUnqualified alice) =<<
+  --     Qualified <$> randomId <*> pure remoteDomain
+
+  -- dee is a remote guest
   dee <- Qualified <$> randomId <*> pure remoteDomain
 
   connectWithRemoteUser (qUnqualified alice) dee
@@ -4575,16 +4592,16 @@ testDefederationNotifications = do
         <!! const 201 === statusCode
 
   c <- view tsCannon
-  WS.bracketRN c (map qUnqualified [alice, bob, charlie, dee]) $ \[wsA, wsB, wsC, wsD] -> do
+  WS.bracketRN c (map qUnqualified $ [alice, bob, charlie, dee] <> users) $ \(wsA:wsB:wsC:wsD:wsUsers) -> do
     -- conversation access role changes to team only
     (_, reqs) <- withTempMockFederator' (mockReply ()) $ do
       -- Delete the domain that Dee lives on
       deleteFederation remoteDomain !!! const 200 === statusCode
       -- First notification to local clients
-      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
+      WS.assertMatchN_ (5 # Second) ([wsA, wsB, wsC] <> wsUsers) $
         wsAssertFederationDeleted remoteDomain
       -- Second notification to local clients
-      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
+      WS.assertMatchN_ (5 # Second) ([wsA, wsB, wsC] <> wsUsers) $
         wsAssertFederationDeleted remoteDomain
       -- dee's remote doesn't receive a notification
       WS.assertNoEvent (5 # Second) [wsD]

@@ -1753,9 +1753,7 @@ wsAssertFederationDeleted ::
   Notification ->
   IO ()
 wsAssertFederationDeleted dom n = do
-  -- TODO: Does it matter if the defederation notifications
-  -- are transient? The docs for the ticket imply that they are
-  -- ntfTransient n @?= False
+  ntfTransient n @?= False
   assertFederationDeletedEvent dom $ List1.head (WS.unpackPayload n)
 
 assertFederationDeletedEvent ::
