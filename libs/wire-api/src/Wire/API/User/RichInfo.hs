@@ -36,7 +36,6 @@ module Wire.API.User.RichInfo
     RichInfoAssocList (unRichInfoAssocList),
     mkRichInfoAssocList,
     normalizeRichInfoAssocList,
-    richInfoAssocListFromObject,
     richInfoAssocListURN,
 
     -- * RichField
@@ -220,12 +219,6 @@ richInfoAssocListSchema =
     )
     $ \(version, fields) ->
       mkRichInfoAssocList <$> validateRichInfoAssocList version fields
-
-richInfoAssocListFromObject :: A.Object -> Aeson.Parser [RichField]
-richInfoAssocListFromObject richinfoObj = do
-  version :: Int <- richinfoObj A..: "version"
-  fields <- richinfoObj A..: "fields"
-  validateRichInfoAssocList version fields
 
 validateRichInfoAssocList :: Int -> [RichField] -> Aeson.Parser [RichField]
 validateRichInfoAssocList version fields = do
