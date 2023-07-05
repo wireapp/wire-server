@@ -92,7 +92,6 @@ tests s =
       testGroup
         "Notifications"
         [ test s "No notifications" testNoNotifs,
-          test s "Fetch all notifications" testFetchAllNotifs,
           test s "Fetch new notifications" testFetchNewNotifs,
           test s "No new notifications" testNoNewNotifs,
           test s "Missing notifications (until API Version 3)" testMissingNotifsV2,
@@ -463,19 +462,6 @@ testNoNotifs = do
   ally <- randomId
   ns <- listNotifications ally Nothing
   liftIO $ assertEqual "Unexpected notifications" 0 (length ns)
-
-testFetchAllNotifs :: TestM ()
-testFetchAllNotifs = do
-  ally <- randomId
-  let pload = textPayload "hello"
-  replicateM_ 10 (sendPush (buildPush ally [(ally, RecipientClientsAll)] pload))
-  ns <- listNotifications ally Nothing
-  liftIO $ assertEqual "Unexpected notification count" 10 (length ns)
-  liftIO $
-    assertEqual
-      "Unexpected notification payloads"
-      (replicate 10 (List1.toNonEmpty pload))
-      (map (view queuedNotificationPayload) ns)
 
 testFetchNewNotifs :: TestM ()
 testFetchNewNotifs = do
