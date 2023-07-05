@@ -106,6 +106,7 @@ nginx-ingress
 {{- else -}}
 nginx-ingress-{{ .Values.ingressName }}
 {{- end -}}
+{{- end -}}
 
 {{/*
 Name of the certificate 'Issuer'. Especially, used in 'issuerRef's.
@@ -118,4 +119,5 @@ same issuer; which may leak a hint about a common origin.
 {{ .Values.tls.issuer.name }}
 {{- else -}}
 {{ .Values.tls.issuer.name }}-{{ .Values.ingressName }}
+{{- end -}}
 {{- end -}}
