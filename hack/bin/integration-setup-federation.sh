@@ -55,10 +55,10 @@ EXIT_CODE=$?
 
 echo "!! Helm install failed. Attempting to get some more information ..."
 
-kubectl -n "$NAMESPACE_1" get events
-kubectl -n "$NAMESPACE_2" get events
-./kubectl-get-debug-info.sh "$NAMESPACE_1"
-./kubectl-get-debug-info.sh "$NAMESPACE_2"
+kubectl -n "$NAMESPACE_1" get events | grep -v "Normal "
+kubectl -n "$NAMESPACE_2" get events | grep -v "Normal "
+${DIR}/kubectl-get-debug-info.sh "$NAMESPACE_1"
+${DIR}./kubectl-get-debug-info.sh "$NAMESPACE_2"
 
 if (( EXIT_CODE > 0)); then
     exit $EXIT_CODE
