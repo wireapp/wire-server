@@ -24,6 +24,7 @@ import Network.HTTP.Types
 import Network.RabbitMqAdmin
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Internal as Wai
+import Prometheus
 import Servant hiding (respond)
 import Servant.Client
 import Servant.Client.Core
@@ -71,9 +72,10 @@ spec = do
                 Q.msgContentType = Just "application/json"
               }
 
-      (_, fedReqs) <-
+      (env, fedReqs) <-
         withTempMockFederator [] returnSuccess . runTestAppT $ do
-          pushNotification targetDomain (msg, envelope)
+          void $ pushNotification targetDomain (msg, envelope)
+          ask
 
       readIORef envelope.acks `shouldReturn` 1
       readIORef envelope.rejections `shouldReturn` []
@@ -86,6 +88,8 @@ spec = do
                          frBody = Aeson.encode notifContent
                        }
                    ]
+      getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
+        `shouldReturn` [(domainText targetDomain, 1)]
 
     it "should reject invalid notifications" $ do
       let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
@@ -95,21 +99,27 @@ spec = do
               { Q.msgBody = "unparseable notification",
                 Q.msgContentType = Just "application/json"
               }
-      (_, fedReqs) <-
-        withTempMockFederator [] returnSuccess . runTestAppT $
-          pushNotification (Domain "target.example.com") (msg, envelope)
+      (env, fedReqs) <-
+        withTempMockFederator [] returnSuccess . runTestAppT $ do
+          void $ pushNotification (Domain "target.example.com") (msg, envelope)
+          ask
 
       readIORef envelope.acks `shouldReturn` 0
       readIORef envelope.rejections `shouldReturn` [False]
       fedReqs `shouldBe` []
+      getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
+        `shouldReturn` []
 
     it "should retry failed deliveries" $ do
-      isFirstReqRef <- newIORef True
-      let returnSuccessSecondTime _ =
-            atomicModifyIORef isFirstReqRef $ \isFirstReq ->
-              if isFirstReq
-                then (False, ("text/html", "<marquee>down for maintenance</marquee>"))
-                else (False, ("application/json", Aeson.encode EmptyResponse))
+      isRemoteBrokenRef <- newIORef True
+      fedCalls <- newIORef (0 :: Int)
+      let mockRemote _ = do
+            isRemoteBroken <- readIORef isRemoteBrokenRef
+            atomicModifyIORef fedCalls $ \c -> (c + 1, ())
+            pure $
+              if isRemoteBroken
+                then ("text/html", "<marquee>down for maintenance</marquee>")
+                else ("application/json", Aeson.encode EmptyResponse)
           origDomain = Domain "origin.example.com"
           targetDomain = Domain "target.example.com"
       notifContent <- generate $ UserDeletedConnectionsNotification <$> arbitrary <*> (unsafeRange . (: []) <$> arbitrary)
@@ -127,9 +137,20 @@ spec = do
                 Q.msgContentType = Just "application/json"
               }
 
-      (_, fedReqs) <-
-        withTempMockFederator [] returnSuccessSecondTime . runTestAppT $ do
+      env <- testEnv
+      pushThread <-
+        async $ withTempMockFederator [] mockRemote . runTestAppTWithEnv env $ do
           pushNotification targetDomain (msg, envelope)
+
+      -- Wait for two calls, so we can be sure that the metric about stuck
+      -- queues has been updated
+      untilM $ (>= 2) <$> readIORef fedCalls
+      getVectorWith env.backendNotificationMetrics.stuckQueuesGauge getGauge
+        `shouldReturn` [(domainText targetDomain, 1)]
+
+      -- Unstuck the queue
+      writeIORef isRemoteBrokenRef False
+      (_, fedReqs) <- wait pushThread
 
       readIORef envelope.acks `shouldReturn` 1
       readIORef envelope.rejections `shouldReturn` []
@@ -141,7 +162,10 @@ spec = do
                 frRPC = "on-user-deleted-connections",
                 frBody = Aeson.encode notifContent
               }
-      fedReqs `shouldBe` [expectedReq, expectedReq]
+      forM_ fedReqs (`shouldBe` expectedReq)
+      length fedReqs `shouldSatisfy` (>= 3)
+      getVectorWith env.backendNotificationMetrics.stuckQueuesGauge getGauge
+        `shouldReturn` [(domainText targetDomain, 0)]
 
   describe "getRemoteDomains" $ do
     it "should parse remoteDomains from queues with name starting with 'backend-notifications.' and ignore the other queues" $ do
@@ -168,6 +192,7 @@ spec = do
           galley = Endpoint "localhost" 8085
           brig = Endpoint "localhost" 8082
 
+      backendNotificationMetrics <- mkBackendNotificationMetrics
       domains <- runAppT Env {..} getRemoteDomains
       domains `shouldBe` map Domain ["foo.example", "bar.example", "baz.example"]
       readTVarIO mockAdmin.listQueuesVHostCalls `shouldReturn` ["test-vhost"]
@@ -187,6 +212,7 @@ spec = do
           defederationTimeout = responseTimeoutNone
           galley = Endpoint "localhost" 8085
           brig = Endpoint "localhost" 8082
+      backendNotificationMetrics <- mkBackendNotificationMetrics
       domainsThread <- async $ runAppT Env {..} getRemoteDomains
 
       -- Wait for first call

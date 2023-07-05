@@ -21,6 +21,7 @@ import Util.Options
 import Wire.API.Federation.BackendNotifications
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
+import Network.AMQP.Extended
 
 deleteFederationDomain :: Q.Channel -> AppT IO Q.ConsumerTag
 deleteFederationDomain chan = do
@@ -89,18 +90,38 @@ deleteFederationDomainInner (msg, envelope) = do
         -- else in our stack failed and we should try again.
           liftIO $ reject envelope True
 
-deleteWorker :: Q.Channel -> AppT IO (Async ())
-deleteWorker chan = do
+startDefederator :: Q.Channel -> AppT IO ()
+startDefederator chan = do
   markAsWorking DefederationWorker
   lift $ Q.qos chan 0 1 False
-  env <- ask
   consumerRef <- newIORef Nothing
-  let cleanup :: AsyncCancelled -> IO ()
+  let cleanup :: (MonadThrow m, MonadIO m) => AsyncCancelled -> m ()
       cleanup e = do
-        consumer <- readIORef consumerRef
-        traverse_ (cancelConsumer chan) consumer
+        consumer <- liftIO $ readIORef consumerRef
+        traverse_ (liftIO . cancelConsumer chan) consumer
         throwM e
-  liftIO $ async $ handle cleanup $ do
-    consumer <- runAppT env $ deleteFederationDomain chan
-    atomicWriteIORef consumerRef $ pure consumer
-    forever $ threadDelay maxBound
+  handle cleanup $ do
+    consumer <- deleteFederationDomain chan
+    liftIO $ atomicWriteIORef consumerRef $ pure consumer
+    liftIO $ forever $ threadDelay maxBound
+
+startWorker :: RabbitMqAdminOpts -> AppT IO ()
+startWorker rabbitmqOpts = do
+  env <- ask
+  threadRef <- newIORef Nothing
+  let cancelThread = do
+        -- Kill the thread and clean up the IORef
+        -- The thread should handle the cleanup of their AMQP consumers.
+        thread <- readIORef threadRef
+        traverse_ cancel thread
+        atomicWriteIORef threadRef Nothing
+      onChanClose = do
+        runAppT env $ markAsNotWorking DefederationWorker
+        cancelThread
+  liftIO . openConnectionWithRetries env.logger (demoteOpts rabbitmqOpts) $
+    RabbitMqHooks
+      { onNewChannel =
+          runAppT env . startDefederator,
+        onChannelException = const onChanClose,
+        onConnectionClose = onChanClose
+      }

@@ -14,6 +14,7 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
 import Data.Default
+import Data.Function ((&))
 import Data.Functor
 import Data.Hex
 import Data.IORef
@@ -188,7 +189,8 @@ data ServiceOverrides = ServiceOverrides
     dbGalley :: Value -> App Value,
     dbGundeck :: Value -> App Value,
     dbNginz :: Value -> App Value,
-    dbSpar :: Value -> App Value
+    dbSpar :: Value -> App Value,
+    dbBackgroundWorker :: Value -> App Value
   }
 
 instance Default ServiceOverrides where
@@ -203,20 +205,12 @@ defaultServiceOverrides =
       dbGalley = pure,
       dbGundeck = pure,
       dbNginz = pure,
-      dbSpar = pure
+      dbSpar = pure,
+      dbBackgroundWorker = pure
     }
 
 defaultServiceOverridesToMap :: Map.Map Service (Value -> App Value)
-defaultServiceOverridesToMap =
-  Map.fromList
-    [ (Brig, pure),
-      (Cannon, pure),
-      (Cargohold, pure),
-      (Galley, pure),
-      (Gundeck, pure),
-      (Nginz, pure),
-      (Spar, pure)
-    ]
+defaultServiceOverridesToMap = ([minBound .. maxBound] <&> (,pure)) & Map.fromList
 
 -- | Overrides the service configurations with the given overrides.
 -- e.g.
@@ -239,4 +233,5 @@ withOverrides overrides =
           Gundeck -> f >=> overrides.dbGundeck
           Nginz -> f >=> overrides.dbNginz
           Spar -> f >=> overrides.dbSpar
+          BackgroundWorker -> f >=> overrides.dbBackgroundWorker
     )
