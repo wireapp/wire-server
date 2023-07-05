@@ -13,6 +13,7 @@ import qualified Data.Text as Text
 import Imports
 import Network.AMQP (cancelConsumer)
 import qualified Network.AMQP as Q
+import Network.AMQP.Extended
 import qualified Network.AMQP.Lifted as QL
 import Network.RabbitMqAdmin
 import Prometheus
@@ -22,7 +23,6 @@ import Wire.API.Federation.Client
 import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
-import Network.AMQP.Extended
 
 startPushingNotifications ::
   Q.Channel ->
@@ -105,7 +105,8 @@ startPusher chan = do
   -- FUTUREWORK?:
   -- If this throws an exception on the Chan / in the forever loop, the exception will
   -- bubble all the way up and kill the pod. Kubernetes should restart the pod automatically.
-  flip catches
+  flip
+    catches
     [ Handler $ cleanup @SomeException,
       Handler $ cleanup @SomeAsyncException
     ]
