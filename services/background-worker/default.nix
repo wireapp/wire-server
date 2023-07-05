@@ -26,7 +26,9 @@
 , lens
 , lib
 , metrics-core
+, metrics-wai
 , monad-control
+, prometheus-client
 , QuickCheck
 , retry
 , servant
@@ -68,7 +70,9 @@ mkDerivation {
     imports
     lens
     metrics-core
+    metrics-wai
     monad-control
+    prometheus-client
     retry
     servant-client
     servant-server
@@ -124,6 +128,7 @@ mkDerivation {
     http-types
     HUnit
     imports
+    prometheus-client
     QuickCheck
     servant
     servant-client

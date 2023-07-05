@@ -116,6 +116,7 @@ import qualified Wire.API.Event.Conversation as Conv
 import Wire.API.Event.Team
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Internal.Notification hiding (target)
@@ -725,22 +726,33 @@ postConvQualified u c n = do
       . zType "access"
       . json n
 
+postConvWithRemoteUsersGeneric ::
+  HasCallStack =>
+  Mock LByteString ->
+  UserId ->
+  Maybe ClientId ->
+  NewConv ->
+  TestM (Response (Maybe LByteString))
+postConvWithRemoteUsersGeneric m u c n = do
+  let mock =
+        ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty)
+          <|> m
+  fmap fst $
+    withTempMockFederator' mock $
+      postConvQualified u c n {newConvName = setName (newConvName n)}
+        <!! const 201 === statusCode
+  where
+    setName :: (KnownNat n, KnownNat m, Within Text n m) => Maybe (Range n m Text) -> Maybe (Range n m Text)
+    setName Nothing = checked "federated gossip"
+    setName x = x
+
 postConvWithRemoteUsers ::
   HasCallStack =>
   UserId ->
   Maybe ClientId ->
   NewConv ->
   TestM (Response (Maybe LByteString))
-postConvWithRemoteUsers u c n =
-  fmap fst $
-    withTempMockFederator' (mockReply ()) $
-      postConvQualified u c n {newConvName = setName (newConvName n)}
-        <!! const 201
-          === statusCode
-  where
-    setName :: (KnownNat n, KnownNat m, Within Text n m) => Maybe (Range n m Text) -> Maybe (Range n m Text)
-    setName Nothing = checked "federated gossip"
-    setName x = x
+postConvWithRemoteUsers = postConvWithRemoteUsersGeneric $ mockReply ()
 
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do

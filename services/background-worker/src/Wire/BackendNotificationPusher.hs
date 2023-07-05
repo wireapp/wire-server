@@ -3,7 +3,6 @@
 module Wire.BackendNotificationPusher where
 
 import Control.Concurrent
-import Control.Concurrent.Async
 import Control.Monad.Catch
 import Control.Retry
 import qualified Data.Aeson as A
@@ -16,12 +15,14 @@ import Network.AMQP (cancelConsumer)
 import qualified Network.AMQP as Q
 import qualified Network.AMQP.Lifted as QL
 import Network.RabbitMqAdmin
+import Prometheus
 import qualified System.Logger.Class as Log
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
+import Network.AMQP.Extended
 
 startPushingNotifications ::
   Q.Channel ->
@@ -38,13 +39,16 @@ pushNotification targetDomain (msg, envelope) = do
   --
   -- FUTUREWORK: Pull these numbers into config
   let policy = capDelay 300_000_000 $ fullJitterBackoff 10000
-      logErrr willRetry (SomeException e) rs =
+      logErrr willRetry (SomeException e) rs = do
         Log.err $
           Log.msg (Log.val "Exception occurred while pushing notification")
             . Log.field "error" (displayException e)
             . Log.field "domain" (domainText targetDomain)
             . Log.field "willRetry" willRetry
             . Log.field "retryCount" rs.rsIterNumber
+        metrics <- asks backendNotificationMetrics
+        withLabel metrics.errorCounter (domainText targetDomain) incCounter
+        withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 1)
       skipChanThreadKilled _ = Handler $ \(_ :: Q.ChanThreadKilledException) -> pure False
       handlers =
         skipAsyncExceptions
@@ -76,11 +80,14 @@ pushNotification targetDomain (msg, envelope) = do
             fcEnv = FederatorClientEnv {..}
         liftIO $ either throwM pure =<< sendNotification fcEnv notif.targetComponent notif.path notif.body
         lift $ ack envelope
+        metrics <- asks backendNotificationMetrics
+        withLabel metrics.pushedCounter (domainText targetDomain) incCounter
+        withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
 
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.
-startWorker :: Q.Channel -> AppT IO (Async ())
-startWorker chan = do
+startPusher :: Q.Channel -> AppT IO ()
+startPusher chan = do
   -- This ensures that we receive notifications 1 by 1 which ensures they are
   -- delivered in order.
   markAsWorking BackendNotificationPusher
@@ -88,24 +95,20 @@ startWorker chan = do
   env <- ask
   consumersRef <- newIORef mempty
   -- Make sure threads aren't dangling if/when this async thread is killed
-  let cleanup :: Exception e => e -> IO ()
+  let cleanup :: (Exception e, MonadThrow m, MonadIO m) => e -> m ()
       cleanup e = do
-        consumers <- readIORef consumersRef
-        traverse_ (cancelConsumer chan) $ Map.elems consumers
+        consumers <- liftIO $ readIORef consumersRef
+        traverse_ (liftIO . cancelConsumer chan) $ Map.elems consumers
         throwM e
 
   -- If this thread is cancelled, catch the exception, kill the consumers, and carry on.
   -- FUTUREWORK?:
   -- If this throws an exception on the Chan / in the forever loop, the exception will
   -- bubble all the way up and kill the pod. Kubernetes should restart the pod automatically.
-  liftIO
-    $ async
-    $ flip
-      catches
-      [ Handler $ cleanup @SomeException,
-        Handler $ cleanup @SomeAsyncException
-      ]
-    $ runAppT env
+  flip catches
+    [ Handler $ cleanup @SomeException,
+      Handler $ cleanup @SomeAsyncException
+    ]
     $ do
       -- Get an initial set of domains from the sync thread
       -- The Chan that we will be waiting on isn't initialised with a
@@ -187,3 +190,16 @@ getRemoteDomains = do
         Log.msg (Log.val "Found invalid domain in a backend notifications queue name")
           . Log.field "queue" ("backend-notifications." <> d)
           . Log.field "error" e
+
+startWorker :: RabbitMqAdminOpts -> AppT IO ()
+startWorker rabbitmqOpts = do
+  env <- ask
+  liftIO . openConnectionWithRetries env.logger (demoteOpts rabbitmqOpts) $
+    RabbitMqHooks
+      { onNewChannel =
+          runAppT env . startPusher,
+        onChannelException = \_ ->
+          runAppT env $ markAsNotWorking BackendNotificationPusher,
+        onConnectionClose =
+          runAppT env $ markAsNotWorking BackendNotificationPusher
+      }

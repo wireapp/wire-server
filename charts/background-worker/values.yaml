@@ -4,6 +4,7 @@ image:
   tag: do-not-use
 service:
   internalPort: 8080
+  externalPort: 8080
 # FUTUREWORK: Review these values when we have some experience
 resources:
   requests:
@@ -11,10 +12,9 @@ resources:
     cpu: "100m"
   limits:
     memory: "512Mi"
-# FUTUREWORK: Implement metrics
-# metrics:
-#   serviceMonitor:
-#     enabled: false
+metrics:
+  serviceMonitor:
+    enabled: false
 config:
   logLevel: Info
   logFormat: StructuredJSON

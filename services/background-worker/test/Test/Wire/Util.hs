@@ -12,22 +12,32 @@ import Wire.BackgroundWorker.Env hiding (federatorInternal, galley)
 import qualified Wire.BackgroundWorker.Env as E
 import Wire.BackgroundWorker.Util
 
-runTestAppT :: AppT IO a -> Int -> IO a
-runTestAppT app port = do
+testEnv :: IO Env
+testEnv = do
   http2Manager <- initHttp2Manager
-  httpManager <- newManager defaultManagerSettings
   logger <- Logger.new Logger.defSettings
+  statuses <- newIORef mempty
+  backendNotificationMetrics <- mkBackendNotificationMetrics
+  httpManager <- newManager defaultManagerSettings
   remoteDomains <- newIORef defFederationDomainConfigs
   remoteDomainsChan <- newChan
-  statuses <- newIORef mempty
-  let federatorInternal = Endpoint "localhost" (fromIntegral port)
-      galley = Endpoint "localhost" 8085
-      brig = Endpoint "localhost" 8082
-      defederationTimeout = responseTimeoutNone
+  let federatorInternal = Endpoint "localhost" 0
       rabbitmqAdminClient = undefined
       rabbitmqVHost = undefined
       metrics = undefined
-      env = Env {..}
+      galley = Endpoint "localhost" 8085
+      brig = Endpoint "localhost" 8082
+      defederationTimeout = responseTimeoutNone
+  pure Env {..}
+
+runTestAppT :: AppT IO a -> Int -> IO a
+runTestAppT app port = do
+  baseEnv <- testEnv
+  runTestAppTWithEnv baseEnv app port
+
+runTestAppTWithEnv :: Env -> AppT IO a -> Int -> IO a
+runTestAppTWithEnv Env {..} app port = do
+  let env = Env {federatorInternal = Endpoint "localhost" (fromIntegral port), ..}
   runAppT env app
 
 data FakeEnvelope = FakeEnvelope

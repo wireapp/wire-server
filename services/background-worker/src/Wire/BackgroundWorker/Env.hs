@@ -17,6 +17,7 @@ import Network.HTTP.Client
 import qualified Network.RabbitMqAdmin as RabbitMqAdmin
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
+import Prometheus
 import qualified Servant.Client as Servant
 import qualified System.Logger as Log
 import System.Logger.Class (Logger, MonadLogger (..))
@@ -47,8 +48,22 @@ data Env = Env
     remoteDomainsChan :: Chan FederationDomainConfigs,
     rabbitmqAdminClient :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO),
     rabbitmqVHost :: Text,
+    backendNotificationMetrics :: BackendNotificationMetrics,
     statuses :: IORef (Map Worker IsWorking)
   }
+
+data BackendNotificationMetrics = BackendNotificationMetrics
+  { pushedCounter :: Vector Text Counter,
+    errorCounter :: Vector Text Counter,
+    stuckQueuesGauge :: Vector Text Gauge
+  }
+
+mkBackendNotificationMetrics :: IO BackendNotificationMetrics
+mkBackendNotificationMetrics =
+  BackendNotificationMetrics
+    <$> register (vector "targetDomain" $ counter $ Prometheus.Info "wire_backend_notifications_pushed" "Number of notifications pushed")
+    <*> register (vector "targetDomain" $ counter $ Prometheus.Info "wire_backend_notifications_errors" "Number of errors that occurred while pushing notifications")
+    <*> register (vector "targetDomain" $ gauge $ Prometheus.Info "wire_backend_notifications_stuck_queues" "Set to 1 when pushing notifications is stuck")
 
 mkEnv :: Opts -> IO (Env, Async ())
 mkEnv opts = do
@@ -77,6 +92,7 @@ mkEnv opts = do
     , (DefederationWorker, False)
     ]
   metrics <- Metrics.metrics
+  backendNotificationMetrics <- mkBackendNotificationMetrics
   pure (Env {..}, syncThread)
 
 initHttp2Manager :: IO Http2Manager
@@ -101,7 +117,8 @@ newtype AppT m a = AppT {unAppT :: ReaderT Env m a}
       MonadThrow,
       MonadMask,
       MonadReader Env,
-      MonadTrans
+      MonadTrans,
+      MonadMonitor
     )
 
 deriving newtype instance MonadBase b m => MonadBase b (AppT m)
