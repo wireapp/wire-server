@@ -39,6 +39,10 @@ tls:
   verify_depth: 1
   createIssuer: true
   issuer:
+    # In a multi-domain backend (multi-ingress) setup, this name will be
+    # augmented with the 'ingressName' (e.g. 'letsencrypt-http01-<ingressName>')
+    # to ensure that certificates aren't created by the same issuer, which would
+    # leak a hint about a common origin.
     name: letsencrypt-http01
     kind: Issuer # Issuer | ClusterIssuer
 

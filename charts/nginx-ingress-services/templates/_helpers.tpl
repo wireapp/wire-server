@@ -106,3 +106,16 @@ nginx-ingress
 {{- else -}}
 nginx-ingress-{{ .Values.ingressName }}
 {{- end -}}
+
+{{/*
+Name of the certificate 'Issuer'. Especially, used in 'issuerRef's.
+In multi-domain backends (multi-ingress), the 'ingressName' is used as postfix
+of the name to ensure that certificates aren't accidentally all issued by the
+same issuer; which may leak a hint about a common origin.
+*/}}
+{{- define "nginx-ingress-services.getIssuerName" -}}
+{{- if (eq .Values.ingressName "") -}}
+{{ .Values.tls.issuer.name }}
+{{- else -}}
+{{ .Values.tls.issuer.name }}-{{ .Values.ingressName }}
+{{- end -}}
