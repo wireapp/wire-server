@@ -44,7 +44,7 @@ data Email = Email
   deriving (Show, Eq, Generic)
 
 instance FromJSON Email where
-  parseJSON = genericParseJSON parseOptions . jsonLower
+  parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower
 
 instance ToJSON Email where
   toJSON = genericToJSON serializeOptions

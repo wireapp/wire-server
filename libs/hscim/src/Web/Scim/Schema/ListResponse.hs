@@ -59,7 +59,7 @@ fromList list =
     len = length list
 
 instance FromJSON a => FromJSON (ListResponse a) where
-  parseJSON = genericParseJSON parseOptions . jsonLower
+  parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower
 
 instance ToJSON a => ToJSON (ListResponse a) where
   toJSON ListResponse {..} =

@@ -60,7 +60,7 @@ data Member = Member
   deriving (Show, Eq, Generic)
 
 instance FromJSON Member where
-  parseJSON = genericParseJSON parseOptions . jsonLower
+  parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower
 
 instance ToJSON Member where
   toJSON = genericToJSON serializeOptions
@@ -73,7 +73,7 @@ data Group = Group
   deriving (Show, Eq, Generic)
 
 instance FromJSON Group where
-  parseJSON = genericParseJSON parseOptions . jsonLower
+  parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower
 
 instance ToJSON Group where
   toJSON = genericToJSON serializeOptions
