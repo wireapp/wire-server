@@ -771,7 +771,7 @@ registerRemoteConversationMemberships now lc = do
   failedToNotify :: [Remote RemoteMember] <- fmap (foldMap (either (sequenceA . fst) mempty)) $
     runFederatedConcurrentlyEither allRemoteMembersQualified $
       \rrms ->
-        fedClient @'Galley @"on-conversation-created" $
+        fedClient @'Galley @"on-conversation-created"
           ( rc
               { ccNonCreatorMembers =
                   toMembers (tUnqualified rrms)
