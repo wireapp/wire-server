@@ -9,9 +9,11 @@ module Testlib.ModService
 where
 
 import Control.Applicative ((<|>))
-import Control.Concurrent.Async (mapConcurrently_)
+import Control.Concurrent.Async
+import Control.Concurrent.MVar
 import Control.Exception (finally)
 import qualified Control.Exception as E
+import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Codensity
 import Control.Monad.Extra
 import Control.Monad.Reader
@@ -24,8 +26,9 @@ import Data.Function
 import Data.Functor
 import qualified Data.Map.Strict as Map
 import Data.Maybe
+import Data.Monoid
 import Data.String.Conversions (cs)
-import Data.Text hiding (elem, head, zip)
+import Data.Text hiding (elem, head, map, zip)
 import Data.Traversable
 import Data.Word (Word16)
 import qualified Data.Yaml as Yaml
@@ -70,14 +73,77 @@ copyDirectoryRecursively from to = do
       then copyDirectoryRecursively fromPath toPath
       else copyFile fromPath toPath
 
+-- | Concurrent traverse in the 'Codensity App' monad.
+--
+-- Every action is assumed to return an environment modification function. All
+-- actions are started concurrently, and once they all yield control to their
+-- continuation, the main continuation is run in an environment that
+-- accumulates all the individual environment changes.
+traverseConcurrentlyCodensity ::
+  (a -> Codensity App (Env -> Env)) ->
+  ([a] -> Codensity App (Env -> Env))
+traverseConcurrentlyCodensity f args = do
+  -- Create variables for synchronisation of the various threads:
+  --  * @result@ is used to store the environment change, or possibly an exception
+  --  * @done@ is used to signal that the main continuation has finished, so
+  --    the thread can resume and move on to the cleanup phase.
+  -- There is one pair of @(result, done)@ variables for each thread.
+  vars <- liftIO $ for args $ \_ -> do
+    result <- newEmptyMVar
+    done <- newEmptyMVar
+    pure (result, done)
+
+  -- Create an IO Kleisli arrow that runs an action and synchronises using its
+  -- two variables. This arrow will later be used to spawn a thread.
+  runAction <- lift $ appToIOKleisli $ \((result, done), arg) ->
+    catch
+      ( runCodensity (f arg) $ \a -> liftIO $ do
+          putMVar result (Right a)
+          takeMVar done
+      )
+      $ \(e :: E.SomeException) ->
+        void . liftIO $ tryPutMVar result (Left e)
+
+  -- Spawn threads. Here we use the fact that 'withAsync' implicitly returns a
+  -- 'Codensity' action, and use the 'Monad' instance of 'Codensity' to
+  -- sequence these actions together. This is like nesting all the CPS
+  -- invocations of 'withAsync' one inside the other, but without the need for
+  -- explicit recursion.
+  asyncs <- for (zip vars args) $ \x ->
+    Codensity $ \k -> do
+      k' <- appToIOKleisli k
+      liftIO $ withAsync (runAction x) k'
+
+  -- Wait for all the threads to return environment changes in their result
+  -- variables. Any exception is rethrown here, and aborts the overall function.
+  fs <- liftIO $ for vars $ \(result, _) ->
+    takeMVar result >>= either throwM pure
+
+  Codensity $ \k -> do
+    -- Now compose all environment changes in some arbitrary order (they
+    -- should mostly commute, anyway). Then apply these changes to the actual
+    -- environment and also pass it to the main continuation @k@.
+    let modifyEnv = appEndo (foldMap Endo fs)
+    result <- local modifyEnv (k modifyEnv)
+
+    -- Finally, signal all threads that it is time to clean up, and wait for
+    -- them to finish. Note that this last block might not be executed in case
+    -- of exceptions, but this is not a problem, because all the async threads
+    -- are running within a 'withAsync' block, so they will be automatically
+    -- cancelled in that case.
+    liftIO $ traverse_ (\(_, d) -> putMVar d ()) vars
+    liftIO $ traverse_ wait asyncs
+    pure result
+
 startDynamicBackends :: [ServiceOverrides] -> ([String] -> App a) -> App a
 startDynamicBackends beOverrides = runCodensity $ do
   when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
   pool <- asks (.resourcePool)
   resources <- acquireResources (Prelude.length beOverrides) pool
-  for (zip resources beOverrides) $ uncurry startDynamicBackend
+  void $ traverseConcurrentlyCodensity (uncurry startDynamicBackend) (zip resources beOverrides)
+  pure $ map (.berDomain) resources
 
-startDynamicBackend :: BackendResource -> ServiceOverrides -> Codensity App String
+startDynamicBackend :: BackendResource -> ServiceOverrides -> Codensity App (Env -> Env)
 startDynamicBackend resource beOverrides = do
   defDomain <- asks (.domain1)
   defDomain2 <- asks (.domain2)
@@ -102,7 +168,6 @@ startDynamicBackend resource beOverrides = do
         let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
          in Map.insert resource.berDomain (setFederatorPorts resource $ updateServiceMap ports templateBackend) sm
     )
-  pure resource.berDomain
   where
     setAwsAdnQueuesConfigs :: Service -> Value -> App Value
     setAwsAdnQueuesConfigs = \case
@@ -178,7 +243,8 @@ setFederatorPorts resource sm =
 withModifiedServices :: Map.Map Service (Value -> App Value) -> Codensity App String
 withModifiedServices services = do
   domain <- lift $ asks (.domain1)
-  startBackend domain Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain)
+  void $
+    startBackend domain Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain)
   pure domain
 
 updateServiceMap :: Map.Map Service Word16 -> ServiceMap -> ServiceMap
@@ -199,12 +265,13 @@ updateServiceMap ports serviceMap =
     ports
 
 startBackend ::
+  HasCallStack =>
   String ->
   Maybe Word16 ->
   Maybe (Value -> App Value) ->
   Map.Map Service (Value -> App Value) ->
   (Map.Map Service Word16 -> Map.Map String ServiceMap -> Map.Map String ServiceMap) ->
-  Codensity App ()
+  Codensity App (Env -> Env)
 startBackend domain nginzSslPort mFederatorOverrides services modifyBackends = do
   ports <- Map.traverseWithKey (\_ _ -> liftIO openFreePort) services
 
@@ -290,6 +357,8 @@ startBackend domain nginzSslPort mFederatorOverrides services modifyBackends = d
     liftIO $
       (mapConcurrently_ waitForService (Map.keys ports) >> ioAction)
         `finally` stopInstances
+
+  pure modifyEnv
 
 startProcess :: String -> Service -> Value -> App (ProcessHandle, FilePath)
 startProcess domain srv = startProcess' domain (configName srv)
