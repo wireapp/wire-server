@@ -53,14 +53,13 @@ set +e
 helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml" sync --skip-deps --concurrency 0
 EXIT_CODE=$?
 
-echo "!! Helm install failed. Attempting to get some more information ..."
-
-kubectl -n "$NAMESPACE_1" get events | grep -v "Normal "
-kubectl -n "$NAMESPACE_2" get events | grep -v "Normal "
-${DIR}/kubectl-get-debug-info.sh "$NAMESPACE_1"
-${DIR}./kubectl-get-debug-info.sh "$NAMESPACE_2"
-
 if (( EXIT_CODE > 0)); then
+    echo "!! Helm install failed. Attempting to get some more information ..."
+
+    kubectl -n "$NAMESPACE_1" get events | grep -v "Normal "
+    kubectl -n "$NAMESPACE_2" get events | grep -v "Normal "
+    "${DIR}/kubectl-get-debug-info.sh" "$NAMESPACE_1"
+    "${DIR}/kubectl-get-debug-info.sh" "$NAMESPACE_2"
     exit $EXIT_CODE
 fi
 set -e
