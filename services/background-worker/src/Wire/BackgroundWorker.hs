@@ -15,9 +15,6 @@ import Wire.BackgroundWorker.Options
 import Wire.Defederation as Defederation
 
 -- FUTUREWORK: Start an http service with status and metrics endpoints
--- NOTE: Use atomic IORef writes to impose an ordering barrier on
---       reads and writes. This stops the CPU from being too clever
---       with its memory model and what it thinks it can get away with.
 run :: Opts -> IO ()
 run opts = do
   (env, syncThread) <- mkEnv opts

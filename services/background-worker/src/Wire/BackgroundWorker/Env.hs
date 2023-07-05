@@ -37,17 +37,17 @@ data Worker
 
 data Env = Env
   { http2Manager :: Http2Manager,
-    httpManager :: Manager,
+    rabbitmqAdminClient :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO),
+    rabbitmqVHost :: Text,
     logger :: Logger,
     metrics :: Metrics.Metrics,
     federatorInternal :: Endpoint,
+    httpManager :: Manager,
     galley :: Endpoint,
     brig :: Endpoint,
     defederationTimeout :: ResponseTimeout,
     remoteDomains :: IORef FederationDomainConfigs,
     remoteDomainsChan :: Chan FederationDomainConfigs,
-    rabbitmqAdminClient :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO),
-    rabbitmqVHost :: Text,
     backendNotificationMetrics :: BackendNotificationMetrics,
     statuses :: IORef (Map Worker IsWorking)
   }
