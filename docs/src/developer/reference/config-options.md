@@ -224,11 +224,11 @@ To enable classified domains, the following needs to be in galley.yaml or wire-s
 classifiedDomains:
   status: enabled
   config:
-    domains: ["default.domain", "example2.com"]
+    domains: ["default.domain", "default2.domain"]
 ```
 
 Note that when enabling this feature, it is important to provide your own domain
-too in the list of domains. In the example above, `default.domain` or `example2.com` is your domain.
+too in the list of domains. In the example above, `default.domain` or `default2.domain` is your domain.
 
 To disable, either omit the entry entirely (it is disabled by default), or provide the following:
 
