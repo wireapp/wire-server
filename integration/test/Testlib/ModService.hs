@@ -11,8 +11,8 @@ module Testlib.ModService
 where
 
 import Control.Applicative ((<|>))
+import Control.Concurrent
 import Control.Concurrent.Async
-import Control.Concurrent.MVar
 import Control.Exception (finally)
 import qualified Control.Exception as E
 import Control.Monad.Catch (catch, throwM)
@@ -44,12 +44,13 @@ import System.IO
 import qualified System.IO.Error as Error
 import System.IO.Temp (createTempDirectory, writeTempFile)
 import System.Posix (getEnvironment, killProcess, signalProcess)
-import System.Process (CreateProcess (..), ProcessHandle, createProcess, getPid, proc, terminateProcess, waitForProcess)
+import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, getPid, proc, terminateProcess, waitForProcess)
 import System.Timeout (timeout)
 import Testlib.App
 import Testlib.Env
 import Testlib.HTTP
 import Testlib.JSON
+import Testlib.Printing
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ
@@ -381,6 +382,19 @@ startBackend domain staticPorts nginzSslPort mFederatorOverrides services modify
 startProcess :: String -> Service -> Value -> App (ProcessHandle, FilePath)
 startProcess domain srv = startProcess' domain (configName srv)
 
+processColors :: [(String, String -> String)]
+processColors =
+  [ ("brig", colored green),
+    ("galley", colored yellow),
+    ("gundeck", colored blue),
+    ("cannon", colored orange),
+    ("cargohold", colored purpleish),
+    ("spar", colored orange),
+    ("federator", colored blue),
+    ("background-worker", colored blue),
+    ("nginx", colored purpleish)
+  ]
+
 startProcess' :: String -> String -> Value -> App (ProcessHandle, FilePath)
 startProcess' domain execName config = do
   processEnv <- liftIO $ do
@@ -405,8 +419,23 @@ startProcess' domain execName config = do
       Just dir ->
         (Just (dir </> execName), "../../dist" </> execName)
 
-  (_, _, _, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, env = Just processEnv}
+  (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, env = Just processEnv, std_out = CreatePipe, std_err = CreatePipe}
+  let prefix = "[" <> execName <> "@" <> domain <> "] "
+  let colorize = fromMaybe id (lookup execName processColors)
+  void $ liftIO $ forkIO $ logToConsole colorize prefix stdoutHdl
+  void $ liftIO $ forkIO $ logToConsole colorize prefix stderrHdl
   pure (ph, tempFile)
+
+logToConsole :: (String -> String) -> String -> Handle -> IO ()
+logToConsole colorize prefix hdl = do
+  let go =
+        ( do
+            line <- hGetLine hdl
+            putStrLn (colorize (prefix <> line))
+            go
+        )
+          `E.catch` (\(_ :: E.IOException) -> pure ())
+  go
 
 waitUntilServiceUp :: HasCallStack => String -> Service -> App ()
 waitUntilServiceUp domain = \case
@@ -560,12 +589,20 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
     writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
 
   -- start service
-  (_, _, _, ph) <-
+
+  (_, Just stdoutHdl, Just stderrHdl, ph) <-
     liftIO $
       createProcess
         (proc "nginx" ["-c", tmpDir </> "conf" </> "nginz" </> "nginx.conf", "-p", tmpDir, "-g", "daemon off;"])
-          { cwd = Just $ cs tmpDir
+          { cwd = Just $ cs tmpDir,
+            std_out = CreatePipe,
+            std_err = CreatePipe
           }
+
+  let prefix = "[" <> "nginz" <> "@" <> domain <> "] "
+  let colorize = fromMaybe id (lookup "nginx" processColors)
+  void $ liftIO $ forkIO $ logToConsole colorize prefix stdoutHdl
+  void $ liftIO $ forkIO $ logToConsole colorize prefix stderrHdl
 
   -- return handle and nginx tmp dir path
   pure (ph, tmpDir)
