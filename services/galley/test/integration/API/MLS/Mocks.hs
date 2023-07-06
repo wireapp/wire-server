@@ -26,7 +26,6 @@ module API.MLS.Mocks
     claimKeyPackagesMock,
     queryGroupStateMock,
     deleteMLSConvMock,
-    mlsMockUnreachableFor,
   )
 where
 
@@ -38,7 +37,7 @@ import qualified Data.Set as Set
 import Federator.MockServer
 import Imports
 import Wire.API.Error.Galley
-import Wire.API.Federation.API.Common
+import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -103,6 +102,3 @@ deleteMLSConvMock =
   asum
     [ "on-conversation-updated" ~> EmptyResponse
     ]
-
-mlsMockUnreachableFor :: Set Domain -> Mock LByteString
-mlsMockUnreachableFor = mockUnreachableFor "RemoteMLSMessageOk"

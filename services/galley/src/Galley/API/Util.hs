@@ -29,6 +29,7 @@ import Data.Id as Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword6, PlainTextPassword8)
 import Data.Qualified
@@ -40,7 +41,7 @@ import Galley.API.Error
 import Galley.API.Mapping
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services (BotMember, newBotMember)
-import qualified Galley.Data.Types as Data
+import qualified Galley.Data.Types as DataTypes
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.CodeStore
@@ -53,7 +54,7 @@ import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import Galley.Intra.Push
 import Galley.Options
-import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), localMemberToOther, remoteMemberToOther)
+import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), localMemberToOther, remoteMemberQualify, remoteMemberToOther)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.UserList
@@ -69,6 +70,7 @@ import qualified Polysemy.TinyLog as P
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -648,12 +650,12 @@ verifyReusableCode ::
   Bool ->
   Maybe PlainTextPassword8 ->
   ConversationCode ->
-  Sem r Data.Code
+  Sem r DataTypes.Code
 verifyReusableCode checkPw mPtpw convCode = do
   (c, mPw) <-
-    getCode (conversationKey convCode) Data.ReusableCode
+    getCode (conversationKey convCode) DataTypes.ReusableCode
       >>= noteS @'CodeNotFound
-  unless (Data.codeValue c == conversationCode convCode) $
+  unless (DataTypes.codeValue c == conversationCode convCode) $
     throwS @'CodeNotFound
   case (checkPw, mPtpw, mPw) of
     (True, Just ptpw, Just pw) ->
@@ -727,20 +729,13 @@ toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMet
       ccCnvAccess = cnvmAccess,
       ccCnvAccessRoles = cnvmAccessRoles,
       ccCnvName = cnvmName,
-      ccNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= tUnqualified lusr) convLocalMembers) convRemoteMembers,
+      -- non-creator members are a function of the remote backend and will be
+      -- overridden when fanning out the notification to remote backends.
+      ccNonCreatorMembers = Set.empty,
       ccMessageTimer = cnvmMessageTimer,
       ccReceiptMode = cnvmReceiptMode,
       ccProtocol = convProtocol
     }
-  where
-    toMembers ::
-      [LocalMember] ->
-      [RemoteMember] ->
-      Set OtherMember
-    toMembers ls rs =
-      Set.fromList $
-        map (localMemberToOther (tDomain lusr)) ls
-          <> map remoteMemberToOther rs
 
 -- | The function converts a 'ConversationCreated' value to a
 -- 'Wire.API.Conversation.Conversation' value for each user that is on the given
@@ -805,8 +800,8 @@ fromConversationCreated loc rc@ConversationCreated {..} =
         ProtocolProteus
 
 -- | Notify remote users of being added to a new conversation. The return value
--- consists of users that could not be notified; they will not be considered to
--- be conversation members.
+-- consists of a set of users that could not be notified. Users that could not
+-- be notified will effectively not be added to the conversation.
 registerRemoteConversationMemberships ::
   (Member FederatorAccess r) =>
   -- | The time stamp when the conversation was created
@@ -814,16 +809,82 @@ registerRemoteConversationMemberships ::
   -- | The user that created the conversation
   Local UserId ->
   Data.Conversation ->
-  Sem r (Set (Remote UserId))
+  Sem r DataTypes.MemberAddFailed
 registerRemoteConversationMemberships now lusr c = do
-  let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
-      rc = toConversationCreated now lusr c
-  fmap toSet $ runFederatedConcurrentlyEither allRemoteMembers $ \_ ->
-    fedClient @'Galley @"on-conversation-created" rc
+  let rc = toConversationCreated now lusr c
+
+      allRemoteMembers = nubOrd {- (but why would there be duplicates?) -} (Data.convRemoteMembers c)
+      allRemoteMembersQualified = remoteMemberQualify <$> allRemoteMembers
+      allRemoteBuckets :: [Remote [RemoteMember]] = bucketRemote allRemoteMembersQualified
+
+  failedToNotify :: [Remote RemoteMember] <- fmap (foldMap (either (sequenceA . fst) mempty)) $
+    runFederatedConcurrentlyEither allRemoteMembersQualified $
+      \rrms ->
+        fedClient @'Galley @"on-conversation-created"
+          ( rc
+              { ccNonCreatorMembers =
+                  toMembers (tUnqualified rrms)
+              }
+          )
+
+  let failedToNotifySet :: Set (Remote UserId) =
+        Set.map (fmap (tUnqualified . rmId)) . Set.fromList $ failedToNotify
+
+      -- unreachable domains
+      failedToNotifyDomains :: Set Domain = Set.fromList . foldMap (pure . tDomain) $ failedToNotify
+
+      -- reachable members in buckets per remote domain
+      joined :: [Remote [RemoteMember]] =
+        filter
+          (\rmems -> Set.notMember (tDomain rmems) failedToNotifyDomains)
+          allRemoteBuckets
+
+      joinedCoupled =
+        foldMap
+          ( \ruids ->
+              let nj =
+                    foldMap (fmap rmId . tUnqualified) $
+                      filter (\r -> tDomain r /= tDomain ruids) joined
+               in case NE.nonEmpty nj of
+                    Nothing -> []
+                    Just v -> [(ruids, v)]
+          )
+          joined
+
+  -- Send an update to remotes about the final list of participants
+  void . runFederatedConcurrentlyBucketsEither joinedCoupled $
+    fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
+
+  pure failedToNotifySet
   where
-    toSet :: forall a x e. Ord x => [Either (Remote [x], e) a] -> Set (Remote x)
-    toSet =
-      Set.fromList . foldMap (either (sequenceA . fst) mempty)
+    creator :: Maybe UserId
+    creator = cnvmCreator . DataTypes.convMetadata $ c
+
+    localNonCreators :: [OtherMember]
+    localNonCreators =
+      fmap (localMemberToOther . tDomain $ lusr)
+        . filter (\lm -> lmId lm `notElem` creator)
+        . Data.convLocalMembers
+        $ c
+
+    -- Total set of members living on one remote backend (rs) or the hosting backend.
+    toMembers :: [RemoteMember] -> Set OtherMember
+    toMembers rs = Set.fromList $ localNonCreators <> fmap remoteMemberToOther rs
+
+    convUpdateJoin :: (QualifiedWithTag t [RemoteMember], NonEmpty (QualifiedWithTag t' UserId)) -> ConversationUpdate
+    convUpdateJoin (toNotify, newMembers) =
+      ConversationUpdate
+        { cuTime = now,
+          cuOrigUserId = tUntagged lusr,
+          cuConvId = DataTypes.convId $ c,
+          cuAlreadyPresentUsers = fmap (tUnqualified . rmId) . tUnqualified $ toNotify,
+          cuAction =
+            SomeConversationAction
+              (sing @'ConversationJoinTag)
+              -- FUTUREWORK(md): replace the member role with whatever is provided in
+              -- the NewConv input
+              (ConversationJoin (tUntagged <$> newMembers) roleNameWireMember)
+        }
 
 --------------------------------------------------------------------------------
 -- Legalhold

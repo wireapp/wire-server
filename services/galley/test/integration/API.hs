@@ -130,8 +130,8 @@ tests s =
           test s "metrics" metrics,
           test s "fetch conversation by qualified ID (v2)" testGetConvQualifiedV2,
           test s "create Proteus conversation" postProteusConvOk,
-          test s "create conversation with remote users" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2]),
-          test s "create conversation with remote users (some unreachable)" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2, rb3]),
+          test s "create conversation with remote users all reachable" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2]),
+          test s "create conversation with remote users some unreachable" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2, rb3]),
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
           test s "fail to get >500 conversations with v2 API" getConvsFailMaxSizeV2,
@@ -373,7 +373,7 @@ postConvWithRemoteUsersOk rbs = do
       pure (users, participating rb users)
     pure $ foldr (\(a, p) acc -> bimap ((<>) a) ((<>) p) acc) ([], []) v
 
-  let nameMaxSize = T.replicate 256 "a"
+  let convName = "some chat"
       otherLocals = [qAlex, qAmy]
   WS.bracketR3 c alice alex amy $ \(wsAlice, wsAlex, wsAmy) -> do
     let joiners = allRemotes <> otherLocals
@@ -385,27 +385,33 @@ postConvWithRemoteUsersOk rbs = do
                     $> tDomain rb
               )
               rbs
-    (rsp, federatedRequests') <-
+    (rsp, federatedRequests) <-
       withTempMockFederator'
-        (("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) <|> mockUnreachable unreachableBackends)
+        ( asum
+            [ "get-not-fully-connected-backends" ~> NonConnectedBackends mempty,
+              mockUnreachableFor unreachableBackends,
+              "on-conversation-created" ~> (),
+              "on-conversation-updated" ~> ()
+            ]
+        )
         $ postConvQualified
           alice
           Nothing
           defNewProteusConv
-            { newConvName = checked nameMaxSize,
+            { newConvName = checked convName,
               newConvQualifiedUsers = joiners
             }
           <!! const 201 === statusCode
-    let shouldBePresent = otherLocals <> participatingRemotes
-        shouldBePresentSet = Set.fromList (toOtherMember <$> shouldBePresent)
+    let minimalShouldBePresent = otherLocals
+        minimalShouldBePresentSet = Set.fromList (toOtherMember <$> minimalShouldBePresent)
     qcid <-
       assertConv
         rsp
         RegularConv
         (Just alice)
         qAlice
-        shouldBePresent
-        (Just nameMaxSize)
+        (otherLocals <> participatingRemotes)
+        (Just convName)
         Nothing
     let cid = qUnqualified qcid
     cvs <- mapM (convView qcid) [alice, alex, amy]
@@ -413,37 +419,48 @@ postConvWithRemoteUsersOk rbs = do
       mapM_ WS.assertSuccess
         =<< Async.mapConcurrently (checkWs qAlice) (zip cvs [wsAlice, wsAlex, wsAmy])
 
-    liftIO $
-      -- as many federated requests as remote backends, i.e., one per remote backend
-      Set.size (Set.fromList $ frTargetDomain <$> federatedRequests') @?= Set.size rbs
-    -- the first federated requests are 'get-not-fully-connected-backends' requests and we want to drop them
-    let federatedRequests = drop (Set.size rbs) federatedRequests'
-    let fedReq = head federatedRequests
-    fedReqBody <- assertRight $ parseFedRequest fedReq
-
     liftIO $ do
-      length federatedRequests @?= Set.size rbs
-      F.ccOrigUserId fedReqBody @?= alice
-      F.ccCnvId fedReqBody @?= cid
-      F.ccCnvType fedReqBody @?= RegularConv
-      F.ccCnvAccess fedReqBody @?= [InviteAccess]
-      F.ccCnvAccessRoles fedReqBody
-        @?= Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
-      F.ccCnvName fedReqBody @?= Just nameMaxSize
-      assertBool "Notifying an incorrect set of conversation members" $
-        shouldBePresentSet `Set.isSubsetOf` F.ccNonCreatorMembers fedReqBody
-      F.ccMessageTimer fedReqBody @?= Nothing
-      F.ccReceiptMode fedReqBody @?= Nothing
+      let expectedReqs =
+            Set.fromList $
+              [ "on-conversation-created",
+                "on-conversation-updated"
+              ]
+       in assertBool "Some federated calls are missing" $
+            expectedReqs `Set.isSubsetOf` Set.fromList (frRPC <$> federatedRequests)
 
-      fedBodies <- forM federatedRequests $ assertRight . parseFedRequest
-      assertBool "Not all request bodies are equal" (all (fedReqBody ==) fedBodies)
+    -- assertions on the conversation.create event triggering federation request
+    let fedReqsCreated = filter (\r -> frRPC r == "on-conversation-created") federatedRequests
+    fedReqCreatedBodies <- for fedReqsCreated $ assertRight . parseFedRequest
+    forM_ fedReqCreatedBodies $ \fedReqCreatedBody -> liftIO $ do
+      F.ccOrigUserId fedReqCreatedBody @?= alice
+      F.ccCnvId fedReqCreatedBody @?= cid
+      F.ccCnvType fedReqCreatedBody @?= RegularConv
+      F.ccCnvAccess fedReqCreatedBody @?= [InviteAccess]
+      F.ccCnvAccessRoles fedReqCreatedBody
+        @?= Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
+      F.ccCnvName fedReqCreatedBody @?= Just convName
+      assertBool "Notifying an incorrect set of conversation members" $
+        minimalShouldBePresentSet `Set.isSubsetOf` F.ccNonCreatorMembers fedReqCreatedBody
+      F.ccMessageTimer fedReqCreatedBody @?= Nothing
+      F.ccReceiptMode fedReqCreatedBody @?= Nothing
+
+    -- assertions on the conversation.member-join event triggering federation request
+    let fedReqsAdd = filter (\r -> frRPC r == "on-conversation-updated") federatedRequests
+    fedReqAddBodies <- for fedReqsAdd $ assertRight . parseFedRequest
+    forM_ fedReqAddBodies $ \fedReqAddBody -> liftIO $ do
+      F.cuOrigUserId fedReqAddBody @?= qAlice
+      F.cuConvId fedReqAddBody @?= cid
+      -- This remote backend must already have their users in the conversation,
+      -- otherwise they should not be receiving the conversation update message
+      assertBool "The list of already present users should be non-empty"
+        . not
+        . null
+        . F.cuAlreadyPresentUsers
+        $ fedReqAddBody
+      case F.cuAction fedReqAddBody of
+        SomeConversationAction SConversationJoinTag _action -> pure ()
+        _ -> assertFailure @() "Unexpected update action"
   where
-    mockUnreachable :: Set Domain -> Mock LByteString
-    mockUnreachable unreachable = do
-      r <- getRequest
-      if Set.member (frTargetDomain r) unreachable
-        then throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
-        else mockReply ()
     connectBackend :: UserId -> Remote Backend -> TestM [Qualified UserId]
     connectBackend usr (tDomain &&& bUsers . tUnqualified -> (d, c)) = do
       users <- replicateM (fromIntegral c) (randomQualifiedId d)
