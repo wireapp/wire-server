@@ -20,7 +20,7 @@ spec:
     email: {{ required "Missing value: certmasterEmail" .Values.certManager.certmasterEmail | quote }}
     # NOTE: this secret doesnt need to be created, it only gets a name with this
     privateKeySecretRef:
-      name: letsencrypt-http01-account-key
+      name: {{ include "nginx-ingress-services.getIssuerName" . -}}-account-key
     solvers:
 {{- if .Values.certManager.customSolvers }}
 {{ toYaml .Values.certManager.customSolvers | indent 6 }}
