@@ -46,20 +46,20 @@ import Bilge hiding (Request, header, options, statusCode)
 import Bilge.RPC
 import Cassandra
 import Control.Error hiding (err)
+import Control.Exception (throwIO)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (tryJust)
 import Data.Aeson (FromJSON)
 import Data.Default (def)
-import Control.Exception (throwIO)
 import Data.Misc (Milliseconds (..))
 import qualified Database.Redis as Redis
-import qualified System.Logger as Log
 import Gundeck.Env
 import qualified Gundeck.Redis as Redis
 import Imports
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Utilities
+import qualified System.Logger as Log
 import qualified System.Logger as Logger
 import System.Logger.Class hiding (Error, info)
 import UnliftIO (async)
@@ -169,12 +169,13 @@ runGundeck e r m = do
 runDirect :: Env -> Gundeck a -> IO a
 runDirect e m =
   runClient (e ^. cstate) (runReaderT (unGundeck m) e)
-    `catch` (\(exception :: SomeException) -> do
-               Log.err (e ^. applog) $
+    `catch` ( \(exception :: SomeException) -> do
+                Log.err (e ^. applog) $
                   Log.msg ("IO Exception occurred" :: ByteString)
                     . Log.field "message" (displayException exception)
                     . Log.field "request" (unRequestId (e ^. reqId))
-               throwIO exception)
+                throwIO exception
+            )
 
 lookupReqId :: Request -> RequestId
 lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
