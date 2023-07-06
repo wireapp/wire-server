@@ -4,7 +4,9 @@
 module Testlib.ModService
   ( withModifiedService,
     withModifiedServices,
+    startDynamicBackend,
     startDynamicBackends,
+    traverseConcurrentlyCodensity,
   )
 where
 
@@ -140,11 +142,11 @@ startDynamicBackends beOverrides = runCodensity $ do
   when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
   pool <- asks (.resourcePool)
   resources <- acquireResources (Prelude.length beOverrides) pool
-  void $ traverseConcurrentlyCodensity (uncurry startDynamicBackend) (zip resources beOverrides)
+  void $ traverseConcurrentlyCodensity (\(res, overrides) -> startDynamicBackend res mempty overrides) (zip resources beOverrides)
   pure $ map (.berDomain) resources
 
-startDynamicBackend :: BackendResource -> ServiceOverrides -> Codensity App (Env -> Env)
-startDynamicBackend resource beOverrides = do
+startDynamicBackend :: BackendResource -> Map.Map Service Word16 -> ServiceOverrides -> Codensity App (Env -> Env)
+startDynamicBackend resource staticPorts beOverrides = do
   defDomain <- asks (.domain1)
   defDomain2 <- asks (.domain2)
   let services =
@@ -161,6 +163,7 @@ startDynamicBackend resource beOverrides = do
             defaultServiceOverridesToMap
   startBackend
     resource.berDomain
+    staticPorts
     (Just resource.berNginzSslPort)
     (Just setFederatorConfig)
     services
@@ -244,7 +247,7 @@ withModifiedServices :: Map.Map Service (Value -> App Value) -> Codensity App St
 withModifiedServices services = do
   domain <- lift $ asks (.domain1)
   void $
-    startBackend domain Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain)
+    startBackend domain mempty Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain)
   pure domain
 
 updateServiceMap :: Map.Map Service Word16 -> ServiceMap -> ServiceMap
@@ -267,13 +270,23 @@ updateServiceMap ports serviceMap =
 startBackend ::
   HasCallStack =>
   String ->
+  Map.Map Service Word16 ->
   Maybe Word16 ->
   Maybe (Value -> App Value) ->
   Map.Map Service (Value -> App Value) ->
   (Map.Map Service Word16 -> Map.Map String ServiceMap -> Map.Map String ServiceMap) ->
   Codensity App (Env -> Env)
-startBackend domain nginzSslPort mFederatorOverrides services modifyBackends = do
-  ports <- Map.traverseWithKey (\_ _ -> liftIO openFreePort) services
+startBackend domain staticPorts nginzSslPort mFederatorOverrides services modifyBackends = do
+  ports <-
+    Map.traverseWithKey
+      ( \srv _ ->
+          case Map.lookup srv staticPorts of
+            Just port -> pure (port, Nothing)
+            Nothing -> do
+              (port, sock) <- liftIO openFreePort
+              pure (fromIntegral port, Just sock)
+      )
+      services
 
   let updateServiceMapInConfig :: Maybe Service -> Value -> App Value
       updateServiceMapInConfig forSrv config =
@@ -303,7 +316,12 @@ startBackend domain nginzSslPort mFederatorOverrides services modifyBackends = d
 
   -- close all sockets before starting the services
   stopInstances <- lift $ do
-    for_ (Map.keys services) $ \srv -> maybe (failApp "the impossible in withServices happened") (liftIO . N.close . snd) (Map.lookup srv ports)
+    for_ (Map.keys services) $ \srv ->
+      case Map.lookup srv ports of
+        Just (_, mbSocket) ->
+          for_ mbSocket $ \socket ->
+            liftIO $ N.close socket
+        Nothing -> failApp "the impossible in withServices happened"
 
     fedInstance <-
       case mFederatorOverrides of
