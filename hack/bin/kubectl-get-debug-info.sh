@@ -11,7 +11,7 @@ UNSCHEDULED_PODS=$(kubectl get pods --namespace "$NAMESPACE" -o json | jq -r '.i
 for POD in $UNSCHEDULED_PODS; do
   echo "Pod $POD failed to schedule for the following reasons:"
   # Get events for pod
-  kubectl describe pod "$POD" --namespace "$NAMESPACE" | grep -C 10 "Events:"
+  kubectl describe pod "$POD" --namespace "$NAMESPACE" | grep -A 10 "Events:"
   echo ""
 done
 
