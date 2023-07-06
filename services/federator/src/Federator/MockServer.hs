@@ -46,7 +46,6 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import qualified Data.Aeson as Aeson
 import Data.Domain (Domain)
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
 import Federator.Error
@@ -207,13 +206,11 @@ mockReply = pure . Aeson.encode
 
 -- | Provide a mock reply simulating unreachable backends given by their
 -- domains.
-mockUnreachableFor :: String -> Set Domain -> Mock LByteString
-mockUnreachableFor msg backends = do
+mockUnreachableFor :: Set Domain -> Mock LByteString
+mockUnreachableFor backends = do
   target <- frTargetDomain <$> getRequest
   guard (target `elem` backends)
-  if Set.member target backends
-    then throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
-    else mockReply msg
+  throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
 
 -- | Abort the mock with an error.
 mockFail :: Text -> Mock a
