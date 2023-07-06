@@ -122,25 +122,11 @@ main = do
   genv <- createGlobalEnv cfg
   env <- lowerCodensity $ mkEnv genv
 
-  osEnv <- getEnvironment
-  let osEnv' =
-        osEnv
-          <> [ ("AWS_REGION", "eu-west-1"),
-               ("AWS_ACCESS_KEY_ID", "dummykey"),
-               ("AWS_SECRET_ACCESS_KEY", "dummysecret")
-             ]
-
-  let assertEnvVar name = do
-        let mv = lookup name osEnv
-        maybe (error (name <> " is not set")) (const (pure ())) mv
-  assertEnvVar "RABBITMQ_USERNAME"
-  assertEnvVar "RABBITMQ_PASSWORD"
-
   args <- getArgs
   let args' = case args of
         (x : xs) -> x : xs
         _ -> ["sleep", "10000d"]
-  let cp = (proc "sh" (["-c", "exec \"$@\"", "--"] <> args')) {CP.env = Just osEnv'}
+  let cp = proc "sh" (["-c", "exec \"$@\"", "--"] <> args')
 
   runAppWithEnv env $ do
     lowerCodensity $ do
