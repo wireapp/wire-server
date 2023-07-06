@@ -3,6 +3,7 @@ module Testlib.App where
 import Control.Monad.Reader
 import qualified Control.Retry as Retry
 import Data.Aeson hiding ((.=))
+import Data.Functor ((<&>))
 import Data.IORef
 import qualified Data.Text as T
 import qualified Data.Yaml as Yaml
@@ -42,7 +43,11 @@ readServiceConfig = readServiceConfig' . configName
 
 readServiceConfig' :: String -> App Value
 readServiceConfig' srvName = do
-  basedir <- asks (.serviceConfigsDir)
+  basedir <-
+    asks (.servicesCwdBase) <&> \case
+      Nothing -> "/etc/wire"
+      Just p -> p </> ".integration/A/etc/wire/"
+
   let cfgFile = basedir </> srvName </> "conf" </> (srvName <> ".yaml")
   eith <- liftIO (Yaml.decodeFileEither cfgFile)
   case eith of

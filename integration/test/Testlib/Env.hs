@@ -31,7 +31,6 @@ data Env = Env
     domain2 :: String,
     defaultAPIVersion :: Int,
     manager :: HTTP.Manager,
-    serviceConfigsDir :: FilePath,
     servicesCwdBase :: Maybe FilePath,
     removalKeyPath :: FilePath,
     prekeys :: IORef [(Int, String)],
@@ -47,7 +46,6 @@ data GlobalEnv = GlobalEnv
     gDomain2 :: String,
     gDefaultAPIVersion :: Int,
     gManager :: HTTP.Manager,
-    gServiceConfigsDir :: FilePath,
     gServicesCwdBase :: Maybe FilePath,
     gRemovalKeyPath :: FilePath,
     gBackendResourcePool :: ResourcePool BackendResource
@@ -168,11 +166,6 @@ mkGlobalEnv cfgFile = do
             then Just (joinPath (init ps))
             else Nothing
 
-  let configsDir =
-        case devEnvProjectRoot of
-          Just root -> root </> "./services/.integration/A/etc/wire/"
-          Nothing -> "/etc/wire"
-
   manager <- HTTP.newManager HTTP.defaultManagerSettings
   resourcePool <- createBackendResourcePool
   pure
@@ -186,7 +179,7 @@ mkGlobalEnv cfgFile = do
         gDomain2 = intConfig.backendTwo.originDomain,
         gDefaultAPIVersion = 4,
         gManager = manager,
-        gServiceConfigsDir = configsDir,
+        -- gServiceConfigsDir = configsDir,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gRemovalKeyPath = error "Uninitialised removal key path",
         gBackendResourcePool = resourcePool
@@ -205,7 +198,6 @@ mkEnv ge = do
           domain2 = gDomain2 ge,
           defaultAPIVersion = gDefaultAPIVersion ge,
           manager = gManager ge,
-          serviceConfigsDir = gServiceConfigsDir ge,
           servicesCwdBase = gServicesCwdBase ge,
           removalKeyPath = gRemovalKeyPath ge,
           prekeys = pks,
