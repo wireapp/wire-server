@@ -475,7 +475,7 @@ openFreePort =
               Nothing
 
 startNginz :: String -> Word16 -> Maybe Word16 -> ServiceMap -> App (ProcessHandle, FilePath)
-startNginz domain port mSslPort sm = do
+startNginz domain localPort mSslPort sm = do
   -- Create a whole temporary directory and copy all nginx's config files.
   -- This is necessary because nginx assumes local imports are relative to
   -- the location of the main configuration file.
@@ -519,26 +519,24 @@ startNginz domain port mSslPort sm = do
 
   sslPort <- maybe (failApp "could not determine nginz's ssl port") pure (mSslPort <|> mParsedPort)
 
-  nginzConf <-
-    liftIO $
-      NginzConfig port
-        <$> (openFreePort >>= \(p, s) -> N.close s $> fromIntegral p)
-        <*> pure sslPort
-        <*> pure sm.federatorExternal.port
+  http2Port :: Word16 <- liftIO $ (openFreePort >>= \(p, s) -> N.close s $> fromIntegral p)
+  -- We've seen nginx erroring that it cannot bind() to http2Port.
+  -- When this delay is added the problem doesn't occur anymore locally .
+  liftIO $ threadDelay 100000
 
   -- override port configuration
   let portConfigTemplate =
         cs $
-          [r|listen {port};
+          [r|listen {localPort};
 listen {http2_port} http2;
 listen {ssl_port} ssl http2;
 listen [::]:{ssl_port} ssl http2;
 |]
   let portConfig =
         portConfigTemplate
-          & replace (cs "{port}") (cs $ show nginzConf.localPort)
-          & replace (cs "{http2_port}") (cs $ show nginzConf.http2Port)
-          & replace (cs "{ssl_port}") (cs $ show nginzConf.sslPort)
+          & replace (cs "{localPort}") (cs $ show localPort)
+          & replace (cs "{http2_port}") (cs $ show http2Port)
+          & replace (cs "{ssl_port}") (cs $ show sslPort)
 
   liftIO $ whenM (doesFileExist integrationConfFile) $ removeFile integrationConfFile
   liftIO $ writeFile integrationConfFile (cs portConfig)
@@ -584,7 +582,7 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
       ( cs $
           upstreamFederatorTemplate
             & replace (cs "{name}") (cs "federator_external")
-            & replace (cs "{port}") (cs $ show nginzConf.fedPort)
+            & replace (cs "{port}") (cs $ show sm.federatorExternal.port)
       )
 
   -- override pid configuration

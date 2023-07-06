@@ -100,14 +100,6 @@ data HostPort = HostPort
 
 instance FromJSON HostPort
 
-data NginzConfig = NginzConfig
-  { localPort :: Word16,
-    http2Port :: Word16,
-    sslPort :: Word16,
-    fedPort :: Word16
-  }
-  deriving (Show, Generic)
-
 data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker
   deriving
     ( Show,
