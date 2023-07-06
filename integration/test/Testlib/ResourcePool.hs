@@ -120,4 +120,4 @@ backendResources n =
     mkVHost = domain
 
 remoteDomains :: String -> [String]
-remoteDomains domain = ["d1.example.com", "d2.example.com", "d3.example.com"] \\ [domain]
+remoteDomains domain = ["example.com", "b.example.com", "d1.example.com", "d2.example.com", "d3.example.com"] \\ [domain]

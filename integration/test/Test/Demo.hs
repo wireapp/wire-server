@@ -174,7 +174,7 @@ testIndependentESIndices = do
 
 testDynamicBackendsFederation :: HasCallStack => App ()
 testDynamicBackendsFederation = do
-  startDynamicBackends [def, def] $ \dynDomains -> do
+  startDynamicBackends [def <> fullSearchWithAll, def <> fullSearchWithAll] $ \dynDomains -> do
     [aDynDomain, anotherDynDomain] <- pure dynDomains
     u1 <- randomUser aDynDomain def
     u2 <- randomUser anotherDynDomain def

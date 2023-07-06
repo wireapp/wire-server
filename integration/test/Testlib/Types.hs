@@ -207,6 +207,22 @@ data ServiceOverrides = ServiceOverrides
 instance Default ServiceOverrides where
   def = defaultServiceOverrides
 
+instance Semigroup ServiceOverrides where
+  a <> b =
+    ServiceOverrides
+      { dbBrig = dbBrig a >=> dbBrig b,
+        dbCannon = dbCannon a >=> dbCannon b,
+        dbCargohold = dbCargohold a >=> dbCargohold b,
+        dbGalley = dbGalley a >=> dbGalley b,
+        dbGundeck = dbGundeck a >=> dbGundeck b,
+        dbNginz = dbNginz a >=> dbNginz b,
+        dbSpar = dbSpar a >=> dbSpar b,
+        dbBackgroundWorker = dbBackgroundWorker a >=> dbBackgroundWorker b
+      }
+
+instance Monoid ServiceOverrides where
+  mempty = defaultServiceOverrides
+
 defaultServiceOverrides :: ServiceOverrides
 defaultServiceOverrides =
   ServiceOverrides

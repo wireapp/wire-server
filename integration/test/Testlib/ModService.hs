@@ -149,7 +149,6 @@ startDynamicBackends beOverrides = runCodensity $ do
 startDynamicBackend :: BackendResource -> Map.Map Service Word16 -> ServiceOverrides -> Codensity App (Env -> Env)
 startDynamicBackend resource staticPorts beOverrides = do
   defDomain <- asks (.domain1)
-  defDomain2 <- asks (.domain2)
   let services =
         withOverrides beOverrides $
           Map.mapWithKey
@@ -157,7 +156,7 @@ startDynamicBackend resource staticPorts beOverrides = do
                 conf
                   >=> setKeyspace srv
                   >=> setEsIndex srv
-                  >=> setFederationSettings defDomain defDomain2 srv
+                  >=> setFederationSettings srv
                   >=> setAwsAdnQueuesConfigs srv
                   >=> setField "logLevel" "Warn"
             )
@@ -189,19 +188,14 @@ startDynamicBackend resource staticPorts beOverrides = do
           >=> setField "rabbitmq.vHost" resource.berVHost
       _ -> pure
 
-    setFederationSettings :: String -> String -> Service -> Value -> App Value
-    setFederationSettings ownDomain otherDomain =
+    setFederationSettings :: Service -> Value -> App Value
+    setFederationSettings =
       \case
         Brig ->
           setField "optSettings.setFederationDomain" resource.berDomain
             >=> setField
               "optSettings.setFederationDomainConfigs"
-              ( [ object ["domain" .= resource.berDomain, "search_policy" .= "full_search"],
-                  object ["domain" .= ownDomain, "search_policy" .= "full_search"],
-                  object ["domain" .= otherDomain, "search_policy" .= "full_search"]
-                ]
-                  <> [object ["domain" .= d, "search_policy" .= "full_search"] | d <- remoteDomains resource.berDomain]
-              )
+              [object ["domain" .= resource.berDomain, "search_policy" .= "full_search"]]
             >=> setField "federatorInternal.port" resource.berFederatorInternal
         Cargohold ->
           setField "settings.federationDomain" resource.berDomain

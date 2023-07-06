@@ -6,12 +6,11 @@ import Control.Monad.Codensity (lowerCodensity)
 import Control.Monad.Trans (MonadIO (liftIO))
 import qualified Data.Map as Map
 import System.Directory
-import System.Environment (getArgs, getEnvironment)
+import System.Environment (getArgs)
 import System.Exit (exitWith)
 import System.FilePath
 import System.Posix (getWorkingDirectory)
 import System.Process (createProcess, proc, waitForProcess)
-import qualified System.Process as CP
 import Testlib.ModService
 import Testlib.Prelude
 import Testlib.ResourcePool
