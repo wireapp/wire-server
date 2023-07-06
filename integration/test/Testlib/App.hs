@@ -43,12 +43,11 @@ readServiceConfig = readServiceConfig' . configName
 
 readServiceConfig' :: String -> App Value
 readServiceConfig' srvName = do
-  basedir <-
+  cfgFile <-
     asks (.servicesCwdBase) <&> \case
-      Nothing -> "/etc/wire"
-      Just p -> p </> ".integration/A/etc/wire/"
+      Nothing -> "/etc/wire" </> srvName </> "conf" </> (srvName <> ".yaml")
+      Just p -> p </> srvName </> (srvName <> ".integration.yaml")
 
-  let cfgFile = basedir </> srvName </> "conf" </> (srvName <> ".yaml")
   eith <- liftIO (Yaml.decodeFileEither cfgFile)
   case eith of
     Left err -> failApp ("Error while parsing " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err)

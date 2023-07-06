@@ -29,7 +29,6 @@ import Imports
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit (Assertion, testCase)
 import TestSetup
-import Testlib.Types
 
 test :: IO TestSetup -> TestName -> TestM a -> TestTree
 test s n h = testCase n runTest
