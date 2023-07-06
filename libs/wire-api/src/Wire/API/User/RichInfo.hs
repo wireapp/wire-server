@@ -184,7 +184,7 @@ richInfoMapAndListSchema =
     ( RichInfoMapAndList
         <$> richInfoMap
           .= ( fromMaybe mempty
-                 <$> ciOptField richInfoMapURN richInfoMapSchema
+                 <$> ciOptField richInfoMapURN (mapWithKeys CI.original CI.mk schema)
              )
         <*> richInfoAssocList
           .= ( fromMaybe mempty
@@ -196,9 +196,6 @@ richInfoMapAndListSchema =
              )
     )
     (pure . normalizeRichInfoMapAndList)
-
-richInfoMapSchema :: ValueSchema SwaggerDoc (Map (CI Text) Text)
-richInfoMapSchema = mapWithKeys CI.original CI.mk schema
 
 -- | Uses 'normalizeRichInfoMapAndList'.
 mkRichInfoMapAndList :: [RichField] -> RichInfoMapAndList
@@ -275,17 +272,22 @@ instance Semigroup RichInfoAssocList where
   RichInfoAssocList a <> RichInfoAssocList b = RichInfoAssocList $ a <> b
 
 instance ToSchema RichInfoAssocList where
-  schema = ciObject "RichInfoAssocList" richInfoAssocListSchema
+  schema =
+    ciObject "RichInfoAssocList" richInfoAssocListSchema
+      <|> richInfoAssocListSchemaLegacy
+    where
+      richInfoAssocListSchemaLegacy :: ValueSchema NamedSwaggerDoc RichInfoAssocList
+      richInfoAssocListSchemaLegacy = array (schema @RichField)
 
-richInfoAssocListSchema :: CIObjectSchema SwaggerDoc RichInfoAssocList
-richInfoAssocListSchema =
-  withParser
-    ( (,)
-        <$> const (0 :: Int) .= ciField "version" schema
-        <*> unRichInfoAssocList .= ciField "fields" (array schema)
-    )
-    $ \(version, fields) ->
-      mkRichInfoAssocList <$> validateRichInfoAssocList version fields
+      richInfoAssocListSchema :: CIObjectSchema SwaggerDoc RichInfoAssocList
+      richInfoAssocListSchema =
+        withParser
+          ( (,)
+              <$> const (0 :: Int) .= ciField "version" schema
+              <*> unRichInfoAssocList .= ciField "fields" (array schema)
+          )
+          $ \(version, fields) ->
+            mkRichInfoAssocList <$> validateRichInfoAssocList version fields
 
 validateRichInfoAssocList :: Int -> [RichField] -> A.Parser [RichField]
 validateRichInfoAssocList version fields = do
