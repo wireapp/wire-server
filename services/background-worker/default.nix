@@ -20,7 +20,9 @@
 , imports
 , lib
 , metrics-core
+, metrics-wai
 , monad-control
+, prometheus-client
 , QuickCheck
 , retry
 , servant
@@ -54,7 +56,9 @@ mkDerivation {
     http2-manager
     imports
     metrics-core
+    metrics-wai
     monad-control
+    prometheus-client
     retry
     servant-client
     servant-server
@@ -79,6 +83,7 @@ mkDerivation {
     http-media
     http-types
     imports
+    prometheus-client
     QuickCheck
     servant
     servant-client

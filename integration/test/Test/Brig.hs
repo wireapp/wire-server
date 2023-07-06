@@ -4,7 +4,7 @@ import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import qualified API.Common as API
 import qualified API.GalleyInternal as Internal
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.IO.Class
 import Data.Aeson.Types
 import qualified Data.Set as Set
 import Data.String.Conversions

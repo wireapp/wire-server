@@ -35,7 +35,9 @@ library
     , http2-manager
     , imports
     , metrics-core
+    , metrics-wai
     , monad-control
+    , prometheus-client
     , retry
     , servant-client
     , servant-server
@@ -104,7 +106,7 @@ executable background-worker
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -Wredundant-constraints -Wunused-packages
-    -threaded -with-rtsopts=-N
+    -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
 
   default-extensions:
     NoImplicitPrelude
@@ -177,6 +179,7 @@ test-suite background-worker-test
     , http-media
     , http-types
     , imports
+    , prometheus-client
     , QuickCheck
     , servant
     , servant-client

@@ -34,7 +34,6 @@ This repository contains the following source code:
    - **spar**: Single-Sign-On (SSO)
 
 - **tools**
-   - **api-simulations**: Run automated smoke and load tests
    - **db/**: Migration tools (e.g. when new tables are added)
    - **stern/**: Backoffice tool (basic [Swagger](https://swagger.io/) based interface)
 
