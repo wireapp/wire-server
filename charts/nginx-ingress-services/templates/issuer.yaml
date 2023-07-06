@@ -6,7 +6,7 @@ kind: "{{ .Values.tls.issuer.kind }}"
 {{- fail (cat ".tls.issuer.kind can only be one of Issuer or ClusterIssuer, got: " .tls.issuer.kind )}}
 {{- end }}
 metadata:
-  name: {{ .Values.tls.issuer.name }}
+  name: {{ include "nginx-ingress-services.getIssuerName" . | quote }}
   {{- if eq .Values.tls.issuer.kind "Issuer" }}
   namespace: {{ .Release.Namespace }}
   {{- end }}
@@ -20,7 +20,7 @@ spec:
     email: {{ required "Missing value: certmasterEmail" .Values.certManager.certmasterEmail | quote }}
     # NOTE: this secret doesnt need to be created, it only gets a name with this
     privateKeySecretRef:
-      name: letsencrypt-http01-account-key
+      name: {{ include "nginx-ingress-services.getIssuerName" . -}}-account-key
     solvers:
 {{- if .Values.certManager.customSolvers }}
 {{ toYaml .Values.certManager.customSolvers | indent 6 }}
