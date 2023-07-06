@@ -108,7 +108,6 @@ import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
 import Wire.API.Error
 import Wire.API.Federation.Error
-import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.Sem.Logger
 
 -- Effects needed by the interpretation of other effects
@@ -156,8 +155,8 @@ validateOptions l o = do
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
     _ -> pure ()
 
-createEnv :: Metrics -> Opts -> Logger -> IORef FederationDomainConfigs -> IO Env
-createEnv m o l r = do
+createEnv :: Metrics -> Opts -> Logger -> IO Env
+createEnv m o l = do
   cass <- initCassandra o l
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
@@ -168,7 +167,6 @@ createEnv m o l r = do
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
     <*> loadAllMLSKeys (fold (o ^. optSettings . setMlsPrivateKeyPaths))
     <*> traverse (mkRabbitMqChannelMVar l) (o ^. optRabbitmq)
-    <*> pure r
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
