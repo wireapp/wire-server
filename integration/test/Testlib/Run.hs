@@ -110,7 +110,7 @@ createGlobalEnv cfg = do
   genv0 <- mkGlobalEnv cfg
 
   -- save removal key to a file
-  genv <- lowerCodensity $ do
+  lowerCodensity $ do
     env <- mkEnv genv0
     liftIO . runAppWithEnv env $ do
       config <- readServiceConfig Galley
@@ -120,8 +120,6 @@ createGlobalEnv cfg = do
           Nothing -> relPath
           Just dir -> dir </> "galley" </> relPath
       pure genv0 {gRemovalKeyPath = path}
-
-  pure genv
 
 runTests :: [(String, x, y, App ())] -> FilePath -> IO ()
 runTests tests cfg = do
