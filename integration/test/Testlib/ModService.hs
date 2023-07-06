@@ -599,7 +599,7 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
   (_, Just stdoutHdl, Just stderrHdl, ph) <-
     liftIO $
       createProcess
-        (proc "nginx" ["-c", tmpDir </> "conf" </> "nginz" </> "nginx.conf", "-p", tmpDir, "-g", "daemon off;"])
+        (proc "nginx" ["-c", tmpDir </> "conf" </> "nginz" </> "nginx.conf", "-p", tmpDir, "-g", "daemon off;", "-e", "/dev/stdout"])
           { cwd = Just $ cs tmpDir,
             std_out = CreatePipe,
             std_err = CreatePipe
