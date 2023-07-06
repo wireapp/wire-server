@@ -204,7 +204,6 @@ collect c acc lastPageHasMore remaining remainingBytes getPage
   | otherwise = do
       page <- getPage
       let rows = result page
-      -- TODO: keep left instead of maxPayloadLoadSize
       (s, remaingBytes') <- fetchPayloads c remainingBytes rows
       let remaining' = remaining - Seq.length s
       collect c (acc <> s) (hasMore page) remaining' remaingBytes' (liftClient (nextPage page))
