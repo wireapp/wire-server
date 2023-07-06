@@ -31,6 +31,7 @@ import Data.Maybe
 import Data.Monoid
 import Data.String.Conversions (cs)
 import Data.Text hiding (elem, head, map, zip)
+import qualified Data.Text.IO as Text
 import Data.Traversable
 import Data.Word (Word16)
 import qualified Data.Yaml as Yaml
@@ -489,6 +490,16 @@ startNginz domain port mSslPort sm = do
     copyDirectoryRecursively (from </> "resources") (tmpDir </> "resources")
 
   let integrationConfFile = tmpDir </> "conf" </> "nginz" </> "integration.conf"
+
+  -- hide access log
+  let nginxConfFile = tmpDir </> "conf" </> "nginz" </> "nginx.conf"
+  liftIO $ do
+    conf <- Text.readFile nginxConfFile
+    Text.writeFile nginxConfFile $
+      ( conf
+          & replace (cs "access_log /dev/stdout") (cs "access_log /dev/null")
+      )
+
   conf <- Prelude.lines <$> liftIO (readFile integrationConfFile)
   let sslPortParser = do
         _ <- string (cs "listen")
@@ -528,6 +539,7 @@ listen [::]:{ssl_port} ssl http2;
           & replace (cs "{port}") (cs $ show nginzConf.localPort)
           & replace (cs "{http2_port}") (cs $ show nginzConf.http2Port)
           & replace (cs "{ssl_port}") (cs $ show nginzConf.sslPort)
+
   liftIO $ whenM (doesFileExist integrationConfFile) $ removeFile integrationConfFile
   liftIO $ writeFile integrationConfFile (cs portConfig)
 
