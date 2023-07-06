@@ -32,9 +32,9 @@ syncFedDomainConfigs (Endpoint h p) log' cb = do
 -- | Initial function for getting the set of domains from brig, and an update interval
 initialize :: L.Logger -> ClientEnv -> IO FederationDomainConfigs
 initialize logger clientEnv =
-  let -- keep trying every 3s for one minute
+  let -- An initial value of 100000 is used throughout services. Another commonly used value is 50000
       policy :: R.RetryPolicy
-      policy = R.constantDelay 3_081_003 <> R.limitRetries 20
+      policy = R.exponentialBackoff 100000 <> R.limitRetries 20
 
       go :: IO (Maybe FederationDomainConfigs)
       go = do
