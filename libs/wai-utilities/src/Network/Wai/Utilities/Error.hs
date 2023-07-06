@@ -49,7 +49,7 @@ mkError c l m = Error c l m Nothing
 instance Exception Error
 
 data ErrorData = FederationErrorData
-  { federrDomain :: !Domain,
+  { federrDomains :: ![Domain],
     federrPath :: !Text
   }
   deriving (Eq, Show, Typeable)
@@ -58,14 +58,14 @@ instance ToJSON ErrorData where
   toJSON (FederationErrorData d p) =
     object
       [ "type" .= ("federation" :: Text),
-        "domain" .= d,
+        "domains" .= d,
         "path" .= p
       ]
 
 instance FromJSON ErrorData where
   parseJSON = withObject "ErrorData" $ \o ->
     FederationErrorData
-      <$> o .: "domain"
+      <$> o .: "domains"
       <*> o .: "path"
 
 -- | Assumes UTF-8 encoding.

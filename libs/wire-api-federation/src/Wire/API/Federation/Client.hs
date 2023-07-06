@@ -225,13 +225,13 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
         FederatorClientError
           ( mkFailureResponse
               (responseStatusCode resp)
-              (ceTargetDomain env)
+              [ceTargetDomain env]
               (toLazyByteString (requestPath req))
               (toLazyByteString bdy)
           )
 
-mkFailureResponse :: HTTP.Status -> Domain -> LByteString -> LByteString -> Wai.Error
-mkFailureResponse status domain path body
+mkFailureResponse :: HTTP.Status -> [Domain] -> LByteString -> LByteString -> Wai.Error
+mkFailureResponse status domains path body
   -- If the outward federator fails with 403, that means that there was an
   -- error at the level of the local federator (most likely due to a bug somewhere
   -- in wire-server). It does not make sense to return this error directly to the
@@ -251,7 +251,7 @@ mkFailureResponse status domain path body
         { Wai.errorData =
             Just
               Wai.FederationErrorData
-                { Wai.federrDomain = domain,
+                { Wai.federrDomains = domains,
                   Wai.federrPath =
                     "/federation"
                       <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path)

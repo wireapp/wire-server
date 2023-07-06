@@ -64,6 +64,7 @@ import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Clock (diffUTCTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import qualified Data.Vector as V
 import Federator.MockServer (FederatedRequest (..), MockException (..))
 import Imports hiding (head)
 import qualified Imports
@@ -633,8 +634,8 @@ testUserInvalidDomain brig = do
       const 422 === statusCode
       const (Just "/federation/api-version")
         === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
-      const (Just "invalid.example.com")
-        === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
+      const (Just (Array (V.fromList ["invalid.example.com"])))
+        === preview (ix "data" . ix "domains") . responseJsonUnsafe @Value
 
 testExistingUserUnqualified :: Brig -> Http ()
 testExistingUserUnqualified brig = do
