@@ -43,8 +43,11 @@ module Wire.API.User.RichInfo
   )
 where
 
+import Control.Lens ((%~), _1)
 import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as Aeson
+import qualified Data.Aeson.Key as A
+import qualified Data.Aeson.KeyMap as A
+import qualified Data.Aeson.Types as A
 import Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
 import Data.List.Extra (nubOrdOn)
@@ -67,7 +70,7 @@ newtype RichInfo = RichInfo {unRichInfo :: RichInfoAssocList}
 
 instance ToSchema RichInfo where
   schema =
-    object "RichInfo" $
+    ciObject "RichInfo" $
       RichInfo . toRichInfoAssocList <$> (fromRichInfoAssocList . unRichInfo) .= richInfoMapAndListSchema
 
 instance Monoid RichInfo where
@@ -109,7 +112,71 @@ data RichInfoMapAndList = RichInfoMapAndList
 -- field names.  while this violates the json standard, it is necessary to follow this
 -- requirement in order to be interoperable.  for this purpose, 'CIObjectSchema' supports `Map
 -- (CI Text) Value` in place of `A.Object`.  only use when you know what you're doing!
-type CIObjectSchema doc a = SchemaP doc (Map (CI Text) Aeson.Value) [Aeson.Pair] a a
+type CIObjectSchema doc a = CIObjectSchemaP doc a a
+
+-- | See CIObjectSchema
+type CIObjectSchemaP doc = SchemaP doc (Map (CI Text) A.Value) [(CI Text, A.Value)]
+
+-- | See 'CIObjectSchema'.
+ciObject ::
+  forall doc doc' a b.
+  HasObject doc doc' =>
+  Text ->
+  CIObjectSchemaP doc a b ->
+  ValueSchemaP doc' a b
+ciObject name sch = mkSchema s r w
+  where
+    s :: doc'
+    s =
+      -- TODO: also mention it's CI.
+      mkObject name (schemaDoc sch)
+
+    r :: A.Value -> A.Parser b
+    r = A.withObject (cs name) f
+      where
+        f :: A.Object -> A.Parser b
+        f = schemaIn sch . g
+
+        g :: A.Object -> Map (CI Text) A.Value
+        g = Map.fromList . fmap (_1 %~ (CI.mk . A.toText)) . A.toList
+
+    w :: a -> Maybe A.Value
+    w = fmap (A.object . f) . schemaOut sch
+      where
+        f :: [(CI Text, A.Value)] -> [A.Pair]
+        f = fmap (\(k, v) -> (A.fromText (CI.original k) A..= v))
+
+-- | See 'CIObjectSchema'.
+ciField :: forall doc doc' a. HasField doc doc' => CI Text -> ValueSchema doc a -> CIObjectSchema doc' a
+ciField name sch = mkSchema s r w
+  where
+    s :: doc'
+    s =
+      -- TODO: mention CI
+      mkDocF @doc' @Identity (mkField (CI.original name) (schemaDoc sch))
+
+    r :: Map (CI Text) A.Value -> A.Parser a
+    r = maybe (fail $ "missing object field " <> show name) (schemaIn sch) . Map.lookup name
+
+    w :: a -> Maybe [(CI Text, A.Value)]
+    w = fmap ((: []) . (name,)) . schemaOut sch
+
+-- | See 'CIObjectSchema'.
+ciOptField :: forall doc' doc a. HasField doc' doc => CI Text -> ValueSchema doc' a -> CIObjectSchemaP doc a (Maybe a)
+ciOptField name sch = mkSchema s r w
+  where
+    s :: doc
+    s =
+      -- TODO: mention CI
+      mkDocF @doc @Identity (mkField (CI.original name) (schemaDoc sch))
+
+    r :: Map (CI Text) A.Value -> A.Parser (Maybe a)
+    r obj = case (Map.lookup name obj) of
+      Nothing -> pure Nothing
+      Just a -> fmap Just (schemaIn sch a)
+
+    w :: a -> Maybe [(CI Text, A.Value)]
+    w = fmap ((: []) . (name,)) . schemaOut sch
 
 richInfoMapAndListSchema :: CIObjectSchema SwaggerDoc RichInfoMapAndList
 richInfoMapAndListSchema =
@@ -117,14 +184,14 @@ richInfoMapAndListSchema =
     ( RichInfoMapAndList
         <$> richInfoMap
           .= ( fromMaybe mempty
-                 <$> optField richInfoMapURN richInfoMapSchema
+                 <$> ciOptField richInfoMapURN richInfoMapSchema
              )
         <*> richInfoAssocList
           .= ( fromMaybe mempty
-                 <$> optField
+                 <$> ciOptField
                    richInfoAssocListURN
                    ( unRichInfoAssocList
-                       <$> object "RichInfoAssocList" (RichInfoAssocList .= field "richInfo" schema)
+                       <$> ciObject "RichInfoAssocList" (RichInfoAssocList .= ciField "richInfo" schema)
                    )
              )
     )
@@ -177,7 +244,7 @@ instance Arbitrary RichInfoMapAndList where
   arbitrary = mkRichInfoMapAndList <$> arbitrary
 
 -- | Uniform Resource Names used for serialization of 'RichInfo'.
-richInfoMapURN, richInfoAssocListURN :: Text
+richInfoMapURN, richInfoAssocListURN :: IsString s => s
 richInfoMapURN = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
 richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 
@@ -208,25 +275,25 @@ instance Semigroup RichInfoAssocList where
   RichInfoAssocList a <> RichInfoAssocList b = RichInfoAssocList $ a <> b
 
 instance ToSchema RichInfoAssocList where
-  schema = object "RichInfoAssocList" richInfoAssocListSchema
+  schema = ciObject "RichInfoAssocList" richInfoAssocListSchema
 
-richInfoAssocListSchema :: ObjectSchema SwaggerDoc RichInfoAssocList
+richInfoAssocListSchema :: CIObjectSchema SwaggerDoc RichInfoAssocList
 richInfoAssocListSchema =
   withParser
     ( (,)
-        <$> const (0 :: Int) .= field "version" schema
-        <*> unRichInfoAssocList .= field "fields" (array schema)
+        <$> const (0 :: Int) .= ciField "version" schema
+        <*> unRichInfoAssocList .= ciField "fields" (array schema)
     )
     $ \(version, fields) ->
       mkRichInfoAssocList <$> validateRichInfoAssocList version fields
 
-validateRichInfoAssocList :: Int -> [RichField] -> Aeson.Parser [RichField]
+validateRichInfoAssocList :: Int -> [RichField] -> A.Parser [RichField]
 validateRichInfoAssocList version fields = do
   when (version /= 0) $ fail $ "unknown version: " <> show version
   checkDuplicates (map richFieldType fields)
   pure fields
   where
-    checkDuplicates :: [CI Text] -> Aeson.Parser ()
+    checkDuplicates :: [CI Text] -> A.Parser ()
     checkDuplicates xs =
       case filter ((> 1) . length) . group . sort $ xs of
         [] -> pure ()

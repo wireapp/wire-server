@@ -38,6 +38,8 @@ module Data.Schema
     HasDoc (..),
     doc',
     HasSchemaRef (..),
+    HasObject (..),
+    HasField (..),
     withParser,
     SwaggerDoc,
     swaggerDoc,
@@ -49,7 +51,7 @@ module Data.Schema
     objectOver,
     jsonObject,
     jsonValue,
-    FieldFunctor,
+    FieldFunctor (..),
     field,
     fieldWithDocModifier,
     fieldOver,
@@ -308,7 +310,7 @@ optField ::
   SchemaP doc A.Object [A.Pair] a (Maybe b)
 optField = fieldF
 
--- | A schema for a JSON object with a single optional field.
+-- | Generalization of 'optField' with 'FieldFunctor'.
 fieldF ::
   (HasField doc' doc, FieldFunctor doc f) =>
   Text ->

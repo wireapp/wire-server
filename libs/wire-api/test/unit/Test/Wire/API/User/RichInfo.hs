@@ -28,7 +28,6 @@ import Test.QuickCheck
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
-import qualified Web.Scim.Schema.Common as Scim
 import Wire.API.User.RichInfo
 
 tests :: TestTree
