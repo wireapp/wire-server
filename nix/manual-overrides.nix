@@ -32,8 +32,11 @@ hself: hsuper: {
   saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
   http2 = hlib.dontCheck hsuper.http2;
 
-  # Needs network access to a running cassandra
-  cql-io = hlib.dontCheck hsuper.cql-io;
+  # Disable test becasue they need network access to a running cassandra
+  #
+  # Explicitly enable haddock because cabal2nix disables it for packages with
+  # internal libraries
+  cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
 
   # Needs network access to running ES
   # also the test suite doesn't compile https://github.com/NixOS/nixpkgs/pull/167957
