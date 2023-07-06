@@ -572,7 +572,7 @@ testAddRemotesSomeUnreachable = do
     (errRaw, _) <-
       withTempMockFederator'
         ( receiveCommitMockByDomain [bob1]
-            <|> mlsMockUnreachableFor unreachable
+            <|> mockUnreachableFor unreachable
             <|> welcomeMockByDomain [bobDomain]
         )
         $ localPostCommitBundle (mpSender commit) bundle
@@ -1029,7 +1029,7 @@ testAppMessageSomeReachable = do
     let unreachables = Set.singleton (Domain "charlie.example.com")
     let sendMocks =
           messageSentMockByDomain [bobDomain]
-            <|> mlsMockUnreachableFor unreachables
+            <|> mockUnreachableFor unreachables
 
     withTempMockFederator' sendMocks $ do
       message <- createApplicationMessage alice1 "hi, bob!"
