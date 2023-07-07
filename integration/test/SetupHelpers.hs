@@ -3,8 +3,10 @@ module SetupHelpers where
 import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import API.Galley
+import Data.Aeson hiding ((.=))
 import Data.Default
 import Data.Function
+import Data.UUID.V4 (nextRandom)
 import GHC.Stack
 import Testlib.Prelude
 import Testlib.ResourcePool (remoteDomains)
@@ -66,6 +68,16 @@ resetFedConns owndom = do
       rawlist <- resp.json %. "remotes" & asList
       (asString . (%. "domain")) `mapM` rawlist
     Internal.deleteFedConn' owndom `mapM_` rdoms
+
+randomId :: HasCallStack => App String
+randomId = do
+  liftIO (show <$> nextRandom)
+
+randomUserId :: (HasCallStack, MakesValue domain) => domain -> App Value
+randomUserId domain = do
+  d <- make domain
+  uid <- randomId
+  pure $ object ["id" .= uid, "domain" .= d]
 
 addFullSearchFor :: [String] -> Value -> App Value
 addFullSearchFor domains val =

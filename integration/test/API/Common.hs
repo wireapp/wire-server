@@ -2,6 +2,7 @@ module API.Common where
 
 import Control.Monad
 import Control.Monad.IO.Class
+import Data.Array ((!))
 import qualified Data.Array as Array
 import System.Random (randomRIO)
 import Testlib.Prelude
@@ -22,13 +23,27 @@ randomEmail = liftIO $ do
   u <- replicateM n pick
   pure $ u <> "@example.com"
   where
-    chars :: Array.Array Int Char
     chars = mkArray $ ['A' .. 'Z'] <> ['a' .. 'z'] <> ['0' .. '9']
+    pick = (chars !) <$> randomRIO (Array.bounds chars)
 
-    mkArray :: [a] -> Array.Array Int a
-    mkArray l = Array.listArray (0, length l - 1) l
+randomHex :: Int -> App String
+randomHex n = liftIO $ replicateM n pick
+  where
+    chars = mkArray (['0' .. '9'] <> ['a' .. 'f'])
+    pick = (chars !) <$> randomRIO (Array.bounds chars)
 
-    pick :: IO Char
-    pick = do
-      i <- randomRIO (Array.bounds chars)
-      pure (chars Array.! i)
+randomClientId :: App String
+randomClientId = randomHex 16
+
+mkArray :: [a] -> Array.Array Int a
+mkArray l = Array.listArray (0, length l - 1) l
+
+recipient :: MakesValue u => u -> App Value
+recipient u = do
+  uid <- u %. "id"
+  pure $
+    object
+      [ "user_id" .= uid,
+        "route" .= "any",
+        "clients" .= ([] :: [String])
+      ]

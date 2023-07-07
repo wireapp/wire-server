@@ -285,7 +285,6 @@ executable gundeck-integration
     , cassandra-util
     , containers
     , exceptions
-    , extended
     , gundeck
     , gundeck-types
     , HsOpenSSL
@@ -321,6 +320,7 @@ executable gundeck-schema
   other-modules:
     Paths_gundeck
     V1
+    V10
     V2
     V3
     V4
