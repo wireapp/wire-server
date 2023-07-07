@@ -171,7 +171,6 @@ mkGlobalEnv cfgFile = do
         gDomain2 = intConfig.backendTwo.originDomain,
         gDefaultAPIVersion = 4,
         gManager = manager,
-        -- gServiceConfigsDir = configsDir,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gRemovalKeyPath = error "Uninitialised removal key path",
         gBackendResourcePool = resourcePool

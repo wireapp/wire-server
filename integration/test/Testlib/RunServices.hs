@@ -71,7 +71,9 @@ backendB =
       berEmailSMSSesQueue = "integration-brig-events2",
       berEmailSMSEmailSender = "backend-integration2@wire.com",
       berGalleyJournal = "integration-team-events.fifo2",
-      -- TODO
+      -- FUTUREWORK: set up vhosts in dev/ci for example.com and b.example.com
+      -- in case we want backendA and backendB to federate with a third backend
+      -- (because otherwise both queues will overlap)
       berVHost = "/",
       berNginzSslPort = 9443
     }
