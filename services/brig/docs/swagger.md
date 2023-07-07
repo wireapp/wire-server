@@ -49,7 +49,8 @@ For errors that are more likely to be transient, we suggest clients to retry wha
 **Note**: when a failure occurs as a result of making a federated RPC to another backend, the error response contains the following extra fields:
 
  - `type`: "federation" (just the literal string in quotes, which can be used as an error type identifier when parsing errors)
- - `domain`: the target backend of the RPC that failed;
+ - `domain`: the target backend of the RPC that failed (deprecated in favour for `domains`);
+ - `domains`: the target backends of the RPC which failed;
  - `path`: the path of the RPC that failed.
 
 ### Domain errors
