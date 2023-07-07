@@ -43,7 +43,7 @@ module Wire.API.User.RichInfo
   )
 where
 
-import Control.Lens ((%~), _1)
+import Control.Lens ((%~), (?~), _1)
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Key as A
 import qualified Data.Aeson.KeyMap as A
@@ -120,16 +120,16 @@ type CIObjectSchemaP doc = SchemaP doc (Map (CI Text) A.Value) [(CI Text, A.Valu
 -- | See 'CIObjectSchema'.
 ciObject ::
   forall doc doc' a b.
-  HasObject doc doc' =>
+  (HasObject doc doc', S.HasDescription doc' (Maybe Text)) =>
   Text ->
   CIObjectSchemaP doc a b ->
   ValueSchemaP doc' a b
 ciObject name sch = mkSchema s r w
   where
     s :: doc'
-    s =
-      -- TODO: also mention it's CI.
-      mkObject name (schemaDoc sch)
+    s = mkObject name (schemaDoc sch) & desc
+      where
+        desc = S.description ?~ ("json object with case-insensitive fields." :: Text)
 
     r :: A.Value -> A.Parser b
     r = A.withObject (cs name) f
@@ -144,16 +144,21 @@ ciObject name sch = mkSchema s r w
     w = fmap (A.object . f) . schemaOut sch
       where
         f :: [(CI Text, A.Value)] -> [A.Pair]
-        f = fmap (\(k, v) -> (A.fromText (CI.original k) A..= v))
+        f = fmap (\(k, v) -> A.fromText (CI.original k) A..= v)
 
 -- | See 'CIObjectSchema'.
-ciField :: forall doc doc' a. HasField doc doc' => CI Text -> ValueSchema doc a -> CIObjectSchema doc' a
+ciField ::
+  forall doc doc' a.
+  (HasField doc doc', S.HasDescription doc' (Maybe Text)) =>
+  CI Text ->
+  ValueSchema doc a ->
+  CIObjectSchema doc' a
 ciField name sch = mkSchema s r w
   where
     s :: doc'
-    s =
-      -- TODO: mention CI
-      mkDocF @doc' @Identity (mkField (CI.original name) (schemaDoc sch))
+    s = mkDocF @doc' @Identity (mkField (CI.original name) (schemaDoc sch)) & desc
+      where
+        desc = S.description ?~ ("json field with case-insensitive fields." :: Text)
 
     r :: Map (CI Text) A.Value -> A.Parser a
     r = maybe (fail $ "missing object field " <> show name) (schemaIn sch) . Map.lookup name
@@ -162,16 +167,21 @@ ciField name sch = mkSchema s r w
     w = fmap ((: []) . (name,)) . schemaOut sch
 
 -- | See 'CIObjectSchema'.
-ciOptField :: forall doc' doc a. HasField doc' doc => CI Text -> ValueSchema doc' a -> CIObjectSchemaP doc a (Maybe a)
+ciOptField ::
+  forall doc' doc a.
+  (HasField doc' doc, S.HasDescription doc (Maybe Text)) =>
+  CI Text ->
+  ValueSchema doc' a ->
+  CIObjectSchemaP doc a (Maybe a)
 ciOptField name sch = mkSchema s r w
   where
     s :: doc
-    s =
-      -- TODO: mention CI
-      mkDocF @doc @Identity (mkField (CI.original name) (schemaDoc sch))
+    s = mkDocF @doc @Identity (mkField (CI.original name) (schemaDoc sch)) & desc
+      where
+        desc = S.description ?~ ("optional json field with case-insensitive fields." :: Text)
 
     r :: Map (CI Text) A.Value -> A.Parser (Maybe a)
-    r obj = case (Map.lookup name obj) of
+    r obj = case Map.lookup name obj of
       Nothing -> pure Nothing
       Just a -> fmap Just (schemaIn sch a)
 
@@ -191,11 +201,20 @@ richInfoMapAndListSchema =
                  <$> ciOptField
                    richInfoAssocListURN
                    ( unRichInfoAssocList
-                       <$> ciObject "RichInfoAssocList" (RichInfoAssocList .= ciField "richInfo" schema)
+                       <$> ciObject
+                         "RichInfoAssocList"
+                         ( RichInfoAssocList
+                             .= ciField
+                               "richInfo"
+                               (unnamed schema <> richInfoAssocListSchemaLegacy)
+                         )
                    )
              )
     )
     (pure . normalizeRichInfoMapAndList)
+  where
+    richInfoAssocListSchemaLegacy :: ValueSchema SwaggerDoc RichInfoAssocList
+    richInfoAssocListSchemaLegacy = RichInfoAssocList <$> unRichInfoAssocList .= array (schema @RichField)
 
 -- | Uses 'normalizeRichInfoMapAndList'.
 mkRichInfoMapAndList :: [RichField] -> RichInfoMapAndList
@@ -272,13 +291,8 @@ instance Semigroup RichInfoAssocList where
   RichInfoAssocList a <> RichInfoAssocList b = RichInfoAssocList $ a <> b
 
 instance ToSchema RichInfoAssocList where
-  schema =
-    ciObject "RichInfoAssocList" richInfoAssocListSchema
-      <|> richInfoAssocListSchemaLegacy
+  schema = ciObject "RichInfoAssocList" richInfoAssocListSchema
     where
-      richInfoAssocListSchemaLegacy :: ValueSchema NamedSwaggerDoc RichInfoAssocList
-      richInfoAssocListSchemaLegacy = array (schema @RichField)
-
       richInfoAssocListSchema :: CIObjectSchema SwaggerDoc RichInfoAssocList
       richInfoAssocListSchema =
         withParser

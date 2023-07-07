@@ -101,7 +101,7 @@ parseOptions =
 -- have to spend more effort in making sure it is always called manually in nested parsers.)
 jsonLower :: forall m. m ~ Either [Text] => Value -> m Value
 jsonLower (Object (KeyMap.toList -> olist)) =
-  Object . KeyMap.fromList <$> (nubCI >> sequence (lowerPair <$> olist))
+  Object . KeyMap.fromList <$> (nubCI >> mapM lowerPair olist)
   where
     nubCI :: m ()
     nubCI =
@@ -111,7 +111,7 @@ jsonLower (Object (KeyMap.toList -> olist)) =
             bad@(_ : _) -> Left bad
     lowerPair :: (Key.Key, Value) -> m (Key.Key, Value)
     lowerPair (key, val) = (lowerKey key,) <$> jsonLower val
-jsonLower (Array x) = Array <$> sequence (jsonLower <$> x)
+jsonLower (Array x) = Array <$> mapM jsonLower x
 jsonLower same@(String _) = Right same -- (only object attributes, not all texts in the value side of objects!)
 jsonLower same@(Number _) = Right same
 jsonLower same@(Bool _) = Right same

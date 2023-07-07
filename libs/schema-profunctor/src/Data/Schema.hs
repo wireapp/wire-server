@@ -44,6 +44,7 @@ module Data.Schema
     SwaggerDoc,
     swaggerDoc,
     NamedSwaggerDoc,
+    WithDeclare,
     declareSwaggerSchema,
     getName,
     object,
