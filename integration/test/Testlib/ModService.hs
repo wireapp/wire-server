@@ -273,21 +273,30 @@ startBackend ::
   (Map.Map Service Word16 -> Map.Map String ServiceMap -> Map.Map String ServiceMap) ->
   Codensity App (Env -> Env)
 startBackend domain staticPorts nginzSslPort mFederatorOverrides services modifyBackends = do
+  -- We already close sockets before starting any services that want to bind to
+  -- it, because if done later some services might already connect to the
+  -- dummy sockets (e.g. federator connecting to nginz) and blocking the ports
+  -- from being bindable
   ports <-
     Map.traverseWithKey
       ( \srv _ ->
           case Map.lookup srv staticPorts of
-            Just port -> pure (port, Nothing)
+            Just port -> pure port
             Nothing -> do
               (port, sock) <- liftIO openFreePort
-              pure (fromIntegral port, Just sock)
+              liftIO $ N.close sock
+              pure (fromIntegral port)
       )
       services
+  nginzHttp2Port <- liftIO $ do
+    (port, sock) <- openFreePort
+    N.close sock
+    pure (fromIntegral port)
 
   let updateServiceMapInConfig :: Maybe Service -> Value -> App Value
       updateServiceMapInConfig forSrv config =
         foldlM
-          ( \c (srv, (port, _)) -> do
+          ( \c (srv, port) -> do
               overridden <-
                 c
                   & setField
@@ -312,13 +321,6 @@ startBackend domain staticPorts nginzSslPort mFederatorOverrides services modify
 
   -- close all sockets before starting the services
   stopInstances <- lift $ do
-    for_ (Map.keys services) $ \srv ->
-      case Map.lookup srv ports of
-        Just (_, mbSocket) ->
-          for_ mbSocket $ \socket ->
-            liftIO $ N.close socket
-        Nothing -> failApp "the impossible in withServices happened"
-
     fedInstance <-
       case mFederatorOverrides of
         Nothing -> pure []
@@ -332,9 +334,9 @@ startBackend domain staticPorts nginzSslPort mFederatorOverrides services modify
     otherInstances <- for (Map.assocs services) $ \case
       (Nginz, _) -> do
         env <- ask
-        sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (modifyBackends (fromIntegral . fst <$> ports) env.serviceMap))
-        port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral . fst) (Map.lookup Nginz ports)
-        startNginz domain port nginzSslPort sm
+        sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (modifyBackends (fromIntegral <$> ports) env.serviceMap))
+        port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral) (Map.lookup Nginz ports)
+        startNginz domain port nginzHttp2Port nginzSslPort sm
       (srv, modifyConfig) -> do
         readServiceConfig srv
           >>= updateServiceMapInConfig (Just srv)
@@ -363,7 +365,7 @@ startBackend domain staticPorts nginzSslPort mFederatorOverrides services modify
     pure stopInstances
 
   let modifyEnv env =
-        env {serviceMap = modifyBackends (fromIntegral . fst <$> ports) env.serviceMap}
+        env {serviceMap = modifyBackends (fromIntegral <$> ports) env.serviceMap}
 
   Codensity $ \action -> local modifyEnv $ do
     waitForService <- appToIOKleisli (waitUntilServiceUp domain)
@@ -474,8 +476,8 @@ openFreePort =
               Nothing
               Nothing
 
-startNginz :: String -> Word16 -> Maybe Word16 -> ServiceMap -> App (ProcessHandle, FilePath)
-startNginz domain localPort mSslPort sm = do
+startNginz :: String -> Word16 -> Word16 -> Maybe Word16 -> ServiceMap -> App (ProcessHandle, FilePath)
+startNginz domain localPort http2Port mSslPort sm = do
   -- Create a whole temporary directory and copy all nginx's config files.
   -- This is necessary because nginx assumes local imports are relative to
   -- the location of the main configuration file.
@@ -518,11 +520,6 @@ startNginz domain localPort mSslPort sm = do
           & (\case [] -> Nothing; (p : _) -> Just p)
 
   sslPort <- maybe (failApp "could not determine nginz's ssl port") pure (mSslPort <|> mParsedPort)
-
-  http2Port :: Word16 <- liftIO $ (openFreePort >>= \(p, s) -> N.close s $> fromIntegral p)
-  -- We've seen nginx erroring that it cannot bind() to http2Port.
-  -- When this delay is added the problem doesn't occur anymore locally .
-  liftIO $ threadDelay 100000
 
   -- override port configuration
   let portConfigTemplate =
