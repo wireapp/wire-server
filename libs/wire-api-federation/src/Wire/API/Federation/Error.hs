@@ -328,7 +328,7 @@ federationUnreachableError (Set.toList -> ds) =
     status
     "federation-unreachable-domains-error"
     ("The following domains are unreachable: " <> (LT.pack . show . map domainText) ds)
-    (Just $ FederationErrorData ds T.empty)
+    (flip FederationErrorData T.empty <$> NE.nonEmpty ds)
   where
     status :: Status
     status = HTTP.Status 503 "Unreachable federated domains"

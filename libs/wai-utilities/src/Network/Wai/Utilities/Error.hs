@@ -31,6 +31,8 @@ import Control.Error
 import Data.Aeson hiding (Error)
 import Data.Aeson.Types (Pair)
 import Data.Domain
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NE
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import Imports
 import Network.HTTP.Types
@@ -49,16 +51,17 @@ mkError c l m = Error c l m Nothing
 instance Exception Error
 
 data ErrorData = FederationErrorData
-  { federrDomains :: ![Domain],
+  { federrDomains :: NonEmpty Domain,
     federrPath :: !Text
   }
   deriving (Eq, Show, Typeable)
 
 instance ToJSON ErrorData where
-  toJSON (FederationErrorData d p) =
+  toJSON (FederationErrorData ds p) =
     object
       [ "type" .= ("federation" :: Text),
-        "domains" .= d,
+        "domain" .= NE.head ds, -- deprecated in favour for `domains`
+        "domains" .= ds,
         "path" .= p
       ]
 

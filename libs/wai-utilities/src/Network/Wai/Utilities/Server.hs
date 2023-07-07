@@ -56,6 +56,7 @@ import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (domainText)
+import qualified Data.List.NonEmpty as NE
 import Data.Metrics.GC (spawnGCMetricsCollector)
 import Data.Metrics.Middleware
 import Data.Streaming.Zlib (ZlibException (..))
@@ -362,7 +363,7 @@ logErrorMsg (Wai.Error c l m md) =
     . maybe id logErrorData md
     . msg (val "\"" +++ m +++ val "\"")
   where
-    logErrorData (Wai.FederationErrorData d p) =
+    logErrorData (Wai.FederationErrorData (NE.toList -> d) p) =
       field
         "domains"
         ( val "["

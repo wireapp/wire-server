@@ -44,6 +44,7 @@ import Data.ByteString.Builder
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as Text
@@ -230,7 +231,7 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
               (toLazyByteString bdy)
           )
 
-mkFailureResponse :: HTTP.Status -> [Domain] -> LByteString -> LByteString -> Wai.Error
+mkFailureResponse :: HTTP.Status -> NonEmpty Domain -> LByteString -> LByteString -> Wai.Error
 mkFailureResponse status domains path body
   -- If the outward federator fails with 403, that means that there was an
   -- error at the level of the local federator (most likely due to a bug somewhere
