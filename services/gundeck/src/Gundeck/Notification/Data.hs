@@ -199,8 +199,9 @@ fetchPayloads c left rows = do
 -- The boolean indicates whether more notifications can be fetched.
 collect :: (MonadReader Env m, MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Seq QueuedNotification -> Bool -> Int -> Int32 -> m (Page NotifRow) -> m (Seq QueuedNotification, Bool)
 collect c acc lastPageHasMore remaining remainingBytes getPage
-  | remaining <= 0 || not lastPageHasMore = pure (acc, lastPageHasMore)
+  | remaining <= 0 = pure (acc, lastPageHasMore)
   | remainingBytes <= 0 = pure (acc, True)
+  | not lastPageHasMore = pure (acc, False)
   | otherwise = do
       page <- getPage
       let rows = result page
