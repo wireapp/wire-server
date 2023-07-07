@@ -167,8 +167,8 @@ validateOptions l o = do
   unless (mlsDefaultProtocol mlsConfig `elem` mlsSupportedProtocols mlsConfig) $
     error "The list 'settings.featureFlags.mls.supportedProtocols' must include the value in the field 'settings.featureFlags.mls.defaultProtocol'"
 
-createEnv :: Metrics -> Opts -> Logger -> IORef FederationDomainConfigs -> IO Env
-createEnv m o l r = do
+createEnv :: Metrics -> Opts -> Logger -> IO Env
+createEnv m o l = do
   cass <- initCassandra o l
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
@@ -179,7 +179,6 @@ createEnv m o l r = do
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
     <*> loadAllMLSKeys (fold (o ^. optSettings . setMlsPrivateKeyPaths))
     <*> traverse (mkRabbitMqChannelMVar l) (o ^. optRabbitmq)
-    <*> pure r
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
