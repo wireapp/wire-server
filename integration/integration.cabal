@@ -74,6 +74,12 @@ executable integration
   ghc-options:   -threaded -with-rtsopts=-N
   build-depends: integration
 
+executable run-services
+  import:        common-all
+  main-is:       ./run-services.hs
+  ghc-options:   -threaded -with-rtsopts=-N
+  build-depends: integration
+
 library
   import:          common-all
   hs-source-dirs:  test
@@ -110,6 +116,7 @@ library
     Testlib.PTest
     Testlib.ResourcePool
     Testlib.Run
+    Testlib.RunServices
     Testlib.Types
 
   build-depends:
