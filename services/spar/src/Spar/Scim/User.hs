@@ -300,7 +300,7 @@ validateScimUser' errloc midp richInfoLimit user = do
           ( Scim.badRequest
               Scim.InvalidValue
               ( Just . cs $
-                  show [RI.richInfoMapURN, RI.richInfoAssocListURN]
+                  show [RI.richInfoMapURN @Text, RI.richInfoAssocListURN @Text]
                     <> " together exceed the size limit: max "
                     <> show richInfoLimit
                     <> " characters, but got "
