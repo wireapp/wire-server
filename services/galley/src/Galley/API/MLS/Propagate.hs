@@ -85,10 +85,8 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
       sconv = snd (qUnqualified qt)
       e = Event qcnv sconv qusr now $ EdMLSMessage msg.raw
 
-  -- FUTUREWORK: Send only 1 push, after broken Eq, Ord instances of Recipient is fixed. Find other place via tag [FTRPUSHORD]
-  for_ (lmems >>= localMemberMLSClients mlsConv) $ \(u, c) ->
-    runMessagePush lConvOrSub (Just qcnv) $
-      newMessagePush botMap con mm [(u, c)] e
+  runMessagePush lConvOrSub (Just qcnv) $
+    newMessagePush botMap con mm (lmems >>= localMemberMLSClients mlsConv) e
 
   -- send to remotes
   unreachableFromList . concat
