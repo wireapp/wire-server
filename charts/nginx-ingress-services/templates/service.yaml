@@ -1,4 +1,5 @@
 # FUTUREWORK: move services into the respective charts
+{{- if not .Values.config.isAdditionalIngress }}
 {{- if .Values.webapp.enabled }}
 ---
 apiVersion: v1
@@ -54,4 +55,5 @@ spec:
       targetPort: 8080
   selector:
     app: account-pages
+{{- end }}
 {{- end }}

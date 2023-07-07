@@ -32,8 +32,7 @@ syncFedDomainConfigs (Endpoint h p) log' cb = do
 -- | Initial function for getting the set of domains from brig, and an update interval
 initialize :: L.Logger -> ClientEnv -> IO FederationDomainConfigs
 initialize logger clientEnv =
-  let -- keep trying every 3s for one minute
-      policy :: R.RetryPolicy
+  let policy :: R.RetryPolicy
       policy = R.capDelay 30_000_000 $ R.exponentialBackoff 3_000
 
       go :: IO (Maybe FederationDomainConfigs)
