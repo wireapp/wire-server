@@ -110,7 +110,6 @@ import Util.Options
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Federation.Error
-import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Team.Feature
 import qualified Wire.Sem.Logger
 import Wire.Sem.Random.IO
