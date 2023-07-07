@@ -1,1 +1,1 @@
-[hscim] make `jsonLower fail on duplicate fields
+[hscim] make `jsonLower` fail on duplicate fields
