@@ -56,9 +56,11 @@ import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (domainText)
+import qualified Data.List.NonEmpty as NE
 import Data.Metrics.GC (spawnGCMetricsCollector)
 import Data.Metrics.Middleware
 import Data.Streaming.Zlib (ZlibException (..))
+import qualified Data.Text as T
 import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.Text.Lazy.Encoding as LT
 import Imports
@@ -361,8 +363,13 @@ logErrorMsg (Wai.Error c l m md) =
     . maybe id logErrorData md
     . msg (val "\"" +++ m +++ val "\"")
   where
-    logErrorData (Wai.FederationErrorData d p) =
-      field "domain" (domainText d)
+    logErrorData (Wai.FederationErrorData (NE.toList -> d) p) =
+      field
+        "domains"
+        ( val "["
+            +++ T.intercalate ", " (map domainText d)
+            +++ val "]"
+        )
         . field "path" p
 
 logErrorMsgWithRequest :: Maybe ByteString -> Wai.Error -> Msg -> Msg
