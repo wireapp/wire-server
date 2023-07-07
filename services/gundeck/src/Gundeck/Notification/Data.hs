@@ -37,7 +37,7 @@ import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL ((:<)))
 import qualified Data.Sequence as Seq
 import Gundeck.Env
-import Gundeck.Options (NotificationTTL (..), optSettings, setMaxPayloadLoadSize)
+import Gundeck.Options (NotificationTTL (..), optSettings, setInternalPageSize, setMaxPayloadLoadSize)
 import Gundeck.Push.Native.Serialise ()
 import Imports hiding (cs)
 import UnliftIO (pooledForConcurrentlyN_)
@@ -117,8 +117,10 @@ fetchId u n c = runMaybeT $ do
       \FROM notifications \
       \WHERE user = ? AND id = ?"
 
-fetchLast :: MonadClient m => UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
-fetchLast u c = go (Page True [] firstPage)
+fetchLast :: (MonadReader Env m, MonadClient m) => UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
+fetchLast u c = do
+  pageSize <- fromMaybe 100 <$> asks (^. options . optSettings . setInternalPageSize)
+  go (Page True [] (firstPage pageSize))
   where
     go page = case result page of
       (row : rows) -> do
@@ -131,12 +133,10 @@ fetchLast u c = go (Page True [] firstPage)
         go page'
       _ -> pure Nothing
 
-    pageSize = 100
-
     -- The first page consists of at most one row. We retrieve the first page
     -- with a direct query with a LIMIT, and the following pages using
     -- Cassandra pagination.
-    firstPage = do
+    firstPage pageSize = do
       results <- retry x1 $ query cqlLast (params LocalQuorum (Identity u))
       let nextPage = case results of
             [] -> pure emptyPage
@@ -218,7 +218,7 @@ mkResultPage size more ns =
 
 fetch :: (MonadReader Env m, MonadClient m, MonadUnliftIO m) => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
 fetch u c Nothing (fromIntegral . fromRange -> size) = do
-  let pageSize = 100
+  pageSize <- fromMaybe 100 <$> asks (^. options . optSettings . setInternalPageSize)
   let page1 = retry x1 $ paginate cqlStart (paramsP LocalQuorum (Identity u) pageSize)
   -- We always need to look for one more than requested in order to correctly
   -- report whether there are more results.
@@ -234,7 +234,7 @@ fetch u c Nothing (fromIntegral . fromRange -> size) = do
       \WHERE user = ? \
       \ORDER BY id ASC"
 fetch u c (Just since) (fromIntegral . fromRange -> size) = do
-  let pageSize = 100
+  pageSize <- fromMaybe 100 <$> asks (^. options . optSettings . setInternalPageSize)
   let page1 =
         retry x1 $
           paginate cqlSince (paramsP LocalQuorum (u, TimeUuid (toUUID since)) pageSize)

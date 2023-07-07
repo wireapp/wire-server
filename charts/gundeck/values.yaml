@@ -44,6 +44,11 @@ config:
   # Inlined payloads can cause greater payload sizes to be loaded into memory regardless of this setting.
   # Tune this to trade off memory usage VS number of requests for gundeck workers.
   maxPayloadLoadSize: 5242880
+  # Cassandra page size for fetching notifications. Does not directly effect the
+  # page size request in the client API. A lower number will reduce the amount
+  # by which setMaxPayloadLoadSize is exceeded when loading notifications from
+  # the database if notifications have inlined payloads.
+  internalPageSize: 100
 
 serviceAccount:
   # When setting this to 'false', either make sure that a service account named
