@@ -23,10 +23,8 @@ run opts = do
   notificationThread <- async $ runAppT env $ BackendNotificationPusher.startWorker opts.rabbitmq
   let -- cleanup will run in a new thread when the signal is caught
       cleanup = do
-        -- Clean up the threads running queue listeners
-        let l = logger env
         -- Cancel the thread and wait for it to close.
-        Log.info l $ Log.msg (Log.val "Cancelling the notification pusher thread thread")
+        Log.info (logger env) $ Log.msg (Log.val "Cancelling the notification pusher thread thread")
         cancel notificationThread
   let server = defaultServer (cs $ opts.backgroundWorker._epHost) opts.backgroundWorker._epPort env.logger env.metrics
   settings <- newSettings server
