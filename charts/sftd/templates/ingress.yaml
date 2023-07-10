@@ -1,4 +1,5 @@
 {{- $apiIsStable := eq (include "ingress.isStable" .) "true" -}}
+{{- $ingressFieldNotAnnotation := eq (include "ingress.FieldNotAnnotation" .) "true" -}}
 {{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
 apiVersion: {{ include "ingress.apiVersion" . }}
 kind: Ingress
@@ -7,10 +8,15 @@ metadata:
   labels:
     {{- include "sftd.labels" . | nindent 4 }}
   annotations:
-    kubernetes.io/ingress.class: nginx
+    {{- if not $ingressFieldNotAnnotation }}
+    kubernetes.io/ingress.class: "{{ .Values.config.ingressClass }}"
+    {{- end }}
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/cors-allow-origin: "{{ required "Must specify allowOrigin" .Values.allowOrigin }}"
 spec:
+  {{- if $ingressFieldNotAnnotation }}
+  ingressClassName: "{{ .Values.config.ingressClass }}"
+  {{- end }}
   tls:
   - hosts:
       - "{{ required  "Must specify host" .Values.host }}"

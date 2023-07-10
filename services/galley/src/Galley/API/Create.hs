@@ -47,10 +47,12 @@ import Galley.API.MLS.KeyPackage (nullKeyPackageRef)
 import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.Mapping
 import Galley.API.One2One
+import Galley.API.Query
 import Galley.API.Util
 import Galley.App (Env)
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
+import qualified Galley.Data.Types as Data
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
@@ -75,6 +77,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.Error
+import Wire.API.FederationStatus
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team
@@ -155,13 +158,17 @@ createGroupConversation ::
   Maybe ConnId ->
   NewConv ->
   Sem r CreateGroupConversationResponse
-createGroupConversation lusr mCreatorClient conn newConv =
-  createGroupConversationGeneric
-    lusr
-    mCreatorClient
-    conn
-    newConv
-    groupConversationCreated
+createGroupConversation lusr mCreatorClient conn newConv = do
+  let remoteDomains = tDomain <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
+  getFederationStatus lusr (RemoteDomains $ Set.fromList remoteDomains) >>= \case
+    NotConnectedDomains rd1 rd2 -> pure $ GroupConversationFailedToCreate $ CreateConversationRejected (rd1, rd2)
+    FullyConnected ->
+      createGroupConversationGeneric
+        lusr
+        mCreatorClient
+        conn
+        newConv
+        groupConversationCreated
 
 createGroupConversationGeneric ::
   ( Member BrigAccess r,
@@ -202,40 +209,40 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
   checkCreateConvPermissions lusr newConv tinfo allUsers
   ensureNoLegalholdConflicts allUsers
 
-  case newConvProtocol newConv of
-    ProtocolMLSTag -> do
-      -- Here we fail early in order to notify users of this misconfiguration
-      assertMLSEnabled
-      unlessM (isJust <$> getMLSRemovalKey) $
-        throw (InternalErrorWithDescription "No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Refusing to create MLS conversation.")
-    ProtocolProteusTag -> pure ()
+  when (newConvProtocol newConv == ProtocolMLSTag) $ do
+    -- Here we fail early in order to notify users of this misconfiguration
+    assertMLSEnabled
+    unlessM (isJust <$> getMLSRemovalKey) $
+      throw (InternalErrorWithDescription "No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Refusing to create MLS conversation.")
 
   lcnv <- traverse (const E.createConversationId) lusr
-  -- FUTUREWORK: Invoke the creating a conversation action only once
-  -- protocol-specific validation is successful. Otherwise we might write the
-  -- conversation to the database, and throw a validation error when the
-  -- conversation is already in the database.
-  failedToNotify <- do
+  notifyStatus <- do
     conv <- E.createConversation lcnv nc
 
     -- set creator client for MLS conversations
     case (convProtocol conv, mCreatorClient) of
       (ProtocolProteus, _) -> pure ()
       (ProtocolMLS mlsMeta, Just c) ->
-        E.addMLSClients (cnvmlsGroupId mlsMeta) (tUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
+        E.addMLSClients
+          (cnvmlsGroupId mlsMeta)
+          (tUntagged lusr)
+          (Set.singleton (c, nullKeyPackageRef))
       (ProtocolMLS _mlsMeta, Nothing) -> throwS @'MLSMissingSenderClient
 
     -- NOTE: We only send (conversation) events to members of the conversation
-    failedToNotify <- notifyCreatedConversation lusr conn conv
+    notifyStatus <- notifyCreatedConversation lusr conn conv
     -- We already added all the invitees, but now remove from the conversation
     -- those that could not be notified
-    E.deleteMembers (convId conv) . ulFromRemotes . Set.toList $ failedToNotify
-    pure failedToNotify
+    E.deleteMembers (convId conv)
+      . ulFromRemotes
+      . Set.toList
+      $ notifyStatus
+    pure notifyStatus
   conv <-
     E.getConversation (tUnqualified lcnv)
       >>= note (BadConvState (tUnqualified lcnv))
 
-  convCreated failedToNotify lusr conv
+  convCreated notifyStatus lusr conv
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
@@ -646,9 +653,9 @@ groupConversationCreated failedToAdd lusr cnv = do
     toMap = fmap Set.fromList . indexQualified @[] . foldMap (pure . tUntagged)
 
 -- | The return set contains all the remote users that could not be contacted.
--- Consequently, they are not added to the member list. This behavior might be
--- changed later on when a message/event queue per remote backend is
--- implemented.
+-- Consequently, the unreachable users are not added to the member list. This
+-- behavior might be changed later on when a message/event queue per remote
+-- backend is implemented.
 notifyCreatedConversation ::
   ( Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -660,12 +667,12 @@ notifyCreatedConversation ::
   Local UserId ->
   Maybe ConnId ->
   Data.Conversation ->
-  Sem r (Set (Remote UserId))
+  Sem r Data.MemberAddFailed
 notifyCreatedConversation lusr conn c = do
   now <- input
   -- Ask remote server to store conversation membership and notify remote users
   -- of being added to a conversation
-  failedToNotify <- registerRemoteConversationMemberships now (tDomain lusr) c
+  failedToNotify <- registerRemoteConversationMemberships now (qualifyAs lusr c)
   let allRemotes = Data.convRemoteMembers c
       notifiedRemotes =
         filter

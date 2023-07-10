@@ -91,25 +91,22 @@ import Wire.API.Push.V2.Token
 -- Route
 
 data Route
-  = RouteAny
-  | -- | 'RouteDirect' messages are different from transient messages: they do not
-    -- trigger native pushes if the web socket is unavaiable, but they are stored in
-    -- cassandra for later pickup.
+  = -- | Sends notification on all channels including push notifications to
+    -- mobile clients. Note that transient messages never cause a push
+    -- notification.
+    RouteAny
+  | -- | Avoids causing push notification for mobile clients.
     RouteDirect
-  | -- | REFACTOR: this can probably be removed.
-    RouteNative
   deriving (Eq, Ord, Enum, Bounded, Show)
 
 instance FromJSON Route where
   parseJSON (String "any") = pure RouteAny
   parseJSON (String "direct") = pure RouteDirect
-  parseJSON (String "native") = pure RouteNative
   parseJSON x = fail $ "Invalid routing: " ++ show (encode x)
 
 instance ToJSON Route where
   toJSON RouteAny = String "any"
   toJSON RouteDirect = String "direct"
-  toJSON RouteNative = String "native"
 
 -----------------------------------------------------------------------------
 -- Recipient
@@ -119,20 +116,14 @@ data Recipient = Recipient
     _recipientRoute :: !Route,
     _recipientClients :: !RecipientClients
   }
-  deriving (Show)
-
-instance Eq Recipient where
-  (Recipient uid1 _ _) == (Recipient uid2 _ _) = uid1 == uid2
-
-instance Ord Recipient where
-  compare r r' = compare (_recipientId r) (_recipientId r')
+  deriving (Show, Eq, Ord)
 
 data RecipientClients
   = -- | All clients of some user
     RecipientClientsAll
   | -- | An explicit list of clients
     RecipientClientsSome (List1 ClientId)
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
 makeLenses ''Recipient
 

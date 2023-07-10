@@ -38,13 +38,13 @@ import qualified Data.X509 as X509
 import qualified Data.X509.Validation as X509
 import Federator.Discovery
 import Federator.Error
-import Federator.Options
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Wire.API.Routes.FederationDomainConfig
 import Wire.Network.DNS.SRV (SrvTarget (..))
 
 data ValidationError
@@ -89,20 +89,21 @@ validationErrorStatus :: ValidationError -> HTTP.Status
 validationErrorStatus (FederationDenied _) = HTTP.status400
 validationErrorStatus _ = HTTP.status403
 
--- | Validates an already-parsed domain against the allowList using the federator
--- startup configuration.
+-- | Validates an already-parsed domain against the allow list (stored in
+-- `brig.federation_remotes`, cached in `Env`).
 ensureCanFederateWith ::
-  ( Member (Input RunSettings) r,
+  ( Member (Input FederationDomainConfigs) r,
     Member (Error ValidationError) r
   ) =>
   Domain ->
   Sem r ()
 ensureCanFederateWith targetDomain = do
-  strategy <- inputs federationStrategy
+  FederationDomainConfigs strategy domains _ <- input
   case strategy of
+    AllowNone -> throw (FederationDenied targetDomain)
     AllowAll -> pure ()
-    AllowList (AllowedDomains domains) ->
-      unless (targetDomain `elem` domains) $
+    AllowDynamic -> do
+      unless (targetDomain `elem` fmap domain domains) $
         throw (FederationDenied targetDomain)
 
 decodeCertificate ::
@@ -135,11 +136,11 @@ parseDomainText domain =
     . mkDomain
     $ domain
 
--- | Validates an unknown domain string against the allowList using the
+-- | Validates an unknown domain string against the allow list using the
 -- federator startup configuration and checks that it matches the names reported
 -- by the client certificate
 validateDomain ::
-  ( Member (Input RunSettings) r,
+  ( Member (Input FederationDomainConfigs) r,
     Member (Error ValidationError) r,
     Member (Error DiscoveryFailure) r,
     Member DiscoverFederator r

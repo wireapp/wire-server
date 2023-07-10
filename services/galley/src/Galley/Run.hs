@@ -18,6 +18,7 @@
 module Galley.Run
   ( run,
     mkApp,
+    mkLogger,
   )
 where
 
@@ -58,6 +59,7 @@ import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
 import Servant hiding (route)
 import qualified System.Logger as Log
+import System.Logger.Extended (mkLogger)
 import Util.Options
 import Wire.API.Routes.API
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -79,17 +81,15 @@ run opts = lowerCodensity $ do
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
-  lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
+  lift $ finally (runSettingsWithShutdown settings app Nothing) (closeApp env)
 
 mkApp :: Opts -> Codensity IO (Application, Env)
 mkApp opts =
   do
+    logger <- lift $ mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
     metrics <- lift $ M.metrics
-    env <- lift $ App.createEnv metrics opts
+    env <- lift $ App.createEnv metrics opts logger
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
-
-    let logger = env ^. App.applog
-
     let middlewares =
           versionMiddleware (opts ^. optSettings . setDisabledAPIVersions . traverse)
             . servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
@@ -122,6 +122,10 @@ mkApp opts =
 
     lookupReqId :: Request -> RequestId
     lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
+
+closeApp :: Env -> IO ()
+closeApp env = do
+  shutdown (env ^. cstate)
 
 customFormatters :: Servant.ErrorFormatters
 customFormatters =

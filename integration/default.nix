@@ -25,6 +25,8 @@
 , http-client
 , http-types
 , kan-extensions
+, lens
+, lens-aeson
 , lib
 , mime
 , monad-control
@@ -49,6 +51,7 @@
 , unix
 , unliftio
 , uuid
+, vector
 , websockets
 , yaml
 }:
@@ -80,6 +83,8 @@ mkDerivation {
     http-client
     http-types
     kan-extensions
+    lens
+    lens-aeson
     mime
     monad-control
     mtl
@@ -103,9 +108,9 @@ mkDerivation {
     unix
     unliftio
     uuid
+    vector
     websockets
     yaml
   ];
   license = lib.licenses.agpl3Only;
-  mainProgram = "integration";
 }

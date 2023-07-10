@@ -38,7 +38,7 @@ let
     ];
     config = {
       Entrypoint = [ "${dumb-init}/bin/dumb-init" "--" "${nginz-disco}/bin/nginz_disco.sh" ];
-      User = "nobody";
+      User = "65534";
     };
   };
 in

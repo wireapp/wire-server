@@ -1,0 +1,4 @@
+Clean up output and logs:
+ - integration: Remove debug messages from ModService tests
+ - Do not log rabbit MQ connection failures on async exceptions
+ - cannon: Do not print uncaught SignalledToExit exceptions to stdout

@@ -83,7 +83,6 @@ let
 
     billing-team-member-backfill = [ "billing-team-member-backfill" ];
     inconsistencies = [ "inconsistencies" ];
-    api-simulations = [ "api-smoketest" "api-loadtest" ];
     zauth = [ "zauth" ];
     background-worker = [ "background-worker" ];
     integration = [ "integration" ];
@@ -317,7 +316,7 @@ let
           config = {
             Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}" ];
             Env = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt" ];
-            User = "nobody";
+            User = "65534";
           };
         }
       )
@@ -364,7 +363,7 @@ let
     config = {
       Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${hoogle}/bin/hoogle" "server" "--local" "--host=*" ];
       Env = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt" ];
-      User = "nobody";
+      User = "65534";
     };
   };
 

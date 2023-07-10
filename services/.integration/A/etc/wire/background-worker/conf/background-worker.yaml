@@ -1,0 +1,11 @@
+backendNotificationPusher:
+  remotesRefreshInterval: 1
+federatorInternal:
+  host: 127.0.0.1
+  port: 8097
+logLevel: Info
+rabbitmq:
+  adminPort: 15672
+  host: 127.0.0.1
+  port: 5672
+  vHost: /

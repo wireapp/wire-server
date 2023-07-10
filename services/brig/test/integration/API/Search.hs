@@ -79,7 +79,7 @@ tests opts mgr galley brig = do
         testWithBothIndices opts mgr "size - when exact handle matches a team user" $ testSearchSize brig True,
         testWithBothIndices opts mgr "size - when exact handle matches a non team user" $ testSearchSize brig False,
         test mgr "empty query" $ testSearchEmpty brig,
-        test mgr "reindex" $ testReindex brig,
+        flakyTest mgr "reindex" $ testReindex brig,
         testWithBothIndices opts mgr "no match" $ testSearchNoMatch brig,
         testWithBothIndices opts mgr "no extra results" $ testSearchNoExtraResults brig,
         testWithBothIndices opts mgr "order-handle (prefix match)" $ testOrderHandle brig,

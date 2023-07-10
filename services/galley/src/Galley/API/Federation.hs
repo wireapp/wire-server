@@ -49,7 +49,6 @@ import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
 import Galley.API.Push
-import Galley.API.Update
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
@@ -229,9 +228,10 @@ onConversationUpdated ::
   Domain ->
   F.ConversationUpdate ->
   Sem r EmptyResponse
-onConversationUpdated requestingDomain cu =
-  updateLocalStateOfRemoteConv requestingDomain cu
-    >> pure EmptyResponse
+onConversationUpdated requestingDomain cu = do
+  let rcu = toRemoteUnsafe requestingDomain cu
+  void $ updateLocalStateOfRemoteConv rcu Nothing
+  pure EmptyResponse
 
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
@@ -361,6 +361,7 @@ sendMessage ::
     Member ConversationStore r,
     Member (Error InvalidInput) r,
     Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
@@ -723,7 +724,7 @@ queryGroupInfo origDomain req =
 
 updateTypingIndicator ::
   ( Member GundeckAccess r,
-    Member BackendNotificationQueueAccess r,
+    Member FederatorAccess r,
     Member ConversationStore r,
     Member (Input UTCTime) r,
     Member (Input (Local ())) r

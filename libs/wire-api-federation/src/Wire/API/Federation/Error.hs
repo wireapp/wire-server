@@ -93,6 +93,7 @@ import Imports
 import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.HTTP2.Client as HTTP2
+import Network.Wai.Utilities.Error
 import qualified Network.Wai.Utilities.Error as Wai
 import OpenSSL.Session (SomeSSLException)
 import Polysemy
@@ -160,7 +161,10 @@ data FederationError
     -- indicate a bug in either backend, or an incompatibility in the
     -- server-to-server API.
     FederationUnexpectedBody Text
-  | -- | Federator client got an unexpected error response from remote backend
+  | -- | Federator client got an unexpected error response from remote backend.
+    -- Also used for error conditions that will go away in a future release,
+    -- like "can't delete remote domains from config file", which is only
+    -- needed until we start disregarding the config file.
     FederationUnexpectedError Text
   | -- | One or more remote backends is unreachable
     FederationUnreachableDomains (Set Domain)
@@ -319,11 +323,12 @@ federationUnexpectedError msg =
     ("Could parse body, but got an unexpected error response: " <> LT.fromStrict msg)
 
 federationUnreachableError :: Set Domain -> Wai.Error
-federationUnreachableError (Set.map domainText -> ds) =
-  Wai.mkError
+federationUnreachableError (Set.toList -> ds) =
+  Wai.Error
     status
     "federation-unreachable-domains-error"
-    ("The following domains are unreachable: " <> (LT.pack . show . Set.toList) ds)
+    ("The following domains are unreachable: " <> (LT.pack . show . map domainText) ds)
+    (flip FederationErrorData T.empty <$> NE.nonEmpty ds)
   where
     status :: Status
     status = HTTP.Status 503 "Unreachable federated domains"

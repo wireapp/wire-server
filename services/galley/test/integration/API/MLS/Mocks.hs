@@ -25,7 +25,6 @@ module API.MLS.Mocks
     sendMessageMock,
     claimKeyPackagesMock,
     queryGroupStateMock,
-    mlsMockUnreachableFor,
   )
 where
 
@@ -97,6 +96,3 @@ queryGroupStateMock gs qusr = do
     if uid == qUnqualified qusr
       then GetGroupInfoResponseState (Base64ByteString gs)
       else GetGroupInfoResponseError ConvNotFound
-
-mlsMockUnreachableFor :: Set Domain -> Mock LByteString
-mlsMockUnreachableFor = mockUnreachableFor "RemoteMLSMessageOk"

@@ -64,6 +64,7 @@ run o = do
   let l = e ^. applog
   s <- newSettings $ defaultServer (unpack $ o ^. optGundeck . epHost) (o ^. optGundeck . epPort) l m
   let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (optSettings . setSqsThrottleMillis)
+
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 10
   wCollectAuth <- Async.async (collectAuthMetrics m (Aws._awsEnv (Env._awsEnv e)))

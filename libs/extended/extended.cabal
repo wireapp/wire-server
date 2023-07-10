@@ -4,7 +4,7 @@ version:       0.1.0
 synopsis:      Extended versions of common modules
 description:
   .Extended versions of various libraries from Hackage. See
-  https://jaspervdj.be/posts/2015-01-20-haskell-design-patterns-extended-modules.html
+  <https://jaspervdj.be/posts/2015-01-20-haskell-design-patterns-extended-modules.html>
   for a description of this design pattern.
 
 category:      Utilities
@@ -20,6 +20,7 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Network.AMQP.Extended
+    Network.RabbitMqAdmin
     Options.Applicative.Extended
     Servant.API.Extended
     Servant.API.Extended.RawM
@@ -85,6 +86,7 @@ library
     , errors
     , exceptions
     , extra
+    , http-client
     , http-types
     , imports
     , metrics-wai
@@ -93,10 +95,13 @@ library
     , resourcet
     , retry
     , servant
+    , servant-client
+    , servant-client-core
     , servant-server
     , servant-swagger
     , text
     , tinylog
+    , unliftio
     , wai
 
   default-language:   Haskell2010

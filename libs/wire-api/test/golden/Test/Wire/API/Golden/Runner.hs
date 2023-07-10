@@ -26,6 +26,7 @@ module Test.Wire.API.Golden.Runner
 where
 
 import Data.Aeson
+import qualified Data.Aeson.Diff as AD
 import Data.Aeson.Encode.Pretty (Config (..), defConfig, encodePretty')
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LBS
@@ -53,11 +54,19 @@ testObject obj path = do
   exists <- doesFileExist fullPath
   unless exists $ ByteString.writeFile fullPath (LBS.toStrict actualJson)
 
-  expectedValue <- assertRight =<< eitherDecodeFileStrict fullPath
-  assertEqual
-    (show (typeRep @a) <> ": ToJSON should match golden file: " <> path)
-    expectedValue
-    actualValue
+  expectedValue :: Value <- assertRight =<< eitherDecodeFileStrict fullPath
+  assertBool
+    ( show (typeRep @a)
+        <> ": ToJSON should match golden file: "
+        <> path
+        <> "\n\nexpected:\n"
+        <> cs (encodePretty' config expectedValue)
+        <> "\n\nactual:\n"
+        <> cs (encodePretty' config actualValue)
+        <> "\n\ndiff:\n"
+        <> cs (encodePretty' config (AD.diff expectedValue actualValue))
+    )
+    (expectedValue == actualValue)
   assertEqual
     (show (typeRep @a) <> ": FromJSON of " <> path <> " should match object")
     (Success obj)

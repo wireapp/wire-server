@@ -155,9 +155,8 @@ validateOptions l o = do
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
     _ -> pure ()
 
-createEnv :: Metrics -> Opts -> IO Env
-createEnv m o = do
-  l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
+createEnv :: Metrics -> Opts -> Logger -> IO Env
+createEnv m o l = do
   cass <- initCassandra o l
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager

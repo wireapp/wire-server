@@ -114,6 +114,7 @@ mkDerivation {
     wai
     wai-utilities
     warp
+    wire-api
     wire-api-federation
     x509
     x509-validation

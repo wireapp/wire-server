@@ -5,7 +5,6 @@ import Control.Monad.IO.Class
 import Data.Aeson hiding ((.=))
 import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
-import Data.Char
 import Data.Functor
 import Data.IORef
 import Data.Map (Map)
@@ -32,7 +31,6 @@ data Env = Env
     domain2 :: String,
     defaultAPIVersion :: Int,
     manager :: HTTP.Manager,
-    serviceConfigsDir :: FilePath,
     servicesCwdBase :: Maybe FilePath,
     removalKeyPath :: FilePath,
     prekeys :: IORef [(Int, String)],
@@ -48,7 +46,6 @@ data GlobalEnv = GlobalEnv
     gDomain2 :: String,
     gDefaultAPIVersion :: Int,
     gManager :: HTTP.Manager,
-    gServiceConfigsDir :: FilePath,
     gServicesCwdBase :: Maybe FilePath,
     gRemovalKeyPath :: FilePath,
     gBackendResourcePool :: ResourcePool BackendResource
@@ -68,6 +65,7 @@ instance FromJSON IntegrationConfig where
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
+    backgroundWorker :: HostPort,
     cannon :: HostPort,
     cargohold :: HostPort,
     federatorInternal :: HostPort,
@@ -102,15 +100,7 @@ data HostPort = HostPort
 
 instance FromJSON HostPort
 
-data NginzConfig = NginzConfig
-  { localPort :: Word16,
-    http2Port :: Word16,
-    sslPort :: Word16,
-    fedPort :: Word16
-  }
-  deriving (Show, Generic)
-
-data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar
+data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker
   deriving
     ( Show,
       Eq,
@@ -120,7 +110,27 @@ data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar
     )
 
 serviceName :: Service -> String
-serviceName srv = map toLower (show srv)
+serviceName = \case
+  Brig -> "brig"
+  Galley -> "galley"
+  Cannon -> "cannon"
+  Gundeck -> "gundeck"
+  Cargohold -> "cargohold"
+  Nginz -> "nginz"
+  Spar -> "spar"
+  BackgroundWorker -> "backgroundWorker"
+
+-- | Converts the service name to kebab-case.
+configName :: Service -> String
+configName = \case
+  Brig -> "brig"
+  Galley -> "galley"
+  Cannon -> "cannon"
+  Gundeck -> "gundeck"
+  Cargohold -> "cargohold"
+  Nginz -> "nginz"
+  Spar -> "spar"
+  BackgroundWorker -> "background-worker"
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
@@ -130,6 +140,7 @@ serviceHostPort m Gundeck = m.gundeck
 serviceHostPort m Cargohold = m.cargohold
 serviceHostPort m Nginz = m.nginz
 serviceHostPort m Spar = m.spar
+serviceHostPort m BackgroundWorker = m.backgroundWorker
 
 mkGlobalEnv :: FilePath -> IO GlobalEnv
 mkGlobalEnv cfgFile = do
@@ -147,11 +158,6 @@ mkGlobalEnv cfgFile = do
             then Just (joinPath (init ps))
             else Nothing
 
-  let configsDir =
-        case devEnvProjectRoot of
-          Just root -> root </> "./services/.integration/A/etc/wire/"
-          Nothing -> "/etc/wire"
-
   manager <- HTTP.newManager HTTP.defaultManagerSettings
   resourcePool <- createBackendResourcePool
   pure
@@ -165,7 +171,6 @@ mkGlobalEnv cfgFile = do
         gDomain2 = intConfig.backendTwo.originDomain,
         gDefaultAPIVersion = 4,
         gManager = manager,
-        gServiceConfigsDir = configsDir,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gRemovalKeyPath = error "Uninitialised removal key path",
         gBackendResourcePool = resourcePool
@@ -184,7 +189,6 @@ mkEnv ge = do
           domain2 = gDomain2 ge,
           defaultAPIVersion = gDefaultAPIVersion ge,
           manager = gManager ge,
-          serviceConfigsDir = gServiceConfigsDir ge,
           servicesCwdBase = gServicesCwdBase ge,
           removalKeyPath = gRemovalKeyPath ge,
           prekeys = pks,

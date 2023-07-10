@@ -1,4 +1,4 @@
-module Testlib.Run (main, mainI) where
+module Testlib.Run (main, mainI, createGlobalEnv) where
 
 import Control.Concurrent
 import Control.Exception as E
@@ -105,19 +105,12 @@ main = do
 
   if opts.listTests then doListTests tests else runTests tests cfg
 
-runTests :: [(String, x, y, App ())] -> FilePath -> IO ()
-runTests tests cfg = do
-  output <- newChan
-  let displayOutput =
-        readChan output >>= \case
-          Just x -> putStr x *> displayOutput
-          Nothing -> pure ()
-  let writeOutput = writeChan output . Just
-
+createGlobalEnv :: FilePath -> IO GlobalEnv
+createGlobalEnv cfg = do
   genv0 <- mkGlobalEnv cfg
 
   -- save removal key to a file
-  genv <- lowerCodensity $ do
+  lowerCodensity $ do
     env <- mkEnv genv0
     liftIO . runAppWithEnv env $ do
       config <- readServiceConfig Galley
@@ -127,6 +120,17 @@ runTests tests cfg = do
           Nothing -> relPath
           Just dir -> dir </> "galley" </> relPath
       pure genv0 {gRemovalKeyPath = path}
+
+runTests :: [(String, x, y, App ())] -> FilePath -> IO ()
+runTests tests cfg = do
+  output <- newChan
+  let displayOutput =
+        readChan output >>= \case
+          Just x -> putStr x *> displayOutput
+          Nothing -> pure ()
+  let writeOutput = writeChan output . Just
+
+  genv <- createGlobalEnv cfg
 
   withAsync displayOutput $ \displayThread -> do
     report <- fmap mconcat $ pooledForConcurrently tests $ \(qname, _, _, action) -> do

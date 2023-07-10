@@ -1,0 +1,16 @@
+brig:
+  host: 0.0.0.0
+  port: 9082
+cannon:
+  externalHost: 127.0.0.1
+  host: 127.0.0.1
+  port: 9183
+drainOpts:
+  gracePeriodSeconds: 1
+  millisecondsBetweenBatches: 5
+  minBatchSize: 100
+gundeck:
+  host: 127.0.0.1
+  port: 9086
+logLevel: Info
+logNetStrings: false

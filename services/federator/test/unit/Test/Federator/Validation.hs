@@ -26,7 +26,6 @@ import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Text.Encoding as Text
 import qualified Data.X509.Validation as X509
 import Federator.Discovery
-import Federator.Options
 import Federator.Validation
 import Imports
 import Polysemy
@@ -37,6 +36,8 @@ import Test.Federator.Options (noClientCertSettings)
 import Test.Federator.Util
 import Test.Tasty
 import Test.Tasty.HUnit
+import Wire.API.Routes.FederationDomainConfig
+import Wire.API.User.Search
 import Wire.Network.DNS.SRV (SrvTarget (..))
 
 mockDiscoveryTrivial :: Sem (DiscoverFederator ': r) x -> Sem r x
@@ -57,6 +58,16 @@ mockDiscoveryFailure :: HasCallStack => Sem (DiscoverFederator ': r) x -> Sem r 
 mockDiscoveryFailure = Polysemy.interpret $ \case
   DiscoverFederator _ -> error "Not mocked"
   DiscoverAllFederators _ -> pure . Left $ DiscoveryFailureDNSError "mock DNS error"
+
+scaffoldingFederationDomainConfigs :: FederationDomainConfigs
+scaffoldingFederationDomainConfigs =
+  FederationDomainConfigs
+    AllowDynamic
+    [ FederationDomainConfig (Domain "foo.example.com") FullSearch,
+      FederationDomainConfig (Domain "example.com") FullSearch,
+      FederationDomainConfig (Domain "federator.example.com") FullSearch
+    ]
+    10
 
 tests :: TestTree
 tests =
@@ -86,20 +97,22 @@ tests =
 federateWithAllowListSuccess :: TestTree
 federateWithAllowListSuccess =
   testCase "should give True when target domain is in the list" $ do
-    let settings = settingsWithAllowList [Domain "hello.world"]
+    let settings = noClientCertSettings
     runM
       . assertNoError @ValidationError
       . runInputConst settings
+      . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "hello.world") FullSearch] 0)
       $ ensureCanFederateWith (Domain "hello.world")
 
 federateWithAllowListFail :: TestTree
 federateWithAllowListFail =
   testCase "should give False when target domain is not in the list" $ do
-    let settings = settingsWithAllowList [Domain "only.other.domain"]
+    let settings = noClientCertSettings
     eith :: Either ValidationError () <-
       runM
         . runError @ValidationError
         . runInputConst settings
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "only.other.domain") FullSearch] 0)
         $ ensureCanFederateWith (Domain "hello.world")
     assertBool "federating should not be allowed" (isLeft eith)
 
@@ -107,30 +120,32 @@ validateDomainAllowListFailSemantic :: TestTree
 validateDomainAllowListFailSemantic =
   testCase "semantic validation" $ do
     exampleCert <- BS.readFile "test/resources/unit/localhost.pem"
-    let settings = settingsWithAllowList [Domain "only.other.domain"]
+    let settings = noClientCertSettings
     res <-
       runM
         . runError
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst settings
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "only.other.domain") FullSearch] 0)
         $ validateDomain (Just exampleCert) "invalid//.><-semantic-&@-domain"
     res @?= Left (DomainParseError "invalid//.><-semantic-&@-domain")
 
 -- @SF.Federation @TSFI.Federate @TSFI.DNS @S2 @S3 @S7
 --
--- Refuse to send outgoing request to non-included domain when allowlist is configured.
+-- Refuse to send outgoing request to non-included domain when AllowDynamic is configured.
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
   testCase "allow list validation" $ do
     exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
-    let settings = settingsWithAllowList [Domain "only.other.domain"]
+    let settings = noClientCertSettings
     res <-
       runM
         . runError
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst settings
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "only.other.domain") FullSearch] 0)
         $ validateDomain (Just exampleCert) "localhost.example.com"
     res @?= Left (FederationDenied (Domain "localhost.example.com"))
 
@@ -141,13 +156,14 @@ validateDomainAllowListSuccess =
   testCase "should give parsed domain if in the allow list" $ do
     exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
     let domain = Domain "localhost.example.com"
-        settings = settingsWithAllowList [domain]
+        settings = noClientCertSettings
     res <-
       runM
         . assertNoError @ValidationError
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst settings
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig domain FullSearch] 0)
         $ validateDomain (Just exampleCert) (toByteString' domain)
     assertEqual "validateDomain should give 'localhost.example.com' as domain" domain res
 
@@ -160,6 +176,7 @@ validateDomainCertMissing =
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
+        . runInputConst defFederationDomainConfigs
         $ validateDomain Nothing "foo.example.com"
     res @?= Left NoClientCertificate
 
@@ -174,6 +191,7 @@ validateDomainCertInvalid =
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
+        . runInputConst scaffoldingFederationDomainConfigs
         $ validateDomain (Just "not a certificate") "foo.example.com"
     res @?= Left (CertificateParseError "no certificate found")
 
@@ -193,6 +211,7 @@ validateDomainCertWrongDomain =
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
+        . runInputConst scaffoldingFederationDomainConfigs
         $ validateDomain (Just exampleCert) "foo.example.com"
     res @?= Left (AuthenticationFailure (pure [X509.NameMismatch "foo.example.com"]))
 
@@ -209,6 +228,7 @@ validateDomainCertCN =
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
+        . runInputConst scaffoldingFederationDomainConfigs
         $ validateDomain (Just exampleCert) (toByteString' domain)
     res @?= domain
 
@@ -223,6 +243,7 @@ validateDomainCertSAN =
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
+        . runInputConst scaffoldingFederationDomainConfigs
         $ validateDomain (Just exampleCert) (toByteString' domain)
     res @?= domain
 
@@ -237,6 +258,7 @@ validateDomainMultipleFederators =
             . assertNoError @DiscoveryFailure
             . mockDiscoveryMapping domain ("localhost.example.com" :| ["second-federator.example.com"])
             . runInputConst noClientCertSettings
+            . runInputConst scaffoldingFederationDomainConfigs
         domain = Domain "foo.example.com"
     resFirst <-
       runValidation $
@@ -258,6 +280,7 @@ validateDomainDiscoveryFailed =
         . assertNoError @ValidationError
         . mockDiscoveryFailure
         . runInputConst noClientCertSettings
+        . runInputConst scaffoldingFederationDomainConfigs
         $ validateDomain (Just exampleCert) "example.com"
     res @?= Left (DiscoveryFailureDNSError "mock DNS error")
 
@@ -272,9 +295,6 @@ validateDomainNonIdentitySRV =
         . assertNoError @DiscoveryFailure
         . mockDiscoveryMapping domain ("localhost.example.com" :| [])
         . runInputConst noClientCertSettings
+        . runInputConst scaffoldingFederationDomainConfigs
         $ validateDomain (Just exampleCert) (toByteString' domain)
     res @?= domain
-
-settingsWithAllowList :: [Domain] -> RunSettings
-settingsWithAllowList domains =
-  noClientCertSettings {federationStrategy = AllowList (AllowedDomains domains)}

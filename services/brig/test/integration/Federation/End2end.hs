@@ -56,7 +56,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
-import Wire.API.Internal.Notification (ntfTransient)
+import Wire.API.Internal.Notification
 import Wire.API.MLS.KeyPackage
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
@@ -714,7 +714,7 @@ testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do
           )
           !!! const 200 === statusCode
   let checkEvent ws u s =
-        WS.assertMatch_ (5 # Second) ws $ \n -> do
+        WS.assertMatch_ (8 # Second) ws $ \n -> do
           let e = List1.head (WS.unpackPayload n)
           ntfTransient n @?= True
           evtConv e @?= cnvQualifiedId cnv

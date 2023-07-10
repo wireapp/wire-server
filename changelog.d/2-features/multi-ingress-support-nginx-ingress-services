@@ -1,0 +1,1 @@
+Add configuration options to setup instances of the `nginx-ingress-services` chart to act as additional ingresses (with sourrounding infrastructure) to provide additional domains for the same backend.
