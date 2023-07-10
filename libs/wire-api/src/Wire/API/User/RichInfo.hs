@@ -178,7 +178,7 @@ ciOptField name sch = mkSchema s r w
     s :: doc
     s = mkDocF @doc @Identity (mkField (CI.original name) (schemaDoc sch)) & desc
       where
-        desc = S.description ?~ ("optional json field with case-insensitive fields." :: Text)
+        desc = S.description ?~ ("optional json field with case-insensitive keys." :: Text)
 
     r :: Map (CI Text) A.Value -> A.Parser (Maybe a)
     r obj = case Map.lookup name obj of
