@@ -13,6 +13,10 @@ data:
     logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
 
+    backgroundWorker:
+      host: 0.0.0.0
+      port: {{ $.Values.service.internalPort }}
+
     federatorInternal:
       host: federator
       port: 8080

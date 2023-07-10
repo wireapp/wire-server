@@ -1,4 +1,4 @@
-Introduce background-worker (#3276, #3314, #3333, #3366)
+Introduce background-worker
 
 This release introduces a new component: background-worker. This is currently
 only used to forward notifications to federated backends. Enabling federation in
@@ -45,3 +45,4 @@ background-worker:
 
 The above are the default values (except for secrets, which do not have
 defaults), if they work they are not required to be configured.
+(#3276, #3314, #3333, #3366, #3383, #3391)

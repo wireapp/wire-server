@@ -2,6 +2,9 @@ replicaCount: 1
 image:
   repository: quay.io/wire/background-worker
   tag: do-not-use
+service:
+  internalPort: 8080
+  externalPort: 8080
 # FUTUREWORK: Review these values when we have some experience
 resources:
   requests:
@@ -9,10 +12,9 @@ resources:
     cpu: "100m"
   limits:
     memory: "512Mi"
-# FUTUREWORK: Implement metrics
-# metrics:
-#   serviceMonitor:
-#     enabled: false
+metrics:
+  serviceMonitor:
+    enabled: false
 config:
   logLevel: Info
   logFormat: StructuredJSON
@@ -31,7 +33,6 @@ serviceAccount:
   name: background-worker
   annotations: {}
   automountServiceAccountToken: true
-
 
 secrets: {}
 

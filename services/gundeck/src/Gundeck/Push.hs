@@ -51,7 +51,7 @@ import qualified Gundeck.Aws as Aws
 import Gundeck.Aws.Arn
 import Gundeck.Env
 import Gundeck.Monad
-import qualified Gundeck.Notification.Data as Stream
+import qualified Gundeck.Notification.Data as Data
 import Gundeck.Options
 import qualified Gundeck.Presence.Data as Presence
 import qualified Gundeck.Push.Data as Data
@@ -99,7 +99,7 @@ instance MonadPushAll Gundeck where
   mpaMkNotificationId = mkNotificationId
   mpaListAllPresences = runWithDefaultRedis . Presence.listAll
   mpaBulkPush = Web.bulkPush
-  mpaStreamAdd = Stream.add
+  mpaStreamAdd = Data.add
   mpaPushNative = pushNative
   mpaForkIO = void . forkIO
   mpaRunWithBudget = runWithBudget''

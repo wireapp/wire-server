@@ -74,6 +74,12 @@ executable integration
   ghc-options:   -threaded -with-rtsopts=-N
   build-depends: integration
 
+executable run-services
+  import:        common-all
+  main-is:       ./run-services.hs
+  ghc-options:   -threaded -with-rtsopts=-N
+  build-depends: integration
+
 library
   import:          common-all
   hs-source-dirs:  test
@@ -86,6 +92,8 @@ library
     API.Common
     API.Galley
     API.GalleyInternal
+    API.Gundeck
+    API.GundeckInternal
     API.Nginz
     MLS.Util
     RunAllTests
@@ -93,7 +101,10 @@ library
     Test.AssetDownload
     Test.B2B
     Test.Brig
+    Test.Conversation
     Test.Demo
+    Test.Notifications
+    Test.Presence
     Test.User
     Testlib.App
     Testlib.Assertions
@@ -109,6 +120,7 @@ library
     Testlib.PTest
     Testlib.ResourcePool
     Testlib.Run
+    Testlib.RunServices
     Testlib.Types
 
   build-depends:
@@ -157,5 +169,6 @@ library
     , unix
     , unliftio
     , uuid
+    , vector
     , websockets
     , yaml

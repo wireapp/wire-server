@@ -13,6 +13,7 @@ import qualified Network.AMQP as Q
 import Network.AMQP.Extended
 import qualified Network.AMQP.Lifted as QL
 import Network.RabbitMqAdmin
+import Prometheus
 import qualified System.Logger.Class as Log
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
@@ -44,13 +45,16 @@ pushNotification targetDomain (msg, envelope) = do
   --
   -- FUTUREWORK: Pull these numbers into config
   let policy = capDelay 300_000_000 $ fullJitterBackoff 10000
-      logErrr willRetry (SomeException e) rs =
+      logErrr willRetry (SomeException e) rs = do
         Log.err $
           Log.msg (Log.val "Exception occurred while pushing notification")
             . Log.field "error" (displayException e)
             . Log.field "domain" (domainText targetDomain)
             . Log.field "willRetry" willRetry
             . Log.field "retryCount" rs.rsIterNumber
+        metrics <- asks backendNotificationMetrics
+        withLabel metrics.errorCounter (domainText targetDomain) incCounter
+        withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 1)
       skipChanThreadKilled _ = Handler $ \(_ :: Q.ChanThreadKilledException) -> pure False
       handlers =
         skipAsyncExceptions
@@ -82,6 +86,9 @@ pushNotification targetDomain (msg, envelope) = do
             fcEnv = FederatorClientEnv {..}
         liftIO $ either throwM pure =<< sendNotification fcEnv notif.targetComponent notif.path notif.body
         lift $ ack envelope
+        metrics <- asks backendNotificationMetrics
+        withLabel metrics.pushedCounter (domainText targetDomain) incCounter
+        withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
 
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.
@@ -89,6 +96,7 @@ startPusher :: Q.Channel -> AppT IO ()
 startPusher chan = do
   -- This ensures that we receive notifications 1 by 1 which ensures they are
   -- delivered in order.
+  markAsWorking BackendNotificationPusher
   lift $ Q.qos chan 0 1 False
   consumers <- newIORef mempty
   BackendNotificationPusherOpts {..} <- asks (.backendNotificationPusher)
@@ -142,9 +150,10 @@ startWorker rabbitmqOpts = do
   env <- ask
   liftIO . openConnectionWithRetries env.logger (demoteOpts rabbitmqOpts) $
     RabbitMqHooks
-      { onNewChannel = runAppT env . startPusher,
-        -- FUTUREWORK: Use these for metrics
-        onChannelException = const $ pure (),
-        onConnectionClose = pure ()
+      { onNewChannel =
+          runAppT env . startPusher,
+        onChannelException = \_ ->
+          runAppT env $ markAsNotWorking BackendNotificationPusher,
+        onConnectionClose =
+          runAppT env $ markAsNotWorking BackendNotificationPusher
       }
-  forever $ threadDelay maxBound

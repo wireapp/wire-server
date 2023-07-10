@@ -49,6 +49,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
+import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as FedGalley
@@ -727,20 +728,20 @@ leaveConversationSuccess = do
               *> mockReply [mkProfile qEve (Name "Eve")]
           ]
 
-  (convId, _) <-
-    withTempMockFederator' (mock <|> mockReply EmptyResponse) $
-      decodeConvId
-        <$> postConvQualified
-          alice
-          Nothing
-          defNewProteusConv
-            { newConvQualifiedUsers = [qBob, qChad, qDee, qEve]
-            }
+  convId <-
+    decodeConvId
+      <$> postConvWithRemoteUsersGeneric
+        (mock <|> mockReply EmptyResponse)
+        alice
+        Nothing
+        defNewProteusConv
+          { newConvQualifiedUsers = [qBob, qChad, qDee, qEve]
+          }
   let qconvId = Qualified convId localDomain
 
   (_, federatedRequests) <-
     WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
-      withTempMockFederator' (mock <|> mockReply EmptyResponse) $ do
+      withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mock <|> mockReply EmptyResponse) $ do
         g <- viewGalley
         let leaveRequest = FedGalley.LeaveConversationRequest convId (qUnqualified qChad)
         respBS <-
@@ -954,8 +955,9 @@ updateConversationByRemoteAdmin = do
 
   let convName = "Test Conv"
   WS.bracketR c alice $ \wsAlice -> do
-    (rsp, _federatedRequests) <-
-      withTempMockFederator' (mockReply EmptyResponse) $ do
+    (rsp, _federatedRequests) <- do
+      let mock = ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) <|> mockReply EmptyResponse
+      withTempMockFederator' mock $ do
         postConvQualified alice Nothing defNewProteusConv {newConvName = checked convName, newConvQualifiedUsers = [qbob, qcharlie]}
           <!! const 201 === statusCode
 

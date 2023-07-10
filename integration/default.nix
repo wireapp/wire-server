@@ -51,6 +51,7 @@
 , unix
 , unliftio
 , uuid
+, vector
 , websockets
 , yaml
 }:
@@ -107,9 +108,9 @@ mkDerivation {
     unix
     unliftio
     uuid
+    vector
     websockets
     yaml
   ];
   license = lib.licenses.agpl3Only;
-  mainProgram = "integration";
 }

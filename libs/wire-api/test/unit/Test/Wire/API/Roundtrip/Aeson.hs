@@ -38,6 +38,7 @@ import qualified Wire.API.Conversation.Typing as Conversation.Typing
 import qualified Wire.API.CustomBackend as CustomBackend
 import qualified Wire.API.Event.Conversation as Event.Conversation
 import qualified Wire.API.Event.Team as Event.Team
+import qualified Wire.API.FederationStatus as FederationStatus
 import qualified Wire.API.Message as Message
 import qualified Wire.API.OAuth as OAuth
 import qualified Wire.API.Properties as Properties
@@ -146,6 +147,8 @@ tests =
       testRoundTrip @Event.Team.EventType,
       testRoundTrip @FederationDomainConfig.FederationDomainConfigs,
       testRoundTrip @FederationDomainConfig.FederationStrategy,
+      testRoundTrip @FederationStatus.FederationStatus,
+      testRoundTrip @FederationStatus.RemoteDomains,
       testRoundTrip @Message.Priority,
       testRoundTrip @Message.OtrRecipients,
       testRoundTrip @Message.NewOtrMessage,

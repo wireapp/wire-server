@@ -1,5 +1,9 @@
 logLevel: Info
 
+backgroundWorker:
+  host: 0.0.0.0
+  port: 8089
+
 federatorInternal:
   host: 127.0.0.1
   port: 8097

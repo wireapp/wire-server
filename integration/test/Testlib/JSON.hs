@@ -177,7 +177,7 @@ setField ::
   (HasCallStack, MakesValue a, ToJSON b) =>
   -- | Selector, e.g. "id", "user.team.id"
   String ->
-  -- | The value that should insert or replace the value at the selctor
+  -- | The value that should insert or replace the value at the selector
   b ->
   a ->
   App Value
@@ -204,6 +204,25 @@ modifyField selector up x = do
     go k (k2 : ks) v = do
       val <- v %. k
       newValue <- go k2 ks val
+      ob <- asObject v
+      pure $ Object $ KM.insert (KM.fromString k) newValue ob
+
+-- | `removeField "a.b" {"a": {"b": 3}, "c": true} == {"a": {}, "c": true}`
+removeField :: (HasCallStack, MakesValue a) => String -> a -> App Value
+removeField selector x = do
+  v <- make x
+  let keys = splitOn "." selector
+  case keys of
+    (k : ks) -> go k ks v
+    [] -> assertFailure "No key provided"
+  where
+    go k [] v = do
+      ob <- asObject v
+      let k' = KM.fromString k
+      pure $ Object $ KM.delete k' ob
+    go k (k2 : ks) v = do
+      v' <- v %. k
+      newValue <- go k2 ks v'
       ob <- asObject v
       pure $ Object $ KM.insert (KM.fromString k) newValue ob
 

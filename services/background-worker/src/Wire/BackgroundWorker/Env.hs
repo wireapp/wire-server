@@ -6,12 +6,15 @@ module Wire.BackgroundWorker.Env where
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
+import qualified Data.Map.Strict as Map
+import qualified Data.Metrics as Metrics
 import HTTP2.Client.Manager
 import Imports
 import Network.AMQP.Extended
 import qualified Network.RabbitMqAdmin as RabbitMqAdmin
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
+import Prometheus
 import qualified Servant.Client as Servant
 import qualified System.Logger as Log
 import System.Logger.Class
@@ -19,14 +22,36 @@ import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.BackgroundWorker.Options
 
+type IsWorking = Bool
+
+-- | Eventually this will be a sum type of all the types of workers
+data Worker = BackendNotificationPusher
+  deriving (Show, Eq, Ord)
+
 data Env = Env
   { http2Manager :: Http2Manager,
     rabbitmqAdminClient :: RabbitMqAdmin.AdminAPI (Servant.AsClientT IO),
     rabbitmqVHost :: Text,
     logger :: Logger,
+    metrics :: Metrics.Metrics,
     federatorInternal :: Endpoint,
-    backendNotificationPusher :: BackendNotificationPusherOpts
+    backendNotificationPusher :: BackendNotificationPusherOpts,
+    backendNotificationMetrics :: BackendNotificationMetrics,
+    statuses :: IORef (Map Worker IsWorking)
   }
+
+data BackendNotificationMetrics = BackendNotificationMetrics
+  { pushedCounter :: Vector Text Counter,
+    errorCounter :: Vector Text Counter,
+    stuckQueuesGauge :: Vector Text Gauge
+  }
+
+mkBackendNotificationMetrics :: IO BackendNotificationMetrics
+mkBackendNotificationMetrics =
+  BackendNotificationMetrics
+    <$> register (vector "targetDomain" $ counter $ Prometheus.Info "wire_backend_notifications_pushed" "Number of notifications pushed")
+    <*> register (vector "targetDomain" $ counter $ Prometheus.Info "wire_backend_notifications_errors" "Number of errors that occurred while pushing notifications")
+    <*> register (vector "targetDomain" $ gauge $ Prometheus.Info "wire_backend_notifications_stuck_queues" "Set to 1 when pushing notifications is stuck")
 
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
@@ -36,6 +61,9 @@ mkEnv opts = do
   rabbitmqAdminClient <- mkRabbitMqAdminClientEnv opts.rabbitmq
   let rabbitmqVHost = opts.rabbitmq.vHost
       backendNotificationPusher = opts.backendNotificationPusher
+  statuses <- newIORef $ Map.singleton BackendNotificationPusher False
+  metrics <- Metrics.metrics
+  backendNotificationMetrics <- mkBackendNotificationMetrics
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager
@@ -60,7 +88,8 @@ newtype AppT m a = AppT {unAppT :: ReaderT Env m a}
       MonadThrow,
       MonadMask,
       MonadReader Env,
-      MonadTrans
+      MonadTrans,
+      MonadMonitor
     )
 
 deriving newtype instance MonadBase b m => MonadBase b (AppT m)
@@ -74,3 +103,11 @@ instance MonadIO m => MonadLogger (AppT m) where
 
 runAppT :: Env -> AppT m a -> m a
 runAppT env app = runReaderT (unAppT app) env
+
+markAsWorking :: MonadIO m => Worker -> AppT m ()
+markAsWorking worker =
+  flip modifyIORef (Map.insert worker True) =<< asks statuses
+
+markAsNotWorking :: MonadIO m => Worker -> AppT m ()
+markAsNotWorking worker =
+  flip modifyIORef (Map.insert worker False) =<< asks statuses
