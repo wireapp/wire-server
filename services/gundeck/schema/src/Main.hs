@@ -23,6 +23,7 @@ import Imports
 import qualified System.Logger.Extended as Log
 import Util.Options
 import qualified V1
+import qualified V10
 import qualified V2
 import qualified V3
 import qualified V4
@@ -47,7 +48,8 @@ main = do
       V6.migration,
       V7.migration,
       V8.migration,
-      V9.migration
+      V9.migration,
+      V10.migration
     ]
     `finally` Log.close l
   where

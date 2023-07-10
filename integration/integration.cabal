@@ -92,6 +92,8 @@ library
     API.Common
     API.Galley
     API.GalleyInternal
+    API.Gundeck
+    API.GundeckInternal
     API.Nginz
     MLS.Util
     RunAllTests
@@ -101,6 +103,8 @@ library
     Test.Brig
     Test.Conversation
     Test.Demo
+    Test.Notifications
+    Test.Presence
     Test.User
     Testlib.App
     Testlib.Assertions

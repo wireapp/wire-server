@@ -66,6 +66,7 @@ import Data.Singletons
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
+import qualified Data.Vector as V
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer
 import Galley.API.Mapping
@@ -3093,8 +3094,8 @@ testAddRemoteMemberInvalidDomain = do
       const 422 === statusCode
       const (Just "/federation/api-version")
         === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
-      const (Just "invalid.example.com")
-        === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
+      const (Just (Array (V.fromList ["invalid.example.com"])))
+        === preview (ix "data" . ix "domains") . responseJsonUnsafe @Value
 
 -- This test is a safeguard to ensure adding remote members will fail
 -- on environments where federation isn't configured (such as our production as of May 2021)
