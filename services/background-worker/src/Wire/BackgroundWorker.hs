@@ -11,17 +11,31 @@ import qualified Wire.BackendNotificationPusher as BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import qualified Wire.BackgroundWorker.Health as Health
 import Wire.BackgroundWorker.Options
+import qualified System.Logger as Log
 
 -- FUTUREWORK: Start an http service with status and metrics endpoints
 run :: Opts -> IO ()
 run opts = do
   env <- mkEnv opts
   -- We can fire and forget this thread because it keeps respawning itself using the
-  -- 'onConnectionClosedHandler'
-  void $ async $ runAppT env $ BackendNotificationPusher.startWorker opts.rabbitmq
+  -- 'onConnectionClosedHandler'. We do need the Async handle to explicitly cancel the
+  -- thread when we shutdown via signals.
+  notificationThread <- async $ runAppT env $ BackendNotificationPusher.startWorker opts.rabbitmq
+  let -- cleanup will run in a new thread when the signal is caught
+      cleanup = do
+        -- Clean up the threads running queue listeners
+        let l = logger env
+        Log.info l $ Log.msg (Log.val "Caught signal")
+        putStrLn "Caught signal"
+        -- Cancel the thread and wait for it to close.
+        cancel notificationThread
+        Log.info l $ Log.msg (Log.val "Cancelled thread")
+        putStrLn "Cancelled thread"
+
   let server = defaultServer (cs $ opts.backgroundWorker._epHost) opts.backgroundWorker._epPort env.logger env.metrics
   settings <- newSettings server
-  runSettingsWithShutdown settings (servantApp env) Nothing
+  -- Additional cleanup when shutting down via signals.
+  runSettingsWithShutdown' cleanup settings (servantApp env) Nothing
 
 servantApp :: Env -> Application
 servantApp env =

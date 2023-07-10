@@ -25,6 +25,7 @@ module Network.Wai.Utilities.Server
     defaultServer,
     newSettings,
     runSettingsWithShutdown,
+    runSettingsWithShutdown',
     compile,
     route,
 
@@ -125,7 +126,11 @@ newSettings (Server h p l m t) = do
 --
 -- See also: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/7681
 runSettingsWithShutdown :: Settings -> Application -> Maybe Int -> IO ()
-runSettingsWithShutdown s app (fromMaybe defaultShutdownTime -> secs) = do
+runSettingsWithShutdown = runSettingsWithShutdown' $ pure ()
+
+-- As above, but with an additional cleanup action that is called before the server shuts down.
+runSettingsWithShutdown' :: IO () -> Settings -> Application -> Maybe Int -> IO ()
+runSettingsWithShutdown' cleanup s app (fromMaybe defaultShutdownTime -> secs) = do
   initialization
   let s' =
         setInstallShutdownHandler catchSignals
@@ -137,8 +142,8 @@ runSettingsWithShutdown s app (fromMaybe defaultShutdownTime -> secs) = do
     initialization = do
       spawnGCMetricsCollector
     catchSignals closeSocket = do
-      void $ installHandler sigINT (Sig.CatchOnce closeSocket) Nothing
-      void $ installHandler sigTERM (Sig.CatchOnce closeSocket) Nothing
+      void $ installHandler sigINT (Sig.CatchOnce $ cleanup >> closeSocket) Nothing
+      void $ installHandler sigTERM (Sig.CatchOnce $ cleanup >> closeSocket) Nothing
 
 defaultShutdownTime :: Int
 defaultShutdownTime = 30

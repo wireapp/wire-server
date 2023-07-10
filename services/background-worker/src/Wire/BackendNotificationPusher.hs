@@ -1,5 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+
 module Wire.BackendNotificationPusher where
 
 import Control.Monad.Catch
@@ -19,6 +21,8 @@ import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
+import UnliftIO
+import qualified System.Logger as Log'
 
 startPushingNotifications ::
   Q.Channel ->
@@ -61,7 +65,10 @@ pushNotification targetDomain (msg, envelope) = do
           <> [ skipChanThreadKilled,
                logRetries (const $ pure True) logErrr
              ]
-  recovering policy handlers $ const go
+  -- TODO: DANGEROUS!
+  -- This can make the program unresponsive and unkillable outside of SIGKILL.
+  -- It needs to be used for _short_ running code, and can easily cause
+  recovering policy handlers $ const $ UnliftIO.uninterruptibleMask_ go
   where
     go :: AppT IO ()
     go = case A.eitherDecode @BackendNotification (Q.msgBody msg) of
@@ -92,18 +99,21 @@ pushNotification targetDomain (msg, envelope) = do
 
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.
-startPusher :: Q.Channel -> AppT IO ()
-startPusher chan = do
+-- Consumers is passed in explicitly so that cleanup code has a reference to the consumer tags.
+startPusher :: IORef Bool -> IORef (Map Domain Q.ConsumerTag) -> Q.Channel -> AppT IO ()
+startPusher running consumers chan = do
   -- This ensures that we receive notifications 1 by 1 which ensures they are
   -- delivered in order.
   markAsWorking BackendNotificationPusher
   lift $ Q.qos chan 0 1 False
-  consumers <- newIORef mempty
   BackendNotificationPusherOpts {..} <- asks (.backendNotificationPusher)
-  forever $ do
-    remoteDomains <- getRemoteDomains
-    mapM_ (ensureConsumer consumers chan) remoteDomains
-    threadDelay (1_000_000 * remotesRefreshInterval)
+  let go = do
+        remoteDomains <- getRemoteDomains
+        mapM_ (ensureConsumer consumers chan) remoteDomains
+        threadDelay (1_000_000 * remotesRefreshInterval)
+  -- On each iteration, check that we haven't been signalled
+  -- to stop the service.
+  forever $ readIORef running >>= flip when go
 
 ensureConsumer :: IORef (Map Domain Q.ConsumerTag) -> Q.Channel -> Domain -> AppT IO ()
 ensureConsumer consumers chan domain = do
@@ -116,44 +126,90 @@ ensureConsumer consumers chan domain = do
 
 getRemoteDomains :: AppT IO [Domain]
 getRemoteDomains = do
+  pure [Domain "example.com", Domain "example.net"]
   -- Jittered exponential backoff with 10ms as starting delay and 60s as max
   -- cumulative delay. When this is reached, the operation fails.
   --
   -- FUTUREWORK: Pull these numbers into config
-  let policy = limitRetriesByCumulativeDelay 60_000_000 $ fullJitterBackoff 10000
-      logErrr willRetry (SomeException e) rs =
-        Log.err $
-          Log.msg (Log.val "Exception occurred while refreshig domains")
-            . Log.field "error" (displayException e)
-            . Log.field "willRetry" willRetry
-            . Log.field "retryCount" rs.rsIterNumber
-      handlers =
-        skipAsyncExceptions
-          <> [logRetries (const $ pure True) logErrr]
-  recovering policy handlers $ const go
-  where
-    go :: AppT IO [Domain]
-    go = do
-      client <- asks rabbitmqAdminClient
-      vhost <- asks rabbitmqVHost
-      queues <- liftIO $ listQueuesByVHost client vhost
-      let notifQueuesSuffixes = mapMaybe (\q -> Text.stripPrefix "backend-notifications." q.name) queues
-      catMaybes <$> traverse (\d -> either (\e -> logInvalidDomain d e >> pure Nothing) (pure . Just) $ mkDomain d) notifQueuesSuffixes
-    logInvalidDomain d e =
-      Log.warn $
-        Log.msg (Log.val "Found invalid domain in a backend notifications queue name")
-          . Log.field "queue" ("backend-notifications." <> d)
-          . Log.field "error" e
+  -- let policy = limitRetriesByCumulativeDelay 60_000_000 $ fullJitterBackoff 10000
+  --     logErrr willRetry (SomeException e) rs =
+  --       Log.err $
+  --         Log.msg (Log.val "Exception occurred while refreshig domains")
+  --           . Log.field "error" (displayException e)
+  --           . Log.field "willRetry" willRetry
+  --           . Log.field "retryCount" rs.rsIterNumber
+  --     handlers =
+  --       skipAsyncExceptions
+  --         <> [logRetries (const $ pure True) logErrr]
+  -- recovering policy handlers $ const go
+  -- where
+  --   go :: AppT IO [Domain]
+  --   go = do
+  --     client <- asks rabbitmqAdminClient
+  --     vhost <- asks rabbitmqVHost
+  --     queues <- liftIO $ listQueuesByVHost client vhost
+  --     let notifQueuesSuffixes = mapMaybe (\q -> Text.stripPrefix "backend-notifications." q.name) queues
+  --     catMaybes <$> traverse (\d -> either (\e -> logInvalidDomain d e >> pure Nothing) (pure . Just) $ mkDomain d) notifQueuesSuffixes
+  --   logInvalidDomain d e =
+  --     Log.warn $
+  --       Log.msg (Log.val "Found invalid domain in a backend notifications queue name")
+  --         . Log.field "queue" ("backend-notifications." <> d)
+  --         . Log.field "error" e
 
 startWorker :: RabbitMqAdminOpts -> AppT IO ()
 startWorker rabbitmqOpts = do
   env <- ask
-  liftIO . openConnectionWithRetries env.logger (demoteOpts rabbitmqOpts) $
+  -- AsyncCancelled is used when our `Async ()` is `cancel`led.
+  -- This is used in the POSIX signal handlers, so we should catch it
+  -- here and clean up our processes, letting them finish if we can.
+  chanRef <- newIORef Nothing
+  -- Passed into running threads to stop them from setting up
+  -- new processing consumers when we are trying to shutdown.
+  runningRef <- newIORef True
+  -- Passed into running threads so we can cancel consumers and allow
+  -- amqp to cleanly finish before we stop the service.
+  consumersRef <- newIORef mempty
+  let -- cleanup the refs when channels die
+      clearRefs = do
+        putStrLn "clearRefs called"
+        atomicWriteIORef chanRef Nothing
+        atomicWriteIORef consumersRef mempty
+      -- Close channels when the async thread is cancelled.
+      -- The exceptions used by `amqp` to cancel threads will
+      -- be caught/masked by workers so they can finish their
+      -- current task before dying. We need an IORef holding
+      -- references to these consumers so we can cancel them
+      -- explicitly.
+      cleanup = do
+        let l = logger env
+        Log'.info l $ Log'.msg (Log'.val "startWorker cleanup called")
+        putStrLn "startWorker cleanup called"
+        m <- readIORef chanRef
+        for_ m $ \chan -> do
+          putStrLn "Cancelling channel"
+          consumers <- readIORef consumersRef
+          for_ (Map.elems consumers) $ \conn -> do
+            putStrLn $ "cancelling consumer " <> show conn
+            Q.cancelConsumer chan conn
+          Log'.info l $ Log'.msg (Log'.val "cleaned up consumers")
+          putStrLn "cleaned up consumers"
+          -- Close the channel. Using this function will ensure
+          -- that `connectWithRetries` doesn't reopen it.
+          -- Additionally the bracket pattern used in it will
+          -- close the connection for us.
+          Q.closeChannel chan
+          Log'.info l $ Log'.msg (Log'.val "closed channel")
+          putStrLn "closed channel"
+  liftIO $ Control.Monad.Catch.handle (\AsyncCancelled -> cleanup) $
+    openConnectionWithRetries env.logger (demoteOpts rabbitmqOpts) $
     RabbitMqHooks
-      { onNewChannel =
-          runAppT env . startPusher,
-        onChannelException = \_ ->
+      { onNewChannel = \chan ->  do
+          atomicWriteIORef chanRef $ pure chan
+          runAppT env $ startPusher runningRef consumersRef chan,
+        onChannelException = \_ -> do
+          clearRefs
           runAppT env $ markAsNotWorking BackendNotificationPusher,
-        onConnectionClose =
+        onConnectionClose = do
+          clearRefs
           runAppT env $ markAsNotWorking BackendNotificationPusher
       }
