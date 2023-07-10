@@ -61,6 +61,7 @@ module Testlib.Prelude
     appendFile,
     readIO,
     readLn,
+    liftIO,
 
     -- * Functor
     (<$$>),

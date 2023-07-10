@@ -109,5 +109,4 @@ mkDerivation {
     yaml
   ];
   license = lib.licenses.agpl3Only;
-  mainProgram = "integration";
 }

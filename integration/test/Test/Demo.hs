@@ -5,6 +5,7 @@ import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import qualified API.GalleyInternal as Internal
 import qualified API.Nginz as Nginz
+import Control.Monad.Codensity
 import Control.Monad.Cont
 import qualified Data.Map as Map
 import GHC.Stack
@@ -82,7 +83,7 @@ testModifiedServices = do
           [ (Brig, setField "optSettings.setFederationDomain" "overridden.example.com"),
             (Galley, setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
           ]
-  withModifiedServices serviceMap $ \_domain -> do
+  runCodensity (withModifiedServices serviceMap) $ \_domain -> do
     (_user, tid) <- createTeam OwnDomain
     bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
       res.status `shouldMatchInt` 200
@@ -173,7 +174,7 @@ testIndependentESIndices = do
 
 testDynamicBackendsFederation :: HasCallStack => App ()
 testDynamicBackendsFederation = do
-  startDynamicBackends [def, def] $ \dynDomains -> do
+  startDynamicBackends [def <> fullSearchWithAll, def <> fullSearchWithAll] $ \dynDomains -> do
     [aDynDomain, anotherDynDomain] <- pure dynDomains
     u1 <- randomUser aDynDomain def
     u2 <- randomUser anotherDynDomain def

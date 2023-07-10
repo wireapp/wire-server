@@ -5,11 +5,13 @@ module SetupHelpers where
 import API.Brig
 import API.BrigInternal
 import API.Galley
-import Data.Aeson
+import Data.Aeson hiding ((.=))
 import Data.Default
 import Data.Function
+import Data.UUID.V4 (nextRandom)
 import GHC.Stack
 import Testlib.Prelude
+import Testlib.ResourcePool (remoteDomains)
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Value
 randomUser domain cu = bindResponse (createUser domain cu) $ \resp -> do
@@ -127,3 +129,32 @@ createMLSOne2OnePartner domain other convDomain = loop
       if desiredConvDomain == actualConvDomain
         then pure u
         else loop
+
+randomId :: HasCallStack => App String
+randomId = do
+  liftIO (show <$> nextRandom)
+
+randomUserId :: (HasCallStack, MakesValue domain) => domain -> App Value
+randomUserId domain = do
+  d <- make domain
+  uid <- randomId
+  pure $ object ["id" .= uid, "domain" .= d]
+
+addFullSearchFor :: [String] -> Value -> App Value
+addFullSearchFor domains val =
+  modifyField
+    "optSettings.setFederationDomainConfigs"
+    ( \configs -> do
+        cfg <- assertJust "" configs
+        xs <- cfg & asList
+        pure (xs <> [object ["domain" .= domain, "search_policy" .= "full_search"] | domain <- domains])
+    )
+    val
+
+fullSearchWithAll :: ServiceOverrides
+fullSearchWithAll =
+  def
+    { dbBrig = \val -> do
+        ownDomain <- asString =<< val %. "optSettings.setFederationDomain"
+        addFullSearchFor (remoteDomains ownDomain) val
+    }
