@@ -161,97 +161,6 @@ executable background-worker
     UndecidableInstances
     ViewPatterns
 
-executable background-worker-integration
-  default-language:   Haskell2010
-  type:               exitcode-stdio-1.0
-  hs-source-dirs:     test
-  main-is:            Main.hs
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields -threaded -with-rtsopts=-N
-    -Wredundant-constraints -Wunused-packages
-
-  -- cabal-fmt: expand test
-  other-modules:
-    Main
-    Spec
-    Test.Wire.BackendNotificationPusherSpec
-    Test.Wire.DefederationSpec
-    Test.Wire.Util
-
-  build-depends:
-      aeson
-    , amqp
-    , background-worker
-    , base
-    , bytestring
-    , containers
-    , extended
-    , federator
-    , hspec
-    , http-client
-    , http-media
-    , http-types
-    , HUnit
-    , imports
-    , prometheus-client
-    , QuickCheck
-    , servant
-    , servant-client
-    , servant-client-core
-    , servant-server
-    , text
-    , tinylog
-    , transformers
-    , types-common
-    , unliftio
-    , wai
-    , wire-api
-    , wire-api-federation
-
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
 test-suite background-worker-test
   default-language:   Haskell2010
   type:               exitcode-stdio-1.0
@@ -266,7 +175,6 @@ test-suite background-worker-test
   -- cabal-fmt: expand test
   other-modules:
     Main
-    Spec
     Test.Wire.BackendNotificationPusherSpec
     Test.Wire.DefederationSpec
     Test.Wire.Util
