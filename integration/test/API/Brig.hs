@@ -20,6 +20,18 @@ getUser user target = do
       joinHttpPath ["users", domain, uid]
   submit "GET" req
 
+getClient ::
+  (HasCallStack, MakesValue user, MakesValue client) =>
+  user ->
+  client ->
+  App Response
+getClient u cli = do
+  c <- make cli & asString
+  req <-
+    baseRequest u Brig Versioned $
+      joinHttpPath ["clients", c]
+  submit "GET" req
+
 data AddClient = AddClient
   { ctype :: String,
     internal :: Bool,
