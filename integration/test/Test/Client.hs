@@ -19,7 +19,7 @@ testClientLastActive = do
   tm0 <- fromMaybe Null <$> lookupField c0 "last_active"
   tm0 `shouldMatch` Null
 
-  now <- fmap systemSeconds $ liftIO getSystemTime
+  now <- systemSeconds <$> liftIO getSystemTime
 
   -- fetching notifications updates last_active
   void $ getNotifications alice cid def

@@ -21,13 +21,23 @@ module Gundeck.Notification
   )
 where
 
+import Bilge.IO hiding (options)
+import Bilge.Request
+import Bilge.Response
+import Control.Lens (view)
+import Data.ByteString.Conversion
 import Data.Id
 import Data.Misc (Milliseconds (..))
 import Data.Range
 import Data.Time.Clock.POSIX
+import qualified Data.UUID as UUID
 import Gundeck.Monad
 import qualified Gundeck.Notification.Data as Data
+import Gundeck.Options
 import Imports hiding (getLast)
+import System.Logger.Class
+import qualified System.Logger.Class as Log
+import Util.Options
 import Wire.API.Internal.Notification
 
 data PaginateResult = PaginateResult
@@ -36,9 +46,11 @@ data PaginateResult = PaginateResult
   }
 
 paginate :: UserId -> Maybe NotificationId -> Maybe ClientId -> Range 100 10000 Int32 -> Gundeck PaginateResult
-paginate uid since clt size = do
+paginate uid since mclt size = do
+  for_ mclt $ \clt -> updateActivity uid clt
+
   time <- posixTime
-  rs <- Data.fetch uid clt since size
+  rs <- Data.fetch uid mclt since size
   pure $ PaginateResult (Data.resultGap rs) (resultList time rs)
   where
     resultList time rs =
@@ -47,3 +59,20 @@ paginate uid since clt size = do
         (Data.resultHasMore rs)
         (Just (millisToUTC time))
     millisToUTC = posixSecondsToUTCTime . fromIntegral . (`div` 1000) . ms
+
+-- | Update last_active property of the given client by making a request to brig.
+updateActivity :: UserId -> ClientId -> Gundeck ()
+updateActivity uid clt = do
+  r <- do
+    Endpoint h p <- view $ options . optBrig
+    post
+      -- TODO: read host/port from configuration
+      ( host (toByteString' h)
+          . port p
+          . paths ["i", "clients", toByteString' uid, toByteString' clt, "activity"]
+      )
+  when (statusCode r /= 200) $ do
+    Log.warn $
+      Log.msg ("Could not update client activity" :: ByteString)
+        ~~ "user" .= UUID.toASCIIBytes (toUUID uid)
+        ~~ "client" .= client clt
