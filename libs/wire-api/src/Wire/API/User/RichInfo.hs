@@ -158,7 +158,7 @@ ciField name sch = mkSchema s r w
     s :: doc'
     s = mkDocF @doc' @Identity (mkField (CI.original name) (schemaDoc sch)) & desc
       where
-        desc = S.description ?~ ("json field with case-insensitive fields." :: Text)
+        desc = S.description ?~ ("json field with case-insensitive keys." :: Text)
 
     r :: Map (CI Text) A.Value -> A.Parser a
     r = maybe (fail $ "missing object field " <> show name) (schemaIn sch) . Map.lookup name
