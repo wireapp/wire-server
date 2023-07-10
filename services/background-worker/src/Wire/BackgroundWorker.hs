@@ -25,13 +25,9 @@ run opts = do
       cleanup = do
         -- Clean up the threads running queue listeners
         let l = logger env
-        Log.info l $ Log.msg (Log.val "Caught signal")
-        putStrLn "Caught signal"
         -- Cancel the thread and wait for it to close.
+        Log.info l $ Log.msg (Log.val "Cancelling the notification pusher thread thread")
         cancel notificationThread
-        Log.info l $ Log.msg (Log.val "Cancelled thread")
-        putStrLn "Cancelled thread"
-
   let server = defaultServer (cs $ opts.backgroundWorker._epHost) opts.backgroundWorker._epPort env.logger env.metrics
   settings <- newSettings server
   -- Additional cleanup when shutting down via signals.
