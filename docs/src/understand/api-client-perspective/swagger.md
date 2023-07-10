@@ -44,6 +44,20 @@ curl https://<nginz-host>/api-version
 The URL to open in your browser for the development version `4` is
 `https://<nginz-host>/v4/api/swagger-ui/`.
 
+### On-prem and test instances, versioning
+
+The above is valid for the official wire.com staging environment and
+includes both all released API versions and the current development
+version, which changes continuously until released.
+
+If you talk to any other backend, the development version may differ.
+Try to ask the backend you're talking if it exposes its docs itself:
+
+```
+curl https://nginz-https.<custom-staging>.example.com/<version>/api/swagger-ui/
+curl https://nginz-https.<custom-staging>.example.com/<version>/api/swagger.json
+```
+
 ### Internal endpoints
 
 Swagger docs for internal endpoints are served per service. I.e. there's one for
