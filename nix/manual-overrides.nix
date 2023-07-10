@@ -32,7 +32,7 @@ hself: hsuper: {
   saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
   http2 = hlib.dontCheck hsuper.http2;
 
-  # Disable test becasue they need network access to a running cassandra
+  # Disable tests because they need network access to a running cassandra
   #
   # Explicitly enable haddock because cabal2nix disables it for packages with
   # internal libraries
