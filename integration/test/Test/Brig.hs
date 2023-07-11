@@ -80,7 +80,7 @@ testCrudFederationRemotes = do
       remote1'' = remote1 {Internal.domain = dom2}
 
       cfgRemotesExpect :: Internal.FedConn
-      cfgRemotesExpect = Internal.FedConn (cs "example.com") "full_search"
+      cfgRemotesExpect = Internal.FedConn (cs "b.example.com") "full_search"
 
   remote1J <- make remote1
   remote1J' <- make remote1'
