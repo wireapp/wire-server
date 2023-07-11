@@ -66,7 +66,6 @@ updateActivity uid clt = do
   r <- do
     Endpoint h p <- view $ options . optBrig
     post
-      -- TODO: read host/port from configuration
       ( host (toByteString' h)
           . port p
           . paths ["i", "clients", toByteString' uid, toByteString' clt, "activity"]
