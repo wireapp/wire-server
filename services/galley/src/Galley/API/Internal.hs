@@ -243,7 +243,7 @@ internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed 
   -- Conversation API (internal) ----------------------------------------
   put "/i/conversations/:cnv/channel" (continue $ const (pure empty)) $
     zauthUserId
-      .&. (capture "cnv" :: HasCaptures r => Predicate r Predicate.Error ConvId)
+      .&. (capture "cnv" :: (HasCaptures r) => Predicate r Predicate.Error ConvId)
       .&. request
 
   get "/i/conversations/:cnv/members/:usr" (continue Query.internalGetMemberH) $

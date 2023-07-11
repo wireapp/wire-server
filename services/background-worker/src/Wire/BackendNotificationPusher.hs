@@ -32,7 +32,7 @@ startPushingNotifications chan domain = do
   lift $ ensureQueue chan domain._domainText
   QL.consumeMsgs chan (routingKey domain._domainText) Q.Ack (pushNotification domain)
 
-pushNotification :: RabbitMQEnvelope e => Domain -> (Q.Message, e) -> AppT IO ()
+pushNotification :: (RabbitMQEnvelope e) => Domain -> (Q.Message, e) -> AppT IO ()
 pushNotification targetDomain (msg, envelope) = do
   -- Jittered exponential backoff with 10ms as starting delay and 300s as max
   -- delay. When 300s is reached, every retry will happen after 300s.

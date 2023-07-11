@@ -168,7 +168,7 @@ deleteFederationDomains old new = do
   -- Call into the galley code
   for_ deletedDomains $ liftIO . evalGalleyToIO env . deleteFederationDomain
 
-constHandlers :: MonadIO m => [RetryStatus -> Handler m Bool]
+constHandlers :: (MonadIO m) => [RetryStatus -> Handler m Bool]
 constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]
 
 updateFedDomainRemoveRemoteFromLocal :: Env -> Domain -> Domain -> Int -> TestM ()

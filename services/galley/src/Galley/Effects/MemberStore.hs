@@ -65,7 +65,7 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.Provider.Service
 
 data MemberStore m a where
-  CreateMembers :: ToUserRole u => ConvId -> UserList u -> MemberStore m ([LocalMember], [RemoteMember])
+  CreateMembers :: (ToUserRole u) => ConvId -> UserList u -> MemberStore m ([LocalMember], [RemoteMember])
   CreateMembersInRemoteConversation :: Remote ConvId -> [UserId] -> MemberStore m ()
   CreateBotMember :: ServiceRef -> BotId -> ConvId -> MemberStore m BotMember
   GetLocalMember :: ConvId -> UserId -> MemberStore m (Maybe LocalMember)
@@ -89,5 +89,5 @@ data MemberStore m a where
 makeSem ''MemberStore
 
 -- | Add a member to a local conversation, as an admin.
-createMember :: Member MemberStore r => Local ConvId -> Local UserId -> Sem r [LocalMember]
+createMember :: (Member MemberStore r) => Local ConvId -> Local UserId -> Sem r [LocalMember]
 createMember c u = fst <$> createMembers (tUnqualified c) (UserList [tUnqualified u] [])

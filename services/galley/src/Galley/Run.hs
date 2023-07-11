@@ -165,7 +165,7 @@ refreshMetrics = do
     M.gaugeSet (fromIntegral n) (M.path "galley.deletequeue.len") m
     threadDelay 1000000
 
-collectAuthMetrics :: MonadIO m => Metrics -> AWS.Env -> m ()
+collectAuthMetrics :: (MonadIO m) => Metrics -> AWS.Env -> m ()
 collectAuthMetrics m env = do
   liftIO $
     forever $ do

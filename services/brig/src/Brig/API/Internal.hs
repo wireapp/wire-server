@@ -137,7 +137,7 @@ istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
 
 ejpdAPI ::
-  Member GalleyProvider r =>
+  (Member GalleyProvider r) =>
   ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
@@ -692,14 +692,14 @@ deleteUserNoAuthH uid = do
     AccountAlreadyDeleted -> pure UserResponseAccountAlreadyDeleted
     AccountDeleted -> pure UserResponseAccountDeleted
 
-changeSelfEmailMaybeSendH :: Member BlacklistStore r => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSendH :: (Member BlacklistStore r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
   let email = euEmail body
   changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: Member BlacklistStore r => UserId -> MaybeSendEmail -> Email -> API.AllowSCIMUpdates -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSend :: (Member BlacklistStore r) => UserId -> MaybeSendEmail -> Email -> API.AllowSCIMUpdates -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
@@ -833,24 +833,24 @@ updateConnectionInternalH (_ ::: req) = do
   API.updateConnectionInternal updateConn !>> connError
   pure $ setStatus status200 empty
 
-checkBlacklistH :: Member BlacklistStore r => Either Email Phone -> (Handler r) Response
+checkBlacklistH :: (Member BlacklistStore r) => Either Email Phone -> (Handler r) Response
 checkBlacklistH emailOrPhone = do
   bl <- lift $ API.isBlacklisted emailOrPhone
   pure $ setStatus (bool status404 status200 bl) empty
 
-deleteFromBlacklistH :: Member BlacklistStore r => Either Email Phone -> (Handler r) Response
+deleteFromBlacklistH :: (Member BlacklistStore r) => Either Email Phone -> (Handler r) Response
 deleteFromBlacklistH emailOrPhone = do
   void . lift $ API.blacklistDelete emailOrPhone
   pure empty
 
-addBlacklistH :: Member BlacklistStore r => Either Email Phone -> (Handler r) Response
+addBlacklistH :: (Member BlacklistStore r) => Either Email Phone -> (Handler r) Response
 addBlacklistH emailOrPhone = do
   void . lift $ API.blacklistInsert emailOrPhone
   pure empty
 
 -- | Get any matching prefixes. Also try for shorter prefix matches,
 -- i.e. checking for +123456 also checks for +12345, +1234, ...
-getPhonePrefixesH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) Response
+getPhonePrefixesH :: (Member BlacklistPhonePrefixStore r) => PhonePrefix -> (Handler r) Response
 getPhonePrefixesH prefix = do
   results <- lift $ API.phonePrefixGet prefix
   pure $ case results of
@@ -858,12 +858,12 @@ getPhonePrefixesH prefix = do
     _ -> json results
 
 -- | Delete a phone prefix entry (must be an exact match)
-deleteFromPhonePrefixH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) Response
+deleteFromPhonePrefixH :: (Member BlacklistPhonePrefixStore r) => PhonePrefix -> (Handler r) Response
 deleteFromPhonePrefixH prefix = do
   void . lift $ API.phonePrefixDelete prefix
   pure empty
 
-addPhonePrefixH :: Member BlacklistPhonePrefixStore r => JSON ::: JsonRequest ExcludedPrefix -> (Handler r) Response
+addPhonePrefixH :: (Member BlacklistPhonePrefixStore r) => JSON ::: JsonRequest ExcludedPrefix -> (Handler r) Response
 addPhonePrefixH (_ ::: req) = do
   prefix :: ExcludedPrefix <- parseJsonBody req
   void . lift $ API.phonePrefixInsert prefix
