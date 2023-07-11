@@ -74,7 +74,7 @@ connectRobust l retryStrategy connectLowLevel = do
         $ \(_ :: SomeException) -> void $ takeMVar robustConnection
   pure (thread, robustConnection)
   where
-    retry =
+    retry getConn =
       recovering -- retry connecting, e. g., with exponential back-off
         retryStrategy
         [ const $ Catch.Handler (\(e :: ClusterDownError) -> logEx (Log.err l) e "Redis cluster down" >> pure True),
@@ -84,7 +84,8 @@ connectRobust l retryStrategy connectLowLevel = do
           const $ Catch.Handler (\(e :: PingException) -> logEx (Log.err l) e "pinging Redis failed" >> pure True),
           const $ Catch.Handler (\(e :: IOException) -> logEx (Log.err l) e "network error when connecting to Redis" >> pure True)
         ]
-        . const -- ignore RetryStatus
+        (const getConn)
+        `catch` (\(e :: SomeException) -> logEx (Log.err l) e "Unexpected exception" >> Catch.throwM e)
     logEx :: Show e => ((Msg -> Msg) -> IO ()) -> e -> ByteString -> IO ()
     logEx lLevel e description = lLevel $ Log.msg (Log.val description) . Log.field "error" (show e)
 
@@ -98,13 +99,18 @@ runRobust mvar action = retry $ do
   liftIO $ runRedis robustConnection action
   where
     retryStrategy = capDelay 1000000 (exponentialBackoff 50000)
-    retry =
+    retry getConn =
       recovering -- retry connecting, e. g., with exponential back-off
         retryStrategy
         [ logAndHandle $ Catch.Handler (\(_ :: ConnectionLostException) -> pure True),
           logAndHandle $ Catch.Handler (\(_ :: IOException) -> pure True)
         ]
-        . const -- ignore RetryStatus
+        (const getConn) -- ignore RetryStatus
+        `catch` ( \(e :: SomeException) -> do
+                    LogClass.err $
+                      Log.msg (Log.val "Unexecpted exception in runRobust") . Log.field "error" (show e)
+                    Catch.throwM e
+                )
     logAndHandle (Handler handler) _ =
       Handler $ \e -> do
         LogClass.err $ Log.msg (Log.val "Redis connection failed") . Log.field "error" (show e)
