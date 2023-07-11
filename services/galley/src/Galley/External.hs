@@ -53,7 +53,6 @@ interpretExternalAccess ::
   Sem (ExternalAccess ': r) a ->
   Sem r a
 interpretExternalAccess = interpret $ \case
-  Deliver pp -> embedApp $ deliver (toList pp)
   DeliverAsync pp -> embedApp $ deliverAsync (toList pp)
   DeliverAndDeleteAsync cid pp -> embedApp $ deliverAndDeleteAsync cid (toList pp)
 
@@ -68,6 +67,8 @@ deliverAndDeleteAsync :: ConvId -> [(BotMember, Event)] -> App ()
 deliverAndDeleteAsync cnv pushes = void . forkIO $ do
   gone <- deliver pushes
   mapM_ (deleteBot cnv . botMemId) gone
+
+-- Internal -------------------------------------------------------------------
 
 deliver :: [(BotMember, Event)] -> App [BotMember]
 deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
@@ -115,8 +116,6 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
               ~~ field "error" (show ex)
               ~~ msg (val "External delivery failure")
           pure gone
-
--- Internal -------------------------------------------------------------------
 
 deliver1 :: Service -> BotMember -> Event -> App ()
 deliver1 s bm e

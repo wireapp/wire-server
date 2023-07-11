@@ -20,7 +20,6 @@
 module Galley.Effects.ExternalAccess
   ( -- * External access effect
     ExternalAccess (..),
-    deliver,
     deliverAsync,
     deliverAndDeleteAsync,
   )
@@ -33,7 +32,6 @@ import Polysemy
 import Wire.API.Event.Conversation
 
 data ExternalAccess m a where
-  Deliver :: Foldable f => f (BotMember, Event) -> ExternalAccess m [BotMember]
   DeliverAsync :: Foldable f => f (BotMember, Event) -> ExternalAccess m ()
   DeliverAndDeleteAsync :: Foldable f => ConvId -> f (BotMember, Event) -> ExternalAccess m ()
 
