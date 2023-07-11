@@ -14,7 +14,6 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
 import Data.Default
-import Data.Function ((&))
 import Data.Functor
 import Data.Hex
 import Data.IORef
@@ -237,7 +236,7 @@ defaultServiceOverrides =
     }
 
 defaultServiceOverridesToMap :: Map.Map Service (Value -> App Value)
-defaultServiceOverridesToMap = ([minBound .. maxBound] <&> (,pure)) & Map.fromList
+defaultServiceOverridesToMap = Map.fromList $ map (,pure) [minBound .. maxBound]
 
 -- | Overrides the service configurations with the given overrides.
 -- e.g.
@@ -261,4 +260,5 @@ withOverrides overrides =
           Nginz -> f >=> overrides.dbNginz
           Spar -> f >=> overrides.dbSpar
           BackgroundWorker -> f >=> overrides.dbBackgroundWorker
+          FederatorExternal -> f
     )

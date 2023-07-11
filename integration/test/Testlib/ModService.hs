@@ -259,6 +259,7 @@ updateServiceMap ports serviceMap =
           Nginz -> sm {nginz = sm.nginz {host = "127.0.0.1", port = newPort}}
           Spar -> sm {spar = sm.spar {host = "127.0.0.1", port = newPort}}
           BackgroundWorker -> sm {backgroundWorker = sm.backgroundWorker {host = "127.0.0.1", port = newPort}}
+          FederatorExternal -> sm {federatorExternal = sm.federatorExternal {host = "127.0.0.1", port = newPort}}
     )
     serviceMap
     ports
@@ -370,8 +371,10 @@ startBackend domain staticPorts nginzSslPort mFederatorOverrides services modify
   Codensity $ \action -> local modifyEnv $ do
     waitForService <- appToIOKleisli (waitUntilServiceUp domain)
     ioAction <- appToIO (action ())
+    let waitAction = do
+          mapConcurrently_ waitForService (Map.keys ports)
     liftIO $
-      (mapConcurrently_ waitForService (Map.keys ports) >> ioAction)
+      (waitAction >> ioAction)
         `finally` stopInstances
 
   pure modifyEnv
@@ -394,6 +397,7 @@ processColors =
 
 startProcess' :: String -> String -> Value -> App (ProcessHandle, FilePath)
 startProcess' domain execName config = do
+  liftIO $ putStrLn $ "Starting " <> execName
   processEnv <- liftIO $ do
     environment <- getEnvironment
     rabbitMqUserName <- getEnv "RABBITMQ_USERNAME"
@@ -443,7 +447,7 @@ waitUntilServiceUp domain = \case
         (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
         (\_ isUp -> pure (not isUp))
         ( \_ -> do
-            req <- baseRequest domain srv Unversioned "/i/status"
+            req <- rawBaseRequest domain srv Unversioned "/i/status"
             checkStatus <- appToIO $ do
               res <- submit "GET" req
               pure (res.status `elem` [200, 204])

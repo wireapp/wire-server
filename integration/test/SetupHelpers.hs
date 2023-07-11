@@ -1,5 +1,6 @@
 module SetupHelpers where
 
+import qualified API.Brig as Brig
 import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import API.Galley
@@ -15,6 +16,10 @@ randomUser :: (HasCallStack, MakesValue domain) => domain -> Internal.CreateUser
 randomUser domain cu = bindResponse (Internal.createUser domain cu) $ \resp -> do
   resp.status `shouldMatchInt` 201
   resp.json
+
+deleteUser :: (HasCallStack, MakesValue user) => user -> App ()
+deleteUser user = bindResponse (Brig.deleteUser user) $ \resp -> do
+  resp.status `shouldMatchInt` 200
 
 -- | returns (user, team id)
 createTeam :: (HasCallStack, MakesValue domain) => domain -> App (Value, String)

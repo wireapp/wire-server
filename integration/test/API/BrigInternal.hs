@@ -29,7 +29,7 @@ createUser domain cu = do
   email <- maybe randomEmail pure cu.email
   let password = fromMaybe defPassword cu.password
       name = fromMaybe email cu.name
-  req <- baseRequest domain Brig Unversioned "/i/users"
+  req <- rawBaseRequest domain Brig Unversioned "/i/users"
   submit "POST" $
     req
       & addJSONObject

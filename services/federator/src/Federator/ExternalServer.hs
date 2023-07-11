@@ -17,6 +17,7 @@
 
 module Federator.ExternalServer (callInward, serveInward, parseRequestData, RequestData (..)) where
 
+import Control.Monad.Codensity
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
@@ -36,11 +37,40 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
+import Servant.API
 import Servant.Client.Core
+import Servant.Server (Tagged (..))
+import Servant.Server.Generic
 import qualified System.Logger.Message as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
 import Wire.API.Routes.FederationDomainConfig
+
+data API mode = API
+  { status ::
+      mode
+        :- "i" :> "status" :> Get '[PlainText] NoContent,
+    externalRequest :: mode :- "federation" :> Capture "component" Component :> Capture "rpc" Text :> Raw
+  }
+  deriving (Generic)
+
+server ::
+  ( Member ServiceStreaming r,
+    Member (Embed IO) r,
+    Member TinyLog r,
+    Member DiscoverFederator r,
+    Member (Error ValidationError) r,
+    Member (Error DiscoveryFailure) r,
+    Member (Error ServerError) r,
+    Member (Input FederationDomainConfigs) r
+  ) =>
+  (forall a. Sem r a -> Codensity IO a) ->
+  API AsServer
+server interpreter =
+  API
+    { status = pure NoContent,
+      externalRequest = \_component _rpc -> Tagged $ \req respond -> runCodensity (interpreter (callInward req)) respond
+    }
 
 -- FUTUREWORK(federation): Versioning of the federation API.
 callInward ::
@@ -139,7 +169,7 @@ isAllowedRPCChar :: Char -> Bool
 isAllowedRPCChar c = isAsciiLower c || isAsciiUpper c || isNumber c || c == '_' || c == '-'
 
 serveInward :: Env -> Int -> IO ()
-serveInward = serve callInward
+serveInward env = serveServant (server $ runFederator env) env
 
 lookupCertificate :: Wai.Request -> Maybe ByteString
 lookupCertificate req = HTTP.urlDecode True <$> lookup "X-SSL-Certificate" (Wai.requestHeaders req)

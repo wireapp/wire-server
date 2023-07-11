@@ -90,6 +90,8 @@ instance ToSchema Component where
           element "cargohold" Cargohold
         ]
 
+instance FromHttpApiData Component
+
 -- | A typeclass corresponding to calls to federated services. This class has
 -- no methods, and exists only to automatically propagate information up to
 -- servant.

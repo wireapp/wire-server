@@ -103,6 +103,7 @@ library
     Test.Brig
     Test.Conversation
     Test.Demo
+    Test.Federation
     Test.Notifications
     Test.Presence
     Test.User

@@ -133,6 +133,7 @@ library
     , polysemy-wire-zoo
     , servant
     , servant-client-core
+    , servant-server
     , text
     , tinylog
     , transformers
