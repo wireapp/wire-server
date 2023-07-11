@@ -26,16 +26,22 @@ module Gundeck.Notification.Data
 where
 
 import Cassandra as C
+import Control.Error (MaybeT (..))
 import Control.Lens ((^.), _1)
 import qualified Data.Aeson as JSON
+import qualified Data.ByteString.Lazy as BSL
 import Data.Id
-import Data.List1 (List1)
+import qualified Data.List.NonEmpty as NonEmpty
+import Data.List1 (List1, toNonEmpty)
 import Data.Range (Range, fromRange)
-import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
+import Data.Sequence (Seq, ViewL ((:<)))
 import qualified Data.Sequence as Seq
-import Gundeck.Options (NotificationTTL (..))
+import Gundeck.Env
+import Gundeck.Options (NotificationTTL (..), optSettings, setInternalPageSize, setMaxPayloadLoadSize)
+import Gundeck.Push.Native.Serialise ()
 import Imports hiding (cs)
 import UnliftIO (pooledForConcurrentlyN_)
+import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Internal.Notification
 
 data ResultPage = ResultPage
@@ -50,7 +56,10 @@ data ResultPage = ResultPage
     resultGap :: !Bool
   }
 
--- FUTUREWORK: the magic 32 should be made configurable, so it can be tuned
+data Payload = Payload
+
+type PayloadId = Id 'Payload
+
 add ::
   (MonadClient m, MonadUnliftIO m) =>
   NotificationId ->
@@ -58,108 +67,196 @@ add ::
   List1 JSON.Object ->
   NotificationTTL ->
   m ()
-add n tgts (Blob . JSON.encode -> p) (notificationTTLSeconds -> t) =
-  pooledForConcurrentlyN_ 32 tgts $ \tgt ->
-    let u = tgt ^. targetUser
-        cs = C.Set (tgt ^. targetClients)
-     in write cqlInsert (params LocalQuorum (u, n, p, cs, fromIntegral t)) & retry x5
+add n tgts (JSON.encode -> payload) (notificationTTLSeconds -> t) = do
+  -- inline payload when there is exactly one target
+  let inlinePayload = null (NonEmpty.tail (toNonEmpty tgts))
+  if inlinePayload
+    then do
+      pooledForConcurrentlyN_ 32 tgts $ \tgt ->
+        let u = tgt ^. targetUser
+            cs = C.Set (tgt ^. targetClients)
+         in retry x5 $ write cqlInsertInline (params LocalQuorum (u, n, Blob payload, cs, fromIntegral t))
+    else do
+      payloadId <- randomId
+      write cqlInsertPayload (params LocalQuorum (payloadId, Blob payload, fromIntegral t)) & retry x5
+      let payloadRefSize = fromIntegral $ BSL.length payload
+
+      pooledForConcurrentlyN_ 32 tgts $ \tgt ->
+        let u = tgt ^. targetUser
+            cs = C.Set (tgt ^. targetClients)
+         in retry x5 $ write cqlInsertReference (params LocalQuorum (u, n, payloadId, payloadRefSize, cs, fromIntegral t))
   where
-    cqlInsert :: PrepQuery W (UserId, NotificationId, Blob, C.Set ClientId, Int32) ()
-    cqlInsert =
+    cqlInsertInline :: PrepQuery W (UserId, NotificationId, Blob, C.Set ClientId, Int32) ()
+    cqlInsertInline =
       "INSERT INTO notifications \
       \(user, id, payload, clients) VALUES \
       \(?   , ? , ?      , ?) \
       \USING TTL ?"
+    cqlInsertReference :: PrepQuery W (UserId, NotificationId, PayloadId, Int32, C.Set ClientId, Int32) ()
+    cqlInsertReference =
+      "INSERT INTO notifications \
+      \(user, id, payload_ref, payload_ref_size, clients) VALUES \
+      \(?, ?, ?, ?, ?) \
+      \USING TTL ?"
+
+    cqlInsertPayload :: PrepQuery W (PayloadId, Blob, Int32) ()
+    cqlInsertPayload =
+      "INSERT INTO notification_payload \
+      \(id, payload) VALUES \
+      \(?   , ?) \
+      \USING TTL ?"
 
 fetchId :: MonadClient m => UserId -> NotificationId -> Maybe ClientId -> m (Maybe QueuedNotification)
-fetchId u n c =
-  listToMaybe . foldr' (toNotif c) []
-    <$> query cqlById (params LocalQuorum (u, n))
-    & retry x1
+fetchId u n c = runMaybeT $ do
+  row <- MaybeT $ retry x1 $ query1 cqlById (params LocalQuorum (u, n))
+  MaybeT $ fetchPayload c row
   where
-    cqlById :: PrepQuery R (UserId, NotificationId) (TimeUuid, Blob, Maybe (C.Set ClientId))
+    cqlById :: PrepQuery R (UserId, NotificationId) NotifRow
     cqlById =
-      "SELECT id, payload, clients \
+      "SELECT id, payload, payload_ref, payload_ref_size, clients \
       \FROM notifications \
       \WHERE user = ? AND id = ?"
 
-fetchLast :: MonadClient m => UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
+fetchLast :: (MonadReader Env m, MonadClient m) => UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
 fetchLast u c = do
-  ls <- query cqlLast (params LocalQuorum (Identity u)) & retry x1
-  case ls of
-    [] -> pure Nothing
-    ns@(n : _) ->
-      ns `getFirstOrElse` do
-        p <- paginate cqlSeek (paramsP LocalQuorum (u, n ^. _1) 100) & retry x1
-        seek p
+  pageSize <- fromMaybe 100 <$> asks (^. options . optSettings . setInternalPageSize)
+  go (Page True [] (firstPage pageSize))
   where
-    seek p =
-      result p
-        `getFirstOrElse` if hasMore p
-          then liftClient (nextPage p) >>= seek
-          else pure Nothing
-    getFirstOrElse ns f =
-      case listToMaybe (foldr' (toNotif c) [] ns) of
-        Just n -> pure (Just n)
-        Nothing -> f
-    cqlLast :: PrepQuery R (Identity UserId) (TimeUuid, Blob, Maybe (C.Set ClientId))
+    go page = case result page of
+      (row : rows) -> do
+        mNotif <- fetchPayload c row
+        case mNotif of
+          Nothing -> go page {result = rows}
+          Just notif -> pure (Just notif)
+      [] | hasMore page -> do
+        page' <- liftClient (nextPage page)
+        go page'
+      _ -> pure Nothing
+
+    -- The first page consists of at most one row. We retrieve the first page
+    -- with a direct query with a LIMIT, and the following pages using
+    -- Cassandra pagination.
+    firstPage pageSize = do
+      results <- retry x1 $ query cqlLast (params LocalQuorum (Identity u))
+      let nextPage = case results of
+            [] -> pure emptyPage
+            (n : _) ->
+              retry x1 $
+                paginate cqlSeek (paramsP LocalQuorum (u, n ^. _1) pageSize)
+      pure $ Page True results nextPage
+
+    cqlLast :: PrepQuery R (Identity UserId) NotifRow
     cqlLast =
-      "SELECT id, payload, clients \
+      "SELECT id, payload, payload_ref, payload_ref_size, clients \
       \FROM notifications \
       \WHERE user = ? \
       \ORDER BY id DESC LIMIT 1"
-    cqlSeek :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Blob, Maybe (C.Set ClientId))
+    cqlSeek :: PrepQuery R (UserId, TimeUuid) NotifRow
     cqlSeek =
-      "SELECT id, payload, clients \
+      "SELECT id, payload, payload_ref, payload_ref_size, clients \
       \FROM notifications \
       \WHERE user = ? AND id < ? \
       \ORDER BY id DESC"
 
-fetch :: MonadClient m => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
-fetch u c since (fromRange -> size) = do
+fetchPayload :: MonadClient m => Maybe ClientId -> NotifRow -> m (Maybe QueuedNotification)
+fetchPayload c (id_, mbPayload, mbPayloadRef, _mbPayloadRefSize, mbClients) =
+  case (mbPayload, mbPayloadRef) of
+    (Just payload, _) -> pure $ toNotifSingle c (id_, payload, mbClients)
+    (_, Just payloadRef) -> runMaybeT $ do
+      pl <- MaybeT $ fmap (fmap runIdentity) (query1 cqlSelectPayload (params LocalQuorum (Identity payloadRef)))
+      maybe mzero pure $ toNotifSingle c (id_, pl, mbClients)
+    _ -> pure Nothing
+  where
+    cqlSelectPayload :: PrepQuery R (Identity PayloadId) (Identity Blob)
+    cqlSelectPayload = "SELECT payload from notification_payload where id = ?"
+
+type NotifRow = (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int32, Maybe (C.Set ClientId))
+
+payloadSize :: NotifRow -> Int32
+payloadSize (_, mbPayload, _, mbPayloadRefSize, _) =
+  case (mbPayload, mbPayloadRefSize) of
+    (Just blob, _) -> fromIntegral $ BSL.length (fromBlob blob)
+    (_, Just size) -> size
+    _ -> 0
+
+-- | Fetches referenced payloads until maxTotalSize payload bytes are fetched from the database.
+-- At least the first row is fetched regardless of the payload size.
+fetchPayloads :: (MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Int32 -> [NotifRow] -> m (Seq QueuedNotification, Int32)
+fetchPayloads c left rows = do
+  let (rows', left') = truncateNotifs [] (0 :: Int) left rows
+  s <- Seq.fromList . catMaybes <$> pooledMapConcurrentlyN 16 (fetchPayload c) rows'
+  pure (s, left')
+  where
+    truncateNotifs acc _i l [] = (reverse acc, l)
+    truncateNotifs acc i l (row : rest)
+      | i > 0 && l <= 0 = (reverse acc, l)
+      | otherwise = truncateNotifs (row : acc) (i + 1) (l - payloadSize row) rest
+
+-- | Tries to fetch @remaining@ many notifications.
+-- The returned 'Seq' might contain more notifications than @remaining@, (see
+-- https://docs.datastax.com/en/developer/java-driver/3.2/manual/paging/).
+--
+-- The boolean indicates whether more notifications can be fetched.
+collect :: (MonadReader Env m, MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Seq QueuedNotification -> Bool -> Int -> Int32 -> m (Page NotifRow) -> m (Seq QueuedNotification, Bool)
+collect c acc lastPageHasMore remaining remainingBytes getPage
+  | remaining <= 0 = pure (acc, lastPageHasMore)
+  | remainingBytes <= 0 = pure (acc, True)
+  | not lastPageHasMore = pure (acc, False)
+  | otherwise = do
+      page <- getPage
+      let rows = result page
+      (s, remaingBytes') <- fetchPayloads c remainingBytes rows
+      let remaining' = remaining - Seq.length s
+      collect c (acc <> s) (hasMore page) remaining' remaingBytes' (liftClient (nextPage page))
+
+mkResultPage :: Int -> Bool -> Seq QueuedNotification -> ResultPage
+mkResultPage size more ns =
+  ResultPage
+    { resultSeq = Seq.take size ns,
+      resultHasMore = Seq.length ns > size || more,
+      resultGap = False
+    }
+
+fetch :: (MonadReader Env m, MonadClient m, MonadUnliftIO m) => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
+fetch u c Nothing (fromIntegral . fromRange -> size) = do
+  pageSize <- fromMaybe 100 <$> asks (^. options . optSettings . setInternalPageSize)
+  let page1 = retry x1 $ paginate cqlStart (paramsP LocalQuorum (Identity u) pageSize)
   -- We always need to look for one more than requested in order to correctly
   -- report whether there are more results.
-  let size' = bool (+ 1) (+ 2) (isJust since) size
-  page1 <- case TimeUuid . toUUID <$> since of
-    Nothing -> paginate cqlStart (paramsP LocalQuorum (Identity u) size') & retry x1
-    Just s -> paginate cqlSince (paramsP LocalQuorum (u, s) size') & retry x1
-  -- Collect results, requesting more pages until we run out of data
-  -- or have found size + 1 notifications (not including the 'since').
-  let isize = fromIntegral size' :: Int
-  (ns, more) <- collect Seq.empty isize page1
-  -- Drop the extra element from the end as well as the inclusive start
-  -- value (if a 'since' was given and found).
-  pure $! case Seq.viewl (trim (isize - 1) ns) of
-    EmptyL -> ResultPage Seq.empty False (isJust since)
-    x :< xs -> case since of
-      Just s
-        | s == x ^. queuedNotificationId ->
-            ResultPage xs more False
-      _ -> ResultPage (x <| xs) more (isJust since)
+  maxPayloadLoadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . optSettings . setMaxPayloadLoadSize)
+  (ns, more) <- collect c Seq.empty True (size + 1) maxPayloadLoadSize page1
+  -- Drop the extra element at the end if present
+  pure $! mkResultPage size more ns
   where
-    collect acc num page =
-      let ns = splitAt num $ foldr (toNotif c) [] (result page)
-          nseq = Seq.fromList (fst ns)
-          more = hasMore page
-          num' = num - Seq.length nseq
-          acc' = acc >< nseq
-       in if not more || num' == 0
-            then pure (acc', more || not (null (snd ns)))
-            else liftClient (nextPage page) >>= collect acc' num'
-    trim l ns
-      | Seq.length ns <= l = ns
-      | otherwise = case Seq.viewr ns of
-          EmptyR -> ns
-          xs :> _ -> xs
-    cqlStart :: PrepQuery R (Identity UserId) (TimeUuid, Blob, Maybe (C.Set ClientId))
+    cqlStart :: PrepQuery R (Identity UserId) NotifRow
     cqlStart =
-      "SELECT id, payload, clients \
+      "SELECT id, payload, payload_ref, payload_ref_size, clients \
       \FROM notifications \
       \WHERE user = ? \
       \ORDER BY id ASC"
-    cqlSince :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Blob, Maybe (C.Set ClientId))
+fetch u c (Just since) (fromIntegral . fromRange -> size) = do
+  pageSize <- fromMaybe 100 <$> asks (^. options . optSettings . setInternalPageSize)
+  let page1 =
+        retry x1 $
+          paginate cqlSince (paramsP LocalQuorum (u, TimeUuid (toUUID since)) pageSize)
+  -- We fetch 2 more rows than requested. The first is to accommodate the
+  -- notification corresponding to the `since` argument itself. The second is
+  -- to get an accurate `hasMore`, just like in the case above.
+
+  maxPayloadLoadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . optSettings . setMaxPayloadLoadSize)
+  (ns, more) <- collect c Seq.empty True (size + 2) maxPayloadLoadSize page1
+  -- Remove notification corresponding to the `since` argument, and record if it is found.
+  let (ns', sinceFound) = case Seq.viewl ns of
+        x :< xs | since == x ^. queuedNotificationId -> (xs, True)
+        _ -> (ns, False)
+  pure $!
+    (mkResultPage size more ns')
+      { resultGap = not sinceFound
+      }
+  where
+    cqlSince :: PrepQuery R (UserId, TimeUuid) NotifRow
     cqlSince =
-      "SELECT id, payload, clients \
+      "SELECT id, payload, payload_ref, payload_ref_size, clients \
       \FROM notifications \
       \WHERE user = ? AND id >= ? \
       \ORDER BY id ASC"
@@ -173,16 +270,15 @@ deleteAll u = write cql (params LocalQuorum (Identity u)) & retry x5
 -------------------------------------------------------------------------------
 -- Conversions
 
-toNotif ::
+toNotifSingle ::
   Maybe ClientId ->
   (TimeUuid, Blob, Maybe (C.Set ClientId)) ->
-  [QueuedNotification] ->
-  [QueuedNotification]
-toNotif c (i, b, cs) ns =
+  Maybe QueuedNotification
+toNotifSingle c (i, b, cs) =
   let clients = maybe [] fromSet cs
       notifId = Id (fromTimeUuid i)
    in case JSON.decode' (fromBlob b) of
-        Nothing -> ns
+        Nothing -> Nothing
         Just pl ->
           -- nb. At some point we should be able to do:
           -- @@@ if null clients || maybe False (`elem` clients) c @@@
@@ -191,5 +287,5 @@ toNotif c (i, b, cs) ns =
           -- in this case for backward compatibility with existing internal
           -- clients.
           if null clients || maybe True (`elem` clients) c
-            then queuedNotification notifId pl : ns
-            else ns
+            then Just (queuedNotification notifId pl)
+            else Nothing

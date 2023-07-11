@@ -45,6 +45,9 @@ interpretFederatorAccess = interpret $ \case
   RunFederatedConcurrentlyEither rs f ->
     embedApp $
       runFederatedConcurrentlyEither rs f
+  RunFederatedConcurrentlyBucketsEither rs f ->
+    embedApp $
+      runFederatedConcurrentlyBucketsEither rs f
   IsFederationConfigured -> embedApp $ isJust <$> view federator
 
 runFederatedEither ::
@@ -94,3 +97,11 @@ runFederatedConcurrentlyEither ::
 runFederatedConcurrentlyEither xs rpc =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
     bimap (r,) (qualifyAs r) <$> runFederatedEither r (rpc r)
+
+runFederatedConcurrentlyBucketsEither ::
+  [(Remote [a], y)] ->
+  ((Remote [a], y) -> FederatorClient c b) ->
+  App [Either (Remote [a], FederationError) (Remote b)]
+runFederatedConcurrentlyBucketsEither xs rpc =
+  pooledForConcurrentlyN 8 xs $ \(r, v) ->
+    bimap (r,) (qualifyAs r) <$> runFederatedEither r (rpc (r, v))

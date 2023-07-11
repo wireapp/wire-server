@@ -118,6 +118,17 @@ instance MonadBaseControl IO App where
 runAppWithEnv :: Env -> App a -> IO a
 runAppWithEnv e m = runReaderT (unApp m) e
 
+-- | Convert an action in the 'App' monad to an 'IO' action.
+appToIO :: App a -> App (IO a)
+appToIO action = do
+  f <- appToIOKleisli (const action)
+  pure $ f ()
+
+appToIOKleisli :: (a -> App b) -> App (a -> IO b)
+appToIOKleisli k = do
+  env <- ask
+  pure $ \a -> runAppWithEnv env (k a)
+
 getServiceMap :: String -> App ServiceMap
 getServiceMap fedDomain = do
   env <- ask
@@ -195,6 +206,22 @@ data ServiceOverrides = ServiceOverrides
 
 instance Default ServiceOverrides where
   def = defaultServiceOverrides
+
+instance Semigroup ServiceOverrides where
+  a <> b =
+    ServiceOverrides
+      { dbBrig = dbBrig a >=> dbBrig b,
+        dbCannon = dbCannon a >=> dbCannon b,
+        dbCargohold = dbCargohold a >=> dbCargohold b,
+        dbGalley = dbGalley a >=> dbGalley b,
+        dbGundeck = dbGundeck a >=> dbGundeck b,
+        dbNginz = dbNginz a >=> dbNginz b,
+        dbSpar = dbSpar a >=> dbSpar b,
+        dbBackgroundWorker = dbBackgroundWorker a >=> dbBackgroundWorker b
+      }
+
+instance Monoid ServiceOverrides where
+  mempty = defaultServiceOverrides
 
 defaultServiceOverrides :: ServiceOverrides
 defaultServiceOverrides =

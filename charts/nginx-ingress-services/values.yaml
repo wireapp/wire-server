@@ -39,16 +39,20 @@ tls:
   verify_depth: 1
   createIssuer: true
   issuer:
+    # In a multi-domain backend (multi-ingress) setup, this name will be
+    # augmented with the 'ingressName' (e.g. 'letsencrypt-http01-<ingressName>')
+    # to ensure that certificates aren't created by the same issuer, which would
+    # leak a hint about a common origin.
     name: letsencrypt-http01
     kind: Issuer # Issuer | ClusterIssuer
 
 # Name of the ingress.
 #
-# If there is only one backend domain to be served, this can stay 'default'
-# (doesn't need to be changed.) If there are multiple backend domains
+# If there is only one backend domain to be served, this can stay the empty
+# string (doesn't need to be changed.) If there are multiple backend domains
 # (multi-ingress setup), use a descriptive name per backend domain. Technically,
 # this value can be any string.
-ingressName: default
+ingressName: ""
 
 certManager:
   # Indicates whether Letsencrypt's staging API server is used and therefore certificates are NOT trusted

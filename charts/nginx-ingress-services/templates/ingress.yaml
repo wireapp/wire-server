@@ -4,7 +4,7 @@
 apiVersion: {{ include "ingress.apiVersion" . }}
 kind: Ingress
 metadata:
-  name: nginx-ingress-{{ .Values.ingressName }}
+  name: {{ include "nginx-ingress-services.getIngressName" . | quote }}
   annotations:
     {{- if not $ingressFieldNotAnnotation }}
     kubernetes.io/ingress.class: "{{ .Values.config.ingressClass }}"
