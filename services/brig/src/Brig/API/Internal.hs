@@ -168,8 +168,7 @@ accountAPI =
     :<|> Named @"iDeleteUser" deleteUserNoAuthH
     :<|> Named @"iPutUserStatus" changeAccountStatusH
     :<|> Named @"iGetUserStatus" getAccountStatusH
-    :<|> Named @"iGetUsersByEmailOrPhone" listAccountsByIdentityH
-    :<|> Named @"iGetUsersByIdsOrHandles" listActivatedAccountsH
+    :<|> Named @"iGetUsersByVariousKeys" listActivatedAccountsH
     :<|> Named @"iGetUserContacts" getContactListH
     :<|> Named @"iGetUserActivationCode" getActivationCodeH
     :<|> Named @"iGetUserPasswordResetCode" getPasswordResetCodeH
@@ -548,14 +547,31 @@ changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
     ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
-listActivatedAccountsH :: Maybe (CommaSeparatedList UserId) -> Maybe (CommaSeparatedList Handle) -> Maybe Bool -> (Handler r) [UserAccount]
+-- Historically, this end-point was two end-points with distinct matching routes
+-- (distinguished by query params), and it was only allowed to pass one param per call.  This
+-- handler allows up to 4 lists of various user keys, and returns the union of the lookups.
+-- Empty list is forbidden for backwards compatibility.
+listActivatedAccountsH ::
+  Maybe (CommaSeparatedList UserId) ->
+  Maybe (CommaSeparatedList Handle) ->
+  Maybe (CommaSeparatedList Email) ->
+  Maybe (CommaSeparatedList Phone) ->
+  Maybe Bool ->
+  (Handler r) [UserAccount]
 listActivatedAccountsH
   (maybe [] fromCommaSeparatedList -> uids)
   (maybe [] fromCommaSeparatedList -> handles)
-  (fromMaybe False -> includePendingInvitations) = lift $ do
-    u1 <- listActivatedAccounts (Left uids) includePendingInvitations
-    u2 <- listActivatedAccounts (Right handles) includePendingInvitations
-    pure $ u1 <> u2
+  (maybe [] fromCommaSeparatedList -> emails)
+  (maybe [] fromCommaSeparatedList -> phones)
+  (fromMaybe False -> includePendingInvitations) = do
+    when (length uids + length handles + length emails + length phones == 0) $ do
+      throwStd (notFound "no user keys")
+    lift $ do
+      u1 <- listActivatedAccounts (Left uids) includePendingInvitations
+      u2 <- listActivatedAccounts (Right handles) includePendingInvitations
+      u3 <- (\email -> API.lookupAccountsByIdentity (Left email) includePendingInvitations) `mapM` emails
+      u4 <- (\phone -> API.lookupAccountsByIdentity (Right phone) includePendingInvitations) `mapM` phones
+      pure $ u1 <> u2 <> join u3 <> join u4
 
 listActivatedAccounts :: Either [UserId] [Handle] -> Bool -> (AppT r) [UserAccount]
 listActivatedAccounts elh includePendingInvitations = do
@@ -587,13 +603,6 @@ listActivatedAccounts elh includePendingInvitations = do
           (Suspended, _, _) -> pure True
           (Deleted, _, _) -> pure True
           (Ephemeral, _, _) -> pure True
-
-listAccountsByIdentityH :: Maybe Email -> Maybe Phone -> Maybe Bool -> (Handler r) [UserAccount]
-listAccountsByIdentityH mbEmail mbPhone (fromMaybe False -> includePendingInvitations) =
-  lift $ do
-    u1 <- maybe (pure []) (\email -> API.lookupAccountsByIdentity (Left email) includePendingInvitations) mbEmail
-    u2 <- maybe (pure []) (\phone -> API.lookupAccountsByIdentity (Right phone) includePendingInvitations) mbPhone
-    pure $ u1 <> u2
 
 getActivationCodeH :: Maybe Email -> Maybe Phone -> (Handler r) GetActivationCodeResp
 getActivationCodeH (Just email) Nothing = getActivationCode (Left email)

@@ -228,24 +228,12 @@ type AccountAPI =
                :> Get '[Servant.JSON] AccountStatusResp
            )
     :<|> Named
-           "iGetUsersByEmailOrPhone"
-           ( "users"
-               :> QueryParam' [Optional, Strict] "email" Email
-               :> QueryParam' [Optional, Strict] "phone" Phone
-               :> QueryParam'
-                    [ Optional,
-                      Strict,
-                      Description "Also return new accounts with team invitation pending"
-                    ]
-                    "includePendingInvitations"
-                    Bool
-               :> Get '[Servant.JSON] [UserAccount]
-           )
-    :<|> Named
-           "iGetUsersByIdsOrHandles"
+           "iGetUsersByVariousKeys"
            ( "users"
                :> QueryParam' [Optional, Strict] "ids" (CommaSeparatedList UserId)
                :> QueryParam' [Optional, Strict] "handles" (CommaSeparatedList Handle)
+               :> QueryParam' [Optional, Strict] "email" (CommaSeparatedList Email) -- don't rename to `emails`, for backwards compat!
+               :> QueryParam' [Optional, Strict] "phone" (CommaSeparatedList Phone) -- don't rename to `phones`, for backwards compat!
                :> QueryParam'
                     [ Optional,
                       Strict,
