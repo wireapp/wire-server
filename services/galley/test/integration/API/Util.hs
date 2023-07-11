@@ -755,7 +755,7 @@ postConvWithRemoteUsers ::
   TestM (Response (Maybe LByteString))
 postConvWithRemoteUsers u c n =
   fmap fst $
-    withTempMockFederator' (mockReply EmptyResponse) $
+    withTempMockFederator' (("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) <|> mockReply EmptyResponse) $
       postConvQualified u c n {newConvName = setName (newConvName n)}
         <!! const 201
           === statusCode
