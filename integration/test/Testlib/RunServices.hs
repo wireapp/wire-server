@@ -129,7 +129,15 @@ main = do
 
   runAppWithEnv env $ do
     lowerCodensity $ do
-      _modifyEnv <- traverseConcurrentlyCodensity (\(res, staticPorts) -> startDynamicBackend res staticPorts def) [(backendA, staticPortsA), (backendB, staticPortsB)]
+      let fedConfig d =
+            def
+              { dbBrig =
+                  setField "optSettings.setFederationDomainConfigs" [object ["domain" .= d, "search_policy" .= "full_search"]]
+              }
+      _modifyEnv <-
+        traverseConcurrentlyCodensity
+          (\(res, staticPorts, overrides) -> startDynamicBackend res staticPorts overrides)
+          [(backendA, staticPortsA, fedConfig backendB.berDomain), (backendB, staticPortsB, fedConfig backendA.berDomain)]
       liftIO $ do
         (_, _, _, ph) <- createProcess cp
         exitWith =<< waitForProcess ph
