@@ -54,14 +54,14 @@ type GalleyApi =
   -- that are part of a conversation at creation time. Since MLS conversations
   -- are always created empty (i.e. they only contain the creator), this RPC is
   -- never invoked for such conversations.
-  FedEndpoint "on-conversation-created" (ConversationCreated ConvId) ()
+  FedEndpoint "on-conversation-created" (ConversationCreated ConvId) EmptyResponse
     -- This endpoint is called the first time a user from this backend is
     -- added to a remote conversation.
     :<|> FedEndpoint "on-new-remote-conversation" NewRemoteConversation EmptyResponse
     :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
     -- used by the backend that owns a conversation to inform this backend of
     -- changes to the conversation
-    :<|> FedEndpoint "on-conversation-updated" ConversationUpdate ()
+    :<|> FedEndpoint "on-conversation-updated" ConversationUpdate EmptyResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
