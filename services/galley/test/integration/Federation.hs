@@ -90,7 +90,7 @@ updateFedDomainsTestNoop' = do
   let opts = s ^. tsGConf
   -- Don't need the actual server, and we certainly don't want it running.
   -- But this is how the env is made, so it is what we do
-  (_, env, _) <- liftIO $ lowerCodensity $ mkApp opts
+  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
   -- Common variables.
   -- FUTUREWORK, NEWTICKET: These uuid strings side step issues with the tests hanging.
   -- FUTUREWORK, NEWTICKET: Figure out the underlying issue as to why these tests occasionally hang.
@@ -111,7 +111,7 @@ updateFedDomainsTestAddRemote' = do
   let opts = s ^. tsGConf
   -- Don't need the actual server, and we certainly don't want it running.
   -- But this is how the env is made, so it is what we do
-  (_, env, _) <- liftIO $ lowerCodensity $ mkApp opts
+  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
   -- Common variables.
   let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
       remoteDomain = Domain "far-away.example.com"
@@ -128,7 +128,7 @@ updateFedDomainsTestRemoveRemoteFromLocal' = do
   let opts = s ^. tsGConf
   -- Don't need the actual server, and we certainly don't want it running.
   -- But this is how the env is made, so it is what we do
-  (_, env, _) <- liftIO $ lowerCodensity $ mkApp opts
+  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
   -- Common variables.
   let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
       remoteDomain = Domain "far-away.example.com"
@@ -145,7 +145,7 @@ updateFedDomainsTestRemoveLocalFromRemote' = do
   let opts = s ^. tsGConf
   -- Don't need the actual server, and we certainly don't want it running.
   -- But this is how the env is made, so it is what we do
-  (_, env, _) <- liftIO $ lowerCodensity $ mkApp opts
+  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
   -- Common variables.
   let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
       remoteDomain = Domain "far-away.example.com"
