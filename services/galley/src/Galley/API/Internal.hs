@@ -568,7 +568,7 @@ internalDeleteFederationDomainH (domain ::: _) = do
     pushEvents results = do
       let (bots, mems) = localBotsAndUsers results
           recipients = Intra.recipient <$> mems
-          event = Intra.FederationEvent $ Federation.Event Federation.FederationDelete [domain]
+          event = Intra.FederationEvent $ Federation.Event Federation.FederationDelete domain
       for_ (Intra.newPush ListComplete Nothing event recipients) $ \p -> do
         -- TODO: Transient or not?
         -- RouteAny is used as it will wake up mobile clients

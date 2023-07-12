@@ -1774,7 +1774,7 @@ assertFederationDeletedEvent ::
   IO ()
 assertFederationDeletedEvent dom e = do
   Fed._eventType e @?= Fed.FederationDelete
-  Fed._eventDomains e @?= [dom]
+  Fed._eventDomain e @?= dom
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
 --

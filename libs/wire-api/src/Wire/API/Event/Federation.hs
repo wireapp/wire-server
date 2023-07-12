@@ -15,7 +15,7 @@ import Data.Aeson (ToJSON, FromJSON)
 
 data Event = Event
   { _eventType :: EventType
-  , _eventDomains :: [Domain]
+  , _eventDomain :: Domain
   }
   deriving (Eq, Show, Ord, Generic)
 
@@ -40,7 +40,7 @@ instance ToSchema EventType where
 eventObjectSchema :: ObjectSchema SwaggerDoc Event
 eventObjectSchema = Event
   <$> _eventType .= field "type" schema
-  <*> _eventDomains .= field "domains" (array schema)
+  <*> _eventDomain .= field "domain" schema
 
 instance ToSchema Event where
   schema = object "Event" eventObjectSchema
