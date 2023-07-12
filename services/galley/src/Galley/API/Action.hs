@@ -641,10 +641,6 @@ updateLocalConversationUnchecked lconv qusr con action = do
   -- perform checks
   ensureConversationActionAllowed (sing @tag) lcnv action conv self
 
-  -- TODO(md): Consider if the order of 'performAction' and
-  -- 'notifyConversationAction' can be swapped. If it can, then e.g. failing to
-  -- add all of the remotes should produce no event.
-
   -- perform action
   (extraTargets, action') <- performAction tag qusr lconv action
 
@@ -779,8 +775,8 @@ notifyConversationAction tag quid notifyOrigDomain con lconv (targets, extraTarg
     -- 'targetUpdates' and 'extraTargetUpdates' are sent the update separately
     -- because they are treated differently in case of federation failures
     -- (i.e., unreachable remote backends).
-    targetUpdates <- sendUpdate now targets
     extraTargetUpdates <- sendUpdate now extraTargets
+    targetUpdates <- sendUpdate now targets
     let f = fromMaybe (mkUpdate now []) . asum . map tUnqualified . rights
         update = f targetUpdates
         failedTargetUpdates = lefts targetUpdates
