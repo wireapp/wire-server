@@ -5,6 +5,7 @@ module SetupHelpers where
 import API.Brig
 import API.BrigInternal
 import API.Galley
+import Control.Concurrent (threadDelay)
 import Data.Aeson hiding ((.=))
 import Data.Default
 import Data.Function
@@ -17,6 +18,12 @@ randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App V
 randomUser domain cu = bindResponse (createUser domain cu) $ \resp -> do
   resp.status `shouldMatchInt` 201
   resp.json
+
+-- | `n` should be 2 x `setFederationDomainConfigsUpdateFreq` in the config
+connectAllDomainsAndWaitToSync :: HasCallStack => Int -> [String] -> App ()
+connectAllDomainsAndWaitToSync n domains = do
+  sequence_ [createFedConn x (FedConn y "full_search") | x <- domains, y <- domains, x /= y]
+  liftIO $ threadDelay (n * 1000 * 1000) -- wait for federation status to be updated
 
 -- | returns (user, team id)
 createTeam :: (HasCallStack, MakesValue domain) => domain -> App (Value, String)

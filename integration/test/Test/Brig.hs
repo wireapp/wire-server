@@ -4,6 +4,7 @@ import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
 import qualified API.Common as API
 import qualified API.GalleyInternal as Internal
+import qualified Data.Aeson as Aeson
 import Data.Aeson.Types
 import qualified Data.Set as Set
 import Data.String.Conversions
@@ -80,7 +81,7 @@ testCrudFederationRemotes = do
       remote1'' = remote1 {Internal.domain = dom2}
 
       cfgRemotesExpect :: Internal.FedConn
-      cfgRemotesExpect = Internal.FedConn (cs "example.com") "full_search"
+      cfgRemotesExpect = Internal.FedConn (cs "b.example.com") "full_search"
 
   remote1J <- make remote1
   remote1J' <- make remote1'
@@ -170,3 +171,22 @@ testSwagger = do
     bindResponse (Public.getSwaggerInternalJson api) $ \resp -> do
       resp.status `shouldMatchInt` 200
       void resp.json
+
+testRemoteUserSearch :: HasCallStack => App ()
+testRemoteUserSearch = do
+  let overrides =
+        setField "optSettings.setFederationStrategy" "allowDynamic"
+          >=> removeField "optSettings.setFederationDomainConfigs"
+          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
+  startDynamicBackends [def {dbBrig = overrides}, def {dbBrig = overrides}] $ \dynDomains -> do
+    domains@[d1, d2] <- pure dynDomains
+    connectAllDomainsAndWaitToSync 1 domains
+    [u1, u2] <- createAndConnectUsers [d1, d2]
+    Internal.refreshIndex d2
+    uidD2 <- objId u2
+    bindResponse (Public.searchContacts u1 (u2 %. "name") d2) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      case docs of
+        [] -> assertFailure "Expected a non empty result, but got an empty one"
+        doc : _ -> doc %. "id" `shouldMatch` uidD2
