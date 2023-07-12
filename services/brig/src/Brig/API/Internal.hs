@@ -73,6 +73,7 @@ import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Qualified
 import qualified Data.Set as Set
+import Data.Time.Clock.System
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
@@ -124,6 +125,7 @@ servantSitemap =
     :<|> getVerificationCode
     :<|> teamsAPI
     :<|> userAPI
+    :<|> clientAPI
     :<|> authAPI
     :<|> internalOauthAPI
     :<|> internalSearchIndexAPI
@@ -179,6 +181,9 @@ userAPI =
   updateLocale
     :<|> deleteLocale
     :<|> getDefaultUserLocale
+
+clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)
+clientAPI = updateClientLastActive
 
 authAPI :: (Member GalleyProvider r) => ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
@@ -885,6 +890,19 @@ getDefaultUserLocale :: (Handler r) LocaleUpdate
 getDefaultUserLocale = do
   defLocale <- setDefaultUserLocale <$> view settings
   pure $ LocaleUpdate defLocale
+
+updateClientLastActive :: UserId -> ClientId -> Handler r ()
+updateClientLastActive u c = do
+  sysTime <- liftIO getSystemTime
+  -- round up to the next multiple of a week
+  let week = 604800
+  let now =
+        systemToUTCTime $
+          sysTime
+            { systemSeconds = systemSeconds sysTime + (week - systemSeconds sysTime `mod` week),
+              systemNanoseconds = 0
+            }
+  lift . wrapClient $ Data.updateClientLastActive u c now
 
 getRichInfoH :: UserId -> (Handler r) Response
 getRichInfoH uid = json <$> getRichInfo uid

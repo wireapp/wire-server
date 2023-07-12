@@ -36,6 +36,7 @@ module Brig.Data.Client
     lookupUsersClientIds,
     updateClientLabel,
     updateClientCapabilities,
+    updateClientLastActive,
 
     -- * Prekeys
     claimPrekey,
@@ -79,6 +80,7 @@ import qualified Data.Metrics as Metrics
 import Data.Misc
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
 import System.CryptoBox (Result (Success))
@@ -185,7 +187,8 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
             clientLocation = loc,
             clientModel = mdl,
             clientCapabilities = ClientCapabilityList (fromMaybe mempty cps),
-            clientMLSPublicKeys = mempty
+            clientMLSPublicKeys = mempty,
+            clientLastActive = Nothing
           }
 
 lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
@@ -264,6 +267,13 @@ updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params LocalQ
 
 updateClientCapabilities :: MonadClient m => UserId -> ClientId -> Maybe (Imports.Set ClientCapability) -> m ()
 updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params LocalQuorum (C.Set . Set.toList <$> fs, u, c))
+
+updateClientLastActive :: MonadClient m => UserId -> ClientId -> UTCTime -> m ()
+updateClientLastActive u c t =
+  retry x5 $
+    write
+      updateClientLastActiveQuery
+      (params LocalQuorum (t, u, c))
 
 updatePrekeys :: MonadClient m => UserId -> ClientId -> [Prekey] -> ExceptT ClientDataError m ()
 updatePrekeys u c pks = do
@@ -376,17 +386,20 @@ updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client
 updateClientCapabilitiesQuery :: PrepQuery W (Maybe (C.Set ClientCapability), UserId, ClientId) ()
 updateClientCapabilitiesQuery = "UPDATE clients SET capabilities = ? WHERE user = ? AND client = ?"
 
+updateClientLastActiveQuery :: PrepQuery W (UTCTime, UserId, ClientId) ()
+updateClientLastActiveQuery = "UPDATE clients SET last_active = ? WHERE user = ? AND client = ?"
+
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"
 
-selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability))
-selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model, capabilities from clients where user = ?"
+selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability), Maybe UTCTime)
+selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model, capabilities, last_active from clients where user = ?"
 
 selectPubClients :: PrepQuery R (Identity UserId) (ClientId, Maybe ClientClass)
 selectPubClients = "SELECT client, class from clients where user = ?"
 
-selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability))
-selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model, capabilities from clients where user = ? and client = ?"
+selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability), Maybe UTCTime)
+selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model, capabilities, last_active from clients where user = ? and client = ?"
 
 insertClientKey :: PrepQuery W (UserId, ClientId, PrekeyId, Text) ()
 insertClientKey = "INSERT INTO prekeys (user, client, key, data) VALUES (?, ?, ?, ?)"
@@ -440,10 +453,11 @@ toClient ::
     Maybe Latitude,
     Maybe Longitude,
     Maybe Text,
-    Maybe (C.Set ClientCapability)
+    Maybe (C.Set ClientCapability),
+    Maybe UTCTime
   ) ->
   Client
-toClient keys (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
+toClient keys (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps, lastActive) =
   Client
     { clientId = cid,
       clientType = cty,
@@ -454,7 +468,8 @@ toClient keys (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
       clientLocation = location <$> lat <*> lon,
       clientModel = mdl,
       clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps,
-      clientMLSPublicKeys = fmap (LBS.toStrict . fromBlob) (Map.fromList keys)
+      clientMLSPublicKeys = fmap (LBS.toStrict . fromBlob) (Map.fromList keys),
+      clientLastActive = lastActive
     }
 
 toPubClient :: (ClientId, Maybe ClientClass) -> PubClient
