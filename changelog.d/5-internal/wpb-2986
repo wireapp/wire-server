@@ -1,0 +1,1 @@
+Adding graceful shutdown handling to background-worker to allow it to finish processing its current message before the service quits.
