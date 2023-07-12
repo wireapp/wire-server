@@ -28,7 +28,6 @@ import qualified Brig.API.Internal as Internal
 import Brig.API.MLS.KeyPackages
 import Brig.API.MLS.Util
 import qualified Brig.API.User as API
-import Brig.API.Util (lookupSearchPolicy)
 import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
@@ -59,7 +58,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Version
 import Wire.API.MLS.KeyPackage
-import Wire.API.Routes.FederationDomainConfig
+import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
@@ -177,7 +176,7 @@ searchUsers ::
   SearchRequest ->
   ExceptT Error (AppT r) SearchResponse
 searchUsers domain (SearchRequest searchTerm) = do
-  searchPolicy <- lift $ lookupSearchPolicy domain
+  searchPolicy <- lookupSearchPolicy domain
 
   let searches = case searchPolicy of
         NoSearch -> []
@@ -231,3 +230,10 @@ onUserDeleted origDomain udcn = lift $ do
       notify event (tUnqualified deletedUser) Push.RouteDirect Nothing (pure recipients)
   wrapClient $ Data.deleteRemoteConnections deletedUser connections
   pure EmptyResponse
+
+-- | If domain is not configured fall back to `NoSearch`
+lookupSearchPolicy :: Domain -> (Handler r) FederatedUserSearchPolicy
+lookupSearchPolicy domain = do
+  domainConfigs <- getFederationRemotes
+  let mConfig = find ((== domain) . FD.domain) (domainConfigs.remotes)
+  pure $ maybe NoSearch FD.cfgSearchPolicy mConfig
