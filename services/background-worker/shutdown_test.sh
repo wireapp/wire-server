@@ -1,14 +1,24 @@
 #! /usr/bin/env bash
 
+# This script emulates a Kubernetes shutdown signalling sequence for background-worker.
+# NOTE: It will send signals to any currently running process called "background-work"
+
+# Testing setup
+# This script was written for the following testing methodology.
+# All commands are from the wire-server repo root unless otherwise noted.
+# 1) Setup local databases. `docker-compose -f deploy/dockerephemeral/docker-compose.yaml build && ./deploy/dockerephemeral/run.sh`
+# 2) Run Wire services. `make cr`
+# 2) Kill the running background-worker services. `pkill -9 background-work`
+# 3) From the `services/background-worker` directory, run the service with the integration config. `cabal run background-worker -- -c background-worker.integration.yaml`
+# 4) Run the `fill_rabbit.sh` script with the desired message.
+# 5) Run this script and ensure that background worker exits gracefully.
+
 progress-bar() {
   local duration=${1}
-
-
     already_done() { for ((done=0; done<$elapsed; done++)); do printf "▇"; done }
     remaining() { for ((remain=$elapsed; remain<$duration; remain++)); do printf " "; done }
     percentage() { printf "| %s%%" $(( (($elapsed)*100)/($duration)*100/100 )); }
     clean_line() { printf "\r"; }
-
   for (( elapsed=1; elapsed<=$duration; elapsed++ )); do
       already_done; remaining; percentage
       sleep 1

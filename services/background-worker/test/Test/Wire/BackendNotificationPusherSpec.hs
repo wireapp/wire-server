@@ -90,10 +90,10 @@ spec = do
               { Q.msgBody = Aeson.encode notif,
                 Q.msgContentType = Just "application/json"
               }
-
+      mvar <- newMVar ()
       (env, fedReqs) <-
         withTempMockFederator [] returnSuccess . runTestAppT $ do
-          void $ pushNotification targetDomain (msg, envelope)
+          void $ pushNotification mvar targetDomain (msg, envelope)
           ask
 
       readIORef envelope.acks `shouldReturn` 1
@@ -118,9 +118,10 @@ spec = do
               { Q.msgBody = "unparseable notification",
                 Q.msgContentType = Just "application/json"
               }
+      mvar <- newMVar ()
       (env, fedReqs) <-
         withTempMockFederator [] returnSuccess . runTestAppT $ do
-          void $ pushNotification (Domain "target.example.com") (msg, envelope)
+          void $ pushNotification mvar (Domain "target.example.com") (msg, envelope)
           ask
 
       readIORef envelope.acks `shouldReturn` 0
@@ -155,11 +156,11 @@ spec = do
               { Q.msgBody = Aeson.encode notif,
                 Q.msgContentType = Just "application/json"
               }
-
+      mvar <- newMVar ()
       env <- testEnv
       pushThread <-
         async $ withTempMockFederator [] mockRemote . runTestAppTWithEnv env $ do
-          pushNotification targetDomain (msg, envelope)
+          pushNotification mvar targetDomain (msg, envelope)
 
       -- Wait for two calls, so we can be sure that the metric about stuck
       -- queues has been updated

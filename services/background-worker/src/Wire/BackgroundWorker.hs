@@ -17,14 +17,15 @@ import qualified System.Logger as Log
 run :: Opts -> IO ()
 run opts = do
   env <- mkEnv opts
-  -- We can fire and forget this thread because it keeps respawning itself using the
+  -- We can (almost) fire and forget this thread because it keeps respawning itself using the
   -- 'onConnectionClosedHandler'. We do need the Async handle to explicitly cancel the
   -- thread when we shutdown via signals.
   notificationThread <- async $ runAppT env $ BackendNotificationPusher.startWorker opts.rabbitmq
-  let -- cleanup will run in a new thread when the signal is caught
+  let -- cleanup will run in a new thread when the signal is caught, so we need to use IORefs and
+      -- specific exception types to message threads to clean up
       cleanup = do
         -- Cancel the thread and wait for it to close.
-        Log.info (logger env) $ Log.msg (Log.val "Cancelling the notification pusher thread thread")
+        Log.info (logger env) $ Log.msg (Log.val "Cancelling the notification pusher thread")
         cancel notificationThread
   let server = defaultServer (cs $ opts.backgroundWorker._epHost) opts.backgroundWorker._epPort env.logger env.metrics
   settings <- newSettings server

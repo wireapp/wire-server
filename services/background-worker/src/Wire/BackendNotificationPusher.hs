@@ -24,14 +24,16 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 import UnliftIO
 import qualified System.Logger as Log'
+import Network.AMQP (cancelConsumer)
 
 startPushingNotifications ::
+  MVar () ->
   Q.Channel ->
   Domain ->
   AppT IO Q.ConsumerTag
-startPushingNotifications chan domain = do
+startPushingNotifications mvar chan domain = do
   lift $ ensureQueue chan domain
-  QL.consumeMsgs chan (routingKey domain) Q.Ack (pushNotification domain)
+  QL.consumeMsgs chan (routingKey domain) Q.Ack (pushNotification mvar domain)
 
 -- | This class exists to help with testing, making the envelope in unit test is
 -- too difficult. So we use fake envelopes in the unit tests.
@@ -43,21 +45,19 @@ instance RabbitMQEnvelope Q.Envelope where
   ack = Q.ackEnv
   reject = Q.rejectEnv
 
-pushNotification :: RabbitMQEnvelope e => Domain -> (Q.Message, e) -> AppT IO ()
-pushNotification targetDomain (msg, envelope) = do
-  -- Jittered exponential backoff with 10ms as starting delay and 300s as max
-  -- delay. When 300s is reached, every retry will happen after 300s.
+pushNotification :: RabbitMQEnvelope e => MVar () -> Domain -> (Q.Message, e) -> AppT IO ()
+pushNotification mvar targetDomain (msg, envelope) = do
+  -- Jittered exponential backoff with 10ms as starting delay and 20s as maximum
+  -- cumulative delay. When 20s is cumulatively reached, the request will fail.
   --
-  -- FUTUREWORK: Pull these numbers into config
-  -- Limit retries to a max of 30 seconds, as this is what Kubernetes is going
+  -- FUTUREWORK: Pull these numbers into config.
+  -- FUTUREWORK: Is this futurework still needed given the new changes?
+  -- Limit retries to a max of 20 seconds, as this is what Kubernetes is going
   -- to give us for a SIGTERM shutdown notice by default. If we take longer than
   -- that, it will SIGKILL the pod and there is nothing we can do to stop that.
-  -- Maximum delay of 30 seconds
-  -- Jitter backoff
-  -- 30 second maximum delay on backoff jitter.
-  -- If we fail after this, the notification won't be ACKed, and will be redelivered
+  -- If we fail after this, the notification will be NACKed, and will be redelivered
   -- by RabbitMQ for another attempt.
-  let policy = limitRetriesByCumulativeDelay (20 * 1_000_000) $ fullJitterBackoff 10000 -- TODO reset limit to 30 * ...
+  let policy = limitRetriesByCumulativeDelay (20 * 1_000_000) $ fullJitterBackoff 10000
       logErrr willRetry (SomeException e) rs = do
         Log.err $
           Log.msg (Log.val "Exception occurred while pushing notification")
@@ -74,11 +74,20 @@ pushNotification targetDomain (msg, envelope) = do
           <> [ skipChanThreadKilled,
                logRetries (const $ pure True) logErrr
              ]
-  -- TODO: DANGEROUS!
-  -- This can make the program unresponsive and unkillable outside of SIGKILL.
-  -- It needs to be used for _short_ running code, and can easily cause problems
-  -- for other code running on the same thread.
-  UnliftIO.uninterruptibleMask_ $ recovering policy handlers $ const go
+  -- Ensure that the mvars are reset correctly.
+  UnliftIO.bracket_ (takeMVar mvar) (putMVar mvar ()) $ do
+    -- Ensure that envelopes are acked if recovering still fails.
+    -- Otherwise Rabbit is going to think that we are still processing
+    -- it and won't send another message as we have set up the channel
+    -- to deliver a single message at a time and to wait for confirmation.
+    UnliftIO.onException
+      (recovering policy handlers (const go))
+      -- Reject for redelivery. This is needed for the following reasons
+      -- 1) We have a strict time limit when kubernetes sends SIGTERM. We need to stay within that.
+      -- 2) Just because we failed to push the notification _now_ doesn't mean we won't be able to
+      --    in a few minutes. Requeuing the message will give us another go at it, and the next pod
+      --    to gain single exclusive consumer will get this message.
+      $ lift $ reject envelope True
   where
     go :: AppT IO ()
     go = case A.eitherDecode @BackendNotification (Q.msgBody msg) of
@@ -110,51 +119,28 @@ pushNotification targetDomain (msg, envelope) = do
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.
 -- Consumers is passed in explicitly so that cleanup code has a reference to the consumer tags.
-startPusher :: IORef Bool -> IORef (Map Domain Q.ConsumerTag) -> Q.Channel -> AppT IO ()
-startPusher stillRunning consumersRef chan = do
-  UnliftIO.handle (\AsyncCancelled -> cleanup stillRunning) $ do
-    -- This ensures that we receive notifications 1 by 1 which ensures they are
-    -- delivered in order.
-    markAsWorking BackendNotificationPusher
-    lift $ Q.qos chan 0 1 False
-    BackendNotificationPusherOpts {..} <- asks (.backendNotificationPusher)
-    forever $ readIORef stillRunning >>= flip when do
-      remoteDomains <- getRemoteDomains
-      mapM_ (ensureConsumer consumersRef chan) remoteDomains
-      threadDelay (1_000_000 * remotesRefreshInterval)
-  where
-    -- Close channels when the async thread is cancelled.
-    -- The exceptions used by `amqp` to cancel threads will
-    -- be caught/masked by workers so they can finish their
-    -- current task before dying. We need an IORef holding
-    -- references to these consumers so we can cancel them
-    -- explicitly.
-    cleanup :: IORef Bool -> AppT IO ()
-    cleanup ref = do
-      markAsNotWorking BackendNotificationPusher
-      liftIO $ atomicWriteIORef ref False
-      env <- ask
-      let l = logger env
-      Log'.err l $ Log'.msg (Log'.val "AsyncCancelled exception caught")
-      consumers <- readIORef consumersRef
-      for_ (Map.elems consumers) $ \conn -> do
-        Log'.err l $ Log'.field "Cancelling consumer" $ show conn
-        liftIO $ Q.cancelConsumer chan conn
-      -- Close the channel. Using this function will ensure
-      -- that `connectWithRetries` doesn't reopen it.
-      -- Additionally the bracket pattern used in it will
-      -- close the connection for us.
-      Log'.err l $ Log'.msg (Log'.val "Closing channel")
-      liftIO $ Q.closeChannel chan
+startPusher :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> AppT IO ()
+startPusher consumersRef chan = do
+  -- This ensures that we receive notifications 1 by 1 which ensures they are
+  -- delivered in order.
+  markAsWorking BackendNotificationPusher
+  lift $ Q.qos chan 0 1 False
+  BackendNotificationPusherOpts {..} <- asks (.backendNotificationPusher)
+  forever $ do
+    remoteDomains <- getRemoteDomains
+    mapM_ (ensureConsumer consumersRef chan) remoteDomains
+    threadDelay (1_000_000 * remotesRefreshInterval)
 
-ensureConsumer :: IORef (Map Domain Q.ConsumerTag) -> Q.Channel -> Domain -> AppT IO ()
+ensureConsumer :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> Domain -> AppT IO ()
 ensureConsumer consumers chan domain = do
   consumerExists <- Map.member domain <$> readIORef consumers
   unless consumerExists $ do
     Log.info $ Log.msg (Log.val "Starting consumer") . Log.field "domain" (domainText domain)
-    tag <- startPushingNotifications chan domain
-    oldTag <- atomicModifyIORef consumers $ \c -> (Map.insert domain tag c, Map.lookup domain c)
-    liftIO $ forM_ oldTag $ Q.cancelConsumer chan
+    -- Build an MVar for the consumer. This is used as a flag for when a consumer callback is running.
+    mvar <- newMVar ()
+    tag <- startPushingNotifications mvar chan domain
+    oldTag <- atomicModifyIORef consumers $ \c -> (Map.insert domain (tag, mvar) c, Map.lookup domain c)
+    liftIO $ forM_ oldTag $ Q.cancelConsumer chan . fst
 
 getRemoteDomains :: AppT IO [Domain]
 getRemoteDomains = do
@@ -196,23 +182,34 @@ startWorker rabbitmqOpts = do
   -- Passed into running threads so we can cancel consumers and allow
   -- amqp to cleanly finish before we stop the service.
   consumersRef <- newIORef mempty
-  stillRunning <- newIORef True
   let -- cleanup the refs when channels die
       -- This is so we aren't trying to close consumers
       -- that don't exist when the service is shutdown.
-      clearRefs = atomicWriteIORef consumersRef mempty
-      cleanup = do
-        atomicWriteIORef stillRunning False
-  liftIO $ Control.Monad.Catch.handle (\AsyncCancelled -> cleanup) $
-    openConnectionWithRetries env.logger (demoteOpts rabbitmqOpts) $
+      l = logger env
+      clearRefs = do
+        atomicWriteIORef consumersRef mempty
+      cleanup chan = do
+        readIORef consumersRef >>= traverse_ \(consumer, mvar) -> do
+          Log'.info l $ Log.msg (Log.val "Cancelling") . Log.field "Consumer" consumer
+          -- Remove the consumer from the channel so it isn't called again
+          cancelConsumer chan consumer
+          -- Take from the mvar. This will only unblock when the consumer callback isn't running.
+          -- This allows us to wait until the currently running tasks are completed, and new ones
+          -- won't be scheduled because we've already removed the callback from the channel.
+          Log'.info l $ Log.msg $ Log.val "Taking MVar. Waiting for current operation to finish"
+          takeMVar mvar
+        -- Close the channel. `extended` will then close the connection, flushing messages to the server.
+        Log'.info l $ Log.msg $ Log.val "Closing RabbitMQ channel"
+        Q.closeChannel chan
+  liftIO $ openConnectionWithRetries env.logger (demoteOpts rabbitmqOpts) $
     RabbitMqHooks
-      { onNewChannel = \chan -> runAppT env $
-          -- This worker catches AsyncCancelled exceptions
-          -- and will gracefully shutdown the channel after
-          -- completing it's current task. The exception handling
-          -- in `openConnectionWithRetries` won't open a new
-          -- connection on an explicit close call.
-          startPusher stillRunning consumersRef chan,
+      -- This worker catches AsyncCancelled exceptions
+      -- and will gracefully shutdown the channel after
+      -- completing it's current task. The exception handling
+      -- in `openConnectionWithRetries` won't open a new
+      -- connection on an explicit close call.
+      { onNewChannel = \chan -> Control.Monad.Catch.handle (\AsyncCancelled -> cleanup chan) $
+          runAppT env $ startPusher consumersRef chan,
         onChannelException = \_ -> do
           clearRefs
           runAppT env $ markAsNotWorking BackendNotificationPusher,

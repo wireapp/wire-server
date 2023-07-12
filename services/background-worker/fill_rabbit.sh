@@ -1,10 +1,15 @@
 #! /usr/bin/env bash
 
-# This can be used to run the script from within the wire-server repo, at the
-# git root directory.
-# source .envrc
+# This script is will fill a local dockerised RabbitMQ instance with messages for background worker.
+# It can be modified to send any message, and two messages are provided. One will succeed in local testing
+# and the other will fail when being delivered from background-worker.
 
-RABBIT_HOST="172.24.0.10" # This is the IP of your running rabbit host. Get it from docker
+# Automagically figure out where RabbitMQ is available.
+# The RabbitMQ management interface is available on the same address at port 15672, with the same credentials.
+# This interface can be used to purge message queues. This is useful when testing valid and invalid messages.
+RABBIT_HOST="$(docker inspect rabbitmq | grep IPAddress | grep -Po "(\d{1,3}\.){3}(\d{1,3})")" # This is the IP of your running rabbit host. Get it from docker
+# These values come from .envrc. Since they are already
+# exposed in the repo I'm not worried about repeating it here.
 RABBIT_USER="guest"
 RABBIT_PASS="alpaca-grapefruit"
 
@@ -27,6 +32,6 @@ do
     publish \
     routing_key="backend-notifications.$TARGET_DOMAIN" \
     payload='{ "ownDomain":"'"$OWN_DOMAIN"'", "targetComponent":"brig", "path":"/search-users", "body":"{ \"term\": \"foo\" }"}'
-  # Gives a rough idea of how fast messages are being sent.
+  # Gives a rough idea of how fast messages are being sent and that it isn't hanging
   date -Ins
 done
