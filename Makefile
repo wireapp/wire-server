@@ -95,12 +95,22 @@ endif
 #
 # If you want to pass arguments to the test-suite call cabal-run-integration.sh directly.
 .PHONY: ci
-ci: c db-migrate
+ci:
+	@echo -en "\n\n\nplease choose between goals ci-fast and ci-safe.\n\n\n"
+
+.PHONY: ci-fast
+ci-fast: c db-migrate
 ifeq ("$(package)", "all")
 	./hack/bin/cabal-run-integration.sh all
 	./hack/bin/cabal-run-integration.sh integration
 endif
 	./hack/bin/cabal-run-integration.sh $(package)
+
+# variant of `make ci-fast` that compiles the entire project even if `package` is specified.
+.PHONY: ci-safe
+ci-safe:
+	make c package=all
+	make ci-fast
 
 # Compile and run services
 # Usage: make crun `OR` make crun package=galley
