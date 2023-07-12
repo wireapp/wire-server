@@ -10,7 +10,7 @@ import System.Environment (getArgs)
 import System.Exit (exitWith)
 import System.FilePath
 import System.Posix (getWorkingDirectory)
-import System.Process (createProcess, proc, waitForProcess)
+import System.Process (CreateProcess (env), createProcess, proc, waitForProcess)
 import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.Run (createGlobalEnv)
@@ -131,7 +131,8 @@ main = do
           putStrLn "services started"
           forever (threadDelay 1000000000)
         _ -> do
-          let cp = proc "sh" (["-c", "exec \"$@\"", "--"] <> args)
+          env' <- commonEnv
+          let cp = (proc "sh" (["-c", "exec \"$@\"", "--"] <> args)) {env = Just env'}
           (_, _, _, ph) <- createProcess cp
           exitWith =<< waitForProcess ph
 

@@ -7,6 +7,7 @@ module Testlib.ModService
     startDynamicBackend,
     startDynamicBackends,
     traverseConcurrentlyCodensity,
+    commonEnv,
   )
 where
 
@@ -393,21 +394,25 @@ processColors =
     ("nginx", colored purpleish)
   ]
 
+-- Used for services AND integration test processes (gundeck-integration needs AWS_* variables)
+commonEnv :: MonadIO m => m [(String, String)]
+commonEnv = liftIO $ do
+  environment <- getEnvironment
+  rabbitMqUserName <- getEnv "RABBITMQ_USERNAME"
+  rabbitMqPassword <- getEnv "RABBITMQ_PASSWORD"
+  pure
+    ( environment
+        <> [ ("AWS_REGION", "eu-west-1"),
+             ("AWS_ACCESS_KEY_ID", "dummykey"),
+             ("AWS_SECRET_ACCESS_KEY", "dummysecret"),
+             ("RABBITMQ_USERNAME", rabbitMqUserName),
+             ("RABBITMQ_PASSWORD", rabbitMqPassword)
+           ]
+    )
+
 startProcess' :: String -> String -> Value -> App (ProcessHandle, FilePath)
 startProcess' domain execName config = do
-  processEnv <- liftIO $ do
-    environment <- getEnvironment
-    rabbitMqUserName <- getEnv "RABBITMQ_USERNAME"
-    rabbitMqPassword <- getEnv "RABBITMQ_PASSWORD"
-    pure
-      ( environment
-          <> [ ("AWS_REGION", "eu-west-1"),
-               ("AWS_ACCESS_KEY_ID", "dummykey"),
-               ("AWS_SECRET_ACCESS_KEY", "dummysecret"),
-               ("RABBITMQ_USERNAME", rabbitMqUserName),
-               ("RABBITMQ_PASSWORD", rabbitMqPassword)
-             ]
-      )
+  processEnv <- commonEnv
 
   tempFile <- liftIO $ writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
 
@@ -591,7 +596,6 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
     writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
 
   -- start service
-
   (_, Just stdoutHdl, Just stderrHdl, ph) <-
     liftIO $
       createProcess
