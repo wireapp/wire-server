@@ -1,3 +1,5 @@
 redis-cluster:
   usePassword: false
   fullnameOverride: "redis-cluster"
+  image:
+    tag: 6.2.13

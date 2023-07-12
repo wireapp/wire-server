@@ -1,4 +1,4 @@
 dependencies:
 - name: redis-cluster
-  version: 7.6.4
+  version: 8.6.6
   repository: https://charts.bitnami.com/bitnami
