@@ -39,6 +39,33 @@ testSendMessageNoReturnToSender = do
         )
         wsSender
 
+testStaleApplicationMessage :: HasCallStack => Domain -> App ()
+testStaleApplicationMessage otherDomain = do
+  [alice, bob, charlie, dave, eve] <-
+    createAndConnectUsers [OwnDomain, otherDomain, OwnDomain, OwnDomain, OwnDomain]
+  [alice1, bob1, charlie1] <- traverse createMLSClient [alice, bob, charlie]
+  traverse_ uploadNewKeyPackage [bob1, charlie1]
+  void $ createNewGroup alice1
+
+  -- alice adds bob first
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+  -- bob prepares some application messages
+  [msg1, msg2] <- replicateM 2 $ createApplicationMessage bob1 "hi alice"
+
+  -- alice adds charlie and dave with different commits
+  void $ createAddCommit alice1 [charlie] >>= sendAndConsumeCommitBundle
+  void $ createAddCommit alice1 [dave] >>= sendAndConsumeCommitBundle
+
+  -- bob's application messages still go through
+  void $ postMLSMessage bob1 msg1.message >>= getJSON 201
+
+  -- alice adds eve
+  void $ createAddCommit alice1 [eve] >>= sendAndConsumeCommitBundle
+
+  -- bob's application messages are now rejected
+  void $ postMLSMessage bob1 msg2.message >>= getJSON 409
+
 testMixedProtocolUpgrade :: HasCallStack => Domain -> App ()
 testMixedProtocolUpgrade secondDomain = do
   (alice, tid) <- createTeam OwnDomain
