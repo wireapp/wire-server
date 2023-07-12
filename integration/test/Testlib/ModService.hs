@@ -259,6 +259,7 @@ updateServiceMap ports serviceMap =
           Nginz -> sm {nginz = sm.nginz {host = "127.0.0.1", port = newPort}}
           Spar -> sm {spar = sm.spar {host = "127.0.0.1", port = newPort}}
           BackgroundWorker -> sm {backgroundWorker = sm.backgroundWorker {host = "127.0.0.1", port = newPort}}
+          Stern -> sm {stern = sm.stern {host = "127.0.0.1", port = newPort}}
     )
     serviceMap
     ports

@@ -201,7 +201,8 @@ data ServiceOverrides = ServiceOverrides
     dbGundeck :: Value -> App Value,
     dbNginz :: Value -> App Value,
     dbSpar :: Value -> App Value,
-    dbBackgroundWorker :: Value -> App Value
+    dbBackgroundWorker :: Value -> App Value,
+    dbStern :: Value -> App Value
   }
 
 instance Default ServiceOverrides where
@@ -217,7 +218,8 @@ instance Semigroup ServiceOverrides where
         dbGundeck = dbGundeck a >=> dbGundeck b,
         dbNginz = dbNginz a >=> dbNginz b,
         dbSpar = dbSpar a >=> dbSpar b,
-        dbBackgroundWorker = dbBackgroundWorker a >=> dbBackgroundWorker b
+        dbBackgroundWorker = dbBackgroundWorker a >=> dbBackgroundWorker b,
+        dbStern = dbStern a >=> dbStern b
       }
 
 instance Monoid ServiceOverrides where
@@ -233,7 +235,8 @@ defaultServiceOverrides =
       dbGundeck = pure,
       dbNginz = pure,
       dbSpar = pure,
-      dbBackgroundWorker = pure
+      dbBackgroundWorker = pure,
+      dbStern = pure
     }
 
 defaultServiceOverridesToMap :: Map.Map Service (Value -> App Value)
@@ -261,4 +264,5 @@ withOverrides overrides =
           Nginz -> f >=> overrides.dbNginz
           Spar -> f >=> overrides.dbSpar
           BackgroundWorker -> f >=> overrides.dbBackgroundWorker
+          Stern -> f >=> overrides.dbStern
     )

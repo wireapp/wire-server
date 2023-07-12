@@ -47,7 +47,8 @@ staticPortsA =
       (Cargohold, 8084),
       (Spar, 8088),
       (BackgroundWorker, 8089),
-      (Nginz, 8080)
+      (Nginz, 8080),
+      (Stern, 8091)
     ]
 
 backendB :: BackendResource
@@ -86,7 +87,8 @@ staticPortsB =
       (Cargohold, 9084),
       (Spar, 9088),
       (BackgroundWorker, 9089),
-      (Nginz, 9080)
+      (Nginz, 9080),
+      (Stern, 9091)
     ]
 
 parentDir :: FilePath -> Maybe FilePath
