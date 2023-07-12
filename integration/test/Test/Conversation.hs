@@ -151,7 +151,7 @@ testCreateConversationFullyConnected = do
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
-      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
+      connectAllDomainsAndWaitToSync 1 domains
       [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
       bindResponse (postConversation u1 (defProteus {qualifiedUsers = [u2, u3]})) $ \resp -> do
         resp.status `shouldMatchInt` 201
@@ -169,7 +169,7 @@ testCreateConversationNonFullyConnected = do
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
-      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
+      connectAllDomainsAndWaitToSync 1 domains
       [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
       -- stop federation between B and C
       void $ Internal.deleteFedConn domainB domainC

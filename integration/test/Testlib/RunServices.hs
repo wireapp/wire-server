@@ -2,6 +2,7 @@
 
 module Testlib.RunServices where
 
+import Control.Concurrent
 import Control.Monad.Codensity (lowerCodensity)
 import qualified Data.Map as Map
 import System.Directory
@@ -114,7 +115,7 @@ main = do
   cwd <- getWorkingDirectory
   mbProjectRoot <- findProjectRoot cwd
   cfg <- case mbProjectRoot of
-    Nothing -> error "Could not find project root. Please make sure you call run-services from the somewhere in wire-server."
+    Nothing -> error "Could not find project root. Please make sure you call run-services from somewhere in wire-server."
     Just projectRoot ->
       pure $ joinPath [projectRoot, "services/integration.yaml"]
 
@@ -122,14 +123,25 @@ main = do
   env <- lowerCodensity $ mkEnv genv
 
   args <- getArgs
-  let args' = case args of
-        (x : xs) -> x : xs
-        _ -> ["sleep", "10000d"]
-  let cp = proc "sh" (["-c", "exec \"$@\"", "--"] <> args')
+
+  let run = case args of
+        [] -> do
+          putStrLn "services started"
+          forever (threadDelay 1000000000)
+        _ -> do
+          let cp = proc "sh" (["-c", "exec \"$@\"", "--"] <> args)
+          (_, _, _, ph) <- createProcess cp
+          exitWith =<< waitForProcess ph
 
   runAppWithEnv env $ do
     lowerCodensity $ do
-      _modifyEnv <- traverseConcurrentlyCodensity (\(res, staticPorts) -> startDynamicBackend res staticPorts def) [(backendA, staticPortsA), (backendB, staticPortsB)]
-      liftIO $ do
-        (_, _, _, ph) <- createProcess cp
-        exitWith =<< waitForProcess ph
+      let fedConfig d =
+            def
+              { dbBrig =
+                  setField "optSettings.setFederationDomainConfigs" [object ["domain" .= d, "search_policy" .= "full_search"]]
+              }
+      _modifyEnv <-
+        traverseConcurrentlyCodensity
+          (\(res, staticPorts, overrides) -> startDynamicBackend res staticPorts overrides)
+          [(backendA, staticPortsA, fedConfig backendB.berDomain), (backendB, staticPortsB, fedConfig backendA.berDomain)]
+      liftIO run

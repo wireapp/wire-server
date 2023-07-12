@@ -25,3 +25,6 @@
     Federator.Response,            # this is just a naming conincidence
     Cannon.Run                     # we do something similar, but not identical here by hand
   ] }
+
+# ormolu disagrees with this (and also some of us devs, sometimes):
+- ignore: { name: Redundant bracket }

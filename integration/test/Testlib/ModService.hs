@@ -196,7 +196,7 @@ startDynamicBackend resource staticPorts beOverrides = do
           setField "optSettings.setFederationDomain" resource.berDomain
             >=> setField
               "optSettings.setFederationDomainConfigs"
-              [object ["domain" .= resource.berDomain, "search_policy" .= "full_search"]]
+              ([] :: [Value])
             >=> setField "federatorInternal.port" resource.berFederatorInternal
         Cargohold ->
           setField "settings.federationDomain" resource.berDomain

@@ -89,6 +89,7 @@ import qualified Data.Set as Set
 import Data.Swagger hiding (Schema, ToSchema, schema)
 import qualified Data.Swagger as Swagger
 import qualified Data.Text.Encoding as Text.E
+import Data.Time.Clock
 import Data.UUID (toASCIIBytes)
 import Deriving.Swagger
   ( CustomSwagger,
@@ -472,7 +473,8 @@ data Client = Client
     clientLocation :: Maybe Location,
     clientModel :: Maybe Text,
     clientCapabilities :: ClientCapabilityList,
-    clientMLSPublicKeys :: MLSPublicKeys
+    clientMLSPublicKeys :: MLSPublicKeys,
+    clientLastActive :: Maybe UTCTime
   }
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform Client)
@@ -512,6 +514,7 @@ instance ToSchema Client where
         <*> clientModel .= maybe_ (optField "model" schema)
         <*> clientCapabilities .= (fromMaybe mempty <$> optField "capabilities" schema)
         <*> clientMLSPublicKeys .= mlsPublicKeysFieldSchema
+        <*> clientLastActive .= maybe_ (optField "last_active" utcTimeSchema)
 
 mlsPublicKeysFieldSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
 mlsPublicKeysFieldSchema = fromMaybe mempty <$> optField "mls_public_keys" mlsPublicKeysSchema
