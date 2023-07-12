@@ -5,13 +5,13 @@ import Imports
 import Network.Wai.Utilities.Server
 import Servant
 import Servant.Server.Generic
+import qualified System.Logger as Log
 import UnliftIO.Async
 import Util.Options
 import qualified Wire.BackendNotificationPusher as BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import qualified Wire.BackgroundWorker.Health as Health
 import Wire.BackgroundWorker.Options
-import qualified System.Logger as Log
 
 -- FUTUREWORK: Start an http service with status and metrics endpoints
 run :: Opts -> IO ()

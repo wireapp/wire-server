@@ -1,7 +1,5 @@
-{-# LANGUAGE RecordWildCards #-}
-
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Wire.BackendNotificationPusher where
 
@@ -12,19 +10,19 @@ import Data.Domain
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Imports
+import Network.AMQP (cancelConsumer)
 import qualified Network.AMQP as Q
 import Network.AMQP.Extended
 import qualified Network.AMQP.Lifted as QL
 import Network.RabbitMqAdmin
 import Prometheus
+import qualified System.Logger as Log'
 import qualified System.Logger.Class as Log
+import UnliftIO
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
-import UnliftIO
-import qualified System.Logger as Log'
-import Network.AMQP (cancelConsumer)
 
 startPushingNotifications ::
   MVar () ->
@@ -87,7 +85,8 @@ pushNotification mvar targetDomain (msg, envelope) = do
       -- 2) Just because we failed to push the notification _now_ doesn't mean we won't be able to
       --    in a few minutes. Requeuing the message will give us another go at it, and the next pod
       --    to gain single exclusive consumer will get this message.
-      $ lift $ reject envelope True
+      $ lift
+      $ reject envelope True
   where
     go :: AppT IO ()
     go = case A.eitherDecode @BackendNotification (Q.msgBody msg) of
@@ -201,19 +200,22 @@ startWorker rabbitmqOpts = do
         -- Close the channel. `extended` will then close the connection, flushing messages to the server.
         Log'.info l $ Log.msg $ Log.val "Closing RabbitMQ channel"
         Q.closeChannel chan
-  liftIO $ openConnectionWithRetries env.logger (demoteOpts rabbitmqOpts) $
-    RabbitMqHooks
-      -- This worker catches AsyncCancelled exceptions
-      -- and will gracefully shutdown the channel after
-      -- completing it's current task. The exception handling
-      -- in `openConnectionWithRetries` won't open a new
-      -- connection on an explicit close call.
-      { onNewChannel = \chan -> Control.Monad.Catch.handle (\AsyncCancelled -> cleanup chan) $
-          runAppT env $ startPusher consumersRef chan,
-        onChannelException = \_ -> do
-          clearRefs
-          runAppT env $ markAsNotWorking BackendNotificationPusher,
-        onConnectionClose = do
-          clearRefs
-          runAppT env $ markAsNotWorking BackendNotificationPusher
-      }
+  liftIO $
+    openConnectionWithRetries env.logger (demoteOpts rabbitmqOpts) $
+      RabbitMqHooks
+        { -- This worker catches AsyncCancelled exceptions
+          -- and will gracefully shutdown the channel after
+          -- completing it's current task. The exception handling
+          -- in `openConnectionWithRetries` won't open a new
+          -- connection on an explicit close call.
+          onNewChannel = \chan ->
+            Control.Monad.Catch.handle (\AsyncCancelled -> cleanup chan) $
+              runAppT env $
+                startPusher consumersRef chan,
+          onChannelException = \_ -> do
+            clearRefs
+            runAppT env $ markAsNotWorking BackendNotificationPusher,
+          onConnectionClose = do
+            clearRefs
+            runAppT env $ markAsNotWorking BackendNotificationPusher
+        }
