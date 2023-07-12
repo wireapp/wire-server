@@ -85,36 +85,7 @@ mkDerivation {
     wire-api
     wire-api-federation
   ];
-  executableHaskellDepends = [
-    aeson
-    amqp
-    base
-    bytestring
-    containers
-    extended
-    federator
-    HsOpenSSL
-    hspec
-    http-client
-    http-media
-    http-types
-    HUnit
-    imports
-    prometheus-client
-    QuickCheck
-    servant
-    servant-client
-    servant-client-core
-    servant-server
-    text
-    tinylog
-    transformers
-    types-common
-    unliftio
-    wai
-    wire-api
-    wire-api-federation
-  ];
+  executableHaskellDepends = [ HsOpenSSL imports types-common ];
   testHaskellDepends = [
     aeson
     amqp
@@ -146,4 +117,5 @@ mkDerivation {
   ];
   description = "Runs background work";
   license = lib.licenses.agpl3Only;
+  mainProgram = "background-worker";
 }
