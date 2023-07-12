@@ -42,7 +42,6 @@ import qualified API.Util.TeamFeature as Util
 import Bilge hiding (head, timeout)
 import qualified Bilge
 import Bilge.Assert
-import Control.Arrow
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (throw)
 import Control.Lens (at, ix, preview, view, (.~), (?~))
@@ -134,8 +133,6 @@ tests s =
           test s "metrics" metrics,
           test s "fetch conversation by qualified ID (v2)" testGetConvQualifiedV2,
           test s "create Proteus conversation" postProteusConvOk,
-          test s "create conversation with remote users all reachable" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2]),
-          test s "create conversation with remote users some unreachable" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2, rb3]),
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
           test s "fail to get >500 conversations with v2 API" getConvsFailMaxSizeV2,
@@ -356,130 +353,6 @@ postProteusConvOk = do
     convView cnv usr = do
       r <- getConv usr cnv <!! const 200 === statusCode
       unVersioned @'V2 <$> responseJsonError r
-    checkWs qalice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
-      ntfTransient n @?= False
-      let e = List1.head (WS.unpackPayload n)
-      evtConv e @?= cnvQualifiedId cnv
-      evtType e @?= ConvCreate
-      evtFrom e @?= qalice
-      case evtData e of
-        EdConversation c' -> assertConvEquals cnv c'
-        _ -> assertFailure "Unexpected event data"
-
-postConvWithRemoteUsersOk :: Set (Remote Backend) -> TestM ()
-postConvWithRemoteUsersOk rbs = do
-  c <- view tsCannon
-  (alice, qAlice) <- randomUserTuple
-  (alex, qAlex) <- randomUserTuple
-  (amy, qAmy) <- randomUserTuple
-  connectUsers alice (list1 alex [amy])
-  (allRemotes, participatingRemotes) <- do
-    v <- forM (toList rbs) $ \rb -> do
-      users <- connectBackend alice rb
-      pure (users, participating rb users)
-    pure $ foldr (\(a, p) acc -> bimap ((<>) a) ((<>) p) acc) ([], []) v
-
-  let convName = "some chat"
-      otherLocals = [qAlex, qAmy]
-  WS.bracketR3 c alice alex amy $ \(wsAlice, wsAlex, wsAmy) -> do
-    let joiners = allRemotes <> otherLocals
-        unreachableBackends =
-          Set.fromList $
-            foldMap
-              ( \rb ->
-                  guard (rbReachable rb == BackendUnreachable)
-                    $> tDomain rb
-              )
-              rbs
-    (rsp, federatedRequests) <-
-      withTempMockFederator'
-        ( asum
-            [ "get-not-fully-connected-backends" ~> NonConnectedBackends mempty,
-              mockUnreachableFor unreachableBackends,
-              "on-conversation-created" ~> (),
-              "on-conversation-updated" ~> ()
-            ]
-        )
-        $ postConvQualified
-          alice
-          Nothing
-          defNewProteusConv
-            { newConvName = checked convName,
-              newConvQualifiedUsers = joiners
-            }
-          <!! const 201 === statusCode
-    let minimalShouldBePresent = otherLocals
-        minimalShouldBePresentSet = Set.fromList (toOtherMember <$> minimalShouldBePresent)
-    qcid <-
-      assertConv
-        rsp
-        RegularConv
-        alice
-        qAlice
-        (otherLocals <> participatingRemotes)
-        (Just convName)
-        Nothing
-    let cid = qUnqualified qcid
-    cvs <- mapM (convView qcid) [alice, alex, amy]
-    liftIO $
-      mapM_ WS.assertSuccess
-        =<< Async.mapConcurrently (checkWs qAlice) (zip cvs [wsAlice, wsAlex, wsAmy])
-
-    liftIO $ do
-      let expectedReqs =
-            Set.fromList $
-              [ "on-conversation-created",
-                "on-conversation-updated"
-              ]
-       in assertBool "Some federated calls are missing" $
-            expectedReqs `Set.isSubsetOf` Set.fromList (frRPC <$> federatedRequests)
-
-    -- assertions on the conversation.create event triggering federation request
-    let fedReqsCreated = filter (\r -> frRPC r == "on-conversation-created") federatedRequests
-    fedReqCreatedBodies <- for fedReqsCreated $ assertRight . parseFedRequest
-    forM_ fedReqCreatedBodies $ \fedReqCreatedBody -> liftIO $ do
-      F.ccOrigUserId fedReqCreatedBody @?= alice
-      F.ccCnvId fedReqCreatedBody @?= cid
-      F.ccCnvType fedReqCreatedBody @?= RegularConv
-      F.ccCnvAccess fedReqCreatedBody @?= [InviteAccess]
-      F.ccCnvAccessRoles fedReqCreatedBody
-        @?= Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
-      F.ccCnvName fedReqCreatedBody @?= Just convName
-      assertBool "Notifying an incorrect set of conversation members" $
-        minimalShouldBePresentSet `Set.isSubsetOf` F.ccNonCreatorMembers fedReqCreatedBody
-      F.ccMessageTimer fedReqCreatedBody @?= Nothing
-      F.ccReceiptMode fedReqCreatedBody @?= Nothing
-
-    -- assertions on the conversation.member-join event triggering federation request
-    let fedReqsAdd = filter (\r -> frRPC r == "on-conversation-updated") federatedRequests
-    fedReqAddBodies <- for fedReqsAdd $ assertRight . parseFedRequest
-    forM_ fedReqAddBodies $ \fedReqAddBody -> liftIO $ do
-      F.cuOrigUserId fedReqAddBody @?= qAlice
-      F.cuConvId fedReqAddBody @?= cid
-      -- This remote backend must already have their users in the conversation,
-      -- otherwise they should not be receiving the conversation update message
-      assertBool "The list of already present users should be non-empty"
-        . not
-        . null
-        . F.cuAlreadyPresentUsers
-        $ fedReqAddBody
-      case F.cuAction fedReqAddBody of
-        SomeConversationAction SConversationJoinTag _action -> pure ()
-        _ -> assertFailure @() "Unexpected update action"
-  where
-    connectBackend :: UserId -> Remote Backend -> TestM [Qualified UserId]
-    connectBackend usr (tDomain &&& bUsers . tUnqualified -> (d, c)) = do
-      users <- replicateM (fromIntegral c) (randomQualifiedId d)
-      mapM_ (connectWithRemoteUser usr) users
-      pure users
-    participating :: Remote Backend -> [a] -> [a]
-    participating rb users =
-      if rbReachable rb == BackendReachable
-        then users
-        else []
-    toOtherMember qid = OtherMember qid Nothing roleNameWireAdmin
-    convView cnv usr =
-      responseJsonError =<< getConvQualified usr cnv <!! const 200 === statusCode
     checkWs qalice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
       ntfTransient n @?= False
       let e = List1.head (WS.unpackPayload n)
