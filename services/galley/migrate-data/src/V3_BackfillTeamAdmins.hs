@@ -70,5 +70,5 @@ createTeamAdmins pair =
     cql = "INSERT INTO team_admin (team, user) values (?, ?)"
 
 isAdmin :: (TeamId, UserId, Maybe Permissions) -> Bool
-isAdmin (_, _, Just p) = permissionsRole p == Just RoleAdmin
+isAdmin (_, _, Just p) = permissionsRole p == Just RoleAdmin || permissionsRole p == Just RoleOwner
 isAdmin _ = False

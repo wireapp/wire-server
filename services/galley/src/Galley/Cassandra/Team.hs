@@ -60,7 +60,6 @@ import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (SetBilling), Permissions, self)
-import Wire.API.Team.Role
 import Wire.Sem.Paging.Cassandra
 
 interpretTeamStoreToCassandra ::
@@ -236,8 +235,7 @@ addTeamMember t m =
     when (m `hasPermission` SetBilling) $
       addPrepQuery Cql.insertBillingTeamMember (t, m ^. userId)
 
-    let role = permissionsRole (m ^. permissions)
-    when (role == Just RoleAdmin) $
+    when (isAdminOrOwner (m ^. permissions)) $
       addPrepQuery Cql.insertTeamAdmin (t, m ^. userId)
 
 updateTeamMember ::
@@ -265,12 +263,13 @@ updateTeamMember oldPerms tid uid newPerms = do
       addPrepQuery Cql.deleteBillingTeamMember (tid, uid)
 
     -- update team_admin table
-    let oldRole = permissionsRole oldPerms
-        newRole = permissionsRole newPerms
+    let wasAdmin = isAdminOrOwner oldPerms
+        isAdmin = isAdminOrOwner newPerms
 
-    when (newRole == Just RoleAdmin && oldRole /= Just RoleAdmin) $
+    when (isAdmin && not wasAdmin) $
       addPrepQuery Cql.insertTeamAdmin (tid, uid)
-    when (oldRole == Just RoleAdmin && newRole /= Just RoleAdmin) $
+
+    when (not isAdmin && wasAdmin) $
       addPrepQuery Cql.deleteTeamAdmin (tid, uid)
 
 removeTeamMember :: TeamId -> UserId -> Client ()
