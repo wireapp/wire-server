@@ -129,8 +129,8 @@ runSettingsWithShutdown :: Settings -> Application -> Maybe Int -> IO ()
 runSettingsWithShutdown = runSettingsWithShutdown' $ pure ()
 
 -- As above, but with an additional cleanup action that is called before the server shuts down.
-runSettingsWithShutdown' :: IO () -> Settings -> Application -> Maybe Int -> IO ()
-runSettingsWithShutdown' cleanup s app (fromMaybe defaultShutdownTime -> secs) = do
+runSettingsWithCleanup :: IO () -> Settings -> Application -> Maybe Int -> IO ()
+runSettingsWithCleanup cleanup s app (fromMaybe defaultShutdownTime -> secs) = do
   initialization
   let s' =
         setInstallShutdownHandler catchSignals

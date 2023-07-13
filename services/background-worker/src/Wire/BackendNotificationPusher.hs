@@ -189,9 +189,9 @@ startWorker rabbitmqOpts = do
         atomicWriteIORef consumersRef mempty
       cleanup chan = do
         readIORef consumersRef >>= traverse_ \(consumer, mvar) -> do
-          Log'.info l $ Log.msg (Log.val "Cancelling") . Log.field "Consumer" consumer
+          Log'.info l $ Log.msg (Log.val "Cancelling consumer") . Log.field "consumer" consumer
           -- Remove the consumer from the channel so it isn't called again
-          cancelConsumer chan consumer
+          Q.cancelConsumer chan consumer
           -- Take from the mvar. This will only unblock when the consumer callback isn't running.
           -- This allows us to wait until the currently running tasks are completed, and new ones
           -- won't be scheduled because we've already removed the callback from the channel.
