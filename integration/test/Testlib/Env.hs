@@ -74,7 +74,8 @@ data ServiceMap = ServiceMap
     gundeck :: HostPort,
     nginz :: HostPort,
     spar :: HostPort,
-    proxy :: HostPort
+    proxy :: HostPort,
+    stern :: HostPort
   }
   deriving (Show, Generic)
 
@@ -100,7 +101,7 @@ data HostPort = HostPort
 
 instance FromJSON HostPort
 
-data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker
+data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker | Stern
   deriving
     ( Show,
       Eq,
@@ -119,6 +120,7 @@ serviceName = \case
   Nginz -> "nginz"
   Spar -> "spar"
   BackgroundWorker -> "backgroundWorker"
+  Stern -> "stern"
 
 -- | Converts the service name to kebab-case.
 configName :: Service -> String
@@ -131,6 +133,7 @@ configName = \case
   Nginz -> "nginz"
   Spar -> "spar"
   BackgroundWorker -> "background-worker"
+  Stern -> "stern"
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
@@ -141,6 +144,7 @@ serviceHostPort m Cargohold = m.cargohold
 serviceHostPort m Nginz = m.nginz
 serviceHostPort m Spar = m.spar
 serviceHostPort m BackgroundWorker = m.backgroundWorker
+serviceHostPort m Stern = m.stern
 
 mkGlobalEnv :: FilePath -> IO GlobalEnv
 mkGlobalEnv cfgFile = do
