@@ -1191,8 +1191,26 @@ testNonTrivialConfigNoTTL defaultCfg = do
   -- unlock feature
   setLockStatus LockStatusUnlocked
 
+  let defaultMLSConfig =
+        WithStatusNoLock
+          { wssStatus = FeatureStatusEnabled,
+            wssConfig =
+              MLSConfig
+                { mlsProtocolToggleUsers = [],
+                  mlsDefaultProtocol = ProtocolMLSTag,
+                  mlsAllowedCipherSuites = [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519],
+                  mlsDefaultCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
+                  mlsSupportedProtocols = [ProtocolProteusTag, ProtocolMLSTag]
+                },
+            wssTTL = FeatureTTLUnlimited
+          }
+
   config2 <- liftIO $ generate arbitrary <&> (forgetLock . setTTL FeatureTTLUnlimited)
   config3 <- liftIO $ generate arbitrary <&> (forgetLock . setTTL FeatureTTLUnlimited)
+
+  putTeamFeatureFlagWithGalley @MLSConfig galley owner tid defaultMLSConfig
+    !!! statusCode
+      === const 200
 
   WS.bracketR cannon member $ \ws -> do
     setForTeam config2
