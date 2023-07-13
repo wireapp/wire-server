@@ -49,8 +49,6 @@ import Wire.API.Routes.MultiTablePaging
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.User.Search
 
--- import Control.Concurrent.Async
-
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
 
