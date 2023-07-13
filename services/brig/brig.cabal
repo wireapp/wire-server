@@ -281,7 +281,6 @@ library
     , ssl-util
     , statistics                 >=0.13
     , stomp-queue                >=0.3
-    , string-conversions
     , swagger2
     , template                   >=0.2
     , template-haskell

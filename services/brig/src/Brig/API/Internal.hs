@@ -76,7 +76,6 @@ import qualified Data.Set as Set
 import Imports hiding (head)
 import qualified Network.AMQP as Q
 import Data.Time.Clock.System
-import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (result, setStatus)

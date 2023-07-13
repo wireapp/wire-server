@@ -105,7 +105,7 @@ main = do
       V76_AddSupportedProtocols.migration,
       V77_FederationRemotes.migration,
       V78_ClientLastActive.migration,
-      V78_ConnectionRemoteIndex.migration
+      V79_ConnectionRemoteIndex.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Brig.App
 

@@ -644,9 +644,6 @@ deleteFederationDomainLocalUserFromRemoteConversation dom = do
         -- similar processing run for removing the local domain from their federation list.
         onConversationUpdated dom convUpdate
 
--- let rcnv = toRemoteUnsafe dom cnv
--- notifyRemoteConversationAction lUser (qualifyAs rcnv convUpdate) Nothing
-
 -- These need to be recoverable?
 -- This is recoverable with the following flow conditions.
 -- 1) Deletion calls to the Brig endpoint `delete-federation-remote-from-galley` are idempotent for a given domain.
