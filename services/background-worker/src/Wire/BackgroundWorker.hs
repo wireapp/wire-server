@@ -30,7 +30,7 @@ run opts = do
   let server = defaultServer (cs $ opts.backgroundWorker._epHost) opts.backgroundWorker._epPort env.logger env.metrics
   settings <- newSettings server
   -- Additional cleanup when shutting down via signals.
-  runSettingsWithShutdown' cleanup settings (servantApp env) Nothing
+  runSettingsWithCleanup cleanup settings (servantApp env) Nothing
 
 servantApp :: Env -> Application
 servantApp env =
