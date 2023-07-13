@@ -28,10 +28,11 @@ testSearchContactForExternalUsers = do
 
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
+  otherDomain <- asString OtherDomain
   let overrides =
         ( setField
             "optSettings.setFederationDomainConfigs"
-            [object ["domain" .= "b.example.com", "search_policy" .= "full_search"]]
+            [object ["domain" .= otherDomain, "search_policy" .= "full_search"]]
         )
   withModifiedService Brig overrides $ \_ -> do
     let parseFedConns :: HasCallStack => Response -> App [Value]
@@ -87,7 +88,7 @@ testCrudFederationRemotes = do
         remote1'' = remote1 {Internal.domain = dom2}
 
         cfgRemotesExpect :: Internal.FedConn
-        cfgRemotesExpect = Internal.FedConn (cs "b.example.com") "full_search"
+        cfgRemotesExpect = Internal.FedConn (cs otherDomain) "full_search"
 
     remote1J <- make remote1
     remote1J' <- make remote1'
