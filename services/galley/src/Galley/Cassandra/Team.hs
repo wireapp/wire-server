@@ -60,6 +60,7 @@ import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (SetBilling), Permissions, self)
+import Wire.API.Team.Role
 import Wire.Sem.Paging.Cassandra
 
 interpretTeamStoreToCassandra ::
@@ -77,6 +78,7 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   CreateTeam t uid n i k b -> embedClient $ createTeam t uid n i k b
   DeleteTeamMember tid uid -> embedClient $ removeTeamMember tid uid
   GetBillingTeamMembers tid -> embedClient $ listBillingTeamMembers tid
+  GetTeamAdmins tid -> embedClient $ listTeamAdmins tid
   GetTeam tid -> embedClient $ team tid
   GetTeamName tid -> embedClient $ getTeamName tid
   GetTeamConversation tid cid -> embedClient $ teamConversation tid cid
@@ -171,6 +173,11 @@ listBillingTeamMembers tid =
   fmap runIdentity
     <$> retry x1 (query Cql.listBillingTeamMembers (params LocalQuorum (Identity tid)))
 
+listTeamAdmins :: TeamId -> Client [UserId]
+listTeamAdmins tid =
+  fmap runIdentity
+    <$> retry x1 (query Cql.listTeamAdmins (params LocalQuorum (Identity tid)))
+
 getTeamName :: TeamId -> Client (Maybe Text)
 getTeamName tid =
   fmap runIdentity
@@ -229,8 +236,12 @@ addTeamMember t m =
     when (m `hasPermission` SetBilling) $
       addPrepQuery Cql.insertBillingTeamMember (t, m ^. userId)
 
+    let role = permissionsRole (m ^. permissions)
+    when (role == Just RoleAdmin) $
+      addPrepQuery Cql.insertTeamAdmin (t, m ^. userId)
+
 updateTeamMember ::
-  -- | Old permissions, used for maintaining 'billing_team_member' table
+  -- | Old permissions, used for maintaining 'billing_team_member' and 'team_admin' tables
   Permissions ->
   TeamId ->
   UserId ->
@@ -243,15 +254,24 @@ updateTeamMember oldPerms tid uid newPerms = do
     setConsistency LocalQuorum
     addPrepQuery Cql.updatePermissions (newPerms, tid, uid)
 
+    -- update billing_team_member table
+    let permDiff = Set.difference `on` view self
+        acquiredPerms = newPerms `permDiff` oldPerms
+        lostPerms = oldPerms `permDiff` newPerms
+
     when (SetBilling `Set.member` acquiredPerms) $
       addPrepQuery Cql.insertBillingTeamMember (tid, uid)
-
     when (SetBilling `Set.member` lostPerms) $
       addPrepQuery Cql.deleteBillingTeamMember (tid, uid)
-  where
-    permDiff = Set.difference `on` view self
-    acquiredPerms = newPerms `permDiff` oldPerms
-    lostPerms = oldPerms `permDiff` newPerms
+
+    -- update team_admin table
+    let oldRole = permissionsRole oldPerms
+        newRole = permissionsRole newPerms
+
+    when (newRole == Just RoleAdmin && oldRole /= Just RoleAdmin) $
+      addPrepQuery Cql.insertTeamAdmin (tid, uid)
+    when (oldRole == Just RoleAdmin && newRole /= Just RoleAdmin) $
+      addPrepQuery Cql.deleteTeamAdmin (tid, uid)
 
 removeTeamMember :: TeamId -> UserId -> Client ()
 removeTeamMember t m =
@@ -261,6 +281,7 @@ removeTeamMember t m =
     addPrepQuery Cql.deleteTeamMember (t, m)
     addPrepQuery Cql.deleteUserTeam (m, t)
     addPrepQuery Cql.deleteBillingTeamMember (t, m)
+    addPrepQuery Cql.deleteTeamAdmin (t, m)
 
 team :: TeamId -> Client (Maybe TeamData)
 team tid =
