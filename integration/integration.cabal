@@ -101,6 +101,7 @@ library
     Test.AssetDownload
     Test.B2B
     Test.Brig
+    Test.Client
     Test.Conversation
     Test.Demo
     Test.MLS
