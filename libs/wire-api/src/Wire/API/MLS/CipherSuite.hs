@@ -72,7 +72,9 @@ instance ToSchema CipherSuite where
     named "CipherSuite" $
       cipherSuiteNumber .= fmap CipherSuite (unnamed schema)
 
-data CipherSuiteTag = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+data CipherSuiteTag
+  = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+  | MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519
   deriving stock (Bounded, Enum, Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform CipherSuiteTag)
 
@@ -106,13 +108,21 @@ cipherSuiteTag (CipherSuite n) = case n of
 -- | Inverse of 'cipherSuiteTag'
 tagCipherSuite :: CipherSuiteTag -> CipherSuite
 tagCipherSuite MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = CipherSuite 1
+tagCipherSuite MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = CipherSuite 0xf031
 
 csHash :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString
-csHash MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 ctx value =
-  convert . hashWith SHA256 . encodeMLS' $ RefHashInput ctx value
+csHash MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = sha256Hash
+csHash MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = sha256Hash
+
+sha256Hash :: ByteString -> RawMLS a -> ByteString
+sha256Hash ctx value = convert . hashWith SHA256 . encodeMLS' $ RefHashInput ctx value
 
 csVerifySignature :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString -> Bool
-csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 pub x sig =
+csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = ed25519VerifySignature
+csVerifySignature MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = ed25519VerifySignature
+
+ed25519VerifySignature :: ByteString -> RawMLS a -> ByteString -> Bool
+ed25519VerifySignature pub x sig =
   fromMaybe False . maybeCryptoError $ do
     pub' <- Ed25519.publicKey pub
     sig' <- Ed25519.signature sig
@@ -158,6 +168,7 @@ signWithLabel sigLabel priv pub x = BA.convert $ Ed25519.sign priv pub (encodeML
 
 csSignatureScheme :: CipherSuiteTag -> SignatureSchemeTag
 csSignatureScheme MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = Ed25519
+csSignatureScheme MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = Ed25519
 
 -- | A TLS signature scheme.
 --
