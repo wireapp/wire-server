@@ -2570,10 +2570,6 @@ testAddRemoteMember = do
             ]
         )
         $ postQualifiedMembers alice (remoteChad :| []) qconvId
-          -- TODO(md): this should likely be a 204 assertion (as Chad should not
-          -- be added to the conversation, hence no update). The empty response
-          -- of 204 should be changed to have a "failed_to_add" field and
-          -- probably "failed_to_send" too.
           <!! const 200 === statusCode
     EventWithUnreachables (Just e) ftp <- responseJsonError resp
     let chadMember = SimpleMember remoteChad roleNameWireAdmin
