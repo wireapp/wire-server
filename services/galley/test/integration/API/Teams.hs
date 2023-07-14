@@ -1576,7 +1576,6 @@ testUpdateTeamMember = do
     member' <- Util.getTeamMember owner tid (member ^. userId)
     liftIO $ assertEqual "permissions" (member' ^. permissions) (demoteMember ^. nPermissions)
     checkTeamMemberUpdateEvent tid (member ^. userId) wsOwner (pure noPermissions)
-    checkTeamMemberUpdateEvent tid (member ^. userId) wsMember (pure noPermissions)
     WS.assertNoEvent timeout [wsOwner, wsMember]
   assertTeamUpdate "Member demoted" tid 2 [owner]
   -- owner can promote non-owner
