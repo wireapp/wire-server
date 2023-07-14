@@ -537,6 +537,7 @@ type ConversationAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
+               :> CanThrow 'NonFederatingBackends
                :> CanThrow 'MissingLegalholdConsent
                :> ZLocalUser
                :> ZConn
@@ -561,6 +562,7 @@ type ConversationAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
+               :> CanThrow 'NonFederatingBackends
                :> CanThrow 'MissingLegalholdConsent
                :> ZLocalUser
                :> ZConn
@@ -588,6 +590,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'NonFederatingBackends
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -612,6 +615,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'NonFederatingBackends
                :> ZLocalUser
                :> ZConn
                :> "conversations"

@@ -78,16 +78,19 @@ import Control.Monad.State
 import Data.Code
 import Data.Id
 import Data.Json.Util
+import qualified Data.List.NonEmpty as NE
 import Data.List1
 import qualified Data.Map.Strict as Map
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
 import Data.Time
+import Debug.Trace (traceM)
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.API.Message
+import Galley.API.Query (getFederationStatus)
 import qualified Galley.API.Query as Query
 import Galley.API.Util
 import Galley.App
@@ -133,6 +136,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.FederationStatus (FederationStatus (..), RemoteDomains (RemoteDomains))
 import Wire.API.Message
 import Wire.API.Password (mkSafePassword)
 import Wire.API.Provider.Service (ServiceRef)
@@ -787,6 +791,7 @@ addMembers ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'NonFederatingBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -806,6 +811,12 @@ addMembers ::
   Sem r (UpdateResult EventWithUnreachables)
 addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
+  let remoteDomains = tDomain <$> snd (partitionQualified lusr $ NE.toList users)
+  traceM $ "addMembers: remoteDomains=" <> show remoteDomains
+  -- TODO: only in case of proteus?
+  getFederationStatus lusr (RemoteDomains $ Set.fromList remoteDomains) >>= \case
+    NotConnectedDomains _ _ -> throwS @'NonFederatingBackends
+    FullyConnected -> pure ()
   getUpdateResult . fmap toEventWithUnreachables $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
       ConversationJoin users role
@@ -865,6 +876,7 @@ addMembersUnqualified ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'NonFederatingBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -900,6 +912,7 @@ addMembersV2 ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'NonFederatingBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
