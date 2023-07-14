@@ -50,7 +50,6 @@ import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
-import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
 import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware
@@ -128,8 +127,8 @@ type GalleyEffects0 =
 type GalleyEffects = Append GalleyEffects1 GalleyEffects0
 
 -- Define some invariants for the options used
-validateOptions :: Logger -> Opts -> IO ()
-validateOptions l o = do
+validateOptions :: Opts -> IO ()
+validateOptions o = do
   let settings = view optSettings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
   when (settings ^. setMaxConvSize > fromIntegral optFanoutLimit) $
@@ -146,7 +145,7 @@ createEnv m o l = do
   cass <- initCassandra o l
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
-  validateOptions l o
+  validateOptions o
   Env def m o l mgr h2mgr (o ^. optFederator) (o ^. optBrig) cass
     <$> Q.new 16000
     <*> initExtEnv
