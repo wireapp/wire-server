@@ -1,0 +1,11 @@
+Added `shutdownGraceTime` as a config value for `background-worker`.
+
+This field sets the grace period that `background-worker` has to finish processing current
+messages before flushing and closing network connections. You will need to add this value to
+your `background-worker` configuration, like this:
+
+```
+background-worker:
+  config:
+    shutdownGraceTime: 30
+```

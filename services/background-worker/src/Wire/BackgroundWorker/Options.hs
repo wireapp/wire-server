@@ -5,6 +5,7 @@ import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended
 import Util.Options
+import Numeric.Natural
 
 data Opts = Opts
   { logLevel :: !Level,
@@ -12,7 +13,10 @@ data Opts = Opts
     backgroundWorker :: !Endpoint,
     federatorInternal :: !Endpoint,
     rabbitmq :: !RabbitMqAdminOpts,
-    backendNotificationPusher :: !BackendNotificationPusherOpts
+    backendNotificationPusher :: !BackendNotificationPusherOpts,
+    -- | Seconds. This should match the value that Kubernetes is
+    -- configured with. By default this is 30 seconds.
+    shutdownGraceTime :: !Natural
   }
   deriving (Show, Generic)
 

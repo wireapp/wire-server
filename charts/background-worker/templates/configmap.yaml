@@ -24,4 +24,5 @@ data:
 {{toYaml .rabbitmq | indent 6 }}
     backendNotificationPusher:
 {{toYaml .backendNotificationPusher | indent 6 }}
+    shutdownGraceTime: {{ .shutdownGraceTime }}
   {{- end }}

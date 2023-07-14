@@ -44,21 +44,21 @@ instance RabbitMQEnvelope Q.Envelope where
 
 pushNotification :: RabbitMQEnvelope e => MVar () -> Domain -> (Q.Message, e) -> AppT IO ()
 pushNotification runningFlag targetDomain (msg, envelope) = do
-  -- Jittered exponential backoff with 10ms as starting delay and 20s as maximum
-  -- cumulative delay. When 20s is cumulatively reached, the request will fail.
+  env <- ask
+  -- Jittered exponential backoff with 10ms as starting delay and 2/3rds of the grace timeout
+  -- as maximum cumulative delay. When the max delay is cumulatively reached, the request will fail.
   --
   -- FUTUREWORK: Pull these numbers into config.
-  -- FUTUREWORK: Is this futurework still needed given the new changes?
-  -- Limit retries to a max of 20 seconds, as this is what below what Kubernetes is going
-  -- to give us for a SIGTERM shutdown notice by default (30s). If we set the timeout
-  -- delay to 30s, that won't take into account actual processing time. Since we have a
-  -- hard time limit to clean up, giving ourselves some headroom is advisable.
-  -- If we take longer than 30s, kubernetes will SIGKILL the pod and there is nothing
-  -- we can do to stop that.
+  -- Limit retries to a max of 2/3rds of the kubernetes graceful shutdown time. If we set
+  -- the timeout to exactly match the grace periods, that won't take into account actual
+  -- processing time. Since we have a hard time limit to clean up, giving ourselves some
+  -- headroom is advisable. If we take longer than 30s, kubernetes will SIGKILL the pod
+  -- and there is nothing we can do to stop that.
   --
   -- If we fail to deliver the notification after policy, the notification will be NACKed,
   -- and will be redelivered by RabbitMQ for another attempt, most likely by the same pod.
-  let policy = limitRetriesByCumulativeDelay (20 * 1_000_000) $ fullJitterBackoff 10000
+  let delayUsablePercentage = 2/3 :: Float
+      policy = limitRetriesByCumulativeDelay (floor $ delayUsablePercentage * fromIntegral env.shutdownGraceTime * 1_000_000) $ fullJitterBackoff 10000
       logErrr willRetry (SomeException e) rs = do
         Log.err $
           Log.msg (Log.val "Exception occurred while pushing notification")

@@ -314,6 +314,7 @@ background-worker:
   config:
     backendNotificationPusher:
       remotesRefreshInterval: 1
+    shutdownGraceTime: 30
   secrets:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}

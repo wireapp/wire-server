@@ -21,6 +21,7 @@ import System.Logger.Class
 import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.BackgroundWorker.Options
+import Numeric.Natural
 
 type IsWorking = Bool
 
@@ -37,7 +38,9 @@ data Env = Env
     federatorInternal :: Endpoint,
     backendNotificationPusher :: BackendNotificationPusherOpts,
     backendNotificationMetrics :: BackendNotificationMetrics,
-    statuses :: IORef (Map Worker IsWorking)
+    statuses :: IORef (Map Worker IsWorking),
+    -- Seconds. The amount of time that kubernetes is going to give us to gracefully shutdown.
+    shutdownGraceTime :: Natural
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -61,6 +64,7 @@ mkEnv opts = do
   rabbitmqAdminClient <- mkRabbitMqAdminClientEnv opts.rabbitmq
   let rabbitmqVHost = opts.rabbitmq.vHost
       backendNotificationPusher = opts.backendNotificationPusher
+      shutdownGraceTime = opts.shutdownGraceTime
   statuses <- newIORef $ Map.singleton BackendNotificationPusher False
   metrics <- Metrics.metrics
   backendNotificationMetrics <- mkBackendNotificationMetrics
