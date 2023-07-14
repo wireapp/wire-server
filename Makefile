@@ -94,10 +94,6 @@ endif
 # TASTY_PATTERN=".."  make ci package=brig
 #
 # If you want to pass arguments to the test-suite call cabal-run-integration.sh directly.
-.PHONY: ci
-ci:
-	@echo -en "\n\n\nplease choose between goals ci-fast and ci-safe.\n\n\n"
-
 .PHONY: ci-fast
 ci-fast: c db-migrate
 ifeq ("$(package)", "all")
@@ -111,6 +107,10 @@ endif
 ci-safe:
 	make c package=all
 	make ci-fast
+
+.PHONY: ci
+ci:
+	@echo -en "\n\n\nplease choose between goals ci-fast and ci-safe.\n\n\n"
 
 # Compile and run services
 # Usage: make crun `OR` make crun package=galley
