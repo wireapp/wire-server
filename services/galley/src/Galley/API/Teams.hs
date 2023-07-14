@@ -759,9 +759,8 @@ uncheckedAddTeamMember ::
 uncheckedAddTeamMember tid nmem = do
   (TeamSize sizeBeforeJoin) <- E.getSize tid
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
+  (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem
   owners <- E.getBillingTeamMembers tid
-  admins <- E.getTeamAdmins tid
-  (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem admins
   Journal.teamUpdate tid (sizeBeforeAdd + 1) owners
 
 uncheckedUpdateTeamMember ::
