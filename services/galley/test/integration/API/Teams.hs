@@ -1351,7 +1351,6 @@ testUpdateTeam = do
   WS.bracketR2 c owner member $ \(wsOwner, wsMember) -> do
     doPut (encode u) 200
     checkTeamUpdateEvent tid u wsOwner
-    checkTeamUpdateEvent tid u wsMember
     WS.assertNoEvent timeout [wsOwner, wsMember]
   t <- Util.getTeam owner tid
   liftIO $ assertEqual "teamSplashScreen" (t ^. teamSplashScreen) (fromJust $ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
