@@ -34,6 +34,7 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Tuple.Extra
@@ -45,6 +46,9 @@ import Test.Tasty.HUnit
 import TestSetup
 import UnliftIO.Retry (limitRetries, recoverAll)
 import Web.Cookie
+import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Team
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member
@@ -243,3 +247,32 @@ getTeamMember' :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => Galley
 getTeamMember' g getter tid gettee = do
   r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' gettee] . zUser getter) <!! const 200 === statusCode
   responseJsonError r
+
+createTeamConv ::
+  UserId ->
+  TeamId ->
+  [UserId] ->
+  TestM ResponseLBS
+createTeamConv u tid us = do
+  g <- view tsGalley
+  let tinfo = ConvTeamInfo tid
+  let conv =
+        NewConv
+          us
+          []
+          ((Just "gossip") >>= checked)
+          mempty
+          (Just $ Set.fromList [TeamMemberAccessRole])
+          (Just tinfo)
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          ProtocolProteusTag
+  post
+    ( g
+        . path "/conversations"
+        . zUser u
+        . zConn "conn"
+        . zType "access"
+        . body (RequestBodyLBS $ encode conv)
+    )

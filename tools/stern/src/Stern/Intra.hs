@@ -108,7 +108,6 @@ import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Routes.Version
-import Wire.API.Routes.Versioned
 import Wire.API.Team
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
@@ -770,7 +769,7 @@ getUserConversations uid = do
                 . maybe id (queryItem "start" . toByteString') start
                 . expect2xx
             )
-      unVersioned @'V2 <$> parseResponse (mkError status502 "bad-upstream") r
+      parseResponse (mkError status502 "bad-upstream") r
     batchSize = 100 :: Int
 
 getUserClients :: UserId -> Handler [Client]
