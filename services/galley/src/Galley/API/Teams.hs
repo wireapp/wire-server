@@ -138,6 +138,7 @@ import Wire.API.Team.Conversation
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import Wire.API.Team.Member
+import qualified Wire.API.Team.Member as M
 import qualified Wire.API.Team.Member as Public
 import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, fullPermissions, self)
 import Wire.API.Team.Role
@@ -1236,13 +1237,18 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
   sizeBeforeAdd <- ensureNotTooLarge tid
-  E.createTeamMember tid new
+
   admins <- E.getTeamAdmins tid
+
+  let admins' = [new ^. userId | isAdminOrOwner (new ^. M.permissions)] <> admins
+
+  E.createTeamMember tid new
+
   now <- input
   let e = newEvent tid now (EdMemberJoin (new ^. userId))
   let rs = case origin of
-        Just o -> userRecipient <$> list1 o (filter (/= o) ((new ^. userId) : admins))
-        Nothing -> userRecipient <$> list1 (new ^. userId) (admins)
+        Just o -> userRecipient <$> list1 o (filter (/= o) ((new ^. userId) : admins'))
+        Nothing -> userRecipient <$> list1 (new ^. userId) (admins')
   E.push1 $
     newPushLocal1 ListComplete (new ^. userId) (TeamEvent e) rs & pushConn .~ originConn
   APITeamQueue.pushTeamEvent tid e
