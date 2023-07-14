@@ -36,7 +36,6 @@ import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy (fromStrict)
 import qualified Data.Code as Code
 import Data.Csv (FromNamedRecord (..), decodeByName)
 import qualified Data.Currency as Currency
@@ -60,15 +59,13 @@ import qualified Data.UUID.V1 as UUID
 import qualified Data.Vector as V
 import GHC.TypeLits (KnownSymbol)
 import qualified Galley.Env as Galley
-import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
+import Galley.Options (optSettings, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types.Status (status403)
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Error as Wai
-import qualified Proto.TeamEvents as E
-import qualified Proto.TeamEvents_Fields as E
 import qualified SAML2.WebSSO.Types as SAML
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -158,7 +155,6 @@ tests s =
       test s "update team status" testUpdateTeamStatus,
       test s "team tests around truncation limits - no events, too large team" testTeamAddRemoveMemberAboveThresholdNoEvents,
       test s "send billing events to owners even in large teams" testBillingInLargeTeam,
-      test s "send billing events to some owners in large teams (indexedBillingTeamMembers disabled)" testBillingInLargeTeamWithoutIndexedBillingTeamMembers,
       testGroup "broadcast" $
         [ (BroadcastLegacyBody, BroadcastJSON),
           (BroadcastLegacyQueryParams, BroadcastJSON),
@@ -1553,119 +1549,6 @@ testBillingInLargeTeam = do
   Util.deleteTeamMember galley team firstOwner ownerFanoutPlusThree
   assertTeamUpdate ("delete fanoutLimit + 3rd billing member: " <> show ownerFanoutPlusThree) team (fanoutLimit + 2) (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusTwo])
   refreshIndex
-
-testBillingInLargeTeamWithoutIndexedBillingTeamMembers :: TestM ()
-testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
-  (firstOwner, team) <- Util.createBindingTeam
-  refreshIndex
-  opts <- view tsGConf
-  galley <- viewGalley
-  let withoutIndexedBillingTeamMembers =
-        withSettingsOverrides (\o -> o & optSettings . setEnableIndexedBillingTeamMembers ?~ False)
-  let fanoutLimit = fromRange $ Galley.currentFanoutLimit opts
-
-  -- Billing should work properly upto fanout limit
-  billingUsers <- mapM (\n -> (n,) <$> randomUser) [2 .. (fanoutLimit + 1)]
-  allOwnersBeforeFanoutLimit <-
-    withoutIndexedBillingTeamMembers $
-      foldM
-        ( \billingMembers (n, newBillingMemberId) -> do
-            let mem = json $ Member.mkNewTeamMember newBillingMemberId (rolePermissions RoleOwner) Nothing
-            -- We cannot add the new owner with an invite as we don't have a way
-            -- to override galley settings while making a call to brig, so we use
-            -- the internal API here.
-            post (galley . paths ["i", "teams", toByteString' team, "members"] . mem)
-              !!! const 200
-                === statusCode
-            let allBillingMembers = newBillingMemberId : billingMembers
-            -- We don't make a call to brig to add member, this prevents new
-            -- members from being indexed. Hence the count of team is always 2
-            assertTeamUpdate ("add " <> show n <> "th billing member: " <> show newBillingMemberId) team 2 allBillingMembers
-            pure allBillingMembers
-        )
-        [firstOwner]
-        billingUsers
-  refreshIndex
-
-  -- If we add another owner, one of them won't get notified
-  ownerFanoutPlusTwo <- randomUser
-  let memFanoutPlusTwo = json $ Member.mkNewTeamMember ownerFanoutPlusTwo (rolePermissions RoleOwner) Nothing
-  -- We cannot add the new owner with an invite as we don't have a way to
-  -- override galley settings while making a call to brig, so we use the
-  -- internal API here.
-  withoutIndexedBillingTeamMembers $ do
-    g <- viewGalley
-    post (g . paths ["i", "teams", toByteString' team, "members"] . memFanoutPlusTwo)
-      !!! const 200
-        === statusCode
-  assertIfWatcher ("add " <> show (fanoutLimit + 2) <> "th billing member: " <> show ownerFanoutPlusTwo) (updateMatcher team) $
-    \s maybeEvent ->
-      liftIO $ case maybeEvent of
-        Nothing -> assertFailure "Expected 1 TeamUpdate, got nothing"
-        Just event -> do
-          assertEqual (s <> ": eventType") E.TeamEvent'TEAM_UPDATE (event ^. E.eventType)
-          assertEqual (s <> ": count") 2 (event ^. E.eventData . E.memberCount)
-          let reportedBillingUserIds = mapMaybe (UUID.fromByteString . fromStrict) (event ^. E.eventData . E.billingUser)
-          assertEqual (s <> ": number of billing users") (fromIntegral fanoutLimit + 1) (length reportedBillingUserIds)
-  refreshIndex
-
-  -- While members are added with indexedBillingTeamMembers disabled, new owners must still be
-  -- indexed, just not used. When the feature is enabled, we should be able to send billing to
-  -- all the owners
-  ownerFanoutPlusThree <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
-  assertTeamUpdate
-    ("add fanoutLimit + 3rd billing member: " <> show ownerFanoutPlusThree)
-    team
-    2
-    (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusTwo, ownerFanoutPlusThree])
-  refreshIndex
-
-  -- Deletions with indexedBillingTeamMembers disabled should still remove owners from the
-  -- indexed table
-  withoutIndexedBillingTeamMembers $ Util.deleteTeamMember galley team firstOwner ownerFanoutPlusTwo
-  Util.waitForMemberDeletion firstOwner team ownerFanoutPlusTwo
-  assertTeamUpdate "delete 1 owner" team 1 (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusThree])
-
-  ownerFanoutPlusFour <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
-  assertTeamUpdate
-    ("add billing member to test deletion: " <> show ownerFanoutPlusFour)
-    team
-    3
-    (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusThree, ownerFanoutPlusFour])
-  refreshIndex
-
-  -- Promotions and demotion should also be kept track of regardless of feature being enabled
-  let demoteFanoutPlusThree = Member.mkNewTeamMember ownerFanoutPlusThree (rolePermissions RoleAdmin) Nothing
-  withoutIndexedBillingTeamMembers $ updateTeamMember galley team firstOwner demoteFanoutPlusThree !!! const 200 === statusCode
-  assertTeamUpdate "demote 1 user" team 3 (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusFour])
-
-  ownerFanoutPlusFive <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
-  assertTeamUpdate
-    ("add billing member to test demotion: " <> show ownerFanoutPlusFive)
-    team
-    4
-    (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusFour, ownerFanoutPlusFive])
-  refreshIndex
-
-  let promoteFanoutPlusThree = Member.mkNewTeamMember ownerFanoutPlusThree (rolePermissions RoleOwner) Nothing
-  withoutIndexedBillingTeamMembers $ updateTeamMember galley team firstOwner promoteFanoutPlusThree !!! const 200 === statusCode
-  assertTeamUpdate "demote 1 user" team 4 (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusThree, ownerFanoutPlusFour, ownerFanoutPlusFive])
-
-  ownerFanoutPlusSix <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
-  assertTeamUpdate
-    ("add billing member to test promotion: " <> show ownerFanoutPlusSix)
-    team
-    5
-    (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusThree, ownerFanoutPlusFour, ownerFanoutPlusFive, ownerFanoutPlusSix])
-  where
-    updateTeamMember g tid zusr change =
-      put
-        ( g
-            . paths ["teams", toByteString' tid, "members"]
-            . zUser zusr
-            . zConn "conn"
-            . json change
-        )
 
 -- | @SF.Management @TSFI.RESTfulAPI @S2
 -- This test covers:

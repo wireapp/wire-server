@@ -135,7 +135,6 @@ validateOptions l o = do
   when
     ( isJust (o ^. optJournal)
         && settings ^. setMaxTeamSize > optFanoutLimit
-        && not (settings ^. setEnableIndexedBillingTeamMembers . to (fromMaybe False))
     )
     $ Logger.warn
       l
