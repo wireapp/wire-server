@@ -735,8 +735,7 @@ addTeamMember lzusr zcon tid nmem = do
   ensureConnectedToLocals zusr [uid]
   (TeamSize sizeBeforeJoin) <- E.getSize tid
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
-  admins <- E.getTeamAdmins tid
-  void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem admins
+  void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMember ::
@@ -1231,25 +1230,23 @@ addTeamMemberInternal ::
   Maybe UserId ->
   Maybe ConnId ->
   NewTeamMember ->
-  [UserId] ->
   Sem r TeamSize
-addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) admins = do
+addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
   P.debug $
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
   sizeBeforeAdd <- ensureNotTooLarge tid
   E.createTeamMember tid new
+  admins <- E.getTeamAdmins tid
   now <- input
   let e = newEvent tid now (EdMemberJoin (new ^. userId))
+  let rs = case origin of
+        Just o -> userRecipient <$> list1 o (filter (/= o) ((new ^. userId) : admins))
+        Nothing -> userRecipient <$> list1 (new ^. userId) (admins)
   E.push1 $
-    newPushLocal1 ListComplete (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
+    newPushLocal1 ListComplete (new ^. userId) (TeamEvent e) rs & pushConn .~ originConn
   APITeamQueue.pushTeamEvent tid e
   pure sizeBeforeAdd
-  where
-    recipients (Just o) n =
-      userRecipient <$> list1 o (filter (/= o) ((n ^. userId) : admins))
-    recipients Nothing n =
-      userRecipient <$> list1 (n ^. userId) (admins)
 
 finishCreateTeam ::
   ( Member GundeckAccess r,
