@@ -83,6 +83,7 @@ import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
 import qualified Data.Map as Map
+import Wire.API.Routes.Versioned
 import Data.Qualified (qUnqualified)
 import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -769,7 +770,7 @@ getUserConversations uid = do
                 . maybe id (queryItem "start" . toByteString') start
                 . expect2xx
             )
-      parseResponse (mkError status502 "bad-upstream") r
+      unVersioned @'V2 <$> parseResponse (mkError status502 "bad-upstream") r
     batchSize = 100 :: Int
 
 getUserClients :: UserId -> Handler [Client]

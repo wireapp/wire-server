@@ -139,6 +139,7 @@ testGetUserMetaInfo :: TestM ()
 testGetUserMetaInfo = do
   (uid, tid, member : _) <- createTeamWithNMembers 2
   _ <- Util.createTeamConv uid tid [member]
+  void $ addClient uid
   let k = fromMaybe (error "invalid property key") $ fromByteString "WIRE_RECEIPT_MODE"
   putUserProperty uid k "bar"
   -- Just make sure this returns a 200

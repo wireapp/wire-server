@@ -55,6 +55,8 @@ import Wire.API.Team.Member
 import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Role
 import Wire.API.User
+import qualified Wire.API.User.Client as C
+import Wire.API.User.Client.Prekey (lastPrekey)
 
 eventually :: (MonadIO m, MonadMask m, MonadUnliftIO m) => m a -> m a
 eventually = recoverAll (limitRetries 7 <> exponentialBackoff 50000) . const
@@ -276,3 +278,16 @@ createTeamConv u tid us = do
         . zType "access"
         . body (RequestBodyLBS $ encode conv)
     )
+
+addClient :: UserId -> TestM ()
+addClient uid = do
+  let someLastPrekey = lastPrekey "pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
+  brig <- view tsBrig
+  post
+    ( brig
+        . paths ["i", "clients", toByteString' uid]
+        . contentJson
+        . body (RequestBodyLBS $ encode (C.newClient C.PermanentClientType someLastPrekey))
+        . queryItem "skip_reauth" "true"
+    )
+    !!! const 201 === statusCode
