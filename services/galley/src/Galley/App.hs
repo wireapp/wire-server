@@ -132,19 +132,6 @@ validateOptions :: Logger -> Opts -> IO ()
 validateOptions l o = do
   let settings = view optSettings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
-  when
-    ( isJust (o ^. optJournal)
-        && settings ^. setMaxTeamSize > optFanoutLimit
-    )
-    $ Logger.warn
-      l
-      ( msg
-          . val
-          $ "You're journaling events for teams larger than "
-            <> toByteString' optFanoutLimit
-            <> " may have some admin user ids missing. \
-               \ This is fine for testing purposes but NOT for production use!!"
-      )
   when (settings ^. setMaxConvSize > fromIntegral optFanoutLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings ^. setMaxTeamSize < optFanoutLimit) $
