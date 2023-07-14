@@ -189,7 +189,7 @@ testAddMembersProteus = do
     members <- for [u2, u3] (%. "qualified_id")
     bindResponse (API.addMembers u1 cid members) $ \resp -> do
       resp.status `shouldMatchInt` 200
-      users <- resp.json %. "data.users" >>= asList
+      users <- resp.json %. "event.data.users" >>= asList
       addedUsers <- forM users (%. "qualified_id")
       addedUsers `shouldMatchSet` members
 
