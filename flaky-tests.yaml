@@ -39,18 +39,6 @@
       Use -p '(!/turn/&&!/user.auth.cookies.limit/)&&/max active tokens/' to rerun this test only.
 
 -
-  test_name: "send billing events to some owners in large teams (indexedBillingTeamMembers disabled)"
-  comments: |
-    Error message: create team: Expected 1 TeamActivate, got nothing
-
-    CallStack (from HasCallStack):
-      assertFailure, called at test/integration/API/SQS.hs:74:32 in main:API.SQS
-      tActivate, called at test/integration/API/SQS.hs:78:47 in main:API.SQS
-      assertTeamActivate, called at test/integration/API/Util.hs:191:3 in main:API.Util
-      createBindingTeam', called at test/integration/API/Util.hs:183:20 in main:API.Util
-      createBindingTeam, called at test/integration/API/Teams.hs:1546:25 in main:API.Teams
-
--
   test_name: "delete team conversation"
   comments: |
     Exception: unexpected notification received
