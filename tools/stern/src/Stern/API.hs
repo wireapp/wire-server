@@ -395,13 +395,13 @@ getConsentLog e = do
     <$> Intra.getEmailConsentLog e
     <*> Intra.getMarketoResult e
 
-getUserData :: UserId -> Handler UserMetaInfo
-getUserData uid = do
+getUserData :: UserId -> Maybe Int -> Maybe Int -> Handler UserMetaInfo
+getUserData uid mMaxConvs mMaxNotifs = do
   account <- Intra.getUserProfiles (Left [uid]) >>= noSuchUser . listToMaybe
   conns <- Intra.getUserConnections uid
-  convs <- Intra.getUserConversations uid <&> take 1
+  convs <- Intra.getUserConversations uid <&> take (fromMaybe 1 mMaxConvs)
   clts <- Intra.getUserClients uid
-  notfs <- (Intra.getUserNotifications uid <&> take 10 <&> toJSON @[QueuedNotification]) `catchE` (pure . String . cs . show)
+  notfs <- (Intra.getUserNotifications uid <&> take (fromMaybe 10 mMaxNotifs) <&> toJSON @[QueuedNotification]) `catchE` (pure . String . cs . show)
   consent <- (Intra.getUserConsentValue uid <&> toJSON @ConsentValue) `catchE` (pure . String . cs . show)
   consentLog <- (Intra.getUserConsentLog uid <&> toJSON @ConsentLog) `catchE` (pure . String . cs . show)
   cookies <- Intra.getUserCookies uid
