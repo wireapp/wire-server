@@ -23,7 +23,8 @@ import Test.QuickCheck
 import Wire.Arbitrary
 
 -- | This is equivalent to '()', but JSONifies to an empty object instead of an
--- empty array.
+-- empty array. Returning an empty object gives us more flexibility, allowing
+-- us to expand the response without breaking compatibility.
 data EmptyResponse = EmptyResponse
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EmptyResponse)

@@ -9,25 +9,6 @@ the Wire backend services.
 
 ## Settings in galley
 
-```
-# [galley.yaml]
-settings:
-  enableIndexedBillingTeamMembers: false
-```
-
-### Indexed Billing Team Members
-
-Use indexed billing team members for journaling. When `enabled`,
-galley would use the `billing_team_member` table to send billing
-events with user ids of team owners (who have the `SetBilling`
-permission). Before enabling this flag, the `billing_team_member`
-table must be backfilled.
-
-Even when the flag is `disabled`, galley will keep writing to the
-`biling_team_member` table, this flag only affects the reads and has
-been added in order to deploy new code and backfill data in
-production.
-
 ### MLS private key paths
 
 Note: This developer documentation. Documentation for site operators can be found here: {ref}`mls-message-layer-security`

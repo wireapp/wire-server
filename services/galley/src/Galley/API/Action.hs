@@ -58,11 +58,10 @@ import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.MLS.Removal
 import Galley.API.Util
-import Galley.App
 import Galley.Data.Conversation
 import qualified Galley.Data.Conversation as Data
+import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Data.Services
-import Galley.Data.Types
 import Galley.Effects
 import qualified Galley.Effects.BotAccess as E
 import qualified Galley.Effects.BrigAccess as E
@@ -74,6 +73,7 @@ import Galley.Effects.GundeckAccess
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.ProposalStore
 import qualified Galley.Effects.TeamStore as E
+import Galley.Env (Env)
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
@@ -984,7 +984,7 @@ notifyTypingIndicator conv qusr mcon ts = do
   pushTypingIndicatorEvents qusr now (fmap lmId (Data.convLocalMembers conv)) mcon (tUntagged lconv) ts
 
   let (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)
-  let tdu users =
+      tdu users =
         TypingDataUpdated
           { tudTime = now,
             tudOrigUserId = qusr,

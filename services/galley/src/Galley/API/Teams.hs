@@ -279,9 +279,7 @@ updateTeamStatus ::
   ( Member BrigAccess r,
     Member (ErrorS 'InvalidTeamStatusUpdate) r,
     Member (ErrorS 'TeamNotFound) r,
-    Member (Input Opts) r,
     Member (Input UTCTime) r,
-    Member P.TinyLog r,
     Member TeamStore r
   ) =>
   TeamId ->
@@ -767,7 +765,7 @@ uncheckedAddTeamMember tid nmem = do
   (TeamSize sizeBeforeJoin) <- E.getSize tid
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
-  billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList (ntmNewTeamMember nmem : mems ^. teamMembers) (mems ^. teamMemberListType)
+  billingUserIds <- E.getBillingTeamMembers tid
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
 uncheckedUpdateTeamMember ::
@@ -776,7 +774,6 @@ uncheckedUpdateTeamMember ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member GundeckAccess r,
-    Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member P.TinyLog r,
     Member TeamStore r
@@ -804,15 +801,15 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
   E.setTeamMemberPermissions (previousMember ^. permissions) tid targetId targetPermissions
 
   updatedMembers <- getTeamMembersForFanout tid
-  updateJournal team updatedMembers
+  updateJournal team
   updatePeers mZusr targetId targetMember targetPermissions updatedMembers
   where
-    updateJournal :: Team -> TeamMemberList -> Sem r ()
-    updateJournal team mems = do
+    updateJournal :: Team -> Sem r ()
+    updateJournal team = do
       when (team ^. teamBinding == Binding) $ do
         (TeamSize size) <- E.getSize tid
-        billingUserIds <- Journal.getBillingUserIds tid $ Just mems
-        Journal.teamUpdate tid size billingUserIds
+        owners <- E.getBillingTeamMembers tid
+        Journal.teamUpdate tid size owners
 
     updatePeers :: Maybe UserId -> UserId -> TeamMember -> Permissions -> TeamMemberList -> Sem r ()
     updatePeers zusr targetId targetMember targetPermissions updatedMembers = do
@@ -838,7 +835,6 @@ updateTeamMember ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member GundeckAccess r,
-    Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member P.TinyLog r,
     Member TeamStore r
@@ -892,7 +888,6 @@ deleteTeamMember ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
-    Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member GundeckAccess r,
     Member MemberStore r,
@@ -918,7 +913,6 @@ deleteNonBindingTeamMember ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
-    Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member GundeckAccess r,
     Member MemberStore r,
@@ -944,7 +938,6 @@ deleteTeamMember' ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
-    Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member GundeckAccess r,
     Member MemberStore r,
@@ -983,8 +976,8 @@ deleteTeamMember' lusr zcon tid remove mBody = do
               then 0
               else sizeBeforeDelete - 1
       E.deleteUser remove
-      billingUsers <- Journal.getBillingUserIds tid (Just mems)
-      Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) billingUsers
+      owners <- E.getBillingTeamMembers tid
+      Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) owners
       pure TeamMemberDeleteAccepted
     else do
       uncheckedDeleteTeamMember lusr (Just zcon) tid remove mems
