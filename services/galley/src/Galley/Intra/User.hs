@@ -235,7 +235,7 @@ getRichInfoMultiUser = chunkify $ \uids -> do
         . paths ["/i/users/rich-info"]
         . queryItem "ids" (toByteString' (List uids))
         . expect2xx
-  parseResponse (mkError status502 "server-error") resp
+  parseResponse (mkError status502 "server-error: could not parse response to `GET brig:/i/users/rich-info`") resp
 
 getAccountConferenceCallingConfigClient :: HasCallStack => UserId -> App (WithStatusNoLock ConferenceCallingConfig)
 getAccountConferenceCallingConfigClient uid =
