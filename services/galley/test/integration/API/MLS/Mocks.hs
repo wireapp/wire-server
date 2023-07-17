@@ -45,8 +45,7 @@ import Wire.API.User.Client
 receiveCommitMock :: [ClientIdentity] -> Mock LByteString
 receiveCommitMock clients =
   asum
-    [ "on-conversation-updated" ~> (),
-      "on-new-remote-conversation" ~> EmptyResponse,
+    [ "on-new-remote-conversation" ~> EmptyResponse,
       "get-mls-clients" ~>
         Set.fromList
           ( map (flip ClientInfo True . ciClient) clients
