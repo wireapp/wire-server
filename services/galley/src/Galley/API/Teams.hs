@@ -704,6 +704,7 @@ addTeamMember ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TooManyTeamMembers) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'UserBindingExists) r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (Input Opts) r,
@@ -744,6 +745,7 @@ uncheckedAddTeamMember ::
   ( Member BrigAccess r,
     Member GundeckAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -1220,6 +1222,7 @@ ensureNotTooLargeForLegalHold tid teamSize =
 addTeamMemberInternal ::
   ( Member BrigAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member GundeckAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -1239,8 +1242,9 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
   sizeBeforeAdd <- ensureNotTooLarge tid
 
   admins <- E.getTeamAdmins tid
-
   let admins' = [new ^. userId | isAdminOrOwner (new ^. M.permissions)] <> admins
+  when (length admins' > 2000) $
+    throwS @'TooManyTeamAdmins
 
   E.createTeamMember tid new
 
