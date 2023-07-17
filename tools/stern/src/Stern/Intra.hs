@@ -856,7 +856,7 @@ getUserNotifications uid = do
         200 -> parseResponse (mkError status502 "bad-upstream") r
         404 -> parseResponse (mkError status502 "bad-upstream") r
         _ -> throwE (mkError status502 "bad-upstream" "")
-    batchSize = 50 :: Int
+    batchSize = 100 :: Int
 
 registerOAuthClient :: OAuthClientConfig -> Handler OAuthClientCredentials
 registerOAuthClient conf = do
