@@ -287,7 +287,7 @@ updateConversationAccess ::
   Sem r (UpdateResult Event)
 updateConversationAccess lusr con qcnv update = do
   lcnv <- ensureLocal lusr qcnv
-  getUpdateResult . fmap (lcuEvent . fst) $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged lusr) (Just con) update
 
 updateConversationAccessUnqualified ::
@@ -299,7 +299,7 @@ updateConversationAccessUnqualified ::
   ConversationAccessData ->
   Sem r (UpdateResult Event)
 updateConversationAccessUnqualified lusr con cnv update =
-  getUpdateResult . fmap (lcuEvent . fst) $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationAccessDataTag
       (qualifyAs lusr cnv)
       (tUntagged lusr)
@@ -330,7 +330,7 @@ updateConversationReceiptMode lusr zcon qcnv update =
   foldQualified
     lusr
     ( \lcnv ->
-        getUpdateResult . fmap (lcuEvent . fst) $
+        getUpdateResult . fmap lcuEvent $
           updateLocalConversation
             @'ConversationReceiptModeUpdateTag
             lcnv
@@ -416,7 +416,7 @@ updateConversationMessageTimer lusr zcon qcnv update =
     foldQualified
       lusr
       ( \lcnv ->
-          lcuEvent . fst
+          lcuEvent
             <$> updateLocalConversation
               @'ConversationMessageTimerUpdateTag
               lcnv
@@ -466,7 +466,7 @@ deleteLocalConversation ::
   Local ConvId ->
   Sem r (UpdateResult Event)
 deleteLocalConversation lusr con lcnv =
-  getUpdateResult . fmap (lcuEvent . fst) $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationDeleteTag lcnv (tUntagged lusr) (Just con) ()
 
 getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
@@ -758,7 +758,7 @@ joinConversation lusr zcon conv access = do
     let users = filter (notIsConvMember lusr conv) [tUnqualified lusr]
     (extraTargets, action) <-
       addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
-    lcuEvent . fst
+    lcuEvent
       <$> notifyConversationAction
         (sing @'ConversationJoinTag)
         (tUntagged lusr)
@@ -771,7 +771,6 @@ joinConversation lusr zcon conv access = do
 addMembers ::
   ( Member BrigAccess r,
     Member ConversationStore r,
-    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
     Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
@@ -782,6 +781,7 @@ addMembers ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -801,7 +801,7 @@ addMembers ::
   Sem r (UpdateResult Event)
 addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
-  getUpdateResult . fmap (lcuEvent . fst) $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
       ConversationJoin users role
 
@@ -838,7 +838,7 @@ addMembersUnqualifiedV2 ::
   Sem r (UpdateResult Event)
 addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role) = do
   let lcnv = qualifyAs lusr cnv
-  getUpdateResult . fmap (lcuEvent . fst) $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
       ConversationJoin users role
 
@@ -962,7 +962,7 @@ updateOtherMemberLocalConv ::
   Qualified UserId ->
   OtherMemberUpdate ->
   Sem r ()
-updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult . fmap (lcuEvent . fst) $ do
+updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult . fmap lcuEvent $ do
   when (tUntagged lusr == qvictim) $
     throwS @'InvalidTarget
   updateLocalConversation @'ConversationMemberUpdateTag lcnv (tUntagged lusr) (Just con) $
@@ -1146,12 +1146,12 @@ removeMemberFromLocalConv ::
   Sem r (Maybe Event)
 removeMemberFromLocalConv lcnv lusr con victim
   | tUntagged lusr == victim =
-      fmap (fmap lcuEvent . hush . fmap fst)
+      fmap (fmap lcuEvent . hush)
         . runError @NoChanges
         . updateLocalConversation @'ConversationLeaveTag lcnv (tUntagged lusr) con
         $ ()
   | otherwise =
-      fmap (fmap lcuEvent . hush . fmap fst)
+      fmap (fmap lcuEvent . hush)
         . runError @NoChanges
         . updateLocalConversation @'ConversationRemoveMembersTag lcnv (tUntagged lusr) con
         . pure
@@ -1381,7 +1381,7 @@ updateLocalConversationName ::
   ConversationRename ->
   Sem r (UpdateResult Event)
 updateLocalConversationName lusr zcon lcnv rename =
-  getUpdateResult . fmap (lcuEvent . fst) $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationRenameTag lcnv (tUntagged lusr) (Just zcon) rename
 
 memberTyping ::
