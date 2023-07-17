@@ -863,6 +863,7 @@ CREATE TABLE brig_test.connection_remote (
     AND min_index_interval = 128
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
+CREATE INDEX connection_remote_right_domain_idx ON brig_test.connection_remote (right_domain);
 
 CREATE TABLE brig_test.users_pending_activation (
     user uuid PRIMARY KEY,
@@ -1287,6 +1288,7 @@ CREATE TABLE galley_test.user_remote_conv (
     AND min_index_interval = 128
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
+CREATE INDEX user_remote_conv_conv_remote_domain_idx ON galley_test.user_remote_conv (conv_remote_domain);
 
 CREATE TABLE galley_test.legalhold_whitelisted (
     team uuid PRIMARY KEY
@@ -1326,6 +1328,7 @@ CREATE TABLE galley_test.member_remote_user (
     AND min_index_interval = 128
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
+CREATE INDEX member_remote_user_user_remote_domain_idx ON galley_test.member_remote_user (user_remote_domain);
 
 CREATE TABLE galley_test.team_member (
     team uuid,

@@ -56,7 +56,7 @@ import Wire.API.Provider.Service
 -- When the role is not specified, it defaults to admin.
 -- Please make sure the conversation doesn't exceed the maximum size!
 addMembers ::
-  ToUserRole a =>
+  (ToUserRole a) =>
   ConvId ->
   UserList a ->
   Client ([LocalMember], [RemoteMember])
@@ -198,6 +198,16 @@ lookupRemoteMembers conv = do
         { rmId = toRemoteUnsafe domain usr,
           rmConvRoleName = role
         }
+
+lookupRemoteMembersByDomain :: Domain -> Client [(ConvId, RemoteMember)]
+lookupRemoteMembersByDomain dom = do
+  fmap (fmap mkConvMem) . retry x1 $ query Cql.selectRemoteMembersByDomain (params LocalQuorum (Identity dom))
+  where
+    mkConvMem (convId, usr, role) = (convId, RemoteMember (toRemoteUnsafe dom usr) role)
+
+lookupLocalMembersByDomain :: Domain -> Client [(ConvId, UserId)]
+lookupLocalMembersByDomain dom = do
+  retry x1 $ query Cql.selectLocalMembersByDomain (params LocalQuorum (Identity dom))
 
 member ::
   ConvId ->
@@ -390,3 +400,5 @@ interpretMemberStoreToCassandra = interpret $ \case
   AddMLSClients lcnv quid cs -> embedClient $ addMLSClients lcnv quid cs
   RemoveMLSClients lcnv quid cs -> embedClient $ removeMLSClients lcnv quid cs
   LookupMLSClients lcnv -> embedClient $ lookupMLSClients lcnv
+  GetRemoteMembersByDomain dom -> embedClient $ lookupRemoteMembersByDomain dom
+  GetLocalMembersByDomain dom -> embedClient $ lookupLocalMembersByDomain dom

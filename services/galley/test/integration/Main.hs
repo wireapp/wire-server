@@ -34,6 +34,7 @@ import Data.Tagged
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
+import Federation
 import Galley.API (sitemap)
 import qualified Galley.Aws as Aws
 import Galley.Options
@@ -47,6 +48,7 @@ import qualified System.Logger.Class as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.Options
+import TestHelpers (test)
 import TestSetup
 import Util.Options
 import Util.Options.Common
@@ -93,7 +95,15 @@ main = withOpenSSL $ runTests go
               "inconsistent sitemap"
               mempty
               (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.sitemap),
-          API.tests setup
+          API.tests setup,
+          testGroup
+            "Federation Domains"
+            [ test setup "No-Op" updateFedDomainsTestNoop',
+              test setup "Add Remote" updateFedDomainsTestAddRemote',
+              test setup "Remove Remote From Local" updateFedDomainsTestRemoveRemoteFromLocal',
+              test setup "Remove Local From Remote" updateFedDomainsTestRemoveLocalFromRemote'
+            ],
+          test setup "isConvMemberL" isConvMemberLTests
         ]
     getOpts gFile iFile = do
       m <- newManager tlsManagerSettings {managerResponseTimeout = responseTimeoutMicro 300000000}
