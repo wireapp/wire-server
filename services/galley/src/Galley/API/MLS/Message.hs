@@ -371,6 +371,7 @@ postMLSMessageToLocalConv ::
   Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
 postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr msg.groupId ctype convOrSubId
+  let convOrSub = tUnqualified lConvOrSub
 
   for_ msg.sender $ \sender ->
     void $ getSenderIdentity qusr c sender lConvOrSub
@@ -380,11 +381,22 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
     IncomingMessageContentPublic pub -> case pub.content of
       FramedContentCommit _commit -> throwS @'MLSUnsupportedMessage
       FramedContentApplicationData _ -> throwS @'MLSUnsupportedMessage
+      -- proposal message
       FramedContentProposal prop ->
         processProposal qusr lConvOrSub msg.groupId msg.epoch pub prop
     IncomingMessageContentPrivate -> do
-      when ((tUnqualified lConvOrSub).migrationState == MLSMigrationMixed) $
+      -- application message:
+
+      -- reject all application messages if the conv is in mixed state
+      when (convOrSub.migrationState == MLSMigrationMixed) $
         throwS @'MLSUnsupportedMessage
+
+      -- reject application messages older than 2 epochs
+      when
+        ( msg.epoch.epochNumber
+            < convOrSub.mlsMeta.cnvmlsEpoch.epochNumber - 2
+        )
+        $ throwS @'MLSStaleMessage
 
   unreachables <- propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
   pure ([], unreachables)
