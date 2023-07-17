@@ -525,6 +525,7 @@ executable galley-migrate-data
     Paths_galley
     V1_BackfillBillingTeamMembers
     V2_MigrateMLSMembers
+    V3_BackfillTeamAdmins
 
   hs-source-dirs:     migrate-data/src
   default-extensions:
@@ -583,6 +584,7 @@ executable galley-migrate-data
     , exceptions
     , extended
     , galley
+    , galley-types
     , imports
     , lens
     , optparse-applicative
@@ -667,6 +669,7 @@ executable galley-schema
     V80_AddConversationCodePassword
     V81_TeamFeatureMlsE2EIdUpdate
     V82_RemoteDomainIndexes
+    V83_CreateTableTeamAdmin
 
   hs-source-dirs:     schema/src
   default-extensions:
