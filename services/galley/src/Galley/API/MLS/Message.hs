@@ -392,10 +392,10 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
         throwS @'MLSUnsupportedMessage
 
       -- reject application messages older than 2 epochs
+      let epochInt :: Epoch -> Integer
+          epochInt = fromIntegral . epochNumber
       when
-        ( msg.epoch.epochNumber
-            < convOrSub.mlsMeta.cnvmlsEpoch.epochNumber - 2
-        )
+        (epochInt msg.epoch < epochInt convOrSub.mlsMeta.cnvmlsEpoch - 2)
         $ throwS @'MLSStaleMessage
 
   unreachables <- propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
