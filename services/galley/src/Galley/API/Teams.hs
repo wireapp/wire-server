@@ -335,7 +335,7 @@ updateTeamH zusr zcon tid updateData = do
   admins <- E.getTeamAdmins tid
   let e = newEvent tid now (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (map userRecipient (filter (/= zusr) admins))
-  E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) r & pushConn ?~ zcon
+  E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) r & pushConn ?~ zcon & pushTransient .~ True
 
 deleteTeam ::
   forall r.
@@ -805,7 +805,7 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
   now <- input
   let event = newEvent tid now (EdMemberUpdate targetId (Just targetPermissions))
   let pushPriv = newPush ListComplete mZusr (TeamEvent event) (map userRecipient admins)
-  for_ pushPriv (\p -> E.push1 (p & pushConn .~ mZcon))
+  for_ pushPriv (\p -> E.push1 (p & pushConn .~ mZcon & pushTransient .~ True))
 
 updateTeamMember ::
   forall r.
@@ -987,7 +987,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove admins = do
   E.deleteTeamMember tid remove
   removeFromConvsAndPushConvLeaveEvent now
   where
-    -- notify all team members.
+    -- notify team admins
     pushMemberLeaveEvent :: UTCTime -> Sem r ()
     pushMemberLeaveEvent now = do
       let e = newEvent tid now (EdMemberLeave remove)
@@ -997,7 +997,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove admins = do
                 (tUnqualified lusr)
                 (filter (/= (tUnqualified lusr)) admins)
       E.push1 $
-        newPushLocal1 ListComplete (tUnqualified lusr) (TeamEvent e) r & pushConn .~ zcon
+        newPushLocal1 ListComplete (tUnqualified lusr) (TeamEvent e) r & pushConn .~ zcon & pushTransient .~ True
     -- notify all conversation members not in this team.
     removeFromConvsAndPushConvLeaveEvent :: UTCTime -> Sem r ()
     removeFromConvsAndPushConvLeaveEvent now = do
@@ -1250,7 +1250,8 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
         Just o -> userRecipient <$> list1 o (filter (/= o) ((new ^. userId) : admins'))
         Nothing -> userRecipient <$> list1 (new ^. userId) (admins')
   E.push1 $
-    newPushLocal1 ListComplete (new ^. userId) (TeamEvent e) rs & pushConn .~ originConn
+    newPushLocal1 ListComplete (new ^. userId) (TeamEvent e) rs & pushConn .~ originConn & pushTransient .~ True
+
   APITeamQueue.pushTeamEvent tid e
   pure sizeBeforeAdd
 
