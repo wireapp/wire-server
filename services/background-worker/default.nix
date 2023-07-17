@@ -49,6 +49,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
+    base
     containers
     exceptions
     extended

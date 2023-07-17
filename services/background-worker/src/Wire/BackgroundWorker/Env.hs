@@ -12,6 +12,7 @@ import HTTP2.Client.Manager
 import Imports
 import Network.AMQP.Extended
 import qualified Network.RabbitMqAdmin as RabbitMqAdmin
+import Numeric.Natural
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import Prometheus
@@ -21,7 +22,6 @@ import System.Logger.Class
 import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.BackgroundWorker.Options
-import Numeric.Natural
 
 type IsWorking = Bool
 

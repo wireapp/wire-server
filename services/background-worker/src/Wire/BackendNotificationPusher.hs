@@ -57,7 +57,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
   --
   -- If we fail to deliver the notification after policy, the notification will be NACKed,
   -- and will be redelivered by RabbitMQ for another attempt, most likely by the same pod.
-  let delayUsablePercentage = 2/3 :: Float
+  let delayUsablePercentage = 2 / 3 :: Float
       policy = limitRetriesByCumulativeDelay (floor $ delayUsablePercentage * fromIntegral env.shutdownGraceTime * 1_000_000) $ fullJitterBackoff 10000
       logErrr willRetry (SomeException e) rs = do
         Log.err $

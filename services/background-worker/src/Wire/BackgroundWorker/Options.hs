@@ -3,9 +3,9 @@ module Wire.BackgroundWorker.Options where
 import Data.Aeson
 import Imports
 import Network.AMQP.Extended
+import Numeric.Natural
 import System.Logger.Extended
 import Util.Options
-import Numeric.Natural
 
 data Opts = Opts
   { logLevel :: !Level,
