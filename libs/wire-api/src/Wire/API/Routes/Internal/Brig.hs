@@ -406,7 +406,7 @@ type AccountAPI =
            "iGetRichInfoMulti"
            ( "users"
                :> "rich-info"
-               :> Capture "ids" (CommaSeparatedList UserId)
+               :> QueryParam' '[Optional, Strict] "ids" (CommaSeparatedList UserId)
                :> Get '[Servant.JSON] [(UserId, RichInfo)]
            )
     :<|> Named

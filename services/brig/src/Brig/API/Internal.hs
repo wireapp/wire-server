@@ -789,8 +789,8 @@ updateClientLastActive u c = do
 getRichInfoH :: UserId -> (Handler r) RichInfo
 getRichInfoH uid = RichInfo . fromMaybe mempty <$> lift (wrapClient $ API.lookupRichInfo uid)
 
-getRichInfoMultiH :: CommaSeparatedList UserId -> (Handler r) [(UserId, RichInfo)]
-getRichInfoMultiH (CommaSeparatedList uids) =
+getRichInfoMultiH :: Maybe (CommaSeparatedList UserId) -> (Handler r) [(UserId, RichInfo)]
+getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
   lift $ wrapClient $ API.lookupRichInfoMultiUsers uids
 
 updateHandleH :: UserId -> HandleUpdate -> (Handler r) NoContent
