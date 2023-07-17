@@ -188,6 +188,14 @@ let
         sha256 = "sha256-yiw6hg3guRWS6CVdrUY8wyIDxoqfGjIVMrEtP+Fys0Y=";
       };
     };
+    # latest master from 2023-06-13, but not released to hackage yet.
+    hedis = {
+      src = fetchgit {
+        url = "https://github.com/informatikr/hedis.git";
+        rev = "1e7fbf4e52664e3cce3bca35783f11d20f0b1efb";
+        sha256 = "sha256-Ddw9SInJ6oCerg9Se2nFV/OOoaKLEfMTEV00mfTf6/g=";
+      };
+    };
     # Not tested/relased yet
     # https://github.com/dylex/invertible/commit/e203c6a729fde87b1f903c3f468f739a085fb446
     invertible = {
