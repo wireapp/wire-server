@@ -221,7 +221,7 @@ updateFedDomainRemoveLocalFromRemote env remoteDomain interval = recovering x3 c
             cuAlreadyPresentUsers = [],
             cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
-  runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
+  void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
   -- Expected member state
   let memberAlice =
         Member
