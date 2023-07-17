@@ -32,5 +32,5 @@ migration = Migration 83 "Create table `team_admin`" $ do
             team   uuid,
             user   uuid,
             PRIMARY KEY (team, user)
-        );
+        ) WITH compaction = {'class': 'LeveledCompactionStrategy'};
         |]
