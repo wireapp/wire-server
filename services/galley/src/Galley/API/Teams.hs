@@ -809,7 +809,7 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
 
   now <- input
   let event = newEvent tid now (EdMemberUpdate targetId (Just targetPermissions))
-  let pushPriv = newPush ListComplete mZusr (TeamEvent event) (map userRecipient admins)
+  let pushPriv = newPush ListComplete mZusr (TeamEvent event) (map userRecipient admins')
   for_ pushPriv (\p -> E.push1 (p & pushConn .~ mZcon & pushTransient .~ True))
 
 updateTeamMember ::
