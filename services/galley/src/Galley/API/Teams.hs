@@ -770,6 +770,7 @@ uncheckedUpdateTeamMember ::
   ( Member BrigAccess r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TeamMemberNotFound) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member P.TinyLog r,
@@ -794,10 +795,12 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
   previousMember <-
     E.getTeamMember tid targetId >>= noteS @'TeamMemberNotFound
 
+  admins <- E.getTeamAdmins tid
+  let admins' = [targetId | isAdminOrOwner targetPermissions] <> filter (/= targetId) admins
+  checkAdminLimit (length admins')
+
   -- update target in Cassandra
   E.setTeamMemberPermissions (previousMember ^. permissions) tid targetId targetPermissions
-
-  admins <- E.getTeamAdmins tid
 
   when (team ^. teamBinding == Binding) $ do
     (TeamSize size) <- E.getSize tid
@@ -816,6 +819,7 @@ updateTeamMember ::
     Member (ErrorS 'InvalidPermissions) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TeamMemberNotFound) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member GundeckAccess r,
@@ -1243,8 +1247,7 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
 
   admins <- E.getTeamAdmins tid
   let admins' = [new ^. userId | isAdminOrOwner (new ^. M.permissions)] <> admins
-  when (length admins' > 2000) $
-    throwS @'TooManyTeamAdmins
+  checkAdminLimit (length admins')
 
   E.createTeamMember tid new
 
@@ -1386,3 +1389,8 @@ queueTeamDeletion ::
 queueTeamDeletion tid zusr zcon = do
   ok <- E.tryPush (TeamItem tid zusr zcon)
   unless ok $ throwS @'DeleteQueueFull
+
+checkAdminLimit :: Member (ErrorS 'TooManyTeamAdmins) r => Int -> Sem r ()
+checkAdminLimit adminCount =
+  when (adminCount > 2000) $
+    throwS @'TooManyTeamAdmins
