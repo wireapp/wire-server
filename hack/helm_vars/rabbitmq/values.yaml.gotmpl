@@ -1,9 +1,6 @@
-global:
-  storageClass: {{ .Values.storageClass }}
-
 rabbitmq:
   persistence:
-    size: 100Mi
+    enabled: false
   auth:
     username: {{ .Values.rabbitmqUsername }}
     password: {{ .Values.rabbitmqPassword }}

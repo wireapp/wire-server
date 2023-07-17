@@ -252,7 +252,7 @@ internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed 
   -- Conversation API (internal) ----------------------------------------
   put "/i/conversations/:cnv/channel" (continue $ const (pure empty)) $
     zauthUserId
-      .&. (capture "cnv" :: HasCaptures r => Predicate r Predicate.Error ConvId)
+      .&. (capture "cnv" :: (HasCaptures r) => Predicate r Predicate.Error ConvId)
       .&. request
 
   get "/i/conversations/:cnv/members/:usr" (continue Query.internalGetMemberH) $
@@ -682,9 +682,6 @@ deleteFederationDomainLocalUserFromRemoteConversation dom = do
         -- remote federation server to delete the conversation. They will have to do a
         -- similar processing run for removing the local domain from their federation list.
         onConversationUpdated dom convUpdate
-
--- let rcnv = toRemoteUnsafe dom cnv
--- notifyRemoteConversationAction lUser (qualifyAs rcnv convUpdate) Nothing
 
 -- These need to be recoverable?
 -- This is recoverable with the following flow conditions.

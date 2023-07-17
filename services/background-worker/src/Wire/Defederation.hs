@@ -32,7 +32,7 @@ x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
 
 -- Exposed for testing purposes so we can decode without further processing the message.
-deleteFederationDomainInner' :: RabbitMQEnvelope e => (e -> DefederationDomain -> AppT IO ()) -> (Q.Message, e) -> AppT IO ()
+deleteFederationDomainInner' :: (RabbitMQEnvelope e) => (e -> DefederationDomain -> AppT IO ()) -> (Q.Message, e) -> AppT IO ()
 deleteFederationDomainInner' go (msg, envelope) = do
   either
     ( \e -> do
@@ -53,7 +53,7 @@ deleteFederationDomainInner' go (msg, envelope) = do
 -- What should we do with non-recoverable (unparsable) errors/messages?
 -- should we deadletter, or do something else?
 -- Deadlettering has a privacy implication -- FUTUREWORK.
-deleteFederationDomainInner :: RabbitMQEnvelope e => (Q.Message, e) -> AppT IO ()
+deleteFederationDomainInner :: (RabbitMQEnvelope e) => (Q.Message, e) -> AppT IO ()
 deleteFederationDomainInner (msg, envelope) = do
   env <- ask
   let manager = httpManager env

@@ -1,5 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-unused-matches #-}
 
 module Federation where
 
@@ -50,8 +49,6 @@ import Wire.API.Routes.MultiTablePaging
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.User.Search
 
--- import Control.Concurrent.Async
-
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
 
@@ -90,7 +87,7 @@ updateFedDomainsTestNoop' = do
   let opts = s ^. tsGConf
   -- Don't need the actual server, and we certainly don't want it running.
   -- But this is how the env is made, so it is what we do
-  (_, env, _) <- liftIO $ lowerCodensity $ mkApp opts
+  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
   -- Common variables.
   -- FUTUREWORK, NEWTICKET: These uuid strings side step issues with the tests hanging.
   -- FUTUREWORK, NEWTICKET: Figure out the underlying issue as to why these tests occasionally hang.
@@ -111,7 +108,7 @@ updateFedDomainsTestAddRemote' = do
   let opts = s ^. tsGConf
   -- Don't need the actual server, and we certainly don't want it running.
   -- But this is how the env is made, so it is what we do
-  (_, env, _) <- liftIO $ lowerCodensity $ mkApp opts
+  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
   -- Common variables.
   let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
       remoteDomain = Domain "far-away.example.com"
@@ -128,7 +125,7 @@ updateFedDomainsTestRemoveRemoteFromLocal' = do
   let opts = s ^. tsGConf
   -- Don't need the actual server, and we certainly don't want it running.
   -- But this is how the env is made, so it is what we do
-  (_, env, _) <- liftIO $ lowerCodensity $ mkApp opts
+  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
   -- Common variables.
   let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
       remoteDomain = Domain "far-away.example.com"
@@ -145,7 +142,7 @@ updateFedDomainsTestRemoveLocalFromRemote' = do
   let opts = s ^. tsGConf
   -- Don't need the actual server, and we certainly don't want it running.
   -- But this is how the env is made, so it is what we do
-  (_, env, _) <- liftIO $ lowerCodensity $ mkApp opts
+  (_, env) <- liftIO $ lowerCodensity $ mkApp opts
   -- Common variables.
   let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
       remoteDomain = Domain "far-away.example.com"
@@ -168,7 +165,7 @@ deleteFederationDomains old new = do
   -- Call into the galley code
   for_ deletedDomains $ liftIO . evalGalleyToIO env . deleteFederationDomain
 
-constHandlers :: MonadIO m => [RetryStatus -> Handler m Bool]
+constHandlers :: (MonadIO m) => [RetryStatus -> Handler m Bool]
 constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]
 
 updateFedDomainRemoveRemoteFromLocal :: Env -> Domain -> Domain -> Int -> TestM ()

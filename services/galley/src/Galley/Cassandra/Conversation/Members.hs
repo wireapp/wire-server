@@ -58,7 +58,7 @@ import Wire.API.Provider.Service
 -- When the role is not specified, it defaults to admin.
 -- Please make sure the conversation doesn't exceed the maximum size!
 addMembers ::
-  ToUserRole a =>
+  (ToUserRole a) =>
   ConvId ->
   UserList a ->
   Client ([LocalMember], [RemoteMember])

@@ -231,7 +231,7 @@ spec = do
       calls `shouldSatisfy` (\c -> length c >= 2)
       mapM_ (\vhost -> vhost `shouldBe` rabbitmqVHost) calls
 
-untilM :: Monad m => m Bool -> m ()
+untilM :: (Monad m) => m Bool -> m ()
 untilM action = do
   b <- action
   unless b $ untilM action
@@ -283,7 +283,7 @@ mockRabbitMqAdminClient :: forall api. (api ~ ToServant AdminAPI AsApi) => MockR
 mockRabbitMqAdminClient mockAdmin = fromServant $ hoistClient (Proxy @api) (flip runReaderT (mockRabbitMqAdminApp mockAdmin) . runWaiClient) (waiClient @api)
 
 -- | Create servant client for an API, this can be run using 'hoistClient'.
-waiClient :: forall api. HasClient WaiClient api => Client WaiClient api
+waiClient :: forall api. (HasClient WaiClient api) => Client WaiClient api
 waiClient = clientIn (Proxy @api) (Proxy @WaiClient)
 
 -- | Runs a servant client by directly calling a wai application, instead of
@@ -337,7 +337,7 @@ instance RunClient WaiClient where
   throwClientError :: ClientError -> WaiClient a
   throwClientError = liftIO . throwIO
 
-waiResponseToServant :: MonadIO m => Wai.Response -> m Response
+waiResponseToServant :: (MonadIO m) => Wai.Response -> m Response
 waiResponseToServant res = do
   let (status, hdrs, contBody) = Wai.responseToStream res
   body <- liftIO $ contBody $ \streamingBody -> do

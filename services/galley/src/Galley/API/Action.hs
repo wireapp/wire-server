@@ -257,7 +257,7 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'ConvNotFound
      ]
 
-noChanges :: Member (Error NoChanges) r => Sem r a
+noChanges :: (Member (Error NoChanges) r) => Sem r a
 noChanges = throw NoChanges
 
 ensureAllowed ::
@@ -538,7 +538,7 @@ performConversationAccessData qusr lconv action = do
         then pure bm
         else pure $ bm {bmBots = mempty}
 
-    maybeRemoveGuests :: Member BrigAccess r => BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveGuests :: (Member BrigAccess r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveGuests bm =
       if Set.member GuestAccessRole (cupAccessRoles action)
         then pure bm
@@ -547,7 +547,7 @@ performConversationAccessData qusr lconv action = do
           -- FUTUREWORK: should we also remove non-activated remote users?
           pure $ bm {bmLocals = Set.fromList activated}
 
-    maybeRemoveNonTeamMembers :: Member TeamStore r => BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveNonTeamMembers :: (Member TeamStore r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveNonTeamMembers bm =
       if Set.member NonTeamMemberAccessRole (cupAccessRoles action)
         then pure bm
@@ -557,7 +557,7 @@ performConversationAccessData qusr lconv action = do
             pure $ bm {bmLocals = Set.fromList onlyTeamUsers, bmRemotes = mempty}
           Nothing -> pure bm
 
-    maybeRemoveTeamMembers :: Member TeamStore r => BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveTeamMembers :: (Member TeamStore r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveTeamMembers bm =
       if Set.member TeamMemberAccessRole (cupAccessRoles action)
         then pure bm
@@ -834,7 +834,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   where
     qualifiedFails :: [(QualifiedWithTag t [a], b)] -> [Qualified a]
     qualifiedFails = foldMap (sequenceA . tUntagged . fst)
-    logError :: Show a => String -> String -> (a, FederationError) -> Sem r ()
+    logError :: (Show a) => String -> String -> (a, FederationError) -> Sem r ()
     logError field msg e =
       P.warn $
         Log.field "federation call" field . Log.msg (msg <> show e)

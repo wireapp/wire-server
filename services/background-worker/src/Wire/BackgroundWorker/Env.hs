@@ -123,11 +123,11 @@ newtype AppT m a = AppT {unAppT :: ReaderT Env m a}
       MonadMonitor
     )
 
-deriving newtype instance MonadBase b m => MonadBase b (AppT m)
+deriving newtype instance (MonadBase b m) => MonadBase b (AppT m)
 
-deriving newtype instance MonadBaseControl b m => MonadBaseControl b (AppT m)
+deriving newtype instance (MonadBaseControl b m) => MonadBaseControl b (AppT m)
 
-instance MonadIO m => MonadLogger (AppT m) where
+instance (MonadIO m) => MonadLogger (AppT m) where
   log lvl m = do
     l <- asks logger
     Log.log l lvl m
@@ -135,10 +135,10 @@ instance MonadIO m => MonadLogger (AppT m) where
 runAppT :: Env -> AppT m a -> m a
 runAppT env app = runReaderT (unAppT app) env
 
-markAsWorking :: MonadIO m => Worker -> AppT m ()
+markAsWorking :: (MonadIO m) => Worker -> AppT m ()
 markAsWorking worker =
   flip modifyIORef (Map.insert worker True) =<< asks statuses
 
-markAsNotWorking :: MonadIO m => Worker -> AppT m ()
+markAsNotWorking :: (MonadIO m) => Worker -> AppT m ()
 markAsNotWorking worker =
   flip modifyIORef (Map.insert worker False) =<< asks statuses

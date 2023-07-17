@@ -23,6 +23,7 @@ module Wire.API.Routes.Internal.Brig
     MLSAPI,
     TeamsAPI,
     UserAPI,
+    ClientAPI,
     AuthAPI,
     FederationRemotesAPI,
     EJPDRequest,
@@ -386,6 +387,7 @@ type API =
            :<|> GetVerificationCode
            :<|> TeamsAPI
            :<|> UserAPI
+           :<|> ClientAPI
            :<|> AuthAPI
            :<|> OAuthAPI
            :<|> ISearchIndexAPI
@@ -435,6 +437,14 @@ type GetDefaultLocale =
     :> "users"
     :> "locale"
     :> Get '[Servant.JSON] LocaleUpdate
+
+type ClientAPI =
+  Summary "Update last_active field of a client"
+    :> "clients"
+    :> Capture "uid" UserId
+    :> Capture "client" ClientId
+    :> "activity"
+    :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
 
 type AuthAPI =
   Named

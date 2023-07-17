@@ -281,7 +281,6 @@ library
     , ssl-util
     , statistics                 >=0.13
     , stomp-queue                >=0.3
-    , string-conversions
     , swagger2
     , template                   >=0.2
     , template-haskell
@@ -663,7 +662,8 @@ executable brig-schema
     V75_AddOAuthCodeChallenge
     V76_AddSupportedProtocols
     V77_FederationRemotes
-    V78_ConnectionRemoteIndex
+    V78_ClientLastActive
+    V79_ConnectionRemoteIndex
     V_FUTUREWORK
 
   hs-source-dirs:     schema/src

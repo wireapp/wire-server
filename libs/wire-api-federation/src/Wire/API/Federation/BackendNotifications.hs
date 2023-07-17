@@ -72,7 +72,7 @@ sendNotification env component path body =
     withoutFirstSlash (Text.stripPrefix "/" -> Just t) = t
     withoutFirstSlash t = t
 
-    go :: forall c. KnownComponent c => IO (Either FederatorClientError ())
+    go :: forall c. (KnownComponent c) => IO (Either FederatorClientError ())
     go =
       runFederatorClient env . void $
         clientIn (Proxy @BackendNotificationAPI) (Proxy @(FederatorClient c)) (withoutFirstSlash path) body
@@ -142,7 +142,7 @@ data EnqueueError = EnqueueError String
 
 instance Exception EnqueueError
 
-instance KnownComponent c => RunClient (FedQueueClient c) where
+instance (KnownComponent c) => RunClient (FedQueueClient c) where
   runRequestAcceptStatus :: Maybe [Status] -> Request -> FedQueueClient c Response
   runRequestAcceptStatus _ req = do
     env <- ask
