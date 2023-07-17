@@ -101,9 +101,10 @@ instance ToSchema CipherSuiteTag where
 
 -- | See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5.
 cipherSuiteTag :: CipherSuite -> Maybe CipherSuiteTag
-cipherSuiteTag (CipherSuite n) = case n of
-  1 -> pure MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-  _ -> Nothing
+cipherSuiteTag cs = listToMaybe $ do
+  t <- [minBound .. maxBound]
+  guard (tagCipherSuite t == cs)
+  pure t
 
 -- | Inverse of 'cipherSuiteTag'
 tagCipherSuite :: CipherSuiteTag -> CipherSuite
