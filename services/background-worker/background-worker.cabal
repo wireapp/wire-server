@@ -17,6 +17,8 @@ library
     Wire.BackgroundWorker.Env
     Wire.BackgroundWorker.Health
     Wire.BackgroundWorker.Options
+    Wire.BackgroundWorker.Util
+    Wire.Defederation
 
   hs-source-dirs:     src
   default-language:   Haskell2010
@@ -28,12 +30,20 @@ library
   build-depends:
       aeson
     , amqp
+    , async
+    , base
+    , bilge
+    , bytestring
+    , bytestring-conversion
     , containers
     , exceptions
     , extended
     , HsOpenSSL
+    , http-client
+    , http-types
     , http2-manager
     , imports
+    , lens
     , metrics-core
     , metrics-wai
     , monad-control
@@ -47,6 +57,7 @@ library
     , types-common
     , unliftio
     , wai-utilities
+    , wire-api
     , wire-api-federation
 
   default-extensions:
@@ -165,6 +176,8 @@ test-suite background-worker-test
   other-modules:
     Main
     Test.Wire.BackendNotificationPusherSpec
+    Test.Wire.DefederationSpec
+    Test.Wire.Util
 
   build-depends:
       aeson
@@ -176,8 +189,10 @@ test-suite background-worker-test
     , extended
     , federator
     , hspec
+    , http-client
     , http-media
     , http-types
+    , HUnit
     , imports
     , prometheus-client
     , QuickCheck

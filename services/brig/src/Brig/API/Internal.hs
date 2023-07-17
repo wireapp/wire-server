@@ -63,8 +63,9 @@ import qualified Brig.User.EJPD
 import qualified Brig.User.Search.Index as Index
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
+import Data.Aeson hiding (json)
 import Data.CommaSeparatedList
-import Data.Domain (Domain)
+import Data.Domain (Domain, domainText)
 import Data.Handle
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
@@ -72,11 +73,13 @@ import Data.Qualified
 import qualified Data.Set as Set
 import Data.Time.Clock.System
 import Imports hiding (head)
+import qualified Network.AMQP as Q
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
+import qualified System.Logger as Lg
 import qualified System.Logger.Class as Log
 import System.Random (randomRIO)
 import UnliftIO.Async
@@ -84,6 +87,7 @@ import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.API
+import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -130,7 +134,7 @@ istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
 
 ejpdAPI ::
-  Member GalleyProvider r =>
+  (Member GalleyProvider r) =>
   ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
@@ -222,6 +226,7 @@ federationRemotesAPI =
     :<|> Named @"get-federation-remotes" getFederationRemotes
     :<|> Named @"update-federation-remotes" updateFederationRemote
     :<|> Named @"delete-federation-remotes" deleteFederationRemote
+    :<|> Named @"delete-federation-remote-from-galley" deleteFederationRemoteGalley
 
 addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 addFederationRemote fedDomConf = do
@@ -336,6 +341,37 @@ assertNoDomainsFromConfigFiles dom = do
 deleteFederationRemote :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemote dom = do
   lift . wrapClient . Data.deleteFederationRemote $ dom
+  assertNoDomainsFromConfigFiles dom
+  env <- ask
+  for_ (env ^. rabbitmqChannel) $ \chan -> liftIO . withMVar chan $ \chan' -> do
+    -- ensureQueue uses routingKey internally
+    ensureQueue chan' defederationQueue
+    void $
+      Q.publishMsg chan' "" queue $
+        Q.newMsg
+          { -- Check that this message type is compatible with what
+            -- background worker is expecting
+            Q.msgBody = encode @DefederationDomain dom,
+            Q.msgDeliveryMode = pure Q.Persistent,
+            Q.msgContentType = pure "application/json"
+          }
+    -- Drop the notification queue for the domain.
+    -- This will also drop all of the messages in the queue
+    -- as we will no longer be able to communicate with this
+    -- domain.
+    num <- Q.deleteQueue chan' . routingKey $ domainText dom
+    Lg.info (env ^. applog) $ Log.msg @String "Dropped Notifications" . Log.field "domain" (domainText dom) . Log.field "count" (show num)
+  where
+    -- Ensure that this is kept in sync with background worker
+    queue = routingKey defederationQueue
+
+-- | Remove one-on-one conversations for the given remote domain. This is called from Galley as
+-- part of the defederation process, and should not be called duriung the initial domain removal
+-- call to brig. This is so we can ensure that domains are correctly cleaned up if a service
+-- falls over for whatever reason.
+deleteFederationRemoteGalley :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
+deleteFederationRemoteGalley dom = do
+  lift . wrapClient . Data.deleteRemoteConnectionsDomain $ dom
   assertNoDomainsFromConfigFiles dom
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
@@ -537,14 +573,14 @@ deleteUserNoAuthH uid = do
     AccountAlreadyDeleted -> pure UserResponseAccountAlreadyDeleted
     AccountDeleted -> pure UserResponseAccountDeleted
 
-changeSelfEmailMaybeSendH :: Member BlacklistStore r => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSendH :: (Member BlacklistStore r) => UserId -> EmailUpdate -> Maybe Bool -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSendH u body (fromMaybe False -> validate) = do
   let email = euEmail body
   changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: Member BlacklistStore r => UserId -> MaybeSendEmail -> Email -> API.AllowSCIMUpdates -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSend :: (Member BlacklistStore r) => UserId -> MaybeSendEmail -> Email -> API.AllowSCIMUpdates -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do

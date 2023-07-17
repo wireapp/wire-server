@@ -12,16 +12,10 @@ data Opts = Opts
     backgroundWorker :: !Endpoint,
     federatorInternal :: !Endpoint,
     rabbitmq :: !RabbitMqAdminOpts,
-    backendNotificationPusher :: !BackendNotificationPusherOpts
+    galley :: !Endpoint,
+    brig :: !Endpoint,
+    defederationTimeout :: Maybe Int -- Seconds, Nothing for no timeout
   }
   deriving (Show, Generic)
 
 instance FromJSON Opts
-
-data BackendNotificationPusherOpts = BackendNotificationPusherOpts
-  { -- | seconds, how often should the remotes be refreshed.
-    remotesRefreshInterval :: !Int
-  }
-  deriving (Show, Generic)
-
-instance FromJSON BackendNotificationPusherOpts

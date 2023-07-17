@@ -370,7 +370,6 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
     ConversationUpdateResponseNoChanges -> throw NoChanges
     ConversationUpdateResponseError err' -> rethrowErrors @(HasConversationActionGalleyErrors tag) err'
     ConversationUpdateResponseUpdate convUpdate _failedToProcess -> pure convUpdate
-
   updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) (Just conn) >>= note NoChanges
 
 updateConversationReceiptModeUnqualified ::
@@ -900,14 +899,14 @@ updateSelfMember lusr zcon qcnv update = do
   pushConversationEvent (Just zcon) e (fmap pure lusr) []
   where
     checkLocalMembership ::
-      Member MemberStore r =>
+      (Member MemberStore r) =>
       Local ConvId ->
       Sem r Bool
     checkLocalMembership lcnv =
       isMember (tUnqualified lusr)
         <$> E.getLocalMembers (tUnqualified lcnv)
     checkRemoteMembership ::
-      Member ConversationStore r =>
+      (Member ConversationStore r) =>
       Remote ConvId ->
       Sem r Bool
     checkRemoteMembership rcnv =
@@ -1021,7 +1020,7 @@ updateOtherMember lusr zcon qcnv qvictim update = do
   doUpdate qcnv lusr zcon qvictim update
 
 updateOtherMemberRemoteConv ::
-  Member (Error FederationError) r =>
+  (Member (Error FederationError) r) =>
   Remote ConvId ->
   Local UserId ->
   ConnId ->
@@ -1115,7 +1114,7 @@ removeMemberFromRemoteConv cnv lusr victim
     handleError RemoveFromConversationErrorNotFound = throwS @'ConvNotFound
     handleError RemoveFromConversationErrorUnchanged = pure Nothing
 
-    handleSuccess :: Member (Input UTCTime) r => () -> Sem r (Maybe Event)
+    handleSuccess :: (Member (Input UTCTime) r) => () -> Sem r (Maybe Event)
     handleSuccess _ = do
       t <- input
       pure . Just $
@@ -1205,7 +1204,7 @@ postProteusBroadcast ::
 postProteusBroadcast sender zcon = postBroadcast sender (Just zcon)
 
 unqualifyEndpoint ::
-  Functor f =>
+  (Functor f) =>
   Local x ->
   (QualifiedNewOtrMessage -> f (PostOtrResponse MessageSendingStatus)) ->
   Maybe IgnoreMissing ->
@@ -1605,6 +1604,6 @@ rmBot lusr zcon b = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-ensureConvMember :: Member (ErrorS 'ConvNotFound) r => [LocalMember] -> UserId -> Sem r ()
+ensureConvMember :: (Member (ErrorS 'ConvNotFound) r) => [LocalMember] -> UserId -> Sem r ()
 ensureConvMember users usr =
   unless (usr `isMember` users) $ throwS @'ConvNotFound
