@@ -19,6 +19,7 @@ module Federator.Validation
   ( ensureCanFederateWith,
     parseDomain,
     parseDomainText,
+    decodeCertificate,
     validateDomain,
     validateDomainName,
     ValidationError (..),
@@ -107,17 +108,14 @@ ensureCanFederateWith targetDomain = do
         throw (FederationDenied targetDomain)
 
 decodeCertificate ::
-  (Member (Error String) r) =>
   ByteString ->
-  Sem r X509.Certificate
+  Either String X509.Certificate
 decodeCertificate =
-  fromEither
-    . ( (pure . X509.getCertificate)
-          <=< X509.decodeSignedCertificate
-          <=< (pure . X509.pemContent)
-          <=< expectOne "certificate"
-          <=< X509.pemParseBS
-      )
+  (pure . X509.getCertificate)
+    <=< X509.decodeSignedCertificate
+    <=< (pure . X509.pemContent)
+    <=< expectOne "certificate"
+    <=< X509.pemParseBS
   where
     expectOne :: String -> [a] -> Either String a
     expectOne label [] = Left $ "no " <> label <> " found"
@@ -145,18 +143,14 @@ validateDomain ::
     Member (Error DiscoveryFailure) r,
     Member DiscoverFederator r
   ) =>
-  Maybe ByteString ->
-  ByteString ->
+  X509.Certificate ->
+  Domain ->
   Sem r Domain
-validateDomain Nothing _ = throw NoClientCertificate
-validateDomain (Just encodedCertificate) unparsedDomain = do
-  targetDomain <- parseDomain unparsedDomain
+-- validateDomain Nothing _ = throw NoClientCertificate
+validateDomain certificate targetDomain = do
   ensureCanFederateWith targetDomain
 
   -- run discovery to find the hostname of the client federator
-  certificate <-
-    mapError (CertificateParseError . Text.pack) $
-      decodeCertificate encodedCertificate
   hostnames <- srvTargetDomain <$$> discoverAllFederatorsWithError targetDomain
   let validationErrors = (\h -> validateDomainName (B8.unpack h) certificate) <$> hostnames
   unless (any null validationErrors) $

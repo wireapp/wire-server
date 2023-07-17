@@ -18,6 +18,8 @@
 module Federator.Response
   ( defaultHeaders,
     serve,
+    serveServant,
+    runFederator,
     runWaiError,
     runWaiErrors,
     streamingResponseToWai,
@@ -49,7 +51,9 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.TinyLog
+import Servant hiding (ServerError, respond, serve)
 import Servant.Client.Core
+import Servant.Server.Generic
 import Servant.Types.SourceT
 import Wire.API.Routes.FederationDomainConfig
 import Wire.Network.DNS.Effect
@@ -112,6 +116,22 @@ serve action env port =
     app :: Wai.Application
     app req respond =
       runCodensity (runFederator env (action req)) respond
+
+serveServant ::
+  forall routes.
+  (HasServer (ToServantApi routes) '[], GenericServant routes AsServer, Server (ToServantApi routes) ~ ToServant routes AsServer) =>
+  routes AsServer ->
+  Env ->
+  Int ->
+  IO ()
+serveServant server env port =
+  Warp.run port
+    . Wai.catchErrors (view applog env) []
+    $ app
+  where
+    app :: Wai.Application
+    app =
+      genericServe server
 
 type AllEffects =
   '[ Remote,

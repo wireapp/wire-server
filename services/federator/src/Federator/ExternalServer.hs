@@ -15,13 +15,26 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.ExternalServer (callInward, serveInward, parseRequestData, RequestData (..)) where
+module Federator.ExternalServer
+  ( callInward,
+    serveInward,
+    RPC (..),
+    CertHeader (..),
+    server,
+  )
+where
 
+import Control.Monad.Codensity
+import Data.Bifunctor
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
+import Data.Data
+import Data.Domain
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.X509 as X509
 import Federator.Discovery
 import Federator.Env
 import Federator.Error.ServerError
@@ -36,11 +49,94 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
+import Servant.API
 import Servant.Client.Core
+import Servant.Server (Context, HasContextEntry (getContextEntry), HasServer (..), Server, ServerT, Tagged (..), type (.++))
+import Servant.Server.Generic
+import Servant.Server.Internal.Delayed
+import Servant.Server.Internal.ErrorFormatter
+import Servant.Server.Internal.Router
 import qualified System.Logger.Message as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
 import Wire.API.Routes.FederationDomainConfig
+
+newtype RPC = RPC Text
+
+instance FromHttpApiData RPC where
+  parseUrlPiece :: Text -> Either Text RPC
+  parseUrlPiece rpcPath = do
+    unless (Text.all isAllowedRPCChar rpcPath) $
+      Left "invalid-endpoint"
+
+    when (Text.null rpcPath) $
+      Left "invalid-endpoint"
+    pure $ RPC rpcPath
+
+isAllowedRPCChar :: Char -> Bool
+isAllowedRPCChar c = isAsciiLower c || isAsciiUpper c || isNumber c || c == '_' || c == '-'
+
+-- | Used to get PEM encoded certificate out of an HTTP header
+newtype CertHeader = CertHeader X509.Certificate
+
+instance FromHttpApiData CertHeader where
+  parseUrlPiece :: Text -> Either Text CertHeader
+  parseUrlPiece cert =
+    bimap Text.pack CertHeader $ decodeCertificate $ HTTP.urlDecode True $ Text.encodeUtf8 cert
+
+data API mode = API
+  { status ::
+      mode
+        :- "i"
+          :> "status"
+          :> Get '[PlainText] NoContent,
+    externalRequest ::
+      mode
+        :- "federation"
+          :> Capture "component" Component
+          :> Capture "rpc" RPC
+          :> Header' '[Required, Strict] OriginDomainHeaderName Domain
+          :> Header' '[Required, Strict] "X-SSL-Certificate" CertHeader
+          :> Endpath
+          -- We need to use 'Raw' so we can stream request body regardless of
+          -- content-type and send a response with arbitrary content-type. Not
+          -- sure if this is the right approach.
+          :> Raw
+  }
+  deriving (Generic)
+
+-- | Doesn't allow any trailing path components when used with 'Raw'
+data Endpath
+
+instance (HasServer api context, HasContextEntry (context .++ DefaultErrorFormatters) ErrorFormatters) => HasServer (Endpath :> api) context where
+  type ServerT (Endpath :> api) m = ServerT api m
+
+  route :: Proxy (Endpath :> api) -> Context context -> Delayed env (Server (Endpath :> api)) -> Router env
+  route _ ctx delayed =
+    let fmt404 = notFoundErrorFormatter $ getContextEntry $ mkContextWithErrorFormatter ctx
+     in StaticRouter mempty $ [runRouterEnv fmt404 (route (Proxy @api) ctx delayed)]
+
+  hoistServerWithContext :: Proxy (Endpath :> api) -> Proxy context -> (forall x. m x -> n x) -> ServerT (Endpath :> api) m -> ServerT (Endpath :> api) n
+  hoistServerWithContext _ proxyCtx f s = hoistServerWithContext (Proxy @api) proxyCtx f s
+
+server ::
+  ( Member ServiceStreaming r,
+    Member (Embed IO) r,
+    Member TinyLog r,
+    Member DiscoverFederator r,
+    Member (Error ValidationError) r,
+    Member (Error DiscoveryFailure) r,
+    Member (Error ServerError) r,
+    Member (Input FederationDomainConfigs) r
+  ) =>
+  (Sem r Wai.Response -> Codensity IO Wai.Response) ->
+  API AsServer
+server interpreter =
+  API
+    { status = pure NoContent,
+      externalRequest = \component rpc remoteDomain remoteCert ->
+        Tagged $ \req respond -> runCodensity (interpreter (callInward component rpc remoteDomain remoteCert req)) respond
+    }
 
 -- FUTUREWORK(federation): Versioning of the federation API.
 callInward ::
@@ -53,21 +149,32 @@ callInward ::
     Member (Error ServerError) r,
     Member (Input FederationDomainConfigs) r
   ) =>
+  Component ->
+  RPC ->
+  Domain ->
+  CertHeader ->
   Wai.Request ->
   Sem r Wai.Response
-callInward wreq = do
-  req <- parseRequestData wreq
+callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
+  -- only POST is supported
+  when (Wai.requestMethod wreq /= HTTP.methodPost) $
+    throw InvalidRoute
+  -- No query parameters are allowed
+  unless (BS.null . Wai.rawQueryString $ wreq) $
+    throw InvalidRoute
+
   Log.debug $
     Log.msg ("Inward Request" :: ByteString)
-      . Log.field "originDomain" (rdOriginDomain req)
-      . Log.field "component" (show (rdComponent req))
-      . Log.field "rpc" (rdRPC req)
+      . Log.field "originDomain" (domainText originDomain)
+      . Log.field "component" (show component)
+      . Log.field "rpc" rpc
 
-  validatedDomain <- validateDomain (rdCertificate req) (rdOriginDomain req)
+  validatedDomain <- validateDomain cert originDomain
 
-  let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rdRPC req]))
+  let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rpc]))
 
-  resp <- serviceCall (rdComponent req) path (rdBody req) validatedDomain
+  body <- embed $ Wai.lazyRequestBody wreq
+  resp <- serviceCall component path body validatedDomain
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
       . Log.field "status" (show (responseStatusCode resp))
@@ -80,66 +187,5 @@ callInward wreq = do
               (responseHeaders resp)
         }
 
-data RequestData = RequestData
-  { rdComponent :: Component,
-    rdRPC :: Text,
-    rdBody :: LByteString,
-    rdCertificate :: Maybe ByteString,
-    rdOriginDomain :: ByteString
-  }
-
--- path format: /federation/<component>/<rpc-path>
--- inward service removes <component> and forwards to component
--- where component = brig|galley|..
--- Headers:
---   Wire-Origin-Domain
---   X-SSL-Certificate
---
--- FUTUREWORK: use higher-level effects
-parseRequestData ::
-  ( Member (Error ServerError) r,
-    Member (Embed IO) r
-  ) =>
-  Wai.Request ->
-  Sem r RequestData
-parseRequestData req = do
-  -- only POST is supported
-  when (Wai.requestMethod req /= HTTP.methodPost) $
-    throw InvalidRoute
-  -- No query parameters are allowed
-  unless (BS.null . Wai.rawQueryString $ req) $
-    throw InvalidRoute
-  -- check that the path has the expected form
-  (componentSeg, rpcPath) <- case Wai.pathInfo req of
-    ["federation", comp, rpc] -> pure (comp, rpc)
-    _ -> throw InvalidRoute
-
-  unless (Text.all isAllowedRPCChar rpcPath) $
-    throw InvalidRoute
-
-  when (Text.null rpcPath) $
-    throw InvalidRoute
-
-  -- get component, domain and body
-  component <- note (UnknownComponent componentSeg) $ parseComponent componentSeg
-  domain <-
-    note NoOriginDomain $
-      lookup originDomainHeaderName (Wai.requestHeaders req)
-  body <- embed $ Wai.lazyRequestBody req
-  pure $
-    RequestData
-      { rdComponent = component,
-        rdRPC = rpcPath,
-        rdBody = body,
-        rdCertificate = lookupCertificate req,
-        rdOriginDomain = domain
-      }
-
-isAllowedRPCChar :: Char -> Bool
-isAllowedRPCChar c = isAsciiLower c || isAsciiUpper c || isNumber c || c == '_' || c == '-'
-
 serveInward :: Env -> Int -> IO ()
-serveInward = serve callInward
-
-lookupCertificate :: Wai.Request -> Maybe ByteString
-lookupCertificate req = HTTP.urlDecode True <$> lookup "X-SSL-Certificate" (Wai.requestHeaders req)
+serveInward env = serveServant (server $ runFederator env) env

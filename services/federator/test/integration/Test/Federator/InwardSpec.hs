@@ -112,13 +112,13 @@ spec env =
       runTestFederator env $ do
         let o = object ["name" .= ("fakeNewUser" :: Text)]
         inwardCall "/federation/brig/../i/users" (encode o)
-          !!! const 403 === statusCode
+          !!! const 404 === statusCode
 
     it "should only accept /federation/ paths" $
       runTestFederator env $ do
         let o = object ["name" .= ("fakeNewUser" :: Text)]
         inwardCall "/i/users" (encode o)
-          !!! const 403 === statusCode
+          !!! const 404 === statusCode
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
     --
@@ -132,7 +132,7 @@ spec env =
           "federation/brig/get-user-by-handle"
           [(originDomainHeaderName, toByteString' originDomain)]
           (encode hdl)
-          !!! const 403 === statusCode
+          !!! const 400 === statusCode
 
 -- TODO: ORMOLU_DISABLE
 -- @END
