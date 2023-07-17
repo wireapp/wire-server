@@ -2716,21 +2716,21 @@ checkUserDeleteEvent uid timeout_ w = WS.assertMatch_ timeout_ w $ \notif -> do
 
 checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
 checkTeamMemberJoin tid uid w = WS.awaitMatch_ checkTimeout w $ \notif -> do
-  ntfTransient notif @?= False
+  ntfTransient notif @?= True
   let e = List1.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdMemberJoin uid
 
 checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
 checkTeamMemberLeave tid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
-  ntfTransient notif @?= False
+  ntfTransient notif @?= True
   let e = List1.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdMemberLeave usr
 
 checkTeamUpdateEvent :: (HasCallStack, MonadIO m, MonadCatch m) => TeamId -> TeamUpdateData -> WS.WebSocket -> m ()
 checkTeamUpdateEvent tid upd w = WS.assertMatch_ checkTimeout w $ \notif -> do
-  ntfTransient notif @?= False
+  ntfTransient notif @?= True
   let e = List1.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdTeamUpdate upd

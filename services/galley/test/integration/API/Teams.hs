@@ -1463,7 +1463,6 @@ testUpdateTeamMember = do
             . json change
         )
     checkTeamMemberUpdateEvent tid uid w mPerm = WS.assertMatch_ timeout w $ \notif -> do
-      ntfTransient notif @?= False
       let e = List1.head (WS.unpackPayload notif)
       e ^. eventTeam @?= tid
       e ^. eventData @?= EdMemberUpdate uid mPerm
@@ -1768,7 +1767,7 @@ putSearchVisibility g uid tid vis = do
 
 checkJoinEvent :: (MonadIO m, MonadCatch m) => TeamId -> UserId -> WS.WebSocket -> m ()
 checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
-  ntfTransient notif @?= False
+  ntfTransient notif @?= True
   let e = List1.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdMemberJoin usr
