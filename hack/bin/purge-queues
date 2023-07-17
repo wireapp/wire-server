@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+'''
+This script purges all rabbitmq queues found for the first `rabbitmq` named docker container found.
+Use this to purge queues started with ./deploy/dockerephemeral/run.sh
+'''
+
+import subprocess
+from subprocess import PIPE
+
+script='''
+set -eo pipefail
+for queue in $(rabbitmqctl list_queues --silent | awk '{print $1}'); do
+    rabbitmqctl purge_queue $queue
+done
+'''
+
+def run_script(container, bash_script):
+    out = subprocess.run(["docker", "exec", "-i", container, '/bin/bash', '-c', bash_script], stdout=PIPE, check=True).stdout.decode('utf8').strip()
+    return out
+
+def main():
+    container = subprocess.run(["docker", "ps", "--filter=name=rabbitmq", "--format={{.ID}}"], stdout=PIPE, check=True).stdout.decode('utf8').rstrip()
+    out = run_script(container, script)
+    print(out)
+
+if __name__ == '__main__':
+    main()
