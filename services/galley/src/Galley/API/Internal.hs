@@ -65,6 +65,7 @@ import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.DefederationNotifications (DefederationNotifications, sendDefederationNotifications)
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
@@ -85,8 +86,8 @@ import Imports hiding (head)
 import qualified Network.AMQP as Q
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (Error, err, setStatus)
-import qualified Network.Wai.Predicate as Predicate
+import Network.Wai.Predicate hiding (Error, err, result, setStatus)
+import qualified Network.Wai.Predicate as Predicate hiding (result)
 import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.ZAuth
@@ -538,12 +539,18 @@ internalDeleteFederationDomainH ::
     Member TeamStore r,
     Member BrigAccess r,
     Member GundeckAccess r,
-    Member ExternalAccess r
+    Member ExternalAccess r,
+    Member DefederationNotifications r
   ) =>
   Domain ::: JSON ->
   Sem r Response
 internalDeleteFederationDomainH (domain ::: _) = do
+  -- We have to send the same event twice.
+  -- Once before and once after defederation work.
+  -- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/809238539/Use+case+Stopping+to+federate+with+a+domain
+  sendDefederationNotifications domain
   deleteFederationDomain domain
+  sendDefederationNotifications domain
   pure (empty & setStatus status200)
 
 -- Remove remote members from local conversations

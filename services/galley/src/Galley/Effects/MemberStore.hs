@@ -30,6 +30,7 @@ module Galley.Effects.MemberStore
     -- * Read members
     getLocalMember,
     getLocalMembers,
+    getAllLocalMembers,
     getRemoteMember,
     getRemoteMembers,
     checkLocalMemberRemoteConv,
@@ -70,6 +71,7 @@ data MemberStore m a where
   CreateBotMember :: ServiceRef -> BotId -> ConvId -> MemberStore m BotMember
   GetLocalMember :: ConvId -> UserId -> MemberStore m (Maybe LocalMember)
   GetLocalMembers :: ConvId -> MemberStore m [LocalMember]
+  GetAllLocalMembers :: MemberStore m [LocalMember]
   GetRemoteMember :: ConvId -> Remote UserId -> MemberStore m (Maybe RemoteMember)
   GetRemoteMembers :: ConvId -> MemberStore m [RemoteMember]
   CheckLocalMemberRemoteConv :: UserId -> Remote ConvId -> MemberStore m Bool

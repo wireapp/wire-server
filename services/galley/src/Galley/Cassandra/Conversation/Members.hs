@@ -18,6 +18,8 @@
 module Galley.Cassandra.Conversation.Members
   ( addMembers,
     members,
+    allMembers,
+    toMember,
     lookupRemoteMembers,
     removeMembersFromLocalConv,
     toMemberStatus,
@@ -121,6 +123,11 @@ members :: ConvId -> Client [LocalMember]
 members conv =
   fmap (mapMaybe toMember) . retry x1 $
     query Cql.selectMembers (params LocalQuorum (Identity conv))
+
+allMembers :: Client [LocalMember]
+allMembers =
+  fmap (mapMaybe toMember) . retry x1 $
+    query Cql.selectAllMembers (params LocalQuorum ())
 
 toMemberStatus ::
   ( -- otr muted
@@ -386,6 +393,7 @@ interpretMemberStoreToCassandra = interpret $ \case
   CreateBotMember sr bid cid -> embedClient $ addBotMember sr bid cid
   GetLocalMember cid uid -> embedClient $ member cid uid
   GetLocalMembers cid -> embedClient $ members cid
+  GetAllLocalMembers -> embedClient allMembers
   GetRemoteMember cid uid -> embedClient $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)
   GetRemoteMembers rcid -> embedClient $ lookupRemoteMembers rcid
   CheckLocalMemberRemoteConv uid rcnv -> fmap (not . null) $ embedClient $ lookupLocalMemberRemoteConv uid rcnv

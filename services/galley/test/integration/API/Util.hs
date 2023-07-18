@@ -113,6 +113,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import qualified Wire.API.Event.Conversation as Conv
+import qualified Wire.API.Event.Federation as Fed
 import Wire.API.Event.Team
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.API
@@ -1395,6 +1396,15 @@ postJoinCodeConv' mPw u j = do
       -- `json (JoinConversationByCode j Nothing)` and `json j` are equivalent, using the latter to test backwards compatibility
       . (if isJust mPw then json (JoinConversationByCode j mPw) else json j)
 
+deleteFederation ::
+  (MonadHttp m, HasGalley m, MonadIO m) =>
+  Domain ->
+  m ResponseLBS
+deleteFederation dom = do
+  g <- viewGalley
+  delete $
+    g . paths ["/i/federation", toByteString' dom]
+
 putQualifiedAccessUpdate ::
   (MonadHttp m, HasGalley m, MonadIO m) =>
   UserId ->
@@ -1759,6 +1769,23 @@ assertJoinEvent conv usr new role e = do
   evtType e @?= Conv.MemberJoin
   evtFrom e @?= usr
   fmap (sort . mMembers) (evtData e ^? _EdMembersJoin) @?= Just (sort (fmap (`SimpleMember` role) new))
+
+wsAssertFederationDeleted ::
+  HasCallStack =>
+  Domain ->
+  Notification ->
+  IO ()
+wsAssertFederationDeleted dom n = do
+  ntfTransient n @?= False
+  assertFederationDeletedEvent dom $ List1.head (WS.unpackPayload n)
+
+assertFederationDeletedEvent ::
+  Domain ->
+  Fed.Event ->
+  IO ()
+assertFederationDeletedEvent dom e = do
+  Fed._eventType e @?= Fed.FederationDelete
+  Fed._eventDomain e @?= dom
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
 --
