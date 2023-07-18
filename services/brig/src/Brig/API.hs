@@ -23,11 +23,8 @@ where
 import Brig.API.Handler (Handler)
 import qualified Brig.API.Internal as Internal
 import qualified Brig.API.Public as Public
-import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
-import Brig.Effects.CodeStore
 import Brig.Effects.GalleyProvider (GalleyProvider)
-import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Network.Wai.Routing (Routes)
 import Polysemy
@@ -35,12 +32,9 @@ import Wire.Sem.Concurrency
 
 sitemap ::
   forall r p.
-  ( Member BlacklistPhonePrefixStore r,
-    Member BlacklistStore r,
+  ( Member BlacklistStore r,
     Member GalleyProvider r,
-    Member CodeStore r,
     Member (Concurrency 'Unsafe) r,
-    Member PasswordResetStore r,
     Member (UserPendingActivationStore p) r
   ) =>
   Routes () (Handler r) ()

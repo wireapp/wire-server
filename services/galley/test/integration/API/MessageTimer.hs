@@ -47,6 +47,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
+import Wire.API.Federation.API.Common
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
@@ -160,7 +161,7 @@ messageTimerChangeWithRemotes = do
 
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator' (mockReply ()) $
+      withTempMockFederator' (mockReply EmptyResponse) $
         putMessageTimerUpdateQualified bob qconv (ConversationMessageTimerUpdate timer1sec)
           !!! const 200 === statusCode
 

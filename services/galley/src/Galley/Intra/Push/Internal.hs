@@ -40,6 +40,7 @@ import Imports hiding (forkIO)
 import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Event.Conversation (Event (evtFrom))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
+import qualified Wire.API.Event.Federation as Federation
 import qualified Wire.API.Event.Team as Teams
 import Wire.API.Team.Member
 
@@ -47,11 +48,13 @@ data PushEvent
   = ConvEvent Event
   | TeamEvent Teams.Event
   | FeatureConfigEvent FeatureConfig.Event
+  | FederationEvent Federation.Event
 
 pushEventJson :: PushEvent -> Object
 pushEventJson (ConvEvent e) = toJSONObject e
 pushEventJson (TeamEvent e) = toJSONObject e
 pushEventJson (FeatureConfigEvent e) = toJSONObject e
+pushEventJson (FederationEvent e) = toJSONObject e
 
 data RecipientBy user = Recipient
   { _recipientUserId :: user,

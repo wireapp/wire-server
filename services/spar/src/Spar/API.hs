@@ -46,7 +46,6 @@ module Spar.API
 where
 
 import Brig.Types.Intra
-import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Cassandra as Cas
 import Control.Lens
 import Control.Monad.Except

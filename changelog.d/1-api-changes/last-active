@@ -1,0 +1,1 @@
+Client objects have gained an optional `last_active` field. Whenever a client fetches notifications via `GET /notifications`, as long as it provides a client parameter, the `last_active` field of that client is updated, and set to the current timestamp, rounded to the next multiple of a week.

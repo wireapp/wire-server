@@ -39,6 +39,10 @@ backgroundWorker:
   host: 127.0.0.1
   port: 8089
 
+stern:
+  host: 127.0.0.1
+  port: 8091
+
 # client-API:
 # webapp ---> load balancer  ---> nginx-ingress (TLS termination) ---> nginz ----> brig
 #
@@ -108,6 +112,9 @@ backendTwo:
   backgroundWorker:
     host: 127.0.0.1
     port: 9089
+  stern:
+    host: 127.0.0.1
+    port: 9091
 
   originDomain: b.example.com
 

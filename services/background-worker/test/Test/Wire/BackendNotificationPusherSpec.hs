@@ -4,6 +4,7 @@
 
 module Test.Wire.BackendNotificationPusherSpec where
 
+import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.Trans.Except
 import qualified Data.Aeson as Aeson
@@ -17,6 +18,7 @@ import qualified Data.Text.Encoding as Text
 import Federator.MockServer
 import Imports
 import qualified Network.AMQP as Q
+import Network.HTTP.Client (defaultManagerSettings, newManager, responseTimeoutNone)
 import Network.HTTP.Media
 import Network.HTTP.Types
 import Network.RabbitMqAdmin
@@ -29,9 +31,10 @@ import Servant.Client.Core
 import Servant.Client.Internal.HttpClient (mkFailureResponse)
 import Servant.Server.Generic
 import Servant.Types.SourceT
-import qualified System.Logger as Logger
+import qualified System.Logger.Class as Logger
 import Test.Hspec
 import Test.QuickCheck
+import Test.Wire.Util
 import UnliftIO.Async
 import Util.Options
 import Wire.API.Federation.API
@@ -39,32 +42,10 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.BackendNotifications
 import Wire.API.RawJson
+import Wire.API.Routes.FederationDomainConfig
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
-import Wire.BackgroundWorker.Options
-
-testEnv :: IO Env
-testEnv = do
-  http2Manager <- initHttp2Manager
-  logger <- Logger.new Logger.defSettings
-  statuses <- newIORef mempty
-  backendNotificationMetrics <- mkBackendNotificationMetrics
-  let federatorInternal = Endpoint "localhost" 0
-      rabbitmqAdminClient = undefined
-      rabbitmqVHost = undefined
-      metrics = undefined
-      backendNotificationPusher = BackendNotificationPusherOpts 1
-  pure Env {..}
-
-runTestAppT :: AppT IO a -> Int -> IO a
-runTestAppT app port = do
-  baseEnv <- testEnv
-  runTestAppTWithEnv baseEnv app port
-
-runTestAppTWithEnv :: Env -> AppT IO a -> Int -> IO a
-runTestAppTWithEnv Env {..} app port = do
-  let env = Env {federatorInternal = Endpoint "localhost" (fromIntegral port), ..}
-  runAppT env app
+import Wire.BackgroundWorker.Util
 
 spec :: Spec
 spec = do
@@ -199,13 +180,19 @@ spec = do
             "backend-notifications.not-a-domain"
           ]
       logger <- Logger.new Logger.defSettings
-      let federatorInternal = undefined
+      httpManager <- newManager defaultManagerSettings
+      remoteDomains <- newIORef defFederationDomainConfigs
+      remoteDomainsChan <- newChan
+      let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
           metrics = undefined
-          backendNotificationPusher = BackendNotificationPusherOpts 1
           rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
+          defederationTimeout = responseTimeoutNone
+          galley = Endpoint "localhost" 8085
+          brig = Endpoint "localhost" 8082
+
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domains <- runAppT Env {..} getRemoteDomains
       domains `shouldBe` map Domain ["foo.example", "bar.example", "baz.example"]
@@ -214,13 +201,18 @@ spec = do
     it "should retry fetching domains if a request fails" $ do
       mockAdmin <- newMockRabbitMqAdmin True ["backend-notifications.foo.example"]
       logger <- Logger.new Logger.defSettings
-      let federatorInternal = undefined
+      httpManager <- newManager defaultManagerSettings
+      remoteDomains <- newIORef defFederationDomainConfigs
+      remoteDomainsChan <- newChan
+      let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
           metrics = undefined
-          backendNotificationPusher = BackendNotificationPusherOpts 1
           rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
+          defederationTimeout = responseTimeoutNone
+          galley = Endpoint "localhost" 8085
+          brig = Endpoint "localhost" 8082
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domainsThread <- async $ runAppT Env {..} getRemoteDomains
 
@@ -240,7 +232,7 @@ spec = do
       calls `shouldSatisfy` (\c -> length c >= 2)
       mapM_ (\vhost -> vhost `shouldBe` rabbitmqVHost) calls
 
-untilM :: Monad m => m Bool -> m ()
+untilM :: (Monad m) => m Bool -> m ()
 untilM action = do
   b <- action
   unless b $ untilM action
@@ -292,7 +284,7 @@ mockRabbitMqAdminClient :: forall api. (api ~ ToServant AdminAPI AsApi) => MockR
 mockRabbitMqAdminClient mockAdmin = fromServant $ hoistClient (Proxy @api) (flip runReaderT (mockRabbitMqAdminApp mockAdmin) . runWaiClient) (waiClient @api)
 
 -- | Create servant client for an API, this can be run using 'hoistClient'.
-waiClient :: forall api. HasClient WaiClient api => Client WaiClient api
+waiClient :: forall api. (HasClient WaiClient api) => Client WaiClient api
 waiClient = clientIn (Proxy @api) (Proxy @WaiClient)
 
 -- | Runs a servant client by directly calling a wai application, instead of
@@ -346,7 +338,7 @@ instance RunClient WaiClient where
   throwClientError :: ClientError -> WaiClient a
   throwClientError = liftIO . throwIO
 
-waiResponseToServant :: MonadIO m => Wai.Response -> m Response
+waiResponseToServant :: (MonadIO m) => Wai.Response -> m Response
 waiResponseToServant res = do
   let (status, hdrs, contBody) = Wai.responseToStream res
   body <- liftIO $ contBody $ \streamingBody -> do

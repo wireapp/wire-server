@@ -2,6 +2,7 @@
 
 module Testlib.RunServices where
 
+import Control.Concurrent
 import Control.Monad.Codensity (lowerCodensity)
 import qualified Data.Map as Map
 import System.Directory
@@ -9,7 +10,7 @@ import System.Environment (getArgs)
 import System.Exit (exitWith)
 import System.FilePath
 import System.Posix (getWorkingDirectory)
-import System.Process (createProcess, proc, waitForProcess)
+import System.Process (CreateProcess (env), createProcess, proc, waitForProcess)
 import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.Run (createGlobalEnv)
@@ -47,7 +48,8 @@ staticPortsA =
       (Cargohold, 8084),
       (Spar, 8088),
       (BackgroundWorker, 8089),
-      (Nginz, 8080)
+      (Nginz, 8080),
+      (Stern, 8091)
     ]
 
 backendB :: BackendResource
@@ -86,7 +88,8 @@ staticPortsB =
       (Cargohold, 9084),
       (Spar, 9088),
       (BackgroundWorker, 9089),
-      (Nginz, 9080)
+      (Nginz, 9080),
+      (Stern, 9091)
     ]
 
 parentDir :: FilePath -> Maybe FilePath
@@ -114,7 +117,7 @@ main = do
   cwd <- getWorkingDirectory
   mbProjectRoot <- findProjectRoot cwd
   cfg <- case mbProjectRoot of
-    Nothing -> error "Could not find project root. Please make sure you call run-services from the somewhere in wire-server."
+    Nothing -> error "Could not find project root. Please make sure you call run-services from somewhere in wire-server."
     Just projectRoot ->
       pure $ joinPath [projectRoot, "services/integration.yaml"]
 
@@ -122,22 +125,30 @@ main = do
   env <- lowerCodensity $ mkEnv genv
 
   args <- getArgs
-  let args' = case args of
-        (x : xs) -> x : xs
-        _ -> ["sleep", "10000d"]
-  let cp = proc "sh" (["-c", "exec \"$@\"", "--"] <> args')
+
+  let run = case args of
+        [] -> do
+          putStrLn "services started"
+          forever (threadDelay 1000000000)
+        _ -> do
+          env' <- commonEnv
+          let cp = (proc "sh" (["-c", "exec \"$@\"", "--"] <> args)) {env = Just env'}
+          (_, _, _, ph) <- createProcess cp
+          exitWith =<< waitForProcess ph
 
   runAppWithEnv env $ do
     lowerCodensity $ do
-      let fedConfig d =
+      let fedConfig =
             def
               { dbBrig =
-                  setField "optSettings.setFederationDomainConfigs" [object ["domain" .= d, "search_policy" .= "full_search"]]
+                  setField
+                    "optSettings.setFederationDomainConfigs"
+                    [ object ["domain" .= backendA.berDomain, "search_policy" .= "full_search"],
+                      object ["domain" .= backendB.berDomain, "search_policy" .= "full_search"]
+                    ]
               }
       _modifyEnv <-
         traverseConcurrentlyCodensity
           (\(res, staticPorts, overrides) -> startDynamicBackend res staticPorts overrides)
-          [(backendA, staticPortsA, fedConfig backendB.berDomain), (backendB, staticPortsB, fedConfig backendA.berDomain)]
-      liftIO $ do
-        (_, _, _, ph) <- createProcess cp
-        exitWith =<< waitForProcess ph
+          [(backendA, staticPortsA, fedConfig), (backendB, staticPortsB, fedConfig)]
+      liftIO run

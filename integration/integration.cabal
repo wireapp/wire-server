@@ -101,6 +101,7 @@ library
     Test.AssetDownload
     Test.B2B
     Test.Brig
+    Test.Client
     Test.Conversation
     Test.Demo
     Test.Notifications
@@ -144,6 +145,8 @@ library
     , http-client
     , http-types
     , kan-extensions
+    , lens
+    , lens-aeson
     , mime
     , monad-control
     , mtl

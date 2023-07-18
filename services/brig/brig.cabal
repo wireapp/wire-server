@@ -662,6 +662,8 @@ executable brig-schema
     V75_AddOAuthCodeChallenge
     V76_AddSupportedProtocols
     V77_FederationRemotes
+    V78_ClientLastActive
+    V79_ConnectionRemoteIndex
     V_FUTUREWORK
 
   hs-source-dirs:     schema/src

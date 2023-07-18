@@ -29,7 +29,7 @@ data Certificate = Certificate
   deriving (Show, Eq, Generic)
 
 instance FromJSON Certificate where
-  parseJSON = genericParseJSON parseOptions . jsonLower
+  parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower
 
 instance ToJSON Certificate where
   toJSON = genericToJSON serializeOptions

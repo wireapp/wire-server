@@ -20,6 +20,18 @@ getUser user target = do
       joinHttpPath ["users", domain, uid]
   submit "GET" req
 
+getClient ::
+  (HasCallStack, MakesValue user, MakesValue client) =>
+  user ->
+  client ->
+  App Response
+getClient u cli = do
+  c <- make cli & asString
+  req <-
+    baseRequest u Brig Versioned $
+      joinHttpPath ["clients", c]
+  submit "GET" req
+
 data AddClient = AddClient
   { ctype :: String,
     internal :: Bool,
@@ -111,6 +123,28 @@ deleteClient user client = do
       & addJSONObject
         [ "password" .= defPassword
         ]
+
+getClientsQualified ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue domain,
+    MakesValue otherUser
+  ) =>
+  user ->
+  domain ->
+  otherUser ->
+  App Response
+getClientsQualified user domain otherUser = do
+  ouid <- objId otherUser
+  d <- objDomain domain
+  req <-
+    baseRequest user Brig Versioned $
+      "/users/"
+        <> d
+        <> "/"
+        <> ouid
+        <> "/clients"
+  submit "GET" req
 
 searchContacts ::
   ( MakesValue user,

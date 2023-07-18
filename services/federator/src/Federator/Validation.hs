@@ -86,7 +86,7 @@ validationErrorStatus :: ValidationError -> HTTP.Status
 -- the FederationDenied case is handled differently, because it may be caused
 -- by wrong input in the original request, so we let this error propagate to the
 -- client
-validationErrorStatus (FederationDenied _) = HTTP.status400
+validationErrorStatus (FederationDenied _) = HTTP.status422
 validationErrorStatus _ = HTTP.status403
 
 -- | Validates an already-parsed domain against the allow list (stored in
@@ -107,7 +107,7 @@ ensureCanFederateWith targetDomain = do
         throw (FederationDenied targetDomain)
 
 decodeCertificate ::
-  Member (Error String) r =>
+  (Member (Error String) r) =>
   ByteString ->
   Sem r X509.Certificate
 decodeCertificate =
@@ -124,12 +124,12 @@ decodeCertificate =
     expectOne _ [x] = pure x
     expectOne label _ = Left $ "found multiple " <> label <> "s"
 
-parseDomain :: Member (Error ValidationError) r => ByteString -> Sem r Domain
+parseDomain :: (Member (Error ValidationError) r) => ByteString -> Sem r Domain
 parseDomain domain =
   note (DomainParseError (Text.decodeUtf8With Text.lenientDecode domain)) $
     fromByteString domain
 
-parseDomainText :: Member (Error ValidationError) r => Text -> Sem r Domain
+parseDomainText :: (Member (Error ValidationError) r) => Text -> Sem r Domain
 parseDomainText domain =
   mapError @String (const (DomainParseError domain))
     . fromEither

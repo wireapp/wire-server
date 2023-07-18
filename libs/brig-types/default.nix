@@ -14,13 +14,11 @@
 , imports
 , lib
 , QuickCheck
-, schema-profunctor
 , swagger2
 , tasty
 , tasty-hunit
 , tasty-quickcheck
 , text
-, time
 , tinylog
 , types-common
 , wire-api
@@ -39,10 +37,7 @@ mkDerivation {
     containers
     imports
     QuickCheck
-    schema-profunctor
-    swagger2
     text
-    time
     tinylog
     types-common
     wire-api

@@ -26,7 +26,6 @@ module Stern.API.Routes
   )
 where
 
-import Brig.Types.Intra (UserAccount)
 import Control.Lens
 import Control.Monad.Trans.Except
 import qualified Data.Aeson as A
@@ -379,6 +378,8 @@ type SternAPI =
                :> "user"
                :> "meta-info"
                :> QueryParam' [Required, Strict, Description "A valid UserId"] "id" UserId
+               :> QueryParam' [Optional, Strict, Description "Max number of conversation (default 1)"] "max_conversations" Int
+               :> QueryParam' [Optional, Strict, Description "Max number of notifications (default 10)"] "max_notifications" Int
                :> Post '[JSON] UserMetaInfo
            )
     :<|> Named
