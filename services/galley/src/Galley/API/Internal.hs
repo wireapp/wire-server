@@ -574,7 +574,6 @@ internalDeleteFederationDomainH (domain ::: _) = do
         -- RouteAny is used as it will wake up mobile clients
         -- and notify them of the changes to federation state.
         push1 $ p & Intra.pushRoute .~ Intra.RouteAny
-      -- & Intra.pushTransient .~ True
       deliverAsync (bots `zip` repeat (pushEventJson event))
     sendNotificationPage page = do
       let res = result page
