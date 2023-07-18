@@ -11,7 +11,6 @@ import Network.Wai.Utilities.Server
 import Servant
 import Servant.Server.Generic
 import qualified System.Logger as Log
-import qualified System.Logger as Log'
 import Util.Options
 import qualified Wire.BackendNotificationPusher as BackendNotificationPusher
 import Wire.BackgroundWorker.Env
@@ -28,11 +27,11 @@ run opts = do
       l = logger env
       cleanup = do
         -- Cancel the consumers and wait for them to finish their processing step.
-        Log'.info (logger env) $ Log.msg (Log.val "Cancelling the notification pusher thread")
+        Log.info (logger env) $ Log.msg (Log.val "Cancelling the notification pusher thread")
         readIORef chanRef >>= traverse_ \chan -> do
-          Log'.info (logger env) $ Log.msg (Log.val "Got channel")
+          Log.info (logger env) $ Log.msg (Log.val "Got channel")
           readIORef consumersRef >>= \m -> for_ (Map.assocs m) \(domain, (consumer, runningFlag)) -> do
-            Log'.info l $ Log.msg (Log.val "Cancelling consumer") . Log.field "Domain" domain._domainText
+            Log.info l $ Log.msg (Log.val "Cancelling consumer") . Log.field "Domain" domain._domainText
             -- Remove the consumer from the channel so it isn't called again
             Q.cancelConsumer chan consumer
             -- Take from the mvar. This will only unblock when the consumer callback isn't running.
@@ -44,10 +43,10 @@ run opts = do
             -- This helps prevent message redelivery to endpoint services during the brief window between
             -- receiving a message from rabbit, and the signal handler shutting down the AMQP connection
             -- before notification delivery has finalised.
-            Log'.info l $ Log.msg $ Log.val "Taking MVar. Waiting for current operation to finish"
+            Log.info l $ Log.msg $ Log.val "Taking MVar. Waiting for current operation to finish"
             takeMVar runningFlag
           -- Close the channel. `extended` will then close the connection, flushing messages to the server.
-          Log'.info l $ Log.msg $ Log.val "Closing RabbitMQ channel"
+          Log.info l $ Log.msg $ Log.val "Closing RabbitMQ channel"
           Q.closeChannel chan
   let server = defaultServer (cs $ opts.backgroundWorker._epHost) opts.backgroundWorker._epPort env.logger env.metrics
   settings <- newSettings server
