@@ -37,11 +37,13 @@ import qualified Data.X509 as X509
 import Federator.Discovery
 import Federator.Env
 import Federator.Error.ServerError
+import qualified Federator.Health as Health
 import Federator.RPC
 import Federator.Response
 import Federator.Service
 import Federator.Validation
 import Imports
+import Network.HTTP.Client (Manager)
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
 import Polysemy
@@ -72,6 +74,9 @@ data API mode = API
       mode
         :- "i"
           :> "status"
+          -- When specified only returns status of the internal service,
+          -- otherwise ensures that the external service is also up.
+          :> QueryFlag "standalone"
           :> Get '[PlainText] NoContent,
     externalRequest ::
       mode
@@ -98,11 +103,13 @@ server ::
     Member (Error ServerError) r,
     Member (Input FederationDomainConfigs) r
   ) =>
+  Manager ->
+  Word16 ->
   (Sem r Wai.Response -> Codensity IO Wai.Response) ->
   API AsServer
-server interpreter =
+server mgr intPort interpreter =
   API
-    { status = pure NoContent,
+    { status = Health.status mgr "internal server" intPort,
       externalRequest = \component rpc remoteDomain remoteCert ->
         Tagged $ \req respond -> runCodensity (interpreter (callInward component rpc remoteDomain remoteCert req)) respond
     }
@@ -157,4 +164,4 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
         }
 
 serveInward :: Env -> Int -> IO ()
-serveInward env = serveServant (server $ runFederator env) env
+serveInward env = serveServant (server env._httpManager env._internalPort $ runFederator env) env

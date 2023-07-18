@@ -103,7 +103,7 @@ mockServer ::
   API AsServer
 mockServer remoteCalls headers resp interpreter =
   Federator.InternalServer.API
-    { status = pure NoContent,
+    { status = const $ pure NoContent,
       internalRequest = \targetDomain component rpc ->
         Tagged $ \req respond ->
           respond =<< interpreter (mockInternalRequest remoteCalls headers resp targetDomain component rpc req)

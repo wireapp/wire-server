@@ -198,7 +198,7 @@ requestNoDomain =
             trPath = "/federation/brig/get-users"
           }
     serviceCallsRef <- newIORef []
-    let serverApp = genericServe $ server (testInterpretter serviceCallsRef)
+    let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
     void . serverApp request $ \res -> do
       serviceCalls <- readIORef serviceCallsRef
       assertEqual "Expected response to have status 400" status400 (Wai.responseStatus res)
@@ -215,7 +215,7 @@ requestNoCertificate =
             trPath = "/federation/brig/get-users"
           }
     serviceCallsRef <- newIORef []
-    let serverApp = genericServe $ server (testInterpretter serviceCallsRef)
+    let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
     void . serverApp request $ \res -> do
       serviceCalls <- readIORef serviceCallsRef
       assertEqual "Expected response to have status 400" status400 (Wai.responseStatus res)
@@ -235,7 +235,7 @@ requestInvalidCertificate =
             trCertificateHeader = Just "not a certificate"
           }
     serviceCallsRef <- newIORef []
-    let serverApp = genericServe $ server (testInterpretter serviceCallsRef)
+    let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
     void . serverApp request $ \res -> do
       serviceCalls <- readIORef serviceCallsRef
       assertEqual "Expected response to have status 400" status400 (Wai.responseStatus res)
@@ -286,7 +286,7 @@ testInvalidPaths = do
             invalidPath
 
         serviceCallsRef <- newIORef []
-        let serverApp = genericServe $ server (testInterpretter serviceCallsRef)
+        let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
         void . serverApp request $ \res -> do
           serviceCalls <- readIORef serviceCallsRef
           assertEqual "Unexpected status" expectedStatus (Wai.responseStatus res)
@@ -307,7 +307,7 @@ testMethod =
                   }
           request <- testRequest tr {trMethod = method}
           serviceCallsRef <- newIORef []
-          let serverApp = genericServe $ server (testInterpretter serviceCallsRef)
+          let serverApp = genericServe $ server undefined undefined (testInterpretter serviceCallsRef)
           void . serverApp request $ \res -> do
             serviceCalls <- readIORef serviceCallsRef
             assertEqual "Expected response to have status 403" status403 (Wai.responseStatus res)

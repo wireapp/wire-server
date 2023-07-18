@@ -41,6 +41,7 @@ library
     Federator.Error
     Federator.Error.ServerError
     Federator.ExternalServer
+    Federator.Health
     Federator.InternalServer
     Federator.MockServer
     Federator.Monitor
