@@ -167,15 +167,6 @@ deleteBillingTeamMember = "delete from billing_team_member where team = ? and us
 listBillingTeamMembers :: PrepQuery R (Identity TeamId) (Identity UserId)
 listBillingTeamMembers = "select user from billing_team_member where team = ?"
 
-insertTeamAdmin :: PrepQuery W (TeamId, UserId) ()
-insertTeamAdmin = "insert into team_admin (team, user) values (?, ?)"
-
-deleteTeamAdmin :: PrepQuery W (TeamId, UserId) ()
-deleteTeamAdmin = "delete from team_admin where team = ? and user = ?"
-
-listTeamAdmins :: PrepQuery R (Identity TeamId) (Identity UserId)
-listTeamAdmins = "select user from team_admin where team = ?"
-
 updatePermissions :: PrepQuery W (Permissions, TeamId, UserId) ()
 updatePermissions = "update team_member set perms = ? where team = ? and user = ?"
 

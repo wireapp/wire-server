@@ -105,7 +105,6 @@ type TeamMemberAPI =
                :> CanThrow OperationDenied
                :> CanThrow 'TeamNotFound
                :> CanThrow 'TooManyTeamMembers
-               :> CanThrow 'TooManyTeamAdmins
                :> CanThrow 'UserBindingExists
                :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
                :> ZLocalUser
@@ -170,7 +169,6 @@ type TeamMemberAPI =
                :> CanThrow 'InvalidPermissions
                :> CanThrow 'TeamNotFound
                :> CanThrow 'TeamMemberNotFound
-               :> CanThrow 'TooManyTeamAdmins
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
                :> ZLocalUser

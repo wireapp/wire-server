@@ -294,7 +294,6 @@ type ITeamsAPIBase =
              "unchecked-add-team-member"
              ( CanThrow 'TooManyTeamMembers
                  :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
-                 :> CanThrow 'TooManyTeamAdmins
                  :> ReqBody '[Servant.JSON] NewTeamMember
                  :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
              )
@@ -321,7 +320,6 @@ type ITeamsAPIBase =
                         :> CanThrow 'InvalidPermissions
                         :> CanThrow 'TeamNotFound
                         :> CanThrow 'TeamMemberNotFound
-                        :> CanThrow 'TooManyTeamAdmins
                         :> CanThrow 'NotATeamMember
                         :> CanThrow OperationDenied
                         :> ReqBody '[Servant.JSON] NewTeamMember

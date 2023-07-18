@@ -59,7 +59,6 @@ data GalleyError
   | UserBindingExists
   | NoAddToBinding
   | TooManyTeamMembers
-  | TooManyTeamAdmins
   | -- FUTUREWORK: possibly make MissingPermission take a list of Perm
     MissingPermission (Maybe Perm)
   | ActionDenied Action
@@ -168,8 +167,6 @@ type instance MapError 'UserBindingExists = 'StaticError 403 "binding-exists" "U
 type instance MapError 'NoAddToBinding = 'StaticError 403 "binding-team" "Cannot add users to binding teams, invite only"
 
 type instance MapError 'TooManyTeamMembers = 'StaticError 403 "too-many-team-members" "Maximum number of members per team reached"
-
-type instance MapError 'TooManyTeamAdmins = 'StaticError 403 "too-many-team-admins" "Maximum number of admins per team reached"
 
 type instance MapError ('MissingPermission mperm) = 'StaticError 403 "operation-denied" (MissingPermissionMessage mperm)
 
