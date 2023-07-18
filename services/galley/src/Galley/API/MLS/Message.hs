@@ -55,6 +55,7 @@ import Galley.Data.Conversation.Types hiding (Conversation)
 import qualified Galley.Data.Conversation.Types as Data
 import Galley.Data.Types
 import Galley.Effects
+import Galley.Effects.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
@@ -203,6 +204,7 @@ postMLSCommitBundle ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
     ( Member BrigAccess r,
+      Member BackendNotificationQueueAccess r,
       Member (Error FederationError) r,
       Member (Error InternalError) r,
       Member (Error MLSProtocolError) r,
@@ -233,6 +235,7 @@ postMLSCommitBundleFromLocalUser ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
     ( Member BrigAccess r,
+      Member BackendNotificationQueueAccess r,
       Member (Error FederationError) r,
       Member (Error InternalError) r,
       Member (ErrorS 'MLSNotEnabled) r,
@@ -264,6 +267,7 @@ postMLSCommitBundleToLocalConv ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
     ( Member BrigAccess r,
+      Member BackendNotificationQueueAccess r,
       Member (Error FederationError) r,
       Member (Error InternalError) r,
       Member (Error MLSProtocolError) r,

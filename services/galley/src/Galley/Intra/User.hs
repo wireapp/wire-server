@@ -37,7 +37,6 @@ where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
-import Brig.Types.Connection (UpdateConnectionsInternal, cUsers)
 import qualified Brig.Types.Intra as Brig
 import Control.Error hiding (bool, isRight)
 import Control.Lens (view, (^.))
@@ -236,7 +235,7 @@ getRichInfoMultiUser = chunkify $ \uids -> do
         . paths ["/i/users/rich-info"]
         . queryItem "ids" (toByteString' (List uids))
         . expect2xx
-  parseResponse (mkError status502 "server-error") resp
+  parseResponse (mkError status502 "server-error: could not parse response to `GET brig:/i/users/rich-info`") resp
 
 getAccountConferenceCallingConfigClient :: HasCallStack => UserId -> App (WithStatusNoLock ConferenceCallingConfig)
 getAccountConferenceCallingConfigClient uid =

@@ -22,6 +22,7 @@
 module Wire.API.User
   ( ListUsersById (..),
     UserIdList (..),
+    UserIds (..),
     QualifiedUserIdList (..),
     LimitedQualifiedUserIdList (..),
     ScimUserInfo (..),
@@ -106,8 +107,33 @@ module Wire.API.User
     AccountStatusUpdate (..),
     AccountStatusResp (..),
 
+    -- * Account
+    UserAccount (..),
+
+    -- * Scim invitations
+    NewUserScimInvitation (..),
+
     -- * List Users
     ListUsersQuery (..),
+
+    -- * misc internal
+    GetActivationCodeResp (..),
+    GetPasswordResetCodeResp (..),
+    CheckBlacklistResponse (..),
+    GetPhonePrefixResponse (..),
+    PhonePrefix (..),
+    parsePhonePrefix,
+    isValidPhonePrefix,
+    allPrefixes,
+    ExcludedPrefix (..),
+    PhoneBudgetTimeout (..),
+    ManagedByUpdate (..),
+    HavePendingInvitations (..),
+    RichInfoUpdate (..),
+    PasswordResetPair,
+    UpdateSSOIdResponse (..),
+    CheckHandleResponse (..),
+    UpdateConnectionsInternal (..),
 
     -- * re-exports
     module Wire.API.User.Identity,
@@ -132,6 +158,8 @@ import Control.Lens (over, view, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson.Types as A
 import qualified Data.Attoparsec.ByteString as Parser
+import qualified Data.Attoparsec.Text as TParser
+import qualified Data.Bifunctor as Bifunctor
 import Data.Bits
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
@@ -157,6 +185,7 @@ import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as T
+import Data.Time.Clock (NominalDiffTime)
 import Data.UUID (UUID, nil)
 import qualified Data.UUID as UUID
 import Deriving.Swagger
@@ -176,9 +205,10 @@ import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
 import Wire.API.Team.Role
-import Wire.API.User.Activation (ActivationCode)
+import Wire.API.User.Activation (ActivationCode, ActivationKey)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
+import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -217,6 +247,263 @@ instance ToSchema UserIdList where
       UserIdList
         <$> mUsers
           .= field "user_ids" (array schema)
+
+-- | Response type for endpoints returning lists of users with a specific connection state.
+-- E.g. 'getContactList' returns a 'UserIds' containing the list of connections in an
+-- 'Accepted' state.
+--
+-- There really shouldn't be both types `UserIds` and `UserIdList`, but refactoring them
+-- away requires changing the api.
+newtype UserIds = UserIds
+  {cUsers :: [UserId]}
+  deriving (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UserIds
+
+instance ToSchema UserIds where
+  schema =
+    object "UserIds" $
+      UserIds
+        <$> cUsers
+          .= field "ids" (array schema)
+
+--------------------------------------------------------------------------------
+-- misc internal
+
+newtype GetActivationCodeResp = GetActivationCodeResp {fromGetActivationCodeResp :: (ActivationKey, ActivationCode)}
+  deriving (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GetActivationCodeResp
+
+instance ToSchema GetActivationCodeResp where
+  schema =
+    object "GetActivationCodeResp" $
+      curry GetActivationCodeResp
+        <$> (fst . fromGetActivationCodeResp) .= field "key" schema
+        <*> (snd . fromGetActivationCodeResp) .= field "code" schema
+
+newtype GetPasswordResetCodeResp = GetPasswordResetCodeResp {fromGetPasswordResetCodeResp :: (PasswordResetKey, PasswordResetCode)}
+  deriving (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GetPasswordResetCodeResp
+
+instance ToSchema GetPasswordResetCodeResp where
+  schema =
+    object "GetPasswordResetCodeResp" $
+      curry GetPasswordResetCodeResp
+        <$> (fst . fromGetPasswordResetCodeResp) .= field "key" schema
+        <*> (snd . fromGetPasswordResetCodeResp) .= field "code" schema
+
+data CheckBlacklistResponse = NotBlacklisted | YesBlacklisted
+
+instance
+  AsUnion
+    '[ Respond 404 "Not blacklisted" (),
+       Respond 200 "Yes blacklisted" ()
+     ]
+    CheckBlacklistResponse
+  where
+  toUnion NotBlacklisted = Z (I ())
+  toUnion YesBlacklisted = S (Z (I ()))
+  fromUnion (Z (I ())) = NotBlacklisted
+  fromUnion (S (Z (I ()))) = YesBlacklisted
+  fromUnion (S (S x)) = case x of {}
+
+data GetPhonePrefixResponse = PhonePrefixNotFound | PhonePrefixesFound [ExcludedPrefix]
+
+instance
+  AsUnion
+    '[ RespondEmpty 404 "PhonePrefixNotFound",
+       Respond 200 "PhonePrefixesFound" [ExcludedPrefix]
+     ]
+    GetPhonePrefixResponse
+  where
+  toUnion PhonePrefixNotFound = Z (I ())
+  toUnion (PhonePrefixesFound pfxs) = S (Z (I pfxs))
+  fromUnion (Z (I ())) = PhonePrefixNotFound
+  fromUnion (S (Z (I pfxs))) = PhonePrefixesFound pfxs
+  fromUnion (S (S x)) = case x of {}
+
+-- | PhonePrefix (for excluding from SMS/calling)
+newtype PhonePrefix = PhonePrefix {fromPhonePrefix :: Text}
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema PhonePrefix
+
+instance Arbitrary PhonePrefix where
+  arbitrary = do
+    digits <- take 8 <$> QC.listOf1 (QC.elements ['0' .. '9'])
+    pure . PhonePrefix . cs $ "+" <> digits
+
+instance ToSchema PhonePrefix where
+  schema = fromPhonePrefix .= parsedText "PhonePrefix" phonePrefixParser
+
+instance S.ToParamSchema PhonePrefix where
+  toParamSchema _ = S.toParamSchema (Proxy @String)
+
+instance FromByteString PhonePrefix where
+  parser = parser >>= maybe (fail "Invalid phone") pure . parsePhonePrefix
+
+instance ToByteString PhonePrefix where
+  builder = builder . fromPhonePrefix
+
+instance FromHttpApiData PhonePrefix where
+  parseUrlPiece = Bifunctor.first cs . phonePrefixParser
+
+phonePrefixParser :: Text -> Either String PhonePrefix
+phonePrefixParser p = maybe err pure (parsePhonePrefix p)
+  where
+    err =
+      Left $
+        "Invalid phone number prefix: ["
+          ++ show p
+          ++ "]. Expected format similar to E.164 (with 1-15 digits after the +)."
+
+-- | Parses a phone number prefix with a mandatory leading '+'.
+parsePhonePrefix :: Text -> Maybe PhonePrefix
+parsePhonePrefix p
+  | isValidPhonePrefix p = Just $ PhonePrefix p
+  | otherwise = Nothing
+
+-- | Checks whether a phone number prefix is valid,
+-- i.e. it is like a E.164 format phone number, but shorter
+-- (with a mandatory leading '+', followed by 1-15 digits.)
+isValidPhonePrefix :: Text -> Bool
+isValidPhonePrefix = isRight . TParser.parseOnly e164Prefix
+  where
+    e164Prefix :: TParser.Parser ()
+    e164Prefix =
+      TParser.char '+'
+        *> TParser.count 1 TParser.digit
+        *> TParser.count 14 (optional TParser.digit)
+        *> TParser.endOfInput
+
+-- | get all valid prefixes of a phone number or phone number prefix
+-- e.g. from +123456789 get prefixes ["+1", "+12", "+123", ..., "+123456789" ]
+allPrefixes :: Text -> [PhonePrefix]
+allPrefixes t = mapMaybe parsePhonePrefix (T.inits t)
+
+data ExcludedPrefix = ExcludedPrefix
+  { phonePrefix :: PhonePrefix,
+    comment :: Text
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ExcludedPrefix
+
+instance ToSchema ExcludedPrefix where
+  schema =
+    object "ExcludedPrefix" $
+      ExcludedPrefix
+        <$> phonePrefix .= field "phone_prefix" schema
+        <*> comment .= field "comment" schema
+
+-- | If the budget for SMS and voice calls for a phone number
+-- has been exhausted within a certain time frame, this timeout
+-- indicates in seconds when another attempt may be made.
+newtype PhoneBudgetTimeout = PhoneBudgetTimeout
+  {phoneBudgetTimeout :: NominalDiffTime}
+  deriving (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema PhoneBudgetTimeout
+
+instance ToSchema PhoneBudgetTimeout where
+  schema =
+    object "PhoneBudgetTimeout" $
+      PhoneBudgetTimeout
+        <$> phoneBudgetTimeout .= field "expires_in" nominalDiffTimeSchema
+
+-- | (32bit precision)
+nominalDiffTimeSchema :: ValueSchema NamedSwaggerDoc NominalDiffTime
+nominalDiffTimeSchema = fromIntegral <$> roundDiffTime .= schema
+  where
+    roundDiffTime :: NominalDiffTime -> Int32
+    roundDiffTime = round
+
+newtype ManagedByUpdate = ManagedByUpdate {mbuManagedBy :: ManagedBy}
+  deriving (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ManagedByUpdate
+
+instance ToSchema ManagedByUpdate where
+  schema =
+    object "ManagedByUpdate" $
+      ManagedByUpdate
+        <$> mbuManagedBy .= field "managed_by" schema
+
+data HavePendingInvitations
+  = WithPendingInvitations
+  | NoPendingInvitations
+  deriving (Eq, Show, Generic)
+
+newtype RichInfoUpdate = RichInfoUpdate {riuRichInfo :: RichInfoAssocList}
+  deriving (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema RichInfoUpdate
+
+instance ToSchema RichInfoUpdate where
+  schema =
+    object "RichInfoUpdate" $
+      RichInfoUpdate
+        <$> riuRichInfo .= field "rich_info" schema
+
+type PasswordResetPair = (PasswordResetKey, PasswordResetCode)
+
+-- we recycle that for delete userssoid, too.  can't be bothered.
+data UpdateSSOIdResponse = UpdateSSOIdSuccess | UpdateSSOIdNotFound
+
+instance
+  AsUnion
+    '[ RespondEmpty 200 "UpdateSSOIdSuccess",
+       RespondEmpty 404 "UpdateSSOIdNotFound"
+     ]
+    UpdateSSOIdResponse
+  where
+  toUnion UpdateSSOIdSuccess = Z (I ())
+  toUnion UpdateSSOIdNotFound = S (Z (I ()))
+  fromUnion (Z (I ())) = UpdateSSOIdSuccess
+  fromUnion (S (Z (I ()))) = UpdateSSOIdNotFound
+  fromUnion (S (S x)) = case x of {}
+
+data CheckHandleResponse
+  = CheckHandleResponseFound
+  | CheckHandleResponseNotFound
+
+instance
+  AsUnion
+    '[ RespondEmpty 200 "CheckHandleResponseFound",
+       RespondEmpty 404 "CheckHandleResponseNotFound"
+     ]
+    CheckHandleResponse
+  where
+  toUnion CheckHandleResponseFound = Z (I ())
+  toUnion CheckHandleResponseNotFound = S (Z (I ()))
+  fromUnion (Z (I ())) = CheckHandleResponseFound
+  fromUnion (S (Z (I ()))) = CheckHandleResponseNotFound
+  fromUnion (S (S x)) = case x of {}
+
+-- | FUTUREWORK: This needs to get Qualified IDs when implementing
+-- Legalhold + Federation, as it's used in the internal
+-- putConnectionInternal / galley->Brig "/i/users/connections-status"
+-- endpoint.
+-- Internal RPCs need to be updated accordingly.
+-- See https://wearezeta.atlassian.net/browse/SQCORE-973
+data UpdateConnectionsInternal
+  = BlockForMissingLHConsent UserId [UserId]
+  | RemoveLHBlocksInvolving UserId
+  | -- | This must only be used by tests
+    CreateConnectionForTest UserId (Qualified UserId)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UpdateConnectionsInternal)
+  deriving (S.ToSchema) via Schema UpdateConnectionsInternal
+
+instance FromJSON UpdateConnectionsInternal
+
+-- | `{"tag":"BlockForMissingLHConsent","contents":["3ae7f23a-bd47-11eb-932d-5fccbbcde454",["3ae7f23a-bd47-11eb-932d-5fccbbcde454"]]}`
+instance ToJSON UpdateConnectionsInternal
+
+instance ToSchema UpdateConnectionsInternal where
+  schema =
+    -- `{"tag":"BlockForMissingLHConsent","contents":["3ae7f23a-bd47-11eb-932d-5fccbbcde454",["3ae7f23a-bd47-11eb-932d-5fccbbcde454"]]}`
+    undefined
 
 --------------------------------------------------------------------------------
 -- QualifiedUserIdList
@@ -1346,13 +1633,12 @@ instance (res ~ ChangeHandleResponses) => AsUnion res (Maybe ChangeHandleError) 
 newtype NameUpdate = NameUpdate {nuHandle :: Text}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NameUpdate)
 
-instance ToJSON NameUpdate where
-  toJSON h = A.object ["name" A..= nuHandle h]
-
-instance FromJSON NameUpdate where
-  parseJSON = A.withObject "name-update" $ \o ->
-    NameUpdate <$> o A..: "name"
+instance ToSchema NameUpdate where
+  schema =
+    object "NameUpdate" $
+      NameUpdate <$> nuHandle .= field "name" schema
 
 data ChangeEmailResponse
   = ChangeEmailResponseIdempotent
@@ -1553,6 +1839,51 @@ instance Schema.ToSchema AccountStatusUpdate where
   schema =
     object "AccountStatusUpdate" $
       AccountStatusUpdate <$> suStatus .= field "status" schema
+
+-------------------------------------------------------------------------------
+-- UserAccount
+
+-- | A UserAccount is targeted to be used by our \"backoffice\" and represents
+-- all the data related to a user in our system, regardless of whether they
+-- are active or not, their status, etc.
+data UserAccount = UserAccount
+  { accountUser :: !User,
+    accountStatus :: !AccountStatus
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserAccount)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema UserAccount
+
+instance Schema.ToSchema UserAccount where
+  schema =
+    Schema.object "UserAccount" $
+      UserAccount
+        <$> accountUser Schema..= userObjectSchema
+        <*> accountStatus Schema..= Schema.field "status" Schema.schema
+
+-------------------------------------------------------------------------------
+-- NewUserScimInvitation
+
+data NewUserScimInvitation = NewUserScimInvitation
+  { newUserScimInvTeamId :: TeamId,
+    newUserScimInvLocale :: Maybe Locale,
+    newUserScimInvName :: Name,
+    newUserScimInvEmail :: Email,
+    newUserScimInvRole :: Role
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewUserScimInvitation)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema NewUserScimInvitation
+
+instance Schema.ToSchema NewUserScimInvitation where
+  schema =
+    Schema.object "NewUserScimInvitation" $
+      NewUserScimInvitation
+        <$> newUserScimInvTeamId Schema..= Schema.field "team_id" Schema.schema
+        <*> newUserScimInvLocale Schema..= maybe_ (optField "locale" Schema.schema)
+        <*> newUserScimInvName Schema..= Schema.field "name" Schema.schema
+        <*> newUserScimInvEmail Schema..= Schema.field "email" Schema.schema
+        <*> newUserScimInvRole Schema..= Schema.field "role" Schema.schema
 
 -----------------------------------------------------------------------------
 -- SndFactorPasswordChallenge

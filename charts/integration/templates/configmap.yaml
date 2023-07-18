@@ -51,6 +51,10 @@ data:
       host: backgroundWorker.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080
 
+    stern:
+      host: stern.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
     originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
 
     backendTwo:
@@ -97,6 +101,10 @@ data:
 
       backgroundWorker:
         host: backgroundWorker.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
+      stern:
+        host: stern.{{ .Release.Namespace }}-fed2.svc.cluster.local
         port: 8080
 
       originDomain: federation-test-helper.{{ .Release.Namespace }}-fed2.svc.cluster.local

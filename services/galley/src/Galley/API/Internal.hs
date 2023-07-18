@@ -72,6 +72,7 @@ import Galley.Effects.MemberStore
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.ProposalStore
 import Galley.Effects.TeamStore
+import qualified Galley.Effects.TeamStore as E
 import qualified Galley.Intra.Push as Intra
 import Galley.Monad
 import Galley.Options
@@ -384,8 +385,8 @@ rmUser lusr conn = do
         goConvPages range newCids
 
     leaveTeams page = for_ (pageItems page) $ \tid -> do
-      mems <- getTeamMembersForFanout tid
-      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) mems
+      admins <- E.getTeamAdmins tid
+      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) admins
       page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'
 
@@ -534,7 +535,6 @@ deleteFederationDomain d = do
   deleteFederationDomainOneOnOne d
 
 internalDeleteFederationDomainH ::
-  forall r.
   ( Member (Input Env) r,
     Member (P.Logger (Msg -> Msg)) r,
     Member (Error InternalError) r,

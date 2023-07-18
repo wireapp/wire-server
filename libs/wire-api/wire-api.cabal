@@ -138,6 +138,7 @@ library
     Wire.API.Team.Invitation
     Wire.API.Team.LegalHold
     Wire.API.Team.LegalHold.External
+    Wire.API.Team.LegalHold.Internal
     Wire.API.Team.Member
     Wire.API.Team.Permission
     Wire.API.Team.Role
@@ -474,7 +475,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.RichField_user
     Test.Wire.API.Golden.Generated.RichInfo_user
     Test.Wire.API.Golden.Generated.RichInfoAssocList_user
-    Test.Wire.API.Golden.Generated.RichInfoMapAndList_user
     Test.Wire.API.Golden.Generated.RmClient_user
     Test.Wire.API.Golden.Generated.Role_team
     Test.Wire.API.Golden.Generated.RoleName_user
@@ -741,7 +741,6 @@ test-suite wire-api-tests
     , either
     , filepath
     , hex
-    , hscim
     , hspec
     , hspec-wai
     , http-types

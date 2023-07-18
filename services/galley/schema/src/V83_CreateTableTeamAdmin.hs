@@ -1,8 +1,6 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,25 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.Test.Arbitrary
-  ( module Wire.Arbitrary,
+module V83_CreateTableTeamAdmin
+  ( migration,
   )
 where
 
-import Brig.Types.Common
-import Brig.Types.Team.LegalHold
+import Cassandra.Schema
 import Imports
-import Test.QuickCheck
-import Wire.Arbitrary
+import Text.RawString.QQ
 
-instance Arbitrary ExcludedPrefix where
-  arbitrary = ExcludedPrefix <$> arbitrary <*> arbitrary
-
-instance Arbitrary LegalHoldClientRequest where
-  arbitrary =
-    LegalHoldClientRequest
-      <$> arbitrary
-      <*> arbitrary
-
-instance Arbitrary LegalHoldService where
-  arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+migration :: Migration
+migration = Migration 83 "Create table `team_admin`" $ do
+  schema'
+    [r|
+        CREATE TABLE team_admin (
+            team   uuid,
+            user   uuid,
+            PRIMARY KEY (team, user)
+        ) WITH compaction = {'class': 'LeveledCompactionStrategy'};
+        |]

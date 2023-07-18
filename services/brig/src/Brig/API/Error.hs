@@ -19,7 +19,6 @@ module Brig.API.Error where
 
 import Brig.API.Types
 import Brig.Phone (PhoneException (..))
-import Brig.Types.Common (PhoneBudgetTimeout (..))
 import Control.Monad.Error.Class hiding (Error)
 import Data.Aeson
 import qualified Data.Aeson.KeyMap as KeyMap

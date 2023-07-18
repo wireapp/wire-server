@@ -327,7 +327,6 @@ tests =
       testRoundTrip @User.Profile.ManagedBy,
       testRoundTrip @User.RichInfo.RichField,
       testRoundTrip @User.RichInfo.RichInfoAssocList,
-      testRoundTrip @User.RichInfo.RichInfoMapAndList,
       testRoundTrip @User.RichInfo.RichInfo,
       testRoundTrip @(User.Search.SearchResult User.Search.TeamContact),
       testRoundTrip @User.Search.PagingState,

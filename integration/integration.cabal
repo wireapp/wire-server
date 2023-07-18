@@ -145,6 +145,8 @@ library
     , http-client
     , http-types
     , kan-extensions
+    , lens
+    , lens-aeson
     , mime
     , monad-control
     , mtl

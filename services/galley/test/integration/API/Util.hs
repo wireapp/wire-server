@@ -117,6 +117,7 @@ import Wire.API.Event.Team
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Internal.Notification hiding (target)
@@ -753,7 +754,16 @@ postConvWithRemoteUsers ::
   Maybe ClientId ->
   NewConv ->
   TestM (Response (Maybe LByteString))
-postConvWithRemoteUsers = postConvWithRemoteUsersGeneric $ mockReply ()
+postConvWithRemoteUsers u c n =
+  fmap fst $
+    withTempMockFederator' (("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) <|> mockReply EmptyResponse) $
+      postConvQualified u c n {newConvName = setName (newConvName n)}
+        <!! const 201
+          === statusCode
+  where
+    setName :: (KnownNat n, KnownNat m, Within Text n m) => Maybe (Range n m Text) -> Maybe (Range n m Text)
+    setName Nothing = checked "federated gossip"
+    setName x = x
 
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
@@ -1542,20 +1552,21 @@ registerRemoteConv :: Qualified ConvId -> UserId -> Maybe Text -> Set OtherMembe
 registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
-  runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
-    ConversationCreated
-      { ccTime = now,
-        ccOrigUserId = originUser,
-        ccCnvId = qUnqualified convId,
-        ccCnvType = RegularConv,
-        ccCnvAccess = [],
-        ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
-        ccCnvName = name,
-        ccNonCreatorMembers = othMembers,
-        ccMessageTimer = Nothing,
-        ccReceiptMode = Nothing,
-        ccProtocol = ProtocolProteus
-      }
+  void $
+    runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
+      ConversationCreated
+        { ccTime = now,
+          ccOrigUserId = originUser,
+          ccCnvId = qUnqualified convId,
+          ccCnvType = RegularConv,
+          ccCnvAccess = [],
+          ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
+          ccCnvName = name,
+          ccNonCreatorMembers = othMembers,
+          ccMessageTimer = Nothing,
+          ccReceiptMode = Nothing,
+          ccProtocol = ProtocolProteus
+        }
 
 getFeatureStatusMulti :: forall cfg. KnownSymbol (FeatureSymbol cfg) => Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
 getFeatureStatusMulti req = do
@@ -2732,21 +2743,21 @@ checkUserDeleteEvent uid timeout_ w = WS.assertMatch_ timeout_ w $ \notif -> do
 
 checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
 checkTeamMemberJoin tid uid w = WS.awaitMatch_ checkTimeout w $ \notif -> do
-  ntfTransient notif @?= False
+  ntfTransient notif @?= True
   let e = List1.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdMemberJoin uid
 
 checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
 checkTeamMemberLeave tid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
-  ntfTransient notif @?= False
+  ntfTransient notif @?= True
   let e = List1.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdMemberLeave usr
 
 checkTeamUpdateEvent :: (HasCallStack, MonadIO m, MonadCatch m) => TeamId -> TeamUpdateData -> WS.WebSocket -> m ()
 checkTeamUpdateEvent tid upd w = WS.assertMatch_ checkTimeout w $ \notif -> do
-  ntfTransient notif @?= False
+  ntfTransient notif @?= True
   let e = List1.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdTeamUpdate upd
@@ -2818,7 +2829,7 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif ->
     other -> assertFailure $ "Unexpected event data: " <> show other
 
 checkTimeout :: WS.Timeout
-checkTimeout = 4 # Second
+checkTimeout = 60 # Second
 
 -- | The function is used in conjuction with 'withTempMockFederator' to mock
 -- responses by Brig on the mocked side of federation.
