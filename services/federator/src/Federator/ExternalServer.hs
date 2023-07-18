@@ -29,7 +29,6 @@ import Data.Bifunctor
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
-import Data.Data
 import Data.Domain
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
@@ -50,12 +49,10 @@ import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import Servant.API
+import Servant.API.Extended.Endpath
 import Servant.Client.Core
-import Servant.Server (Context, HasContextEntry (getContextEntry), HasServer (..), Server, ServerT, Tagged (..), type (.++))
+import Servant.Server (Tagged (..))
 import Servant.Server.Generic
-import Servant.Server.Internal.Delayed
-import Servant.Server.Internal.ErrorFormatter
-import Servant.Server.Internal.Router
 import qualified System.Logger.Message as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
@@ -104,20 +101,6 @@ data API mode = API
           :> Raw
   }
   deriving (Generic)
-
--- | Doesn't allow any trailing path components when used with 'Raw'
-data Endpath
-
-instance (HasServer api context, HasContextEntry (context .++ DefaultErrorFormatters) ErrorFormatters) => HasServer (Endpath :> api) context where
-  type ServerT (Endpath :> api) m = ServerT api m
-
-  route :: Proxy (Endpath :> api) -> Context context -> Delayed env (Server (Endpath :> api)) -> Router env
-  route _ ctx delayed =
-    let fmt404 = notFoundErrorFormatter $ getContextEntry $ mkContextWithErrorFormatter ctx
-     in StaticRouter mempty $ [runRouterEnv fmt404 (route (Proxy @api) ctx delayed)]
-
-  hoistServerWithContext :: Proxy (Endpath :> api) -> Proxy context -> (forall x. m x -> n x) -> ServerT (Endpath :> api) m -> ServerT (Endpath :> api) n
-  hoistServerWithContext _ proxyCtx f s = hoistServerWithContext (Proxy @api) proxyCtx f s
 
 server ::
   ( Member ServiceStreaming r,
