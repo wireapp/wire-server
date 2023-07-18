@@ -1163,7 +1163,7 @@ updateConversationByRemoteAdmin = do
         cnvUpdate' <- liftIO $ case resp of
           ConversationUpdateResponseError err -> assertFailure ("Expected ConversationUpdateResponseUpdate but got " <> show err)
           ConversationUpdateResponseNoChanges -> assertFailure "Expected ConversationUpdateResponseUpdate but got ConversationUpdateResponseNoChanges"
-          ConversationUpdateResponseUpdate up _ftp -> pure up
+          ConversationUpdateResponseUpdate up -> pure up
 
         liftIO $ do
           cuOrigUserId cnvUpdate' @?= qbob

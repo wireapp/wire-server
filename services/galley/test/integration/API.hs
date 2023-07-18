@@ -3881,7 +3881,7 @@ putRemoteReceiptModeOk = do
             cuAction =
               SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action
           }
-  let mockResponse = mockReply (ConversationUpdateResponseUpdate responseConvUpdate mempty)
+  let mockResponse = mockReply (ConversationUpdateResponseUpdate responseConvUpdate)
 
   WS.bracketR c adam $ \wsAdam -> do
     (res, federatedRequests) <- withTempMockFederator' mockResponse $ do

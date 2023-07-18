@@ -369,7 +369,7 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
   convUpdate <- case response of
     ConversationUpdateResponseNoChanges -> throw NoChanges
     ConversationUpdateResponseError err' -> rethrowErrors @(HasConversationActionGalleyErrors tag) err'
-    ConversationUpdateResponseUpdate convUpdate _failedToProcess -> pure convUpdate
+    ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
   updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) (Just conn) >>= note NoChanges
 
 updateConversationReceiptModeUnqualified ::

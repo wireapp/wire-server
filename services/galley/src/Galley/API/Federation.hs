@@ -26,7 +26,6 @@ import Control.Lens (itraversed, preview, to, (<.>))
 import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
-import Data.Either.Combinators
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map as Map
@@ -302,8 +301,7 @@ leaveConversation requestingDomain lc = do
             throw . internalErr $ e
           Right _ -> pure ()
 
-      pure . F.LeaveConversationResponse . Right $
-        mempty -- TODO(SB) type obsolete
+      pure $ F.LeaveConversationResponse (Right ())
   where
     internalErr = InternalErrorWithDescription . LT.pack . displayException
 
@@ -385,7 +383,8 @@ sendMessage originDomain msr = do
     throwErr = throw . InvalidPayload . LT.pack
 
 onUserDeleted ::
-  ( Member ConversationStore r,
+  ( Member (Error FederationError) r,
+    Member ConversationStore r,
     Member FederatorAccess r,
     Member FireAndForget r,
     Member ExternalAccess r,
@@ -434,7 +433,10 @@ onUserDeleted origDomain udcn = do
                     (qualifyAs lc conv)
                     botsAndMembers
                     ()
-              whenLeft outcome . logFederationError $ lc
+              case outcome of
+                Left e@(FederationUnreachableDomains _) -> throw e
+                Left e -> logFederationError lc e
+                Right _ -> pure ()
   pure EmptyResponse
 
 updateConversation ::
@@ -518,7 +520,7 @@ updateConversation origDomain updateRequest = do
 
     toResponse (Left galleyErr) = F.ConversationUpdateResponseError galleyErr
     toResponse (Right (Left NoChanges)) = F.ConversationUpdateResponseNoChanges
-    toResponse (Right (Right update)) = F.ConversationUpdateResponseUpdate update mempty -- TODO(SB) type obsolete
+    toResponse (Right (Right update)) = F.ConversationUpdateResponseUpdate update
 
 sendMLSCommitBundle ::
   ( Member BrigAccess r,
