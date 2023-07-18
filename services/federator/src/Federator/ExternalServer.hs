@@ -37,6 +37,7 @@ import qualified Data.X509 as X509
 import Federator.Discovery
 import Federator.Env
 import Federator.Error.ServerError
+import Federator.RPC
 import Federator.Response
 import Federator.Service
 import Federator.Validation
@@ -57,21 +58,6 @@ import qualified System.Logger.Message as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
 import Wire.API.Routes.FederationDomainConfig
-
-newtype RPC = RPC Text
-
-instance FromHttpApiData RPC where
-  parseUrlPiece :: Text -> Either Text RPC
-  parseUrlPiece rpcPath = do
-    unless (Text.all isAllowedRPCChar rpcPath) $
-      Left "invalid-endpoint"
-
-    when (Text.null rpcPath) $
-      Left "invalid-endpoint"
-    pure $ RPC rpcPath
-
-isAllowedRPCChar :: Char -> Bool
-isAllowedRPCChar c = isAsciiLower c || isAsciiUpper c || isNumber c || c == '_' || c == '-'
 
 -- | Used to get PEM encoded certificate out of an HTTP header
 newtype CertHeader = CertHeader X509.Certificate

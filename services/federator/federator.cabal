@@ -33,6 +33,7 @@ extra-source-files:
   test/resources/unit/unit-ca.pem
 
 library
+  -- cabal-fmt: expand src
   exposed-modules:
     Federator.App
     Federator.Discovery
@@ -47,6 +48,7 @@ library
     Federator.Options
     Federator.Remote
     Federator.Response
+    Federator.RPC
     Federator.Run
     Federator.Service
     Federator.Validation
