@@ -26,7 +26,6 @@
 , conduit
 , containers
 , cookie
-, cql-io
 , cryptonite
 , currency-codes
 , data-default
@@ -150,7 +149,6 @@ mkDerivation {
     cereal
     comonad
     containers
-    cql-io
     cryptonite
     currency-codes
     data-default

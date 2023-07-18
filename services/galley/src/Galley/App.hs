@@ -272,6 +272,7 @@ evalGalley e =
     . interpretFederatorAccess
     . interpretExternalAccess
     . interpretGundeckAccess
+    . interpretDefederationNotifications
     . interpretSparAccess
     . interpretBrigAccess
   where

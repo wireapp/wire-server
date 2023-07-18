@@ -26,7 +26,6 @@ module Galley.API.Internal
   )
 where
 
-import Cassandra (ClientState, Consistency (LocalQuorum), Page (..), paramsP)
 import Control.Exception
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
@@ -40,7 +39,6 @@ import Data.Range
 import Data.Singletons
 import Data.Text (unpack)
 import Data.Time
-import Database.CQL.IO (paginate)
 import Galley.API.Action
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
@@ -61,16 +59,13 @@ import Galley.API.Teams.Features
 import qualified Galley.API.Update as Update
 import Galley.API.Util
 import Galley.App
-import Galley.Cassandra.Conversation.Members
-import Galley.Cassandra.Queries
-import Galley.Cassandra.Store (embedClient)
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
-import Galley.Effects.ExternalAccess
+import Galley.Effects.DefederationNotifications (DefederationNotifications, sendDefederationNotifications)
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
@@ -79,9 +74,7 @@ import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.ProposalStore
 import Galley.Effects.TeamStore
 import qualified Galley.Effects.TeamStore as E
-import Galley.Env (currentFanoutLimit, _options)
 import qualified Galley.Intra.Push as Intra
-import Galley.Intra.Push.Internal (pushEventJson)
 import Galley.Monad
 import Galley.Options
 import qualified Galley.Queue as Q
@@ -114,7 +107,6 @@ import Wire.API.CustomBackend
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import qualified Wire.API.Event.Federation as Federation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
@@ -543,12 +535,12 @@ internalDeleteFederationDomainH ::
     Member MemberStore r,
     Member ConversationStore r,
     Member (Embed IO) r,
-    Member (Input ClientState) r,
     Member CodeStore r,
     Member TeamStore r,
     Member BrigAccess r,
     Member GundeckAccess r,
-    Member ExternalAccess r
+    Member ExternalAccess r,
+    Member DefederationNotifications r
   ) =>
   Domain ::: JSON ->
   Sem r Response
@@ -556,32 +548,10 @@ internalDeleteFederationDomainH (domain ::: _) = do
   -- We have to send the same event twice.
   -- Once before and once after defederation work.
   -- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/809238539/Use+case+Stopping+to+federate+with+a+domain
-  void sendNotifications
+  sendDefederationNotifications domain
   deleteFederationDomain domain
-  void sendNotifications
+  sendDefederationNotifications domain
   pure (empty & setStatus status200)
-  where
-    sendNotifications = do
-      maxPage <- inputs $ fromRange . currentFanoutLimit . _options -- This is based on the limits in removeIfLargeFanout
-      page <- embedClient $ paginate selectAllMembers (paramsP LocalQuorum () maxPage)
-      sendNotificationPage page
-    pushEvents results = do
-      let (bots, mems) = localBotsAndUsers results
-          recipients = Intra.recipient <$> mems
-          event = Intra.FederationEvent $ Federation.Event Federation.FederationDelete domain
-      for_ (Intra.newPush ListComplete Nothing event recipients) $ \p -> do
-        -- TODO: Transient or not?
-        -- RouteAny is used as it will wake up mobile clients
-        -- and notify them of the changes to federation state.
-        push1 $ p & Intra.pushRoute .~ Intra.RouteAny
-      deliverAsync (bots `zip` repeat (pushEventJson event))
-    sendNotificationPage page = do
-      let res = result page
-          mems = mapMaybe toMember res
-      pushEvents mems
-      when (hasMore page) $ do
-        page' <- embedClient $ nextPage page
-        sendNotificationPage page'
 
 -- Remove remote members from local conversations
 deleteFederationDomainRemoteUserFromLocalConversations ::

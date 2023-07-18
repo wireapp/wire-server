@@ -99,6 +99,7 @@ library
     Galley.Effects.CodeStore
     Galley.Effects.ConversationStore
     Galley.Effects.CustomBackendStore
+    Galley.Effects.DefederationNotifications
     Galley.Effects.ExternalAccess
     Galley.Effects.FederatorAccess
     Galley.Effects.FireAndForget
@@ -214,7 +215,6 @@ library
     , cereal                 >=0.4
     , comonad
     , containers             >=0.5
-    , cql-io
     , cryptonite
     , currency-codes         >=2.0
     , data-default           >=0.5
