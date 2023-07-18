@@ -77,11 +77,11 @@ spec:
             httpGet:
               scheme: HTTP
               path: /i/status
-              port: {{ .Values.service.externalFederatorPort }}
+              port: {{ .Values.service.internalFederatorPort }}
           readinessProbe:
             httpGet:
               scheme: HTTP
               path: /i/status
-              port: {{ .Values.service.externalFederatorPort }}
+              port: {{ .Values.service.internalFederatorPort }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
