@@ -43,6 +43,7 @@ module Galley.Effects.ConversationStore
     setConversationReceiptMode,
     setConversationMessageTimer,
     setConversationEpoch,
+    setConversationCipherSuite,
     acceptConnectConversation,
     setGroupInfo,
     updateToMixedProtocol,
@@ -96,6 +97,7 @@ data ConversationStore m a where
   SetConversationReceiptMode :: ConvId -> ReceiptMode -> ConversationStore m ()
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
+  SetConversationCipherSuite :: ConvId -> CipherSuiteTag -> ConversationStore m ()
   SetGroupInfo :: ConvId -> GroupInfoData -> ConversationStore m ()
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()

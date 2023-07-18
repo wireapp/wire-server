@@ -296,6 +296,9 @@ getConvEpoch = "select epoch from conversation where conv = ?"
 updateConvEpoch :: PrepQuery W (Epoch, ConvId) ()
 updateConvEpoch = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set epoch = ? where conv = ?"
 
+updateConvCipherSuite :: PrepQuery W (CipherSuiteTag, ConvId) ()
+updateConvCipherSuite = "update conversation set cipher_suite = ? where conv = ?"
+
 deleteConv :: PrepQuery W (Identity ConvId) ()
 deleteConv = "delete from conversation using timestamp 32503680000000000 where conv = ?"
 
@@ -355,6 +358,9 @@ selectSubConvEpoch = "SELECT epoch FROM subconversation WHERE conv_id = ? AND su
 
 insertEpochForSubConversation :: PrepQuery W (Epoch, ConvId, SubConvId) ()
 insertEpochForSubConversation = "UPDATE subconversation set epoch = ? WHERE conv_id = ? AND subconv_id = ?"
+
+insertCipherSuiteForSubConversation :: PrepQuery W (CipherSuiteTag, ConvId, SubConvId) ()
+insertCipherSuiteForSubConversation = "UPDATE subconversation set cipher_suite = ? WHERE conv_id = ? AND subconv_id = ?"
 
 listSubConversations :: PrepQuery R (Identity ConvId) (SubConvId, CipherSuiteTag, Epoch, Writetime Epoch, GroupId)
 listSubConversations = "SELECT subconv_id, cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ?"

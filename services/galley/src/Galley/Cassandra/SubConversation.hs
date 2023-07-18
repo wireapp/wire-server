@@ -93,6 +93,10 @@ setEpochForSubConversation :: ConvId -> SubConvId -> Epoch -> Client ()
 setEpochForSubConversation cid sconv epoch =
   retry x5 (write Cql.insertEpochForSubConversation (params LocalQuorum (epoch, cid, sconv)))
 
+setCipherSuiteForSubConversation :: ConvId -> SubConvId -> CipherSuiteTag -> Client ()
+setCipherSuiteForSubConversation cid sconv cs =
+  retry x5 (write Cql.insertCipherSuiteForSubConversation (params LocalQuorum (cs, cid, sconv)))
+
 deleteSubConversation :: ConvId -> SubConvId -> Client ()
 deleteSubConversation cid sconv =
   retry x5 $ write Cql.deleteSubConversation (params LocalQuorum (cid, sconv))
@@ -124,6 +128,7 @@ interpretSubConversationStoreToCassandra = interpret $ \case
   GetSubConversationEpoch convId subConvId -> embedClient (selectSubConvEpoch convId subConvId)
   SetSubConversationGroupInfo convId subConvId mPgs -> embedClient (updateSubConvGroupInfo convId subConvId mPgs)
   SetSubConversationEpoch cid sconv epoch -> embedClient $ setEpochForSubConversation cid sconv epoch
+  SetSubConversationCipherSuite cid sconv cs -> embedClient $ setCipherSuiteForSubConversation cid sconv cs
   ListSubConversations cid -> embedClient $ listSubConversations cid
   DeleteSubConversation convId subConvId -> embedClient $ deleteSubConversation convId subConvId
 
