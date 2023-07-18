@@ -3,7 +3,6 @@ module Wire.BackgroundWorker.Options where
 import Data.Aeson
 import Imports
 import Network.AMQP.Extended
-import Numeric.Natural
 import System.Logger.Extended
 import Util.Options
 
@@ -13,10 +12,7 @@ data Opts = Opts
     backgroundWorker :: !Endpoint,
     federatorInternal :: !Endpoint,
     rabbitmq :: !RabbitMqAdminOpts,
-    backendNotificationPusher :: !BackendNotificationPusherOpts,
-    -- | Seconds. This should match the value that Kubernetes is
-    -- configured with. By default this is 30 seconds.
-    shutdownGraceTime :: !Natural
+    backendNotificationPusher :: !BackendNotificationPusherOpts
   }
   deriving (Show, Generic)
 

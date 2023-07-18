@@ -31,7 +31,7 @@ do
     --password="$RABBIT_PASS" \
     publish \
     routing_key="backend-notifications.$TARGET_DOMAIN" \
-    payload='{ "ownDomain":"'"$OWN_DOMAIN"'", "targetComponent":"brig", "path":"/search-users", "body":"{ \"term\": \"foo\" }"}'
+    payload='{"ownDomain":"'"$OWN_DOMAIN"'", "targetComponent":"brig", "path":"/on-user-deleted-connections", "body":"{\"claimant\": \"e84785b6-58f8-4e61-939f-87d2513e6970\", \"target\": \"1130a19c-9d12-4997-9efc-040c38d8e186\"}"}'
   # Gives a rough idea of how fast messages are being sent and that it isn't hanging
   date -Ins
 done

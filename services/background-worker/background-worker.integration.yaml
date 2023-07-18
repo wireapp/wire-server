@@ -16,4 +16,3 @@ rabbitmq:
 
 backendNotificationPusher:
   remotesRefreshInterval: 1
-shutdownGraceTime: 30

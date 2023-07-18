@@ -28,7 +28,6 @@ library
   build-depends:
       aeson
     , amqp
-    , base
     , containers
     , exceptions
     , extended

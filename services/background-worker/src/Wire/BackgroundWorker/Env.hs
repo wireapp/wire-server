@@ -12,7 +12,6 @@ import HTTP2.Client.Manager
 import Imports
 import Network.AMQP.Extended
 import qualified Network.RabbitMqAdmin as RabbitMqAdmin
-import Numeric.Natural
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import Prometheus
@@ -38,9 +37,7 @@ data Env = Env
     federatorInternal :: Endpoint,
     backendNotificationPusher :: BackendNotificationPusherOpts,
     backendNotificationMetrics :: BackendNotificationMetrics,
-    statuses :: IORef (Map Worker IsWorking),
-    -- Seconds. The amount of time that kubernetes is going to give us to gracefully shutdown.
-    shutdownGraceTime :: Natural
+    statuses :: IORef (Map Worker IsWorking)
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -64,7 +61,6 @@ mkEnv opts = do
   rabbitmqAdminClient <- mkRabbitMqAdminClientEnv opts.rabbitmq
   let rabbitmqVHost = opts.rabbitmq.vHost
       backendNotificationPusher = opts.backendNotificationPusher
-      shutdownGraceTime = opts.shutdownGraceTime
   statuses <- newIORef $ Map.singleton BackendNotificationPusher False
   metrics <- Metrics.metrics
   backendNotificationMetrics <- mkBackendNotificationMetrics

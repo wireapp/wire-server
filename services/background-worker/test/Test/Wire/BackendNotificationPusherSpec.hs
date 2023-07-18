@@ -54,7 +54,6 @@ testEnv = do
       rabbitmqVHost = undefined
       metrics = undefined
       backendNotificationPusher = BackendNotificationPusherOpts 1
-      shutdownGraceTime = 30
   pure Env {..}
 
 runTestAppT :: AppT IO a -> Int -> IO a
@@ -207,7 +206,6 @@ spec = do
           backendNotificationPusher = BackendNotificationPusherOpts 1
           rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
-          shutdownGraceTime = 30
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domains <- runAppT Env {..} getRemoteDomains
       domains `shouldBe` map Domain ["foo.example", "bar.example", "baz.example"]
@@ -223,7 +221,6 @@ spec = do
           backendNotificationPusher = BackendNotificationPusherOpts 1
           rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
-          shutdownGraceTime = 30
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domainsThread <- async $ runAppT Env {..} getRemoteDomains
 
