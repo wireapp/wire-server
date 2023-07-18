@@ -26,12 +26,12 @@ module Galley.Effects.ExternalAccess
   )
 where
 
+import Data.Aeson
 import Data.Id
 import Galley.Data.Services
 import Imports
 import Polysemy
 import Wire.API.Event.Conversation
-import Data.Aeson
 
 data ExternalAccess m a where
   Deliver :: Foldable f => f (BotMember, Event) -> ExternalAccess m [BotMember]

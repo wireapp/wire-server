@@ -26,6 +26,7 @@ module Galley.API.Internal
   )
 where
 
+import Cassandra (ClientState, Consistency (LocalQuorum), Page (..), paramsP)
 import Control.Exception
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
@@ -39,6 +40,7 @@ import Data.Range
 import Data.Singletons
 import Data.Text (unpack)
 import Data.Time
+import Database.CQL.IO (paginate)
 import Galley.API.Action
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
@@ -59,12 +61,16 @@ import Galley.API.Teams.Features
 import qualified Galley.API.Update as Update
 import Galley.API.Util
 import Galley.App
+import Galley.Cassandra.Conversation.Members
+import Galley.Cassandra.Queries
+import Galley.Cassandra.Store (embedClient)
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
+import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
@@ -73,7 +79,9 @@ import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.ProposalStore
 import Galley.Effects.TeamStore
 import qualified Galley.Effects.TeamStore as E
+import Galley.Env (currentFanoutLimit, _options)
 import qualified Galley.Intra.Push as Intra
+import Galley.Intra.Push.Internal (pushEventJson)
 import Galley.Monad
 import Galley.Options
 import qualified Galley.Queue as Q
@@ -85,7 +93,7 @@ import Imports hiding (head)
 import qualified Network.AMQP as Q
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (result, Error, err, setStatus)
+import Network.Wai.Predicate hiding (Error, err, result, setStatus)
 import qualified Network.Wai.Predicate as Predicate hiding (result)
 import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
@@ -121,14 +129,6 @@ import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.Team.Member
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
-import Galley.Effects.ExternalAccess
-import Galley.Intra.Push.Internal (pushEventJson)
-import Galley.Cassandra.Store (embedClient)
-import Cassandra (Consistency(LocalQuorum), Page (..), paramsP, ClientState)
-import Database.CQL.IO (paginate)
-import Galley.Cassandra.Queries
-import Galley.Cassandra.Conversation.Members
-import Galley.Env (currentFanoutLimit, _options)
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
@@ -574,7 +574,7 @@ internalDeleteFederationDomainH (domain ::: _) = do
         -- RouteAny is used as it will wake up mobile clients
         -- and notify them of the changes to federation state.
         push1 $ p & Intra.pushRoute .~ Intra.RouteAny
-                  -- & Intra.pushTransient .~ True
+      -- & Intra.pushTransient .~ True
       deliverAsync (bots `zip` repeat (pushEventJson event))
     sendNotificationPage page = do
       let res = result page

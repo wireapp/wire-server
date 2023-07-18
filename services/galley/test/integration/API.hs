@@ -4333,7 +4333,6 @@ testDefederationNotifications = do
   charlie <- randomQualifiedUser
   connectUsers (qUnqualified alice) (pure (qUnqualified charlie))
 
-
   let remoteDomain = Domain "far-away.example.com"
       -- This variable should be commented out if the below
       -- section is used to insert users to the database.
@@ -4369,7 +4368,7 @@ testDefederationNotifications = do
         <!! const 201 === statusCode
 
   c <- view tsCannon
-  WS.bracketRN c (map qUnqualified $ [alice, bob, charlie, dee] <> users) $ \(wsA:wsB:wsC:wsD:wsUsers) -> do
+  WS.bracketRN c (map qUnqualified $ [alice, bob, charlie, dee] <> users) $ \(wsA : wsB : wsC : wsD : wsUsers) -> do
     -- conversation access role changes to team only
     (_, reqs) <- withTempMockFederator' (mockReply ()) $ do
       -- Delete the domain that Dee lives on

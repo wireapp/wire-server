@@ -1,28 +1,30 @@
 module Wire.API.Event.Federation
-  ( Event (..)
-  , EventType (..)
-  ) where
+  ( Event (..),
+    EventType (..),
+  )
+where
 
+import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Domain
 import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Schema
 import qualified Data.Swagger as S
 import Imports
 import Wire.Arbitrary
-import Data.Domain
-import Data.Aeson (ToJSON, FromJSON)
 
 data Event = Event
-  { _eventType :: EventType
-  , _eventDomain :: Domain
+  { _eventType :: EventType,
+    _eventDomain :: Domain
   }
   deriving (Eq, Show, Ord, Generic)
 
 instance Arbitrary Event where
-  arbitrary = Event
-    <$> arbitrary
-    <*> arbitrary
+  arbitrary =
+    Event
+      <$> arbitrary
+      <*> arbitrary
 
 data EventType
   = FederationDelete
@@ -38,9 +40,10 @@ instance ToSchema EventType where
         ]
 
 eventObjectSchema :: ObjectSchema SwaggerDoc Event
-eventObjectSchema = Event
-  <$> _eventType .= field "type" schema
-  <*> _eventDomain .= field "domain" schema
+eventObjectSchema =
+  Event
+    <$> _eventType .= field "type" schema
+    <*> _eventDomain .= field "domain" schema
 
 instance ToSchema Event where
   schema = object "Event" eventObjectSchema

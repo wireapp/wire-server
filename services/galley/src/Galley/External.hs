@@ -21,6 +21,7 @@ import Bilge.Request
 import Bilge.Retry (httpHandlers)
 import Control.Lens
 import Control.Retry
+import Data.Aeson (ToJSON)
 import Data.ByteString.Conversion.To
 import Data.Id
 import Data.Misc
@@ -45,7 +46,6 @@ import URI.ByteString
 import UnliftIO (Async, async, waitCatch)
 import Wire.API.Event.Conversation (Event)
 import Wire.API.Provider.Service (serviceRefId, serviceRefProvider)
-import Data.Aeson (ToJSON)
 
 interpretExternalAccess ::
   ( Member (Embed IO) r,

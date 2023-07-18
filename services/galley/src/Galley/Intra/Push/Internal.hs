@@ -40,8 +40,8 @@ import Imports hiding (forkIO)
 import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Event.Conversation (Event (evtFrom))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
-import qualified Wire.API.Event.Team as Teams
 import qualified Wire.API.Event.Federation as Federation
+import qualified Wire.API.Event.Team as Teams
 import Wire.API.Team.Member
 
 data PushEvent

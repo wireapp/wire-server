@@ -113,6 +113,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import qualified Wire.API.Event.Conversation as Conv
+import qualified Wire.API.Event.Federation as Fed
 import Wire.API.Event.Team
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.API
@@ -145,7 +146,6 @@ import Wire.API.User.Auth hiding (Access)
 import Wire.API.User.Client
 import qualified Wire.API.User.Client as Client
 import Wire.API.User.Client.Prekey
-import qualified Wire.API.Event.Federation as Fed
 
 -------------------------------------------------------------------------------
 -- API Operations
