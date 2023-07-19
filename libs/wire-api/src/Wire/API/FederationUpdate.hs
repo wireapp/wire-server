@@ -21,6 +21,7 @@ import Util.Options
 import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Named (namedClient)
+import Data.Typeable (cast)
 
 -- | 'FedUpdateCallback' is not called if a new settings cannot be fetched, or if they are
 -- equal to the old settings.
@@ -62,7 +63,13 @@ loop logger clientEnv (SyncFedDomainConfigsCallback callback) env = forever $
   catch go $ \(e :: SomeException) -> do
     -- log synchronous exceptions
     case fromException e of
-      Just (SomeAsyncException _) -> pure ()
+      -- Rethrow async exceptions so that we can kill this thread with the `async` tools
+      -- The use of cast here comes from https://hackage.haskell.org/package/base-4.18.0.0/docs/src/GHC.IO.Exception.html#asyncExceptionFromException
+      -- But I only want to check for AsyncCancelled while leaving non-async exception
+      -- logging in place.
+      Just (SomeAsyncException e') -> case cast e' of
+        Just AsyncCancelled -> throwIO e
+        Nothing -> pure ()
       Nothing ->
         L.log logger L.Error $
           L.msg (L.val "Federation domain sync thread died, restarting domain synchronization.")
