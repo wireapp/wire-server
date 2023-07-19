@@ -146,7 +146,6 @@ validateDomain ::
   X509.Certificate ->
   Domain ->
   Sem r Domain
--- validateDomain Nothing _ = throw NoClientCertificate
 validateDomain certificate targetDomain = do
   ensureCanFederateWith targetDomain
 
