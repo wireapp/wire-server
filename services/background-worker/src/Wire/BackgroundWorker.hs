@@ -2,6 +2,7 @@
 
 module Wire.BackgroundWorker where
 
+import Control.Concurrent.Async (cancel)
 import Data.Domain
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics.Servant as Metrics
@@ -17,7 +18,6 @@ import Wire.BackgroundWorker.Env
 import qualified Wire.BackgroundWorker.Health as Health
 import Wire.BackgroundWorker.Options
 import Wire.Defederation as Defederation
-import Control.Concurrent.Async (cancel)
 
 -- FUTUREWORK: Start an http service with status and metrics endpoints
 run :: Opts -> IO ()

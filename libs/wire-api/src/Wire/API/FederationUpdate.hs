@@ -12,6 +12,7 @@ import qualified Control.Retry as R
 import Data.Domain
 import qualified Data.Set as Set
 import Data.Text
+import Data.Typeable (cast)
 import Imports
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, ClientM, Scheme (Http), runClientM)
@@ -21,7 +22,6 @@ import Util.Options
 import Wire.API.Routes.FederationDomainConfig
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Named (namedClient)
-import Data.Typeable (cast)
 
 -- | 'FedUpdateCallback' is not called if a new settings cannot be fetched, or if they are
 -- equal to the old settings.

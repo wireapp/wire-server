@@ -67,12 +67,12 @@ deleteFederationDomainInner runningFlag (msg, envelope) =
           resp <- liftIO $ httpLbs (req env d) manager
           let code = statusCode $ responseStatus resp
           if code >= 200 && code <= 299
-          then do
-            liftIO $ ack envelope
-          else -- ensure that the message is requeued
-          -- This message was able to be parsed but something
-          -- else in our stack failed and we should try again.
-            liftIO $ reject envelope True
+            then do
+              liftIO $ ack envelope
+            else -- ensure that the message is requeued
+            -- This message was able to be parsed but something
+            -- else in our stack failed and we should try again.
+              liftIO $ reject envelope True
     req env dom =
       defaultRequest
         { method = methodDelete,
@@ -83,7 +83,6 @@ deleteFederationDomainInner runningFlag (msg, envelope) =
           requestHeaders = ("Accept", "application/json") : requestHeaders defaultRequest,
           responseTimeout = defederationTimeout env
         }
-      
 
 startDefederator :: IORef (Maybe (Q.ConsumerTag, MVar ())) -> Q.Channel -> AppT IO ()
 startDefederator consumerRef chan = do
