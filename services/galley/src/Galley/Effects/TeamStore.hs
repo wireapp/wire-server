@@ -59,6 +59,7 @@ module Galley.Effects.TeamStore
     getTeamMembersWithLimit,
     getTeamMembers,
     getBillingTeamMembers,
+    getTeamAdmins,
     selectTeamMembers,
 
     -- ** Update team members
@@ -105,6 +106,7 @@ data TeamStore m a where
     TeamStore m Team
   DeleteTeamMember :: TeamId -> UserId -> TeamStore m ()
   GetBillingTeamMembers :: TeamId -> TeamStore m [UserId]
+  GetTeamAdmins :: TeamId -> TeamStore m [UserId]
   GetTeam :: TeamId -> TeamStore m (Maybe TeamData)
   GetTeamName :: TeamId -> TeamStore m (Maybe Text)
   GetTeamConversation :: TeamId -> ConvId -> TeamStore m (Maybe TeamConversation)

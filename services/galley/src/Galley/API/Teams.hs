@@ -138,6 +138,7 @@ import Wire.API.Team.Conversation
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import Wire.API.Team.Member
+import qualified Wire.API.Team.Member as M
 import qualified Wire.API.Team.Member as Public
 import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, fullPermissions, self)
 import Wire.API.Team.Role
@@ -328,10 +329,6 @@ updateTeamH ::
   Sem r ()
 updateTeamH zusr zcon tid updateData = do
   zusrMembership <- E.getTeamMember tid zusr
-  -- let zothers = map (view userId) membs
-  -- Log.debug $
-  --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
-  --     . Log.field "action" (Log.val "Teams.updateTeam")
   void $ permissionCheckS SSetTeamData zusrMembership
   E.setTeamData tid updateData
   now <- input
@@ -707,6 +704,7 @@ addTeamMember ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TooManyTeamMembers) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'UserBindingExists) r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (Input Opts) r,
@@ -748,6 +746,7 @@ uncheckedAddTeamMember ::
   ( Member BrigAccess r,
     Member GundeckAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -773,6 +772,7 @@ uncheckedUpdateTeamMember ::
   ( Member BrigAccess r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TeamMemberNotFound) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member P.TinyLog r,
@@ -796,6 +796,10 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
 
   previousMember <-
     E.getTeamMember tid targetId >>= noteS @'TeamMemberNotFound
+
+  admins <- E.getTeamAdmins tid
+  let admins' = [targetId | isAdminOrOwner targetPermissions] <> filter (/= targetId) admins
+  checkAdminLimit (length admins')
 
   -- update target in Cassandra
   E.setTeamMemberPermissions (previousMember ^. permissions) tid targetId targetPermissions
@@ -832,6 +836,7 @@ updateTeamMember ::
     Member (ErrorS 'InvalidPermissions) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TeamMemberNotFound) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member GundeckAccess r,
@@ -1242,6 +1247,7 @@ ensureNotTooLargeForLegalHold tid teamSize =
 addTeamMemberInternal ::
   ( Member BrigAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member GundeckAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -1260,11 +1266,17 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = 
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
   sizeBeforeAdd <- ensureNotTooLarge tid
+
+  admins <- E.getTeamAdmins tid
+  let admins' = [new ^. userId | isAdminOrOwner (new ^. M.permissions)] <> admins
+  checkAdminLimit (length admins')
+
   E.createTeamMember tid new
   now <- input
   let e = newEvent tid now (EdMemberJoin (new ^. userId))
   E.push1 $
     newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
+
   APITeamQueue.pushTeamEvent tid e
   pure sizeBeforeAdd
   where
@@ -1404,3 +1416,8 @@ queueTeamDeletion ::
 queueTeamDeletion tid zusr zcon = do
   ok <- E.tryPush (TeamItem tid zusr zcon)
   unless ok $ throwS @'DeleteQueueFull
+
+checkAdminLimit :: Member (ErrorS 'TooManyTeamAdmins) r => Int -> Sem r ()
+checkAdminLimit adminCount =
+  when (adminCount > 2000) $
+    throwS @'TooManyTeamAdmins
