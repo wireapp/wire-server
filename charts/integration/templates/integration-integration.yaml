@@ -35,7 +35,7 @@ spec:
 
     - name: "cannon-config"
       configMap:
-        name: cannon
+        name: "cannon"
 
     - name: "gundeck-config"
       configMap:
@@ -48,6 +48,18 @@ spec:
     - name: "spar-config"
       configMap:
         name: "spar"
+
+    - name: "federator-config"
+      configMap:
+        name: "federator"
+
+    - name: "federator-secrets"
+      secret:
+        secretName: "federator-certificate-secret"
+
+    - name: "federator-ca"
+      configMap:
+        name: "federator-ca"
 
   restartPolicy: Never
 
@@ -134,8 +146,17 @@ spec:
     - name: cargohold-config
       mountPath: /etc/wire/cargohold/conf
 
-    - name: "spar-config"
-      mountPath: "/etc/wire/spar/conf"
+    - name: spar-config
+      mountPath: /etc/wire/spar/conf
+
+    - name: federator-config
+      mountPath: /etc/wire/federator/conf
+
+    - name: federator-secrets
+      mountPath: /etc/wire/federator/secrets
+
+    - name: federator-ca
+      mountPath: /etc/wire/federator/ca
 
     env:
     # these dummy values are necessary for Amazonka's "Discover"
