@@ -54,17 +54,17 @@ deleteFederationDomainInner :: (RabbitMQEnvelope e) => MVar () -> (Q.Message, e)
 deleteFederationDomainInner runningFlag (msg, envelope) =
   deleteFederationDomainInner' (const callGalley) (msg, envelope)
   where
-    callGalley d = do
+    callGalley domain = do
       env <- ask
-      -- Jittered exponential backoff with 10ms as starting delay and 300s as max
-      -- delay. When 300s is reached, every retry will happen after 300s.
-      let policy = capDelay 300_000_000 $ fullJitterBackoff 10000
+      -- Jittered exponential backoff with 10ms as starting delay and 60s as max
+      -- delay. When 60 is reached, every retry will happen after 60s.
+      let policy = capDelay 60_000_000 $ fullJitterBackoff 10000
           manager = httpManager env
       recovering policy httpHandlers $ \_ ->
         bracket_ (takeMVar runningFlag) (putMVar runningFlag ()) $ do
           -- Non 2xx responses will throw an exception
           -- So we are relying on that to be caught by recovering
-          resp <- liftIO $ httpLbs (req env d) manager
+          resp <- liftIO $ httpLbs (req env domain) manager
           let code = statusCode $ responseStatus resp
           if code >= 200 && code <= 299
             then do
