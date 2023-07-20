@@ -74,9 +74,9 @@ spec = do
       runningFlag <- newMVar ()
       (env, fedReqs) <-
         withTempMockFederator [] returnSuccess . runTestAppT $ do
-          void $ pushNotification runningFlag targetDomain (msg, envelope)
+          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
           ask
-
+ 
       readIORef envelope.acks `shouldReturn` 1
       readIORef envelope.rejections `shouldReturn` []
       fedReqs
@@ -90,7 +90,7 @@ spec = do
                    ]
       getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
         `shouldReturn` [(domainText targetDomain, 1)]
-
+   
     it "should reject invalid notifications" $ do
       let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
       envelope <- newMockEnvelope
@@ -102,9 +102,9 @@ spec = do
       runningFlag <- newMVar ()
       (env, fedReqs) <-
         withTempMockFederator [] returnSuccess . runTestAppT $ do
-          void $ pushNotification runningFlag (Domain "target.example.com") (msg, envelope)
+          wait =<< pushNotification runningFlag (Domain "target.example.com") (msg, envelope)
           ask
-
+   
       readIORef envelope.acks `shouldReturn` 0
       readIORef envelope.rejections `shouldReturn` [False]
       fedReqs `shouldBe` []
@@ -141,7 +141,7 @@ spec = do
       env <- testEnv
       pushThread <-
         async $ withTempMockFederator [] mockRemote . runTestAppTWithEnv env $ do
-          pushNotification runningFlag targetDomain (msg, envelope)
+          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
 
       -- Wait for two calls, so we can be sure that the metric about stuck
       -- queues has been updated

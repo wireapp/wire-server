@@ -32,9 +32,9 @@ startPushingNotifications ::
   AppT IO Q.ConsumerTag
 startPushingNotifications runningFlag chan domain = do
   lift $ ensureQueue chan domain._domainText
-  QL.consumeMsgs chan (routingKey domain._domainText) Q.Ack (pushNotification runningFlag domain)
+  QL.consumeMsgs chan (routingKey domain._domainText) Q.Ack (void . pushNotification runningFlag domain)
 
-pushNotification :: RabbitMQEnvelope e => MVar () -> Domain -> (Q.Message, e) -> AppT IO ()
+pushNotification :: RabbitMQEnvelope e => MVar () -> Domain -> (Q.Message, e) -> AppT IO (Async ())
 pushNotification runningFlag targetDomain (msg, envelope) = do
   -- Jittered exponential backoff with 10ms as starting delay and 300s as max
   -- delay. When 300s is reached, every retry will happen after 300s.
@@ -65,17 +65,16 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
   -- can't cancel the consumer, and the calling code will block until the cancelation message
   -- can be processed.
   -- Luckily, we can async this loop and carry on as usual due to how we have the channel setup.
-  void $
-    async $
-      recovering policy handlers $
-        const $
-          -- Ensure that the mvars are reset correctly.
-          -- takeMVar also has the nice feature of being a second layer of protection
-          -- against lazy thread updates in `amqp`. If this somehow gets called while
-          -- we are trying to cleanup workers for a shutdown, this will call will block
-          -- and prevent the message from being sent out as we are tearing down resources.
-          -- This removes one way that a message might be delivered twice.
-          UnliftIO.bracket_ (takeMVar runningFlag) (putMVar runningFlag ()) go
+  async $
+    recovering policy handlers $
+      const $
+        -- Ensure that the mvars are reset correctly.
+        -- takeMVar also has the nice feature of being a second layer of protection
+        -- against lazy thread updates in `amqp`. If this somehow gets called while
+        -- we are trying to cleanup workers for a shutdown, this will call will block
+        -- and prevent the message from being sent out as we are tearing down resources.
+        -- This removes one way that a message might be delivered twice.
+        UnliftIO.bracket_ (takeMVar runningFlag) (putMVar runningFlag ()) go
   where
     go :: AppT IO ()
     go = case A.eitherDecode @BackendNotification (Q.msgBody msg) of
