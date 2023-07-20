@@ -267,7 +267,12 @@ tests s =
               test s "send typing indicators without domain" postTypingIndicatorsV2,
               test s "send typing indicators with invalid pyaload" postTypingIndicatorsHandlesNonsense
             ],
-          test s "delete federation notifications" testDefederationNotifications
+          -- NOTE: These federation notification tests need to run after all of the other tests are finished.
+          -- This is because they will send notifications to _ALL_ registered clients for the local domain.
+          -- As a lot of these tests are waiting on specific notifications to come through in a specified
+          -- order, these tests will cause them to fail.
+          -- See the Tasty docs on patterns. https://hackage.haskell.org/package/tasty-1.4.3#patterns
+          after AllFinish "$0 !~ /delete federation notifications/" $ test s "delete federation notifications" API.testDefederationNotifications
         ]
     rb1, rb2, rb3 :: Remote Backend
     rb1 =
