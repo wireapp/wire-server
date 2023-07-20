@@ -76,7 +76,7 @@ spec = do
         withTempMockFederator [] returnSuccess . runTestAppT $ do
           wait =<< pushNotification runningFlag targetDomain (msg, envelope)
           ask
- 
+
       readIORef envelope.acks `shouldReturn` 1
       readIORef envelope.rejections `shouldReturn` []
       fedReqs
@@ -90,7 +90,7 @@ spec = do
                    ]
       getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
         `shouldReturn` [(domainText targetDomain, 1)]
-   
+
     it "should reject invalid notifications" $ do
       let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
       envelope <- newMockEnvelope
@@ -104,7 +104,7 @@ spec = do
         withTempMockFederator [] returnSuccess . runTestAppT $ do
           wait =<< pushNotification runningFlag (Domain "target.example.com") (msg, envelope)
           ask
-   
+
       readIORef envelope.acks `shouldReturn` 0
       readIORef envelope.rejections `shouldReturn` [False]
       fedReqs `shouldBe` []
