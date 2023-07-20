@@ -90,6 +90,20 @@ instance ToSchema Component where
           element "cargohold" Cargohold
         ]
 
+instance FromHttpApiData Component where
+  parseUrlPiece :: Text -> Either Text Component
+  parseUrlPiece = \case
+    "brig" -> Right Brig
+    "galley" -> Right Galley
+    "cargohold" -> Right Cargohold
+    c -> Left $ "Invalid component: " <> c
+
+instance ToHttpApiData Component where
+  toUrlPiece = \case
+    Brig -> "brig"
+    Galley -> "galley"
+    Cargohold -> "cargohold"
+
 -- | A typeclass corresponding to calls to federated services. This class has
 -- no methods, and exists only to automatically propagate information up to
 -- servant.
