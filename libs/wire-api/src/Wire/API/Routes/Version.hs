@@ -53,12 +53,44 @@ import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Data.Text as Text
 import Data.Text.Encoding as Text
+import GHC.Generics
 import Imports
 import Servant
 import Servant.Swagger
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
 import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
+
+class
+  ( Eq v,
+    Ord v,
+    Enum v,
+    Bounded v,
+    Show v,
+    Generic v,
+    ToSchema v,
+    ToJSON v,
+    FromJSON v,
+    ToHttpApiData v,
+    FromHttpApiData v,
+    ToByteString v,
+    Arbitrary v
+  ) =>
+  IsVersion v
+  where
+  -- | Manual enumeration of version integrals (the `<n>` in the constructor `V<n>`).
+  --
+  -- This is not the same as 'fromEnum': we will remove unsupported versions in the future,
+  -- which will cause `<n>` and `fromEnum V<n>` to diverge.  `Enum` should not be understood as
+  -- a bijection between meaningful integers and versions, but merely as a convenient way to say
+  -- `allVersions = [minBound..]`.
+  versionInt :: Integral i => v -> i
+
+  supportedVersions :: [v]
+  developmentVersions :: [v]
+
+  versionText :: v -> Text
+  versionByteString :: v -> ByteString
 
 -- | Version of the public API.  Serializes to `"v<n>"`.  See 'VersionNumber' below for one
 -- that serializes to `<n>`.  See `/libs/wire-api/test/unit/Test/Wire/API/Routes/Version.hs`
@@ -73,32 +105,18 @@ data Version = V0 | V1 | V2 | V3 | V4
   deriving (FromJSON, ToJSON) via (Schema Version)
   deriving (Arbitrary) via (GenericUniform Version)
 
--- | Manual enumeration of version integrals (the `<n>` in the constructor `V<n>`).
---
--- This is not the same as 'fromEnum': we will remove unsupported versions in the future,
--- which will cause `<n>` and `fromEnum V<n>` to diverge.  `Enum` should not be understood as
--- a bijection between meaningful integers and versions, but merely as a convenient way to say
--- `allVersions = [minBound..]`.
-versionInt :: Integral i => Version -> i
-versionInt V0 = 0
-versionInt V1 = 1
-versionInt V2 = 2
-versionInt V3 = 3
-versionInt V4 = 4
+instance IsVersion Version where
+  versionInt V0 = 0
+  versionInt V1 = 1
+  versionInt V2 = 2
+  versionInt V3 = 3
+  versionInt V4 = 4
 
-supportedVersions :: [Version]
-supportedVersions = [minBound .. V4]
+  supportedVersions = [minBound .. V4]
+  developmentVersions = [V4]
 
-developmentVersions :: [Version]
-developmentVersions = [V4]
-
-----------------------------------------------------------------------
-
-versionText :: Version -> Text
-versionText = ("v" <>) . toUrlPiece . versionInt @Int
-
-versionByteString :: Version -> ByteString
-versionByteString = ("v" <>) . toByteString' . versionInt @Int
+  versionText = ("v" <>) . toUrlPiece . versionInt @Version @Int
+  versionByteString = ("v" <>) . toByteString' . versionInt @Version @Int
 
 instance ToSchema Version where
   schema = enum @Text "Version" . mconcat $ (\v -> element (versionText v) v) <$> [minBound ..]
@@ -119,25 +137,68 @@ instance ToByteString Version where
 -- | Wrapper around 'Version' that serializes to integers `<n>`, as needed in
 -- eg. `VersionInfo`.  See `/libs/wire-api/test/unit/Test/Wire/API/Routes/Version.hs` for
 -- serialization rules.
-newtype VersionNumber = VersionNumber {fromVersionNumber :: Version}
-  deriving stock (Eq, Ord, Show, Generic)
+newtype VersionNumber v = VersionNumber {fromVersionNumber :: v}
+  deriving (Eq, Ord, Show)
   deriving newtype (Bounded, Enum)
-  deriving (FromJSON, ToJSON) via (Schema VersionNumber)
-  deriving (Arbitrary) via (GenericUniform Version)
+  deriving (FromJSON, ToJSON) via (Schema (VersionNumber v))
 
-instance ToSchema VersionNumber where
+--  deriving (Arbitrary) via (GenericUniform v)
+
+-- Can't derive this because of v's class context.
+instance (Generic v, IsVersion v) => Generic (VersionNumber v) where
+  type Rep (VersionNumber v) = Rep v
+  from (VersionNumber v) = from v -- (T x) = from (x, undefined)
+  to r = VersionNumber (to r) -- rep = T (fst (to rep))
+
+{-
+  instance GHC.Generics.Generic Wire.API.Routes.Version.Version where
+    GHC.Generics.from x_aGix
+      = GHC.Generics.M1
+          (case x_aGix of
+             Wire.API.Routes.Version.V0
+               -> GHC.Generics.L1
+                    (GHC.Generics.L1 (GHC.Generics.M1 GHC.Generics.U1))
+             Wire.API.Routes.Version.V1
+               -> GHC.Generics.L1
+                    (GHC.Generics.R1 (GHC.Generics.M1 GHC.Generics.U1))
+             Wire.API.Routes.Version.V2
+               -> GHC.Generics.R1
+                    (GHC.Generics.L1 (GHC.Generics.M1 GHC.Generics.U1))
+             Wire.API.Routes.Version.V3
+               -> GHC.Generics.R1
+                    (GHC.Generics.R1
+                       (GHC.Generics.L1 (GHC.Generics.M1 GHC.Generics.U1)))
+             Wire.API.Routes.Version.V4
+               -> GHC.Generics.R1
+                    (GHC.Generics.R1
+                       (GHC.Generics.R1 (GHC.Generics.M1 GHC.Generics.U1))))
+    GHC.Generics.to (GHC.Generics.M1 x_aGiy)
+      = case x_aGiy of
+          (GHC.Generics.L1 (GHC.Generics.L1 (GHC.Generics.M1 GHC.Generics.U1)))
+            -> Wire.API.Routes.Version.V0
+          (GHC.Generics.L1 (GHC.Generics.R1 (GHC.Generics.M1 GHC.Generics.U1)))
+            -> Wire.API.Routes.Version.V1
+          (GHC.Generics.R1 (GHC.Generics.L1 (GHC.Generics.M1 GHC.Generics.U1)))
+            -> Wire.API.Routes.Version.V2
+          (GHC.Generics.R1 (GHC.Generics.R1 (GHC.Generics.L1 (GHC.Generics.M1 GHC.Generics.U1))))
+            -> Wire.API.Routes.Version.V3
+          (GHC.Generics.R1 (GHC.Generics.R1 (GHC.Generics.R1 (GHC.Generics.M1 GHC.Generics.U1))))
+            -> Wire.API.Routes.Version.V4
+-}
+
+instance IsVersion v => ToSchema (VersionNumber v) where
   schema =
     enum @Integer "VersionNumber" . mconcat $ (\v -> element (versionInt v) (VersionNumber v)) <$> [minBound ..]
 
-instance FromHttpApiData VersionNumber where
+instance IsVersion v => FromHttpApiData (VersionNumber v) where
   parseHeader = first Text.pack . Aeson.eitherDecode . LBS.fromStrict
   parseUrlPiece = parseHeader . Text.encodeUtf8
 
-instance ToHttpApiData VersionNumber where
+instance IsVersion v => ToHttpApiData (VersionNumber v) where
   toHeader = LBS.toStrict . Aeson.encode
   toUrlPiece = Text.decodeUtf8 . toHeader
 
-instance ToByteString VersionNumber where
+instance IsVersion v => ToByteString (VersionNumber v) where
   builder = toEncodedUrlPiece
 
 -- | Information related to the public API version.
@@ -146,15 +207,15 @@ instance ToByteString VersionNumber where
 -- domain. Clients should fetch this information early when connecting to a
 -- backend, in order to decide how to form request paths, and how to deal with
 -- federated backends and qualified user IDs.
-data VersionInfo = VersionInfo
-  { vinfoSupported :: [VersionNumber],
-    vinfoDevelopment :: [VersionNumber],
+data VersionInfo v = VersionInfo
+  { vinfoSupported :: [VersionNumber v],
+    vinfoDevelopment :: [VersionNumber v],
     vinfoFederation :: Bool,
     vinfoDomain :: Domain
   }
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema VersionInfo)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema (VersionInfo v))
 
-instance ToSchema VersionInfo where
+instance IsVersion v => ToSchema (VersionInfo v) where
   schema =
     objectWithDocModifier "VersionInfo" (S.schema . S.example ?~ toJSON example) $
       VersionInfo
@@ -163,7 +224,7 @@ instance ToSchema VersionInfo where
         <*> vinfoFederation .= field "federation" schema
         <*> vinfoDomain .= field "domain" schema
     where
-      example :: VersionInfo
+      example :: VersionInfo v
       example =
         VersionInfo
           { vinfoSupported = VersionNumber <$> supportedVersions,
@@ -176,8 +237,16 @@ type VersionAPI =
   Named
     "get-version"
     ( "api-version"
+        :> Get '[JSON] (VersionInfo Version)
+    )
+
+{-
+  :<|> Named
+    "get-backend-version"
+    ( "api-version-backend"
         :> Get '[JSON] VersionInfo
     )
+-}
 
 versionSwagger :: S.Swagger
 versionSwagger = toSwagger (Proxy @VersionAPI)
