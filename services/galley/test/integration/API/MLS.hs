@@ -96,9 +96,7 @@ tests s =
           test s "add remote user to a conversation" testAddRemoteUser,
           test s "add remote users to a conversation (some unreachable)" testAddRemotesSomeUnreachable,
           test s "return error when commit is locked" testCommitLock,
-          test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
-          test s "post commit that references an unknown proposal" testUnknownProposalRefCommit,
-          test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals
+          test s "post commit that references an unknown proposal" testUnknownProposalRefCommit
         ],
       testGroup
         "External commit"
@@ -135,8 +133,7 @@ tests s =
         ],
       testGroup
         "Proposal"
-        [ test s "add a new client to a non-existing conversation" propNonExistingConv,
-          test s "add a new client to an existing conversation" propExistingConv
+        [ test s "add a new client to a non-existing conversation" propNonExistingConv
         ],
       testGroup
         "External Add Proposal"
@@ -589,28 +586,6 @@ testCommitLock = do
               (groupId, epoch)
           )
 
-testAddUserBareProposalCommit :: TestM ()
-testAddUserBareProposalCommit = do
-  users <- createAndConnectUsers (replicate 2 Nothing)
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient users
-    (_, qcnv) <- setupMLSGroup alice1
-    void $ uploadNewKeyPackage bob1
-
-    createAddProposals alice1 [cidQualifiedUser bob1]
-      >>= traverse_ sendAndConsumeMessage
-    commit <- createPendingProposalCommit alice1
-    void $ assertJust (mpWelcome commit)
-    void $ sendAndConsumeCommitBundle commit
-
-    -- check that bob can now see the conversation
-    liftTest $ do
-      convs <- getAllConvs (ciUser bob1)
-      liftIO $
-        assertBool
-          "Users added to an MLS group should find it when listing conversations"
-          (qcnv `elem` map cnvQualifiedId convs)
-
 testUnknownProposalRefCommit :: TestM ()
 testUnknownProposalRefCommit = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
@@ -630,33 +605,6 @@ testUnknownProposalRefCommit = do
         =<< localPostCommitBundle alice1 bundle
           <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "mls-proposal-not-found"
-
-testCommitNotReferencingAllProposals :: TestM ()
-testCommitNotReferencingAllProposals = do
-  users@[_alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
-
-  runMLSTest $ do
-    [alice1, bob1, charlie1] <- traverse createMLSClient users
-    void $ setupMLSGroup alice1
-    traverse_ uploadNewKeyPackage [bob1, charlie1]
-
-    gsBackup <- getClientGroupState alice1
-
-    -- create proposals for bob and charlie
-    createAddProposals alice1 [bob, charlie]
-      >>= traverse_ sendAndConsumeMessage
-
-    -- now create a commit referencing only the first proposal
-    setClientGroupState alice1 gsBackup
-    commit <- createPendingProposalCommit alice1
-
-    -- send commit and expect and error
-    bundle <- createBundle commit
-    err <-
-      responseJsonError
-        =<< localPostCommitBundle alice1 bundle
-          <!! const 400 === statusCode
-    liftIO $ Wai.label err @?= "mls-commit-missing-references"
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = do
@@ -1270,17 +1218,6 @@ propNonExistingConv = do
     postMessage alice1 (mpMessage prop) !!! do
       const 404 === statusCode
       const (Just "no-conversation") === fmap Wai.label . responseJsonError
-
-propExistingConv :: TestM ()
-propExistingConv = do
-  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient [alice, bob]
-    void $ uploadNewKeyPackage bob1
-    void $ setupMLSGroup alice1
-    res <- traverse sendAndConsumeMessage =<< createAddProposals alice1 [bob]
-
-    liftIO $ (fst <$> res) @?= [[]]
 
 -- scenario:
 -- alice1 creates a group and adds bob1

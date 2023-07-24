@@ -684,3 +684,59 @@ testPropUnsupported = do
 
   -- we cannot consume this message, because the membership tag is fake
   void $ postMLSMessage mp.sender mp.message >>= getJSON 201
+
+testAddUserBareProposalCommit :: HasCallStack => App ()
+testAddUserBareProposalCommit = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
+  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+  (_, qcnv) <- createNewGroup alice1
+  void $ uploadNewKeyPackage bob1
+  void $ createAddCommit alice1 [] >>= sendAndConsumeCommitBundle
+
+  createAddProposals alice1 [bob]
+    >>= traverse_ sendAndConsumeMessage
+  commit <- createPendingProposalCommit alice1
+  void $ assertJust "Expected welcome" commit.welcome
+  void $ sendAndConsumeCommitBundle commit
+
+  -- check that bob can now see the conversation
+  convs <- getAllConvs bob
+  convIds <- traverse (%. "qualified_id") convs
+  void $
+    assertBool
+      "Users added to an MLS group should find it when listing conversations"
+      (qcnv `elem` convIds)
+
+testPropExistingConv :: HasCallStack => App ()
+testPropExistingConv = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
+  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+  void $ uploadNewKeyPackage bob1
+  void $ createNewGroup alice1
+  void $ createAddCommit alice1 [] >>= sendAndConsumeCommitBundle
+  res <- createAddProposals alice1 [bob] >>= traverse sendAndConsumeMessage >>= assertOne
+  shouldBeEmpty (res %. "events")
+
+testCommitNotReferencingAllProposals :: HasCallStack => App ()
+testCommitNotReferencingAllProposals = do
+  users@[_alice, bob, charlie] <- createAndConnectUsers (replicate 3 OwnDomain)
+
+  [alice1, bob1, charlie1] <- traverse createMLSClient users
+  void $ createNewGroup alice1
+  traverse_ uploadNewKeyPackage [bob1, charlie1]
+  void $ createAddCommit alice1 [] >>= sendAndConsumeCommitBundle
+
+  gsBackup <- getClientGroupState alice1
+
+  -- create proposals for bob and charlie
+  createAddProposals alice1 [bob, charlie]
+    >>= traverse_ sendAndConsumeMessage
+
+  -- now create a commit referencing only the first proposal
+  setClientGroupState alice1 gsBackup
+  commit <- createPendingProposalCommit alice1
+
+  -- send commit and expect and error
+  bindResponse (postMLSCommitBundle alice1 (mkBundle commit)) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-commit-missing-references"

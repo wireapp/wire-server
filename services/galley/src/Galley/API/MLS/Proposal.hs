@@ -163,20 +163,19 @@ checkProposal ::
   IndexMap ->
   Proposal ->
   Sem r ()
-checkProposal mlsMeta im p =
-  case p of
-    AddProposal kp -> do
-      (cs, _lifetime) <-
-        either
-          (\msg -> throw (mlsProtocolError ("Invalid key package in Add proposal: " <> msg)))
-          pure
-          $ validateKeyPackage Nothing kp.value
-      -- we are not checking lifetime constraints here
-      unless (mlsMeta.cnvmlsCipherSuite == cs) $
-        throw (mlsProtocolError "Key package ciphersuite does not match conversation")
-    RemoveProposal idx -> do
-      void $ noteS @'MLSInvalidLeafNodeIndex $ imLookup im idx
-    _ -> pure ()
+checkProposal mlsMeta im p = case p of
+  AddProposal kp -> do
+    (cs, _lifetime) <-
+      either
+        (\msg -> throw (mlsProtocolError ("Invalid key package in Add proposal: " <> msg)))
+        pure
+        $ validateKeyPackage Nothing kp.value
+    -- we are not checking lifetime constraints here
+    unless (mlsMeta.cnvmlsCipherSuite == cs) $
+      throw (mlsProtocolError "Key package ciphersuite does not match conversation")
+  RemoveProposal idx -> do
+    void $ noteS @'MLSInvalidLeafNodeIndex $ imLookup im idx
+  _ -> pure ()
 
 addProposedClient :: Member (State IndexMap) r => ClientIdentity -> Sem r ProposalAction
 addProposedClient cid = do
@@ -247,6 +246,10 @@ processProposal qusr lConvOrSub groupId epoch pub prop = do
   -- Check if the group ID matches that of a conversation
   unless (groupId == cnvmlsGroupId mlsMeta) $ throwS @'ConvNotFound
   let suiteTag = cnvmlsCipherSuite mlsMeta
+
+  -- Reject proposals before first commit
+  when (mlsMeta.cnvmlsEpoch == Epoch 0) $
+    throw (mlsProtocolError "Bare proposals at epoch 0 are not supported")
 
   -- FUTUREWORK: validate the member's conversation role
   checkProposal mlsMeta (tUnqualified lConvOrSub).indexMap prop.value
