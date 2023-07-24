@@ -7,11 +7,8 @@ import Control.Monad.Catch
 import Control.Retry
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as L
-import Data.Domain
 import Data.Text.Encoding
 import Imports
-import Network.AMQP (cancelConsumer)
 import qualified Network.AMQP as Q
 import Network.AMQP.Extended
 import qualified Network.AMQP.Lifted as QL
@@ -23,10 +20,10 @@ import Wire.API.Federation.BackendNotifications
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 
-deleteFederationDomain :: Q.Channel -> AppT IO Q.ConsumerTag
-deleteFederationDomain chan = do
+deleteFederationDomain :: MVar () -> Q.Channel -> AppT IO Q.ConsumerTag
+deleteFederationDomain runningFlag chan = do
   lift $ ensureQueue chan defederationQueue
-  QL.consumeMsgs chan (routingKey defederationQueue) Q.Ack deleteFederationDomainInner
+  QL.consumeMsgs chan (routingKey defederationQueue) Q.Ack $ deleteFederationDomainInner runningFlag
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
@@ -53,75 +50,64 @@ deleteFederationDomainInner' go (msg, envelope) = do
 -- What should we do with non-recoverable (unparsable) errors/messages?
 -- should we deadletter, or do something else?
 -- Deadlettering has a privacy implication -- FUTUREWORK.
-deleteFederationDomainInner :: (RabbitMQEnvelope e) => (Q.Message, e) -> AppT IO ()
-deleteFederationDomainInner (msg, envelope) = do
-  env <- ask
-  let manager = httpManager env
-      req :: Domain -> Request
-      req dom =
-        defaultRequest
-          { method = methodDelete,
-            secure = False,
-            host = galley env ^. epHost . to encodeUtf8,
-            port = galley env ^. epPort . to fromIntegral,
-            path = "/i/federation/" <> toByteString' dom,
-            requestHeaders = ("Accept", "application/json") : requestHeaders defaultRequest,
-            responseTimeout = defederationTimeout env
-          }
-  let callGalley d = do
-        -- Retry the request a couple of times. If the final one fails, catch the exception\
-        -- so that we can NACK the message and requeue it.
-        resp <- try $ recovering x3 httpHandlers $ \_ -> liftIO $ httpLbs (req d) manager
-        either
-          -- Requeue the exception and rethrow the exception
-          (\(e :: SomeException) -> liftIO (reject envelope True) >> throwM e)
-          go
-          resp
+deleteFederationDomainInner :: (RabbitMQEnvelope e) => MVar () -> (Q.Message, e) -> AppT IO ()
+deleteFederationDomainInner runningFlag (msg, envelope) =
   deleteFederationDomainInner' (const callGalley) (msg, envelope)
   where
-    go :: Response L.ByteString -> AppT IO ()
-    go resp = do
-      let code = statusCode $ responseStatus resp
-      if code >= 200 && code <= 299
-        then do
-          liftIO $ ack envelope
-        else -- ensure that the message is requeued
-        -- This message was able to be parsed but something
-        -- else in our stack failed and we should try again.
-          liftIO $ reject envelope True
+    callGalley domain = do
+      env <- ask
+      -- Jittered exponential backoff with 10ms as starting delay and 60s as max
+      -- delay. When 60 is reached, every retry will happen after 60s.
+      let policy = capDelay 60_000_000 $ fullJitterBackoff 10000
+          manager = httpManager env
+      recovering policy httpHandlers $ \_ ->
+        bracket_ (takeMVar runningFlag) (putMVar runningFlag ()) $ do
+          -- Non 2xx responses will throw an exception
+          -- So we are relying on that to be caught by recovering
+          resp <- liftIO $ httpLbs (req env domain) manager
+          let code = statusCode $ responseStatus resp
+          if code >= 200 && code <= 299
+            then do
+              liftIO $ ack envelope
+            else -- ensure that the message is requeued
+            -- This message was able to be parsed but something
+            -- else in our stack failed and we should try again.
+              liftIO $ reject envelope True
+    req env dom =
+      defaultRequest
+        { method = methodDelete,
+          secure = False,
+          host = galley env ^. epHost . to encodeUtf8,
+          port = galley env ^. epPort . to fromIntegral,
+          path = "/i/federation/" <> toByteString' dom,
+          requestHeaders = ("Accept", "application/json") : requestHeaders defaultRequest,
+          responseTimeout = defederationTimeout env
+        }
 
-startDefederator :: Q.Channel -> AppT IO ()
-startDefederator chan = do
+startDefederator :: IORef (Maybe (Q.ConsumerTag, MVar ())) -> Q.Channel -> AppT IO ()
+startDefederator consumerRef chan = do
   markAsWorking DefederationWorker
   lift $ Q.qos chan 0 1 False
-  consumerRef <- newIORef Nothing
-  let cleanup :: (MonadThrow m, MonadIO m) => AsyncCancelled -> m ()
-      cleanup e = do
-        consumer <- liftIO $ readIORef consumerRef
-        traverse_ (liftIO . cancelConsumer chan) consumer
-        throwM e
-  handle cleanup $ do
-    consumer <- deleteFederationDomain chan
-    liftIO $ atomicWriteIORef consumerRef $ pure consumer
-    liftIO $ forever $ threadDelay maxBound
+  runningFlag <- newMVar ()
+  consumer <- deleteFederationDomain runningFlag chan
+  liftIO $ atomicWriteIORef consumerRef $ pure (consumer, runningFlag)
+  liftIO $ forever $ threadDelay maxBound
 
-startWorker :: RabbitMqAdminOpts -> AppT IO ()
+startWorker :: RabbitMqAdminOpts -> AppT IO (IORef (Maybe Q.Channel), IORef (Maybe (Q.ConsumerTag, MVar ())))
 startWorker rabbitmqOpts = do
   env <- ask
-  threadRef <- newIORef Nothing
-  let cancelThread = do
-        -- Kill the thread and clean up the IORef
-        -- The thread should handle the cleanup of their AMQP consumers.
-        thread <- readIORef threadRef
-        traverse_ cancel thread
-        atomicWriteIORef threadRef Nothing
-      onChanClose = do
+  chanRef <- newIORef Nothing
+  consumerRef <- newIORef Nothing
+  let clearRefs = do
         runAppT env $ markAsNotWorking DefederationWorker
-        cancelThread
-  liftIO . openConnectionWithRetries env.logger (demoteOpts rabbitmqOpts) $
+        atomicWriteIORef chanRef Nothing
+        atomicWriteIORef consumerRef Nothing
+  void . liftIO . async . openConnectionWithRetries env.logger (demoteOpts rabbitmqOpts) $
     RabbitMqHooks
-      { onNewChannel =
-          runAppT env . startDefederator,
-        onChannelException = const onChanClose,
-        onConnectionClose = onChanClose
+      { onNewChannel = \chan -> do
+          atomicWriteIORef chanRef $ pure chan
+          runAppT env $ startDefederator consumerRef chan,
+        onChannelException = const clearRefs,
+        onConnectionClose = clearRefs
       }
+  pure (chanRef, consumerRef)

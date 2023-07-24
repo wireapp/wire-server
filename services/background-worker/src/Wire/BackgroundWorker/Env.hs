@@ -127,6 +127,13 @@ deriving newtype instance (MonadBase b m) => MonadBase b (AppT m)
 
 deriving newtype instance (MonadBaseControl b m) => MonadBaseControl b (AppT m)
 
+-- Coppied from Federator.
+instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
+  withRunInIO inner =
+    AppT . ReaderT $ \r ->
+      withRunInIO $ \runner ->
+        inner (runner . flip runReaderT r . unAppT)
+
 instance (MonadIO m) => MonadLogger (AppT m) where
   log lvl m = do
     l <- asks logger

@@ -12,6 +12,7 @@ import qualified Control.Retry as R
 import Data.Domain
 import qualified Data.Set as Set
 import Data.Text
+import Data.Typeable (cast)
 import Imports
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, ClientM, Scheme (Http), runClientM)
@@ -62,7 +63,13 @@ loop logger clientEnv (SyncFedDomainConfigsCallback callback) env = forever $
   catch go $ \(e :: SomeException) -> do
     -- log synchronous exceptions
     case fromException e of
-      Just (SomeAsyncException _) -> pure ()
+      -- Rethrow async exceptions so that we can kill this thread with the `async` tools
+      -- The use of cast here comes from https://hackage.haskell.org/package/base-4.18.0.0/docs/src/GHC.IO.Exception.html#asyncExceptionFromException
+      -- But I only want to check for AsyncCancelled while leaving non-async exception
+      -- logging in place.
+      Just (SomeAsyncException e') -> case cast e' of
+        Just AsyncCancelled -> throwIO e
+        Nothing -> pure ()
       Nothing ->
         L.log logger L.Error $
           L.msg (L.val "Federation domain sync thread died, restarting domain synchronization.")
