@@ -98,7 +98,6 @@ tests s =
         [ test s "add user (not connected)" testAddUserNotConnected,
           test s "add client of existing user" testAddClientPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
-          test s "send a stale commit" testStaleCommit,
           test s "add remote user to a conversation" testAddRemoteUser,
           test s "add remote users to a conversation (some unreachable)" testAddRemotesSomeUnreachable,
           test s "return error when commit is locked" testCommitLock,
@@ -143,7 +142,6 @@ tests s =
         "Proposal"
         [ test s "add a new client to a non-existing conversation" propNonExistingConv,
           test s "add a new client to an existing conversation" propExistingConv,
-          test s "add a new client in an invalid epoch" propInvalidEpoch,
           test s "forward an unsupported proposal" propUnsupported
         ],
       testGroup
@@ -492,32 +490,6 @@ testProteusMessage = do
           MismatchReportAll
           <!! const 404 === statusCode
     liftIO $ Wai.label e @?= "no-conversation"
-
-testStaleCommit :: TestM ()
-testStaleCommit = do
-  (alice : users) <- createAndConnectUsers (replicate 5 Nothing)
-  let (users1, users2) = splitAt 2 users
-
-  runMLSTest $ do
-    (alice1 : clients) <- traverse createMLSClient (alice : users)
-    traverse_ uploadNewKeyPackage clients
-    void $ setupMLSGroup alice1
-
-    gsBackup <- getClientGroupState alice1
-
-    -- add the first batch of users to the conversation
-    void $ createAddCommit alice1 users1 >>= sendAndConsumeCommitBundle
-
-    -- now roll back alice1 and try to add the second batch of users
-    setClientGroupState alice1 gsBackup
-
-    commit <- createAddCommit alice1 users2
-    bundle <- createBundle commit
-    err <-
-      responseJsonError
-        =<< localPostCommitBundle (mpSender commit) bundle
-          <!! const 409 === statusCode
-    liftIO $ Wai.label err @?= "mls-stale-message"
 
 testAddRemoteUser :: TestM ()
 testAddRemoteUser = do
@@ -1315,51 +1287,6 @@ propExistingConv = do
     res <- traverse sendAndConsumeMessage =<< createAddProposals alice1 [bob]
 
     liftIO $ (fst <$> res) @?= [[]]
-
-propInvalidEpoch :: TestM ()
-propInvalidEpoch = do
-  users@[_alice, bob, charlie, dee] <- createAndConnectUsers (replicate 4 Nothing)
-  runMLSTest $ do
-    [alice1, bob1, charlie1, dee1] <- traverse createMLSClient users
-    void $ setupMLSGroup alice1
-
-    -- Add bob -> epoch 1
-    void $ uploadNewKeyPackage bob1
-    gsBackup <- getClientGroupState alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-    gsBackup2 <- getClientGroupState alice1
-
-    -- try to send a proposal from an old epoch (0)
-    do
-      setClientGroupState alice1 gsBackup
-      void $ uploadNewKeyPackage dee1
-      [prop] <- createAddProposals alice1 [dee]
-      err <-
-        responseJsonError
-          =<< postMessage alice1 (mpMessage prop)
-            <!! const 409 === statusCode
-      liftIO $ Wai.label err @?= "mls-stale-message"
-
-    -- try to send a proposal from a newer epoch (2)
-    do
-      void $ uploadNewKeyPackage dee1
-      void $ uploadNewKeyPackage charlie1
-      setClientGroupState alice1 gsBackup2
-      void $ createAddCommit alice1 [charlie] -- --> epoch 2
-      [prop] <- createAddProposals alice1 [dee]
-      err <-
-        responseJsonError
-          =<< postMessage alice1 (mpMessage prop)
-            <!! const 409 === statusCode
-      liftIO $ Wai.label err @?= "mls-stale-message"
-      -- remove charlie from users expected to get a welcome message
-      State.modify $ \mls -> mls {mlsNewMembers = mempty}
-
-    -- alice send a well-formed proposal and commits it
-    void $ uploadNewKeyPackage dee1
-    setClientGroupState alice1 gsBackup2
-    createAddProposals alice1 [dee] >>= traverse_ sendAndConsumeMessage
-    void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
 
 -- scenario:
 -- alice1 creates a group and adds bob1

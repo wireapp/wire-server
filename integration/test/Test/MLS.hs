@@ -629,3 +629,43 @@ testStaleCommit = do
   bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
     resp.status `shouldMatchInt` 409
     resp.json %. "label" `shouldMatch` "mls-stale-message"
+
+testPropInvalidEpoch :: HasCallStack => App ()
+testPropInvalidEpoch = do
+  users@[_alice, bob, charlie, dee] <- createAndConnectUsers (replicate 4 OwnDomain)
+  [alice1, bob1, charlie1, dee1] <- traverse createMLSClient users
+  void $ createNewGroup alice1
+
+  -- Add bob -> epoch 1
+  void $ uploadNewKeyPackage bob1
+  gsBackup <- getClientGroupState alice1
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+  gsBackup2 <- getClientGroupState alice1
+
+  -- try to send a proposal from an old epoch (0)
+  do
+    setClientGroupState alice1 gsBackup
+    void $ uploadNewKeyPackage dee1
+    [prop] <- createAddProposals alice1 [dee]
+    bindResponse (postMLSMessage alice1 prop.message) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      resp.json %. "label" `shouldMatch` "mls-stale-message"
+
+  -- try to send a proposal from a newer epoch (2)
+  do
+    void $ uploadNewKeyPackage dee1
+    void $ uploadNewKeyPackage charlie1
+    setClientGroupState alice1 gsBackup2
+    void $ createAddCommit alice1 [charlie] -- --> epoch 2
+    [prop] <- createAddProposals alice1 [dee]
+    bindResponse (postMLSMessage alice1 prop.message) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      resp.json %. "label" `shouldMatch` "mls-stale-message"
+    -- remove charlie from users expected to get a welcome message
+    modifyMLSState $ \mls -> mls {newMembers = mempty}
+
+  -- alice send a well-formed proposal and commits it
+  void $ uploadNewKeyPackage dee1
+  setClientGroupState alice1 gsBackup2
+  createAddProposals alice1 [dee] >>= traverse_ sendAndConsumeMessage
+  void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
