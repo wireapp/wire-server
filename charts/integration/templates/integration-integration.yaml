@@ -64,6 +64,10 @@ spec:
       configMap:
         name: "background-worker"
 
+    - name: "stern-config"
+      configMap:
+        name: "backoffice"
+
   restartPolicy: Never
 
   initContainers:
@@ -163,6 +167,9 @@ spec:
 
     - name: background-worker-config
       mountPath: /etc/wire/background-worker/conf
+
+    - name: stern-config
+      mountPath: /etc/wire/stern/conf
 
     env:
     # these dummy values are necessary for Amazonka's "Discover"
