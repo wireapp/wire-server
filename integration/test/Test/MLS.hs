@@ -607,3 +607,25 @@ testLocalWelcome = do
   event %. "conversation" `shouldMatch` objId qcnv
   addedUser <- (event %. "data.users") >>= asList >>= assertOne
   objQid addedUser `shouldMatch` objQid bob
+
+testStaleCommit :: HasCallStack => App ()
+testStaleCommit = do
+  (alice : users) <- createAndConnectUsers (replicate 5 OwnDomain)
+  let (users1, users2) = splitAt 2 users
+
+  (alice1 : clients) <- traverse createMLSClient (alice : users)
+  traverse_ uploadNewKeyPackage clients
+  void $ createNewGroup alice1
+
+  gsBackup <- getClientGroupState alice1
+
+  -- add the first batch of users to the conversation
+  void $ createAddCommit alice1 users1 >>= sendAndConsumeCommitBundle
+
+  -- now roll back alice1 and try to add the second batch of users
+  setClientGroupState alice1 gsBackup
+
+  mp <- createAddCommit alice1 users2
+  bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 409
+    resp.json %. "label" `shouldMatch` "mls-stale-message"

@@ -224,6 +224,15 @@ create ioRef =
         Nothing -> error "No resources available"
         Just (r, s') -> (s', r)
 
+data ClientGroupState = ClientGroupState
+  { group :: Maybe ByteString,
+    keystore :: Maybe ByteString
+  }
+  deriving (Show)
+
+emptyClientGroupState :: ClientGroupState
+emptyClientGroupState = ClientGroupState Nothing Nothing
+
 data MLSState = MLSState
   { baseDir :: FilePath,
     members :: Set ClientIdentity,
@@ -231,7 +240,7 @@ data MLSState = MLSState
     newMembers :: Set ClientIdentity,
     groupId :: Maybe String,
     convId :: Maybe Value,
-    clientGroupState :: Map ClientIdentity ByteString,
+    clientGroupState :: Map ClientIdentity ClientGroupState,
     epoch :: Word64
   }
   deriving (Show)
