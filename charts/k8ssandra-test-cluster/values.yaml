@@ -11,3 +11,5 @@ storageClassName: hcloud-volumes-encrypted
 # storage, it's fine to request 10GB. The memory units are described here:
 # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#meaning-of-memory
 storageSize: 10G
+
+namespace: databases
