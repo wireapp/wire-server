@@ -60,6 +60,9 @@ spec:
     - name: "federator-ca"
       configMap:
         name: "federator-ca"
+    - name: "background-worker-config"
+      configMap:
+        name: "background-worker"
 
   restartPolicy: Never
 
@@ -157,6 +160,9 @@ spec:
 
     - name: federator-ca
       mountPath: /etc/wire/federator/ca
+
+    - name: background-worker-config
+      mountPath: /etc/wire/background-worker/conf
 
     env:
     # these dummy values are necessary for Amazonka's "Discover"
