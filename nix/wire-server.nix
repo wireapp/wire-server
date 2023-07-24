@@ -268,6 +268,7 @@ let
       stern
       brig-templates
       background-worker
+      pkgs.nginz
       integration-dynamic-backends-db-schemas
       integration-dynamic-backends-brig-index
       integration-dynamic-backends-sqs

@@ -68,6 +68,14 @@ spec:
       configMap:
         name: "backoffice"
 
+    - name: "nginz-config"
+      configMap:
+        name: "nginz"
+
+    - name: "nginz-secrets"
+      secret:
+        secretName: "nginz"
+
   restartPolicy: Never
 
   initContainers:
@@ -170,6 +178,12 @@ spec:
 
     - name: stern-config
       mountPath: /etc/wire/stern/conf
+
+    - name: nginz-config
+      mountPath: /etc/wire/nginz/conf
+
+    - name: nginz-secrets
+      mountPath: /etc/wire/nginz/secrets
 
     env:
     # these dummy values are necessary for Amazonka's "Discover"
