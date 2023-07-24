@@ -267,6 +267,7 @@ let
       spar-schema
       stern
       brig-templates
+      background-worker
       integration-dynamic-backends-db-schemas
       integration-dynamic-backends-brig-index
       integration-dynamic-backends-sqs
