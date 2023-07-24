@@ -415,7 +415,6 @@ executable galley-integration
     , cereal
     , containers
     , cookie
-    , cryptonite
     , currency-codes
     , data-default
     , data-timeout

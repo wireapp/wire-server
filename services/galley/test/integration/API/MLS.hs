@@ -28,8 +28,6 @@ import Cassandra hiding (Set)
 import Control.Lens (view)
 import Control.Lens.Extras
 import Control.Monad.State qualified as State
-import Crypto.Error
-import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Data.Aeson qualified as Aeson
 import Data.Domain
 import Data.Id
@@ -58,12 +56,9 @@ import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
-import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
-import Wire.API.MLS.Message
-import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
@@ -141,8 +136,7 @@ tests s =
       testGroup
         "Proposal"
         [ test s "add a new client to a non-existing conversation" propNonExistingConv,
-          test s "add a new client to an existing conversation" propExistingConv,
-          test s "forward an unsupported proposal" propUnsupported
+          test s "add a new client to an existing conversation" propExistingConv
         ],
       testGroup
         "External Add Proposal"
@@ -1457,38 +1451,6 @@ testPublicKeys = do
           (unMLSPublicKeys keys)
       )
       @?= [Ed25519]
-
---- | The test manually reads from mls-test-cli's store and extracts a private
---- key. The key is needed for signing an unsupported proposal, which is then
--- forwarded by the backend without being inspected.
-propUnsupported :: TestM ()
-propUnsupported = do
-  users@[_alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient users
-    void $ uploadNewKeyPackage bob1
-    (gid, _) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-
-    (priv, pub) <- clientKeyPair alice1
-    pmsg <-
-      liftIO . throwCryptoErrorIO $
-        mkSignedPublicMessage
-          <$> Ed25519.secretKey priv
-          <*> Ed25519.publicKey pub
-          <*> pure gid
-          <*> pure (Epoch 1)
-          <*> pure (TaggedSenderMember 0 "foo")
-          <*> pure
-            ( FramedContentProposal
-                (mkRawMLS (GroupContextExtensionsProposal []))
-            )
-
-    let msg = mkMessage (MessagePublic pmsg)
-    let msgData = encodeMLS' msg
-
-    -- we cannot consume this message, because the membership tag is fake
-    postMessage alice1 msgData !!! const 201 === statusCode
 
 testBackendRemoveProposalRecreateClient :: TestM ()
 testBackendRemoveProposalRecreateClient = do

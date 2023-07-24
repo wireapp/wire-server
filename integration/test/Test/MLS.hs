@@ -669,3 +669,18 @@ testPropInvalidEpoch = do
   setClientGroupState alice1 gsBackup2
   createAddProposals alice1 [dee] >>= traverse_ sendAndConsumeMessage
   void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+--- | This test submits a ReInit proposal, which is currently ignored by the
+-- backend, in order to check that unsupported proposal types are accepted.
+testPropUnsupported :: HasCallStack => App ()
+testPropUnsupported = do
+  users@[_alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
+  [alice1, bob1] <- traverse createMLSClient users
+  void $ uploadNewKeyPackage bob1
+  void $ createNewGroup alice1
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+  mp <- createReInitProposal alice1
+
+  -- we cannot consume this message, because the membership tag is fake
+  void $ postMLSMessage mp.sender mp.message >>= getJSON 201

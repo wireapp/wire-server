@@ -373,6 +373,21 @@ createAddProposals cid users = do
   kps <- concat <$> traverse unbundleKeyPackages bundles
   traverse (createAddProposalWithKeyPackage cid) kps
 
+createReInitProposal :: HasCallStack => ClientIdentity -> App MessagePackage
+createReInitProposal cid = do
+  prop <-
+    mlscli
+      cid
+      ["proposal", "--group-in", "<group-in>", "--group-out", "<group-out>", "re-init"]
+      Nothing
+  pure
+    MessagePackage
+      { sender = cid,
+        message = prop,
+        welcome = Nothing,
+        groupInfo = Nothing
+      }
+
 createAddProposalWithKeyPackage ::
   ClientIdentity ->
   (ClientIdentity, ByteString) ->
