@@ -102,7 +102,6 @@ federationSitemap ::
   ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
-    :<|> Named @"on-new-remote-conversation" onNewRemoteConversation
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"on-conversation-updated" onConversationUpdated
     :<|> Named @"leave-conversation" (callsFed (exposeAnnotations leaveConversation))

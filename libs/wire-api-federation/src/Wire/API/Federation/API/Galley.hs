@@ -57,15 +57,13 @@ type GalleyApi =
   FedEndpoint "on-conversation-created" (ConversationCreated ConvId) EmptyResponse
     -- This endpoint is called the first time a user from this backend is
     -- added to a remote conversation.
-    :<|> FedEndpoint "on-new-remote-conversation" NewRemoteConversation EmptyResponse
     :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
     -- used by the backend that owns a conversation to inform this backend of
     -- changes to the conversation
     :<|> FedEndpoint "on-conversation-updated" ConversationUpdate EmptyResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-new-remote-conversation"
+              MakesFederatedCall 'Galley "on-mls-message-sent"
             ]
            "leave-conversation"
            LeaveConversationRequest
@@ -84,16 +82,14 @@ type GalleyApi =
            MessageSendResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-new-remote-conversation"
+              MakesFederatedCall 'Galley "on-conversation-updated"
             ]
            "on-user-deleted-conversations"
            UserDeletedConversationsNotification
            EmptyResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-new-remote-conversation"
+              MakesFederatedCall 'Galley "on-mls-message-sent"
             ]
            "update-conversation"
            ConversationUpdateRequest
@@ -103,7 +99,6 @@ type GalleyApi =
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-new-remote-conversation",
               MakesFederatedCall 'Galley "send-mls-message",
               MakesFederatedCall 'Brig "get-mls-clients"
             ]
@@ -114,7 +109,6 @@ type GalleyApi =
            '[ MakesFederatedCall 'Galley "mls-welcome",
               MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-new-remote-conversation",
               MakesFederatedCall 'Galley "send-mls-commit-bundle",
               MakesFederatedCall 'Brig "get-mls-clients"
             ]

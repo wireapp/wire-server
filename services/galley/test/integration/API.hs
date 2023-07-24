@@ -2545,7 +2545,7 @@ testAddRemoteMember = do
         <!! const 200 === statusCode
   liftIO $ do
     map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
-    map frRPC reqs @?= ["on-new-remote-conversation", "on-conversation-updated"]
+    map frRPC reqs @?= ["on-conversation-updated"]
 
   let e = responseJsonUnsafe resp
   let bobMember = SimpleMember remoteBob roleNameWireAdmin
@@ -2563,8 +2563,7 @@ testAddRemoteMember = do
     respond :: Qualified UserId -> Mock LByteString
     respond bob =
       asum
-        [ guardComponent Brig *> mockReply [mkProfile bob (Name "bob")],
-          "on-new-remote-conversation" ~> EmptyResponse
+        [ guardComponent Brig *> mockReply [mkProfile bob (Name "bob")]
         ]
 
 testDeleteTeamConversationWithRemoteMembers :: TestM ()
@@ -2582,22 +2581,12 @@ testDeleteTeamConversationWithRemoteMembers = do
 
   connectWithRemoteUser alice remoteBob
 
-  let mock = "on-new-remote-conversation" ~> EmptyResponse
-  (_, received) <- withTempMockFederator' mock $ do
+  do
     postQualifiedMembers alice (remoteBob :| []) qconvId
       !!! const 200 === statusCode
 
     deleteTeamConv tid convId alice
       !!! const 200 === statusCode
-
-  liftIO $ do
-    let convUpdates = mapMaybe (eitherToMaybe . parseFedRequest) received
-    convUpdate <- case filter ((== SomeConversationAction (sing @'ConversationDeleteTag) ()) . cuAction) convUpdates of
-      [] -> assertFailure "No ConversationUpdate requests received"
-      [convDelete] -> pure convDelete
-      _ -> assertFailure "Multiple ConversationUpdate requests received"
-    cuAlreadyPresentUsers convUpdate @?= [bobId]
-    cuOrigUserId convUpdate @?= qalice
 
 testDeleteTeamConversationWithUnavailableRemoteMembers :: TestM ()
 testDeleteTeamConversationWithUnavailableRemoteMembers = do
@@ -2615,9 +2604,8 @@ testDeleteTeamConversationWithUnavailableRemoteMembers = do
   connectWithRemoteUser alice remoteBob
 
   let mock =
-        ("on-new-remote-conversation" ~> EmptyResponse)
-          -- Mock an unavailable federation server for the deletion call
-          <|> (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
+        -- Mock an unavailable federation server for the deletion call
+        (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
           <|> (guardRPC "delete-team-conversation" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
   (_, received) <- withTempMockFederator' mock $ do
     postQualifiedMembers alice (remoteBob :| []) qconvId

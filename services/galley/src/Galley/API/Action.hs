@@ -81,8 +81,6 @@ import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
 import Imports
-import qualified Network.HTTP.Types.Status as Wai
-import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -721,8 +719,7 @@ addMembersToLocalConversation lcnv users role = do
 
 notifyConversationAction ::
   forall tag r.
-  ( Member (Error FederationError) r,
-    Member FederatorAccess r,
+  ( Member FederatorAccess r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -739,7 +736,6 @@ notifyConversationAction ::
 notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap convId lconv
-      conv = tUnqualified lconv
       e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
 
   let mkUpdate uids =
@@ -750,52 +746,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
           uids
           (SomeConversationAction tag action)
 
-  -- call `on-new-remote-conversation` on backends that are seeing this
-  -- conversation for the first time
-  let newDomains =
-        Set.difference
-          (Set.map void (bmRemotes targets))
-          (Set.fromList (map (void . rmId) (convRemoteMembers conv)))
-      newRemotes =
-        Set.filter (\r -> Set.member (void r) newDomains)
-          . bmRemotes
-          $ targets
-  let nrc =
-        NewRemoteConversation
-          { nrcConvId = convId conv,
-            nrcProtocol = convProtocol conv
-          }
   update <- do
-    notifyEithers <-
-      E.runFederatedConcurrentlyEither (toList newRemotes) $ \_ -> do
-        void $ fedClient @'Galley @"on-new-remote-conversation" nrc
-    -- For now these users will not be able to join the conversation until
-    -- queueing and retrying is implemented.
-    let failedNotifies = lefts notifyEithers
-    for_ failedNotifies $
-      logError
-        "on-new-remote-conversation"
-        "An error occurred while communicating with federated server: "
-    for_ failedNotifies $ \case
-      -- rethrow invalid-domain errors and mis-configured federation errors
-      (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 422 _) _ _ _)))) -> throw ex
-      -- FUTUREWORK: This error occurs when federation strategy is set to `allowDynamic`
-      -- and the remote domain is not in the allow list
-      -- Is it ok to throw all 400 errors?
-      (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 400 _) _ _ _)))) -> throw ex
-      (_, ex@(FederationCallFailure (FederatorClientHTTP2Error (FederatorClientConnectionError _)))) -> throw ex
-      -- FUTUREWORK: Default case (`_ -> pure ()`) is now explicit. Do we really want to ignore all these errors?
-      (_, FederationCallFailure (FederatorClientHTTP2Error _)) -> pure ()
-      (_, FederationCallFailure (FederatorClientError _)) -> pure ()
-      (_, FederationCallFailure FederatorClientStreamingNotSupported) -> pure ()
-      (_, FederationCallFailure (FederatorClientServantError _)) -> pure ()
-      (_, FederationCallFailure (FederatorClientVersionNegotiationError _)) -> pure ()
-      (_, FederationCallFailure FederatorClientVersionMismatch) -> pure ()
-      (_, FederationNotImplemented) -> pure ()
-      (_, FederationNotConfigured) -> pure ()
-      (_, FederationUnexpectedBody _) -> pure ()
-      (_, FederationUnexpectedError _) -> pure ()
-      (_, ex@(FederationUnreachableDomains _)) -> throw ex
     updates <-
       E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
         \ruids -> do

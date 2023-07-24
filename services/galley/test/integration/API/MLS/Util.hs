@@ -69,7 +69,6 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireMember)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
-import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfoBundle
@@ -957,28 +956,6 @@ clientKeyPair cid = do
           & fmap fromIntegral
           & BS.pack
   pure $ BS.splitAt 32 s
-
-receiveNewRemoteConv ::
-  (MonadReader TestSetup m, MonadIO m) =>
-  Qualified ConvId ->
-  GroupId ->
-  m ()
-receiveNewRemoteConv conv gid = do
-  client <- view tsFedGalleyClient
-  let nrc =
-        NewRemoteConversation (qUnqualified conv) $
-          ProtocolMLS
-            ( ConversationMLSData
-                gid
-                (Epoch 1)
-                MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-            )
-  void $
-    runFedClient
-      @"on-new-remote-conversation"
-      client
-      (qDomain conv)
-      nrc
 
 receiveOnConvUpdated ::
   (MonadReader TestSetup m, MonadIO m) =>
