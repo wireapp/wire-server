@@ -341,7 +341,7 @@ deleteUserConv = "delete from user where user = ? and conv = ?"
 
 -- MLS SubConversations -----------------------------------------------------
 
-selectSubConversation :: PrepQuery R (ConvId, SubConvId) (CipherSuiteTag, Epoch, Writetime Epoch, GroupId)
+selectSubConversation :: PrepQuery R (ConvId, SubConvId) (Maybe CipherSuiteTag, Maybe Epoch, Maybe (Writetime Epoch), Maybe GroupId)
 selectSubConversation = "SELECT cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ? and subconv_id = ?"
 
 insertSubConversation :: PrepQuery W (ConvId, SubConvId, CipherSuiteTag, Epoch, GroupId, Maybe GroupInfoData) ()
