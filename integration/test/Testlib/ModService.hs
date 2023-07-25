@@ -1,7 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-{-# HLINT ignore "Use tuple-section" #-}
 module Testlib.ModService
   ( withModifiedService,
     withModifiedServices,
