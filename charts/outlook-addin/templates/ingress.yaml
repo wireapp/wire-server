@@ -1,0 +1,15 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata: outlook-addin-ingress
+spec:
+  rules:
+    - host: https://outlook.zhica.eu
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: outlook-addin
+                port:
+                  number: 8080

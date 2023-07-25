@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: outlook-addin
+  labels:
+    app: outlook-addin
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: outlook-addin
+  template:
+    metadata:
+      labels:
+        app: outlook-addin
+    spec:
+      containers:
+        - name: outlook-addin
+          image: { { .Values.containerImage } }
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            - name: BASE_URL
+              value: "{{ .Values.baseUrl }}"
+            - name: CLIENT_ID
+              value: "{{ .Values.clientId }}"
+            - name: WIRE_API_BASE_URL
+              value: "{{ .Values.wireApiBaseUrl }}"
+            - name: WIRE_AUTHORIZATION_ENDPOINT
+              value: "{{ .Values.wireAuthorizationEndpoint }}"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http

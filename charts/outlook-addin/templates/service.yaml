@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: outlook-addin
+spec:
+  selector:
+    app: outlook-addin
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+  type: ClusterIP
