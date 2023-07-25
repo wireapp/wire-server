@@ -63,7 +63,8 @@ type GalleyApi =
     :<|> FedEndpoint "on-conversation-updated" ConversationUpdate EmptyResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent"
+              MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Brig "api-version"
             ]
            "leave-conversation"
            LeaveConversationRequest
@@ -82,7 +83,8 @@ type GalleyApi =
            MessageSendResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-conversation-updated"
+              MakesFederatedCall 'Galley "on-conversation-updated",
+              MakesFederatedCall 'Brig "api-version"
             ]
            "on-user-deleted-conversations"
            UserDeletedConversationsNotification
@@ -234,15 +236,6 @@ data ConversationCreated conv = ConversationCreated
 
 ccRemoteOrigUserId :: ConversationCreated (Remote ConvId) -> Remote UserId
 ccRemoteOrigUserId cc = qualifyAs (ccCnvId cc) (ccOrigUserId cc)
-
-data NewRemoteConversation = NewRemoteConversation
-  { -- | The conversation ID, local to the backend invoking the RPC.
-    nrcConvId :: ConvId,
-    -- | The conversation protocol.
-    nrcProtocol :: Protocol
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded NewRemoteConversation)
 
 data ConversationUpdate = ConversationUpdate
   { cuTime :: UTCTime,

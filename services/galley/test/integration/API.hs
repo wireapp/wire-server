@@ -2544,7 +2544,7 @@ testAddRemoteMember = do
       postQualifiedMembers alice (remoteBob :| []) qconvId
         <!! const 200 === statusCode
   liftIO $ do
-    map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
+    map frTargetDomain reqs @?= [remoteDomain]
     map frRPC reqs @?= ["on-conversation-updated"]
 
   let e = responseJsonUnsafe resp
@@ -2581,12 +2581,22 @@ testDeleteTeamConversationWithRemoteMembers = do
 
   connectWithRemoteUser alice remoteBob
 
-  do
+  let mock = "api-version" ~> EmptyResponse
+  (_, received) <- withTempMockFederator' mock $ do
     postQualifiedMembers alice (remoteBob :| []) qconvId
       !!! const 200 === statusCode
 
     deleteTeamConv tid convId alice
       !!! const 200 === statusCode
+
+  liftIO $ do
+    let convUpdates = mapMaybe (eitherToMaybe . parseFedRequest) received
+    convUpdate <- case filter ((== SomeConversationAction (sing @'ConversationDeleteTag) ()) . cuAction) convUpdates of
+      [] -> assertFailure "No ConversationUpdate requests received"
+      [convDelete] -> pure convDelete
+      _ -> assertFailure "Multiple ConversationUpdate requests received"
+    cuAlreadyPresentUsers convUpdate @?= [bobId]
+    cuOrigUserId convUpdate @?= qalice
 
 testDeleteTeamConversationWithUnavailableRemoteMembers :: TestM ()
 testDeleteTeamConversationWithUnavailableRemoteMembers = do

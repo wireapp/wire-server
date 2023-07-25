@@ -22,7 +22,7 @@
 module Galley.API.Federation where
 
 import Control.Error
-import Control.Lens (itraversed, preview, to, (<.>))
+import Control.Lens
 import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
@@ -74,7 +74,6 @@ import qualified System.Logger.Class as Log
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -186,17 +185,6 @@ onConversationCreated domain rc = do
             (F.ccTime qrcConnected)
             (EdConversation c)
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
-  pure EmptyResponse
-
-onNewRemoteConversation ::
-  Member ConversationStore r =>
-  Domain ->
-  F.NewRemoteConversation ->
-  Sem r EmptyResponse
-onNewRemoteConversation domain nrc = do
-  -- update group_id -> conv_id mapping
-  for_ (preview (to F.nrcProtocol . _ProtocolMLS) nrc) $ \mls ->
-    E.setGroupId (cnvmlsGroupId mls) (Qualified (F.nrcConvId nrc) domain)
   pure EmptyResponse
 
 getConversations ::
