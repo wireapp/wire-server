@@ -1237,7 +1237,7 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
       foldMap
         ( handleNoChanges
             . handleMLSProposalFailures @ProposalErrors
-            . fmap (pure . fst)
+            . fmap pure
             . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
             . flip ConversationJoin roleNameWireMember
         )
@@ -1250,7 +1250,7 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
       foldMap
         ( handleNoChanges
             . handleMLSProposalFailures @ProposalErrors
-            . fmap (pure . fst)
+            . fmap pure
             . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
         )
         . nonEmpty

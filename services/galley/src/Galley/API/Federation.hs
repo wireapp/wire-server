@@ -22,11 +22,10 @@
 module Galley.API.Federation where
 
 import Control.Error
-import Control.Lens (itraversed, preview, to, (<.>))
+import Control.Lens
 import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
-import Data.Either.Combinators
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map as Map
@@ -75,7 +74,6 @@ import qualified System.Logger.Class as Log
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -103,7 +101,6 @@ federationSitemap ::
   ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
-    :<|> Named @"on-new-remote-conversation" onNewRemoteConversation
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"on-conversation-updated" onConversationUpdated
     :<|> Named @"leave-conversation" (callsFed (exposeAnnotations leaveConversation))
@@ -190,17 +187,6 @@ onConversationCreated domain rc = do
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
   pure EmptyResponse
 
-onNewRemoteConversation ::
-  Member ConversationStore r =>
-  Domain ->
-  F.NewRemoteConversation ->
-  Sem r EmptyResponse
-onNewRemoteConversation domain nrc = do
-  -- update group_id -> conv_id mapping
-  for_ (preview (to F.nrcProtocol . _ProtocolMLS) nrc) $ \mls ->
-    E.setGroupId (cnvmlsGroupId mls) (Qualified (F.nrcConvId nrc) domain)
-  pure EmptyResponse
-
 getConversations ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r
@@ -237,6 +223,7 @@ onConversationUpdated requestingDomain cu = do
 leaveConversation ::
   ( Member ConversationStore r,
     Member (Error InternalError) r,
+    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -264,7 +251,7 @@ leaveConversation requestingDomain lc = do
         (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound leaver lcnv
         outcome <-
           runError @FederationError $
-            first lcuUpdate
+            lcuUpdate
               <$> updateLocalConversation
                 @'ConversationLeaveTag
                 lcnv
@@ -272,6 +259,7 @@ leaveConversation requestingDomain lc = do
                 Nothing
                 ()
         case outcome of
+          Left e@(FederationUnreachableDomains _) -> throw e
           Left e -> do
             logFederationError lcnv e
             throw . internalErr $ e
@@ -279,10 +267,10 @@ leaveConversation requestingDomain lc = do
 
   case res of
     Left e -> pure $ F.LeaveConversationResponse (Left e)
-    Right ((_update, updateFailedToProcess), conv) -> do
+    Right (_update, conv) -> do
       let remotes = filter ((== qDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
-      (_, notifyFailedToProcess) <- do
+      do
         outcome <-
           runError @FederationError $
             notifyConversationAction
@@ -294,13 +282,13 @@ leaveConversation requestingDomain lc = do
               botsAndMembers
               ()
         case outcome of
+          Left e@(FederationUnreachableDomains _) -> throw e
           Left e -> do
             logFederationError lcnv e
             throw . internalErr $ e
-          Right v -> pure v
+          Right _ -> pure ()
 
-      pure . F.LeaveConversationResponse . Right $
-        updateFailedToProcess <> notifyFailedToProcess
+      pure $ F.LeaveConversationResponse (Right ())
   where
     internalErr = InternalErrorWithDescription . LT.pack . displayException
 
@@ -382,7 +370,8 @@ sendMessage originDomain msr = do
     throwErr = throw . InvalidPayload . LT.pack
 
 onUserDeleted ::
-  ( Member ConversationStore r,
+  ( Member (Error FederationError) r,
+    Member ConversationStore r,
     Member FederatorAccess r,
     Member FireAndForget r,
     Member ExternalAccess r,
@@ -431,7 +420,10 @@ onUserDeleted origDomain udcn = do
                     (qualifyAs lc conv)
                     botsAndMembers
                     ()
-              whenLeft outcome . logFederationError $ lc
+              case outcome of
+                Left e@(FederationUnreachableDomains _) -> throw e
+                Left e -> logFederationError lc e
+                Right _ -> pure ()
   pure EmptyResponse
 
 updateConversation ::
@@ -469,53 +461,53 @@ updateConversation origDomain updateRequest = do
     SomeConversationAction tag action -> case tag of
       SConversationJoinTag ->
         mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationJoinTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationJoinTag lcnv (tUntagged rusr) Nothing action
       SConversationLeaveTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationLeaveTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationLeaveTag lcnv (tUntagged rusr) Nothing action
       SConversationRemoveMembersTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationRemoveMembersTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationRemoveMembersTag lcnv (tUntagged rusr) Nothing action
       SConversationMemberUpdateTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationMemberUpdateTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationMemberUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationDeleteTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationDeleteTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationDeleteTag lcnv (tUntagged rusr) Nothing action
       SConversationRenameTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationRenameTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationRenameTag lcnv (tUntagged rusr) Nothing action
       SConversationMessageTimerUpdateTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationMessageTimerUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationReceiptModeUpdateTag ->
         mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationReceiptModeUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationAccessDataTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
-          . fmap (first lcuUpdate)
+          . fmap lcuUpdate
           $ updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged rusr) Nothing action
   where
     mkResponse = fmap toResponse . runError @GalleyError . runError @NoChanges
 
     toResponse (Left galleyErr) = F.ConversationUpdateResponseError galleyErr
     toResponse (Right (Left NoChanges)) = F.ConversationUpdateResponseNoChanges
-    toResponse (Right (Right (update, ftp))) = F.ConversationUpdateResponseUpdate update ftp
+    toResponse (Right (Right update)) = F.ConversationUpdateResponseUpdate update
 
 sendMLSCommitBundle ::
   ( Member BrigAccess r,

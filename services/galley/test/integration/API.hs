@@ -2544,8 +2544,8 @@ testAddRemoteMember = do
       postQualifiedMembers alice (remoteBob :| []) qconvId
         <!! const 200 === statusCode
   liftIO $ do
-    map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
-    map frRPC reqs @?= ["on-new-remote-conversation", "on-conversation-updated"]
+    map frTargetDomain reqs @?= [remoteDomain]
+    map frRPC reqs @?= ["on-conversation-updated"]
 
   let e = responseJsonUnsafe resp
   let bobMember = SimpleMember remoteBob roleNameWireAdmin
@@ -2563,8 +2563,7 @@ testAddRemoteMember = do
     respond :: Qualified UserId -> Mock LByteString
     respond bob =
       asum
-        [ guardComponent Brig *> mockReply [mkProfile bob (Name "bob")],
-          "on-new-remote-conversation" ~> EmptyResponse
+        [ guardComponent Brig *> mockReply [mkProfile bob (Name "bob")]
         ]
 
 testDeleteTeamConversationWithRemoteMembers :: TestM ()
@@ -2582,7 +2581,7 @@ testDeleteTeamConversationWithRemoteMembers = do
 
   connectWithRemoteUser alice remoteBob
 
-  let mock = "on-new-remote-conversation" ~> EmptyResponse
+  let mock = "api-version" ~> EmptyResponse
   (_, received) <- withTempMockFederator' mock $ do
     postQualifiedMembers alice (remoteBob :| []) qconvId
       !!! const 200 === statusCode
@@ -2615,9 +2614,8 @@ testDeleteTeamConversationWithUnavailableRemoteMembers = do
   connectWithRemoteUser alice remoteBob
 
   let mock =
-        ("on-new-remote-conversation" ~> EmptyResponse)
-          -- Mock an unavailable federation server for the deletion call
-          <|> (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
+        -- Mock an unavailable federation server for the deletion call
+        (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
           <|> (guardRPC "delete-team-conversation" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
   (_, received) <- withTempMockFederator' mock $ do
     postQualifiedMembers alice (remoteBob :| []) qconvId
@@ -2849,8 +2847,6 @@ testAddRemoteMemberInvalidDomain = do
   postQualifiedMembers alice (remoteBob :| []) qconvId
     !!! do
       const 422 === statusCode
-      const (Just "/federation/api-version")
-        === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
       const (Just (Array (V.fromList ["invalid.example.com"])))
         === preview (ix "data" . ix "domains") . responseJsonUnsafe @Value
 
@@ -3881,7 +3877,7 @@ putRemoteReceiptModeOk = do
             cuAction =
               SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action
           }
-  let mockResponse = mockReply (ConversationUpdateResponseUpdate responseConvUpdate mempty)
+  let mockResponse = mockReply (ConversationUpdateResponseUpdate responseConvUpdate)
 
   WS.bracketR c adam $ \wsAdam -> do
     (res, federatedRequests) <- withTempMockFederator' mockResponse $ do
