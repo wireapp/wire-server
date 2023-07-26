@@ -25,6 +25,8 @@
 , http-client
 , http-types
 , kan-extensions
+, lens
+, lens-aeson
 , lib
 , mime
 , monad-control
@@ -81,6 +83,8 @@ mkDerivation {
     http-client
     http-types
     kan-extensions
+    lens
+    lens-aeson
     mime
     monad-control
     mtl

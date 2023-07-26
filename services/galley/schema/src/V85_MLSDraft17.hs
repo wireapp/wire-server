@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V82_MLSSubconversation (migration) where
+module V85_MLSDraft17 (migration) where
 
 import Cassandra.Schema
 import Imports
@@ -23,20 +23,10 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 82 "Add the MLS subconversation tables" $ do
+  Migration 85 "Upgrade to MLS draft 17 structures" $ do
     schema'
-      [r| CREATE TABLE subconversation (
-            conv_id uuid,
-            subconv_id text,
-            group_id blob,
-            cipher_suite int,
-            public_group_state blob,
-            epoch bigint,
-            PRIMARY KEY (conv_id, subconv_id)
-          );
-        |]
-    schema'
-      [r| ALTER TABLE group_id_conv_id ADD (
-            subconv_id text
+      [r| ALTER TABLE mls_group_member_client
+            ADD (leaf_node_index int,
+                 removal_pending boolean
           );
         |]

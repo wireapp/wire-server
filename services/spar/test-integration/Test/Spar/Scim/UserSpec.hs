@@ -30,7 +30,6 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra (UserAccount (..), accountStatus, accountUser)
 import Brig.Types.User as Brig
 import qualified Control.Exception
 import Control.Lens

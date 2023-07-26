@@ -72,7 +72,7 @@ sendNotification env component path body =
     withoutFirstSlash (Text.stripPrefix "/" -> Just t) = t
     withoutFirstSlash t = t
 
-    go :: forall c. KnownComponent c => IO (Either FederatorClientError ())
+    go :: forall c. (KnownComponent c) => IO (Either FederatorClientError ())
     go =
       runFederatorClient env . void $
         clientIn (Proxy @BackendNotificationAPI) (Proxy @(FederatorClient c)) (withoutFirstSlash path) body
@@ -81,17 +81,25 @@ enqueue :: Q.Channel -> Domain -> Domain -> Q.DeliveryMode -> FedQueueClient c (
 enqueue channel originDomain targetDomain deliveryMode (FedQueueClient action) =
   runReaderT action FedQueueEnv {..}
 
-routingKey :: Domain -> Text
-routingKey d = "backend-notifications." <> domainText d
+routingKey :: Text -> Text
+routingKey t = "backend-notifications." <> t
+
+-- Shared values for both brig and background worker so they are
+-- kept in sync about what types they are expecting and where
+-- they are stored in Rabbit.
+type DefederationDomain = Domain
+
+defederationQueue :: Text
+defederationQueue = "delete-federation"
 
 -- | If you ever change this function and modify
 -- queue parameters, know that it will start failing in the
 -- next release! So be prepared to write migrations.
-ensureQueue :: Q.Channel -> Domain -> IO ()
-ensureQueue chan domain = do
+ensureQueue :: Q.Channel -> Text -> IO ()
+ensureQueue chan queue = do
   let opts =
         Q.QueueOpts
-          { Q.queueName = routingKey domain,
+          { Q.queueName = routingKey queue,
             Q.queuePassive = False,
             Q.queueDurable = True,
             Q.queueExclusive = False,
@@ -99,6 +107,12 @@ ensureQueue chan domain = do
             Q.queueHeaders =
               Q.FieldTable $
                 Map.fromList
+                  -- single-active-consumer is used because it is order
+                  -- preserving, especially into databases and to remote servers,
+                  -- exactly what we are doing here!
+                  -- Without single active consumer, messages will be delivered
+                  -- round-robbin to all consumers, but then we lose effect-ordering
+                  -- due to processing and network times.
                   [ ("x-single-active-consumer", Q.FVBool True),
                     ("x-queue-type", Q.FVString "quorum")
                   ]
@@ -128,7 +142,7 @@ data EnqueueError = EnqueueError String
 
 instance Exception EnqueueError
 
-instance KnownComponent c => RunClient (FedQueueClient c) where
+instance (KnownComponent c) => RunClient (FedQueueClient c) where
   runRequestAcceptStatus :: Maybe [Status] -> Request -> FedQueueClient c Response
   runRequestAcceptStatus _ req = do
     env <- ask
@@ -155,8 +169,8 @@ instance KnownComponent c => RunClient (FedQueueClient c) where
         -- Empty string means default exchange
         exchange = ""
     liftIO $ do
-      ensureQueue env.channel env.targetDomain
-      void $ Q.publishMsg env.channel exchange (routingKey env.targetDomain) msg
+      ensureQueue env.channel env.targetDomain._domainText
+      void $ Q.publishMsg env.channel exchange (routingKey env.targetDomain._domainText) msg
     pure $
       Response
         { responseHttpVersion = http20,

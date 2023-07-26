@@ -1089,7 +1089,7 @@ testRemoteToRemote = do
             cuAction =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
-  runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
+  void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
 
   let txt = "Hello from another backend"
       rcpts = [(alice, aliceC1), (alice, aliceC2), (eve, eveC)]
@@ -1145,7 +1145,7 @@ testRemoteToRemoteInSub = do
             cuAction =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
-  runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
+  void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
 
   let txt = "Hello from another backend"
       rcpts = [(alice, aliceC1), (alice, aliceC2), (eve, eveC)]

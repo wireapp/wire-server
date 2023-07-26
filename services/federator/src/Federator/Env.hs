@@ -43,6 +43,8 @@ data Env = Env
     _runSettings :: RunSettings,
     _domainConfigs :: IORef FederationDomainConfigs,
     _service :: Component -> Endpoint,
+    _externalPort :: Word16,
+    _internalPort :: Word16,
     _httpManager :: HTTP.Manager,
     _http2Manager :: IORef Http2Manager
   }

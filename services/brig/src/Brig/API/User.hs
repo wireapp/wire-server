@@ -132,7 +132,6 @@ import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Connection
 import Brig.Types.Intra
-import Brig.Types.User (HavePendingInvitations (..), ManagedByUpdate (..), PasswordResetPair)
 import Brig.Types.User.Event
 import Brig.User.Auth.Cookie (listCookies, revokeAllCookies)
 import Brig.User.Email

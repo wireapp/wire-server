@@ -30,7 +30,6 @@ module Galley.Options
     setConcurrentDeletionEvents,
     setDeleteConvThrottleMillis,
     setFederationDomain,
-    setEnableIndexedBillingTeamMembers,
     setMlsPrivateKeyPaths,
     setFeatureFlags,
     defConcurrentDeletionEvents,
@@ -114,7 +113,6 @@ data Settings = Settings
     -- When false, billing information for large teams is not guaranteed to have all
     -- the owners.
     -- Defaults to false.
-    _setEnableIndexedBillingTeamMembers :: !(Maybe Bool),
     _setMlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _setFeatureFlags :: !FeatureFlags,

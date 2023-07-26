@@ -230,7 +230,6 @@ mkDerivation {
     either
     filepath
     hex
-    hscim
     hspec
     hspec-wai
     http-types

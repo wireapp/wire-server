@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,18 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V83_MLSDraft17 (migration) where
+module V87_TeamFeatureSupportedProtocols
+  ( migration,
+  )
+where
 
 import Cassandra.Schema
 import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration =
-  Migration 83 "Upgrade to MLS draft 17 structures" $ do
-    schema'
-      [r| ALTER TABLE mls_group_member_client
-            ADD (leaf_node_index int,
-                 removal_pending boolean
-          );
-        |]
+migration = Migration 87 "Add feature config for supported protocols" $ do
+  schema'
+    [r| ALTER TABLE team_features ADD (
+          mls_supported_protocols set<int>
+        )
+     |]

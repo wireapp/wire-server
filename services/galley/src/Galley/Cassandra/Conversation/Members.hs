@@ -18,6 +18,8 @@
 module Galley.Cassandra.Conversation.Members
   ( addMembers,
     members,
+    allMembers,
+    toMember,
     lookupRemoteMembers,
     removeMembersFromLocalConv,
     toMemberStatus,
@@ -57,7 +59,7 @@ import Wire.API.Provider.Service
 -- When the role is not specified, it defaults to admin.
 -- Please make sure the conversation doesn't exceed the maximum size!
 addMembers ::
-  ToUserRole a =>
+  (ToUserRole a) =>
   ConvId ->
   UserList a ->
   Client ([LocalMember], [RemoteMember])
@@ -122,6 +124,11 @@ members :: ConvId -> Client [LocalMember]
 members conv =
   fmap (mapMaybe toMember) . retry x1 $
     query Cql.selectMembers (params LocalQuorum (Identity conv))
+
+allMembers :: Client [LocalMember]
+allMembers =
+  fmap (mapMaybe toMember) . retry x1 $
+    query Cql.selectAllMembers (params LocalQuorum ())
 
 toMemberStatus ::
   ( -- otr muted
@@ -199,6 +206,16 @@ lookupRemoteMembers conv = do
         { rmId = toRemoteUnsafe domain usr,
           rmConvRoleName = role
         }
+
+lookupRemoteMembersByDomain :: Domain -> Client [(ConvId, RemoteMember)]
+lookupRemoteMembersByDomain dom = do
+  fmap (fmap mkConvMem) . retry x1 $ query Cql.selectRemoteMembersByDomain (params LocalQuorum (Identity dom))
+  where
+    mkConvMem (convId, usr, role) = (convId, RemoteMember (toRemoteUnsafe dom usr) role)
+
+lookupLocalMembersByDomain :: Domain -> Client [(ConvId, UserId)]
+lookupLocalMembersByDomain dom = do
+  retry x1 $ query Cql.selectLocalMembersByDomain (params LocalQuorum (Identity dom))
 
 member ::
   ConvId ->
@@ -384,6 +401,7 @@ interpretMemberStoreToCassandra = interpret $ \case
   CreateBotMember sr bid cid -> embedClient $ addBotMember sr bid cid
   GetLocalMember cid uid -> embedClient $ member cid uid
   GetLocalMembers cid -> embedClient $ members cid
+  GetAllLocalMembers -> embedClient allMembers
   GetRemoteMember cid uid -> embedClient $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)
   GetRemoteMembers rcid -> embedClient $ lookupRemoteMembers rcid
   CheckLocalMemberRemoteConv uid rcnv -> fmap (not . null) $ embedClient $ lookupLocalMemberRemoteConv uid rcnv
@@ -401,3 +419,5 @@ interpretMemberStoreToCassandra = interpret $ \case
   RemoveAllMLSClients gid -> embedClient $ removeAllMLSClients gid
   LookupMLSClients lcnv -> embedClient $ lookupMLSClients lcnv
   LookupMLSClientLeafIndices lcnv -> embedClient $ lookupMLSClientLeafIndices lcnv
+  GetRemoteMembersByDomain dom -> embedClient $ lookupRemoteMembersByDomain dom
+  GetLocalMembersByDomain dom -> embedClient $ lookupLocalMembersByDomain dom

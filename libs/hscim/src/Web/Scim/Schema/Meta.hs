@@ -67,7 +67,7 @@ instance ToJSON Meta where
   toJSON = genericToJSON serializeOptions
 
 instance FromJSON Meta where
-  parseJSON = genericParseJSON parseOptions . jsonLower
+  parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower
 
 data WithMeta a = WithMeta
   { meta :: Meta,

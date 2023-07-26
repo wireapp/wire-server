@@ -23,6 +23,7 @@ import Options.Applicative
 import qualified System.Logger.Extended as Log
 import qualified V1_BackfillBillingTeamMembers
 import qualified V2_MigrateMLSMembers
+import qualified V3_BackfillTeamAdmins
 
 main :: IO ()
 main = do
@@ -32,7 +33,8 @@ main = do
     l
     o
     [ V1_BackfillBillingTeamMembers.migration,
-      V2_MigrateMLSMembers.migration
+      V2_MigrateMLSMembers.migration,
+      V3_BackfillTeamAdmins.migration
     ]
   where
     desc = header "Galley Cassandra Data Migrations" <> fullDesc

@@ -42,7 +42,7 @@ import Control.Lens ((?~))
 import qualified Data.Aeson as A
 import Data.Binary
 import Data.Json.Util
-import Data.Schema
+import Data.Schema hiding (HasField)
 import qualified Data.Swagger as S
 import GHC.Records
 import Imports hiding (cs)

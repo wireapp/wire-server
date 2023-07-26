@@ -167,6 +167,15 @@ deleteBillingTeamMember = "delete from billing_team_member where team = ? and us
 listBillingTeamMembers :: PrepQuery R (Identity TeamId) (Identity UserId)
 listBillingTeamMembers = "select user from billing_team_member where team = ?"
 
+insertTeamAdmin :: PrepQuery W (TeamId, UserId) ()
+insertTeamAdmin = "insert into team_admin (team, user) values (?, ?)"
+
+deleteTeamAdmin :: PrepQuery W (TeamId, UserId) ()
+deleteTeamAdmin = "delete from team_admin where team = ? and user = ?"
+
+listTeamAdmins :: PrepQuery R (Identity TeamId) (Identity UserId)
+listTeamAdmins = "select user from team_admin where team = ?"
+
 updatePermissions :: PrepQuery W (Permissions, TeamId, UserId) ()
 updatePermissions = "update team_member set perms = ? where team = ? and user = ?"
 
@@ -362,6 +371,9 @@ selectMember = "select user, service, provider, status, otr_muted_status, otr_mu
 selectMembers :: PrepQuery R (Identity ConvId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
 selectMembers = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ?"
 
+selectAllMembers :: PrepQuery R () (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
+selectAllMembers = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member"
+
 insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
 insertMember = "insert into member (conv, user, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"
 
@@ -401,6 +413,11 @@ selectRemoteMembers = "select user_remote_domain, user_remote_id, conversation_r
 updateRemoteMemberConvRoleName :: PrepQuery W (RoleName, ConvId, Domain, UserId) ()
 updateRemoteMemberConvRoleName = "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
 
+-- Used when removing a federation domain, so that we can quickly list all of the affected remote users and conversations
+-- This returns local conversation IDs and remote users
+selectRemoteMembersByDomain :: PrepQuery R (Identity Domain) (ConvId, UserId, RoleName)
+selectRemoteMembersByDomain = "select conv, user_remote_id, conversation_role from member_remote_user where user_remote_domain = ?"
+
 -- local user with remote conversations
 
 insertUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
@@ -417,6 +434,11 @@ selectRemoteConvMembers = "select user from user_remote_conv where user = ? and 
 
 deleteUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
 deleteUserRemoteConv = "delete from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
+
+-- Used when removing a federation domain, so that we can quickly list all of the affected local users and conversations
+-- This returns remote conversation IDs and local users
+selectLocalMembersByDomain :: PrepQuery R (Identity Domain) (ConvId, UserId)
+selectLocalMembersByDomain = "select conv_remote_id, user from user_remote_conv where conv_remote_domain = ?"
 
 -- remote conversation status for local user
 
