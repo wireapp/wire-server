@@ -45,6 +45,9 @@ module Wire.API.Event.Conversation
     _EdMLSMessage,
     _EdMLSWelcome,
 
+    -- * Event data schemas
+    taggedEventDataSchema,
+
     -- * Event data helpers
     SimpleMember (..),
     smId,

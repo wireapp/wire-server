@@ -6,6 +6,8 @@ import Data.Qualified
 import qualified Data.UUID as UUID (fromString)
 import Imports
 import Test.Wire.API.Golden.Generated.Event_user
+import Wire.API.Event.Conversation
+import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
 
 testObject_EventWithUnreachables_1 :: EventWithUnreachables
@@ -32,5 +34,12 @@ testObject_EventWithUnreachables_3 :: EventWithUnreachables
 testObject_EventWithUnreachables_3 =
   EventWithUnreachables
     { event = Nothing,
+      failedToProcess = mempty {add = userList}
+    }
+
+testObject_EventWithUnreachables_4 :: EventWithUnreachables
+testObject_EventWithUnreachables_4 =
+  EventWithUnreachables
+    { event = Just $ testObject_Event_user_12 {evtSubConv = pure $ SubConvId "FooBar"},
       failedToProcess = mempty {add = userList}
     }

@@ -24,6 +24,12 @@
             }
         ]
     },
+    "failed_to_add": [
+        {
+            "domain": "faraway.example.com",
+            "id": "0000114a-0000-7da8-0000-40cb00007fcf"
+        }
+    ],
     "from": "0000114a-0000-7da8-0000-40cb00007fcf",
     "qualified_conversation": {
         "domain": "faraway.example.com",
@@ -33,12 +39,7 @@
         "domain": "faraway.example.com",
         "id": "0000114a-0000-7da8-0000-40cb00007fcf"
     },
+    "subconv": "FooBar",
     "time": "1864-05-12T20:29:47.483Z",
-    "type": "conversation.member-join",
-    "failed_to_add": [
-        {
-            "domain": "faraway.example.com",
-            "id": "0000114a-0000-7da8-0000-40cb00007fcf"
-        }
-    ]
+    "type": "conversation.member-join"
 }

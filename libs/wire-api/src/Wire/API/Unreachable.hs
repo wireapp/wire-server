@@ -1,3 +1,5 @@
+{-# LANGUAGE ApplicativeDo #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -33,9 +35,12 @@ module Wire.API.Unreachable
   )
 where
 
+import Control.Applicative
+import Control.Arrow ((&&&))
 import Control.Lens ((?~))
 import qualified Data.Aeson as A
 import Data.Id
+import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis)
 import Data.List.NonEmpty
 import qualified Data.List.NonEmpty as NE
 import Data.Qualified
@@ -144,5 +149,26 @@ instance ToSchema EventWithUnreachables where
              \ that could not be processed due to unreachable backends"
       )
       $ EventWithUnreachables
-        <$> event .= maybe_ (optField "event" (unnamed schema))
+        <$> event .= optionalEventObjectSchema
         <*> failedToProcess .= failedToProcessObjectSchema
+
+optionalEventObjectSchema :: ObjectSchema SwaggerDoc (Maybe Event)
+optionalEventObjectSchema = do
+  a <- fmap (evtType &&& evtData) .= maybe_ (optional taggedEventDataSchema)
+  _ <- fmap (qUnqualified . evtConv) .= maybe_ (optional (field "conversation" schema))
+  b <- fmap evtConv .= maybe_ (optField "qualified_conversation" schema)
+  -- This field doesn't need to be doublely optional, so binding it here
+  -- and pure-ing the result when we build will be just as good.
+  c <- (>>= evtSubConv) .= maybe_ (optField "subconv" schema)
+  _ <- fmap (qUnqualified . evtFrom) .= maybe_ (optional (field "from" schema))
+  d <- fmap evtFrom .= maybe_ (optField "qualified_from" schema)
+  e <- fmap (toUTCTimeMillis . evtTime) .= maybe_ (optField "time" (fromUTCTimeMillis <$> schema))
+  pure $
+    mk
+      <$> a
+      <*> b
+      <*> pure c
+      <*> d
+      <*> e
+  where
+    mk (_, d) cid sconvid uid tm = Event cid sconvid uid tm d

@@ -175,6 +175,7 @@ tests =
         testObjects
           [ (testObject_EventWithUnreachables_1, "testObject_EventWithUnreachables_1.json"),
             (testObject_EventWithUnreachables_2, "testObject_EventWithUnreachables_2.json"),
-            (testObject_EventWithUnreachables_3, "testObject_EventWithUnreachables_3.json")
+            (testObject_EventWithUnreachables_3, "testObject_EventWithUnreachables_3.json"),
+            (testObject_EventWithUnreachables_4, "testObject_EventWithUnreachables_4.json")
           ]
     ]
