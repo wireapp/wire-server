@@ -232,6 +232,7 @@ tests s =
           test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
           test s "post message qualified - local owning backend - ignore missing" postMessageQualifiedLocalOwningBackendIgnoreMissingClients,
           test s "post message qualified - local owning backend - failed to send clients" postMessageQualifiedLocalOwningBackendFailedToSendClients,
+          test s "post message qualified - local owning backend - failed to fetch clients" postMessageQualifiedFailedToSendFetchingClients,
           test s "post message qualified - remote owning backend - federation failure" postMessageQualifiedRemoteOwningBackendFailure,
           test s "post message qualified - remote owning backend - success" postMessageQualifiedRemoteOwningBackendSuccess,
           test s "join conversation" postJoinConvOk,
@@ -834,7 +835,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
                     Map.singleton (qUnqualified deeRemote) (Set.singleton deeClient)
                   )
                 ]
-      assertMismatchQualified mempty expectedMissing mempty mempty
+      assertMismatchQualified mempty expectedMissing mempty mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
 -- @END
@@ -919,7 +920,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
           expectedDeleted =
             QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClientNonExistent)]
-      assertMismatchQualified mempty mempty expectedRedundant expectedDeleted
+      assertMismatchQualified mempty mempty expectedRedundant expectedDeleted mempty
     liftIO $ do
       let encodedTextForBob = toBase64Text "text-for-bob"
           encodedTextForChad = toBase64Text "text-for-chad"
@@ -980,7 +981,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll mock
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty mempty
+      assertMismatchQualified mempty mempty mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -991,7 +992,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) mock
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty mempty
+      assertMismatchQualified mempty mempty mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -1010,7 +1011,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
         mock
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty mempty
+      assertMismatchQualified mempty mempty mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -1033,7 +1034,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
       let expectedMissing =
             QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClient2)]
-      assertMismatchQualified mempty expectedMissing mempty mempty
+      assertMismatchQualified mempty expectedMissing mempty mempty mempty
 
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
@@ -1053,7 +1054,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
       let expectedMissing =
             QualifiedUserClients . Map.singleton remoteDomain . Map.fromList $
               [(qUnqualified deeRemote, Set.singleton deeClient)]
-      assertMismatchQualified mempty expectedMissing mempty mempty
+      assertMismatchQualified mempty expectedMissing mempty mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
 -- @END
@@ -1119,6 +1120,54 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
       WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
       WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
 
+postMessageQualifiedFailedToSendFetchingClients :: TestM ()
+postMessageQualifiedFailedToSendFetchingClients = do
+  (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
+  bobId <- randomId
+  bobClient <- liftIO $ generate arbitrary
+  deeId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      bobRemote = Qualified bobId remoteDomain
+      deeRemote = Qualified deeId remoteDomain
+      aliceUnqualified = qUnqualified aliceOwningDomain
+  connectWithRemoteUser aliceUnqualified bobRemote
+  connectWithRemoteUser aliceUnqualified deeRemote
+
+  resp <-
+    postConvWithRemoteUsers
+      aliceUnqualified
+      Nothing
+      defNewProteusConv {newConvQualifiedUsers = [bobRemote, deeRemote]}
+
+  owningDomain <- viewFederationDomain
+  let convId = (`Qualified` owningDomain) . decodeConvId $ resp
+  -- dee is part of the conversation but missing from the recipient list of the request,
+  -- and we cannot fetch or verify their clients because the remote backend is unreachable.
+  -- Therefore we expect dee to be part of the `failed_to_send` list in the response.
+  let message = [(bobRemote, bobClient, "text-for-bob")]
+  let mock =
+        (guardRPC "get-user-clients" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
+          <|> ("on-message-sent" ~> EmptyResponse)
+
+  (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll mock
+
+  let qUsrClients quid cids =
+        QualifiedUserClients $
+          Map.fromList
+            [ ( qDomain quid,
+                Map.fromList
+                  [ (qUnqualified quid, Set.fromList cids)
+                  ]
+              )
+            ]
+
+      failedToSend = qUsrClients deeRemote []
+      failedToVerify = qUsrClients bobRemote [bobClient]
+
+  pure resp2 !!! do
+    const 201 === statusCode
+    assertMismatchQualified failedToSend mempty mempty mempty failedToVerify
+
 postMessageQualifiedRemoteOwningBackendFailure :: TestM ()
 postMessageQualifiedRemoteOwningBackendFailure = do
   (aliceLocal, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
@@ -1163,7 +1212,8 @@ postMessageQualifiedRemoteOwningBackendSuccess = do
             Message.mssMissingClients = mempty,
             Message.mssRedundantClients = redundant,
             Message.mssDeletedClients = mempty,
-            Message.mssFailedToSend = mempty
+            Message.mssFailedToSend = mempty,
+            Message.mssFailedToConfirmClients = mempty
           }
       message = [(bobOwningDomain, bobClient, "text-for-bob"), (deeRemote, deeClient, "text-for-dee")]
       mock = "send-message" ~> F.MessageSendResponse (Right mss)
@@ -1172,7 +1222,7 @@ postMessageQualifiedRemoteOwningBackendSuccess = do
 
   pure resp2 !!! do
     const 201 === statusCode
-    assertMismatchQualified mempty mempty redundant mempty
+    assertMismatchQualified mempty mempty redundant mempty mempty
 
 postJoinConvOk :: TestM ()
 postJoinConvOk = do

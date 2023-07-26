@@ -2323,7 +2323,7 @@ assertBroadcastMismatch ::
   [(UserId, Set ClientId)] ->
   Assertions ()
 assertBroadcastMismatch localDomain BroadcastQualified =
-  \m r d -> assertMismatchQualified mempty (mk m) (mk r) (mk d)
+  \m r d -> assertMismatchQualified mempty (mk m) (mk r) (mk d) mempty
   where
     mk :: [(UserId, Set ClientId)] -> Client.QualifiedUserClients
     mk [] = mempty
@@ -2362,12 +2362,14 @@ assertMismatchQualified ::
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
+  Client.QualifiedUserClients ->
   Assertions ()
-assertMismatchQualified failureToSend missing redundant deleted = do
+assertMismatchQualified failureToSend missing redundant deleted failedToVerify = do
   assertExpected "failed to send" failureToSend (fmap mssFailedToSend . responseJsonMaybe)
   assertExpected "missing" missing (fmap mssMissingClients . responseJsonMaybe)
   assertExpected "redundant" redundant (fmap mssRedundantClients . responseJsonMaybe)
   assertExpected "deleted" deleted (fmap mssDeletedClients . responseJsonMaybe)
+  assertExpected "failed to verify clients" failedToVerify (fmap mssFailedToConfirmClients . responseJsonMaybe)
 
 otrRecipients :: [(UserId, ClientId, Text)] -> OtrRecipients
 otrRecipients =
