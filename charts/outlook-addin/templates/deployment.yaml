@@ -1,28 +1,29 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: outlook-addin
+  name: {{ include "outlook.fullname" . }}
   labels:
-    app: outlook-addin
+    {{- include "outlook.labels" . | nindent 4 }}
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: outlook-addin
+      app: {{ include "outlook.fullname" . }}
   template:
     metadata:
       labels:
-        app: outlook-addin
+        app: {{ include "outlook.fullname" . }}
     spec:
       containers:
-        - name: outlook-addin
+        - name: {{ include "outlook.fullname" . }}
           image: { { .Values.containerImage } }
           ports:
             - name: http
               containerPort: 80
           env:
             - name: BASE_URL
-              value: "{{ .Values.baseUrl }}"
+              value: "https://{{ .Values.host }}"
             - name: CLIENT_ID
               value: "{{ .Values.clientId }}"
             - name: WIRE_API_BASE_URL

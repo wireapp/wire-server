@@ -1,15 +1,32 @@
-apiVersion: networking.k8s.io/v1
+{{- $apiIsStable := eq (include "ingress.isStable" .) "true" -}}
+{{- $ingressFieldNotAnnotation := eq (include "ingress.FieldNotAnnotation" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
+apiVersion: {{ include "ingress.apiVersion" . }}
 kind: Ingress
-metadata: outlook-addin-ingress
+metadata:
+  name: "{{ include "outlook.fullname" . }}"
+  labels:
+    {{- include "outlook.labels" . | nindent 4 }}
+  annotations:
+    {{- if not $ingressFieldNotAnnotation }}
+    kubernetes.io/ingress.class: "{{ .Values.config.ingressClass }}"
+    {{- end }}
 spec:
+  {{- if $ingressFieldNotAnnotation }}
+  ingressClassName: "{{ .Values.config.ingressClass }}"
+  {{- end }}
+  tls:
+    - hosts:
+        - "{{ .Values.host }}"
+      secretName: "{{ include "outlook.fullname" . }}"
   rules:
-    - host: https://outlook.zhica.eu
+    - host: "{{ .Values.host }}"
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: outlook-addin
+                name: {{ include "outlook.fullname" . }}
                 port:
                   number: 8080

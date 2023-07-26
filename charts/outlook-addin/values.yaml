@@ -1,5 +1,10 @@
-baseUrl: "https://outlook.zhica.eu"
-clientId: ""
 containerImage: "quay.io/wire/outlook-addin:0.1.3"
-wireApiBaseUrl: "https://nginz-https.zhica.eu"
-wireAuthorizationEndpoint: "https://webapp.zhica.eu/auth"
+ingressClass: nginx
+#host: "outlook.example.com"
+#wireApiBaseUrl: "https://nginz-https.example.com"
+#wireAuthorizationEndpoint: "https://webapp.example.com/auth"
+#tls:
+#  issuerRef:
+#    name: letsencrypt-http01
+# Should probably comment here
+#clientId: ""
