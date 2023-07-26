@@ -123,7 +123,7 @@ data BrigAccess m a where
     BrigAccess m (Either AuthenticationError ClientId)
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
   GetAccountConferenceCallingConfigClient :: UserId -> BrigAccess m (WithStatusNoLock ConferenceCallingConfig)
-  GetLocalMLSClients :: Local UserId -> SignatureSchemeTag -> BrigAccess m (Set ClientInfo)
+  GetLocalMLSClients :: Local UserId -> CipherSuiteTag -> BrigAccess m (Set ClientInfo)
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatus SearchVisibilityInboundConfig ->
     BrigAccess m ()

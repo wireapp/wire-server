@@ -135,7 +135,7 @@ getClientInfo ::
   ) =>
   Local x ->
   Qualified UserId ->
-  SignatureSchemeTag ->
+  CipherSuiteTag ->
   Sem r (Either FederationError (Set ClientInfo))
 getClientInfo loc =
   foldQualified loc (\lusr -> fmap Right . getLocalMLSClients lusr) getRemoteMLSClients
@@ -144,14 +144,14 @@ getRemoteMLSClients ::
   ( Member FederatorAccess r
   ) =>
   Remote UserId ->
-  SignatureSchemeTag ->
+  CipherSuiteTag ->
   Sem r (Either FederationError (Set ClientInfo))
-getRemoteMLSClients rusr ss = do
+getRemoteMLSClients rusr suite = do
   runFederatedEither rusr $
     fedClient @'Brig @"get-mls-clients" $
       MLSClientsRequest
         { userId = tUnqualified rusr,
-          signatureScheme = ss
+          cipherSuite = tagCipherSuite suite
         }
 
 --------------------------------------------------------------------------------

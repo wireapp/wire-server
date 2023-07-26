@@ -20,6 +20,7 @@
 module Wire.API.MLS.CipherSuite
   ( -- * MLS ciphersuites
     CipherSuite (..),
+    defCipherSuite,
     CipherSuiteTag (..),
     cipherSuiteTag,
     tagCipherSuite,
@@ -50,6 +51,7 @@ import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
 import Data.Aeson.Types qualified as Aeson
+import Data.Bifunctor
 import Data.ByteArray hiding (index)
 import Data.ByteArray qualified as BA
 import Data.Proxy
@@ -57,26 +59,54 @@ import Data.Schema
 import Data.Swagger qualified as S
 import Data.Swagger.Internal.Schema qualified as S
 import Data.Text qualified as T
+import Data.Text.Lazy qualified as LT
+import Data.Text.Lazy.Builder qualified as LT
+import Data.Text.Lazy.Builder.Int qualified as LT
+import Data.Text.Read qualified as T
 import Data.Word
 import Imports hiding (cs)
-import Servant (FromHttpApiData (parseQueryParam))
+import Web.HttpApiData
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
 newtype CipherSuite = CipherSuite {cipherSuiteNumber :: Word16}
   deriving stock (Eq, Show)
   deriving newtype (ParseMLS, SerialiseMLS, Arbitrary)
+  deriving (FromJSON, ToJSON) via Schema CipherSuite
 
 instance ToSchema CipherSuite where
   schema =
     named "CipherSuite" $
       cipherSuiteNumber .= fmap CipherSuite (unnamed schema)
 
+instance S.ToParamSchema CipherSuite where
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.SwaggerNumber
+
+instance FromHttpApiData CipherSuite where
+  parseUrlPiece t = do
+    (x, rest) <- first T.pack $ T.hexadecimal t
+    unless (T.null rest) $
+      Left "Trailing characters after ciphersuite number"
+    pure (CipherSuite x)
+
+instance ToHttpApiData CipherSuite where
+  toUrlPiece =
+    LT.toStrict
+      . LT.toLazyText
+      . ("0x" <>)
+      . LT.hexadecimal
+      . cipherSuiteNumber
+
 data CipherSuiteTag
   = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
   | MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519
   deriving stock (Bounded, Enum, Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform CipherSuiteTag)
+
+defCipherSuite :: CipherSuiteTag
+defCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
 
 instance S.ToSchema CipherSuiteTag where
   declareNamedSchema _ =

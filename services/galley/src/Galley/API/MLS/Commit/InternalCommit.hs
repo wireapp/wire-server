@@ -53,7 +53,6 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Proposal qualified as Proposal
@@ -83,7 +82,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
   let convOrSub = tUnqualified lConvOrSub
       qusr = cidQualifiedUser senderIdentity
       cm = convOrSub.members
-      ss = csSignatureScheme (cnvmlsCipherSuite convOrSub.mlsMeta)
+      suite = cnvmlsCipherSuite convOrSub.mlsMeta
       newUserClients = Map.assocs (paAdd action)
 
   -- check all pending proposals are referenced in the commit
@@ -145,7 +144,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
                 -- final set of clients in the conversation
                 let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
                 -- get list of mls clients from Brig (local or remote)
-                getClientInfo lConvOrSub qtarget ss >>= \case
+                getClientInfo lConvOrSub qtarget suite >>= \case
                   Left _e -> pure (Just qtarget)
                   Right clientInfo -> do
                     let allClients = Set.map ciId clientInfo

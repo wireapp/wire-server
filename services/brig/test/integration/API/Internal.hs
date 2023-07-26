@@ -291,25 +291,24 @@ testGetMlsClients :: Brig -> Http ()
 testGetMlsClients brig = do
   qusr <- userQualifiedId <$> randomUser brig
   c <- createClient brig qusr 0
-  (cs0 :: Set ClientInfo) <-
-    responseJsonError
-      =<< get
-        ( brig
-            . paths ["i", "mls", "clients", toByteString' (qUnqualified qusr)]
-            . queryItem "sig_scheme" "ed25519"
-        )
+
+  let getClients :: Http (Set ClientInfo)
+      getClients =
+        responseJsonError
+          =<< get
+            ( brig
+                . paths ["i", "mls", "clients", toByteString' (qUnqualified qusr)]
+                . queryItem "ciphersuite" "0x0001"
+            )
+            <!! const 200 === statusCode
+
+  cs0 <- getClients
   liftIO $ toList cs0 @?= [ClientInfo c False]
 
   withSystemTempDirectory "mls" $ \tmp ->
     uploadKeyPackages brig tmp def qusr c 2
 
-  (cs1 :: Set ClientInfo) <-
-    responseJsonError
-      =<< get
-        ( brig
-            . paths ["i", "mls", "clients", toByteString' (qUnqualified qusr)]
-            . queryItem "sig_scheme" "ed25519"
-        )
+  cs1 <- getClients
   liftIO $ toList cs1 @?= [ClientInfo c True]
 
 getFeatureConfig :: forall cfg m. (MonadHttp m, HasCallStack, KnownSymbol (ApiFt.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS

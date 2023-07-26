@@ -97,7 +97,7 @@ newtype GetUserClients = GetUserClients
 
 data MLSClientsRequest = MLSClientsRequest
   { userId :: UserId, -- implicitly qualified by the local domain
-    signatureScheme :: SignatureSchemeTag
+    cipherSuite :: CipherSuite
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSClientsRequest)
@@ -160,7 +160,9 @@ data ClaimKeyPackageRequest = ClaimKeyPackageRequest
     claimant :: UserId,
     -- | The user whose key packages are being claimed, implictly qualified by
     -- the target domain.
-    target :: UserId
+    target :: UserId,
+    -- | The ciphersuite of the key packages being claimed.
+    cipherSuite :: CipherSuite
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClaimKeyPackageRequest)
