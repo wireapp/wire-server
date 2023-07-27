@@ -31,7 +31,7 @@ import Data.Binary.Put
 import Data.Domain
 import Data.Id
 import Data.Qualified
-import Data.Schema
+import Data.Schema hiding (HasField)
 import qualified Data.Swagger as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T

@@ -40,7 +40,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.Range
-import Data.Schema
+import Data.Schema hiding (HasField)
 import qualified Data.Swagger as S
 import GHC.Records
 import Imports hiding (cs)

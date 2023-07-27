@@ -39,9 +39,10 @@ import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
+import Data.Singletons
 import Data.Text (unpack)
 import qualified Galley.API as API
-import Galley.API.Federation (FederationAPI, federationSitemap)
+import Galley.API.Federation
 import Galley.API.Internal
 import Galley.App
 import qualified Galley.App as App
@@ -79,6 +80,7 @@ run opts = lowerCodensity $ do
 
   forM_ (env ^. aEnv) $ \aws ->
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
+
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
   lift $ finally (runSettingsWithShutdown settings app Nothing) (closeApp env)
@@ -163,7 +165,7 @@ refreshMetrics = do
     M.gaugeSet (fromIntegral n) (M.path "galley.deletequeue.len") m
     threadDelay 1000000
 
-collectAuthMetrics :: MonadIO m => Metrics -> AWS.Env -> m ()
+collectAuthMetrics :: (MonadIO m) => Metrics -> AWS.Env -> m ()
 collectAuthMetrics m env = do
   liftIO $
     forever $ do

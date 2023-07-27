@@ -30,7 +30,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
-import Data.Schema
+import Data.Schema hiding (HasField)
 import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Data.Time.Clock

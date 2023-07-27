@@ -395,7 +395,7 @@ testRemoteUserGetsDeleted opts brig cannon fedBrigClient = do
       runFedClient @"on-user-deleted-connections" fedBrigClient (qDomain remoteUser) $
         UserDeletedConnectionsNotification (qUnqualified remoteUser) (unsafeRange localUsers)
 
-    WS.assertMatchN_ (5 # Second) [cc] $ matchDeleteUserNotification remoteUser
+    WS.assertMatchN_ (60 # Second) [cc] $ matchDeleteUserNotification remoteUser
     WS.assertNoEvent (1 # Second) [pc, bc, uc]
 
   for_ localUsers $ \u ->

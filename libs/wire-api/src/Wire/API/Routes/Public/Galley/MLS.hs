@@ -74,6 +74,7 @@ type MLSMessagingAPI =
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Brig "get-mls-clients"
                :> MakesFederatedCall 'Brig "get-users-by-ids"
+               :> MakesFederatedCall 'Brig "api-version"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound

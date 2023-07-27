@@ -73,7 +73,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireMember)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
-import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.CipherSuite (SignatureSchemeTag (Ed25519))
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation

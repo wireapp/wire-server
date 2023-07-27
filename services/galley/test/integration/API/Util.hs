@@ -114,10 +114,12 @@ import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import qualified Wire.API.Event.Conversation as Conv
+import qualified Wire.API.Event.Federation as Fed
 import Wire.API.Event.Team
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Internal.Notification hiding (target)
@@ -754,7 +756,16 @@ postConvWithRemoteUsers ::
   Maybe ClientId ->
   NewConv ->
   TestM (Response (Maybe LByteString))
-postConvWithRemoteUsers = postConvWithRemoteUsersGeneric $ mockReply ()
+postConvWithRemoteUsers u c n =
+  fmap fst $
+    withTempMockFederator' (("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) <|> mockReply EmptyResponse) $
+      postConvQualified u c n {newConvName = setName (newConvName n)}
+        <!! const 201
+          === statusCode
+  where
+    setName :: (KnownNat n, KnownNat m, Within Text n m) => Maybe (Range n m Text) -> Maybe (Range n m Text)
+    setName Nothing = checked "federated gossip"
+    setName x = x
 
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
@@ -1396,6 +1407,15 @@ postJoinCodeConv' mPw u j = do
       -- `json (JoinConversationByCode j Nothing)` and `json j` are equivalent, using the latter to test backwards compatibility
       . (if isJust mPw then json (JoinConversationByCode j mPw) else json j)
 
+deleteFederation ::
+  (MonadHttp m, HasGalley m, MonadIO m) =>
+  Domain ->
+  m ResponseLBS
+deleteFederation dom = do
+  g <- viewGalley
+  delete $
+    g . paths ["/i/federation", toByteString' dom]
+
 putQualifiedAccessUpdate ::
   (MonadHttp m, HasGalley m, MonadIO m) =>
   UserId ->
@@ -1543,20 +1563,21 @@ registerRemoteConv :: Qualified ConvId -> UserId -> Maybe Text -> Set OtherMembe
 registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
-  runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
-    ConversationCreated
-      { ccTime = now,
-        ccOrigUserId = originUser,
-        ccCnvId = qUnqualified convId,
-        ccCnvType = RegularConv,
-        ccCnvAccess = [],
-        ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
-        ccCnvName = name,
-        ccNonCreatorMembers = othMembers,
-        ccMessageTimer = Nothing,
-        ccReceiptMode = Nothing,
-        ccProtocol = ProtocolProteus
-      }
+  void $
+    runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
+      ConversationCreated
+        { ccTime = now,
+          ccOrigUserId = originUser,
+          ccCnvId = qUnqualified convId,
+          ccCnvType = RegularConv,
+          ccCnvAccess = [],
+          ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
+          ccCnvName = name,
+          ccNonCreatorMembers = othMembers,
+          ccMessageTimer = Nothing,
+          ccReceiptMode = Nothing,
+          ccProtocol = ProtocolProteus
+        }
 
 getFeatureStatusMulti :: forall cfg. KnownSymbol (FeatureSymbol cfg) => Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
 getFeatureStatusMulti req = do
@@ -1764,6 +1785,23 @@ assertJoinEvent conv usr new role e = do
   evtType e @?= Conv.MemberJoin
   evtFrom e @?= usr
   fmap (sort . mMembers) (evtData e ^? _EdMembersJoin) @?= Just (sort (fmap (`SimpleMember` role) new))
+
+wsAssertFederationDeleted ::
+  HasCallStack =>
+  Domain ->
+  Notification ->
+  IO ()
+wsAssertFederationDeleted dom n = do
+  ntfTransient n @?= False
+  assertFederationDeletedEvent dom $ List1.head (WS.unpackPayload n)
+
+assertFederationDeletedEvent ::
+  Domain ->
+  Fed.Event ->
+  IO ()
+assertFederationDeletedEvent dom e = do
+  Fed._eventType e @?= Fed.FederationDelete
+  Fed._eventDomain e @?= dom
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
 --

@@ -60,9 +60,6 @@ data:
       exposeInvitationURLsTeamAllowlist: {{ .settings.exposeInvitationURLsTeamAllowlist }}
       {{- end }}
       conversationCodeURI: {{ .settings.conversationCodeURI | quote }}
-      {{- if .settings.enableIndexedBillingTeamMembers }}
-      enableIndexedBillingTeamMembers: {{ .settings.enableIndexedBillingTeamMembers }}
-      {{- end }}
       federationDomain: {{ .settings.federationDomain }}
       {{- if $.Values.secrets.mlsPrivateKeys }}
       mlsPrivateKeyPaths:

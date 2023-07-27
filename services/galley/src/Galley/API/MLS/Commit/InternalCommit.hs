@@ -213,7 +213,7 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
                           "Unexpected empty member list in MLS 1-1 conversation"
                       )
                       $ nonEmpty (bmQualifiedMembers lconv bm)
-                  (update, _) <-
+                  update <-
                     notifyConversationAction
                       SConversationJoinTag
                       senderUser
@@ -258,7 +258,6 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
 
 addMembers ::
   HasProposalActionEffects r =>
-  Member (Error FederationError) r =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
@@ -268,26 +267,21 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   Conv mlsConv -> do
     let lconv = qualifyAs lConvOrSub (mcConv mlsConv)
     -- FUTUREWORK: update key package ref mapping to reflect conversation membership
-    (lcus, ftp) <-
-      foldMap
-        ( handleNoChanges
-            . handleMLSProposalFailures @ProposalErrors
-            . fmap (first pure)
-            . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
-            . flip ConversationJoin roleNameWireMember
-        )
-        . nonEmpty
-        . filter (flip Set.notMember (existingMembers lconv))
-        . toList
-        $ users
-    for_ (add ftp) throwUnreachableUsers
-
-    pure lcus
+    foldMap
+      ( handleNoChanges
+          . handleMLSProposalFailures @ProposalErrors
+          . fmap pure
+          . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
+          . flip ConversationJoin roleNameWireMember
+      )
+      . nonEmpty
+      . filter (flip Set.notMember (existingMembers lconv))
+      . toList
+      $ users
   SubConv _ _ -> pure []
 
 removeMembers ::
   HasProposalActionEffects r =>
-  Member (Error FederationError) r =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvOrSubConv ->
@@ -296,20 +290,16 @@ removeMembers ::
 removeMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
   Conv mlsConv -> do
     let lconv = qualifyAs lConvOrSub (mcConv mlsConv)
-    (lcus, ftp) <-
-      foldMap
-        ( handleNoChanges
-            . handleMLSProposalFailures @ProposalErrors
-            . fmap (first pure)
-            . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
-        )
-        . nonEmpty
-        . filter (flip Set.member (existingMembers lconv))
-        . toList
-        $ users
-    for_ (remove ftp) throwUnreachableUsers
-
-    pure lcus
+    foldMap
+      ( handleNoChanges
+          . handleMLSProposalFailures @ProposalErrors
+          . fmap pure
+          . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
+      )
+      . nonEmpty
+      . filter (flip Set.member (existingMembers lconv))
+      . toList
+      $ users
   SubConv _ _ -> pure []
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a

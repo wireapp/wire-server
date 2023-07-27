@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V85_TeamFeatureSupportedProtocols
+module V86_TeamFeatureMlsMigration
   ( migration,
   )
 where
@@ -25,9 +25,12 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 85 "Add feature config for supported protocols" $ do
+migration = Migration 86 "Add feature config for team feature MLS Migration" $ do
   schema'
     [r| ALTER TABLE team_features ADD (
-          mls_supported_protocols set<int>
+          mls_migration_status int,
+          mls_migration_lock_status int,
+          mls_migration_start_time timestamp,
+          mls_migration_finalise_regardless_after timestamp
         )
      |]

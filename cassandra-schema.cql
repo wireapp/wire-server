@@ -863,6 +863,7 @@ CREATE TABLE brig_test.connection_remote (
     AND min_index_interval = 128
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
+CREATE INDEX connection_remote_right_domain_idx ON brig_test.connection_remote (right_domain);
 
 CREATE TABLE brig_test.users_pending_activation (
     user uuid PRIMARY KEY,
@@ -1183,14 +1184,13 @@ CREATE TABLE galley_test.team_features (
     mls_e2eid_lock_status int,
     mls_e2eid_status int,
     mls_e2eid_ver_exp timestamp,
-    mls_migration_clients_threshold int,
     mls_migration_finalise_regardless_after timestamp,
     mls_migration_lock_status int,
     mls_migration_start_time timestamp,
     mls_migration_status int,
-    mls_migration_users_threshold int,
     mls_protocol_toggle_users set<uuid>,
     mls_status int,
+    mls_supported_protocols set<int>,
     outlook_cal_integration_lock_status int,
     outlook_cal_integration_status int,
     search_visibility_inbound_status int,
@@ -1293,6 +1293,7 @@ CREATE TABLE galley_test.user_remote_conv (
     AND min_index_interval = 128
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
+CREATE INDEX user_remote_conv_conv_remote_domain_idx ON galley_test.user_remote_conv (conv_remote_domain);
 
 CREATE TABLE galley_test.legalhold_whitelisted (
     team uuid PRIMARY KEY
@@ -1332,6 +1333,7 @@ CREATE TABLE galley_test.member_remote_user (
     AND min_index_interval = 128
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
+CREATE INDEX member_remote_user_user_remote_domain_idx ON galley_test.member_remote_user (user_remote_domain);
 
 CREATE TABLE galley_test.team_member (
     team uuid,
@@ -1408,6 +1410,26 @@ CREATE TABLE galley_test.group_id_conv_id (
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE galley_test.team_admin (
+    team uuid,
+    user uuid,
+    PRIMARY KEY (team, user)
+) WITH CLUSTERING ORDER BY (user ASC)
+    AND bloom_filter_fp_chance = 0.1
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
     AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1

@@ -25,6 +25,7 @@ import Data.Default
 import Data.Domain
 import Federator.Error.ServerError
 import Federator.InternalServer (callOutward)
+import Federator.RPC
 import Federator.Remote
 import Federator.Validation
 import Imports
@@ -93,7 +94,7 @@ federatedRequestSuccess =
         . discardTinyLogs
         . runInputConst settings
         . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "target.example.com") FullSearch] 10)
-        $ callOutward request
+        $ callOutward targetDomain Brig (RPC "get-user-by-handle") request
     Wai.responseStatus res @?= HTTP.status200
     body <- Wai.lazyResponseBody res
     body @?= "\"bar\""
@@ -135,7 +136,7 @@ federatedRequestFailureAllowList =
         . discardTinyLogs
         . runInputConst settings
         . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "hello.world") FullSearch] 10)
-        $ callOutward request
+        $ callOutward targetDomain Brig (RPC "get-user-by-handle") request
     eith @?= Left (FederationDenied targetDomain)
 
 -- @END

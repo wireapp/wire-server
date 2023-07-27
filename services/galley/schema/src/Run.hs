@@ -84,10 +84,12 @@ import qualified V78_TeamFeatureOutlookCalIntegration
 import qualified V79_TeamFeatureMlsE2EId
 import qualified V80_AddConversationCodePassword
 import qualified V81_TeamFeatureMlsE2EIdUpdate
-import qualified V82_MLSSubconversation
-import qualified V83_MLSDraft17
-import qualified V84_TeamFeatureMlsMigration
-import qualified V85_TeamFeatureSupportedProtocols
+import qualified V82_RemoteDomainIndexes
+import qualified V83_CreateTableTeamAdmin
+import qualified V84_MLSSubconversation
+import qualified V85_MLSDraft17
+import qualified V86_TeamFeatureMlsMigration
+import qualified V87_TeamFeatureSupportedProtocols
 
 main :: IO ()
 main = do
@@ -158,10 +160,12 @@ main = do
       V79_TeamFeatureMlsE2EId.migration,
       V80_AddConversationCodePassword.migration,
       V81_TeamFeatureMlsE2EIdUpdate.migration,
-      V82_MLSSubconversation.migration,
-      V83_MLSDraft17.migration,
-      V84_TeamFeatureMlsMigration.migration,
-      V85_TeamFeatureSupportedProtocols.migration
+      V82_RemoteDomainIndexes.migration,
+      V83_CreateTableTeamAdmin.migration,
+      V84_MLSSubconversation.migration,
+      V85_MLSDraft17.migration,
+      V86_TeamFeatureMlsMigration.migration,
+      V87_TeamFeatureSupportedProtocols.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Cassandra
       -- (see also docs/developer/cassandra-interaction.md)

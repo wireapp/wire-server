@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,22 +15,28 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V84_TeamFeatureMlsMigration
-  ( migration,
-  )
-where
+module V84_MLSSubconversation (migration) where
 
 import Cassandra.Schema
 import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 84 "Add feature config for team feature MLS Migration" $ do
-  schema'
-    [r| ALTER TABLE team_features ADD (
-          mls_migration_status int,
-          mls_migration_lock_status int,
-          mls_migration_start_time timestamp,
-          mls_migration_finalise_regardless_after timestamp
-        )
-     |]
+migration =
+  Migration 84 "Add the MLS subconversation tables" $ do
+    schema'
+      [r| CREATE TABLE subconversation (
+            conv_id uuid,
+            subconv_id text,
+            group_id blob,
+            cipher_suite int,
+            public_group_state blob,
+            epoch bigint,
+            PRIMARY KEY (conv_id, subconv_id)
+          );
+        |]
+    schema'
+      [r| ALTER TABLE group_id_conv_id ADD (
+            subconv_id text
+          );
+        |]

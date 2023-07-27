@@ -58,6 +58,7 @@ import qualified V75_AddOAuthCodeChallenge
 import qualified V76_AddSupportedProtocols
 import qualified V77_FederationRemotes
 import qualified V78_ClientLastActive
+import qualified V79_ConnectionRemoteIndex
 
 main :: IO ()
 main = do
@@ -103,7 +104,8 @@ main = do
       V75_AddOAuthCodeChallenge.migration,
       V76_AddSupportedProtocols.migration,
       V77_FederationRemotes.migration,
-      V78_ClientLastActive.migration
+      V78_ClientLastActive.migration,
+      V79_ConnectionRemoteIndex.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Brig.App
 

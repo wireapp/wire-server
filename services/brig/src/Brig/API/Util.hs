@@ -40,7 +40,6 @@ import Brig.App
 import qualified Brig.Code as Code
 import qualified Brig.Data.User as Data
 import Brig.Options (set2FACodeGenerationDelaySecs)
-import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except

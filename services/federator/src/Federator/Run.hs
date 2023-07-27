@@ -99,6 +99,8 @@ newEnv o _dnsResolver _applog _domainConfigs = do
       _service Brig = Opt.brig o
       _service Galley = Opt.galley o
       _service Cargohold = Opt.cargohold o
+      _externalPort = o.federatorExternal._epPort
+      _internalPort = o.federatorInternal._epPort
   _httpManager <- initHttpManager
   sslContext <- mkTLSSettingsOrThrow _runSettings
   _http2Manager <- newIORef =<< mkHttp2Manager sslContext
