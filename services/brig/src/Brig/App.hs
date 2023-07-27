@@ -478,7 +478,7 @@ newtype AppT r a = AppT
     via (Ap (AppT r) a)
 
 lowerAppT :: Member (Final IO) r => Env -> AppT r a -> Sem r a
-lowerAppT env = flip runReaderT env . unAppT
+lowerAppT env (AppT r) = runReaderT r env
 
 temporaryGetEnv :: AppT r Env
 temporaryGetEnv = AppT ask
@@ -491,7 +491,7 @@ instance Applicative (AppT r) where
   (AppT x0) <*> (AppT x1) = AppT $ x0 <*> x1
 
 instance Monad (AppT r) where
-  (AppT x0) >>= f = AppT $ x0 >>= unAppT . f
+  (AppT x0) >>= f = AppT $ x0 >>= (\x -> unAppT $ f x)
 
 instance MonadIO (AppT r) where
   liftIO io = AppT $ lift $ embedFinal io
@@ -512,7 +512,7 @@ instance Member (Final IO) r => MonadCatch (Sem r) where
 instance MonadCatch (AppT r) where
   catch (AppT m) handler = AppT $
     ReaderT $ \env ->
-      catch (runReaderT m env) (flip runReaderT env . unAppT . handler)
+      catch (runReaderT m env) (\x -> runReaderT (unAppT $ handler x) env)
 
 instance MonadReader Env (AppT r) where
   ask = AppT ask

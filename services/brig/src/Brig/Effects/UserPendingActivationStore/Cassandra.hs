@@ -1,3 +1,4 @@
+{-# Language DeepSubsumption #-}
 module Brig.Effects.UserPendingActivationStore.Cassandra
   ( userPendingActivationStoreToCassandra,
   )

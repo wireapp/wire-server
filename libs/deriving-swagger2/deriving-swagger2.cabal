@@ -67,4 +67,4 @@ library
     , imports
     , swagger2  >=0.6
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

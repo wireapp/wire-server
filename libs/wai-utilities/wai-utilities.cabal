@@ -100,4 +100,4 @@ library
     , warp                   >=3.0
     , warp-tls
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

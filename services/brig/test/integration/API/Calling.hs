@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# LANGUAGE DeepSubsumption #-}
 
 -- This file is part of the Wire Server implementation.
 --

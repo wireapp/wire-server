@@ -90,7 +90,7 @@ library
     , types-common
     , uuid
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
   autogen-modules:
     Proto.TeamEvents
     Proto.TeamEvents_Fields
