@@ -136,6 +136,42 @@ testCrudOAuthClient = do
     resp.status `shouldMatchInt` 404
 
 -- | See https://docs.wire.com/understand/api-client-perspective/swagger.html
+-- TODO: this test fails for brig's internal swagger docs with `brig-swagger.json` not found.
+-- other internal swagger docs are fine.
+-- the offending commit that introduced the error is https://github.com/wireapp/wire-server/commit/f33f1e0a3837c1113377a4fae5c6724e8fe7de75
+-- ----- Brig.testSwagger FAIL (0.47 s) -----
+-- assertion failure:
+-- Actual:
+-- 500
+-- Expected:
+-- 200
+
+-- call stack:
+-- 1. assertFailure at test/Testlib/Assertions.hs:50
+--      assertFailure $ "Actual:\n" <> pa <> "\nExpected:\n" <> pb
+
+-- 2. shouldMatch at test/Testlib/Assertions.hs:85
+--      shouldMatchInt = shouldMatch
+
+-- 3. shouldMatchInt at test/Test/Brig.hs:182
+--      resp.status `shouldMatchInt` 200
+
+
+
+-- request:
+-- GET http://127.0.0.1:8080/api-internal/swagger-ui/brig-swagger.json
+-- request headers:
+
+-- request body:
+
+-- response status: 500
+-- response body:
+-- {
+--     "code": 500,
+--     "label": "server-error",
+--     "message": "Server Error"
+-- }
+
 testSwagger :: HasCallStack => App ()
 testSwagger = do
   let existingVersions :: [Int]
