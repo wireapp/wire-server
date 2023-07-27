@@ -41,26 +41,26 @@ module Cassandra.Schema
 where
 
 import Cassandra (Client, Consistency (All, One), Keyspace (Keyspace), PrepQuery, QueryParams (QueryParams), QueryString (QueryString), R, S, Version (V4), W, params, query, query1, retry, runClient, write, x1, x5)
-import qualified Cassandra as CQL (init)
+import Cassandra qualified as CQL (init)
 import Cassandra.Settings (Policy, defSettings, initialContactsPlain, setConnectTimeout, setContacts, setLogger, setMaxConnections, setPolicy, setPoolStripes, setPortNumber, setProtocolVersion, setResponseTimeout, setSendTimeout)
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.Split (splitOn)
 import Data.Text (intercalate, pack)
 import Data.Text.Lazy (fromStrict)
-import qualified Data.Text.Lazy as LT
+import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder (fromString, fromText, toLazyText)
 import Data.Time.Clock
 import Data.UUID (UUID)
 import Database.CQL.IO (HostResponse, Policy (Policy, acceptable, current, display, hostCount, onEvent, select, setup), getResult, request, schema)
-import qualified Database.CQL.IO.Tinylog as CT
+import Database.CQL.IO.Tinylog qualified as CT
 import Database.CQL.Protocol (Query (Query), Request (RqQuery))
 import Imports hiding (All, fromString, init, intercalate, log)
 import Options.Applicative hiding (info)
 -- FUTUREWORK: We could use the System.Logger.Class here in the future, but we don't have a ReaderT IO here (yet)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 
 data Migration = Migration
   { migVersion :: Int32,

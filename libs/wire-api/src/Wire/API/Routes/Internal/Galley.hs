@@ -24,7 +24,7 @@ import Data.Swagger (Swagger, info, title)
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
 import Servant hiding (JSON, WithStatus)
-import qualified Servant hiding (WithStatus)
+import Servant qualified hiding (WithStatus)
 import Servant.Swagger
 import Wire.API.ApplyMods
 import Wire.API.Conversation.Role

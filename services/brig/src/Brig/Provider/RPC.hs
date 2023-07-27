@@ -41,22 +41,22 @@ import Control.Retry (recovering)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id
-import qualified Data.List1 as List1
-import qualified Galley.Types.Bot as Galley
+import Data.List1 qualified as List1
+import Galley.Types.Bot qualified as Galley
 import Galley.Types.Bot.Service (serviceEnabled)
-import qualified Galley.Types.Bot.Service as Galley
+import Galley.Types.Bot.Service qualified as Galley
 import Imports
-import qualified Network.HTTP.Client as Http
+import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Ssl.Util (withVerifiedSslConnection)
 import System.Logger.Class (MonadLogger, field, msg, val, (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import URI.ByteString
-import qualified Wire.API.Event.Conversation as Conv
+import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Provider (httpsUrl)
 import Wire.API.Provider.External
-import qualified Wire.API.Provider.Service as Galley
+import Wire.API.Provider.Service qualified as Galley
 
 --------------------------------------------------------------------------------
 -- External RPC

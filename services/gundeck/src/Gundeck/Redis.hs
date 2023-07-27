@@ -29,14 +29,14 @@ module Gundeck.Redis
 where
 
 import Control.Concurrent.Async (Async, async)
-import qualified Control.Monad.Catch as Catch
+import Control.Monad.Catch qualified as Catch
 import Control.Retry
 import Database.Redis
 import Gundeck.Redis.HedisExtensions
 import Imports
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import System.Logger.Class (MonadLogger)
-import qualified System.Logger.Class as LogClass
+import System.Logger.Class qualified as LogClass
 import System.Logger.Extended
 import UnliftIO.Exception
 

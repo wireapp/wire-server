@@ -22,9 +22,9 @@ module Wire.API.Federation.Version where
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons.TH
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Wire.API.VersionInfo
 

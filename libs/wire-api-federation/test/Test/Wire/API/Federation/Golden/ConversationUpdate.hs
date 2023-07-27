@@ -26,7 +26,7 @@ import Data.Id (Id (Id), UserId)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Qualified (Qualified (Qualified))
 import Data.Singletons (sing)
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Action

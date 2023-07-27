@@ -20,7 +20,7 @@ module Test.SizedHashMap
   )
 where
 
-import qualified Data.HashMap.Strict as HM
+import Data.HashMap.Strict qualified as HM
 import Data.SizedHashMap as SHM
 import Imports
 import Test.Tasty

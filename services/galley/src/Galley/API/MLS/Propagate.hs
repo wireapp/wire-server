@@ -21,23 +21,23 @@ import Control.Comonad
 import Data.Domain
 import Data.Id
 import Data.Json.Util
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Time
 import Galley.API.MLS.Types
 import Galley.API.Push
-import qualified Galley.Data.Conversation.Types as Data
+import Galley.Data.Conversation.Types qualified as Data
 import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.FederatorAccess
 import Galley.Types.Conversations.Members
 import Imports
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog hiding (trace)
-import qualified System.Logger.Class as Logger
+import System.Logger.Class qualified as Logger
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation

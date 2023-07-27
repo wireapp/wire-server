@@ -32,7 +32,7 @@ import Data.Aeson hiding (Error)
 import Data.Aeson.Types (Pair)
 import Data.Domain
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import Imports
 import Network.HTTP.Types

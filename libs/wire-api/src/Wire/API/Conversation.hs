@@ -88,24 +88,24 @@ where
 import Control.Applicative
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as A
-import qualified Data.ByteString.Lazy as LBS
+import Data.Aeson qualified as A
+import Data.Aeson.Types qualified as A
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Id
 import Data.List.Extra (disjointOrd)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Range (Range, fromRange, rangedSchema)
 import Data.SOP
 import Data.Schema
-import qualified Data.Set as Set
-import qualified Data.Swagger as S
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V5 as UUIDV5
+import Data.Set qualified as Set
+import Data.Swagger qualified as S
+import Data.UUID qualified as UUID
+import Data.UUID.V5 qualified as UUIDV5
 import Imports
 import Servant.API
 import System.Random (randomRIO)

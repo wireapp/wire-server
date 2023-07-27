@@ -22,14 +22,14 @@ where
 
 import Imports
 import OpenSSL (withOpenSSL)
-import qualified Test.Federator.Client
-import qualified Test.Federator.ExternalServer
-import qualified Test.Federator.InternalServer
-import qualified Test.Federator.Monitor
-import qualified Test.Federator.Options
-import qualified Test.Federator.Remote
-import qualified Test.Federator.Response
-import qualified Test.Federator.Validation
+import Test.Federator.Client qualified
+import Test.Federator.ExternalServer qualified
+import Test.Federator.InternalServer qualified
+import Test.Federator.Monitor qualified
+import Test.Federator.Options qualified
+import Test.Federator.Remote qualified
+import Test.Federator.Response qualified
+import Test.Federator.Validation qualified
 import Test.Tasty
 
 main :: IO ()

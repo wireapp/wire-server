@@ -17,17 +17,17 @@
 
 module Index.Create where
 
-import qualified Brig.Index.Eval as IndexEval
-import qualified Brig.Index.Options as IndexOpts
+import Brig.Index.Eval qualified as IndexEval
+import Brig.Index.Options qualified as IndexOpts
 import Brig.Options (Opts (galley))
-import qualified Brig.Options as BrigOpts
+import Brig.Options qualified as BrigOpts
 import Control.Lens ((.~), (^.))
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Database.Bloodhound as ES
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Database.Bloodhound qualified as ES
 import Imports
-import qualified Network.HTTP.Client as HTTP
-import qualified System.Logger.Class as Log
+import Network.HTTP.Client qualified as HTTP
+import System.Logger.Class qualified as Log
 import System.Random as Random
 import Test.Tasty
 import Test.Tasty.HUnit

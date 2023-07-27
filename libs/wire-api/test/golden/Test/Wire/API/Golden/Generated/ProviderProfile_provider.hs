@@ -22,7 +22,7 @@ module Test.Wire.API.Golden.Generated.ProviderProfile_provider where
 import Data.Coerce (coerce)
 import Data.Id (Id (Id))
 import Data.Misc (HttpsUrl (HttpsUrl))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import URI.ByteString
   ( Authority

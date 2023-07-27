@@ -28,8 +28,8 @@ where
 
 import Brig.App
 import Brig.Data.Properties (PropertiesDataError)
-import qualified Brig.Data.Properties as Data
-import qualified Brig.IO.Intra as Intra
+import Brig.Data.Properties qualified as Data
+import Brig.IO.Intra qualified as Intra
 import Brig.Types.User.Event
 import Control.Error
 import Data.Id

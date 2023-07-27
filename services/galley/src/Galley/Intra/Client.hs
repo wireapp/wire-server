@@ -39,7 +39,7 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Misc
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Text.Encoding
 import Data.Text.Lazy (toStrict)
 import Galley.API.Error
@@ -49,18 +49,18 @@ import Galley.External.LegalHoldService.Types
 import Galley.Intra.Util
 import Galley.Monad
 import Imports
-import qualified Network.HTTP.Client as Rq
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Client qualified as Rq
+import Network.HTTP.Types qualified as HTTP
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error hiding (Error)
-import qualified Network.Wai.Utilities.Error as Error
+import Network.Wai.Utilities.Error qualified as Error
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
+import Polysemy.TinyLog qualified as P
 import Servant
-import qualified System.Logger.Class as Logger
+import System.Logger.Class qualified as Logger
 import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage

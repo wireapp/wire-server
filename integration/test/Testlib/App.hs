@@ -1,12 +1,12 @@
 module Testlib.App where
 
 import Control.Monad.Reader
-import qualified Control.Retry as Retry
+import Control.Retry qualified as Retry
 import Data.Aeson hiding ((.=))
 import Data.Functor ((<&>))
 import Data.IORef
-import qualified Data.Text as T
-import qualified Data.Yaml as Yaml
+import Data.Text qualified as T
+import Data.Yaml qualified as Yaml
 import GHC.Exception
 import System.FilePath
 import Testlib.Env

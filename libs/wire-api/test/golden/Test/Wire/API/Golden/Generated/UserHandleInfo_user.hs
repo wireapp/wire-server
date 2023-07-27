@@ -20,7 +20,7 @@ module Test.Wire.API.Golden.Generated.UserHandleInfo_user where
 import Data.Domain (Domain (Domain, _domainText))
 import Data.Id (Id (Id))
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (fromJust)
 import Wire.API.User.Handle (UserHandleInfo (..))
 

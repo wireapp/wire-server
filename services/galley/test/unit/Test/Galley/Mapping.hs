@@ -24,16 +24,16 @@ import Data.Containers.ListUtils (nubOrdOn)
 import Data.Domain
 import Data.Id
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Galley.API.Error (InternalError)
 import Galley.API.Mapping
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Types.Conversations.Members
 import Imports
 import Polysemy (Sem)
-import qualified Polysemy as P
-import qualified Polysemy.Error as P
-import qualified Polysemy.TinyLog as P
+import Polysemy qualified as P
+import Polysemy.Error qualified as P
+import Polysemy.TinyLog qualified as P
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Wire.API.Conversation
@@ -43,7 +43,7 @@ import Wire.API.Federation.API.Galley
   ( RemoteConvMembers (..),
     RemoteConversation (..),
   )
-import qualified Wire.Sem.Logger as P
+import Wire.Sem.Logger qualified as P
 
 run :: Sem '[P.TinyLog, P.Error InternalError] a -> Either InternalError a
 run = P.run . P.runError . P.discardLogs

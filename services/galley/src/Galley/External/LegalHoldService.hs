@@ -27,22 +27,22 @@ module Galley.External.LegalHoldService
   )
 where
 
-import qualified Bilge
+import Bilge qualified
 import Bilge.Response
 import Brig.Types.Team.LegalHold
 import Data.Aeson
 import Data.ByteString.Conversion.To
-import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Id
 import Data.Misc
 import Galley.Effects.LegalHoldStore as LegalHoldData
 import Galley.External.LegalHoldService.Types
 import Imports
-import qualified Network.HTTP.Client as Http
+import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types
 import Polysemy
-import qualified Polysemy.TinyLog as P
-import qualified System.Logger.Class as Log
+import Polysemy.TinyLog qualified as P
+import System.Logger.Class qualified as Log
 import Wire.API.Error (ErrorS, throwS)
 import Wire.API.Error.Galley
 import Wire.API.Team.LegalHold.External

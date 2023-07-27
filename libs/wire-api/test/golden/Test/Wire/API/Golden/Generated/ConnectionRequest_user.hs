@@ -19,7 +19,7 @@ module Test.Wire.API.Golden.Generated.ConnectionRequest_user where
 
 import Data.Id (Id (Id))
 import Data.Range
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (fromJust)
 import Wire.API.Connection (ConnectionRequest (..))
 

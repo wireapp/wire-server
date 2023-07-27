@@ -24,9 +24,9 @@ where
 
 import Control.Exception (assert)
 import Data.Aeson as A
-import qualified Data.Aeson.Types as A
-import qualified Data.HashMap.Strict.InsOrd as HM
-import qualified Data.Map as M
+import Data.Aeson.Types qualified as A
+import Data.HashMap.Strict.InsOrd qualified as HM
+import Data.Map qualified as M
 import Data.Swagger
   ( PathItem,
     Swagger,
@@ -42,17 +42,17 @@ import Data.Swagger
   )
 import Imports
 import Language.Dot as D
-import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
-import qualified Wire.API.Routes.Public.Brig as BrigRoutes
-import qualified Wire.API.Routes.Public.Cannon as CannonRoutes
-import qualified Wire.API.Routes.Public.Cargohold as CargoholdRoutes
-import qualified Wire.API.Routes.Public.Galley as GalleyRoutes
-import qualified Wire.API.Routes.Public.Gundeck as GundeckRoutes
-import qualified Wire.API.Routes.Public.Proxy as ProxyRoutes
+import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
+import Wire.API.Routes.Public.Brig qualified as BrigRoutes
+import Wire.API.Routes.Public.Cannon qualified as CannonRoutes
+import Wire.API.Routes.Public.Cargohold qualified as CargoholdRoutes
+import Wire.API.Routes.Public.Galley qualified as GalleyRoutes
+import Wire.API.Routes.Public.Gundeck qualified as GundeckRoutes
+import Wire.API.Routes.Public.Proxy qualified as ProxyRoutes
 -- import qualified Wire.API.Routes.Internal.Cannon as CannonIRoutes
 -- import qualified Wire.API.Routes.Internal.Cargohold as CargoholdIRoutes
 -- import qualified Wire.API.Routes.Internal.LegalHold as LegalHoldIRoutes
-import qualified Wire.API.Routes.Public.Spar as SparRoutes
+import Wire.API.Routes.Public.Spar qualified as SparRoutes
 
 ------------------------------
 

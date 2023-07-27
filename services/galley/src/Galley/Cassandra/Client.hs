@@ -26,18 +26,18 @@ import Control.Arrow
 import Control.Lens
 import Data.Id
 import Data.List.Split (chunksOf)
-import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Effects.ClientStore (ClientStore (..))
 import Galley.Env
 import Galley.Monad
 import Galley.Options
 import Galley.Types.Clients (Clients)
-import qualified Galley.Types.Clients as Clients
+import Galley.Types.Clients qualified as Clients
 import Imports
 import Polysemy
 import Polysemy.Input
-import qualified UnliftIO
+import UnliftIO qualified
 
 updateClient :: Bool -> UserId -> ClientId -> Client ()
 updateClient add usr cls = do

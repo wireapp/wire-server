@@ -28,7 +28,7 @@ import Brig.Types.Search
 import Cassandra.CQL
 import Control.Error (note)
 import Data.Aeson (eitherDecode, encode)
-import qualified Data.Aeson as JSON
+import Data.Aeson qualified as JSON
 import Data.ByteString.Conversion
 import Data.Domain (Domain, domainText, mkDomain)
 import Data.Handle (Handle (..))

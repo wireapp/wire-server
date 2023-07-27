@@ -24,7 +24,7 @@ module Gundeck.Types.Presence
 where
 
 import Data.Aeson
-import qualified Data.ByteString.Lazy as Lazy
+import Data.ByteString.Lazy qualified as Lazy
 import Data.Id
 import Data.Misc (Milliseconds)
 import Gundeck.Types.Common as Common

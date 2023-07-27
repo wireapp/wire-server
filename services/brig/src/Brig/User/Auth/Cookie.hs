@@ -43,16 +43,16 @@ where
 import Brig.App
 import Brig.Options hiding (user)
 import Brig.User.Auth.Cookie.Limit
-import qualified Brig.User.Auth.DB.Cookie as DB
-import qualified Brig.ZAuth as ZAuth
+import Brig.User.Auth.DB.Cookie qualified as DB
+import Brig.ZAuth qualified as ZAuth
 import Cassandra
 import Control.Error
 import Control.Lens (to, view)
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.Id
-import qualified Data.List as List
-import qualified Data.Metrics as Metrics
+import Data.List qualified as List
+import Data.Metrics qualified as Metrics
 import Data.Proxy
 import Data.RetryAfter
 import Data.Time.Clock
@@ -60,8 +60,8 @@ import Imports hiding (cs)
 import Network.Wai (Response)
 import Network.Wai.Utilities.Response (addHeader)
 import System.Logger.Class (field, msg, val, (~~))
-import qualified System.Logger.Class as Log
-import qualified Web.Cookie as WebCookie
+import System.Logger.Class qualified as Log
+import Web.Cookie qualified as WebCookie
 import Wire.API.User.Auth
 
 --------------------------------------------------------------------------------

@@ -21,7 +21,7 @@ import Control.Comonad
 import Data.Id
 import Data.Qualified
 import Galley.Data.Conversation.Types hiding (Conversation)
-import qualified Galley.Data.Conversation.Types as Data
+import Galley.Data.Conversation.Types qualified as Data
 import Galley.Effects
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
@@ -29,8 +29,8 @@ import Galley.Effects.ProposalStore
 import Imports
 import Polysemy
 import Polysemy.TinyLog (TinyLog)
-import qualified Polysemy.TinyLog as TinyLog
-import qualified System.Logger as Log
+import Polysemy.TinyLog qualified as TinyLog
+import System.Logger qualified as Log
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Epoch

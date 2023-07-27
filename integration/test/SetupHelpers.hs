@@ -1,7 +1,7 @@
 module SetupHelpers where
 
-import qualified API.Brig as Public
-import qualified API.BrigInternal as Internal
+import API.Brig qualified as Public
+import API.BrigInternal qualified as Internal
 import API.Galley
 import Control.Concurrent (threadDelay)
 import Data.Aeson hiding ((.=))

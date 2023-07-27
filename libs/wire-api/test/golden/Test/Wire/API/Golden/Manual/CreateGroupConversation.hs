@@ -19,9 +19,9 @@ module Test.Wire.API.Golden.Manual.CreateGroupConversation where
 
 import Data.Domain
 import Data.Id
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.UUID as UUID (fromString)
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.UUID qualified as UUID (fromString)
 import Imports
 import Test.Wire.API.Golden.Generated.Conversation_user
 import Wire.API.Conversation

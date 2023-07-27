@@ -23,15 +23,15 @@ module Wire.API.Team.Role
   )
 where
 
-import qualified Cassandra as Cql
+import Cassandra qualified as Cql
 import Control.Error (note)
 import Control.Lens ((?~))
 import Data.Aeson
 import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as T
+import Data.Swagger qualified as S
+import Data.Text qualified as T
 import Imports
 import Servant.API (FromHttpApiData, parseQueryParam)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))

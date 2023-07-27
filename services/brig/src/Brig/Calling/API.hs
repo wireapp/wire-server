@@ -32,18 +32,18 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.App
 import Brig.Calling
-import qualified Brig.Calling as Calling
+import Brig.Calling qualified as Calling
 import Brig.Calling.Internal
 import Brig.Effects.SFT
 import Brig.Options (ListAllSFTServers (..))
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Control.Error (hush, throwE)
 import Control.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lens
 import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc (HttpsUrl)
 import Data.Range
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
@@ -52,11 +52,11 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 import Imports hiding (head)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import Polysemy
-import qualified Polysemy.Error as Polysemy
-import qualified System.Logger.Class as Log
-import qualified System.Random.MWC as MWC
+import Polysemy.Error qualified as Polysemy
+import System.Logger.Class qualified as Log
+import System.Random.MWC qualified as MWC
 import Wire.API.Call.Config (SFTServer)
-import qualified Wire.API.Call.Config as Public
+import Wire.API.Call.Config qualified as Public
 import Wire.Network.DNS.SRV (srvTarget)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 

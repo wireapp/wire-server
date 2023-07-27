@@ -19,11 +19,11 @@
 
 module Test.Federator.Validation where
 
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.Domain
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.Text.Encoding as Text
-import qualified Data.X509.Validation as X509
+import Data.Text.Encoding qualified as Text
+import Data.X509.Validation qualified as X509
 import Federator.Discovery
 import Federator.Validation
 import Imports

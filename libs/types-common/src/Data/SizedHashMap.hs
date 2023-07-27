@@ -29,7 +29,7 @@ module Data.SizedHashMap
   )
 where
 
-import qualified Data.HashMap.Strict as M
+import Data.HashMap.Strict qualified as M
 import Data.Hashable (Hashable)
 import Imports hiding (lookup, toList)
 

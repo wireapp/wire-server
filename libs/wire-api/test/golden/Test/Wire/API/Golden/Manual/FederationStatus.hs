@@ -18,7 +18,7 @@
 module Test.Wire.API.Golden.Manual.FederationStatus where
 
 import Data.Domain (Domain (..))
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Imports (Monoid (mempty), ($))
 import Wire.API.FederationStatus
 

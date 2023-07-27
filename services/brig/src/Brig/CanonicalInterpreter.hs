@@ -20,7 +20,7 @@ import Brig.Effects.ServiceRPC.IO (interpretServiceRpcToRpc)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Brig.RPC (ParseException)
-import qualified Cassandra as Cas
+import Cassandra qualified as Cas
 import Control.Lens ((^.))
 import Control.Monad.Catch (throwM)
 import Imports

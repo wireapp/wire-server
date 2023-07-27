@@ -22,11 +22,11 @@ module Test.Galley.Types where
 
 import Control.Lens
 import Data.Set hiding (drop)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Galley.Types.Teams
 import Imports
 import Test.Galley.Roundtrip (testRoundTrip)
-import qualified Test.QuickCheck as QC
+import Test.QuickCheck qualified as QC
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck

@@ -23,31 +23,31 @@ import API.Search.Util (refreshIndex)
 import API.User.Util
 import Bilge hiding (head)
 import Bilge.Assert
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Control.Arrow (Arrow (first), (&&&))
 import Control.Lens ((?~))
 import Data.Aeson
 import Data.Domain (Domain (Domain))
 import Data.Handle (Handle (..))
 import Data.Id
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Timeout
-import qualified Data.UUID.V4 as UUIDv4
+import Data.UUID.V4 qualified as UUIDv4
 import Federation.Util (generateClientPrekeys)
 import Imports
-import qualified Network.Wai.Test as WaiTest
+import Network.Wai.Test qualified as WaiTest
 import Test.QuickCheck hiding ((===))
 import Test.Tasty
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import Util
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig
-import qualified Wire.API.Federation.API.Brig as FedBrig
-import qualified Wire.API.Federation.API.Brig as S
+import Wire.API.Federation.API.Brig qualified as FedBrig
+import Wire.API.Federation.API.Brig qualified as S
 import Wire.API.Federation.Component
 import Wire.API.Federation.Version
 import Wire.API.Routes.FederationDomainConfig as FD

@@ -21,11 +21,11 @@ module Federator.Error
   )
 where
 
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Imports
 import Network.HTTP.Types.Header
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai qualified as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 
 class AsWai e where
   toWai :: e -> Wai.Error

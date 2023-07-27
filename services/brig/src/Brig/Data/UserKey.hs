@@ -34,7 +34,7 @@ module Brig.Data.UserKey
 where
 
 import Brig.Data.Instances ()
-import qualified Brig.Data.User as User
+import Brig.Data.User qualified as User
 import Brig.Email
 import Brig.Phone
 import Cassandra

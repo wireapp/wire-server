@@ -21,12 +21,12 @@ import Cassandra
 import Conduit
 import Control.Lens (view)
 import Data.Conduit.Internal (zipSources)
-import qualified Data.Conduit.List as C
+import Data.Conduit.List qualified as C
 import Data.Id
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Galley.DataMigration.Types
 import Imports
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.Team.Permission
 
 migration :: Migration

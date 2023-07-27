@@ -38,15 +38,15 @@ module Federator.MockServer
   )
 where
 
-import qualified Control.Exception as Exception
+import Control.Exception qualified as Exception
 import Control.Exception.Base (throw)
 import Control.Monad.Catch hiding (fromException)
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Domain (Domain)
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as LText
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as LText
 import Federator.Error
 import Federator.Error.ServerError
 import Federator.InternalServer
@@ -54,10 +54,10 @@ import Federator.RPC
 import Federator.Response
 import Federator.Validation
 import Imports hiding (fromException)
-import qualified Network.HTTP.Media as HTTP
+import Network.HTTP.Media qualified as HTTP
 import Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
+import Network.Wai qualified as Wai
+import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Utilities.Error as Wai hiding (Error)
 import Network.Wai.Utilities.MockServer
 import Polysemy

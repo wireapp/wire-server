@@ -20,15 +20,15 @@ module V2_MigrateMLSMembers where
 import Cassandra
 import Conduit
 import Data.Conduit.Internal (zipSources)
-import qualified Data.Conduit.List as C
+import Data.Conduit.List qualified as C
 import Data.Domain
 import Data.Id
 import Data.Map.Strict (lookup)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Galley.Cassandra.Instances ()
 import Galley.DataMigration.Types
 import Imports hiding (lookup)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import UnliftIO (pooledMapConcurrentlyN_)
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.MLS.Group

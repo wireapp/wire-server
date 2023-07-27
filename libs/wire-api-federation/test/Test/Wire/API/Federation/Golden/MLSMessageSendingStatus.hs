@@ -21,7 +21,7 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Wire.API.MLS.Message
 import Wire.API.Unreachable

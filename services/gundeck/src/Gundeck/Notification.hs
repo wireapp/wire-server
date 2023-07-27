@@ -30,13 +30,13 @@ import Data.Id
 import Data.Misc (Milliseconds (..))
 import Data.Range
 import Data.Time.Clock.POSIX
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Gundeck.Monad
-import qualified Gundeck.Notification.Data as Data
+import Gundeck.Notification.Data qualified as Data
 import Gundeck.Options
 import Imports hiding (getLast)
 import System.Logger.Class
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Util.Options
 import Wire.API.Internal.Notification
 

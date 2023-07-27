@@ -23,47 +23,47 @@ module Galley.Run
 where
 
 import AWS.Util (readAuthExpiration)
-import qualified Amazonka as AWS
+import Amazonka qualified as AWS
 import Bilge.Request (requestIdName)
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
-import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Async qualified as Async
 import Control.Exception (finally)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Codensity
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Default
 import Data.Id
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
-import qualified Data.Metrics.Middleware as M
+import Data.Metrics.Middleware qualified as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
 import Data.Singletons
 import Data.Text (unpack)
-import qualified Galley.API as API
+import Galley.API qualified as API
 import Galley.API.Federation
 import Galley.API.Internal
 import Galley.App
-import qualified Galley.App as App
+import Galley.App qualified as App
 import Galley.Aws (awsEnv)
 import Galley.Cassandra
 import Galley.Monad
 import Galley.Options
-import qualified Galley.Queue as Q
+import Galley.Queue qualified as Q
 import Imports
-import qualified Network.HTTP.Media.RenderHeader as HTTPMedia
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Media.RenderHeader qualified as HTTPMedia
+import Network.HTTP.Types qualified as HTTP
 import Network.Wai
-import qualified Network.Wai.Middleware.Gunzip as GZip
-import qualified Network.Wai.Middleware.Gzip as GZip
+import Network.Wai.Middleware.Gunzip qualified as GZip
+import Network.Wai.Middleware.Gzip qualified as GZip
 import Network.Wai.Utilities.Server
 import Servant hiding (route)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import System.Logger.Extended (mkLogger)
 import Util.Options
 import Wire.API.Routes.API
-import qualified Wire.API.Routes.Public.Galley as GalleyAPI
+import Wire.API.Routes.Public.Galley qualified as GalleyAPI
 import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()

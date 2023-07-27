@@ -19,11 +19,11 @@ module Wire.API.Routes.Cookies where
 
 import Data.Kind
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Data.Metrics.Servant
 import Data.SOP
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import GHC.TypeLits
 import Imports
 import Servant

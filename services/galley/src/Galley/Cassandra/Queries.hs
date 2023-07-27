@@ -24,7 +24,7 @@ import Data.Id
 import Data.Json.Util
 import Data.LegalHold
 import Data.Misc
-import qualified Data.Text.Lazy as LT
+import Data.Text.Lazy qualified as LT
 import Galley.Cassandra.Instances ()
 import Galley.Data.Scope
 import Imports

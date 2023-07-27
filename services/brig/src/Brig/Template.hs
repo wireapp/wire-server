@@ -42,14 +42,14 @@ where
 
 import Brig.Options
 import Control.Exception (catchJust)
-import qualified Data.ByteString as BS
-import qualified Data.Map.Strict as Map
+import Data.ByteString qualified as BS
+import Data.Map.Strict qualified as Map
 import Data.Text (pack, unpack)
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as Lazy
+import Data.Text.Encoding qualified as T
+import Data.Text.Lazy qualified as Lazy
 import Data.Text.Template (Template, template)
-import qualified Data.Text.Template as Template
-import qualified HTMLEntities.Text as HTML
+import Data.Text.Template qualified as Template
+import HTMLEntities.Text qualified as HTML
 import Imports hiding (readFile)
 import System.IO.Error (isDoesNotExistError)
 import Wire.API.User

@@ -1,5 +1,5 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# LANGUAGE DeepSubsumption #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -22,24 +22,24 @@ module API.Calling where
 
 import Bilge
 import Bilge.Assert
-import qualified Brig.Options as Opts
+import Brig.Options qualified as Opts
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch)
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as LB
+import Data.ByteString.Lazy qualified as LB
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc (Port (..), mkHttpsUrl)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Imports
 import System.FilePath ((</>))
 import Test.Tasty
 import Test.Tasty.HUnit
 import URI.ByteString (laxURIParserOptions, parseURI)
 import UnliftIO.Exception (finally)
-import qualified UnliftIO.Temporary as Temp
+import UnliftIO.Temporary qualified as Temp
 import Util
 import Wire.API.Call.Config
 import Wire.API.User

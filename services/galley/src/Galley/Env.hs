@@ -27,12 +27,12 @@ import Data.Id
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
 import Data.Range
-import qualified Galley.Aws as Aws
+import Galley.Aws qualified as Aws
 import Galley.Options
-import qualified Galley.Queue as Q
+import Galley.Queue qualified as Q
 import HTTP2.Client.Manager (Http2Manager)
 import Imports
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest

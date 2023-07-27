@@ -30,36 +30,36 @@ import API.Team.Util
 import API.User.Util
 import Bilge
 import Bilge.Assert
-import qualified Brig.Options as Opt
-import qualified Brig.Options as Opts
+import Brig.Options qualified as Opt
+import Brig.Options qualified as Opts
 import Control.Lens ((.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Retry
 import Data.Aeson (FromJSON, Value, decode)
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
 import Data.Id
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Qualified (Qualified (qDomain, qUnqualified))
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Database.Bloodhound as ES
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Database.Bloodhound qualified as ES
 import Federation.Util
 import Imports
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.ReverseProxy (waiProxyTo)
-import qualified Network.HTTP.ReverseProxy as Wai
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Test as WaiTest
+import Network.HTTP.ReverseProxy qualified as Wai
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai qualified as Wai
+import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Test qualified as WaiTest
 import Safe (headMay)
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Text.RawString.QQ (r)
-import qualified URI.ByteString as URI
+import URI.ByteString qualified as URI
 import UnliftIO (Concurrently (..), async, bracket, cancel, runConcurrently)
 import Util
 import Wire.API.Federation.API.Brig (SearchResponse (SearchResponse))
@@ -67,7 +67,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search
-import qualified Wire.API.User.Search as Search
+import Wire.API.User.Search qualified as Search
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr galley brig = do

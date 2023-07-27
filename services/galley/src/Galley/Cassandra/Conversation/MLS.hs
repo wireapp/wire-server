@@ -20,7 +20,7 @@ module Galley.Cassandra.Conversation.MLS where
 import Cassandra
 import Cassandra.Settings (fromRow)
 import Data.Time
-import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Queries qualified as Cql
 import Galley.Data.Types
 import Imports
 import Wire.API.MLS.Epoch

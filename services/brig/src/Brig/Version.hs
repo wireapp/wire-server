@@ -21,7 +21,7 @@ import Brig.API.Handler
 import Brig.App
 import Brig.Options
 import Control.Lens
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Imports
 import Servant (ServerT)
 import Wire.API.Routes.Named

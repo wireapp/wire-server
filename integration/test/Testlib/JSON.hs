@@ -4,19 +4,19 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding ((.=))
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Encode.Pretty as Aeson
-import qualified Data.Aeson.Key as KM
-import qualified Data.Aeson.KeyMap as KM
-import qualified Data.Aeson.Types as Aeson
-import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Encode.Pretty qualified as Aeson
+import Data.Aeson.Key qualified as KM
+import Data.Aeson.KeyMap qualified as KM
+import Data.Aeson.Types qualified as Aeson
+import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.List.Split (splitOn)
-import qualified Data.Scientific as Sci
+import Data.Scientific qualified as Sci
 import Data.String
-import qualified Data.Text as T
+import Data.Text qualified as T
 import GHC.Stack
 import Testlib.Env
 import Testlib.Types

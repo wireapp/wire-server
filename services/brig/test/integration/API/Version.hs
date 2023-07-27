@@ -20,12 +20,12 @@ module API.Version (tests) where
 import Bilge
 import Bilge.Assert
 import Brig.Options
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Control.Lens ((?~))
 import Control.Monad.Catch (MonadCatch)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Imports
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util

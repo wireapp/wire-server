@@ -1,7 +1,7 @@
 module Wire.BackgroundWorker.Util where
 
 import Imports
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 
 -- | This class exists to help with testing, making the envelope in unit test is
 -- too difficult. So we use fake envelopes in the unit tests.

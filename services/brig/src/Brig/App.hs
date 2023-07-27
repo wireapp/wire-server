@@ -88,27 +88,27 @@ module Brig.App
 where
 
 import Bilge (RequestId (..))
-import qualified Bilge as RPC
+import Bilge qualified as RPC
 import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
-import qualified Brig.AWS as AWS
-import qualified Brig.Calling as Calling
+import Brig.AWS qualified as AWS
+import Brig.Calling qualified as Calling
 import Brig.Options (Opts, Settings)
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Brig.Provider.Template
-import qualified Brig.Queue.Stomp as Stomp
+import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types (Queue (..))
-import qualified Brig.SMTP as SMTP
+import Brig.SMTP qualified as SMTP
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
-import qualified Brig.ZAuth as ZAuth
+import Brig.ZAuth qualified as ZAuth
 import Cassandra (Keyspace (Keyspace), runClient)
-import qualified Cassandra as Cas
+import Cassandra qualified as Cas
 import Cassandra.Schema (versionCheck)
-import qualified Cassandra.Settings as Cas
+import Cassandra.Settings qualified as Cas
 import Control.AutoUpdate
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
@@ -118,40 +118,40 @@ import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Default (def)
 import Data.Domain
-import qualified Data.GeoIP2 as GeoIp
+import Data.GeoIP2 qualified as GeoIp
 import Data.IP
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Data.Metrics (Metrics)
-import qualified Data.Metrics.Middleware as Metrics
+import Data.Metrics.Middleware qualified as Metrics
 import Data.Misc
 import Data.Qualified
 import Data.Text (unpack)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.IO as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.IO qualified as Text
 import Data.Time.Clock
 import Data.Yaml (FromJSON)
-import qualified Database.Bloodhound as ES
+import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports
-import qualified Network.AMQP as Q
-import qualified Network.AMQP.Extended as Q
+import Network.AMQP qualified as Q
+import Network.AMQP.Extended qualified as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
-import qualified OpenSSL.Session as SSL
+import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Final
-import qualified Ropes.Nexmo as Nexmo
-import qualified Ropes.Twilio as Twilio
+import Ropes.Nexmo qualified as Nexmo
+import Ropes.Twilio qualified as Twilio
 import Ssl.Util
-import qualified System.FSNotify as FS
-import qualified System.FilePath as Path
+import System.FSNotify qualified as FS
+import System.FilePath qualified as Path
 import System.Logger.Class hiding (Settings, settings)
-import qualified System.Logger.Class as LC
-import qualified System.Logger.Extended as Log
+import System.Logger.Class qualified as LC
+import System.Logger.Extended qualified as Log
 import Util.Options
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)

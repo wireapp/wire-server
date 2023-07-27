@@ -21,22 +21,22 @@ module Galley.External.LegalHoldService.Internal
   )
 where
 
-import qualified Bilge
+import Bilge qualified
 import Bilge.Retry
 import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Retry
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.ByteString qualified as BS
+import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Misc
 import Galley.API.Error
 import Galley.Env
 import Galley.Monad
 import Imports
-import qualified Network.HTTP.Client as Http
-import qualified OpenSSL.Session as SSL
+import Network.HTTP.Client qualified as Http
+import OpenSSL.Session qualified as SSL
 import Ssl.Util
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import URI.ByteString (uriPath)
 
 -- | Check that the given fingerprint is valid and make the request over ssl.

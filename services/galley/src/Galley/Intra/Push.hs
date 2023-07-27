@@ -47,4 +47,4 @@ module Galley.Intra.Push
 where
 
 import Galley.Intra.Push.Internal
-import qualified Gundeck.Types.Push.V2 as Gundeck
+import Gundeck.Types.Push.V2 qualified as Gundeck
