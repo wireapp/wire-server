@@ -111,13 +111,12 @@ testMixedProtocolAddUsers secondDomain = do
 
   traverse_ uploadNewKeyPackage [bob1]
 
-  withWebSockets [alice, bob] $ \wss -> do
+  withWebSocket bob $ \ws -> do
     mp <- createAddCommit alice1 [bob]
     welcome <- assertJust "should have welcome" mp.welcome
     void $ sendAndConsumeCommitBundle mp
-    for_ wss $ \ws -> do
-      n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-welcome") ws
-      nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode welcome)
+    n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-welcome") ws
+    nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode welcome)
 
 testMixedProtocolUserLeaves :: HasCallStack => Domain -> App ()
 testMixedProtocolUserLeaves secondDomain = do
