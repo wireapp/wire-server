@@ -203,7 +203,7 @@ testMixedProtocolAddPartialClients secondDomain = do
 
   -- create add commit for only one of bob's two clients
   do
-    bundle <- claimKeyPackages alice1 bob >>= getJSON 200
+    bundle <- claimKeyPackages def alice1 bob >>= getJSON 200
     kps <- unbundleKeyPackages bundle
     kp1 <- assertOne (filter ((== bob1) . fst) kps)
     mp <- createAddCommitWithKeyPackages alice1 [kp1]
@@ -212,7 +212,7 @@ testMixedProtocolAddPartialClients secondDomain = do
   -- this tests that bob's backend has a mapping of group id to the remote conv
   -- this test is only interesting when bob is on OtherDomain
   do
-    bundle <- claimKeyPackages bob1 bob >>= getJSON 200
+    bundle <- claimKeyPackages def bob1 bob >>= getJSON 200
     kps <- unbundleKeyPackages bundle
     kp2 <- assertOne (filter ((== bob2) . fst) kps)
     mp <- createAddCommitWithKeyPackages bob1 [kp2]
@@ -311,8 +311,10 @@ testMLSProtocolUpgrade secondDomain = do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mls"
 
-testAddUser :: HasCallStack => App ()
-testAddUser = do
+testAddUserSimple :: HasCallStack => Ciphersuite -> App ()
+testAddUserSimple suite = do
+  setMLSCiphersuite suite
+
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
 
   [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
@@ -378,8 +380,9 @@ testRemoteRemoveClient = do
     msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
     msg %. "message.content.sender.External" `shouldMatchInt` 0
 
-testCreateSubConv :: HasCallStack => App ()
-testCreateSubConv = do
+testCreateSubConv :: HasCallStack => Ciphersuite -> App ()
+testCreateSubConv suite = do
+  setMLSCiphersuite suite
   alice <- randomUser OwnDomain def
   alice1 <- createMLSClient alice
   (_, conv) <- createNewGroup alice1
@@ -499,7 +502,7 @@ testFirstCommitAllowsPartialAdds = do
 
   (_, _qcnv) <- createNewGroup alice1
 
-  bundle <- claimKeyPackages alice1 alice >>= getJSON 200
+  bundle <- claimKeyPackages def alice1 alice >>= getJSON 200
   kps <- unbundleKeyPackages bundle
 
   -- first commit only adds kp for alice2 (not alice2 and alice3)
@@ -525,7 +528,7 @@ testAddUserPartial = do
 
   -- alice sends a commit now, and should get a conflict error
   kps <- fmap concat . for [bob, charlie] $ \user -> do
-    bundle <- claimKeyPackages alice1 user >>= getJSON 200
+    bundle <- claimKeyPackages def alice1 user >>= getJSON 200
     unbundleKeyPackages bundle
   mp <- createAddCommitWithKeyPackages alice1 kps
 

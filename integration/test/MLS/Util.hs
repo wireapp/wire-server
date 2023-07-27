@@ -166,7 +166,8 @@ uploadNewKeyPackage cid = do
 
 generateKeyPackage :: HasCallStack => ClientIdentity -> App (ByteString, String)
 generateKeyPackage cid = do
-  kp <- mlscli cid ["key-package", "create"] Nothing
+  mls <- getMLSState
+  kp <- mlscli cid ["key-package", "create", "--ciphersuite", mls.ciphersuite.code] Nothing
   ref <- B8.unpack . Base64.encode <$> mlscli cid ["key-package", "ref", "-"] (Just kp)
   fp <- keyPackageFile cid ref
   liftIO $ BS.writeFile fp kp
@@ -223,6 +224,7 @@ resetGroup cid conv = do
 resetClientGroup :: ClientIdentity -> String -> App ()
 resetClientGroup cid gid = do
   removalKeyPath <- asks (.removalKeyPath)
+  mls <- getMLSState
   void $
     mlscli
       cid
@@ -232,6 +234,8 @@ resetClientGroup cid gid = do
         removalKeyPath,
         "--group-out",
         "<group-out>",
+        "--ciphersuite",
+        mls.ciphersuite.code,
         gid
       ]
       Nothing
@@ -267,8 +271,9 @@ unbundleKeyPackages bundle = do
 -- group to the previous state by using an older version of the group file.
 createAddCommit :: HasCallStack => ClientIdentity -> [Value] -> App MessagePackage
 createAddCommit cid users = do
+  mls <- getMLSState
   kps <- fmap concat . for users $ \user -> do
-    bundle <- claimKeyPackages cid user >>= getJSON 200
+    bundle <- claimKeyPackages mls.ciphersuite cid user >>= getJSON 200
     unbundleKeyPackages bundle
   createAddCommitWithKeyPackages cid kps
 
@@ -369,7 +374,8 @@ createRemoveCommit cid targets = do
 
 createAddProposals :: HasCallStack => ClientIdentity -> [Value] -> App [MessagePackage]
 createAddProposals cid users = do
-  bundles <- for users $ (claimKeyPackages cid >=> getJSON 200)
+  mls <- getMLSState
+  bundles <- for users $ (claimKeyPackages mls.ciphersuite cid >=> getJSON 200)
   kps <- concat <$> traverse unbundleKeyPackages bundles
   traverse (createAddProposalWithKeyPackage cid) kps
 
@@ -627,3 +633,6 @@ createApplicationMessage cid messageContent = do
         welcome = Nothing,
         groupInfo = Nothing
       }
+
+setMLSCiphersuite :: Ciphersuite -> App ()
+setMLSCiphersuite suite = modifyMLSState $ \mls -> mls {ciphersuite = suite}
