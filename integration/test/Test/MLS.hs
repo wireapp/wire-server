@@ -316,11 +316,8 @@ testAddUserSimple suite = do
   setMLSCiphersuite suite
 
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-
   [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
-
   traverse_ uploadNewKeyPackage [bob1, bob2]
-
   (_, qcnv) <- createNewGroup alice1
 
   resp <- createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle

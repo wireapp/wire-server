@@ -264,10 +264,12 @@ claimKeyPackages suite u v = do
     req
       & addQueryParams [("ciphersuite", suite.code)]
 
-countKeyPackages :: ClientIdentity -> App Response
-countKeyPackages cid = do
-  baseRequest cid Brig Versioned ("/mls/key-packages/self/" <> cid.client <> "/count")
-    >>= submit "GET"
+countKeyPackages :: Ciphersuite -> ClientIdentity -> App Response
+countKeyPackages suite cid = do
+  req <- baseRequest cid Brig Versioned ("/mls/key-packages/self/" <> cid.client <> "/count")
+  submit "GET" $
+    req
+      & addQueryParams [("ciphersuite", suite.code)]
 
 deleteKeyPackages :: ClientIdentity -> [String] -> App Response
 deleteKeyPackages cid kps = do
