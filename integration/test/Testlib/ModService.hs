@@ -261,6 +261,7 @@ updateServiceMap ports serviceMap =
           Spar -> sm {spar = sm.spar {host = "127.0.0.1", port = newPort}}
           BackgroundWorker -> sm {backgroundWorker = sm.backgroundWorker {host = "127.0.0.1", port = newPort}}
           Stern -> sm {stern = sm.stern {host = "127.0.0.1", port = newPort}}
+          FederatorInternal -> sm {federatorInternal = sm.federatorInternal {host = "127.0.0.1", port = newPort}}
     )
     serviceMap
     ports
@@ -333,7 +334,7 @@ startBackend domain staticPorts nginzSslPort mFederatorOverrides services modify
             >>= startProcess' domain "federator"
             <&> (: [])
 
-    otherInstances <- for (Map.assocs services) $ \case
+    otherInstances <- for (Map.assocs $ Map.filterWithKey (\s _ -> s /= FederatorInternal) services) $ \case
       (Nginz, _) -> do
         env <- ask
         sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (modifyBackends (fromIntegral <$> ports) env.serviceMap))

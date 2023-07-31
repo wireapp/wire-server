@@ -265,4 +265,5 @@ withOverrides overrides =
           Spar -> f >=> overrides.dbSpar
           BackgroundWorker -> f >=> overrides.dbBackgroundWorker
           Stern -> f >=> overrides.dbStern
+          FederatorInternal -> f
     )
