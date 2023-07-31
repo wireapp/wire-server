@@ -740,3 +740,16 @@ testCommitNotReferencingAllProposals = do
   bindResponse (postMLSCommitBundle alice1 (mkBundle commit)) $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-commit-missing-references"
+
+testUnsupportedCiphersuite :: HasCallStack => App ()
+testUnsupportedCiphersuite = do
+  setMLSCiphersuite (Ciphersuite "0x0002")
+  alice <- randomUser OwnDomain def
+  alice1 <- createMLSClient alice
+  void $ createNewGroup alice1
+
+  mp <- createPendingProposalCommit alice1
+
+  bindResponse (postMLSCommitBundle alice1 (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-protocol-error"
