@@ -9,8 +9,6 @@ import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.Aeson.Key as KM
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.Aeson.Types as Aeson
-import Data.ByteString hiding ((!?))
-import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy.Char8 as LC8
 import Data.Foldable
 import Data.Function
@@ -19,7 +17,6 @@ import Data.List.Split (splitOn)
 import qualified Data.Scientific as Sci
 import Data.String
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 import Data.Vector ((!?))
 import GHC.Stack
 import Testlib.Env
