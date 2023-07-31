@@ -5,10 +5,8 @@ on:
 
 jobs:
   mark-pending:
-    name: Mark overall-ci pending
+   name: Mark overall-ci pending
    runs-on: ubuntu-latest
-   permissions:
-     issues: write
    steps:
      - name: Mark
        run: |
