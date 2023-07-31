@@ -49,6 +49,19 @@ spec:
       configMap:
         name: "spar"
 
+    - name: "federator-config"
+      configMap:
+        name: "federator"
+
+    - name: "federator-ca"
+      configMap:
+        name: "federator-ca"
+
+    - name: "federator-secrets"
+      secret:
+        # Secret name depends on configuration of federator chart
+        secretName: "federator-secret"
+
   restartPolicy: Never
 
   initContainers:
