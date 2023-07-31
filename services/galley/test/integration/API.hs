@@ -1162,11 +1162,11 @@ postMessageQualifiedFailedToSendFetchingClients = do
             ]
 
       failedToSend = qUsrClients deeRemote []
-      failedToVerify = qUsrClients bobRemote [bobClient]
+      failedToConfirm = qUsrClients bobRemote [bobClient]
 
   pure resp2 !!! do
     const 201 === statusCode
-    assertMismatchQualified failedToSend mempty mempty mempty failedToVerify
+    assertMismatchQualified failedToSend mempty mempty mempty failedToConfirm
 
 postMessageQualifiedRemoteOwningBackendFailure :: TestM ()
 postMessageQualifiedRemoteOwningBackendFailure = do

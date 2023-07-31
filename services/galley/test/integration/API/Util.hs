@@ -2364,12 +2364,12 @@ assertMismatchQualified ::
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
   Assertions ()
-assertMismatchQualified failureToSend missing redundant deleted failedToVerify = do
+assertMismatchQualified failureToSend missing redundant deleted failedToConfirm = do
   assertExpected "failed to send" failureToSend (fmap mssFailedToSend . responseJsonMaybe)
   assertExpected "missing" missing (fmap mssMissingClients . responseJsonMaybe)
   assertExpected "redundant" redundant (fmap mssRedundantClients . responseJsonMaybe)
   assertExpected "deleted" deleted (fmap mssDeletedClients . responseJsonMaybe)
-  assertExpected "failed to verify clients" failedToVerify (fmap mssFailedToConfirmClients . responseJsonMaybe)
+  assertExpected "failed to confirm clients" failedToConfirm (fmap mssFailedToConfirmClients . responseJsonMaybe)
 
 otrRecipients :: [(UserId, ClientId, Text)] -> OtrRecipients
 otrRecipients =
