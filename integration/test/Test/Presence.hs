@@ -7,7 +7,7 @@ import SetupHelpers
 import Testlib.Prelude
 
 ensurePresent :: (HasCallStack, MakesValue u) => u -> Int -> App ()
-ensurePresent u n = unrace $ do
+ensurePresent u n = insist $ do
   ps <- getPresence u >>= getJSON 200 >>= asList
   length ps `shouldMatchInt` n
 

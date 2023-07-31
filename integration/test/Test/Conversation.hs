@@ -40,7 +40,7 @@ testDynamicBackendsNotFederating = do
     \dynDomains -> do
       [domainA, domainB, domainC] <- pure dynDomains
       uidA <- randomUser domainA def {Internal.team = True}
-      unrace
+      insist
         $ bindResponse
           (API.getFederationStatus uidA [domainB, domainC])
         $ \resp -> do
@@ -70,9 +70,9 @@ testDynamicBackendsFullyConnectedWhenAllowDynamic = do
               $ \resp -> do
                 resp.status `shouldMatchInt` 200
                 resp.json %. "status" `shouldMatch` "fully-connected"
-      unrace $ assertConnected uidA domainB domainC
-      unrace $ assertConnected uidB domainA domainC
-      unrace $ assertConnected uidC domainA domainB
+      insist $ assertConnected uidA domainB domainC
+      insist $ assertConnected uidB domainA domainC
+      insist $ assertConnected uidC domainA domainB
 
 testDynamicBackendsNotFullyConnected :: HasCallStack => App ()
 testDynamicBackendsNotFullyConnected = do
@@ -94,7 +94,7 @@ testDynamicBackendsNotFullyConnected = do
       void $ Internal.createFedConn domainA $ Internal.FedConn domainC "full_search"
       void $ Internal.createFedConn domainC $ Internal.FedConn domainA "full_search"
       uidA <- randomUser domainA def {Internal.team = True}
-      unrace
+      insist
         $ bindResponse
           (API.getFederationStatus uidA [domainB, domainC])
         $ \resp -> do

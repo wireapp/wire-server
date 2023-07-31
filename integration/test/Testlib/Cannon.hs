@@ -177,7 +177,7 @@ run wsConnect app = do
     baseRequest domain Cannon Unversioned $
       "/i/presences/" <> wsConnect.user <> "/" <> connId
 
-  waitForPresence <- appToIO $ unrace $ do
+  waitForPresence <- appToIO $ insist $ do
     response <- submit "HEAD" presenceRequest
     status response `shouldMatchInt` 200
   let waitForException = do
