@@ -65,5 +65,5 @@ instance MakesValue Domain where
 -- Ideally, this will be the only thing you'll ever need from the retry package when writing
 -- integration tests.  If you are unhappy with it, please consider making it more general in a
 -- backwards-compatible way so everybody can benefit.
-insist :: App a -> App a
-insist action = Retry.recoverAll (Retry.exponentialBackoff 8000 <> Retry.limitRetries 10) (const action)
+retryT :: App a -> App a
+retryT action = Retry.recoverAll (Retry.exponentialBackoff 8000 <> Retry.limitRetries 10) (const action)
