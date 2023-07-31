@@ -37,14 +37,16 @@ summary() {
     echo "==============="
     echo "=== summary ==="
     echo "==============="
-    printf '%s\n' "${tests[@]}" | parallel echo "=== tail {}: ===" ';' tail -2 logs-{}
-
     for t in "${tests[@]}"; do
         x=$(cat "stat-$t")
         if ((x > 0)); then
             echo "$t-integration FAILED ❌. pfff..."
+            echo "=== tail $t: ==="
+            tail -10 "logs-$t"
         else
             echo "$t-integration passed ✅."
+            echo "=== tail $t: ==="
+            tail -2 "logs-$t"
         fi
     done
 }
