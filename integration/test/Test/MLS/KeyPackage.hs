@@ -46,3 +46,13 @@ testKeyPackageMultipleCiphersuites = do
   bindResponse (countKeyPackages suite alice2) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "count" `shouldMatchInt` 1
+
+testUnsupportedCiphersuite :: HasCallStack => App ()
+testUnsupportedCiphersuite = do
+  setMLSCiphersuite (Ciphersuite "0x0002")
+  bob <- randomUser OwnDomain def
+  bob1 <- createMLSClient bob
+  (kp, _) <- generateKeyPackage bob1
+  bindResponse (uploadKeyPackage bob1 kp) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-protocol-error"

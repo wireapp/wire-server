@@ -131,8 +131,9 @@ createWireClient u = do
 initMLSClient :: HasCallStack => ClientIdentity -> App ()
 initMLSClient cid = do
   bd <- getBaseDir
+  mls <- getMLSState
   liftIO $ createDirectory (bd </> cid2Str cid)
-  void $ mlscli cid ["init", cid2Str cid] Nothing
+  void $ mlscli cid ["init", "--ciphersuite", mls.ciphersuite.code, cid2Str cid] Nothing
 
 -- | Create new mls client and register with backend.
 createMLSClient :: (MakesValue u, HasCallStack) => u -> App ClientIdentity
