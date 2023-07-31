@@ -44,7 +44,7 @@ testDynamicBackendsNotFederating = do
         $ bindResponse
           (API.getFederationStatus uidA [domainB, domainC])
         $ \resp -> do
-          resp.status `shouldMatchInt` 400
+          resp.status `shouldMatchInt` 422
           resp.json %. "label" `shouldMatch` "federation-denied"
 
 testDynamicBackendsFullyConnectedWhenAllowDynamic :: HasCallStack => App ()
