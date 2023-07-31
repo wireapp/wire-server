@@ -199,6 +199,7 @@ startDynamicBackend resource staticPorts beOverrides = do
               "optSettings.setFederationDomainConfigs"
               ([] :: [Value])
             >=> setField "federatorInternal.port" resource.berFederatorInternal
+            >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
         Cargohold ->
           setField "settings.federationDomain" resource.berDomain
             >=> setField "federator.port" resource.berFederatorInternal
