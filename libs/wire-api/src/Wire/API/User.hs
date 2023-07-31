@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -153,8 +154,9 @@ module Wire.API.User
 where
 
 import Control.Applicative
+import Control.Arrow ((&&&))
 import Control.Error.Safe (rightMay)
-import Control.Lens (over, view, (.~), (?~), (^.))
+import Control.Lens (makePrisms, over, view, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson.Types as A
 import qualified Data.Attoparsec.ByteString as Parser
@@ -212,21 +214,6 @@ import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
-
-------- Paritial Successes
-data ListUsersById = ListUsersById
-  { listUsersByIdFound :: [UserProfile],
-    listUsersByIdFailed :: Maybe (NonEmpty (Qualified UserId))
-  }
-  deriving (Eq, Show)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema ListUsersById
-
-instance ToSchema ListUsersById where
-  schema =
-    object "ListUsersById" $
-      ListUsersById
-        <$> listUsersByIdFound .= field "found" (array schema)
-        <*> listUsersByIdFailed .= maybe_ (optField "failed" $ nonEmptyArray schema)
 
 --------------------------------------------------------------------------------
 -- UserIdList
@@ -493,17 +480,61 @@ data UpdateConnectionsInternal
     CreateConnectionForTest UserId (Qualified UserId)
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateConnectionsInternal)
-  deriving (S.ToSchema) via Schema UpdateConnectionsInternal
 
-instance FromJSON UpdateConnectionsInternal
+$(makePrisms ''UpdateConnectionsInternal)
 
--- | `{"tag":"BlockForMissingLHConsent","contents":["3ae7f23a-bd47-11eb-932d-5fccbbcde454",["3ae7f23a-bd47-11eb-932d-5fccbbcde454"]]}`
-instance ToJSON UpdateConnectionsInternal
+data UpdateConnectionsInternalTag
+  = BlockForMissingLHConsentTag
+  | RemoveLHBlocksInvolvingTag
+  | CreateConnectionForTestTag
+  deriving (Eq, Show, Enum, Bounded)
+
+updateConnectionsInternalTag :: UpdateConnectionsInternal -> UpdateConnectionsInternalTag
+updateConnectionsInternalTag (BlockForMissingLHConsent _ _) = BlockForMissingLHConsentTag
+updateConnectionsInternalTag (RemoveLHBlocksInvolving _) = RemoveLHBlocksInvolvingTag
+updateConnectionsInternalTag (CreateConnectionForTest _ _) = CreateConnectionForTestTag
+
+instance ToSchema UpdateConnectionsInternalTag where
+  schema =
+    enum @Text "UpdateConnectionsInternalTag" $
+      element "BlockForMissingLHConsent" BlockForMissingLHConsentTag
+        <> element "RemoveLHBlocksInvolving" RemoveLHBlocksInvolvingTag
+        <> element "CreateConnectionForTest" CreateConnectionForTestTag
 
 instance ToSchema UpdateConnectionsInternal where
   schema =
-    -- `{"tag":"BlockForMissingLHConsent","contents":["3ae7f23a-bd47-11eb-932d-5fccbbcde454",["3ae7f23a-bd47-11eb-932d-5fccbbcde454"]]}`
-    undefined
+    object "UpdateConnectionsInternal" $
+      snd
+        <$> (updateConnectionsInternalTag &&& id)
+          .= bind
+            (fst .= field "tag" tagSchema)
+            (snd .= dispatch untaggedSchema)
+    where
+      tagSchema :: ValueSchema NamedSwaggerDoc UpdateConnectionsInternalTag
+      tagSchema = schema
+
+      untaggedSchema ::
+        UpdateConnectionsInternalTag ->
+        ObjectSchema SwaggerDoc UpdateConnectionsInternal
+      untaggedSchema BlockForMissingLHConsentTag =
+        tag _BlockForMissingLHConsent $
+          (,)
+            <$> fst .= field "user" schema
+            <*> snd .= field "others" (array schema)
+      untaggedSchema RemoveLHBlocksInvolvingTag =
+        tag _RemoveLHBlocksInvolving $
+          field "user" schema
+      untaggedSchema CreateConnectionForTestTag =
+        tag _CreateConnectionForTest $
+          (,)
+            <$> fst .= field "user" schema
+            <*> snd .= field "other" schema
+
+deriving via Schema UpdateConnectionsInternal instance (S.ToSchema UpdateConnectionsInternal)
+
+deriving via Schema UpdateConnectionsInternal instance (FromJSON UpdateConnectionsInternal)
+
+deriving via Schema UpdateConnectionsInternal instance (ToJSON UpdateConnectionsInternal)
 
 --------------------------------------------------------------------------------
 -- QualifiedUserIdList
@@ -2004,3 +2035,18 @@ instance ToSchema SupportedProtocolUpdate where
       SupportedProtocolUpdate
         <$> unSupportedProtocolUpdate
           .= field "supported_protocols" (set schema)
+
+------- Partial Successes
+data ListUsersById = ListUsersById
+  { listUsersByIdFound :: [UserProfile],
+    listUsersByIdFailed :: Maybe (NonEmpty (Qualified UserId))
+  }
+  deriving (Eq, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema ListUsersById
+
+instance ToSchema ListUsersById where
+  schema =
+    object "ListUsersById" $
+      ListUsersById
+        <$> listUsersByIdFound .= field "found" (array schema)
+        <*> listUsersByIdFailed .= maybe_ (optField "failed" $ nonEmptyArray schema)
