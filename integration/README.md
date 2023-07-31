@@ -1,14 +1,3 @@
-How to use:
-
-- `make ci suite=new ` - build all services and run only this test suite
-- `make ci package=galley suite=new` - build only galley then run only this test suite
-
-See Makefile for full docs on `make ci`.
-
-You can use `--include PATTERN` to only include tests that contain the substring `PATTERN`. This flag can be specified multiple times. The argument can also be provided with the `TEST_INCLUDE` env vars, where multiple values are comma-separated.
-
-You can use `--exclude PATTERN` to exclude all tests that contain the substring `PATTERN`. This flag can be specified multiple times. The argument can also be provided with the `TEST_EXCLUDE` env vars, where multiple values are comma-separated.
-
 To develop a new test in a fast-loading ghci session:
 
 1. Run `make cr` to build the whole project and start all services
