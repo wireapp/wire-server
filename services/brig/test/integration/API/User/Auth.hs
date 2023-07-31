@@ -622,8 +622,10 @@ testThrottleLogins conf b = do
   -- Login exactly that amount of times, as fast as possible
   pooledForConcurrentlyN_ 8 [1 .. l] $ \_ ->
     login b (defEmailLogin e) SessionCookie
-  -- Login once more. This should fail!
-  x <-
+  -- Login once more. This should fail!  The `recoverAll` is because sometimes it doesn't,
+  -- Even though that may have been due to the config line `setUserCookieThrottle.retryAfter: 1`.
+  -- `3` should be more robust.
+  x <- recoverAll (exponentialBackoff 8000 <> limitRetries 3) . const $ do
     login b (defEmailLogin e) SessionCookie
       <!! const 429 === statusCode
   -- After the amount of time specified in "Retry-After", though,
