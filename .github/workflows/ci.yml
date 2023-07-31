@@ -4,6 +4,22 @@ on:
    branches: [master, develop]
 
 jobs:
+  mark-pending:
+    name: Mark overall-ci pending
+   runs-on: ubuntu-latest
+   permissions:
+     issues: write
+   steps:
+     - name: Mark
+       run: |
+         curl --request POST \
+         --url https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }} \
+         --header 'authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
+         --header 'content-type: application/json' \
+         --header 'X-GitHub-Api-Version: 2022-11-28' \
+         --data '{"state":"success","target_url":"https://example.com/build/status","description":"The build succeeded!","context":"continuous-integration/jenkins"}' \
+         --fail
+
   treefmt:
    name: Run treefmt
    runs-on: ubuntu-latest
