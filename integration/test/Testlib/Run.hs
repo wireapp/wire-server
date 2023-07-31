@@ -14,6 +14,7 @@ import Data.Time.Clock
 import RunAllTests
 import System.Directory
 import System.Environment
+import System.Exit (exitFailure, exitSuccess)
 import System.FilePath
 import Testlib.App
 import Testlib.Assertions
@@ -103,7 +104,13 @@ main = do
                 qualifiedName = module0 <> "." <> name
              in (qualifiedName, summary, full, action)
 
-  if opts.listTests then doListTests tests else runTests tests cfg
+  if opts.listTests
+    then doListTests tests
+    else do
+      report <- runTests tests cfg
+      if null report.failures
+        then exitSuccess
+        else exitFailure
 
 createGlobalEnv :: FilePath -> IO GlobalEnv
 createGlobalEnv cfg = do
@@ -121,7 +128,7 @@ createGlobalEnv cfg = do
           Just dir -> dir </> "galley" </> relPath
       pure genv0 {gRemovalKeyPath = path}
 
-runTests :: [(String, x, y, App ())] -> FilePath -> IO ()
+runTests :: [(String, x, y, App ())] -> FilePath -> IO TestReport
 runTests tests cfg = do
   output <- newChan
   let displayOutput =
@@ -154,6 +161,7 @@ runTests tests cfg = do
     writeChan output Nothing
     wait displayThread
     printReport report
+    pure report
 
 doListTests :: [(String, String, String, x)] -> IO ()
 doListTests tests = for_ tests $ \(qname, desc, full, _) -> do
