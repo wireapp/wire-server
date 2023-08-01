@@ -40,7 +40,7 @@ data Event = Event
     _eventData :: A.Value
   }
   deriving (Eq, Show, Generic)
-  deriving (A.ToJSON, A.FromJSON) via Schema Event
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema Event
 
 instance Arbitrary Event where
   arbitrary =
@@ -70,10 +70,11 @@ instance Arbitrary Event where
 data EventType = Update
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform EventType
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema EventType
 
 instance ToSchema EventType where
   schema =
-    enum @Text "EventType" $
+    enum @Text "FeatureConfig.EventType" $
       mconcat
         [ element "feature-config.update" Update
         ]
@@ -87,16 +88,13 @@ eventObjectSchema =
 
 instance ToSchema Event where
   schema =
-    object "Event" eventObjectSchema
+    object "FeatureConfig.Event" eventObjectSchema
 
 instance ToJSONObject Event where
   toJSONObject =
     KeyMap.fromList
       . fromMaybe []
       . schemaOut eventObjectSchema
-
-instance S.ToSchema Event where
-  declareNamedSchema = schemaToSwagger
 
 mkUpdateEvent :: forall cfg. (IsFeatureConfig cfg, ToSchema cfg, KnownSymbol (FeatureSymbol cfg)) => WithStatus cfg -> Event
 mkUpdateEvent ws = Event Update (featureName @cfg) (toJSON ws)

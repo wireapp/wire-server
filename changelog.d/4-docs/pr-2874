@@ -1,0 +1,1 @@
+Swagger definitions of notification events are now rendered and exposed on `GET /api/event-notification-schemas/swagger-ui`. (#2739, #2874)

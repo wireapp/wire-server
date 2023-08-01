@@ -158,6 +158,10 @@ nginx_conf:
       disable_zauth: true
       envs:
       - staging
+    - path: /api/event-notification-schemas/swagger-ui
+      disable_zauth: true
+      envs:
+      - staging
     - path: /api-internal/swagger-ui
       disable_zauth: true
       envs:

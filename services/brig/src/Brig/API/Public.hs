@@ -155,7 +155,7 @@ import Wire.Sem.Now (Now)
 docsAPI :: Servant.Server DocsAPI
 docsAPI =
   versionedSwaggerDocsAPI
-    :<|> pure eventNotificationSchemas
+    :<|> swaggerSchemaUIServer eventNotificationsAPI
     :<|> internalEndpointsSwaggerDocsAPI "brig" 9082 BrigInternalAPI.swaggerDoc
     :<|> internalEndpointsSwaggerDocsAPI "cannon" 9093 CannonInternalAPI.swaggerDoc
     :<|> internalEndpointsSwaggerDocsAPI "cargohold" 9094 CargoholdInternalAPI.swaggerDoc
