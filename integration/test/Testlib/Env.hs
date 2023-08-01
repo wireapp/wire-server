@@ -101,7 +101,18 @@ data HostPort = HostPort
 
 instance FromJSON HostPort
 
-data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker | Stern
+data Service
+  = Brig
+  | Galley
+  | Cannon
+  | Gundeck
+  | Cargohold
+  | Nginz
+  | Spar
+  | BackgroundWorker
+  | Stern
+  | FederatorExternal
+  | FederatorInternal
   deriving
     ( Show,
       Eq,
@@ -121,6 +132,8 @@ serviceName = \case
   Spar -> "spar"
   BackgroundWorker -> "backgroundWorker"
   Stern -> "stern"
+  FederatorExternal -> "federator-external"
+  FederatorInternal -> "federator-internal"
 
 -- | Converts the service name to kebab-case.
 configName :: Service -> String
@@ -134,6 +147,8 @@ configName = \case
   Spar -> "spar"
   BackgroundWorker -> "background-worker"
   Stern -> "stern"
+  FederatorInternal -> "federator"
+  FederatorExternal -> "federator"
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
@@ -145,6 +160,8 @@ serviceHostPort m Nginz = m.nginz
 serviceHostPort m Spar = m.spar
 serviceHostPort m BackgroundWorker = m.backgroundWorker
 serviceHostPort m Stern = m.stern
+serviceHostPort m FederatorInternal = m.federatorInternal
+serviceHostPort m FederatorExternal = m.federatorExternal
 
 mkGlobalEnv :: FilePath -> IO GlobalEnv
 mkGlobalEnv cfgFile = do

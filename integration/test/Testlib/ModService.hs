@@ -261,6 +261,8 @@ updateServiceMap ports serviceMap =
           Spar -> sm {spar = sm.spar {host = "127.0.0.1", port = newPort}}
           BackgroundWorker -> sm {backgroundWorker = sm.backgroundWorker {host = "127.0.0.1", port = newPort}}
           Stern -> sm {stern = sm.stern {host = "127.0.0.1", port = newPort}}
+          FederatorInternal -> sm {federatorInternal = sm.federatorInternal {host = "127.0.0.1", port = newPort}}
+          FederatorExternal -> sm {federatorExternal = sm.federatorExternal {host = "127.0.0.1", port = newPort}}
     )
     serviceMap
     ports

@@ -167,7 +167,7 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
 
 serveInward :: Env -> Int -> IO ()
 serveInward env =
-  serveServantWithMiddleware
+  serveServant
     (Metrics.servantPrometheusMiddleware $ Proxy @(ToServantApi API))
     (server env._httpManager env._internalPort $ runFederator env)
     env

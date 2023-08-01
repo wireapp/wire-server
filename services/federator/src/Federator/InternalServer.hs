@@ -121,7 +121,7 @@ callOutward targetDomain component (RPC path) req = do
 
 serveOutward :: Env -> Int -> IO ()
 serveOutward env =
-  serveServantWithMiddleware
+  serveServant
     (Metrics.servantPrometheusMiddleware $ Proxy @(ToServantApi API))
     (server env._httpManager env._externalPort $ runFederator env)
     env

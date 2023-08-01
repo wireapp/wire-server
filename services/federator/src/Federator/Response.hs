@@ -19,7 +19,6 @@ module Federator.Response
   ( defaultHeaders,
     serve,
     serveServant,
-    serveServantWithMiddleware,
     runFederator,
     runWaiError,
     runWaiErrors,
@@ -119,7 +118,7 @@ serve action env port =
     app req respond =
       runCodensity (runFederator env (action req)) respond
 
-serveServantWithMiddleware ::
+serveServant ::
   forall routes.
   (HasServer (ToServantApi routes) '[], GenericServant routes AsServer, Server (ToServantApi routes) ~ ToServant routes AsServer) =>
   Middleware ->
@@ -127,7 +126,7 @@ serveServantWithMiddleware ::
   Env ->
   Int ->
   IO ()
-serveServantWithMiddleware middleware server env port =
+serveServant middleware server env port =
   Warp.run port
     . Wai.catchErrors (view applog env) []
     . middleware
@@ -136,15 +135,6 @@ serveServantWithMiddleware middleware server env port =
     app :: Wai.Application
     app =
       genericServe server
-
-serveServant ::
-  forall routes.
-  (HasServer (ToServantApi routes) '[], GenericServant routes AsServer, Server (ToServantApi routes) ~ ToServant routes AsServer) =>
-  routes AsServer ->
-  Env ->
-  Int ->
-  IO ()
-serveServant = serveServantWithMiddleware id
 
 type AllEffects =
   '[ Remote,
