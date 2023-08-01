@@ -429,7 +429,8 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
               $ localClients
 
       -- get remote clients
-      qualifiedRemoteClients <- getRemoteClients (convRemoteMembers conv)
+      qualifiedRemoteClients :: [Either (Remote [UserId], FederationError) (Map (Domain, UserId) (Set ClientId))] <-
+        getRemoteClients (convRemoteMembers conv)
       let -- concatenating maps is correct here, because their sets of keys are disjoint
           qualifiedRemoteClients' = mconcat $ rights qualifiedRemoteClients
           -- Try to get the client IDs for the users that we failed to fetch clients for from the recipient list.
