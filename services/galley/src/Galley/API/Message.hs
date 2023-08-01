@@ -437,10 +437,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           (unconfirmedKnownClients, unconfirmedUnknownClients) =
             partition
               (not . all Set.null)
-              ( Map.assocs $
-                  matchUnconfirmedClientsWithRecipients
-                    (fst <$> lefts qualifiedRemoteClients)
-              )
+              (matchUnconfirmedClientsWithRecipients (fst <$> lefts qualifiedRemoteClients))
           qualifiedClients =
             qualifiedLocalClients
               <> qualifiedRemoteClients'
@@ -513,6 +510,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
     toDomUserClient m = do
       (d, m') <- Map.assocs m
       (d,) <$> Map.assocs m'
+
     -- Rebuild the map, concatenating results along the way.
     fromDomUserClient :: [(Domain, (UserId, Set ClientId))] -> Map Domain (Map UserId (Set ClientId))
     fromDomUserClient = foldr buildUserClientMap mempty
@@ -523,8 +521,8 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
     toDomMap :: [((Domain, UserId), Set ClientId)] -> Map Domain (Map UserId (Set ClientId))
     toDomMap = fromDomUserClient . fmap (\((d, u), s) -> (d, (u, s)))
 
-    matchUnconfirmedClientsWithRecipients :: [Remote [UserId]] -> Map (Domain, UserId) (Set ClientId)
-    matchUnconfirmedClientsWithRecipients remotes = Map.fromList $ do
+    matchUnconfirmedClientsWithRecipients :: [Remote [UserId]] -> [((Domain, UserId), Set ClientId)]
+    matchUnconfirmedClientsWithRecipients remotes = do
       remoteUsers :: Remote [UserId] <- remotes
       let domain = qDomain $ tUntagged remoteUsers
           users = tUnqualified remoteUsers
