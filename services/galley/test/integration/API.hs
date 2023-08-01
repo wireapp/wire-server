@@ -1122,14 +1122,14 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
 
 postMessageQualifiedFailedToSendFetchingClients :: TestM ()
 postMessageQualifiedFailedToSendFetchingClients = do
-  (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
+  (aliceQualified, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
   bobId <- randomId
   bobClient <- liftIO $ generate arbitrary
   deeId <- randomId
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "offline-unfortunately.example.com"
       bobRemote = Qualified bobId remoteDomain
       deeRemote = Qualified deeId remoteDomain
-      aliceUnqualified = qUnqualified aliceOwningDomain
+      aliceUnqualified = qUnqualified aliceQualified
   connectWithRemoteUser aliceUnqualified bobRemote
   connectWithRemoteUser aliceUnqualified deeRemote
 
@@ -1143,7 +1143,8 @@ postMessageQualifiedFailedToSendFetchingClients = do
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
   -- dee is part of the conversation but missing from the recipient list of the request,
   -- and we cannot fetch or verify their clients because the remote backend is unreachable.
-  -- Therefore we expect dee to be part of the `failed_to_send` list in the response.
+  -- Therefore we expect dee to be part of the `failed_to_send` list in the `resp2` below,
+  -- where a message is sent.
   let message = [(bobRemote, bobClient, "text-for-bob")]
   let mock =
         (guardRPC "get-user-clients" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))

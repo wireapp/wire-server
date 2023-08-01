@@ -524,12 +524,9 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
 
     matchUnconfirmedClientsWithRecipients :: [Remote [UserId]] -> [((Domain, UserId), Set ClientId)]
     matchUnconfirmedClientsWithRecipients remotes = do
-      remoteUsers :: Remote [UserId] <- remotes
-      let domain = qDomain $ tUntagged remoteUsers
-          users = tUnqualified remoteUsers
-      user :: UserId <- users
-      let clients = tryFindClientIds domain user
-      pure ((domain, user), clients)
+      remoteUsers@(qDomain . tUntagged -> domain) <- remotes
+      user <- tUnqualified remoteUsers
+      pure ((domain, user), tryFindClientIds domain user)
 
     tryFindClientIds :: Domain -> UserId -> Set ClientId
     tryFindClientIds domain uid = do
