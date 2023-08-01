@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -28,6 +29,8 @@ import Brig.Types.Intra
 import Control.Applicative
 import Control.Lens hiding ((.=))
 import Data.Aeson (ToJSON, Value)
+import Data.Aeson.QQ (aesonQQ)
+import qualified Data.Binary.Builder as Builder
 import Data.ByteString.Conversion
 import Data.Handle
 import Data.Id
@@ -41,6 +44,9 @@ import Stern.Types
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
+import URI.ByteString (URI)
+import qualified URI.ByteString as URI
+import URI.ByteString.QQ (uri)
 import Util
 import Wire.API.OAuth (OAuthApplicationName (OAuthApplicationName), OAuthClientConfig (..), OAuthClientCredentials (..))
 import Wire.API.Properties (PropertyKey)
@@ -95,6 +101,7 @@ tests s =
       test s "GET /teams/:id" testGetTeamInfo,
       test s "GET i/user/meta-info?id=..." testGetUserMetaInfo,
       test s "/teams/:tid/search-visibility" testSearchVisibility,
+      test s "/sso-deep-links" testRudSsoDeepLinks,
       test s "i/oauth/clients" testCrudOAuthClient
       -- The following endpoints can not be tested because they require ibis:
       -- - `GET /teams/:tid/billing`
@@ -102,6 +109,50 @@ tests s =
       -- - `PUT /teams/:tid/billing`
       -- - `POST /teams/:tid/billing`
     ]
+
+testRudSsoDeepLinks :: TestM ()
+testRudSsoDeepLinks = do
+  testGet Nothing
+  putSsoDeepLink sampleDomain sampleConfig sampleWelcome
+  testGet (Just sampleDomainEntry)
+  putSsoDeepLink sampleDomain sampleConfig' sampleWelcome'
+  testGet (Just sampleDomainEntry')
+  deleteSsoDeepLink sampleDomain
+  testGet Nothing
+  where
+    sampleDomain :: ByteString
+    sampleDomain = "57119282-3071-11ee-aebe-a32e317d3fb5.example.com"
+
+    sampleConfig :: URI
+    sampleConfig = [uri|https://config.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/config.json|]
+
+    sampleWelcome :: URI
+    sampleWelcome = [uri|https://app.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/welcome.html|]
+
+    sampleDomainEntry :: Value
+    sampleDomainEntry =
+      [aesonQQ|
+           {"config_json_url":"bla.json",
+            "webapp_welcome_url":"https-bla"
+           }
+         |]
+
+    sampleConfig' :: URI
+    sampleConfig' = [uri|https://s3.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/new-wire-config.json|]
+
+    sampleWelcome' :: URI
+    sampleWelcome' = [uri|https://new-app.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/new|]
+
+    sampleDomainEntry' :: Value
+    sampleDomainEntry' =
+      [aesonQQ|
+           {"config_json_url":"https://s3.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/new-wire-config.json",
+            "webapp_welcome_url":"https://new-app.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/new"
+           }
+         |]
+
+    testGet :: Maybe Value -> TestM ()
+    testGet expectedEntry = liftIO . (expectedEntry @=?) =<< getSsoDeepLink sampleDomain
 
 testCrudOAuthClient :: TestM ()
 testCrudOAuthClient = do
@@ -644,6 +695,36 @@ putUserProperty :: UserId -> PropertyKey -> Value -> TestM ()
 putUserProperty uid k v = do
   b <- view tsBrig
   void $ put (b . paths ["properties", toByteString' k] . json v . zUser uid . zConn "123" . expect2xx)
+
+getSsoDeepLink :: ByteString -> TestM (Maybe Value)
+getSsoDeepLink domain = do
+  s <- view tsStern
+  r <- get (s . path "sso-deep-links" . query [("domain", Just domain)] . expect2xx)
+  pure $ responseJsonUnsafe r
+
+uriToByteString :: URI -> ByteString
+uriToByteString = cs . Builder.toLazyByteString . URI.normalizeURIRef URI.noNormalization
+
+putSsoDeepLink :: ByteString -> URI -> URI -> TestM ()
+putSsoDeepLink domain (uriToByteString -> configurl) (uriToByteString -> welcomeurl) = do
+  s <- view tsStern
+  r <-
+    put
+      ( s
+          . path "sso-deep-links"
+          . query
+            [ ("domain", Just domain),
+              ("configurl", Just configurl),
+              ("welcomeurl", Just welcomeurl)
+            ]
+          . expect2xx
+      )
+  pure $ responseJsonUnsafe r
+
+deleteSsoDeepLink :: ByteString -> TestM ()
+deleteSsoDeepLink domain = do
+  s <- view tsStern
+  void $ delete (s . path "sso-deep-links" . query [("domain", Just domain)] . expect2xx)
 
 registerOAuthClient :: OAuthClientConfig -> TestM OAuthClientCredentials
 registerOAuthClient cfg = do
