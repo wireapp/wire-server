@@ -97,6 +97,14 @@ def main():
             'baseurl': 'https://nginz-https.foma.wire.link',
             'webapp': 'https://webapp.foma.wire.link/'
         },
+        'gudja': {
+            'baseurl': 'https://nginz-https.gudja-offline-web.wire.link',
+            'webapp': 'https://webapp.gudja-offline-web.wire.link/'
+        },
+        'jishui': {
+            'baseurl': 'https://nginz-https.jishui.wire.link',
+            'webapp': 'https://webapp.jishui.wire.link/'
+        },
         'ninjas': {
             'baseurl': 'https://nginz-https.ninjas.dogfood.wire.link',
             'webapp': 'https://webapp.ninjas.dogfood.wire.link/'
@@ -120,18 +128,17 @@ def main():
 
     env = known_envs.get(args.env)
     if env is None:
-        print(f'Unknown environment: {args.env}')
+        print(f'Unknown environment: {args.env}. If missing then add it to the script.')
         sys.exit(1)
 
-    ename_user = f'CREATE_TEAM_BASICAUTH_USER_{args.env.upper()}'
-    ename_password = f'CREATE_TEAM_BASICAUTH_PASSWORD_{args.env.upper()}'
-
-    b_user = os.environ.get(ename_user)
-    b_password = os.environ.get(ename_password)
-
-    if b_user is None or b_password is None:
-        print(f'Environment variables {ename_user} and {ename_password} are not set. Please set them to the basic auth that configured for this environment.')
+    basic_auths_json = os.environ.get('CREATE_USER_BASICAUTH')
+    if basic_auths_json is None:
+        print(r'Please set CREATE_USER_BASICAUTH to a json object of form {"env_name": {"username": "xx", "password": "xx"}} containing the basicauth credentials for each environment.')
         sys.exit(1)
+
+    basic_auths = json.loads(basic_auths_json)
+    b_user = basic_auths[args.env]['username']
+    b_password = basic_auths[args.env]['password']
 
     basic_auth = base64.b64encode(f'{b_user}:{b_password}'.encode('utf8')).decode('utf8')
 
