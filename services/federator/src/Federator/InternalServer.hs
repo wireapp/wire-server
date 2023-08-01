@@ -24,6 +24,8 @@ import Control.Monad.Codensity
 import Data.Binary.Builder
 import qualified Data.ByteString as BS
 import Data.Domain
+import qualified Data.Metrics.Servant as Metrics
+import Data.Proxy
 import Federator.Env
 import Federator.Error.ServerError
 import qualified Federator.Health as Health
@@ -32,7 +34,7 @@ import Federator.Remote
 import Federator.Response
 import Federator.Validation
 import Imports
-import Network.HTTP.Client
+import Network.HTTP.Client (Manager)
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
 import Polysemy
@@ -118,4 +120,8 @@ callOutward targetDomain component (RPC path) req = do
   pure $ streamingResponseToWai resp
 
 serveOutward :: Env -> Int -> IO ()
-serveOutward env = serveServant (server env._httpManager env._externalPort $ runFederator env) env
+serveOutward env =
+  serveServantWithMiddleware
+    (Metrics.servantPrometheusMiddleware $ Proxy @(ToServantApi API))
+    (server env._httpManager env._externalPort $ runFederator env)
+    env

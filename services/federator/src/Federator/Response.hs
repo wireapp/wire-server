@@ -19,6 +19,7 @@ module Federator.Response
   ( defaultHeaders,
     serve,
     serveServant,
+    serveServantWithMiddleware,
     runFederator,
     runWaiError,
     runWaiErrors,
@@ -41,6 +42,7 @@ import Federator.Validation
 import HTTP2.Client.Manager (Http2Manager)
 import Imports
 import qualified Network.HTTP.Types as HTTP
+import Network.Wai (Middleware)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Utilities.Error as Wai
@@ -117,6 +119,24 @@ serve action env port =
     app req respond =
       runCodensity (runFederator env (action req)) respond
 
+serveServantWithMiddleware ::
+  forall routes.
+  (HasServer (ToServantApi routes) '[], GenericServant routes AsServer, Server (ToServantApi routes) ~ ToServant routes AsServer) =>
+  Middleware ->
+  routes AsServer ->
+  Env ->
+  Int ->
+  IO ()
+serveServantWithMiddleware middleware server env port =
+  Warp.run port
+    . Wai.catchErrors (view applog env) []
+    . middleware
+    $ app
+  where
+    app :: Wai.Application
+    app =
+      genericServe server
+
 serveServant ::
   forall routes.
   (HasServer (ToServantApi routes) '[], GenericServant routes AsServer, Server (ToServantApi routes) ~ ToServant routes AsServer) =>
@@ -124,14 +144,7 @@ serveServant ::
   Env ->
   Int ->
   IO ()
-serveServant server env port =
-  Warp.run port
-    . Wai.catchErrors (view applog env) []
-    $ app
-  where
-    app :: Wai.Application
-    app =
-      genericServe server
+serveServant = serveServantWithMiddleware id
 
 type AllEffects =
   '[ Remote,

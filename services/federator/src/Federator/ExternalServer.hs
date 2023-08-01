@@ -30,6 +30,8 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
+import qualified Data.Metrics.Servant as Metrics
+import Data.Proxy (Proxy (Proxy))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -164,4 +166,8 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
         }
 
 serveInward :: Env -> Int -> IO ()
-serveInward env = serveServant (server env._httpManager env._internalPort $ runFederator env) env
+serveInward env =
+  serveServantWithMiddleware
+    (Metrics.servantPrometheusMiddleware $ Proxy @(ToServantApi API))
+    (server env._httpManager env._internalPort $ runFederator env)
+    env
