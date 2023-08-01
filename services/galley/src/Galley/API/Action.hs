@@ -64,7 +64,7 @@ import Galley.API.Teams.Features.Get
 import Galley.API.Util
 import Galley.Data.Conversation
 import qualified Galley.Data.Conversation as Data
-import Galley.Data.Conversation.Types (mlsMetadata)
+import Galley.Data.Conversation.Types
 import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Data.Services
 import Galley.Effects
@@ -455,7 +455,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   let newMembers = ulNewMembers lconv conv . toUserList lconv $ invited
 
   lusr <- ensureLocal lconv qusr
-  ensureMemberLimit (toList (convLocalMembers conv)) newMembers
+  ensureMemberLimit (convProtocolTag conv) (toList (convLocalMembers conv)) newMembers
   ensureAccess conv InviteAccess
   checkLocals lusr (convTeam conv) (ulLocals newMembers)
   checkRemotes lusr (ulRemotes newMembers)

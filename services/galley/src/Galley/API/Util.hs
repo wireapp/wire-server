@@ -54,7 +54,7 @@ import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import Galley.Intra.Push
 import Galley.Options
-import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), localMemberToOther, remoteMemberQualify, remoteMemberToOther)
+import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.UserList
@@ -84,8 +84,7 @@ import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Member
 import Wire.API.Team.Role
-import Wire.API.User (VerificationAction)
-import qualified Wire.API.User as User
+import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
 
 type JSON = Media "application" "json"
@@ -107,7 +106,7 @@ ensureAccessRole roles users = do
     activated <- lookupActivatedUsers (fst <$> users)
     let guestsExist = length activated /= length users
     unless (not guestsExist || GuestAccessRole `Set.member` roles) $ throwS @'ConvAccessDenied
-    let botsExist = any (isJust . User.userService) activated
+    let botsExist = any (isJust . userService) activated
     unless (not botsExist || ServiceAccessRole `Set.member` roles) $ throwS @'ConvAccessDenied
 
 -- | Check that the given user is either part of the same team as the other
@@ -995,10 +994,12 @@ ensureMemberLimit ::
       Member (Input Opts) r
     )
   ) =>
+  ProtocolTag ->
   [LocalMember] ->
   f a ->
   Sem r ()
-ensureMemberLimit old new = do
+ensureMemberLimit ProtocolMLSTag _ _ = pure ()
+ensureMemberLimit _ old new = do
   o <- input
   let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
   when (length old + length new > maxSize) $

@@ -92,6 +92,7 @@ import qualified Galley.API.Query as Query
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
+import qualified Galley.Data.Conversation.Types as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
@@ -804,7 +805,7 @@ joinConversation lusr zcon conv access = do
   ensureConversationAccess (tUnqualified lusr) conv access
   ensureGroupConversation conv
   -- FUTUREWORK: remote users?
-  ensureMemberLimit (toList $ Data.convLocalMembers conv) [tUnqualified lusr]
+  ensureMemberLimit (Data.convProtocolTag conv) (toList $ Data.convLocalMembers conv) [tUnqualified lusr]
   getUpdateResult $ do
     -- NOTE: When joining conversations, all users become members
     -- as this is our desired behavior for these types of conversations
@@ -1597,7 +1598,7 @@ addBot lusr zcon b = do
       ensureActionAllowed SAddConversationMember self
       unless (any ((== b ^. addBotId) . botMemId) bots) $ do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
-        ensureMemberLimit (toList $ Data.convLocalMembers c) [tUntagged botId]
+        ensureMemberLimit (Data.convProtocolTag c) (toList $ Data.convLocalMembers c) [tUntagged botId]
       pure (bots, users)
 
 rmBotH ::
