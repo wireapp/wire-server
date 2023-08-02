@@ -533,6 +533,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
                 qualifiedOtrRecipientsMap $
                   qualifiedNewOtrRecipients msg
 
+-- FUTUREWORK: This is just a workaround and would not be needed if we had a proper monoid/semigroup instance for Map where the values have a monoid instance.
 collectFailedToSend ::
   Foldable f =>
   f (Map Domain (Map UserId (Set ClientId))) ->
