@@ -164,6 +164,9 @@ sitemap' =
     :<|> Named @"post-team-billing-info" setTeamBillingInfo
     :<|> Named @"get-consent-log" getConsentLog
     :<|> Named @"get-user-meta-info" getUserData
+    :<|> Named @"get-sso-deeplink" Intra.getSsoDeeplink
+    :<|> Named @"put-sso-deeplink" Intra.putSsoDeeplink
+    :<|> Named @"delete-sso-deeplink" Intra.deleteSsoDeeplink
     :<|> Named @"register-oauth-client" Intra.registerOAuthClient
     :<|> Named @"get-oauth-client" Intra.getOAuthClient
     :<|> Named @"update-oauth-client" Intra.updateOAuthClient

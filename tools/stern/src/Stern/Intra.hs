@@ -59,6 +59,9 @@ module Stern.Intra
     getUserClients,
     getUserCookies,
     getUserNotifications,
+    getSsoDeeplink,
+    putSsoDeeplink,
+    deleteSsoDeeplink,
     registerOAuthClient,
     getOAuthClient,
     updateOAuthClient,
@@ -89,6 +92,7 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (pack)
 import GHC.TypeLits (KnownSymbol)
 import Imports
+import Network.HTTP.Types (urlEncode)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wai.Utilities (Error (..), mkError)
@@ -100,6 +104,7 @@ import qualified System.Logger.Class as Log
 import UnliftIO.Exception hiding (Handler)
 import Wire.API.Connection
 import Wire.API.Conversation
+import Wire.API.CustomBackend
 import Wire.API.Internal.Notification
 import Wire.API.OAuth (OAuthClient, OAuthClientConfig, OAuthClientCredentials)
 import Wire.API.Properties
@@ -857,6 +862,58 @@ getUserNotifications uid = do
         404 -> parseResponse (mkError status502 "bad-upstream") r
         _ -> throwE (mkError status502 "bad-upstream" "")
     batchSize = 100 :: Int
+
+getSsoDeeplink :: Text -> Handler (Maybe CustomBackend)
+getSsoDeeplink domain = do
+  info $ msg "getSsoDeeplink"
+  -- curl  -XGET ${CLOUD_BACKEND}/custom-backend/by-domain/${DOMAIN_EXAMPLE}
+  g <- view galley
+  r <-
+    catchRpcErrors $
+      rpc'
+        "galley"
+        g
+        ( method GET
+            . versionedPaths ["sso-deep-links", "by-domain", urlEncode True (cs domain)]
+            . expectStatus (`elem` [200, 404])
+        )
+  case statusCode r of
+    200 -> Just <$> parseResponse (mkError status502 "bad-upstream") r
+    404 -> pure Nothing
+    _ -> throwE (mkError status502 "bad-upstream" "GET /custom-backend/:domain didn't respond satisfactorily")
+
+putSsoDeeplink :: Text -> Text -> Text -> Handler ()
+putSsoDeeplink domain config welcome = do
+  info $ msg "putSsoDeeplink"
+  -- export DOMAIN_ENTRY='{ \
+  --   "config_json_url": "https://wire-rest.https.example.com/config.json", \
+  --   "webapp_welcome_url": "https://app.wire.example.com/" \
+  -- }'
+  -- curl -XPUT http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE} -d "${DOMAIN_ENTRY}"
+  g <- view galley
+  void . catchRpcErrors $
+    rpc'
+      "galley"
+      g
+      ( method PUT
+          . Bilge.paths ["i", "custom-backend", "by-domain", urlEncode True (cs domain)]
+          . Bilge.json (object ["config_json_url" .= config, "webapp_welcome_url" .= welcome])
+          . expect2xx
+      )
+
+deleteSsoDeeplink :: Text -> Handler ()
+deleteSsoDeeplink domain = do
+  info $ msg "deleteSsoDeeplink"
+  -- curl -XDELETE http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE}
+  g <- view galley
+  void . catchRpcErrors $
+    rpc'
+      "galley"
+      g
+      ( method DELETE
+          . Bilge.paths ["i", "custom-backend", "by-domain", urlEncode True (cs domain)]
+          . expect2xx
+      )
 
 registerOAuthClient :: OAuthClientConfig -> Handler OAuthClientCredentials
 registerOAuthClient conf = do

@@ -42,6 +42,7 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import Stern.Types
+import Wire.API.CustomBackend
 import Wire.API.OAuth
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
@@ -383,9 +384,34 @@ type SternAPI =
                :> Post '[JSON] UserMetaInfo
            )
     :<|> Named
+           "get-sso-deeplink"
+           ( Summary "TODO"
+               :> Description "TODO"
+               :> "sso-deep-links"
+               :> QueryParam' [Required, Strict, Description "Domain"] "domain" Text
+               :> Get '[JSON] (Maybe CustomBackend)
+           )
+    :<|> Named
+           "put-sso-deeplink"
+           ( Summary "TODO"
+               :> Description "TODO"
+               :> "sso-deep-links"
+               :> QueryParam' [Required, Strict, Description "Domain key (from email during login)"] "domain" Text
+               :> QueryParam' [Required, Strict, Description "Config JSON URL"] "configurl" Text
+               :> QueryParam' [Required, Strict, Description "Webapp welcome URL"] "welcomeurl" Text
+               :> Put '[JSON] ()
+           )
+    :<|> Named
+           "delete-sso-deeplink"
+           ( Summary "TODO"
+               :> Description "TODO"
+               :> "sso-deep-links"
+               :> QueryParam' [Required, Strict, Description "Domain key (from email during login)"] "domain" Text
+               :> Delete '[JSON] ()
+           )
+    :<|> Named
            "register-oauth-client"
            ( Summary "Register an OAuth client"
-               :> "i"
                :> "oauth"
                :> "clients"
                :> ReqBody '[JSON] OAuthClientConfig
@@ -394,7 +420,6 @@ type SternAPI =
     :<|> Named
            "get-oauth-client"
            ( Summary "Get OAuth client by id"
-               :> "i"
                :> "oauth"
                :> "clients"
                :> Capture "id" OAuthClientId
