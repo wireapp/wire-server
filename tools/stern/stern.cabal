@@ -249,10 +249,8 @@ executable stern-integration
 
   build-depends:
       aeson
-    , aeson-qq
     , base
     , bilge
-    , binary
     , brig-types
     , bytestring-conversion
     , containers
@@ -276,7 +274,6 @@ executable stern-integration
     , text
     , tinylog
     , types-common
-    , uri-bytestring
     , uuid
     , wire-api
     , yaml
