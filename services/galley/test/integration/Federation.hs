@@ -42,6 +42,7 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol (Protocol (..))
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
 import Wire.API.Event.Conversation
+import Wire.API.Federation.API.Brig (NonConnectedBackends (NonConnectedBackends))
 import Wire.API.Federation.API.Galley (ConversationUpdate (..), GetConversationsResponse (..))
 import Wire.API.Internal.Notification
 import Wire.API.Routes.FederationDomainConfig
@@ -183,7 +184,7 @@ updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = r
   let qConvId = decodeQualifiedConvId conv
   connectWithRemoteUser alice remoteBob
   connectWithRemoteUser alice remoteCharlie
-  _ <- postQualifiedMembers alice (remoteCharlie <| remoteBob :| []) qConvId
+  _ <- withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) $ postQualifiedMembers alice (remoteCharlie <| remoteBob :| []) qConvId
   -- Remove the remote user from the local domain
   liftIO $ runApp env $ deleteFederationDomains old new
   -- Check that the conversation still exists.
@@ -332,7 +333,7 @@ updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval = do
   let convId = decodeConvId conv
   let qConvId = Qualified convId localDomain
   connectWithRemoteUser alice remoteBob
-  _ <- postQualifiedMembers alice (remoteBob :| []) qConvId
+  _ <- withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) $ postQualifiedMembers alice (remoteBob :| []) qConvId
 
   -- No-op
   liftIO $ runApp env $ deleteFederationDomains old new
@@ -359,7 +360,7 @@ updateFedDomainsTestNoop env remoteDomain interval = do
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   let qConvId = Qualified convId localDomain
   connectWithRemoteUser alice remoteBob
-  _ <- postQualifiedMembers alice (remoteBob :| []) qConvId
+  _ <- withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) $ postQualifiedMembers alice (remoteBob :| []) qConvId
   -- No-op
   liftIO $ runApp env $ deleteFederationDomains old new
   -- Check that the conversation still exists.

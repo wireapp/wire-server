@@ -41,13 +41,13 @@ import Data.Range
 import qualified Data.Set as Set
 import Data.Time
 import qualified Data.UUID.Tagged as U
+import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.KeyPackage (nullKeyPackageRef)
 import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.Mapping
 import Galley.API.One2One
-import Galley.API.Query
 import Galley.API.Util
 import Galley.App (Env)
 import qualified Galley.Data.Conversation as Data

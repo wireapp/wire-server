@@ -301,6 +301,9 @@ tests s =
             }
         )
 
+getNotFullyConnectedBackendsMock :: Mock LByteString
+getNotFullyConnectedBackendsMock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
+
 -------------------------------------------------------------------------------
 -- API Tests
 
@@ -399,7 +402,7 @@ postConvWithRemoteUsersOk rbs = do
     (rsp, federatedRequests) <-
       withTempMockFederator'
         ( asum
-            [ "get-not-fully-connected-backends" ~> NonConnectedBackends mempty,
+            [ getNotFullyConnectedBackendsMock,
               mockUnreachableFor unreachableBackends,
               "on-conversation-created" ~> EmptyResponse,
               "on-conversation-updated" ~> EmptyResponse
@@ -2243,9 +2246,8 @@ postConvQualifiedFailBlocked = do
 postConvQualifiedNoConnection :: TestM ()
 postConvQualifiedNoConnection = do
   alice <- randomUser
-  let mock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
   bob <- flip Qualified (Domain "far-away.example.com") <$> randomId
-  void $ withTempMockFederator' mock $ do
+  void $ withTempMockFederator' getNotFullyConnectedBackendsMock $ do
     postConvQualified alice Nothing defNewProteusConv {newConvQualifiedUsers = [bob]}
       !!! const 403 === statusCode
 
@@ -2254,8 +2256,7 @@ postTeamConvQualifiedNoConnection = do
   (tid, alice, _) <- createBindingTeamWithQualifiedMembers 1
   bob <- randomQualifiedId (Domain "bob.example.com")
   charlie <- randomQualifiedUser
-  let mock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
-  void $ withTempMockFederator' mock $ do
+  void $ withTempMockFederator' getNotFullyConnectedBackendsMock $ do
     postConvQualified
       (qUnqualified alice)
       Nothing
@@ -2280,11 +2281,10 @@ postConvQualifiedNonExistentDomain = do
   uBob <- randomId
   let bob = Qualified uBob remoteDomain
   connectWithRemoteUser uAlice bob
-  let mock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
   createdConv <-
     responseJsonError . fst
       =<< withTempMockFederator'
-        mock
+        getNotFullyConnectedBackendsMock
         ( do
             postConvQualified
               uAlice
@@ -2595,8 +2595,8 @@ testAddRemoteMember = do
       postQualifiedMembers alice (remoteBob :| []) qconvId
         <!! const 200 === statusCode
   liftIO $ do
-    map frTargetDomain reqs @?= [remoteDomain]
-    map frRPC reqs @?= ["on-conversation-updated"]
+    map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
+    map frRPC reqs @?= ["get-not-fully-connected-backends", "on-conversation-updated"]
 
   let e = responseJsonUnsafe resp
   let bobMember = SimpleMember remoteBob roleNameWireAdmin
@@ -2614,7 +2614,7 @@ testAddRemoteMember = do
     respond :: Qualified UserId -> Mock LByteString
     respond bob =
       asum
-        [ guardComponent Brig *> mockReply [mkProfile bob (Name "bob")]
+        [ getNotFullyConnectedBackendsMock <|> guardComponent Brig *> mockReply [mkProfile bob (Name "bob")]
         ]
 
 testDeleteTeamConversationWithRemoteMembers :: TestM ()
@@ -2632,7 +2632,7 @@ testDeleteTeamConversationWithRemoteMembers = do
 
   connectWithRemoteUser alice remoteBob
 
-  let mock = "api-version" ~> EmptyResponse
+  let mock = getNotFullyConnectedBackendsMock <|> "api-version" ~> EmptyResponse
   (_, received) <- withTempMockFederator' mock $ do
     postQualifiedMembers alice (remoteBob :| []) qconvId
       !!! const 200 === statusCode
@@ -2665,8 +2665,10 @@ testDeleteTeamConversationWithUnavailableRemoteMembers = do
   connectWithRemoteUser alice remoteBob
 
   let mock =
-        -- Mock an unavailable federation server for the deletion call
-        (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
+        getNotFullyConnectedBackendsMock
+          <|>
+          -- Mock an unavailable federation server for the deletion call
+          (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
           <|> (guardRPC "delete-team-conversation" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
   (_, received) <- withTempMockFederator' mock $ do
     postQualifiedMembers alice (remoteBob :| []) qconvId
@@ -2942,10 +2944,9 @@ testAddRemoteMemberFederationUnavailable = do
       const 500 === statusCode
       const (Right "federation-not-available") === fmap label . responseJsonEither
 
-  -- in this case, we discover that federation is unavailable too late, and the
-  -- member has already been added to the conversation
+  -- since on member add the check of connection between remote backends will fail, the member is not actually added to the conversation
   conv <- responseJsonError =<< getConvQualified alice qconvId <!! const 200 === statusCode
-  liftIO $ map omQualifiedId (cmOthers (cnvMembers conv)) @?= [remoteBob]
+  liftIO $ map omQualifiedId (cmOthers (cnvMembers conv)) @?= []
 
 postMembersOk :: TestM ()
 postMembersOk = do
@@ -3163,7 +3164,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
               *> mockReply [mkProfile qEve (Name "Eve")]
           ]
   (convId, _) <-
-    withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mockedResponse <|> mockReply EmptyResponse) $
+    withTempMockFederator' (getNotFullyConnectedBackendsMock <|> mockedResponse <|> mockReply EmptyResponse) $
       fmap decodeConvId $
         postConvQualified
           alice
@@ -3173,7 +3174,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
   let qconvId = Qualified convId localDomain
 
   (respDel, federatedRequests) <-
-    withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mockedResponse <|> mockReply EmptyResponse) $
+    withTempMockFederator' (getNotFullyConnectedBackendsMock <|> mockedResponse <|> mockReply EmptyResponse) $
       deleteMemberQualified alice qChad qconvId
   liftIO $ do
     statusCode respDel @?= 200

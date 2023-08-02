@@ -39,17 +39,22 @@ module Galley.API.Action
     updateLocalStateOfRemoteConv,
     addLocalUsersToRemoteConv,
     ConversationUpdate,
+    getFederationStatus,
+    firstConflictOrFullyConnected,
   )
 where
 
 import Control.Arrow ((&&&))
+import Control.Error (headMay)
 import Control.Lens
 import Data.ByteString.Conversion (toByteString')
+import Data.Domain (Domain (..))
 import Data.Id
 import Data.Kind
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
 import Data.List.NonEmpty (nonEmpty)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Misc
 import Data.Qualified
@@ -99,9 +104,11 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
+import Wire.API.FederationStatus (FederationStatus (FullyConnected, NotConnectedDomains), RemoteDomains (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
@@ -123,6 +130,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (ErrorS 'ConvNotFound) r,
       Member (ErrorS 'TooManyMembers) r,
       Member (ErrorS 'MissingLegalholdConsent) r,
+      Member (ErrorS 'NonFederatingBackends) r,
       Member ExternalAccess r,
       Member FederatorAccess r,
       Member GundeckAccess r,
@@ -209,7 +217,8 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'NotConnected,
        ErrorS 'ConvAccessDenied,
        ErrorS 'TooManyMembers,
-       ErrorS 'MissingLegalholdConsent
+       ErrorS 'MissingLegalholdConsent,
+       ErrorS 'NonFederatingBackends
      ]
   HasConversationActionGalleyErrors 'ConversationLeaveTag =
     '[ ErrorS ('ActionDenied 'LeaveConversation),
@@ -255,6 +264,27 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'InvalidTargetAccess,
        ErrorS 'ConvNotFound
      ]
+
+getFederationStatus :: Member FederatorAccess r => Local UserId -> RemoteDomains -> Sem r FederationStatus
+getFederationStatus _ req = do
+  firstConflictOrFullyConnected
+    <$> E.runFederatedConcurrently
+      (flip toRemoteUnsafe () <$> Set.toList req.rdDomains)
+      (\qds -> fedClient @'Brig @"get-not-fully-connected-backends" (DomainSet (tDomain qds `Set.delete` req.rdDomains)))
+
+-- | "conflict" here means two remote domains that we are connected to
+-- but are not connected to each other.
+firstConflictOrFullyConnected :: [Remote NonConnectedBackends] -> FederationStatus
+firstConflictOrFullyConnected =
+  maybe
+    FullyConnected
+    (uncurry NotConnectedDomains)
+    . headMay
+    . mapMaybe toMaybeConflict
+  where
+    toMaybeConflict :: Remote NonConnectedBackends -> Maybe (Domain, Domain)
+    toMaybeConflict r =
+      headMay (Set.toList (nonConnectedBackends (tUnqualified r))) <&> (tDomain r,)
 
 noChanges :: (Member (Error NoChanges) r) => Sem r a
 noChanges = throw NoChanges
@@ -369,6 +399,7 @@ performAction tag origUser lconv action = do
       pure (bm, act)
 
 performConversationJoin ::
+  forall r.
   ( HasConversationActionEffects 'ConversationJoinTag r
   ) =>
   Qualified UserId ->
@@ -385,19 +416,23 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   checkRemotes lusr (ulRemotes newMembers)
   checkLHPolicyConflictsLocal (ulLocals newMembers)
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
+  checkRemoteBackendsConnected lusr
 
   addMembersToLocalConversation (fmap convId lconv) newMembers role
   where
+    checkRemoteBackendsConnected ::
+      Local UserId ->
+      Sem r ()
+    checkRemoteBackendsConnected lusr = do
+      let remoteDomains = tDomain <$> snd (partitionQualified lusr $ NE.toList invited)
+      getFederationStatus lusr (RemoteDomains $ Set.fromList remoteDomains) >>= \case
+        NotConnectedDomains _ _ -> throwS @'NonFederatingBackends
+        FullyConnected -> pure ()
+
     conv :: Data.Conversation
     conv = tUnqualified lconv
 
     checkLocals ::
-      ( Member BrigAccess r,
-        Member (ErrorS 'NotATeamMember) r,
-        Member (ErrorS 'NotConnected) r,
-        Member (ErrorS 'ConvAccessDenied) r,
-        Member TeamStore r
-      ) =>
       Local UserId ->
       Maybe TeamId ->
       [UserId] ->
@@ -414,11 +449,6 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       ensureConnectedOrSameTeam lusr newUsers
 
     checkRemotes ::
-      ( Member BrigAccess r,
-        Member (Error FederationError) r,
-        Member (ErrorS 'NotConnected) r,
-        Member FederatorAccess r
-      ) =>
       Local UserId ->
       [Remote UserId] ->
       Sem r ()
@@ -431,21 +461,6 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       ensureConnectedToRemotes lusr remotes
 
     checkLHPolicyConflictsLocal ::
-      ( Member (Error FederationError) r,
-        Member (Error InternalError) r,
-        Member (ErrorS 'MissingLegalholdConsent) r,
-        Member ExternalAccess r,
-        Member FederatorAccess r,
-        Member GundeckAccess r,
-        Member (Input Env) r,
-        Member (Input Opts) r,
-        Member (Input UTCTime) r,
-        Member LegalHoldStore r,
-        Member MemberStore r,
-        Member ProposalStore r,
-        Member TeamStore r,
-        Member TinyLog r
-      ) =>
       [UserId] ->
       Sem r ()
     checkLHPolicyConflictsLocal newUsers = do
