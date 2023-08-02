@@ -124,5 +124,4 @@ withFederatingBackendsAllowDynamic n a = do
       domains@[domainA, domainB, domainC] <- pure dynDomains
       sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
       liftIO $ threadDelay (n * 1000 * 1000) -- wait for federation status to be updated
-
       a (domainA, domainB, domainC)

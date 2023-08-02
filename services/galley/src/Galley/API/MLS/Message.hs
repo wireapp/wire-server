@@ -116,7 +116,8 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSSelfRemovalNotAllowed,
      ErrorS 'MLSClientSenderUserMismatch,
      ErrorS 'MLSGroupConversationMismatch,
-     ErrorS 'MLSMissingSenderClient
+     ErrorS 'MLSMissingSenderClient,
+     ErrorS 'NonFederatingBackends
    ]
 
 type MLSBundleStaticErrors =
@@ -141,6 +142,7 @@ postMLSMessageFromLocalUserV1 ::
       Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
       Member (ErrorS 'MLSStaleMessage) r,
       Member (ErrorS 'MLSUnsupportedMessage) r,
+      Member (ErrorS 'NonFederatingBackends) r,
       Member (Input (Local ())) r,
       Member ProposalStore r,
       Member Resource r,
@@ -177,6 +179,7 @@ postMLSMessageFromLocalUser ::
       Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
       Member (ErrorS 'MLSStaleMessage) r,
       Member (ErrorS 'MLSUnsupportedMessage) r,
+      Member (ErrorS 'NonFederatingBackends) r,
       Member (Input (Local ())) r,
       Member ProposalStore r,
       Member Resource r,
@@ -397,6 +400,7 @@ postMLSMessage ::
       Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
       Member (ErrorS 'MLSStaleMessage) r,
       Member (ErrorS 'MLSUnsupportedMessage) r,
+      Member (ErrorS 'NonFederatingBackends) r,
       Member (Input (Local ())) r,
       Member ProposalStore r,
       Member Resource r,
@@ -477,6 +481,7 @@ postMLSMessageToLocalConv ::
       Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
       Member (ErrorS 'MLSStaleMessage) r,
       Member (ErrorS 'MLSUnsupportedMessage) r,
+      Member (ErrorS 'NonFederatingBackends) r,
       Member ProposalStore r,
       Member Resource r,
       Member TinyLog r
@@ -642,6 +647,7 @@ processCommit ::
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'NonFederatingBackends) r,
     Member Resource r
   ) =>
   Qualified UserId ->
@@ -776,6 +782,7 @@ processCommitWithAction ::
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'NonFederatingBackends) r,
     Member Resource r
   ) =>
   Qualified UserId ->
@@ -804,6 +811,7 @@ processInternalCommit ::
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'NonFederatingBackends) r,
     Member Resource r
   ) =>
   Qualified UserId ->
@@ -1112,6 +1120,7 @@ executeProposalAction ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
+    Member (ErrorS 'NonFederatingBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,

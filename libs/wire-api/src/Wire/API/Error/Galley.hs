@@ -68,6 +68,7 @@ data GalleyError
   | InvalidTarget
   | ConvNotFound
   | ConvAccessDenied
+  | NonFederatingBackends
   | -- MLS Errors
     MLSNotEnabled
   | MLSNonEmptyMemberList
@@ -182,6 +183,8 @@ type instance MapError 'InvalidOperation = 'StaticError 403 "invalid-op" "Invali
 type instance MapError 'InvalidTarget = 'StaticError 403 "invalid-op" "Invalid target"
 
 type instance MapError 'ConvNotFound = 'StaticError 404 "no-conversation" "Conversation not found"
+
+type instance MapError 'NonFederatingBackends = 'StaticError 503 "non-federating-backends" "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph."
 
 type instance MapError 'ConvAccessDenied = 'StaticError 403 "access-denied" "Conversation access denied"
 

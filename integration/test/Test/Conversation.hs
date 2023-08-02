@@ -7,11 +7,11 @@ import API.Galley
 import API.GalleyInternal
 import API.Gundeck (getNotifications)
 import Control.Applicative
+import Control.Concurrent (threadDelay)
 import Data.Aeson qualified as Aeson
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
-import Control.Concurrent (threadDelay)
 
 testDynamicBackendsFullyConnectedWhenAllowAll :: HasCallStack => App ()
 testDynamicBackendsFullyConnectedWhenAllowAll = do
@@ -323,7 +323,6 @@ testAddMembersNonFullyConnectedProteus = do
     -- add members from remote backends
     members <- for [u2, u3] (%. "qualified_id")
     bindResponse (addMembers u1 cid members) $ \resp -> do
-      resp.status `shouldMatchInt` 409
-      -- resp.json %. "label" `shouldMatch` "non-federating-backends"
-      -- resp.json %. "message" `shouldMatch` "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph."
-      -- resp.json %. "type" `shouldMatch` "federation"
+      resp.status `shouldMatchInt` 503
+      resp.json %. "label" `shouldMatch` "non-federating-backends"
+      resp.json %. "message" `shouldMatch` "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph."
