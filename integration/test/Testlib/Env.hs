@@ -117,9 +117,12 @@ data Service
     ( Show,
       Eq,
       Ord,
-      Enum,
-      Bounded
+      Enum
     )
+
+instance Bounded Service where
+  minBound = Brig
+  maxBound = Stern
 
 serviceName :: Service -> String
 serviceName = \case
@@ -132,8 +135,8 @@ serviceName = \case
   Spar -> "spar"
   BackgroundWorker -> "backgroundWorker"
   Stern -> "stern"
-  FederatorExternal -> "federator-external"
-  FederatorInternal -> "federator-internal"
+  FederatorExternal -> "federatorExternal"
+  FederatorInternal -> "federatorInternal"
 
 -- | Converts the service name to kebab-case.
 configName :: Service -> String
@@ -147,8 +150,8 @@ configName = \case
   Spar -> "spar"
   BackgroundWorker -> "background-worker"
   Stern -> "stern"
-  FederatorInternal -> "federator"
-  FederatorExternal -> "federator"
+  FederatorInternal -> "federator-internal"
+  FederatorExternal -> "federator-external"
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
