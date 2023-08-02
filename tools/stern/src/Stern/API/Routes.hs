@@ -385,16 +385,16 @@ type SternAPI =
            )
     :<|> Named
            "get-sso-deeplink"
-           ( Summary "TODO"
-               :> Description "TODO"
+           ( Summary "read, update, delete domain login redirects custom backends"
+               :> Description "Read from cassandra table galley.custom_backend."
                :> "sso-deep-links"
                :> QueryParam' [Required, Strict, Description "Domain"] "domain" Text
                :> Get '[JSON] (Maybe CustomBackend)
            )
     :<|> Named
            "put-sso-deeplink"
-           ( Summary "TODO"
-               :> Description "TODO"
+           ( Summary "read, update, delete domain login redirects custom backends"
+               :> Description "Write to cassandra table galley.custom_backend."
                :> "sso-deep-links"
                :> QueryParam' [Required, Strict, Description "Domain key (from email during login)"] "domain" Text
                :> QueryParam' [Required, Strict, Description "Config JSON URL"] "configurl" Text
@@ -403,8 +403,8 @@ type SternAPI =
            )
     :<|> Named
            "delete-sso-deeplink"
-           ( Summary "TODO"
-               :> Description "TODO"
+           ( Summary "read, update, delete domain login redirects custom backends"
+               :> Description "Delete from cassandra table galley.custom_backend."
                :> "sso-deep-links"
                :> QueryParam' [Required, Strict, Description "Domain key (from email during login)"] "domain" Text
                :> Delete '[JSON] ()
