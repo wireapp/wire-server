@@ -880,7 +880,7 @@ getSsoDeeplink domain = do
   case statusCode r of
     200 -> Just <$> parseResponse (mkError status502 "bad-upstream") r
     404 -> pure Nothing
-    _ -> throwE (mkError status502 "bad-upstream" "GET /custom-backend/:domain didn't respond satisfactorily")
+    _ -> error "impossible"
 
 putSsoDeeplink :: Text -> Text -> Text -> Handler ()
 putSsoDeeplink domain config welcome = do

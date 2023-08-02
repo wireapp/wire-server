@@ -29,8 +29,7 @@ import Brig.Types.Intra
 import Control.Applicative
 import Control.Lens hiding ((.=))
 import Data.Aeson (ToJSON, Value)
-import Data.Aeson.QQ (aesonQQ)
-import qualified Data.Binary.Builder as Builder
+import qualified Data.Aeson as A
 import Data.ByteString.Conversion
 import Data.Handle
 import Data.Id
@@ -44,9 +43,6 @@ import Stern.Types
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
-import URI.ByteString (URI)
-import qualified URI.ByteString as URI
-import URI.ByteString.QQ (uri)
 import Util
 import Wire.API.OAuth (OAuthApplicationName (OAuthApplicationName), OAuthClientConfig (..), OAuthClientCredentials (..))
 import Wire.API.Properties (PropertyKey)
@@ -112,47 +108,31 @@ tests s =
 
 testRudSsoDeepLinks :: TestM ()
 testRudSsoDeepLinks = do
-  testGet Nothing
+  testGet 1 Nothing
   putSsoDeepLink sampleDomain sampleConfig sampleWelcome
-  testGet (Just sampleDomainEntry)
+  testGet 2 (Just $ A.object ["config_json_url" A..= sampleConfig, "webapp_welcome_url" A..= sampleWelcome])
   putSsoDeepLink sampleDomain sampleConfig' sampleWelcome'
-  testGet (Just sampleDomainEntry')
+  testGet 3 (Just $ A.object ["config_json_url" A..= sampleConfig', "webapp_welcome_url" A..= sampleWelcome'])
   deleteSsoDeepLink sampleDomain
-  testGet Nothing
+  testGet 4 Nothing
   where
     sampleDomain :: ByteString
     sampleDomain = "57119282-3071-11ee-aebe-a32e317d3fb5.example.com"
 
-    sampleConfig :: URI
-    sampleConfig = [uri|https://config.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/config.json|]
+    sampleConfig :: Text
+    sampleConfig = "https://config.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/config.json"
 
-    sampleWelcome :: URI
-    sampleWelcome = [uri|https://app.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/welcome.html|]
+    sampleWelcome :: Text
+    sampleWelcome = "https://app.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/welcome.html"
 
-    sampleDomainEntry :: Value
-    sampleDomainEntry =
-      [aesonQQ|
-           {"config_json_url":"bla.json",
-            "webapp_welcome_url":"https-bla"
-           }
-         |]
+    sampleConfig' :: Text
+    sampleConfig' = "https://s3.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/new-wire-config.json"
 
-    sampleConfig' :: URI
-    sampleConfig' = [uri|https://s3.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/new-wire-config.json|]
+    sampleWelcome' :: Text
+    sampleWelcome' = "https://new-app.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/new"
 
-    sampleWelcome' :: URI
-    sampleWelcome' = [uri|https://new-app.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/new|]
-
-    sampleDomainEntry' :: Value
-    sampleDomainEntry' =
-      [aesonQQ|
-           {"config_json_url":"https://s3.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/new-wire-config.json",
-            "webapp_welcome_url":"https://new-app.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/new"
-           }
-         |]
-
-    testGet :: Maybe Value -> TestM ()
-    testGet expectedEntry = liftIO . (expectedEntry @=?) =<< getSsoDeepLink sampleDomain
+    testGet :: Int -> Maybe Value -> TestM ()
+    testGet (show -> msg) expectedEntry = liftIO . (assertEqual msg expectedEntry) =<< getSsoDeepLink sampleDomain
 
 testCrudOAuthClient :: TestM ()
 testCrudOAuthClient = do
@@ -702,11 +682,8 @@ getSsoDeepLink domain = do
   r <- get (s . path "sso-deep-links" . query [("domain", Just domain)] . expect2xx)
   pure $ responseJsonUnsafe r
 
-uriToByteString :: URI -> ByteString
-uriToByteString = cs . Builder.toLazyByteString . URI.normalizeURIRef URI.noNormalization
-
-putSsoDeepLink :: ByteString -> URI -> URI -> TestM ()
-putSsoDeepLink domain (uriToByteString -> configurl) (uriToByteString -> welcomeurl) = do
+putSsoDeepLink :: ByteString -> Text -> Text -> TestM ()
+putSsoDeepLink domain (cs -> configurl) (cs -> welcomeurl) = do
   s <- view tsStern
   r <-
     put
