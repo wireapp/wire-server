@@ -874,7 +874,7 @@ getSsoDeeplink domain = do
         "galley"
         g
         ( method GET
-            . versionedPaths ["sso-deep-links", "by-domain", urlEncode True (cs domain)]
+            . versionedPaths ["custom-backend", "by-domain", cs domain]
             . expectStatus (`elem` [200, 404])
         )
   case statusCode r of
