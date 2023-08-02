@@ -1152,18 +1152,12 @@ postMessageQualifiedFailedToSendFetchingClients = do
 
   (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll mock
 
-  let qUsrClients quid cids =
+  let failedToSend = QualifiedUserClients $ Map.fromList [(qDomain deeRemote, Map.fromList [(qUnqualified deeRemote, mempty)])]
+      failedToConfirm =
         QualifiedUserClients $
           Map.fromList
-            [ ( qDomain quid,
-                Map.fromList
-                  [ (qUnqualified quid, Set.fromList cids)
-                  ]
-              )
+            [ (qDomain bobRemote, Map.fromList [(qUnqualified bobRemote, Set.fromList [bobClient]), (qUnqualified deeRemote, mempty)])
             ]
-
-      failedToSend = qUsrClients deeRemote []
-      failedToConfirm = qUsrClients bobRemote [bobClient]
 
   pure resp2 !!! do
     const 201 === statusCode
