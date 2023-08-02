@@ -9,6 +9,7 @@ import qualified Data.Aeson as Aeson
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
+import Control.Concurrent (threadDelay)
 
 testDynamicBackendsFullyConnectedWhenAllowAll :: HasCallStack => App ()
 testDynamicBackendsFullyConnectedWhenAllowAll = do
@@ -179,9 +180,9 @@ testCreateConversationNonFullyConnected = do
         resp.status `shouldMatchInt` 409
         resp.json %. "non_federating_backends" `shouldMatchSet` [domainB, domainC]
 
-testAddMembersProteus :: HasCallStack => App ()
-testAddMembersProteus = do
-  withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
+testAddMembersFullyConnectedProteus :: HasCallStack => App ()
+testAddMembersFullyConnectedProteus = do
+  withFederatingBackendsAllowDynamic 2 $ \(domainA, domainB, domainC) -> do
     [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
     -- create conversation with no users
     cid <- postConversation u1 (defProteus {qualifiedUsers = []}) >>= getJSON 201
@@ -189,23 +190,24 @@ testAddMembersProteus = do
     members <- for [u2, u3] (%. "qualified_id")
     bindResponse (API.addMembers u1 cid members) $ \resp -> do
       resp.status `shouldMatchInt` 200
-      users <- resp.json %. "event.data.users" >>= asList
+      users <- resp.json %. "data.users" >>= asList
       addedUsers <- forM users (%. "qualified_id")
       addedUsers `shouldMatchSet` members
 
--- testAddMembersProteusNonConnected :: HasCallStack => App ()
--- testAddMembersProteusNonConnected = do
---   withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
---     [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
---     -- create conversation with no users
---     cid <- postConversation u1 (defProteus {qualifiedUsers = []}) >>= getJSON 201
---     -- stop federation between B and C
---     void $ Internal.deleteFedConn domainB domainC
---     void $ Internal.deleteFedConn domainC domainB
---     -- add members from remote backends
---     members <- for [u2, u3] (%. "qualified_id")
---     bindResponse (API.addMembers u1 cid members) $ \resp -> do
---       resp.status `shouldMatchInt` 409
---       resp.json %. "label" `shouldMatch` "non-federating-backends"
---       resp.json %. "message" `shouldMatch` "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph."
---       resp.json %. "type" `shouldMatch` "federation"
+testAddMembersNonFullyConnectedProteus :: HasCallStack => App ()
+testAddMembersNonFullyConnectedProteus = do
+  withFederatingBackendsAllowDynamic 2 $ \(domainA, domainB, domainC) -> do
+    [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
+    -- create conversation with no users
+    cid <- postConversation u1 (defProteus {qualifiedUsers = []}) >>= getJSON 201
+    -- stop federation between B and C
+    void $ Internal.deleteFedConn domainB domainC
+    void $ Internal.deleteFedConn domainC domainB
+    liftIO $ threadDelay (2 * 1000 * 1000) -- wait for federation status to be updated
+    -- add members from remote backends
+    members <- for [u2, u3] (%. "qualified_id")
+    bindResponse (API.addMembers u1 cid members) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      -- resp.json %. "label" `shouldMatch` "non-federating-backends"
+      -- resp.json %. "message" `shouldMatch` "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph."
+      -- resp.json %. "type" `shouldMatch` "federation"

@@ -106,8 +106,8 @@ fullSearchWithAll =
         addFullSearchFor (remoteDomains ownDomain) val
     }
 
-withFederatingBackendsAllowDynamic :: HasCallStack => ((String, String, String) -> App a) -> App a
-withFederatingBackendsAllowDynamic a = do
+withFederatingBackendsAllowDynamic :: HasCallStack => Int -> ((String, String, String) -> App a) -> App a
+withFederatingBackendsAllowDynamic n a = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
           >=> removeField "optSettings.setFederationDomainConfigs"
@@ -120,4 +120,6 @@ withFederatingBackendsAllowDynamic a = do
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
       sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
+      liftIO $ threadDelay (n * 1000 * 1000) -- wait for federation status to be updated
+
       a (domainA, domainB, domainC)
