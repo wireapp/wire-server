@@ -101,18 +101,7 @@ data HostPort = HostPort
 
 instance FromJSON HostPort
 
-data Service
-  = Brig
-  | Galley
-  | Cannon
-  | Gundeck
-  | Cargohold
-  | Nginz
-  | Spar
-  | BackgroundWorker
-  | Stern
-  -- Don't add federator here. Federator is problematic because it has two http servers
-  -- and this startup design assumes that all services have one and only one host+port.
+data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker | Stern
   deriving
     ( Show,
       Eq,
