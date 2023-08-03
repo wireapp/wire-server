@@ -95,11 +95,13 @@ def main():
         },
         'diya': {
             'baseurl': 'https://nginz-https.diya.wire.link',
-            'webapp': 'https://webapp.diya.wire.link/'
+            'webapp': 'https://webapp.diya.wire.link/',
+            'teams': 'https://teams.diya.wire.link/'
         },
         'elna': {
             'baseurl': 'https://nginz-https.elna.wire.link',
-            'webapp': 'https://webapp.elna.wire.link/'
+            'webapp': 'https://webapp.elna.wire.link/',
+            'teams': 'https://teams.elna.wire.link/'
         },
         'foma': {
             'baseurl': 'https://nginz-https.foma.wire.link',
