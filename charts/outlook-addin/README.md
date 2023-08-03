@@ -175,3 +175,4 @@ d helm upgrade --install outlook-addin charts/outlook-addin --values values/outl
 ## Install Wire AddIn in Microsoft Outlook
 
 After deploying `outlook-addin` you will be able to find `manifest.xml` file on https://outlook.your.domain.com/manifest.xml which you can use to install the addin in your outlook. You can find instructions and screenshots how to do it [here](https://github.com/tlebon/outlook-addin/blob/staging/README.md#how-to-install-the-add-in-in-ms-outlook).
+NOTE: Links in the outlined documents are hardcoded for a testing/prod environment, any reference to zinfra.io or wire.com in it should be treated as example.com.

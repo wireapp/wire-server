@@ -11,6 +11,8 @@ metadata:
     {{- if not $ingressFieldNotAnnotation }}
     kubernetes.io/ingress.class: "{{ .Values.config.ingressClass }}"
     {{- end }}
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "{{ required "Must specify allowOrigin" .Values.allowOrigin }}"
 spec:
   {{- if $ingressFieldNotAnnotation }}
   ingressClassName: "{{ .Values.config.ingressClass }}"
