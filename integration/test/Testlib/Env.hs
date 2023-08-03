@@ -111,18 +111,15 @@ data Service
   | Spar
   | BackgroundWorker
   | Stern
-  | FederatorExternal
-  | FederatorInternal
+  -- Don't add federator here. Federator is problematic because it has two http servers
+  -- and this startup design assumes that all services have one and only one host+port.
   deriving
     ( Show,
       Eq,
       Ord,
-      Enum
+      Enum,
+      Bounded
     )
-
-instance Bounded Service where
-  minBound = Brig
-  maxBound = Stern
 
 serviceName :: Service -> String
 serviceName = \case
@@ -135,8 +132,6 @@ serviceName = \case
   Spar -> "spar"
   BackgroundWorker -> "backgroundWorker"
   Stern -> "stern"
-  FederatorExternal -> "federatorExternal"
-  FederatorInternal -> "federatorInternal"
 
 -- | Converts the service name to kebab-case.
 configName :: Service -> String
@@ -150,8 +145,6 @@ configName = \case
   Spar -> "spar"
   BackgroundWorker -> "background-worker"
   Stern -> "stern"
-  FederatorInternal -> "federator-internal"
-  FederatorExternal -> "federator-external"
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
@@ -163,8 +156,6 @@ serviceHostPort m Nginz = m.nginz
 serviceHostPort m Spar = m.spar
 serviceHostPort m BackgroundWorker = m.backgroundWorker
 serviceHostPort m Stern = m.stern
-serviceHostPort m FederatorInternal = m.federatorInternal
-serviceHostPort m FederatorExternal = m.federatorExternal
 
 mkGlobalEnv :: FilePath -> IO GlobalEnv
 mkGlobalEnv cfgFile = do
