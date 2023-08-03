@@ -39,6 +39,9 @@ data Conversation = Conversation
   }
   deriving (Show)
 
+convProtocolTag :: Conversation -> ProtocolTag
+convProtocolTag = protocolTag . convProtocol
+
 data NewConversation = NewConversation
   { ncMetadata :: ConversationMetadata,
     ncUsers :: UserList (UserId, RoleName),
