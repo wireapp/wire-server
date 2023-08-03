@@ -202,9 +202,7 @@ data ServiceOverrides = ServiceOverrides
     dbNginz :: Value -> App Value,
     dbSpar :: Value -> App Value,
     dbBackgroundWorker :: Value -> App Value,
-    dbStern :: Value -> App Value,
-    dbFederatorInternal :: Value -> App Value,
-    dbFederatorExternal :: Value -> App Value
+    dbStern :: Value -> App Value
   }
 
 instance Default ServiceOverrides where
@@ -221,9 +219,7 @@ instance Semigroup ServiceOverrides where
         dbNginz = dbNginz a >=> dbNginz b,
         dbSpar = dbSpar a >=> dbSpar b,
         dbBackgroundWorker = dbBackgroundWorker a >=> dbBackgroundWorker b,
-        dbStern = dbStern a >=> dbStern b,
-        dbFederatorInternal = dbFederatorInternal a >=> dbFederatorInternal b,
-        dbFederatorExternal = dbFederatorExternal a >=> dbFederatorExternal b
+        dbStern = dbStern a >=> dbStern b
       }
 
 instance Monoid ServiceOverrides where
@@ -240,9 +236,7 @@ defaultServiceOverrides =
       dbNginz = pure,
       dbSpar = pure,
       dbBackgroundWorker = pure,
-      dbStern = pure,
-      dbFederatorInternal = pure,
-      dbFederatorExternal = pure
+      dbStern = pure
     }
 
 defaultServiceOverridesToMap :: Map.Map Service (Value -> App Value)
