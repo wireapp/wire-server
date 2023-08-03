@@ -1,5 +1,6 @@
 module Servant.API.Extended.Endpath where
 
+import Data.Metrics.Servant
 import Imports
 import Servant
 import Servant.Server.Internal.Delayed
@@ -19,3 +20,7 @@ instance (HasServer api context, HasContextEntry (context .++ DefaultErrorFormat
 
   hoistServerWithContext :: Proxy (Endpath :> api) -> Proxy context -> (forall x. m x -> n x) -> ServerT (Endpath :> api) m -> ServerT (Endpath :> api) n
   hoistServerWithContext _ proxyCtx f s = hoistServerWithContext (Proxy @api) proxyCtx f s
+
+-- Endpath :> route
+instance RoutesToPaths route => RoutesToPaths (Endpath :> route) where
+  getRoutes = getRoutes @route
