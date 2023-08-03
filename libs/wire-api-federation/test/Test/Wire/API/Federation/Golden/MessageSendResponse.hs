@@ -100,6 +100,24 @@ failed =
           ]
     }
 
+failedToConfirm :: QualifiedUserClients
+failedToConfirm =
+  QualifiedUserClients
+    { qualifiedUserClients =
+        fromList
+          [ ( Domain "golden.example.com",
+              fromList
+                [ ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000009")),
+                    fromList [ClientId {client = "0"}, ClientId {client = "1"}]
+                  ),
+                  ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000010")),
+                    fromList [ClientId {client = "0"}]
+                  )
+                ]
+            )
+          ]
+    }
+
 testObject_MessageSendResponse1 :: MessageSendResponse
 testObject_MessageSendResponse1 =
   MessageSendResponse $
@@ -109,7 +127,8 @@ testObject_MessageSendResponse1 =
           mssMissingClients = missing,
           mssRedundantClients = redundant,
           mssDeletedClients = deleted,
-          mssFailedToSend = failed
+          mssFailedToSend = failed,
+          mssFailedToConfirmClients = failedToConfirm
         }
 
 testObject_MessageSendResponse2 :: MessageSendResponse
@@ -123,7 +142,8 @@ testObject_MessageSendResponse3 =
         mssMissingClients = missing,
         mssRedundantClients = redundant,
         mssDeletedClients = deleted,
-        mssFailedToSend = failed
+        mssFailedToSend = failed,
+        mssFailedToConfirmClients = failedToConfirm
       }
 
 testObject_MessageSendResponse4 :: MessageSendResponse
