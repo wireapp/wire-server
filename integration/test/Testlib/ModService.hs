@@ -160,7 +160,7 @@ startDynamicBackend resource staticPorts beOverrides = do
                   >=> setEsIndex srv
                   >=> setFederationSettings srv
                   >=> setAwsAdnQueuesConfigs srv
-                  >=> setField "logLevel" ("Warn" :: String)
+                  >=> setLogLevel srv
             )
             defaultServiceOverridesToMap
   startBackend
@@ -233,6 +233,11 @@ startDynamicBackend resource staticPorts beOverrides = do
       Brig -> setField "elasticsearch.index" resource.berElasticsearchIndex
       -- other services do not have an ES index
       _ -> pure
+
+    setLogLevel :: Service -> Value -> App Value
+    setLogLevel = \case
+      Spar -> setField "saml.logLevel" ("Warn" :: String)
+      _ -> setField "logLevel" ("Warn" :: String)
 
 setFederatorPorts :: BackendResource -> ServiceMap -> ServiceMap
 setFederatorPorts resource sm =
