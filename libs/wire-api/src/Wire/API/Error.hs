@@ -28,6 +28,7 @@ module Wire.API.Error
     CanThrow,
     CanThrowMany,
     DeclaredErrorEffects,
+    addErrorResponseToSwagger,
     addStaticErrorToSwagger,
     IsSwaggerError (..),
     ErrorResponse,
@@ -202,22 +203,25 @@ errorResponseSwagger =
   where
     err = dynError @e
 
-addStaticErrorToSwagger :: forall e. KnownError e => S.Swagger -> S.Swagger
-addStaticErrorToSwagger =
+addErrorResponseToSwagger :: Int -> S.Response -> S.Swagger -> S.Swagger
+addErrorResponseToSwagger code resp =
   S.allOperations
     . S.responses
     . S.responses
-    . at (fromIntegral (eCode err))
+    . at code
     %~ Just
     . addRef
   where
-    err = dynError @e
-    resp = errorResponseSwagger @e
-
     addRef :: Maybe (S.Referenced S.Response) -> S.Referenced S.Response
     addRef Nothing = S.Inline resp
     addRef (Just (S.Inline resp1)) = S.Inline (combineResponseSwagger resp1 resp)
     addRef (Just r@(S.Ref _)) = r
+
+addStaticErrorToSwagger :: forall e. KnownError e => S.Swagger -> S.Swagger
+addStaticErrorToSwagger =
+  addErrorResponseToSwagger
+    (fromIntegral (eCode (dynError @e)))
+    (errorResponseSwagger @e)
 
 type family MapError (e :: k) :: StaticError
 

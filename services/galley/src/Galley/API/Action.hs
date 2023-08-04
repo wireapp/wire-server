@@ -130,7 +130,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (ErrorS 'ConvNotFound) r,
       Member (ErrorS 'TooManyMembers) r,
       Member (ErrorS 'MissingLegalholdConsent) r,
-      Member (ErrorS 'NonFederatingBackends) r,
+      Member (Error NonFederatingBackends) r,
       Member ExternalAccess r,
       Member FederatorAccess r,
       Member GundeckAccess r,
@@ -217,8 +217,7 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'NotConnected,
        ErrorS 'ConvAccessDenied,
        ErrorS 'TooManyMembers,
-       ErrorS 'MissingLegalholdConsent,
-       ErrorS 'NonFederatingBackends
+       ErrorS 'MissingLegalholdConsent
      ]
   HasConversationActionGalleyErrors 'ConversationLeaveTag =
     '[ ErrorS ('ActionDenied 'LeaveConversation),
@@ -426,7 +425,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
     checkRemoteBackendsConnected lusr = do
       let remoteDomains = tDomain <$> snd (partitionQualified lusr $ NE.toList invited)
       getFederationStatus lusr (RemoteDomains $ Set.fromList remoteDomains) >>= \case
-        NotConnectedDomains _ _ -> throwS @'NonFederatingBackends
+        NotConnectedDomains _ _ -> throw NonFederatingBackends
         FullyConnected -> pure ()
 
     conv :: Data.Conversation

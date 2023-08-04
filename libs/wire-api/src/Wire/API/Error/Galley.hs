@@ -26,11 +26,14 @@ module Wire.API.Error.Galley
     AuthenticationError (..),
     TeamFeatureError (..),
     MLSProposalFailure (..),
+    NonFederatingBackends (..),
   )
 where
 
-import Control.Lens ((%~))
+import Control.Lens ((%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Proxy
+import Data.Schema
 import Data.Singletons.TH (genSingletons)
 import Data.Swagger qualified as S
 import Data.Tagged
@@ -68,7 +71,6 @@ data GalleyError
   | InvalidTarget
   | ConvNotFound
   | ConvAccessDenied
-  | NonFederatingBackends
   | -- MLS Errors
     MLSNotEnabled
   | MLSNonEmptyMemberList
@@ -183,8 +185,6 @@ type instance MapError 'InvalidOperation = 'StaticError 403 "invalid-op" "Invali
 type instance MapError 'InvalidTarget = 'StaticError 403 "invalid-op" "Invalid target"
 
 type instance MapError 'ConvNotFound = 'StaticError 404 "no-conversation" "Conversation not found"
-
-type instance MapError 'NonFederatingBackends = 'StaticError 503 "non-federating-backends" "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph."
 
 type instance MapError 'ConvAccessDenied = 'StaticError 403 "access-denied" "Conversation access denied"
 
@@ -403,3 +403,35 @@ instance IsSwaggerError MLSProposalFailure where
 
 instance Member (Error Wai.Error) r => ServerEffect (Error MLSProposalFailure) r where
   interpretServerEffect = mapError pfInner
+
+--------------------------------------------------------------------------------
+-- Non-federating backends
+
+-- | This is returned when adding members to the conversation is not possible
+-- because the backends involved do not form a fully connected graph.
+data NonFederatingBackends = NonFederatingBackends
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema NonFederatingBackends
+
+nonFederatingBackendsStatus :: Int
+nonFederatingBackendsStatus = 503
+
+instance ToSchema NonFederatingBackends where
+  schema =
+    object "NonFederatingBackends" $
+      pure NonFederatingBackends
+
+instance IsSwaggerError NonFederatingBackends where
+  addToSwagger =
+    addErrorResponseToSwagger nonFederatingBackendsStatus $
+      mempty
+        & S.description .~ "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph"
+        & S.schema ?~ S.Inline (S.toSchema (Proxy @NonFederatingBackends))
+
+type instance ErrorEffect NonFederatingBackends = Error NonFederatingBackends
+
+-- | A 'NonFederatingBackends' error is not turned into a generic error
+-- response, but simply left on the effect stack, where it will be eventually
+-- turned into a proper response by a specific interpreter in Galley.
+instance ServerEffect (Error NonFederatingBackends) r where
+  interpretServerEffect = error "TODO"

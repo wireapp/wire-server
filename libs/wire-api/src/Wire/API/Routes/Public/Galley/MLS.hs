@@ -75,7 +75,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
-               :> CanThrow 'NonFederatingBackends
+               :> CanThrow NonFederatingBackends
                :> "messages"
                :> ZLocalUser
                :> ZOptClient
@@ -110,7 +110,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
-               :> CanThrow 'NonFederatingBackends
+               :> CanThrow NonFederatingBackends
                :> "messages"
                :> ZLocalUser
                :> ZOptClient
@@ -147,7 +147,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSWelcomeMismatch
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
-               :> CanThrow 'NonFederatingBackends
+               :> CanThrow NonFederatingBackends
                :> "commit-bundles"
                :> ZLocalUser
                :> ZOptClient

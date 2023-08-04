@@ -389,6 +389,7 @@ data ConversationUpdateResponse
   = ConversationUpdateResponseError GalleyError
   | ConversationUpdateResponseUpdate ConversationUpdate
   | ConversationUpdateResponseNoChanges
+  | ConversationUpdateResponseNonFederatingBackends NonFederatingBackends
   deriving stock (Eq, Show, Generic)
   deriving
     (ToJSON, FromJSON)
@@ -418,6 +419,7 @@ data MLSMessageResponse
   | -- | If the list of unreachable users is non-empty, it corresponds to users
     -- that an application message could not be sent to.
     MLSMessageResponseUpdates [ConversationUpdate] (Maybe UnreachableUsers)
+  | MLSMessageResponseNonFederatingBackends NonFederatingBackends
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
 
