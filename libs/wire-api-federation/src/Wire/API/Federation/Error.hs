@@ -167,7 +167,7 @@ data FederationError
     -- needed until we start disregarding the config file.
     FederationUnexpectedError Text
   | -- | One or more remote backends is unreachable
-    FederationUnreachableDomains (Set Domain)
+    FederationUnreachableDomainsOld (Set Domain)
   deriving (Show, Typeable)
 
 data VersionNegotiationError
@@ -195,7 +195,7 @@ federationErrorToWai FederationNotConfigured = federationNotConfigured
 federationErrorToWai (FederationCallFailure err) = federationClientErrorToWai err
 federationErrorToWai (FederationUnexpectedBody s) = federationUnexpectedBody s
 federationErrorToWai (FederationUnexpectedError t) = federationUnexpectedError t
-federationErrorToWai (FederationUnreachableDomains ds) = federationUnreachableError ds
+federationErrorToWai (FederationUnreachableDomainsOld ds) = federationUnreachableError ds
 
 federationClientErrorToWai :: FederatorClientError -> Wai.Error
 federationClientErrorToWai (FederatorClientHTTP2Error e) =
@@ -366,4 +366,4 @@ throwUnreachableUsers =
     . unreachableUsers
 
 throwUnreachableDomains :: Member (P.Error FederationError) r => Set Domain -> Sem r a
-throwUnreachableDomains = P.throw . FederationUnreachableDomains
+throwUnreachableDomains = P.throw . FederationUnreachableDomainsOld

@@ -25,6 +25,7 @@ import Data.Bifunctor
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Domain (Domain)
+import Data.Either.Combinators
 import Data.Id as Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
@@ -37,6 +38,7 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as T
 import Data.Time
+import Debug.Trace
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.Data.Conversation qualified as Data
@@ -768,8 +770,10 @@ registerRemoteConversationMemberships now lc = do
       allRemoteMembersQualified = remoteMemberQualify <$> allRemoteMembers
       allRemoteBuckets :: [Remote [RemoteMember]] = bucketRemote allRemoteMembersQualified
 
-  failedToNotify :: [Remote RemoteMember] <- fmap (foldMap (either (sequenceA . fst) mempty)) $
-    runFederatedConcurrentlyEither allRemoteMembersQualified $
+  -- TODO(md): ping via /api-version all remote federators first to reduce the
+  -- chance of them being unreachable.
+  failedToNotify :: [Remote RemoteMember] <- fmap (foldMap (either (sequenceA . fst) mempty)) $ do
+    res <- runFederatedConcurrentlyEither allRemoteMembersQualified $
       \rrms ->
         fedClient @'Galley @"on-conversation-created"
           ( rc
@@ -777,6 +781,11 @@ registerRemoteConversationMemberships now lc = do
                   toMembers (tUnqualified rrms)
               }
           )
+    forM_ res $ \resp -> do
+      whenLeft resp $ \e ->
+        traceM $
+          ("A federation error in notifying the domain " <> show (tDomain . fst $ e) <> ": " <> show (snd e))
+    pure res
 
   let failedToNotifySet :: Set (Remote UserId) =
         Set.map (fmap (tUnqualified . rmId)) . Set.fromList $ failedToNotify
@@ -801,12 +810,25 @@ registerRemoteConversationMemberships now lc = do
                     Just v -> [(ruids, v)]
           )
           joined
+  traceM $ "Failed to notify these domains: " <> show (Set.toList failedToNotifyDomains)
 
   -- Send an update to remotes about the final list of participants
-  void . runFederatedConcurrentlyBucketsEither joinedCoupled $
-    fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
+  failedToUpdate :: [Remote RemoteMember] <-
+    fmap (foldMap (either (sequenceA . fst) mempty)) $ do
+      res <-
+        runFederatedConcurrentlyBucketsEither joinedCoupled $
+          fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
+      forM_ res $ \resp -> do
+        whenLeft resp $ \e ->
+          traceM $
+            ("A federation error in updating the domain " <> show (tDomain . fst $ e) <> ": " <> show (snd e))
+      pure res
+  let failedToUpdateSet :: Set (Remote UserId) =
+        Set.map (fmap (tUnqualified . rmId)) . Set.fromList $ failedToUpdate
+      failedToUpdateDomains :: Set Domain = Set.fromList . foldMap (pure . tDomain) $ failedToUpdate
+  traceM $ "Failed to update these domains: " <> show (Set.toList failedToUpdateDomains)
 
-  pure failedToNotifySet
+  pure $ failedToNotifySet <> failedToUpdateSet
   where
     creator :: UserId
     creator = cnvmCreator . DataTypes.convMetadata . tUnqualified $ lc
