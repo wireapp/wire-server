@@ -104,24 +104,6 @@ type Watches = Map RawFilePath (WatchDescriptor, WatchedPath)
 runSemDefault :: Logger -> Sem '[TinyLog, Embed IO, Final IO] a -> IO a
 runSemDefault logger = Polysemy.runFinal . Polysemy.embedToFinal . Log.loggerToTinyLog logger
 
-logErrors ::
-  ( Member TinyLog r,
-    Member (Polysemy.Error FederationSetupError) r
-  ) =>
-  Sem r a ->
-  Sem r a
-logErrors action = Polysemy.catch action $ \err -> do
-  Log.err $
-    Log.msg ("federation setup error while updating certificates" :: Text)
-      . Log.field "error" (showFederationSetupError err)
-  Polysemy.throw err
-
-logAndIgnoreErrors ::
-  Member TinyLog r =>
-  Sem (Polysemy.Error FederationSetupError ': r) () ->
-  Sem r ()
-logAndIgnoreErrors = void . Polysemy.runError . logErrors
-
 delMonitor ::
   ( Member TinyLog r,
     Member (Embed IO) r,

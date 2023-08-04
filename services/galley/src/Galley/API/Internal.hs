@@ -572,25 +572,47 @@ deleteFederationDomainRemoteUserFromLocalConversations dom = do
       localDomain = env ^. Galley.App.options . optSettings . setFederationDomain
   for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
     let lCnvId = toLocalUnsafe localDomain cnvId
-    -- This value contains an event that we might need to
-    -- send out to all of the local clients that are a party
-    -- to the conversation. However we also don't want to DOS
-    -- clients. Maybe suppress and send out a bulk version?
-    -- All errors, either exceptions or Either e, get thrown into IO
-    mapToRuntimeError @F.RemoveFromConversationError (InternalErrorWithDescription "Federation domain removal: Remove from conversation error")
-      . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Federation domain removal: Conversation not found")
-      . mapToRuntimeError @('ActionDenied 'RemoveConversationMember) (InternalErrorWithDescription "Federation domain removal: Action denied, remove conversation member")
-      . mapToRuntimeError @'InvalidOperation (InternalErrorWithDescription "Federation domain removal: Invalid operation")
-      . mapToRuntimeError @'NotATeamMember (InternalErrorWithDescription "Federation domain removal: Not a team member")
-      . mapError @NoChanges (const (InternalErrorWithDescription "Federation domain removal: No changes"))
-      -- This is allowed to send notifications to _local_ clients.
-      -- But we are suppressing those events as we don't want to
-      -- DOS our users if a large and deeply interconnected federation
-      -- member is removed. Sending out hundreds or thousands of events
-      -- to each client isn't something we want to be doing.
-      . getConversation lCnvId
-      >>= maybe (pure () {- conv already gone, nothing to do -})
-      $ \conv -> do
+
+        {-
+        logErrors ::
+          ( Member TinyLog r,
+            Member e r
+          ) =>
+          Text ->
+          Sem r a ->
+          Sem r a
+        logErrors msg action = Polysemy.catch action $ \err -> do
+
+        logAndIgnoreErrors ::
+          Member TinyLog r =>
+          Sem (e ': r) () ->
+          Sem r ()
+        logAndIgnoreErrors =
+        -}
+        logAndIgnoreAllErrors :: _
+        logAndIgnoreAllErrors = void . Polysemy.runError . logErrors
+          where
+            logErrors = Log.err $ Log.msg msg . Log.field "error" (showFederationSetupError err) Polysemy.throw err
+
+        mapAllErrors :: _
+        mapAllErrors =
+          mapToRuntimeError @F.RemoveFromConversationError (InternalErrorWithDescription "Federation domain removal: Remove from conversation error")
+            . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Federation domain removal: Conversation not found")
+            . mapToRuntimeError @('ActionDenied 'RemoveConversationMember) (InternalErrorWithDescription "Federation domain removal: Action denied, remove conversation member")
+            . mapToRuntimeError @'InvalidOperation (InternalErrorWithDescription "Federation domain removal: Invalid operation")
+            . mapToRuntimeError @'NotATeamMember (InternalErrorWithDescription "Federation domain removal: Not a team member")
+            . mapError @NoChanges (const (InternalErrorWithDescription "Federation domain removal: No changes"))
+
+   -- This is allowed to send notifications to _local_ clients.
+   -- But we are suppressing those events as we don't want to
+   -- DOS our users if a large and deeply interconnected federation
+   -- member is removed. Sending out hundreds or thousands of events
+   -- to each client isn't something we want to be doing.
+   logAndIgnoreAllErrors
+    . getConversation lCnvId
+    >>= maybe (pure () {- conv already gone, nothing to do -})
+    $ \conv ->
+      do
         let lConv = toLocalUnsafe localDomain conv
         updateLocalConversationUserUnchecked
           @'ConversationRemoveMembersTag
@@ -613,7 +635,6 @@ deleteFederationDomainRemoteUserFromLocalConversations dom = do
 deleteFederationDomainLocalUserFromRemoteConversation ::
   ( Member (Input (Local ())) r,
     Member (Input Env) r,
-    Member (Error InternalError) r,
     Member (P.Logger (Msg -> Msg)) r,
     Member MemberStore r,
     Member (Embed IO) r,
@@ -668,7 +689,7 @@ deleteFederationDomainOneOnOne dom = do
       ( \e -> do
           P.err $ Log.msg @String "Could not delete one-on-one messages in Brig" . Log.field "error" (show e)
           -- Throw the error into IO to match the other functions and to prevent the
-          -- message from rabbit being ACKed.
+          -- message from rabbit being ACKed.  TODO: should still be acked, or loop!
           liftIO $ throwIO e
       )
       pure
