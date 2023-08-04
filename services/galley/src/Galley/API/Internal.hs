@@ -588,8 +588,9 @@ deleteFederationDomainRemoteUserFromLocalConversations dom = do
       -- DOS our users if a large and deeply interconnected federation
       -- member is removed. Sending out hundreds or thousands of events
       -- to each client isn't something we want to be doing.
-      $ do
-        conv <- getConversationWithError lCnvId
+      . getConversation lCnvId
+      >>= maybe (pure () {- conv already gone, nothing to do -})
+      $ \conv -> do
         let lConv = toLocalUnsafe localDomain conv
         updateLocalConversationUserUnchecked
           @'ConversationRemoveMembersTag
