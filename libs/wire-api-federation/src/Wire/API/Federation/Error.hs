@@ -70,6 +70,7 @@ module Wire.API.Federation.Error
     FederatorClientError (..),
     FederationError (..),
     VersionNegotiationError (..),
+    UnreachableBackendsError (..),
     federationErrorToWai,
     federationRemoteHTTP2Error,
     federationRemoteResponseError,
@@ -167,6 +168,9 @@ data FederationError
     -- needed until we start disregarding the config file.
     FederationUnexpectedError Text
   | -- | One or more remote backends is unreachable
+    --
+    -- FUTUREWORK: Remove this data constructor and rely on the
+    -- 'UnreachableBackendsError' error type instead.
     FederationUnreachableDomainsOld (Set Domain)
   deriving (Show, Typeable)
 
@@ -175,6 +179,12 @@ data VersionNegotiationError
   | RemoteTooOld
   | RemoteTooNew
   deriving (Show, Typeable)
+
+-- | A new error type in federation that describes a collection of unreachable
+-- backends by providing their domains.
+newtype UnreachableBackendsError = UnreachableBackendsError
+  { unUnreachableBackendsError :: Set Domain
+  }
 
 versionNegotiationErrorMessage :: VersionNegotiationError -> LText
 versionNegotiationErrorMessage InvalidVersionInfo =

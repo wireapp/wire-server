@@ -773,10 +773,6 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
         logError
           "api-version"
           "An error occurred while communicating with federated server: "
-      -- TODO(md): accumulate all 'FederationUnreachableDomains' errors by
-      -- making a union of all the domains from all the requests, and not just
-      -- the domains (or actually just one domain) received from a single
-      -- request. Throw the collected domains after unioning them all.
       for_ failedNotifies $ \case
         -- rethrow invalid-domain errors and mis-configured federation errors
         (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 422 _) _ _ _)))) -> throw ex
