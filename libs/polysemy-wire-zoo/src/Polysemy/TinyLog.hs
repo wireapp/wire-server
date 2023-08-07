@@ -29,7 +29,33 @@ module Polysemy.TinyLog
   )
 where
 
+import Imports
+import Polysemy
+import Polysemy.Error (Error)
+import qualified Polysemy.Error
 import qualified System.Logger as Log
 import Wire.Sem.Logger
+import qualified Wire.Sem.Logger as Logger
 
 type TinyLog = Logger (Log.Msg -> Log.Msg)
+
+logErrors ::
+  ( Member TinyLog r,
+    Member (Error e) r
+  ) =>
+  (e -> Text) ->
+  Text ->
+  Sem r a ->
+  Sem r a
+logErrors showError msg action = Polysemy.Error.catch action $ \e -> do
+  Logger.err $ Log.msg msg . Log.field "error" (showError e)
+  Polysemy.Error.throw e
+
+logAndIgnoreErrors ::
+  ( Member TinyLog r
+  ) =>
+  (e -> Text) ->
+  Text ->
+  Sem (Error e ': r) () ->
+  Sem r ()
+logAndIgnoreErrors showError msg = void . Polysemy.Error.runError . logErrors showError msg

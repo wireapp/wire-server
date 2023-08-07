@@ -40,8 +40,6 @@ module Wire.API.Error
     mapErrorS,
     mapToRuntimeError,
     mapToDynamicError,
-    logErrors,
-    logAndIgnoreError,
   )
 where
 
@@ -254,22 +252,6 @@ mapToDynamicError ::
   Sem (ErrorS e ': r) a ->
   Sem r a
 mapToDynamicError = mapToRuntimeError (dynError @(MapError e))
-
-logErrors ::
-  ( Member TinyLog r,
-    Member e r
-  ) =>
-  Text ->
-  Sem r a ->
-  Sem r a
-logErrors msg action = Polysemy.catch action $ \err -> do
-  Log.err $ Log.msg msg . Log.field "error" (showFederationSetupError err) Polysemy.throw err
-
-logAndIgnoreErrors ::
-  Member TinyLog r =>
-  Sem (e ': r) () ->
-  Sem r ()
-logAndIgnoreErrors = void . Polysemy.runError . logErrors
 
 errorToWai :: forall e. KnownError (MapError e) => Wai.Error
 errorToWai = toWai (dynError @(MapError e))

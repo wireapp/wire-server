@@ -506,7 +506,6 @@ insertIntoMap (cnvId, user) m = Map.alter (pure . maybe (pure user) (N.cons user
 deleteFederationDomain ::
   ( Member (Input Env) r,
     Member (P.Logger (Msg -> Msg)) r,
-    Member (Error InternalError) r,
     Member (Error FederationError) r,
     Member (Input (Local ())) r,
     Member MemberStore r,
@@ -528,7 +527,6 @@ deleteFederationDomain d = do
 internalDeleteFederationDomainH ::
   ( Member (Input Env) r,
     Member (P.Logger (Msg -> Msg)) r,
-    Member (Error InternalError) r,
     Member (Error FederationError) r,
     Member (Input (Local ())) r,
     Member MemberStore r,
@@ -552,11 +550,26 @@ internalDeleteFederationDomainH (domain ::: _) = do
   sendDefederationNotifications domain
   pure (empty & setStatus status200)
 
+logErrors ::
+  forall e r a.
+  Member P.TinyLog r =>
+  Text ->
+  (e -> Text) ->
+  Sem (Error e ': r) a ->
+  Sem r ()
+logErrors msgText showError action = do
+  e <- Polysemy.Error.runError action
+  case e of
+    Left err' -> do
+      -- TODO: Which logging level should go here? Err seems like it might be a bit high
+      P.err $ Log.msg msgText . Log.field "Error" (showError err')
+      pure ()
+    Right _ -> pure ()
+
 -- Remove remote members from local conversations
 deleteFederationDomainRemoteUserFromLocalConversations ::
   ( Member (Input Env) r,
     Member (P.Logger (Msg -> Msg)) r,
-    Member (Error InternalError) r,
     Member (Error FederationError) r,
     Member MemberStore r,
     Member ConversationStore r,
@@ -571,65 +584,55 @@ deleteFederationDomainRemoteUserFromLocalConversations dom = do
   let lCnvMap = foldr insertIntoMap mempty remoteUsers
       localDomain = env ^. Galley.App.options . optSettings . setFederationDomain
   for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
-    let lCnvId = toLocalUnsafe localDomain cnvId
-
-        {-
-        logErrors ::
-          ( Member TinyLog r,
-            Member e r
-          ) =>
+    let mapAllErrors ::
+          Member P.TinyLog r =>
           Text ->
-          Sem r a ->
-          Sem r a
-        logErrors msg action = Polysemy.catch action $ \err -> do
-
-        logAndIgnoreErrors ::
-          Member TinyLog r =>
-          Sem (e ': r) () ->
+          Sem
+            ( Error NoChanges
+                ': ErrorS 'NotATeamMember
+                : ErrorS 'InvalidOperation
+                ': ErrorS ('ActionDenied 'RemoveConversationMember)
+                ': ErrorS 'ConvNotFound
+                : ErrorS RemoveFromConversationError
+                ': r
+            )
+            a ->
           Sem r ()
-        logAndIgnoreErrors =
-        -}
-        logAndIgnoreAllErrors :: _
-        logAndIgnoreAllErrors = void . Polysemy.runError . logErrors
-          where
-            logErrors = Log.err $ Log.msg msg . Log.field "error" (showFederationSetupError err) Polysemy.throw err
-
-        mapAllErrors :: _
-        mapAllErrors =
-          mapToRuntimeError @F.RemoveFromConversationError (InternalErrorWithDescription "Federation domain removal: Remove from conversation error")
-            . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Federation domain removal: Conversation not found")
-            . mapToRuntimeError @('ActionDenied 'RemoveConversationMember) (InternalErrorWithDescription "Federation domain removal: Action denied, remove conversation member")
-            . mapToRuntimeError @'InvalidOperation (InternalErrorWithDescription "Federation domain removal: Invalid operation")
-            . mapToRuntimeError @'NotATeamMember (InternalErrorWithDescription "Federation domain removal: Not a team member")
-            . mapError @NoChanges (const (InternalErrorWithDescription "Federation domain removal: No changes"))
-
-   -- This is allowed to send notifications to _local_ clients.
-   -- But we are suppressing those events as we don't want to
-   -- DOS our users if a large and deeply interconnected federation
-   -- member is removed. Sending out hundreds or thousands of events
-   -- to each client isn't something we want to be doing.
-   logAndIgnoreAllErrors
-    . getConversation lCnvId
-    >>= maybe (pure () {- conv already gone, nothing to do -})
-    $ \conv ->
-      do
-        let lConv = toLocalUnsafe localDomain conv
-        updateLocalConversationUserUnchecked
-          @'ConversationRemoveMembersTag
-          lConv
-          undefined
-          $ tUntagged . rmId <$> rUsers -- This field can be undefined as the path for ConversationRemoveMembersTag doens't use it
-          -- Check if the conversation if type 2 or 3, one-on-one conversations.
-          -- If it is, then we need to remove the entire conversation as users
-          -- aren't able to delete those types of conversations themselves.
-          -- Check that we are in a type 2 or a type 3 conversation
-        when (cnvmType (convMetadata conv) `elem` [One2OneConv, ConnectConv]) $
-          -- If we are, delete it.
+        mapAllErrors msgText =
+          logErrors @(Tagged F.RemoveFromConversationError ()) msgText (const "Remove from conversation error")
+            . logErrors @(Tagged 'ConvNotFound ()) msgText (const "Conversation not found")
+            . logErrors @(Tagged ('ActionDenied 'RemoveConversationMember) ()) msgText (const "Action denied, remove conversation member")
+            . logErrors @(Tagged 'InvalidOperation ()) msgText (const "Invalid operation")
+            . logErrors @(Tagged 'NotATeamMember ()) msgText (const "Not a team member")
+            . logErrors @NoChanges msgText (const "No changes")
+    -- This is allowed to send notifications to _local_ clients.
+    -- But we are suppressing those events as we don't want to
+    -- DOS our users if a large and deeply interconnected federation
+    -- member is removed. Sending out hundreds or thousands of events
+    -- to each client isn't something we want to be doing.
+    -- P.logAndIgnoreErrors _ "Federation domain removal" $ do
+    mapAllErrors "Federation domain removal" $ do
+      mConv <- getConversation cnvId
+      {- conv already gone, nothing to do -}
+      for_ mConv $ \conv ->
+        do
+          let lConv = toLocalUnsafe localDomain conv
           updateLocalConversationUserUnchecked
-            @'ConversationDeleteTag
+            @'ConversationRemoveMembersTag
             lConv
             undefined
-            ()
+            $ tUntagged . rmId <$> rUsers -- This field can be undefined as the path for ConversationRemoveMembersTag doens't use it
+            -- Check if the conversation if type 2 or 3, one-on-one conversations.
+            -- If it is, then we need to remove the entire conversation as users
+            -- aren't able to delete those types of conversations themselves.
+            -- Check that we are in a type 2 or a type 3 conversation
+          when (cnvmType (convMetadata conv) `elem` [One2OneConv, ConnectConv]) $
+            -- If we are, delete it.
+            updateLocalConversationUserUnchecked
+              @'ConversationDeleteTag
+              lConv
+              undefined
+              ()
 
 -- Remove local members from remote conversations
 deleteFederationDomainLocalUserFromRemoteConversation ::
@@ -653,25 +656,28 @@ deleteFederationDomainLocalUserFromRemoteConversation dom = do
   -- Process each user.
   for_ (Map.toList rCnvMap) $ \(cnv, lUsers) -> do
     -- All errors, either exceptions or Either e, get thrown into IO
-    mapError @NoChanges (const (InternalErrorWithDescription "No Changes: Could not remove a local member from a remote conversation.")) $ do
-      now <- liftIO $ getCurrentTime
-      for_ lUsers $ \user -> do
-        let lUser = toLocalUnsafe localDomain user
-            convUpdate =
-              F.ConversationUpdate
-                { cuTime = now,
-                  cuOrigUserId = tUntagged lUser,
-                  cuConvId = cnv,
-                  cuAlreadyPresentUsers = [user],
-                  cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ()
-                }
-        -- These functions are used directly rather than as part of a larger conversation
-        -- delete function, as we don't have an originating user, and we can't send data
-        -- to the remote backend.
-        -- We don't need to check the conversation type here, as we can't tell the
-        -- remote federation server to delete the conversation. They will have to do a
-        -- similar processing run for removing the local domain from their federation list.
-        onConversationUpdated dom convUpdate
+    logErrors @NoChanges
+      "Federation domain removal"
+      (const "No Changes: Could not remove a local member from a remote conversation.")
+      $ do
+        now <- liftIO $ getCurrentTime
+        for_ lUsers $ \user -> do
+          let lUser = toLocalUnsafe localDomain user
+              convUpdate =
+                F.ConversationUpdate
+                  { cuTime = now,
+                    cuOrigUserId = tUntagged lUser,
+                    cuConvId = cnv,
+                    cuAlreadyPresentUsers = [user],
+                    cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ()
+                  }
+          -- These functions are used directly rather than as part of a larger conversation
+          -- delete function, as we don't have an originating user, and we can't send data
+          -- to the remote backend.
+          -- We don't need to check the conversation type here, as we can't tell the
+          -- remote federation server to delete the conversation. They will have to do a
+          -- similar processing run for removing the local domain from their federation list.
+          onConversationUpdated dom convUpdate
 
 -- These need to be recoverable?
 -- This is recoverable with the following flow conditions.
@@ -690,6 +696,9 @@ deleteFederationDomainOneOnOne dom = do
           P.err $ Log.msg @String "Could not delete one-on-one messages in Brig" . Log.field "error" (show e)
           -- Throw the error into IO to match the other functions and to prevent the
           -- message from rabbit being ACKed.  TODO: should still be acked, or loop!
+          -- TODO: This comment is out of date. Message ACKing is handled by background worker,
+          -- this just needs to fail and get a HTTP error to background worker so _it_ can know
+          -- when to reject a message due to a failure here.
           liftIO $ throwIO e
       )
       pure

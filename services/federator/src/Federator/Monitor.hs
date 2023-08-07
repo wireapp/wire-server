@@ -29,6 +29,7 @@ import Imports
 import OpenSSL.Session (SSLContext)
 import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
+import Polysemy.TinyLog (logAndIgnoreErrors)
 import System.Logger (Logger)
 
 mkTLSSettingsOrThrow :: RunSettings -> IO SSLContext
@@ -42,7 +43,7 @@ withMonitor logger onNewContext rs action =
     ( runSemDefault
         logger
         ( mkMonitor
-            (runSemDefault logger . logAndIgnoreErrors)
+            (runSemDefault logger . logAndIgnoreErrors showFederationSetupError "federation setup error while updating certificates")
             onNewContext
             rs
         )
