@@ -167,6 +167,7 @@ testCreateConversationNonFullyConnected = do
       -- stop federation between B and C
       void $ deleteFedConn domainB domainC
       void $ deleteFedConn domainC domainB
+      liftIO $ threadDelay (2 * 1000 * 1000)
       bindResponse (postConversation u1 (defProteus {qualifiedUsers = [u2, u3]})) $ \resp -> do
         resp.status `shouldMatchInt` 409
         resp.json %. "non_federating_backends" `shouldMatchSet` [domainB, domainC]
@@ -323,6 +324,5 @@ testAddMembersNonFullyConnectedProteus = do
     -- add members from remote backends
     members <- for [u2, u3] (%. "qualified_id")
     bindResponse (addMembers u1 cid members) $ \resp -> do
-      resp.status `shouldMatchInt` 503
-      resp.json %. "label" `shouldMatch` "non-federating-backends"
-      resp.json %. "message" `shouldMatch` "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph."
+      resp.status `shouldMatchInt` 409
+      resp.json %. "non_federating_backends" `shouldMatchSet` [domainB, domainC]
