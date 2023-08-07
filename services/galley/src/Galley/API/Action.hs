@@ -425,7 +425,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
     checkRemoteBackendsConnected lusr = do
       let remoteDomains = tDomain <$> snd (partitionQualified lusr $ NE.toList invited)
       getFederationStatus lusr (RemoteDomains $ Set.fromList remoteDomains) >>= \case
-        NotConnectedDomains _ _ -> throw NonFederatingBackends
+        NotConnectedDomains a b -> throw (NonFederatingBackends a b)
         FullyConnected -> pure ()
 
     conv :: Data.Conversation

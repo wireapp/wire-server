@@ -26,7 +26,7 @@ import Data.Qualified
 import Data.Range
 import Data.Time.Clock (UTCTime)
 import Imports
-import Network.Wai.Utilities.Error qualified as Wai
+import Network.Wai.Utilities.JSONResponse
 import Servant.API
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
@@ -412,7 +412,7 @@ data MLSWelcomeResponse
 data MLSMessageResponse
   = MLSMessageResponseError GalleyError
   | MLSMessageResponseProtocolError Text
-  | MLSMessageResponseProposalFailure Wai.Error
+  | MLSMessageResponseProposalFailure JSONResponse
   | -- | The conversation-owning backend could not reach some of the backends that
     -- have users in the conversation when processing a commit.
     MLSMessageResponseUnreachableBackends (Set Domain)

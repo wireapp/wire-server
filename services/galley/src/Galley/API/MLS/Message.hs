@@ -1324,7 +1324,7 @@ instance
   (APIError e, Member (Error MLSProposalFailure) r) =>
   HandleMLSProposalFailure (Error e) r
   where
-  handleMLSProposalFailure = mapError (MLSProposalFailure . toWai)
+  handleMLSProposalFailure = mapError (MLSProposalFailure . toResponse)
 
 withCommitLock ::
   forall r a.

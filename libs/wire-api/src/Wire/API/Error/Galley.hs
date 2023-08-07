@@ -32,6 +32,7 @@ where
 
 import Control.Lens ((%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Domain
 import Data.Proxy
 import Data.Schema
 import Data.Singletons.TH (genSingletons)
@@ -39,7 +40,8 @@ import Data.Swagger qualified as S
 import Data.Tagged
 import GHC.TypeLits
 import Imports
-import Network.Wai.Utilities.Error qualified as Wai
+import Network.HTTP.Types.Status qualified as HTTP
+import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Error
 import Prelude.Singletons (Show_)
@@ -134,7 +136,7 @@ instance KnownError (MapError e) => IsSwaggerError (e :: GalleyError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
 
 instance KnownError (MapError e) => APIError (Tagged (e :: GalleyError) ()) where
-  toWai _ = toWai $ dynError @(MapError e)
+  toResponse _ = toResponse $ dynError @(MapError e)
 
 -- | Convenience synonym for an operation denied error with an unspecified permission.
 type OperationDenied = 'MissingPermission 'Nothing
@@ -382,7 +384,7 @@ instance Member (Error DynError) r => ServerEffect (Error TeamFeatureError) r wh
 -- Proposal failure
 
 data MLSProposalFailure = MLSProposalFailure
-  { pfInner :: Wai.Error
+  { pfInner :: JSONResponse
   }
 
 type instance ErrorEffect MLSProposalFailure = Error MLSProposalFailure
@@ -401,7 +403,7 @@ instance IsSwaggerError MLSProposalFailure where
         \for more details on the possible error responses of each type of \
         \proposal."
 
-instance Member (Error Wai.Error) r => ServerEffect (Error MLSProposalFailure) r where
+instance Member (Error JSONResponse) r => ServerEffect (Error MLSProposalFailure) r where
   interpretServerEffect = mapError pfInner
 
 --------------------------------------------------------------------------------
@@ -409,29 +411,44 @@ instance Member (Error Wai.Error) r => ServerEffect (Error MLSProposalFailure) r
 
 -- | This is returned when adding members to the conversation is not possible
 -- because the backends involved do not form a fully connected graph.
-data NonFederatingBackends = NonFederatingBackends
+data NonFederatingBackends = NonFederatingBackends Domain Domain
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema NonFederatingBackends
 
-nonFederatingBackendsStatus :: Int
-nonFederatingBackendsStatus = 503
+instance APIError NonFederatingBackends where
+  toResponse e =
+    JSONResponse
+      { status = nonFederatingBackendsStatus,
+        value = toJSON e
+      }
+
+nonFederatingBackendsStatus :: HTTP.Status
+nonFederatingBackendsStatus = HTTP.status400
+
+nonFederatingBackendsToList :: NonFederatingBackends -> [Domain]
+nonFederatingBackendsToList (NonFederatingBackends a b) = [a, b]
+
+nonFederatingBackendsFromList :: MonadFail m => [Domain] -> m NonFederatingBackends
+nonFederatingBackendsFromList [a, b] = pure (NonFederatingBackends a b)
+nonFederatingBackendsFromList domains =
+  fail $
+    "Expected 2 backends, found " <> show (length domains)
 
 instance ToSchema NonFederatingBackends where
   schema =
     object "NonFederatingBackends" $
-      pure NonFederatingBackends
+      withParser
+        (nonFederatingBackendsToList .= field "non_federating_backends" (array schema))
+        nonFederatingBackendsFromList
 
 instance IsSwaggerError NonFederatingBackends where
   addToSwagger =
-    addErrorResponseToSwagger nonFederatingBackendsStatus $
+    addErrorResponseToSwagger (HTTP.statusCode nonFederatingBackendsStatus) $
       mempty
         & S.description .~ "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph"
         & S.schema ?~ S.Inline (S.toSchema (Proxy @NonFederatingBackends))
 
 type instance ErrorEffect NonFederatingBackends = Error NonFederatingBackends
 
--- | A 'NonFederatingBackends' error is not turned into a generic error
--- response, but simply left on the effect stack, where it will be eventually
--- turned into a proper response by a specific interpreter in Galley.
-instance ServerEffect (Error NonFederatingBackends) r where
-  interpretServerEffect = error "TODO"
+instance Member (Error JSONResponse) r => ServerEffect (Error NonFederatingBackends) r where
+  interpretServerEffect = mapError toResponse

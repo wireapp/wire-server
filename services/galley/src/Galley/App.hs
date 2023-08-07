@@ -90,7 +90,7 @@ import Imports hiding (forkIO)
 import Network.AMQP.Extended
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
-import Network.Wai.Utilities.Error qualified as Wai
+import Network.Wai.Utilities.JSONResponse
 import OpenSSL.Session as Ssl
 import Polysemy
 import Polysemy.Error
@@ -119,7 +119,7 @@ type GalleyEffects0 =
      -- having to declare it every single time, and simply handle it here
      Error FederationError,
      Embed IO,
-     Error Wai.Error,
+     Error JSONResponse,
      Resource,
      Final IO
    ]
@@ -228,19 +228,19 @@ evalGalleyToIO env action = do
 toServantHandler :: Env -> Sem GalleyEffects a -> Servant.Handler a
 toServantHandler env = liftIO . evalGalleyToIO env
 
-evalGalley :: Env -> Sem GalleyEffects a -> ExceptT Wai.Error IO a
+evalGalley :: Env -> Sem GalleyEffects a -> ExceptT JSONResponse IO a
 evalGalley e =
   ExceptT
     . runFinal @IO
     . resourceToIOFinal
     . runError
     . embedToFinal @IO
-    . mapError toWai
-    . mapError toWai
-    . mapError toWai
+    . mapError toResponse
+    . mapError toResponse
+    . mapError toResponse
     . runInputConst e
     . runInputConst (e ^. cstate)
-    . mapError toWai -- DynError
+    . mapError toResponse -- DynError
     . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
     . runInputSem (embed getCurrentTime) -- FUTUREWORK: could we take the time only once instead?

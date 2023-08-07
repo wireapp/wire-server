@@ -18,9 +18,11 @@ module Wire.API.Error
   ( -- * Static and dynamic error types
     DynError (..),
     dynError,
+    dynErrorToWai,
     StaticError (..),
     KnownError,
     MapError,
+    errorToResponse,
     errorToWai,
     APIError (..),
 
@@ -57,8 +59,9 @@ import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LT
 import GHC.TypeLits
 import Imports hiding (All)
-import Network.HTTP.Types.Status
+import Network.HTTP.Types.Status qualified as HTTP
 import Network.Wai.Utilities.Error qualified as Wai
+import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Error
 import Servant
@@ -73,13 +76,17 @@ data DynError = DynError
     eMessage :: Text
   }
 
+dynErrorToWai :: DynError -> Wai.Error
+dynErrorToWai (DynError c l m) =
+  Wai.mkError (toEnum (fromIntegral c)) (LT.fromStrict l) (LT.fromStrict m)
+
 instance ToJSON DynError where
-  toJSON = toJSON . toWai
+  toJSON = toJSON . toResponse
 
 dynErrorFromWai :: Wai.Error -> DynError
 dynErrorFromWai =
   DynError
-    <$> fromIntegral . statusCode . Wai.code
+    <$> fromIntegral . HTTP.statusCode . Wai.code
     <*> LT.toStrict . Wai.label
     <*> LT.toStrict . Wai.message
 
@@ -258,19 +265,24 @@ mapToDynamicError ::
 mapToDynamicError = mapToRuntimeError (dynError @(MapError e))
 
 errorToWai :: forall e. KnownError (MapError e) => Wai.Error
-errorToWai = toWai (dynError @(MapError e))
+errorToWai = dynErrorToWai (dynError @(MapError e))
+
+errorToResponse :: forall e. KnownError (MapError e) => JSONResponse
+errorToResponse = toResponse (dynError @(MapError e))
 
 class APIError e where
-  toWai :: e -> Wai.Error
+  toResponse :: e -> JSONResponse
 
 instance APIError Wai.Error where
-  toWai = id
+  toResponse = waiErrorToJSONResponse
 
 instance APIError DynError where
-  toWai (DynError c l m) = Wai.mkError (toEnum (fromIntegral c)) (LT.fromStrict l) (LT.fromStrict m)
+  toResponse (DynError c l m) =
+    toResponse $
+      Wai.mkError (toEnum (fromIntegral c)) (LT.fromStrict l) (LT.fromStrict m)
 
 instance APIError (SStaticError e) where
-  toWai = toWai . dynError'
+  toResponse = toResponse . dynError'
 
 --------------------------------------------------------------------------------
 -- MultiVerb support
