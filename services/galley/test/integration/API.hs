@@ -42,7 +42,6 @@ import API.Util.TeamFeature qualified as Util
 import Bilge hiding (head, timeout)
 import Bilge qualified
 import Bilge.Assert
-import Control.Arrow
 import Control.Concurrent.Async qualified as Async
 import Control.Exception (throw)
 import Control.Lens (at, ix, preview, view, (.~), (?~))
@@ -135,7 +134,7 @@ tests s =
           test s "fetch conversation by qualified ID (v2)" testGetConvQualifiedV2,
           test s "create Proteus conversation" postProteusConvOk,
           test s "create conversation with remote users all reachable" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2]),
-          test s "create conversation with remote users some unreachable" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2, rb3]),
+          test s "create conversation with remote users some unreachable" (postConvWithUnreachableRemoteUsers $ Set.fromList [rb1, rb2, rb3, rb4]),
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
           test s "fail to get >500 conversations with v2 API" getConvsFailMaxSizeV2,
@@ -275,7 +274,7 @@ tests s =
           -- See the Tasty docs on patterns. https://hackage.haskell.org/package/tasty-1.4.3#patterns
           after AllFinish "$0 !~ /delete federation notifications/" $ test s "delete federation notifications" API.testDefederationNotifications
         ]
-    rb1, rb2, rb3 :: Remote Backend
+    rb1, rb2, rb3, rb4 :: Remote Backend
     rb1 =
       toRemoteUnsafe
         (Domain "c.example.com")
@@ -298,6 +297,14 @@ tests s =
         ( Backend
             { bReachable = BackendUnreachable,
               bUsers = 2
+            }
+        )
+    rb4 =
+      toRemoteUnsafe
+        (Domain "f.example.com")
+        ( Backend
+            { bReachable = BackendUnreachable,
+              bUsers = 1
             }
         )
 
@@ -371,6 +378,57 @@ postProteusConvOk = do
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
 
+postConvWithUnreachableRemoteUsers :: Set (Remote Backend) -> TestM ()
+postConvWithUnreachableRemoteUsers rbs = do
+  c <- view tsCannon
+  (alice, _qAlice) <- randomUserTuple
+  (alex, qAlex) <- randomUserTuple
+  connectUsers alice (singleton alex)
+  (allRemotes, participatingRemotes) <- do
+    v <- forM (toList rbs) $ \rb -> do
+      users <- connectBackend alice rb
+      pure (users, participating rb users)
+    pure $ foldr (\(a, p) acc -> bimap ((<>) a) ((<>) p) acc) ([], []) v
+  liftIO $
+    assertBool "No unreachable backend in the test" (allRemotes /= participatingRemotes)
+
+  let convName = "some chat"
+      otherLocals = [qAlex]
+      joiners = allRemotes <> otherLocals
+      unreachableBackends =
+        Set.fromList $
+          foldMap
+            ( \rb ->
+                guard (rbReachable rb == BackendUnreachable)
+                  $> tDomain rb
+            )
+            rbs
+  WS.bracketR2 c alice alex $ \(wsAlice, wsAlex) -> do
+    void
+      $ withTempMockFederator'
+        ( asum
+            [ "get-not-fully-connected-backends" ~> NonConnectedBackends mempty,
+              mockUnreachableFor unreachableBackends,
+              "on-conversation-created" ~> EmptyResponse,
+              "on-conversation-updated" ~> EmptyResponse
+            ]
+        )
+      $ postConvQualified
+        alice
+        Nothing
+        defNewProteusConv
+          { newConvName = checked convName,
+            newConvQualifiedUsers = joiners
+          }
+        <!! const 503 === statusCode
+    groupConvs <- filter ((== RegularConv) . cnvmType . cnvMetadata) <$> getAllConvs alice
+    liftIO $
+      assertEqual
+        "Alice does have a group conversation, while she should not!"
+        []
+        groupConvs
+    WS.assertNoEvent (3 # Second) [wsAlice, wsAlex]
+
 postConvWithRemoteUsersOk :: Set (Remote Backend) -> TestM ()
 postConvWithRemoteUsersOk rbs = do
   c <- view tsCannon
@@ -383,6 +441,8 @@ postConvWithRemoteUsersOk rbs = do
       users <- connectBackend alice rb
       pure (users, participating rb users)
     pure $ foldr (\(a, p) acc -> bimap ((<>) a) ((<>) p) acc) ([], []) v
+  liftIO $
+    assertBool "Not every backend is reachable in the test" (allRemotes == participatingRemotes)
 
   let convName = "some chat"
       otherLocals = [qAlex, qAmy]
@@ -472,16 +532,6 @@ postConvWithRemoteUsersOk rbs = do
         SomeConversationAction SConversationJoinTag _action -> pure ()
         _ -> assertFailure @() "Unexpected update action"
   where
-    connectBackend :: UserId -> Remote Backend -> TestM [Qualified UserId]
-    connectBackend usr (tDomain &&& bUsers . tUnqualified -> (d, c)) = do
-      users <- replicateM (fromIntegral c) (randomQualifiedId d)
-      mapM_ (connectWithRemoteUser usr) users
-      pure users
-    participating :: Remote Backend -> [a] -> [a]
-    participating rb users =
-      if rbReachable rb == BackendReachable
-        then users
-        else []
     toOtherMember qid = OtherMember qid Nothing roleNameWireAdmin
     convView cnv usr =
       responseJsonError =<< getConvQualified usr cnv <!! const 200 === statusCode
