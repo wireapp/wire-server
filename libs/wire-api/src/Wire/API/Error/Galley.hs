@@ -423,7 +423,7 @@ instance APIError NonFederatingBackends where
       }
 
 nonFederatingBackendsStatus :: HTTP.Status
-nonFederatingBackendsStatus = HTTP.status400
+nonFederatingBackendsStatus = HTTP.status409
 
 nonFederatingBackendsToList :: NonFederatingBackends -> [Domain]
 nonFederatingBackendsToList (NonFederatingBackends a b) = [a, b]

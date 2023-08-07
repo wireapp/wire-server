@@ -138,6 +138,7 @@ createGroupConversation ::
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
+    Member (Error NonFederatingBackends) r,
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
@@ -160,7 +161,7 @@ createGroupConversation ::
 createGroupConversation lusr mCreatorClient conn newConv = do
   let remoteDomains = tDomain <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
   getFederationStatus lusr (RemoteDomains $ Set.fromList remoteDomains) >>= \case
-    NotConnectedDomains rd1 rd2 -> pure $ GroupConversationFailedToCreate $ CreateConversationRejected (rd1, rd2)
+    NotConnectedDomains rd1 rd2 -> throw $ NonFederatingBackends rd1 rd2
     FullyConnected ->
       createGroupConversationGeneric
         lusr
