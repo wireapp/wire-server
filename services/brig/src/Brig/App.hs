@@ -1,5 +1,5 @@
+{-# LANGUAGE DeepSubsumption #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -491,7 +491,7 @@ instance Applicative (AppT r) where
   (AppT x0) <*> (AppT x1) = AppT $ x0 <*> x1
 
 instance Monad (AppT r) where
-  (AppT x0) >>= f = AppT $ x0 >>= (\x -> unAppT $ f x)
+  (AppT x0) >>= f = AppT $ x0 >>= unAppT . f
 
 instance MonadIO (AppT r) where
   liftIO io = AppT $ lift $ embedFinal io
