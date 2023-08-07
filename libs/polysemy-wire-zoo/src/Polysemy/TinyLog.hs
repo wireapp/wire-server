@@ -52,6 +52,7 @@ logErrors showError msg action = Polysemy.Error.catch action $ \e -> do
   Polysemy.Error.throw e
 
 logAndIgnoreErrors ::
+  forall e r.
   ( Member TinyLog r
   ) =>
   (e -> Text) ->

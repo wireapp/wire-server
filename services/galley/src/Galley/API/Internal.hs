@@ -94,6 +94,7 @@ import Network.Wai.Utilities.ZAuth
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.TinyLog (logAndIgnoreErrors)
 import qualified Polysemy.TinyLog as P
 import Servant hiding (JSON, WithStatus)
 import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http), defaultMakeClientRequest)
@@ -102,7 +103,6 @@ import qualified System.Logger.Class as Log
 import Util.Options
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.Role
 import Wire.API.CustomBackend
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -575,21 +575,16 @@ deleteFederationDomainRemoteUserFromLocalConversations dom = do
           Sem
             ( Error NoChanges
                 ': ErrorS 'NotATeamMember
-                : ErrorS 'InvalidOperation
-                ': ErrorS ('ActionDenied 'RemoveConversationMember)
-                ': ErrorS 'ConvNotFound
-                : ErrorS RemoveFromConversationError
                 ': r
             )
-            a ->
+            () ->
           Sem r ()
         mapAllErrors msgText =
-          logAndIgnoreErrors msgText @(Tagged F.RemoveFromConversationError ()) (const "Remove from conversation error")
-            . logAndIgnoreErrors msgText @(Tagged 'ConvNotFound ()) (const "Conversation not found")
-            . logAndIgnoreErrors msgText @(Tagged ('ActionDenied 'RemoveConversationMember) ()) (const "Action denied, remove conversation member")
-            . logAndIgnoreErrors msgText @(Tagged 'InvalidOperation ()) (const "Invalid operation")
-            . logAndIgnoreErrors msgText @(Tagged 'NotATeamMember ()) (const "Not a team member")
-            . logAndIgnoreErrors msgText @NoChanges (const "No changes")
+          -- This error is part of the constraints for `updateLocalConversationUserUnchecked @'ConversationDeleteTag`.
+          -- So we need to handle it, but it won't be thrown as it is used in the `ensureAllowed` function.
+          P.logAndIgnoreErrors @(Tagged 'NotATeamMember ()) (const "Not a team member") msgText
+            -- This is part of `updateLocalConversationUserUnchecked @'ConversationRemoveMembersTag`
+            . P.logAndIgnoreErrors @NoChanges (const "No changes") msgText
     -- This is allowed to send notifications to _local_ clients.
     -- But we are suppressing those events as we don't want to
     -- DOS our users if a large and deeply interconnected federation
@@ -641,9 +636,9 @@ deleteFederationDomainLocalUserFromRemoteConversation dom = do
   -- Process each user.
   for_ (Map.toList rCnvMap) $ \(cnv, lUsers) -> do
     -- All errors, either exceptions or Either e, get thrown into IO
-    logErrors @NoChanges
-      "Federation domain removal"
+    logAndIgnoreErrors @NoChanges
       (const "No Changes: Could not remove a local member from a remote conversation.")
+      "Federation domain removal"
       $ do
         now <- liftIO $ getCurrentTime
         for_ lUsers $ \user -> do
