@@ -1,8 +1,8 @@
 module Test.Federator where
 
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.String.Conversions
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Testlib.Prelude
 
 runFederatorMetrics :: (ServiceMap -> HostPort) -> App ()

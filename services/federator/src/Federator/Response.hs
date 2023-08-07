@@ -41,8 +41,8 @@ import Federator.Validation
 import HTTP2.Client.Manager (Http2Manager)
 import Imports
 import Network.HTTP.Types qualified as HTTP
-import Network.Wai qualified as Wai
 import Network.Wai (Middleware)
+import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.Server qualified as Wai

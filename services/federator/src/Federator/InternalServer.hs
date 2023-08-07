@@ -24,7 +24,7 @@ import Control.Monad.Codensity
 import Data.Binary.Builder
 import Data.ByteString qualified as BS
 import Data.Domain
-import qualified Data.Metrics.Servant as Metrics
+import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy
 import Federator.Env
 import Federator.Error.ServerError
