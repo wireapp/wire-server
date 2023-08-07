@@ -571,7 +571,6 @@ deleteFederationDomainRemoteUserFromLocalConversations dom = do
   let lCnvMap = foldr insertIntoMap mempty remoteUsers
       localDomain = env ^. Galley.App.options . optSettings . setFederationDomain
   for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
-    let lCnvId = toLocalUnsafe localDomain cnvId
     -- This value contains an event that we might need to
     -- send out to all of the local clients that are a party
     -- to the conversation. However we also don't want to DOS
@@ -588,26 +587,27 @@ deleteFederationDomainRemoteUserFromLocalConversations dom = do
       -- DOS our users if a large and deeply interconnected federation
       -- member is removed. Sending out hundreds or thousands of events
       -- to each client isn't something we want to be doing.
-      . getConversation lCnvId
-      >>= maybe (pure () {- conv already gone, nothing to do -})
-      $ \conv -> do
-        let lConv = toLocalUnsafe localDomain conv
-        updateLocalConversationUserUnchecked
-          @'ConversationRemoveMembersTag
-          lConv
-          undefined
-          $ tUntagged . rmId <$> rUsers -- This field can be undefined as the path for ConversationRemoveMembersTag doens't use it
-          -- Check if the conversation if type 2 or 3, one-on-one conversations.
-          -- If it is, then we need to remove the entire conversation as users
-          -- aren't able to delete those types of conversations themselves.
-          -- Check that we are in a type 2 or a type 3 conversation
-        when (cnvmType (convMetadata conv) `elem` [One2OneConv, ConnectConv]) $
-          -- If we are, delete it.
+      $ do
+        mConv <- getConversation cnvId
+        {- conv already gone, nothing to do -}
+        for_ mConv $ \conv -> do
+          let lConv = toLocalUnsafe localDomain conv
           updateLocalConversationUserUnchecked
-            @'ConversationDeleteTag
+            @'ConversationRemoveMembersTag
             lConv
             undefined
-            ()
+            $ tUntagged . rmId <$> rUsers -- This field can be undefined as the path for ConversationRemoveMembersTag doens't use it
+            -- Check if the conversation if type 2 or 3, one-on-one conversations.
+            -- If it is, then we need to remove the entire conversation as users
+            -- aren't able to delete those types of conversations themselves.
+            -- Check that we are in a type 2 or a type 3 conversation
+          when (cnvmType (convMetadata conv) `elem` [One2OneConv, ConnectConv]) $
+            -- If we are, delete it.
+            updateLocalConversationUserUnchecked
+              @'ConversationDeleteTag
+              lConv
+              undefined
+              ()
 
 -- Remove local members from remote conversations
 deleteFederationDomainLocalUserFromRemoteConversation ::
