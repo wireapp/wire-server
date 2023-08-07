@@ -207,8 +207,8 @@ testUnrace :: App ()
 testUnrace = do
   {-
   -- the following would retry for ~30s and only then fail
-  unrace $ do
+  retryT $ do
     True `shouldMatch` True
     True `shouldMatch` False
   -}
-  unrace $ True `shouldMatch` True
+  retryT $ True `shouldMatch` True

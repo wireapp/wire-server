@@ -499,7 +499,8 @@ data MessageSendingStatus = MessageSendingStatus
     mssMissingClients :: QualifiedUserClients,
     mssRedundantClients :: QualifiedUserClients,
     mssDeletedClients :: QualifiedUserClients,
-    mssFailedToSend :: QualifiedUserClients
+    mssFailedToSend :: QualifiedUserClients,
+    mssFailedToConfirmClients :: QualifiedUserClients
   }
   deriving stock (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema MessageSendingStatus
@@ -515,6 +516,7 @@ instance ToSchema MessageSendingStatus where
         <*> mssRedundantClients .= field "redundant" schema
         <*> mssDeletedClients .= field "deleted" schema
         <*> mssFailedToSend .= field "failed_to_send" schema
+        <*> mssFailedToConfirmClients .= field "failed_to_confirm_clients" schema
     where
       combinedDesc =
         "The Proteus message sending status. It has these fields:\n\

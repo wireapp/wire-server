@@ -104,6 +104,7 @@ library
     Test.Client
     Test.Conversation
     Test.Demo
+    Test.Federator
     Test.Notifications
     Test.Presence
     Test.User

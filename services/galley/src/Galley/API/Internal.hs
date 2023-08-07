@@ -554,6 +554,7 @@ internalDeleteFederationDomainH (domain ::: _) = do
 
 -- Remove remote members from local conversations
 deleteFederationDomainRemoteUserFromLocalConversations ::
+  forall r.
   ( Member (Input Env) r,
     Member (P.Logger (Msg -> Msg)) r,
     Member (Error InternalError) r,
@@ -578,7 +579,6 @@ deleteFederationDomainRemoteUserFromLocalConversations dom = do
     -- clients. Maybe suppress and send out a bulk version?
     -- All errors, either exceptions or Either e, get thrown into IO
     mapToRuntimeError @F.RemoveFromConversationError (InternalErrorWithDescription "Federation domain removal: Remove from conversation error")
-      . mapToRuntimeError @'ConvNotFound (InternalErrorWithDescription "Federation domain removal: Conversation not found")
       . mapToRuntimeError @('ActionDenied 'RemoveConversationMember) (InternalErrorWithDescription "Federation domain removal: Action denied, remove conversation member")
       . mapToRuntimeError @'InvalidOperation (InternalErrorWithDescription "Federation domain removal: Invalid operation")
       . mapToRuntimeError @'NotATeamMember (InternalErrorWithDescription "Federation domain removal: Not a team member")
@@ -588,8 +588,24 @@ deleteFederationDomainRemoteUserFromLocalConversations dom = do
       -- DOS our users if a large and deeply interconnected federation
       -- member is removed. Sending out hundreds or thousands of events
       -- to each client isn't something we want to be doing.
-      $ do
-        conv <- getConversationWithError lCnvId
+      $ getConversation (tUnqualified lCnvId)
+        >>= maybe (pure () {- conv already gone, nothing to do -}) (delConv localDomain rUsers)
+  where
+    delConv ::
+      Domain ->
+      N.NonEmpty RemoteMember ->
+      Galley.Data.Conversation.Types.Conversation ->
+      Sem
+        ( Error NoChanges
+            : ErrorS 'NotATeamMember
+            : ErrorS 'InvalidOperation
+            : ErrorS ('ActionDenied 'RemoveConversationMember)
+            : ErrorS RemoveFromConversationError
+            : r
+        )
+        ()
+    delConv localDomain rUsers conv =
+      do
         let lConv = toLocalUnsafe localDomain conv
         updateLocalConversationUserUnchecked
           @'ConversationRemoveMembersTag

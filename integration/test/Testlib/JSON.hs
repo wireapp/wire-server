@@ -17,6 +17,7 @@ import Data.List.Split (splitOn)
 import Data.Scientific qualified as Sci
 import Data.String
 import Data.Text qualified as T
+import Data.Vector ((!?))
 import GHC.Stack
 import Testlib.Env
 import Testlib.Types
@@ -109,31 +110,19 @@ asBool x =
     v -> assertFailureWithJSON x ("Bool" `typeWasExpectedButGot` v)
 
 -- | Get a (nested) field of a JSON object
--- Raise an AssertionFailure if the field at the (nested) key is missing.
+-- Raise an AssertionFailure if the field at the (nested) key is missing. See
+-- 'lookupField' for details.
 (%.) ::
   (HasCallStack, MakesValue a) =>
   a ->
   -- | A plain key, e.g. "id", or a nested key "user.profile.id"
   String ->
   App Value
-(%.) val selector = do
-  v <- make val
-  vp <- prettyJSON v
-  addFailureContext ("Getting (nested) field \"" <> selector <> "\" of object:\n" <> vp) $ do
-    let keys = splitOn "." selector
-    case keys of
-      (k : ks) -> go k ks v
-      [] -> assertFailure "No key provided"
-  where
-    go k [] v = l k v
-    go k (k2 : ks) v = do
-      r <- l k v
-      go k2 ks r
-    l k v = do
-      ob <- asObject v
-      case KM.lookup (KM.fromString k) ob of
-        Nothing -> assertFailureWithJSON ob $ "Field \"" <> k <> "\" is missing from object:"
-        Just x -> pure x
+(%.) x k = lookupField x k >>= assertField x k
+
+assertField :: (HasCallStack, MakesValue a) => a -> String -> Maybe Value -> App Value
+assertField x k Nothing = assertFailureWithJSON x $ "Field \"" <> k <> "\" is missing from object:"
+assertField _ _ (Just x) = pure x
 
 -- | Look up (nested) field of a JSON object
 --
@@ -144,6 +133,8 @@ asBool x =
 -- if the last component of the key field selector is missing from nested
 -- object. If any other component is missing this function raises an
 -- AssertionFailure.
+--
+-- Objects and arrays are supported. Array keys should be integers.
 lookupField ::
   (HasCallStack, MakesValue a) =>
   a ->
@@ -159,16 +150,17 @@ lookupField val selector = do
       (k : ks) -> go k ks v
       [] -> assertFailure "No key provided"
   where
-    go k [] v = do
-      ob <- asObject v
-      pure (KM.lookup (KM.fromString k) ob)
-    go k (k2 : ks) v = do
-      ob <- asObject v
-      r <-
-        case KM.lookup (KM.fromString k) ob of
-          Nothing -> assertFailureWithJSON ob $ "Field \"" <> k <> "\" is missing from object:"
-          Just x -> pure x
-      go k2 ks r
+    get v k = do
+      make v >>= \case
+        -- index object
+        Object ob -> pure (KM.lookup (KM.fromString k) ob)
+        -- index array
+        Array arr -> case reads k of
+          [(i, "")] -> pure (arr !? i)
+          _ -> assertFailureWithJSON arr $ "Invalid array index \"" <> k <> "\""
+        x -> assertFailureWithJSON x ("Object or Array" `typeWasExpectedButGot` x)
+    go k [] v = get v k
+    go k (k2 : ks) v = get v k >>= assertField v k >>= go k2 ks
 
 -- Update nested fields
 -- E.g. ob & "foo.bar.baz" %.= ("quux" :: String)

@@ -677,3 +677,27 @@ cargohold:
 
 When this option is unspecified, wire-server defaults to path style addressing
 to ensure smooth transition for older deployments.
+
+## I have a team larger than 500 users
+
+By default, the maximum number of users in a team is set at 500.
+
+This can be changed in the Brig config, with this option:
+
+```yaml
+
+    optSettings:
+      setMaxTeamSize: 501
+
+```
+   
+```{note}
+
+If you create a team with more than 2000 members then clients won't receive certain team update events (e.g. new member joining) live via websocket anymore, but most of the app will still function normally.
+
+Irrespective of team size conversations can have at most 2000 members. This limit cannot be overridden.
+
+Wire's backend currently only supports fanning out a single message to at most 2000 recipients, hence the limitations on conversation size. Increasing this limit is work in progress.
+
+```
+
