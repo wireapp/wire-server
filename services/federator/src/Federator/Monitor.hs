@@ -27,8 +27,8 @@ import Federator.Monitor.Internal
 import Federator.Options (RunSettings (..))
 import Imports
 import OpenSSL.Session (SSLContext)
-import qualified Polysemy
-import qualified Polysemy.Error as Polysemy
+import Polysemy qualified
+import Polysemy.Error qualified as Polysemy
 import Polysemy.TinyLog (logAndIgnoreErrors)
 import System.Logger (Logger)
 

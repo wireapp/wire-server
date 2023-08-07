@@ -32,7 +32,7 @@ where
 import Brig.App (Env)
 import Brig.Data.User
 import Brig.Data.UserKey
-import qualified Brig.Effects.CodeStore as E
+import Brig.Effects.CodeStore qualified as E
 import Brig.Effects.CodeStore.Cassandra
 import Brig.Options
 import Brig.Types.Intra
@@ -40,9 +40,9 @@ import Cassandra
 import Control.Error
 import Data.Id
 import Data.Text (pack)
-import qualified Data.Text.Ascii as Ascii
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as LT
+import Data.Text.Ascii qualified as Ascii
+import Data.Text.Encoding qualified as T
+import Data.Text.Lazy qualified as LT
 import Imports
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)

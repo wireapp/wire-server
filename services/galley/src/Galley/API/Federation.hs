@@ -28,14 +28,14 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified
 import Data.Range (Range (fromRange))
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons (SingI (..), demote, sing)
 import Data.Tagged
-import qualified Data.Text.Lazy as LT
+import Data.Text.Lazy qualified as LT
 import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
@@ -45,17 +45,17 @@ import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Message
 import Galley.API.MLS.Removal
 import Galley.API.MLS.Welcome
-import qualified Galley.API.Mapping as Mapping
+import Galley.API.Mapping qualified as Mapping
 import Galley.API.Message
 import Galley.API.Push
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
-import qualified Galley.Effects.ConversationStore as E
-import qualified Galley.Effects.FireAndForget as E
-import qualified Galley.Effects.MemberStore as E
+import Galley.Effects.ConversationStore qualified as E
+import Galley.Effects.FireAndForget qualified as E
+import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore (ProposalStore)
 import Galley.Options
 import Galley.Types.Conversations.Members
@@ -67,12 +67,12 @@ import Polysemy.Input
 import Polysemy.Internal.Kind (Append)
 import Polysemy.Resource
 import Polysemy.TinyLog
-import qualified Polysemy.TinyLog as P
+import Polysemy.TinyLog qualified as P
 import Servant (ServerT)
 import Servant.API
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
-import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -81,7 +81,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley
-import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential

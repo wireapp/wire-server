@@ -1,10 +1,10 @@
 module Test.Conversation where
 
-import qualified API.BrigInternal as Internal
+import API.BrigInternal qualified as Internal
 import API.Galley (defProteus, postConversation, qualifiedUsers)
-import qualified API.GalleyInternal as API
+import API.GalleyInternal qualified as API
 import Control.Applicative
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude

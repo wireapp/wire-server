@@ -18,7 +18,7 @@
 module Galley.Effects.WaiRoutes.IO where
 
 import Control.Error
-import qualified Data.ProtocolBuffers as Proto
+import Data.ProtocolBuffers qualified as Proto
 import Data.Serialize.Get
 import Galley.API.Error
 import Galley.Effects.WaiRoutes

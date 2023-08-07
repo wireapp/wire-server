@@ -20,7 +20,7 @@ module Test.Wire.API.Golden.Manual.ConvIdsPage where
 import Data.Domain (Domain (Domain))
 import Data.Id (Id (Id))
 import Data.Qualified
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Test.Wire.API.Golden.Manual.ConversationPagingState (testObject_ConversationPagingState_1)
 import Wire.API.Conversation

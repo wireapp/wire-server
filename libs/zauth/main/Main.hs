@@ -28,14 +28,14 @@ import Control.Error
 import Control.Lens
 import Data.ByteString.Base64.URL
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy.Char8 as L
+import Data.ByteString.Lazy.Char8 qualified as L
 import Data.UUID (UUID, fromASCIIBytes)
 import Data.ZAuth.Creation as C
 import Data.ZAuth.Token
 import Data.ZAuth.Validation as V
 import Imports
 import Options.Applicative hiding (header)
-import qualified Options.Applicative as O
+import Options.Applicative qualified as O
 import Options.Applicative.Types
 import Sodium.Crypto.Sign
 import System.Exit

@@ -24,7 +24,7 @@ import Data.Aeson
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
-import qualified Wire.API.Team.Member as Team.Member
+import Wire.API.Team.Member qualified as Team.Member
 
 -- NB: validateEveryToJSON from servant-swagger doesn't render these tests unnecessary!
 

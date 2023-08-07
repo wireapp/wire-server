@@ -2,8 +2,8 @@ module Galley.API.Public.TeamNotification where
 
 import Data.Id
 import Data.Range
-import qualified Data.UUID.Util as UUID
-import qualified Galley.API.Teams.Notifications as APITeamQueue
+import Data.UUID.Util qualified as UUID
+import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.App
 import Galley.Effects
 import Imports

@@ -83,21 +83,21 @@ module Wire.API.Federation.Error
 where
 
 import Data.Domain
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Data.Qualified
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as LT
+import Data.Set qualified as Set
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.Text.Lazy qualified as LT
 import Imports
 import Network.HTTP.Types.Status
-import qualified Network.HTTP.Types.Status as HTTP
-import qualified Network.HTTP2.Client as HTTP2
+import Network.HTTP.Types.Status qualified as HTTP
+import Network.HTTP2.Client qualified as HTTP2
 import Network.Wai.Utilities.Error
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import OpenSSL.Session (SomeSSLException)
 import Polysemy
-import qualified Polysemy.Error as P
+import Polysemy.Error qualified as P
 import Servant.Client
 import Wire.API.Error
 import Wire.API.Unreachable

@@ -27,7 +27,7 @@ where
 import Brig.App
 import Brig.CanonicalInterpreter (runBrigToIO)
 import Brig.Data.Instances ()
-import qualified Brig.Data.User as User
+import Brig.Data.User qualified as User
 import Brig.Unique
 import Cassandra
 import Data.Handle (Handle, fromHandle)

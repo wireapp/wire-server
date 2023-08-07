@@ -21,12 +21,12 @@ module Main
 where
 
 import Imports
-import qualified Test.Brig.Calling
-import qualified Test.Brig.Calling.Internal
-import qualified Test.Brig.InternalNotification
-import qualified Test.Brig.MLS
-import qualified Test.Brig.Roundtrip
-import qualified Test.Brig.User.Search.Index.Types
+import Test.Brig.Calling qualified
+import Test.Brig.Calling.Internal qualified
+import Test.Brig.InternalNotification qualified
+import Test.Brig.MLS qualified
+import Test.Brig.Roundtrip qualified
+import Test.Brig.User.Search.Index.Types qualified
 import Test.Tasty
 
 main :: IO ()

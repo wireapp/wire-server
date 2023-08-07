@@ -21,30 +21,30 @@ module Gundeck.Env where
 
 import Bilge
 import Cassandra (ClientState, Keyspace (..))
-import qualified Cassandra as C
-import qualified Cassandra.Settings as C
+import Cassandra qualified as C
+import Cassandra.Settings qualified as C
 import Control.AutoUpdate
 import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses, (^.))
 import Control.Retry (capDelay, exponentialBackoff)
 import Data.Default (def)
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
 import Data.Text (unpack)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
-import qualified Database.Redis as Redis
-import qualified Gundeck.Aws as Aws
+import Database.Redis qualified as Redis
+import Gundeck.Aws qualified as Aws
 import Gundeck.Options as Opt
-import qualified Gundeck.Redis as Redis
-import qualified Gundeck.Redis.HedisExtensions as Redis
+import Gundeck.Redis qualified as Redis
+import Gundeck.Redis.HedisExtensions qualified as Redis
 import Gundeck.ThreadBudget
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
-import qualified System.Logger as Log
-import qualified System.Logger.Extended as Logger
+import System.Logger qualified as Log
+import System.Logger.Extended qualified as Logger
 import Util.Options
 
 data Env = Env

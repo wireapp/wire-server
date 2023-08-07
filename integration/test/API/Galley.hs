@@ -1,6 +1,6 @@
 module API.Galley where
 
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Testlib.Prelude
 
 data CreateConv = CreateConv

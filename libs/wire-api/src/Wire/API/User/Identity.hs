@@ -55,30 +55,30 @@ where
 import Control.Applicative (optional)
 import Control.Lens (dimap, over, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as A
+import Data.Aeson qualified as A
+import Data.Aeson.Types qualified as A
 import Data.Attoparsec.Text
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion
-import qualified Data.CaseInsensitive as CI
+import Data.CaseInsensitive qualified as CI
 import Data.Schema
 import Data.Swagger (ToParamSchema (..))
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Data.Time.Clock
 import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports
 import SAML2.WebSSO.Test.Arbitrary ()
-import qualified SAML2.WebSSO.Types as SAML
-import qualified SAML2.WebSSO.Types.Email as SAMLEmail
-import qualified SAML2.WebSSO.XML as SAML
+import SAML2.WebSSO.Types qualified as SAML
+import SAML2.WebSSO.Types.Email qualified as SAMLEmail
+import SAML2.WebSSO.XML qualified as SAML
 import Servant
-import qualified Servant.API as S
+import Servant.API qualified as S
 import System.FilePath ((</>))
-import qualified Test.QuickCheck as QC
-import qualified Text.Email.Validate as Email.V
-import qualified URI.ByteString as URI
+import Test.QuickCheck qualified as QC
+import Text.Email.Validate qualified as Email.V
+import URI.ByteString qualified as URI
 import URI.ByteString.QQ (uri)
 import Wire.API.User.Profile (fromName, mkName)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))

@@ -22,7 +22,7 @@ module Galley.API
 where
 
 import Galley.API.Internal
-import qualified Galley.API.Public as Public
+import Galley.API.Public qualified as Public
 import Galley.API.Public.Servant
 import Galley.App (GalleyEffects)
 import Network.Wai.Routing (Routes)

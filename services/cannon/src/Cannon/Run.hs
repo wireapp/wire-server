@@ -27,36 +27,36 @@ import Bilge (ManagerSettings (..), defaultManagerSettings, newManager)
 import Cannon.API.Internal
 import Cannon.API.Public
 import Cannon.App (maxPingInterval)
-import qualified Cannon.Dict as D
+import Cannon.Dict qualified as D
 import Cannon.Options
 import Cannon.Types (Cannon, applog, clients, env, mkEnv, monitor, runCannon', runCannonToServant)
 import Cannon.WS hiding (env)
 import Control.Concurrent
-import qualified Control.Concurrent.Async as Async
-import qualified Control.Exception as E
+import Control.Concurrent.Async qualified as Async
+import Control.Exception qualified as E
 import Control.Exception.Safe (catchAny)
 import Control.Lens ((^.))
 import Control.Monad.Catch (MonadCatch, finally)
 import Data.Metrics.Middleware (gaugeSet, path)
-import qualified Data.Metrics.Middleware as Middleware
+import Data.Metrics.Middleware qualified as Middleware
 import Data.Metrics.Servant
 import Data.Proxy
 import Data.Text (pack, strip)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Typeable
 import Imports hiding (head, threadDelay)
-import qualified Network.Wai as Wai
+import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp hiding (run)
-import qualified Network.Wai.Middleware.Gzip as Gzip
+import Network.Wai.Middleware.Gzip qualified as Gzip
 import Network.Wai.Utilities.Server
 import Servant
-import qualified System.IO.Strict as Strict
-import qualified System.Logger.Class as LC
-import qualified System.Logger.Extended as L
+import System.IO.Strict qualified as Strict
+import System.Logger.Class qualified as LC
+import System.Logger.Extended qualified as L
 import System.Posix.Signals
-import qualified System.Posix.Signals as Signals
+import System.Posix.Signals qualified as Signals
 import System.Random.MWC (createSystemRandom)
-import qualified Wire.API.Routes.Internal.Cannon as Internal
+import Wire.API.Routes.Internal.Cannon qualified as Internal
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version.Wai
 

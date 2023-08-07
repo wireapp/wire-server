@@ -45,19 +45,19 @@ where
 
 import Control.Lens (at, (%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Kind
 import Data.Metrics.Servant
 import Data.Proxy
 import Data.SOP
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as LT
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as LT
 import GHC.TypeLits
 import Imports hiding (All)
 import Network.HTTP.Types.Status
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Servant

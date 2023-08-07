@@ -21,7 +21,7 @@ import Data.Domain (Domain (..))
 import Data.Id
 import Data.Qualified (Qualified (..))
 import Data.Time
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Event.Conversation
 import Wire.API.MLS.SubConversation

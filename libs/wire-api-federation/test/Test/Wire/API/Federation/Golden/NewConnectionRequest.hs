@@ -18,7 +18,7 @@
 module Test.Wire.API.Federation.Golden.NewConnectionRequest where
 
 import Data.Id
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Federation.API.Brig
 

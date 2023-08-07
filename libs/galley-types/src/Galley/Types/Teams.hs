@@ -64,11 +64,11 @@ where
 
 import Control.Lens (makeLenses, view, (^.))
 import Data.Aeson
-import qualified Data.Aeson.Types as A
+import Data.Aeson.Types qualified as A
 import Data.Id (UserId)
-import qualified Data.Maybe as Maybe
-import qualified Data.Schema as Schema
-import qualified Data.Set as Set
+import Data.Maybe qualified as Maybe
+import Data.Schema qualified as Schema
+import Data.Set qualified as Set
 import Imports
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Error.Galley

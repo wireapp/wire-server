@@ -5,19 +5,19 @@ module Wire.BackendNotificationPusher where
 
 import Control.Monad.Catch
 import Control.Retry
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Domain
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Imports
 import Network.AMQP (cancelConsumer)
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 import Network.AMQP.Extended
-import qualified Network.AMQP.Lifted as QL
+import Network.AMQP.Lifted qualified as QL
 import Network.RabbitMqAdmin
 import Prometheus
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import UnliftIO
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client

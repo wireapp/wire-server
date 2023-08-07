@@ -46,29 +46,29 @@ module Brig.AWS
 where
 
 import Amazonka (AWSRequest, AWSResponse)
-import qualified Amazonka as AWS
-import qualified Amazonka.Data.Text as AWS
-import qualified Amazonka.DynamoDB as DDB
-import qualified Amazonka.SES as SES
-import qualified Amazonka.SES.Lens as SES
-import qualified Amazonka.SQS as SQS
-import qualified Amazonka.SQS.Lens as SQS
-import qualified Brig.Options as Opt
+import Amazonka qualified as AWS
+import Amazonka.Data.Text qualified as AWS
+import Amazonka.DynamoDB qualified as DDB
+import Amazonka.SES qualified as SES
+import Amazonka.SES.Lens qualified as SES
+import Amazonka.SQS qualified as SQS
+import Amazonka.SQS.Lens qualified as SQS
+import Brig.Options qualified as Opt
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.Aeson hiding ((.=))
 import Data.ByteString.Builder (toLazyByteString)
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.ByteString.Lazy qualified as BL
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.UUID hiding (null)
 import Imports hiding (group)
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
 import Network.HTTP.Types.Status (status400)
 import Network.Mail.Mime
-import qualified System.Logger as Logger
+import System.Logger qualified as Logger
 import System.Logger.Class
 import UnliftIO.Async
 import UnliftIO.Exception

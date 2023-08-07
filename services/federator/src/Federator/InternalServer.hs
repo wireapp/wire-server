@@ -22,21 +22,21 @@ module Federator.InternalServer where
 
 import Control.Monad.Codensity
 import Data.Binary.Builder
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.Domain
-import qualified Data.Metrics.Servant as Metrics
+import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy
 import Federator.Env
 import Federator.Error.ServerError
-import qualified Federator.Health as Health
+import Federator.Health qualified as Health
 import Federator.RPC
 import Federator.Remote
 import Federator.Response
 import Federator.Validation
 import Imports
 import Network.HTTP.Client (Manager)
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input

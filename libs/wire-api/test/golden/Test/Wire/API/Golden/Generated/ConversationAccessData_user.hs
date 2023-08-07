@@ -19,7 +19,7 @@
 
 module Test.Wire.API.Golden.Generated.ConversationAccessData_user where
 
-import qualified Data.Set as Set (fromList)
+import Data.Set qualified as Set (fromList)
 import Wire.API.Conversation
 
 testObject_ConversationAccessData_user_1 :: ConversationAccessData

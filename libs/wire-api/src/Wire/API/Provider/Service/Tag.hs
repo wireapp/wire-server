@@ -40,14 +40,14 @@ module Wire.API.Provider.Service.Tag
 where
 
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
-import qualified Data.Aeson as JSON
-import qualified Data.ByteString.Builder as BB
-import qualified Data.ByteString.Char8 as C8
+import Data.Aeson qualified as JSON
+import Data.ByteString.Builder qualified as BB
+import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.Range (Range, fromRange)
-import qualified Data.Range as Range
-import qualified Data.Set as Set
-import qualified Data.Text.Encoding as Text
+import Data.Range qualified as Range
+import Data.Set qualified as Set
+import Data.Text.Encoding qualified as Text
 import Data.Type.Ord
 import GHC.TypeLits (KnownNat, Nat)
 import Imports

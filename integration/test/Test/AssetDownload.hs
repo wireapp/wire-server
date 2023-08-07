@@ -3,7 +3,7 @@ module Test.AssetDownload where
 import API.Cargohold
 import GHC.Stack
 import Network.HTTP.Client (Request (redirectCount))
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import SetupHelpers
 import Testlib.Prelude
 

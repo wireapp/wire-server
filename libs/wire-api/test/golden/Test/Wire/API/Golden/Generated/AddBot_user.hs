@@ -19,8 +19,8 @@ module Test.Wire.API.Golden.Generated.AddBot_user where
 
 import Data.ISO3166_CountryCodes (CountryCode (GR))
 import Data.Id (Id (Id))
-import qualified Data.LanguageCodes (ISO639_1 (UZ))
-import qualified Data.UUID as UUID (fromString)
+import Data.LanguageCodes qualified (ISO639_1 (UZ))
+import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation.Bot (AddBot (..))
 import Wire.API.User (Country (Country, fromCountry), Language (Language), Locale (Locale, lCountry, lLanguage))

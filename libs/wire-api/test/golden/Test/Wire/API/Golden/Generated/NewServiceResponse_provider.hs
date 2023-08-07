@@ -19,7 +19,7 @@ module Test.Wire.API.Golden.Generated.NewServiceResponse_provider where
 
 import Data.Id (Id (Id))
 import Data.Text.Ascii (AsciiChars (validate))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust, fromRight, undefined)
 import Wire.API.Provider (ServiceToken (ServiceToken))
 import Wire.API.Provider.Service (NewServiceResponse (..))

@@ -17,7 +17,7 @@
 
 module Test.Wire.API.Golden.Manual.ConversationPagingState where
 
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Imports
 import Wire.API.Conversation
 import Wire.API.Routes.MultiTablePaging

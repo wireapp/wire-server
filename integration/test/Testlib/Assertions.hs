@@ -8,7 +8,7 @@ import Data.Aeson (Value)
 import Data.Char
 import Data.Foldable
 import Data.List
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import GHC.Stack as Stack
 import System.FilePath
 import Testlib.JSON

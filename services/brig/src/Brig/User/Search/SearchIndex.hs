@@ -35,7 +35,7 @@ import Data.Domain (Domain)
 import Data.Handle (Handle (fromHandle))
 import Data.Id
 import Data.Qualified (Qualified (Qualified))
-import qualified Database.Bloodhound as ES
+import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
 import Wire.API.User (ColourId (..), Name (fromName))
 import Wire.API.User.Search

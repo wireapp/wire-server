@@ -32,18 +32,18 @@ import Control.Lens hiding (Getter, Setter, (.=))
 import Control.Retry
 import Data.Domain
 import Data.Id as Id
-import qualified Data.List.NonEmpty as N
+import Data.List.NonEmpty qualified as N
 import Data.List1 (maybeList1)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
 import Data.Singletons
 import Data.Text (unpack)
 import Data.Time
 import Galley.API.Action
-import qualified Galley.API.Clients as Clients
-import qualified Galley.API.Create as Create
-import qualified Galley.API.CustomBackend as CustomBackend
+import Galley.API.Clients qualified as Clients
+import Galley.API.Create qualified as Create
+import Galley.API.CustomBackend qualified as CustomBackend
 import Galley.API.Error
 import Galley.API.Federation (onConversationUpdated)
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
@@ -53,14 +53,14 @@ import Galley.API.One2One
 import Galley.API.Public
 import Galley.API.Public.Servant
 import Galley.API.Query (getFederationStatus)
-import qualified Galley.API.Query as Query
+import Galley.API.Query qualified as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
-import qualified Galley.API.Teams as Teams
+import Galley.API.Teams qualified as Teams
 import Galley.API.Teams.Features
-import qualified Galley.API.Update as Update
+import Galley.API.Update qualified as Update
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
@@ -71,23 +71,23 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore
-import qualified Galley.Effects.MemberStore as E
+import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore
 import Galley.Effects.TeamStore
-import qualified Galley.Intra.Push as Intra
+import Galley.Intra.Push qualified as Intra
 import Galley.Monad
 import Galley.Options
-import qualified Galley.Queue as Q
+import Galley.Queue qualified as Q
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
 import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.UserList
 import Imports hiding (head)
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, err, result, setStatus)
-import qualified Network.Wai.Predicate as Predicate hiding (result)
+import Network.Wai.Predicate qualified as Predicate hiding (result)
 import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.ZAuth
@@ -95,11 +95,11 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (logAndIgnoreErrors)
-import qualified Polysemy.TinyLog as P
+import Polysemy.TinyLog qualified as P
 import Servant hiding (JSON, WithStatus)
 import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http), defaultMakeClientRequest)
 import System.Logger.Class hiding (Path, name)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Util.Options
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
@@ -109,7 +109,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
-import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
 import Wire.API.FederationUpdate
 import Wire.API.Provider.Service hiding (Service)
@@ -553,6 +553,7 @@ internalDeleteFederationDomainH (domain ::: _) = do
 
 -- Remove remote members from local conversations
 deleteFederationDomainRemoteUserFromLocalConversations ::
+  forall r.
   ( Member (Input Env) r,
     Member (P.Logger (Msg -> Msg)) r,
     Member (Error FederationError) r,
@@ -570,49 +571,43 @@ deleteFederationDomainRemoteUserFromLocalConversations dom = do
       localDomain = env ^. Galley.App.options . optSettings . setFederationDomain
   for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
     let mapAllErrors ::
-          Member P.TinyLog r =>
           Text ->
-          Sem
-            ( Error NoChanges
-                ': ErrorS 'NotATeamMember
-                ': r
-            )
-            () ->
+          Sem (Error NoChanges ': ErrorS 'NotATeamMember ': r) () ->
           Sem r ()
         mapAllErrors msgText =
-          -- This error is part of the constraints for `updateLocalConversationUserUnchecked @'ConversationDeleteTag`.
-          -- So we need to handle it, but it won't be thrown as it is used in the `ensureAllowed` function.
+          -- This can be thrown in `updateLocalConversationUserUnchecked @'ConversationDeleteTag`.
           P.logAndIgnoreErrors @(Tagged 'NotATeamMember ()) (const "Not a team member") msgText
-            -- This is part of `updateLocalConversationUserUnchecked @'ConversationRemoveMembersTag`
+            -- This can be thrown in `updateLocalConversationUserUnchecked @'ConversationRemoveMembersTag`
             . P.logAndIgnoreErrors @NoChanges (const "No changes") msgText
-    -- This is allowed to send notifications to _local_ clients.
-    -- But we are suppressing those events as we don't want to
-    -- DOS our users if a large and deeply interconnected federation
-    -- member is removed. Sending out hundreds or thousands of events
-    -- to each client isn't something we want to be doing.
-    -- P.logAndIgnoreErrors _ "Federation domain removal" $ do
+
     mapAllErrors "Federation domain removal" $ do
-      mConv <- getConversation cnvId
-      {- conv already gone, nothing to do -}
-      for_ mConv $ \conv ->
-        do
-          let lConv = toLocalUnsafe localDomain conv
+      getConversation cnvId
+        >>= maybe (pure () {- conv already gone, nothing to do -}) (delConv localDomain rUsers)
+  where
+    delConv ::
+      Domain ->
+      N.NonEmpty RemoteMember ->
+      Galley.Data.Conversation.Types.Conversation ->
+      Sem (Error NoChanges : ErrorS 'NotATeamMember : r) ()
+    delConv localDomain rUsers conv =
+      do
+        let lConv = toLocalUnsafe localDomain conv
+        updateLocalConversationUserUnchecked
+          @'ConversationRemoveMembersTag
+          lConv
+          undefined
+          $ tUntagged . rmId <$> rUsers -- This field can be undefined as the path for ConversationRemoveMembersTag doens't use it
+          -- Check if the conversation if type 2 or 3, one-on-one conversations.
+          -- If it is, then we need to remove the entire conversation as users
+          -- aren't able to delete those types of conversations themselves.
+          -- Check that we are in a type 2 or a type 3 conversation
+        when (cnvmType (convMetadata conv) `elem` [One2OneConv, ConnectConv]) $
+          -- If we are, delete it.
           updateLocalConversationUserUnchecked
-            @'ConversationRemoveMembersTag
+            @'ConversationDeleteTag
             lConv
             undefined
-            $ tUntagged . rmId <$> rUsers -- This field can be undefined as the path for ConversationRemoveMembersTag doens't use it
-            -- Check if the conversation if type 2 or 3, one-on-one conversations.
-            -- If it is, then we need to remove the entire conversation as users
-            -- aren't able to delete those types of conversations themselves.
-            -- Check that we are in a type 2 or a type 3 conversation
-          when (cnvmType (convMetadata conv) `elem` [One2OneConv, ConnectConv]) $
-            -- If we are, delete it.
-            updateLocalConversationUserUnchecked
-              @'ConversationDeleteTag
-              lConv
-              undefined
-              ()
+            ()
 
 -- Remove local members from remote conversations
 deleteFederationDomainLocalUserFromRemoteConversation ::
@@ -635,29 +630,31 @@ deleteFederationDomainLocalUserFromRemoteConversation dom = do
       localDomain = env ^. Galley.App.options . optSettings . setFederationDomain
   -- Process each user.
   for_ (Map.toList rCnvMap) $ \(cnv, lUsers) -> do
-    -- All errors, either exceptions or Either e, get thrown into IO
-    logAndIgnoreErrors @NoChanges
-      (const "No Changes: Could not remove a local member from a remote conversation.")
-      "Federation domain removal"
-      $ do
-        now <- liftIO $ getCurrentTime
-        for_ lUsers $ \user -> do
-          let lUser = toLocalUnsafe localDomain user
-              convUpdate =
-                F.ConversationUpdate
-                  { cuTime = now,
-                    cuOrigUserId = tUntagged lUser,
-                    cuConvId = cnv,
-                    cuAlreadyPresentUsers = [user],
-                    cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ()
-                  }
-          -- These functions are used directly rather than as part of a larger conversation
-          -- delete function, as we don't have an originating user, and we can't send data
-          -- to the remote backend.
-          -- We don't need to check the conversation type here, as we can't tell the
-          -- remote federation server to delete the conversation. They will have to do a
-          -- similar processing run for removing the local domain from their federation list.
-          onConversationUpdated dom convUpdate
+    let catchBaddies =
+          logAndIgnoreErrors @NoChanges
+            ( const "NoChanges: Could not remove a local member from a remote conversation."
+            -- `NoChanges` doesn't contain too many details, so no point in showing it here.
+            )
+            "Federation domain removal"
+    catchBaddies $ do
+      now <- liftIO $ getCurrentTime
+      for_ lUsers $ \user -> do
+        let lUser = toLocalUnsafe localDomain user
+            convUpdate =
+              F.ConversationUpdate
+                { cuTime = now,
+                  cuOrigUserId = tUntagged lUser,
+                  cuConvId = cnv,
+                  cuAlreadyPresentUsers = [user],
+                  cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ()
+                }
+        -- These functions are used directly rather than as part of a larger conversation
+        -- delete function, as we don't have an originating user, and we can't send data
+        -- to the remote backend.
+        -- We don't need to check the conversation type here, as we can't tell the
+        -- remote federation server to delete the conversation. They will have to do a
+        -- similar processing run for removing the local domain from their federation list.
+        onConversationUpdated dom convUpdate
 
 -- These need to be recoverable?
 -- This is recoverable with the following flow conditions.
@@ -671,7 +668,7 @@ deleteFederationDomainOneOnOne dom = do
   env <- input
   let c = mkClientEnv (env ^. manager) (env ^. brig)
       -- This is the same policy as background-worker for retrying.
-      policy = capDelay 60_000_000 $ fullJitterBackoff 10000
+      policy = capDelay 60_000_000 $ fullJitterBackoff 200_000
   void . liftIO . recovering policy httpHandlers $ \_ -> deleteFederationRemoteGalley dom c
   where
     mkClientEnv mgr (Endpoint h p) = ClientEnv mgr (BaseUrl Http (unpack h) (fromIntegral p) "") Nothing defaultMakeClientRequest

@@ -26,7 +26,7 @@ module Galley.Effects.WaiRoutes
 where
 
 import Data.Aeson (FromJSON)
-import qualified Data.ProtocolBuffers as Proto
+import Data.ProtocolBuffers qualified as Proto
 import Imports
 import Network.Wai
 import Network.Wai.Utilities hiding (Error)

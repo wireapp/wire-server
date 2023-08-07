@@ -65,10 +65,10 @@ module Wire.API.Team.Member
 where
 
 import Cassandra (PageWithState (..))
-import qualified Cassandra as C
+import Cassandra qualified as C
 import Control.Lens (Lens, Lens', makeLenses, (%~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (..))
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Id (UserId)
 import Data.Json.Util
 import Data.Kind
@@ -77,7 +77,7 @@ import Data.Misc (PlainTextPassword6)
 import Data.Proxy
 import Data.Schema
 import Data.Swagger (ToParamSchema (..))
-import qualified Data.Swagger.Schema as S
+import Data.Swagger.Schema qualified as S
 import GHC.TypeLits
 import Imports
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (..))

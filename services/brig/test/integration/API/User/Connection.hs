@@ -26,8 +26,8 @@ import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Data.Connection (remoteConnectionInsert)
-import qualified Brig.Options as Opt
-import qualified Cassandra as DB
+import Brig.Options qualified as Opt
+import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Data.ByteString.Conversion
 import Data.Domain
@@ -35,9 +35,9 @@ import Data.Id hiding (client)
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Qualified
 import Data.Time.Clock (getCurrentTime)
-import qualified Data.UUID.V4 as UUID
+import Data.UUID.V4 qualified as UUID
 import Imports
-import qualified Network.Wai.Utilities.Error as Error
+import Network.Wai.Utilities.Error qualified as Error
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util

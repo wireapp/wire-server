@@ -20,14 +20,14 @@
 module Test.Wire.API.User where
 
 import Data.Aeson
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Types as Aeson
 import Data.Domain
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Qualified
 import Data.Schema (schemaIn)
-import qualified Data.UUID.V4 as UUID
+import Data.UUID.V4 qualified as UUID
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit

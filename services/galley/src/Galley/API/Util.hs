@@ -23,25 +23,25 @@ import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
 import Data.ByteString.Conversion
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NE
+import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword6, PlainTextPassword8)
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time
 import Galley.API.Error
 import Galley.API.Mapping
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Data.Services (BotMember, newBotMember)
-import qualified Galley.Data.Types as DataTypes
+import Galley.Data.Types qualified as DataTypes
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.CodeStore
@@ -62,14 +62,14 @@ import Imports hiding (forkIO)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, fromEither)
-import qualified Network.Wai.Utilities as Wai
+import Network.Wai.Utilities qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
+import Polysemy.TinyLog qualified as P
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
-import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
@@ -85,7 +85,7 @@ import Wire.API.Routes.Public.Util
 import Wire.API.Team.Member
 import Wire.API.Team.Role
 import Wire.API.User (VerificationAction)
-import qualified Wire.API.User as User
+import Wire.API.User qualified as User
 import Wire.API.User.Auth.ReAuth
 
 type JSON = Media "application" "json"

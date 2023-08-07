@@ -19,7 +19,7 @@ module Test.Wire.API.Golden.Generated.TeamContact_user where
 
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Team.Role (Role (RoleAdmin, RoleExternalPartner, RoleMember, RoleOwner))
 import Wire.API.User (Email (Email, emailDomain, emailLocal), ManagedBy (ManagedByScim, ManagedByWire))

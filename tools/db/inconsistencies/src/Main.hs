@@ -25,14 +25,14 @@ where
 
 import Cassandra as C
 import Cassandra.Settings as C
-import qualified DanglingHandles
-import qualified DanglingUserKeys
-import qualified EmailLessUsers
-import qualified HandleLessUsers
+import DanglingHandles qualified
+import DanglingUserKeys qualified
+import EmailLessUsers qualified
+import HandleLessUsers qualified
 import Imports
 import Options as O
 import Options.Applicative
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import System.Logger.Extended (structuredJSONRenderer)
 
 main :: IO ()

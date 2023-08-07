@@ -25,27 +25,27 @@ where
 import Control.Lens (view, (.~), (^.))
 import Data.ByteString.Conversion
 import Data.Id (ClientId, UserId)
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List1
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Gundeck.Aws (SNSEndpoint, endpointEnabled, endpointToken, endpointUsers)
-import qualified Gundeck.Aws as Aws
+import Gundeck.Aws qualified as Aws
 import Gundeck.Aws.Arn
 import Gundeck.Aws.Sns
 import Gundeck.Env
 import Gundeck.Instances ()
 import Gundeck.Monad
-import qualified Gundeck.Notification.Data as Stream
+import Gundeck.Notification.Data qualified as Stream
 import Gundeck.Options (optSettings, setNotificationTTL)
-import qualified Gundeck.Push.Data as Push
+import Gundeck.Push.Data qualified as Push
 import Gundeck.Push.Native.Types
-import qualified Gundeck.Push.Websocket as Web
+import Gundeck.Push.Websocket qualified as Web
 import Gundeck.Types
 import Gundeck.Util
 import Imports
 import System.Logger.Class (Msg, msg, val, (+++), (.=), (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.Internal.Notification
 
 onEvent :: Event -> Gundeck ()

@@ -22,9 +22,9 @@ module Stern.API.Predicates
   )
 where
 
-import qualified Data.ByteString.Char8 as Char8
+import Data.ByteString.Char8 qualified as Char8
 import Data.ByteString.Conversion
-import qualified Data.Char as Char
+import Data.Char qualified as Char
 import Imports
 import Network.Wai.Predicate
 import Network.Wai.Predicate.Request

@@ -18,8 +18,8 @@
 module Wire.API.Error.Empty where
 
 import Control.Lens ((.~))
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports
 import Network.HTTP.Types as HTTP

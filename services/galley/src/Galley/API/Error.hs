@@ -36,7 +36,7 @@ import Data.Text.Lazy as LT (pack)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities (Error (message))
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Error
 
 data InternalError

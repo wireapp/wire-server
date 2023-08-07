@@ -20,12 +20,12 @@
 module Data.CommaSeparatedList where
 
 import Control.Lens ((?~))
-import qualified Data.Bifunctor as Bifunctor
+import Data.Bifunctor qualified as Bifunctor
 import Data.ByteString.Conversion (FromByteString, List, fromList, parser, runParser)
 import Data.Proxy (Proxy (..))
 import Data.Range (Bounds, Range)
 import Data.Swagger (CollectionFormat (CollectionCSV), SwaggerItems (SwaggerItemsPrimitive), SwaggerType (SwaggerString), ToParamSchema (..), items, type_)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Servant (FromHttpApiData (..))

@@ -27,29 +27,29 @@ where
 
 import Bilge.IO (MonadHttp)
 import Bilge.RPC (HasRequestId)
-import qualified Brig.API.Client as Client
+import Brig.API.Client qualified as Client
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types (PasswordResetError (..), VerificationCodeThrottledError (VerificationCodeThrottled))
 import Brig.API.Util
 import Brig.App
-import qualified Brig.Code as Code
-import qualified Brig.Data.Client as User
-import qualified Brig.Data.User as User
+import Brig.Code qualified as Code
+import Brig.Data.Client qualified as User
+import Brig.Data.User qualified as User
 import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Effects.GalleyProvider as GalleyProvider
+import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Email (mkEmailKey)
-import qualified Brig.InternalEvent.Types as Internal
+import Brig.InternalEvent.Types qualified as Internal
 import Brig.Options (Settings (..))
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Brig.Provider.DB (ServiceConn (..))
-import qualified Brig.Provider.DB as DB
+import Brig.Provider.DB qualified as DB
 import Brig.Provider.Email
-import qualified Brig.Provider.RPC as RPC
-import qualified Brig.Queue as Queue
+import Brig.Provider.RPC qualified as RPC
+import Brig.Queue qualified as Queue
 import Brig.Team.Util
 import Brig.Types.User
-import qualified Brig.ZAuth as ZAuth
+import Brig.ZAuth qualified as ZAuth
 import Cassandra (MonadClient)
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
@@ -58,23 +58,23 @@ import Control.Monad.Catch (MonadMask)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Conduit (runConduit, (.|))
-import qualified Data.Conduit.List as C
+import Data.Conduit.List qualified as C
 import Data.Hashable (hash)
 import Data.Id
 import Data.LegalHold
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List1 (maybeList1)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Misc (Fingerprint (..), FutureWork (FutureWork), Rsa)
 import Data.Predicate
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
-import qualified Data.Text.Ascii as Ascii
-import qualified Data.Text.Encoding as Text
-import qualified Data.ZAuth.Token as ZAuth
+import Data.Set qualified as Set
+import Data.Text.Ascii qualified as Ascii
+import Data.Text.Encoding qualified as Text
+import Data.ZAuth.Token qualified as ZAuth
 import GHC.TypeNats
 import Imports
 import Network.HTTP.Types.Status
@@ -82,46 +82,46 @@ import Network.Wai (Response)
 import Network.Wai.Predicate (accept, contentType, def, opt, query)
 import Network.Wai.Routing
 import Network.Wai.Utilities.Error ((!>>))
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.Request (JsonRequest, jsonRequest)
 import Network.Wai.Utilities.Response (addHeader, empty, json, setStatus)
 import Network.Wai.Utilities.ZAuth
-import qualified OpenSSL.EVP.Digest as SSL
-import qualified OpenSSL.EVP.PKey as SSL
-import qualified OpenSSL.PEM as SSL
-import qualified OpenSSL.RSA as SSL
+import OpenSSL.EVP.Digest qualified as SSL
+import OpenSSL.EVP.PKey qualified as SSL
+import OpenSSL.PEM qualified as SSL
+import OpenSSL.RSA qualified as SSL
 import OpenSSL.Random (randBytes)
 import Polysemy
-import qualified Ssl.Util as SSL
+import Ssl.Util qualified as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
-import qualified Web.Cookie as Cookie
+import Web.Cookie qualified as Cookie
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Bot
-import qualified Wire.API.Conversation.Bot as Public
+import Wire.API.Conversation.Bot qualified as Public
 import Wire.API.Conversation.Role
 import Wire.API.Error
-import qualified Wire.API.Error.Brig as E
-import qualified Wire.API.Event.Conversation as Public (Event)
+import Wire.API.Error.Brig qualified as E
+import Wire.API.Event.Conversation qualified as Public (Event)
 import Wire.API.Password
 import Wire.API.Provider
-import qualified Wire.API.Provider as Public
-import qualified Wire.API.Provider.Bot as Ext
-import qualified Wire.API.Provider.Bot as Public (BotUserView)
+import Wire.API.Provider qualified as Public
+import Wire.API.Provider.Bot qualified as Ext
+import Wire.API.Provider.Bot qualified as Public (BotUserView)
 import Wire.API.Provider.External
-import qualified Wire.API.Provider.External as Ext
+import Wire.API.Provider.External qualified as Ext
 import Wire.API.Provider.Service
-import qualified Wire.API.Provider.Service as Public
-import qualified Wire.API.Provider.Service.Tag as Public
-import qualified Wire.API.Team.Feature as Feature
+import Wire.API.Provider.Service qualified as Public
+import Wire.API.Provider.Service.Tag qualified as Public
+import Wire.API.Team.Feature qualified as Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import Wire.API.Team.Permission
 import Wire.API.User hiding (cpNewPassword, cpOldPassword)
-import qualified Wire.API.User as Public (UserProfile, publicProfile)
+import Wire.API.User qualified as Public (UserProfile, publicProfile)
 import Wire.API.User.Client
-import qualified Wire.API.User.Client as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
-import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
-import qualified Wire.API.User.Identity as Public (Email)
+import Wire.API.User.Client qualified as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
+import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
+import Wire.API.User.Identity qualified as Public (Email)
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 
 routesPublic ::

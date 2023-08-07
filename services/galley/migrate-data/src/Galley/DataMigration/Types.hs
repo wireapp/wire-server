@@ -19,11 +19,11 @@
 
 module Galley.DataMigration.Types where
 
-import qualified Cassandra as C
+import Cassandra qualified as C
 import Control.Monad.Catch (MonadThrow)
 import Imports
 import Numeric.Natural (Natural)
-import qualified System.Logger as Logger
+import System.Logger qualified as Logger
 import System.Logger.Class (MonadLogger (..))
 
 data Migration = Migration

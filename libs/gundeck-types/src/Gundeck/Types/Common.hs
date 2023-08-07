@@ -21,11 +21,11 @@ module Gundeck.Types.Common where
 
 import Data.Aeson
 import Data.Attoparsec.ByteString (takeByteString)
-import qualified Data.ByteString.Char8 as Bytes
+import Data.ByteString.Char8 qualified as Bytes
 import Data.ByteString.Conversion
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Imports
-import qualified Network.URI as Net
+import Network.URI qualified as Net
 
 newtype CannonId = CannonId
   { cannonId :: Text
