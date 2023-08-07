@@ -551,22 +551,6 @@ internalDeleteFederationDomainH (domain ::: _) = do
   sendDefederationNotifications domain
   pure (empty & setStatus status200)
 
-logErrors ::
-  forall e r a.
-  Member P.TinyLog r =>
-  Text ->
-  (e -> Text) ->
-  Sem (Error e ': r) a ->
-  Sem r ()
-logErrors msgText showError action = do
-  e <- Polysemy.Error.runError action
-  case e of
-    Left err' -> do
-      -- TODO: Which logging level should go here? Err seems like it might be a bit high
-      P.err $ Log.msg msgText . Log.field "Error" (showError err')
-      pure ()
-    Right _ -> pure ()
-
 -- Remove remote members from local conversations
 deleteFederationDomainRemoteUserFromLocalConversations ::
   ( Member (Input Env) r,
@@ -600,12 +584,12 @@ deleteFederationDomainRemoteUserFromLocalConversations dom = do
             a ->
           Sem r ()
         mapAllErrors msgText =
-          logErrors @(Tagged F.RemoveFromConversationError ()) msgText (const "Remove from conversation error")
-            . logErrors @(Tagged 'ConvNotFound ()) msgText (const "Conversation not found")
-            . logErrors @(Tagged ('ActionDenied 'RemoveConversationMember) ()) msgText (const "Action denied, remove conversation member")
-            . logErrors @(Tagged 'InvalidOperation ()) msgText (const "Invalid operation")
-            . logErrors @(Tagged 'NotATeamMember ()) msgText (const "Not a team member")
-            . logErrors @NoChanges msgText (const "No changes")
+          logAndIgnoreErrors msgText @(Tagged F.RemoveFromConversationError ()) (const "Remove from conversation error")
+            . logAndIgnoreErrors msgText @(Tagged 'ConvNotFound ()) (const "Conversation not found")
+            . logAndIgnoreErrors msgText @(Tagged ('ActionDenied 'RemoveConversationMember) ()) (const "Action denied, remove conversation member")
+            . logAndIgnoreErrors msgText @(Tagged 'InvalidOperation ()) (const "Invalid operation")
+            . logAndIgnoreErrors msgText @(Tagged 'NotATeamMember ()) (const "Not a team member")
+            . logAndIgnoreErrors msgText @NoChanges (const "No changes")
     -- This is allowed to send notifications to _local_ clients.
     -- But we are suppressing those events as we don't want to
     -- DOS our users if a large and deeply interconnected federation
