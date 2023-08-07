@@ -66,27 +66,23 @@
 -- error response from services during a federated call should be considered a bug
 -- in the implementation of the federation API, and is therefore wrapped in a 533.
 module Wire.API.Federation.Error
-  ( FederatorClientHTTP2Error (..),
+  ( -- * Federation errors
+    FederatorClientHTTP2Error (..),
     FederatorClientError (..),
     FederationError (..),
     VersionNegotiationError (..),
-    UnreachableBackendsError (..),
     federationErrorToWai,
     federationRemoteHTTP2Error,
     federationRemoteResponseError,
     federationNotImplemented,
     federationNotConfigured,
 
-    -- * utilities
-    throwUnreachableUsers,
-    throwUnreachableDomains,
+    -- * Error status codes
+    unexpectedFederationResponseStatus,
+    federatorConnectionRefusedStatus,
   )
 where
 
-import Data.Domain
-import Data.List.NonEmpty qualified as NE
-import Data.Qualified
-import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Lazy qualified as LT
@@ -96,11 +92,8 @@ import Network.HTTP.Types.Status qualified as HTTP
 import Network.HTTP2.Client qualified as HTTP2
 import Network.Wai.Utilities.Error qualified as Wai
 import OpenSSL.Session (SomeSSLException)
-import Polysemy
-import Polysemy.Error qualified as P
 import Servant.Client
 import Wire.API.Error
-import Wire.API.Unreachable
 
 -- | Transport-layer errors in federator client.
 data FederatorClientHTTP2Error
@@ -166,11 +159,6 @@ data FederationError
     -- like "can't delete remote domains from config file", which is only
     -- needed until we start disregarding the config file.
     FederationUnexpectedError Text
-  | -- | One or more remote backends is unreachable
-    --
-    -- FUTUREWORK: Remove this data constructor and rely on the
-    -- 'UnreachableBackendsError' error type instead.
-    FederationUnreachableDomainsOld (Set Domain)
   deriving (Show, Typeable)
 
 data VersionNegotiationError
@@ -178,12 +166,6 @@ data VersionNegotiationError
   | RemoteTooOld
   | RemoteTooNew
   deriving (Show, Typeable)
-
--- | A new error type in federation that describes a collection of unreachable
--- backends by providing their domains.
-newtype UnreachableBackendsError = UnreachableBackendsError
-  { unUnreachableBackendsError :: Set Domain
-  }
 
 versionNegotiationErrorMessage :: VersionNegotiationError -> LText
 versionNegotiationErrorMessage InvalidVersionInfo =
@@ -204,7 +186,6 @@ federationErrorToWai FederationNotConfigured = federationNotConfigured
 federationErrorToWai (FederationCallFailure err) = federationClientErrorToWai err
 federationErrorToWai (FederationUnexpectedBody s) = federationUnexpectedBody s
 federationErrorToWai (FederationUnexpectedError t) = federationUnexpectedError t
-federationErrorToWai (FederationUnreachableDomainsOld ds) = federationUnreachableError ds
 
 federationClientErrorToWai :: FederatorClientError -> Wai.Error
 federationClientErrorToWai (FederatorClientHTTP2Error e) =
@@ -331,16 +312,6 @@ federationUnexpectedError msg =
     "federation-unexpected-wai-error"
     ("Could parse body, but got an unexpected error response: " <> LT.fromStrict msg)
 
-federationUnreachableError :: Set Domain -> Wai.Error
-federationUnreachableError (Set.map domainText -> ds) =
-  Wai.mkError
-    status
-    "federation-unreachable-domains-error"
-    ("The following domains are unreachable: " <> (LT.pack . show . Set.toList) ds)
-  where
-    status :: Status
-    status = HTTP.Status 503 "Unreachable federated domains"
-
 federationNotConfigured :: Wai.Error
 federationNotConfigured =
   Wai.mkError
@@ -361,17 +332,3 @@ federationUnknownError =
     unexpectedFederationResponseStatus
     "unknown-federation-error"
     "Unknown federation error"
-
---------------------------------------------------------------------------------
--- Utilities
-
-throwUnreachableUsers :: Member (P.Error FederationError) r => UnreachableUsers -> Sem r a
-throwUnreachableUsers =
-  throwUnreachableDomains
-    . Set.fromList
-    . NE.toList
-    . fmap qDomain
-    . unreachableUsers
-
-throwUnreachableDomains :: Member (P.Error FederationError) r => Set Domain -> Sem r a
-throwUnreachableDomains = P.throw . FederationUnreachableDomainsOld

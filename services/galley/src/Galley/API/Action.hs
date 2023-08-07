@@ -806,7 +806,6 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
         (_, FederationNotConfigured) -> pure ()
         (_, FederationUnexpectedBody _) -> pure ()
         (_, FederationUnexpectedError _) -> pure ()
-        (_, ex@(FederationUnreachableDomainsOld _)) -> throw ex
     updates <-
       E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
         \ruids -> do

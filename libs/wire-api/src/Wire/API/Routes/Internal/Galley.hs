@@ -202,6 +202,7 @@ type InternalAPIBase =
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NotConnected
+               :> CanThrow UnreachableBackends
                :> ZLocalUser
                :> ZOptConn
                :> "conversations"

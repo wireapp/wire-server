@@ -247,6 +247,7 @@ leaveConversation requestingDomain lc = do
       . mapToRuntimeError @('ActionDenied 'LeaveConversation) F.RemoveFromConversationErrorRemovalNotAllowed
       . mapToRuntimeError @'InvalidOperation F.RemoveFromConversationErrorRemovalNotAllowed
       . mapError @NoChanges (const F.RemoveFromConversationErrorUnchanged)
+      . mapError @UnreachableBackends F.RemoveFromConversationErrorUnreachable
       $ do
         (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound leaver lcnv
         outcome <-
@@ -259,15 +260,14 @@ leaveConversation requestingDomain lc = do
                 Nothing
                 ()
         case outcome of
-          Left e@(FederationUnreachableDomainsOld _) -> throw e
           Left e -> do
             logFederationError lcnv e
             throw . internalErr $ e
-          Right update -> pure (update, conv)
+          Right _ -> pure conv
 
   case res of
     Left e -> pure $ F.LeaveConversationResponse (Left e)
-    Right (_update, conv) -> do
+    Right conv -> do
       let remotes = filter ((== qDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
       do
@@ -282,7 +282,6 @@ leaveConversation requestingDomain lc = do
               botsAndMembers
               ()
         case outcome of
-          Left e@(FederationUnreachableDomainsOld _) -> throw e
           Left e -> do
             logFederationError lcnv e
             throw . internalErr $ e
@@ -421,7 +420,6 @@ onUserDeleted origDomain udcn = do
                     botsAndMembers
                     ()
               case outcome of
-                Left e@(FederationUnreachableDomainsOld _) -> throw e
                 Left e -> logFederationError lc e
                 Right _ -> pure ()
   pure EmptyResponse
@@ -516,7 +514,8 @@ handleMLSMessageErrors ::
   ( r1
       ~ Append
           MLSBundleStaticErrors
-          ( Error NonFederatingBackends
+          ( Error UnreachableBackends
+              ': Error NonFederatingBackends
               ': Error MLSProposalFailure
               ': Error GalleyError
               ': Error MLSProtocolError
@@ -534,6 +533,8 @@ handleMLSMessageErrors =
     . runError
     . fmap (either F.MLSMessageResponseNonFederatingBackends id)
     . runError
+    . fmap (either (F.MLSMessageResponseUnreachableBackends . Set.fromList . (.backends)) id)
+    . runError @UnreachableBackends
     . mapToGalleyError @MLSBundleStaticErrors
 
 sendMLSCommitBundle ::

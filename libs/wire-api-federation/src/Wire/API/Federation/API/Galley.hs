@@ -275,6 +275,7 @@ data RemoveFromConversationError
   = RemoveFromConversationErrorRemovalNotAllowed
   | RemoveFromConversationErrorNotFound
   | RemoveFromConversationErrorUnchanged
+  | RemoveFromConversationErrorUnreachable UnreachableBackends
   deriving stock (Eq, Show, Generic)
   deriving
     (ToJSON, FromJSON)

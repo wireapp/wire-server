@@ -206,6 +206,7 @@ postMLSCommitBundle ::
     Members MLSBundleStaticErrors r,
     Member (Error FederationError) r,
     Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member Resource r
   ) =>
   Local x ->
@@ -227,6 +228,7 @@ postMLSCommitBundleFromLocalUser ::
     Members MLSBundleStaticErrors r,
     Member (Error FederationError) r,
     Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member Resource r
   ) =>
   Local UserId ->
@@ -247,8 +249,8 @@ postMLSCommitBundleFromLocalUser lusr mc conn bundle = do
 postMLSCommitBundleToLocalConv ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
-    Member (Error FederationError) r,
     Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member Resource r
   ) =>
   Qualified UserId ->
@@ -295,8 +297,8 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     ProposalMessage _ -> throwS @'MLSUnsupportedMessage
 
-  propagateMessage qusr (qualifyAs lcnv conv) cm conn (rmRaw (cbCommitMsg bundle))
-    >>= mapM_ throwUnreachableUsers
+  mUnreachables <- propagateMessage qusr (qualifyAs lcnv conv) cm conn (rmRaw (cbCommitMsg bundle))
+  traverse_ (throw . unreachableUsersToUnreachableBackends) mUnreachables
 
   for_ (cbWelcome bundle) $
     postMLSWelcome lcnv conn
@@ -311,6 +313,7 @@ postMLSCommitBundleToRemoteConv ::
     Member (Error MLSProtocolError) r,
     Member (Error MLSProposalFailure) r,
     Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -341,7 +344,7 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
     MLSMessageResponseError e -> rethrowErrors @MLSBundleStaticErrors e
     MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
-    MLSMessageResponseUnreachableBackends ds -> throwUnreachableDomains ds
+    MLSMessageResponseUnreachableBackends ds -> throw (UnreachableBackends (toList ds))
     MLSMessageResponseUpdates updates unreachables -> do
       for_ unreachables $ \us ->
         throw . InternalErrorWithDescription $

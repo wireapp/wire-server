@@ -755,7 +755,8 @@ fromConversationCreated loc rc@ConversationCreated {..} =
 -- domain is unreachable, an exception is thrown, the conversation deleted and
 -- the client gets an error response.
 registerRemoteConversationMemberships ::
-  ( Member (Error UnreachableBackendsError) r,
+  ( Member ConversationStore r,
+    Member (Error UnreachableBackends) r,
     Member FederatorAccess r
   ) =>
   -- | The time stamp when the conversation was created
@@ -765,6 +766,9 @@ registerRemoteConversationMemberships ::
 registerRemoteConversationMemberships now lc = do
   let c = tUnqualified lc
       rc = toConversationCreated now c
+      throwUnreachable backends = do
+        deleteConversation (DataTypes.convId c)
+        throw (UnreachableBackends backends)
 
       allRemoteMembers = nubOrd {- (but why would there be duplicates?) -} (Data.convRemoteMembers c)
       allRemoteMembersQualified = remoteMemberQualify <$> allRemoteMembers
@@ -776,11 +780,7 @@ registerRemoteConversationMemberships now lc = do
       runFederatedConcurrentlyEither allRemoteMembersQualified $ \_ ->
         void $ fedClient @'Brig @"api-version" ()
     -- abort if there are unreachable backends
-    unless (null unreachableBackends)
-      . throw
-      . UnreachableBackendsError
-      . Set.fromList
-      $ unreachableBackends
+    unless (null unreachableBackends) $ throwUnreachable unreachableBackends
 
   do
     -- let remote backends know about a subset of new joiners
@@ -793,10 +793,8 @@ registerRemoteConversationMemberships now lc = do
                     toMembers (tUnqualified rrms)
                 }
             )
-    unless (null failedToNotify)
-      . throw
-      . UnreachableBackendsError
-      $ failedToNotify
+    unless (null failedToNotify) $
+      throwUnreachable (toList failedToNotify)
 
   -- reachable members in buckets per remote domain
   let joined :: [Remote [RemoteMember]] = allRemoteBuckets
@@ -818,10 +816,8 @@ registerRemoteConversationMemberships now lc = do
       fmap (Set.fromList . foldMap (either (pure . tDomain . fst) mempty)) $
         runFederatedConcurrentlyBucketsEither joinedCoupled $
           fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
-    unless (null failedToUpdate)
-      . throw
-      . UnreachableBackendsError
-      $ failedToUpdate
+    unless (null failedToUpdate) $
+      throwUnreachable (toList failedToUpdate)
   where
     creator :: UserId
     creator = cnvmCreator . DataTypes.convMetadata . tUnqualified $ lc

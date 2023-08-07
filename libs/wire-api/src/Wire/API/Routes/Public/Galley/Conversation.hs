@@ -451,6 +451,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow UnreachableBackendsLegacy
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptClient
@@ -480,6 +481,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow UnreachableBackendsLegacy
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptClient
@@ -505,6 +507,7 @@ type ConversationAPI =
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptClient
@@ -566,6 +569,7 @@ type ConversationAPI =
                :> CanThrow OperationDenied
                :> CanThrow 'TeamNotFound
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow UnreachableBackendsLegacy
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -591,6 +595,7 @@ type ConversationAPI =
                :> CanThrow OperationDenied
                :> CanThrow 'TeamNotFound
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow UnreachableBackendsLegacy
                :> ZLocalUser
                :> ZConn
                :> "conversations"
