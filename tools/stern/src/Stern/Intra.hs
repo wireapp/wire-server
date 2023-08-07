@@ -67,22 +67,22 @@ module Stern.Intra
 where
 
 import Bilge hiding (head, options, path, paths, requestId)
-import qualified Bilge
+import Bilge qualified
 import Bilge.RPC
 import Brig.Types.Intra
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Reader
 import Data.Aeson hiding (Error)
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
-import qualified Data.ByteString.Char8 as BS
+import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified (qUnqualified)
 import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -96,7 +96,7 @@ import Servant.API (toUrlPiece)
 import Stern.App
 import Stern.Types
 import System.Logger.Class hiding (Error, name, (.=))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import UnliftIO.Exception hiding (Handler)
 import Wire.API.Connection
 import Wire.API.Conversation
@@ -104,14 +104,14 @@ import Wire.API.Internal.Notification
 import Wire.API.OAuth (OAuthClient, OAuthClientConfig, OAuthClientCredentials)
 import Wire.API.Properties
 import Wire.API.Routes.Internal.Brig.Connection
-import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra
-import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team
 import Wire.API.Team.Feature
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
 import Wire.API.User

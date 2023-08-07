@@ -17,24 +17,24 @@
 
 module Test.Federator.Response (tests) where
 
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Federator.Discovery
 import Federator.Error.ServerError (ServerError (..))
 import Federator.Remote
 import Federator.Response (runWaiError)
 import Federator.Validation
 import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Utilities.Error as Wai
-import qualified Network.Wai.Utilities.Server as Wai
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai qualified as Wai
+import Network.Wai.Utilities.Error qualified as Wai
+import Network.Wai.Utilities.Server qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Federation.Error
 import Wire.Network.DNS.SRV
-import qualified Wire.Sem.Logger.TinyLog as Log
+import Wire.Sem.Logger.TinyLog qualified as Log
 
 tests :: TestTree
 tests =

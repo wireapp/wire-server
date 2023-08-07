@@ -30,14 +30,14 @@ module Wire.API.Team.LegalHold
 where
 
 import Control.Lens (at, (?~))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as A
+import Data.Aeson qualified as A
+import Data.Aeson.Types qualified as A
 import Data.Id
 import Data.LegalHold
 import Data.Misc
 import Data.Proxy
 import Data.Schema
-import qualified Data.Swagger as S hiding (info)
+import Data.Swagger qualified as S hiding (info)
 import Deriving.Aeson
 import Imports
 import Wire.API.Provider

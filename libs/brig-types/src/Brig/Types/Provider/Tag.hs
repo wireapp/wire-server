@@ -36,7 +36,7 @@ where
 import Cassandra.CQL (Cql)
 import Data.Bits
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Imports
 import Wire.API.Provider.Service.Tag
 

@@ -20,8 +20,8 @@ module Wire.API.MLS.GroupInfoBundle where
 import Control.Lens (view, (.~))
 import Data.ProtoLens (Message (defMessage))
 import Imports
-import qualified Proto.Mls
-import qualified Proto.Mls_Fields as Proto.Mls
+import Proto.Mls qualified
+import Proto.Mls_Fields qualified as Proto.Mls
 import Test.QuickCheck
 import Wire.API.ConverProtoLens
 import Wire.API.MLS.PublicGroupState

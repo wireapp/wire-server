@@ -79,7 +79,7 @@ import Brig.App (Env, currentTime, settings, viewFederationDomain, zauthEnv)
 import Brig.Data.Instances ()
 import Brig.Options
 import Brig.Types.Intra
-import qualified Brig.ZAuth as ZAuth
+import Brig.ZAuth qualified as ZAuth
 import Cassandra hiding (Set)
 import Control.Error
 import Control.Lens hiding (from)
@@ -96,7 +96,7 @@ import Data.UUID.V4
 import Imports
 import Wire.API.Password
 import Wire.API.Provider.Service
-import qualified Wire.API.Team.Feature as ApiFt
+import Wire.API.Team.Feature qualified as ApiFt
 import Wire.API.User
 import Wire.API.User.RichInfo
 

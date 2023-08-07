@@ -3,19 +3,19 @@ module Testlib.Env where
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Data.Aeson hiding ((.=))
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.ByteString (ByteString)
 import Data.Functor
 import Data.IORef
 import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.String
 import Data.Word
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import GHC.Generics
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import System.Exit
 import System.FilePath
 import System.IO

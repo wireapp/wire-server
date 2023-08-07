@@ -17,8 +17,8 @@
 
 module AWS.Util where
 
-import qualified Amazonka as AWS
-import qualified Amazonka.Data.Time as AWS
+import Amazonka qualified as AWS
+import Amazonka.Data.Time qualified as AWS
 import Data.Time
 import Imports
 

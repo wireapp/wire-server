@@ -21,7 +21,7 @@
 module Wire.API.User.Orphans where
 
 import Control.Lens
-import qualified Data.Currency as Currency
+import Data.Currency qualified as Currency
 import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
 import Data.Proxy
@@ -29,10 +29,10 @@ import Data.Swagger
 import Data.UUID
 import Data.X509 as X509
 import Imports
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API ((:>))
-import qualified Servant.Multipart as SM
+import Servant.Multipart qualified as SM
 import Servant.Swagger
 import URI.ByteString
 

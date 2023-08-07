@@ -17,7 +17,7 @@
 
 module Wire.API.Routes.Public.Galley.Conversation where
 
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.CommaSeparatedList
 import Data.Id
 import Data.Range

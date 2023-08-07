@@ -21,7 +21,7 @@ import API.Search.Util (executeTeamUserSearch, executeTeamUserSearchWithMaybeSta
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import API.User.Util (activateEmail, initiateEmailUpdateNoSend)
 import Bilge (Manager, MonadHttp)
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry ()
 import Data.ByteString.Conversion (toByteString)

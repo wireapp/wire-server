@@ -31,18 +31,18 @@ import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
 import Data.Domain
 import Data.Id as Id
-import qualified Data.List.NonEmpty as N
+import Data.List.NonEmpty qualified as N
 import Data.List1 (maybeList1)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
 import Data.Singletons
 import Data.Text (unpack)
 import Data.Time
 import Galley.API.Action
-import qualified Galley.API.Clients as Clients
-import qualified Galley.API.Create as Create
-import qualified Galley.API.CustomBackend as CustomBackend
+import Galley.API.Clients qualified as Clients
+import Galley.API.Create qualified as Create
+import Galley.API.CustomBackend qualified as CustomBackend
 import Galley.API.Error
 import Galley.API.Federation (onConversationUpdated)
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
@@ -52,14 +52,14 @@ import Galley.API.One2One
 import Galley.API.Public
 import Galley.API.Public.Servant
 import Galley.API.Query (getFederationStatus)
-import qualified Galley.API.Query as Query
+import Galley.API.Query qualified as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
-import qualified Galley.API.Teams as Teams
+import Galley.API.Teams qualified as Teams
 import Galley.API.Teams.Features
-import qualified Galley.API.Update as Update
+import Galley.API.Update qualified as Update
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
@@ -70,34 +70,34 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore
-import qualified Galley.Effects.MemberStore as E
+import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore
 import Galley.Effects.TeamStore
-import qualified Galley.Intra.Push as Intra
+import Galley.Intra.Push qualified as Intra
 import Galley.Monad
 import Galley.Options
-import qualified Galley.Queue as Q
+import Galley.Queue qualified as Q
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
 import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.UserList
 import Imports hiding (head)
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, err, result, setStatus)
-import qualified Network.Wai.Predicate as Predicate hiding (result)
+import Network.Wai.Predicate qualified as Predicate hiding (result)
 import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.ZAuth
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
+import Polysemy.TinyLog qualified as P
 import Servant hiding (JSON, WithStatus)
 import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http), defaultMakeClientRequest)
 import System.Logger.Class hiding (Path, name)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Util.Options
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
@@ -108,7 +108,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
-import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
 import Wire.API.FederationUpdate
 import Wire.API.Provider.Service hiding (Service)

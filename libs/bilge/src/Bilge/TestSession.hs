@@ -21,11 +21,11 @@ module Bilge.TestSession where
 
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.State (StateT)
-import qualified Control.Monad.State as ST
+import Control.Monad.State qualified as ST
 import Imports
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Test as WaiTest
-import qualified Network.Wai.Test.Internal as WaiTest
+import Network.Wai qualified as Wai
+import Network.Wai.Test qualified as WaiTest
+import Network.Wai.Test.Internal qualified as WaiTest
 
 newtype SessionT m a = SessionT {unSessionT :: ReaderT Wai.Application (StateT WaiTest.ClientState m) a}
   deriving newtype (Functor, Applicative, Monad, MonadThrow, MonadCatch, MonadMask, MonadIO, MonadFail)

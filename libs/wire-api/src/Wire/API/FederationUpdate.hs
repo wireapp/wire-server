@@ -8,19 +8,19 @@ where
 
 import Control.Concurrent.Async
 import Control.Exception
-import qualified Control.Retry as R
+import Control.Retry qualified as R
 import Data.Domain
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Text
 import Data.Typeable (cast)
 import Imports
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, ClientM, Scheme (Http), runClientM)
 import Servant.Client.Internal.HttpClient (defaultMakeClientRequest)
-import qualified System.Logger as L
+import System.Logger qualified as L
 import Util.Options
 import Wire.API.Routes.FederationDomainConfig
-import qualified Wire.API.Routes.Internal.Brig as IAPI
+import Wire.API.Routes.Internal.Brig qualified as IAPI
 import Wire.API.Routes.Named (namedClient)
 
 -- | 'FedUpdateCallback' is not called if a new settings cannot be fetched, or if they are

@@ -43,7 +43,7 @@ import Bilge.RPC (HasRequestId (..))
 import Cannon.Dict (Dict)
 import Cannon.Options
 import Cannon.WS (Clock, Key, Websocket)
-import qualified Cannon.WS as WS
+import Cannon.WS qualified as WS
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens
 import Control.Monad.Catch
@@ -52,8 +52,8 @@ import Data.Metrics.Middleware
 import Data.Text.Encoding
 import Imports
 import Network.Wai
-import qualified Servant
-import qualified System.Logger as Logger
+import Servant qualified
+import System.Logger qualified as Logger
 import System.Logger.Class hiding (info)
 import System.Random.MWC (GenIO)
 

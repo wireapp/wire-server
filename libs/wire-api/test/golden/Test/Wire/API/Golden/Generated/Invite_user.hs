@@ -20,9 +20,9 @@
 module Test.Wire.API.Golden.Generated.Invite_user where
 
 import Data.Id (Id (Id))
-import qualified Data.List.NonEmpty as NonEmpty (fromList)
+import Data.List.NonEmpty qualified as NonEmpty (fromList)
 import Data.List1 (List1 (List1))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (fromJust)
 import Wire.API.Conversation (Invite (..))
 import Wire.API.Conversation.Role (parseRoleName, roleNameWireAdmin)

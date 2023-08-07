@@ -23,12 +23,12 @@ module Wire.API.Routes.Internal.Galley.ConversationsIntra
   )
 where
 
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Aeson.Types (FromJSON, ToJSON)
 import Data.Id (ConvId, UserId)
 import Data.Qualified
 import Data.Schema
-import qualified Data.Swagger as Swagger
+import Data.Swagger qualified as Swagger
 import Imports
 
 data DesiredMembership = Included | Excluded

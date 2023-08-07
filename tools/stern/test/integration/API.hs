@@ -33,7 +33,7 @@ import Data.Handle
 import Data.Id
 import Data.Range (unsafeRange)
 import Data.Schema
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import GHC.TypeLits
 import Imports
 import Stern.API.Routes (UserConnectionGroups (..))
@@ -45,12 +45,12 @@ import Util
 import Wire.API.OAuth (OAuthApplicationName (OAuthApplicationName), OAuthClientConfig (..), OAuthClientCredentials (..))
 import Wire.API.Properties (PropertyKey)
 import Wire.API.Routes.Internal.Brig.Connection
-import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra (tdStatus)
-import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team (teamId)
 import Wire.API.Team.Feature
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search

@@ -24,7 +24,7 @@ import Cassandra hiding (Set)
 import Control.Lens
 import Data.Id
 import Imports
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 
 data Env = Env
   { envBrig :: ClientState,

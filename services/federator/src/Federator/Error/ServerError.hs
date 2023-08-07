@@ -17,11 +17,11 @@
 
 module Federator.Error.ServerError where
 
-import qualified Data.Text.Lazy as LText
+import Data.Text.Lazy qualified as LText
 import Federator.Error
 import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Federation.Domain
 
 data ServerError

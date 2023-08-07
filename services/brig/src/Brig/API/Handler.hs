@@ -33,8 +33,8 @@ where
 
 import Bilge (RequestId (..))
 import Brig.API.Error
-import qualified Brig.AWS as AWS
-import qualified Brig.Allowlists as Allowlists
+import Brig.AWS qualified as AWS
+import Brig.Allowlists qualified as Allowlists
 import Brig.App
 import Brig.CanonicalInterpreter (BrigCanonicalEffects, runBrigToIO)
 import Brig.Email (Email)
@@ -44,26 +44,26 @@ import Control.Error
 import Control.Exception (throwIO)
 import Control.Lens (set, view)
 import Control.Monad.Catch (catches, throwM)
-import qualified Control.Monad.Catch as Catch
+import Control.Monad.Catch qualified as Catch
 import Control.Monad.Except (MonadError, throwError)
 import Data.Aeson (FromJSON)
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Default (def)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.ZAuth.Validation as ZV
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.ZAuth.Validation qualified as ZV
 import Imports
 import Network.HTTP.Types (Status (statusCode, statusMessage))
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Predicate (Media)
 import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities.Error ((!>>))
-import qualified Network.Wai.Utilities.Error as WaiError
+import Network.Wai.Utilities.Error qualified as WaiError
 import Network.Wai.Utilities.Request (JsonRequest, lookupRequestId, parseBody)
 import Network.Wai.Utilities.Response (addHeader, json, setStatus)
-import qualified Network.Wai.Utilities.Server as Server
-import qualified Servant
-import qualified System.Logger as Log
+import Network.Wai.Utilities.Server qualified as Server
+import Servant qualified
+import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import Wire.API.Error
 import Wire.API.Error.Brig

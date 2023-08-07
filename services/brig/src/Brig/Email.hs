@@ -39,11 +39,11 @@ module Brig.Email
   )
 where
 
-import qualified Brig.AWS as AWS
+import Brig.AWS qualified as AWS
 import Brig.App (Env, applog, awsEnv, smtpEnv)
-import qualified Brig.SMTP as SMTP
+import Brig.SMTP qualified as SMTP
 import Control.Lens (view)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Imports
 import Network.Mail.Mime
 import Wire.API.User

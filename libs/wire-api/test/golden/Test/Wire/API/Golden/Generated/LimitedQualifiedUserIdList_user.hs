@@ -23,7 +23,7 @@ import Data.Domain (Domain (Domain, _domainText))
 import Data.Id (Id (Id))
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
 import Data.Range (unsafeRange)
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (fromJust)
 import Wire.API.User (LimitedQualifiedUserIdList (..))
 

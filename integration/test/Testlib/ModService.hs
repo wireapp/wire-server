@@ -15,7 +15,7 @@ import Control.Applicative ((<|>))
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Exception (finally)
-import qualified Control.Exception as E
+import Control.Exception qualified as E
 import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Codensity
 import Control.Monad.Extra
@@ -27,23 +27,23 @@ import Data.Either.Extra (eitherToMaybe)
 import Data.Foldable
 import Data.Function
 import Data.Functor
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Data.Monoid
 import Data.String.Conversions (cs)
 import Data.Text hiding (elem, head, map, zip)
-import qualified Data.Text.IO as Text
+import Data.Text.IO qualified as Text
 import Data.Traversable
 import Data.Word (Word16)
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import GHC.Stack
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.Socket as N
+import Network.HTTP.Client qualified as HTTP
+import Network.Socket qualified as N
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
 import System.Environment (getEnv)
 import System.FilePath
 import System.IO
-import qualified System.IO.Error as Error
+import System.IO.Error qualified as Error
 import System.IO.Temp (createTempDirectory, writeTempFile)
 import System.Posix (getEnvironment, killProcess, signalProcess)
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, getPid, proc, terminateProcess, waitForProcess)

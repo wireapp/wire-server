@@ -21,7 +21,7 @@ import Data.Metrics.Servant
 import Data.Tree
 import Imports
 import Servant.API
-import qualified Test.Tasty as T
+import Test.Tasty qualified as T
 import Test.Tasty.HUnit
 import Wire.API.Routes.QualifiedCapture
 

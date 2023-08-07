@@ -22,7 +22,7 @@ import Data.Kind
 import Data.Metrics.Servant
 import Data.Schema
 import Data.Singletons
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import GHC.TypeLits
 import Imports
 import Servant

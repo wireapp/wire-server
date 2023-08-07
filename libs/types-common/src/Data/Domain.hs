@@ -21,24 +21,24 @@ module Data.Domain where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser), ToJSON, ToJSONKey (toJSONKey))
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (toJSONKeyText)
 import Data.Attoparsec.ByteString ((<?>))
-import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import Data.Attoparsec.ByteString.Char8 qualified as Atto
 import Data.Bifunctor (Bifunctor (first))
 import Data.Binary
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Builder as Builder
-import qualified Data.ByteString.Char8 as BS.Char8
+import Data.ByteString qualified as BS
+import Data.ByteString.Builder qualified as Builder
+import Data.ByteString.Char8 qualified as BS.Char8
 import Data.ByteString.Conversion
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text.E
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text.E
 import Imports hiding (isAlphaNum)
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary))
-import qualified Test.QuickCheck as QC
+import Test.QuickCheck qualified as QC
 import Util.Attoparsec (takeUpToWhile)
 
 -- | A Fully Qualified Domain Name (FQDN).

@@ -1,15 +1,15 @@
 module Util where
 
-import qualified Bilge
+import Bilge qualified
 import Control.Concurrent (forkFinally)
 import Control.Concurrent.Async (race_)
-import qualified Control.Exception as E
+import Control.Exception qualified as E
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Codensity
-import qualified Data.ByteString as S
+import Data.ByteString qualified as S
 import Data.Metrics.Middleware (metrics)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Gundeck.Env (createEnv)
 import Gundeck.Options
 import Gundeck.Run (mkApp)

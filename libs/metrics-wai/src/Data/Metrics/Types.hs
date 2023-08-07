@@ -30,7 +30,7 @@ module Data.Metrics.Types
   )
 where
 
-import qualified Data.ByteString.Char8 as BS
+import Data.ByteString.Char8 qualified as BS
 import Data.Tree as Tree
 import Imports
 

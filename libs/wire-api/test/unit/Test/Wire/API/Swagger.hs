@@ -20,16 +20,16 @@ module Test.Wire.API.Swagger (tests) where
 import Data.Aeson (ToJSON)
 import Data.Swagger (ToSchema, validatePrettyToJSON)
 import Imports
-import qualified Test.Tasty as T
+import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty)
 import Type.Reflection (typeRep)
-import qualified Wire.API.User as User
-import qualified Wire.API.User.Client as Client
-import qualified Wire.API.User.Client.Prekey as Prekey
-import qualified Wire.API.User.Handle as Handle
-import qualified Wire.API.User.Search as Search
-import qualified Wire.API.UserMap as UserMap
-import qualified Wire.API.Wrapped as Wrapped
+import Wire.API.User qualified as User
+import Wire.API.User.Client qualified as Client
+import Wire.API.User.Client.Prekey qualified as Prekey
+import Wire.API.User.Handle qualified as Handle
+import Wire.API.User.Search qualified as Search
+import Wire.API.UserMap qualified as UserMap
+import Wire.API.Wrapped qualified as Wrapped
 
 tests :: T.TestTree
 tests =

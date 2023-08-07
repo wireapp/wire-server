@@ -30,20 +30,20 @@ module Wire.Arbitrary
   )
 where
 
-import qualified Codec.MIME.Type as MIME
+import Codec.MIME.Type qualified as MIME
 import Data.Coerce (coerce)
-import qualified Data.Currency as Currency
+import Data.Currency qualified as Currency
 import Data.ISO3166_CountryCodes (CountryCode)
 import Data.LanguageCodes (ISO639_1 (..))
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import GHC.Generics (Rep)
 import Generic.Random (listOf', (:+) ((:+)))
-import qualified Generic.Random as Generic
+import Generic.Random qualified as Generic
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
-import qualified Test.QuickCheck.Arbitrary as QC
+import Test.QuickCheck.Arbitrary qualified as QC
 import Test.QuickCheck.Gen (Gen (MkGen))
 import Test.QuickCheck.Instances ()
 import Test.QuickCheck.Random

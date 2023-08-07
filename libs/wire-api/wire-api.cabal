@@ -314,7 +314,7 @@ library
     , x509
     , zauth
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite wire-api-golden-tests
   type:               exitcode-stdio-1.0
@@ -646,7 +646,7 @@ test-suite wire-api-golden-tests
     , wire-api
     , wire-message-proto-lens
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite wire-api-tests
   type:               exitcode-stdio-1.0
@@ -766,4 +766,4 @@ test-suite wire-api-tests
     , wire-api
     , wire-message-proto-lens
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

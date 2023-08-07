@@ -50,12 +50,12 @@ module Wire.API.Provider.Service
   )
 where
 
-import qualified Cassandra.CQL as Cql
+import Cassandra.CQL qualified as Cql
 import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
-import qualified Data.ByteString.Builder as BB
-import qualified Data.ByteString.Char8 as BS
+import Data.Aeson qualified as A
+import Data.ByteString.Builder qualified as BB
+import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#))
@@ -65,10 +65,10 @@ import Data.PEM (PEM, pemParseBS, pemWriteLBS)
 import Data.Proxy
 import Data.Range (Range)
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
 import Data.Text.Ascii
-import qualified Data.Text.Encoding as Text
+import Data.Text.Encoding qualified as Text
 import Imports
 import Wire.API.Provider.Service.Tag (ServiceTag (..))
 import Wire.API.User.Profile (Asset, Name)

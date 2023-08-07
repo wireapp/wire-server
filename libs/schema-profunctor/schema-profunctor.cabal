@@ -75,7 +75,7 @@ library
     , transformers
     , vector
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite schemas-tests
   type:               exitcode-stdio-1.0
@@ -145,4 +145,4 @@ test-suite schemas-tests
     , tasty-hunit
     , text
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

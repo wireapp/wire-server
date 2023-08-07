@@ -4,7 +4,7 @@ module Testlib.RunServices where
 
 import Control.Concurrent
 import Control.Monad.Codensity (lowerCodensity)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import System.Directory
 import System.Environment (getArgs)
 import System.Exit (exitWith)

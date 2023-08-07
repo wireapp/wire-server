@@ -22,37 +22,37 @@ import Bilge hiding (head, options, requestId)
 import Brig.API.Types
 import Brig.Effects.GalleyProvider (GalleyProvider (..))
 import Brig.Effects.ServiceRPC (Service (Galley), ServiceRPC)
-import qualified Brig.Effects.ServiceRPC as ServiceRPC
+import Brig.Effects.ServiceRPC qualified as ServiceRPC
 import Brig.RPC
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Control.Error (hush)
 import Control.Lens ((^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy qualified as BL
 import Data.Coerce (coerce)
-import qualified Data.Currency as Currency
+import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
 import Data.Range
-import qualified Galley.Types.Teams as Team
+import Galley.Types.Teams qualified as Team
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Servant.API (toHeader)
 import System.Logger (Msg, field, msg, val)
 import Wire.API.Conversation hiding (Member)
-import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
-import qualified Wire.API.Team.Conversation as Conv
+import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
-import qualified Wire.API.Team.Member as Member
-import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Member qualified as Member
+import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.Sem.Logger

@@ -31,7 +31,7 @@ import Data.ISO3166_CountryCodes
   )
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
-import qualified Data.LanguageCodes
+import Data.LanguageCodes qualified
   ( ISO639_1
       ( BI,
         DA,
@@ -40,7 +40,7 @@ import qualified Data.LanguageCodes
       ),
   )
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports
 import Wire.API.Asset
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))

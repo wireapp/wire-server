@@ -34,15 +34,15 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Text.Encoding
 import Data.UUID.V4 (nextRandom)
-import qualified Galley.Aws as Aws
-import qualified Galley.Cassandra.Conversation as C
+import Galley.Aws qualified as Aws
+import Galley.Cassandra.Conversation qualified as C
 import Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted)
-import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Effects.ListItems
 import Galley.Effects.TeamMemberStore
@@ -54,7 +54,7 @@ import Galley.Types.Teams
 import Imports hiding (Set, max)
 import Polysemy
 import Polysemy.Input
-import qualified UnliftIO
+import UnliftIO qualified
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Conversation

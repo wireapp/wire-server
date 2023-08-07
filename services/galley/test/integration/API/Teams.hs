@@ -27,8 +27,8 @@ where
 
 import API.SQS
 import API.Util hiding (deleteTeam)
-import qualified API.Util as Util
-import qualified API.Util.TeamFeature as Util
+import API.Util qualified as Util
+import API.Util.TeamFeature qualified as Util
 import Bilge hiding (head, timeout)
 import Bilge.Assert
 import Control.Arrow ((>>>))
@@ -36,40 +36,40 @@ import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.Csv (FromNamedRecord (..), decodeByName)
-import qualified Data.Currency as Currency
+import Data.Currency qualified as Currency
 import Data.Default
 import Data.Id
 import Data.Json.Util hiding ((#))
-import qualified Data.LegalHold as LH
+import Data.LegalHold qualified as LH
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 hiding (head)
-import qualified Data.List1 as List1
-import qualified Data.Map as Map
+import Data.List1 qualified as List1
+import Data.Map qualified as Map
 import Data.Misc (HttpsUrl, PlainTextPassword6, mkHttpsUrl, plainTextPassword6)
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
-import qualified Data.Text as T
+import Data.Set qualified as Set
+import Data.Text qualified as T
 import Data.Text.Ascii (AsciiChars (validate))
-import qualified Data.UUID as UUID
-import qualified Data.UUID.Util as UUID
-import qualified Data.UUID.V1 as UUID
-import qualified Data.Vector as V
+import Data.UUID qualified as UUID
+import Data.UUID.Util qualified as UUID
+import Data.UUID.V1 qualified as UUID
+import Data.Vector qualified as V
 import GHC.TypeLits (KnownSymbol)
-import qualified Galley.Env as Galley
+import Galley.Env qualified as Galley
 import Galley.Options (optSettings, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types.Status (status403)
-import qualified Network.Wai.Utilities.Error as Error
-import qualified Network.Wai.Utilities.Error as Wai
-import qualified SAML2.WebSSO.Types as SAML
+import Network.Wai.Utilities.Error qualified as Error
+import Network.Wai.Utilities.Error qualified as Wai
+import SAML2.WebSSO.Types qualified as SAML
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
@@ -84,18 +84,18 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra as TeamsIntra
 import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Export (TeamExportUser (..))
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Member
-import qualified Wire.API.Team.Member as Member
-import qualified Wire.API.Team.Member as TM
-import qualified Wire.API.Team.Member as Teams
+import Wire.API.Team.Member qualified as Member
+import Wire.API.Team.Member qualified as TM
+import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
-import qualified Wire.API.User as Public
-import qualified Wire.API.User as U
-import qualified Wire.API.User.Client as C
-import qualified Wire.API.User.Client.Prekey as PC
+import Wire.API.User qualified as Public
+import Wire.API.User qualified as U
+import Wire.API.User.Client qualified as C
+import Wire.API.User.Client.Prekey qualified as PC
 
 tests :: IO TestSetup -> TestTree
 tests s =

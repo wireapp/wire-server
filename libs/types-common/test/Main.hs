@@ -21,12 +21,12 @@ module Main
 where
 
 import Imports
-import qualified Test.Data.PEMKeys as PEMKeys
-import qualified Test.Domain as Domain
-import qualified Test.Handle as Handle
-import qualified Test.Properties as Properties
-import qualified Test.Qualified as Qualified
-import qualified Test.SizedHashMap as SizedHashMap
+import Test.Data.PEMKeys qualified as PEMKeys
+import Test.Domain qualified as Domain
+import Test.Handle qualified as Handle
+import Test.Properties qualified as Properties
+import Test.Qualified qualified as Qualified
+import Test.SizedHashMap qualified as SizedHashMap
 import Test.Tasty
 
 main :: IO ()

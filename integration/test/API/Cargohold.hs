@@ -1,15 +1,15 @@
 module API.Cargohold where
 
-import qualified Codec.MIME.Type as MIME
-import qualified Data.Aeson as Aeson
+import Codec.MIME.Type qualified as MIME
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Builder
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Lazy.Char8 as LBSC
-import qualified Data.Text as T
+import Data.ByteString.Lazy qualified as LBS
+import Data.ByteString.Lazy.Char8 qualified as LBSC
+import Data.Text qualified as T
 import Data.Text.Encoding
 import Data.Time.Clock
 import GHC.Stack
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Testlib.Prelude
 
 type LByteString = LBS.ByteString

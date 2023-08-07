@@ -28,35 +28,35 @@ import Bilge hiding (head)
 import Bilge.Assert
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async (Async, async, concurrently_, forConcurrently_, wait)
-import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Async qualified as Async
 import Control.Lens (view, (%~), (.~), (?~), (^.), (^?), _2)
 import Control.Retry (constantDelay, limitRetries, recoverAll, retrying)
 import Data.Aeson hiding (json)
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Lens
-import qualified Data.Aeson.Types as Aeson
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base16 as B16
-import qualified Data.ByteString.Char8 as C
+import Data.Aeson.Types qualified as Aeson
+import Data.ByteString qualified as BS
+import Data.ByteString.Base16 qualified as B16
+import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
-import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy qualified as BL
 import Data.Id
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.List1 (List1)
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Range
-import qualified Data.Set as Set
-import qualified Data.Text.Encoding as T
-import qualified Data.UUID as UUID
+import Data.Set qualified as Set
+import Data.Text.Encoding qualified as T
+import Data.UUID qualified as UUID
 import Data.UUID.V4
 import Gundeck.Options
 import Gundeck.Types
-import qualified Gundeck.Types.Common
+import Gundeck.Types.Common qualified
 import Imports
-import qualified Network.HTTP.Client as Http
+import Network.HTTP.Client qualified as Http
 import Network.URI (parseURI)
-import qualified Network.WebSockets as WS
+import Network.WebSockets qualified as WS
 import Safe
 import System.Random (randomIO)
 import System.Timeout (timeout)
@@ -65,7 +65,7 @@ import Test.Tasty.HUnit
 import TestSetup
 import Util (runRedisProxy, withSettingsOverrides)
 import Wire.API.Internal.Notification
-import qualified Prelude
+import Prelude qualified
 
 tests :: IO TestSetup -> TestTree
 tests s =

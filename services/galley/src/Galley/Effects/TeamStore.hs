@@ -83,7 +83,7 @@ import Galley.Effects.ListItems
 import Galley.Types.Teams
 import Imports
 import Polysemy
-import qualified Proto.TeamEvents as E
+import Proto.TeamEvents qualified as E
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra

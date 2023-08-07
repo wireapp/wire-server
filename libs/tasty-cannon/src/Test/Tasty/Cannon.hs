@@ -76,19 +76,19 @@ import Control.Concurrent.Async
 import Control.Concurrent.Timeout hiding (threadDelay)
 import Control.Exception (asyncExceptionFromException, throwIO)
 import Control.Monad.Catch hiding (bracket)
-import qualified Control.Monad.Catch as Catch
+import Control.Monad.Catch qualified as Catch
 import Data.Aeson (FromJSON, Value (..), decodeStrict', fromJSON)
-import qualified Data.Aeson as JSON
-import qualified Data.ByteString.Char8 as C
+import Data.Aeson qualified as JSON
+import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List1
 import Data.Timeout (Timeout, TimeoutUnit (..), (#))
 import Imports
 import Network.HTTP.Client
-import qualified Network.HTTP.Client as Http
+import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types.Status
-import qualified Network.WebSockets as WS
+import Network.WebSockets qualified as WS
 import System.Random (randomIO)
 import Test.Tasty.HUnit
 import Wire.API.Internal.Notification

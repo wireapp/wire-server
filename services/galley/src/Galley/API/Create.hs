@@ -38,9 +38,9 @@ import Data.List1 (list1)
 import Data.Misc (FutureWork (FutureWork))
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Time
-import qualified Data.UUID.Tagged as U
+import Data.UUID.Tagged qualified as U
 import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.KeyPackage (nullKeyPackageRef)
@@ -50,15 +50,15 @@ import Galley.API.One2One
 import Galley.API.Query
 import Galley.API.Util
 import Galley.App (Env)
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Data.Conversation.Types
-import qualified Galley.Data.Types as Data
+import Galley.Data.Types qualified as Data
 import Galley.Effects
-import qualified Galley.Effects.ConversationStore as E
-import qualified Galley.Effects.FederatorAccess as E
-import qualified Galley.Effects.GundeckAccess as E
-import qualified Galley.Effects.MemberStore as E
-import qualified Galley.Effects.TeamStore as E
+import Galley.Effects.ConversationStore qualified as E
+import Galley.Effects.FederatorAccess qualified as E
+import Galley.Effects.GundeckAccess qualified as E
+import Galley.Effects.MemberStore qualified as E
+import Galley.Effects.TeamStore qualified as E
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
@@ -70,7 +70,7 @@ import Imports hiding ((\\))
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
+import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error

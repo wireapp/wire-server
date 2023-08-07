@@ -20,21 +20,21 @@ module Gundeck.API.Internal
   )
 where
 
-import qualified Cassandra
+import Cassandra qualified
 import Control.Lens (view)
 import Data.Id
-import qualified Gundeck.Client as Client
+import Gundeck.Client qualified as Client
 import Gundeck.Monad
-import qualified Gundeck.Presence as Presence
-import qualified Gundeck.Push as Push
-import qualified Gundeck.Push.Data as PushTok
-import qualified Gundeck.Push.Native.Types as PushTok
+import Gundeck.Presence qualified as Presence
+import Gundeck.Push qualified as Push
+import Gundeck.Push.Data qualified as PushTok
+import Gundeck.Push.Native.Types qualified as PushTok
 import Imports hiding (head)
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
-import qualified Wire.API.Push.Token as PushTok
+import Wire.API.Push.Token qualified as PushTok
 
 sitemap :: Routes a Gundeck ()
 sitemap = do

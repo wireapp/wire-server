@@ -19,7 +19,7 @@ module Data.Proto.Id where
 
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Id
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 
 toBytes :: Id a -> ByteString

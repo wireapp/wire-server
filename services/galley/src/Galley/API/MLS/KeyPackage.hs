@@ -17,7 +17,7 @@
 
 module Galley.API.MLS.KeyPackage where
 
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Galley.Effects.BrigAccess
 import Imports
 import Polysemy

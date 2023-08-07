@@ -33,14 +33,14 @@ module Galley.Aws
   )
 where
 
-import qualified Amazonka as AWS
-import qualified Amazonka.SQS as SQS
-import qualified Amazonka.SQS.Lens as SQS
+import Amazonka qualified as AWS
+import Amazonka.SQS qualified as SQS
+import Amazonka.SQS.Lens qualified as SQS
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Control.Retry (exponentialBackoff, limitRetries, retrying)
-import qualified Data.ByteString.Base64 as B64
+import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ProtoLens.Encoding
 import Data.Text.Encoding (decodeLatin1)
@@ -53,9 +53,9 @@ import Network.HTTP.Client
     HttpExceptionContent (..),
     Manager,
   )
-import qualified Network.TLS as TLS
-import qualified Proto.TeamEvents as E
-import qualified System.Logger as Logger
+import Network.TLS qualified as TLS
+import Proto.TeamEvents qualified as E
+import System.Logger qualified as Logger
 import System.Logger.Class
 import Util.Options
 

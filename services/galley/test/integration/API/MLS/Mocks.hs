@@ -32,7 +32,7 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Federator.MockServer
 import Imports
 import Wire.API.Error.Galley

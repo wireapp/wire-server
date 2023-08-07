@@ -19,9 +19,9 @@ module Test.Wire.API.Golden.Generated.QualifiedUserClientPrekeyMapV4_user where
 
 import Data.Domain (Domain (..))
 import Data.Id (ClientId (..), Id (Id), UserId)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified (Qualified (..))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports
 import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClientPrekeyMapV4 (..))
 

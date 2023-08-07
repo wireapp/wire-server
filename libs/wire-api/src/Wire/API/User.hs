@@ -158,20 +158,20 @@ import Control.Arrow ((&&&))
 import Control.Error.Safe (rightMay)
 import Control.Lens (makePrisms, over, view, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson.Types as A
-import qualified Data.Attoparsec.ByteString as Parser
-import qualified Data.Attoparsec.Text as TParser
-import qualified Data.Bifunctor as Bifunctor
+import Data.Aeson.Types qualified as A
+import Data.Attoparsec.ByteString qualified as Parser
+import Data.Attoparsec.Text qualified as TParser
+import Data.Bifunctor qualified as Bifunctor
 import Data.Bits
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
-import qualified Data.CaseInsensitive as CI
-import qualified Data.Code as Code
-import qualified Data.Currency as Currency
+import Data.CaseInsensitive qualified as CI
+import Data.Code qualified as Code
+import Data.Currency qualified as Currency
 import Data.Domain (Domain (Domain))
 import Data.Either.Extra (maybeToEither)
 import Data.Handle (Handle)
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import Data.LegalHold (UserLegalHoldStatus)
@@ -181,28 +181,28 @@ import Data.Qualified
 import Data.Range
 import Data.SOP
 import Data.Schema
-import qualified Data.Schema as Schema
-import qualified Data.Set as Set
-import qualified Data.Swagger as S
-import qualified Data.Text as T
+import Data.Schema qualified as Schema
+import Data.Set qualified as Set
+import Data.Swagger qualified as S
+import Data.Text qualified as T
 import Data.Text.Ascii
-import qualified Data.Text.Encoding as T
+import Data.Text.Encoding qualified as T
 import Data.Time.Clock (NominalDiffTime)
 import Data.UUID (UUID, nil)
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Deriving.Swagger
 import GHC.TypeLits
-import qualified Generics.SOP as GSOP
+import Generics.SOP qualified as GSOP
 import Imports
-import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Types.Email as SAMLEmail
+import SAML2.WebSSO qualified as SAML
+import SAML2.WebSSO.Types.Email qualified as SAMLEmail
 import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
-import qualified Test.QuickCheck as QC
+import Test.QuickCheck qualified as QC
 import URI.ByteString (serializeURIRef)
-import qualified Web.Cookie as Web
+import Web.Cookie qualified as Web
 import Wire.API.Error
 import Wire.API.Error.Brig
-import qualified Wire.API.Error.Brig as E
+import Wire.API.Error.Brig qualified as E
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)

@@ -20,24 +20,24 @@ module Proxy.API.Public
   )
 where
 
-import qualified Bilge.Request as Req
-import qualified Bilge.Response as Res
+import Bilge.Request qualified as Req
+import Bilge.Response qualified as Res
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Retry
 import Data.ByteString (breakSubstring)
-import qualified Data.ByteString.Lazy as B
+import Data.ByteString.Lazy qualified as B
 import Data.CaseInsensitive (CI)
-import qualified Data.CaseInsensitive as CI
-import qualified Data.Configurator as Config
-import qualified Data.List as List
-import qualified Data.Text as Text
+import Data.CaseInsensitive qualified as CI
+import Data.Configurator qualified as Config
+import Data.List qualified as List
+import Data.Text qualified as Text
 import Imports hiding (head)
-import qualified Network.HTTP.Client as Client
+import Network.HTTP.Client qualified as Client
 import Network.HTTP.ReverseProxy
 import Network.HTTP.Types
 import Network.Wai
-import qualified Network.Wai.Internal as I
+import Network.Wai.Internal qualified as I
 import Network.Wai.Predicate hiding (Error, err, setStatus)
 import Network.Wai.Predicate.Request (getRequest)
 import Network.Wai.Routing hiding (path, route)
@@ -45,7 +45,7 @@ import Network.Wai.Utilities
 import Proxy.Env
 import Proxy.Proxy
 import System.Logger.Class hiding (Error, info, render)
-import qualified System.Logger.Class as Logger
+import System.Logger.Class qualified as Logger
 
 -- | IF YOU MODIFY THIS, BE AWARE OF:
 --

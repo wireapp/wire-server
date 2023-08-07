@@ -61,11 +61,11 @@ import Control.Applicative
 import Control.Lens ((?~))
 import Control.Lens.TH
 import Data.Aeson (FromJSON, ToJSON)
-import qualified Data.Aeson.Types as A
+import Data.Aeson.Types qualified as A
 import Data.Bifunctor
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Code as Code
 import Data.Handle (Handle)
 import Data.Id
@@ -73,13 +73,13 @@ import Data.Json.Util
 import Data.Misc (PlainTextPassword6)
 import Data.SOP
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy.Encoding as LT
+import Data.Swagger qualified as S
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.Text.Lazy.Encoding qualified as LT
 import Data.Time.Clock (UTCTime)
 import Data.Tuple.Extra hiding (first)
-import qualified Data.ZAuth.Token as ZAuth
+import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Servant
 import Web.Cookie

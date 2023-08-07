@@ -20,7 +20,7 @@
 module Wire.API.RawJson where
 
 import Control.Lens
-import qualified Data.Swagger as Swagger
+import Data.Swagger qualified as Swagger
 import Imports
 import Servant
 import Test.QuickCheck

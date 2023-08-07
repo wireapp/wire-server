@@ -20,7 +20,7 @@
 module Test.Wire.API.Golden.Generated.NewBotResponse_provider where
 
 import Data.Id
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Asset
 import Wire.API.Provider.External (NewBotResponse (..))

@@ -20,10 +20,10 @@ module Util.Logging where
 import Crypto.Hash (SHA256, hash)
 import Data.Handle (Handle (fromHandle))
 import Data.Id (TeamId, UserId)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Text.Encoding (encodeUtf8)
 import Imports
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import System.Logger.Message (Msg)
 
 sha256String :: Text -> Text

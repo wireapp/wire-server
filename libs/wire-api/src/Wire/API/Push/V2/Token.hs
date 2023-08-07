@@ -43,19 +43,19 @@ module Wire.API.Push.V2.Token
 where
 
 import Control.Lens (makeLenses, (?~), (^.))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Attoparsec.ByteString (takeByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.SOP
 import Data.Schema
 import Data.Swagger (ToParamSchema)
-import qualified Data.Swagger as S
-import qualified Generics.SOP as GSOP
+import Data.Swagger qualified as S
+import Generics.SOP qualified as GSOP
 import Imports
 import Servant
 import Wire.API.Error
-import qualified Wire.API.Error.Gundeck as E
+import Wire.API.Error.Gundeck qualified as E
 import Wire.API.Routes.MultiVerb
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 

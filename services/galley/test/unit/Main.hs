@@ -21,11 +21,11 @@ module Main
 where
 
 import Imports
-import qualified Test.Galley.API.Message
-import qualified Test.Galley.API.One2One
-import qualified Test.Galley.API.Query
-import qualified Test.Galley.Intra.User
-import qualified Test.Galley.Mapping
+import Test.Galley.API.Message qualified
+import Test.Galley.API.One2One qualified
+import Test.Galley.API.Query qualified
+import Test.Galley.Intra.User qualified
+import Test.Galley.Mapping qualified
 import Test.Tasty
 
 main :: IO ()

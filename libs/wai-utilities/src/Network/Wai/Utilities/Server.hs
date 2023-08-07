@@ -52,38 +52,38 @@ import Control.Error.Util ((?:))
 import Control.Exception (throw)
 import Control.Monad.Catch hiding (onError, onException)
 import Data.Aeson (decode, encode)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Builder
-import qualified Data.ByteString.Char8 as C
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Char8 qualified as C
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain (domainText)
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Data.Metrics.GC (spawnGCMetricsCollector)
 import Data.Metrics.Middleware
 import Data.Streaming.Zlib (ZlibException (..))
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Text.Encoding.Error (lenientDecode)
-import qualified Data.Text.Lazy.Encoding as LT
+import Data.Text.Lazy.Encoding qualified as LT
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal (TimeoutThread)
-import qualified Network.Wai.Internal as WaiInt
+import Network.Wai.Internal qualified as WaiInt
 import Network.Wai.Predicate hiding (Error, err, status)
-import qualified Network.Wai.Predicate as P
+import Network.Wai.Predicate qualified as P
 import Network.Wai.Predicate.Request (HasRequest)
 import Network.Wai.Routing.Route (App, Continue, Routes, Tree)
-import qualified Network.Wai.Routing.Route as Route
-import qualified Network.Wai.Utilities.Error as Error
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Routing.Route qualified as Route
+import Network.Wai.Utilities.Error qualified as Error
+import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Network.Wai.Utilities.Response
-import qualified Prometheus as Prm
-import qualified System.Logger as Log
+import Prometheus qualified as Prm
+import System.Logger qualified as Log
 import System.Logger.Class hiding (Error, Settings, format)
 import System.Posix.Signals (installHandler, sigINT, sigTERM)
-import qualified System.Posix.Signals as Sig
+import System.Posix.Signals qualified as Sig
 
 --------------------------------------------------------------------------------
 -- Server Setup

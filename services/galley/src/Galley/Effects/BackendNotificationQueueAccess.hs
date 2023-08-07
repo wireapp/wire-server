@@ -4,7 +4,7 @@ module Galley.Effects.BackendNotificationQueueAccess where
 
 import Data.Qualified
 import Imports
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 import Polysemy
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Component

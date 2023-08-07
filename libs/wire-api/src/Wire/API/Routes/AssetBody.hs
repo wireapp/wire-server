@@ -24,7 +24,7 @@ module Wire.API.Routes.AssetBody
 where
 
 import Conduit
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Swagger
 import Data.Swagger.Internal.Schema
 import Imports

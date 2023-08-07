@@ -17,7 +17,7 @@
 
 module Test.Wire.API.Golden.Manual.FeatureConfigEvent where
 
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Imports
 import Wire.API.Event.FeatureConfig
 import Wire.API.Team.Feature

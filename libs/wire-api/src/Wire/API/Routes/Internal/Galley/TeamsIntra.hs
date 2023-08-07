@@ -29,10 +29,10 @@ where
 
 import Control.Lens ((?~))
 import Data.Aeson
-import qualified Data.Currency as Currency
+import Data.Currency qualified as Currency
 import Data.Json.Util
-import qualified Data.Schema as S
-import qualified Data.Swagger as Swagger
+import Data.Schema qualified as S
+import Data.Swagger qualified as Swagger
 import Data.Time (UTCTime)
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary)

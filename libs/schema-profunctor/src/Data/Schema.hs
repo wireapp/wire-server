@@ -91,24 +91,24 @@ where
 import Control.Applicative
 import Control.Comonad
 import Control.Lens hiding (element, enum, set, (.=))
-import qualified Control.Lens as Lens
+import Control.Lens qualified as Lens
 import Control.Monad.Trans.Cont
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.Types as A
+import Data.Aeson.Key qualified as Key
+import Data.Aeson.Types qualified as A
 import Data.Bifunctor.Joker
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map qualified as Map
 import Data.Monoid hiding (Product)
 import Data.Profunctor (Star (..))
 import Data.Proxy (Proxy (..))
-import qualified Data.Set as Set
-import qualified Data.Swagger as S
-import qualified Data.Swagger.Declare as S
-import qualified Data.Swagger.Internal as S
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
-import qualified Data.Vector as V
+import Data.Set qualified as Set
+import Data.Swagger qualified as S
+import Data.Swagger.Declare qualified as S
+import Data.Swagger.Internal qualified as S
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as TL
+import Data.Vector qualified as V
 import Imports hiding (Product)
 import Numeric.Natural
 

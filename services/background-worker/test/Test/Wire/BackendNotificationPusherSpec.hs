@@ -7,23 +7,23 @@ module Test.Wire.BackendNotificationPusherSpec where
 import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.Trans.Except
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Builder as Builder
-import qualified Data.ByteString.Lazy as LBS
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Builder qualified as Builder
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Range
-import qualified Data.Sequence as Seq
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Sequence qualified as Seq
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Federator.MockServer
 import Imports
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 import Network.HTTP.Client (defaultManagerSettings, newManager, responseTimeoutNone)
 import Network.HTTP.Media
 import Network.HTTP.Types
 import Network.RabbitMqAdmin
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Internal as Wai
+import Network.Wai qualified as Wai
+import Network.Wai.Internal qualified as Wai
 import Prometheus
 import Servant hiding (respond)
 import Servant.Client
@@ -31,7 +31,7 @@ import Servant.Client.Core
 import Servant.Client.Internal.HttpClient (mkFailureResponse)
 import Servant.Server.Generic
 import Servant.Types.SourceT
-import qualified System.Logger.Class as Logger
+import System.Logger.Class qualified as Logger
 import Test.Hspec
 import Test.QuickCheck
 import Test.Wire.Util

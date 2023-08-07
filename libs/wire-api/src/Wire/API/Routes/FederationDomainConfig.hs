@@ -27,7 +27,7 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain (Domain)
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import GHC.Generics
 import Imports
 import Wire.API.User.Search (FederatedUserSearchPolicy)

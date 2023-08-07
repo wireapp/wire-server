@@ -17,7 +17,7 @@
 
 module Test.Wire.API.Golden.Manual.ClientCapabilityList where
 
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Imports
 import Wire.API.User.Client (ClientCapability (..), ClientCapabilityList (..))
 

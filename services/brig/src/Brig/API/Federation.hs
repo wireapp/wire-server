@@ -19,23 +19,23 @@
 
 module Brig.API.Federation (federationSitemap, FederationAPI) where
 
-import qualified Brig.API.Client as API
+import Brig.API.Client qualified as API
 import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error
 import Brig.API.Handler (Handler)
 import Brig.API.Internal hiding (getMLSClients)
-import qualified Brig.API.Internal as Internal
+import Brig.API.Internal qualified as Internal
 import Brig.API.MLS.KeyPackages
 import Brig.API.MLS.Util
-import qualified Brig.API.User as API
+import Brig.API.User qualified as API
 import Brig.App
-import qualified Brig.Data.Connection as Data
-import qualified Brig.Data.User as Data
+import Brig.Data.Connection qualified as Data
+import Brig.Data.User qualified as Data
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.IO.Intra (notify)
 import Brig.Types.User.Event
 import Brig.User.API.Handle
-import qualified Brig.User.Search.SearchIndex as Q
+import Brig.User.Search.SearchIndex qualified as Q
 import Control.Error.Util
 import Control.Monad.Trans.Except
 import Data.Domain
@@ -46,7 +46,7 @@ import Data.List1
 import Data.Qualified
 import Data.Range
 import Data.Set (fromList, (\\))
-import qualified Gundeck.Types.Push as Push
+import Gundeck.Types.Push qualified as Push
 import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy

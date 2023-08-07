@@ -60,28 +60,28 @@ module Wire.API.Message
 where
 
 import Control.Lens (view, (.~), (?~))
-import qualified Data.Aeson as A
-import qualified Data.ByteString.Lazy as LBS
+import Data.Aeson qualified as A
+import Data.ByteString.Lazy qualified as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Domain (Domain, domainText, mkDomain)
 import Data.Id
 import Data.Json.Util
-import qualified Data.Map.Strict as Map
-import qualified Data.ProtoLens as ProtoLens
-import qualified Data.ProtoLens.Field as ProtoLens
-import qualified Data.ProtocolBuffers as Protobuf
+import Data.Map.Strict qualified as Map
+import Data.ProtoLens qualified as ProtoLens
+import Data.ProtoLens.Field qualified as ProtoLens
+import Data.ProtocolBuffers qualified as Protobuf
 import Data.Qualified (Qualified (..))
 import Data.Schema
 import Data.Serialize (runGet)
-import qualified Data.Set as Set
-import qualified Data.Swagger as S
-import qualified Data.Text.Read as Reader
-import qualified Data.UUID as UUID
+import Data.Set qualified as Set
+import Data.Swagger qualified as S
+import Data.Text.Read qualified as Reader
+import Data.UUID qualified as UUID
 import Imports
-import qualified Proto.Otr
-import qualified Proto.Otr_Fields as Proto.Otr
+import Proto.Otr qualified
+import Proto.Otr_Fields qualified as Proto.Otr
 import Servant (FromHttpApiData (..))
-import qualified Wire.API.Message.Proto as Proto
+import Wire.API.Message.Proto qualified as Proto
 import Wire.API.ServantProto (FromProto (..), ToProto (..))
 import Wire.API.User.Client
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
