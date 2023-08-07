@@ -26,9 +26,10 @@ module Galley.API.Internal
   )
 where
 
-import Control.Exception
+import Bilge.Retry
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
+import Control.Retry
 import Data.Domain
 import Data.Id as Id
 import qualified Data.List.NonEmpty as N
@@ -686,21 +687,12 @@ deleteFederationDomainLocalUserFromRemoteConversation dom = do
 --    The calling function needs to catch thrown exceptions and NACK the deletion
 --    message. This will allow Rabbit to redeliver the message and give us a second
 --    go at performing the deletion.
-deleteFederationDomainOneOnOne :: (Member (Input Env) r, Member (Embed IO) r, Member (P.Logger (Msg -> Msg)) r) => Domain -> Sem r ()
+deleteFederationDomainOneOnOne :: (Member (Input Env) r, Member (Embed IO) r) => Domain -> Sem r ()
 deleteFederationDomainOneOnOne dom = do
   env <- input
   let c = mkClientEnv (env ^. manager) (env ^. brig)
-  liftIO (deleteFederationRemoteGalley dom c)
-    >>= either
-      ( \e -> do
-          P.err $ Log.msg @String "Could not delete one-on-one messages in Brig" . Log.field "error" (show e)
-          -- Throw the error into IO to match the other functions and to prevent the
-          -- message from rabbit being ACKed.  TODO: should still be acked, or loop!
-          -- TODO: This comment is out of date. Message ACKing is handled by background worker,
-          -- this just needs to fail and get a HTTP error to background worker so _it_ can know
-          -- when to reject a message due to a failure here.
-          liftIO $ throwIO e
-      )
-      pure
+      -- This is the same policy as background-worker for retrying.
+      policy = capDelay 60_000_000 $ fullJitterBackoff 10000
+  void . liftIO . recovering policy httpHandlers $ \_ -> deleteFederationRemoteGalley dom c
   where
     mkClientEnv mgr (Endpoint h p) = ClientEnv mgr (BaseUrl Http (unpack h) (fromIntegral p) "") Nothing defaultMakeClientRequest
