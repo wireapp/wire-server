@@ -34,7 +34,7 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
     key' <- doUploadAsset user
     checkAssetDownload user key'
   where
-    checkAssetDownload :: Value -> Value -> App ()
+    checkAssetDownload :: HasCallStack => Value -> Value -> App ()
     checkAssetDownload user key = withModifiedService Cargohold modifyConfig $ \_ -> do
       bindResponse (downloadAsset user user key noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 404
@@ -59,7 +59,7 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
             "green.example.com" .= "http://s3-download.green.example.com"
           ]
 
-    doUploadAsset :: Value -> App Value
+    doUploadAsset :: HasCallStack => Value -> App Value
     doUploadAsset user = bindResponse (uploadAsset user) $ \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "key"

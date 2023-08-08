@@ -19,15 +19,17 @@ testDynamicBackendsFullyConnectedWhenAllowAll = do
     uidA <- randomUser domainA def {Internal.team = True}
     uidB <- randomUser domainA def {Internal.team = True}
     uidC <- randomUser domainA def {Internal.team = True}
-    let assertConnected u d d' =
-          bindResponse
-            (API.getFederationStatus u [d, d'])
-            $ \resp -> do
-              resp.status `shouldMatchInt` 200
-              resp.json %. "status" `shouldMatch` "fully-connected"
     assertConnected uidA domainB domainC
     assertConnected uidB domainA domainC
     assertConnected uidC domainA domainB
+  where
+    assertConnected :: (HasCallStack, MakesValue user) => user -> String -> String -> App ()
+    assertConnected u d d' =
+      bindResponse
+        (API.getFederationStatus u [d, d'])
+        $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "status" `shouldMatch` "fully-connected"
 
 testDynamicBackendsNotFederating :: HasCallStack => App ()
 testDynamicBackendsNotFederating = do
