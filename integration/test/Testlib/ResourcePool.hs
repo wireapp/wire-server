@@ -3,7 +3,6 @@ module Testlib.ResourcePool
     BackendResource (..),
     DynamicBackendConfig (..),
     backendResources,
-    remoteDomains,
     createBackendResourcePool,
     acquireResources,
   )
@@ -17,7 +16,6 @@ import Data.Aeson
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
-import Data.List.Extra ((\\))
 import Data.Set qualified as Set
 import Data.String
 import Data.Tuple
@@ -118,6 +116,3 @@ backendResources dynConfs =
     -- Fixed internal port for federator, e.g. for dynamic backends: 1 -> 10097, 2 -> 11097, etc.
     federatorInternalPort :: Num a => a -> a
     federatorInternalPort i = 8097 + ((1 + i) * 1000)
-
-remoteDomains :: String -> [String]
-remoteDomains domain = ["example.com", "b.example.com", "d1.example.com", "d2.example.com", "d3.example.com"] \\ [domain]
