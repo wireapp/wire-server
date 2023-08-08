@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
+
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -29,7 +29,7 @@ import Brig.Types.Intra
 import Control.Applicative
 import Control.Lens hiding ((.=))
 import Data.Aeson (ToJSON, Value)
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Handle
 import Data.Id
