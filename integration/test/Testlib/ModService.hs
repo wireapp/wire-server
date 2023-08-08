@@ -6,7 +6,6 @@ module Testlib.ModService
     startDynamicBackend,
     startDynamicBackends,
     traverseConcurrentlyCodensity,
-    commonEnv,
   )
 where
 
@@ -40,12 +39,11 @@ import GHC.Stack
 import Network.HTTP.Client qualified as HTTP
 import Network.Socket qualified as N
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
-import System.Environment (getEnv)
 import System.FilePath
 import System.IO
 import System.IO.Error qualified as Error
 import System.IO.Temp (createTempDirectory, writeTempFile)
-import System.Posix (getEnvironment, killProcess, signalProcess)
+import System.Posix (killProcess, signalProcess)
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, getPid, proc, terminateProcess, waitForProcess)
 import System.Timeout (timeout)
 import Testlib.App
@@ -403,26 +401,8 @@ processColors =
     ("nginx", colored purpleish)
   ]
 
--- Used for services AND integration test processes (gundeck-integration needs AWS_* variables)
-commonEnv :: MonadIO m => m [(String, String)]
-commonEnv = liftIO $ do
-  environment <- getEnvironment
-  rabbitMqUserName <- getEnv "RABBITMQ_USERNAME"
-  rabbitMqPassword <- getEnv "RABBITMQ_PASSWORD"
-  pure
-    ( environment
-        <> [ ("AWS_REGION", "eu-west-1"),
-             ("AWS_ACCESS_KEY_ID", "dummykey"),
-             ("AWS_SECRET_ACCESS_KEY", "dummysecret"),
-             ("RABBITMQ_USERNAME", rabbitMqUserName),
-             ("RABBITMQ_PASSWORD", rabbitMqPassword)
-           ]
-    )
-
 startProcess' :: String -> String -> Value -> App (ProcessHandle, FilePath)
 startProcess' domain execName config = do
-  processEnv <- commonEnv
-
   tempFile <- liftIO $ writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
 
   (cwd, exe) <-
@@ -431,7 +411,7 @@ startProcess' domain execName config = do
       Just dir ->
         (Just (dir </> execName), "../../dist" </> execName)
 
-  (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, env = Just processEnv, std_out = CreatePipe, std_err = CreatePipe}
+  (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
   let prefix = "[" <> execName <> "@" <> domain <> "] "
   let colorize = fromMaybe id (lookup execName processColors)
   void $ liftIO $ forkIO $ logToConsole colorize prefix stdoutHdl
