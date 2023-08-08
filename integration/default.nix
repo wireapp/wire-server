@@ -15,6 +15,8 @@
 , Cabal
 , case-insensitive
 , containers
+, cql
+, cql-io
 , data-default
 , directory
 , exceptions
@@ -74,6 +76,8 @@ mkDerivation {
     bytestring-conversion
     case-insensitive
     containers
+    cql
+    cql-io
     data-default
     directory
     exceptions

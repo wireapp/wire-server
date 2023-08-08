@@ -18,19 +18,27 @@ import Data.Functor
 import Data.IORef
 import Data.Set qualified as Set
 import Data.String
+import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Tuple
 import Data.Word
-import GHC.Generics
+import Database.CQL.IO
+import Database.CQL.IO qualified as Cas
+import Database.CQL.Protocol qualified as Cas
+import GHC.Generics hiding (R)
 import System.IO
 import Prelude
 
 data ResourcePool a = ResourcePool
   { sem :: QSemN,
-    resources :: IORef (Set.Set a)
+    resources :: IORef (Set.Set a),
+    onAcquire :: a -> IO ()
   }
 
 acquireResources :: forall m a. (Ord a, MonadIO m, MonadMask m) => Int -> ResourcePool a -> Codensity m [a]
-acquireResources n pool = Codensity $ \f -> bracket acquire release (f . Set.toList)
+acquireResources n pool = Codensity $ \f -> bracket acquire release $ \s -> do
+  liftIO $ mapM_ pool.onAcquire s
+  f $ Set.toList s
   where
     release :: Set.Set a -> m ()
     release s =
@@ -43,12 +51,61 @@ acquireResources n pool = Codensity $ \f -> bracket acquire release (f . Set.toL
       waitQSemN pool.sem n
       atomicModifyIORef pool.resources $ swap . Set.splitAt n
 
-createBackendResourcePool :: [DynamicBackendConfig] -> IO (ResourcePool BackendResource)
-createBackendResourcePool dynConfs =
+cleanupDB :: String -> Word16 -> BackendResource -> IO ()
+cleanupDB cassandraHost cassandraPort br = do
+  let settings =
+        Cas.setContacts cassandraHost []
+          . Cas.setPortNumber (fromIntegral cassandraPort)
+          . Cas.setMaxConnections 4
+          . Cas.setPoolStripes 4
+          . Cas.setSendTimeout 3
+          . Cas.setResponseTimeout 10
+          . Cas.setProtocolVersion Cas.V4
+          $ Cas.defSettings
+  client <- Cas.init settings
+  -- TODO: Also cleanup elasticsearch, redis and RabbitMQ
+  Cas.runClient client $ do
+    cleanupCassandra $ fromString br.berBrigKeyspace
+    cleanupCassandra $ fromString br.berGalleyKeyspace
+    cleanupCassandra $ fromString br.berSparKeyspace
+    cleanupCassandra $ fromString br.berGundeckKeyspace
+
+type KeyspaceName = Text
+
+type TableName = Text
+
+cleanupCassandra :: MonadClient m => KeyspaceName -> m ()
+cleanupCassandra keyspace = do
+  tables <-
+    map (\t -> keyspace <> fromString "." <> t)
+      . filter (/= fromString "meta")
+      <$> listTables keyspace
+  mapM_ truncateTable tables
+
+listTables :: MonadClient m => KeyspaceName -> m [TableName]
+listTables keyspace = do
+  let params = QueryParams One False (Identity keyspace) Nothing Nothing Nothing Nothing
+  map runIdentity <$> query cql params
+  where
+    cql :: PrepQuery R (Identity KeyspaceName) (Identity TableName)
+    cql = fromString "SELECT table_name FROM system_schema.tables where keyspace_name = ?"
+
+truncateTable :: MonadClient m => TableName -> m ()
+truncateTable table = do
+  let params = QueryParams One False () Nothing Nothing Nothing Nothing
+  write cql params
+  where
+    -- Cannot use `?` here because CQL doesn't allow using it for table name.
+    cql :: PrepQuery W () ()
+    cql = fromString $ "TRUNCATE TABLE " <> Text.unpack table
+
+createBackendResourcePool :: String -> Word16 -> [DynamicBackendConfig] -> IO (ResourcePool BackendResource)
+createBackendResourcePool cassandraHost cassandraPort dynConfs =
   let resources = backendResources dynConfs
    in ResourcePool
         <$> newQSemN (length dynConfs)
         <*> newIORef resources
+        <*> pure (cleanupDB cassandraHost cassandraPort)
 
 data BackendResource = BackendResource
   { berBrigKeyspace :: String,

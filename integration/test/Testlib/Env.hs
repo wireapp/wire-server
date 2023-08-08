@@ -57,7 +57,8 @@ data GlobalEnv = GlobalEnv
 data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig,
-    dynamicBackends :: Map String DynamicBackendConfig
+    dynamicBackends :: Map String DynamicBackendConfig,
+    cassandra :: HostPort
   }
   deriving (Show, Generic)
 
@@ -68,6 +69,7 @@ instance FromJSON IntegrationConfig where
         <$> parseJSON (Object o)
         <*> o .: "backendTwo"
         <*> o .: "dynamicBackends"
+        <*> o .: "cassandra"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
@@ -172,7 +174,7 @@ mkGlobalEnv cfgFile = do
             else Nothing
 
   manager <- HTTP.newManager HTTP.defaultManagerSettings
-  resourcePool <- createBackendResourcePool (Map.elems intConfig.dynamicBackends)
+  resourcePool <- createBackendResourcePool intConfig.cassandra.host intConfig.cassandra.port (Map.elems intConfig.dynamicBackends)
   pure
     GlobalEnv
       { gServiceMap =
