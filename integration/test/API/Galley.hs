@@ -63,20 +63,6 @@ postConversation user cc = do
   ccv <- make cc
   submit "POST" $ req & addJSON ccv
 
-postOne2OneConversation ::
-  ( HasCallStack,
-    MakesValue user,
-    MakesValue other
-  ) =>
-  user ->
-  other ->
-  App Response
-postOne2OneConversation user other = do
-  req <- baseRequest user Galley Versioned "/conversations/one2one"
-  otherV <- make other
-  ccv <- make $ defProteus {qualifiedUsers = [otherV]}
-  submit "POST" $ req & addJSON ccv
-
 putConversationProtocol ::
   ( HasCallStack,
     MakesValue user,
