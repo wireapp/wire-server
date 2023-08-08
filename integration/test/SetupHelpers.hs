@@ -8,7 +8,7 @@ import Control.Monad.Reader
 import Data.Aeson hiding ((.=))
 import Data.Default
 import Data.Function
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
 import Testlib.Prelude
