@@ -2320,36 +2320,21 @@ postTeamConvQualifiedNoConnection = do
 postConvQualifiedNonExistentDomain :: TestM ()
 postConvQualifiedNonExistentDomain = do
   let remoteDomain = Domain "non-existent.example.com"
-  (uAlice, alice) <- randomUserTuple
+  alice <- randomUser
   uBob <- randomId
   let bob = Qualified uBob remoteDomain
-  connectWithRemoteUser uAlice bob
+  connectWithRemoteUser alice bob
   let mock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
-  createdConv <-
-    responseJsonError . fst
-      =<< withTempMockFederator'
-        mock
-        ( do
-            postConvQualified
-              uAlice
-              Nothing
-              defNewProteusConv {newConvQualifiedUsers = [bob]}
-              <!! do const 201 === statusCode
-        )
-  let members = cnvMembers . cgcConversation $ createdConv
-  liftIO $ do
-    assertEqual
-      "A remote domain was supposed to be unavailable"
-      (Map.singleton remoteDomain (Set.singleton uBob))
-      (cgcFailedToAdd createdConv)
-    assertEqual
-      "Only Alice should have been in the conversation"
-      []
-      (fmap omQualifiedId . cmOthers $ members)
-    assertEqual
-      "Alice is not her self in the conversation"
-      alice
-      (memId . cmSelf $ members)
+  void $
+    withTempMockFederator'
+      mock
+      ( do
+          postConvQualified
+            alice
+            Nothing
+            defNewProteusConv {newConvQualifiedUsers = [bob]}
+            !!! do const 503 === statusCode
+      )
 
 postConvQualifiedFederationNotEnabled :: TestM ()
 postConvQualifiedFederationNotEnabled = do
