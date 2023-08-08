@@ -48,24 +48,90 @@ import Wire.API.Team.Feature
 type ConversationResponse = ResponseForExistedCreated Conversation
 
 -- | A type similar to 'ConversationResponse' introduced to allow for a failure
--- to add remote members while creating a conversation.
-data CreateGroupConversationResponse
-  = GroupConversationExisted Conversation
-  | GroupConversationCreated CreateGroupConversation
-  | GroupConversationFailedToCreate CreateConversationRejected
+-- to add remote members while creating a non-group conversation. The type is
+-- not unified with 'CreateGroupConversationResponse' as that one relies on JSON
+-- for client API v4, yet 'ExtendedConversationResponse' should work for older
+-- versions too.
+data ExtendedConversationResponse
+  = ConversationResponseExisted Conversation
+  | ConversationResponseUnreachableBackends CreateConversationUnreachableBackends
+  | ConversationResponseCreated Conversation
 
 instance
-  (ResponseType r1 ~ Conversation, ResponseType r2 ~ CreateGroupConversation, ResponseType r3 ~ CreateConversationRejected) =>
-  AsUnion '[r1, r2, r3] CreateGroupConversationResponse
+  ( ResponseType r1 ~ Conversation,
+    ResponseType r2 ~ CreateConversationUnreachableBackends,
+    ResponseType r3 ~ Conversation
+  ) =>
+  AsUnion '[r1, r2, r3] ExtendedConversationResponse
+  where
+  toUnion (ConversationResponseExisted x) = Z (I x)
+  toUnion (ConversationResponseUnreachableBackends x) = S (Z (I x))
+  toUnion (ConversationResponseCreated x) = S (S (Z (I x)))
+
+  fromUnion (Z (I x)) = ConversationResponseExisted x
+  fromUnion (S (Z (I x))) = ConversationResponseUnreachableBackends x
+  fromUnion (S (S (Z (I x)))) = ConversationResponseCreated x
+  fromUnion (S (S (S x))) = case x of {}
+
+type UnreachableBackendsResponse =
+  Respond
+    503
+    "Unreachable backends in conversation creation"
+    CreateConversationUnreachableBackends
+
+-- | JSON of the type is specific to V2
+type ExtendedConversationResponsesV2 =
+  '[ WithHeaders
+       ConversationHeaders
+       Conversation
+       (VersionedRespond 'V2 200 "Conversation existed" Conversation),
+     UnreachableBackendsResponse,
+     WithHeaders
+       ConversationHeaders
+       Conversation
+       (VersionedRespond 'V2 201 "Conversation created" Conversation)
+   ]
+
+-- | Versioned to the latest API version
+type ExtendedConversationResponses =
+  '[ WithHeaders
+       ConversationHeaders
+       Conversation
+       (Respond 200 "Conversation existed" Conversation),
+     UnreachableBackendsResponse,
+     WithHeaders
+       ConversationHeaders
+       Conversation
+       (Respond 201 "Conversation created" Conversation)
+   ]
+
+-- | A type similar to 'ConversationResponse' introduced to allow for a failure
+-- to add remote members while creating a conversation or due to involved
+-- backends forming an incomplete graph.
+data CreateGroupConversationResponse
+  = GroupConversationExisted Conversation
+  | GroupConversationFailedToCreate CreateConversationRejected
+  | GroupConversationUnreachableBackends CreateConversationUnreachableBackends
+  | GroupConversationCreated CreateGroupConversation
+
+instance
+  ( ResponseType r1 ~ Conversation,
+    ResponseType r2 ~ CreateConversationRejected,
+    ResponseType r3 ~ CreateConversationUnreachableBackends,
+    ResponseType r4 ~ CreateGroupConversation
+  ) =>
+  AsUnion '[r1, r2, r3, r4] CreateGroupConversationResponse
   where
   toUnion (GroupConversationExisted x) = Z (I x)
-  toUnion (GroupConversationCreated x) = S (Z (I x))
-  toUnion (GroupConversationFailedToCreate x) = S (S (Z (I x)))
+  toUnion (GroupConversationFailedToCreate x) = S (Z (I x))
+  toUnion (GroupConversationUnreachableBackends x) = S (S (Z (I x)))
+  toUnion (GroupConversationCreated x) = S (S (S (Z (I x))))
 
   fromUnion (Z (I x)) = GroupConversationExisted x
-  fromUnion (S (Z (I x))) = GroupConversationCreated x
-  fromUnion (S (S (Z (I x)))) = GroupConversationFailedToCreate x
-  fromUnion (S (S (S x))) = case x of {}
+  fromUnion (S (Z (I x))) = GroupConversationFailedToCreate x
+  fromUnion (S (S (Z (I x)))) = GroupConversationUnreachableBackends x
+  fromUnion (S (S (S (Z (I x))))) = GroupConversationCreated x
+  fromUnion (S (S (S (S x)))) = case x of {}
 
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
@@ -84,6 +150,13 @@ type ConversationVerb =
      ]
     ConversationResponse
 
+type ExtendedConversationVerb =
+  MultiVerb
+    'POST
+    '[JSON]
+    ExtendedConversationResponses
+    ExtendedConversationResponse
+
 type CreateGroupConversationVerb =
   MultiVerb
     'POST
@@ -92,11 +165,12 @@ type CreateGroupConversationVerb =
          ConversationHeaders
          Conversation
          (Respond 200 "Conversation existed" Conversation),
+       Respond 409 "Conversation creation rejected" CreateConversationRejected,
+       UnreachableBackendsResponse,
        WithHeaders
          ConversationHeaders
          CreateGroupConversation
-         (Respond 201 "Conversation created" CreateGroupConversation),
-       Respond 409 "Conversation creation rejected" CreateConversationRejected
+         (Respond 201 "Conversation created" CreateGroupConversation)
      ]
     CreateGroupConversationResponse
 
@@ -370,6 +444,7 @@ type ConversationAPI =
            "create-group-conversation@v2"
            ( Summary "Create a new conversation"
                :> DescriptionOAuthScope 'WriteConversations
+               :> MakesFederatedCall 'Brig "api-version"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> Until 'V3
@@ -387,12 +462,17 @@ type ConversationAPI =
                :> ZOptConn
                :> "conversations"
                :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
-               :> ConversationV2Verb
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    ExtendedConversationResponsesV2
+                    ExtendedConversationResponse
            )
     :<|> Named
            "create-group-conversation@v3"
            ( Summary "Create a new conversation"
                :> DescriptionOAuthScope 'WriteConversations
+               :> MakesFederatedCall 'Brig "api-version"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> From 'V3
@@ -411,14 +491,15 @@ type ConversationAPI =
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
-               :> ConversationVerb
+               :> ExtendedConversationVerb
            )
     :<|> Named
            "create-group-conversation"
            ( Summary "Create a new conversation"
+               :> MakesFederatedCall 'Brig "api-version"
+               :> MakesFederatedCall 'Brig "get-not-fully-connected-backends"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Brig "get-not-fully-connected-backends"
                :> From 'V4
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSMissingSenderClient
@@ -477,6 +558,7 @@ type ConversationAPI =
     :<|> Named
            "create-one-to-one-conversation@v2"
            ( Summary "Create a 1:1 conversation"
+               :> MakesFederatedCall 'Brig "api-version"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> Until 'V3
                :> CanThrow 'ConvAccessDenied
@@ -493,7 +575,11 @@ type ConversationAPI =
                :> "conversations"
                :> "one2one"
                :> VersionedReqBody 'V2 '[JSON] NewConv
-               :> ConversationV2Verb
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    ExtendedConversationResponsesV2
+                    ExtendedConversationResponse
            )
     :<|> Named
            "create-one-to-one-conversation"
@@ -514,7 +600,7 @@ type ConversationAPI =
                :> "conversations"
                :> "one2one"
                :> ReqBody '[JSON] NewConv
-               :> ConversationVerb
+               :> ExtendedConversationVerb
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to members

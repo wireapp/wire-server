@@ -196,6 +196,7 @@ type InternalAPIBase =
     :<|> Named
            "connect"
            ( Summary "Create a connect conversation (deprecated)"
+               :> MakesFederatedCall 'Brig "api-version"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> CanThrow 'ConvNotFound
@@ -206,7 +207,7 @@ type InternalAPIBase =
                :> "conversations"
                :> "connect"
                :> ReqBody '[Servant.JSON] Connect
-               :> ConversationVerb
+               :> ExtendedConversationVerb
            )
     :<|> Named
            "guard-legalhold-policy-conflicts"

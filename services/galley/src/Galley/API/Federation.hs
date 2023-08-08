@@ -259,7 +259,7 @@ leaveConversation requestingDomain lc = do
                 Nothing
                 ()
         case outcome of
-          Left e@(FederationUnreachableDomains _) -> throw e
+          Left e@(FederationUnreachableDomainsOld _) -> throw e
           Left e -> do
             logFederationError lcnv e
             throw . internalErr $ e
@@ -282,7 +282,7 @@ leaveConversation requestingDomain lc = do
               botsAndMembers
               ()
         case outcome of
-          Left e@(FederationUnreachableDomains _) -> throw e
+          Left e@(FederationUnreachableDomainsOld _) -> throw e
           Left e -> do
             logFederationError lcnv e
             throw . internalErr $ e
@@ -421,7 +421,7 @@ onUserDeleted origDomain udcn = do
                     botsAndMembers
                     ()
               case outcome of
-                Left e@(FederationUnreachableDomains _) -> throw e
+                Left e@(FederationUnreachableDomainsOld _) -> throw e
                 Left e -> logFederationError lc e
                 Right _ -> pure ()
   pure EmptyResponse

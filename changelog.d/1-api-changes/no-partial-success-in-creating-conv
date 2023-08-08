@@ -1,0 +1,1 @@
+The `POST /conversations` endpoint now in case of the Proteus protocol gives a 503 error response listing unreachable backends in case there were any, instead of a 2xx response by adding only members from reachable backends.
