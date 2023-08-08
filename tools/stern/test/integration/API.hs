@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -97,7 +96,7 @@ tests s =
       test s "GET /teams/:id" testGetTeamInfo,
       test s "GET i/user/meta-info?id=..." testGetUserMetaInfo,
       test s "/teams/:tid/search-visibility" testSearchVisibility,
-      test s "/sso-deep-links" testRudSsoDeepLinks,
+      test s "/sso-domain-redirect" testRudSsoDomainRedirect,
       test s "i/oauth/clients" testCrudOAuthClient
       -- The following endpoints can not be tested because they require ibis:
       -- - `GET /teams/:tid/billing`
@@ -106,14 +105,14 @@ tests s =
       -- - `POST /teams/:tid/billing`
     ]
 
-testRudSsoDeepLinks :: TestM ()
-testRudSsoDeepLinks = do
+testRudSsoDomainRedirect :: TestM ()
+testRudSsoDomainRedirect = do
   testGet 1 Nothing
-  putSsoDeepLink sampleDomain sampleConfig sampleWelcome
+  putSsoDomainRedirect sampleDomain sampleConfig sampleWelcome
   testGet 2 (Just $ A.object ["config_json_url" A..= sampleConfig, "webapp_welcome_url" A..= sampleWelcome])
-  putSsoDeepLink sampleDomain sampleConfig' sampleWelcome'
+  putSsoDomainRedirect sampleDomain sampleConfig' sampleWelcome'
   testGet 3 (Just $ A.object ["config_json_url" A..= sampleConfig', "webapp_welcome_url" A..= sampleWelcome'])
-  deleteSsoDeepLink sampleDomain
+  deleteSsoDomainRedirect sampleDomain
   testGet 4 Nothing
   where
     sampleDomain :: ByteString
@@ -132,7 +131,7 @@ testRudSsoDeepLinks = do
     sampleWelcome' = "https://new-app.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/new"
 
     testGet :: Int -> Maybe Value -> TestM ()
-    testGet (show -> msg) expectedEntry = liftIO . (assertEqual msg expectedEntry) =<< getSsoDeepLink sampleDomain
+    testGet (show -> msg) expectedEntry = liftIO . (assertEqual msg expectedEntry) =<< getSsoDomainRedirect sampleDomain
 
 testCrudOAuthClient :: TestM ()
 testCrudOAuthClient = do
@@ -676,19 +675,19 @@ putUserProperty uid k v = do
   b <- view tsBrig
   void $ put (b . paths ["properties", toByteString' k] . json v . zUser uid . zConn "123" . expect2xx)
 
-getSsoDeepLink :: ByteString -> TestM (Maybe Value)
-getSsoDeepLink domain = do
+getSsoDomainRedirect :: ByteString -> TestM (Maybe Value)
+getSsoDomainRedirect domain = do
   s <- view tsStern
-  r <- get (s . path "sso-deep-links" . query [("domain", Just domain)] . expect2xx)
+  r <- get (s . path "sso-domain-redirect" . query [("domain", Just domain)] . expect2xx)
   pure $ responseJsonUnsafe r
 
-putSsoDeepLink :: ByteString -> Text -> Text -> TestM ()
-putSsoDeepLink domain (cs -> configurl) (cs -> welcomeurl) = do
+putSsoDomainRedirect :: ByteString -> Text -> Text -> TestM ()
+putSsoDomainRedirect domain (cs -> configurl) (cs -> welcomeurl) = do
   s <- view tsStern
   r <-
     put
       ( s
-          . path "sso-deep-links"
+          . path "sso-domain-redirect"
           . query
             [ ("domain", Just domain),
               ("configurl", Just configurl),
@@ -698,10 +697,10 @@ putSsoDeepLink domain (cs -> configurl) (cs -> welcomeurl) = do
       )
   pure $ responseJsonUnsafe r
 
-deleteSsoDeepLink :: ByteString -> TestM ()
-deleteSsoDeepLink domain = do
+deleteSsoDomainRedirect :: ByteString -> TestM ()
+deleteSsoDomainRedirect domain = do
   s <- view tsStern
-  void $ delete (s . path "sso-deep-links" . query [("domain", Just domain)] . expect2xx)
+  void $ delete (s . path "sso-domain-redirect" . query [("domain", Just domain)] . expect2xx)
 
 registerOAuthClient :: OAuthClientConfig -> TestM OAuthClientCredentials
 registerOAuthClient cfg = do

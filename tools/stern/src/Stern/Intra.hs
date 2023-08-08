@@ -59,9 +59,9 @@ module Stern.Intra
     getUserClients,
     getUserCookies,
     getUserNotifications,
-    getSsoDeeplink,
-    putSsoDeeplink,
-    deleteSsoDeeplink,
+    getSsoDomainRedirect,
+    putSsoDomainRedirect,
+    deleteSsoDomainRedirect,
     registerOAuthClient,
     getOAuthClient,
     updateOAuthClient,
@@ -863,9 +863,9 @@ getUserNotifications uid = do
         _ -> throwE (mkError status502 "bad-upstream" "")
     batchSize = 100 :: Int
 
-getSsoDeeplink :: Text -> Handler (Maybe CustomBackend)
-getSsoDeeplink domain = do
-  info $ msg "getSsoDeeplink"
+getSsoDomainRedirect :: Text -> Handler (Maybe CustomBackend)
+getSsoDomainRedirect domain = do
+  info $ msg "getSsoDomainRedirect"
   -- curl  -XGET ${CLOUD_BACKEND}/custom-backend/by-domain/${DOMAIN_EXAMPLE}
   g <- view galley
   r <-
@@ -882,9 +882,9 @@ getSsoDeeplink domain = do
     404 -> pure Nothing
     _ -> error "impossible"
 
-putSsoDeeplink :: Text -> Text -> Text -> Handler ()
-putSsoDeeplink domain config welcome = do
-  info $ msg "putSsoDeeplink"
+putSsoDomainRedirect :: Text -> Text -> Text -> Handler ()
+putSsoDomainRedirect domain config welcome = do
+  info $ msg "putSsoDomainRedirect"
   -- export DOMAIN_ENTRY='{ \
   --   "config_json_url": "https://wire-rest.https.example.com/config.json", \
   --   "webapp_welcome_url": "https://app.wire.example.com/" \
@@ -901,9 +901,9 @@ putSsoDeeplink domain config welcome = do
           . expect2xx
       )
 
-deleteSsoDeeplink :: Text -> Handler ()
-deleteSsoDeeplink domain = do
-  info $ msg "deleteSsoDeeplink"
+deleteSsoDomainRedirect :: Text -> Handler ()
+deleteSsoDomainRedirect domain = do
+  info $ msg "deleteSsoDomainRedirect"
   -- curl -XDELETE http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE}
   g <- view galley
   void . catchRpcErrors $

@@ -384,34 +384,35 @@ type SternAPI =
                :> Post '[JSON] UserMetaInfo
            )
     :<|> Named
-           "get-sso-deeplink"
+           "get-sso-domain-redirect"
            ( Summary "read, update, delete domain login redirects custom backends"
                :> Description "Read from cassandra table galley.custom_backend."
-               :> "sso-deep-links"
+               :> "sso-domain-redirect"
                :> QueryParam' [Required, Strict, Description "Domain"] "domain" Text
                :> Get '[JSON] (Maybe CustomBackend)
            )
     :<|> Named
-           "put-sso-deeplink"
+           "put-sso-domain-redirect"
            ( Summary "read, update, delete domain login redirects custom backends"
                :> Description "Write to cassandra table galley.custom_backend."
-               :> "sso-deep-links"
+               :> "sso-domain-redirect"
                :> QueryParam' [Required, Strict, Description "Domain key (from email during login)"] "domain" Text
                :> QueryParam' [Required, Strict, Description "Config JSON URL"] "configurl" Text
                :> QueryParam' [Required, Strict, Description "Webapp welcome URL"] "welcomeurl" Text
                :> Put '[JSON] ()
            )
     :<|> Named
-           "delete-sso-deeplink"
+           "delete-sso-domain-redirect"
            ( Summary "read, update, delete domain login redirects custom backends"
                :> Description "Delete from cassandra table galley.custom_backend."
-               :> "sso-deep-links"
+               :> "sso-domain-redirect"
                :> QueryParam' [Required, Strict, Description "Domain key (from email during login)"] "domain" Text
                :> Delete '[JSON] ()
            )
     :<|> Named
            "register-oauth-client"
            ( Summary "Register an OAuth client"
+               :> "i"
                :> "oauth"
                :> "clients"
                :> ReqBody '[JSON] OAuthClientConfig
@@ -420,6 +421,7 @@ type SternAPI =
     :<|> Named
            "get-oauth-client"
            ( Summary "Get OAuth client by id"
+               :> "i"
                :> "oauth"
                :> "clients"
                :> Capture "id" OAuthClientId
