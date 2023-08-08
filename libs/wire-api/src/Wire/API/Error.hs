@@ -81,7 +81,7 @@ dynErrorToWai (DynError c l m) =
   Wai.mkError (toEnum (fromIntegral c)) (LT.fromStrict l) (LT.fromStrict m)
 
 instance ToJSON DynError where
-  toJSON = toJSON . toResponse
+  toJSON = (.value) . toResponse
 
 dynErrorFromWai :: Wai.Error -> DynError
 dynErrorFromWai =
