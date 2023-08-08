@@ -783,7 +783,7 @@ registerRemoteConversationMemberships now lc = do
       $ unreachableBackends
 
   do
-    -- let remote backends now about a subset of new joiners
+    -- let remote backends know about a subset of new joiners
     failedToNotify :: Set Domain <- fmap (Set.fromList . foldMap (either (pure . tDomain . fst) mempty)) $
       runFederatedConcurrentlyEither allRemoteMembersQualified $
         \rrms ->
