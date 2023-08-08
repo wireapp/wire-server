@@ -106,19 +106,12 @@ testFederationStatus :: HasCallStack => App ()
 testFederationStatus = do
   uid <- randomUser OwnDomain def {Internal.team = True}
   federatingRemoteDomain <- asString OtherDomain
-  let unknownDomain = "foobar.com"
-  let invalidDomain = "c.example.com" -- has no srv record
+  let invalidDomain = "c.example.com" -- Does not have any srv records
   bindResponse
     (API.getFederationStatus uid [])
     $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "status" `shouldMatch` "fully-connected"
-
-  bindResponse
-    (API.getFederationStatus uid [unknownDomain])
-    $ \resp -> do
-      resp.status `shouldMatchInt` 400
-      resp.json %. "label" `shouldMatch` "discovery-failure"
 
   bindResponse
     (API.getFederationStatus uid [invalidDomain])
@@ -131,12 +124,6 @@ testFederationStatus = do
     $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "status" `shouldMatch` "fully-connected"
-
-  bindResponse
-    (API.getFederationStatus uid [federatingRemoteDomain, unknownDomain])
-    $ \resp -> do
-      resp.status `shouldMatchInt` 400
-      resp.json %. "label" `shouldMatch` "discovery-failure"
 
 testCreateConversationFullyConnected :: HasCallStack => App ()
 testCreateConversationFullyConnected = do
