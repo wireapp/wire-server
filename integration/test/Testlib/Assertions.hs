@@ -72,7 +72,7 @@ a `shouldNotMatch` b = do
 
   when (xa == xb) $ do
     pa <- prettyJSON xa
-    assertFailure $ "Expected different value but got twice:\n" <> pa
+    assertFailure $ "Expected different value but got this:\n" <> pa
 
 -- | Specialized variant of `shouldMatch` to avoid the need for type annotations.
 shouldMatchInt ::
