@@ -385,7 +385,7 @@ type SternAPI =
            )
     :<|> Named
            "get-sso-domain-redirect"
-           ( Summary "read, update, delete domain login redirects custom backends"
+           ( Summary "read, update, delete domain login redirects custom backends (see https://docs.wire.com/understand/associate/custom-backend-for-desktop-client.html)"
                :> Description "Read from cassandra table galley.custom_backend."
                :> "sso-domain-redirect"
                :> QueryParam' [Required, Strict, Description "Domain"] "domain" Text
@@ -393,7 +393,7 @@ type SternAPI =
            )
     :<|> Named
            "put-sso-domain-redirect"
-           ( Summary "read, update, delete domain login redirects custom backends"
+           ( Summary "read, update, delete domain login redirects custom backends (see https://docs.wire.com/understand/associate/custom-backend-for-desktop-client.html)"
                :> Description "Write to cassandra table galley.custom_backend."
                :> "sso-domain-redirect"
                :> QueryParam' [Required, Strict, Description "Domain key (from email during login)"] "domain" Text
@@ -403,7 +403,7 @@ type SternAPI =
            )
     :<|> Named
            "delete-sso-domain-redirect"
-           ( Summary "read, update, delete domain login redirects custom backends"
+           ( Summary "read, update, delete domain login redirects custom backends (see https://docs.wire.com/understand/associate/custom-backend-for-desktop-client.html)"
                :> Description "Delete from cassandra table galley.custom_backend."
                :> "sso-domain-redirect"
                :> QueryParam' [Required, Strict, Description "Domain key (from email during login)"] "domain" Text
