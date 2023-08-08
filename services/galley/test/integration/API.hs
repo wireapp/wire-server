@@ -3239,15 +3239,19 @@ deleteUnavailableRemoteMemberConvLocalQualifiedOk = do
   connectUsers alice (singleton bob)
   mapM_ (connectWithRemoteUser alice) [qChad, qDee, qEve]
 
-  let mockedGetUsers = do
+  let mockedGetUsers remote2Response = do
         guardRPC "get-users-by-ids"
         d <- frTargetDomain <$> getRequest
         asum
           [ guard (d == remoteDomain1)
               *> mockReply [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")],
             guard (d == remoteDomain2)
-              *> throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
+              *> remote2Response
           ]
+      mockedCreateConvGetUsers =
+        mockedGetUsers (mockReply [mkProfile qEve (Name "Eve")])
+      mockedRemMemGetUsers =
+        mockedGetUsers (throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
       mockedOther = do
         d <- frTargetDomain <$> getRequest
         asum
@@ -3256,13 +3260,14 @@ deleteUnavailableRemoteMemberConvLocalQualifiedOk = do
             guard (d == remoteDomain2)
               *> asum
                 [ guardRPC "on-conversation-created" *> mockReply EmptyResponse,
+                  guardRPC "on-conversation-updated" *> mockReply EmptyResponse,
                   throw $ MockErrorResponse HTTP.status503 "Down for maintenance."
                 ]
           ]
   convId <-
     fmap decodeConvId $
       postConvWithRemoteUsersGeneric
-        (mockedGetUsers <|> mockedOther)
+        (mockedCreateConvGetUsers <|> mockedOther)
         alice
         Nothing
         defNewProteusConv {newConvQualifiedUsers = [qBob, qChad, qDee, qEve]}
@@ -3270,7 +3275,7 @@ deleteUnavailableRemoteMemberConvLocalQualifiedOk = do
   let qconvId = Qualified convId localDomain
 
   (respDel, federatedRequests) <-
-    withTempMockFederator' (mockedGetUsers <|> mockedOther) $
+    withTempMockFederator' (mockedRemMemGetUsers <|> mockedOther) $
       deleteMemberQualified alice qChad qconvId
   liftIO $ do
     statusCode respDel @?= 200
