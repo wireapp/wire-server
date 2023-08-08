@@ -33,7 +33,7 @@ import Cassandra
 import Control.Lens (view)
 import Data.Code
 import Data.Id
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time.Clock
 import Imports
 import OpenSSL.BN (randIntegerZeroToNMinusOne)

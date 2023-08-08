@@ -18,7 +18,7 @@
 module Test.Wire.API.Golden.Generated.Scheme_user where
 
 import Wire.API.Call.Config (Scheme (SchemeTurn, SchemeTurns))
-import qualified Wire.API.Call.Config as CallConfig (Scheme)
+import Wire.API.Call.Config qualified as CallConfig (Scheme)
 
 testObject_Scheme_user_1 :: CallConfig.Scheme
 testObject_Scheme_user_1 = SchemeTurns

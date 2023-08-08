@@ -32,7 +32,7 @@ import Data.Id (RequestId (..))
 import Imports
 import Network.Wai
 import Proxy.Env
-import qualified System.Logger as Logger
+import System.Logger qualified as Logger
 import System.Logger.Class hiding (Error, info)
 
 newtype Proxy a = Proxy

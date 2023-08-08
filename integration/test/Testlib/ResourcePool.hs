@@ -16,7 +16,7 @@ import Data.Function ((&))
 import Data.Functor
 import Data.IORef
 import Data.List.Extra ((\\))
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.String
 import Data.Tuple
 import Data.Word

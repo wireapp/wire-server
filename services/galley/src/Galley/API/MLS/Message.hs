@@ -33,12 +33,12 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NE
+import Data.Map qualified as Map
 import Data.Qualified
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as LT
+import Data.Set qualified as Set
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as LT
 import Data.Time
 import Data.Tuple.Extra
 import Galley.API.Action
@@ -52,7 +52,7 @@ import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (postMLSWelcome)
 import Galley.API.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
-import qualified Galley.Data.Conversation.Types as Data
+import Galley.Data.Conversation.Types qualified as Data
 import Galley.Data.Types
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
@@ -90,7 +90,7 @@ import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
-import qualified Wire.API.MLS.Proposal as Proposal
+import Wire.API.MLS.Proposal qualified as Proposal
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation

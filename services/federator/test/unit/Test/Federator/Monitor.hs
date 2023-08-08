@@ -20,16 +20,16 @@ module Test.Federator.Monitor (tests) where
 import Control.Concurrent.Chan
 import Control.Exception (bracket)
 import Control.Monad.Trans.Cont
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as B8
-import qualified Data.Set as Set
+import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as B8
+import Data.Set qualified as Set
 import Federator.Monitor
 import Federator.Monitor.Internal
 import Federator.Options
 import Imports
 import OpenSSL.Session (SSLContext)
-import qualified Polysemy
-import qualified Polysemy.Error as Polysemy
+import Polysemy qualified
+import Polysemy.Error qualified as Polysemy
 import System.FilePath
 import System.IO.Temp
 import System.Posix (createSymbolicLink, getWorkingDirectory)
@@ -38,7 +38,7 @@ import Test.Federator.Options (defRunSettings)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
-import qualified Wire.Sem.Logger.TinyLog as Log
+import Wire.Sem.Logger.TinyLog qualified as Log
 
 timeoutMicroseconds :: Int
 timeoutMicroseconds = 10000000

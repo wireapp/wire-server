@@ -5,39 +5,39 @@ module Federation where
 import API.Util
 import Bilge.Assert
 import Bilge.Response
-import qualified Cassandra as C
+import Cassandra qualified as C
 import Cassandra.Exec (x1)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Control.Monad.Codensity (lowerCodensity)
-import qualified Data.ByteString as LBS
+import Data.ByteString qualified as LBS
 import Data.Domain
 import Data.Id
 import Data.List.NonEmpty
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time (getCurrentTime)
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Federator.MockServer
 import Galley.API.Internal
 import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Queries
-import qualified Galley.Data.Conversation.Types as Types
+import Galley.Data.Conversation.Types qualified as Types
 import Galley.Monad
 import Galley.Options
 import Galley.Run
 import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), defMemberStatus, localMemberToOther)
 import Imports
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestSetup
 import UnliftIO.Retry
 import Wire.API.Conversation
-import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol (Protocol (..))
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
@@ -46,7 +46,7 @@ import Wire.API.Federation.API.Galley (ConversationUpdate (..), GetConversations
 import Wire.API.Internal.Notification
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.MultiTablePaging
-import qualified Wire.API.Routes.MultiTablePaging as Public
+import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.User.Search
 
 x3 :: RetryPolicy

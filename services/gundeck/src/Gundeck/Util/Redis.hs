@@ -19,11 +19,11 @@ module Gundeck.Util.Redis where
 
 import Control.Monad.Catch
 import Control.Retry
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Database.Redis
 import Imports
 import System.Logger.Class (MonadLogger)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import System.Logger.Message
 
 retry :: (MonadIO m, MonadMask m, MonadLogger m) => RetryPolicyM m -> m a -> m a

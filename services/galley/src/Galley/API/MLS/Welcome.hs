@@ -38,12 +38,12 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Env
 import Imports
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
-import qualified System.Logger.Class as Logger
+import Polysemy.TinyLog qualified as P
+import System.Logger.Class qualified as Logger
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API

@@ -1,4 +1,5 @@
 -- Disabling to stop warnings on HasCallStack
+{-# LANGUAGE DeepSubsumption #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
@@ -23,16 +24,16 @@ module Gundeck.ThreadBudget.Internal where
 import Control.Exception.Safe (catchAny)
 import Control.Lens
 import Control.Monad.Catch (MonadCatch)
-import qualified Data.HashMap.Strict as HM
+import Data.HashMap.Strict qualified as HM
 import Data.Metrics (Metrics, counterIncr)
 import Data.Metrics.Middleware (gaugeSet, path)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Time
 import Data.UUID (UUID, toText)
 import Data.UUID.V4 (nextRandom)
 import Gundeck.Options
 import Imports
-import qualified System.Logger.Class as LC
+import System.Logger.Class qualified as LC
 import UnliftIO.Async
 import UnliftIO.Exception (finally)
 

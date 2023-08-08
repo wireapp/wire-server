@@ -22,13 +22,13 @@ module Wire.API.MLS.CipherSuite where
 import Control.Lens ((?~))
 import Crypto.Error
 import Crypto.Hash.Algorithms
-import qualified Crypto.KDF.HKDF as HKDF
-import qualified Crypto.PubKey.Ed25519 as Ed25519
+import Crypto.KDF.HKDF qualified as HKDF
+import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Data.Aeson (parseJSON, toJSON)
 import Data.Proxy
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Swagger.Internal.Schema as S
+import Data.Swagger qualified as S
+import Data.Swagger.Internal.Schema qualified as S
 import Data.Word
 import Imports
 import Wire.API.MLS.Credential

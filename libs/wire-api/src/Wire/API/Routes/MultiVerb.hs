@@ -52,31 +52,31 @@ where
 import Control.Applicative
 import Control.Lens hiding (Context, (<|))
 import Data.ByteString.Builder
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.CaseInsensitive as CI
+import Data.ByteString.Lazy qualified as LBS
+import Data.CaseInsensitive qualified as CI
 import Data.Containers.ListUtils
 import Data.Either.Combinators (leftToMaybe)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Kind
 import Data.Metrics.Servant
 import Data.Proxy
 import Data.SOP
 import Data.Sequence (Seq, (<|), pattern (:<|))
-import qualified Data.Sequence as Seq
-import qualified Data.Swagger as S
-import qualified Data.Swagger.Declare as S
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Sequence qualified as Seq
+import Data.Swagger qualified as S
+import Data.Swagger.Declare qualified as S
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.Typeable
 import GHC.TypeLits
 import Generics.SOP as GSOP
 import Imports hiding (cs)
-import qualified Network.HTTP.Media as M
+import Network.HTTP.Media qualified as M
 import Network.HTTP.Types (hContentType)
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Network.HTTP.Types.Status
-import qualified Network.Wai as Wai
+import Network.Wai qualified as Wai
 import Servant.API
 import Servant.API.ContentTypes
 import Servant.API.Status (KnownStatus (..))

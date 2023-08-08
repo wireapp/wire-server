@@ -17,7 +17,7 @@
 
 module Wire.API.ServantProto where
 
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Swagger
 import Imports

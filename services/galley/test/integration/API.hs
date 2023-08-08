@@ -24,62 +24,62 @@ module API
   )
 where
 
-import qualified API.CustomBackend as CustomBackend
-import qualified API.Federation as Federation
+import API.CustomBackend qualified as CustomBackend
+import API.Federation qualified as Federation
 import API.Federation.Util
-import qualified API.MLS
-import qualified API.MessageTimer as MessageTimer
-import qualified API.Roles as Roles
+import API.MLS qualified
+import API.MessageTimer qualified as MessageTimer
+import API.Roles qualified as Roles
 import API.SQS
-import qualified API.Teams as Teams
-import qualified API.Teams.Feature as TeamFeature
-import qualified API.Teams.LegalHold as Teams.LegalHold
-import qualified API.Teams.LegalHold.DisabledByDefault
+import API.Teams qualified as Teams
+import API.Teams.Feature qualified as TeamFeature
+import API.Teams.LegalHold qualified as Teams.LegalHold
+import API.Teams.LegalHold.DisabledByDefault qualified
 import API.Util
-import qualified API.Util as Util
+import API.Util qualified as Util
 import API.Util.TeamFeature as TeamFeatures
-import qualified API.Util.TeamFeature as Util
+import API.Util.TeamFeature qualified as Util
 import Bilge hiding (head, timeout)
-import qualified Bilge
+import Bilge qualified
 import Bilge.Assert
 import Control.Arrow
-import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Async qualified as Async
 import Control.Exception (throw)
 import Control.Lens (at, ix, preview, view, (.~), (?~))
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding (json)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.Domain
 import Data.Either.Extra (eitherToMaybe)
 import Data.Id
 import Data.Json.Util (toBase64Text, toUTCTimeMillis)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1 hiding (head)
-import qualified Data.List1 as List1
-import qualified Data.Map.Strict as Map
+import Data.List1 qualified as List1
+import Data.Map.Strict qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
-import qualified Data.Text as T
-import qualified Data.Text.Ascii as Ascii
+import Data.Text qualified as T
+import Data.Text.Ascii qualified as Ascii
 import Data.Time.Clock (getCurrentTime)
-import qualified Data.Vector as V
+import Data.Vector qualified as V
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer
 import Galley.API.Mapping
 import Galley.Options (optFederator, optRabbitmq)
 import Galley.Types.Conversations.Members
 import Imports
-import qualified Network.HTTP.Types.Status as HTTP
+import Network.HTTP.Types.Status qualified as HTTP
 import Network.Wai.Utilities.Error
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
@@ -94,19 +94,19 @@ import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
-import qualified Wire.API.Federation.API.Brig as F
+import Wire.API.Federation.API.Brig qualified as F
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
-import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Internal.Notification
 import Wire.API.Message
-import qualified Wire.API.Message as Message
+import Wire.API.Message qualified as Message
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
-import qualified Wire.API.Team.Feature as Public
-import qualified Wire.API.Team.Member as Teams
+import Wire.API.Team.Feature qualified as Public
+import Wire.API.Team.Member qualified as Teams
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
@@ -1152,18 +1152,12 @@ postMessageQualifiedFailedToSendFetchingClients = do
 
   (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll mock
 
-  let qUsrClients quid cids =
+  let failedToSend = QualifiedUserClients $ Map.fromList [(qDomain deeRemote, Map.fromList [(qUnqualified deeRemote, mempty)])]
+      failedToConfirm =
         QualifiedUserClients $
           Map.fromList
-            [ ( qDomain quid,
-                Map.fromList
-                  [ (qUnqualified quid, Set.fromList cids)
-                  ]
-              )
+            [ (qDomain bobRemote, Map.fromList [(qUnqualified bobRemote, Set.fromList [bobClient]), (qUnqualified deeRemote, mempty)])
             ]
-
-      failedToSend = qUsrClients deeRemote []
-      failedToConfirm = qUsrClients bobRemote [bobClient]
 
   pure resp2 !!! do
     const 201 === statusCode

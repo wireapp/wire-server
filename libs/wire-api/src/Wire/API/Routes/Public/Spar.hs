@@ -22,12 +22,12 @@ import Data.Proxy
 import Data.Range
 import Data.Swagger (Swagger)
 import Imports
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Servant
 import Servant.API.Extended
 import Servant.Multipart
 import Servant.Swagger (toSwagger)
-import qualified URI.ByteString as URI
+import URI.ByteString qualified as URI
 import Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import Web.Scim.Class.Auth as Scim.Auth
 import Web.Scim.Class.User as Scim.User

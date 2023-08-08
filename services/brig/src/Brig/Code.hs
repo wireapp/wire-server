@@ -63,20 +63,20 @@ import Brig.Data.Instances ()
 import Brig.Email (emailKeyUniq, mkEmailKey)
 import Brig.Phone (mkPhoneKey, phoneKeyUniq)
 import Cassandra hiding (Value)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.Code
 import Data.Range
 import Data.RetryAfter (RetryAfter (RetryAfter))
-import qualified Data.Text as Text
-import qualified Data.Text.Ascii as Ascii
-import qualified Data.Text.Encoding as Text
+import Data.Text qualified as Text
+import Data.Text.Ascii qualified as Ascii
+import Data.Text.Encoding qualified as Text
 import Data.UUID (UUID)
 import Imports hiding (lookup)
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (Digest, digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
 import Text.Printf (printf)
-import qualified Wire.API.User as User
+import Wire.API.User qualified as User
 import Wire.API.User.Identity
 
 --------------------------------------------------------------------------------

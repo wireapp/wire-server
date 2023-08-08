@@ -19,7 +19,7 @@ module Test.Galley.API.Query where
 
 import Data.Domain
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Galley.API.Query
 import Imports
 import Test.Tasty

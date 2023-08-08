@@ -24,13 +24,13 @@ module Wire.API.Unreachable
   )
 where
 
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Id
 import Data.List.NonEmpty
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Data.Qualified
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 
 newtype UnreachableUsers = UnreachableUsers {unreachableUsers :: NonEmpty (Qualified UserId)}

@@ -1,0 +1,1 @@
+Metrics for federator are available at `GET /i/metrics` for both the internal and external servers.

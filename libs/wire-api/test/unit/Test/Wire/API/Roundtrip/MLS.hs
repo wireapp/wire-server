@@ -21,8 +21,8 @@ module Test.Wire.API.Roundtrip.MLS (tests) where
 
 import Data.Binary.Put
 import Imports
-import qualified Proto.Mls
-import qualified Test.Tasty as T
+import Proto.Mls qualified
+import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
 import Wire.API.ConverProtoLens

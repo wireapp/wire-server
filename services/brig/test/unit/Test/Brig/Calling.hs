@@ -25,16 +25,16 @@ import Brig.Calling.API (CallsConfigVersion (..), NoTurnServers, newConfig)
 import Brig.Calling.Internal (sftServerFromSrvTarget)
 import Brig.Effects.SFT
 import Brig.Options
-import qualified Control.Concurrent.Timeout as System
+import Control.Concurrent.Timeout qualified as System
 import Control.Lens ((^.))
 import Control.Monad.Catch (throwM)
 import Data.Bifunctor
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Timeout
 import Imports
 import Network.DNS
@@ -43,13 +43,13 @@ import OpenSSL.EVP.Digest (getDigestByName)
 import Polysemy
 import Polysemy.Error
 import Polysemy.TinyLog
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import Test.Brig.Effects.Delay
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck (Arbitrary (..), generate)
 import URI.ByteString
-import qualified UnliftIO.Async as Async
+import UnliftIO.Async qualified as Async
 import Wire.API.Call.Config
 import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV

@@ -86,13 +86,13 @@ module Wire.API.Team.Feature
   )
 where
 
-import qualified Cassandra.CQL as Cass
+import Cassandra.CQL qualified as Cass
 import Control.Lens (makeLenses, (?~))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as A
-import qualified Data.Attoparsec.ByteString as Parser
+import Data.Aeson qualified as A
+import Data.Aeson.Types qualified as A
+import Data.Attoparsec.ByteString qualified as Parser
 import Data.ByteString.Conversion
-import qualified Data.ByteString.UTF8 as UTF8
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Domain (Domain)
 import Data.Either.Extra (maybeToEither)
 import Data.Id
@@ -101,10 +101,10 @@ import Data.Misc (HttpsUrl)
 import Data.Proxy
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
-import qualified Data.Swagger as S
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as TL
+import Data.Swagger qualified as S
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.Text.Lazy qualified as TL
 import Data.Time (NominalDiffTime)
 import Deriving.Aeson
 import GHC.TypeLits

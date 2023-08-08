@@ -33,7 +33,7 @@ import Gundeck.Push.Native.Types
 import Gundeck.Types hiding (token)
 import Imports hiding (lookup)
 import System.Logger.Class (MonadLogger, field, msg, val, (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 
 lookup :: (MonadClient m, MonadLogger m) => UserId -> Consistency -> m [Address]
 lookup u c = foldM mk [] =<< retry x1 (query q (params c (Identity u)))

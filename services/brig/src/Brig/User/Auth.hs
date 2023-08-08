@@ -42,24 +42,24 @@ import Brig.API.Types
 import Brig.API.User (changeSingleAccountStatus)
 import Brig.App
 import Brig.Budget
-import qualified Brig.Code as Code
-import qualified Brig.Data.Activation as Data
+import Brig.Code qualified as Code
+import Brig.Data.Activation qualified as Data
 import Brig.Data.Client
-import qualified Brig.Data.LoginCode as Data
-import qualified Brig.Data.User as Data
+import Brig.Data.LoginCode qualified as Data
+import Brig.Data.User qualified as Data
 import Brig.Data.UserKey
-import qualified Brig.Data.UserKey as Data
+import Brig.Data.UserKey qualified as Data
 import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Effects.GalleyProvider as GalleyProvider
+import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Email
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Brig.Phone
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie
 import Brig.User.Handle
 import Brig.User.Phone
 import Brig.User.Search.Index
-import qualified Brig.ZAuth as ZAuth
+import Brig.ZAuth qualified as ZAuth
 import Cassandra
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
@@ -68,18 +68,18 @@ import Control.Monad.Except
 import Data.ByteString.Conversion (toByteString)
 import Data.Handle (Handle)
 import Data.Id
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Data.List1 (List1)
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Misc (PlainTextPassword6)
-import qualified Data.ZAuth.Token as ZAuth
+import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
 import System.Logger (field, msg, val, (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.Team.Feature
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold

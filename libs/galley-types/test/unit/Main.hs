@@ -21,8 +21,8 @@ module Main
 where
 
 import Imports
-import qualified Test.Galley.Permissions
-import qualified Test.Galley.Types
+import Test.Galley.Permissions qualified
+import Test.Galley.Types qualified
 import Test.Tasty
 
 main :: IO ()

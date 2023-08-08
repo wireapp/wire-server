@@ -28,14 +28,14 @@ where
 import Cassandra as C
 import Control.Error (MaybeT (..))
 import Control.Lens ((^.), _1)
-import qualified Data.Aeson as JSON
-import qualified Data.ByteString.Lazy as BSL
+import Data.Aeson qualified as JSON
+import Data.ByteString.Lazy qualified as BSL
 import Data.Id
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.List1 (List1, toNonEmpty)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL ((:<)))
-import qualified Data.Sequence as Seq
+import Data.Sequence qualified as Seq
 import Gundeck.Env
 import Gundeck.Options (NotificationTTL (..), optSettings, setInternalPageSize, setMaxPayloadLoadSize)
 import Gundeck.Push.Native.Serialise ()

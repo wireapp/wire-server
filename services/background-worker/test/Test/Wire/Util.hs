@@ -5,11 +5,11 @@ module Test.Wire.Util where
 import Control.Concurrent.Chan
 import Imports
 import Network.HTTP.Client
-import qualified System.Logger.Class as Logger
+import System.Logger.Class qualified as Logger
 import Util.Options
 import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Env hiding (federatorInternal, galley)
-import qualified Wire.BackgroundWorker.Env as E
+import Wire.BackgroundWorker.Env qualified as E
 import Wire.BackgroundWorker.Util
 
 testEnv :: IO Env

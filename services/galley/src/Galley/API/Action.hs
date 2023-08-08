@@ -47,33 +47,33 @@ import Control.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Kind
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List.Extra (nubOrd)
 import Data.List.NonEmpty (nonEmpty)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.MLS.Removal
 import Galley.API.Util
 import Galley.Data.Conversation
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Data.Services
 import Galley.Effects
-import qualified Galley.Effects.BotAccess as E
-import qualified Galley.Effects.BrigAccess as E
-import qualified Galley.Effects.CodeStore as E
-import qualified Galley.Effects.ConversationStore as E
-import qualified Galley.Effects.FederatorAccess as E
-import qualified Galley.Effects.FireAndForget as E
+import Galley.Effects.BotAccess qualified as E
+import Galley.Effects.BrigAccess qualified as E
+import Galley.Effects.CodeStore qualified as E
+import Galley.Effects.ConversationStore qualified as E
+import Galley.Effects.FederatorAccess qualified as E
+import Galley.Effects.FireAndForget qualified as E
 import Galley.Effects.GundeckAccess
-import qualified Galley.Effects.MemberStore as E
+import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore
-import qualified Galley.Effects.TeamStore as E
+import Galley.Effects.TeamStore qualified as E
 import Galley.Env (Env)
 import Galley.Intra.Push
 import Galley.Options
@@ -81,14 +81,14 @@ import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
 import Imports
-import qualified Network.HTTP.Types.Status as Wai
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.HTTP.Types.Status qualified as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
-import qualified Polysemy.TinyLog as P
-import qualified System.Logger as Log
+import Polysemy.TinyLog qualified as P
+import System.Logger qualified as Log
 import Wire.API.Connection (Relation (Accepted))
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
@@ -100,12 +100,12 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
-import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
-import qualified Wire.API.User as User
+import Wire.API.User qualified as User
 
 data NoChanges = NoChanges
 

@@ -26,37 +26,39 @@ where
 
 import Control.Monad.Codensity
 import Data.Bifunctor
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Builder
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
-import qualified Data.Sequence as Seq
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.X509 as X509
+import Data.Metrics.Servant qualified as Metrics
+import Data.Proxy (Proxy (Proxy))
+import Data.Sequence qualified as Seq
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.X509 qualified as X509
 import Federator.Discovery
 import Federator.Env
 import Federator.Error.ServerError
-import qualified Federator.Health as Health
+import Federator.Health qualified as Health
 import Federator.RPC
 import Federator.Response
 import Federator.Service
 import Federator.Validation
 import Imports
 import Network.HTTP.Client (Manager)
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
-import qualified Polysemy.TinyLog as Log
+import Polysemy.TinyLog qualified as Log
 import Servant.API
 import Servant.API.Extended.Endpath
 import Servant.Client.Core
 import Servant.Server (Tagged (..))
 import Servant.Server.Generic
-import qualified System.Logger.Message as Log
+import System.Logger.Message qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
 import Wire.API.Routes.FederationDomainConfig
@@ -164,4 +166,8 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
         }
 
 serveInward :: Env -> Int -> IO ()
-serveInward env = serveServant (server env._httpManager env._internalPort $ runFederator env) env
+serveInward env =
+  serveServant
+    (Metrics.servantPrometheusMiddleware $ Proxy @(ToServantApi API))
+    (server env._httpManager env._internalPort $ runFederator env)
+    env

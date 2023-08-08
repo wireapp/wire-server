@@ -19,32 +19,32 @@ module Federator.Monitor.Internal where
 
 import Control.Exception (try)
 import Data.ByteString (packCStringLen, useAsCStringLen)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Encoding.Error as Text
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Encoding.Error qualified as Text
 import Federator.Options (RunSettings (..))
 import GHC.Foreign (peekCStringLen, withCStringLen)
 import GHC.IO.Encoding (getFileSystemEncoding)
 import Imports
 import OpenSSL.Session (SSLContext)
-import qualified OpenSSL.Session as SSL
+import OpenSSL.Session qualified as SSL
 import Polysemy (Embed, Member, Members, Sem, embed)
-import qualified Polysemy
-import qualified Polysemy.Error as Polysemy
+import Polysemy qualified
+import Polysemy.Error qualified as Polysemy
 import Polysemy.Final (Final)
-import qualified Polysemy.Resource as Polysemy
+import Polysemy.Resource qualified as Polysemy
 import Polysemy.TinyLog (TinyLog)
-import qualified Polysemy.TinyLog as Log
+import Polysemy.TinyLog qualified as Log
 import System.FilePath
 import System.INotify
 import System.Logger (Logger)
-import qualified System.Logger.Message as Log
+import System.Logger.Message qualified as Log
 import System.Posix.ByteString (RawFilePath)
 import System.Posix.Files
 import Wire.Arbitrary
-import qualified Wire.Sem.Logger.TinyLog as Log
+import Wire.Sem.Logger.TinyLog qualified as Log
 
 data Monitor = Monitor
   { monINotify :: INotify,
@@ -103,24 +103,6 @@ type Watches = Map RawFilePath (WatchDescriptor, WatchedPath)
 
 runSemDefault :: Logger -> Sem '[TinyLog, Embed IO, Final IO] a -> IO a
 runSemDefault logger = Polysemy.runFinal . Polysemy.embedToFinal . Log.loggerToTinyLog logger
-
-logErrors ::
-  ( Member TinyLog r,
-    Member (Polysemy.Error FederationSetupError) r
-  ) =>
-  Sem r a ->
-  Sem r a
-logErrors action = Polysemy.catch action $ \err -> do
-  Log.err $
-    Log.msg ("federation setup error while updating certificates" :: Text)
-      . Log.field "error" (showFederationSetupError err)
-  Polysemy.throw err
-
-logAndIgnoreErrors ::
-  Member TinyLog r =>
-  Sem (Polysemy.Error FederationSetupError ': r) () ->
-  Sem r ()
-logAndIgnoreErrors = void . Polysemy.runError . logErrors
 
 delMonitor ::
   ( Member TinyLog r,

@@ -31,33 +31,33 @@ import Control.Lens ((^.), (^?))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Random
 import Data.Aeson hiding (json)
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Lens (key, _String)
 import Data.ByteString.Conversion (fromByteString, toByteString')
 import Data.Id (InvitationId, TeamId, UserId)
 import Data.Range (unsafeRange)
 import Data.Text.Encoding (encodeUtf8)
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
 import Imports
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Spar.Scim (CreateScimTokenResponse (..), SparTag, userSchemas)
 import Test.QuickCheck (generate)
 import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
 import Test.Tasty
 import Test.Tasty.HUnit (assertEqual)
-import qualified Text.Email.Parser as Email
+import Text.Email.Parser qualified as Email
 import Util hiding (createUser)
 import Web.HttpApiData (toHeader)
-import qualified Web.Scim.Class.User as Scim
+import Web.Scim.Class.User qualified as Scim
 import Web.Scim.Schema.Common (WithId)
-import qualified Web.Scim.Schema.Common as Scim
+import Web.Scim.Schema.Common qualified as Scim
 import Web.Scim.Schema.Meta (WithMeta)
-import qualified Web.Scim.Schema.Meta as Scim
-import qualified Web.Scim.Schema.User as Scim.User
-import qualified Web.Scim.Schema.User.Email as Email
-import qualified Web.Scim.Schema.User.Phone as Phone
-import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Web.Scim.Schema.Meta qualified as Scim
+import Web.Scim.Schema.User qualified as Scim.User
+import Web.Scim.Schema.User.Email qualified as Email
+import Web.Scim.Schema.User.Phone qualified as Phone
+import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Invitation
 import Wire.API.User hiding (CreateScimToken)

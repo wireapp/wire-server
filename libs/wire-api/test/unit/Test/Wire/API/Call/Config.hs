@@ -18,7 +18,7 @@
 module Test.Wire.API.Call.Config where
 
 import Data.Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck hiding (total)

@@ -21,9 +21,9 @@ module Main
 where
 
 import Imports
-import qualified Test.Brig.Types.Common
-import qualified Test.Brig.Types.Team
-import qualified Test.Brig.Types.User
+import Test.Brig.Types.Common qualified
+import Test.Brig.Types.Team qualified
+import Test.Brig.Types.User qualified
 import Test.Tasty
 
 main :: IO ()

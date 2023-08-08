@@ -34,13 +34,13 @@ import Galley.Intra.User
 import Galley.Monad
 import Galley.Types.Bot.Service (Service, serviceEnabled, serviceFingerprints, serviceToken, serviceUrl)
 import Imports
-import qualified Network.HTTP.Client as Http
+import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status410)
 import Polysemy
 import Polysemy.Input
 import Ssl.Util (withVerifiedSslConnection)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import System.Logger.Message (field, msg, val, (~~))
 import URI.ByteString
 import UnliftIO (Async, async, waitCatch)

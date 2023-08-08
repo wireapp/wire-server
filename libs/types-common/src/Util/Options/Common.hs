@@ -18,11 +18,11 @@
 module Util.Options.Common where
 
 import Data.Aeson.TH
-import qualified Data.ByteString.Char8 as C
-import qualified Data.Text as T
+import Data.ByteString.Char8 qualified as C
+import Data.Text qualified as T
 import Imports hiding (reader)
 import Options.Applicative
-import qualified System.Posix.Env as Posix
+import System.Posix.Env qualified as Posix
 
 -- | Convenient helper to convert record field names to use as YAML fields.
 -- NOTE: We typically use this for options in the configuration files!

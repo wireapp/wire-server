@@ -52,15 +52,15 @@ import Control.Monad.Catch hiding (tryJust)
 import Data.Aeson (FromJSON)
 import Data.Default (def)
 import Data.Misc (Milliseconds (..))
-import qualified Database.Redis as Redis
+import Database.Redis qualified as Redis
 import Gundeck.Env
-import qualified Gundeck.Redis as Redis
+import Gundeck.Redis qualified as Redis
 import Imports
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Utilities
-import qualified System.Logger as Log
-import qualified System.Logger as Logger
+import System.Logger qualified as Log
+import System.Logger qualified as Logger
 import System.Logger.Class hiding (Error, info)
 import UnliftIO (async)
 

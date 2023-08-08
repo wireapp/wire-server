@@ -24,11 +24,11 @@ import Brig.AWS.Types
 import Brig.App
 import Brig.Data.UserKey (userEmailKey)
 import Brig.Effects.BlacklistStore (BlacklistStore)
-import qualified Brig.Effects.BlacklistStore as BlacklistStore
+import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Imports
 import Polysemy (Member)
 import System.Logger.Class (field, msg, (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.User.Identity
 
 onEvent :: Member BlacklistStore r => SESNotification -> AppT r ()

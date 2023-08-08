@@ -8,17 +8,17 @@ import Control.Monad.Trans.Control
 import Control.Retry
 import Data.Aeson
 import Data.Proxy
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Imports
-import qualified Network.AMQP as Q
-import qualified Network.HTTP.Client as HTTP
+import Network.AMQP qualified as Q
+import Network.HTTP.Client qualified as HTTP
 import Network.RabbitMqAdmin
 import Servant
 import Servant.Client
-import qualified Servant.Client as Servant
+import Servant.Client qualified as Servant
 import System.Logger (Logger)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import UnliftIO.Async
 
 data RabbitMqHooks m = RabbitMqHooks

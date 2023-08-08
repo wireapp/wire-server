@@ -26,21 +26,21 @@ module Federator.Remote
   )
 where
 
-import qualified Control.Exception as E
+import Control.Exception qualified as E
 import Control.Monad.Codensity
 import Data.Binary.Builder
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Encoding.Error as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Encoding.Error qualified as Text
 import Federator.Discovery
 import Federator.Error
 import HTTP2.Client.Manager (Http2Manager)
-import qualified HTTP2.Client.Manager as H2Manager
+import HTTP2.Client.Manager qualified as H2Manager
 import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.HTTP2.Client as HTTP2
+import Network.HTTP.Types qualified as HTTP
+import Network.HTTP2.Client qualified as HTTP2
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input

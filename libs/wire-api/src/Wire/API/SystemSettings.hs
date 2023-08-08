@@ -18,9 +18,9 @@
 module Wire.API.SystemSettings where
 
 import Control.Lens hiding ((.=))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Schema as Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Servant.Swagger.Internal.Orphans ()
 import Test.QuickCheck

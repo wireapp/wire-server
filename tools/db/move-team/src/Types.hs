@@ -32,9 +32,9 @@ import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Handle
 import Data.IP (IP (..))
 import Data.Id
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Text.Ascii (AsciiText, Base64, decodeBase64, encodeBase64)
-import qualified Data.Vector as V
+import Data.Vector qualified as V
 import Galley.Cassandra.Instances ()
 import Imports
 import System.Logger (Logger)

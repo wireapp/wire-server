@@ -29,8 +29,8 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util
 import Data.Misc
-import qualified Data.Schema as Schema
-import qualified Data.Swagger as Swagger
+import Data.Schema qualified as Schema
+import Data.Swagger qualified as Swagger
 import Imports
 import Wire.API.Provider
 import Wire.API.Provider.Service

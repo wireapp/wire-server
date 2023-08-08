@@ -150,7 +150,7 @@ library
     , x509
     , x509-validation
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable federator
   main-is:            Main.hs
@@ -211,7 +211,7 @@ executable federator
     , imports
     , types-common
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable federator-integration
   main-is:            Main.hs
@@ -306,7 +306,7 @@ executable federator-integration
     , wire-api-federation
     , yaml
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite federator-tests
   type:               exitcode-stdio-1.0
@@ -417,4 +417,4 @@ test-suite federator-tests
     , x509-validation
     , yaml
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

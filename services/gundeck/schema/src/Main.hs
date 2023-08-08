@@ -20,18 +20,18 @@ module Main where
 import Cassandra.Schema
 import Control.Exception (finally)
 import Imports
-import qualified System.Logger.Extended as Log
+import System.Logger.Extended qualified as Log
 import Util.Options
-import qualified V1
-import qualified V10
-import qualified V2
-import qualified V3
-import qualified V4
-import qualified V5
-import qualified V6
-import qualified V7
-import qualified V8
-import qualified V9
+import V1 qualified
+import V10 qualified
+import V2 qualified
+import V3 qualified
+import V4 qualified
+import V5 qualified
+import V6 qualified
+import V7 qualified
+import V8 qualified
+import V9 qualified
 
 main :: IO ()
 main = do

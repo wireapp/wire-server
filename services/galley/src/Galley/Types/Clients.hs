@@ -38,9 +38,9 @@ module Galley.Types.Clients
 where
 
 import Data.Id
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Imports hiding (filter, toList)
 import Wire.API.User.Client
 

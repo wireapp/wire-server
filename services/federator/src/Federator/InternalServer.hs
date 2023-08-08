@@ -22,19 +22,21 @@ module Federator.InternalServer where
 
 import Control.Monad.Codensity
 import Data.Binary.Builder
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.Domain
+import Data.Metrics.Servant qualified as Metrics
+import Data.Proxy
 import Federator.Env
 import Federator.Error.ServerError
-import qualified Federator.Health as Health
+import Federator.Health qualified as Health
 import Federator.RPC
 import Federator.Remote
 import Federator.Response
 import Federator.Validation
 import Imports
-import Network.HTTP.Client
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
+import Network.HTTP.Client (Manager)
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -118,4 +120,8 @@ callOutward targetDomain component (RPC path) req = do
   pure $ streamingResponseToWai resp
 
 serveOutward :: Env -> Int -> IO ()
-serveOutward env = serveServant (server env._httpManager env._externalPort $ runFederator env) env
+serveOutward env =
+  serveServant
+    (Metrics.servantPrometheusMiddleware $ Proxy @(ToServantApi API))
+    (server env._httpManager env._externalPort $ runFederator env)
+    env

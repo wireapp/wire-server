@@ -20,16 +20,51 @@ import sys
 import os
 import json
 import base64
+import sys
 
 
 def random_string(n):
     return ''.join(random.choice(string.ascii_lowercase) for i in range(n))
 
-def random_email():
+def random_email(number=1):
     rnd = random_string(8)
-    return f'doesnotexist+{rnd}@wire.com'
+    return f'doesnotexist+{number}_{rnd}@wire.com'
 
-def create_user(baseurl, basic_auth, create_team):
+def add_team_member(baseurl, team, access_token, basic_auth, i=1):
+    member_email = random_email(i)
+
+
+    password = random_string(20)
+
+    r = requests.post(f'{baseurl}/teams/{team}/invitations', json={'email': member_email}, headers={'Authorization': f'Bearer {access_token}'})
+    invitation_id = r.json()['id']
+
+    r = requests.get(f'{baseurl}/i/teams/invitation-code', params={'team': team, 'invitation_id': invitation_id}, headers={'Authorization': f'Basic {basic_auth}'})
+    code = r.json()['code']
+
+    d = {
+        "name": member_email,
+        "email": member_email,
+        "password": password,
+        "team_code": code
+    }
+    r = requests.post(f'{baseurl}/register', json=d)
+    assert r.status_code == 201
+    body = r.json()
+
+    member = {
+        'email': member_email,
+        'password': password,
+        'user_id': body['id']
+    }
+
+    r = requests.get(f'{baseurl}/i/users/activation-code', params={'email': member_email}, headers={'Authorization': f'Basic {basic_auth}'})
+
+    sys.stderr.write(f"Added member user {member_email}\n")
+
+    return member
+
+def create_user(baseurl, basic_auth, create_team, n_members):
     email = random_email()
     password = random_string(20)
 
@@ -46,8 +81,8 @@ def create_user(baseurl, basic_auth, create_team):
     r = requests.post(f'{baseurl}/register', json=body)
     user = r.json()
 
-    headers = {'Authorization': f'Basic {basic_auth}'}
-    r = requests.get(f'{baseurl}/i/users/activation-code', params={'email': email}, headers=headers)
+    basicauth_headers = {'Authorization': f'Basic {basic_auth}'}
+    r = requests.get(f'{baseurl}/i/users/activation-code', params={'email': email}, headers=basicauth_headers)
     assert r.status_code == 200
 
     code = r.json()
@@ -55,24 +90,34 @@ def create_user(baseurl, basic_auth, create_team):
     r = requests.post(f'{baseurl}/activate', json={'code': code['code'], 'key': code['key'], 'email': email, 'dryrun': False})
     assert r.status_code == 200
 
+    team = user.get("team")
+
     admin = {
         'email': email,
         'password': password,
         'user_id': user["id"],
-        'team': user.get("team")
+        'team': team
     }
-    return admin
 
+    r = requests.post(f'{baseurl}/login', json={'email': email, 'password': password})
+    access_token = r.json()['access_token']
 
-def invite_user():
-    pass
+    result = {'admin': admin}
+
+    if team is not None:
+        members = []
+        for i in range(n_members):
+            member = add_team_member(baseurl, team, access_token, basic_auth, i)
+            members.append(member)
+        result['members'] = members
+
+    return result
 
 def maybe_to_list(x):
     if x is not None:
         return [x]
     else:
         return []
-
 
 def main():
     known_envs = {
@@ -92,6 +137,16 @@ def main():
         'chala': {
             'baseurl': 'https://nginz-https.chala.wire.link',
             'webapp': 'https://webapp.chala.wire.link/'
+        },
+        'diya': {
+            'baseurl': 'https://nginz-https.diya.wire.link',
+            'webapp': 'https://webapp.diya.wire.link/',
+            'teams': 'https://teams.diya.wire.link/'
+        },
+        'elna': {
+            'baseurl': 'https://nginz-https.elna.wire.link',
+            'webapp': 'https://webapp.elna.wire.link/',
+            'teams': 'https://teams.elna.wire.link/'
         },
         'foma': {
             'baseurl': 'https://nginz-https.foma.wire.link',
@@ -120,11 +175,16 @@ def main():
     }
 
     parser = argparse.ArgumentParser(
-        prog=sys.argv[0], description="Create a user on a testing environment."
+        prog=sys.argv[0], description="Create team (with members) or a personal user on Wire's testing environments."
     )
-    parser.add_argument('-e', '--env', default='staging', help=f'One of: {", ".join(known_envs.keys())}. Default: staging.')
-    parser.add_argument('-n', '--no-team', action='store_true', help="Don't create a team admin, but a personal user.")
+    parser.add_argument('-e', '--env', default='choose_env', help=f'One of: {", ".join(known_envs.keys())}')
+    parser.add_argument('-p', '--personal', action='store_true', help="Create a personal user, instead of a team admin.")
+    parser.add_argument('-n', '--members', default='1', help="Number of members to add.")
     args = parser.parse_args()
+
+    if args.env == 'choose_env':
+        print(parser.format_help())
+        sys.exit(1)
 
     env = known_envs.get(args.env)
     if env is None:
@@ -142,9 +202,9 @@ def main():
 
     basic_auth = base64.b64encode(f'{b_user}:{b_password}'.encode('utf8')).decode('utf8')
 
-    admin = create_user(env['baseurl'], basic_auth, not args.no_team)
+    n_members = int(args.members)
 
-    result = {'admin': admin}
+    result = create_user(env['baseurl'], basic_auth, not args.personal, n_members)
 
     links = maybe_to_list(env.get('webapp')) + maybe_to_list(env.get('teams'))
     if links:

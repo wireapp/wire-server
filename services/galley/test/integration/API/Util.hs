@@ -20,7 +20,7 @@
 
 module API.Util where
 
-import qualified API.SQS as SQS
+import API.SQS qualified as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
@@ -35,69 +35,69 @@ import Control.Monad.Codensity (lowerCodensity)
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Aeson.Lens (key, _String)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as B8
-import qualified Data.ByteString.Char8 as C
+import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as B8
+import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as Lazy
-import qualified Data.CaseInsensitive as CI
-import qualified Data.Code as Code
-import qualified Data.Currency as Currency
+import Data.ByteString.Lazy qualified as Lazy
+import Data.CaseInsensitive qualified as CI
+import Data.Code qualified as Code
+import Data.Currency qualified as Currency
 import Data.Default
 import Data.Domain
-import qualified Data.Handle as Handle
-import qualified Data.HashMap.Strict as HashMap
+import Data.Handle qualified as Handle
+import Data.HashMap.Strict qualified as HashMap
 import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.Kind
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1 as List1
-import qualified Data.Map as LMap
-import qualified Data.Map.Strict as Map
+import Data.Map qualified as LMap
+import Data.Map.Strict qualified as Map
 import Data.Misc
-import qualified Data.ProtoLens as Protolens
+import Data.ProtoLens qualified as Protolens
 import Data.ProtocolBuffers (encodeMessage)
 import Data.Qualified hiding (isLocal)
 import Data.Range
 import Data.Serialize (runPut)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy.Encoding as T
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy.Encoding qualified as T
 import Data.Time (getCurrentTime)
 import Data.Tuple.Extra
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Data.UUID.V4
 import Federator.MockServer
-import qualified Federator.MockServer as Mock
+import Federator.MockServer qualified as Mock
 import GHC.TypeLits (KnownSymbol)
 import GHC.TypeNats
 import Galley.Intra.User (chunkify)
-import qualified Galley.Options as Opts
-import qualified Galley.Run as Run
+import Galley.Options qualified as Opts
+import Galley.Run qualified as Run
 import Galley.Types.Conversations.One2One
-import qualified Galley.Types.Teams as Team
+import Galley.Types.Teams qualified as Team
 import Galley.Types.UserList
 import Imports
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Media.MediaType
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Network.URI (pathSegments)
 import Network.Wai (defaultRequest)
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Test as Wai
+import Network.Wai qualified as Wai
+import Network.Wai.Test qualified as Wai
 import Network.Wai.Utilities.MockServer (withMockServer)
 import Servant
 import System.Exit
 import System.Process
 import System.Random
-import qualified Test.QuickCheck as Q
+import Test.QuickCheck qualified as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers (viewFederationDomain)
 import TestSetup
@@ -112,10 +112,10 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
-import qualified Wire.API.Event.Conversation as Conv
-import qualified Wire.API.Event.Federation as Fed
+import Wire.API.Event.Conversation qualified as Conv
+import Wire.API.Event.Federation qualified as Fed
 import Wire.API.Event.Team
-import qualified Wire.API.Event.Team as TE
+import Wire.API.Event.Team qualified as TE
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
@@ -127,10 +127,10 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
-import qualified Wire.API.Message.Proto as Proto
+import Wire.API.Message.Proto qualified as Proto
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
-import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
@@ -138,13 +138,13 @@ import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member hiding (userId)
-import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
 import Wire.API.User hiding (AccountStatus (..))
 import Wire.API.User.Auth hiding (Access)
 import Wire.API.User.Client
-import qualified Wire.API.User.Client as Client
+import Wire.API.User.Client qualified as Client
 import Wire.API.User.Client.Prekey
 
 -------------------------------------------------------------------------------

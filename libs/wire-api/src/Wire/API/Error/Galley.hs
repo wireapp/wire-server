@@ -32,17 +32,17 @@ where
 import Control.Lens ((%~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Singletons.TH (genSingletons)
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Tagged
 import GHC.TypeLits
 import Imports
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Prelude.Singletons (Show_)
 import Wire.API.Conversation.Role
 import Wire.API.Error
-import qualified Wire.API.Error.Brig as BrigError
+import Wire.API.Error.Brig qualified as BrigError
 import Wire.API.Routes.API
 import Wire.API.Team.Member
 import Wire.API.Team.Permission

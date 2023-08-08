@@ -28,12 +28,12 @@ where
 
 import Control.Lens
 import Control.Monad.Trans.Except
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Handle
 import Data.Id
 import Data.Kind
-import qualified Data.Schema as Schema
-import qualified Data.Swagger as S
+import Data.Schema qualified as Schema
+import Data.Swagger qualified as S
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities
@@ -45,7 +45,7 @@ import Stern.Types
 import Wire.API.CustomBackend
 import Wire.API.OAuth
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
-import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Named
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.Team.Feature

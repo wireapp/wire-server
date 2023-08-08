@@ -6,17 +6,17 @@ module Wire.API.Federation.BackendNotifications where
 import Control.Exception
 import Control.Monad.Except
 import Data.Aeson
-import qualified Data.ByteString.Builder as Builder
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Builder qualified as Builder
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
-import qualified Data.Map as Map
-import qualified Data.Sequence as Seq
-import qualified Data.Text as Text
+import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
+import Data.Text qualified as Text
 import Data.Text.Encoding
-import qualified Data.Text.Lazy.Encoding as TL
+import Data.Text.Lazy.Encoding qualified as TL
 import Imports
-import qualified Network.AMQP as Q
-import qualified Network.AMQP.Types as Q
+import Network.AMQP qualified as Q
+import Network.AMQP.Types qualified as Q
 import Network.HTTP.Types
 import Servant
 import Servant.Client

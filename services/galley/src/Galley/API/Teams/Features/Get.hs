@@ -40,7 +40,7 @@ import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.BrigAccess (getAccountConferenceCallingConfigClient)
 import Galley.Effects.ConversationStore as ConversationStore
-import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
+import Galley.Effects.TeamFeatureStore qualified as TeamFeatures
 import Galley.Effects.TeamStore (getOneUserTeam, getTeam, getTeamMember)
 import Galley.Options
 import Galley.Types.Teams
@@ -50,7 +50,7 @@ import Polysemy.Input
 import Wire.API.Conversation (cnvmTeam)
 import Wire.API.Error (ErrorS, throwS)
 import Wire.API.Error.Galley
-import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Feature
 
 data DoAuth = DoAuth UserId | DontDoAuth

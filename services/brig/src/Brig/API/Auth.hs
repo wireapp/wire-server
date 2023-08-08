@@ -22,11 +22,11 @@ import Brig.API.Handler
 import Brig.API.Types
 import Brig.API.User
 import Brig.App
-import qualified Brig.Data.User as User
+import Brig.Data.User qualified as User
 import Brig.Effects.BlacklistStore
 import Brig.Effects.GalleyProvider
 import Brig.Options
-import qualified Brig.User.Auth as Auth
+import Brig.User.Auth qualified as Auth
 import Brig.ZAuth hiding (Env, settings)
 import Control.Lens (view)
 import Control.Monad.Trans.Except
@@ -35,13 +35,13 @@ import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 (List1 (..))
 import Data.Qualified
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as LT
-import qualified Data.ZAuth.Token as ZAuth
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as LT
+import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Wire.API.User
 import Wire.API.User.Auth hiding (access)

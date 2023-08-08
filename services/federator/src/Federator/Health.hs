@@ -2,7 +2,7 @@ module Federator.Health where
 
 import Imports
 import Network.HTTP.Client
-import qualified Network.HTTP.Types.Status as HTTP
+import Network.HTTP.Types.Status qualified as HTTP
 import Servant
 
 status ::

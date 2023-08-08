@@ -21,12 +21,12 @@ module Test.Wire.API.Golden.Generated.Service_provider where
 
 import Data.Coerce (coerce)
 import Data.Id (Id (Id))
-import qualified Data.List.NonEmpty as NonEmpty (fromList)
+import Data.List.NonEmpty qualified as NonEmpty (fromList)
 import Data.List1 (List1 (List1))
 import Data.Misc (HttpsUrl (HttpsUrl))
 import Data.PEM (PEM (PEM, pemContent, pemHeader, pemName))
 import Data.Text.Ascii (AsciiChars (validate))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import GHC.Exts (IsList (fromList))
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust, fromRight, undefined)
 import URI.ByteString

@@ -29,25 +29,25 @@ import Data.Range
 import Data.Time
 import Galley.API.Error
 import Galley.API.MLS.Removal
-import qualified Galley.API.Query as Query
+import Galley.API.Query qualified as Query
 import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
-import qualified Galley.Effects.BrigAccess as E
-import qualified Galley.Effects.ClientStore as E
+import Galley.Effects.BrigAccess qualified as E
+import Galley.Effects.ClientStore qualified as E
 import Galley.Effects.ConversationStore (getConversation)
 import Galley.Effects.ProposalStore (ProposalStore)
 import Galley.Env
 import Galley.Types.Clients (clientIds, fromUserClients)
 import Imports
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, setStatus)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
+import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley

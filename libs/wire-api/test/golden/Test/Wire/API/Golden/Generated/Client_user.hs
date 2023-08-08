@@ -21,7 +21,7 @@ module Test.Wire.API.Golden.Generated.Client_user where
 
 import Data.Id (ClientId (ClientId, client))
 import Data.Json.Util
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Set as Set
 import Imports

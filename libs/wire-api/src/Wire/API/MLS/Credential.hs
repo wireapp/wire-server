@@ -23,8 +23,8 @@ import Cassandra.CQL
 import Control.Error.Util
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.Bifunctor
 import Data.Binary
 import Data.Binary.Get
@@ -34,8 +34,8 @@ import Data.Domain
 import Data.Id
 import Data.Qualified
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as T
+import Data.Swagger qualified as S
+import Data.Text qualified as T
 import Data.UUID
 import Imports
 import Web.HttpApiData

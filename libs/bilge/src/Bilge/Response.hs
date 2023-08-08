@@ -49,15 +49,15 @@ import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens
 import Control.Monad.Catch
 import Data.Aeson (FromJSON, eitherDecode)
-import qualified Data.ByteString.Char8 as C
+import Data.ByteString.Char8 qualified as C
 import Data.CaseInsensitive (original)
 import Data.EitherR (fmapL)
-import qualified Data.Proxy
+import Data.Proxy qualified
 import Data.Typeable (typeRep)
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types (HeaderName, httpMajor, httpMinor)
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Web.Cookie
 
 statusCode :: Response a -> Int

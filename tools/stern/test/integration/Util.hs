@@ -34,10 +34,10 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.Tuple.Extra
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Data.UUID.V4
 import Imports
 import System.Random
@@ -48,7 +48,7 @@ import Web.Cookie
 import Wire.API.Team
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member
-import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Role
 import Wire.API.User
 

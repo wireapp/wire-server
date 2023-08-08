@@ -21,7 +21,7 @@ module Test.Qualified
 where
 
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Qualified (Qualified (..))

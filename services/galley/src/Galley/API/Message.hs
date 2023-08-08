@@ -43,11 +43,11 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Set.Lens
 import Data.Time.Clock (UTCTime)
 import Galley.API.LegalHold.Conflicts
@@ -63,15 +63,15 @@ import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.TeamStore
 import Galley.Options
-import qualified Galley.Types.Clients as Clients
+import Galley.Types.Clients qualified as Clients
 import Galley.Types.Conversations.Members
 import Imports hiding (forkIO)
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 import Polysemy hiding (send)
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
-import qualified System.Logger.Class as Log
+import Polysemy.TinyLog qualified as P
+import System.Logger.Class qualified as Log
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -492,17 +492,12 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           predicate (d, (u, _)) = any (\(d', (u', _)) -> d == d' && u == u') failed'
           -- Failed users/clients aren't redundant
           (failed, redundant) = partition predicate redundant'
+          collectedFailedToSend = collectFailedToSend [qualifiedUserClients failedToSend, toDomMap unconfirmedUnknownClients, fromDomUserClient failed]
       pure
         otrResult
-          { mssFailedToSend =
-              QualifiedUserClients $
-                collectFailedToSend
-                  [ qualifiedUserClients failedToSend,
-                    toDomMap unconfirmedUnknownClients,
-                    fromDomUserClient failed
-                  ],
+          { mssFailedToSend = QualifiedUserClients collectedFailedToSend,
             mssRedundantClients = QualifiedUserClients $ fromDomUserClient redundant,
-            mssFailedToConfirmClients = QualifiedUserClients $ toDomMap unconfirmedKnownClients
+            mssFailedToConfirmClients = QualifiedUserClients $ collectFailedToSend $ [toDomMap unconfirmedKnownClients, collectedFailedToSend]
           }
   where
     -- Get the triples for domains, users, and clients so we can easily filter
@@ -538,6 +533,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
                 qualifiedOtrRecipientsMap $
                   qualifiedNewOtrRecipients msg
 
+-- FUTUREWORK: This is just a workaround and would not be needed if we had a proper monoid/semigroup instance for Map where the values have a monoid instance.
 collectFailedToSend ::
   Foldable f =>
   f (Map Domain (Map UserId (Set ClientId))) ->

@@ -38,7 +38,7 @@ import Data.Metrics.Servant
 import Data.Proxy
 import Data.Schema
 import Data.Swagger.Operation (addExtensions)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import GHC.TypeLits
 import Imports
 import Servant.API

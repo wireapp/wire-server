@@ -20,19 +20,19 @@ module Brig.Effects.GalleyProvider where
 
 import Brig.API.Types
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
-import qualified Data.Currency as Currency
+import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
 import Imports
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Wire.API.Conversation
-import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team
-import qualified Wire.API.Team.Conversation as Conv
+import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
-import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 

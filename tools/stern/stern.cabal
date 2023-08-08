@@ -110,7 +110,7 @@ library
     , wire-api               >=0.1
     , yaml
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable stern
   main-is:            exec/Main.hs
@@ -172,7 +172,7 @@ executable stern
   if flag(static)
     ld-options: -static
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite stern-tests
   type:           exitcode-stdio-1.0
@@ -278,4 +278,4 @@ executable stern-integration
     , wire-api
     , yaml
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

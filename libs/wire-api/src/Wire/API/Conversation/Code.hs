@@ -41,9 +41,9 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Code as Code
 import Data.Misc
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
-import qualified URI.ByteString as URI
+import URI.ByteString qualified as URI
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 newtype CreateConversationCodeRequest = CreateConversationCodeRequest
