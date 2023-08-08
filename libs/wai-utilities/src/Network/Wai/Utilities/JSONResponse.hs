@@ -29,6 +29,7 @@ import Imports
 import Network.HTTP.Types.Status
 import Network.Wai
 import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Response
 
 -- | A custom JSON response to be returned to the client as an error.
 --
@@ -61,4 +62,4 @@ waiErrorToJSONResponse e =
     }
 
 jsonResponseToWai :: JSONResponse -> Response
-jsonResponseToWai r = responseLBS r.status mempty (A.encode r.value)
+jsonResponseToWai r = responseLBS r.status [jsonContent] (A.encode r.value)
