@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 module Test.Conversation where
 
 import API.Brig (getConnection)
