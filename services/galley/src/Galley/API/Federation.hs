@@ -506,7 +506,7 @@ updateConversation origDomain updateRequest = do
     mkResponse =
       fmap (either F.ConversationUpdateResponseError id)
         . runError @GalleyError
-        . fmap (either (const F.ConversationUpdateResponseNoChanges) id)
+        . fmap (fromRight F.ConversationUpdateResponseNoChanges)
         . runError @NoChanges
         . fmap (either F.ConversationUpdateResponseNonFederatingBackends id)
         . runError @NonFederatingBackends

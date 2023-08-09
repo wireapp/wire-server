@@ -23,12 +23,12 @@ module Network.Wai.Utilities.JSONResponse
 where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Schema
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.Response
 
 -- | A custom JSON response to be returned to the client as an error.

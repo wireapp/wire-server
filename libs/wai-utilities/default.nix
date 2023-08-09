@@ -20,6 +20,7 @@
 , metrics-wai
 , pipes
 , prometheus-client
+, schema-profunctor
 , servant-server
 , streaming-commons
 , swagger2
@@ -53,6 +54,7 @@ mkDerivation {
     metrics-wai
     pipes
     prometheus-client
+    schema-profunctor
     servant-server
     streaming-commons
     swagger2

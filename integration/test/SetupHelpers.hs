@@ -6,7 +6,7 @@ import API.Galley
 import Control.Concurrent (threadDelay)
 import Control.Monad.Reader
 import Data.Aeson hiding ((.=))
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.Default
 import Data.Function
 import Data.List qualified as List
