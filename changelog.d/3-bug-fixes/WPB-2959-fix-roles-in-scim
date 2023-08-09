@@ -1,0 +1,1 @@
+If role is not set ([], null, or field missing) in scim-put-user, do not change role to default in brig
