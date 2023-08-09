@@ -251,8 +251,7 @@ testDefederationOneOnOne = do
       connectAllDomainsAndWaitToSync 1 domains
       [uA, uB] <- createAndConnectUsers [domainA, domainB]
       -- figure out on which backend the 1:1 conversation is created
-      conn <- getConnection uA uB
-      qConvId <- conn.json %. "qualified_conversation"
+      qConvId <- getConnection uA uB >>= \c -> c.json %. "qualified_conversation"
 
       -- check conversation exists and uB is a member from POV of uA
       bindResponse (getConversation uA qConvId) $ \r -> do
@@ -282,14 +281,7 @@ testDefederationOneOnOne = do
 
       when (domainA /= conversationOwningDomain && domainB /= conversationOwningDomain) $ do
         -- this should not happen
-        assertFailure $
-          "conversation was expected to be created on "
-            <> domainA
-            <> " or "
-            <> domainB
-            <> " but was created on '"
-            <> conversationOwningDomain
-            <> "'"
+        error "impossible"
   where
     assertFederationTerminatingUserNoConvDeleteEvent :: Value -> Value -> String -> String -> App ()
     assertFederationTerminatingUserNoConvDeleteEvent user convId ownDomain otherDomain = do
