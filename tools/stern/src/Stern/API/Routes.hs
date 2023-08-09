@@ -42,6 +42,7 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import Stern.Types
+import Wire.API.CustomBackend
 import Wire.API.OAuth
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
@@ -381,6 +382,32 @@ type SternAPI =
                :> QueryParam' [Optional, Strict, Description "Max number of conversation (default 1)"] "max_conversations" Int
                :> QueryParam' [Optional, Strict, Description "Max number of notifications (default 10)"] "max_notifications" Int
                :> Post '[JSON] UserMetaInfo
+           )
+    :<|> Named
+           "get-sso-domain-redirect"
+           ( Summary "read, update, delete domain login redirects custom backends (see https://docs.wire.com/understand/associate/custom-backend-for-desktop-client.html)"
+               :> Description "Read from cassandra table galley.custom_backend."
+               :> "sso-domain-redirect"
+               :> QueryParam' [Required, Strict, Description "Domain"] "domain" Text
+               :> Get '[JSON] (Maybe CustomBackend)
+           )
+    :<|> Named
+           "put-sso-domain-redirect"
+           ( Summary "read, update, delete domain login redirects custom backends (see https://docs.wire.com/understand/associate/custom-backend-for-desktop-client.html)"
+               :> Description "Write to cassandra table galley.custom_backend."
+               :> "sso-domain-redirect"
+               :> QueryParam' [Required, Strict, Description "Domain key (from email during login)"] "domain" Text
+               :> QueryParam' [Required, Strict, Description "Config JSON URL"] "configurl" Text
+               :> QueryParam' [Required, Strict, Description "Webapp welcome URL"] "welcomeurl" Text
+               :> Put '[JSON] ()
+           )
+    :<|> Named
+           "delete-sso-domain-redirect"
+           ( Summary "read, update, delete domain login redirects custom backends (see https://docs.wire.com/understand/associate/custom-backend-for-desktop-client.html)"
+               :> Description "Delete from cassandra table galley.custom_backend."
+               :> "sso-domain-redirect"
+               :> QueryParam' [Required, Strict, Description "Domain key (from email during login)"] "domain" Text
+               :> Delete '[JSON] ()
            )
     :<|> Named
            "register-oauth-client"
