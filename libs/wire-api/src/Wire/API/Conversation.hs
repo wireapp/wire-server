@@ -36,6 +36,7 @@ module Wire.API.Conversation
     cnvAccessRoles,
     CreateGroupConversation (..),
     CreateConversationRejected (..),
+    CreateConversationUnreachableBackends (..),
     ConversationCoverView (..),
     ConversationList (..),
     ListConversations (..),
@@ -336,6 +337,22 @@ instance ToSchema CreateConversationRejected where
       validate :: [Domain] -> A.Parser (Domain, Domain)
       validate [d, d1] = pure (d, d1)
       validate _ = fail "expected exactly two domains"
+
+newtype CreateConversationUnreachableBackends = CreateConversationUnreachableBackends
+  { createConvUnreachableBackends :: Set Domain
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CreateConversationUnreachableBackends)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CreateConversationUnreachableBackends
+
+instance ToSchema CreateConversationUnreachableBackends where
+  schema =
+    objectWithDocModifier
+      "CreateConversationUnreachableBackends"
+      (description ?~ "A federated conversation cannot be created because there are unreachable backends")
+      $ CreateConversationUnreachableBackends
+        <$> (Set.toList . createConvUnreachableBackends)
+          .= field "unreachable_backends" (Set.fromList <$> array schema)
 
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
 -- link about the conversation.

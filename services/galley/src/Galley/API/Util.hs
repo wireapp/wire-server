@@ -751,15 +751,17 @@ fromConversationCreated loc rc@ConversationCreated {..} =
         (ConvMembers this others)
         ProtocolProteus
 
--- | Notify remote users of being added to a new conversation. The return value
--- consists of a set of users that could not be notified. Users that could not
--- be notified will effectively not be added to the conversation.
+-- | Notify remote users of being added to a new conversation. In case a remote
+-- domain is unreachable, an exception is thrown, the conversation deleted and
+-- the client gets an error response.
 registerRemoteConversationMemberships ::
-  (Member FederatorAccess r) =>
+  ( Member (Error UnreachableBackendsError) r,
+    Member FederatorAccess r
+  ) =>
   -- | The time stamp when the conversation was created
   UTCTime ->
   Local Data.Conversation ->
-  Sem r DataTypes.MemberAddFailed
+  Sem r ()
 registerRemoteConversationMemberships now lc = do
   let c = tUnqualified lc
       rc = toConversationCreated now c
@@ -768,28 +770,36 @@ registerRemoteConversationMemberships now lc = do
       allRemoteMembersQualified = remoteMemberQualify <$> allRemoteMembers
       allRemoteBuckets :: [Remote [RemoteMember]] = bucketRemote allRemoteMembersQualified
 
-  failedToNotify :: [Remote RemoteMember] <- fmap (foldMap (either (sequenceA . fst) mempty)) $
-    runFederatedConcurrentlyEither allRemoteMembersQualified $
-      \rrms ->
-        fedClient @'Galley @"on-conversation-created"
-          ( rc
-              { ccNonCreatorMembers =
-                  toMembers (tUnqualified rrms)
-              }
-          )
+  do
+    -- ping involved remote backends
+    unreachableBackends <- fmap (foldMap (either (pure . tDomain . fst) mempty)) $
+      runFederatedConcurrentlyEither allRemoteMembersQualified $ \_ ->
+        void $ fedClient @'Brig @"api-version" ()
+    -- abort if there are unreachable backends
+    unless (null unreachableBackends)
+      . throw
+      . UnreachableBackendsError
+      . Set.fromList
+      $ unreachableBackends
 
-  let failedToNotifySet :: Set (Remote UserId) =
-        Set.map (fmap (tUnqualified . rmId)) . Set.fromList $ failedToNotify
+  do
+    -- let remote backends know about a subset of new joiners
+    failedToNotify :: Set Domain <- fmap (Set.fromList . foldMap (either (pure . tDomain . fst) mempty)) $
+      runFederatedConcurrentlyEither allRemoteMembersQualified $
+        \rrms ->
+          fedClient @'Galley @"on-conversation-created"
+            ( rc
+                { ccNonCreatorMembers =
+                    toMembers (tUnqualified rrms)
+                }
+            )
+    unless (null failedToNotify)
+      . throw
+      . UnreachableBackendsError
+      $ failedToNotify
 
-      -- unreachable domains
-      failedToNotifyDomains :: Set Domain = Set.fromList . foldMap (pure . tDomain) $ failedToNotify
-
-      -- reachable members in buckets per remote domain
-      joined :: [Remote [RemoteMember]] =
-        filter
-          (\rmems -> Set.notMember (tDomain rmems) failedToNotifyDomains)
-          allRemoteBuckets
-
+  -- reachable members in buckets per remote domain
+  let joined :: [Remote [RemoteMember]] = allRemoteBuckets
       joinedCoupled =
         foldMap
           ( \ruids ->
@@ -802,11 +812,16 @@ registerRemoteConversationMemberships now lc = do
           )
           joined
 
-  -- Send an update to remotes about the final list of participants
-  void . runFederatedConcurrentlyBucketsEither joinedCoupled $
-    fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
-
-  pure failedToNotifySet
+  do
+    -- Send an update to remotes about the final list of participants
+    failedToUpdate :: Set Domain <-
+      fmap (Set.fromList . foldMap (either (pure . tDomain . fst) mempty)) $
+        runFederatedConcurrentlyBucketsEither joinedCoupled $
+          fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
+    unless (null failedToUpdate)
+      . throw
+      . UnreachableBackendsError
+      $ failedToUpdate
   where
     creator :: UserId
     creator = cnvmCreator . DataTypes.convMetadata . tUnqualified $ lc

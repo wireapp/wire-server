@@ -27,7 +27,6 @@ module Galley.Data.Types
     generate,
     mkKey,
     LockAcquired (..),
-    MemberAddFailed,
   )
 where
 
@@ -35,7 +34,6 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.Code
 import Data.Id
-import Data.Qualified
 import Data.Range
 import Data.Text.Ascii qualified as Ascii
 import Galley.Data.Conversation
@@ -101,7 +99,3 @@ data LockAcquired
   = Acquired
   | NotAcquired
   deriving (Show, Eq)
-
--- | Set of users that could not be notified of their addition to a new conversation, and
--- should be removed from the conv for consistency.
-type MemberAddFailed = Set (Remote UserId)

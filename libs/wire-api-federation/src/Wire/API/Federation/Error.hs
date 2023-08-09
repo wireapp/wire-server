@@ -70,6 +70,7 @@ module Wire.API.Federation.Error
     FederatorClientError (..),
     FederationError (..),
     VersionNegotiationError (..),
+    UnreachableBackendsError (..),
     federationErrorToWai,
     federationRemoteHTTP2Error,
     federationRemoteResponseError,
@@ -167,7 +168,10 @@ data FederationError
     -- needed until we start disregarding the config file.
     FederationUnexpectedError Text
   | -- | One or more remote backends is unreachable
-    FederationUnreachableDomains (Set Domain)
+    --
+    -- FUTUREWORK: Remove this data constructor and rely on the
+    -- 'UnreachableBackendsError' error type instead.
+    FederationUnreachableDomainsOld (Set Domain)
   deriving (Show, Typeable)
 
 data VersionNegotiationError
@@ -175,6 +179,12 @@ data VersionNegotiationError
   | RemoteTooOld
   | RemoteTooNew
   deriving (Show, Typeable)
+
+-- | A new error type in federation that describes a collection of unreachable
+-- backends by providing their domains.
+newtype UnreachableBackendsError = UnreachableBackendsError
+  { unUnreachableBackendsError :: Set Domain
+  }
 
 versionNegotiationErrorMessage :: VersionNegotiationError -> LText
 versionNegotiationErrorMessage InvalidVersionInfo =
@@ -195,7 +205,7 @@ federationErrorToWai FederationNotConfigured = federationNotConfigured
 federationErrorToWai (FederationCallFailure err) = federationClientErrorToWai err
 federationErrorToWai (FederationUnexpectedBody s) = federationUnexpectedBody s
 federationErrorToWai (FederationUnexpectedError t) = federationUnexpectedError t
-federationErrorToWai (FederationUnreachableDomains ds) = federationUnreachableError ds
+federationErrorToWai (FederationUnreachableDomainsOld ds) = federationUnreachableError ds
 
 federationClientErrorToWai :: FederatorClientError -> Wai.Error
 federationClientErrorToWai (FederatorClientHTTP2Error e) =
@@ -366,4 +376,4 @@ throwUnreachableUsers =
     . unreachableUsers
 
 throwUnreachableDomains :: Member (P.Error FederationError) r => Set Domain -> Sem r a
-throwUnreachableDomains = P.throw . FederationUnreachableDomains
+throwUnreachableDomains = P.throw . FederationUnreachableDomainsOld

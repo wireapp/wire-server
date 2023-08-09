@@ -141,6 +141,7 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
   unless (BS.null . Wai.rawQueryString $ wreq) $
     throw InvalidRoute
 
+  ensureCanFederateWith originDomain
   Log.debug $
     Log.msg ("Inward Request" :: ByteString)
       . Log.field "originDomain" (domainText originDomain)
