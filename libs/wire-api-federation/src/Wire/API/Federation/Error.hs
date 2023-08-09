@@ -94,7 +94,6 @@ import Imports
 import Network.HTTP.Types.Status
 import Network.HTTP.Types.Status qualified as HTTP
 import Network.HTTP2.Client qualified as HTTP2
-import Network.Wai.Utilities.Error
 import Network.Wai.Utilities.Error qualified as Wai
 import OpenSSL.Session (SomeSSLException)
 import Polysemy
@@ -333,12 +332,11 @@ federationUnexpectedError msg =
     ("Could parse body, but got an unexpected error response: " <> LT.fromStrict msg)
 
 federationUnreachableError :: Set Domain -> Wai.Error
-federationUnreachableError (Set.toList -> ds) =
-  Wai.Error
+federationUnreachableError (Set.map domainText -> ds) =
+  Wai.mkError
     status
     "federation-unreachable-domains-error"
-    ("The following domains are unreachable: " <> (LT.pack . show . map domainText) ds)
-    (flip FederationErrorData T.empty <$> NE.nonEmpty ds)
+    ("The following domains are unreachable: " <> (LT.pack . show . Set.toList) ds)
   where
     status :: Status
     status = HTTP.Status 503 "Unreachable federated domains"
