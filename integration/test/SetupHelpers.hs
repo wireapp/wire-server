@@ -4,13 +4,14 @@ import API.Brig qualified as Public
 import API.BrigInternal qualified as Internal
 import API.Galley
 import Control.Concurrent (threadDelay)
+import Control.Monad.Reader
 import Data.Aeson hiding ((.=))
 import Data.Default
 import Data.Function
+import Data.List qualified as List
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
 import Testlib.Prelude
-import Testlib.ResourcePool (remoteDomains)
 
 -- | `n` should be 2 x `setFederationDomainConfigsUpdateFreq` in the config
 connectAllDomainsAndWaitToSync :: HasCallStack => Int -> [String] -> App ()
@@ -102,5 +103,7 @@ fullSearchWithAll =
   def
     { dbBrig = \val -> do
         ownDomain <- asString =<< val %. "optSettings.setFederationDomain"
-        addFullSearchFor (remoteDomains ownDomain) val
+        env <- ask
+        let remoteDomains = List.delete ownDomain $ [env.domain1, env.domain2] <> env.dynamicDomains
+        addFullSearchFor remoteDomains val
     }

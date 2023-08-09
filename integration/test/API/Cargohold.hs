@@ -122,14 +122,15 @@ buildMultipartBody header body bodyMimeType =
           MIME.mime_val_content = MIME.Single ((decodeUtf8 . LBS.toStrict) c)
         }
 
-downloadAsset :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> (HTTP.Request -> HTTP.Request) -> App Response
-downloadAsset user key trans = downloadAsset' user key "nginz-https.example.com" trans
+downloadAsset :: (HasCallStack, MakesValue user, MakesValue assetDomain, MakesValue key) => user -> assetDomain -> key -> (HTTP.Request -> HTTP.Request) -> App Response
+downloadAsset user assetDomain key trans = downloadAsset' user assetDomain key "nginz-https.example.com" trans
 
-downloadAsset' :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
-downloadAsset' user key zHostHeader trans = do
-  uid <- user & objId
-  key' <- key & asString
-  req <- baseRequest user Cargohold Versioned $ "/assets/example.com/" ++ key'
+downloadAsset' :: (HasCallStack, MakesValue user, MakesValue key, MakesValue assetDomain) => user -> assetDomain -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
+downloadAsset' user assetDomain key zHostHeader trans = do
+  uid <- objId user
+  domain <- objDomain assetDomain
+  key' <- asString key
+  req <- baseRequest user Cargohold Versioned $ "/assets/" ++ domain ++ "/" ++ key'
   submit "GET" $
     req
       & zUser uid

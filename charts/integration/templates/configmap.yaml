@@ -108,3 +108,10 @@ data:
         port: 8080
 
       originDomain: federation-test-helper.{{ .Release.Namespace }}-fed2.svc.cluster.local
+
+    dynamicBackends:
+      {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
+      {{ $name }}:
+        domain: {{ $dynamicBackend.federatorExternalHostPrefix }}.{{ $.Release.Namespace }}.svc.cluster.local
+        federatorExternalPort: {{ $dynamicBackend.federatorExternalPort }}
+      {{- end }}

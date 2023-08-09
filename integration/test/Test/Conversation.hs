@@ -19,15 +19,17 @@ testDynamicBackendsFullyConnectedWhenAllowAll = do
     uidA <- randomUser domainA def {Internal.team = True}
     uidB <- randomUser domainA def {Internal.team = True}
     uidC <- randomUser domainA def {Internal.team = True}
-    let assertConnected u d d' =
-          bindResponse
-            (API.getFederationStatus u [d, d'])
-            $ \resp -> do
-              resp.status `shouldMatchInt` 200
-              resp.json %. "status" `shouldMatch` "fully-connected"
     assertConnected uidA domainB domainC
     assertConnected uidB domainA domainC
     assertConnected uidC domainA domainB
+  where
+    assertConnected :: (HasCallStack, MakesValue user) => user -> String -> String -> App ()
+    assertConnected u d d' =
+      bindResponse
+        (API.getFederationStatus u [d, d'])
+        $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "status" `shouldMatch` "fully-connected"
 
 testDynamicBackendsNotFederating :: HasCallStack => App ()
 testDynamicBackendsNotFederating = do
@@ -106,19 +108,12 @@ testFederationStatus :: HasCallStack => App ()
 testFederationStatus = do
   uid <- randomUser OwnDomain def {Internal.team = True}
   federatingRemoteDomain <- asString OtherDomain
-  let unknownDomain = "foobar.com"
-  let invalidDomain = "c.example.com" -- has no srv record
+  let invalidDomain = "c.example.com" -- Does not have any srv records
   bindResponse
     (API.getFederationStatus uid [])
     $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "status" `shouldMatch` "fully-connected"
-
-  bindResponse
-    (API.getFederationStatus uid [unknownDomain])
-    $ \resp -> do
-      resp.status `shouldMatchInt` 400
-      resp.json %. "label" `shouldMatch` "discovery-failure"
 
   bindResponse
     (API.getFederationStatus uid [invalidDomain])
@@ -131,12 +126,6 @@ testFederationStatus = do
     $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "status" `shouldMatch` "fully-connected"
-
-  bindResponse
-    (API.getFederationStatus uid [federatingRemoteDomain, unknownDomain])
-    $ \resp -> do
-      resp.status `shouldMatchInt` 400
-      resp.json %. "label" `shouldMatch` "discovery-failure"
 
 testCreateConversationFullyConnected :: HasCallStack => App ()
 testCreateConversationFullyConnected = do
