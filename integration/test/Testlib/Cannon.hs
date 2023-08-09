@@ -249,8 +249,8 @@ awaitAnyEvent tSecs = liftIO . timeout (tSecs * 1000 * 1000) . atomically . read
 -- | 'await' an expected number of notification events on the websocket that
 -- satisfy the provided predicate. If there isn't any new event (matching or
 -- non-matching) for a 'tSecs' seconds then AwaitResult is a failure. This
--- funciton will never terminate if there is a constant stream of events
--- received. When this functions retruns it will push any non-matching
+-- function will never terminate if there is a constant stream of events
+-- received. When this functions returns it will push any non-matching
 -- events back to the websocket.
 awaitNMatchesResult ::
   HasCallStack =>

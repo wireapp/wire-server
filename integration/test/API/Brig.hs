@@ -181,6 +181,21 @@ postConnection userFrom userTo = do
       joinHttpPath ["/connections", userToDomain, userToId]
   submit "POST" req
 
+getConnection ::
+  ( HasCallStack,
+    MakesValue userFrom,
+    MakesValue userTo
+  ) =>
+  userFrom ->
+  userTo ->
+  App Response
+getConnection userFrom userTo = do
+  (userToDomain, userToId) <- objQid userTo
+  req <-
+    baseRequest userFrom Brig Versioned $
+      joinHttpPath ["/connections", userToDomain, userToId]
+  submit "GET" req
+
 putConnection ::
   ( HasCallStack,
     MakesValue userFrom,
