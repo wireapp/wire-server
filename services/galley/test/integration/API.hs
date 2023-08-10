@@ -4475,8 +4475,6 @@ testConnectionRemovedNotifications = do
 
   let remoteDomain1 = Domain "far-away.example.com"
       remoteDomain2 = Domain "far-away-2.example.com"
-  -- This variable should be commented out if the below
-  -- section is used to insert users to the database.
   -- dee and erin are remote guests
   dee <- Qualified <$> randomId <*> pure remoteDomain1
   erin <- Qualified <$> randomId <*> pure remoteDomain2
@@ -4577,8 +4575,6 @@ testConnectionRemovedNotificationsNoopDomainA = do
 
   let remoteDomain1 = Domain "far-away.example.com"
       remoteDomain2 = Domain "far-away-2.example.com"
-  -- This variable should be commented out if the below
-  -- section is used to insert users to the database.
   -- dee is a remote guest
   dee <- Qualified <$> randomId <*> pure remoteDomain1
 
@@ -4631,8 +4627,6 @@ testConnectionRemovedNotificationsNoopDomainB = do
 
   let remoteDomain1 = Domain "far-away.example.com"
       remoteDomain2 = Domain "far-away-2.example.com"
-  -- This variable should be commented out if the below
-  -- section is used to insert users to the database.
   -- erin is a remote guest
   erin <- Qualified <$> randomId <*> pure remoteDomain2
 

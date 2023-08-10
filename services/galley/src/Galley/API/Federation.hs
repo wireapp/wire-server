@@ -751,7 +751,7 @@ onTypingIndicatorUpdated origDomain TypingDataUpdated {..} = do
   pushTypingIndicatorEvents tudOrigUserId tudTime tudUsersInConv Nothing qcnv tudTypingStatus
   pure EmptyResponse
 
--- Since we already have to origin domain where the defederation event started,
+-- Since we already have the origin domain where the defederation event started,
 -- all it needs to carry in addition is the domain it is defederating from. This
 -- is all the information that we need to cleanup the database and notify clients.
 onFederationConnectionRemoved ::
@@ -778,7 +778,7 @@ onFederationConnectionRemoved originDomain targetDomain = do
 -- for all conversations owned by backend C, only if there are users from both A and B,
 -- remove users from A and B from those conversations
 -- This is similar to Galley.API.Internal.deleteFederationDomain
--- However it has some important differences, such as we only remove from our conversation
+-- However it has some important differences, such as we only remove from our conversations
 -- where users for both domains are in the same conversation.
 cleanupRemovedConnections ::
   forall r.

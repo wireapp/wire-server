@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards #-}
+
 {-# OPTIONS_GHC -Wno-unused-local-binds #-}
 
 module Wire.Defederation where
@@ -97,12 +97,11 @@ notifyOtherBackends defederationDomain = do
     -- Just to be safe! distributed systems and all that.
     for_ (filter (/= defederationDomain) remoteDomains) $ \remoteDomain ->
       liftIO
-        .
         -- Push the notificiation into the queue
         -- We're using the origin domain as part of our effective payload
         -- to help reduce network traffic.
         -- We still need to explicitly send the domain that is being defederated.
-        enqueue chan ownDomain remoteDomain Q.Persistent
+        . enqueue chan ownDomain remoteDomain Q.Persistent
         . void
         $ fedQueueClient @'Galley @"on-connection-removed" defederationDomain
 

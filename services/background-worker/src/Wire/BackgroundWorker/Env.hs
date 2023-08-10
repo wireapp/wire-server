@@ -51,7 +51,7 @@ data Env = Env
     remoteDomainsChan :: Chan FederationDomainConfigs,
     backendNotificationMetrics :: BackendNotificationMetrics,
     -- This is needed so that the defederation worker can push
-    -- channel-removed notifications into the notifications channels.
+    -- connection-removed notifications into the notifications channels.
     -- This allows us to reuse existing code. This only pushes.
     notificationChannel :: MVar Channel,
     statuses :: IORef (Map Worker IsWorking)
