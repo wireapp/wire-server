@@ -36,9 +36,7 @@ testDefederationNonFullyConnectedGraph = do
       domains@[domainA, domainB, domainC] <- pure dynDomains
       connectAllDomainsAndWaitToSync 1 domains
       [uA, uB, uC] <- createAndConnectUsers [domainA, domainB, domainC]
-      withWebSockets [uA, uB, uC] $ \wss -> do
-        [wsA, _wsB, _wsC] <- pure wss
-
+      withWebSocket uA $ \wsA -> do
         -- create group conversation owned by domainA with users from domainB and domainC
         convId <- bindResponse (postConversation uA (defProteus {qualifiedUsers = [uB, uC]})) $ \r -> do
           r.status `shouldMatchInt` 201
@@ -61,7 +59,7 @@ testDefederationNonFullyConnectedGraph = do
                   pure $ domsStr == sort [domainB, domainC]
                 else pure False
         void $ awaitNMatches 2 3 isConnectionRemoved wsA
-        checkConv convId uA []
+        retryT $ checkConv convId uA []
   where
     checkConv :: Value -> Value -> [Value] -> App ()
     checkConv convId user expectedOtherMembers = do
