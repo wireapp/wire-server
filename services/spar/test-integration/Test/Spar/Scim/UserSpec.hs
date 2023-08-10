@@ -2015,11 +2015,11 @@ testPatchRole replaceOrAdd = do
     testCreateUserWithInitialRoleAndPatchToTargetRole brig tid owner tok initialRole mTargetRole = do
       userId <- createScimUserWithRole brig tid owner tok initialRole
       void $ patchUser tok userId $ PatchOp.PatchOp [replaceOrAdd "roles" (maybeToList mTargetRole)]
-      checkTeamMembersRole tid owner userId (fromMaybe defaultRole mTargetRole)
+      checkTeamMembersRole tid owner userId (fromMaybe initialRole mTargetRole)
       -- also check if remove works
       let removeAttrib name = PatchOp.Operation PatchOp.Remove (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name))) Nothing
       void $ patchUser tok userId $ PatchOp.PatchOp [removeAttrib "roles"]
-      checkTeamMembersRole tid owner userId defaultRole
+      checkTeamMembersRole tid owner userId initialRole
 
 createScimUserWithRole :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> TestSpar UserId
 createScimUserWithRole brig tid owner tok initialRole = do
