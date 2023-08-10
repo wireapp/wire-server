@@ -208,7 +208,7 @@ type InternalAPIBase =
                :> "conversations"
                :> "connect"
                :> ReqBody '[Servant.JSON] Connect
-               :> ExtendedConversationVerb
+               :> ConversationVerb
            )
     :<|> Named
            "guard-legalhold-policy-conflicts"

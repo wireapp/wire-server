@@ -117,7 +117,7 @@ createGroupConversationUpToV3 ::
   Maybe ClientId ->
   Maybe ConnId ->
   NewConv ->
-  Sem r ExtendedConversationResponse
+  Sem r ConversationResponse
 createGroupConversationUpToV3 lusr mCreatorClient conn newConv = mapError UnreachableBackendsLegacy $
   do
     conv <-
@@ -126,7 +126,7 @@ createGroupConversationUpToV3 lusr mCreatorClient conn newConv = mapError Unreac
         mCreatorClient
         conn
         newConv
-    toExtended <$> conversationCreated lusr conv
+    conversationCreated lusr conv
 
 -- | The public-facing endpoint for creating group conversations in the client
 -- API in version 4 and above.
@@ -341,7 +341,7 @@ createOne2OneConversation ::
   Local UserId ->
   ConnId ->
   NewConv ->
-  Sem r ExtendedConversationResponse
+  Sem r ConversationResponse
 createOne2OneConversation lusr zcon j =
   mapError @UnreachableBackends @UnreachableBackendsLegacy UnreachableBackendsLegacy $ do
     let allUsers = newConvMembers lusr j
@@ -358,7 +358,7 @@ createOne2OneConversation lusr zcon j =
       Nothing -> ensureConnected lusr allUsers $> Nothing
     foldQualified
       lusr
-      (fmap toExtended <$> createLegacyOne2OneConversationUnchecked lusr zcon (newConvName j) mtid)
+      (createLegacyOne2OneConversationUnchecked lusr zcon (newConvName j) mtid)
       (createOne2OneConversationUnchecked lusr zcon (newConvName j) mtid . tUntagged)
       other
   where
@@ -452,7 +452,7 @@ createOne2OneConversationUnchecked ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r ExtendedConversationResponse
+  Sem r ConversationResponse
 createOne2OneConversationUnchecked self zcon name mtid other = do
   let create =
         foldQualified
@@ -477,11 +477,11 @@ createOne2OneConversationLocally ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r ExtendedConversationResponse
+  Sem r ConversationResponse
 createOne2OneConversationLocally lcnv self zcon name mtid other = do
   mc <- E.getConversation (tUnqualified lcnv)
   case mc of
-    Just c -> toExtended <$> conversationExisted self c
+    Just c -> conversationExisted self c
     Nothing -> do
       let meta =
             (defConversationMetadata (tUnqualified self))
@@ -497,7 +497,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
               }
       c <- E.createConversation lcnv nc
       notifyCreatedConversation self (Just zcon) c
-      toExtended <$> conversationCreated self c
+      conversationCreated self c
 
 createOne2OneConversationRemotely ::
   Member (Error FederationError) r =>
@@ -507,7 +507,7 @@ createOne2OneConversationRemotely ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r ExtendedConversationResponse
+  Sem r ConversationResponse
 createOne2OneConversationRemotely _ _ _ _ _ _ =
   throw FederationNotImplemented
 
@@ -528,7 +528,7 @@ createConnectConversation ::
   Local UserId ->
   Maybe ConnId ->
   Connect ->
-  Sem r ExtendedConversationResponse
+  Sem r ConversationResponse
 createConnectConversation lusr conn j = do
   lrecipient <- ensureLocal lusr (cRecipient j)
   n <- rangeCheckedMaybe (cName j)
@@ -559,10 +559,10 @@ createConnectConversation lusr conn j = do
           p
             & pushRoute .~ RouteDirect
             & pushConn .~ conn
-      toExtended <$> conversationCreated lusr c
+      conversationCreated lusr c
     update n conv = do
       let mems = Data.convLocalMembers conv
-       in fmap toExtended . conversationExisted lusr
+       in conversationExisted lusr
             =<< if tUnqualified lusr `isMember` mems
               then -- we already were in the conversation, maybe also other
                 connect n conv
@@ -641,10 +641,6 @@ newRegularConversation lusr newConv = do
 
 -------------------------------------------------------------------------------
 -- Helpers
-
-toExtended :: ConversationResponse -> ExtendedConversationResponse
-toExtended (Existed c) = ConversationResponseExisted c
-toExtended (Created c) = ConversationResponseCreated c
 
 conversationCreated ::
   ( Member (Error InternalError) r,

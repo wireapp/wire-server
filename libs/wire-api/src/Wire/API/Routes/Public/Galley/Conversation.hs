@@ -48,86 +48,24 @@ import Wire.API.Team.Feature
 type ConversationResponse = ResponseForExistedCreated Conversation
 
 -- | A type similar to 'ConversationResponse' introduced to allow for a failure
--- to add remote members while creating a non-group conversation. The type is
--- not unified with 'CreateGroupConversationResponse' as that one relies on JSON
--- for client API v4, yet 'ExtendedConversationResponse' should work for older
--- versions too.
-data ExtendedConversationResponse
-  = ConversationResponseExisted Conversation
-  | ConversationResponseUnreachableBackends CreateConversationUnreachableBackends
-  | ConversationResponseCreated Conversation
-
-instance
-  ( ResponseType r1 ~ Conversation,
-    ResponseType r2 ~ CreateConversationUnreachableBackends,
-    ResponseType r3 ~ Conversation
-  ) =>
-  AsUnion '[r1, r2, r3] ExtendedConversationResponse
-  where
-  toUnion (ConversationResponseExisted x) = Z (I x)
-  toUnion (ConversationResponseUnreachableBackends x) = S (Z (I x))
-  toUnion (ConversationResponseCreated x) = S (S (Z (I x)))
-
-  fromUnion (Z (I x)) = ConversationResponseExisted x
-  fromUnion (S (Z (I x))) = ConversationResponseUnreachableBackends x
-  fromUnion (S (S (Z (I x)))) = ConversationResponseCreated x
-  fromUnion (S (S (S x))) = case x of {}
-
-type UnreachableBackendsResponse =
-  Respond
-    503
-    "Unreachable backends in conversation creation"
-    CreateConversationUnreachableBackends
-
--- | JSON of the type is specific to V2
-type ExtendedConversationResponsesV2 =
-  '[ WithHeaders
-       ConversationHeaders
-       Conversation
-       (VersionedRespond 'V2 200 "Conversation existed" Conversation),
-     UnreachableBackendsResponse,
-     WithHeaders
-       ConversationHeaders
-       Conversation
-       (VersionedRespond 'V2 201 "Conversation created" Conversation)
-   ]
-
--- | Versioned to the latest API version
-type ExtendedConversationResponses =
-  '[ WithHeaders
-       ConversationHeaders
-       Conversation
-       (Respond 200 "Conversation existed" Conversation),
-     UnreachableBackendsResponse,
-     WithHeaders
-       ConversationHeaders
-       Conversation
-       (Respond 201 "Conversation created" Conversation)
-   ]
-
--- | A type similar to 'ConversationResponse' introduced to allow for a failure
 -- to add remote members while creating a conversation or due to involved
 -- backends forming an incomplete graph.
 data CreateGroupConversationResponse
   = GroupConversationExisted Conversation
-  | GroupConversationUnreachableBackends CreateConversationUnreachableBackends
   | GroupConversationCreated CreateGroupConversation
 
 instance
   ( ResponseType r1 ~ Conversation,
-    ResponseType r2 ~ CreateConversationUnreachableBackends,
-    ResponseType r3 ~ CreateGroupConversation
+    ResponseType r2 ~ CreateGroupConversation
   ) =>
-  AsUnion '[r1, r2, r3] CreateGroupConversationResponse
+  AsUnion '[r1, r2] CreateGroupConversationResponse
   where
   toUnion (GroupConversationExisted x) = Z (I x)
-  toUnion (GroupConversationUnreachableBackends x) = S (Z (I x))
-  toUnion (GroupConversationCreated x) = S (S (Z (I x)))
+  toUnion (GroupConversationCreated x) = S (Z (I x))
 
   fromUnion (Z (I x)) = GroupConversationExisted x
-  fromUnion (S (Z (I x))) = GroupConversationUnreachableBackends x
-  fromUnion (S (S (Z (I x)))) = GroupConversationCreated x
-  fromUnion (S (S (S x))) = case x of {}
+  fromUnion (S (Z (I x))) = GroupConversationCreated x
+  fromUnion (S (S x)) = case x of {}
 
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
@@ -146,13 +84,6 @@ type ConversationVerb =
      ]
     ConversationResponse
 
-type ExtendedConversationVerb =
-  MultiVerb
-    'POST
-    '[JSON]
-    ExtendedConversationResponses
-    ExtendedConversationResponse
-
 type CreateGroupConversationVerb =
   MultiVerb
     'POST
@@ -161,7 +92,6 @@ type CreateGroupConversationVerb =
          ConversationHeaders
          Conversation
          (Respond 200 "Conversation existed" Conversation),
-       UnreachableBackendsResponse,
        WithHeaders
          ConversationHeaders
          CreateGroupConversation
@@ -458,11 +388,7 @@ type ConversationAPI =
                :> ZOptConn
                :> "conversations"
                :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
-               :> MultiVerb
-                    'POST
-                    '[JSON]
-                    ExtendedConversationResponsesV2
-                    ExtendedConversationResponse
+               :> ConversationV2Verb
            )
     :<|> Named
            "create-group-conversation@v3"
@@ -488,7 +414,7 @@ type ConversationAPI =
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
-               :> ExtendedConversationVerb
+               :> ConversationVerb
            )
     :<|> Named
            "create-group-conversation"
@@ -575,11 +501,7 @@ type ConversationAPI =
                :> "conversations"
                :> "one2one"
                :> VersionedReqBody 'V2 '[JSON] NewConv
-               :> MultiVerb
-                    'POST
-                    '[JSON]
-                    ExtendedConversationResponsesV2
-                    ExtendedConversationResponse
+               :> ConversationV2Verb
            )
     :<|> Named
            "create-one-to-one-conversation"
@@ -601,7 +523,7 @@ type ConversationAPI =
                :> "conversations"
                :> "one2one"
                :> ReqBody '[JSON] NewConv
-               :> ExtendedConversationVerb
+               :> ConversationVerb
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to members
