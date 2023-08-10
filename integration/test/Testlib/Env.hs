@@ -1,9 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Testlib.Env where
 
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Data.Aeson hiding ((.=))
-import Data.Aeson qualified as Aeson
 import Data.ByteString (ByteString)
 import Data.Functor
 import Data.IORef
@@ -29,6 +30,7 @@ data Env = Env
   { serviceMap :: Map String ServiceMap,
     domain1 :: String,
     domain2 :: String,
+    dynamicDomains :: [String],
     defaultAPIVersion :: Int,
     manager :: HTTP.Manager,
     servicesCwdBase :: Maybe FilePath,
@@ -44,6 +46,7 @@ data GlobalEnv = GlobalEnv
   { gServiceMap :: Map String ServiceMap,
     gDomain1 :: String,
     gDomain2 :: String,
+    gDynamicDomains :: [String],
     gDefaultAPIVersion :: Int,
     gManager :: HTTP.Manager,
     gServicesCwdBase :: Maybe FilePath,
@@ -53,15 +56,18 @@ data GlobalEnv = GlobalEnv
 
 data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
-    backendTwo :: BackendConfig
+    backendTwo :: BackendConfig,
+    dynamicBackends :: Map String DynamicBackendConfig
   }
   deriving (Show, Generic)
 
 instance FromJSON IntegrationConfig where
-  parseJSON v =
-    IntegrationConfig
-      <$> parseJSON v
-      <*> withObject "ServiceMap at backendTwo" (Aeson..: fromString "backendTwo") v
+  parseJSON =
+    withObject "IntegrationConfig" $ \o ->
+      IntegrationConfig
+        <$> parseJSON (Object o)
+        <*> o .: "backendTwo"
+        <*> o .: "dynamicBackends"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
@@ -101,7 +107,7 @@ data HostPort = HostPort
 
 instance FromJSON HostPort
 
-data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker | Stern
+data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker | Stern | FederatorInternal
   deriving
     ( Show,
       Eq,
@@ -121,6 +127,7 @@ serviceName = \case
   Spar -> "spar"
   BackgroundWorker -> "backgroundWorker"
   Stern -> "stern"
+  FederatorInternal -> "federator"
 
 -- | Converts the service name to kebab-case.
 configName :: Service -> String
@@ -134,6 +141,7 @@ configName = \case
   Spar -> "spar"
   BackgroundWorker -> "background-worker"
   Stern -> "stern"
+  FederatorInternal -> "federator"
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
@@ -145,6 +153,7 @@ serviceHostPort m Nginz = m.nginz
 serviceHostPort m Spar = m.spar
 serviceHostPort m BackgroundWorker = m.backgroundWorker
 serviceHostPort m Stern = m.stern
+serviceHostPort m FederatorInternal = m.federatorInternal
 
 mkGlobalEnv :: FilePath -> IO GlobalEnv
 mkGlobalEnv cfgFile = do
@@ -163,7 +172,7 @@ mkGlobalEnv cfgFile = do
             else Nothing
 
   manager <- HTTP.newManager HTTP.defaultManagerSettings
-  resourcePool <- createBackendResourcePool
+  resourcePool <- createBackendResourcePool (Map.elems intConfig.dynamicBackends)
   pure
     GlobalEnv
       { gServiceMap =
@@ -173,6 +182,7 @@ mkGlobalEnv cfgFile = do
             ],
         gDomain1 = intConfig.backendOne.originDomain,
         gDomain2 = intConfig.backendTwo.originDomain,
+        gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
         gDefaultAPIVersion = 4,
         gManager = manager,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
@@ -191,6 +201,7 @@ mkEnv ge = do
         { serviceMap = gServiceMap ge,
           domain1 = gDomain1 ge,
           domain2 = gDomain2 ge,
+          dynamicDomains = gDynamicDomains ge,
           defaultAPIVersion = gDefaultAPIVersion ge,
           manager = gManager ge,
           servicesCwdBase = gServicesCwdBase ge,

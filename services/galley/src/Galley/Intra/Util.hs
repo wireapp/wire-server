@@ -66,7 +66,7 @@ componentRequest Gundeck o =
 componentRetryPolicy :: IntraComponent -> RetryPolicy
 componentRetryPolicy Brig = x1
 componentRetryPolicy Spar = x1
-componentRetryPolicy Gundeck = x3
+componentRetryPolicy Gundeck = limitRetries 0
 
 call ::
   IntraComponent ->
@@ -90,6 +90,3 @@ asyncCall comp req = void $ do
 
 x1 :: RetryPolicy
 x1 = limitRetries 1
-
-x3 :: RetryPolicy
-x3 = limitRetries 3 <> exponentialBackoff 100000

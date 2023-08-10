@@ -42,7 +42,6 @@ import API.Util.TeamFeature qualified as Util
 import Bilge hiding (head, timeout)
 import Bilge qualified
 import Bilge.Assert
-import Control.Arrow
 import Control.Concurrent.Async qualified as Async
 import Control.Exception (throw)
 import Control.Lens (at, ix, preview, view, (.~), (?~))
@@ -135,7 +134,7 @@ tests s =
           test s "fetch conversation by qualified ID (v2)" testGetConvQualifiedV2,
           test s "create Proteus conversation" postProteusConvOk,
           test s "create conversation with remote users all reachable" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2]),
-          test s "create conversation with remote users some unreachable" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2, rb3]),
+          test s "create conversation with remote users some unreachable" (postConvWithUnreachableRemoteUsers $ Set.fromList [rb1, rb2, rb3, rb4]),
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
           test s "fail to get >500 conversations with v2 API" getConvsFailMaxSizeV2,
@@ -285,7 +284,7 @@ tests s =
                 after AllFinish "$0 ~ /connection removed notifications domain A bias/" $ test s "connection removed notifications domain B bias" API.testConnectionRemovedNotificationsNoopDomainB
               ]
         ]
-    rb1, rb2, rb3 :: Remote Backend
+    rb1, rb2, rb3, rb4 :: Remote Backend
     rb1 =
       toRemoteUnsafe
         (Domain "c.example.com")
@@ -308,6 +307,14 @@ tests s =
         ( Backend
             { bReachable = BackendUnreachable,
               bUsers = 2
+            }
+        )
+    rb4 =
+      toRemoteUnsafe
+        (Domain "f.example.com")
+        ( Backend
+            { bReachable = BackendUnreachable,
+              bUsers = 1
             }
         )
 
@@ -381,6 +388,57 @@ postProteusConvOk = do
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
 
+postConvWithUnreachableRemoteUsers :: Set (Remote Backend) -> TestM ()
+postConvWithUnreachableRemoteUsers rbs = do
+  c <- view tsCannon
+  (alice, _qAlice) <- randomUserTuple
+  (alex, qAlex) <- randomUserTuple
+  connectUsers alice (singleton alex)
+  (allRemotes, participatingRemotes) <- do
+    v <- forM (toList rbs) $ \rb -> do
+      users <- connectBackend alice rb
+      pure (users, participating rb users)
+    pure $ foldr (\(a, p) acc -> bimap ((<>) a) ((<>) p) acc) ([], []) v
+  liftIO $
+    assertBool "No unreachable backend in the test" (allRemotes /= participatingRemotes)
+
+  let convName = "some chat"
+      otherLocals = [qAlex]
+      joiners = allRemotes <> otherLocals
+      unreachableBackends =
+        Set.fromList $
+          foldMap
+            ( \rb ->
+                guard (rbReachable rb == BackendUnreachable)
+                  $> tDomain rb
+            )
+            rbs
+  WS.bracketR2 c alice alex $ \(wsAlice, wsAlex) -> do
+    void
+      $ withTempMockFederator'
+        ( asum
+            [ "get-not-fully-connected-backends" ~> NonConnectedBackends mempty,
+              mockUnreachableFor unreachableBackends,
+              "on-conversation-created" ~> EmptyResponse,
+              "on-conversation-updated" ~> EmptyResponse
+            ]
+        )
+      $ postConvQualified
+        alice
+        Nothing
+        defNewProteusConv
+          { newConvName = checked convName,
+            newConvQualifiedUsers = joiners
+          }
+        <!! const 503 === statusCode
+    groupConvs <- filter ((== RegularConv) . cnvmType . cnvMetadata) <$> getAllConvs alice
+    liftIO $
+      assertEqual
+        "Alice does have a group conversation, while she should not!"
+        []
+        groupConvs
+    WS.assertNoEvent (3 # Second) [wsAlice, wsAlex]
+
 postConvWithRemoteUsersOk :: Set (Remote Backend) -> TestM ()
 postConvWithRemoteUsersOk rbs = do
   c <- view tsCannon
@@ -393,6 +451,8 @@ postConvWithRemoteUsersOk rbs = do
       users <- connectBackend alice rb
       pure (users, participating rb users)
     pure $ foldr (\(a, p) acc -> bimap ((<>) a) ((<>) p) acc) ([], []) v
+  liftIO $
+    assertBool "Not every backend is reachable in the test" (allRemotes == participatingRemotes)
 
   let convName = "some chat"
       otherLocals = [qAlex, qAmy]
@@ -482,16 +542,6 @@ postConvWithRemoteUsersOk rbs = do
         SomeConversationAction SConversationJoinTag _action -> pure ()
         _ -> assertFailure @() "Unexpected update action"
   where
-    connectBackend :: UserId -> Remote Backend -> TestM [Qualified UserId]
-    connectBackend usr (tDomain &&& bUsers . tUnqualified -> (d, c)) = do
-      users <- replicateM (fromIntegral c) (randomQualifiedId d)
-      mapM_ (connectWithRemoteUser usr) users
-      pure users
-    participating :: Remote Backend -> [a] -> [a]
-    participating rb users =
-      if rbReachable rb == BackendReachable
-        then users
-        else []
     toOtherMember qid = OtherMember qid Nothing roleNameWireAdmin
     convView cnv usr =
       responseJsonError =<< getConvQualified usr cnv <!! const 200 === statusCode
@@ -2280,36 +2330,21 @@ postTeamConvQualifiedNoConnection = do
 postConvQualifiedNonExistentDomain :: TestM ()
 postConvQualifiedNonExistentDomain = do
   let remoteDomain = Domain "non-existent.example.com"
-  (uAlice, alice) <- randomUserTuple
+  alice <- randomUser
   uBob <- randomId
   let bob = Qualified uBob remoteDomain
-  connectWithRemoteUser uAlice bob
+  connectWithRemoteUser alice bob
   let mock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
-  createdConv <-
-    responseJsonError . fst
-      =<< withTempMockFederator'
-        mock
-        ( do
-            postConvQualified
-              uAlice
-              Nothing
-              defNewProteusConv {newConvQualifiedUsers = [bob]}
-              <!! do const 201 === statusCode
-        )
-  let members = cnvMembers . cgcConversation $ createdConv
-  liftIO $ do
-    assertEqual
-      "A remote domain was supposed to be unavailable"
-      (Map.singleton remoteDomain (Set.singleton uBob))
-      (cgcFailedToAdd createdConv)
-    assertEqual
-      "Only Alice should have been in the conversation"
-      []
-      (fmap omQualifiedId . cmOthers $ members)
-    assertEqual
-      "Alice is not her self in the conversation"
-      alice
-      (memId . cmSelf $ members)
+  void $
+    withTempMockFederator'
+      mock
+      ( do
+          postConvQualified
+            alice
+            Nothing
+            defNewProteusConv {newConvQualifiedUsers = [bob]}
+            !!! do const 503 === statusCode
+      )
 
 postConvQualifiedFederationNotEnabled :: TestM ()
 postConvQualifiedFederationNotEnabled = do
@@ -3214,15 +3249,19 @@ deleteUnavailableRemoteMemberConvLocalQualifiedOk = do
   connectUsers alice (singleton bob)
   mapM_ (connectWithRemoteUser alice) [qChad, qDee, qEve]
 
-  let mockedGetUsers = do
+  let mockedGetUsers remote2Response = do
         guardRPC "get-users-by-ids"
         d <- frTargetDomain <$> getRequest
         asum
           [ guard (d == remoteDomain1)
               *> mockReply [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")],
             guard (d == remoteDomain2)
-              *> throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
+              *> remote2Response
           ]
+      mockedCreateConvGetUsers =
+        mockedGetUsers (mockReply [mkProfile qEve (Name "Eve")])
+      mockedRemMemGetUsers =
+        mockedGetUsers (throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
       mockedOther = do
         d <- frTargetDomain <$> getRequest
         asum
@@ -3231,13 +3270,14 @@ deleteUnavailableRemoteMemberConvLocalQualifiedOk = do
             guard (d == remoteDomain2)
               *> asum
                 [ guardRPC "on-conversation-created" *> mockReply EmptyResponse,
+                  guardRPC "on-conversation-updated" *> mockReply EmptyResponse,
                   throw $ MockErrorResponse HTTP.status503 "Down for maintenance."
                 ]
           ]
   convId <-
     fmap decodeConvId $
       postConvWithRemoteUsersGeneric
-        (mockedGetUsers <|> mockedOther)
+        (mockedCreateConvGetUsers <|> mockedOther)
         alice
         Nothing
         defNewProteusConv {newConvQualifiedUsers = [qBob, qChad, qDee, qEve]}
@@ -3245,7 +3285,7 @@ deleteUnavailableRemoteMemberConvLocalQualifiedOk = do
   let qconvId = Qualified convId localDomain
 
   (respDel, federatedRequests) <-
-    withTempMockFederator' (mockedGetUsers <|> mockedOther) $
+    withTempMockFederator' (mockedRemMemGetUsers <|> mockedOther) $
       deleteMemberQualified alice qChad qconvId
   liftIO $ do
     statusCode respDel @?= 200

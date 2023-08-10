@@ -48,7 +48,6 @@
 , unliftio
 , uuid
 , wai
-, wai-predicates
 , wai-routing
 , wai-utilities
 , wire-api
@@ -93,7 +92,6 @@ mkDerivation {
     unliftio
     uuid
     wai
-    wai-predicates
     wai-routing
     wai-utilities
     wire-api

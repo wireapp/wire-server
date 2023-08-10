@@ -13,6 +13,16 @@ podSecurityContext:
 
 config:
   dynamicBackendsPoolsize: 3
+  dynamicBackends:
+    dynamic-backend-1:
+      federatorExternalHostPrefix: dynamic-backend-1
+      federatorExternalPort: 10098
+    dynamic-backend-2:
+      federatorExternalHostPrefix: dynamic-backend-2
+      federatorExternalPort: 11098
+    dynamic-backend-3:
+      federatorExternalHostPrefix: dynamic-backend-3
+      federatorExternalPort: 12098
 
   cassandra:
     host: cassandra-ephemeral
@@ -25,3 +35,9 @@ config:
   sesEndpointUrl: http://fake-aws-ses:4569
   s3EndpointUrl: http://fake-aws-s3:9000
   rabbitmqPutVHostUrl: http://rabbitmq:15672/api/vhosts
+
+tls:
+  verify_depth: 1
+
+ingress:
+  class: nginx

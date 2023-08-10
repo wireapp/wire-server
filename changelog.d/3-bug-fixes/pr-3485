@@ -1,0 +1,1 @@
+No `conversation.delete` event is sent to users during de-federation clean up

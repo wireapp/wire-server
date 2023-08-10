@@ -1,4 +1,3 @@
-
 {-# OPTIONS_GHC -Wno-unused-local-binds #-}
 
 module Wire.Defederation where
@@ -76,16 +75,16 @@ getRemoteDomains = do
 getOwnDomain :: AppT IO Domain
 getOwnDomain = do
   env <- mkBrigEnv
-  vInfo <- liftIO $ runClientM (namedClient @VersionAPI @"get-version") env
-  either
-    ( \e -> do
-        Log.err $ Log.msg @String "Could not fetch API version information from Brig" . Log.field "error" (show e)
-        -- Throw the error into IO to match the other functions and to prevent the
-        -- message from rabbit being ACKed.
-        liftIO $ throwIO e
-    )
-    (pure . vinfoDomain)
-    vInfo
+  recovering policy httpHandlers $ \_ ->
+    liftIO (runClientM (namedClient @VersionAPI @"get-version") env)
+      >>= either handleError (pure . vinfoDomain)
+  where
+    handleError e = do
+      Log.err $ Log.msg @String "Could not fetch API version information from Brig" . Log.field "error" (show e)
+      -- Throw the error into IO to match the other functions and to prevent the
+      -- message from rabbit being ACKed.
+      liftIO $ throwIO e
+    policy = capDelay 60_000_000 $ fullJitterBackoff 200_000
 
 -- Use the notification pusher to push out these notifications to remote domains
 notifyOtherBackends :: Domain -> AppT IO ()
