@@ -751,6 +751,16 @@ fromConversationCreated loc rc@ConversationCreated {..} =
         (ConvMembers this others)
         ProtocolProteus
 
+ensureNoUnreachableBackends ::
+  Member (Error UnreachableBackends) r =>
+  [Either (Remote e, b) a] ->
+  Sem r [a]
+ensureNoUnreachableBackends results = do
+  let (errors, values) = partitionEithers results
+  unless (null errors) $
+    throw (UnreachableBackends (map (tDomain . fst) errors))
+  pure values
+
 -- | Notify remote users of being added to a new conversation. In case a remote
 -- domain is unreachable, an exception is thrown, the conversation deleted and
 -- the client gets an error response.
@@ -763,38 +773,28 @@ registerRemoteConversationMemberships ::
   UTCTime ->
   Local Data.Conversation ->
   Sem r ()
-registerRemoteConversationMemberships now lc = do
+registerRemoteConversationMemberships now lc = deleteOnUnreachable $ do
   let c = tUnqualified lc
       rc = toConversationCreated now c
-      throwUnreachable backends = do
-        deleteConversation (DataTypes.convId c)
-        throw (UnreachableBackends backends)
-
       allRemoteMembers = nubOrd {- (but why would there be duplicates?) -} (Data.convRemoteMembers c)
       allRemoteMembersQualified = remoteMemberQualify <$> allRemoteMembers
       allRemoteBuckets :: [Remote [RemoteMember]] = bucketRemote allRemoteMembersQualified
 
-  do
-    -- ping involved remote backends
-    unreachableBackends <- fmap (foldMap (either (pure . tDomain . fst) mempty)) $
-      runFederatedConcurrentlyEither allRemoteMembersQualified $ \_ ->
-        void $ fedClient @'Brig @"api-version" ()
-    -- abort if there are unreachable backends
-    unless (null unreachableBackends) $ throwUnreachable unreachableBackends
+  -- ping involved remote backends
+  void . (ensureNoUnreachableBackends =<<) $
+    runFederatedConcurrentlyEither allRemoteMembersQualified $ \_ ->
+      void $ fedClient @'Brig @"api-version" ()
 
-  do
+  void . (ensureNoUnreachableBackends =<<) $
     -- let remote backends know about a subset of new joiners
-    failedToNotify :: Set Domain <- fmap (Set.fromList . foldMap (either (pure . tDomain . fst) mempty)) $
-      runFederatedConcurrentlyEither allRemoteMembersQualified $
-        \rrms ->
-          fedClient @'Galley @"on-conversation-created"
-            ( rc
-                { ccNonCreatorMembers =
-                    toMembers (tUnqualified rrms)
-                }
-            )
-    unless (null failedToNotify) $
-      throwUnreachable (toList failedToNotify)
+    runFederatedConcurrentlyEither allRemoteMembersQualified $
+      \rrms ->
+        fedClient @'Galley @"on-conversation-created"
+          ( rc
+              { ccNonCreatorMembers =
+                  toMembers (tUnqualified rrms)
+              }
+          )
 
   -- reachable members in buckets per remote domain
   let joined :: [Remote [RemoteMember]] = allRemoteBuckets
@@ -810,14 +810,10 @@ registerRemoteConversationMemberships now lc = do
           )
           joined
 
-  do
+  void . (ensureNoUnreachableBackends =<<) $
     -- Send an update to remotes about the final list of participants
-    failedToUpdate :: Set Domain <-
-      fmap (Set.fromList . foldMap (either (pure . tDomain . fst) mempty)) $
-        runFederatedConcurrentlyBucketsEither joinedCoupled $
-          fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
-    unless (null failedToUpdate) $
-      throwUnreachable (toList failedToUpdate)
+    runFederatedConcurrentlyBucketsEither joinedCoupled $
+      fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
   where
     creator :: UserId
     creator = cnvmCreator . DataTypes.convMetadata . tUnqualified $ lc
@@ -848,6 +844,16 @@ registerRemoteConversationMemberships now lc = do
               -- the NewConv input
               (ConversationJoin (tUntagged <$> newMembers) roleNameWireMember)
         }
+
+    deleteOnUnreachable ::
+      ( Member ConversationStore r,
+        Member (Error UnreachableBackends) r
+      ) =>
+      Sem r a ->
+      Sem r a
+    deleteOnUnreachable m = catch @UnreachableBackends m $ \e -> do
+      deleteConversation (DataTypes.convId (tUnqualified lc))
+      throw e
 
 --------------------------------------------------------------------------------
 -- Legalhold

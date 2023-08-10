@@ -543,6 +543,7 @@ type ConversationAPI =
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -567,6 +568,7 @@ type ConversationAPI =
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -592,6 +594,7 @@ type ConversationAPI =
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
                :> ZLocalUser
                :> ZConn
                :> "conversations"

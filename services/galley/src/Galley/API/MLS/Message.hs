@@ -141,6 +141,7 @@ postMLSMessageFromLocalUserV1 ::
       Member (ErrorS 'MLSStaleMessage) r,
       Member (ErrorS 'MLSUnsupportedMessage) r,
       Member (Error NonFederatingBackends) r,
+      Member (Error UnreachableBackends) r,
       Member (Input (Local ())) r,
       Member ProposalStore r,
       Member Resource r,
@@ -178,6 +179,7 @@ postMLSMessageFromLocalUser ::
       Member (ErrorS 'MLSStaleMessage) r,
       Member (ErrorS 'MLSUnsupportedMessage) r,
       Member (Error NonFederatingBackends) r,
+      Member (Error UnreachableBackends) r,
       Member (Input (Local ())) r,
       Member ProposalStore r,
       Member Resource r,
@@ -376,6 +378,7 @@ postMLSMessage ::
       Member (ErrorS 'MLSStaleMessage) r,
       Member (ErrorS 'MLSUnsupportedMessage) r,
       Member (Error NonFederatingBackends) r,
+      Member (Error UnreachableBackends) r,
       Member (Input (Local ())) r,
       Member ProposalStore r,
       Member Resource r,
@@ -457,6 +460,7 @@ postMLSMessageToLocalConv ::
       Member (ErrorS 'MLSStaleMessage) r,
       Member (ErrorS 'MLSUnsupportedMessage) r,
       Member (Error NonFederatingBackends) r,
+      Member (Error UnreachableBackends) r,
       Member ProposalStore r,
       Member Resource r,
       Member TinyLog r
@@ -624,6 +628,7 @@ processCommit ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member Resource r
   ) =>
   Qualified UserId ->
@@ -759,6 +764,7 @@ processCommitWithAction ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member Resource r
   ) =>
   Qualified UserId ->
@@ -788,6 +794,7 @@ processInternalCommit ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member Resource r
   ) =>
   Qualified UserId ->
@@ -1097,6 +1104,7 @@ executeProposalAction ::
     Member (ErrorS 'MLSUnsupportedProposal) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,

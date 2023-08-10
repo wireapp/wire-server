@@ -163,19 +163,16 @@ createGroupConversation ::
   Sem r CreateGroupConversationResponse
 createGroupConversation lusr mCreatorClient conn newConv = do
   let remoteDomains = tDomain <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
-  -- TODO: make getFederationStatus throw instead of returning the error
-  getFederationStatus lusr (RemoteDomains $ Set.fromList remoteDomains) >>= \case
-    NotConnectedDomains rd1 rd2 -> throw $ NonFederatingBackends rd1 rd2
-    FullyConnected -> do
-      cnv <-
-        createGroupConversationGeneric
-          lusr
-          mCreatorClient
-          conn
-          newConv
-      conv <- conversationView lusr cnv
-      pure . GroupConversationCreated $
-        CreateGroupConversation conv mempty
+  checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
+  cnv <-
+    createGroupConversationGeneric
+      lusr
+      mCreatorClient
+      conn
+      newConv
+  conv <- conversationView lusr cnv
+  pure . GroupConversationCreated $
+    CreateGroupConversation conv mempty
 
 createGroupConversationGeneric ::
   ( Member BrigAccess r,

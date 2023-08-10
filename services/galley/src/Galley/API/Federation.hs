@@ -508,6 +508,8 @@ updateConversation origDomain updateRequest = do
         . runError @NoChanges
         . fmap (either F.ConversationUpdateResponseNonFederatingBackends id)
         . runError @NonFederatingBackends
+        . fmap (either F.ConversationUpdateResponseUnreachableBackends id)
+        . runError @UnreachableBackends
         . fmap F.ConversationUpdateResponseUpdate
 
 handleMLSMessageErrors ::

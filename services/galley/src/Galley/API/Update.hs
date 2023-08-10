@@ -328,8 +328,9 @@ updateConversationReceiptMode ::
   ConversationReceiptModeUpdate ->
   Sem r (UpdateResult Event)
 updateConversationReceiptMode lusr zcon qcnv update =
-  mapError @NonFederatingBackends @InternalError (\_ -> InternalErrorWithDescription "Unexpected NonFederatingBackends error when updating remote receipt mode") $
-    foldQualified
+  mapError @UnreachableBackends @InternalError (\_ -> InternalErrorWithDescription "Unexpected UnreachableBackends error when updating remote receipt mode")
+    . mapError @NonFederatingBackends @InternalError (\_ -> InternalErrorWithDescription "Unexpected NonFederatingBackends error when updating remote receipt mode")
+    $ foldQualified
       lusr
       ( \lcnv ->
           getUpdateResult . fmap lcuEvent $
@@ -353,6 +354,7 @@ updateRemoteConversation ::
     Member MemberStore r,
     Member TinyLog r,
     Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     RethrowErrors (HasConversationActionGalleyErrors tag) (Error NoChanges : r),
     SingI tag
   ) =>
@@ -374,6 +376,7 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
     ConversationUpdateResponseError err' -> rethrowErrors @(HasConversationActionGalleyErrors tag) err'
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
     ConversationUpdateResponseNonFederatingBackends e -> throw e
+    ConversationUpdateResponseUnreachableBackends e -> throw e
   updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) (Just conn) >>= note NoChanges
 
 updateConversationReceiptModeUnqualified ::
@@ -788,6 +791,7 @@ addMembers ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error FederationError) r,
     Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -826,6 +830,7 @@ addMembersUnqualifiedV2 ::
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -864,6 +869,7 @@ addMembersUnqualified ::
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
