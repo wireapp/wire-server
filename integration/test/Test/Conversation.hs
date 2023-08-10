@@ -327,3 +327,24 @@ testAddMembersNonFullyConnectedProteus = do
     bindResponse (addMembers u1 cid members) $ \resp -> do
       resp.status `shouldMatchInt` 409
       resp.json %. "non_federating_backends" `shouldMatchSet` [domainB, domainC]
+
+testConvWithUnreachableRemoteUsers :: App ()
+testConvWithUnreachableRemoteUsers = do
+  let overrides =
+        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
+          <> fullSearchWithAll
+  ([alice, alex, bob, charlie, dylan], domains) <-
+    startDynamicBackends [overrides, overrides] $ \domains -> do
+      own <- make OwnDomain & asString
+      other <- make OtherDomain & asString
+      users <- createAndConnectUsers $ [own, own, other] <> domains
+      pure (users, domains)
+
+  let newConv = defProteus {qualifiedUsers = [alex, bob, charlie, dylan]}
+  bindResponse (postConversation alice newConv) $ \resp -> do
+    resp.status `shouldMatchInt` 503
+    resp.json %. "unreachable_backends" `shouldMatchSet` domains
+
+  convs <- getAllConvs alice >>= asList
+  regConvs <- filterM (\c -> (==) <$> (c %. "type" & asInt) <*> pure 0) convs
+  regConvs `shouldMatch` ([] :: [Value])
