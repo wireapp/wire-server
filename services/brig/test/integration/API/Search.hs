@@ -87,6 +87,7 @@ tests opts mgr galley brig = do
         testWithBothIndices opts mgr "by-first/middle/last name" $ testSearchByLastOrMiddleName brig,
         testWithBothIndices opts mgr "Non ascii names" $ testSearchNonAsciiNames brig,
         testWithBothIndices opts mgr "user with umlaut" $ testSearchWithUmlaut brig,
+        testWithBothIndices opts mgr "user with japanese name" $ testSearchCJK brig,
         test mgr "migration to new index" $ testMigrationToNewIndex mgr opts brig,
         testGroup "team A: SearchVisibilityStandard (= unrestricted outbound search)" $
           [ testGroup "team A: SearchableByOwnTeam (= restricted inbound search)" $
@@ -227,6 +228,23 @@ testSearchNonAsciiNames brig = do
   assertCanFind brig searcher searched ("शक्तिमान" <> suffix)
   -- This is pathetic transliteration, but it is what we have.
   assertCanFind brig searcher searched ("saktimana" <> suffix)
+
+testSearchCJK :: TestConstraints m => Brig -> m ()
+testSearchCJK brig = do
+  searcher <- randomUser brig
+  user <- createUser' True "藤崎詩織" brig
+  user' <- createUser' True "さおり" brig
+  user'' <- createUser' True "ジョン" brig
+  refreshIndex brig
+  assertCanFind brig searcher.userId user.userQualifiedId "藤崎詩織"
+
+  assertCanFind brig searcher.userId user'.userQualifiedId "saori"
+  assertCanFind brig searcher.userId user'.userQualifiedId "さおり"
+  assertCanFind brig searcher.userId user'.userQualifiedId "サオリ"
+
+  assertCanFind brig searcher.userId user''.userQualifiedId "jon"
+  assertCanFind brig searcher.userId user''.userQualifiedId "ジョン"
+  assertCanFind brig searcher.userId user''.userQualifiedId "じょん"
 
 testSearchWithUmlaut :: TestConstraints m => Brig -> m ()
 testSearchWithUmlaut brig = do
