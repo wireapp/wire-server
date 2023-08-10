@@ -45,7 +45,7 @@ import Galley.API.Clients qualified as Clients
 import Galley.API.Create qualified as Create
 import Galley.API.CustomBackend qualified as CustomBackend
 import Galley.API.Error
-import Galley.API.Federation (insertIntoMap, onConversationUpdated)
+import Galley.API.Federation (insertIntoMap)
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.MLS.Removal

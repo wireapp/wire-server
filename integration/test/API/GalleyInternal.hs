@@ -51,3 +51,12 @@ getFederationStatus user domains =
         submit
           "GET"
           $ req & addJSONObject ["domains" .= domainList]
+
+deleteFederationDomain ::
+  ( HasCallStack
+  ) =>
+  String ->
+  App Response
+deleteFederationDomain domain = do
+  req <- rawBaseRequest OwnDomain Galley Unversioned $ joinHttpPath ["i", "federation", domain]
+  submit "DELETE" req
