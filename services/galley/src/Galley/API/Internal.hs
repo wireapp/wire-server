@@ -51,7 +51,6 @@ import Galley.API.MLS.Removal
 import Galley.API.One2One
 import Galley.API.Public
 import Galley.API.Public.Servant
-import Galley.API.Query (getFederationStatus)
 import Galley.API.Query qualified as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import Galley.API.Teams qualified as Teams

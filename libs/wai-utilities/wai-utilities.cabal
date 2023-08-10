@@ -16,6 +16,7 @@ library
     Network.Wai.Utilities
     Network.Wai.Utilities.Error
     Network.Wai.Utilities.Headers
+    Network.Wai.Utilities.JSONResponse
     Network.Wai.Utilities.MockServer
     Network.Wai.Utilities.Request
     Network.Wai.Utilities.Response
@@ -87,6 +88,7 @@ library
     , metrics-wai            >=0.5.7
     , pipes                  >=4.1
     , prometheus-client
+    , schema-profunctor
     , servant-server
     , streaming-commons      >=0.1
     , swagger2

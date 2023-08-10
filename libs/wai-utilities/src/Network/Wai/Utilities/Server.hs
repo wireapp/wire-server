@@ -77,6 +77,7 @@ import Network.Wai.Routing.Route (App, Continue, Routes, Tree)
 import Network.Wai.Routing.Route qualified as Route
 import Network.Wai.Utilities.Error qualified as Error
 import Network.Wai.Utilities.Error qualified as Wai
+import Network.Wai.Utilities.JSONResponse
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Network.Wai.Utilities.Response
 import Prometheus qualified as Prm
@@ -202,15 +203,28 @@ catchErrors l m app req k =
 
 -- | Standard handlers for turning exceptions into appropriate
 -- 'Error' responses.
-errorHandlers :: Applicative m => [Handler m Wai.Error]
+errorHandlers :: Applicative m => [Handler m (Either Wai.Error JSONResponse)]
 errorHandlers =
-  [ Handler $ \(x :: Wai.Error) -> pure x,
-    Handler $ \(_ :: InvalidRequest) -> pure $ Wai.mkError status400 "client-error" "Invalid Request",
-    Handler $ \(_ :: TimeoutThread) -> pure $ Wai.mkError status408 "client-error" "Request Timeout",
+  -- a Wai.Error can be converted to a JSONResponse, but doing so here would
+  -- prevent us from logging the error cleanly later
+  [ Handler $ \(x :: JSONResponse) -> pure (Right x),
+    Handler $ \(x :: Wai.Error) -> pure (Left x),
+    Handler $ \(_ :: InvalidRequest) ->
+      pure . Left $
+        Wai.mkError status400 "client-error" "Invalid Request",
+    Handler $ \(_ :: TimeoutThread) ->
+      pure . Left $
+        Wai.mkError status408 "client-error" "Request Timeout",
     Handler $ \case
-      ZlibException (-3) -> pure $ Wai.mkError status400 "client-error" "Invalid request body compression"
-      ZlibException _ -> pure $ Wai.mkError status500 "server-error" "Server Error",
-    Handler $ \(_ :: SomeException) -> pure $ Wai.mkError status500 "server-error" "Server Error"
+      ZlibException (-3) ->
+        pure . Left $
+          Wai.mkError status400 "client-error" "Invalid request body compression"
+      ZlibException _ ->
+        pure . Left $
+          Wai.mkError status500 "server-error" "Server Error",
+    Handler $ \(_ :: SomeException) ->
+      pure . Left $
+        Wai.mkError status500 "server-error" "Server Error"
   ]
 {-# INLINE errorHandlers #-}
 
@@ -338,14 +352,18 @@ onError ::
   OnErrorMetrics ->
   Request ->
   Continue IO ->
-  Wai.Error ->
+  Either Wai.Error JSONResponse ->
   m ResponseReceived
 onError g m r k e = liftIO $ do
-  logError g (Just r) e
-  when (statusCode (Error.code e) >= 500) $
+  case e of
+    Left we -> logError g (Just r) we
+    Right jr -> logJSONResponse g (Just r) jr
+  let resp = either waiErrorToJSONResponse id e
+  let code = statusCode (resp.status)
+  when (code >= 500) $
     either Prm.incCounter (counterIncr (path "net.errors")) `mapM_` m
   flushRequestBody r
-  k (errorRs' e)
+  k (jsonResponseToWai resp)
 
 -- | Log an 'Error' response for debugging purposes.
 --
@@ -359,6 +377,20 @@ logError' g mr e = liftIO $ doLog g (logErrorMsgWithRequest mr e)
   where
     doLog
       | statusCode (Error.code e) >= 500 = Log.err
+      | otherwise = Log.debug
+
+logJSONResponse :: (MonadIO m, HasRequest r) => Logger -> Maybe r -> JSONResponse -> m ()
+logJSONResponse g mr e = do
+  let r = fromMaybe "N/A" (mr >>= lookupRequestId)
+  liftIO $
+    doLog g $
+      field "request" r
+        . field "code" status
+        . field "value" (encode e.value)
+  where
+    status = statusCode e.status
+    doLog
+      | status >= 500 = Log.err
       | otherwise = Log.debug
 
 logErrorMsg :: Wai.Error -> Msg -> Msg

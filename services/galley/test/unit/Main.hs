@@ -21,9 +21,9 @@ module Main
 where
 
 import Imports
+import Test.Galley.API.Action qualified
 import Test.Galley.API.Message qualified
 import Test.Galley.API.One2One qualified
-import Test.Galley.API.Query qualified
 import Test.Galley.Intra.User qualified
 import Test.Galley.Mapping qualified
 import Test.Tasty
@@ -37,5 +37,5 @@ main =
         Test.Galley.API.One2One.tests,
         Test.Galley.Intra.User.tests,
         Test.Galley.Mapping.tests,
-        Test.Galley.API.Query.tests
+        Test.Galley.API.Action.tests
       ]

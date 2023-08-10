@@ -18,6 +18,7 @@
 module Galley.API.MLS.Propagate where
 
 import Control.Comonad
+import Data.Aeson qualified as A
 import Data.Domain
 import Data.Id
 import Data.Json.Util
@@ -32,8 +33,7 @@ import Galley.Effects
 import Galley.Effects.FederatorAccess
 import Galley.Types.Conversations.Members
 import Imports
-import Network.Wai.Utilities.Error qualified as Wai
-import Network.Wai.Utilities.Server
+import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog hiding (trace)
@@ -120,14 +120,14 @@ propagateMessage qusr lconv cm con raw = do
     handleError (Right x) = case tUnqualified x of
       RemoteMLSMessageOk -> pure []
       RemoteMLSMessageMLSNotEnabled -> do
-        logFedError x (errorToWai @'MLSNotEnabled)
+        logFedError x (errorToResponse @'MLSNotEnabled)
         pure []
     handleError (Left (r, e)) = do
-      logFedError r (toWai e)
+      logFedError r (toResponse e)
       pure $ remotesToQIds (tUnqualified r)
-    logFedError :: Member TinyLog r => Remote x -> Wai.Error -> Sem r ()
+    logFedError :: Member TinyLog r => Remote x -> JSONResponse -> Sem r ()
     logFedError r e =
       warn $
         Logger.msg ("A message could not be delivered to a remote backend" :: ByteString)
           . Logger.field "remote_domain" (domainText (tDomain r))
-          . logErrorMsg e
+          . Logger.field "error" (A.encode e.value)

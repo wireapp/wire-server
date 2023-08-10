@@ -6,6 +6,7 @@ import API.Galley
 import Control.Concurrent (threadDelay)
 import Control.Monad.Reader
 import Data.Aeson hiding ((.=))
+import Data.Aeson.Types qualified as Aeson
 import Data.Default
 import Data.Function
 import Data.List qualified as List
@@ -107,3 +108,20 @@ fullSearchWithAll =
         let remoteDomains = List.delete ownDomain $ [env.domain1, env.domain2] <> env.dynamicDomains
         addFullSearchFor remoteDomains val
     }
+
+withFederatingBackendsAllowDynamic :: HasCallStack => Int -> ((String, String, String) -> App a) -> App a
+withFederatingBackendsAllowDynamic n k = do
+  let setFederationConfig =
+        setField "optSettings.setFederationStrategy" "allowDynamic"
+          >=> removeField "optSettings.setFederationDomainConfigs"
+          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
+  startDynamicBackends
+    [ def {dbBrig = setFederationConfig},
+      def {dbBrig = setFederationConfig},
+      def {dbBrig = setFederationConfig}
+    ]
+    $ \dynDomains -> do
+      domains@[domainA, domainB, domainC] <- pure dynDomains
+      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
+      liftIO $ threadDelay (n * 1000 * 1000) -- wait for federation status to be updated
+      k (domainA, domainB, domainC)

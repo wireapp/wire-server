@@ -503,11 +503,38 @@ updateConversation origDomain updateRequest = do
           . fmap lcuUpdate
           $ updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged rusr) Nothing action
   where
-    mkResponse = fmap toResponse . runError @GalleyError . runError @NoChanges
+    mkResponse =
+      fmap (either F.ConversationUpdateResponseError id)
+        . runError @GalleyError
+        . fmap (fromRight F.ConversationUpdateResponseNoChanges)
+        . runError @NoChanges
+        . fmap (either F.ConversationUpdateResponseNonFederatingBackends id)
+        . runError @NonFederatingBackends
+        . fmap F.ConversationUpdateResponseUpdate
 
-    toResponse (Left galleyErr) = F.ConversationUpdateResponseError galleyErr
-    toResponse (Right (Left NoChanges)) = F.ConversationUpdateResponseNoChanges
-    toResponse (Right (Right update)) = F.ConversationUpdateResponseUpdate update
+handleMLSMessageErrors ::
+  ( r1
+      ~ Append
+          MLSBundleStaticErrors
+          ( Error NonFederatingBackends
+              ': Error MLSProposalFailure
+              ': Error GalleyError
+              ': Error MLSProtocolError
+              ': r
+          )
+  ) =>
+  Sem r1 MLSMessageResponse ->
+  Sem r MLSMessageResponse
+handleMLSMessageErrors =
+  fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
+    . runError @MLSProtocolError
+    . fmap (either F.MLSMessageResponseError id)
+    . runError
+    . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
+    . runError
+    . fmap (either F.MLSMessageResponseNonFederatingBackends id)
+    . runError
+    . mapToGalleyError @MLSBundleStaticErrors
 
 sendMLSCommitBundle ::
   ( Member BrigAccess r,
@@ -532,24 +559,16 @@ sendMLSCommitBundle ::
   Domain ->
   F.MLSMessageSendRequest ->
   Sem r F.MLSMessageResponse
-sendMLSCommitBundle remoteDomain msr =
-  fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
-    . runError @MLSProtocolError
-    . fmap (either F.MLSMessageResponseError id)
-    . runError
-    . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
-    . runError
-    . mapToGalleyError @MLSBundleStaticErrors
-    $ do
-      assertMLSEnabled
-      loc <- qualifyLocal ()
-      let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
-      bundle <- either (throw . mlsProtocolError) pure $ deserializeCommitBundle (fromBase64ByteString (F.mmsrRawMessage msr))
-      let msg = rmValue (cbCommitMsg bundle)
-      qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-      when (Conv (qUnqualified qcnv) /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
-      uncurry F.MLSMessageResponseUpdates . (,mempty) . map lcuUpdate
-        <$> postMLSCommitBundle loc (tUntagged sender) Nothing qcnv Nothing bundle
+sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
+  assertMLSEnabled
+  loc <- qualifyLocal ()
+  let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
+  bundle <- either (throw . mlsProtocolError) pure $ deserializeCommitBundle (fromBase64ByteString (F.mmsrRawMessage msr))
+  let msg = rmValue (cbCommitMsg bundle)
+  qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+  when (Conv (qUnqualified qcnv) /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
+  uncurry F.MLSMessageResponseUpdates . (,mempty) . map lcuUpdate
+    <$> postMLSCommitBundle loc (tUntagged sender) Nothing qcnv Nothing bundle
 
 sendMLSMessage ::
   ( Member BrigAccess r,
@@ -573,26 +592,18 @@ sendMLSMessage ::
   Domain ->
   F.MLSMessageSendRequest ->
   Sem r F.MLSMessageResponse
-sendMLSMessage remoteDomain msr =
-  fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
-    . runError @MLSProtocolError
-    . fmap (either F.MLSMessageResponseError id)
-    . runError
-    . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
-    . runError
-    . mapToGalleyError @MLSMessageStaticErrors
-    $ do
-      assertMLSEnabled
-      loc <- qualifyLocal ()
-      let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
-      raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
-      case rmValue raw of
-        SomeMessage _ msg -> do
-          qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-          when (Conv (qUnqualified qcnv) /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
-          uncurry F.MLSMessageResponseUpdates
-            . first (map lcuUpdate)
-            <$> postMLSMessage loc (tUntagged sender) Nothing qcnv Nothing raw
+sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
+  assertMLSEnabled
+  loc <- qualifyLocal ()
+  let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
+  raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
+  case rmValue raw of
+    SomeMessage _ msg -> do
+      qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+      when (Conv (qUnqualified qcnv) /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
+      uncurry F.MLSMessageResponseUpdates
+        . first (map lcuUpdate)
+        <$> postMLSMessage loc (tUntagged sender) Nothing qcnv Nothing raw
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where
   mapToGalleyError ::

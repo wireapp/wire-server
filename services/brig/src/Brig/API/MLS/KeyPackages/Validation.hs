@@ -166,7 +166,7 @@ validateLifetime' now mMaxLifetime lt = do
 
 mlsProtocolError :: Text -> Handler r a
 mlsProtocolError msg =
-  throwStd . toWai $
+  throwStd . dynErrorToWai $
     (dynError @(MapError 'MLSProtocolError))
       { eMessage = msg
       }

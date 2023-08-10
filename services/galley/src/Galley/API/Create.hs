@@ -41,13 +41,13 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.Time
 import Data.UUID.Tagged qualified as U
+import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.KeyPackage (nullKeyPackageRef)
 import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.Mapping
 import Galley.API.One2One
-import Galley.API.Query
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Data.Conversation qualified as Data
@@ -138,6 +138,7 @@ createGroupConversation ::
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
+    Member (Error NonFederatingBackends) r,
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
@@ -160,7 +161,7 @@ createGroupConversation ::
 createGroupConversation lusr mCreatorClient conn newConv = do
   let remoteDomains = tDomain <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
   getFederationStatus lusr (RemoteDomains $ Set.fromList remoteDomains) >>= \case
-    NotConnectedDomains rd1 rd2 -> pure $ GroupConversationFailedToCreate $ CreateConversationRejected (rd1, rd2)
+    NotConnectedDomains rd1 rd2 -> throw $ NonFederatingBackends rd1 rd2
     FullyConnected ->
       createGroupConversationGeneric
         lusr
