@@ -2,7 +2,7 @@
 
 WIP: Some of these configurations are subject to change down the line. This documentation will be updated accordingly as they happen.
 
-This document assumes you already have an instance of wire-server running. If you don't, follow this [documentation](https://docker.com)
+This document assumes you already have an instance of wire-server running. If you don't, follow this [documentation](https://github.com/wireapp/wire-server-deploy/blob/master/offline/docs.md)
 
 ## Set up OAuth with wire-server
 
