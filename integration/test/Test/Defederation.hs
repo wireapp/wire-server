@@ -1,67 +1,72 @@
 module Test.Defederation where
 
 import API.BrigInternal
-import API.Common
-import API.Gundeck
-import API.GundeckInternal
-import Control.Concurrent (threadDelay)
-import Control.Monad.Reader (MonadReader (ask), ReaderT (runReaderT))
-import Data.Foldable.Extra (anyM)
-import Data.Text qualified as T
+import API.BrigInternal qualified as Internal
+import API.Galley (defProteus, getConversation, postConversation, qualifiedUsers)
+import Control.Applicative
+import Data.Aeson qualified as Aeson
+import GHC.Stack
 import SetupHelpers
-import System.Timeout (timeout)
 import Testlib.Prelude
-
-examplePush :: MakesValue u => u -> App Value
-examplePush u = do
-  r <- recipient u
-  pure $
-    object
-      [ "recipients" .= [r],
-        "payload" .= [object ["hello" .= "world"]]
-      ]
 
 testDefederationRemoteNotifications :: HasCallStack => App ()
 testDefederationRemoteNotifications = do
-  -- The timeout for waiting on notifications
-  let tSec = 60
   -- Setup a remote user we can get notifications for.
   user <- randomUser OtherDomain def
-  push <- examplePush user
-  bindResponse (postPush user [push]) $ \res ->
-    res.status `shouldMatchInt` 200
-  let client = "deadbeeef"
 
-  -- Defederate from a domain that doesn't exist. This won't do anything to the databases
-  -- But it will send out notifications that we can wait on.
-  -- Begin the whole process at Brig, the same as an operator would.
-  resp <- deleteFedConn OwnDomain "example.example.com"
-  resp.status `shouldMatchInt` 200
+  withWebSocket user $ \ws -> do
+    -- Defederate from a domain that doesn't exist. This won't do anything to the databases
+    -- But it will send out notifications that we can wait on.
+    -- Begin the whole process at Brig, the same as an operator would.
+    void $ deleteFedConn OwnDomain "example.example.com"
+    void $ awaitNMatches 2 3 (\n -> nPayload n %. "type" `isEqual` "federation.connectionRemoved") ws
 
-  -- Get notifications for the client
-  let loop predicate = do
-        n <- getNotifications user client def >>= getJSON 200
-        b <- predicate n
-        if b
-          then pure n
-          else do
-            liftIO $ threadDelay 1000000
-            loop predicate
-  env <- ask
-  -- Loop until we have a notification that we expect
-  -- TODO: this needs a timeout, otherwise it can go on forever!
-  m <- liftIO $
-    timeout (tSec * 1000 * 1000) $
-      flip runReaderT env $
-        unApp $
-          loop $ \ns -> do
-            allNotifs <- ns %. "notifications" & asList
-            actual <- traverse (%. "payload") allNotifs
-            let findConenctionRemoved v = do
-                  v' <- lookupField v "0"
-                  v'' <- lookupField v' "type"
-                  pure $ v'' == pure (String $ T.pack "federation.connectionRemoved")
-            anyM findConenctionRemoved actual
-  case m of
-    Nothing -> assertFailure "Didn't get the expected notification before the timeout"
-    Just _ -> pure ()
+testDefederationNonFullyConnectedGraph :: HasCallStack => App ()
+testDefederationNonFullyConnectedGraph = do
+  let setFederationConfig =
+        setField "optSettings.setFederationStrategy" "allowDynamic"
+          >=> removeField "optSettings.setFederationDomainConfigs"
+          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
+  startDynamicBackends
+    [ def {dbBrig = setFederationConfig},
+      def {dbBrig = setFederationConfig},
+      def {dbBrig = setFederationConfig}
+    ]
+    $ \dynDomains -> do
+      domains@[domainA, domainB, domainC] <- pure dynDomains
+      connectAllDomainsAndWaitToSync 1 domains
+      [uA, uB, uC] <- createAndConnectUsers [domainA, domainB, domainC]
+      withWebSockets [uA, uB, uC] $ \wss -> do
+        [wsA, _wsB, _wsC] <- pure wss
+
+        -- create group conversation owned by domainA with users from domainB and domainC
+        convId <- bindResponse (postConversation uA (defProteus {qualifiedUsers = [uB, uC]})) $ \r -> do
+          r.status `shouldMatchInt` 201
+          r.json %. "qualified_id"
+
+        -- check conversation exists on all backends
+        for [uB, uC] objQidObject >>= checkConv convId uA
+
+        -- one of the 2 non-conversation-owning domains (domainB and domainC)
+        -- defederate from the other non-conversation-owning domain
+        void $ Internal.deleteFedConn domainB domainC
+
+        -- assert that clients from domainA receive federation.connectionRemoved events
+        let isConnectionRemoved n = do
+              correctType <- nPayload n %. "type" `isEqual` "federation.connectionRemoved"
+              if correctType
+                then do
+                  domsV <- nPayload n %. "domains" & asList
+                  domsStr <- for domsV asString <&> sort
+                  pure $ domsStr == sort [domainB, domainC]
+                else pure False
+        void $ awaitNMatches 2 3 isConnectionRemoved wsA
+        checkConv convId uA []
+  where
+    checkConv :: Value -> Value -> [Value] -> App ()
+    checkConv convId user expectedOtherMembers = do
+      bindResponse (getConversation user convId) $ \r -> do
+        r.status `shouldMatchInt` 200
+        members <- r.json %. "members.others" & asList
+        qIds <- for members (\m -> m %. "qualified_id")
+        qIds `shouldMatchSet` expectedOtherMembers
