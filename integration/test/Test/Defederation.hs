@@ -2,7 +2,6 @@ module Test.Defederation where
 
 import API.BrigInternal
 import API.Common
--- import API.Galley
 import API.Gundeck
 import API.GundeckInternal
 import Control.Concurrent (threadDelay)
