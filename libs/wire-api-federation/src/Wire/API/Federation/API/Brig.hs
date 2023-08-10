@@ -84,7 +84,7 @@ newtype NonConnectedBackends = NonConnectedBackends
   { nonConnectedBackends :: Set Domain
   }
   deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded NonConnectedBackends)
+  deriving (FromJSON, ToJSON)
 
 newtype GetUserClients = GetUserClients
   { gucUsers :: [UserId]
