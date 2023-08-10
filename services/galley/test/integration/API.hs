@@ -273,7 +273,17 @@ tests s =
           -- As a lot of these tests are waiting on specific notifications to come through in a specified
           -- order, these tests will cause them to fail.
           -- See the Tasty docs on patterns. https://hackage.haskell.org/package/tasty-1.4.3#patterns
-          after AllFinish "$0 !~ /delete federation notifications/" $ test s "delete federation notifications" API.testDefederationNotifications
+          after AllFinish "$0 !~ /federation notifications/" $
+            testGroup
+              "federation notifications"
+              -- Run these tests in order by having them wait on each other.
+              -- The names need to be distint enough so that there isn't a loop with the regexes
+              [ test s "delete federation notifications" API.testDefederationNotifications,
+                after AllFinish "$0 ~ /delete federation notifications/" $ test s "connection removed notifications normal" API.testConnectionRemovedNotifications,
+                after AllFinish "$0 ~ /connection removed notifications normal/" $ test s "connection removed notifications no-op" API.testConnectionRemovedNotificationsNoop,
+                after AllFinish "$0 ~ /connection removed notifications no-op/" $ test s "connection removed notifications domain A bias" API.testConnectionRemovedNotificationsNoopDomainA,
+                after AllFinish "$0 ~ /connection removed notifications domain A bias/" $ test s "connection removed notifications domain B bias" API.testConnectionRemovedNotificationsNoopDomainB
+              ]
         ]
     rb1, rb2, rb3 :: Remote Backend
     rb1 =
@@ -4436,5 +4446,232 @@ testDefederationNotifications = do
       =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
         <!! const 200 === statusCode
   liftIO $ sort (omQualifiedId <$> cmOthers (cnvMembers conv2)) @?= sort [bob, charlie]
+
+-- Testing defederation notifications. The important thing to note for all
+-- of this is that when defederating from a remote domain only _2_ notifications
+-- are sent, and both are identical. One notification is at the start of
+-- defederation, and one is sent at the end of defederation. No other
+-- notifications about users being removed from conversations, or conversations
+-- being deleted are sent. We are do not want to DOS either our local clients,
+-- nor our own services.
+-- There are four tests here.
+
+-- * A normal run where we have users from both remote domains in a conversation. Both remote users should be removed.
+
+-- * A no-op run where we have no remote users in the conversation. The conversation remains unchanged.
+
+-- * A domain A biased run where we have a conversation with a remote member from domain A, but none from domain B. The conversation remains unchanged.
+
+-- * A domain B biased run where we have a conversation with a remote member from domain B, but none from domain A. The conversation remains unchanged.
+
+testConnectionRemovedNotifications :: TestM ()
+testConnectionRemovedNotifications = do
+  -- alice, bob are in a team
+  (tid, alice, [bob]) <- createBindingTeamWithQualifiedMembers 2
+
+  -- charlie is a local guest
+  charlie <- randomQualifiedUser
+  connectUsers (qUnqualified alice) (pure (qUnqualified charlie))
+
+  let remoteDomain1 = Domain "far-away.example.com"
+      remoteDomain2 = Domain "far-away-2.example.com"
+  -- This variable should be commented out if the below
+  -- section is used to insert users to the database.
+  -- dee and erin are remote guests
+  dee <- Qualified <$> randomId <*> pure remoteDomain1
+  erin <- Qualified <$> randomId <*> pure remoteDomain2
+
+  connectWithRemoteUser (qUnqualified alice) dee
+  connectWithRemoteUser (qUnqualified alice) erin
+
+  -- they are all in a local conversation
+  conv <-
+    responseJsonError
+      =<< postConvWithRemoteUsers
+        (qUnqualified alice)
+        Nothing
+        defNewProteusConv
+          { newConvQualifiedUsers = [bob, charlie, dee, erin],
+            newConvTeam = Just (ConvTeamInfo tid)
+          }
+        <!! const 201 === statusCode
+
+  c <- view tsCannon
+  WS.bracketRN c (map qUnqualified $ [alice, bob, charlie, dee, erin]) $ \[wsA, wsB, wsC, wsD, wsE] -> do
+    -- conversation access role changes to team only
+    (_, reqs) <- withTempMockFederator' (mockReply ()) $ do
+      -- Remove the connection
+      connectionRemovedFederation remoteDomain1 remoteDomain2 !!! const 200 === statusCode
+      -- First notification to local clients
+      WS.assertMatchN_ (5 # Second) ([wsA, wsB, wsC]) $
+        wsAssertFederationConnectionRemoved remoteDomain1 remoteDomain2
+      -- Second notification to local clients
+      WS.assertMatchN_ (5 # Second) ([wsA, wsB, wsC]) $
+        wsAssertFederationConnectionRemoved remoteDomain1 remoteDomain2
+      -- dee and erin's remotes don't receive a notification
+      WS.assertNoEvent (5 # Second) [wsD, wsE]
+    -- There should be not requests out to the federtaion domain
+    liftIO $ reqs @?= []
+
+  -- only alice, bob, and charlie remain
+  conv2 <-
+    responseJsonError
+      =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
+        <!! const 200 === statusCode
+  liftIO $ sort (omQualifiedId <$> cmOthers (cnvMembers conv2)) @?= sort [bob, charlie]
+
+testConnectionRemovedNotificationsNoop :: TestM ()
+testConnectionRemovedNotificationsNoop = do
+  -- alice, bob are in a team
+  (tid, alice, [bob]) <- createBindingTeamWithQualifiedMembers 2
+
+  -- charlie is a local guest
+  charlie <- randomQualifiedUser
+  connectUsers (qUnqualified alice) (pure (qUnqualified charlie))
+
+  let remoteDomain1 = Domain "far-away.example.com"
+      remoteDomain2 = Domain "far-away-2.example.com"
+
+  -- they are all in a local conversation
+  conv <-
+    responseJsonError
+      =<< postConvWithRemoteUsers
+        (qUnqualified alice)
+        Nothing
+        defNewProteusConv
+          { newConvQualifiedUsers = [bob, charlie],
+            newConvTeam = Just (ConvTeamInfo tid)
+          }
+        <!! const 201 === statusCode
+
+  c <- view tsCannon
+  WS.bracketRN c (map qUnqualified $ [alice, bob, charlie]) $ \[wsA, wsB, wsC] -> do
+    -- conversation access role changes to team only
+    (_, reqs) <- withTempMockFederator' (mockReply ()) $ do
+      -- Remove the connection
+      connectionRemovedFederation remoteDomain1 remoteDomain2 !!! const 200 === statusCode
+      -- First notification to local clients
+      WS.assertMatchN_ (5 # Second) ([wsA, wsB, wsC]) $
+        wsAssertFederationConnectionRemoved remoteDomain1 remoteDomain2
+      -- Second notification to local clients
+      WS.assertMatchN_ (5 # Second) ([wsA, wsB, wsC]) $
+        wsAssertFederationConnectionRemoved remoteDomain1 remoteDomain2
+    -- There should be not requests out to the federtaion domain
+    liftIO $ reqs @?= []
+
+  -- only alice, bob, and charlie remain
+  conv2 <-
+    responseJsonError
+      =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
+        <!! const 200 === statusCode
+  liftIO $ sort (omQualifiedId <$> cmOthers (cnvMembers conv2)) @?= sort [bob, charlie]
+
+testConnectionRemovedNotificationsNoopDomainA :: TestM ()
+testConnectionRemovedNotificationsNoopDomainA = do
+  -- alice, bob are in a team
+  (tid, alice, [bob]) <- createBindingTeamWithQualifiedMembers 2
+
+  -- charlie is a local guest
+  charlie <- randomQualifiedUser
+  connectUsers (qUnqualified alice) (pure (qUnqualified charlie))
+
+  let remoteDomain1 = Domain "far-away.example.com"
+      remoteDomain2 = Domain "far-away-2.example.com"
+  -- This variable should be commented out if the below
+  -- section is used to insert users to the database.
+  -- dee is a remote guest
+  dee <- Qualified <$> randomId <*> pure remoteDomain1
+
+  connectWithRemoteUser (qUnqualified alice) dee
+
+  -- they are all in a local conversation
+  conv <-
+    responseJsonError
+      =<< postConvWithRemoteUsers
+        (qUnqualified alice)
+        Nothing
+        defNewProteusConv
+          { newConvQualifiedUsers = [bob, charlie, dee],
+            newConvTeam = Just (ConvTeamInfo tid)
+          }
+        <!! const 201 === statusCode
+
+  c <- view tsCannon
+  WS.bracketRN c (map qUnqualified $ [alice, bob, charlie, dee]) $ \[wsA, wsB, wsC, wsD] -> do
+    -- conversation access role changes to team only
+    (_, reqs) <- withTempMockFederator' (mockReply ()) $ do
+      -- Remove the connection
+      connectionRemovedFederation remoteDomain1 remoteDomain2 !!! const 200 === statusCode
+      -- First notification to local clients
+      WS.assertMatchN_ (5 # Second) ([wsA, wsB, wsC]) $
+        wsAssertFederationConnectionRemoved remoteDomain1 remoteDomain2
+      -- Second notification to local clients
+      WS.assertMatchN_ (5 # Second) ([wsA, wsB, wsC]) $
+        wsAssertFederationConnectionRemoved remoteDomain1 remoteDomain2
+      -- dee and remote doesn't receive a notification
+      WS.assertNoEvent (5 # Second) [wsD]
+    -- There should be not requests out to the federtaion domain
+    liftIO $ reqs @?= []
+
+  -- alice, bob, charlie, and dee remain
+  conv2 <-
+    responseJsonError
+      =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
+        <!! const 200 === statusCode
+  liftIO $ sort (omQualifiedId <$> cmOthers (cnvMembers conv2)) @?= sort [bob, charlie, dee]
+
+testConnectionRemovedNotificationsNoopDomainB :: TestM ()
+testConnectionRemovedNotificationsNoopDomainB = do
+  -- alice, bob are in a team
+  (tid, alice, [bob]) <- createBindingTeamWithQualifiedMembers 2
+
+  -- charlie is a local guest
+  charlie <- randomQualifiedUser
+  connectUsers (qUnqualified alice) (pure (qUnqualified charlie))
+
+  let remoteDomain1 = Domain "far-away.example.com"
+      remoteDomain2 = Domain "far-away-2.example.com"
+  -- This variable should be commented out if the below
+  -- section is used to insert users to the database.
+  -- erin is a remote guest
+  erin <- Qualified <$> randomId <*> pure remoteDomain2
+
+  connectWithRemoteUser (qUnqualified alice) erin
+
+  -- they are all in a local conversation
+  conv <-
+    responseJsonError
+      =<< postConvWithRemoteUsers
+        (qUnqualified alice)
+        Nothing
+        defNewProteusConv
+          { newConvQualifiedUsers = [bob, charlie, erin],
+            newConvTeam = Just (ConvTeamInfo tid)
+          }
+        <!! const 201 === statusCode
+
+  c <- view tsCannon
+  WS.bracketRN c (map qUnqualified $ [alice, bob, charlie, erin]) $ \[wsA, wsB, wsC, wsE] -> do
+    -- conversation access role changes to team only
+    (_, reqs) <- withTempMockFederator' (mockReply ()) $ do
+      -- Remove the connection
+      connectionRemovedFederation remoteDomain1 remoteDomain2 !!! const 200 === statusCode
+      -- First notification to local clients
+      WS.assertMatchN_ (5 # Second) ([wsA, wsB, wsC]) $
+        wsAssertFederationConnectionRemoved remoteDomain1 remoteDomain2
+      -- Second notification to local clients
+      WS.assertMatchN_ (5 # Second) ([wsA, wsB, wsC]) $
+        wsAssertFederationConnectionRemoved remoteDomain1 remoteDomain2
+      -- erin's remote doesn't receive a notification
+      WS.assertNoEvent (5 # Second) [wsE]
+    -- There should be not requests out to the federtaion domain
+    liftIO $ reqs @?= []
+
+  -- alice, bob, charlie, and erin remain
+  conv2 <-
+    responseJsonError
+      =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
+        <!! const 200 === statusCode
+  liftIO $ sort (omQualifiedId <$> cmOthers (cnvMembers conv2)) @?= sort [bob, charlie, erin]
 
 -- @END

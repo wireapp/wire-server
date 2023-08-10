@@ -1405,6 +1405,20 @@ deleteFederation dom = do
   delete $
     g . paths ["/i/federation", toByteString' dom]
 
+connectionRemovedFederation ::
+  (MonadHttp m, HasGalley m, MonadIO m) =>
+  Domain ->
+  Domain ->
+  m ResponseLBS
+connectionRemovedFederation origin target = do
+  g <- viewGalley
+  post $
+    g
+      . paths ["federation", "on-connection-removed"]
+      . content "application/json"
+      . header "Wire-Origin-Domain" (toByteString' origin)
+      . json target
+
 putQualifiedAccessUpdate ::
   (MonadHttp m, HasGalley m, MonadIO m) =>
   UserId ->
@@ -1784,8 +1798,25 @@ assertFederationDeletedEvent ::
   Fed.Event ->
   IO ()
 assertFederationDeletedEvent dom e = do
-  Fed._eventType e @?= Fed.FederationDelete
-  Fed._eventDomain e @?= dom
+  Fed._eventData e @?= Fed.FederationDelete dom
+
+wsAssertFederationConnectionRemoved ::
+  HasCallStack =>
+  Domain ->
+  Domain ->
+  Notification ->
+  IO ()
+wsAssertFederationConnectionRemoved domA domB n = do
+  ntfTransient n @?= False
+  assertFederationConnectionRemovedEvent domA domB $ List1.head (WS.unpackPayload n)
+
+assertFederationConnectionRemovedEvent ::
+  Domain ->
+  Domain ->
+  Fed.Event ->
+  IO ()
+assertFederationConnectionRemovedEvent domA domB e = do
+  Fed._eventData e @?= Fed.FederationConnectionRemoved (domA, domB)
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
 --

@@ -28,6 +28,7 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
+import Data.List.NonEmpty qualified as N
 import Data.Map qualified as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified
@@ -54,6 +55,7 @@ import Galley.Data.Conversation qualified as Data
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ConversationStore qualified as E
+import Galley.Effects.DefederationNotifications
 import Galley.Effects.FireAndForget qualified as E
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore (ProposalStore)
@@ -71,6 +73,7 @@ import Polysemy.TinyLog qualified as P
 import Servant (ServerT)
 import Servant.API
 import System.Logger.Class qualified as Log
+import System.Logger.Message (Msg)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
@@ -116,6 +119,7 @@ federationSitemap =
     :<|> Named @"on-client-removed" (callsFed (exposeAnnotations onClientRemoved))
     :<|> Named @"update-typing-indicator" (callsFed (exposeAnnotations updateTypingIndicator))
     :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
+    :<|> Named @"on-connection-removed" onFederationConnectionRemoved
 
 onClientRemoved ::
   ( Member ConversationStore r,
@@ -747,6 +751,83 @@ onTypingIndicatorUpdated origDomain TypingDataUpdated {..} = do
   pushTypingIndicatorEvents tudOrigUserId tudTime tudUsersInConv Nothing qcnv tudTypingStatus
   pure EmptyResponse
 
+-- Since we already have to origin domain where the defederation event started,
+-- all it needs to carry in addition is the domain it is defederating from. This
+-- is all the information that we need to cleanup the database and notify clients.
+onFederationConnectionRemoved ::
+  forall r.
+  ( Member (Input Env) r,
+    Member (P.Logger (Msg -> Msg)) r,
+    Member (Error InternalError) r,
+    Member (Error FederationError) r,
+    Member MemberStore r,
+    Member ConversationStore r,
+    Member CodeStore r,
+    Member TeamStore r,
+    Member DefederationNotifications r
+  ) =>
+  Domain ->
+  Domain ->
+  Sem r EmptyResponse
+onFederationConnectionRemoved originDomain targetDomain = do
+  sendOnConnectionRemovedNotifications originDomain targetDomain
+  cleanupRemovedConnections originDomain targetDomain
+  sendOnConnectionRemovedNotifications originDomain targetDomain
+  pure EmptyResponse
+
+-- for all conversations owned by backend C, only if there are users from both A and B,
+-- remove users from A and B from those conversations
+-- This is similar to Galley.API.Internal.deleteFederationDomain
+-- However it has some important differences, such as we only remove from our conversation
+-- where users for both domains are in the same conversation.
+cleanupRemovedConnections ::
+  forall r.
+  ( Member (Input Env) r,
+    Member (P.Logger (Msg -> Msg)) r,
+    Member (Error InternalError) r,
+    Member (Error FederationError) r,
+    Member MemberStore r,
+    Member ConversationStore r,
+    Member CodeStore r,
+    Member TeamStore r
+  ) =>
+  Domain ->
+  Domain ->
+  Sem r ()
+cleanupRemovedConnections domainA domainB = do
+  env <- input
+  remoteUsersA <- E.getRemoteMembersByDomain domainA
+  remoteUsersB <- E.getRemoteMembersByDomain domainB
+  let localDomain = env ^. Galley.App.options . optSettings . setFederationDomain
+      lCnvMapA = foldr insertIntoMap mempty remoteUsersA
+      lCnvMapB = foldr insertIntoMap mempty remoteUsersB
+      -- Iterate over the conversations in lConvMapA
+      -- For each of the conversations, check if it exists in lConvMapB
+      -- If it does, collect both lists of users into a new map that
+      -- contains just the overlap of the two maps
+      lCnvMap = Map.foldrWithKey mapOverlap mempty lCnvMapA
+      mapOverlap k v m =
+        maybe
+          m
+          -- Merge the values if we find a matching key
+          (\a -> Map.insert k (a <> v) m)
+          $ Map.lookup k lCnvMapB
+
+  for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) ->
+    do
+      mapError @NoChanges (const (InternalErrorWithDescription "Federation domain removal: No changes"))
+      $ E.getConversation cnvId
+        >>= maybe
+          (pure ()) -- Conv already gone, nothing to do
+          (cleanupConv localDomain rUsers)
+  where
+    cleanupConv localDomain rUsers conv = do
+      updateLocalConversationUserUnchecked
+        @'ConversationRemoveMembersTag
+        (toLocalUnsafe localDomain conv)
+        undefined
+        $ tUntagged . rmId <$> rUsers
+
 --------------------------------------------------------------------------------
 -- Utilities
 --------------------------------------------------------------------------------
@@ -767,3 +848,7 @@ logFederationError lc e =
           \ a user from a local conversation: "
             <> displayException e
         )
+
+-- Build the map, keyed by conversations to the list of members
+insertIntoMap :: (ConvId, a) -> Map ConvId (N.NonEmpty a) -> Map ConvId (N.NonEmpty a)
+insertIntoMap (cnvId, user) m = Map.alter (pure . maybe (pure user) (N.cons user)) cnvId m

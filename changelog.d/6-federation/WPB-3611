@@ -1,0 +1,1 @@
+Defederating from a remote server will now inform all other servers that you are federated with of your defederation so they can clean up their local conversations and inform their clients.

@@ -150,22 +150,26 @@ interpretDefederationNotifications = interpret $ \case
   SendDefederationNotifications domain -> do
     maxPage <- inputs $ fromRange . currentFanoutLimit . _options -- This is based on the limits in removeIfLargeFanout
     page <- embedClient $ paginate selectAllMembers (paramsP LocalQuorum () maxPage)
-    void $ sendNotificationPage page
-    where
-      pushEvents results = do
-        let (bots, mems) = localBotsAndUsers results
-            recipients = Intra.recipient <$> mems
-            event = Intra.FederationEvent $ Federation.Event Federation.FederationDelete domain
-        for_ (Intra.newPush ListComplete Nothing event recipients) $ \p -> do
-          -- Futurework: Transient or not?
-          -- RouteAny is used as it will wake up mobile clients
-          -- and notify them of the changes to federation state.
-          push1 $ p & Intra.pushRoute .~ Intra.RouteAny
-        deliverAsync (bots `zip` repeat (G.pushEventJson event))
-      sendNotificationPage page = do
-        let res = result page
-            mems = mapMaybe toMember res
-        pushEvents mems
-        when (hasMore page) $ do
-          page' <- embedClient $ nextPage page
-          sendNotificationPage page'
+    void $ sendNotificationPage (Federation.FederationDelete domain) page
+  SendOnConnectionRemovedNotifications domainA domainB -> do
+    maxPage <- inputs $ fromRange . currentFanoutLimit . _options -- This is based on the limits in removeIfLargeFanout
+    page <- embedClient $ paginate selectAllMembers (paramsP LocalQuorum () maxPage)
+    void $ sendNotificationPage (Federation.FederationConnectionRemoved (domainA, domainB)) page
+  where
+    pushEvents eventData results = do
+      let (bots, mems) = localBotsAndUsers results
+          recipients = Intra.recipient <$> mems
+          event = Intra.FederationEvent $ Federation.Event eventData
+      for_ (Intra.newPush ListComplete Nothing event recipients) $ \p -> do
+        -- Futurework: Transient or not?
+        -- RouteAny is used as it will wake up mobile clients
+        -- and notify them of the changes to federation state.
+        push1 $ p & Intra.pushRoute .~ Intra.RouteAny
+      deliverAsync (bots `zip` repeat (G.pushEventJson event))
+    sendNotificationPage eventData page = do
+      let res = result page
+          mems = mapMaybe toMember res
+      pushEvents eventData mems
+      when (hasMore page) $ do
+        page' <- embedClient $ nextPage page
+        sendNotificationPage eventData page'
