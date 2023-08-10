@@ -71,7 +71,7 @@ taggedEventDataSchema =
     -- type, so we need to dispatch here to get monadic-ish behaviour.
     --
     -- federation.delete is expecting a "domain" field that contains a bare domain string.
-    -- federation.connectionRemoved is expecting a "doamins" field that contains exactly a pair of domains in a list
+    -- federation.connectionRemoved is expecting a "domains" field that contains exactly a pair of domains in a list
     ( snd .= dispatch dataSchema
     )
   where

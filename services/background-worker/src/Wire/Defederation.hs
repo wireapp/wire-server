@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-unused-local-binds #-}
-
 module Wire.Defederation where
 
 import Bilge.Retry
