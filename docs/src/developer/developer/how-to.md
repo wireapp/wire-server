@@ -97,7 +97,6 @@ Check CI for the latest tag that has been created on your PR (expect this to tak
 
 Look at a successful job in the `wire-server-pr` pipeline from a job bruild matching your desired PR and commit hash. Then, find the actual docker tag used.
 
-![concourse-pr-version-circled](https://user-images.githubusercontent.com/2112744/114410146-69b34000-9bab-11eb-863c-106fb661ca82.png)
 
 ```
 # PR 1438 commit 7a183b2dbcf019df1af3d3b97604edac72eca762 translates to

@@ -36,22 +36,27 @@ sys.path.insert(0, os.path.abspath('.')) # for local extensions like grepinclude
 # ones.
 extensions = [
     'sphinxcontrib.kroki',
-    'sphinxcontrib.plantuml',
+    #'sphinxcontrib.plantuml',
     "myst_parser",
     'rst2pdf.pdfbuilder',
     'sphinx_multiversion',
     'sphinx_reredirects',
     'sphinx_copybutton',
     'grepinclude',
+    #'sphinx.ext.imgconverter',
+    #'sphinxcontrib.svg2pdfconverter',
 ]
 
 # Grouping the document tree into PDF files. List of tuples
 # (source start file, target name, title, author, options).
 pdf_documents = [
-    # ('index', 'all-docs', 'All the Wire Docs', 'Wire Swiss GmbH'),
+    ('index', 'all-docs', 'All the Wire Docs', 'Wire Swiss GmbH'),
     # ('understand/index', 'understand', 'Understand', 'Wire Swiss GmbH')
-    ('understand/federation/index', 'wire_federation', 'Wire Federation', 'Wire Swiss GmbH')
+    # ('understand/federation/index', 'wire_federation', 'Wire Federation', 'Wire Swiss GmbH')
 ]
+
+pdf_stylesheets = ['twocolumn']
+
 
 latex_documents = [
     ('understand/federation/index', 'main.tex', 'Wire Federation', 'Wire Swiss GmbH', 'howto', 'False')

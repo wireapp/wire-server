@@ -5,5 +5,4 @@
 :glob: true
 :maxdepth: 1
 
-Releases <changelog>
 ```

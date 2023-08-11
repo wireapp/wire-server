@@ -75,7 +75,6 @@ GET /team/{tid}/members
 }
 ```
 
-![LHFlow](https://user-images.githubusercontent.com/1105323/61390098-6bf34800-a8ba-11e9-8ba7-e0759b22a773.png)
 <details>
 title: Legal Hold Flow (client perspective)
 =: Activation

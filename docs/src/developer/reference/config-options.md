@@ -784,7 +784,7 @@ This sequence diagram illustrates how users on different virtual backends
 (represented by different Kubernetes ingresses) download local assets according
 to the configuration example above:
 
-![Sequence Diagram: Alice and Bob download an asset](./multi-ingress-example-sequence.svg)
+
 
 <!-- 
 Unfortunately, kroki currently doesn't work on our CI: SQPIT-1810
