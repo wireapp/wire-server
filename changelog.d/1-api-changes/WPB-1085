@@ -1,3 +1,0 @@
-Adding users in Proteus will only succeed if all federated backends hosting the
-users are available. Otherwise, the endpoint will fail with a Federation error,
-enumerating all unavailable domains.

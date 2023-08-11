@@ -1,3 +1,383 @@
+# [2023-08-11] (Chart Release 4.36.0)
+
+## Release notes
+
+
+* Introduce background-worker
+
+  This release introduces a new component: background-worker. This is currently
+  only used to forward notifications to federated backends. Enabling federation in
+  the wire-server helm chart automatically installs this component.
+
+  When federation is enabled, wire-server will require running RabbitMQ. The helm
+  chart in `rabbitmq` can be used to install RabbitMQ. Please refer to the
+  documentation at https://docs.wire.com to install RabbitMQ in Kubernetes. These
+  new configurations are required:
+
+  ```yaml
+  brig:
+    config:
+      rabbitmq:
+        host: rabbitmq
+        port: 5672
+        vHost: /
+    secrets:
+      rabbitmq:
+        username: <YOUR_USERNAME>
+        password: <YOUR_PASSWORD>
+  galley:
+    config:
+      rabbitmq:
+        host: rabbitmq
+        port: 5672
+        vHost: /
+    secrets:
+      rabbitmq:
+        username: <YOUR_USERNAME>
+        password: <YOUR_PASSWORD>
+  background-worker:
+    config:
+      rabbitmq:
+        host: rabbitmq
+        port: 5672
+        vHost: /
+        adminPort: 15672
+    secrets:
+      rabbitmq:
+        username: <YOUR_USERNAME>
+        password: <YOUR_PASSWORD>
+  ```
+
+  The above are the default values (except for secrets, which do not have
+  defaults), if they work they are not required to be configured.
+  (#3276, #3314, #3333, #3366, #3383, #3391)
+
+* Removed brig configuration value from gundeck. (#3404)
+
+* A few helm values related to federation have been renamed, no action is required if federation was disabled.
+  If federation was enabled these values must be renamed in the wire-server chart:
+  - tags.federator -> tags.federation
+  - brig.enableFederator -> brig.enableFederation
+  - galley.enableFederator -> galley.enableFederation
+  - cargohold.enableFederator -> galley.enableFederation
+
+  So, an old config which looked like this:
+
+  ```yaml
+  tags:
+    federator: true
+  brig:
+    enableFederator: true
+  galley:
+    enableFederator: true
+  cargohold:
+    enableFederator: true
+  ```
+
+  would now look like this:
+
+  ```yaml
+  tags:
+    federation: true
+  brig:
+    enableFederation: true
+  galley:
+    enableFederation: true
+  cargohold:
+    enableFederation: true
+  ```
+   (#3236)
+
+* **Federation only**
+
+  From this release on, remote connections can be configured via an
+  internal REST API; the remote connections configured in the
+  values.yaml file(s) will be honored for a transition period, but will
+  be ignored starting in some future release.
+
+  YOU NEED TO UPDATE YOUR BRIG HELM VALUES BEFORE DEPLOYING THIS RELEASE.
+
+  Add the following to brig:
+
+  ```
+  brig:
+    config:
+      optSettings:
+        setFederationStrategy: allowNone # [allowAll | allowDynamic | allowNone]
+        setFederationDomainConfigsUpdateFreq: 10 # seconds
+  ```
+
+  `allowNone` is equivalent to `allowList` with empty list; `allowAll`
+  remains the same as before; `allowDynamic` is `allowList`, but the
+  list is now stored in cassandra, not the config file.
+
+  If your federator config values contain something like this:
+
+  ```
+      federationStrategy:
+        allowedDomains:
+        - red.example.com
+        - blue.example.com
+  ```
+
+  you need to make sure that the following lines are part of your brig
+  config (after the upgrade and until you have loaded the data into
+  casssandra, federation with those domains won't possible if you forget
+  this):
+
+  ```
+  brig:
+    config:
+      optSettings:
+        setFederationDomainConfigs:
+        - domain: red.example.com
+          search_policy: full_search
+        - domain: blue.example.com
+          search_policy: no_search
+  ```
+
+  The search policy for a remote backend can be:
+  - `no_search`: No users are returned by federated searches. default.
+  - `exact_handle_search`: Only users where the handle exactly matches are returned.
+  - `full_search`: Additionally to exact_handle_search, users are found by a freetext search on handle and display name.
+
+  Once the new release is deployed, you need to copy all the data from
+  the config files into `brig.federation_remotes` in cassandra [internal
+  CRUD
+  API](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/);
+  look for `/i/federation/remotes`).
+
+  Once the upgrade has been deployed *and* cassandra has been filled
+  with the temporary contents of
+  `brig.config.optSettings.setFederationDomainConfigs`, it is safe to
+  remove the latter and the above lines from the federator config.
+
+  [See also.](http://docs.wire.com/understand/configure-federation.html#if-your-instance-has-been-federating-before) (#3260, #3384, #3389)
+
+* Upgrade team-settings version to 4.15.0-v0.31.16-0-8138d2e (#2180)
+
+* Upgrade webapp version to 2023-07-13-production.0-v0.31.16-0-a9b67c6 (#2302)
+
+* Update email templates from https://github.com/wireapp/wire-emails (#3386)
+
+
+## API changes
+
+
+* Updating conversation meta-data APIs to be fault tolerant of unavailable federation servers. (#3229)
+
+* Adding users in Proteus will only succeed if all federated backends hosting the
+  users are available. Otherwise, the endpoint will fail with a Federation error,
+  enumerating all unavailable domains. (#3449)
+
+* Added a new notification event type, "federation.delete".
+  This event contains a single domain for a remote server that the local server is de-federating from.
+  This notification is sent twice during de-federation. Once before and once after cleaning up and removing references to the remote server from the local database. (#3397)
+
+* list unavailable backends as JSON on federation-unreachable-domains-error
+  - extend `federation-unreachable-domains-error` by `FederationErrorData`
+  - add `domains` field in `FederationErrorData`, containing the list of failing
+    domains
+  - deprecate `domain` field in `FederationErrorData` which now contains the first
+    element of `domains` (#3407)
+
+* Throw when remote users to be added to an MLS conversation are unreachable (#3322)
+
+* The `connection-update` internal Brig endpoint has a different JSON format for its request body. See the swagger documentation for details. (#3458)
+
+* Client objects have gained an optional `last_active` field. Whenever a client fetches notifications via `GET /notifications`, as long as it provides a client parameter, the `last_active` field of that client is updated, and set to the current timestamp, rounded to the next multiple of a week. (#3409)
+
+* The `POST /conversations` endpoint now in case of the Proteus protocol gives a 503 error response listing unreachable backends in case there were any, instead of a 2xx response by adding only members from reachable backends. (#3479)
+
+* User objects have gained a `supported_protocols` field. Users can set it to any subset of `["proteus", "mls"]` using `PUT /self/supported-protocols`. There is also a new endpoint `GET /users/:domain/:id/supported-protocols`. The backend does not assign any semantics to this field, but it is intended to be used to coordinate migration to MLS across the clients of a user, as well as between two users participating in a 1-1 conversation. (#3326)
+
+
+## Features
+
+
+* Introduce `nginx_connf.additional_external_env_domains` (*nginz* and *cannon*) setting to configure CORS headers for multiple domains. (#3368)
+
+* Add federation options to the `coturn` Helm chart including DTLS support. The options themselves are strongly inspired by the `restund` Helm chart. (#3283)
+
+* Let cargohold redirect to different s3 download endpoints according to a `multiIngress` configuration. This is part of a larger multi-ingress story where one backend can pretend to be multiple ones by using different domains for different users. (#3264)
+
+* Add configuration options to setup instances of the `nginx-ingress-services` chart to act as additional ingresses (with sourrounding infrastructure) to provide additional domains for the same backend. (#3375)
+
+* Nonce base 64 encoding is now unpadded (#3255)
+
+* `MlsE2EIdConfig` does now contain an ACME discovery URL and `verificationExpiration` is now a duration. (#3237, #3244)
+
+* Functionality to determine the federation status between federating remote backends (#3290)
+
+* Prevent conversation creation if any two remote backends are not connected to each other (#3382)
+
+* Improve gundeck performance: notifications to multiple recipients are stored in a normalized manner. (#3403)
+
+* When a proteus message is send and a remote user's backend is offline, the message will be enqueued and reported as `failed_to_confirm_clients` (#3460, #3474)
+
+* stern/backoffice: read, update, delete domain login redirects custom backends (#3471)
+
+* Check if remote backends are connected on adding conversation members (#3483)
+
+* In a setting where remote participants are included in a freshly created Proteus conversation, the backend now sends a conversation.create and a conversation.member-join event per user once all remote participants are confirmed.  This fixes a bug where remote conv members would get false entries in the member lists in these events. (#3359)
+
+* Enable indexed billing members by default and remove the feature flag (#3434)
+
+
+## Bug fixes and other updates
+
+
+* If role is not set ([], null, or field missing) in scim-put-user, do not change role to default in brig (#3488)
+
+* Do not accept federation traffic from not-federating backends (#3484)
+
+* Bump coturn default image to upstream coturn 4.6.2 + custom Wire code including a bugfix for a bug that resulted in unstable operation during higher load. (#3250)
+
+* Get the correct domain for DPoP access token generation (#3255)
+
+* Correct http host is passed to proxy request (#3263)
+
+* Use backend domain for DPoP access token request (#3267)
+
+* The DPoP access token is now base64 encoded (once) (#3269)
+
+* Fixed `/i/user/meta-info` in backoffice/stern (#3281)
+
+* Fix `nginx.conf` for local integration tests (#3362)
+
+* fix cross domain user search (#3420)
+
+* `/i/user/meta-info` endpoint in backoffice/stern fixed (#3436)
+
+* Fix: When defederating, don't crash on already-deleted conversations. (#3478)
+
+* No `conversation.delete` event is sent to users during de-federation clean up (#3485)
+
+
+## Documentation
+
+
+* Improve the cassandra developer guidelines under https://docs.wire.com/developer/developer/cassandra-interaction.html (#3342)
+
+* Document crypto library dependencies and sources of randomness (#3254)
+
+* Add 'grepinclude' sphinx directive to document with some code snippets. (#3256)
+
+* Render `Named` names as "internal route ID" in swagger UI. (#3319)
+
+*  Export `Data.String.Conversions.cs` from `Imports` (#3320)
+
+* SSO Faq entry on CSP (#PR_NOT_FOUND)
+
+* Swagger docs for custom backends (#3415)
+
+* Make /api/swagger{-ui,.json} TOC html pages to all versions (#3259)
+
+* Explain links to swagger docs better on docs.wire.com (#3388)
+
+
+## Internal changes
+
+
+* Metrics for federator are available at `GET /i/metrics` for both the internal and external servers. (#3467)
+
+* Better errors in golden tests (#3370)
+
+* In CI integration tests, use redis-ephemeral in master mode (may be reverted in the future, see PR details) (#3446)
+
+* Containers now run as non-root, to improve compatibility with default PodSecurityPolicies in more recent versions of Kubernetes. (#3352)
+
+* By default, the coturn helm chart will no longer log verbosely. This can be enabled if desired. (#3238)
+
+* Delete libraries api-bot and api-cliet. Also delete tools from api-simulation. (#3395)
+
+* Use feature singletons in TeamFeatureStore
+   (#3308)
+
+* Add the status endpoint to both federator ports (#3443)
+
+* Adding a new internal APIs to Brig and Galley to defederate domains.
+  Background-Worker has been reworked to seperate AMQP channel handling from processing. This was done to allow a defederation worker to share the same connection management process with notification pusher. (#3378)
+
+* Improved websocket tests:
+   - better error reporting
+   - choose the correct backend when establishing a websocket connection (#3393)
+
+* - Add convenience getJSON and getBody functions
+  - baseRequest now adds Z headers automatically
+  - Add liftIO versions of putStrLn etc
+  - Add Show instances for MLSState (#3293)
+
+* On CI runs, provide additional context when 'helmfile install' fails. (#3400)
+
+* [hscim] make `jsonLower` fail on duplicate fields (#3346)
+
+* Clean up output and logs:
+   - integration: Remove debug messages from ModService tests
+   - Do not log rabbit MQ connection failures on async exceptions
+   - cannon: Do not print uncaught SignalledToExit exceptions to stdout (#3371)
+
+* Implement test listing (#3301)
+
+* Port MLS test framework to new integration suite (#3288)
+
+* End-to-end test for creating a DPoP access token for the E2EID client certificate enrollment (#3255)
+
+* More backoffice/stern integration tests and fixes (#3232)
+
+* More integration tests for stern/backoffice (#3239)
+
+* Fixed eventually function in test for potentially less flakiness (#3240)
+
+* Register/Update OAuth client via backoffice/stern (#3305)
+
+* New internal integration test framework now supports spawning multiple dynamic backends (#3316)
+
+* Script to bulk-change/-repair user's scim and brig email address (#3321, #3331)
+
+* Servantify brig internal api: misc (#3346)
+
+* Updated rusty-jwt-tools and error mapping (#3348)
+
+* `stern` is added to the new run-services implementation for the integration tests (#3425)
+
+* Add parametrised tests (#3296)
+
+* Reuse HTTP2 connections from brig, galley, cargohold and federator (#3120, #3233)
+
+* Add combinator for maps with arbitrary keys in `schema-profunctor` (#3372)
+
+* Introduce SearchContacts permission (#3252)
+
+* All wire-server containers now run in a restricted securityContext when run on k8s >= 1.24 (#3351)
+
+* Split App module in integration package (#3273)
+
+* Servantify brig internal api: /i/index/... (#3338)
+
+* Servantify brig internal api: misc (#3339)
+
+* Test swagger docs in /integration. (#3367)
+
+* Adding graceful shutdown handling to background-worker to allow it to finish processing its current message before the service quits. (#3421)
+
+
+## Federation changes
+
+
+* De-federating from a remote server sends a pair of notifications to clients, announcing which server will no longer be federated with. (#3397)
+
+* Do not accept federation traffic from not-federating backends (#3484)
+
+* Several federation Galley endpoints have a breaking change in their response types: "leave-conversation", "update-conversation" and "send-mls-message". They have been extended with information related to unreachable users. (#3248)
+
+* Removing a federation domain will now remove all conversations and users for that domain from the local database. (#3378)
+
+* Fix: When defederating, don't crash on already-deleted conversations. (#3478)
+
+* Make remote conversation update handling more consistent across the various kinds of updates (#3376)
+
+
 # [2023-04-17] (Chart Release 4.35.0)
 
 ## Release notes
