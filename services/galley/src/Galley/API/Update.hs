@@ -1127,7 +1127,6 @@ removeMemberFromRemoteConv cnv lusr victim
       throwS @('ActionDenied 'RemoveConversationMember)
     handleError RemoveFromConversationErrorNotFound = throwS @'ConvNotFound
     handleError RemoveFromConversationErrorUnchanged = pure Nothing
-    handleError (RemoveFromConversationErrorUnreachable _) = pure Nothing
 
     handleSuccess :: (Member (Input UTCTime) r) => () -> Sem r (Maybe Event)
     handleSuccess _ = do

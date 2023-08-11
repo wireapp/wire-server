@@ -247,7 +247,6 @@ leaveConversation requestingDomain lc = do
       . mapToRuntimeError @('ActionDenied 'LeaveConversation) F.RemoveFromConversationErrorRemovalNotAllowed
       . mapToRuntimeError @'InvalidOperation F.RemoveFromConversationErrorRemovalNotAllowed
       . mapError @NoChanges (const F.RemoveFromConversationErrorUnchanged)
-      . mapError @UnreachableBackends F.RemoveFromConversationErrorUnreachable
       $ do
         (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound leaver lcnv
         outcome <-
