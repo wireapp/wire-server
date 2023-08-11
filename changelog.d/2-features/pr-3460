@@ -1,1 +1,0 @@
-When a proteus message is send and a remote user's backend is offline, the message will be enqueued and reported as `failed_to_confirm_clients` (#3460, #3474)

@@ -1,1 +1,0 @@
-Fix: When defederating, don't crash on already-deleted conversations.

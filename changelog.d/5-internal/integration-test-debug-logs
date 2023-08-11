@@ -1,1 +1,0 @@
-On CI runs, provide additional context when 'helmfile install' fails.
