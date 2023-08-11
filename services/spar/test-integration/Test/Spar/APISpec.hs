@@ -727,7 +727,7 @@ specCRUDIdentityProvider = do
         callIdpUpdateWithHandle (env ^. teSpar) (Just owner) (idp ^. idpId) (IdPMetadataValue (cs $ SAML.encode metadata) undefined) expected
           `shouldRespondWith` ((== 200) . statusCode)
         callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
-          `shouldRespondWith` ((== expected) . (\idp' -> idp' ^. (SAML.idpExtraInfo . handle)))
+          `shouldRespondWith` ((== expected) . (\idp' -> idp' ^. (SAML.idpExtraInfo . handle))) -- wiHandle?
       it "updates IdP metadata and creates a new IdP with the first metadata" $ do
         env <- ask
         (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
@@ -1054,6 +1054,7 @@ specCRUDIdentityProvider = do
             idp `shouldBe` idp'
             let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
             ST.take (ST.length prefix) rawmeta `shouldBe` prefix
+
     describe "replaces an existing idp" $ do
       it "creates new idp, setting old_issuer; sets replaced_by in old idp" $ do
         env <- ask
@@ -1100,6 +1101,7 @@ specCRUDIdentityProvider = do
           olduid `shouldBe` newuid
           (olduref ^. SAML.uidTenant) `shouldBe` issuer1
           (newuref ^. SAML.uidTenant) `shouldBe` issuer1
+
       it "migrates old users to new idp on their next login on new idp; after that, login on old won't work any more" $ do
         env <- ask
         (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
@@ -1120,6 +1122,7 @@ specCRUDIdentityProvider = do
           (olduref ^. SAML.uidTenant) `shouldBe` issuer1
           (newuref ^. SAML.uidTenant) `shouldBe` issuer2
         tryLoginFail privkey1 idp1 userSubject "cannont-provision-on-replaced-idp"
+
       it "creates non-existent users on new idp" $ do
         env <- ask
         (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
