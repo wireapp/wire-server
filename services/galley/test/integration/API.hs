@@ -24,7 +24,6 @@ module API
   )
 where
 
-import Data.Vector qualified as V
 import API.CustomBackend qualified as CustomBackend
 import API.Federation qualified as Federation
 import API.Federation.Util
@@ -67,6 +66,7 @@ import Data.Singletons
 import Data.Text qualified as T
 import Data.Text.Ascii qualified as Ascii
 import Data.Time.Clock (getCurrentTime)
+import Data.Vector qualified as V
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer
 import Galley.API.Mapping
