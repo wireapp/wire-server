@@ -82,18 +82,18 @@ withResponse :: HasCallStack => Response -> (Response -> App a) -> App a
 withResponse r k = onFailureAddResponse r (k r)
 
 -- | Check response status code, then return body.
-getBody :: Int -> Response -> App ByteString
+getBody :: HasCallStack => Int -> Response -> App ByteString
 getBody status resp = withResponse resp $ \r -> do
   r.status `shouldMatch` status
   pure r.body
 
 -- | Check response status code, then return JSON body.
-getJSON :: Int -> Response -> App Aeson.Value
+getJSON :: HasCallStack => Int -> Response -> App Aeson.Value
 getJSON status resp = withResponse resp $ \r -> do
   r.status `shouldMatch` status
   r.json
 
-onFailureAddResponse :: Response -> App a -> App a
+onFailureAddResponse :: HasCallStack => Response -> App a -> App a
 onFailureAddResponse r m = App $ do
   e <- ask
   liftIO $ E.catch (runAppWithEnv e m) $ \(AssertionFailure stack _ msg) -> do
