@@ -35,7 +35,6 @@ import Control.Lens
 import Control.Monad.Except
 import Data.Aeson hiding (fieldLabelModifier)
 import qualified Data.ByteString as SBS
-import Data.String.Conversions
 import Data.Time
 import qualified Data.Yaml as Yaml
 import Imports

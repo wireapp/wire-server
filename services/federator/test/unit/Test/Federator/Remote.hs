@@ -21,14 +21,15 @@ import Control.Exception (bracket)
 import Control.Monad.Codensity
 import Data.Domain
 import Federator.Discovery
+import Federator.Env (mkHttp2Manager)
 import Federator.Options
 import Federator.Remote
 import Federator.Run (mkTLSSettingsOrThrow)
 import Imports
 import Network.HTTP.Types (status200)
 import Network.Wai
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Handler.WarpTLS as Warp
+import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Handler.WarpTLS qualified as Warp
 import Network.Wai.Utilities.MockServer (startMockServer)
 import OpenSSL.Session (SSLContext)
 import Polysemy
@@ -78,12 +79,13 @@ assertNoRemoteError = \case
   Right x -> pure x
 
 mkTestCall :: SSLContext -> ByteString -> Int -> Codensity IO (Either RemoteError ())
-mkTestCall sslCtx hostname port =
+mkTestCall sslCtx hostname port = do
+  mgr <- liftIO $ mkHttp2Manager sslCtx
   runM
     . runEmbedded @IO @(Codensity IO) liftIO
     . runError @RemoteError
     . void
-    . runInputConst sslCtx
+    . runInputConst mgr
     . discoverLocalhost hostname port
     . assertNoError @DiscoveryFailure
     . interpretRemote

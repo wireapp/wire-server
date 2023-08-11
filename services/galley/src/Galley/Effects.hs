@@ -62,13 +62,14 @@ where
 import Data.Id
 import Data.Qualified
 import Data.Time.Clock
-import Galley.Cassandra.TeamFeatures (Cassandra)
+import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.BotAccess
 import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.CustomBackendStore
+import Galley.Effects.DefederationNotifications
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.FireAndForget
@@ -99,9 +100,11 @@ import Wire.Sem.Paging.Cassandra
 type GalleyEffects1 =
   '[ BrigAccess,
      SparAccess,
+     DefederationNotifications,
      GundeckAccess,
      ExternalAccess,
      FederatorAccess,
+     BackendNotificationQueueAccess,
      BotAccess,
      FireAndForget,
      ClientStore,
@@ -113,7 +116,7 @@ type GalleyEffects1 =
      MemberStore,
      SearchVisibilityStore,
      ServiceStore,
-     TeamFeatureStore Cassandra,
+     TeamFeatureStore,
      TeamNotificationStore,
      TeamStore,
      TeamMemberStore InternalPaging,

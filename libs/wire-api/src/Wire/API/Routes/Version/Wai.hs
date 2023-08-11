@@ -20,10 +20,9 @@ module Wire.API.Routes.Version.Wai (versionMiddleware) where
 import Control.Monad.Except (throwError)
 import Data.ByteString.Conversion
 import Data.EitherR (fmapL)
-import Data.String.Conversions (cs)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Imports
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Network.Wai
 import Network.Wai.Middleware.Rewrite
 import Network.Wai.Utilities.Error

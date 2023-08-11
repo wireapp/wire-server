@@ -32,6 +32,7 @@ module Brig.API.User
     checkHandle,
     lookupHandle,
     changeManagedBy,
+    changeSupportedProtocols,
     changeAccountStatus,
     changeSingleAccountStatus,
     Data.lookupAccounts,
@@ -93,45 +94,44 @@ where
 
 import Bilge.IO (MonadHttp)
 import Bilge.RPC (HasRequestId)
-import qualified Brig.API.Error as Error
-import qualified Brig.API.Handler as API (Handler, UserNotAllowedToJoinTeam (..))
+import Brig.API.Error qualified as Error
+import Brig.API.Handler qualified as API (Handler, UserNotAllowedToJoinTeam (..))
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
-import qualified Brig.Code as Code
+import Brig.Code qualified as Code
 import Brig.Data.Activation (ActivationEvent (..), activationErrorToRegisterError)
-import qualified Brig.Data.Activation as Data
-import qualified Brig.Data.Client as Data
+import Brig.Data.Activation qualified as Data
+import Brig.Data.Client qualified as Data
 import Brig.Data.Connection (countConnections)
-import qualified Brig.Data.Connection as Data
-import qualified Brig.Data.Properties as Data
+import Brig.Data.Connection qualified as Data
+import Brig.Data.Properties qualified as Data
 import Brig.Data.User
-import qualified Brig.Data.User as Data
+import Brig.Data.User qualified as Data
 import Brig.Data.UserKey
-import qualified Brig.Data.UserKey as Data
+import Brig.Data.UserKey qualified as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
-import qualified Brig.Effects.BlacklistPhonePrefixStore as BlacklistPhonePrefixStore
+import Brig.Effects.BlacklistPhonePrefixStore qualified as BlacklistPhonePrefixStore
 import Brig.Effects.BlacklistStore (BlacklistStore)
-import qualified Brig.Effects.BlacklistStore as BlacklistStore
+import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.CodeStore (CodeStore)
-import qualified Brig.Effects.CodeStore as E
+import Brig.Effects.CodeStore qualified as E
 import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Effects.GalleyProvider as GalleyProvider
+import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
-import qualified Brig.Effects.PasswordResetStore as E
+import Brig.Effects.PasswordResetStore qualified as E
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
-import qualified Brig.Effects.UserPendingActivationStore as UserPendingActivationStore
-import qualified Brig.Federation.Client as Federation
-import qualified Brig.IO.Intra as Intra
-import qualified Brig.InternalEvent.Types as Internal
+import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
+import Brig.Federation.Client qualified as Federation
+import Brig.IO.Intra qualified as Intra
+import Brig.InternalEvent.Types qualified as Internal
 import Brig.Options hiding (Timeout, internalEvents)
-import qualified Brig.Queue as Queue
-import qualified Brig.Team.DB as Team
+import Brig.Queue qualified as Queue
+import Brig.Team.DB qualified as Team
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Connection
 import Brig.Types.Intra
-import Brig.Types.User (HavePendingInvitations (..), ManagedByUpdate (..), PasswordResetPair)
 import Brig.Types.User.Event
 import Brig.User.Auth.Cookie (listCookies, revokeAllCookies)
 import Brig.User.Email
@@ -139,46 +139,46 @@ import Brig.User.Handle
 import Brig.User.Handle.Blacklist
 import Brig.User.Phone
 import Brig.User.Search.Index (MonadIndexIO, reindex)
-import qualified Brig.User.Search.TeamSize as TeamSize
-import Cassandra
+import Brig.User.Search.TeamSize qualified as TeamSize
+import Cassandra hiding (Set)
 import Control.Arrow ((&&&))
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code
-import qualified Data.Currency as Currency
+import Data.Currency qualified as Currency
 import Data.Handle (Handle (fromHandle), parseHandle)
 import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra
 import Data.List1 as List1 (List1, singleton)
-import qualified Data.Map.Strict as Map
-import qualified Data.Metrics as Metrics
+import Data.Map.Strict qualified as Map
+import Data.Metrics qualified as Metrics
 import Data.Misc
 import Data.Qualified
 import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
-import qualified Galley.Types.Teams as Team
-import Imports
+import Galley.Types.Teams qualified as Team
+import Imports hiding (cs)
 import Network.Wai.Utilities
 import Polysemy
 import System.Logger.Class (MonadLogger)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import System.Logger.Message
 import UnliftIO.Async
 import Wire.API.Connection
 import Wire.API.Error
-import qualified Wire.API.Error.Brig as E
+import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error
 import Wire.API.Password
 import Wire.API.Routes.Internal.Brig.Connection
-import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature (forgetLock)
 import Wire.API.Team.Invitation
-import qualified Wire.API.Team.Invitation as Team
+import Wire.API.Team.Invitation qualified as Team
 import Wire.API.Team.Member (TeamMember, legalHoldStatus)
 import Wire.API.Team.Role
 import Wire.API.Team.Size
@@ -605,6 +605,14 @@ changeManagedBy :: UserId -> ConnId -> ManagedByUpdate -> (AppT r) ()
 changeManagedBy uid conn (ManagedByUpdate mb) = do
   wrapClient $ Data.updateManagedBy uid mb
   wrapHttpClient $ Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
+
+-------------------------------------------------------------------------------
+-- Update supported protocols
+
+changeSupportedProtocols :: UserId -> ConnId -> Set BaseProtocolTag -> AppT r ()
+changeSupportedProtocols uid conn prots = do
+  wrapClient $ Data.updateSupportedProtocols uid prots
+  wrapHttpClient $ Intra.onUserEvent uid (Just conn) (supportedProtocolUpdate uid prots)
 
 --------------------------------------------------------------------------------
 -- Change Handle

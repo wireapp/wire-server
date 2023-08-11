@@ -24,6 +24,7 @@ module Wire.API.User.RichInfo
     RichInfo (..),
     richInfoSize,
     richInfoMapURN,
+    mkRichInfo,
 
     -- * RichInfoMapAndList
     RichInfoMapAndList (richInfoMap, richInfoAssocList),
@@ -35,7 +36,6 @@ module Wire.API.User.RichInfo
     RichInfoAssocList (unRichInfoAssocList),
     mkRichInfoAssocList,
     normalizeRichInfoAssocList,
-    richInfoAssocListFromObject,
     richInfoAssocListURN,
 
     -- * RichField
@@ -43,21 +43,20 @@ module Wire.API.User.RichInfo
   )
 where
 
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.KeyMap as KeyMap
-import qualified Data.Aeson.Types as Aeson
-import Data.Bifunctor
+import Control.Lens ((%~), (?~), _1)
+import Data.Aeson qualified as A
+import Data.Aeson.Key qualified as A
+import Data.Aeson.KeyMap qualified as A
+import Data.Aeson.Types qualified as A
 import Data.CaseInsensitive (CI)
-import qualified Data.CaseInsensitive as CI
+import Data.CaseInsensitive qualified as CI
 import Data.List.Extra (nubOrdOn)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Schema
-import Data.String.Conversions (cs)
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
 import Imports
-import qualified Test.QuickCheck as QC
+import Test.QuickCheck qualified as QC
 import Wire.Arbitrary (Arbitrary (arbitrary))
 
 --------------------------------------------------------------------------------
@@ -66,22 +65,22 @@ import Wire.Arbitrary (Arbitrary (arbitrary))
 -- | A 'RichInfoAssocList' that parses and renders as 'RichInfoMapAndList'.
 newtype RichInfo = RichInfo {unRichInfo :: RichInfoAssocList}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToSchema)
+  deriving newtype (Arbitrary)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema RichInfo
 
-instance A.ToJSON RichInfo where
-  toJSON = A.toJSON . fromRichInfoAssocList . unRichInfo
-
-instance A.FromJSON RichInfo where
-  parseJSON = fmap (RichInfo . toRichInfoAssocList) . A.parseJSON
-
-instance Arbitrary RichInfo where
-  arbitrary = RichInfo <$> arbitrary
+instance ToSchema RichInfo where
+  schema =
+    ciObject "RichInfo" $
+      RichInfo . toRichInfoAssocList <$> (fromRichInfoAssocList . unRichInfo) .= richInfoMapAndListSchema
 
 instance Monoid RichInfo where
   mempty = RichInfo mempty
 
 instance Semigroup RichInfo where
   RichInfo a <> RichInfo b = RichInfo $ a <> b
+
+mkRichInfo :: [RichField] -> RichInfo
+mkRichInfo = RichInfo . normalizeRichInfoAssocList . RichInfoAssocList
 
 --------------------------------------------------------------------------------
 -- RichInfoMapAndList
@@ -105,6 +104,117 @@ data RichInfoMapAndList = RichInfoMapAndList
     richInfoAssocList :: [RichField]
   }
   deriving stock (Eq, Show, Generic)
+
+-- | 'CIObjectSchema' is a bit of a hack, so it is not included in schema-profunctor even
+-- though it is pretty general.
+--
+-- [scim]{https://www.rfc-editor.org/rfc/rfc7644} requires case insensitivity in json object
+-- field names.  while this violates the json standard, it is necessary to follow this
+-- requirement in order to be interoperable.  for this purpose, 'CIObjectSchema' supports `Map
+-- (CI Text) Value` in place of `A.Object`.  only use when you know what you're doing!
+type CIObjectSchema doc a = CIObjectSchemaP doc a a
+
+-- | See CIObjectSchema
+type CIObjectSchemaP doc = SchemaP doc (Map (CI Text) A.Value) [(CI Text, A.Value)]
+
+-- | See 'CIObjectSchema'.
+ciObject ::
+  forall doc doc' a b.
+  (HasObject doc doc', S.HasDescription doc' (Maybe Text)) =>
+  Text ->
+  CIObjectSchemaP doc a b ->
+  ValueSchemaP doc' a b
+ciObject name sch = mkSchema s r w
+  where
+    s :: doc'
+    s = mkObject name (schemaDoc sch) & desc
+      where
+        desc = S.description ?~ ("json object with case-insensitive fields." :: Text)
+
+    r :: A.Value -> A.Parser b
+    r = A.withObject (cs name) f
+      where
+        f :: A.Object -> A.Parser b
+        f = schemaIn sch . g
+
+        g :: A.Object -> Map (CI Text) A.Value
+        g = Map.fromList . fmap (_1 %~ (CI.mk . A.toText)) . A.toList
+
+    w :: a -> Maybe A.Value
+    w = fmap (A.object . f) . schemaOut sch
+      where
+        f :: [(CI Text, A.Value)] -> [A.Pair]
+        f = fmap (\(k, v) -> A.fromText (CI.original k) A..= v)
+
+-- | See 'CIObjectSchema'.
+ciField ::
+  forall doc doc' a.
+  (HasField doc doc', S.HasDescription doc' (Maybe Text)) =>
+  CI Text ->
+  ValueSchema doc a ->
+  CIObjectSchema doc' a
+ciField name sch = mkSchema s r w
+  where
+    s :: doc'
+    s = mkDocF @doc' @Identity (mkField (CI.original name) (schemaDoc sch)) & desc
+      where
+        desc = S.description ?~ ("json field with case-insensitive keys." :: Text)
+
+    r :: Map (CI Text) A.Value -> A.Parser a
+    r = maybe (fail $ "missing object field " <> show name) (schemaIn sch) . Map.lookup name
+
+    w :: a -> Maybe [(CI Text, A.Value)]
+    w = fmap ((: []) . (name,)) . schemaOut sch
+
+-- | See 'CIObjectSchema'.
+ciOptField ::
+  forall doc' doc a.
+  (HasField doc' doc, S.HasDescription doc (Maybe Text)) =>
+  CI Text ->
+  ValueSchema doc' a ->
+  CIObjectSchemaP doc a (Maybe a)
+ciOptField name sch = mkSchema s r w
+  where
+    s :: doc
+    s = mkDocF @doc @Identity (mkField (CI.original name) (schemaDoc sch)) & desc
+      where
+        desc = S.description ?~ ("optional json field with case-insensitive keys." :: Text)
+
+    r :: Map (CI Text) A.Value -> A.Parser (Maybe a)
+    r obj = case Map.lookup name obj of
+      Nothing -> pure Nothing
+      Just a -> fmap Just (schemaIn sch a)
+
+    w :: a -> Maybe [(CI Text, A.Value)]
+    w = fmap ((: []) . (name,)) . schemaOut sch
+
+richInfoMapAndListSchema :: CIObjectSchema SwaggerDoc RichInfoMapAndList
+richInfoMapAndListSchema =
+  withParser
+    ( RichInfoMapAndList
+        <$> richInfoMap
+          .= ( fromMaybe mempty
+                 <$> ciOptField richInfoMapURN (mapWithKeys CI.original CI.mk schema)
+             )
+        <*> richInfoAssocList
+          .= ( fromMaybe mempty
+                 <$> ciOptField
+                   richInfoAssocListURN
+                   ( unRichInfoAssocList
+                       <$> ciObject
+                         "RichInfoAssocList"
+                         ( RichInfoAssocList
+                             .= ciField
+                               "richInfo"
+                               (unnamed schema <> richInfoAssocListSchemaLegacy)
+                         )
+                   )
+             )
+    )
+    (pure . normalizeRichInfoMapAndList)
+  where
+    richInfoAssocListSchemaLegacy :: ValueSchema SwaggerDoc RichInfoAssocList
+    richInfoAssocListSchemaLegacy = RichInfoAssocList <$> unRichInfoAssocList .= array (schema @RichField)
 
 -- | Uses 'normalizeRichInfoMapAndList'.
 mkRichInfoMapAndList :: [RichField] -> RichInfoMapAndList
@@ -146,64 +256,11 @@ fromRichInfoAssocList (RichInfoAssocList riList) =
     riList' = normalizeRichInfoAssocListInt riList
     riMap = Map.fromList $ (\(RichField k v) -> (k, v)) <$> riList'
 
-instance A.ToJSON RichInfoMapAndList where
-  toJSON u =
-    A.object
-      [ Key.fromText richInfoAssocListURN
-          A..= A.object
-            [ "richInfo"
-                A..= A.object
-                  [ "fields" A..= richInfoAssocList u,
-                    "version" A..= (0 :: Int)
-                  ]
-            ],
-        Key.fromText richInfoMapURN A..= Map.mapKeys CI.original (richInfoMap u)
-      ]
-
-instance A.FromJSON RichInfoMapAndList where
-  parseJSON =
-    A.withObject "RichInfo" $
-      \o ->
-        let objWithCIKeys = mapKeys CI.mk (KeyMap.toMapText o)
-         in normalizeRichInfoMapAndList
-              <$> ( RichInfoMapAndList
-                      <$> extractMap objWithCIKeys
-                      <*> extractAssocList objWithCIKeys
-                  )
-    where
-      extractMap :: Map (CI Text) A.Value -> Aeson.Parser (Map (CI Text) Text)
-      extractMap o =
-        case Map.lookup (CI.mk richInfoMapURN) o of
-          Nothing -> pure mempty
-          Just innerObj -> do
-            Map.mapKeys CI.mk <$> A.parseJSON innerObj
-
-      extractAssocList :: Map (CI Text) A.Value -> Aeson.Parser [RichField]
-      extractAssocList o =
-        case Map.lookup (CI.mk richInfoAssocListURN) o of
-          Nothing -> pure []
-          Just (A.Object innerObj) -> do
-            richInfo <- lookupOrFail "richinfo" $ mapKeys CI.mk (KeyMap.toMapText innerObj)
-            case richInfo of
-              A.Object richinfoObj -> do
-                richInfoAssocListFromObject richinfoObj
-              A.Array fields -> A.parseJSON (A.Array fields)
-              v -> Aeson.typeMismatch "A.Object or A.Array" v
-          Just v -> Aeson.typeMismatch "A.Object" v
-
-      mapKeys :: Ord k2 => (k1 -> k2) -> Map k1 v -> Map k2 v
-      mapKeys f = Map.fromList . map (Data.Bifunctor.first f) . Map.toList
-
-      lookupOrFail :: (MonadFail m, Show k, Ord k) => k -> Map k v -> m v
-      lookupOrFail key theMap = case Map.lookup key theMap of
-        Nothing -> fail $ "key '" ++ show key ++ "' not found"
-        Just v -> pure v
-
 instance Arbitrary RichInfoMapAndList where
   arbitrary = mkRichInfoMapAndList <$> arbitrary
 
 -- | Uniform Resource Names used for serialization of 'RichInfo'.
-richInfoMapURN, richInfoAssocListURN :: Text
+richInfoMapURN, richInfoAssocListURN :: IsString s => s
 richInfoMapURN = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
 richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 
@@ -234,29 +291,25 @@ instance Semigroup RichInfoAssocList where
   RichInfoAssocList a <> RichInfoAssocList b = RichInfoAssocList $ a <> b
 
 instance ToSchema RichInfoAssocList where
-  schema =
-    object "RichInfoAssocList"
-      $ withParser
-        ( (,)
-            <$> const (0 :: Int) .= field "version" schema
-            <*> unRichInfoAssocList .= field "fields" (array schema)
-        )
-      $ \(version, fields) ->
-        mkRichInfoAssocList <$> validateRichInfoAssocList version fields
+  schema = ciObject "RichInfoAssocList" richInfoAssocListSchema
+    where
+      richInfoAssocListSchema :: CIObjectSchema SwaggerDoc RichInfoAssocList
+      richInfoAssocListSchema =
+        withParser
+          ( (,)
+              <$> const (0 :: Int) .= ciField "version" schema
+              <*> unRichInfoAssocList .= ciField "fields" (array schema)
+          )
+          $ \(version, fields) ->
+            mkRichInfoAssocList <$> validateRichInfoAssocList version fields
 
-richInfoAssocListFromObject :: A.Object -> Aeson.Parser [RichField]
-richInfoAssocListFromObject richinfoObj = do
-  version :: Int <- richinfoObj A..: "version"
-  fields <- richinfoObj A..: "fields"
-  validateRichInfoAssocList version fields
-
-validateRichInfoAssocList :: Int -> [RichField] -> Aeson.Parser [RichField]
+validateRichInfoAssocList :: Int -> [RichField] -> A.Parser [RichField]
 validateRichInfoAssocList version fields = do
   when (version /= 0) $ fail $ "unknown version: " <> show version
   checkDuplicates (map richFieldType fields)
   pure fields
   where
-    checkDuplicates :: [CI Text] -> Aeson.Parser ()
+    checkDuplicates :: [CI Text] -> A.Parser ()
     checkDuplicates xs =
       case filter ((> 1) . length) . group . sort $ xs of
         [] -> pure ()

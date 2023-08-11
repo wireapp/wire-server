@@ -116,3 +116,21 @@ Setup steps:
 An alternative way to make these dependencies accessible to VSCode is to start it in the `direnv` environment.
 I.e. from a shell that's current working directory is in the project. The drawbacks of this approach are
 that it only works locally (not on a remote connection) and one VSCode process needs to be started per project.
+
+## Python
+
+If you develop Python scripts in `hack/bin` and `./hack/python/wire/` make use
+of `flake8`, `pylint` for linting and `black` for autoformatting.
+
+If you are using emacs user linting can be configured by adding
+
+```
+(
+ (python-mode . ((flycheck-python-flake8-executable . "/home/pythoneer/repos/wire-server/hack/bin/python3.sh")
+                 (flycheck-python-pylint-executable . "/home/pythoneer/repos/wire-server/hack/bin/python3.sh")
+                 (flycheck-python-pycompile-executable . "/home/pythoneer/repos/wire-server/hack/bin/python3.sh")
+                 (python-shell-interpreter . "/home/pythoneer/repos/wire-server/hack/bin/python3.sh")
+                 ))
+)
+```
+to `.dir-locals.el` .

@@ -24,23 +24,23 @@ module Galley.API.MLS.Removal
 where
 
 import Data.Id
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Time
 import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Types
-import qualified Galley.Data.Conversation.Types as Data
+import Galley.Data.Conversation.Types qualified as Data
 import Galley.Effects
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Galley.Env
-import Imports
+import Imports hiding (cs)
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message

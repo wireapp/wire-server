@@ -30,7 +30,6 @@ module Galley.Options
     setConcurrentDeletionEvents,
     setDeleteConvThrottleMillis,
     setFederationDomain,
-    setEnableIndexedBillingTeamMembers,
     setMlsPrivateKeyPaths,
     setFeatureFlags,
     defConcurrentDeletionEvents,
@@ -46,6 +45,7 @@ module Galley.Options
     optGundeck,
     optSpar,
     optFederator,
+    optRabbitmq,
     optDiscoUrl,
     optSettings,
     optJournal,
@@ -64,6 +64,7 @@ import Data.Range
 import Galley.Keys
 import Galley.Types.Teams
 import Imports
+import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
@@ -112,7 +113,6 @@ data Settings = Settings
     -- When false, billing information for large teams is not guaranteed to have all
     -- the owners.
     -- Defaults to false.
-    _setEnableIndexedBillingTeamMembers :: !(Maybe Bool),
     _setMlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _setFeatureFlags :: !FeatureFlags,
@@ -158,6 +158,8 @@ data Opts = Opts
     _optSpar :: !Endpoint,
     -- | Federator endpoint
     _optFederator :: !(Maybe Endpoint),
+    -- | RabbitMQ settings, required when federation is enabled.
+    _optRabbitmq :: !(Maybe RabbitMqOpts),
     -- | Disco URL
     _optDiscoUrl :: !(Maybe Text),
     -- | Other settings

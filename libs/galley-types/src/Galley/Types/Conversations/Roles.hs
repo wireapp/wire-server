@@ -25,7 +25,7 @@ module Galley.Types.Conversations.Roles
   )
 where
 
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Imports
 import Wire.API.Conversation.Role
 

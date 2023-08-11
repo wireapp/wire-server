@@ -56,7 +56,7 @@ instance ToJSON Resource where
   toJSON = genericToJSON serializeOptions
 
 instance FromJSON Resource where
-  parseJSON = genericParseJSON parseOptions . jsonLower
+  parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower
 
 ----------------------------------------------------------------------------
 -- Available resource endpoints

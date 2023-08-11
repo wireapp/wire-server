@@ -45,14 +45,14 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString qualified as B
+import Data.ByteString.Lazy qualified as LBS
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.Schema
-import qualified Data.Swagger as S
-import Imports
+import Data.Swagger qualified as S
+import Imports hiding (cs)
 import Test.QuickCheck
 import Web.HttpApiData
 import Wire.API.MLS.CipherSuite

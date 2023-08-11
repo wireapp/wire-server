@@ -39,7 +39,7 @@ import Data.Aeson (FromJSON, eitherDecode')
 import Data.CaseInsensitive (original)
 import Data.Text.Lazy (pack)
 import Imports hiding (log)
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import System.Logger.Class
 
 class HasRequestId m where

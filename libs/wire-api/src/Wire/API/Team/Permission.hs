@@ -43,15 +43,15 @@ module Wire.API.Team.Permission
   )
 where
 
-import qualified Cassandra as Cql
-import qualified Control.Error.Util as Err
-import Control.Lens (makeLenses, (^.))
+import Cassandra qualified as Cql
+import Control.Error.Util qualified as Err
+import Control.Lens (makeLenses, (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bits (testBit, (.|.))
 import Data.Schema
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons.Base.TH
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -66,15 +66,22 @@ data Permissions = Permissions
   deriving stock (Eq, Ord, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Permissions)
 
-permissionsSchema :: ValueSchemaP NamedSwaggerDoc Permissions (Set Perm, Set Perm)
+permissionsSchema :: ValueSchema NamedSwaggerDoc Permissions
 permissionsSchema =
-  object "Permissions" $
-    (,)
+  objectWithDocModifier "Permissions" (description ?~ docs) $
+    Permissions
       <$> (permsToInt . _self) .= field "self" (intToPerms <$> schema)
       <*> (permsToInt . _copy) .= field "copy" (intToPerms <$> schema)
+  where
+    docs =
+      "This is just a complicated way of representing a team role.  self and copy \
+      \always have to contain the same integer, and only the following integers \
+      \are allowed: 1025 (partner), 1587 (member), 5951 (admin), 8191 (owner). \
+      \Unit tests of the galley-types package in wire-server contain an authoritative \
+      \list."
 
 instance ToSchema Permissions where
-  schema = withParser permissionsSchema $ \(s, d) ->
+  schema = withParser permissionsSchema $ \(Permissions s d) ->
     case newPermissions s d of
       Nothing -> fail "invalid permissions"
       Just ps -> pure ps

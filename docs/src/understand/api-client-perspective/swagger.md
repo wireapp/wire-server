@@ -1,3 +1,5 @@
+(swagger-api-docs)=
+
 # Swagger API documentation
 
 Our staging system provides [Swagger /
@@ -16,58 +18,45 @@ There are several ways to interpret this kind of documentation:
 
 ## Swagger docs (Swagger 2.0)
 
-The Swagger documentation for endpoints depends on the API version.
+The [Swagger / OpenAPI 2.0](https://swagger.io/specification/v2/)
+documentation for endpoints depends on the API version.  For a list of
+all swagger docs for all supported API versions, [visit
+https://staging-nginz-https.zinfra.io/api/swagger-ui](https://staging-nginz-https.zinfra.io/api/swagger-ui).
 
-The pages below show [Swagger / OpenAPI 2.0](https://swagger.io/specification/v2/)
-docs.
-
-### Public endpoints
-- Version `v0`:
-    - [**public**
-      endpoints](https://staging-nginz-https.zinfra.io/v0/api/swagger-ui/)
-- Version `v1`:
-    - [**public**
-    endpoints](https://staging-nginz-https.zinfra.io/v1/api/swagger-ui/)
-- Version `v2`:
-    - [**public**
-    endpoints](https://staging-nginz-https.zinfra.io/v2/api/swagger-ui/)
-- Version `v3`:
-    - [**public**
-    endpoints](https://staging-nginz-https.zinfra.io/v3/api/swagger-ui/)
-- Unversioned:
-    - [**public**
-    endpoints](https://staging-nginz-https.zinfra.io/api/swagger-ui/)
-
-The first part of the URL's path is the version. No specified version means
-Swagger docs of the *latest* API version. This differs from other API endpoints
-where no version means `v0`!
-
-New versions are added from time to time. If you
-would like to look at the docs of another version (which did not exist at the
-time of writing): Just update the first path element of an existing link.
-The URL pattern is `https://<nginz-host>/v<version>/api/swagger-ui/`. To figure
-out which versions are supported by your backend, query
-`https://<nginz-host>/<version>/api-version`.
+To learn which versions are supported, look at
+`https://<nginz-host>/api-version`.  ([See
+also.](../../developer/developer/api-versioning.md))
 
 If you want to get the raw json for the swagger (ie., for compiling it
 into client code in typescript, kotlin, swift, ...), replace
 `swagger-ui` with `swagger.json` in the above URL pattern.
 
-The [API versioning](../../developer/developer/api-versioning.md) article
-discusses the versioning topic in detail.
-
-#### Example
+#### Example: doing it manually
 
 To get the versions a backend (`staging-nginz-https.zinfra.io` in this case)
 supports, execute:
 
 ```sh
-curl https://staging-nginz-https.zinfra.io/api-version
-{"development":[3],"domain":"staging.zinfra.io","federation":false,"supported":[0,1,2]}
+curl https://<nginz-host>/api-version
+{"development":[4],"domain":"staging.zinfra.io","federation":false,"supported":[0,1,2]}
 ```
 
-The URL to open in your browser for the development version `3` is
-`https://staging-nginz-https.zinfra.io/v3/api/swagger-ui/`.
+The URL to open in your browser for the development version `4` is
+`https://<nginz-host>/v4/api/swagger-ui/`.
+
+### On-prem and test instances, versioning
+
+The above is valid for the official wire.com staging environment and
+includes both all released API versions and the current development
+version, which changes continuously until released.
+
+If you talk to any other backend, the development version may differ.
+Try to ask the backend you're talking if it exposes its docs itself:
+
+```
+curl https://nginz-https.<custom-staging>.example.com/<version>/api/swagger-ui/
+curl https://nginz-https.<custom-staging>.example.com/<version>/api/swagger.json
+```
 
 ### Internal endpoints
 
@@ -94,3 +83,8 @@ The URL pattern is similar to that of public endpoints for latest version:
 
 If you want to get the raw json of the swagger:
 `https://<nginz-host>/api-internal/swagger-ui/<service>-swagger.json`.
+
+### Finding the source code for an end-point
+
+A *route internal ID* is provided for every end-point.  See
+{ref}`named-and-internal-route-ids` for details and usage.

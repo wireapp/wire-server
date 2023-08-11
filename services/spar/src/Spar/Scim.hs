@@ -62,7 +62,6 @@ module Spar.Scim
   )
 where
 
-import Data.String.Conversions (cs)
 import Imports
 import Polysemy
 import Polysemy.Error (Error, fromExceptionSem, runError, throw, try)

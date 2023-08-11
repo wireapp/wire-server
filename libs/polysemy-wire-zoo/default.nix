@@ -20,7 +20,6 @@
 , polysemy-plugin
 , QuickCheck
 , saml2-web-sso
-, string-conversions
 , time
 , tinylog
 , types-common
@@ -46,7 +45,6 @@ mkDerivation {
     polysemy-plugin
     QuickCheck
     saml2-web-sso
-    string-conversions
     time
     tinylog
     types-common
@@ -60,7 +58,6 @@ mkDerivation {
     hspec
     imports
     polysemy
-    polysemy-check
     polysemy-plugin
     unliftio
   ];

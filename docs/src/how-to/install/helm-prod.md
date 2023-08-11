@@ -155,6 +155,32 @@ cp values/wire-server/prod-secrets.example.yaml my-wire-server/secrets.yaml
 cp values/wire-server/prod-values.example.yaml my-wire-server/values.yaml
 ```
 
+## How to install RabbitMQ
+
+This is only required when federation needs to be enabled.
+
+1. Generate password for rabbitmq:
+
+   ```shell
+   openssl rand -base64 64 | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 42 > my-wire-server/rabbitmq-password
+   ```
+
+2. Copy example values
+
+   ```shell
+   cp values/rabbitmq/prod-secrets.example.yaml values/rabbitmq/secrets.yaml
+   cp values/rabbitmq/prod-values.example.yaml values/rabbitmq/values.yaml
+   ```
+
+3. Add the generated secret from `my-wire-server/rabbitmq-password` to
+   `values/rabbitmq/secrets.yaml` under `rabbitmq.auth.password`.
+
+4. Install the helm chart using:
+
+   ```shell
+   helm upgrade --install rabbitmq wire/rabbitmq -f values/rabbitmq/values.yaml -f values/rabbitmq/secrets.yaml
+   ```
+
 ## How to configure real SMTP (email) services
 
 In order for users to interact with their wire account, they need to receive mail from your wire server.
@@ -189,9 +215,10 @@ apt install docker-ce
 sudo docker run --rm quay.io/wire/alpine-intermediate /dist/zauth -m gen-keypair -i 1 > my-wire-server/zauth.txt
 ```
 
-1. Add the generated secret from my-wire-server/restund.txt to my-wire-serwer/secrets.yaml under `brig.secrets.turn.secret`
-2. add **both** the public and private parts from zauth.txt to secrets.yaml under `brig.secrets.zAuth`
-3. Add the public key from zauth.txt to secrets.yaml under `nginz.secrets.zAuth.publicKeys`
+1. Add the generated secret from `my-wire-server/restund.txt` to `my-wire-server/secrets.yaml` under `brig.secrets.turn.secret`.
+2. add **both** the public and private parts from `my-wire-server/zauth.txt` to `my-wire-server/secrets.yaml` under `brig.secrets.zAuth`.
+3. Add the public key from `my-wire-server/zauth.txt` to `my-wire-server/secrets.yaml` under `nginz.secrets.zAuth.publicKeys`.
+4. Add the generated secret from my-wire-server/rabbitmq-password to `my-wire-server/secerts.yaml` under `brig.secrets.rabbitmq.password` and `background-worker.secrets.rabbitmq.password`.
 
 Great, now try the installation:
 

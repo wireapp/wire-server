@@ -15,7 +15,6 @@
 , metrics-core
 , servant
 , servant-multipart
-, string-conversions
 , text
 , wai
 , wai-middleware-prometheus
@@ -35,30 +34,13 @@ mkDerivation {
     metrics-core
     servant
     servant-multipart
-    string-conversions
     text
     wai
     wai-middleware-prometheus
     wai-route
     wai-routing
   ];
-  testHaskellDepends = [
-    base
-    bytestring
-    containers
-    hspec
-    http-types
-    imports
-    metrics-core
-    servant
-    servant-multipart
-    string-conversions
-    text
-    wai
-    wai-middleware-prometheus
-    wai-route
-    wai-routing
-  ];
+  testHaskellDepends = [ base containers hspec imports ];
   testToolDepends = [ hspec-discover ];
   description = "Metrics WAI integration";
   license = lib.licenses.agpl3Only;

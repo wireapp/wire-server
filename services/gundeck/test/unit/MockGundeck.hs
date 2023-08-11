@@ -47,20 +47,19 @@ import Control.Monad.Except
 import Control.Monad.Random
 import Control.Monad.State
 import Data.Aeson
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Encode.Pretty as Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Encode.Pretty qualified as Aeson
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Id
 import Data.IntMultiSet (IntMultiSet)
-import qualified Data.IntMultiSet as MSet
-import qualified Data.List.NonEmpty as NE
+import Data.IntMultiSet qualified as MSet
+import Data.List.NonEmpty qualified as NE
 import Data.List1
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Misc (Milliseconds (Ms))
 import Data.Range
-import qualified Data.Scientific as Scientific
-import qualified Data.Set as Set
-import Data.String.Conversions
+import Data.Scientific qualified as Scientific
+import Data.Set qualified as Set
 import Gundeck.Aws.Arn as Aws
 import Gundeck.Options
 import Gundeck.Push
@@ -68,7 +67,7 @@ import Gundeck.Push.Native as Native
 import Gundeck.Push.Websocket as Web
 import Gundeck.Types hiding (recipient)
 import Imports
-import qualified Network.URI as URI
+import Network.URI qualified as URI
 import System.Logger.Class as Log hiding (trace)
 import Test.QuickCheck as QC
 import Test.QuickCheck.Instances ()

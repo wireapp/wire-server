@@ -114,6 +114,7 @@ module Imports
     -- * Extra Helpers
     whenM,
     unlessM,
+    cs,
 
     -- * Functor
     (<$$>),
@@ -142,7 +143,7 @@ import Control.Monad.Trans.Reader
 import Data.Bifunctor hiding (first, second)
 import Data.Bool
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy
+import Data.ByteString.Lazy qualified
 import Data.Char
 import Data.Either
 import Data.Foldable
@@ -164,8 +165,9 @@ import Data.Ord
 import Data.Semigroup hiding (diff)
 import Data.Set (Set)
 import Data.String
+import Data.String.Conversions (cs)
 import Data.Text (Text)
-import qualified Data.Text.Lazy
+import Data.Text.Lazy qualified
 import Data.Traversable
 import Data.Tuple
 import Data.Void
@@ -229,7 +231,7 @@ import Prelude
     (^),
     (^^),
   )
-import qualified Prelude as P
+import Prelude qualified as P
 
 ----------------------------------------------------------------------------
 -- Type aliases

@@ -22,14 +22,13 @@ module API.Team
   )
 where
 
-import qualified API.Search.Util as SearchUtil
+import API.Search.Util qualified as SearchUtil
 import API.Team.Util
 import API.User.Util as Util
 import Bilge hiding (accept, head, timeout)
-import qualified Bilge
+import Bilge qualified
 import Bilge.Assert
-import qualified Brig.Options as Opt
-import Brig.Types.Intra
+import Brig.Options qualified as Opt
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch)
@@ -40,21 +39,21 @@ import Data.Either.Extra (eitherToMaybe)
 import Data.Id hiding (client)
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
-import qualified Data.Text as Text
-import qualified Data.Text.Ascii as Ascii
+import Data.Text qualified as Text
+import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (addUTCTime, getCurrentTime)
-import qualified Data.UUID as UUID (fromString)
-import qualified Data.UUID.V4 as UUID
-import qualified Galley.Types.Teams as Team
+import Data.UUID qualified as UUID (fromString)
+import Data.UUID.V4 qualified as UUID
+import Galley.Types.Teams qualified as Team
 import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Test as WaiTest
-import qualified Network.Wai.Utilities.Error as Error
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai qualified as Wai
+import Network.Wai.Test qualified as WaiTest
+import Network.Wai.Utilities.Error qualified as Error
 import Numeric.Natural (Natural)
 import Test.Tasty hiding (Timeout)
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import URI.ByteString
 import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcurrently)
@@ -63,13 +62,13 @@ import Util.AWS as Util
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Asset
 import Wire.API.Connection
-import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member hiding (invitation, userId)
-import qualified Wire.API.Team.Member as Member
+import Wire.API.Team.Member qualified as Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.Team.Size

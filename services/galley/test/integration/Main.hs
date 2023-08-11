@@ -20,12 +20,12 @@ module Main
   )
 where
 
-import qualified API
-import qualified API.SQS as SQS
+import API qualified
+import API.SQS qualified as SQS
 import Bilge hiding (body, header)
 import Cassandra.Util
 import Control.Lens
-import qualified Data.ByteString.Char8 as BS
+import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Metrics.WaiRoute (treeToPaths)
@@ -34,8 +34,9 @@ import Data.Tagged
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
+import Federation
 import Galley.API (sitemap)
-import qualified Galley.Aws as Aws
+import Galley.Aws qualified as Aws
 import Galley.Options
 import Imports hiding (local)
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -43,15 +44,16 @@ import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
-import qualified System.Logger.Class as Logger
+import System.Logger.Class qualified as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.Options
+import TestHelpers (test)
 import TestSetup
 import Util.Options
 import Util.Options.Common
 import Util.Test
-import qualified Util.Test.SQS as SQS
+import Util.Test.SQS qualified as SQS
 
 newtype ServiceConfigFile = ServiceConfigFile String
   deriving (Eq, Ord, Typeable)
@@ -93,7 +95,15 @@ main = withOpenSSL $ runTests go
               "inconsistent sitemap"
               mempty
               (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.sitemap),
-          API.tests setup
+          API.tests setup,
+          testGroup
+            "Federation Domains"
+            [ test setup "No-Op" updateFedDomainsTestNoop',
+              test setup "Add Remote" updateFedDomainsTestAddRemote',
+              test setup "Remove Remote From Local" updateFedDomainsTestRemoveRemoteFromLocal',
+              test setup "Remove Local From Remote" updateFedDomainsTestRemoveLocalFromRemote'
+            ],
+          test setup "isConvMemberL" isConvMemberLTests
         ]
     getOpts gFile iFile = do
       m <- newManager tlsManagerSettings {managerResponseTimeout = responseTimeoutMicro 300000000}

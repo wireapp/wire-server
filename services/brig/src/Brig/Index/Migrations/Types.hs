@@ -20,16 +20,16 @@
 
 module Brig.Index.Migrations.Types where
 
-import qualified Brig.User.Search.Index as Search
-import qualified Cassandra as C
+import Brig.User.Search.Index qualified as Search
+import Cassandra qualified as C
 import Control.Monad.Catch (MonadThrow)
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import Data.Metrics (Metrics)
-import qualified Database.Bloodhound as ES
+import Database.Bloodhound qualified as ES
 import Imports
 import Network.HTTP.Client (Manager)
 import Numeric.Natural (Natural)
-import qualified System.Logger as Logger
+import System.Logger qualified as Logger
 import System.Logger.Class (MonadLogger (..), ToBytes (..))
 import Util.Options (Endpoint)
 

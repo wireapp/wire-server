@@ -19,23 +19,23 @@
 
 module Brig.API.Federation (federationSitemap, FederationAPI) where
 
-import qualified Brig.API.Client as API
+import Brig.API.Client qualified as API
 import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error
 import Brig.API.Handler (Handler)
-import qualified Brig.API.Internal as Internal
+import Brig.API.Internal hiding (getMLSClients)
+import Brig.API.Internal qualified as Internal
 import Brig.API.MLS.KeyPackages
 import Brig.API.MLS.Util
-import qualified Brig.API.User as API
-import Brig.API.Util (lookupSearchPolicy)
+import Brig.API.User qualified as API
 import Brig.App
-import qualified Brig.Data.Connection as Data
-import qualified Brig.Data.User as Data
+import Brig.Data.Connection qualified as Data
+import Brig.Data.User qualified as Data
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.IO.Intra (notify)
 import Brig.Types.User.Event
 import Brig.User.API.Handle
-import qualified Brig.User.Search.SearchIndex as Q
+import Brig.User.Search.SearchIndex qualified as Q
 import Control.Error.Util
 import Control.Monad.Trans.Except
 import Data.Domain
@@ -45,8 +45,9 @@ import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Qualified
 import Data.Range
-import qualified Gundeck.Types.Push as Push
-import Imports
+import Data.Set (fromList, (\\))
+import Gundeck.Types.Push qualified as Push
+import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
 import Servant (ServerT)
@@ -57,6 +58,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Version
 import Wire.API.MLS.KeyPackage
+import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
@@ -87,6 +89,14 @@ federationSitemap =
     :<|> Named @"send-connection-action" sendConnectionAction
     :<|> Named @"on-user-deleted-connections" onUserDeleted
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
+    :<|> Named @"get-not-fully-connected-backends" getFederationStatus
+
+-- Allow remote domains to send their known remote federation instances, and respond
+-- with the subset of those we aren't connected to.
+getFederationStatus :: Domain -> DomainSet -> Handler r NonConnectedBackends
+getFederationStatus _ request = do
+  fedDomains <- fromList . fmap (.domain) . (.remotes) <$> getFederationRemotes
+  pure $ NonConnectedBackends (request.dsDomains \\ fedDomains)
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do
@@ -166,7 +176,7 @@ searchUsers ::
   SearchRequest ->
   ExceptT Error (AppT r) SearchResponse
 searchUsers domain (SearchRequest searchTerm) = do
-  searchPolicy <- lift $ lookupSearchPolicy domain
+  searchPolicy <- lookupSearchPolicy domain
 
   let searches = case searchPolicy of
         NoSearch -> []
@@ -220,3 +230,10 @@ onUserDeleted origDomain udcn = lift $ do
       notify event (tUnqualified deletedUser) Push.RouteDirect Nothing (pure recipients)
   wrapClient $ Data.deleteRemoteConnections deletedUser connections
   pure EmptyResponse
+
+-- | If domain is not configured fall back to `NoSearch`
+lookupSearchPolicy :: Domain -> (Handler r) FederatedUserSearchPolicy
+lookupSearchPolicy domain = do
+  domainConfigs <- getFederationRemotes
+  let mConfig = find ((== domain) . FD.domain) (domainConfigs.remotes)
+  pure $ maybe NoSearch FD.cfgSearchPolicy mConfig

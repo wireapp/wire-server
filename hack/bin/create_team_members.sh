@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+#
+# consider using create_team.py
 
 set -e
 

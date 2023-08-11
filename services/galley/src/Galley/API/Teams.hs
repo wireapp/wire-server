@@ -61,53 +61,52 @@ where
 import Brig.Types.Intra (accountUser)
 import Brig.Types.Team (TeamSize (..))
 import Cassandra (PageWithState (pwsResults), pwsHasMore)
-import qualified Cassandra as C
+import Cassandra qualified as C
 import Control.Lens
 import Data.ByteString.Builder (lazyByteString)
 import Data.ByteString.Conversion (List, toByteString)
-import qualified Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.CaseInsensitive as CI
+import Data.ByteString.Conversion qualified
+import Data.ByteString.Lazy qualified as LBS
+import Data.CaseInsensitive qualified as CI
 import Data.Csv (EncodeOptions (..), Quoting (QuoteAll), encodeDefaultOrderedByNameWith)
-import qualified Data.Handle as Handle
+import Data.Handle qualified as Handle
 import Data.Id
-import qualified Data.LegalHold as LH
-import qualified Data.List.Extra as List
+import Data.LegalHold qualified as LH
+import Data.List.Extra qualified as List
 import Data.List1 (list1)
-import qualified Data.Map as Map
-import qualified Data.Map.Strict as M
+import Data.Map qualified as Map
+import Data.Map.Strict qualified as M
 import Data.Misc (HttpsUrl, mkHttpsUrl)
 import Data.Proxy
 import Data.Qualified
 import Data.Range as Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Time.Clock (UTCTime)
 import Galley.API.Error as Galley
-import Galley.API.LegalHold
-import qualified Galley.API.Teams.Notifications as APITeamQueue
-import qualified Galley.API.Update as API
+import Galley.API.LegalHold.Team
+import Galley.API.Teams.Notifications qualified as APITeamQueue
+import Galley.API.Update qualified as API
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Data.Services (BotMember)
 import Galley.Effects
-import qualified Galley.Effects.BrigAccess as E
-import qualified Galley.Effects.ConversationStore as E
-import qualified Galley.Effects.ExternalAccess as E
-import qualified Galley.Effects.GundeckAccess as E
-import qualified Galley.Effects.LegalHoldStore as Data
-import qualified Galley.Effects.ListItems as E
-import qualified Galley.Effects.MemberStore as E
-import qualified Galley.Effects.Queue as E
-import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
-import qualified Galley.Effects.SparAccess as Spar
-import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
-import qualified Galley.Effects.TeamMemberStore as E
-import qualified Galley.Effects.TeamStore as E
-import qualified Galley.Intra.Journal as Journal
+import Galley.Effects.BrigAccess qualified as E
+import Galley.Effects.ConversationStore qualified as E
+import Galley.Effects.ExternalAccess qualified as E
+import Galley.Effects.GundeckAccess qualified as E
+import Galley.Effects.LegalHoldStore qualified as Data
+import Galley.Effects.ListItems qualified as E
+import Galley.Effects.MemberStore qualified as E
+import Galley.Effects.Queue qualified as E
+import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
+import Galley.Effects.SparAccess qualified as Spar
+import Galley.Effects.TeamMemberStore qualified as E
+import Galley.Effects.TeamStore qualified as E
+import Galley.Intra.Journal qualified as Journal
 import Galley.Intra.Push
 import Galley.Options
-import qualified Galley.Types.Conversations.Members as Conv
+import Galley.Types.Conversations.Members qualified as Conv
 import Galley.Types.Teams
 import Galley.Types.UserList
 import Imports hiding (forkIO)
@@ -118,38 +117,38 @@ import Polysemy.Error
 import Polysemy.Final
 import Polysemy.Input
 import Polysemy.Output
-import qualified Polysemy.TinyLog as P
-import qualified SAML2.WebSSO as SAML
+import Polysemy.TinyLog qualified as P
+import SAML2.WebSSO qualified as SAML
 import System.Logger (Msg)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.Conversation.Role (Action (DeleteConversation), wireConvRoles)
-import qualified Wire.API.Conversation.Role as Public
+import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
-import qualified Wire.API.Event.Conversation as Conv
+import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Event.Team
 import Wire.API.Federation.Error
-import qualified Wire.API.Message as Conv
+import Wire.API.Message qualified as Conv
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (MultiTablePage), MultiTablePagingState (mtpsState))
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team
-import qualified Wire.API.Team as Public
+import Wire.API.Team qualified as Public
 import Wire.API.Team.Conversation
-import qualified Wire.API.Team.Conversation as Public
+import Wire.API.Team.Conversation qualified as Public
 import Wire.API.Team.Export (TeamExportUser (..))
-import Wire.API.Team.Feature
 import Wire.API.Team.Member
-import qualified Wire.API.Team.Member as Public
+import Wire.API.Team.Member qualified as M
+import Wire.API.Team.Member qualified as Public
 import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, fullPermissions, self)
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
-import qualified Wire.API.Team.SearchVisibility as Public
+import Wire.API.Team.SearchVisibility qualified as Public
 import Wire.API.User (ScimUserInfo (..), User, UserIdList, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
-import qualified Wire.API.User as U
+import Wire.API.User qualified as U
 import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
-import qualified Wire.Sem.Paging as E
+import Wire.Sem.Paging qualified as E
 import Wire.Sem.Paging.Cassandra
 
 getTeamH ::
@@ -281,9 +280,7 @@ updateTeamStatus ::
   ( Member BrigAccess r,
     Member (ErrorS 'InvalidTeamStatusUpdate) r,
     Member (ErrorS 'TeamNotFound) r,
-    Member (Input Opts) r,
     Member (Input UTCTime) r,
-    Member P.TinyLog r,
     Member TeamStore r
   ) =>
   TeamId ->
@@ -332,10 +329,6 @@ updateTeamH ::
   Sem r ()
 updateTeamH zusr zcon tid updateData = do
   zusrMembership <- E.getTeamMember tid zusr
-  -- let zothers = map (view userId) membs
-  -- Log.debug $
-  --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
-  --     . Log.field "action" (Log.val "Teams.updateTeam")
   void $ permissionCheckS SSetTeamData zusrMembership
   E.setTeamData tid updateData
   now <- input
@@ -701,7 +694,7 @@ uncheckedGetTeamMembers ::
 uncheckedGetTeamMembers = E.getTeamMembersWithLimit
 
 addTeamMember ::
-  forall db r.
+  forall r.
   ( Member BrigAccess r,
     Member GundeckAccess r,
     Member (ErrorS 'InvalidPermissions) r,
@@ -711,16 +704,16 @@ addTeamMember ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TooManyTeamMembers) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'UserBindingExists) r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
-    Member (TeamFeatureStore db) r,
+    Member TeamFeatureStore r,
     Member TeamNotificationStore r,
     Member TeamStore r,
-    Member P.TinyLog r,
-    FeaturePersistentConstraint db LegalholdConfig
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -743,25 +736,25 @@ addTeamMember lzusr zcon tid nmem = do
   ensureUnboundUsers [uid]
   ensureConnectedToLocals zusr [uid]
   (TeamSize sizeBeforeJoin) <- E.getSize tid
-  ensureNotTooLargeForLegalHold @db tid (fromIntegral sizeBeforeJoin + 1)
+  ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   memList <- getTeamMembersForFanout tid
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMember ::
-  forall db r.
+  forall r.
   ( Member BrigAccess r,
     Member GundeckAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member P.TinyLog r,
-    Member (TeamFeatureStore db) r,
+    Member TeamFeatureStore r,
     Member TeamNotificationStore r,
-    Member TeamStore r,
-    FeaturePersistentConstraint db LegalholdConfig
+    Member TeamStore r
   ) =>
   TeamId ->
   NewTeamMember ->
@@ -769,9 +762,9 @@ uncheckedAddTeamMember ::
 uncheckedAddTeamMember tid nmem = do
   mems <- getTeamMembersForFanout tid
   (TeamSize sizeBeforeJoin) <- E.getSize tid
-  ensureNotTooLargeForLegalHold @db tid (fromIntegral sizeBeforeJoin + 1)
+  ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
-  billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList (ntmNewTeamMember nmem : mems ^. teamMembers) (mems ^. teamMemberListType)
+  billingUserIds <- E.getBillingTeamMembers tid
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
 uncheckedUpdateTeamMember ::
@@ -779,8 +772,8 @@ uncheckedUpdateTeamMember ::
   ( Member BrigAccess r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TeamMemberNotFound) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member GundeckAccess r,
-    Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member P.TinyLog r,
     Member TeamStore r
@@ -804,19 +797,23 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
   previousMember <-
     E.getTeamMember tid targetId >>= noteS @'TeamMemberNotFound
 
+  admins <- E.getTeamAdmins tid
+  let admins' = [targetId | isAdminOrOwner targetPermissions] <> filter (/= targetId) admins
+  checkAdminLimit (length admins')
+
   -- update target in Cassandra
   E.setTeamMemberPermissions (previousMember ^. permissions) tid targetId targetPermissions
 
   updatedMembers <- getTeamMembersForFanout tid
-  updateJournal team updatedMembers
+  updateJournal team
   updatePeers mZusr targetId targetMember targetPermissions updatedMembers
   where
-    updateJournal :: Team -> TeamMemberList -> Sem r ()
-    updateJournal team mems = do
+    updateJournal :: Team -> Sem r ()
+    updateJournal team = do
       when (team ^. teamBinding == Binding) $ do
         (TeamSize size) <- E.getSize tid
-        billingUserIds <- Journal.getBillingUserIds tid $ Just mems
-        Journal.teamUpdate tid size billingUserIds
+        owners <- E.getBillingTeamMembers tid
+        Journal.teamUpdate tid size owners
 
     updatePeers :: Maybe UserId -> UserId -> TeamMember -> Permissions -> TeamMemberList -> Sem r ()
     updatePeers zusr targetId targetMember targetPermissions updatedMembers = do
@@ -839,10 +836,10 @@ updateTeamMember ::
     Member (ErrorS 'InvalidPermissions) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TeamMemberNotFound) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member GundeckAccess r,
-    Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member P.TinyLog r,
     Member TeamStore r
@@ -896,7 +893,6 @@ deleteTeamMember ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
-    Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member GundeckAccess r,
     Member MemberStore r,
@@ -922,7 +918,6 @@ deleteNonBindingTeamMember ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
-    Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member GundeckAccess r,
     Member MemberStore r,
@@ -948,7 +943,6 @@ deleteTeamMember' ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
-    Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member GundeckAccess r,
     Member MemberStore r,
@@ -987,8 +981,8 @@ deleteTeamMember' lusr zcon tid remove mBody = do
               then 0
               else sizeBeforeDelete - 1
       E.deleteUser remove
-      billingUsers <- Journal.getBillingUserIds tid (Just mems)
-      Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) billingUsers
+      owners <- E.getBillingTeamMembers tid
+      Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) owners
       pure TeamMemberDeleteAccepted
     else do
       uncheckedDeleteTeamMember lusr (Just zcon) tid remove mems
@@ -1236,47 +1230,24 @@ ensureNotTooLarge tid = do
 -- LegalHold off after activation.
 --  FUTUREWORK: Find a way around the fanout limit.
 ensureNotTooLargeForLegalHold ::
-  forall db r.
+  forall r.
   ( Member LegalHoldStore r,
     Member TeamStore r,
-    Member (TeamFeatureStore db) r,
-    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
-    FeaturePersistentConstraint db LegalholdConfig
+    Member TeamFeatureStore r,
+    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r
   ) =>
   TeamId ->
   Int ->
   Sem r ()
 ensureNotTooLargeForLegalHold tid teamSize =
-  whenM (isLegalHoldEnabledForTeam @db tid) $
+  whenM (isLegalHoldEnabledForTeam tid) $
     unlessM (teamSizeBelowLimit teamSize) $
       throwS @'TooManyTeamMembersOnTeamWithLegalhold
-
-ensureNotTooLargeToActivateLegalHold ::
-  ( Member BrigAccess r,
-    Member (ErrorS 'CannotEnableLegalHoldServiceLargeTeam) r,
-    Member TeamStore r
-  ) =>
-  TeamId ->
-  Sem r ()
-ensureNotTooLargeToActivateLegalHold tid = do
-  (TeamSize teamSize) <- E.getSize tid
-  unlessM (teamSizeBelowLimit (fromIntegral teamSize)) $
-    throwS @'CannotEnableLegalHoldServiceLargeTeam
-
-teamSizeBelowLimit :: Member TeamStore r => Int -> Sem r Bool
-teamSizeBelowLimit teamSize = do
-  limit <- fromIntegral . fromRange <$> E.fanoutLimit
-  let withinLimit = teamSize <= limit
-  E.getLegalHoldFlag >>= \case
-    FeatureLegalHoldDisabledPermanently -> pure withinLimit
-    FeatureLegalHoldDisabledByDefault -> pure withinLimit
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
-      -- unlimited, see docs of 'ensureNotTooLargeForLegalHold'
-      pure True
 
 addTeamMemberInternal ::
   ( Member BrigAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
+    Member (ErrorS 'TooManyTeamAdmins) r,
     Member GundeckAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -1295,11 +1266,17 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = 
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
   sizeBeforeAdd <- ensureNotTooLarge tid
+
+  admins <- E.getTeamAdmins tid
+  let admins' = [new ^. userId | isAdminOrOwner (new ^. M.permissions)] <> admins
+  checkAdminLimit (length admins')
+
   E.createTeamMember tid new
   now <- input
   let e = newEvent tid now (EdMemberJoin (new ^. userId))
   E.push1 $
     newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
+
   APITeamQueue.pushTeamEvent tid e
   pure sizeBeforeAdd
   where
@@ -1374,21 +1351,20 @@ getBindingTeamMembers zusr = do
 -- thrown in IO, we could then refactor that to be thrown in `ExceptT
 -- RegisterError`.
 canUserJoinTeam ::
-  forall db r.
+  forall r.
   ( Member BrigAccess r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member (TeamFeatureStore db) r,
-    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
-    FeaturePersistentConstraint db LegalholdConfig
+    Member TeamFeatureStore r,
+    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r
   ) =>
   TeamId ->
   Sem r ()
 canUserJoinTeam tid = do
-  lhEnabled <- isLegalHoldEnabledForTeam @db tid
+  lhEnabled <- isLegalHoldEnabledForTeam tid
   when lhEnabled $ do
     (TeamSize sizeBeforeJoin) <- E.getSize tid
-    ensureNotTooLargeForLegalHold @db tid (fromIntegral sizeBeforeJoin + 1)
+    ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternal ::
@@ -1440,3 +1416,8 @@ queueTeamDeletion ::
 queueTeamDeletion tid zusr zcon = do
   ok <- E.tryPush (TeamItem tid zusr zcon)
   unless ok $ throwS @'DeleteQueueFull
+
+checkAdminLimit :: Member (ErrorS 'TooManyTeamAdmins) r => Int -> Sem r ()
+checkAdminLimit adminCount =
+  when (adminCount > 2000) $
+    throwS @'TooManyTeamAdmins

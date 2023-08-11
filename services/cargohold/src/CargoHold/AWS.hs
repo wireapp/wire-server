@@ -29,6 +29,7 @@ module CargoHold.AWS
     s3Bucket,
     cloudFront,
     Error (..),
+    amazonkaDownloadEndpoint,
 
     -- * AWS
     send,

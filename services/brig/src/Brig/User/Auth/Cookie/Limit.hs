@@ -21,9 +21,9 @@ import Data.Aeson
 import Data.RetryAfter
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
-import qualified Data.Vector as Vector
-import Imports
-import qualified Statistics.Sample as Stats
+import Data.Vector qualified as Vector
+import Imports hiding (cs)
+import Statistics.Sample qualified as Stats
 import Wire.API.User.Auth
 
 --------------------------------------------------------------------------------

@@ -4,7 +4,7 @@ version:       0.1.0
 synopsis:      Extended versions of common modules
 description:
   .Extended versions of various libraries from Hackage. See
-  https://jaspervdj.be/posts/2015-01-20-haskell-design-patterns-extended-modules.html
+  <https://jaspervdj.be/posts/2015-01-20-haskell-design-patterns-extended-modules.html>
   for a description of this design pattern.
 
 category:      Utilities
@@ -17,9 +17,13 @@ license-file:  LICENSE
 build-type:    Simple
 
 library
+  -- cabal-fmt: expand src
   exposed-modules:
+    Network.AMQP.Extended
+    Network.RabbitMqAdmin
     Options.Applicative.Extended
     Servant.API.Extended
+    Servant.API.Extended.Endpath
     Servant.API.Extended.RawM
     System.Logger.Extended
 
@@ -50,6 +54,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -70,10 +75,11 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson
+    , amqp
     , base
     , bytestring
     , cassandra-util
@@ -81,19 +87,25 @@ library
     , errors
     , exceptions
     , extra
+    , http-client
     , http-types
     , imports
     , metrics-wai
+    , monad-control
     , optparse-applicative
     , resourcet
+    , retry
     , servant
+    , servant-client
+    , servant-client-core
     , servant-server
     , servant-swagger
-    , string-conversions
+    , text
     , tinylog
+    , unliftio
     , wai
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite extended-tests
   type:               exitcode-stdio-1.0
@@ -149,29 +161,15 @@ test-suite extended-tests
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N -Wredundant-constraints
+    -Wunused-packages
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
       aeson
     , base
-    , bytestring
-    , cassandra-util
-    , containers
-    , errors
-    , exceptions
     , extended
-    , extra
     , hspec
-    , http-types
     , imports
-    , metrics-wai
-    , optparse-applicative
-    , servant
-    , servant-server
-    , servant-swagger
-    , string-conversions
     , temporary
-    , tinylog
-    , wai
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

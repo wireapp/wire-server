@@ -24,12 +24,12 @@ import Cassandra
 import Conduit
 import Control.Lens (view)
 import Data.Conduit.Internal (zipSources)
-import qualified Data.Conduit.List as C
+import Data.Conduit.List qualified as C
 import Data.Id
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Imports
 import System.Logger (Logger)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import Wire.API.Team.Permission
 
 runCommand :: Logger -> ClientState -> IO ()

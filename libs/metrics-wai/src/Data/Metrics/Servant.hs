@@ -28,16 +28,15 @@ module Data.Metrics.Servant where
 
 import Data.Metrics.Middleware.Prometheus (normalizeWaiRequestRoute)
 import Data.Metrics.Types
-import qualified Data.Metrics.Types as Metrics
+import Data.Metrics.Types qualified as Metrics
 import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Proxy
-import Data.String.Conversions
 import Data.Tree
 import GHC.TypeLits
 import Imports
-import qualified Network.Wai as Wai
+import Network.Wai qualified as Wai
 import Network.Wai.Middleware.Prometheus
-import qualified Network.Wai.Middleware.Prometheus as Promth
+import Network.Wai.Middleware.Prometheus qualified as Promth
 import Network.Wai.Routing (Routes, prepare)
 import Servant.API
 import Servant.Multipart

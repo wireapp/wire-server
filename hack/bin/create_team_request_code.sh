@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+#
+# consider using create_team.py
 
 set -o pipefail
 set -o errexit
@@ -17,7 +19,6 @@ USAGE: $0 -h <host> -e <email>
 "
 
 # Option parsing:
-# https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/
 while getopts ":e:h:" opt; do
   case ${opt} in
     e ) OWNER_EMAIL="$OPTARG"

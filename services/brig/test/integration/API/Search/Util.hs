@@ -26,7 +26,6 @@ import Data.Domain (Domain)
 import Data.Id
 import Data.Qualified (Qualified (..))
 import Data.Range (Range)
-import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Test.Tasty.HUnit

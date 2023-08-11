@@ -21,7 +21,7 @@
 module Cannon.API.Internal (internalServer) where
 
 import Cannon.App
-import qualified Cannon.Dict as D
+import Cannon.Dict qualified as D
 import Cannon.Types
 import Cannon.WS
 import Control.Monad.Catch
@@ -32,11 +32,11 @@ import Network.WebSockets
 import Servant
 import Servant.Conduit ()
 import System.Logger.Class (msg, val)
-import qualified System.Logger.Class as LC
+import System.Logger.Class qualified as LC
 import Wire.API.Internal.BulkPush
 import Wire.API.Internal.Notification
 import Wire.API.RawJson
-import qualified Wire.API.Routes.Internal.Cannon as Internal
+import Wire.API.Routes.Internal.Cannon qualified as Internal
 import Wire.API.Routes.Named
 
 internalServer :: ServerT Internal.API Cannon

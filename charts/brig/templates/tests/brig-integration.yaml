@@ -47,6 +47,10 @@ spec:
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+        {{- if eq (include "includeSecurityContext" .) "true" }}
+    securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 6 }}
+        {{- end }}
     # TODO: Add TURN tests once we have an actual way to test it
     # The brig-integration tests mutate the turn settings files before tests
     # to get certain behaviour. This doesn't work on kubernetes because brig
@@ -80,9 +84,11 @@ spec:
       value: "dummy"
     - name: AWS_REGION
       value: "eu-west-1"
-    {{- if .Values.tests.enableFederationTests }}
-    - name: INTEGRATION_FEDERATION_TESTS
-      value: "1"
+    {{- if .Values.config.enableFederation }}
+    - name: RABBITMQ_USERNAME
+      value: "guest"
+    - name: RABBITMQ_PASSWORD
+      value: "guest"
     {{- end }}
     resources:
       requests:

@@ -40,40 +40,40 @@ module Galley.API.Query
   )
 where
 
-import qualified Cassandra as C
+import Cassandra qualified as C
 import Control.Lens
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
-import qualified Data.Map as Map
+import Data.Map qualified as Map
+import Data.Maybe
 import Data.Proxy
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.Keys
 import Galley.API.MLS.Types
 import Galley.API.Mapping
-import qualified Galley.API.Mapping as Mapping
+import Galley.API.Mapping qualified as Mapping
 import Galley.API.Util
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Data.Types (Code (codeConversation))
-import qualified Galley.Data.Types as Data
+import Galley.Data.Types qualified as Data
 import Galley.Effects
-import qualified Galley.Effects.ConversationStore as E
-import qualified Galley.Effects.FederatorAccess as E
-import qualified Galley.Effects.ListItems as E
-import qualified Galley.Effects.MemberStore as E
-import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
-import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
+import Galley.Effects.ConversationStore qualified as E
+import Galley.Effects.FederatorAccess qualified as E
+import Galley.Effects.ListItems qualified as E
+import Galley.Effects.MemberStore qualified as E
+import Galley.Effects.TeamFeatureStore qualified as TeamFeatures
 import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams
-import Imports
+import Imports hiding (cs)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, result, setStatus)
@@ -81,21 +81,21 @@ import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
-import qualified System.Logger.Class as Logger
+import Polysemy.TinyLog qualified as P
+import System.Logger.Class qualified as Logger
 import Wire.API.Conversation hiding (Member)
-import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Code
 import Wire.API.Conversation.Role
-import qualified Wire.API.Conversation.Role as Public
+import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
-import qualified Wire.API.Provider.Bot as Public
-import qualified Wire.API.Routes.MultiTablePaging as Public
+import Wire.API.Provider.Bot qualified as Public
+import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
 import Wire.Sem.Paging.Cassandra
 
@@ -620,7 +620,7 @@ getConversationMeta cnv = do
       pure Nothing
 
 getConversationByReusableCode ::
-  forall db r.
+  forall r.
   ( Member BrigAccess r,
     Member CodeStore r,
     Member ConversationStore r,
@@ -631,9 +631,8 @@ getConversationByReusableCode ::
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'NotATeamMember) r,
     Member TeamStore r,
-    Member (TeamFeatureStore db) r,
-    Member (Input Opts) r,
-    FeaturePersistentConstraint db GuestLinksConfig
+    Member TeamFeatureStore r,
+    Member (Input Opts) r
   ) =>
   Local UserId ->
   Key ->
@@ -643,7 +642,7 @@ getConversationByReusableCode lusr key value = do
   c <- verifyReusableCode False Nothing (ConversationCode key value Nothing)
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   ensureConversationAccess (tUnqualified lusr) conv CodeAccess
-  ensureGuestLinksEnabled @db (Data.convTeam conv)
+  ensureGuestLinksEnabled (Data.convTeam conv)
   pure $ coverView c conv
   where
     coverView :: Data.Code -> Data.Conversation -> ConversationCoverView
@@ -655,27 +654,25 @@ getConversationByReusableCode lusr key value = do
         }
 
 ensureGuestLinksEnabled ::
-  forall db r.
+  forall r.
   ( Member (ErrorS 'GuestLinksDisabled) r,
-    Member (TeamFeatureStore db) r,
-    Member (Input Opts) r,
-    FeaturePersistentConstraint db GuestLinksConfig
+    Member TeamFeatureStore r,
+    Member (Input Opts) r
   ) =>
   Maybe TeamId ->
   Sem r ()
 ensureGuestLinksEnabled mbTid =
-  getConversationGuestLinksFeatureStatus @db mbTid >>= \ws -> case wsStatus ws of
+  getConversationGuestLinksFeatureStatus mbTid >>= \ws -> case wsStatus ws of
     FeatureStatusEnabled -> pure ()
     FeatureStatusDisabled -> throwS @'GuestLinksDisabled
 
 getConversationGuestLinksStatus ::
-  forall db r.
+  forall r.
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Input Opts) r,
-    Member (TeamFeatureStore db) r,
-    FeaturePersistentConstraint db GuestLinksConfig
+    Member TeamFeatureStore r
   ) =>
   UserId ->
   ConvId ->
@@ -683,13 +680,12 @@ getConversationGuestLinksStatus ::
 getConversationGuestLinksStatus uid convId = do
   conv <- E.getConversation convId >>= noteS @'ConvNotFound
   ensureConvAdmin (Data.convLocalMembers conv) uid
-  getConversationGuestLinksFeatureStatus @db (Data.convTeam conv)
+  getConversationGuestLinksFeatureStatus (Data.convTeam conv)
 
 getConversationGuestLinksFeatureStatus ::
-  forall db r.
-  ( Member (TeamFeatureStore db) r,
-    Member (Input Opts) r,
-    FeaturePersistentConstraint db GuestLinksConfig
+  forall r.
+  ( Member TeamFeatureStore r,
+    Member (Input Opts) r
   ) =>
   Maybe TeamId ->
   Sem r (WithStatus GuestLinksConfig)
@@ -698,8 +694,8 @@ getConversationGuestLinksFeatureStatus mbTid = do
   case mbTid of
     Nothing -> pure defaultStatus
     Just tid -> do
-      mbConfigNoLock <- TeamFeatures.getFeatureConfig @db (Proxy @GuestLinksConfig) tid
-      mbLockStatus <- TeamFeatures.getFeatureLockStatus @db (Proxy @GuestLinksConfig) tid
+      mbConfigNoLock <- TeamFeatures.getFeatureConfig FeatureSingletonGuestLinksConfig tid
+      mbLockStatus <- TeamFeatures.getFeatureLockStatus FeatureSingletonGuestLinksConfig tid
       pure $ computeFeatureConfigForTeamUser mbConfigNoLock mbLockStatus defaultStatus
 
 -- | The same as 'getMLSSelfConversation', but it throws an error in case the

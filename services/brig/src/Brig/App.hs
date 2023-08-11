@@ -1,4 +1,6 @@
+{-# LANGUAGE DeepSubsumption #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 -- FUTUREWORK: Get rid of this option once Polysemy is fully introduced to Brig
@@ -42,6 +44,7 @@ module Brig.App
     templateBranding,
     requestId,
     httpManager,
+    http2Manager,
     extGetManager,
     nexmoCreds,
     twilioCreds,
@@ -59,6 +62,7 @@ module Brig.App
     emailSender,
     randomPrekeyLocalLock,
     keyPackageLocalLock,
+    rabbitmqChannel,
     fsWatcher,
 
     -- * App Monad
@@ -84,27 +88,27 @@ module Brig.App
 where
 
 import Bilge (RequestId (..))
-import qualified Bilge as RPC
+import Bilge qualified as RPC
 import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
-import qualified Brig.AWS as AWS
-import qualified Brig.Calling as Calling
+import Brig.AWS qualified as AWS
+import Brig.Calling qualified as Calling
 import Brig.Options (Opts, Settings)
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Brig.Provider.Template
-import qualified Brig.Queue.Stomp as Stomp
+import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types (Queue (..))
-import qualified Brig.SMTP as SMTP
+import Brig.SMTP qualified as SMTP
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
-import qualified Brig.ZAuth as ZAuth
+import Brig.ZAuth qualified as ZAuth
 import Cassandra (Keyspace (Keyspace), runClient)
-import qualified Cassandra as Cas
+import Cassandra qualified as Cas
 import Cassandra.Schema (versionCheck)
-import qualified Cassandra.Settings as Cas
+import Cassandra.Settings qualified as Cas
 import Control.AutoUpdate
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
@@ -114,43 +118,46 @@ import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Default (def)
 import Data.Domain
-import qualified Data.GeoIP2 as GeoIp
+import Data.GeoIP2 qualified as GeoIp
 import Data.IP
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Data.Metrics (Metrics)
-import qualified Data.Metrics.Middleware as Metrics
+import Data.Metrics.Middleware qualified as Metrics
 import Data.Misc
 import Data.Qualified
 import Data.Text (unpack)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.IO as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.IO qualified as Text
 import Data.Time.Clock
 import Data.Yaml (FromJSON)
-import qualified Database.Bloodhound as ES
+import Database.Bloodhound qualified as ES
+import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports
+import Network.AMQP qualified as Q
+import Network.AMQP.Extended qualified as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
-import qualified OpenSSL.Session as SSL
+import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Final
-import qualified Ropes.Nexmo as Nexmo
-import qualified Ropes.Twilio as Twilio
+import Ropes.Nexmo qualified as Nexmo
+import Ropes.Twilio qualified as Twilio
 import Ssl.Util
-import qualified System.FSNotify as FS
-import qualified System.FilePath as Path
+import System.FSNotify qualified as FS
+import System.FilePath qualified as Path
 import System.Logger.Class hiding (Settings, settings)
-import qualified System.Logger.Class as LC
-import qualified System.Logger.Extended as Log
+import System.Logger.Class qualified as LC
+import System.Logger.Extended qualified as Log
 import Util.Options
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
 
 schemaVersion :: Int32
-schemaVersion = 75
+schemaVersion = 79
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -174,6 +181,7 @@ data Env = Env
     _tmTemplates :: Localised TeamTemplates,
     _templateBranding :: TemplateBranding,
     _httpManager :: Manager,
+    _http2Manager :: Http2Manager,
     _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
     _settings :: Settings,
     _nexmoCreds :: Nexmo.Credentials,
@@ -188,13 +196,22 @@ data Env = Env
     _digestMD5 :: Digest,
     _indexEnv :: IndexEnv,
     _randomPrekeyLocalLock :: Maybe (MVar ()),
-    _keyPackageLocalLock :: MVar ()
+    _keyPackageLocalLock :: MVar (),
+    _rabbitmqChannel :: Maybe (MVar Q.Channel)
   }
 
 makeLenses ''Env
 
+validateOptions :: Opts -> IO ()
+validateOptions o =
+  case (o.federatorInternal, o.rabbitmq) of
+    (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
+    (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
+    _ -> pure ()
+
 newEnv :: Opts -> IO Env
 newEnv o = do
+  validateOptions o
   Just md5 <- getDigestByName "MD5"
   Just sha256 <- getDigestByName "SHA256"
   Just sha512 <- getDigestByName "SHA512"
@@ -202,6 +219,7 @@ newEnv o = do
   lgr <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   cas <- initCassandra o lgr
   mgr <- initHttpManager
+  h2Mgr <- initHttp2Manager
   ext <- initExtGetManager
   utp <- loadUserTemplates o
   ptp <- loadProviderTemplates o
@@ -240,6 +258,7 @@ newEnv o = do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
+  rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -260,6 +279,7 @@ newEnv o = do
         _tmTemplates = ttp,
         _templateBranding = branding,
         _httpManager = mgr,
+        _http2Manager = h2Mgr,
         _extGetManager = ext,
         _settings = sett,
         _nexmoCreds = nxm,
@@ -274,7 +294,8 @@ newEnv o = do
         _digestSHA256 = sha256,
         _indexEnv = mkIndexEnv o lgr mgr mtr (Opt.galley o),
         _randomPrekeyLocalLock = prekeyLocalLock,
-        _keyPackageLocalLock = kpLock
+        _keyPackageLocalLock = kpLock,
+        _rabbitmqChannel = rabbitChan
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)
@@ -353,6 +374,18 @@ initHttpManager = do
         managerIdleConnectionCount = 4096,
         managerResponseTimeout = responseTimeoutMicro 10000000
       }
+
+initHttp2Manager :: IO Http2Manager
+initHttp2Manager = do
+  ctx <- SSL.context
+  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
+  SSL.contextAddOption ctx SSL_OP_NO_SSLv3
+  SSL.contextAddOption ctx SSL_OP_NO_TLSv1
+  SSL.contextSetCiphers ctx "HIGH"
+  SSL.contextSetVerificationMode ctx $
+    SSL.VerifyPeer True True Nothing
+  SSL.contextSetDefaultVerifyPaths ctx
+  http2ManagerWithSSLCtx ctx
 
 -- Note [SSL context]
 -- ~~~~~~~~~~~~
@@ -445,7 +478,7 @@ newtype AppT r a = AppT
     via (Ap (AppT r) a)
 
 lowerAppT :: Member (Final IO) r => Env -> AppT r a -> Sem r a
-lowerAppT env = flip runReaderT env . unAppT
+lowerAppT env (AppT r) = runReaderT r env
 
 temporaryGetEnv :: AppT r Env
 temporaryGetEnv = AppT ask
@@ -479,7 +512,7 @@ instance Member (Final IO) r => MonadCatch (Sem r) where
 instance MonadCatch (AppT r) where
   catch (AppT m) handler = AppT $
     ReaderT $ \env ->
-      catch (runReaderT m env) (flip runReaderT env . unAppT . handler)
+      catch (runReaderT m env) (\x -> runReaderT (unAppT $ handler x) env)
 
 instance MonadReader Env (AppT r) where
   ask = AppT ask

@@ -3,8 +3,7 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { gitignoreSource }: hsuper: hself: {
-  api-bot = hself.callPackage ../libs/api-bot/default.nix { inherit gitignoreSource; };
-  api-client = hself.callPackage ../libs/api-client/default.nix { inherit gitignoreSource; };
+  integration = hself.callPackage ../integration/default.nix { inherit gitignoreSource; };
   bilge = hself.callPackage ../libs/bilge/default.nix { inherit gitignoreSource; };
   brig-types = hself.callPackage ../libs/brig-types/default.nix { inherit gitignoreSource; };
   cargohold-types = hself.callPackage ../libs/cargohold-types/default.nix { inherit gitignoreSource; };
@@ -15,6 +14,7 @@
   galley-types = hself.callPackage ../libs/galley-types/default.nix { inherit gitignoreSource; };
   gundeck-types = hself.callPackage ../libs/gundeck-types/default.nix { inherit gitignoreSource; };
   hscim = hself.callPackage ../libs/hscim/default.nix { inherit gitignoreSource; };
+  http2-manager = hself.callPackage ../libs/http2-manager/default.nix { inherit gitignoreSource; };
   imports = hself.callPackage ../libs/imports/default.nix { inherit gitignoreSource; };
   jwt-tools = hself.callPackage ../libs/jwt-tools/default.nix { inherit gitignoreSource; };
   metrics-core = hself.callPackage ../libs/metrics-core/default.nix { inherit gitignoreSource; };
@@ -33,6 +33,7 @@
   wire-api = hself.callPackage ../libs/wire-api/default.nix { inherit gitignoreSource; };
   wire-message-proto-lens = hself.callPackage ../libs/wire-message-proto-lens/default.nix { inherit gitignoreSource; };
   zauth = hself.callPackage ../libs/zauth/default.nix { inherit gitignoreSource; };
+  background-worker = hself.callPackage ../services/background-worker/default.nix { inherit gitignoreSource; };
   brig = hself.callPackage ../services/brig/default.nix { inherit gitignoreSource; };
   cannon = hself.callPackage ../services/cannon/default.nix { inherit gitignoreSource; };
   cargohold = hself.callPackage ../services/cargohold/default.nix { inherit gitignoreSource; };
@@ -41,7 +42,6 @@
   gundeck = hself.callPackage ../services/gundeck/default.nix { inherit gitignoreSource; };
   proxy = hself.callPackage ../services/proxy/default.nix { inherit gitignoreSource; };
   spar = hself.callPackage ../services/spar/default.nix { inherit gitignoreSource; };
-  api-simulations = hself.callPackage ../tools/api-simulations/default.nix { inherit gitignoreSource; };
   assets = hself.callPackage ../tools/db/assets/default.nix { inherit gitignoreSource; };
   auto-whitelist = hself.callPackage ../tools/db/auto-whitelist/default.nix { inherit gitignoreSource; };
   billing-team-member-backfill = hself.callPackage ../tools/db/billing-team-member-backfill/default.nix { inherit gitignoreSource; };

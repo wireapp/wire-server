@@ -28,7 +28,6 @@ module Brig.API.Util
     traverseConcurrentlyWithErrorsSem,
     traverseConcurrentlyWithErrorsAppT,
     exceptTToMaybe,
-    lookupSearchPolicy,
     ensureLocal,
     tryInsertVerificationCode,
   )
@@ -38,27 +37,23 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
 import Brig.App
-import qualified Brig.Code as Code
-import qualified Brig.Data.User as Data
-import Brig.Options (FederationDomainConfig, federationDomainConfigs, set2FACodeGenerationDelaySecs)
-import qualified Brig.Options as Opts
-import Brig.Types.Intra (accountUser)
+import Brig.Code qualified as Code
+import Brig.Data.User qualified as Data
+import Brig.Options (set2FACodeGenerationDelaySecs)
 import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except
 import Data.Bifunctor
-import Data.Domain (Domain)
 import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.Maybe
 import Data.Qualified
-import Data.String.Conversions (cs)
 import Data.Text.Ascii (AsciiText (toText))
 import Imports
 import Polysemy
-import qualified Polysemy.Error as E
+import Polysemy.Error qualified as E
 import System.Logger (Msg)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import UnliftIO.Async
 import UnliftIO.Exception (throwIO, try)
 import Util.Logging (sha256String)
@@ -66,8 +61,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Federation.Error
 import Wire.API.User
-import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
-import qualified Wire.Sem.Concurrency as C
+import Wire.Sem.Concurrency qualified as C
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do
@@ -167,15 +161,6 @@ traverseConcurrentlyWithErrorsAppT f t = do
 
 exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
-
-lookupDomainConfig :: MonadReader Env m => Domain -> m (Maybe FederationDomainConfig)
-lookupDomainConfig domain = do
-  domainConfigs <- fromMaybe [] <$> view (settings . federationDomainConfigs)
-  pure $ find ((== domain) . Opts.domain) domainConfigs
-
--- | If domain is not configured fall back to `FullSearch`
-lookupSearchPolicy :: MonadReader Env m => Domain -> m FederatedUserSearchPolicy
-lookupSearchPolicy domain = fromMaybe NoSearch <$> (Opts.cfgSearchPolicy <$$> lookupDomainConfig domain)
 
 -- | Convert a qualified value into a local one. Throw if the value is not actually local.
 ensureLocal :: Qualified a -> AppT r (Local a)

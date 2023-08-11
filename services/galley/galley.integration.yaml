@@ -25,6 +25,11 @@ federator:
   host: 127.0.0.1
   port: 8097
 
+rabbitmq:
+  host: 127.0.0.1
+  port: 5672
+  vHost: /
+
 settings:
   httpPoolSize: 128
   maxTeamSize: 32
@@ -35,7 +40,6 @@ settings:
   conversationCodeURI: https://account.wire.com/conversation-join/
   concurrentDeletionEvents: 1024
   deleteConvThrottleMillis: 0
-  enableIndexedBillingTeamMembers: true
   #   Federation domain is used to qualify local IDs and handles,
   #   e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
   #   It should also match the SRV DNS records under which other wire-server installations can find this backend:
@@ -76,7 +80,8 @@ settings:
       defaults:
         status: disabled
         config:
-          verificationExpiration: null
+          verificationExpiration: 86400
+          acmeDiscoveryUrl: null
         lockStatus: unlocked
 
 logLevel: Warn

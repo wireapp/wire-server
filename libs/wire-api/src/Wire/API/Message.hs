@@ -50,7 +50,6 @@ module Wire.API.Message
     UserClientMap (..),
 
     -- * Mismatch
-    OtrFilterMissing (..),
     ClientMismatch (..),
     ClientMismatchStrategy (..),
     MessageSendingStatus (..),
@@ -61,28 +60,28 @@ module Wire.API.Message
 where
 
 import Control.Lens (view, (.~), (?~))
-import qualified Data.Aeson as A
-import qualified Data.ByteString.Lazy as LBS
+import Data.Aeson qualified as A
+import Data.ByteString.Lazy qualified as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Domain (Domain, domainText, mkDomain)
 import Data.Id
 import Data.Json.Util
-import qualified Data.Map.Strict as Map
-import qualified Data.ProtoLens as ProtoLens
-import qualified Data.ProtoLens.Field as ProtoLens
-import qualified Data.ProtocolBuffers as Protobuf
+import Data.Map.Strict qualified as Map
+import Data.ProtoLens qualified as ProtoLens
+import Data.ProtoLens.Field qualified as ProtoLens
+import Data.ProtocolBuffers qualified as Protobuf
 import Data.Qualified (Qualified (..))
 import Data.Schema
 import Data.Serialize (runGet)
-import qualified Data.Set as Set
-import qualified Data.Swagger as S
-import qualified Data.Text.Read as Reader
-import qualified Data.UUID as UUID
+import Data.Set qualified as Set
+import Data.Swagger qualified as S
+import Data.Text.Read qualified as Reader
+import Data.UUID qualified as UUID
 import Imports
-import qualified Proto.Otr
-import qualified Proto.Otr_Fields as Proto.Otr
+import Proto.Otr qualified
+import Proto.Otr_Fields qualified as Proto.Otr
 import Servant (FromHttpApiData (..))
-import qualified Wire.API.Message.Proto as Proto
+import Wire.API.Message.Proto qualified as Proto
 import Wire.API.ServantProto (FromProto (..), ToProto (..))
 import Wire.API.User.Client
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
@@ -417,22 +416,6 @@ parseMap keyParser valueParser xs = Map.fromList <$> traverse (\x -> (,) <$> key
 --------------------------------------------------------------------------------
 -- Filter
 
--- | A setting for choosing what to do when a message has not been encrypted
--- for all recipients.
-data OtrFilterMissing
-  = -- | Pretend everything is okay
-    OtrIgnoreAllMissing
-  | -- | Complain (default)
-    OtrReportAllMissing
-  | -- | Complain only about missing
-    --      recipients who are /not/ on this list
-    OtrIgnoreMissing (Set UserId)
-  | -- | Complain only about missing
-    --      recipients who /are/ on this list
-    OtrReportMissing (Set UserId)
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform OtrFilterMissing)
-
 data ClientMismatchStrategy
   = MismatchReportAll
   | MismatchIgnoreAll
@@ -516,7 +499,8 @@ data MessageSendingStatus = MessageSendingStatus
     mssMissingClients :: QualifiedUserClients,
     mssRedundantClients :: QualifiedUserClients,
     mssDeletedClients :: QualifiedUserClients,
-    mssFailedToSend :: QualifiedUserClients
+    mssFailedToSend :: QualifiedUserClients,
+    mssFailedToConfirmClients :: QualifiedUserClients
   }
   deriving stock (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema MessageSendingStatus
@@ -532,6 +516,7 @@ instance ToSchema MessageSendingStatus where
         <*> mssRedundantClients .= field "redundant" schema
         <*> mssDeletedClients .= field "deleted" schema
         <*> mssFailedToSend .= field "failed_to_send" schema
+        <*> mssFailedToConfirmClients .= field "failed_to_confirm_clients" schema
     where
       combinedDesc =
         "The Proteus message sending status. It has these fields:\n\

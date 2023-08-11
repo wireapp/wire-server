@@ -22,7 +22,7 @@
 module Test.Wire.API.Team.Export where
 
 import Data.ByteString.Arbitrary
-import qualified Data.ByteString.Char8 as C
+import Data.ByteString.Char8 qualified as C
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit

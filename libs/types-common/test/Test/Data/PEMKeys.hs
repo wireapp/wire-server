@@ -22,7 +22,6 @@ where
 
 import Data.ByteString.Conversion
 import Data.PEMKeys
-import Data.String.Conversions (cs)
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit

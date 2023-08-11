@@ -16,71 +16,46 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.User.API.Search
-  ( routesInternal,
-    search,
+  ( search,
     teamUserSearch,
+    refreshIndex,
+    reindexAll,
+    reindexAllIfSameOrNewer,
   )
 where
 
 import Brig.API.Error (fedError)
 import Brig.API.Handler
 import Brig.App
-import qualified Brig.Data.User as DB
+import Brig.Data.User qualified as DB
 import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Effects.GalleyProvider as GalleyProvider
-import qualified Brig.Federation.Client as Federation
-import qualified Brig.Options as Opts
-import Brig.Team.Util (ensurePermissions)
+import Brig.Effects.GalleyProvider qualified as GalleyProvider
+import Brig.Federation.Client qualified as Federation
+import Brig.Options qualified as Opts
+import Brig.Team.Util (ensurePermissions, ensurePermissionsOrPersonalUser)
 import Brig.Types.Search as Search
-import qualified Brig.User.API.Handle as HandleAPI
+import Brig.User.API.Handle qualified as HandleAPI
 import Brig.User.Search.Index
-import qualified Brig.User.Search.SearchIndex as Q
-import qualified Brig.User.Search.TeamUserSearch as Q
+import Brig.User.Search.SearchIndex qualified as Q
+import Brig.User.Search.TeamUserSearch qualified as Q
 import Control.Lens (view)
 import Data.Domain (Domain)
 import Data.Handle (parseHandle)
 import Data.Id
-import Data.Predicate
 import Data.Range
+import Galley.Types.Teams (HiddenPerm (SearchContacts))
 import Imports
-import Network.Wai.Routing
 import Network.Wai.Utilities ((!>>))
-import Network.Wai.Utilities.Response (empty)
 import Polysemy
 import System.Logger (field, msg)
 import System.Logger.Class (val, (~~))
-import qualified System.Logger.Class as Log
-import qualified Wire.API.Federation.API.Brig as FedBrig
-import qualified Wire.API.Federation.API.Brig as S
-import qualified Wire.API.Team.Permission as Public
+import System.Logger.Class qualified as Log
+import Wire.API.Federation.API.Brig qualified as FedBrig
+import Wire.API.Federation.API.Brig qualified as S
+import Wire.API.Team.Permission qualified as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility (..))
 import Wire.API.User.Search
-import qualified Wire.API.User.Search as Public
-
-routesInternal :: Routes a (Handler r) ()
-routesInternal = do
-  -- make index updates visible (e.g. for integration testing)
-  post
-    "/i/index/refresh"
-    (continue (const $ lift refreshIndex $> empty))
-    true
-
-  -- reindex from Cassandra (e.g. integration testing -- prefer the
-  -- `brig-index` executable for actual operations!)
-  post
-    "/i/index/reindex"
-    (continue . const $ lift (wrapClient reindexAll) $> empty)
-    true
-
-  -- forcefully reindex from Cassandra, even if nothing has changed
-  -- (e.g. integration testing -- prefer the `brig-index` executable
-  -- for actual operations!)
-  post
-    "/i/index/reindex-if-same-or-newer"
-    (continue . const $ lift (wrapClient reindexAllIfSameOrNewer) $> empty)
-    true
-
--- Handlers
+import Wire.API.User.Search qualified as Public
 
 -- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
 -- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599
@@ -92,6 +67,11 @@ search ::
   Maybe (Range 1 500 Int32) ->
   (Handler r) (Public.SearchResult Public.Contact)
 search searcherId searchTerm maybeDomain maybeMaxResults = do
+  -- FUTUREWORK(fisx): to reduce cassandra traffic, 'ensurePermissionsOrPersonalUser' could be
+  -- run from `searchLocally` and `searchRemotely`, resp., where the team id is already
+  -- available (at least in the local case) and can be passed as an argument rather than
+  -- looked up again.
+  ensurePermissionsOrPersonalUser searcherId [SearchContacts]
   federationDomain <- viewFederationDomain
   let queryDomain = fromMaybe federationDomain maybeDomain
   if queryDomain == federationDomain

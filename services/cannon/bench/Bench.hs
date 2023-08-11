@@ -20,7 +20,7 @@ module Bench
   )
 where
 
-import qualified Cannon.Dict as D
+import Cannon.Dict qualified as D
 import Control.Concurrent.Async
 import Criterion
 import Criterion.Main

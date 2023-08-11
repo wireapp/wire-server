@@ -77,18 +77,18 @@ import Control.Exception
 import Control.Lens
 import Data.Aeson (ToJSON, encode)
 import Data.ByteString (intercalate)
-import qualified Data.ByteString.Char8 as C
-import qualified Data.ByteString.Lazy as Lazy
-import qualified Data.ByteString.Lazy.Char8 as LC
+import Data.ByteString.Char8 qualified as C
+import Data.ByteString.Lazy qualified as Lazy
+import Data.ByteString.Lazy.Char8 qualified as LC
 import Data.CaseInsensitive (original)
 import Data.Id (RequestId (..))
-import Imports hiding (intercalate)
+import Imports hiding (cs, intercalate)
 import Network.HTTP.Client (Cookie, GivesPopper, Request, RequestBody (..))
-import qualified Network.HTTP.Client as Rq
+import Network.HTTP.Client qualified as Rq
 import Network.HTTP.Client.Internal (CookieJar (..), brReadSome, throwHttp)
 import Network.HTTP.Types
-import qualified Network.HTTP.Types as HTTP
-import qualified URI.ByteString as URI
+import Network.HTTP.Types qualified as HTTP
+import URI.ByteString qualified as URI
 
 -- Builders
 

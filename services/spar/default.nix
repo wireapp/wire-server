@@ -5,11 +5,9 @@
 { mkDerivation
 , aeson
 , aeson-qq
-, attoparsec
 , base
 , base64-bytestring
 , bilge
-, binary
 , brig-types
 , bytestring
 , bytestring-conversion
@@ -25,7 +23,6 @@
 , exceptions
 , extended
 , galley-types
-, ghc-prim
 , gitignoreSource
 , hscim
 , HsOpenSSL
@@ -34,15 +31,12 @@
 , hspec-wai
 , http-api-data
 , http-client
-, http-media
 , http-types
 , imports
-, insert-ordered-containers
 , iso639
 , lens
 , lens-aeson
 , lib
-, memory
 , metrics-wai
 , MonadRandom
 , mtl
@@ -62,7 +56,6 @@
 , servant-server
 , servant-swagger
 , silently
-, string-conversions
 , swagger2
 , tasty-hunit
 , text
@@ -71,7 +64,6 @@
 , tinylog
 , transformers
 , types-common
-, unordered-containers
 , uri-bytestring
 , uuid
 , vector
@@ -93,12 +85,9 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson
-    aeson-qq
-    attoparsec
     base
     base64-bytestring
     bilge
-    binary
     brig-types
     bytestring
     bytestring-conversion
@@ -108,22 +97,14 @@ mkDerivation {
     cookie
     cryptonite
     data-default
-    email-validate
     exceptions
     extended
     galley-types
-    ghc-prim
     hscim
-    HsOpenSSL
     hspec
-    http-api-data
-    http-client
-    http-media
     http-types
     imports
-    insert-ordered-containers
     lens
-    memory
     metrics-wai
     mtl
     network-uri
@@ -134,21 +115,15 @@ mkDerivation {
     polysemy-wire-zoo
     QuickCheck
     raw-strings-qq
-    retry
     saml2-web-sso
-    servant
     servant-multipart
     servant-server
-    servant-swagger
-    string-conversions
-    swagger2
     text
     text-latin1
     time
     tinylog
     transformers
     types-common
-    unordered-containers
     uri-bytestring
     uuid
     wai
@@ -156,17 +131,14 @@ mkDerivation {
     warp
     wire-api
     x509
-    xml-conduit
     yaml
   ];
   executableHaskellDepends = [
     aeson
     aeson-qq
-    attoparsec
     base
     base64-bytestring
     bilge
-    binary
     brig-types
     bytestring
     bytestring-conversion
@@ -177,33 +149,25 @@ mkDerivation {
     containers
     cookie
     cryptonite
-    data-default
     email-validate
     exceptions
     extended
     galley-types
-    ghc-prim
     hscim
     HsOpenSSL
     hspec
     hspec-wai
     http-api-data
     http-client
-    http-media
     http-types
     imports
-    insert-ordered-containers
     iso639
     lens
     lens-aeson
-    memory
-    metrics-wai
     MonadRandom
     mtl
-    network-uri
     optparse-applicative
     polysemy
-    polysemy-check
     polysemy-plugin
     polysemy-wire-zoo
     QuickCheck
@@ -212,29 +176,21 @@ mkDerivation {
     retry
     saml2-web-sso
     servant
-    servant-multipart
     servant-server
-    servant-swagger
     silently
-    string-conversions
-    swagger2
     tasty-hunit
     text
-    text-latin1
     time
     tinylog
     transformers
     types-common
-    unordered-containers
     uri-bytestring
     uuid
     vector
-    wai
     wai-extra
     wai-utilities
     warp
     wire-api
-    x509
     xml-conduit
     yaml
     zauth
@@ -243,71 +199,32 @@ mkDerivation {
   testHaskellDepends = [
     aeson
     aeson-qq
-    attoparsec
     base
-    base64-bytestring
-    bilge
-    binary
     brig-types
-    bytestring
     bytestring-conversion
-    case-insensitive
-    cassandra-util
-    containers
     cookie
-    cryptonite
-    data-default
-    email-validate
-    exceptions
-    extended
-    galley-types
-    ghc-prim
     hscim
-    HsOpenSSL
     hspec
-    http-api-data
-    http-client
-    http-media
-    http-types
     imports
-    insert-ordered-containers
     lens
     lens-aeson
-    memory
     metrics-wai
     mtl
     network-uri
-    optparse-applicative
     polysemy
-    polysemy-check
     polysemy-plugin
     polysemy-wire-zoo
     QuickCheck
-    raw-strings-qq
-    retry
     saml2-web-sso
     servant
-    servant-multipart
-    servant-server
     servant-swagger
-    string-conversions
     swagger2
-    text
-    text-latin1
     time
     tinylog
-    transformers
     types-common
-    unordered-containers
     uri-bytestring
     uuid
-    wai
-    wai-utilities
-    warp
     wire-api
-    x509
-    xml-conduit
-    yaml
   ];
   testToolDepends = [ hspec-discover ];
   description = "User Service for SSO (Single Sign-On) provisioning and authentication";

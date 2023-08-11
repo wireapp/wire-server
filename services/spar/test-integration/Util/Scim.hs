@@ -30,7 +30,6 @@ import qualified Data.ByteString.Lazy as Lazy
 import Data.Handle (Handle (Handle))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
-import Data.String.Conversions (cs)
 import qualified Data.Text.Lazy as Lazy
 import Data.Time
 import Data.UUID as UUID
@@ -145,7 +144,11 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
         { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
           Scim.User.emails = emails,
-          Scim.User.phoneNumbers = phones
+          Scim.User.phoneNumbers = phones,
+          Scim.User.roles = ["member"]
+          -- if we don't add this role here explicitly, some tests may show confusing failures
+          -- involving [] or null being changed to ["member"] during a create or update
+          -- operation.
         },
       subj
     )

@@ -27,7 +27,6 @@ import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as CL
 import Data.Id
 import qualified Data.Map.Strict as Map
-import Data.String.Conversions (cs)
 import Data.Time (UTCTime)
 import Imports
 import qualified SAML2.WebSSO as SAML

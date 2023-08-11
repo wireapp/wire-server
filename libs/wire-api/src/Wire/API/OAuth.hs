@@ -23,23 +23,22 @@ import Control.Lens (preview, view, (%~), (?~))
 import Control.Monad.Except
 import Crypto.Hash as Crypto
 import Crypto.JWT hiding (Context, params, uri, verify)
-import qualified Data.Aeson.KeyMap as M
-import qualified Data.Aeson.Types as A
+import Data.Aeson.KeyMap qualified as M
+import Data.Aeson.Types qualified as A
 import Data.ByteArray (convert)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Either.Combinators (mapLeft)
-import qualified Data.HashMap.Strict as HM
+import Data.HashMap.Strict qualified as HM
 import Data.Id as Id
 import Data.Range
 import Data.Schema
-import qualified Data.Set as Set
-import Data.String.Conversions (cs)
+import Data.Set qualified as Set
 import Data.Swagger (ToParamSchema (..))
-import qualified Data.Swagger as S
-import qualified Data.Text as T
+import Data.Swagger qualified as S
+import Data.Text qualified as T
 import Data.Text.Ascii
-import qualified Data.Text.Encoding as TE
+import Data.Text.Encoding qualified as TE
 import Data.Text.Encoding.Error as TErr
 import Data.Time
 import GHC.TypeLits (Nat, symbolVal)
@@ -49,7 +48,7 @@ import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
 import Test.QuickCheck (Arbitrary (..))
 import URI.ByteString
-import qualified URI.ByteString.QQ as URI.QQ
+import URI.ByteString.QQ qualified as URI.QQ
 import Web.FormUrlEncoded (Form (..), FromForm (..), ToForm (..), parseUnique)
 import Wire.API.Error
 import Wire.Arbitrary (GenericUniform (..))
@@ -100,18 +99,18 @@ newtype OAuthApplicationName = OAuthApplicationName {unOAuthApplicationName :: R
 instance ToSchema OAuthApplicationName where
   schema = OAuthApplicationName <$> unOAuthApplicationName .= schema
 
-data RegisterOAuthClientRequest = RegisterOAuthClientRequest
+data OAuthClientConfig = OAuthClientConfig
   { applicationName :: OAuthApplicationName,
     redirectUrl :: RedirectUrl
   }
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform RegisterOAuthClientRequest)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RegisterOAuthClientRequest)
+  deriving (Arbitrary) via (GenericUniform OAuthClientConfig)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthClientConfig)
 
-instance ToSchema RegisterOAuthClientRequest where
+instance ToSchema OAuthClientConfig where
   schema =
-    object "RegisterOAuthClientRequest" $
-      RegisterOAuthClientRequest
+    object "OAuthClientConfig" $
+      OAuthClientConfig
         <$> applicationName .= fieldWithDocModifier "application_name" applicationNameDescription schema
         <*> (.redirectUrl) .= fieldWithDocModifier "redirect_url" redirectUrlDescription schema
     where

@@ -99,7 +99,15 @@ data AWSOpts = AWSOpts
     -- | Enable this option for compatibility with specific S3 backends.
     _awsS3Compatibility :: !(Maybe S3Compatibility),
     -- | AWS CloudFront options
-    _awsCloudFront :: !(Maybe CloudFrontOpts)
+    _awsCloudFront :: !(Maybe CloudFrontOpts),
+    -- | @Z-Host@ header to s3 download endpoint `Map`
+    --
+    -- This logic is: If the @Z-Host@ header is provided and found in this map,
+    -- the map's values is taken as s3 download endpoint to redirect to;
+    -- otherwise, `_awsS3DownloadEndpoint` is used. This option is only useful
+    -- in the context of multi-ingress setups where one backend / deployment is
+    -- reachable under several domains.
+    _optMultiIngress :: !(Maybe (Map String AWSEndpoint))
   }
   deriving (Show, Generic)
 

@@ -20,7 +20,7 @@
 module Test.Wire.API.Golden.Generated.ServiceProfile_provider where
 
 import Data.Id (Id (Id))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import GHC.Exts (IsList (fromList))
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Asset

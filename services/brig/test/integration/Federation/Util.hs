@@ -24,34 +24,33 @@ module Federation.Util where
 
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
-import qualified Brig.Options as Opt
-import qualified Control.Concurrent.Async as Async
+import Brig.Options qualified as Opt
+import Control.Concurrent.Async qualified as Async
 import Control.Exception (finally, throwIO)
 import Control.Lens ((.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow, bracket, try)
 import Control.Monad.Trans.Except
 import Control.Retry
 import Data.Aeson (FromJSON, Value, decode, (.=))
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
 import Data.Id
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Qualified (Qualified (..))
-import Data.String.Conversions (cs)
-import qualified Data.Text as Text
-import qualified Database.Bloodhound as ES
-import qualified Federator.MockServer as Mock
+import Data.Text qualified as Text
+import Database.Bloodhound qualified as ES
+import Federator.MockServer qualified as Mock
 import Foreign.C.Error (Errno (..), eCONNREFUSED)
 import GHC.IO.Exception (IOException (ioe_errno))
 import Imports
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Media
 import Network.Socket
 import Network.Wai.Handler.Warp (Port)
 import Network.Wai.Test (Session)
-import qualified Network.Wai.Test as WaiTest
+import Network.Wai.Test qualified as WaiTest
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
 import Test.Tasty.HUnit

@@ -18,35 +18,20 @@ library
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
-    , aeson
     , attoparsec
     , base
-    , brig
-    , brig-types
-    , bytestring
     , bytestring-conversion
     , cassandra-util
     , conduit
-    , containers
-    , filepath
-    , galley
     , imports
-    , iproute
     , lens
-    , megaparsec
     , optparse-applicative
-    , process
-    , raw-strings-qq
-    , stache
     , text
-    , time
     , tinylog
     , types-common
-    , uuid
-    , vector
     , wire-api
 
   default-extensions:
@@ -104,4 +89,4 @@ executable assets
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages

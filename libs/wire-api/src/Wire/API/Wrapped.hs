@@ -19,11 +19,11 @@ module Wire.API.Wrapped where
 
 import Control.Lens ((.~), (?~))
 import Data.Aeson
-import qualified Data.Aeson.Key as Key
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.Aeson.Key qualified as Key
+import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Proxy (Proxy (..))
 import Data.Swagger
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import Imports
 import Test.QuickCheck (Arbitrary (..))

@@ -22,7 +22,7 @@ where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 

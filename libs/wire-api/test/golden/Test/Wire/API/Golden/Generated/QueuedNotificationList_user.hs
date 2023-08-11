@@ -21,8 +21,8 @@ module Test.Wire.API.Golden.Generated.QueuedNotificationList_user where
 
 import Data.Aeson (Value (Bool, Null))
 import Data.Id (Id (Id))
-import qualified Data.List.NonEmpty as NonEmpty (fromList)
-import qualified Data.UUID as UUID (fromString)
+import Data.List.NonEmpty qualified as NonEmpty (fromList)
+import Data.UUID qualified as UUID (fromString)
 import GHC.Exts (IsList (fromList))
 import Imports (Bool (False, True), Functor (fmap), Maybe (Just, Nothing), fromJust, read)
 import Wire.API.Notification (QueuedNotificationList, queuedNotification, queuedNotificationList)

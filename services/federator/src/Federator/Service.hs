@@ -27,22 +27,21 @@ where
 -- FUTUREWORK(federation): Once we authenticate the call, we should send authentication data
 -- to brig so brig can do some authorization as required.
 
-import qualified Bilge as RPC
+import Bilge qualified as RPC
 import Control.Exception
 import Control.Lens (view)
 import Control.Monad.Codensity
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.Domain
-import qualified Data.Sequence as Seq
-import Data.String.Conversions (cs)
-import qualified Data.Text.Encoding as Text
+import Data.Sequence qualified as Seq
+import Data.Text.Encoding qualified as Text
 import Federator.Env
 import Imports
 import Network.HTTP.Client
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Polysemy
 import Polysemy.Input
-import qualified Servant.Client.Core as Servant
+import Servant.Client.Core qualified as Servant
 import Servant.Types.SourceT
 import Util.Options
 import Wire.API.Federation.Component

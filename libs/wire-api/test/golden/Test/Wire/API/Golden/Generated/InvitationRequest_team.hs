@@ -18,7 +18,7 @@
 module Test.Wire.API.Golden.Generated.InvitationRequest_team where
 
 import Data.ISO3166_CountryCodes (CountryCode (BJ, FJ, GH, LB, ME, NL, OM, PA, TC, TZ))
-import qualified Data.LanguageCodes (ISO639_1 (AF, AR, DA, DV, KJ, KS, KU, LG, NN, NY, OM, SI))
+import Data.LanguageCodes qualified (ISO639_1 (AF, AR, DA, DV, KJ, KS, KU, LG, NN, NY, OM, SI))
 import Imports (Maybe (Just, Nothing))
 import Wire.API.Team.Invitation (InvitationRequest (..))
 import Wire.API.Team.Role (Role (RoleAdmin, RoleExternalPartner, RoleMember, RoleOwner))

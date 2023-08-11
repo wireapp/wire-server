@@ -23,15 +23,15 @@ module Wire.API.Team.Role
   )
 where
 
-import qualified Cassandra as Cql
+import Cassandra qualified as Cql
 import Control.Error (note)
 import Control.Lens ((?~))
 import Data.Aeson
 import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as T
+import Data.Swagger qualified as S
+import Data.Text qualified as T
 import Imports
 import Servant.API (FromHttpApiData, parseQueryParam)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -52,8 +52,6 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 --     owner = admin +
 --         {DeleteTeam, Get/SetBilling}
 --
--- For instance, here: https://github.com/wireapp/wire-webapp/blob/dev/app/script/team/TeamPermission.js
---
 -- Whenever a user has one of those specific sets of permissions, they are
 -- considered a member/admin/owner and the client treats them accordingly
 -- (e.g. for an admin it might show a certain button, while for an ordinary
@@ -72,6 +70,13 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- that all team admins must have this new permission, we will have to
 -- identify all existing team admins. And if it turns out that some users
 -- don't fit into one of those three team roles, we're screwed.
+--
+-- SOLUTION: we introduce 'HiddenPerm' and 'HiddenPermissions', map
+-- (non-hidden) -- permission masks to roles and roles to permissions (both
+-- hidden and non-hidden), and provide a type class 'IsPerm' that handles
+-- both hidden and non-hidden permissions uniformly.  We still cannot update
+-- 'Perms' and 'Permissions', but we can introduce new HiddenPermissions and
+-- associate them with roles.
 
 -- | Team-level role.  Analog to conversation-level 'ConversationRole'.
 data Role = RoleOwner | RoleAdmin | RoleMember | RoleExternalPartner

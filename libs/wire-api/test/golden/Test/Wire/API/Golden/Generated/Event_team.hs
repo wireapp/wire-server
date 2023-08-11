@@ -23,7 +23,7 @@ import Control.Lens ((.~), (?~))
 import Data.ByteString.Conversion (fromByteString')
 import Data.Id (Id (Id))
 import Data.Range (unsafeRange)
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import GHC.Exts (IsList (fromList))
 import Imports (Maybe (Just, Nothing), fromJust, read, (&))
 import Wire.API.Asset

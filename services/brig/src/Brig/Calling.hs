@@ -50,34 +50,33 @@ where
 
 import Brig.Effects.Delay
 import Brig.Options (SFTOptions (..), defSftListLength, defSftServiceName, defSrvDiscoveryIntervalSeconds)
-import qualified Brig.Options as Opts
+import Brig.Options qualified as Opts
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens
 import Control.Monad.Random.Class (MonadRandom)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (fromByteString)
-import qualified Data.IP as IP
+import Data.IP qualified as IP
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc
 import Data.Range
-import Data.String.Conversions (cs)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.IO as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.IO qualified as Text
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Imports
-import qualified Network.DNS as DNS
+import Network.DNS qualified as DNS
 import OpenSSL.EVP.Digest (Digest)
 import Polysemy
 import Polysemy.TinyLog
-import qualified System.FSNotify as FS
-import qualified System.FilePath as Path
-import qualified System.Logger as Log
+import System.FSNotify qualified as FS
+import System.FilePath qualified as Path
+import System.Logger qualified as Log
 import System.Random.MWC (GenIO, createSystemRandom)
 import System.Random.Shuffle
 import UnliftIO (Async)
-import qualified UnliftIO.Async as Async
+import UnliftIO.Async qualified as Async
 import Wire.API.Call.Config
 import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV

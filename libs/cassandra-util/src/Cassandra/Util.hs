@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE NumericUnderscores #-}
 
 module Cassandra.Util
   ( defInitCassandra,
@@ -32,9 +31,9 @@ import Data.Text (unpack)
 import Data.Time (UTCTime, nominalDiffTimeToSeconds)
 import Data.Time.Clock (secondsToNominalDiffTime)
 import Data.Time.Clock.POSIX
-import qualified Database.CQL.IO.Tinylog as CT
+import Database.CQL.IO.Tinylog qualified as CT
 import Imports hiding (init)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 
 defInitCassandra :: Text -> Text -> Word16 -> Log.Logger -> IO ClientState
 defInitCassandra ks h p lg =

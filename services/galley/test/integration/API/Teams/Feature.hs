@@ -21,7 +21,7 @@ module API.Teams.Feature (tests) where
 import API.SQS (assertTeamActivate)
 import API.Util
 import API.Util.TeamFeature hiding (getFeatureConfig, setLockStatusInternal)
-import qualified API.Util.TeamFeature as Util
+import API.Util.TeamFeature qualified as Util
 import Bilge
 import Bilge.Assert
 import Brig.Types.Test.Arbitrary (Arbitrary (arbitrary))
@@ -30,15 +30,15 @@ import Control.Lens (over, to, view, (.~), (?~))
 import Control.Lens.Operators ()
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (FromJSON, ToJSON)
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Key as AesonKey
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Key qualified as AesonKey
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString.Char8 (unpack)
 import Data.Domain (Domain (..))
 import Data.Id
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Schema (ToSchema)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Timeout (TimeoutUnit (Second), (#))
 import GHC.TypeLits (KnownSymbol)
 import Galley.Options (optSettings, setExposeInvitationURLsTeamAllowlist, setFeatureFlags)
@@ -48,12 +48,12 @@ import Network.Wai.Utilities (label)
 import Test.Hspec (expectationFailure)
 import Test.QuickCheck (Gen, generate, suchThat)
 import Test.Tasty
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit (assertBool, assertFailure, (@?=))
 import TestHelpers (eventually, test)
 import TestSetup
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolMLSTag, ProtocolProteusTag))
-import qualified Wire.API.Event.FeatureConfig as FeatureConfig
+import Wire.API.Event.FeatureConfig qualified as FeatureConfig
 import Wire.API.Internal.Notification (Notification)
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
@@ -104,7 +104,7 @@ tests s =
           ( withStatus
               FeatureStatusDisabled
               LockStatusUnlocked
-              (MlsE2EIdConfig Nothing)
+              (wsConfig (defFeatureStatus @MlsE2EIdConfig))
               FeatureTTLUnlimited
           ),
       testGroup
@@ -146,7 +146,7 @@ tests s =
             testPatch AssertLockStatusChange FeatureStatusEnabled (SelfDeletingMessagesConfig 0),
           test s (unpack $ featureNameBS @OutlookCalIntegrationConfig) $
             testPatch AssertLockStatusChange FeatureStatusDisabled OutlookCalIntegrationConfig,
-          test s (unpack $ featureNameBS @MlsE2EIdConfig) $ testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (MlsE2EIdConfig Nothing)
+          test s (unpack $ featureNameBS @MlsE2EIdConfig) $ testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @MlsE2EIdConfig))
         ],
       testGroup
         "ExposeInvitationURLsToTeamAdmin"
@@ -1047,7 +1047,7 @@ testAllFeatures = do
           afcSearchVisibilityInboundConfig = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig FeatureTTLUnlimited,
           afcExposeInvitationURLsToTeamAdmin = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited,
           afcOutlookCalIntegration = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited,
-          afcMlsE2EId = withStatus FeatureStatusDisabled LockStatusUnlocked (MlsE2EIdConfig Nothing) FeatureTTLUnlimited
+          afcMlsE2EId = withStatus FeatureStatusDisabled LockStatusUnlocked (wsConfig defFeatureStatus) FeatureTTLUnlimited
         }
 
 testFeatureConfigConsistency :: TestM ()

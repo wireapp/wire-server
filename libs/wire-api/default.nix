@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, aeson-diff
 , aeson-pretty
 , aeson-qq
 , async
@@ -28,14 +29,12 @@
 , currency-codes
 , deriving-aeson
 , deriving-swagger2
-, directory
 , either
 , email-validate
 , errors
 , extended
 , extra
 , filepath
-, generic-random
 , generics-sop
 , ghc-prim
 , gitignoreSource
@@ -47,6 +46,7 @@
 , hspec
 , hspec-wai
 , http-api-data
+, http-client
 , http-media
 , http-types
 , imports
@@ -71,6 +71,7 @@
 , quickcheck-instances
 , random
 , resourcet
+, retry
 , saml2-web-sso
 , schema-profunctor
 , scientific
@@ -82,21 +83,19 @@
 , servant-multipart
 , servant-server
 , servant-swagger
-, servant-swagger-ui
 , singletons
 , singletons-base
 , singletons-th
 , sop-core
-, string-conversions
 , swagger2
 , tagged
 , tasty
-, tasty-expected-failure
 , tasty-hspec
 , tasty-hunit
 , tasty-quickcheck
 , text
 , time
+, tinylog
 , transitive-anns
 , types-common
 , unliftio
@@ -120,6 +119,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    async
     attoparsec
     base
     base64-bytestring
@@ -146,7 +146,6 @@ mkDerivation {
     extended
     extra
     filepath
-    generic-random
     generics-sop
     ghc-prim
     hashable
@@ -154,6 +153,7 @@ mkDerivation {
     hscim
     HsOpenSSL
     http-api-data
+    http-client
     http-media
     http-types
     imports
@@ -175,6 +175,7 @@ mkDerivation {
     quickcheck-instances
     random
     resourcet
+    retry
     saml2-web-sso
     schema-profunctor
     scientific
@@ -186,16 +187,15 @@ mkDerivation {
     servant-multipart
     servant-server
     servant-swagger
-    servant-swagger-ui
     singletons
     singletons-base
     singletons-th
     sop-core
-    string-conversions
     swagger2
     tagged
     text
     time
+    tinylog
     transitive-anns
     types-common
     unordered-containers
@@ -214,6 +214,7 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson
+    aeson-diff
     aeson-pretty
     aeson-qq
     async
@@ -222,16 +223,13 @@ mkDerivation {
     bytestring
     bytestring-arbitrary
     bytestring-conversion
-    case-insensitive
     cassava
     containers
     cryptonite
     currency-codes
-    directory
     either
     filepath
     hex
-    hscim
     hspec
     hspec-wai
     http-types
@@ -241,21 +239,16 @@ mkDerivation {
     lens
     memory
     metrics-wai
-    mime
     pem
     pretty
     process
     proto-lens
     QuickCheck
-    saml2-web-sso
     schema-profunctor
     servant
     servant-server
-    servant-swagger-ui
-    string-conversions
     swagger2
     tasty
-    tasty-expected-failure
     tasty-hspec
     tasty-hunit
     tasty-quickcheck
@@ -263,7 +256,6 @@ mkDerivation {
     time
     types-common
     unliftio
-    unordered-containers
     uri-bytestring
     uuid
     vector

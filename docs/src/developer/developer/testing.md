@@ -6,6 +6,8 @@ named `test` or `test*`.  Ideally, there are at least unit tests
 integration tests (eg. `test/integration`) for packages with
 executables (`/services`).
 
+See also: {ref}`run-wire-server-integration-tests-inside-kubernetes-using-helm`
+
 ## General rule
 
 Write as much pure code as possible.  If you write a function that has

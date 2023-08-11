@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-unused-local-binds #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,61 +24,61 @@ module API
   )
 where
 
-import qualified API.CustomBackend as CustomBackend
-import qualified API.Federation as Federation
+import API.CustomBackend qualified as CustomBackend
+import API.Federation qualified as Federation
 import API.Federation.Util
-import qualified API.MLS
-import qualified API.MessageTimer as MessageTimer
-import qualified API.Roles as Roles
+import API.MLS qualified
+import API.MessageTimer qualified as MessageTimer
+import API.Roles qualified as Roles
 import API.SQS
-import qualified API.Teams as Teams
-import qualified API.Teams.Feature as TeamFeature
-import qualified API.Teams.LegalHold as Teams.LegalHold
-import qualified API.Teams.LegalHold.DisabledByDefault
+import API.Teams qualified as Teams
+import API.Teams.Feature qualified as TeamFeature
+import API.Teams.LegalHold qualified as Teams.LegalHold
+import API.Teams.LegalHold.DisabledByDefault qualified
 import API.Util
-import qualified API.Util as Util
+import API.Util qualified as Util
 import API.Util.TeamFeature as TeamFeatures
-import qualified API.Util.TeamFeature as Util
+import API.Util.TeamFeature qualified as Util
 import Bilge hiding (head, timeout)
-import qualified Bilge
+import Bilge qualified
 import Bilge.Assert
-import Control.Arrow
-import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Async qualified as Async
 import Control.Exception (throw)
 import Control.Lens (at, ix, preview, view, (.~), (?~))
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding (json)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.Domain
 import Data.Either.Extra (eitherToMaybe)
 import Data.Id
 import Data.Json.Util (toBase64Text, toUTCTimeMillis)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1 hiding (head)
-import qualified Data.List1 as List1
-import qualified Data.Map.Strict as Map
+import Data.List1 qualified as List1
+import Data.Map.Strict qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
-import qualified Data.Text as T
-import qualified Data.Text.Ascii as Ascii
+import Data.Text qualified as T
+import Data.Text.Ascii qualified as Ascii
 import Data.Time.Clock (getCurrentTime)
+import Data.Vector qualified as V
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer
 import Galley.API.Mapping
-import Galley.Options (optFederator)
+import Galley.Options (optFederator, optRabbitmq)
 import Galley.Types.Conversations.Members
 import Imports
-import qualified Network.HTTP.Types.Status as HTTP
+import Network.HTTP.Types.Status qualified as HTTP
 import Network.Wai.Utilities.Error
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
@@ -91,19 +92,20 @@ import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
-import qualified Wire.API.Federation.API.Brig as F
+import Wire.API.Federation.API.Brig
+import Wire.API.Federation.API.Brig qualified as F
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
-import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Internal.Notification
 import Wire.API.Message
-import qualified Wire.API.Message as Message
+import Wire.API.Message qualified as Message
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
-import qualified Wire.API.Team.Feature as Public
-import qualified Wire.API.Team.Member as Teams
+import Wire.API.Team.Feature qualified as Public
+import Wire.API.Team.Member qualified as Teams
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
@@ -131,8 +133,8 @@ tests s =
           test s "metrics" metrics,
           test s "fetch conversation by qualified ID (v2)" testGetConvQualifiedV2,
           test s "create Proteus conversation" postProteusConvOk,
-          test s "create conversation with remote users" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2]),
-          test s "create conversation with remote users (some unreachable)" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2, rb3]),
+          test s "create conversation with remote users all reachable" (postConvWithRemoteUsersOk $ Set.fromList [rb1, rb2]),
+          test s "create conversation with remote users some unreachable" (postConvWithUnreachableRemoteUsers $ Set.fromList [rb1, rb2, rb3, rb4]),
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
           test s "fail to get >500 conversations with v2 API" getConvsFailMaxSizeV2,
@@ -203,6 +205,7 @@ tests s =
           test s "rename conversation" putConvRenameOk,
           test s "rename qualified conversation" putQualifiedConvRenameOk,
           test s "rename qualified conversation with remote members" putQualifiedConvRenameWithRemotesOk,
+          test s "rename qualified conversation with unavailable remote" putQualifiedConvRenameWithRemotesUnavailable,
           test s "rename qualified conversation failure" putQualifiedConvRenameFailure,
           test s "other member update role" putOtherMemberOk,
           test s "qualified other member update role" putQualifiedOtherMemberOk,
@@ -216,6 +219,7 @@ tests s =
           test s "remote conversation member update (everything)" putRemoteConvMemberAllOk,
           test s "conversation receipt mode update" putReceiptModeOk,
           test s "conversation receipt mode update with remote members" putReceiptModeWithRemotesOk,
+          test s "conversation receipt mode update with unavailable remote members" putReceiptModeWithRemotesUnavailable,
           test s "remote conversation receipt mode update" putRemoteReceiptModeOk,
           test s "leave connect conversation" leaveConnectConversation,
           test s "post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessageVerifyMsgSentAndRejectIfMissingClient,
@@ -223,12 +227,11 @@ tests s =
           test s "post conversations/:cnv/otr/message: mismatch with protobuf" postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto,
           test s "post conversations/:cnv/otr/message: unknown sender client" postCryptoMessageNotAuthorizeUnknownClient,
           test s "post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam,
-          test s "post message qualified - local owning backend - success" postMessageQualifiedLocalOwningBackendSuccess,
           test s "post message qualified - local owning backend - missing clients" postMessageQualifiedLocalOwningBackendMissingClients,
           test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
           test s "post message qualified - local owning backend - ignore missing" postMessageQualifiedLocalOwningBackendIgnoreMissingClients,
           test s "post message qualified - local owning backend - failed to send clients" postMessageQualifiedLocalOwningBackendFailedToSendClients,
-          test s "post message qualified - local owning backend - failed to get clients and failed to send clients" postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients,
+          test s "post message qualified - local owning backend - failed to fetch clients" postMessageQualifiedFailedToSendFetchingClients,
           test s "post message qualified - remote owning backend - federation failure" postMessageQualifiedRemoteOwningBackendFailure,
           test s "post message qualified - remote owning backend - success" postMessageQualifiedRemoteOwningBackendSuccess,
           test s "join conversation" postJoinConvOk,
@@ -238,6 +241,7 @@ tests s =
           test s "convert invite to code-access conversation" postConvertCodeConv,
           test s "convert code to team-access conversation" postConvertTeamConv,
           test s "local and remote guests are removed when access changes" testAccessUpdateGuestRemoved,
+          test s "local and remote guests are removed when access changes remotes unavailable" testAccessUpdateGuestRemovedRemotesUnavailable,
           test s "team member can't join via guest link if access role removed" testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved,
           test s "cannot join private conversation" postJoinConvFail,
           test s "revoke guest links for team conversation" testJoinTeamConvGuestLinksDisabled,
@@ -262,9 +266,15 @@ tests s =
             [ test s "send typing indicators" postTypingIndicators,
               test s "send typing indicators without domain" postTypingIndicatorsV2,
               test s "send typing indicators with invalid pyaload" postTypingIndicatorsHandlesNonsense
-            ]
+            ],
+          -- NOTE: These federation notification tests need to run after all of the other tests are finished.
+          -- This is because they will send notifications to _ALL_ registered clients for the local domain.
+          -- As a lot of these tests are waiting on specific notifications to come through in a specified
+          -- order, these tests will cause them to fail.
+          -- See the Tasty docs on patterns. https://hackage.haskell.org/package/tasty-1.4.3#patterns
+          after AllFinish "$0 !~ /delete federation notifications/" $ test s "delete federation notifications" API.testDefederationNotifications
         ]
-    rb1, rb2, rb3 :: Remote Backend
+    rb1, rb2, rb3, rb4 :: Remote Backend
     rb1 =
       toRemoteUnsafe
         (Domain "c.example.com")
@@ -289,6 +299,17 @@ tests s =
               bUsers = 2
             }
         )
+    rb4 =
+      toRemoteUnsafe
+        (Domain "f.example.com")
+        ( Backend
+            { bReachable = BackendUnreachable,
+              bUsers = 1
+            }
+        )
+
+getNotFullyConnectedBackendsMock :: Mock LByteString
+getNotFullyConnectedBackendsMock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
 
 -------------------------------------------------------------------------------
 -- API Tests
@@ -360,6 +381,57 @@ postProteusConvOk = do
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
 
+postConvWithUnreachableRemoteUsers :: Set (Remote Backend) -> TestM ()
+postConvWithUnreachableRemoteUsers rbs = do
+  c <- view tsCannon
+  (alice, _qAlice) <- randomUserTuple
+  (alex, qAlex) <- randomUserTuple
+  connectUsers alice (singleton alex)
+  (allRemotes, participatingRemotes) <- do
+    v <- forM (toList rbs) $ \rb -> do
+      users <- connectBackend alice rb
+      pure (users, participating rb users)
+    pure $ foldr (\(a, p) acc -> bimap ((<>) a) ((<>) p) acc) ([], []) v
+  liftIO $
+    assertBool "No unreachable backend in the test" (allRemotes /= participatingRemotes)
+
+  let convName = "some chat"
+      otherLocals = [qAlex]
+      joiners = allRemotes <> otherLocals
+      unreachableBackends =
+        Set.fromList $
+          foldMap
+            ( \rb ->
+                guard (rbReachable rb == BackendUnreachable)
+                  $> tDomain rb
+            )
+            rbs
+  WS.bracketR2 c alice alex $ \(wsAlice, wsAlex) -> do
+    void
+      $ withTempMockFederator'
+        ( asum
+            [ "get-not-fully-connected-backends" ~> NonConnectedBackends mempty,
+              mockUnreachableFor unreachableBackends,
+              "on-conversation-created" ~> EmptyResponse,
+              "on-conversation-updated" ~> EmptyResponse
+            ]
+        )
+      $ postConvQualified
+        alice
+        Nothing
+        defNewProteusConv
+          { newConvName = checked convName,
+            newConvQualifiedUsers = joiners
+          }
+        <!! const 503 === statusCode
+    groupConvs <- filter ((== RegularConv) . cnvmType . cnvMetadata) <$> getAllConvs alice
+    liftIO $
+      assertEqual
+        "Alice does have a group conversation, while she should not!"
+        []
+        groupConvs
+    WS.assertNoEvent (3 # Second) [wsAlice, wsAlex]
+
 postConvWithRemoteUsersOk :: Set (Remote Backend) -> TestM ()
 postConvWithRemoteUsersOk rbs = do
   c <- view tsCannon
@@ -372,8 +444,10 @@ postConvWithRemoteUsersOk rbs = do
       users <- connectBackend alice rb
       pure (users, participating rb users)
     pure $ foldr (\(a, p) acc -> bimap ((<>) a) ((<>) p) acc) ([], []) v
+  liftIO $
+    assertBool "Not every backend is reachable in the test" (allRemotes == participatingRemotes)
 
-  let nameMaxSize = T.replicate 256 "a"
+  let convName = "some chat"
       otherLocals = [qAlex, qAmy]
   WS.bracketR3 c alice alex amy $ \(wsAlice, wsAlex, wsAmy) -> do
     let joiners = allRemotes <> otherLocals
@@ -386,25 +460,32 @@ postConvWithRemoteUsersOk rbs = do
               )
               rbs
     (rsp, federatedRequests) <-
-      withTempMockFederator' (mockUnreachable unreachableBackends) $
-        postConvQualified
+      withTempMockFederator'
+        ( asum
+            [ getNotFullyConnectedBackendsMock,
+              mockUnreachableFor unreachableBackends,
+              "on-conversation-created" ~> EmptyResponse,
+              "on-conversation-updated" ~> EmptyResponse
+            ]
+        )
+        $ postConvQualified
           alice
           Nothing
           defNewProteusConv
-            { newConvName = checked nameMaxSize,
+            { newConvName = checked convName,
               newConvQualifiedUsers = joiners
             }
           <!! const 201 === statusCode
-    let shouldBePresent = otherLocals <> participatingRemotes
-        shouldBePresentSet = Set.fromList (toOtherMember <$> shouldBePresent)
+    let minimalShouldBePresent = otherLocals
+        minimalShouldBePresentSet = Set.fromList (toOtherMember <$> minimalShouldBePresent)
     qcid <-
       assertConv
         rsp
         RegularConv
         alice
         qAlice
-        shouldBePresent
-        (Just nameMaxSize)
+        (otherLocals <> participatingRemotes)
+        (Just convName)
         Nothing
     let cid = qUnqualified qcid
     cvs <- mapM (convView qcid) [alice, alex, amy]
@@ -412,46 +493,48 @@ postConvWithRemoteUsersOk rbs = do
       mapM_ WS.assertSuccess
         =<< Async.mapConcurrently (checkWs qAlice) (zip cvs [wsAlice, wsAlex, wsAmy])
 
-    liftIO $
-      -- as many federated requests as remote backends, i.e., one per remote backend
-      Set.size (Set.fromList $ frTargetDomain <$> federatedRequests) @?= Set.size rbs
-    let fedReq = head federatedRequests
-    fedReqBody <- assertRight $ parseFedRequest fedReq
-
     liftIO $ do
-      length federatedRequests @?= Set.size rbs
+      let expectedReqs =
+            Set.fromList $
+              [ "on-conversation-created",
+                "on-conversation-updated"
+              ]
+       in assertBool "Some federated calls are missing" $
+            expectedReqs `Set.isSubsetOf` Set.fromList (frRPC <$> federatedRequests)
 
-      F.ccOrigUserId fedReqBody @?= alice
-      F.ccCnvId fedReqBody @?= cid
-      F.ccCnvType fedReqBody @?= RegularConv
-      F.ccCnvAccess fedReqBody @?= [InviteAccess]
-      F.ccCnvAccessRoles fedReqBody
+    -- assertions on the conversation.create event triggering federation request
+    let fedReqsCreated = filter (\r -> frRPC r == "on-conversation-created") federatedRequests
+    fedReqCreatedBodies <- for fedReqsCreated $ assertRight . parseFedRequest
+    forM_ fedReqCreatedBodies $ \fedReqCreatedBody -> liftIO $ do
+      F.ccOrigUserId fedReqCreatedBody @?= alice
+      F.ccCnvId fedReqCreatedBody @?= cid
+      F.ccCnvType fedReqCreatedBody @?= RegularConv
+      F.ccCnvAccess fedReqCreatedBody @?= [InviteAccess]
+      F.ccCnvAccessRoles fedReqCreatedBody
         @?= Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
-      F.ccCnvName fedReqBody @?= Just nameMaxSize
+      F.ccCnvName fedReqCreatedBody @?= Just convName
       assertBool "Notifying an incorrect set of conversation members" $
-        shouldBePresentSet `Set.isSubsetOf` F.ccNonCreatorMembers fedReqBody
-      F.ccMessageTimer fedReqBody @?= Nothing
-      F.ccReceiptMode fedReqBody @?= Nothing
+        minimalShouldBePresentSet `Set.isSubsetOf` F.ccNonCreatorMembers fedReqCreatedBody
+      F.ccMessageTimer fedReqCreatedBody @?= Nothing
+      F.ccReceiptMode fedReqCreatedBody @?= Nothing
 
-      fedBodies <- forM federatedRequests $ assertRight . parseFedRequest
-      assertBool "Not all request bodies are equal" (all (fedReqBody ==) fedBodies)
+    -- assertions on the conversation.member-join event triggering federation request
+    let fedReqsAdd = filter (\r -> frRPC r == "on-conversation-updated") federatedRequests
+    fedReqAddBodies <- for fedReqsAdd $ assertRight . parseFedRequest
+    forM_ fedReqAddBodies $ \fedReqAddBody -> liftIO $ do
+      F.cuOrigUserId fedReqAddBody @?= qAlice
+      F.cuConvId fedReqAddBody @?= cid
+      -- This remote backend must already have their users in the conversation,
+      -- otherwise they should not be receiving the conversation update message
+      assertBool "The list of already present users should be non-empty"
+        . not
+        . null
+        . F.cuAlreadyPresentUsers
+        $ fedReqAddBody
+      case F.cuAction fedReqAddBody of
+        SomeConversationAction SConversationJoinTag _action -> pure ()
+        _ -> assertFailure @() "Unexpected update action"
   where
-    mockUnreachable :: Set Domain -> Mock LByteString
-    mockUnreachable unreachable = do
-      r <- getRequest
-      if Set.member (frTargetDomain r) unreachable
-        then throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
-        else mockReply ()
-    connectBackend :: UserId -> Remote Backend -> TestM [Qualified UserId]
-    connectBackend usr (tDomain &&& bUsers . tUnqualified -> (d, c)) = do
-      users <- replicateM (fromIntegral c) (randomQualifiedId d)
-      mapM_ (connectWithRemoteUser usr) users
-      pure users
-    participating :: Remote Backend -> [a] -> [a]
-    participating rb users =
-      if rbReachable rb == BackendReachable
-        then users
-        else []
     toOtherMember qid = OtherMember qid Nothing roleNameWireAdmin
     convView cnv usr =
       responseJsonError =<< getConvQualified usr cnv <!! const 200 === statusCode
@@ -747,145 +830,6 @@ postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam = do
 
 -- @END
 
--- | Sets up a conversation on Backend A known as "owning backend". All user's
--- on this backend have names begining with 'A'. The conversation has a couple
--- of users from backend B and one user from backend C.
---
--- One of the users from Backend A will send the message, it is expected that
--- message will be sent successfully.
-postMessageQualifiedLocalOwningBackendSuccess :: TestM ()
-postMessageQualifiedLocalOwningBackendSuccess = do
-  -- WS receive timeout
-  let t = 5 # Second
-  -- Cannon for local users
-  cannon <- view tsCannon
-  -- Domain which owns the converstaion
-  owningDomain <- viewFederationDomain
-
-  (alice, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
-  (alex, alexClient) <- randomUserWithClientQualified (someLastPrekeys !! 1)
-  alexClient2 <- randomClient (qUnqualified alex) (someLastPrekeys !! 2)
-  (amy, amyClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
-
-  let bDomain = Domain "b.far-away.example.com"
-      cDomain = Domain "c.far-away.example.com"
-      randomQuidAndClients d n = (,) <$> randomQualifiedId d <*> liftIO (replicateM n $ generate arbitrary)
-  (bob, [bobClient]) <- randomQuidAndClients bDomain 1
-  (bart, [bartClient1, bartClient2]) <- randomQuidAndClients bDomain 2
-  (carl, [carlClient]) <- randomQuidAndClients cDomain 1
-
-  let aliceU = qUnqualified alice
-      alexU = qUnqualified alex
-      amyU = qUnqualified amy
-
-  connectLocalQualifiedUsers aliceU (list1 alex [amy])
-  forM_ [bob, bart, carl] $ connectWithRemoteUser aliceU
-
-  resp <-
-    postConvWithRemoteUsers
-      aliceU
-      Nothing
-      defNewProteusConv {newConvQualifiedUsers = [alex, amy, bob, bart, carl]}
-  let convId = (`Qualified` owningDomain) . decodeConvId $ resp
-
-  WS.bracketAsClientRN cannon [(alexU, alexClient), (alexU, alexClient2), (amyU, amyClient)] $ \[wsAlex1, wsAlex2, wsAmy] -> do
-    let message =
-          [ (alex, alexClient, "text-for-alex"),
-            (alex, alexClient2, "text-for-alex2"),
-            (amy, amyClient, "text-for-amy"),
-            (bob, bobClient, "text-for-bob"),
-            (bart, bartClient1, "text-for-bart1"),
-            (bart, bartClient2, "text-for-bart2"),
-            (carl, carlClient, "text-for-carl")
-          ]
-
-    let mkPubClient c = PubClient c Nothing
-        brigMock = do
-          guardRPC "get-user-clients"
-          d <- frTargetDomain <$> getRequest
-          asum
-            [ do
-                guard (d == bDomain)
-
-                mockReply $
-                  UserMap . Map.fromList $
-                    [ (qUnqualified bob, Set.singleton (mkPubClient bobClient)),
-                      (qUnqualified bart, Set.fromList (map mkPubClient [bartClient1, bartClient2]))
-                    ],
-              do
-                guard (d == cDomain)
-                mockReply $
-                  UserMap
-                    ( Map.singleton
-                        (qUnqualified carl)
-                        (Set.singleton (PubClient carlClient Nothing))
-                    )
-            ]
-        galleyMock = "on-message-sent" ~> ()
-
-    (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceU aliceClient convId message "data" Message.MismatchReportAll (brigMock <|> galleyMock)
-    pure resp2 !!! do
-      const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty mempty
-    let encodedTextForAlex1 = toBase64Text "text-for-alex"
-        encodedTextForAlex2 = toBase64Text "text-for-alex2"
-        encodedTextForAmy = toBase64Text "text-for-amy"
-        encodedTextForBob = toBase64Text "text-for-bob"
-        encodedTextForBart1 = toBase64Text "text-for-bart1"
-        encodedTextForBart2 = toBase64Text "text-for-bart2"
-        encodedTextForCarl = toBase64Text "text-for-carl"
-        encodedData = toBase64Text "data"
-    liftIO $ do
-      let matchReq domain component r = frTargetDomain r == domain && frComponent r == component
-          filterReq domain component = filter (matchReq domain component) requests
-      bBrigReq <- assertOne $ filterReq bDomain Brig
-      bGalleyReq <- assertOne $ filterReq bDomain Galley
-      cBrigReq <- assertOne $ filterReq cDomain Brig
-      cGalleyReq <- assertOne $ filterReq cDomain Galley
-
-      frRPC bBrigReq @?= "get-user-clients"
-      (sort . F.gucUsers <$> parseFedRequest bBrigReq) @?= Right (sort $ qUnqualified <$> [bob, bart])
-      frRPC cBrigReq @?= "get-user-clients"
-      parseFedRequest cBrigReq @?= Right (F.GetUserClients [qUnqualified carl])
-
-      frRPC bGalleyReq @?= "on-message-sent"
-      bActualNotif <- assertRight $ parseFedRequest bGalleyReq
-      let bExpectedNotif =
-            F.RemoteMessage
-              { rmTime = F.rmTime bActualNotif,
-                rmData = Just $ toBase64Text "data",
-                rmSender = alice,
-                rmSenderClient = aliceClient,
-                rmConversation = qUnqualified convId,
-                rmPriority = Nothing,
-                rmPush = True,
-                rmTransient = False,
-                rmRecipients =
-                  UserClientMap $
-                    Map.fromList
-                      [ (qUnqualified bob, Map.singleton bobClient encodedTextForBob),
-                        ( qUnqualified bart,
-                          Map.fromList
-                            [ (bartClient1, encodedTextForBart1),
-                              (bartClient2, encodedTextForBart2)
-                            ]
-                        )
-                      ]
-              }
-      bActualNotif @?= bExpectedNotif
-      frRPC cGalleyReq @?= "on-message-sent"
-      cActualNotif <- assertRight $ parseFedRequest cGalleyReq
-      let cExpectedNotif =
-            bExpectedNotif
-              { F.rmRecipients =
-                  UserClientMap $ Map.fromList [(qUnqualified carl, Map.singleton carlClient encodedTextForCarl)]
-              }
-      cActualNotif @?= cExpectedNotif
-
-      WS.assertMatch_ t wsAlex1 (wsAssertOtr' encodedData convId alice aliceClient alexClient encodedTextForAlex1)
-      WS.assertMatch_ t wsAlex2 (wsAssertOtr' encodedData convId alice aliceClient alexClient2 encodedTextForAlex2)
-      WS.assertMatch_ t wsAmy (wsAssertOtr' encodedData convId alice aliceClient amyClient encodedTextForAmy)
-
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 -- Sets up a conversation on Backend A known as "owning backend". One of the
 -- users from Backend A will send the message but have a missing client. It is
@@ -944,7 +888,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
                     Map.singleton (qUnqualified deeRemote) (Set.singleton deeClient)
                   )
                 ]
-      assertMismatchQualified mempty expectedMissing mempty mempty
+      assertMismatchQualified mempty expectedMissing mempty mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
 -- @END
@@ -1008,7 +952,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
                 | uid == nonMemberRemoteUnqualified = Just (uid, Set.fromList [PubClient nonMemberRemoteClient Nothing])
                 | otherwise = Nothing
           mockReply $ UserMap . Map.fromList . mapMaybe lookupClients $ F.gucUsers getUserClients
-        galleyMock = "on-message-sent" ~> ()
+        galleyMock = "on-message-sent" ~> EmptyResponse
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll (brigMock <|> galleyMock)
     pure resp2 !!! do
@@ -1029,7 +973,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
           expectedDeleted =
             QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClientNonExistent)]
-      assertMismatchQualified mempty mempty expectedRedundant expectedDeleted
+      assertMismatchQualified mempty mempty expectedRedundant expectedDeleted mempty
     liftIO $ do
       let encodedTextForBob = toBase64Text "text-for-bob"
           encodedTextForChad = toBase64Text "text-for-chad"
@@ -1090,7 +1034,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll mock
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty mempty
+      assertMismatchQualified mempty mempty mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -1101,7 +1045,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) mock
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty mempty
+      assertMismatchQualified mempty mempty mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -1120,7 +1064,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
         mock
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty mempty
+      assertMismatchQualified mempty mempty mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -1143,7 +1087,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
       let expectedMissing =
             QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClient2)]
-      assertMismatchQualified mempty expectedMissing mempty mempty
+      assertMismatchQualified mempty expectedMissing mempty mempty mempty
 
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
@@ -1163,7 +1107,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
       let expectedMissing =
             QualifiedUserClients . Map.singleton remoteDomain . Map.fromList $
               [(qUnqualified deeRemote, Set.singleton deeClient)]
-      assertMismatchQualified mempty expectedMissing mempty mempty
+      assertMismatchQualified mempty expectedMissing mempty mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
 -- @END
@@ -1219,17 +1163,8 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll mock
 
-    let expectedFailedToSend =
-          QualifiedUserClients . Map.fromList $
-            [ ( remoteDomain,
-                Map.fromList
-                  [ (deeId, Set.singleton deeClient)
-                  ]
-              )
-            ]
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified expectedFailedToSend mempty mempty mempty
 
     liftIO $ do
       let encodedTextForBob = toBase64Text "text-for-bob"
@@ -1238,102 +1173,48 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
       WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
       WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
 
--- This test is similar to postMessageQualifiedLocalOwningBackendFailedToSendClients
--- except that both of the calls to the federated server are failing.
-postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients :: TestM ()
-postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients = do
-  -- WS receive timeout
-  let t = 5 # Second
-  -- Cannon for local users
-  cannon <- view tsCannon
-  -- Domain which owns the converstaion
-  owningDomain <- viewFederationDomain
-
-  (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
-  (bobOwningDomain, bobClient) <- randomUserWithClientQualified (someLastPrekeys !! 1)
-  bobClient2 <- randomClient (qUnqualified bobOwningDomain) (someLastPrekeys !! 2)
-  (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
+postMessageQualifiedFailedToSendFetchingClients :: TestM ()
+postMessageQualifiedFailedToSendFetchingClients = do
+  (aliceQualified, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
+  bobId <- randomId
+  bobClient <- liftIO $ generate arbitrary
   deeId <- randomId
-  deeClient <- liftIO $ generate arbitrary
-  emilyId <- randomId
-  emilyClient <- liftIO $ generate arbitrary
-  let remoteDomain = Domain "far-away.example.com"
+  let remoteDomain = Domain "offline-unfortunately.example.com"
+      bobRemote = Qualified bobId remoteDomain
       deeRemote = Qualified deeId remoteDomain
-      remoteDomain2 = Domain "far-away2.example.com"
-      emilyRemote = Qualified emilyId remoteDomain2
-
-  let aliceUnqualified = qUnqualified aliceOwningDomain
-      bobUnqualified = qUnqualified bobOwningDomain
-      chadUnqualified = qUnqualified chadOwningDomain
-
-  connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
+      aliceUnqualified = qUnqualified aliceQualified
+  connectWithRemoteUser aliceUnqualified bobRemote
   connectWithRemoteUser aliceUnqualified deeRemote
-  connectWithRemoteUser aliceUnqualified emilyRemote
 
-  -- FUTUREWORK: Do this test with more than one remote domains
   resp <-
     postConvWithRemoteUsers
       aliceUnqualified
       Nothing
-      defNewProteusConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote, emilyRemote]}
+      defNewProteusConv {newConvQualifiedUsers = [bobRemote, deeRemote]}
+
+  owningDomain <- viewFederationDomain
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
+  -- dee is part of the conversation but missing from the recipient list of the request,
+  -- and we cannot fetch or verify their clients because the remote backend is unreachable.
+  -- Therefore we expect dee to be part of the `failed_to_send` list in the `resp2` below,
+  -- where a message is sent.
+  let message = [(bobRemote, bobClient, "text-for-bob")]
+  let mock =
+        (guardRPC "get-user-clients" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
+          <|> ("on-message-sent" ~> EmptyResponse)
 
-  WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    let message =
-          [ (bobOwningDomain, bobClient, "text-for-bob"),
-            (bobOwningDomain, bobClient2, "text-for-bob2"),
-            (chadOwningDomain, chadClient, "text-for-chad"),
-            (deeRemote, deeClient, "text-for-dee"),
-            (emilyRemote, emilyClient, "text-for-emily")
-          ]
+  (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll mock
 
-    let mock =
-          ( do
-              -- Dee is always unavailable,
-              -- Emily is paritally available
-              guardRPC "get-user-clients"
-              d <- frTargetDomain <$> getRequest
-              if d == remoteDomain
-                then throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
-                else mockReply $ UserMap (Map.singleton (qUnqualified emilyRemote) (Set.singleton (PubClient emilyClient Nothing)))
-          )
-            <|> ( guardRPC "on-message-sent"
-                    *> throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
-                )
-
-    (resp2, _requests) <-
-      withTempMockFederator' mock $
-        postProteusMessageQualified
-          aliceUnqualified
-          aliceClient
-          convId
-          message
-          "data"
-          Message.MismatchReportAll
-
-    let expectedFailedToSend =
-          QualifiedUserClients . Map.fromList $
-            [ ( remoteDomain,
-                Map.fromList
-                  [ (deeId, Set.singleton deeClient)
-                  ]
-              ),
-              ( remoteDomain2,
-                Map.fromList
-                  [ (emilyId, Set.singleton emilyClient)
-                  ]
-              )
+  let failedToSend = QualifiedUserClients $ Map.fromList [(qDomain deeRemote, Map.fromList [(qUnqualified deeRemote, mempty)])]
+      failedToConfirm =
+        QualifiedUserClients $
+          Map.fromList
+            [ (qDomain bobRemote, Map.fromList [(qUnqualified bobRemote, Set.fromList [bobClient]), (qUnqualified deeRemote, mempty)])
             ]
-    pure resp2 !!! do
-      const 201 === statusCode
-      assertMismatchQualified expectedFailedToSend mempty mempty mempty
 
-    liftIO $ do
-      let encodedTextForBob = toBase64Text "text-for-bob"
-          encodedTextForChad = toBase64Text "text-for-chad"
-          encodedData = toBase64Text "data"
-      WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
-      WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
+  pure resp2 !!! do
+    const 201 === statusCode
+    assertMismatchQualified failedToSend mempty mempty mempty failedToConfirm
 
 postMessageQualifiedRemoteOwningBackendFailure :: TestM ()
 postMessageQualifiedRemoteOwningBackendFailure = do
@@ -1379,7 +1260,8 @@ postMessageQualifiedRemoteOwningBackendSuccess = do
             Message.mssMissingClients = mempty,
             Message.mssRedundantClients = redundant,
             Message.mssDeletedClients = mempty,
-            Message.mssFailedToSend = mempty
+            Message.mssFailedToSend = mempty,
+            Message.mssFailedToConfirmClients = mempty
           }
       message = [(bobOwningDomain, bobClient, "text-for-bob"), (deeRemote, deeClient, "text-for-dee")]
       mock = "send-message" ~> F.MessageSendResponse (Right mss)
@@ -1388,7 +1270,7 @@ postMessageQualifiedRemoteOwningBackendSuccess = do
 
   pure resp2 !!! do
     const 201 === statusCode
-    assertMismatchQualified mempty mempty redundant mempty
+    assertMismatchQualified mempty mempty redundant mempty mempty
 
 postJoinConvOk :: TestM ()
 postJoinConvOk = do
@@ -1788,7 +1670,7 @@ testAccessUpdateGuestRemoved = do
   c <- view tsCannon
   WS.bracketRN c (map qUnqualified [alice, bob, charlie]) $ \[wsA, wsB, wsC] -> do
     -- conversation access role changes to team only
-    (_, reqs) <- withTempMockFederator' (mockReply ()) $ do
+    (_, reqs) <- withTempMockFederator' (mockReply EmptyResponse) $ do
       putQualifiedAccessUpdate
         (qUnqualified alice)
         (cnvQualifiedId conv)
@@ -1845,6 +1727,90 @@ testAccessUpdateGuestRemoved = do
   liftIO $ map omQualifiedId (cmOthers (cnvMembers conv2)) @?= [bob]
 
 -- @END
+
+testAccessUpdateGuestRemovedRemotesUnavailable :: TestM ()
+testAccessUpdateGuestRemovedRemotesUnavailable = do
+  -- alice, bob are in a team
+  (tid, alice, [bob]) <- createBindingTeamWithQualifiedMembers 2
+
+  -- charlie is a local guest
+  charlie <- randomQualifiedUser
+  connectUsers (qUnqualified alice) (pure (qUnqualified charlie))
+
+  -- dee is a remote guest
+  let remoteDomain = Domain "far-away.example.com"
+  dee <- Qualified <$> randomId <*> pure remoteDomain
+
+  connectWithRemoteUser (qUnqualified alice) dee
+
+  -- they are all in a local conversation
+  conv <-
+    responseJsonError
+      =<< postConvWithRemoteUsers
+        (qUnqualified alice)
+        Nothing
+        defNewProteusConv
+          { newConvQualifiedUsers = [bob, charlie, dee],
+            newConvTeam = Just (ConvTeamInfo tid)
+          }
+        <!! const 201 === statusCode
+
+  c <- view tsCannon
+  WS.bracketRN c (map qUnqualified [alice, bob, charlie]) $ \[wsA, wsB, wsC] -> do
+    -- conversation access role changes to team only
+    (_, reqs) <- withTempMockFederator' (throw $ MockErrorResponse HTTP.status503 "Down for maintenance") $ do
+      -- This request should still succeed even with an unresponsive federation member.
+      putQualifiedAccessUpdate
+        (qUnqualified alice)
+        (cnvQualifiedId conv)
+        (ConversationAccessData mempty (Set.fromList [TeamMemberAccessRole]))
+        !!! const 200 === statusCode
+      -- charlie and dee are kicked out
+      --
+      -- note that removing users happens asynchronously, so this check should
+      -- happen while the mock federator is still available
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
+        wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie]
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
+        wsAssertMembersLeave (cnvQualifiedId conv) alice [dee]
+
+    let compareLists [] ys = [] @?= ys
+        compareLists (x : xs) ys = case break (== x) ys of
+          (ys1, _ : ys2) -> compareLists xs (ys1 <> ys2)
+          _ -> assertFailure $ "Could not find " <> show x <> " in " <> show ys
+    liftIO $
+      compareLists
+        ( map
+            ( \fr -> do
+                cu <- eitherDecode (frBody fr)
+                pure (F.cuOrigUserId cu, F.cuAction cu)
+            )
+            ( filter
+                ( \fr ->
+                    frComponent fr == Galley
+                      && frRPC fr == "on-conversation-updated"
+                )
+                reqs
+            )
+        )
+        [ Right (alice, SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure charlie)),
+          Right (alice, SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure dee)),
+          Right
+            ( alice,
+              SomeConversationAction
+                (sing @'ConversationAccessDataTag)
+                ConversationAccessData
+                  { cupAccess = mempty,
+                    cupAccessRoles = Set.fromList [TeamMemberAccessRole]
+                  }
+            )
+        ]
+  -- only alice and bob remain
+  conv2 <-
+    responseJsonError
+      =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
+        <!! const 200 === statusCode
+  liftIO $ map omQualifiedId (cmOthers (cnvMembers conv2)) @?= [bob]
 
 testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved :: TestM ()
 testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved = do
@@ -2105,7 +2071,7 @@ paginateConvListIds = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
-    runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
+    void $ runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -2121,7 +2087,7 @@ paginateConvListIds = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
-    runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
+    void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
   -- 1 Proteus self conv + 1 MLS self conv + 2 convs with bob and eve + 196
   -- local convs + 25 convs on chad.example.com + 31 on dee.example = 256 convs.
@@ -2166,7 +2132,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
-    runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
+    void $ runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -2184,7 +2150,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               F.cuAlreadyPresentUsers = [],
               F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
-    runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
+    void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
   foldM_ (getChunkedConvs 16 0 alice) Nothing [4, 3, 2, 1, 0 :: Int]
 
@@ -2325,67 +2291,61 @@ postConvQualifiedNoConnection :: TestM ()
 postConvQualifiedNoConnection = do
   alice <- randomUser
   bob <- flip Qualified (Domain "far-away.example.com") <$> randomId
-  postConvQualified alice Nothing defNewProteusConv {newConvQualifiedUsers = [bob]}
-    !!! const 403 === statusCode
+  void $ withTempMockFederator' getNotFullyConnectedBackendsMock $ do
+    postConvQualified alice Nothing defNewProteusConv {newConvQualifiedUsers = [bob]}
+      !!! const 403 === statusCode
 
 postTeamConvQualifiedNoConnection :: TestM ()
 postTeamConvQualifiedNoConnection = do
   (tid, alice, _) <- createBindingTeamWithQualifiedMembers 1
   bob <- randomQualifiedId (Domain "bob.example.com")
   charlie <- randomQualifiedUser
-  postConvQualified
-    (qUnqualified alice)
-    Nothing
-    defNewProteusConv
-      { newConvQualifiedUsers = [bob],
-        newConvTeam = Just (ConvTeamInfo tid)
-      }
-    !!! const 403 === statusCode
-  postConvQualified
-    (qUnqualified alice)
-    Nothing
-    defNewProteusConv
-      { newConvQualifiedUsers = [charlie],
-        newConvTeam = Just (ConvTeamInfo tid)
-      }
-    !!! const 403 === statusCode
+  void $ withTempMockFederator' getNotFullyConnectedBackendsMock $ do
+    postConvQualified
+      (qUnqualified alice)
+      Nothing
+      defNewProteusConv
+        { newConvQualifiedUsers = [bob],
+          newConvTeam = Just (ConvTeamInfo tid)
+        }
+      !!! const 403 === statusCode
+    postConvQualified
+      (qUnqualified alice)
+      Nothing
+      defNewProteusConv
+        { newConvQualifiedUsers = [charlie],
+          newConvTeam = Just (ConvTeamInfo tid)
+        }
+      !!! const 403 === statusCode
 
 postConvQualifiedNonExistentDomain :: TestM ()
 postConvQualifiedNonExistentDomain = do
   let remoteDomain = Domain "non-existent.example.com"
-  (uAlice, alice) <- randomUserTuple
+  alice <- randomUser
   uBob <- randomId
   let bob = Qualified uBob remoteDomain
-  connectWithRemoteUser uAlice bob
-  createdConv <-
-    responseJsonError
-      =<< postConvQualified
-        uAlice
-        Nothing
-        defNewProteusConv {newConvQualifiedUsers = [bob]}
-        <!! do
-          const 201 === statusCode
-  let members = cnvMembers . cgcConversation $ createdConv
-  liftIO $ do
-    assertEqual
-      "A remote domain was supposed to be unavailable"
-      (Map.singleton remoteDomain (Set.singleton uBob))
-      (cgcFailedToAdd createdConv)
-    assertEqual
-      "Only Alice should have been in the conversation"
-      []
-      (fmap omQualifiedId . cmOthers $ members)
-    assertEqual
-      "Alice is not her self in the conversation"
-      alice
-      (memId . cmSelf $ members)
+  connectWithRemoteUser alice bob
+  let mock = "get-not-fully-connected-backends" ~> NonConnectedBackends mempty
+  void $
+    withTempMockFederator'
+      mock
+      ( do
+          postConvQualified
+            alice
+            Nothing
+            defNewProteusConv {newConvQualifiedUsers = [bob]}
+            !!! do const 503 === statusCode
+      )
 
 postConvQualifiedFederationNotEnabled :: TestM ()
 postConvQualifiedFederationNotEnabled = do
   alice <- randomUser
   bob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
   connectWithRemoteUser alice bob
-  let federatorNotConfigured = optFederator .~ Nothing
+  let federatorNotConfigured o =
+        o
+          & optFederator .~ Nothing
+          & optRabbitmq .~ Nothing
   withSettingsOverrides federatorNotConfigured $ do
     g <- viewGalley
     postConvHelper g alice [bob] !!! do
@@ -2654,7 +2614,7 @@ testAddRemoteMember = do
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   let qconvId = Qualified convId localDomain
 
-  postQualifiedMembers alice (remoteBob :| []) convId !!! do
+  postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
     const 403 === statusCode
     const (Right (Just "not-connected")) === fmap (view (at "label")) . responseJsonEither @Object
 
@@ -2662,11 +2622,11 @@ testAddRemoteMember = do
 
   (resp, reqs) <-
     withTempMockFederator' (respond remoteBob) $
-      postQualifiedMembers alice (remoteBob :| []) convId
+      postQualifiedMembers alice (remoteBob :| []) qconvId
         <!! const 200 === statusCode
   liftIO $ do
     map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
-    map frRPC reqs @?= ["on-new-remote-conversation", "on-conversation-updated"]
+    map frRPC reqs @?= ["get-not-fully-connected-backends", "on-conversation-updated"]
 
   let e = responseJsonUnsafe resp
   let bobMember = SimpleMember remoteBob roleNameWireAdmin
@@ -2684,9 +2644,7 @@ testAddRemoteMember = do
     respond :: Qualified UserId -> Mock LByteString
     respond bob =
       asum
-        [ guardComponent Brig *> mockReply [mkProfile bob (Name "bob")],
-          "on-new-remote-conversation" ~> EmptyResponse,
-          "on-conversation-updated" ~> ()
+        [ getNotFullyConnectedBackendsMock <|> guardComponent Brig *> mockReply [mkProfile bob (Name "bob")]
         ]
 
 testDeleteTeamConversationWithRemoteMembers :: TestM ()
@@ -2700,15 +2658,13 @@ testDeleteTeamConversationWithRemoteMembers = do
       remoteBob = Qualified bobId remoteDomain
 
   convId <- decodeConvId <$> postTeamConv tid alice [] (Just "remote gossip") [] Nothing Nothing
-  let _qconvId = Qualified convId localDomain
+  let qconvId = Qualified convId localDomain
 
   connectWithRemoteUser alice remoteBob
 
-  let mock =
-        ("on-new-remote-conversation" ~> EmptyResponse)
-          <|> ("on-conversation-updated" ~> ())
+  let mock = getNotFullyConnectedBackendsMock <|> "api-version" ~> EmptyResponse
   (_, received) <- withTempMockFederator' mock $ do
-    postQualifiedMembers alice (remoteBob :| []) convId
+    postQualifiedMembers alice (remoteBob :| []) qconvId
       !!! const 200 === statusCode
 
     deleteTeamConv tid convId alice
@@ -2734,20 +2690,22 @@ testDeleteTeamConversationWithUnavailableRemoteMembers = do
       remoteBob = Qualified bobId remoteDomain
 
   convId <- decodeConvId <$> postTeamConv tid alice [] (Just "remote gossip") [] Nothing Nothing
+  let qconvId = Qualified convId localDomain
 
   connectWithRemoteUser alice remoteBob
 
   let mock =
-        ("on-new-remote-conversation" ~> EmptyResponse)
+        getNotFullyConnectedBackendsMock
+          <|>
           -- Mock an unavailable federation server for the deletion call
-          <|> (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
+          (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
           <|> (guardRPC "delete-team-conversation" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
   (_, received) <- withTempMockFederator' mock $ do
-    postQualifiedMembers alice (remoteBob :| []) convId
-      !!! const 503 === statusCode
+    postQualifiedMembers alice (remoteBob :| []) qconvId
+      !!! const 200 === statusCode
 
     deleteTeamConv tid convId alice
-      !!! const 503 === statusCode
+      !!! const 200 === statusCode
   liftIO $ do
     let convUpdates = mapMaybe (eitherToMaybe . parseFedRequest) received
     convUpdate <- case filter ((== SomeConversationAction (sing @'ConversationDeleteTag) ()) . cuAction) convUpdates of
@@ -2964,16 +2922,16 @@ testAddRemoteMemberInvalidDomain = do
   bobId <- randomId
   let remoteBob = Qualified bobId (Domain "invalid.example.com")
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  localDomain <- viewFederationDomain
+  let qconvId = Qualified convId localDomain
 
   connectWithRemoteUser alice remoteBob
 
-  postQualifiedMembers alice (remoteBob :| []) convId
+  postQualifiedMembers alice (remoteBob :| []) qconvId
     !!! do
       const 422 === statusCode
-      const (Just "/federation/api-version")
-        === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
-      const (Just "invalid.example.com")
-        === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
+      const (Just (Array (V.fromList ["invalid.example.com"])))
+        === preview (ix "data" . ix "domains") . responseJsonUnsafe @Value
 
 -- This test is a safeguard to ensure adding remote members will fail
 -- on environments where federation isn't configured (such as our production as of May 2021)
@@ -2982,14 +2940,16 @@ testAddRemoteMemberFederationDisabled = do
   alice <- randomUser
   remoteBob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
   qconvId <- decodeQualifiedConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  let convId = qUnqualified qconvId
   connectWithRemoteUser alice remoteBob
 
   -- federator endpoint not configured is equivalent to federation being disabled
   -- This is the case on staging/production in May 2021.
-  let federatorNotConfigured = optFederator .~ Nothing
+  let federatorNotConfigured o =
+        o
+          & optFederator .~ Nothing
+          & optRabbitmq .~ Nothing
   withSettingsOverrides federatorNotConfigured $
-    postQualifiedMembers alice (remoteBob :| []) convId !!! do
+    postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
       const 400 === statusCode
       const (Right "federation-not-enabled") === fmap label . responseJsonEither
 
@@ -3002,7 +2962,6 @@ testAddRemoteMemberFederationUnavailable = do
   alice <- randomUser
   remoteBob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
   qconvId <- decodeQualifiedConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  let convId = qUnqualified qconvId
   connectWithRemoteUser alice remoteBob
 
   -- federator endpoint being configured in brig and/or galley, but not being
@@ -3011,14 +2970,13 @@ testAddRemoteMemberFederationUnavailable = do
   -- Port 1 should always be wrong hopefully.
   let federatorUnavailable = optFederator ?~ Endpoint "127.0.0.1" 1
   withSettingsOverrides federatorUnavailable $
-    postQualifiedMembers alice (remoteBob :| []) convId !!! do
+    postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
       const 500 === statusCode
       const (Right "federation-not-available") === fmap label . responseJsonEither
 
-  -- in this case, we discover that federation is unavailable too late, and the
-  -- member has already been added to the conversation
+  -- since on member add the check of connection between remote backends will fail, the member is not actually added to the conversation
   conv <- responseJsonError =<< getConvQualified alice qconvId <!! const 200 === statusCode
-  liftIO $ map omQualifiedId (cmOthers (cnvMembers conv)) @?= [remoteBob]
+  liftIO $ map omQualifiedId (cmOthers (cnvMembers conv)) @?= []
 
 postMembersOk :: TestM ()
 postMembersOk = do
@@ -3189,7 +3147,7 @@ deleteLocalMemberConvLocalQualifiedOk = do
 
   let mockReturnEve =
         mockedFederatedBrigResponse [(qEve, "Eve")]
-          <|> mockReply ()
+          <|> mockReply EmptyResponse
   (respDel, fedRequests) <-
     withTempMockFederator' mockReturnEve $
       deleteMemberQualified alice qBob qconvId
@@ -3236,7 +3194,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
               *> mockReply [mkProfile qEve (Name "Eve")]
           ]
   (convId, _) <-
-    withTempMockFederator' (mockedResponse <|> mockReply ()) $
+    withTempMockFederator' (getNotFullyConnectedBackendsMock <|> mockedResponse <|> mockReply EmptyResponse) $
       fmap decodeConvId $
         postConvQualified
           alice
@@ -3246,7 +3204,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
   let qconvId = Qualified convId localDomain
 
   (respDel, federatedRequests) <-
-    withTempMockFederator' (mockedResponse <|> mockReply ()) $
+    withTempMockFederator' (getNotFullyConnectedBackendsMock <|> mockedResponse <|> mockReply EmptyResponse) $
       deleteMemberQualified alice qChad qconvId
   liftIO $ do
     statusCode respDel @?= 200
@@ -3283,38 +3241,43 @@ deleteUnavailableRemoteMemberConvLocalQualifiedOk = do
   connectUsers alice (singleton bob)
   mapM_ (connectWithRemoteUser alice) [qChad, qDee, qEve]
 
-  let mockedGetUsers = do
+  let mockedGetUsers remote2Response = do
         guardRPC "get-users-by-ids"
         d <- frTargetDomain <$> getRequest
         asum
           [ guard (d == remoteDomain1)
               *> mockReply [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")],
             guard (d == remoteDomain2)
-              *> throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
+              *> remote2Response
           ]
+      mockedCreateConvGetUsers =
+        mockedGetUsers (mockReply [mkProfile qEve (Name "Eve")])
+      mockedRemMemGetUsers =
+        mockedGetUsers (throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
       mockedOther = do
         d <- frTargetDomain <$> getRequest
         asum
           [ guard (d == remoteDomain1)
-              *> mockReply (),
+              *> mockReply EmptyResponse,
             guard (d == remoteDomain2)
               *> asum
-                [ guardRPC "on-conversation-created" *> mockReply (),
+                [ guardRPC "on-conversation-created" *> mockReply EmptyResponse,
+                  guardRPC "on-conversation-updated" *> mockReply EmptyResponse,
                   throw $ MockErrorResponse HTTP.status503 "Down for maintenance."
                 ]
           ]
-  (convId, _) <-
-    withTempMockFederator' (mockedGetUsers <|> mockedOther) $
-      fmap decodeConvId $
-        postConvQualified
-          alice
-          Nothing
-          defNewProteusConv {newConvQualifiedUsers = [qBob, qChad, qDee, qEve]}
-          <!! const 201 === statusCode
+  convId <-
+    fmap decodeConvId $
+      postConvWithRemoteUsersGeneric
+        (mockedCreateConvGetUsers <|> mockedOther)
+        alice
+        Nothing
+        defNewProteusConv {newConvQualifiedUsers = [qBob, qChad, qDee, qEve]}
+        <!! const 201 === statusCode
   let qconvId = Qualified convId localDomain
 
   (respDel, federatedRequests) <-
-    withTempMockFederator' (mockedGetUsers <|> mockedOther) $
+    withTempMockFederator' (mockedRemMemGetUsers <|> mockedOther) $
       deleteMemberQualified alice qChad qconvId
   liftIO $ do
     statusCode respDel @?= 200
@@ -3348,7 +3311,7 @@ leaveRemoteConvQualifiedOk = do
       qBob = Qualified bob remoteDomain
   let mockedFederatedGalleyResponse = do
         guardComponent Galley
-        mockReply (F.LeaveConversationResponse (Right ()))
+        mockReply (F.LeaveConversationResponse (Right mempty))
       mockResponses =
         mockedFederatedBrigResponse [(qBob, "Bob")]
           <|> mockedFederatedGalleyResponse
@@ -3517,7 +3480,47 @@ putQualifiedConvRenameWithRemotesOk = do
 
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator' (mockReply ()) $
+      withTempMockFederator' (mockReply EmptyResponse) $
+        putQualifiedConversationName bob qconv "gossip++" !!! const 200 === statusCode
+
+    req <- assertOne requests
+    liftIO $ do
+      frTargetDomain req @?= remoteDomain
+      frComponent req @?= Galley
+      frRPC req @?= "on-conversation-updated"
+      Right cu <- pure . eitherDecode . frBody $ req
+      F.cuConvId cu @?= qUnqualified qconv
+      F.cuAction cu @?= SomeConversationAction (sing @'ConversationRenameTag) (ConversationRename "gossip++")
+
+    void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= ConvRename
+      evtFrom e @?= qbob
+      evtData e @?= EdConvRename (ConversationRename "gossip++")
+
+putQualifiedConvRenameWithRemotesUnavailable :: TestM ()
+putQualifiedConvRenameWithRemotesUnavailable = do
+  c <- view tsCannon
+  let remoteDomain = Domain "alice.example.com"
+  qalice <- Qualified <$> randomId <*> pure remoteDomain
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+
+  connectWithRemoteUser bob qalice
+
+  resp <-
+    postConvWithRemoteUsers
+      bob
+      Nothing
+      defNewProteusConv {newConvQualifiedUsers = [qalice]}
+      <!! const 201 === statusCode
+  let qconv = decodeQualifiedConvId resp
+
+  WS.bracketR c bob $ \wsB -> do
+    (_, requests) <-
+      withTempMockFederator' (throw $ MockErrorResponse HTTP.status503 "Down for maintenance") $
         putQualifiedConversationName bob qconv "gossip++" !!! const 200 === statusCode
 
     req <- assertOne requests
@@ -3788,7 +3791,7 @@ putRemoteConvMemberOk update = do
             cuAction =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
-  runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
+  void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
 
   -- Expected member state
   let memberAlice =
@@ -3933,7 +3936,7 @@ putRemoteReceiptModeOk = do
             cuAction =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireAdmin)
           }
-  runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAlice
+  void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAlice
 
   -- add another user adam as member
   qadam <- randomQualifiedUser
@@ -3948,7 +3951,7 @@ putRemoteReceiptModeOk = do
             cuAction =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qadam) roleNameWireMember)
           }
-  runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAdam
+  void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAdam
 
   let newReceiptMode = ReceiptMode 42
   let action = ConversationReceiptModeUpdate newReceiptMode
@@ -4002,7 +4005,49 @@ putReceiptModeWithRemotesOk = do
 
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator' (mockReply ()) $
+      withTempMockFederator' (mockReply EmptyResponse) $
+        putQualifiedReceiptMode bob qconv (ReceiptMode 43) !!! const 200 === statusCode
+
+    req <- assertOne requests
+    liftIO $ do
+      frTargetDomain req @?= remoteDomain
+      frComponent req @?= Galley
+      frRPC req @?= "on-conversation-updated"
+      Right cu <- pure . eitherDecode . frBody $ req
+      F.cuConvId cu @?= qUnqualified qconv
+      F.cuAction cu
+        @?= SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) (ConversationReceiptModeUpdate (ReceiptMode 43))
+
+    void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= ConvReceiptModeUpdate
+      evtFrom e @?= qbob
+      evtData e
+        @?= EdConvReceiptModeUpdate
+          (ConversationReceiptModeUpdate (ReceiptMode 43))
+
+putReceiptModeWithRemotesUnavailable :: TestM ()
+putReceiptModeWithRemotesUnavailable = do
+  c <- view tsCannon
+  let remoteDomain = Domain "alice.example.com"
+  qalice <- Qualified <$> randomId <*> pure remoteDomain
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+
+  connectWithRemoteUser bob qalice
+
+  resp <-
+    postConvWithRemoteUsers
+      bob
+      Nothing
+      defNewProteusConv {newConvQualifiedUsers = [qalice]}
+  let qconv = decodeQualifiedConvId resp
+
+  WS.bracketR c bob $ \wsB -> do
+    (_, requests) <-
+      withTempMockFederator' (throw $ MockErrorResponse HTTP.status503 "Down for maintenance") $
         putQualifiedReceiptMode bob qconv (ReceiptMode 43) !!! const 200 === statusCode
 
     req <- assertOne requests
@@ -4222,10 +4267,10 @@ removeUser = do
             F.ccReceiptMode = Nothing,
             F.ccProtocol = ProtocolProteus
           }
-  runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB1 bart [alice, alexDel]
-  runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB2 bart [alexDel]
-  runFedClient @"on-conversation-created" fedGalleyClient cDomain $ nc convC1 carl [alexDel]
-  runFedClient @"on-conversation-created" fedGalleyClient dDomain $ nc convD1 dory [alexDel]
+  void $ runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB1 bart [alice, alexDel]
+  void $ runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB2 bart [alexDel]
+  void $ runFedClient @"on-conversation-created" fedGalleyClient cDomain $ nc convC1 carl [alexDel]
+  void $ runFedClient @"on-conversation-created" fedGalleyClient dDomain $ nc convD1 dory [alexDel]
 
   WS.bracketR3 c alice' alexDel' amy' $ \(wsAlice, wsAlexDel, wsAmy) -> do
     let handler = do
@@ -4236,41 +4281,14 @@ removeUser = do
                 throw (DiscoveryFailureSrvNotAvailable "dDomain"),
               do
                 guard (d `elem` [bDomain, cDomain])
-                asum
-                  [ "leave-conversation" ~> F.LeaveConversationResponse (Right ()),
-                    "on-conversation-updated" ~> ()
-                  ]
+                "leave-conversation" ~> F.LeaveConversationResponse (Right mempty)
             ]
     (_, fedRequests) <-
       withTempMockFederator' handler $
         deleteUser alexDel' !!! const 200 === statusCode
 
     liftIO $ do
-      assertEqual ("expect exactly 7 federated requests in : " <> show fedRequests) 7 (length fedRequests)
-
-    liftIO $ do
-      bReq <- assertOne $ filter (matchFedRequest bDomain "on-user-deleted-conversations") fedRequests
-      frComponent bReq @?= Galley
-      frRPC bReq @?= "on-user-deleted-conversations"
-      Right udcnB <- pure . eitherDecode . frBody $ bReq
-      sort (fromRange (F.udcvConversations udcnB)) @?= sort [convB1, convB2]
-      F.udcvUser udcnB @?= qUnqualified alexDel
-
-    liftIO $ do
-      cReq <- assertOne $ filter (matchFedRequest cDomain "on-user-deleted-conversations") fedRequests
-      frComponent cReq @?= Galley
-      frRPC cReq @?= "on-user-deleted-conversations"
-      Right udcnC <- pure . eitherDecode . frBody $ cReq
-      sort (fromRange (F.udcvConversations udcnC)) @?= sort [convC1]
-      F.udcvUser udcnC @?= qUnqualified alexDel
-
-    liftIO $ do
-      dReq <- assertOne $ filter (matchFedRequest dDomain "on-user-deleted-conversations") fedRequests
-      frComponent dReq @?= Galley
-      frRPC dReq @?= "on-user-deleted-conversations"
-      Right udcnD <- pure . eitherDecode . frBody $ dReq
-      sort (fromRange (F.udcvConversations udcnD)) @?= sort [convD1]
-      F.udcvUser udcnD @?= qUnqualified alexDel
+      assertEqual ("expect exactly 4 federated requests in : " <> show fedRequests) 4 (length fedRequests)
 
     liftIO $ do
       WS.assertMatchN_ (5 # Second) [wsAlice, wsAlexDel] $
@@ -4386,3 +4404,79 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
             pure $ statusCode resp == 200
           liftIO $ found @?= ((actor, desired) == (LocalActor, Included))
       )
+
+-- Testing defederation notifications. The important thing to note for all
+-- of this is that when defederating from a remote domain only _2_ notifications
+-- are sent, and both are identical. One notification is at the start of
+-- defederation, and one is sent at the end of defederation. No other
+-- notifications about users being removed from conversations, or conversations
+-- being deleted are sent. We are do not want to DOS either our local clients,
+-- nor our own services.
+testDefederationNotifications :: TestM ()
+testDefederationNotifications = do
+  -- alice, bob are in a team
+  (tid, alice, [bob]) <- createBindingTeamWithQualifiedMembers 2
+
+  -- charlie is a local guest
+  charlie <- randomQualifiedUser
+  connectUsers (qUnqualified alice) (pure (qUnqualified charlie))
+
+  let remoteDomain = Domain "far-away.example.com"
+      -- This variable should be commented out if the below
+      -- section is used to insert users to the database.
+      users = []
+  -- This section of code is useful to massively increase
+  -- the amount of users in the testing database. This is
+  -- useful for checking that notifications are being fanned
+  -- out correctly, and that all users are sent a
+  -- notification. If the database already has a large
+  -- amount of users then this can be left out and will also
+  -- allow this test to run faster.
+  --     count = 10000
+  -- users <- replicateM count randomQualifiedUser
+  -- replicateM_ count $ do
+  --   connectWithRemoteUser (qUnqualified alice) =<<
+  --     Qualified <$> randomId <*> pure remoteDomain
+
+  -- dee is a remote guest
+  dee <- Qualified <$> randomId <*> pure remoteDomain
+
+  connectWithRemoteUser (qUnqualified alice) dee
+
+  -- they are all in a local conversation
+  conv <-
+    responseJsonError
+      =<< postConvWithRemoteUsers
+        (qUnqualified alice)
+        Nothing
+        defNewProteusConv
+          { newConvQualifiedUsers = [bob, charlie, dee],
+            newConvTeam = Just (ConvTeamInfo tid)
+          }
+        <!! const 201 === statusCode
+
+  c <- view tsCannon
+  WS.bracketRN c (map qUnqualified $ [alice, bob, charlie, dee] <> users) $ \(wsA : wsB : wsC : wsD : wsUsers) -> do
+    -- conversation access role changes to team only
+    (_, reqs) <- withTempMockFederator' (mockReply ()) $ do
+      -- Delete the domain that Dee lives on
+      deleteFederation remoteDomain !!! const 200 === statusCode
+      -- First notification to local clients
+      WS.assertMatchN_ (5 # Second) ([wsA, wsB, wsC] <> wsUsers) $
+        wsAssertFederationDeleted remoteDomain
+      -- Second notification to local clients
+      WS.assertMatchN_ (5 # Second) ([wsA, wsB, wsC] <> wsUsers) $
+        wsAssertFederationDeleted remoteDomain
+      -- dee's remote doesn't receive a notification
+      WS.assertNoEvent (5 # Second) [wsD]
+    -- There should be not requests out to the federtaion domain
+    liftIO $ reqs @?= []
+
+  -- only alice, bob, and charlie remain
+  conv2 <-
+    responseJsonError
+      =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
+        <!! const 200 === statusCode
+  liftIO $ sort (omQualifiedId <$> cmOthers (cnvMembers conv2)) @?= sort [bob, charlie]
+
+-- @END

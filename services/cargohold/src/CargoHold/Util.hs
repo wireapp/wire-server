@@ -26,10 +26,10 @@ import Data.ByteString.Conversion
 import Imports
 import URI.ByteString hiding (urlEncode)
 
-genSignedURL :: (ToByteString p) => p -> Handler URI
-genSignedURL path = do
+genSignedURL :: (ToByteString p) => p -> Maybe Text -> Handler URI
+genSignedURL path mbHost = do
   uri <-
     view (aws . cloudFront) >>= \case
-      Nothing -> S3.signedURL path
+      Nothing -> S3.signedURL path mbHost
       Just cf -> CloudFront.signedURL cf path
   pure $! uri

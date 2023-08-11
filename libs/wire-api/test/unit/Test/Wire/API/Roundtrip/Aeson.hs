@@ -22,57 +22,59 @@ import Data.Aeson.Types (parseEither)
 import Data.Id (ConvId)
 import Data.Swagger (ToSchema, validatePrettyToJSON)
 import Imports
-import qualified Test.Tasty as T
+import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
-import qualified Wire.API.Asset as Asset
-import qualified Wire.API.Call.Config as Call.Config
-import qualified Wire.API.Connection as Connection
-import qualified Wire.API.Conversation as Conversation
-import qualified Wire.API.Conversation.Action as Conversation.Action
-import qualified Wire.API.Conversation.Bot as Conversation.Bot
-import qualified Wire.API.Conversation.Code as Conversation.Code
-import qualified Wire.API.Conversation.Member as Conversation.Member
-import qualified Wire.API.Conversation.Role as Conversation.Role
-import qualified Wire.API.Conversation.Typing as Conversation.Typing
-import qualified Wire.API.CustomBackend as CustomBackend
-import qualified Wire.API.Event.Conversation as Event.Conversation
-import qualified Wire.API.Event.Team as Event.Team
-import qualified Wire.API.Message as Message
-import qualified Wire.API.OAuth as OAuth
-import qualified Wire.API.Properties as Properties
-import qualified Wire.API.Provider as Provider
-import qualified Wire.API.Provider.Bot as Provider.Bot
-import qualified Wire.API.Provider.External as Provider.External
-import qualified Wire.API.Provider.Service as Provider.Service
-import qualified Wire.API.Provider.Service.Tag as Provider.Service.Tag
-import qualified Wire.API.Push.Token as Push.Token
-import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as TeamsIntra
-import qualified Wire.API.Routes.Version as Routes.Version
-import qualified Wire.API.SystemSettings as SystemSettings
-import qualified Wire.API.Team as Team
-import qualified Wire.API.Team.Conversation as Team.Conversation
-import qualified Wire.API.Team.Feature as Team.Feature
-import qualified Wire.API.Team.Invitation as Team.Invitation
-import qualified Wire.API.Team.LegalHold as Team.LegalHold
-import qualified Wire.API.Team.LegalHold.External as Team.LegalHold.External
-import qualified Wire.API.Team.Member as Team.Member
-import qualified Wire.API.Team.Permission as Team.Permission
-import qualified Wire.API.Team.Role as Team.Role
-import qualified Wire.API.Team.SearchVisibility as Team.SearchVisibility
-import qualified Wire.API.User as User
-import qualified Wire.API.User.Activation as User.Activation
-import qualified Wire.API.User.Auth as User.Auth
-import qualified Wire.API.User.Client as User.Client
-import qualified Wire.API.User.Client.Prekey as User.Client.Prekey
-import qualified Wire.API.User.Handle as User.Handle
-import qualified Wire.API.User.Identity as User.Identity
-import qualified Wire.API.User.Password as User.Password
-import qualified Wire.API.User.Profile as User.Profile
-import qualified Wire.API.User.RichInfo as User.RichInfo
-import qualified Wire.API.User.Scim as Scim
-import qualified Wire.API.User.Search as User.Search
-import qualified Wire.API.Wrapped as Wrapped
+import Wire.API.Asset qualified as Asset
+import Wire.API.Call.Config qualified as Call.Config
+import Wire.API.Connection qualified as Connection
+import Wire.API.Conversation qualified as Conversation
+import Wire.API.Conversation.Action qualified as Conversation.Action
+import Wire.API.Conversation.Bot qualified as Conversation.Bot
+import Wire.API.Conversation.Code qualified as Conversation.Code
+import Wire.API.Conversation.Member qualified as Conversation.Member
+import Wire.API.Conversation.Role qualified as Conversation.Role
+import Wire.API.Conversation.Typing qualified as Conversation.Typing
+import Wire.API.CustomBackend qualified as CustomBackend
+import Wire.API.Event.Conversation qualified as Event.Conversation
+import Wire.API.Event.Team qualified as Event.Team
+import Wire.API.FederationStatus qualified as FederationStatus
+import Wire.API.Message qualified as Message
+import Wire.API.OAuth qualified as OAuth
+import Wire.API.Properties qualified as Properties
+import Wire.API.Provider qualified as Provider
+import Wire.API.Provider.Bot qualified as Provider.Bot
+import Wire.API.Provider.External qualified as Provider.External
+import Wire.API.Provider.Service qualified as Provider.Service
+import Wire.API.Provider.Service.Tag qualified as Provider.Service.Tag
+import Wire.API.Push.Token qualified as Push.Token
+import Wire.API.Routes.FederationDomainConfig qualified as FederationDomainConfig
+import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as TeamsIntra
+import Wire.API.Routes.Version qualified as Routes.Version
+import Wire.API.SystemSettings qualified as SystemSettings
+import Wire.API.Team qualified as Team
+import Wire.API.Team.Conversation qualified as Team.Conversation
+import Wire.API.Team.Feature qualified as Team.Feature
+import Wire.API.Team.Invitation qualified as Team.Invitation
+import Wire.API.Team.LegalHold qualified as Team.LegalHold
+import Wire.API.Team.LegalHold.External qualified as Team.LegalHold.External
+import Wire.API.Team.Member qualified as Team.Member
+import Wire.API.Team.Permission qualified as Team.Permission
+import Wire.API.Team.Role qualified as Team.Role
+import Wire.API.Team.SearchVisibility qualified as Team.SearchVisibility
+import Wire.API.User qualified as User
+import Wire.API.User.Activation qualified as User.Activation
+import Wire.API.User.Auth qualified as User.Auth
+import Wire.API.User.Client qualified as User.Client
+import Wire.API.User.Client.Prekey qualified as User.Client.Prekey
+import Wire.API.User.Handle qualified as User.Handle
+import Wire.API.User.Identity qualified as User.Identity
+import Wire.API.User.Password qualified as User.Password
+import Wire.API.User.Profile qualified as User.Profile
+import Wire.API.User.RichInfo qualified as User.RichInfo
+import Wire.API.User.Scim qualified as Scim
+import Wire.API.User.Search qualified as User.Search
+import Wire.API.Wrapped qualified as Wrapped
 
 -- FUTUREWORK(#1446): fix tests marked as failing
 -- (either fixing Arbitrary or serialization instance)
@@ -143,13 +145,17 @@ tests =
       testRoundTrip @Event.Conversation.OtrMessage,
       testRoundTrip @Event.Team.Event,
       testRoundTrip @Event.Team.EventType,
+      testRoundTrip @FederationDomainConfig.FederationDomainConfigs,
+      testRoundTrip @FederationDomainConfig.FederationStrategy,
+      testRoundTrip @FederationStatus.FederationStatus,
+      testRoundTrip @FederationStatus.RemoteDomains,
       testRoundTrip @Message.Priority,
       testRoundTrip @Message.OtrRecipients,
       testRoundTrip @Message.NewOtrMessage,
       testRoundTrip @Message.ClientMismatch,
       testRoundTrip @OAuth.RedirectUrl,
       testRoundTrip @OAuth.OAuthApplicationName,
-      testRoundTrip @OAuth.RegisterOAuthClientRequest,
+      testRoundTrip @OAuth.OAuthClientConfig,
       testRoundTrip @OAuth.OAuthClient,
       testRoundTrip @OAuth.CreateOAuthAuthorizationCodeRequest,
       testRoundTrip @OAuth.OAuthAccessTokenRequest,
@@ -321,7 +327,6 @@ tests =
       testRoundTrip @User.Profile.ManagedBy,
       testRoundTrip @User.RichInfo.RichField,
       testRoundTrip @User.RichInfo.RichInfoAssocList,
-      testRoundTrip @User.RichInfo.RichInfoMapAndList,
       testRoundTrip @User.RichInfo.RichInfo,
       testRoundTrip @(User.Search.SearchResult User.Search.TeamContact),
       testRoundTrip @User.Search.PagingState,

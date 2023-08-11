@@ -20,12 +20,11 @@ module Main
   )
 where
 
-import Data.String.Conversions
 import Imports
 import OpenSSL (withOpenSSL)
 import System.Environment (withArgs)
-import qualified Test.Federator.IngressSpec
-import qualified Test.Federator.InwardSpec
+import Test.Federator.IngressSpec qualified
+import Test.Federator.InwardSpec qualified
 import Test.Federator.Util (TestEnv, mkEnvFromOptions)
 import Test.Hspec
 

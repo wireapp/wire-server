@@ -16,6 +16,7 @@ library
     Network.Wai.Utilities
     Network.Wai.Utilities.Error
     Network.Wai.Utilities.Headers
+    Network.Wai.Utilities.JSONResponse
     Network.Wai.Utilities.MockServer
     Network.Wai.Utilities.Request
     Network.Wai.Utilities.Response
@@ -69,7 +70,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson                  >=2.0.1.0
@@ -87,9 +88,9 @@ library
     , metrics-wai            >=0.5.7
     , pipes                  >=4.1
     , prometheus-client
+    , schema-profunctor
     , servant-server
     , streaming-commons      >=0.1
-    , string-conversions
     , swagger2
     , text                   >=0.11
     , tinylog                >=0.8
@@ -101,4 +102,4 @@ library
     , warp                   >=3.0
     , warp-tls
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

@@ -23,10 +23,10 @@ where
 
 import Data.Metrics.Types (Paths, treeLookup)
 import Data.Metrics.WaiRoute (treeToPaths)
-import qualified Data.Text.Encoding as T
+import Data.Text.Encoding qualified as T
 import Imports
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Middleware.Prometheus as Promth
+import Network.Wai qualified as Wai
+import Network.Wai.Middleware.Prometheus qualified as Promth
 import Network.Wai.Routing.Route (Routes, prepare)
 
 -- | Adds a prometheus metrics endpoint at @/i/metrics@

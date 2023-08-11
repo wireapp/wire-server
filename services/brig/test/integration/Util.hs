@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE NumericUnderscores #-}
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 -- This file is part of the Wire Server implementation.
@@ -28,81 +27,79 @@ import Bilge.Assert
 import Brig.AWS.Types
 import Brig.App (applog, fsWatcher, sftEnv, turnEnv)
 import Brig.Calling as Calling
-import qualified Brig.Code as Code
-import qualified Brig.Options as Opt
-import qualified Brig.Options as Opts
-import qualified Brig.Run as Run
+import Brig.Code qualified as Code
+import Brig.Options qualified as Opt
+import Brig.Run qualified as Run
 import Brig.Types.Activation
-import Brig.Types.Intra
-import qualified Brig.ZAuth as ZAuth
+import Brig.ZAuth qualified as ZAuth
 import Control.Concurrent.Async
 import Control.Exception (throw)
 import Control.Lens ((^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch, MonadMask)
-import qualified Control.Monad.Catch as Catch
-import qualified Control.Monad.State as State
+import Control.Monad.Catch qualified as Catch
+import Control.Monad.State qualified as State
 import Control.Monad.State.Class (MonadState)
-import qualified Control.Monad.State.Class as MonadState
+import Control.Monad.State.Class qualified as MonadState
 import Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _Integral, _JSON, _String)
-import qualified Data.Aeson.Types as Aeson
-import qualified Data.ByteString as BS
+import Data.Aeson.Types qualified as Aeson
+import Data.ByteString qualified as BS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
-import qualified Data.ByteString.Char8 as B8
+import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
 import Data.Domain (Domain (..), domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Misc
 import Data.Proxy
 import Data.Qualified hiding (isLocal)
 import Data.Range
-import qualified Data.Sequence as Seq
-import Data.String.Conversions (cs)
-import qualified Data.Text as T
-import qualified Data.Text as Text
-import qualified Data.Text.Ascii as Ascii
+import Data.Sequence qualified as Seq
+import Data.Text qualified as T
+import Data.Text qualified as Text
+import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding (encodeUtf8)
-import qualified Data.Text.Encoding as T
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
-import qualified Data.ZAuth.Token as ZAuth
-import qualified Federator.MockServer as Mock
+import Data.Text.Encoding qualified as T
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
+import Data.ZAuth.Token qualified as ZAuth
+import Federator.MockServer qualified as Mock
 import GHC.TypeLits
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Imports
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Media.MediaType
 import Network.HTTP.Media.RenderHeader (renderHeader)
 import Network.HTTP.Types (Method, http11, renderQuery)
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Network.Wai (Application)
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
+import Network.Wai qualified as Wai
+import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Test (Session)
-import qualified Network.Wai.Test as WaiTest
+import Network.Wai.Test qualified as WaiTest
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import Servant.Client (ClientError (FailureResponse))
-import qualified Servant.Client as Servant
+import Servant.Client qualified as Servant
 import Servant.Client.Core (RunClient (throwClientError))
-import qualified Servant.Client.Core as Servant
-import qualified Servant.Client.Core.Request as ServantRequest
+import Servant.Client.Core qualified as Servant
+import Servant.Client.Core.Request qualified as ServantRequest
 import System.Exit
 import System.Process
 import System.Random (randomIO, randomRIO)
-import qualified System.Timeout as System
+import System.Timeout qualified as System
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.Cannon
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
+import Test.Tasty.Pending (flakyTestCase)
 import Text.Printf (printf)
-import qualified UnliftIO.Async as Async
+import UnliftIO.Async qualified as Async
 import Util.Options
 import Wire.API.Connection
 import Wire.API.Conversation
@@ -113,7 +110,8 @@ import Wire.API.Federation.Domain
 import Wire.API.Internal.Notification
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Member hiding (userId)
-import Wire.API.User
+import Wire.API.User hiding (AccountStatus (..))
+import Wire.API.User qualified as WU
 import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
@@ -227,6 +225,9 @@ instance ToJSON SESNotification where
 
 test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)
+
+flakyTest :: Manager -> TestName -> Http a -> TestTree
+flakyTest m n h = flakyTestCase n (void $ runHttpT m h)
 
 twoRandomUsers :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m (Qualified UserId, UserId, Qualified UserId, UserId)
 twoRandomUsers brig = do
@@ -591,7 +592,7 @@ putConnectionQualified brig from (Qualified to toDomain) r =
   where
     payload = RequestBodyLBS . encode $ object ["status" .= r]
 
-connectUsers :: Brig -> UserId -> List1 UserId -> (MonadIO m, MonadHttp m) => m ()
+connectUsers :: (MonadIO m, MonadHttp m) => Brig -> UserId -> List1 UserId -> m ()
 connectUsers b u = mapM_ connectTo
   where
     connectTo v = do
@@ -799,22 +800,22 @@ isMember g usr cnv = do
     Nothing -> pure False
     Just m -> pure (tUntagged usr == memId m)
 
-getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m AccountStatus
+getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m WU.AccountStatus
 getStatus brig u =
-  (^?! key "status" . (_JSON @Value @AccountStatus)) . (responseJsonUnsafe @Value)
+  (^?! key "status" . (_JSON @Value @WU.AccountStatus)) . (responseJsonUnsafe @Value)
     <$> get
       ( brig
           . paths ["i", "users", toByteString' u, "status"]
           . expect2xx
       )
 
-chkStatus :: HasCallStack => Brig -> UserId -> AccountStatus -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
+chkStatus :: HasCallStack => Brig -> UserId -> WU.AccountStatus -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
 chkStatus brig u s =
   get (brig . paths ["i", "users", toByteString' u, "status"]) !!! do
     const 200 === statusCode
     const (Just (toJSON s)) === ((^? key "status") <=< responseBody)
 
-setStatus :: Brig -> UserId -> AccountStatus -> Http ()
+setStatus :: Brig -> UserId -> WU.AccountStatus -> Http ()
 setStatus brig u s =
   let js = RequestBodyLBS . encode $ AccountStatusUpdate s
    in put
@@ -1053,7 +1054,7 @@ circumventSettingsOverride = runHttpT
 --
 --   Beware: (1) Not all async parts of brig are running in this.  (2) other services will
 --   see the old, unaltered brig.
-withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
+withSettingsOverrides :: MonadIO m => Opt.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
   (brigApp, env) <- Run.mkApp opts
   sftDiscovery <-
@@ -1067,10 +1068,10 @@ withSettingsOverrides opts action = liftIO $ do
 
 -- | When we remove the customer-specific extension of domain blocking, this test will fail to
 -- compile.
-withDomainsBlockedForRegistration :: (MonadIO m) => Opts.Opts -> [Text] -> WaiTest.Session a -> m a
+withDomainsBlockedForRegistration :: (MonadIO m) => Opt.Opts -> [Text] -> WaiTest.Session a -> m a
 withDomainsBlockedForRegistration opts domains sess = do
-  let opts' = opts {Opts.optSettings = (Opts.optSettings opts) {Opts.setCustomerExtensions = Just blocked}}
-      blocked = Opts.CustomerExtensions (Opts.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
+  let opts' = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setCustomerExtensions = Just blocked}}
+      blocked = Opt.CustomerExtensions (Opt.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
       unsafeMkDomain = either error id . mkDomain
   withSettingsOverrides opts' sess
 
@@ -1090,6 +1091,9 @@ aFewTimes
       (exponentialBackoff 1000 <> limitRetries retries)
       (\_ -> pure . not . good)
       (const action)
+
+retryT :: (MonadIO m, MonadMask m) => m a -> m a
+retryT = recoverAll (exponentialBackoff 8000 <> limitRetries 3) . const
 
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a
@@ -1242,11 +1246,11 @@ instance VersionedMonad v WaiTestFedClient where
 
 fromServantRequest :: Domain -> Servant.Request -> WaiTest.SRequest
 fromServantRequest domain r =
-  let pathBS = "/federation" <> Data.String.Conversions.cs (toLazyByteString (Servant.requestPath r))
+  let pathBS = "/federation" <> cs (toLazyByteString (Servant.requestPath r))
       bodyBS = case Servant.requestBody r of
         Nothing -> ""
         Just (bdy, _) -> case bdy of
-          Servant.RequestBodyLBS lbs -> Data.String.Conversions.cs lbs
+          Servant.RequestBodyLBS lbs -> cs lbs
           Servant.RequestBodyBS bs -> bs
           Servant.RequestBodySource _ -> error "fromServantRequest: not implemented for RequestBodySource"
 
@@ -1279,7 +1283,7 @@ fromServantRequest domain r =
                 <> headers
                 <> [(originDomainHeaderName, T.encodeUtf8 (domainText domain))],
             Wai.isSecure = True,
-            Wai.pathInfo = filter (not . T.null) (map Data.String.Conversions.cs (B8.split '/' pathBS)),
+            Wai.pathInfo = filter (not . T.null) (map cs (B8.split '/' pathBS)),
             Wai.queryString = toList (Servant.requestQueryString r)
           }
    in WaiTest.SRequest req (cs bodyBS)

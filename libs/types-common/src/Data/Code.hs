@@ -26,7 +26,7 @@
 module Data.Code where
 
 import Cassandra hiding (Value)
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Aeson.TH
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
@@ -34,8 +34,7 @@ import Data.Json.Util
 import Data.Proxy (Proxy (Proxy))
 import Data.Range
 import Data.Schema
-import Data.String.Conversions (cs)
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Swagger.ParamSchema
 import Data.Text (pack)
 import Data.Text.Ascii

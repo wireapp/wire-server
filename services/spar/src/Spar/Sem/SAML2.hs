@@ -27,10 +27,9 @@ module Spar.Sem.SAML2
 where
 
 import Data.Id (TeamId)
-import Data.String.Conversions (SBS, ST)
 import Data.Time (NominalDiffTime)
 import GHC.TypeLits (KnownSymbol)
-import Imports (Maybe)
+import Imports (ByteString, Maybe, Text)
 import Polysemy
 import SAML2.WebSSO hiding (meta, toggleCookie)
 import URI.ByteString (URI)
@@ -49,11 +48,11 @@ data SAML2 m a where
     (AuthnResponse -> IdP -> AccessVerdict -> m resp) ->
     AuthnResponseBody ->
     SAML2 m resp
-  Meta :: ST -> m Issuer -> m URI -> SAML2 m SPMetadata
+  Meta :: Text -> m Issuer -> m URI -> SAML2 m SPMetadata
   ToggleCookie ::
     KnownSymbol name =>
-    SBS ->
-    Maybe (ST, NominalDiffTime) ->
+    ByteString ->
+    Maybe (Text, NominalDiffTime) ->
     SAML2 m (SimpleSetCookie name)
 
 -- TODO(sandy): Inline this definition --- no TH

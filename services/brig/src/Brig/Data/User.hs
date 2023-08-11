@@ -63,6 +63,7 @@ module Brig.Data.User
     updatePassword,
     updateStatus,
     updateHandle,
+    updateSupportedProtocols,
     updateRichInfo,
     updateFeatureConferenceCalling,
 
@@ -78,9 +79,8 @@ import Brig.App (Env, currentTime, settings, viewFederationDomain, zauthEnv)
 import Brig.Data.Instances ()
 import Brig.Options
 import Brig.Types.Intra
-import Brig.Types.User (HavePendingInvitations (NoPendingInvitations, WithPendingInvitations))
-import qualified Brig.ZAuth as ZAuth
-import Cassandra
+import Brig.ZAuth qualified as ZAuth
+import Cassandra hiding (Set)
 import Control.Error
 import Control.Lens hiding (from)
 import Data.Conduit (ConduitM)
@@ -96,7 +96,7 @@ import Data.UUID.V4
 import Imports
 import Wire.API.Password
 import Wire.API.Provider.Service
-import qualified Wire.API.Team.Feature as ApiFt
+import Wire.API.Team.Feature qualified as ApiFt
 import Wire.API.User
 import Wire.API.User.RichInfo
 
@@ -158,7 +158,8 @@ newAccount u inv tid mbHandle = do
     colour = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
-    user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy
+    prots = fromMaybe defSupportedProtocols (newUserSupportedProtocols u)
+    user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy prots
 
 newAccountInviteViaScim :: MonadReader Env m => UserId -> TeamId -> Maybe Locale -> Name -> Email -> m UserAccount
 newAccountInviteViaScim uid tid locale name email = do
@@ -183,6 +184,7 @@ newAccountInviteViaScim uid tid locale name email = do
         Nothing
         (Just tid)
         ManagedByScim
+        defSupportedProtocols
 
 -- | Mandatory password authentication.
 authenticate :: MonadClient m => UserId -> PlainTextPassword6 -> ExceptT AuthError m ()
@@ -259,7 +261,8 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
       view serviceRefId <$> userService u,
       userHandle u,
       userTeam u,
-      userManagedBy u
+      userManagedBy u,
+      userSupportedProtocols u
     )
   for_ ((,) <$> userService u <*> mbConv) $ \(sref, (cid, mbTid)) -> do
     let pid = sref ^. serviceRefProvider
@@ -312,6 +315,11 @@ updateManagedBy u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (
 
 updateHandle :: MonadClient m => UserId -> Handle -> m ()
 updateHandle u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h, u))
+
+updateSupportedProtocols :: MonadClient m => UserId -> Set BaseProtocolTag -> m ()
+updateSupportedProtocols u prots =
+  retry x5 $
+    write userSupportedProtocolUpdate (params LocalQuorum (prots, u))
 
 updatePassword :: MonadClient m => UserId -> PlainTextPassword8 -> m ()
 updatePassword u t = do
@@ -527,7 +535,8 @@ type UserRow =
     Maybe ServiceId,
     Maybe Handle,
     Maybe TeamId,
-    Maybe ManagedBy
+    Maybe ManagedBy,
+    Maybe (Set BaseProtocolTag)
   )
 
 type UserRowInsert =
@@ -549,38 +558,20 @@ type UserRowInsert =
     Maybe ServiceId,
     Maybe Handle,
     Maybe TeamId,
-    ManagedBy
+    ManagedBy,
+    Set BaseProtocolTag
   )
 
 deriving instance Show UserRowInsert
 
 -- Represents a 'UserAccount'
-type AccountRow =
-  ( UserId,
-    Name,
-    Maybe Pict,
-    Maybe Email,
-    Maybe Phone,
-    Maybe UserSSOId,
-    ColourId,
-    Maybe [Asset],
-    Activated,
-    Maybe AccountStatus,
-    Maybe UTCTimeMillis,
-    Maybe Language,
-    Maybe Country,
-    Maybe ProviderId,
-    Maybe ServiceId,
-    Maybe Handle,
-    Maybe TeamId,
-    Maybe ManagedBy
-  )
+type AccountRow = UserRow
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
 usersSelect =
   "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, service, \
-  \handle, team, managed_by \
+  \handle, team, managed_by, supported_protocols \
   \FROM user where id IN ?"
 
 idSelect :: PrepQuery R (Identity UserId) (Identity UserId)
@@ -620,15 +611,15 @@ accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
 accountsSelect =
   "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, \
-  \service, handle, team, managed_by \
+  \service, handle, team, managed_by, supported_protocols \
   \FROM user WHERE id IN ?"
 
 userInsert :: PrepQuery W UserRowInsert ()
 userInsert =
   "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
   \accent_id, password, activated, status, expires, language, \
-  \country, provider, service, handle, team, managed_by) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  \country, provider, service, handle, team, managed_by, supported_protocols) \
+  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userDisplayNameUpdate :: PrepQuery W (Name, UserId) ()
 userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
@@ -662,6 +653,9 @@ userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ?"
 
 userHandleUpdate :: PrepQuery W (Handle, UserId) ()
 userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"
+
+userSupportedProtocolUpdate :: PrepQuery W (Set BaseProtocolTag, UserId) ()
+userSupportedProtocolUpdate = "UPDATE user SET supported_protocols = ? WHERE id = ?"
 
 userPasswordUpdate :: PrepQuery W (Password, UserId) ()
 userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
@@ -712,7 +706,8 @@ toUserAccount
     sid,
     handle,
     tid,
-    managed_by
+    managed_by,
+    prots
     ) =
     let ident = toIdentity activated email phone ssoid
         deleted = Just Deleted == status
@@ -735,6 +730,7 @@ toUserAccount
               expiration
               tid
               (fromMaybe ManagedByWire managed_by)
+              (fromMaybe defSupportedProtocols prots)
           )
           (fromMaybe Active status)
 
@@ -763,7 +759,8 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
                _sid,
                _handle,
                _tid,
-               _managed_by
+               _managed_by,
+               _prots
                ) -> status /= Just PendingInvitation
           )
 
@@ -786,7 +783,8 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
         sid,
         handle,
         tid,
-        managed_by
+        managed_by,
+        prots
         ) =
         let ident = toIdentity activated email phone ssoid
             deleted = Just Deleted == status
@@ -808,6 +806,7 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
               expiration
               tid
               (fromMaybe ManagedByWire managed_by)
+              (fromMaybe defSupportedProtocols prots)
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c

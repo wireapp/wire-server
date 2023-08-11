@@ -21,7 +21,7 @@ module Test.Wire.API.Golden.Generated.TeamList_team where
 
 import Control.Lens ((.~), (?~))
 import Data.Id (Id (Id))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Bool (False, True), Maybe (..), fromJust, (&))
 import Wire.API.Asset
 import Wire.API.Team (Icon (..), TeamBinding (Binding, NonBinding), TeamList (..), newTeam, teamIconKey)

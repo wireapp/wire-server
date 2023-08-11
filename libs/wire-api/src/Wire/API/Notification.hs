@@ -40,16 +40,15 @@ where
 import Control.Lens (makeLenses, (.~))
 import Control.Lens.Operators ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson.Types as Aeson
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.Aeson.Types qualified as Aeson
+import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty)
 import Data.SOP
 import Data.Schema
-import Data.String.Conversions (cs)
 import Data.Swagger (ToParamSchema (..))
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Time.Clock (UTCTime)
 import Imports
 import Servant

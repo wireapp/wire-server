@@ -63,9 +63,7 @@ mkDerivation {
   ];
   testHaskellDepends = [
     base
-    bytestring
     bytestring-conversion
-    errors
     imports
     lens
     sodium-crypto-sign

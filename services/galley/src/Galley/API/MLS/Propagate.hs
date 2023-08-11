@@ -18,34 +18,34 @@
 module Galley.API.MLS.Propagate where
 
 import Control.Comonad
+import Data.Aeson qualified as A
 import Data.Domain
 import Data.Id
 import Data.Json.Util
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Time
 import Galley.API.MLS.Types
 import Galley.API.Push
-import qualified Galley.Data.Conversation.Types as Data
+import Galley.Data.Conversation.Types qualified as Data
 import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.FederatorAccess
 import Galley.Types.Conversations.Members
 import Imports
-import qualified Network.Wai.Utilities.Error as Wai
-import Network.Wai.Utilities.Server
+import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog hiding (trace)
-import qualified System.Logger.Class as Logger
+import System.Logger.Class qualified as Logger
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.Message
 import Wire.API.Message
+import Wire.API.Unreachable
 
 -- | Propagate a message.
 propagateMessage ::
@@ -60,7 +60,7 @@ propagateMessage ::
   ClientMap ->
   Maybe ConnId ->
   ByteString ->
-  Sem r UnreachableUsers
+  Sem r (Maybe UnreachableUsers)
 propagateMessage qusr lconv cm con raw = do
   -- FUTUREWORK: check the epoch
   let lmems = Data.convLocalMembers . tUnqualified $ lconv
@@ -74,13 +74,14 @@ propagateMessage qusr lconv cm con raw = do
   let lcnv = fmap Data.convId lconv
       qcnv = tUntagged lcnv
       e = Event qcnv Nothing qusr now $ EdMLSMessage raw
-      mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
-      mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
-  runMessagePush lconv (Just qcnv) $
-    foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients lcnv)
+      mkPush :: UserId -> ClientId -> MessagePush
+      mkPush u c = newMessagePush botMap con mm [(u, c)] e
+
+  for_ (lmems >>= localMemberMLSClients lcnv) $ \(u, c) ->
+    runMessagePush lconv (Just qcnv) (mkPush u c)
 
   -- send to remotes
-  UnreachableUsers . concat
+  unreachableFromList . concat
     <$$> traverse handleError
     <=< runFederatedConcurrentlyEither (map remoteMemberQualify rmems)
     $ \(tUnqualified -> rs) ->
@@ -119,14 +120,14 @@ propagateMessage qusr lconv cm con raw = do
     handleError (Right x) = case tUnqualified x of
       RemoteMLSMessageOk -> pure []
       RemoteMLSMessageMLSNotEnabled -> do
-        logFedError x (errorToWai @'MLSNotEnabled)
+        logFedError x (errorToResponse @'MLSNotEnabled)
         pure []
     handleError (Left (r, e)) = do
-      logFedError r (toWai e)
+      logFedError r (toResponse e)
       pure $ remotesToQIds (tUnqualified r)
-    logFedError :: Member TinyLog r => Remote x -> Wai.Error -> Sem r ()
+    logFedError :: Member TinyLog r => Remote x -> JSONResponse -> Sem r ()
     logFedError r e =
       warn $
         Logger.msg ("A message could not be delivered to a remote backend" :: ByteString)
           . Logger.field "remote_domain" (domainText (tDomain r))
-          . logErrorMsg e
+          . Logger.field "error" (A.encode e.value)

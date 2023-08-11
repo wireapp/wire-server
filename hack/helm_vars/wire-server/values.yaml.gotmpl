@@ -6,7 +6,7 @@ tags:
   cannon: true
   cargohold: true
   spar: true
-  federator: true # also see galley.config.enableFederator and brig.config.enableFederator
+  federation: true # also see galley.config.enableFederation and brig.config.enableFederation
   backoffice: true
   proxy: false
   webapp: false
@@ -51,7 +51,7 @@ brig:
       sessionTokenTimeout: 20
       accessTokenTimeout: 30
       providerTokenTimeout: 60
-    enableFederator: true # keep in sync with galley.config.enableFederator, cargohold.config.enableFederator and tags.federator!
+    enableFederation: true # keep in sync with galley.config.enableFederation, cargohold.config.enableFederation and tags.federator!
     optSettings:
       setActivationTimeout: 10
       setVerificationTimeout: 10
@@ -75,12 +75,18 @@ brig:
       setMaxConvAndTeamSize: 16
       setMaxTeamSize: 32
       setMaxConvSize: 16
+      # See helmfile for the real value
       setFederationDomain: integration.example.com
       setFederationDomainConfigs:
+        # 'setFederationDomainConfigs' is deprecated as of https://github.com/wireapp/wire-server/pull/3260.  See
+        # https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+        # for details.
         - domain: integration.example.com
           search_policy: full_search
         - domain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
           search_policy: full_search
+      setFederationStrategy: allowAll
+      setFederationDomainConfigsUpdateFreq: 10
       set2FACodeGenerationDelaySecs: 5
       setNonceTtlSecs: 300
       setDpopMaxSkewSecs: 1
@@ -132,7 +138,10 @@ brig:
         "crv": "Ed25519",
         "x": "mhP-NgFw3ifIXGZqJVB0kemt9L3BtD5P8q4Gah4Iklc",
         "d": "R8-pV2-sPN7dykV8HFJ73S64F3kMHTNnJiSN8UdWk_o"
-      }    
+      }
+    rabbitmq:
+      username: {{ .Values.rabbitmqUsername }}
+      password: {{ .Values.rabbitmqPassword }}
   tests:
     enableFederationTests: true
 cannon:
@@ -154,7 +163,10 @@ cargohold:
     aws:
       s3Bucket: dummy-bucket
       s3Endpoint: http://fake-aws-s3:9000
-    enableFederator: true # keep in sync with brig.config.enableFederator, galley.config.enableFederator and tags.federator!
+    enableFederation: true # keep in sync with brig.config.enableFederation, galley.config.enableFederation and tags.federator!
+    settings:
+      # See helmfile for the real value
+      federationDomain: integration.example.com
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
@@ -165,14 +177,14 @@ galley:
     cassandra:
       host: cassandra-ephemeral
       replicaCount: 1
-    enableFederator: true # keep in sync with brig.config.enableFederator, cargohold.config.enableFederator and tags.federator!
+    enableFederation: true # keep in sync with brig.config.enableFederation, cargohold.config.enableFederation and tags.federator!
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32
       maxFanoutSize: 18
       maxConvSize: 16
       conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/conversation-join/
-      enableIndexedBillingTeamMembers: true
+      # See helmfile for the real value
       federationDomain: integration.example.com
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
@@ -194,6 +206,9 @@ galley:
           -----BEGIN PRIVATE KEY-----
           MC4CAQAwBQYDK2VwBCIEIAocCDXsKIAjb65gOUn5vEF0RIKnVJkKR4ebQzuZ709c
           -----END PRIVATE KEY-----
+    rabbitmq:
+      username: {{ .Values.rabbitmqUsername }}
+      password: {{ .Values.rabbitmqPassword }}
 
 gundeck:
   replicaCount: 1
@@ -207,8 +222,8 @@ gundeck:
       host: cassandra-ephemeral
       replicaCount: 1
     redis:
-      host: redis-cluster
-      connectionMode: cluster
+      host: redis-ephemeral-master
+      connectionMode: master
     aws:
       account: "123456789012"
       region: eu-west-1
@@ -245,7 +260,7 @@ nginz:
           "kty": "OKP",
           "crv": "Ed25519",
           "x": "mhP-NgFw3ifIXGZqJVB0kemt9L3BtD5P8q4Gah4Iklc"
-        }       
+        }
 proxy:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -288,6 +303,21 @@ federator:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     optSettings:
-      federationStrategy:
-        allowAll: true
       useSystemCAStore: false
+
+background-worker:
+  replicaCount: 1
+  resources:
+    requests: {}
+  imagePullPolicy: {{ .Values.imagePullPolicy }}
+  config:
+    backendNotificationPusher:
+      remotesRefreshInterval: 1
+  secrets:
+    rabbitmq:
+      username: {{ .Values.rabbitmqUsername }}
+      password: {{ .Values.rabbitmqPassword }}
+
+integration:
+  ingress:
+    class: "nginx-{{ .Release.Namespace }}"

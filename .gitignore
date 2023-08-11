@@ -20,6 +20,7 @@ target
 .#*
 *#*#
 .*.sw[a-z]
+**/__pycache__
 .cabal-sandbox
 ID
 cabal.sandbox.config

@@ -47,7 +47,7 @@ import Brig.Template (renderTextWithBranding)
 import Cassandra as C
 import Control.Lens (view)
 import Data.Conduit (runConduit, (.|))
-import qualified Data.Conduit.List as C
+import Data.Conduit.List qualified as C
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Range
@@ -58,7 +58,7 @@ import Data.Time.Clock
 import Data.UUID.V4
 import Imports
 import OpenSSL.Random (randBytes)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import URI.ByteString
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Team.Invitation hiding (HeadInvitationByEmailResult (..))

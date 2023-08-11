@@ -47,4 +47,4 @@ qualifyLocal x = do
   pure $ toLocalUnsafe domain x
 
 eventually :: (MonadIO m, MonadMask m) => m a -> m a
-eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
+eventually = recoverAll (limitRetries 3 <> exponentialBackoff 100000) . const

@@ -35,6 +35,7 @@ module Wire.API.Conversation
     cnvReceiptMode,
     cnvAccessRoles,
     CreateGroupConversation (..),
+    CreateConversationUnreachableBackends (..),
     ConversationCoverView (..),
     ConversationList (..),
     ListConversations (..),
@@ -87,24 +88,23 @@ where
 import Control.Applicative
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
-import qualified Data.ByteString.Lazy as LBS
+import Data.Aeson qualified as A
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Id
 import Data.List.Extra (disjointOrd)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Range (Range, fromRange, rangedSchema)
 import Data.SOP
 import Data.Schema
-import qualified Data.Set as Set
-import Data.String.Conversions (cs)
-import qualified Data.Swagger as S
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V5 as UUIDV5
+import Data.Set qualified as Set
+import Data.Swagger qualified as S
+import Data.UUID qualified as UUID
+import Data.UUID.V5 qualified as UUIDV5
 import Imports
 import Servant.API
 import System.Random (randomRIO)
@@ -313,6 +313,22 @@ instance ToSchema CreateGroupConversation where
         (\(d, s) -> flip Qualified d <$> Set.toList s) =<< Map.assocs m
       fromFlatList :: Ord a => [Qualified a] -> Map Domain (Set a)
       fromFlatList = fmap Set.fromList . indexQualified
+
+newtype CreateConversationUnreachableBackends = CreateConversationUnreachableBackends
+  { createConvUnreachableBackends :: Set Domain
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CreateConversationUnreachableBackends)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CreateConversationUnreachableBackends
+
+instance ToSchema CreateConversationUnreachableBackends where
+  schema =
+    objectWithDocModifier
+      "CreateConversationUnreachableBackends"
+      (description ?~ "A federated conversation cannot be created because there are unreachable backends")
+      $ CreateConversationUnreachableBackends
+        <$> (Set.toList . createConvUnreachableBackends)
+          .= field "unreachable_backends" (Set.fromList <$> array schema)
 
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
 -- link about the conversation.

@@ -23,14 +23,14 @@ module API.User.Util where
 
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import qualified Brig.Code as Code
+import Brig.Code qualified as Code
 import Brig.Effects.CodeStore
 import Brig.Effects.CodeStore.Cassandra
 import Brig.Options (Opts)
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
-import qualified Brig.ZAuth
-import qualified Cassandra as DB
-import qualified Codec.MIME.Type as MIME
+import Brig.ZAuth (Token)
+import Cassandra qualified as DB
+import Codec.MIME.Type qualified as MIME
 import Control.Lens (preview, (^?))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson hiding (json)
@@ -38,38 +38,38 @@ import Data.Aeson.Lens
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as LB
+import Data.ByteString.Lazy qualified as LB
 import Data.Domain
 import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import Data.Kind
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Misc
 import Data.Qualified
 import Data.Range (unsafeRange)
-import qualified Data.Text.Ascii as Ascii
-import qualified Data.Vector as Vec
-import qualified Data.ZAuth.Token as ZAuth
+import Data.Text.Ascii qualified as Ascii
+import Data.Vector qualified as Vec
+import Data.ZAuth.Token qualified as ZAuth
 import Federation.Util (withTempMockFederator)
 import Federator.MockServer (FederatedRequest (..))
 import GHC.TypeLits (KnownSymbol)
 import Imports
 import Polysemy
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import Util
 import Wire.API.Asset
 import Wire.API.Connection
-import qualified Wire.API.Event.Conversation as Conv
-import qualified Wire.API.Federation.API.Brig as F
+import Wire.API.Event.Conversation qualified as Conv
+import Wire.API.Federation.API.Brig qualified as F
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
 import Wire.API.Team.Feature (featureNameBS)
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
-import qualified Wire.API.User as Public
+import Wire.API.User qualified as Public
 import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Client
@@ -212,7 +212,7 @@ preparePasswordReset ::
   UserId ->
   PlainTextPassword8 ->
   m CompletePasswordReset
-preparePasswordReset brig cs email uid newpw = do
+preparePasswordReset brig cState email uid newpw = do
   let qry = queryItem "email" (toByteString' email)
   r <- get $ brig . path "/i/users/password-reset-code" . qry
   let lbs = fromMaybe "" $ responseBody r
@@ -221,7 +221,7 @@ preparePasswordReset brig cs email uid newpw = do
   let complete = CompletePasswordReset ident pwcode newpw
   pure complete
   where
-    runSem = liftIO . runFinal @IO . interpretClientToIO cs . codeStoreToCassandra @DB.Client
+    runSem = liftIO . runFinal @IO . interpretClientToIO cState . codeStoreToCassandra @DB.Client
 
 completePasswordReset :: Brig -> CompletePasswordReset -> MonadHttp m => m ResponseLBS
 completePasswordReset brig passwordResetData =
@@ -583,11 +583,20 @@ nonce m brig uid cid =
         . zUser uid
     )
 
-createAccessToken :: (MonadHttp m, HasCallStack) => Brig -> UserId -> ClientId -> Maybe Proof -> m ResponseLBS
-createAccessToken brig uid cid mProof =
-  post
-    ( brig
-        . paths ["clients", toByteString' cid, "access-token"]
-        . zUser uid
-        . maybe id (header "DPoP" . toByteString') mProof
-    )
+createAccessToken :: (MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> ClientId -> Maybe Proof -> m ResponseLBS
+createAccessToken brig uid h cid mProof =
+  post $
+    brig
+      . paths ["clients", toByteString' cid, "access-token"]
+      . zUser uid
+      . header "Z-Host" (cs h)
+      . maybe id (header "DPoP" . toByteString') mProof
+
+createAccessTokenNginz :: (MonadHttp m, HasCallStack) => Nginz -> ZAuth.Token ZAuth.Access -> ClientId -> Maybe Proof -> m ResponseLBS
+createAccessTokenNginz n t cid mProof =
+  post $
+    unversioned
+      . n
+      . paths ["clients", toByteString' cid, "access-token"]
+      . header "Authorization" ("Bearer " <> toByteString' t)
+      . maybe id (header "DPoP" . toByteString') mProof

@@ -24,7 +24,7 @@ import Galley.Cassandra.Queries
 import Galley.Cassandra.Store
 import Galley.Data.Services
 import Galley.Effects.ServiceStore hiding (deleteService)
-import qualified Galley.Types.Bot.Service as Bot
+import Galley.Types.Bot.Service qualified as Bot
 import Galley.Types.Conversations.Members (lmService, newMember)
 import Imports
 import Polysemy

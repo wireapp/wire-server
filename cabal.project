@@ -1,6 +1,5 @@
 packages:
-    libs/api-bot/
-  , libs/api-client/
+    integration
   , libs/bilge/
   , libs/brig-types/
   , libs/cargohold-types/
@@ -11,6 +10,7 @@ packages:
   , libs/galley-types/
   , libs/gundeck-types/
   , libs/hscim/
+  , libs/http2-manager/
   , libs/imports/
   , libs/jwt-tools/
   , libs/metrics-core/
@@ -29,6 +29,7 @@ packages:
   , libs/wire-api-federation/
   , libs/wire-message-proto-lens/
   , libs/zauth/
+  , services/background-worker/
   , services/brig/
   , services/cannon/
   , services/cargohold/
@@ -37,7 +38,6 @@ packages:
   , services/gundeck/
   , services/proxy/
   , services/spar/
-  , tools/api-simulations/
   , tools/db/assets/
   , tools/db/auto-whitelist/
   , tools/db/billing-team-member-backfill/
@@ -54,15 +54,11 @@ packages:
 tests: True
 benchmarks: True
 
-package api-bot
-    ghc-options: -Werror
-package api-client
-    ghc-options: -Werror
-package api-simulations
-    ghc-options: -Werror
 package assets
     ghc-options: -Werror
 package auto-whitelist
+    ghc-options: -Werror
+package background-worker
     ghc-options: -Werror
 package bilge
     ghc-options: -Werror
@@ -99,6 +95,8 @@ package gundeck
 package gundeck-types
     ghc-options: -Werror
 package hscim
+    ghc-options: -Werror
+package http2-manager
     ghc-options: -Werror
 package imports
     ghc-options: -Werror

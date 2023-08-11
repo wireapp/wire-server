@@ -20,5 +20,8 @@
     "sso_id": {
         "scim_external_id": ""
     },
+    "supported_protocols": [
+        "proteus"
+    ],
     "team": "00000000-0000-0000-0000-000100000002"
 }

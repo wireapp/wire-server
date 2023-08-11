@@ -20,7 +20,7 @@
 module Wire.API.RawJson where
 
 import Control.Lens
-import qualified Data.Swagger as Swagger
+import Data.Swagger qualified as Swagger
 import Imports
 import Servant
 import Test.QuickCheck
@@ -35,6 +35,9 @@ newtype RawJson = RawJson {rawJsonBytes :: LByteString}
 
 instance {-# OVERLAPPING #-} MimeUnrender JSON RawJson where
   mimeUnrender _ = pure . RawJson
+
+instance MimeRender JSON RawJson where
+  mimeRender _ = rawJsonBytes
 
 instance Swagger.ToSchema RawJson where
   declareNamedSchema _ =

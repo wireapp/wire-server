@@ -19,8 +19,8 @@ module Wire.API.MLS.Servant (MLS, mimeUnrenderMLSWith, CommitBundleMimeType) whe
 
 import Data.Bifunctor
 import Data.Binary
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Text as T
+import Data.ByteString.Lazy qualified as LBS
+import Data.Text qualified as T
 import Imports
 import Network.HTTP.Media ((//))
 import Servant.API hiding (Get)

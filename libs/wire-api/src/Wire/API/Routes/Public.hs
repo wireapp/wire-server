@@ -31,29 +31,30 @@ module Wire.API.Routes.Public
     ZConversation,
     ZProvider,
     DescriptionOAuthScope,
+    ZHostOpt,
   )
 where
 
 import Control.Lens ((%~), (<>~))
 import Data.ByteString.Conversion (toByteString)
 import Data.Domain
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id as Id
 import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
-import Data.String.Conversions
-import Data.Swagger
+import Data.Swagger hiding (Header)
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (All, head)
-import qualified Network.Wai as Wai
+import Network.Wai qualified as Wai
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Modifiers
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
+import Servant.Server.Internal.Router (Router)
 import Servant.Swagger (HasSwagger (toSwagger))
-import qualified Wire.API.OAuth as OAuth
+import Wire.API.OAuth qualified as OAuth
 
 mapRequestArgument ::
   forall mods a b.
@@ -186,6 +187,15 @@ type ZOptClient = ZAuthServant 'ZAuthClient '[Servant.Optional, Servant.Strict]
 
 type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict]
 
+-- | Optional @Z-Host@ header (added by @nginz@)
+data ZHostOpt
+
+type ZOptHostHeader =
+  Header' '[Servant.Optional, Strict] "Z-Host" Text
+
+instance HasSwagger api => HasSwagger (ZHostOpt :> api) where
+  toSwagger _ = toSwagger (Proxy @api)
+
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) where
   toSwagger _ =
     toSwagger (Proxy @api)
@@ -211,6 +221,21 @@ instance
   HasSwagger (ZAuthServant ztype _opts :> api)
   where
   toSwagger _ = toSwagger (Proxy @api)
+
+instance
+  ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+    HasServer api ctx
+  ) =>
+  HasServer (ZHostOpt :> api) ctx
+  where
+  type ServerT (ZHostOpt :> api) m = Maybe Text -> ServerT api m
+  route ::
+    Proxy (ZHostOpt :> api) ->
+    Context ctx ->
+    Delayed env (Server (ZHostOpt :> api)) ->
+    Router env
+  route _ = route (Proxy @(ZOptHostHeader :> api))
+  hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
 instance
   ( IsZType ztype ctx,
@@ -250,6 +275,9 @@ instance
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
 instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts :> api) where
+  getRoutes = getRoutes @api
+
+instance RoutesToPaths api => RoutesToPaths (ZHostOpt :> api) where
   getRoutes = getRoutes @api
 
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance

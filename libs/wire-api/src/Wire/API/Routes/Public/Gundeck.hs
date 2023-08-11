@@ -20,7 +20,7 @@ module Wire.API.Routes.Public.Gundeck where
 import Data.Id (ClientId)
 import Data.Range
 import Data.SOP
-import qualified Data.Swagger as Swagger
+import Data.Swagger qualified as Swagger
 import Imports
 import Servant
 import Servant.Swagger

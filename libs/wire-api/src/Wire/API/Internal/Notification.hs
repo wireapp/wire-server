@@ -45,9 +45,9 @@ import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id
 import Data.List1
-import qualified Data.Schema as S
-import qualified Data.Swagger as Swagger
-import Imports
+import Data.Schema qualified as S
+import Data.Swagger qualified as Swagger
+import Imports hiding (cs)
 import Wire.API.Notification
 
 -------------------------------------------------------------------------------

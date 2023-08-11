@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -26,10 +27,12 @@ import Data.Id
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
 import Data.Range
-import qualified Galley.Aws as Aws
+import Galley.Aws qualified as Aws
 import Galley.Options
-import qualified Galley.Queue as Q
+import Galley.Queue qualified as Q
+import HTTP2.Client.Manager (Http2Manager)
 import Imports
+import Network.AMQP qualified as Q
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest
@@ -51,13 +54,15 @@ data Env = Env
     _options :: Opts,
     _applog :: Logger,
     _manager :: Manager,
+    _http2Manager :: Http2Manager,
     _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _brig :: Endpoint, -- FUTUREWORK: see _federator
     _cstate :: ClientState,
     _deleteQueue :: Q.Queue DeleteItem,
     _extEnv :: ExtEnv,
     _aEnv :: Maybe Aws.Env,
-    _mlsKeys :: SignaturePurpose -> MLSKeys
+    _mlsKeys :: SignaturePurpose -> MLSKeys,
+    _rabbitmqChannel :: Maybe (MVar Q.Channel)
   }
 
 -- | Environment specific to the communication with external

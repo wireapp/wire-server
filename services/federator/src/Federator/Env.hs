@@ -25,13 +25,15 @@ import Bilge (RequestId)
 import Control.Lens (makeLenses)
 import Data.Metrics (Metrics)
 import Federator.Options (RunSettings)
+import HTTP2.Client.Manager
 import Imports
 import Network.DNS.Resolver (Resolver)
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import OpenSSL.Session (SSLContext)
-import qualified System.Logger.Class as LC
+import System.Logger.Class qualified as LC
 import Util.Options
 import Wire.API.Federation.Component
+import Wire.API.Routes.FederationDomainConfig (FederationDomainConfigs)
 
 data Env = Env
   { _metrics :: Metrics,
@@ -39,9 +41,20 @@ data Env = Env
     _requestId :: RequestId,
     _dnsResolver :: Resolver,
     _runSettings :: RunSettings,
+    _domainConfigs :: IORef FederationDomainConfigs,
     _service :: Component -> Endpoint,
+    _externalPort :: Word16,
+    _internalPort :: Word16,
     _httpManager :: HTTP.Manager,
-    _sslContext :: IORef SSLContext
+    _http2Manager :: IORef Http2Manager
   }
 
 makeLenses ''Env
+
+onNewSSLContext :: Env -> SSLContext -> IO ()
+onNewSSLContext env ctx =
+  atomicModifyIORef' (_http2Manager env) $ \mgr -> (setSSLContext ctx mgr, ())
+
+mkHttp2Manager :: SSLContext -> IO Http2Manager
+mkHttp2Manager sslContext =
+  setSSLRemoveTrailingDot True <$> http2ManagerWithSSLCtx sslContext

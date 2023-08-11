@@ -27,21 +27,20 @@ module Test.Properties
 where
 
 import Data.Aeson (FromJSON (parseJSON), FromJSONKey, ToJSON (toJSON), ToJSONKey)
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
-import qualified Data.ByteString.Char8 as C8
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
+import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion as BS
 import Data.ByteString.Lazy as L
 import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id
-import qualified Data.Json.Util as Util
+import Data.Json.Util qualified as Util
 import Data.Nonce (Nonce)
 import Data.ProtocolBuffers.Internal
 import Data.Serialize
-import Data.String.Conversions (cs)
 import Data.Text.Ascii
-import qualified Data.Text.Ascii as Ascii
+import Data.Text.Ascii qualified as Ascii
 import Data.Time
 import Data.UUID
 import Imports

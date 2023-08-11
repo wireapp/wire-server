@@ -6,7 +6,6 @@
 , aeson
 , base
 , bloodhound
-, brig-types
 , cassandra-util
 , conduit
 , containers
@@ -19,6 +18,7 @@
 , text
 , tinylog
 , uuid
+, wire-api
 }:
 mkDerivation {
   pname = "find-undead";
@@ -30,7 +30,6 @@ mkDerivation {
     aeson
     base
     bloodhound
-    brig-types
     cassandra-util
     conduit
     containers
@@ -41,6 +40,7 @@ mkDerivation {
     text
     tinylog
     uuid
+    wire-api
   ];
   description = "Backfill billing_team_member table";
   license = lib.licenses.agpl3Only;

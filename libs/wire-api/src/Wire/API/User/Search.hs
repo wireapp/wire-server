@@ -36,7 +36,7 @@ where
 import Control.Error
 import Control.Lens (makePrisms, (?~))
 import Data.Aeson hiding (object, (.=))
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Attoparsec.ByteString (sepBy)
 import Data.Attoparsec.ByteString.Char8 (char, string)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
@@ -46,10 +46,9 @@ import Data.Json.Util (UTCTimeMillis)
 import Data.Proxy
 import Data.Qualified
 import Data.Schema
-import Data.String.Conversions (cs)
 import Data.Swagger (ToParamSchema (..))
-import qualified Data.Swagger as S
-import qualified Data.Text as T
+import Data.Swagger qualified as S
+import Data.Text qualified as T
 import Data.Text.Ascii (AsciiBase64Url, toText, validateBase64Url)
 import Imports
 import Servant.API (FromHttpApiData, ToHttpApiData (..))
@@ -307,7 +306,7 @@ data FederatedUserSearchPolicy
   = NoSearch
   | ExactHandleSearch
   | FullSearch
-  deriving (Show, Eq, Generic, Enum, Bounded)
+  deriving (Show, Eq, Ord, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform FederatedUserSearchPolicy)
   deriving (ToJSON, FromJSON) via (Schema FederatedUserSearchPolicy)
 

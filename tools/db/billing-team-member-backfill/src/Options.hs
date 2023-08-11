@@ -26,8 +26,8 @@ module Options
   )
 where
 
-import qualified Cassandra as C
-import qualified Data.Text as Text
+import Cassandra qualified as C
+import Data.Text qualified as Text
 import Imports
 import Options.Applicative
 

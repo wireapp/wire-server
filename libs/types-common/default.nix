@@ -39,9 +39,7 @@
 , quickcheck-instances
 , random
 , schema-profunctor
-, scientific
 , servant-server
-, string-conversions
 , swagger2
 , tagged
 , tasty
@@ -55,7 +53,6 @@
 , unordered-containers
 , uri-bytestring
 , uuid
-, vector
 , yaml
 }:
 mkDerivation {
@@ -96,9 +93,7 @@ mkDerivation {
     quickcheck-instances
     random
     schema-profunctor
-    scientific
     servant-server
-    string-conversions
     swagger2
     tagged
     tasty
@@ -111,21 +106,16 @@ mkDerivation {
     unordered-containers
     uri-bytestring
     uuid
-    vector
     yaml
   ];
   testHaskellDepends = [
     aeson
     base
-    base16-bytestring
-    base64-bytestring
     bytestring
     bytestring-conversion
     cereal
     imports
     protobuf
-    QuickCheck
-    string-conversions
     tasty
     tasty-hunit
     tasty-quickcheck

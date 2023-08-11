@@ -13,6 +13,10 @@ data:
       host: 0.0.0.0
       port: {{ $.Values.service.internalPort }}
 
+    brig:
+      host: brig
+      port: 8080
+
     cassandra:
       endpoint:
         host: {{ .cassandra.host }}
@@ -63,4 +67,7 @@ data:
         hard: {{ .maxConcurrentNativePushes.hard }}
         {{- end }}
         # hard: 30  # more than this number of threads will not be allowed
+      maxPayloadLoadSize : {{ .maxPayloadLoadSize }}
+      internalPageSize : {{ .internalPageSize }}
+
   {{- end }}

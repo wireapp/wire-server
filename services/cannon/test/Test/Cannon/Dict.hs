@@ -20,12 +20,12 @@
 module Test.Cannon.Dict where
 
 import Cannon.Dict (Dict)
-import qualified Cannon.Dict as D
+import Cannon.Dict qualified as D
 import Cannon.WS (Key, mkKey)
 import Control.Concurrent.Async
-import qualified Data.ByteString.Lazy as Lazy
+import Data.ByteString.Lazy qualified as Lazy
 import Data.Id
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.UUID hiding (fromString)
 import Data.UUID.V4
 import Imports

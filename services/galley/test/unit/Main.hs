@@ -21,11 +21,11 @@ module Main
 where
 
 import Imports
-import qualified Test.Galley.API
-import qualified Test.Galley.API.Message
-import qualified Test.Galley.API.One2One
-import qualified Test.Galley.Intra.User
-import qualified Test.Galley.Mapping
+import Test.Galley.API.Action qualified
+import Test.Galley.API.Message qualified
+import Test.Galley.API.One2One qualified
+import Test.Galley.Intra.User qualified
+import Test.Galley.Mapping qualified
 import Test.Tasty
 
 main :: IO ()
@@ -33,9 +33,9 @@ main =
   defaultMain $
     testGroup
       "Tests"
-      [ Test.Galley.API.tests,
-        Test.Galley.API.Message.tests,
+      [ Test.Galley.API.Message.tests,
         Test.Galley.API.One2One.tests,
         Test.Galley.Intra.User.tests,
-        Test.Galley.Mapping.tests
+        Test.Galley.Mapping.tests,
+        Test.Galley.API.Action.tests
       ]

@@ -24,7 +24,6 @@ module Spar.Orphans
   )
 where
 
-import Data.String.Conversions (cs)
 import Imports
 import qualified SAML2.WebSSO as SAML
 import Servant (MimeRender (..), PlainText)

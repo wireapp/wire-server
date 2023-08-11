@@ -27,54 +27,49 @@ where
 
 import API.SQS
 import API.Util hiding (deleteTeam)
-import qualified API.Util as Util
-import qualified API.Util.TeamFeature as Util
+import API.Util qualified as Util
+import API.Util.TeamFeature qualified as Util
 import Bilge hiding (head, timeout)
 import Bilge.Assert
-import Brig.Types.Intra (fromAccountStatusResp)
-import qualified Brig.Types.Intra as Brig
 import Control.Arrow ((>>>))
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy (fromStrict)
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.Csv (FromNamedRecord (..), decodeByName)
-import qualified Data.Currency as Currency
+import Data.Currency qualified as Currency
 import Data.Default
 import Data.Id
 import Data.Json.Util hiding ((#))
-import qualified Data.LegalHold as LH
+import Data.LegalHold qualified as LH
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 hiding (head)
-import qualified Data.List1 as List1
-import qualified Data.Map as Map
+import Data.List1 qualified as List1
+import Data.Map qualified as Map
 import Data.Misc (HttpsUrl, PlainTextPassword6, mkHttpsUrl, plainTextPassword6)
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
-import qualified Data.Text as T
+import Data.Set qualified as Set
+import Data.Text qualified as T
 import Data.Text.Ascii (AsciiChars (validate))
-import qualified Data.UUID as UUID
-import qualified Data.UUID.Util as UUID
-import qualified Data.UUID.V1 as UUID
-import qualified Data.Vector as V
+import Data.UUID qualified as UUID
+import Data.UUID.Util qualified as UUID
+import Data.UUID.V1 qualified as UUID
+import Data.Vector qualified as V
 import GHC.TypeLits (KnownSymbol)
-import qualified Galley.Env as Galley
-import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
+import Galley.Env qualified as Galley
+import Galley.Options (optSettings, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types.Status (status403)
-import qualified Network.Wai.Utilities.Error as Error
-import qualified Network.Wai.Utilities.Error as Wai
-import qualified Proto.TeamEvents as E
-import qualified Proto.TeamEvents_Fields as E
-import qualified SAML2.WebSSO.Types as SAML
+import Network.Wai.Utilities.Error qualified as Error
+import Network.Wai.Utilities.Error qualified as Wai
+import SAML2.WebSSO.Types qualified as SAML
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
@@ -89,18 +84,18 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra as TeamsIntra
 import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Export (TeamExportUser (..))
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Member
-import qualified Wire.API.Team.Member as Member
-import qualified Wire.API.Team.Member as TM
-import qualified Wire.API.Team.Member as Teams
+import Wire.API.Team.Member qualified as Member
+import Wire.API.Team.Member qualified as TM
+import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
-import qualified Wire.API.User as Public
-import qualified Wire.API.User as U
-import qualified Wire.API.User.Client as C
-import qualified Wire.API.User.Client.Prekey as PC
+import Wire.API.User qualified as Public
+import Wire.API.User qualified as U
+import Wire.API.User.Client qualified as C
+import Wire.API.User.Client.Prekey qualified as PC
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -160,7 +155,6 @@ tests s =
       test s "update team status" testUpdateTeamStatus,
       test s "team tests around truncation limits - no events, too large team" testTeamAddRemoveMemberAboveThresholdNoEvents,
       test s "send billing events to owners even in large teams" testBillingInLargeTeam,
-      test s "send billing events to some owners in large teams (indexedBillingTeamMembers disabled)" testBillingInLargeTeamWithoutIndexedBillingTeamMembers,
       testGroup "broadcast" $
         [ (BroadcastLegacyBody, BroadcastJSON),
           (BroadcastLegacyQueryParams, BroadcastJSON),
@@ -1028,8 +1022,8 @@ testDeleteBindingTeamMoreThanOneMember = do
   let ensureDeleted :: UserId -> TestM ()
       ensureDeleted uid = do
         resp <- get (b . paths ["/i/users", toByteString' uid, "status"]) <!! const 200 === statusCode
-        let mbStatus = fmap fromAccountStatusResp . responseJsonUnsafe $ resp
-        liftIO $ mbStatus @?= Just Brig.Deleted
+        let mbStatus = fmap Public.fromAccountStatusResp . responseJsonUnsafe $ resp
+        liftIO $ mbStatus @?= Just Public.Deleted
 
   ensureDeleted alice
   for_ members ensureDeleted
@@ -1555,119 +1549,6 @@ testBillingInLargeTeam = do
   Util.deleteTeamMember galley team firstOwner ownerFanoutPlusThree
   assertTeamUpdate ("delete fanoutLimit + 3rd billing member: " <> show ownerFanoutPlusThree) team (fanoutLimit + 2) (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusTwo])
   refreshIndex
-
-testBillingInLargeTeamWithoutIndexedBillingTeamMembers :: TestM ()
-testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
-  (firstOwner, team) <- Util.createBindingTeam
-  refreshIndex
-  opts <- view tsGConf
-  galley <- viewGalley
-  let withoutIndexedBillingTeamMembers =
-        withSettingsOverrides (\o -> o & optSettings . setEnableIndexedBillingTeamMembers ?~ False)
-  let fanoutLimit = fromRange $ Galley.currentFanoutLimit opts
-
-  -- Billing should work properly upto fanout limit
-  billingUsers <- mapM (\n -> (n,) <$> randomUser) [2 .. (fanoutLimit + 1)]
-  allOwnersBeforeFanoutLimit <-
-    withoutIndexedBillingTeamMembers $
-      foldM
-        ( \billingMembers (n, newBillingMemberId) -> do
-            let mem = json $ Member.mkNewTeamMember newBillingMemberId (rolePermissions RoleOwner) Nothing
-            -- We cannot add the new owner with an invite as we don't have a way
-            -- to override galley settings while making a call to brig, so we use
-            -- the internal API here.
-            post (galley . paths ["i", "teams", toByteString' team, "members"] . mem)
-              !!! const 200
-                === statusCode
-            let allBillingMembers = newBillingMemberId : billingMembers
-            -- We don't make a call to brig to add member, this prevents new
-            -- members from being indexed. Hence the count of team is always 2
-            assertTeamUpdate ("add " <> show n <> "th billing member: " <> show newBillingMemberId) team 2 allBillingMembers
-            pure allBillingMembers
-        )
-        [firstOwner]
-        billingUsers
-  refreshIndex
-
-  -- If we add another owner, one of them won't get notified
-  ownerFanoutPlusTwo <- randomUser
-  let memFanoutPlusTwo = json $ Member.mkNewTeamMember ownerFanoutPlusTwo (rolePermissions RoleOwner) Nothing
-  -- We cannot add the new owner with an invite as we don't have a way to
-  -- override galley settings while making a call to brig, so we use the
-  -- internal API here.
-  withoutIndexedBillingTeamMembers $ do
-    g <- viewGalley
-    post (g . paths ["i", "teams", toByteString' team, "members"] . memFanoutPlusTwo)
-      !!! const 200
-        === statusCode
-  assertIfWatcher ("add " <> show (fanoutLimit + 2) <> "th billing member: " <> show ownerFanoutPlusTwo) (updateMatcher team) $
-    \s maybeEvent ->
-      liftIO $ case maybeEvent of
-        Nothing -> assertFailure "Expected 1 TeamUpdate, got nothing"
-        Just event -> do
-          assertEqual (s <> ": eventType") E.TeamEvent'TEAM_UPDATE (event ^. E.eventType)
-          assertEqual (s <> ": count") 2 (event ^. E.eventData . E.memberCount)
-          let reportedBillingUserIds = mapMaybe (UUID.fromByteString . fromStrict) (event ^. E.eventData . E.billingUser)
-          assertEqual (s <> ": number of billing users") (fromIntegral fanoutLimit + 1) (length reportedBillingUserIds)
-  refreshIndex
-
-  -- While members are added with indexedBillingTeamMembers disabled, new owners must still be
-  -- indexed, just not used. When the feature is enabled, we should be able to send billing to
-  -- all the owners
-  ownerFanoutPlusThree <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
-  assertTeamUpdate
-    ("add fanoutLimit + 3rd billing member: " <> show ownerFanoutPlusThree)
-    team
-    2
-    (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusTwo, ownerFanoutPlusThree])
-  refreshIndex
-
-  -- Deletions with indexedBillingTeamMembers disabled should still remove owners from the
-  -- indexed table
-  withoutIndexedBillingTeamMembers $ Util.deleteTeamMember galley team firstOwner ownerFanoutPlusTwo
-  Util.waitForMemberDeletion firstOwner team ownerFanoutPlusTwo
-  assertTeamUpdate "delete 1 owner" team 1 (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusThree])
-
-  ownerFanoutPlusFour <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
-  assertTeamUpdate
-    ("add billing member to test deletion: " <> show ownerFanoutPlusFour)
-    team
-    3
-    (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusThree, ownerFanoutPlusFour])
-  refreshIndex
-
-  -- Promotions and demotion should also be kept track of regardless of feature being enabled
-  let demoteFanoutPlusThree = Member.mkNewTeamMember ownerFanoutPlusThree (rolePermissions RoleAdmin) Nothing
-  withoutIndexedBillingTeamMembers $ updateTeamMember galley team firstOwner demoteFanoutPlusThree !!! const 200 === statusCode
-  assertTeamUpdate "demote 1 user" team 3 (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusFour])
-
-  ownerFanoutPlusFive <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
-  assertTeamUpdate
-    ("add billing member to test demotion: " <> show ownerFanoutPlusFive)
-    team
-    4
-    (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusFour, ownerFanoutPlusFive])
-  refreshIndex
-
-  let promoteFanoutPlusThree = Member.mkNewTeamMember ownerFanoutPlusThree (rolePermissions RoleOwner) Nothing
-  withoutIndexedBillingTeamMembers $ updateTeamMember galley team firstOwner promoteFanoutPlusThree !!! const 200 === statusCode
-  assertTeamUpdate "demote 1 user" team 4 (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusThree, ownerFanoutPlusFour, ownerFanoutPlusFive])
-
-  ownerFanoutPlusSix <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
-  assertTeamUpdate
-    ("add billing member to test promotion: " <> show ownerFanoutPlusSix)
-    team
-    5
-    (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusThree, ownerFanoutPlusFour, ownerFanoutPlusFive, ownerFanoutPlusSix])
-  where
-    updateTeamMember g tid zusr change =
-      put
-        ( g
-            . paths ["teams", toByteString' tid, "members"]
-            . zUser zusr
-            . zConn "conn"
-            . json change
-        )
 
 -- | @SF.Management @TSFI.RESTfulAPI @S2
 -- This test covers:

@@ -28,7 +28,6 @@ import Control.Lens
 import qualified Data.ByteString.Builder as Builder
 import Data.Id
 import qualified Data.List as List
-import Data.String.Conversions
 import Imports
 import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
@@ -58,7 +57,7 @@ spec = describe "accessVerdict" $ do
         liftIO $ do
           Servant.errHTTPCode outcome `shouldBe` 200
           Servant.errReasonPhrase outcome `shouldBe` "forbidden"
-          ('1', cs @LBS @String (Servant.errBody outcome))
+          ('1', cs @LByteString @String (Servant.errBody outcome))
             `shouldSatisfy` (("<title>wire:sso:error:forbidden</title>" `List.isInfixOf`) . snd)
           ('2', XML.parseLBS XML.def $ Servant.errBody outcome)
             `shouldSatisfy` (isRight . snd)
@@ -69,7 +68,7 @@ spec = describe "accessVerdict" $ do
         liftIO $ do
           Servant.errHTTPCode outcome `shouldBe` 200
           Servant.errReasonPhrase outcome `shouldBe` "success"
-          ('1', cs @LBS @String (Servant.errBody outcome))
+          ('1', cs @LByteString @String (Servant.errBody outcome))
             `shouldSatisfy` (("<title>wire:sso:success</title>" `List.isInfixOf`) . snd)
           ('2', XML.parseLBS XML.def (Servant.errBody outcome))
             `shouldSatisfy` (isRight . snd)
@@ -106,7 +105,7 @@ spec = describe "accessVerdict" $ do
           List.lookup "cookie" qry `shouldNotBe` Just "$cookie"
           -- cookie variable should be substituted with value.  see
           -- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'
-          let Just (ckies :: SBS) = List.lookup "cookie" qry
+          let Just (ckies :: ByteString) = List.lookup "cookie" qry
               cky :: SetCookie = parseSetCookie ckies
           setCookieName cky `shouldBe` "zuid"
           ('s', setCookieSecure cky) `shouldBe` ('s', False) -- we're in integration test mode, no https here!
@@ -143,7 +142,7 @@ requestAccessVerdict ::
     ( Maybe UserId,
       SAML.ResponseVerdict,
       URI, -- location header
-      [(SBS, SBS)] -- query params
+      [(ByteString, ByteString)] -- query params
     )
 requestAccessVerdict idp isGranted mkAuthnReq = do
   subject <- nextSubject
@@ -174,7 +173,7 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
           . List.lookup "Location"
           . Servant.errHeaders
           $ outcome
-      qry :: [(SBS, SBS)]
+      qry :: [(ByteString, ByteString)]
       qry = queryPairs $ uriQuery loc
   muid <- runSpar $ SAMLUserStore.get uref
   pure (muid, outcome, loc, qry)

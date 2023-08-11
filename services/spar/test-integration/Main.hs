@@ -30,7 +30,6 @@
 module Main where
 
 import Control.Lens ((.~), (^.))
-import Data.String.Conversions
 import Data.Text (pack)
 import Imports
 import Servant.API (toHeader)

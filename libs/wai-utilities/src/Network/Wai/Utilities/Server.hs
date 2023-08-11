@@ -25,6 +25,7 @@ module Network.Wai.Utilities.Server
     defaultServer,
     newSettings,
     runSettingsWithShutdown,
+    runSettingsWithCleanup,
     compile,
     route,
 
@@ -51,37 +52,39 @@ import Control.Error.Util ((?:))
 import Control.Exception (throw)
 import Control.Monad.Catch hiding (onError, onException)
 import Data.Aeson (decode, encode)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Builder
-import qualified Data.ByteString.Char8 as C
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Char8 qualified as C
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain (domainText)
+import Data.List.NonEmpty qualified as NE
 import Data.Metrics.GC (spawnGCMetricsCollector)
 import Data.Metrics.Middleware
 import Data.Streaming.Zlib (ZlibException (..))
-import Data.String.Conversions (cs)
+import Data.Text qualified as T
 import Data.Text.Encoding.Error (lenientDecode)
-import qualified Data.Text.Lazy.Encoding as LT
+import Data.Text.Lazy.Encoding qualified as LT
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Handler.Warp.Internal (TimeoutThread)
-import qualified Network.Wai.Internal as WaiInt
+import Network.Wai.Internal qualified as WaiInt
 import Network.Wai.Predicate hiding (Error, err, status)
-import qualified Network.Wai.Predicate as P
+import Network.Wai.Predicate qualified as P
 import Network.Wai.Predicate.Request (HasRequest)
 import Network.Wai.Routing.Route (App, Continue, Routes, Tree)
-import qualified Network.Wai.Routing.Route as Route
-import qualified Network.Wai.Utilities.Error as Error
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Routing.Route qualified as Route
+import Network.Wai.Utilities.Error qualified as Error
+import Network.Wai.Utilities.Error qualified as Wai
+import Network.Wai.Utilities.JSONResponse
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Network.Wai.Utilities.Response
-import qualified Prometheus as Prm
-import qualified System.Logger as Log
+import Prometheus qualified as Prm
+import System.Logger qualified as Log
 import System.Logger.Class hiding (Error, Settings, format)
 import System.Posix.Signals (installHandler, sigINT, sigTERM)
-import qualified System.Posix.Signals as Sig
+import System.Posix.Signals qualified as Sig
 
 --------------------------------------------------------------------------------
 -- Server Setup
@@ -124,7 +127,11 @@ newSettings (Server h p l m t) = do
 --
 -- See also: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/7681
 runSettingsWithShutdown :: Settings -> Application -> Maybe Int -> IO ()
-runSettingsWithShutdown s app (fromMaybe defaultShutdownTime -> secs) = do
+runSettingsWithShutdown = runSettingsWithCleanup $ pure ()
+
+-- As above, but with an additional cleanup action that is called before the server shuts down.
+runSettingsWithCleanup :: IO () -> Settings -> Application -> Maybe Int -> IO ()
+runSettingsWithCleanup cleanup s app (fromMaybe defaultShutdownTime -> secs) = do
   initialization
   let s' =
         setInstallShutdownHandler catchSignals
@@ -136,8 +143,8 @@ runSettingsWithShutdown s app (fromMaybe defaultShutdownTime -> secs) = do
     initialization = do
       spawnGCMetricsCollector
     catchSignals closeSocket = do
-      void $ installHandler sigINT (Sig.CatchOnce closeSocket) Nothing
-      void $ installHandler sigTERM (Sig.CatchOnce closeSocket) Nothing
+      void $ installHandler sigINT (Sig.CatchOnce $ finally cleanup closeSocket) Nothing
+      void $ installHandler sigTERM (Sig.CatchOnce $ finally cleanup closeSocket) Nothing
 
 defaultShutdownTime :: Int
 defaultShutdownTime = 30
@@ -196,15 +203,28 @@ catchErrors l m app req k =
 
 -- | Standard handlers for turning exceptions into appropriate
 -- 'Error' responses.
-errorHandlers :: Applicative m => [Handler m Wai.Error]
+errorHandlers :: Applicative m => [Handler m (Either Wai.Error JSONResponse)]
 errorHandlers =
-  [ Handler $ \(x :: Wai.Error) -> pure x,
-    Handler $ \(_ :: InvalidRequest) -> pure $ Wai.mkError status400 "client-error" "Invalid Request",
-    Handler $ \(_ :: TimeoutThread) -> pure $ Wai.mkError status408 "client-error" "Request Timeout",
+  -- a Wai.Error can be converted to a JSONResponse, but doing so here would
+  -- prevent us from logging the error cleanly later
+  [ Handler $ \(x :: JSONResponse) -> pure (Right x),
+    Handler $ \(x :: Wai.Error) -> pure (Left x),
+    Handler $ \(_ :: InvalidRequest) ->
+      pure . Left $
+        Wai.mkError status400 "client-error" "Invalid Request",
+    Handler $ \(_ :: TimeoutThread) ->
+      pure . Left $
+        Wai.mkError status408 "client-error" "Request Timeout",
     Handler $ \case
-      ZlibException (-3) -> pure $ Wai.mkError status400 "client-error" "Invalid request body compression"
-      ZlibException _ -> pure $ Wai.mkError status500 "server-error" "Server Error",
-    Handler $ \(_ :: SomeException) -> pure $ Wai.mkError status500 "server-error" "Server Error"
+      ZlibException (-3) ->
+        pure . Left $
+          Wai.mkError status400 "client-error" "Invalid request body compression"
+      ZlibException _ ->
+        pure . Left $
+          Wai.mkError status500 "server-error" "Server Error",
+    Handler $ \(_ :: SomeException) ->
+      pure . Left $
+        Wai.mkError status500 "server-error" "Server Error"
   ]
 {-# INLINE errorHandlers #-}
 
@@ -332,14 +352,18 @@ onError ::
   OnErrorMetrics ->
   Request ->
   Continue IO ->
-  Wai.Error ->
+  Either Wai.Error JSONResponse ->
   m ResponseReceived
 onError g m r k e = liftIO $ do
-  logError g (Just r) e
-  when (statusCode (Error.code e) >= 500) $
+  case e of
+    Left we -> logError g (Just r) we
+    Right jr -> logJSONResponse g (Just r) jr
+  let resp = either waiErrorToJSONResponse id e
+  let code = statusCode (resp.status)
+  when (code >= 500) $
     either Prm.incCounter (counterIncr (path "net.errors")) `mapM_` m
   flushRequestBody r
-  k (errorRs' e)
+  k (jsonResponseToWai resp)
 
 -- | Log an 'Error' response for debugging purposes.
 --
@@ -355,6 +379,20 @@ logError' g mr e = liftIO $ doLog g (logErrorMsgWithRequest mr e)
       | statusCode (Error.code e) >= 500 = Log.err
       | otherwise = Log.debug
 
+logJSONResponse :: (MonadIO m, HasRequest r) => Logger -> Maybe r -> JSONResponse -> m ()
+logJSONResponse g mr e = do
+  let r = fromMaybe "N/A" (mr >>= lookupRequestId)
+  liftIO $
+    doLog g $
+      field "request" r
+        . field "code" status
+        . field "value" (encode e.value)
+  where
+    status = statusCode e.status
+    doLog
+      | status >= 500 = Log.err
+      | otherwise = Log.debug
+
 logErrorMsg :: Wai.Error -> Msg -> Msg
 logErrorMsg (Wai.Error c l m md) =
   field "code" (statusCode c)
@@ -362,8 +400,13 @@ logErrorMsg (Wai.Error c l m md) =
     . maybe id logErrorData md
     . msg (val "\"" +++ m +++ val "\"")
   where
-    logErrorData (Wai.FederationErrorData d p) =
-      field "domain" (domainText d)
+    logErrorData (Wai.FederationErrorData (NE.toList -> d) p) =
+      field
+        "domains"
+        ( val "["
+            +++ T.intercalate ", " (map domainText d)
+            +++ val "]"
+        )
         . field "path" p
 
 logErrorMsgWithRequest :: Maybe ByteString -> Wai.Error -> Msg -> Msg

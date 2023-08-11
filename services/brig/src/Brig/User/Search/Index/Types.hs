@@ -20,7 +20,6 @@
 
 module Brig.User.Search.Index.Types where
 
-import Brig.Types.Intra (AccountStatus)
 import Brig.Types.Search
 import Control.Lens (makeLenses)
 import Control.Monad.Catch
@@ -28,7 +27,7 @@ import Data.Aeson
 import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Text.ICU.Translit (trans, transliterate)
 import Data.Time (UTCTime)
 import Database.Bloodhound hiding (key)

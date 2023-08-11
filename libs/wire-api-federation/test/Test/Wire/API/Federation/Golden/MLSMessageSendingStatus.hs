@@ -21,16 +21,17 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Wire.API.MLS.Message
+import Wire.API.Unreachable
 
 testObject_MLSMessageSendingStatus1 :: MLSMessageSendingStatus
 testObject_MLSMessageSendingStatus1 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "1864-04-12 12:22:43.673 UTC"),
-      mmssUnreachableUsers = UnreachableUsers []
+      mmssFailedToSendTo = mempty
     }
 
 testObject_MLSMessageSendingStatus2 :: MLSMessageSendingStatus
@@ -38,7 +39,7 @@ testObject_MLSMessageSendingStatus2 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "2001-04-12 12:22:43.673 UTC"),
-      mmssUnreachableUsers = failed1
+      mmssFailedToSendTo = unreachableFromList failed1
     }
 
 testObject_MLSMessageSendingStatus3 :: MLSMessageSendingStatus
@@ -46,18 +47,18 @@ testObject_MLSMessageSendingStatus3 =
   MLSMessageSendingStatus
     { mmssEvents = [],
       mmssTime = toUTCTimeMillis (read "1999-04-12 12:22:43.673 UTC"),
-      mmssUnreachableUsers = failed2
+      mmssFailedToSendTo = unreachableFromList failed2
     }
 
-failed1 :: UnreachableUsers
+failed1 :: [Qualified UserId]
 failed1 =
   let domain = Domain "offline.example.com"
-   in UnreachableUsers [Qualified (Id . fromJust . UUID.fromString $ "00000000-0000-0000-0000-000200000008") domain]
+   in [Qualified (Id . fromJust . UUID.fromString $ "00000000-0000-0000-0000-000200000008") domain]
 
-failed2 :: UnreachableUsers
+failed2 :: [Qualified UserId]
 failed2 =
   let domain = Domain "golden.example.com"
-   in UnreachableUsers
-        [ Qualified (Id . fromJust . UUID.fromString $ "00000000-0000-0000-0000-000200000008") domain,
-          Qualified (Id . fromJust . UUID.fromString $ "00000000-0000-0000-0000-000100000007") domain
-        ]
+   in flip Qualified domain . Id . fromJust . UUID.fromString
+        <$> [ "00000000-0000-0000-0000-000200000008",
+              "00000000-0000-0000-0000-000100000007"
+            ]

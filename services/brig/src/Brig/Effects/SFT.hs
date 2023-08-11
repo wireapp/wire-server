@@ -27,18 +27,17 @@ module Brig.Effects.SFT
   )
 where
 
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Schema
-import Data.String.Conversions (cs)
 import Imports hiding (fromException, intercalate)
 import Network.HTTP.Client
 import Polysemy
 import Polysemy.Error hiding (try)
 import Polysemy.TinyLog
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import URI.ByteString (uriPath)
 import Wire.API.Call.Config
 

@@ -22,21 +22,20 @@
 module HandleLessUsers where
 
 import Brig.Data.Instances ()
-import Brig.Types.Intra
 import Cassandra
 import Cassandra.Util
 import Conduit
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString as BS
+import Data.Aeson qualified as Aeson
+import Data.ByteString qualified as BS
 import Data.Conduit.Internal (zipSources)
-import qualified Data.Conduit.List as C
+import Data.Conduit.List qualified as C
 import Data.Handle
 import Data.Id
-import Data.String.Conversions (cs)
 import Imports
 import System.Logger
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import UnliftIO.Async
+import Wire.API.User (AccountStatus (..))
 
 runCommand :: Logger -> ClientState -> FilePath -> IO ()
 runCommand l brig inconsistenciesFile = do

@@ -36,9 +36,8 @@ import Control.Monad.Catch (MonadThrow (throwM))
 import Data.Aeson (decode', encode)
 import Data.Id (TeamId, idToText)
 import Data.Range (Range (..))
-import Data.String.Conversions (cs)
 import Data.Text.Ascii (decodeBase64Url, encodeBase64Url)
-import qualified Database.Bloodhound as ES
+import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
 import Wire.API.User.Search
 

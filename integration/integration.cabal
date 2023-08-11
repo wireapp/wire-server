@@ -1,0 +1,176 @@
+cabal-version: 3.0
+name:          integration
+version:       0.1.0
+description:   Wire integration tests
+category:      Network
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2023 Wire Swiss GmbH
+license:       AGPL-3.0-only
+license-file:  LICENSE
+build-type:    Custom
+
+custom-setup
+  setup-depends:
+    , base
+    , Cabal
+    , containers
+    , directory
+    , filepath
+
+common common-all
+  default-language:   GHC2021
+  ghc-options:
+    -Wall -Wpartial-fields -fwarn-tabs
+    -optP-Wno-nonportable-include-path
+
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedLabels
+    OverloadedRecordDot
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    RecordWildCards
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+executable integration
+  import:        common-all
+  main-is:       ./main.hs
+  ghc-options:   -threaded -with-rtsopts=-N
+  build-depends: integration
+
+executable run-services
+  import:        common-all
+  main-is:       ./run-services.hs
+  ghc-options:   -threaded -with-rtsopts=-N
+  build-depends: integration
+
+library
+  import:          common-all
+  hs-source-dirs:  test
+
+  -- cabal-fmt: expand test
+  exposed-modules:
+    API.Brig
+    API.BrigInternal
+    API.Cargohold
+    API.Common
+    API.Galley
+    API.GalleyInternal
+    API.Gundeck
+    API.GundeckInternal
+    API.Nginz
+    MLS.Util
+    RunAllTests
+    SetupHelpers
+    Test.AssetDownload
+    Test.B2B
+    Test.Brig
+    Test.Client
+    Test.Conversation
+    Test.Demo
+    Test.Federator
+    Test.Notifications
+    Test.Presence
+    Test.User
+    Testlib.App
+    Testlib.Assertions
+    Testlib.Cannon
+    Testlib.Env
+    Testlib.HTTP
+    Testlib.JSON
+    Testlib.ModService
+    Testlib.Options
+    Testlib.Prekeys
+    Testlib.Prelude
+    Testlib.Printing
+    Testlib.PTest
+    Testlib.ResourcePool
+    Testlib.Run
+    Testlib.RunServices
+    Testlib.Types
+
+  build-depends:
+    , aeson
+    , aeson-pretty
+    , array
+    , async
+    , attoparsec
+    , base
+    , base64-bytestring
+    , bytestring
+    , bytestring-conversion
+    , case-insensitive
+    , containers
+    , data-default
+    , directory
+    , exceptions
+    , extra
+    , filepath
+    , hex
+    , http-client
+    , http-types
+    , kan-extensions
+    , lens
+    , lens-aeson
+    , mime
+    , monad-control
+    , mtl
+    , network
+    , network-uri
+    , optparse-applicative
+    , process
+    , random
+    , raw-strings-qq
+    , retry
+    , scientific
+    , split
+    , stm
+    , string-conversions
+    , tagged
+    , temporary
+    , text
+    , time
+    , transformers
+    , transformers-base
+    , unix
+    , unliftio
+    , uuid
+    , vector
+    , websockets
+    , yaml

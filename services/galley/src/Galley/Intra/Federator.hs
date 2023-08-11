@@ -45,6 +45,9 @@ interpretFederatorAccess = interpret $ \case
   RunFederatedConcurrentlyEither rs f ->
     embedApp $
       runFederatedConcurrentlyEither rs f
+  RunFederatedConcurrentlyBucketsEither rs f ->
+    embedApp $
+      runFederatedConcurrentlyBucketsEither rs f
   IsFederationConfigured -> embedApp $ isJust <$> view federator
 
 runFederatedEither ::
@@ -54,6 +57,7 @@ runFederatedEither ::
 runFederatedEither (tDomain -> remoteDomain) rpc = do
   ownDomain <- view (options . optSettings . setFederationDomain)
   mfedEndpoint <- view federator
+  mgr <- view http2Manager
   case mfedEndpoint of
     Nothing -> pure (Left FederationNotConfigured)
     Just fedEndpoint -> do
@@ -61,7 +65,8 @@ runFederatedEither (tDomain -> remoteDomain) rpc = do
             FederatorClientEnv
               { ceOriginDomain = ownDomain,
                 ceTargetDomain = remoteDomain,
-                ceFederator = fedEndpoint
+                ceFederator = fedEndpoint,
+                ceHttp2Manager = mgr
               }
       liftIO . fmap (first FederationCallFailure) $ runFederatorClient ce rpc
 
@@ -92,3 +97,11 @@ runFederatedConcurrentlyEither ::
 runFederatedConcurrentlyEither xs rpc =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
     bimap (r,) (qualifyAs r) <$> runFederatedEither r (rpc r)
+
+runFederatedConcurrentlyBucketsEither ::
+  [(Remote [a], y)] ->
+  ((Remote [a], y) -> FederatorClient c b) ->
+  App [Either (Remote [a], FederationError) (Remote b)]
+runFederatedConcurrentlyBucketsEither xs rpc =
+  pooledForConcurrentlyN 8 xs $ \(r, v) ->
+    bimap (r,) (qualifyAs r) <$> runFederatedEither r (rpc (r, v))

@@ -24,59 +24,58 @@ module API.Provider
   )
 where
 
-import qualified API.Team.Util as Team
+import API.Team.Util qualified as Team
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
-import qualified Brig.Code as Code
-import qualified Brig.Types.Intra as Intra
-import qualified Cassandra as DB
+import Brig.Code qualified as Code
+import Cassandra qualified as DB
 import Control.Arrow ((&&&))
-import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Async qualified as Async
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout (threadDelay, timeout)
 import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.Aeson
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as C8
+import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Domain
 import Data.Handle (Handle (Handle))
-import qualified Data.HashMap.Strict as HashMap
+import Data.HashMap.Strict qualified as HashMap
 import Data.Id hiding (client)
 import Data.Json.Util (toBase64Text)
 import Data.List1 (List1)
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Misc
 import Data.PEM
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Streaming.Network (bindRandomPortTCP)
-import qualified Data.Text as Text
-import qualified Data.Text.Ascii as Ascii
+import Data.Text qualified as Text
+import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding (encodeUtf8)
-import qualified Data.Text.Encoding as Text
+import Data.Text.Encoding qualified as Text
 import Data.Time.Clock
 import Data.Timeout (TimedOut (..), Timeout, TimeoutUnit (..), (#))
-import qualified Data.UUID as UUID
-import qualified Data.ZAuth.Token as ZAuth
+import Data.UUID qualified as UUID
+import Data.ZAuth.Token qualified as ZAuth
 import Imports hiding (threadDelay)
 import Network.HTTP.Types.Status (status200, status201, status400)
 import Network.Socket
-import qualified Network.Socket as Socket
+import Network.Socket qualified as Socket
 import Network.Wai (Application, responseLBS, strictRequestBody)
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Handler.Warp.Internal as Warp
-import qualified Network.Wai.Handler.WarpTLS as Warp
-import qualified Network.Wai.Route as Wai
-import qualified Network.Wai.Utilities.Error as Error
+import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Handler.Warp.Internal qualified as Warp
+import Network.Wai.Handler.WarpTLS qualified as Warp
+import Network.Wai.Route qualified as Wai
+import Network.Wai.Utilities.Error qualified as Error
 import OpenSSL.PEM (writePublicKey)
 import OpenSSL.RSA (generateRSAKey')
 import System.IO.Temp (withSystemTempFile)
 import Test.Tasty hiding (Timeout)
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (SetCookie (..), parseSetCookie)
@@ -89,14 +88,14 @@ import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.Internal.Notification
 import Wire.API.Provider
-import qualified Wire.API.Provider.Bot as Ext
-import qualified Wire.API.Provider.External as Ext
+import Wire.API.Provider.Bot qualified as Ext
+import Wire.API.Provider.External qualified as Ext
 import Wire.API.Provider.Service
 import Wire.API.Provider.Service.Tag
 import Wire.API.Team.Feature (featureNameBS)
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Permission
-import Wire.API.User hiding (EmailUpdate, PasswordChange, mkName)
+import Wire.API.User as User hiding (EmailUpdate, PasswordChange, mkName)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
@@ -793,8 +792,8 @@ testDeleteTeamBotTeam config db brig galley cannon = withTestService config db b
   svcAssertEventuallyConvDelete buf quid1 qcid
   -- Wait until all users have been deleted (can take a while)
   forM_ [uid1, uid2] $ \uid -> do
-    void $ retryWhileN 20 (/= Intra.Deleted) (getStatus brig uid)
-    chkStatus brig uid Intra.Deleted
+    void $ retryWhileN 20 (/= User.Deleted) (getStatus brig uid)
+    chkStatus brig uid User.Deleted
     aFewTimes 11 (getConversationQualified galley uid qcid) ((== 404) . statusCode)
   -- Check the bot cannot see the conversation either
   getBotConv galley bid cid !!! const 404 === statusCode

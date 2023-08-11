@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -28,6 +27,7 @@ module Federator.MockServer
     Mock,
     runMock,
     mockReply,
+    mockUnreachableFor,
     mockFail,
     guardRPC,
     guardComponent,
@@ -38,29 +38,33 @@ module Federator.MockServer
   )
 where
 
-import qualified Control.Exception as Exception
+import Control.Exception qualified as Exception
 import Control.Exception.Base (throw)
 import Control.Monad.Catch hiding (fromException)
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
-import qualified Data.Aeson as Aeson
-import Data.Domain (Domain)
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as LText
+import Data.Aeson qualified as Aeson
+import Data.Domain
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as LText
 import Federator.Error
 import Federator.Error.ServerError
 import Federator.InternalServer
+import Federator.RPC
 import Federator.Response
 import Federator.Validation
 import Imports hiding (fromException)
-import qualified Network.HTTP.Media as HTTP
+import Network.HTTP.Media qualified as HTTP
 import Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
-import Network.Wai.Utilities.Error as Wai
+import Network.Wai qualified as Wai
+import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Utilities.Error as Wai hiding (Error)
 import Network.Wai.Utilities.MockServer
 import Polysemy
 import Polysemy.Error hiding (throw)
+import Servant.API
+import Servant.Server (Tagged (..))
+import Servant.Server.Generic
 import Wire.API.Federation.API (Component)
 import Wire.API.Federation.Domain
 import Wire.API.Federation.Version
@@ -68,12 +72,22 @@ import Wire.Sem.Logger.TinyLog
 
 -- | This can be thrown by actions passed to mock federator to simulate
 -- failures either in federator itself, or in the services it calls.
-data MockException = MockErrorResponse HTTP.Status LText
+data MockException
+  = MockErrorResponse HTTP.Status LText
+  | MockUnreachableBackendErrorResponse Domain
   deriving (Eq, Show, Typeable)
 
 instance AsWai MockException where
   toWai (MockErrorResponse status message) = Wai.mkError status "mock-error" message
+  toWai (MockUnreachableBackendErrorResponse d) =
+    Wai.mkError HTTP.status503 "mock-error" (unreachableMsg d)
   waiErrorDescription (MockErrorResponse _ message) = LText.toStrict message
+  waiErrorDescription (MockUnreachableBackendErrorResponse d) =
+    LText.toStrict . unreachableMsg $ d
+
+unreachableMsg :: Domain -> LText
+unreachableMsg (LText.fromStrict . domainText -> d) =
+  "unreachable_backend: " <> d
 
 instance Exception MockException
 
@@ -85,6 +99,68 @@ data FederatedRequest = FederatedRequest
     frBody :: LByteString
   }
   deriving (Eq, Show)
+
+mockServer ::
+  ( Member (Embed IO) r,
+    Member (Error MockException) r,
+    Member (Error ServerError) r,
+    Member (Error ValidationError) r
+  ) =>
+  IORef [FederatedRequest] ->
+  [HTTP.Header] ->
+  (FederatedRequest -> IO (HTTP.MediaType, LByteString)) ->
+  (Sem r Wai.Response -> IO Wai.Response) ->
+  API AsServer
+mockServer remoteCalls headers resp interpreter =
+  Federator.InternalServer.API
+    { status = const $ pure NoContent,
+      internalRequest = \targetDomain component rpc ->
+        Tagged $ \req respond ->
+          respond =<< interpreter (mockInternalRequest remoteCalls headers resp targetDomain component rpc req)
+    }
+
+mockInternalRequest ::
+  ( Member (Embed IO) r,
+    Member (Error MockException) r,
+    Member (Error ServerError) r,
+    Member (Error ValidationError) r
+  ) =>
+  IORef [FederatedRequest] ->
+  [HTTP.Header] ->
+  (FederatedRequest -> IO (HTTP.MediaType, LByteString)) ->
+  Domain ->
+  Component ->
+  RPC ->
+  Wai.Request ->
+  Sem r Wai.Response
+mockInternalRequest remoteCalls headers resp targetDomain component (RPC path) req = do
+  domainTxt <- note NoOriginDomain $ lookup originDomainHeaderName (Wai.requestHeaders req)
+  originDomain <- parseDomain domainTxt
+  reqBody <- embed $ Wai.lazyRequestBody req
+  let fedRequest =
+        ( FederatedRequest
+            { frOriginDomain = originDomain,
+              frTargetDomain = targetDomain,
+              frComponent = component,
+              frRPC = path,
+              frBody = reqBody
+            }
+        )
+  (ct, resBody) <-
+    if path == "api-version"
+      then pure ("application/json", Aeson.encode versionInfo)
+      else do
+        modifyIORef remoteCalls (<> [fedRequest])
+        fromException @MockException
+          . handle (throw . handleException)
+          $ resp fedRequest
+  let headers' = ("Content-Type", HTTP.renderHeader ct) : headers
+  pure $ Wai.responseLBS HTTP.status200 headers' resBody
+  where
+    handleException :: SomeException -> MockException
+    handleException e = case Exception.fromException e of
+      Just mockE -> mockE
+      Nothing -> MockErrorResponse HTTP.status500 (LText.pack (displayException e))
 
 -- | Spawn a mock federator on a random port and run an action while it is running.
 --
@@ -99,46 +175,15 @@ withTempMockFederator ::
   m (a, [FederatedRequest])
 withTempMockFederator headers resp action = do
   remoteCalls <- newIORef []
-
-  let handleException :: SomeException -> MockException
-      handleException e = case Exception.fromException e of
-        Just mockE -> mockE
-        Nothing -> MockErrorResponse HTTP.status500 (LText.pack (displayException e))
-
-  let app request respond = do
-        response <-
-          runM
-            . discardTinyLogs
-            . runWaiErrors
-              @'[ ValidationError,
-                  ServerError,
-                  MockException
-                ]
-            $ do
-              RequestData {..} <- parseRequestData request
-              domainText <- note NoOriginDomain $ lookup originDomainHeaderName rdHeaders
-              originDomain <- parseDomain domainText
-              targetDomain <- parseDomainText rdTargetDomain
-              let fedRequest =
-                    ( FederatedRequest
-                        { frOriginDomain = originDomain,
-                          frTargetDomain = targetDomain,
-                          frComponent = rdComponent,
-                          frRPC = rdRPC,
-                          frBody = rdBody
-                        }
-                    )
-              (ct, body) <-
-                if rdRPC == "api-version"
-                  then pure ("application/json", Aeson.encode versionInfo)
-                  else do
-                    embed @IO $ modifyIORef remoteCalls (<> [fedRequest])
-                    fromException @MockException
-                      . handle (throw . handleException)
-                      $ resp fedRequest
-              let headers' = ("Content-Type", HTTP.renderHeader ct) : headers
-              pure $ Wai.responseLBS HTTP.status200 headers' body
-        respond response
+  let interpreter =
+        runM
+          . discardTinyLogs
+          . runWaiErrors
+            @'[ ValidationError,
+                ServerError,
+                MockException
+              ]
+      app = genericServe (mockServer remoteCalls headers resp interpreter)
   result <-
     bracket
       (liftIO (startMockServer Nothing app))
@@ -202,6 +247,13 @@ guardComponent c = do
 -- | Serialise and return a response.
 mockReply :: Aeson.ToJSON a => a -> Mock LByteString
 mockReply = pure . Aeson.encode
+
+-- | Provide a mock reply simulating an unreachable backend.
+mockUnreachableFor :: Set Domain -> Mock LByteString
+mockUnreachableFor backends = do
+  target <- frTargetDomain <$> getRequest
+  guard (target `elem` backends)
+  throw (MockUnreachableBackendErrorResponse target)
 
 -- | Abort the mock with an error.
 mockFail :: Text -> Mock a

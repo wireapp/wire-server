@@ -33,7 +33,6 @@ where
 
 import Cassandra as Cas
 import Data.ByteString.Conversion (fromByteString, toByteString)
-import Data.String.Conversions
 import Data.X509 (SignedCertificate)
 import Imports
 import SAML2.Util (parseURI')

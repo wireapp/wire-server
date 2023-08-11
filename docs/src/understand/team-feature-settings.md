@@ -33,6 +33,8 @@ Note that the lock status is required but has no effect, as it is currently not 
 
 Currently the 2nd factor password challenge if enabled has no effect for SSO users.
 
+As there is currently no feasible way for bots to use the 2nd factor password challenge, bots and the service API are blocked when this feature is enabled.
+
 ## Rate limiting of code generation requests
 
 The default delay between code generation requests is 5 minutes. This setting can be overridden in the Helm charts:
@@ -67,7 +69,7 @@ galley:
         conversationGuestLinks:
           defaults:
             status: disabled
-            lockStatus: locked            
+            lockStatus: locked
 ```
 
 ## TTL for nonces
@@ -88,7 +90,9 @@ brig:
 
 The MLS end-to-end identity team feature adds an extra level of security and practicability. If turned on, automatic device authentication ensures that team members know they are communicating with people using authenticated devices. Team members get a certificate on all their devices.
 
-A timer can be set to configure until when team members need to get the verification certificate. When the timer goes off, they will be logged out and get the certificate automatically on their devices. The timer is set as a unix timestamp (number of seconds that have passed since 00:00:00 UTC on Thursday, 1 January 1970) after which the period for clients to verify their identity expires.
+When a client first tries to fetch or renew a certificate, they may need to login to an identity provider (IdP) depending on their IdP domain authentication policy. The user may have a grace period during which they can “snooze” this login. The duration of this grace period (in seconds) is set in the `verificationDuration` parameter, which is enforced separately by each client. After the grace period has expired, the client will not allow the user to use the application until they have logged to refresh the certificate. The default value is 1 day (86400s).
+
+The client enrolls using the Automatic Certificate Management Environment (ACME) protocol [RFC 8555](https://www.rfc-editor.org/rfc/rfc8555.html). The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for this team. It is of the form "https://acme.{backendDomain}/acme/{provisionerName}/discovery". For example: `https://acme.example.com/acme/provisioner1/discovery`.
 
 ```yaml
 galley:
@@ -103,6 +107,7 @@ galley:
           defaults:
             status: disabled
             config:
-              verificationExpiration: 1676377048
+              verificationExpiration: 86400
+              acmeDiscoveryUrl: null
             lockStatus: unlocked
-```   
+```

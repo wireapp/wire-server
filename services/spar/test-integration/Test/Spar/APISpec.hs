@@ -25,7 +25,6 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra (AccountStatus (Deleted))
 import Cassandra as Cas hiding (Value)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadThrow)
@@ -37,7 +36,6 @@ import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Misc
 import Data.Proxy
-import Data.String.Conversions
 import qualified Data.Text as ST
 import qualified Data.Text as T
 import Data.Text.Ascii (decodeBase64, validateBase64)
@@ -218,7 +216,7 @@ specFinalizeLogin = do
         sparresp <- submitAuthnResponse tid authnresp
         liftIO $ do
           statusCode sparresp `shouldBe` 200
-          let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+          let bdy = maybe "" (cs @LByteString @String) (responseBody sparresp)
           bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
           bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
           bdy `shouldContain` "<title>wire:sso:error:forbidden</title>"
@@ -235,7 +233,7 @@ specFinalizeLogin = do
       let loginSuccess :: HasCallStack => ResponseLBS -> TestSpar ()
           loginSuccess sparresp = liftIO $ do
             statusCode sparresp `shouldBe` 200
-            let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+            let bdy = maybe "" (cs @LByteString @String) (responseBody sparresp)
             bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
             bdy `shouldContain` "<title>wire:sso:success</title>"
@@ -245,7 +243,7 @@ specFinalizeLogin = do
       let loginFailure :: HasCallStack => ResponseLBS -> TestSpar ()
           loginFailure sparresp = liftIO $ do
             statusCode sparresp `shouldBe` 200
-            let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+            let bdy = maybe "" (cs @LByteString @String) (responseBody sparresp)
             bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
             bdy `shouldNotContain` "<title>wire:sso:error:success</title>"
@@ -927,7 +925,7 @@ specCRUDIdentityProvider = do
             sparresp <- submitAuthnResponse tid idpresp
             liftIO $ do
               statusCode sparresp `shouldBe` expectedStatus
-              let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+              let bdy = maybe "" (cs @LByteString @String) (responseBody sparresp)
               bdy `shouldContain` expectedHtmlTitle
               hasPersistentCookieHeader sparresp `shouldBe` expectedCookie
       it "uses those certs on next auth handshake" $ do
@@ -1270,7 +1268,7 @@ specScimAndSAML = do
     accessresp <- call . post $ (env ^. teBrig) . path "/access" . ckyraw
     token :: Text <- liftIO $ do
       statusCode accessresp `shouldBe` 200
-      bdy :: LBS <- maybe (error "no body") pure $ responseBody accessresp
+      bdy :: LByteString <- maybe (error "no body") pure $ responseBody accessresp
       val :: Value <- either error pure $ eitherDecode bdy
       maybe (error "no access token") pure $ val ^? key "access_token" . _String
     -- token should contain the expected userid
@@ -1287,7 +1285,7 @@ specScimAndSAML = do
           . header "Z-User" (toByteString' userid'')
     selfbdy :: SelfProfile <-
       do
-        bdy :: LBS <- maybe (error "no self body") pure $ responseBody self
+        bdy :: LByteString <- maybe (error "no self body") pure $ responseBody self
         either error pure $ eitherDecode bdy
     liftIO $ userId (selfUser selfbdy) `shouldBe` userid
   it "SCIM-provisioned users can login with any qualifiers to NameId" $ do
@@ -1351,7 +1349,7 @@ specProvisionScimAndSAMLUserWithRole = do
             _ <- ScimT.updateUser tok userId scimUserWithRole
             ScimT.checkTeamMembersRole tid owner userId role
       mapM_ testUpdateUserWithRole [minBound .. maxBound]
-    it "update user - default to member if no role given" $ do
+    it "update user - do not change current role if no role given" $ do
       (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
       let testUpdateUserWithDefaultRole :: Role -> TestSpar ()
           testUpdateUserWithDefaultRole role = do
@@ -1360,7 +1358,7 @@ specProvisionScimAndSAMLUserWithRole = do
               pure $ u {Scim.roles = [cs $ toByteString $ role]}
             userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
             _ <- ScimT.updateUser tok userId (scimUser {Scim.roles = []})
-            ScimT.checkTeamMembersRole tid owner userId RoleMember
+            ScimT.checkTeamMembersRole tid owner userId role
       mapM_ testUpdateUserWithDefaultRole [minBound .. maxBound]
     it "updated user - fail if more than one role given" $ do
       (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta

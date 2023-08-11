@@ -5,7 +5,7 @@ set -e
 USAGE="This script tests the OAuth2 flow by creating a client, requesting an authorization code, and
 then requesting an access token. It then uses the access token to make a request to /self.
 
-Create a user first with './create_test_user.sh -n 1 -c'. Then use the user ID to call this script.
+Create a user first with './create_team.py 8082 -n 1'. Then use the user ID to call this script.
 
 USAGE: $0
     -u <user_id>: User ID

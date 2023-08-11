@@ -29,7 +29,7 @@ data Phone = Phone
   deriving (Show, Eq, Ord, Generic)
 
 instance FromJSON Phone where
-  parseJSON = genericParseJSON parseOptions . jsonLower
+  parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower
 
 instance ToJSON Phone where
   toJSON = genericToJSON serializeOptions

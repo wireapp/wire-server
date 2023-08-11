@@ -24,43 +24,12 @@ import Data.Handle (Handle (Handle, fromHandle))
 import Data.ISO3166_CountryCodes (CountryCode (PA))
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
-import qualified Data.LanguageCodes (ISO639_1 (GL))
+import Data.LanguageCodes qualified (ISO639_1 (GL))
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Bool (False), Maybe (Just), fromJust)
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 import Wire.API.User
-  ( ColourId (ColourId, fromColourId),
-    Country (Country, fromCountry),
-    Email (Email, emailDomain, emailLocal),
-    Language (Language),
-    Locale (Locale, lCountry, lLanguage),
-    ManagedBy (ManagedByScim),
-    Name (Name, fromName),
-    Phone (Phone, fromPhone),
-    Pict (Pict, fromPict),
-    SelfProfile (..),
-    User
-      ( User,
-        userAccentId,
-        userAssets,
-        userDeleted,
-        userDisplayName,
-        userExpire,
-        userHandle,
-        userId,
-        userIdentity,
-        userLocale,
-        userManagedBy,
-        userPict,
-        userQualifiedId,
-        userService,
-        userTeam
-      ),
-    UserIdentity
-      ( FullIdentity
-      ),
-  )
 
 testObject_SelfProfile_user_1 :: SelfProfile
 testObject_SelfProfile_user_1 =
@@ -92,6 +61,7 @@ testObject_SelfProfile_user_1 =
             userHandle = Just (Handle {fromHandle = "do9-5"}),
             userExpire = Just (fromJust (readUTCTimeMillis "1864-05-07T21:09:29.342Z")),
             userTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000000000002"))),
-            userManagedBy = ManagedByScim
+            userManagedBy = ManagedByScim,
+            userSupportedProtocols = defSupportedProtocols
           }
     }

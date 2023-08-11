@@ -37,7 +37,6 @@ import qualified Data.Code as Code
 import Data.Id (ScimTokenId, TeamId, UserId, randomId)
 import Data.Misc
 import Data.Range (unsafeRange)
-import Data.String.Conversions (cs)
 import Data.Text.Ascii (AsciiChars (validate))
 import Data.Time (UTCTime)
 import Data.Time.Clock (getCurrentTime)

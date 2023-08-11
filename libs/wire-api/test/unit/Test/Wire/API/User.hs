@@ -20,14 +20,14 @@
 module Test.Wire.API.User where
 
 import Data.Aeson
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Types as Aeson
 import Data.Domain
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Qualified
 import Data.Schema (schemaIn)
-import qualified Data.UUID.V4 as UUID
+import Data.UUID.V4 qualified as UUID
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -47,7 +47,7 @@ testUserProfile = do
   uid <- Id <$> UUID.nextRandom
   let domain = Domain "example.com"
   let colour = ColourId 0
-  let userProfile = UserProfile (Qualified uid domain) (Name "name") (Pict []) [] colour False Nothing Nothing Nothing Nothing Nothing UserLegalHoldNoConsent
+  let userProfile = UserProfile (Qualified uid domain) (Name "name") (Pict []) [] colour False Nothing Nothing Nothing Nothing Nothing UserLegalHoldNoConsent defSupportedProtocols
   let profileJSONAsText = show $ Aeson.encode userProfile
   let msg = "toJSON encoding must not convert Nothing to null, but instead omit those json fields for backwards compatibility. UserProfileJSON:" <> profileJSONAsText
   assertBool msg (not $ "null" `isInfixOf` profileJSONAsText)

@@ -35,7 +35,7 @@ import Imports
 import Polysemy
 import Polysemy.Input
 import System.Logger.Class as LC
-import qualified System.Logger.Extended as Log
+import System.Logger.Extended qualified as Log
 
 -- FUTUREWORK(federation): this code re-occurs in every service.  introduce 'MkAppT' in types-common that
 -- takes 'Env' as one more argument.

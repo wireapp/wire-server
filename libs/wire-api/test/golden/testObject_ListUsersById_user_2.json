@@ -9,6 +9,7 @@
     , "assets" : []
     , "accent_id" : 0
     , "legalhold_status" : "disabled"
+    , "supported_protocols" : ["proteus"]
     }
   , { "qualified_id" :
       { "domain" : "test.net"
@@ -20,6 +21,7 @@
     , "assets" : []
     , "accent_id" : 0
     , "legalhold_status" : "disabled"
+    , "supported_protocols" : ["proteus", "mls"]
     }
   ]
 }

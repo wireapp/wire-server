@@ -18,34 +18,33 @@
 
 module API.OAuth where
 
-import qualified API.Team.Util as Team
+import API.Team.Util qualified as Team
 import Bilge
 import Bilge.Assert
 import Brig.API.OAuth hiding (verifyRefreshToken)
 import Brig.Options
-import qualified Brig.Options as Opt
-import qualified Cassandra as C
+import Brig.Options qualified as Opt
+import Cassandra qualified as C
 import Control.Lens
 import Control.Monad.Catch (MonadCatch)
 import Crypto.JOSE (JOSE, JWK, bestJWSAlg, newJWSHeader, runJOSE)
 import Crypto.JWT (Audience (Audience), ClaimsSet, JWTError, NumericDate (NumericDate), SignedJWT, claimAud, claimExp, claimIat, claimIss, claimSub, defaultJWTValidationSettings, emptyClaimsSet, signClaims, signJWT, stringOrUri, verifyClaims)
-import qualified Data.Aeson as A
-import qualified Data.ByteString.Char8 as BS
+import Data.Aeson qualified as A
+import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion (fromByteString, toByteString')
 import Data.Domain (domainText)
 import Data.Id
 import Data.Qualified (Qualified (qUnqualified))
 import Data.Range
 import Data.Set as Set hiding (delete, null, (\\))
-import Data.String.Conversions (cs)
 import Data.Text.Ascii (encodeBase16)
-import qualified Data.Text.Encoding as T
+import Data.Text.Encoding qualified as T
 import Data.Time
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Data.UUID.V4 (nextRandom)
 import Imports
 import Network.HTTP.Types (HeaderName)
-import qualified Network.Wai.Utilities as Error
+import Network.Wai.Utilities qualified as Error
 import Servant.API
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -54,10 +53,10 @@ import URI.ByteString
 import Util
 import Web.FormUrlEncoded
 import Wire.API.Conversation (Access (..), Conversation (cnvQualifiedId))
-import qualified Wire.API.Conversation as Conv
+import Wire.API.Conversation qualified as Conv
 import Wire.API.Conversation.Code (CreateConversationCodeRequest (CreateConversationCodeRequest))
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
-import qualified Wire.API.Conversation.Role as Role
+import Wire.API.Conversation.Role qualified as Role
 import Wire.API.OAuth
 import Wire.API.Routes.Bearer (Bearer (Bearer, unBearer))
 import Wire.API.User
@@ -130,7 +129,7 @@ tests m db b n o = do
 
 testRegisterNewOAuthClient :: Brig -> Http ()
 testRegisterNewOAuthClient brig = do
-  let newOAuthClient@(RegisterOAuthClientRequest expectedAppName expectedUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
+  let newOAuthClient@(OAuthClientConfig expectedAppName expectedUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
   c <- registerNewOAuthClient brig newOAuthClient
   uid <- randomId
   oauthClientInfo <- getOAuthClientInfo brig uid c.clientId
@@ -140,7 +139,7 @@ testRegisterNewOAuthClient brig = do
 
 testCreateOAuthCodeSuccess :: Brig -> Http ()
 testCreateOAuthCodeSuccess brig = do
-  let newOAuthClient@(RegisterOAuthClientRequest _ redirectUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
+  let newOAuthClient@(OAuthClientConfig _ redirectUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
   c <- registerNewOAuthClient brig newOAuthClient
   uid <- randomId
   let scope = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
@@ -739,17 +738,17 @@ authHeader = bearer "Authorization"
 bearer :: ToHttpApiData a => HeaderName -> a -> Request -> Request
 bearer name = header name . toHeader . Bearer
 
-newOAuthClientRequestBody :: Text -> Text -> RegisterOAuthClientRequest
+newOAuthClientRequestBody :: Text -> Text -> OAuthClientConfig
 newOAuthClientRequestBody name url =
   let redirectUrl = mkUrl (cs url)
       applicationName = OAuthApplicationName (unsafeRange name)
-   in RegisterOAuthClientRequest applicationName redirectUrl
+   in OAuthClientConfig applicationName redirectUrl
 
-registerNewOAuthClient :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> RegisterOAuthClientRequest -> m OAuthClientCredentials
+registerNewOAuthClient :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> OAuthClientConfig -> m OAuthClientCredentials
 registerNewOAuthClient brig reqBody =
   responseJsonError =<< registerNewOAuthClient' brig reqBody <!! const 200 === statusCode
 
-registerNewOAuthClient' :: (MonadHttp m) => Brig -> RegisterOAuthClientRequest -> m ResponseLBS
+registerNewOAuthClient' :: (MonadHttp m) => Brig -> OAuthClientConfig -> m ResponseLBS
 registerNewOAuthClient' brig reqBody =
   post (brig . paths ["i", "oauth", "clients"] . json reqBody)
 
@@ -800,7 +799,7 @@ generateOAuthClientAndAuthorizationCode = generateOAuthClientAndAuthorizationCod
 
 generateOAuthClientAndAuthorizationCode' :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => OAuthCodeChallenge -> Brig -> UserId -> OAuthScopes -> RedirectUrl -> m (OAuthClientId, OAuthAuthorizationCode)
 generateOAuthClientAndAuthorizationCode' chal brig uid scope url = do
-  let newOAuthClient = RegisterOAuthClientRequest (OAuthApplicationName (unsafeRange "E Corp")) url
+  let newOAuthClient = OAuthClientConfig (OAuthApplicationName (unsafeRange "E Corp")) url
   OAuthClientCredentials cid _ <- registerNewOAuthClient brig newOAuthClient
   (cid,) <$> generateOAuthAuthorizationCode' chal brig uid cid scope url
 

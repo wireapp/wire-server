@@ -16,7 +16,6 @@
 , network-uri
 , text
 , types-common
-, unordered-containers
 , wire-api
 }:
 mkDerivation {
@@ -35,7 +34,6 @@ mkDerivation {
     network-uri
     text
     types-common
-    unordered-containers
     wire-api
   ];
   license = lib.licenses.agpl3Only;

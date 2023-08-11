@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Integration tests
+name: integration
+version: 0.0.42

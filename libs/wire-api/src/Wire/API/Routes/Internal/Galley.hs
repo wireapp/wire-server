@@ -24,13 +24,14 @@ import Data.Swagger (Swagger, info, title)
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
 import Servant hiding (JSON, WithStatus)
-import qualified Servant hiding (WithStatus)
+import Servant qualified hiding (WithStatus)
 import Servant.Swagger
 import Wire.API.ApplyMods
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.FederationStatus
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
@@ -64,8 +65,7 @@ type LegalHoldFeatureStatusChangeErrors =
 
 type LegalHoldFeaturesStatusChangeFederatedCalls =
   '[ MakesFederatedCall 'Galley "on-conversation-updated",
-     MakesFederatedCall 'Galley "on-mls-message-sent",
-     MakesFederatedCall 'Galley "on-new-remote-conversation"
+     MakesFederatedCall 'Galley "on-mls-message-sent"
    ]
 
 type IFeatureAPI =
@@ -184,7 +184,6 @@ type InternalAPIBase =
            ( Summary
                "Remove a user from their teams and conversations and erase their clients"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-user-deleted-conversations"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> ZLocalUser
                :> ZOptConn
@@ -197,7 +196,9 @@ type InternalAPIBase =
     :<|> Named
            "connect"
            ( Summary "Create a connect conversation (deprecated)"
+               :> MakesFederatedCall 'Brig "api-version"
                :> MakesFederatedCall 'Galley "on-conversation-created"
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NotConnected
@@ -206,7 +207,7 @@ type InternalAPIBase =
                :> "conversations"
                :> "connect"
                :> ReqBody '[Servant.JSON] Connect
-               :> ConversationVerb
+               :> ExtendedConversationVerb
            )
     :<|> Named
            "guard-legalhold-policy-conflicts"
@@ -227,6 +228,7 @@ type InternalAPIBase =
                :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
            )
     :<|> IFeatureAPI
+    :<|> IFederationAPI
 
 type ILegalholdWhitelistedTeamsAPI =
   "legalhold"
@@ -292,6 +294,7 @@ type ITeamsAPIBase =
              "unchecked-add-team-member"
              ( CanThrow 'TooManyTeamMembers
                  :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
+                 :> CanThrow 'TooManyTeamAdmins
                  :> ReqBody '[Servant.JSON] NewTeamMember
                  :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
              )
@@ -318,6 +321,7 @@ type ITeamsAPIBase =
                         :> CanThrow 'InvalidPermissions
                         :> CanThrow 'TeamNotFound
                         :> CanThrow 'TeamMemberNotFound
+                        :> CanThrow 'TooManyTeamAdmins
                         :> CanThrow 'NotATeamMember
                         :> CanThrow OperationDenied
                         :> ReqBody '[Servant.JSON] NewTeamMember
@@ -409,6 +413,16 @@ type IFeatureNoConfigMultiGet f =
   Named
     '("igetmulti", f)
     (FeatureNoConfigMultiGetBase f)
+
+type IFederationAPI =
+  Named
+    "get-federation-status"
+    ( Summary "Get the federation status (only needed for integration/QA tests at the time of writing it)"
+        :> ZLocalUser
+        :> "federation-status"
+        :> ReqBody '[Servant.JSON] RemoteDomains
+        :> Get '[Servant.JSON] FederationStatus
+    )
 
 swaggerDoc :: Swagger
 swaggerDoc =

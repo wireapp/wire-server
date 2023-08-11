@@ -18,7 +18,7 @@
 module Test.Wire.API.Golden.Generated.LegalHoldServiceRemove_team where
 
 import Data.Id (Id (Id))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (fromJust)
 import Wire.API.Team.LegalHold.External (LegalHoldServiceRemove (..))
 

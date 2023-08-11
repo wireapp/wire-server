@@ -4,7 +4,6 @@
 # dependencies are added or removed.
 { mkDerivation
 , base
-, brig-types
 , cassandra-util
 , conduit
 , galley
@@ -26,7 +25,6 @@ mkDerivation {
   isExecutable = true;
   executableHaskellDepends = [
     base
-    brig-types
     cassandra-util
     conduit
     galley

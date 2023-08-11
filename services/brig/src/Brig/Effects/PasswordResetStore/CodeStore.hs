@@ -30,7 +30,7 @@ import Polysemy
 import Wire.API.User.Identity
 import Wire.API.User.Password
 import Wire.Sem.Now
-import qualified Wire.Sem.Now as Now
+import Wire.Sem.Now qualified as Now
 
 passwordResetStoreToCodeStore ::
   forall r a.

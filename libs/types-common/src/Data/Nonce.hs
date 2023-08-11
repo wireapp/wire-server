@@ -27,14 +27,13 @@ module Data.Nonce
 where
 
 import Cassandra hiding (Value)
-import qualified Data.Aeson as A
-import qualified Data.ByteString.Base64.URL as Base64
+import Data.Aeson qualified as A
+import Data.ByteString.Base64.URL qualified as Base64
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Proxy (Proxy (Proxy))
 import Data.Schema
-import Data.String.Conversions (cs)
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Swagger.ParamSchema
 import Data.UUID as UUID (UUID, fromByteString, toByteString)
 import Data.UUID.V4 (nextRandom)
@@ -55,7 +54,7 @@ instance ToSchema Nonce where
       p = maybe (Left "Invalid Nonce") Right . fromByteString' . cs
 
 instance ToByteString Nonce where
-  builder = builder . Base64.encode . toStrict . UUID.toByteString . unNonce
+  builder = builder . Base64.encodeUnpadded . toStrict . UUID.toByteString . unNonce
 
 instance FromByteString Nonce where
   parser = do

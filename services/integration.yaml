@@ -35,6 +35,14 @@ nginz:
   host: 127.0.0.1
   port: 8080
 
+backgroundWorker:
+  host: 127.0.0.1
+  port: 8089
+
+stern:
+  host: 127.0.0.1
+  port: 8091
+
 # client-API:
 # webapp ---> load balancer  ---> nginx-ingress (TLS termination) ---> nginz ----> brig
 #
@@ -74,23 +82,55 @@ backendTwo:
   brig:
     host: 127.0.0.1 # in kubernetes, brig.<NAMESPACE>.svc.cluster.local
     port: 9082
-  galley:
-    host: 127.0.0.1 # in kubernetes, galley.<NAMESPACE>.svc.cluster.local
-    port: 9085
+  cannon:
+    host: 127.0.0.1
+    port: 9083
+  cargohold:
+    host: 127.0.0.1
+    port: 9084
   federatorInternal:
     host: 127.0.0.1 # in kubernetes, federator.<NAMESPACE>.svc.cluster.local
     port: 9097
   federatorExternal:
     host: 127.0.0.1 # in kubernetes, federator.<NAMESPACE>.svc.cluster.local
-    port: 9097
-  cargohold:
+    port: 9098
+  galley:
+    host: 127.0.0.1 # in kubernetes, galley.<NAMESPACE>.svc.cluster.local
+    port: 9085
+  gundeck:
     host: 127.0.0.1
-    port: 9084
-  cannon:
+    port: 9086
+  nginz:
     host: 127.0.0.1
-    port: 9083
+    port: 9080
+  spar:
+    host: 127.0.0.1
+    port: 9088
+  proxy:
+    host: 127.0.0.1
+    port: 9087
+  backgroundWorker:
+    host: 127.0.0.1
+    port: 9089
+  stern:
+    host: 127.0.0.1
+    port: 9091
+
+  originDomain: b.example.com
+
 
 redis2:
   host: 127.0.0.1
   port: 6379
   connectionMode: master
+
+dynamicBackends:
+  dynamic-backend-1:
+    domain: d1.example.com
+    federatorExternalPort: 10098
+  dynamic-backend-2:
+    domain: d2.example.com
+    federatorExternalPort: 11098
+  dynamic-backend-3:
+    domain: d3.example.com
+    federatorExternalPort: 12098

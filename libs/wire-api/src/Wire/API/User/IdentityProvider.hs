@@ -19,24 +19,23 @@
 
 module Wire.API.User.IdentityProvider where
 
-import qualified Cassandra as Cql
+import Cassandra qualified as Cql
 import Control.Lens (makeLenses, (.~), (?~))
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
-import qualified Data.Attoparsec.ByteString as AP
-import qualified Data.Binary.Builder as BSB
-import qualified Data.ByteString.Conversion as BSC
+import Data.Attoparsec.ByteString qualified as AP
+import Data.Binary.Builder qualified as BSB
+import Data.ByteString.Conversion qualified as BSC
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id (TeamId)
 import Data.Proxy (Proxy (Proxy))
-import Data.String.Conversions
 import Data.Swagger
 import Imports
 import Network.HTTP.Media ((//))
 import SAML2.WebSSO (IdPConfig)
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
 import Wire.API.User.Orphans (samlSchemaOptions)

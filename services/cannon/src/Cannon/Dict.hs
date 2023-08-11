@@ -30,9 +30,9 @@ where
 
 import Data.Hashable (Hashable, hash)
 import Data.SizedHashMap (SizedHashMap)
-import qualified Data.SizedHashMap as SHM
+import Data.SizedHashMap qualified as SHM
 import Data.Vector (Vector, (!))
-import qualified Data.Vector as V
+import Data.Vector qualified as V
 import Imports hiding (lookup, toList)
 
 newtype Dict a b = Dict

@@ -175,9 +175,9 @@ let
     };
     jose = {
       src = fetchgit {
-          url = "https://github.com/frasertweedale/hs-jose";
-          rev = "a7f919b19f667dfbb4d5c989ce620d3e75af8247";
-          sha256 = "sha256-SKEE9ZqhjBxHYUKQaoB4IpN4/Ui3tS4S98FgZqj7WlY=";
+        url = "https://github.com/frasertweedale/hs-jose";
+        rev = "a7f919b19f667dfbb4d5c989ce620d3e75af8247";
+        sha256 = "sha256-SKEE9ZqhjBxHYUKQaoB4IpN4/Ui3tS4S98FgZqj7WlY=";
       };
     };
     # This can be removed once postie 0.6.0.3 (or later) is in nixpkgs
@@ -221,8 +221,8 @@ let
       sha256 = "sha256-CfH1YJSGuF4O1aUfdJwUZKRrVzv5nSPhwoI7mf9ewEg=";
     };
     http2 = {
-      version = "4.0.0";
-      sha256 = "sha256-9rBhklwuuKZXWH4yV4tb7Sp5chR9AmBAMRBztDjx0uI=";
+      version = "4.1.0";
+      sha256 = "sha256-D6RWYBguoj+W1LwNeX04h4csXV69rrs0tZpeNr7ZBqE=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv

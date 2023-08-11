@@ -63,7 +63,7 @@ executable repair-handles
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       base
@@ -75,10 +75,9 @@ executable repair-handles
     , lens
     , mtl
     , optparse-applicative
-    , string-conversions
     , text
     , tinylog
     , types-common
     , uuid
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

@@ -79,11 +79,13 @@ mkFederatorClientEnv remote = do
   endpoint <-
     view (options . optFederator)
       >>= maybe (throwE federationNotConfigured) pure
+  mgr <- view http2Manager
   pure
     FederatorClientEnv
       { ceOriginDomain = tDomain loc,
         ceTargetDomain = tDomain remote,
-        ceFederator = endpoint
+        ceFederator = endpoint,
+        ceHttp2Manager = mgr
       }
 
 executeFederated :: Remote x -> FederatorClient 'Cargohold a -> Handler a

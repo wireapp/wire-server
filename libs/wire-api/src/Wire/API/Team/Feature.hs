@@ -58,6 +58,7 @@ module Wire.API.Team.Feature
     defFeatureStatusNoLock,
     computeFeatureConfigForTeamUser,
     IsFeatureConfig (..),
+    FeatureSingleton (..),
     FeatureTrivialConfig (..),
     HasDeprecatedFeatureName (..),
     LockStatusResponse (..),
@@ -85,36 +86,35 @@ module Wire.API.Team.Feature
   )
 where
 
-import qualified Cassandra.CQL as Cass
+import Cassandra.CQL qualified as Cass
 import Control.Lens (makeLenses, (?~))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as A
-import qualified Data.Attoparsec.ByteString as Parser
+import Data.Aeson qualified as A
+import Data.Aeson.Types qualified as A
+import Data.Attoparsec.ByteString qualified as Parser
 import Data.ByteString.Conversion
-import qualified Data.ByteString.UTF8 as UTF8
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Domain (Domain)
 import Data.Either.Extra (maybeToEither)
 import Data.Id
 import Data.Kind
+import Data.Misc (HttpsUrl)
 import Data.Proxy
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
-import Data.String.Conversions (cs)
-import qualified Data.Swagger as S
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as TL
-import Data.Time (UTCTime)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
+import Data.Swagger qualified as S
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.Text.Lazy qualified as TL
+import Data.Time (NominalDiffTime)
 import Deriving.Aeson
 import GHC.TypeLits
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
-import Test.QuickCheck (oneof)
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
 import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
+import Wire.API.Routes.Named (RenderableSymbol (renderSymbol))
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 ----------------------------------------------------------------------
@@ -125,15 +125,16 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- 1. Add a data type for your feature's "config" part, naming convention:
 -- **<NameOfFeature>Config**. If your feature doesn't have a config besides
 -- being enabled/disabled, locked/unlocked, then the config should be a unit
--- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Implement type classes
--- 'ToSchema', 'IsFeatureConfig' and 'Arbitrary'. If your feature doesn't have a
--- config implement 'FeatureTrivialConfig'.
+-- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Add a singleton for
+-- the new data type. Implement type classes 'ToSchema', 'IsFeatureConfig' and
+-- 'Arbitrary'. If your feature doesn't have a config implement
+-- 'FeatureTrivialConfig'.
 --
 -- 2. Add the config to to 'AllFeatureConfigs'.
 --
 -- 3. If your feature is configurable on a per-team basis, add a schema
--- migration in galley and add 'FeatureStatusCassandra' instance in
--- Galley.Cassandra.TeamFeatures together with a schema migration
+-- migration in galley and extend 'getFeatureStatus' and similar functions in
+-- Galley.Cassandra.TeamFeatures
 --
 -- 4. Add the feature to the config schema of galley in Galley.Types.Teams.
 -- and extend the Arbitrary instance of FeatureConfigs in the unit tests Test.Galley.Types
@@ -168,12 +169,32 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 class IsFeatureConfig cfg where
   type FeatureSymbol cfg :: Symbol
   defFeatureStatus :: WithStatus cfg
+  featureSingleton :: FeatureSingleton cfg
 
   objectSchema ::
     -- | Should be "pure MyFeatureConfig" if the feature doesn't have config,
     -- which results in a trivial empty schema and the "config" field being
     -- omitted/ignored in the JSON encoder / parser.
     ObjectSchema SwaggerDoc cfg
+
+data FeatureSingleton cfg where
+  FeatureSingletonGuestLinksConfig :: FeatureSingleton GuestLinksConfig
+  FeatureSingletonLegalholdConfig :: FeatureSingleton LegalholdConfig
+  FeatureSingletonSSOConfig :: FeatureSingleton SSOConfig
+  FeatureSingletonSearchVisibilityAvailableConfig :: FeatureSingleton SearchVisibilityAvailableConfig
+  FeatureSingletonValidateSAMLEmailsConfig :: FeatureSingleton ValidateSAMLEmailsConfig
+  FeatureSingletonDigitalSignaturesConfig :: FeatureSingleton DigitalSignaturesConfig
+  FeatureSingletonConferenceCallingConfig :: FeatureSingleton ConferenceCallingConfig
+  FeatureSingletonSndFactorPasswordChallengeConfig :: FeatureSingleton SndFactorPasswordChallengeConfig
+  FeatureSingletonSearchVisibilityInboundConfig :: FeatureSingleton SearchVisibilityInboundConfig
+  FeatureSingletonClassifiedDomainsConfig :: FeatureSingleton ClassifiedDomainsConfig
+  FeatureSingletonAppLockConfig :: FeatureSingleton AppLockConfig
+  FeatureSingletonSelfDeletingMessagesConfig :: FeatureSingleton SelfDeletingMessagesConfig
+  FeatureSingletonFileSharingConfig :: FeatureSingleton FileSharingConfig
+  FeatureSingletonMLSConfig :: FeatureSingleton MLSConfig
+  FeatureSingletonExposeInvitationURLsToTeamAdminConfig :: FeatureSingleton ExposeInvitationURLsToTeamAdminConfig
+  FeatureSingletonOutlookCalIntegrationConfig :: FeatureSingleton OutlookCalIntegrationConfig
+  FeatureSingletonMlsE2EIdConfig :: FeatureSingleton MlsE2EIdConfig
 
 class FeatureTrivialConfig cfg where
   trivialConfig :: cfg
@@ -547,12 +568,16 @@ data GuestLinksConfig = GuestLinksConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GuestLinksConfig)
 
+instance RenderableSymbol GuestLinksConfig where
+  renderSymbol = "GuestLinksConfig"
+
 instance ToSchema GuestLinksConfig where
   schema = object "GuestLinksConfig" objectSchema
 
 instance IsFeatureConfig GuestLinksConfig where
   type FeatureSymbol GuestLinksConfig = "conversationGuestLinks"
   defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked GuestLinksConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonGuestLinksConfig
 
   objectSchema = pure GuestLinksConfig
 
@@ -566,9 +591,13 @@ data LegalholdConfig = LegalholdConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LegalholdConfig)
 
+instance RenderableSymbol LegalholdConfig where
+  renderSymbol = "LegalholdConfig"
+
 instance IsFeatureConfig LegalholdConfig where
   type FeatureSymbol LegalholdConfig = "legalhold"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked LegalholdConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonLegalholdConfig
   objectSchema = pure LegalholdConfig
 
 instance ToSchema LegalholdConfig where
@@ -584,9 +613,13 @@ data SSOConfig = SSOConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SSOConfig)
 
+instance RenderableSymbol SSOConfig where
+  renderSymbol = "SSOConfig"
+
 instance IsFeatureConfig SSOConfig where
   type FeatureSymbol SSOConfig = "sso"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SSOConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonSSOConfig
   objectSchema = pure SSOConfig
 
 instance ToSchema SSOConfig where
@@ -604,9 +637,13 @@ data SearchVisibilityAvailableConfig = SearchVisibilityAvailableConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SearchVisibilityAvailableConfig)
 
+instance RenderableSymbol SearchVisibilityAvailableConfig where
+  renderSymbol = "SearchVisibilityAvailableConfig"
+
 instance IsFeatureConfig SearchVisibilityAvailableConfig where
   type FeatureSymbol SearchVisibilityAvailableConfig = "searchVisibility"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonSearchVisibilityAvailableConfig
   objectSchema = pure SearchVisibilityAvailableConfig
 
 instance ToSchema SearchVisibilityAvailableConfig where
@@ -625,12 +662,16 @@ data ValidateSAMLEmailsConfig = ValidateSAMLEmailsConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ValidateSAMLEmailsConfig)
 
+instance RenderableSymbol ValidateSAMLEmailsConfig where
+  renderSymbol = "ValidateSAMLEmailsConfig"
+
 instance ToSchema ValidateSAMLEmailsConfig where
   schema = object "ValidateSAMLEmailsConfig" objectSchema
 
 instance IsFeatureConfig ValidateSAMLEmailsConfig where
   type FeatureSymbol ValidateSAMLEmailsConfig = "validateSAMLemails"
   defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked ValidateSAMLEmailsConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonValidateSAMLEmailsConfig
   objectSchema = pure ValidateSAMLEmailsConfig
 
 instance HasDeprecatedFeatureName ValidateSAMLEmailsConfig where
@@ -646,9 +687,13 @@ data DigitalSignaturesConfig = DigitalSignaturesConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform DigitalSignaturesConfig)
 
+instance RenderableSymbol DigitalSignaturesConfig where
+  renderSymbol = "DigitalSignaturesConfig"
+
 instance IsFeatureConfig DigitalSignaturesConfig where
   type FeatureSymbol DigitalSignaturesConfig = "digitalSignatures"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked DigitalSignaturesConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonDigitalSignaturesConfig
   objectSchema = pure DigitalSignaturesConfig
 
 instance HasDeprecatedFeatureName DigitalSignaturesConfig where
@@ -667,9 +712,13 @@ data ConferenceCallingConfig = ConferenceCallingConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConferenceCallingConfig)
 
+instance RenderableSymbol ConferenceCallingConfig where
+  renderSymbol = "ConferenceCallingConfig"
+
 instance IsFeatureConfig ConferenceCallingConfig where
   type FeatureSymbol ConferenceCallingConfig = "conferenceCalling"
   defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked ConferenceCallingConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonConferenceCallingConfig
   objectSchema = pure ConferenceCallingConfig
 
 instance ToSchema ConferenceCallingConfig where
@@ -685,12 +734,16 @@ data SndFactorPasswordChallengeConfig = SndFactorPasswordChallengeConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SndFactorPasswordChallengeConfig)
 
+instance RenderableSymbol SndFactorPasswordChallengeConfig where
+  renderSymbol = "SndFactorPasswordChallengeConfig"
+
 instance ToSchema SndFactorPasswordChallengeConfig where
   schema = object "SndFactorPasswordChallengeConfig" objectSchema
 
 instance IsFeatureConfig SndFactorPasswordChallengeConfig where
   type FeatureSymbol SndFactorPasswordChallengeConfig = "sndFactorPasswordChallenge"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked SndFactorPasswordChallengeConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonSndFactorPasswordChallengeConfig
   objectSchema = pure SndFactorPasswordChallengeConfig
 
 instance FeatureTrivialConfig SndFactorPasswordChallengeConfig where
@@ -704,9 +757,13 @@ data SearchVisibilityInboundConfig = SearchVisibilityInboundConfig
   deriving (Arbitrary) via (GenericUniform SearchVisibilityInboundConfig)
   deriving (S.ToSchema) via Schema SearchVisibilityInboundConfig
 
+instance RenderableSymbol SearchVisibilityInboundConfig where
+  renderSymbol = "SearchVisibilityInboundConfig"
+
 instance IsFeatureConfig SearchVisibilityInboundConfig where
   type FeatureSymbol SearchVisibilityInboundConfig = "searchVisibilityInbound"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonSearchVisibilityInboundConfig
   objectSchema = pure SearchVisibilityInboundConfig
 
 instance ToSchema SearchVisibilityInboundConfig where
@@ -723,6 +780,9 @@ data ClassifiedDomainsConfig = ClassifiedDomainsConfig
   }
   deriving stock (Show, Eq, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ClassifiedDomainsConfig)
+
+instance RenderableSymbol ClassifiedDomainsConfig where
+  renderSymbol = "ClassifiedDomainsConfig"
 
 deriving via (GenericUniform ClassifiedDomainsConfig) instance Arbitrary ClassifiedDomainsConfig
 
@@ -741,6 +801,7 @@ instance IsFeatureConfig ClassifiedDomainsConfig where
       LockStatusUnlocked
       (ClassifiedDomainsConfig [])
       FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonClassifiedDomainsConfig
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
@@ -753,6 +814,9 @@ data AppLockConfig = AppLockConfig
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AppLockConfig)
   deriving (Arbitrary) via (GenericUniform AppLockConfig)
+
+instance RenderableSymbol AppLockConfig where
+  renderSymbol = "AppLockConfig"
 
 instance ToSchema AppLockConfig where
   schema =
@@ -770,6 +834,7 @@ instance IsFeatureConfig AppLockConfig where
       LockStatusUnlocked
       (AppLockConfig (EnforceAppLock False) 60)
       FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonAppLockConfig
   objectSchema = field "config" schema
 
 newtype EnforceAppLock = EnforceAppLock Bool
@@ -787,9 +852,13 @@ data FileSharingConfig = FileSharingConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform FileSharingConfig)
 
+instance RenderableSymbol FileSharingConfig where
+  renderSymbol = "FileSharingConfig"
+
 instance IsFeatureConfig FileSharingConfig where
   type FeatureSymbol FileSharingConfig = "fileSharing"
   defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked FileSharingConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonFileSharingConfig
   objectSchema = pure FileSharingConfig
 
 instance ToSchema FileSharingConfig where
@@ -808,6 +877,9 @@ newtype SelfDeletingMessagesConfig = SelfDeletingMessagesConfig
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema SelfDeletingMessagesConfig)
   deriving (Arbitrary) via (GenericUniform SelfDeletingMessagesConfig)
 
+instance RenderableSymbol SelfDeletingMessagesConfig where
+  renderSymbol = "SelfDeletingMessagesConfig"
+
 instance ToSchema SelfDeletingMessagesConfig where
   schema =
     object "SelfDeletingMessagesConfig" $
@@ -822,6 +894,7 @@ instance IsFeatureConfig SelfDeletingMessagesConfig where
       LockStatusUnlocked
       (SelfDeletingMessagesConfig 0)
       FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonSelfDeletingMessagesConfig
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
@@ -835,6 +908,9 @@ data MLSConfig = MLSConfig
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform MLSConfig)
+
+instance RenderableSymbol MLSConfig where
+  renderSymbol = "MLSConfig"
 
 instance ToSchema MLSConfig where
   schema =
@@ -850,6 +926,7 @@ instance IsFeatureConfig MLSConfig where
   defFeatureStatus =
     let config = MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
      in withStatus FeatureStatusDisabled LockStatusUnlocked config FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonMLSConfig
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
@@ -859,9 +936,13 @@ data ExposeInvitationURLsToTeamAdminConfig = ExposeInvitationURLsToTeamAdminConf
   deriving stock (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform ExposeInvitationURLsToTeamAdminConfig)
 
+instance RenderableSymbol ExposeInvitationURLsToTeamAdminConfig where
+  renderSymbol = "ExposeInvitationURLsToTeamAdminConfig"
+
 instance IsFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   type FeatureSymbol ExposeInvitationURLsToTeamAdminConfig = "exposeInvitationURLsToTeamAdmin"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonExposeInvitationURLsToTeamAdminConfig
   objectSchema = pure ExposeInvitationURLsToTeamAdminConfig
 
 instance ToSchema ExposeInvitationURLsToTeamAdminConfig where
@@ -879,9 +960,13 @@ data OutlookCalIntegrationConfig = OutlookCalIntegrationConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OutlookCalIntegrationConfig)
 
+instance RenderableSymbol OutlookCalIntegrationConfig where
+  renderSymbol = "OutlookCalIntegrationConfig"
+
 instance IsFeatureConfig OutlookCalIntegrationConfig where
   type FeatureSymbol OutlookCalIntegrationConfig = "outlookCalIntegration"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonOutlookCalIntegrationConfig
   objectSchema = pure OutlookCalIntegrationConfig
 
 instance ToSchema OutlookCalIntegrationConfig where
@@ -893,34 +978,56 @@ instance FeatureTrivialConfig OutlookCalIntegrationConfig where
 ----------------------------------------------------------------------
 -- MlsE2EId
 
-data MlsE2EIdConfig = MlsE2EIdConfig {verificationExpiration :: Maybe UTCTime}
+data MlsE2EIdConfig = MlsE2EIdConfig
+  { verificationExpiration :: NominalDiffTime,
+    acmeDiscoveryUrl :: Maybe HttpsUrl
+  }
   deriving stock (Eq, Show, Generic)
 
+instance RenderableSymbol MlsE2EIdConfig where
+  renderSymbol = "MlsE2EIdConfig"
+
 instance Arbitrary MlsE2EIdConfig where
-  arbitrary = oneof [pure $ MlsE2EIdConfig Nothing, MlsE2EIdConfig . Just . posixSecondsToUTCTime . fromIntegral <$> (arbitrary @Word32)]
+  arbitrary =
+    MlsE2EIdConfig
+      <$> (fromIntegral <$> (arbitrary @Word32))
+      <*> arbitrary
 
 instance ToSchema MlsE2EIdConfig where
   schema :: ValueSchema NamedSwaggerDoc MlsE2EIdConfig
   schema =
     object "MlsE2EIdConfig" $
       MlsE2EIdConfig
-        <$> (fmap toSeconds . verificationExpiration) .= maybe_ (optFieldWithDocModifier "verificationExpiration" desc (fromSeconds <$> schema))
+        <$> (toSeconds . verificationExpiration) .= fieldWithDocModifier "verificationExpiration" veDesc (fromSeconds <$> schema)
+        <*> acmeDiscoveryUrl .= maybe_ (optField "acmeDiscoveryUrl" schema)
     where
-      fromSeconds :: Int -> UTCTime
-      fromSeconds = posixSecondsToUTCTime . fromIntegral
+      fromSeconds :: Int -> NominalDiffTime
+      fromSeconds = fromIntegral
 
-      toSeconds :: UTCTime -> Int
-      toSeconds = truncate . utcTimeToPOSIXSeconds
+      toSeconds :: NominalDiffTime -> Int
+      toSeconds = truncate
 
-      desc :: NamedSwaggerDoc -> NamedSwaggerDoc
-      desc =
+      veDesc :: NamedSwaggerDoc -> NamedSwaggerDoc
+      veDesc =
         description
-          ?~ "Unix timestamp (number of seconds that have passed since 00:00:00 UTC on Thursday, 1 January 1970) after which the period for clients to verify their identity expires. \
-             \When the timer goes off, they will be logged out and get the certificate automatically on their devices."
+          ?~ "When a client first tries to fetch or renew a certificate, \
+             \they may need to login to an identity provider (IdP) depending on their IdP domain authentication policy. \
+             \The user may have a grace period during which they can “snooze” this login. \
+             \The duration of this grace period (in seconds) is set in the `verificationDuration` parameter, \
+             \which is enforced separately by each client. \
+             \After the grace period has expired, the client will not allow the user to use the application \
+             \until they have logged to refresh the certificate. The default value is 1 day (86400s). \
+             \The client enrolls using the Automatic Certificate Management Environment (ACME) protocol. \
+             \The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for \
+             \this team. It is of the form \"https://acme.{backendDomain}/acme/{provisionerName}/discovery\". For example: \
+             \`https://acme.example.com/acme/provisioner1/discovery`."
 
 instance IsFeatureConfig MlsE2EIdConfig where
   type FeatureSymbol MlsE2EIdConfig = "mlsE2EId"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked (MlsE2EIdConfig Nothing) FeatureTTLUnlimited
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked defValue FeatureTTLUnlimited
+    where
+      defValue = MlsE2EIdConfig (fromIntegral @Int (60 * 60 * 24)) Nothing
+  featureSingleton = FeatureSingletonMlsE2EIdConfig
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------

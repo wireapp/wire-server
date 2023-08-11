@@ -11,7 +11,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
-import requests
+import sys
 
 # unset SOURCE_DATE_EPOCH to aviod side effects caused by sphinx
 if 'SOURCE_DATE_EPOCH' in os.environ:
@@ -29,6 +29,8 @@ release = version
 
 # -- General configuration ---------------------------------------------------
 
+sys.path.insert(0, os.path.abspath('.')) # for local extensions like grepinclude
+
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
@@ -40,6 +42,7 @@ extensions = [
     'sphinx_multiversion',
     'sphinx_reredirects',
     'sphinx_copybutton',
+    'grepinclude',
 ]
 
 # Grouping the document tree into PDF files. List of tuples

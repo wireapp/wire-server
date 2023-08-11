@@ -1,4 +1,3 @@
-{-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -23,14 +22,14 @@ module API.User.Account
   )
 where
 
-import qualified API.Search.Util as Search
+import API.Search.Util qualified as Search
 import API.Team.Util
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import qualified Brig.AWS as AWS
+import Brig.AWS qualified as AWS
 import Brig.AWS.Types
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Brig.Types.Activation
 import Brig.Types.Common
 import Brig.Types.Intra
@@ -39,10 +38,10 @@ import Control.Exception (throw)
 import Control.Lens (ix, preview, (^.), (^?))
 import Control.Monad.Catch
 import Data.Aeson hiding (json)
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Lens
-import qualified Data.Aeson.Lens as AesonL
-import qualified Data.ByteString as C8
+import Data.Aeson.Lens qualified as AesonL
+import Data.ByteString qualified as C8
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Domain
@@ -50,46 +49,43 @@ import Data.Handle
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.LegalHold
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.List1 (singleton)
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Misc (plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
-import Data.String.Conversions (cs)
-import qualified Data.Text as T
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as T
+import Data.Set qualified as Set
+import Data.Text qualified as T
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as T
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Clock (diffUTCTime)
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
+import Data.Vector qualified as V
 import Federator.MockServer (FederatedRequest (..), MockException (..))
 import Imports hiding (head)
-import qualified Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.HTTP.Types as Http
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Utilities.Error as Error
-import qualified Network.Wai.Utilities.Error as Wai
+import Imports qualified
+import Network.HTTP.Types qualified as HTTP
+import Network.HTTP.Types qualified as Http
+import Network.Wai qualified as Wai
+import Network.Wai.Utilities.Error qualified as Error
+import Network.Wai.Utilities.Error qualified as Wai
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently_)
 import Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
 import Wire.API.Asset hiding (Asset)
-import qualified Wire.API.Asset as Asset
+import Wire.API.Asset qualified as Asset
 import Wire.API.Connection
 import Wire.API.Conversation
-import Wire.API.Federation.API.Brig (UserDeletedConnectionsNotification (..))
-import qualified Wire.API.Federation.API.Brig as FedBrig
-import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
 import Wire.API.Internal.Notification
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Feature (ExposeInvitationURLsToTeamAdminConfig (..), FeatureStatus (..), FeatureTTL' (..), LockStatus (LockStatusLocked), withStatus)
@@ -98,7 +94,7 @@ import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Auth
-import qualified Wire.API.User.Auth as Auth
+import Wire.API.User.Auth qualified as Auth
 import Wire.API.User.Client
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> UserJournalWatcher -> TestTree
@@ -157,8 +153,6 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "delete/by-code" $ testDeleteUserByCode b,
       test p "delete/anonymous" $ testDeleteAnonUser b,
       test p "delete with profile pic" $ testDeleteWithProfilePic b ch,
-      test p "delete with connected remote users" $ testDeleteWithRemotes opts b,
-      test p "delete with connected remote users and failed remote notifcations" $ testDeleteWithRemotesAndFailedNotifications opts b c,
       test p "put /i/users/:uid/sso-id" $ testUpdateSSOId b g,
       testGroup
         "temporary customer extensions"
@@ -640,8 +634,8 @@ testUserInvalidDomain brig = do
       const 422 === statusCode
       const (Just "/federation/api-version")
         === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
-      const (Just "invalid.example.com")
-        === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
+      const (Just (Array (V.fromList ["invalid.example.com"])))
+        === preview (ix "data" . ix "domains") . responseJsonUnsafe @Value
 
 testExistingUserUnqualified :: Brig -> Http ()
 testExistingUserUnqualified brig = do
@@ -818,7 +812,8 @@ testMultipleUsers opts brig = do
             profileExpire = Nothing,
             profileTeam = Nothing,
             profileEmail = Nothing,
-            profileLegalholdStatus = UserLegalHoldDisabled
+            profileLegalholdStatus = UserLegalHoldDisabled,
+            profileSupportedProtocols = defSupportedProtocols
           }
       users = [u1, u2, u3]
       q = ListUsersByIds $ u5 : u4 : map userQualifiedId users
@@ -1478,96 +1473,6 @@ testDeleteWithProfilePic brig cargohold = do
   deleteUser uid Nothing brig !!! const 200 === statusCode
   -- Check that the asset gets deleted
   downloadAsset cargohold uid (ast ^. Asset.assetKey) !!! const 404 === statusCode
-
-testDeleteWithRemotes :: Opt.Opts -> Brig -> Http ()
-testDeleteWithRemotes opts brig = do
-  localUser <- randomUser brig
-
-  let remote1Domain = Domain "remote1.example.com"
-      remote2Domain = Domain "remote2.example.com"
-  remote1UserConnected <- Qualified <$> randomId <*> pure remote1Domain
-  remote1UserPending <- Qualified <$> randomId <*> pure remote1Domain
-  remote2UserBlocked <- Qualified <$> randomId <*> pure remote2Domain
-
-  sendConnectionAction brig opts (userId localUser) remote1UserConnected (Just FedBrig.RemoteConnect) Accepted
-  sendConnectionAction brig opts (userId localUser) remote1UserPending Nothing Sent
-  sendConnectionAction brig opts (userId localUser) remote2UserBlocked (Just FedBrig.RemoteConnect) Accepted
-  void $ putConnectionQualified brig (userId localUser) remote2UserBlocked Blocked
-
-  let fedMockResponse _ = pure (Aeson.encode EmptyResponse)
-  let galleyHandler :: ReceivedRequest -> MockT IO Wai.Response
-      galleyHandler (ReceivedRequest requestMethod requestPath _requestBody) =
-        case (requestMethod, requestPath) of
-          (_methodDelete, ["i", "user"]) -> do
-            let response = Wai.responseLBS Http.status200 [(Http.hContentType, "application/json")] (cs $ Aeson.encode EmptyResponse)
-            pure response
-          _ -> error "not mocked"
-
-  (_, rpcCalls, _galleyCalls) <- liftIO $
-    withMockedFederatorAndGalley opts (Domain "example.com") fedMockResponse galleyHandler $ do
-      deleteUser (userId localUser) (Just defPassword) brig !!! do
-        const 200 === statusCode
-
-  liftIO $ do
-    remote1Call <- assertOne $ filter (\c -> frTargetDomain c == remote1Domain) rpcCalls
-    remote1Udn <- assertRight $ parseFedRequest remote1Call
-    udcnUser remote1Udn @?= userId localUser
-    sort (fromRange (udcnConnections remote1Udn))
-      @?= sort (map qUnqualified [remote1UserConnected, remote1UserPending])
-
-    remote2Call <- assertOne $ filter (\c -> frTargetDomain c == remote2Domain) rpcCalls
-    remote2Udn <- assertRight $ parseFedRequest remote2Call
-    udcnUser remote2Udn @?= userId localUser
-    fromRange (udcnConnections remote2Udn) @?= [qUnqualified remote2UserBlocked]
-  where
-    parseFedRequest :: FromJSON a => FederatedRequest -> Either String a
-    parseFedRequest = eitherDecode . frBody
-
-testDeleteWithRemotesAndFailedNotifications :: Opt.Opts -> Brig -> Cannon -> Http ()
-testDeleteWithRemotesAndFailedNotifications opts brig cannon = do
-  alice <- randomUser brig
-  alex <- randomUser brig
-  let localDomain = qDomain (userQualifiedId alice)
-
-  let bDomain = Domain "b.example.com"
-      cDomain = Domain "c.example.com"
-  bob <- Qualified <$> randomId <*> pure bDomain
-  carl <- Qualified <$> randomId <*> pure cDomain
-
-  postConnection brig (userId alice) (userId alex) !!! const 201 === statusCode
-  putConnection brig (userId alex) (userId alice) Accepted !!! const 200 === statusCode
-  sendConnectionAction brig opts (userId alice) bob (Just FedBrig.RemoteConnect) Accepted
-  sendConnectionAction brig opts (userId alice) carl (Just FedBrig.RemoteConnect) Accepted
-
-  let fedMockResponse req =
-        if frTargetDomain req == bDomain
-          then throw $ MockErrorResponse Http.status500 "mocked connection problem with b domain"
-          else pure (Aeson.encode EmptyResponse)
-
-  let galleyHandler :: ReceivedRequest -> MockT IO Wai.Response
-      galleyHandler (ReceivedRequest requestMethod requestPath _requestBody) =
-        case (Http.parseMethod requestMethod, requestPath) of
-          (Right Http.DELETE, ["i", "user"]) -> do
-            let response = Wai.responseLBS Http.status200 [(Http.hContentType, "application/json")] (cs $ Aeson.encode EmptyResponse)
-            pure response
-          _ -> error "not mocked"
-
-  (_, rpcCalls, _galleyCalls) <- WS.bracketR cannon (userId alex) $ \wsAlex -> do
-    let action = withMockedFederatorAndGalley opts localDomain fedMockResponse galleyHandler $ do
-          deleteUser (userId alice) (Just defPassword) brig !!! do
-            const 200 === statusCode
-    liftIO action <* do
-      void . liftIO . WS.assertMatch (5 # Second) wsAlex $ matchDeleteUserNotification (userQualifiedId alice)
-
-  liftIO $ do
-    rRpc <- assertOne $ filter (\c -> frTargetDomain c == cDomain) rpcCalls
-    cUdn <- assertRight $ parseFedRequest rRpc
-    udcnUser cUdn @?= userId alice
-    sort (fromRange (udcnConnections cUdn))
-      @?= sort (map qUnqualified [carl])
-  where
-    parseFedRequest :: FromJSON a => FederatedRequest -> Either String a
-    parseFedRequest = eitherDecode . frBody
 
 testUpdateSSOId :: Brig -> Galley -> Http ()
 testUpdateSSOId brig galley = do

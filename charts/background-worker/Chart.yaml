@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Backend notification pusheer
+name: background-worker
+version: 0.0.42

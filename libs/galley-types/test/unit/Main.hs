@@ -21,7 +21,8 @@ module Main
 where
 
 import Imports
-import qualified Test.Galley.Types
+import Test.Galley.Permissions qualified
+import Test.Galley.Types qualified
 import Test.Tasty
 
 main :: IO ()
@@ -29,5 +30,6 @@ main =
   defaultMain $
     testGroup
       "Tests"
-      [ Test.Galley.Types.tests
+      [ Test.Galley.Types.tests,
+        Test.Galley.Permissions.tests
       ]

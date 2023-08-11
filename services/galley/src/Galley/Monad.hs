@@ -26,11 +26,11 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Except
 import Galley.Env
-import Imports hiding (log)
+import Imports hiding (cs, log)
 import Polysemy
 import Polysemy.Input
 import System.Logger
-import qualified System.Logger.Class as LC
+import System.Logger.Class qualified as LC
 
 newtype App a = App {unApp :: ReaderT Env IO a}
   deriving

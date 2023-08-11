@@ -9,25 +9,6 @@ the Wire backend services.
 
 ## Settings in galley
 
-```
-# [galley.yaml]
-settings:
-  enableIndexedBillingTeamMembers: false
-```
-
-### Indexed Billing Team Members
-
-Use indexed billing team members for journaling. When `enabled`,
-galley would use the `billing_team_member` table to send billing
-events with user ids of team owners (who have the `SetBilling`
-permission). Before enabling this flag, the `billing_team_member`
-table must be backfilled.
-
-Even when the flag is `disabled`, galley will keep writing to the
-`biling_team_member` table, this flag only affects the reads and has
-been added in order to deploy new code and backfill data in
-production.
-
 ### MLS private key paths
 
 Note: This developer documentation. Documentation for site operators can be found here: {ref}`mls-message-layer-security`
@@ -339,7 +320,9 @@ This default configuration can be overriden on a per-team basis through the [fea
 
 The MLS end-to-end identity team feature adds an extra level of security and practicability. If turned on, automatic device authentication ensures that team members know they are communicating with people using authenticated devices. Team members get a certificate on all their devices.
 
-A timer can be set to configure until when team members need to get the verification certificate. When the timer goes off, they will be logged out and get the certificate automatically on their devices. The timer is set as a unix timestamp (number of seconds that have passed since 00:00:00 UTC on Thursday, 1 January 1970) after which the period for clients to verify their identity expires.
+When a client first tries to fetch or renew a certificate, they may need to login to an identity provider (IdP) depending on their IdP domain authentication policy. The user may have a grace period during which they can “snooze” this login. The duration of this grace period (in seconds) is set in the `verificationDuration` parameter, which is enforced separately by each client. After the grace period has expired, the client will not allow the user to use the application until they have logged to refresh the certificate. The default value is 1 day (86400s).
+
+The client enrolls using the Automatic Certificate Management Environment (ACME) protocol [RFC 8555](https://www.rfc-editor.org/rfc/rfc8555.html). The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for this team. It is of the form "https://acme.{backendDomain}/acme/{provisionerName}/discovery". For example: `https://acme.example.com/acme/provisioner1/discovery`.
 
 ```yaml
 # galley.yaml
@@ -347,7 +330,8 @@ mlsE2EId:
   defaults:
     status: disabled
     config:
-      verificationExpiration: 1676377048
+      verificationExpiration: 86400
+      acmeDiscoveryUrl: null
     lockStatus: unlocked
 ```
 
@@ -390,43 +374,7 @@ settings:
 
 ### Federation allow list
 
-As of 2021-07, federation (whatever is implemented by the time you read this) is turned off by default by means of having an empty allow list:
-
-```yaml
-# federator.yaml
-optSettings:
-  federationStrategy:
-    allowedDomains: []
-```
-
-You can choose to federate with a specific list of allowed servers:
-
-
-```yaml
-# federator.yaml
-optSettings:
-  federationStrategy:
-    allowedDomains:
-      - server1.example.com
-      - server2.example.com
-```
-
-or, you can federate with everyone:
-
-```yaml
-# federator.yaml
-optSettings:
-  federationStrategy:
-    # note the 'empty' value after 'allowAll'
-    allowAll:
-
-# when configuring helm charts, this becomes (note 'true' after 'allowAll')
-# inside helm_vars/wire-server:
-federator:
-  optSettings:
-    federationStrategy:
-      allowAll: true
-```
+See {ref}`configure-federation-strategy-in-brig` (since [PR#3260](https://github.com/wireapp/wire-server/pull/3260)).
 
 ### Federation TLS Config
 
@@ -608,24 +556,11 @@ any key package whose expiry date is set further than 15 days after upload time 
 
 
 ### Federated domain specific configuration settings
+
 #### Restrict user search
 
-The lookup and search of users on a wire instance can be configured. This can be done per federated domain.
+See {ref}`configure-federation-strategy-in-brig` (since [PR#3260](https://github.com/wireapp/wire-server/pull/3260)).
 
-```yaml
-# [brig.yaml]
-optSettings:
-  setFederationDomainConfigs:
-    - domain: example.com
-      search_policy: no_search
-```
-
-Valid values for `search_policy` are:
-- `no_search`: No users are returned by federated searches.
-- `exact_handle_search`: Only users where the handle exactly matches are returned.
-- `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
-
-If there is no configuration for a domain, it's defaulted to `no_search`.
 
 ### API Versioning
 
@@ -719,3 +654,115 @@ config.disabledAPIVersions: [ v3 ]
 ```
 
 The default setting is that no API version is disabled.
+
+## Settings in cargohold
+
+### (Fake) AWS
+
+AWS S3 (or an alternative provider / service) is used to upload and download
+assets. The Haddock of
+[`CargoHold.Options.AWSOpts`](https://github.com/wireapp/wire-server/blob/develop/services/cargohold/src/CargoHold/Options.hs#L64)
+provides a lot of useful information.
+
+#### Multi-Ingress setup
+
+In a multi-ingress setup the backend is reachable via several domains, each
+handled by a separate Kubernetes ingress. This is useful to obfuscate the
+relationship of clients to each other, as an attacker on TCP/IP-level could only
+see domains and IPs that do not obviously relate to each other.
+
+In case of a fake AWS S3 service its identity needs to be obfuscated by making
+it accessible via several domains, too. Thus, there isn't one
+`s3DownloadEndpoint`, but one per domain at which the backend is reachable. Each
+of these backend domains represents a virtual backend. N.B. these backend
+domains are *DNS domains*. Do not confuse them with the federation domain! The
+latter is just an identifier, and may or may not be equal to the backend's DNS
+domain. Backend DNS domain(s) and federation domain are usually set equal by
+convention. But, this is not true for multi-ingress setups!
+
+The backend domain of a download request is defined by its `Z-Host` header which
+is set by `nginz`. (Multi-ingress handlling only applies to download requests as
+these are implemented by redirects to the S3 assets host for local assets.
+Uploads are handled by cargohold directly itself.)
+
+The config `aws.multiIngress` is a map from backend domain (`Z-Host` header
+value) to a S3 download endpoint. The `Z-Host` header is set by `nginz` to the
+value of the incoming requests `Host` header. If there's no config map entry for
+a provided `Z-Host` in a download request for a local asset, then an error is
+returned.
+
+This example shows a setup with fake backends *red*, *green* and *blue*:
+
+```yaml
+aws:
+  # S3 endpoint for internal communication (cargohold -> S3)
+  s3Endpoint: http://s3.internal.example
+
+  # This option is ignored when multiIngress is configured
+  s3DownloadEndpoint: https://assets.default.example.com
+
+  # Other settings can still be used
+  # ...
+
+  # Map from backend domain to S3 download domain
+  multiIngress:
+    - nginz-https.red.example.com: https://assets.red.example.com
+    - nginz-https.blue.example.com: https://assets.blue.example.com
+    - nginz-https.green.example.com: https://assets.green.example.com
+```
+
+
+This sequence diagram illustrates how users on different virtual backends
+(represented by different Kubernetes ingresses) download local assets according
+to the configuration example above:
+
+![Sequence Diagram: Alice and Bob download an asset](./multi-ingress-example-sequence.svg)
+
+<!-- 
+Unfortunately, kroki currently doesn't work on our CI: SQPIT-1810
+Link to diagram:
+https://mermaid.live/edit#pako:eNrdVbFu2zAQ_ZUDJ7ewDdhtUkBDgBRB0CHIYCNL4eVEnmWiMk8lKbttkH8vJbsW5dCOUXSqBkHiPT6-e3yinoVkRSITEC5H32syku40FhbXCwP7C6VnC1hqSQNL6l1XeWRPwBuKqxk8OXKwpRyrahxGxvQD11VJY8mvSHPOB4UlMknSrtonbcfStBVar6Wu0HjQJgCdGwUNKfaonMGMax8WeH9acIq5FXKOuwVE7BcqN4U2v9IlibbgFZcqXZ5_ABeMxYK6uiXpwRb5YHp1NYTJ9FN7ixw3jW6ri5UHXva28rZ5BsVbUzIqB-gc-WgTD9DRzU3Pz7v9FChZYnk8L4KGiW23Gdyz3aJVQW7IoYvQbT3gDq2_wsIIbpWCr6MvHF5WhIpsL2p6g6HFhHePvdajFR6Yv0Fd7ZTDquF9mj3AMoR2t0zHcZg1CiJj92akdGP-OLBJ9JpDFOa73YGNxnRAFZ3Te9rxey5L3gZHdmueMrsLyBnHDwpScerGQr_9dn1tzfFeR_2k2MioRFIn15MhTD82Sb0-ndT4fPjM-emcdsDItf23eVlSW_D_ltXYv0uzenTknU_rOd_fzOsfy_9xYvtN_21ixVCsya5Rq_D3fG6KC-FXtKaFyMKjoiXWpV-IhXkJUKw9z38aKTJvaxqKulKBff-jFdkSS0cvvwHKl250
+-->
+
+## Settings in cannon
+
+### Multi-Ingress setup
+
+*cannon* sets [CORS
+headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) for direct API
+accesses by clients. To generate them for multiple domains (usually, *cannon*
+works with only one root domain) these need to be defined with
+`nginx_conf.additional_external_env_domains`.
+
+E.g.
+
+```yaml
+nginx_conf:
+  additional_external_env_domains:
+    - red.example.com
+    - green.example.org
+    - blue.example.net
+```
+
+This setting has a dual in the *nginz* configuration.
+
+## Settings in nginz
+
+### Multi-Ingress setup
+
+nginz sets [CORS
+headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS). To generate
+them for multiple domains (usually, *nginz* works with only one root domain)
+these need to be defined with `nginx_conf.additional_external_env_domains`.
+
+E.g.
+
+```yaml
+nginx_conf:
+  additional_external_env_domains:
+    - red.example.com
+    - green.example.org
+    - blue.example.net
+```
+
+This setting has a dual in the *cannon* configuration.

@@ -34,10 +34,12 @@ data:
       host: spar
       port: 8080
 
-    {{- if .enableFederator }}
+    {{- if .enableFederation }}
     federator:
       host: federator
       port: 8080
+    rabbitmq:
+{{ toYaml .rabbitmq | indent 6}}
     {{- end }}
 
     {{- if (.journal) }}
@@ -58,9 +60,6 @@ data:
       exposeInvitationURLsTeamAllowlist: {{ .settings.exposeInvitationURLsTeamAllowlist }}
       {{- end }}
       conversationCodeURI: {{ .settings.conversationCodeURI | quote }}
-      {{- if .settings.enableIndexedBillingTeamMembers }}
-      enableIndexedBillingTeamMembers: {{ .settings.enableIndexedBillingTeamMembers }}
-      {{- end }}
       federationDomain: {{ .settings.federationDomain }}
       {{- if $.Values.secrets.mlsPrivateKeys }}
       mlsPrivateKeyPaths:

@@ -17,30 +17,21 @@
 
 module Galley.API.Public
   ( sitemap,
-    filterMissing, -- for tests
     continueE,
   )
 where
 
-import Data.ByteString.Conversion (fromByteString, fromList)
 import Data.Id
-import qualified Data.Predicate as P
 import Data.Qualified
-import qualified Data.Set as Set
-import qualified Galley.API.Query as Query
-import qualified Galley.API.Teams.Features as Features
+import Galley.API.Query qualified as Query
+import Galley.API.Teams.Features qualified as Features
 import Galley.App
-import Galley.Cassandra.TeamFeatures
 import Galley.Effects
-import qualified Galley.Effects as E
-import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
+import Galley.Effects qualified as E
 import Galley.Options
 import Imports hiding (head)
-import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, or, result, setStatus)
-import qualified Network.Wai.Predicate as P
-import Network.Wai.Predicate.Request (HasQuery)
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
 import Polysemy
@@ -50,10 +41,8 @@ import Polysemy.Internal
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import qualified Wire.API.Event.Team as Public ()
-import qualified Wire.API.Message as Public
+import Wire.API.Event.Team qualified as Public ()
 import Wire.API.Routes.API
-import Wire.API.Team.Feature
 
 -- These are all the errors that can be thrown by wai-routing handlers.
 -- We don't do any static checks on these errors, so we simply remap them to
@@ -100,54 +89,28 @@ sitemap :: Routes () (Sem GalleyEffects) ()
 sitemap = do
   -- Bot API ------------------------------------------------------------
 
-  get "/bot/conversation" (continueE (getBotConversationH @Cassandra)) $
+  get "/bot/conversation" (continueE getBotConversationH) $
     zauth ZAuthBot
       .&> zauthBotId
         .&. zauthConvId
         .&. accept "application" "json"
 
 getBotConversationH ::
-  forall db r.
+  forall r.
   ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
-    Member (TeamFeatureStore db) r,
+    Member TeamFeatureStore r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
-    Member TeamStore r,
-    FeaturePersistentConstraint db SndFactorPasswordChallengeConfig
+    Member TeamStore r
   ) =>
   BotId ::: ConvId ::: JSON ->
   Sem r Response
 getBotConversationH arg@(bid ::: cid ::: _) =
-  Features.guardSecondFactorDisabled @db (botUserId bid) cid (Query.getBotConversationH arg)
+  Features.guardSecondFactorDisabled (botUserId bid) cid (Query.getBotConversationH arg)
 
 type JSON = Media "application" "json"
-
--- FUTUREWORK: Maybe would be better to move it to wire-api?
-filterMissing :: HasQuery r => Predicate r P.Error Public.OtrFilterMissing
-filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
-  where
-    go (Left ign) = case fromByteString ign of
-      Just True -> pure Public.OtrIgnoreAllMissing
-      Just False -> pure Public.OtrReportAllMissing
-      Nothing -> Public.OtrIgnoreMissing <$> users "ignore_missing" ign
-    go (Right rep) = case fromByteString rep of
-      Just True -> pure Public.OtrReportAllMissing
-      Just False -> pure Public.OtrIgnoreAllMissing
-      Nothing -> Public.OtrReportMissing <$> users "report_missing" rep
-    users :: ByteString -> ByteString -> P.Result P.Error (Set UserId)
-    users src bs = case fromByteString bs of
-      Nothing ->
-        P.Fail $
-          P.setMessage "Boolean or list of user IDs expected." $
-            P.setReason P.TypeError $
-              P.setSource src $
-                P.err status400
-      -- NB. 'fromByteString' parses a comma-separated list ('List') of
-      -- user IDs, and then 'fromList' unwraps it; took me a while to
-      -- understand this
-      Just l -> P.Okay 0 (Set.fromList (fromList l))

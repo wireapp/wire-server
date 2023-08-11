@@ -50,7 +50,7 @@ import Bilge hiding (trace)
 import Bilge.RPC
 import Bilge.Retry
 import Cannon.Dict (Dict)
-import qualified Cannon.Dict as D
+import Cannon.Dict qualified as D
 import Cannon.Options (DrainOpts, gracePeriodSeconds, millisecondsBetweenBatches, minBatchSize)
 import Conduit
 import Control.Concurrent.Timeout
@@ -60,7 +60,7 @@ import Control.Retry
 import Data.Aeson hiding (Error, Key)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy qualified as L
 import Data.Default (def)
 import Data.Hashable
 import Data.Id (ClientId, ConnId (..), UserId)
@@ -68,12 +68,12 @@ import Data.List.Extra (chunksOf)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Gundeck.Types
-import Imports hiding (threadDelay)
+import Imports hiding (cs, threadDelay)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request)
-import qualified System.Logger as Logger
+import System.Logger qualified as Logger
 import System.Logger.Class hiding (Error, Settings, close, (.=))
 import System.Random.MWC (GenIO, uniform)
 import UnliftIO.Async (async, cancel, pooledMapConcurrentlyN_)

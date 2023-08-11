@@ -55,12 +55,12 @@ module Gundeck.Aws
 where
 
 import Amazonka (AWSRequest, AWSResponse, serviceError_abbrev, serviceError_code, serviceError_message, serviceError_status)
-import qualified Amazonka as AWS
-import qualified Amazonka.Data.Text as AWS
-import qualified Amazonka.SNS as SNS
-import qualified Amazonka.SNS.Lens as SNS
-import qualified Amazonka.SQS as SQS
-import qualified Amazonka.SQS.Lens as SQS
+import Amazonka qualified as AWS
+import Amazonka.Data.Text qualified as AWS
+import Amazonka.SNS qualified as SNS
+import Amazonka.SNS.Lens qualified as SNS
+import Amazonka.SQS qualified as SQS
+import Amazonka.SQS.Lens qualified as SQS
 import Amazonka.SQS.Types
 import Control.Error hiding (err, isRight)
 import Control.Lens hiding ((.=))
@@ -70,23 +70,23 @@ import Control.Retry
 import Data.Aeson (decodeStrict)
 import Data.Attoparsec.Text
 import Data.ByteString.Builder
-import qualified Data.HashMap.Strict as Map
+import Data.HashMap.Strict qualified as Map
 import Data.Id
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy as LT
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as LT
 import Gundeck.Aws.Arn
 import Gundeck.Aws.Sns
 import Gundeck.Instances ()
 import Gundeck.Options
 import Gundeck.Types.Push hiding (token)
-import qualified Gundeck.Types.Push as Push
+import Gundeck.Types.Push qualified as Push
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
-import qualified Network.TLS as TLS
-import qualified System.Logger as Logger
+import Network.TLS qualified as TLS
+import System.Logger qualified as Logger
 import System.Logger.Class
 import UnliftIO.Async
 import UnliftIO.Exception

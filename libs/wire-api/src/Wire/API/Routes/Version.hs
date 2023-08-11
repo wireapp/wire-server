@@ -42,15 +42,15 @@ where
 import Control.Error (note)
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON (..))
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Bifunctor
-import qualified Data.Binary.Builder as Builder
+import Data.Binary.Builder qualified as Builder
 import Data.ByteString.Conversion (ToByteString (builder), toByteString')
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Schema
 import Data.Singletons.TH
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Text as Text
 import Data.Text.Encoding as Text
 import Imports

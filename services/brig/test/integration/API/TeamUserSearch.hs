@@ -21,14 +21,13 @@ import API.Search.Util (executeTeamUserSearch, executeTeamUserSearchWithMaybeSta
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import API.User.Util (activateEmail, initiateEmailUpdateNoSend)
 import Bilge (Manager, MonadHttp)
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry ()
 import Data.ByteString.Conversion (toByteString)
 import Data.Handle (fromHandle)
 import Data.Id (TeamId, UserId)
 import Data.Range (unsafeRange)
-import Data.String.Conversions (cs)
 import Imports
 import System.Random.Shuffle (shuffleM)
 import Test.Tasty (TestTree, testGroup)

@@ -24,8 +24,8 @@ where
 
 import Data.Aeson
 import Data.Aeson.Encode.Pretty (encodePretty)
-import qualified Data.ByteString as ByteString
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString qualified as ByteString
+import Data.ByteString.Lazy qualified as LBS
 import Imports
 import Test.HUnit
 import Test.Hspec

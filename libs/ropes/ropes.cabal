@@ -62,7 +62,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -Wunused-packages
 
   build-depends:
       aeson                  >=2.0.1.0
@@ -76,4 +76,4 @@ library
     , text                   >=0.11
     , time                   >=1.1
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

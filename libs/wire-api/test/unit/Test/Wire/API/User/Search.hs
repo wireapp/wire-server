@@ -18,11 +18,10 @@
 module Test.Wire.API.User.Search where
 
 import Data.Aeson (encode, toJSON)
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
-import Data.String.Conversions (cs)
+import Data.Aeson qualified as Aeson
+import Data.Aeson.KeyMap qualified as KeyMap
 import Imports
-import qualified Test.Tasty as T
+import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck (counterexample, testProperty)
 import Wire.API.User.Search (Contact)
 

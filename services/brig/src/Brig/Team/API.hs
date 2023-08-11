@@ -24,35 +24,33 @@ where
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
-import qualified Brig.API.User as API
+import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App
 import Brig.Data.UserKey
-import qualified Brig.Data.UserKey as Data
+import Brig.Data.UserKey qualified as Data
 import Brig.Effects.BlacklistStore (BlacklistStore)
-import qualified Brig.Effects.BlacklistStore as BlacklistStore
+import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Effects.GalleyProvider as GalleyProvider
+import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import qualified Brig.Email as Email
+import Brig.Email qualified as Email
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
-import qualified Brig.Phone as Phone
-import qualified Brig.Team.DB as DB
+import Brig.Phone qualified as Phone
+import Brig.Team.DB qualified as DB
 import Brig.Team.Email
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
-import Brig.Types.Intra (AccountStatus (..), NewUserScimInvitation (..), UserAccount (..))
 import Brig.Types.Team (TeamSize)
-import qualified Brig.User.Search.TeamSize as TeamSize
+import Brig.User.Search.TeamSize qualified as TeamSize
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except (mapExceptT)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Range
-import Data.String.Conversions (cs)
-import qualified Galley.Types.Teams as Team
+import Galley.Types.Teams qualified as Team
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
@@ -62,23 +60,23 @@ import Network.Wai.Utilities hiding (code, message)
 import Polysemy (Member)
 import Servant hiding (Handler, JSON, addHeader)
 import System.Logger (Msg)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
-import qualified Wire.API.Error.Brig as E
-import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Wire.API.Error.Brig qualified as E
+import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Brig
 import Wire.API.Team
 import Wire.API.Team.Invitation
-import qualified Wire.API.Team.Invitation as Public
+import Wire.API.Team.Invitation qualified as Public
 import Wire.API.Team.Member (teamMembers)
-import qualified Wire.API.Team.Member as Teams
+import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
 import Wire.API.Team.Role
-import qualified Wire.API.Team.Role as Public
+import Wire.API.Team.Role qualified as Public
 import Wire.API.User hiding (fromEmail)
-import qualified Wire.API.User as Public
+import Wire.API.User qualified as Public
 
 servantAPI ::
   ( Member BlacklistStore r,

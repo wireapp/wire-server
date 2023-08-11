@@ -46,7 +46,6 @@ module Spar.API
 where
 
 import Brig.Types.Intra
-import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Cassandra as Cas
 import Control.Lens
 import Control.Monad.Except
@@ -56,7 +55,6 @@ import Data.Id
 import Data.Proxy
 import Data.Range
 import qualified Data.Set as Set
-import Data.String.Conversions
 import Data.Time
 import Galley.Types.Teams (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Imports
@@ -217,7 +215,7 @@ apiINTERNAL =
     :<|> internalPutSsoSettings
     :<|> internalGetScimUserInfo
 
-appName :: ST
+appName :: Text
 appName = "spar"
 
 ----------------------------------------------------------------------------

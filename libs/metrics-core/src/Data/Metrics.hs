@@ -51,7 +51,6 @@ module Data.Metrics
     -- ** Describing Histograms
     linearHistogram,
     customHistogram,
-    deprecatedRequestDurationHistogram,
 
     -- ** Manipulating Histograms
     histoGet,
@@ -65,12 +64,12 @@ module Data.Metrics
   )
 where
 
-import qualified Data.HashMap.Strict as HM
+import Data.HashMap.Strict qualified as HM
 import Data.Hashable
-import qualified Data.Map.Strict as M
-import qualified Data.Text as T
+import Data.Map.Strict qualified as M
+import Data.Text qualified as T
 import Imports hiding (lookup, union)
-import qualified Prometheus as P
+import Prometheus qualified as P
 
 -- | Internal Counter type
 newtype Counter = Counter P.Counter
@@ -222,27 +221,6 @@ gaugeValue (Gauge g) = liftIO $ P.getGauge g
 
 -----------------------------------------------------------------------------
 -- Histogram specifics
-
--- | *DEPRECATED*
--- These are the exact histogram bucket markers which the old *custom* metrics-core
--- library used. Some wire-internal grafana graphs are still built around these exact number
--- e.g. (for wire employees only) see galley's POST duration graph:
---   https://staging-ie-grafana.zinfra.io/dashboard/db/galley
---
--- This is annoying and very fragile, prometheus has a better way of handling this, but
--- until we've converted all of the dashboards over to use prometheus rather than collect-d
--- we're stuck with these exact bucket counts.
---
--- Once we use prometheus metrics (e.g. there are no graphs in grafana which depend on metrics
--- prefixed with @collectd@) then you can delete this middleware entirely since the prometheus
--- middleware records request durations already. In fact it much of the `metrics-wai` package
--- can likely be deleted at that point.
---
--- NOTE: this is also used in the smoketests (api-simulations library) which needs to be changed before this can be removed.
-deprecatedRequestDurationHistogram :: Path -> HistogramInfo
-deprecatedRequestDurationHistogram pth = customHistogram pth requestDurationBuckets
-  where
-    requestDurationBuckets = [0, 30, 42, 60, 85, 120, 170, 240, 339, 480, 679, 960, 1358]
 
 -- | A marker of a bucketing point
 type Bucket = Double

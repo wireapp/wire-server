@@ -20,9 +20,9 @@
 , metrics-wai
 , pipes
 , prometheus-client
+, schema-profunctor
 , servant-server
 , streaming-commons
-, string-conversions
 , swagger2
 , text
 , tinylog
@@ -54,9 +54,9 @@ mkDerivation {
     metrics-wai
     pipes
     prometheus-client
+    schema-profunctor
     servant-server
     streaming-commons
-    string-conversions
     swagger2
     text
     tinylog

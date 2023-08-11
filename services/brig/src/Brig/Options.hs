@@ -27,15 +27,15 @@ import Brig.Allowlists (AllowlistEmailDomains (..), AllowlistPhonePrefixes (..))
 import Brig.Queue.Types (Queue (..))
 import Brig.SMTP (SMTPConnType (..))
 import Brig.User.Auth.Cookie.Limit
-import qualified Brig.ZAuth as ZAuth
+import Brig.ZAuth qualified as ZAuth
 import Control.Applicative
-import qualified Control.Lens as Lens
+import Control.Lens qualified as Lens
 import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON, withText)
-import qualified Data.Aeson as A
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as A
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (typeMismatch)
-import qualified Data.Char as Char
-import qualified Data.Code as Code
+import Data.Char qualified as Char
+import Data.Code qualified as Code
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
@@ -44,20 +44,21 @@ import Data.Nonce
 import Data.Range
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
 import Data.Yaml (FromJSON (..), ToJSON (..), (.:), (.:?))
-import qualified Data.Yaml as Y
+import Data.Yaml qualified as Y
 import Galley.Types.Teams (unImplicitLockStatus)
 import Imports
-import qualified Network.DNS as DNS
+import Network.AMQP.Extended
+import Network.DNS qualified as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
+import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
-import Wire.API.User.Search (FederatedUserSearchPolicy)
 import Wire.Arbitrary (Arbitrary, arbitrary)
 
 newtype Timeout = Timeout
@@ -400,20 +401,6 @@ instance ToSchema ListAllSFTServers where
           element "disabled" HideAllSFTServers
         ]
 
-data FederationDomainConfig = FederationDomainConfig
-  { domain :: Domain,
-    cfgSearchPolicy :: FederatedUserSearchPolicy
-  }
-  deriving (Show, Generic)
-  deriving (ToJSON, FromJSON) via Schema FederationDomainConfig
-
-instance ToSchema FederationDomainConfig where
-  schema =
-    object "FederationDomainConfig" $
-      FederationDomainConfig
-        <$> domain .= field "domain" schema
-        <*> cfgSearchPolicy .= field "search_policy" schema
-
 -- | Options that are consumed on startup
 data Opts = Opts
   -- services
@@ -433,6 +420,8 @@ data Opts = Opts
     cassandra :: !CassandraOpts,
     -- | ElasticSearch settings
     elasticsearch :: !ElasticSearchOpts,
+    -- | RabbitMQ settings, required when federation is enabled.
+    rabbitmq :: !(Maybe RabbitMqOpts),
     -- | AWS settings
     aws :: !AWSOpts,
     -- | Enable Random Prekey Strategy
@@ -550,24 +539,34 @@ data Settings = Settings
     -- returns users from the same team
     setSearchSameTeamOnly :: !(Maybe Bool),
     -- | FederationDomain is required, even when not wanting to federate with other backends
-    -- (in that case the 'allowedDomains' can be set to empty in Federator)
+    -- (in that case the 'setFederationStrategy' can be set to `allowNone` below, or to
+    -- `allowDynamic` while keeping the list of allowed domains empty, see
+    -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections)
     -- Federation domain is used to qualify local IDs and handles,
     -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
     -- It should also match the SRV DNS records under which other wire-server installations can find this backend:
-    --    _wire-server-federator._tcp.<federationDomain>
-    -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
+    -- >>>   _wire-server-federator._tcp.<federationDomain>
+    -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working.
     -- Remember to keep it the same in all services.
-    -- Example:
-    --   allowedDomains:
-    --     - wire.com
-    --     - example.com
     setFederationDomain :: !Domain,
+    -- | See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+    -- default: AllowNone
+    setFederationStrategy :: !(Maybe FederationStrategy),
+    -- | 'setFederationDomainConfigs' is introduced in
+    -- https://github.com/wireapp/wire-server/pull/3260 for the sole purpose of transitioning
+    -- to dynamic federation remote configuration.  See
+    -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+    -- for details.
+    -- default: []
     setFederationDomainConfigs :: !(Maybe [FederationDomainConfig]),
+    -- | In seconds.  Default: 10 seconds.  Values <1 are silently replaced by 1.  See
+    -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+    setFederationDomainConfigsUpdateFreq :: !(Maybe Int),
     -- | The amount of time in milliseconds to wait after reading from an SQS queue
     -- returns no message, before asking for messages from SQS again.
     -- defaults to 'defSqsThrottleMillis'.
     -- When using real SQS from AWS, throttling isn't needed as much, since using
-    --   SQS.rmWaitTimeSeconds (Just 20) in Brig.AWS.listen
+    -- >>> SQS.rmWaitTimeSeconds (Just 20) in Brig.AWS.listen
     -- ensures that there is only one request every 20 seconds.
     -- However, that parameter is not honoured when using fake-sqs
     -- (where throttling can thus make sense)

@@ -54,7 +54,7 @@ What should you do if this is the case? Ensure that `ntp` is installed and that 
 
 ## Logs and Data Protection checks
 
-On Wire.com, we keep logs for a maximum of 72 hours as described in the [privacy whitepaper](https://wire.com/en/security/)
+On Wire.com, we keep logs for a maximum of 72 hours as described in the [privacy whitepaper](https://wire-docs.wire.com/download/Wire+Privacy+Whitepaper.pdf).
 
 We recommend you do the same and limit the amount of logs kept on your servers.
 

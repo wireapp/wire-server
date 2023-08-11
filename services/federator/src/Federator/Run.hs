@@ -38,20 +38,22 @@ import Control.Concurrent.Async
 import Control.Exception (bracket)
 import Control.Lens ((^.))
 import Data.Default (def)
-import qualified Data.Metrics.Middleware as Metrics
+import Data.Metrics.Middleware qualified as Metrics
 import Federator.Env
 import Federator.ExternalServer (serveInward)
 import Federator.InternalServer (serveOutward)
 import Federator.Monitor
 import Federator.Options as Opt
 import Imports
-import qualified Network.DNS as DNS
-import qualified Network.HTTP.Client as HTTP
-import qualified System.Logger.Class as Log
-import qualified System.Logger.Extended as LogExt
+import Network.DNS qualified as DNS
+import Network.HTTP.Client qualified as HTTP
+import System.Logger qualified as Log
+import System.Logger.Extended qualified as LogExt
 import Util.Options
 import Wire.API.Federation.Component
-import qualified Wire.Network.DNS.Helper as DNS
+import Wire.API.FederationUpdate
+import Wire.API.Routes.FederationDomainConfig
+import Wire.Network.DNS.Helper qualified as DNS
 
 ------------------------------------------------------------------------------
 -- run/app
@@ -60,14 +62,16 @@ import qualified Wire.Network.DNS.Helper as DNS
 run :: Opts -> IO ()
 run opts = do
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
-  DNS.withCachingResolver resolvConf $ \res ->
-    bracket (newEnv opts res) closeEnv $ \env -> do
+  DNS.withCachingResolver resolvConf $ \res -> do
+    logger <- LogExt.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
+    (ioref, updateFedDomainsThread) <- syncFedDomainConfigs (brig opts) logger emptySyncFedDomainConfigsCallback
+    bracket (newEnv opts res logger ioref) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
-      withMonitor (env ^. applog) (env ^. sslContext) (optSettings opts) $ do
+      withMonitor logger (onNewSSLContext env) (optSettings opts) $ do
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
-        void $ waitAnyCancel [internalServerThread, externalServerThread]
+        void $ waitAnyCancel [updateFedDomainsThread, internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort
@@ -87,17 +91,19 @@ run opts = do
 -------------------------------------------------------------------------------
 -- Environment
 
-newEnv :: Opts -> DNS.Resolver -> IO Env
-newEnv o _dnsResolver = do
+newEnv :: Opts -> DNS.Resolver -> Log.Logger -> IORef FederationDomainConfigs -> IO Env
+newEnv o _dnsResolver _applog _domainConfigs = do
   _metrics <- Metrics.metrics
-  _applog <- LogExt.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def
-  let _runSettings = Opt.optSettings o
-  let _service Brig = Opt.brig o
+      _runSettings = Opt.optSettings o
+      _service Brig = Opt.brig o
       _service Galley = Opt.galley o
       _service Cargohold = Opt.cargohold o
+      _externalPort = o.federatorExternal._epPort
+      _internalPort = o.federatorInternal._epPort
   _httpManager <- initHttpManager
-  _sslContext <- mkTLSSettingsOrThrow _runSettings >>= newIORef
+  sslContext <- mkTLSSettingsOrThrow _runSettings
+  _http2Manager <- newIORef =<< mkHttp2Manager sslContext
   pure Env {..}
 
 closeEnv :: Env -> IO ()

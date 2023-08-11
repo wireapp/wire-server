@@ -59,33 +59,40 @@ module Stern.Intra
     getUserClients,
     getUserCookies,
     getUserNotifications,
+    getSsoDomainRedirect,
+    putSsoDomainRedirect,
+    deleteSsoDomainRedirect,
+    registerOAuthClient,
+    getOAuthClient,
+    updateOAuthClient,
+    deleteOAuthClient,
   )
 where
 
 import Bilge hiding (head, options, path, paths, requestId)
-import qualified Bilge
+import Bilge qualified
 import Bilge.RPC
 import Brig.Types.Intra
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Reader
 import Data.Aeson hiding (Error)
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
-import qualified Data.ByteString.Char8 as BS
+import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified (qUnqualified)
-import Data.String.Conversions (cs)
 import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (pack)
 import GHC.TypeLits (KnownSymbol)
 import Imports
+import Network.HTTP.Types (urlEncode)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wai.Utilities (Error (..), mkError)
@@ -93,21 +100,23 @@ import Servant.API (toUrlPiece)
 import Stern.App
 import Stern.Types
 import System.Logger.Class hiding (Error, name, (.=))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import UnliftIO.Exception hiding (Handler)
 import Wire.API.Connection
 import Wire.API.Conversation
+import Wire.API.CustomBackend
 import Wire.API.Internal.Notification
+import Wire.API.OAuth (OAuthClient, OAuthClientConfig, OAuthClientCredentials)
 import Wire.API.Properties
 import Wire.API.Routes.Internal.Brig.Connection
-import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra
-import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team
 import Wire.API.Team.Feature
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
@@ -138,7 +147,7 @@ putUser uid upd = do
         "brig"
         b
         ( method PUT
-            . versionedPath "/self"
+            . versionedPath "self"
             . header "Z-User" (toByteString' uid)
             . header "Z-Connection" (toByteString' "")
             . lbytes (encode upd)
@@ -374,6 +383,7 @@ changeEmail u upd = do
           . Bilge.path "i/self/email"
           . header "Z-User" (toByteString' u)
           . header "Z-Connection" (toByteString' "")
+          . queryItem "validate" "true"
           . lbytes (encode upd)
           . contentJson
           . expect2xx
@@ -388,7 +398,7 @@ changePhone u upd = do
       "brig"
       b
       ( method PUT
-          . versionedPath "/self/phone"
+          . versionedPath "self/phone"
           . header "Z-User" (toByteString' u)
           . header "Z-Connection" (toByteString' "")
           . lbytes (encode upd)
@@ -548,6 +558,7 @@ setTeamFeatureFlag tid status = do
   case statusCode resp of
     200 -> pure ()
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
+    403 -> throwE (mkError status403 "bad-upstream" "legal hold config cannot be changed")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
   where
     checkDaysLimit :: FeatureTTL -> Handler ()
@@ -591,6 +602,7 @@ setSearchVisibility tid typ = do
         )
   case statusCode resp of
     200 -> pure ()
+    204 -> pure ()
     403 ->
       throwE $
         mkError
@@ -680,7 +692,7 @@ getUserConsentValue uid = do
         g
         ( method GET
             . header "Z-User" (toByteString' uid)
-            . versionedPath "/self/consent"
+            . versionedPath "self/consent"
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
@@ -732,7 +744,7 @@ getUserCookies uid = do
         g
         ( method GET
             . header "Z-User" (toByteString' uid)
-            . versionedPath "/cookies"
+            . versionedPath "cookies"
             . expect2xx
         )
   parseResponse (mkError status502 "bad-upstream") r
@@ -777,7 +789,7 @@ getUserClients uid = do
         b
         ( method GET
             . header "Z-User" (toByteString' uid)
-            . versionedPath "/clients"
+            . versionedPath "clients"
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
@@ -794,7 +806,7 @@ getUserProperties uid = do
         b
         ( method GET
             . header "Z-User" (toByteString' uid)
-            . versionedPath "/properties"
+            . versionedPath "properties"
             . expect2xx
         )
   info $ msg ("Response" ++ show r)
@@ -810,7 +822,7 @@ getUserProperties uid = do
             b
             ( method GET
                 . header "Z-User" (toByteString' uid)
-                . versionedPaths ["/properties", toByteString' x]
+                . versionedPaths ["properties", toByteString' x]
                 . expect2xx
             )
       info $ msg ("Response" ++ show r)
@@ -838,7 +850,7 @@ getUserNotifications uid = do
             b
             ( method GET
                 . header "Z-User" (toByteString' uid)
-                . versionedPath "/notifications"
+                . versionedPath "notifications"
                 . queryItem "size" (toByteString' batchSize)
                 . maybe id (queryItem "since" . toByteString') start
                 . expectStatus (`elem` [200, 404])
@@ -850,3 +862,116 @@ getUserNotifications uid = do
         404 -> parseResponse (mkError status502 "bad-upstream") r
         _ -> throwE (mkError status502 "bad-upstream" "")
     batchSize = 100 :: Int
+
+getSsoDomainRedirect :: Text -> Handler (Maybe CustomBackend)
+getSsoDomainRedirect domain = do
+  info $ msg "getSsoDomainRedirect"
+  -- curl  -XGET ${CLOUD_BACKEND}/custom-backend/by-domain/${DOMAIN_EXAMPLE}
+  g <- view galley
+  r <-
+    catchRpcErrors $
+      rpc'
+        "galley"
+        g
+        ( method GET
+            . versionedPaths ["custom-backend", "by-domain", cs domain]
+            . expectStatus (`elem` [200, 404])
+        )
+  case statusCode r of
+    200 -> Just <$> parseResponse (mkError status502 "bad-upstream") r
+    404 -> pure Nothing
+    _ -> error "impossible"
+
+putSsoDomainRedirect :: Text -> Text -> Text -> Handler ()
+putSsoDomainRedirect domain config welcome = do
+  info $ msg "putSsoDomainRedirect"
+  -- export DOMAIN_ENTRY='{ \
+  --   "config_json_url": "https://wire-rest.https.example.com/config.json", \
+  --   "webapp_welcome_url": "https://app.wire.example.com/" \
+  -- }'
+  -- curl -XPUT http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE} -d "${DOMAIN_ENTRY}"
+  g <- view galley
+  void . catchRpcErrors $
+    rpc'
+      "galley"
+      g
+      ( method PUT
+          . Bilge.paths ["i", "custom-backend", "by-domain", urlEncode True (cs domain)]
+          . Bilge.json (object ["config_json_url" .= config, "webapp_welcome_url" .= welcome])
+          . expect2xx
+      )
+
+deleteSsoDomainRedirect :: Text -> Handler ()
+deleteSsoDomainRedirect domain = do
+  info $ msg "deleteSsoDomainRedirect"
+  -- curl -XDELETE http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE}
+  g <- view galley
+  void . catchRpcErrors $
+    rpc'
+      "galley"
+      g
+      ( method DELETE
+          . Bilge.paths ["i", "custom-backend", "by-domain", urlEncode True (cs domain)]
+          . expect2xx
+      )
+
+registerOAuthClient :: OAuthClientConfig -> Handler OAuthClientCredentials
+registerOAuthClient conf = do
+  b <- view brig
+  r <-
+    catchRpcErrors $
+      rpc'
+        "brig"
+        b
+        ( method POST
+            . Bilge.paths ["i", "oauth", "clients"]
+            . Bilge.json conf
+            . contentJson
+            . expect2xx
+        )
+  parseResponse (mkError status502 "bad-upstream") r
+
+getOAuthClient :: OAuthClientId -> Handler OAuthClient
+getOAuthClient cid = do
+  b <- view brig
+  r <-
+    rpc'
+      "brig"
+      b
+      ( method GET
+          . Bilge.paths ["i", "oauth", "clients", toByteString' cid]
+      )
+  case statusCode r of
+    200 -> parseResponse (mkError status502 "bad-upstream") r
+    404 -> throwE (mkError status404 "bad-upstream" "not-found")
+    _ -> throwE (mkError status502 "bad-upstream" (cs $ show r))
+
+updateOAuthClient :: OAuthClientId -> OAuthClientConfig -> Handler OAuthClient
+updateOAuthClient cid conf = do
+  b <- view brig
+  r <-
+    catchRpcErrors $
+      rpc'
+        "brig"
+        b
+        ( method PUT
+            . Bilge.paths ["i", "oauth", "clients", toByteString' cid]
+            . Bilge.json conf
+            . contentJson
+            . expect2xx
+        )
+  parseResponse (mkError status502 "bad-upstream") r
+
+deleteOAuthClient :: OAuthClientId -> Handler ()
+deleteOAuthClient cid = do
+  b <- view brig
+  r <-
+    catchRpcErrors $
+      rpc'
+        "brig"
+        b
+        ( method DELETE
+            . Bilge.paths ["i", "oauth", "clients", toByteString' cid]
+            . expect2xx
+        )
+  parseResponse (mkError status502 "bad-upstream") r

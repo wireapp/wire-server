@@ -50,10 +50,16 @@ else
   for f in $files
   do
     echo "$f"
-    if [ "$m" = "check" ]; then
-      hlint --no-summary "$f"
+    if [ -e "$f" ]; then
+      if [ "$m" = "check" ]; then
+        hlint --no-summary "$f"
+      else
+        hlint --refactor --refactor-options="--inplace" "$f"
+      fi
     else
-      hlint --refactor --refactor-options="--inplace" "$f"
+      # if we remove files from github, we can't hlint them any more,
+      # but they still show up in this list.
+      echo "file has been removed."
     fi
   done
 fi

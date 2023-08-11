@@ -25,8 +25,8 @@ import Control.Lens (makePrisms)
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
-import qualified Data.ByteString.Lazy as LBS
-import Imports
+import Data.ByteString.Lazy qualified as LBS
+import Imports hiding (cs)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Context
 import Wire.API.MLS.Extension

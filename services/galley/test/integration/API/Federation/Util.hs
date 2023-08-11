@@ -22,13 +22,13 @@ module API.Federation.Util
     BackendReachability (..),
     Backend (..),
     rbReachable,
+    participating,
   )
 where
 
 import Data.Kind
 import Data.Qualified
 import Data.SOP
-import Data.String.Conversions (cs)
 import GHC.TypeLits
 import Imports
 import Servant
@@ -125,3 +125,9 @@ data Backend = Backend
 
 rbReachable :: Remote Backend -> BackendReachability
 rbReachable = bReachable . tUnqualified
+
+participating :: Remote Backend -> [a] -> [a]
+participating rb users =
+  if rbReachable rb == BackendReachable
+    then users
+    else []

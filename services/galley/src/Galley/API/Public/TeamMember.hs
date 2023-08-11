@@ -19,7 +19,6 @@ module Galley.API.Public.TeamMember where
 
 import Galley.API.Teams
 import Galley.App
-import Galley.Cassandra.TeamFeatures
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.TeamMember
 
@@ -28,7 +27,7 @@ teamMemberAPI =
   mkNamedAPI @"get-team-members" getTeamMembers
     <@> mkNamedAPI @"get-team-member" getTeamMember
     <@> mkNamedAPI @"get-team-members-by-ids" bulkGetTeamMembers
-    <@> mkNamedAPI @"add-team-member" (addTeamMember @Cassandra)
+    <@> mkNamedAPI @"add-team-member" addTeamMember
     <@> mkNamedAPI @"delete-team-member" deleteTeamMember
     <@> mkNamedAPI @"delete-non-binding-team-member" deleteNonBindingTeamMember
     <@> mkNamedAPI @"update-team-member" updateTeamMember

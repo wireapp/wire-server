@@ -19,14 +19,14 @@ module Wire.API.MLS.CommitBundle where
 
 import Control.Lens (view, (.~), (?~))
 import Data.Bifunctor (first)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ProtoLens (decodeMessage, encodeMessage)
-import qualified Data.ProtoLens (Message (defMessage))
-import qualified Data.Swagger as S
-import qualified Data.Text as T
+import Data.ProtoLens qualified (Message (defMessage))
+import Data.Swagger qualified as S
+import Data.Text qualified as T
 import Imports
-import qualified Proto.Mls
-import qualified Proto.Mls_Fields as Proto.Mls
+import Proto.Mls qualified
+import Proto.Mls_Fields qualified as Proto.Mls
 import Wire.API.ConverProtoLens
 import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.Message

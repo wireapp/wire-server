@@ -19,9 +19,11 @@
 
 module Wire.API.Routes.Named where
 
+import Control.Lens ((%~))
 import Data.Kind
 import Data.Metrics.Servant
 import Data.Proxy
+import Data.Swagger
 import GHC.TypeLits
 import Imports
 import Servant
@@ -29,11 +31,31 @@ import Servant.Client
 import Servant.Client.Core (clientIn)
 import Servant.Swagger
 
-newtype Named named x = Named {unnamed :: x}
+-- | See http://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids-in-swagger
+newtype Named name x = Named {unnamed :: x}
   deriving (Functor)
 
-instance HasSwagger api => HasSwagger (Named name api) where
-  toSwagger _ = toSwagger (Proxy @api)
+-- | For 'HasSwagger' instance of 'Named'.  'KnownSymbol' isn't enough because we're using
+-- types other than string literals in some places.
+class RenderableSymbol a where
+  renderSymbol :: Text
+
+instance {-# OVERLAPPABLE #-} KnownSymbol a => RenderableSymbol a where
+  renderSymbol = cs . show $ symbolVal (Proxy @a)
+
+instance {-# OVERLAPPING #-} (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol '(a, b) where
+  renderSymbol = "(" <> (renderSymbol @a) <> ", " <> (renderSymbol @b) <> ")"
+
+instance (HasSwagger api, RenderableSymbol name) => HasSwagger (Named name api) where
+  toSwagger _ =
+    toSwagger (Proxy @api)
+      & allOperations . description %~ (Just (dscr <> "\n\n") <>)
+    where
+      dscr :: Text
+      dscr =
+        " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> "
+          <> cs (renderSymbol @name)
+          <> "]"
 
 instance HasServer api ctx => HasServer (Named name api) ctx where
   type ServerT (Named name api) m = Named name (ServerT api m)

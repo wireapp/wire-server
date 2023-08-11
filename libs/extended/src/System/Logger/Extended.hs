@@ -36,15 +36,14 @@ import Cassandra (MonadClient)
 import Control.Monad.Catch
 import Data.Aeson as Aeson
 import Data.Aeson.Encoding (list, pair, text)
-import qualified Data.Aeson.Key as Key
-import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.Map.Lazy as Map
-import Data.String.Conversions (cs)
+import Data.Aeson.Key qualified as Key
+import Data.ByteString.Builder qualified as B
+import Data.ByteString.Lazy.Char8 qualified as L
+import Data.Map.Lazy qualified as Map
 import GHC.Generics
 import Imports
 import System.Logger as Log
-import qualified System.Logger.Class as LC
+import System.Logger.Class qualified as LC
 
 deriving instance Generic LC.Level
 

@@ -27,8 +27,9 @@ import Federator.Monitor.Internal
 import Federator.Options (RunSettings (..))
 import Imports
 import OpenSSL.Session (SSLContext)
-import qualified Polysemy
-import qualified Polysemy.Error as Polysemy
+import Polysemy qualified
+import Polysemy.Error qualified as Polysemy
+import Polysemy.TinyLog (logAndIgnoreErrors)
 import System.Logger (Logger)
 
 mkTLSSettingsOrThrow :: RunSettings -> IO SSLContext
@@ -36,14 +37,14 @@ mkTLSSettingsOrThrow = Polysemy.runM . runEither . Polysemy.runError @Federation
   where
     runEither = (either (Polysemy.embed @IO . throw) pure =<<)
 
-withMonitor :: Logger -> IORef SSLContext -> RunSettings -> IO a -> IO a
-withMonitor logger tlsVar rs action =
+withMonitor :: Logger -> (SSLContext -> IO ()) -> RunSettings -> IO a -> IO a
+withMonitor logger onNewContext rs action =
   bracket
     ( runSemDefault
         logger
         ( mkMonitor
-            (runSemDefault logger . logAndIgnoreErrors)
-            tlsVar
+            (runSemDefault logger . logAndIgnoreErrors showFederationSetupError "federation setup error while updating certificates")
+            onNewContext
             rs
         )
     )

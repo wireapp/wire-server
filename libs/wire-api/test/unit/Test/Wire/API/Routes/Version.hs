@@ -3,7 +3,6 @@ module Test.Wire.API.Routes.Version where
 import Data.Aeson as Aeson
 import Data.Binary.Builder
 import Data.ByteString.Conversion
-import Data.String.Conversions (cs)
 import Imports
 import Servant.API
 import Test.Tasty

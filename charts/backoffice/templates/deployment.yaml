@@ -34,6 +34,10 @@ spec:
         - name: stern
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.image.pullPolicy | quote }}
+        {{- if eq (include "includeSecurityContext" .) "true" }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+        {{- end }}
           volumeMounts:
           - name: "backoffice-config"
             mountPath: /etc/wire/stern/conf/stern.yaml

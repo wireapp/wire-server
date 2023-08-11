@@ -1,4 +1,5 @@
 nginx-ingress:
+  fullnameOverride: "{{ .Release.Namespace }}-nginx-ingress"
   controller:
     kind: Deployment
     replicaCount: 1

@@ -82,7 +82,8 @@ data UserUpdatedData = UserUpdatedData
     eupLocale :: !(Maybe Locale),
     eupManagedBy :: !(Maybe ManagedBy),
     eupSSOId :: !(Maybe UserSSOId),
-    eupSSOIdRemoved :: Bool
+    eupSSOIdRemoved :: Bool,
+    eupSupportedProtocols :: !(Maybe (Set BaseProtocolTag))
   }
   deriving stock (Show)
 
@@ -135,6 +136,10 @@ managedByUpdate :: UserId -> ManagedBy -> UserEvent
 managedByUpdate u mb =
   UserUpdated $ (emptyUserUpdatedData u) {eupManagedBy = Just mb}
 
+supportedProtocolUpdate :: UserId -> Set BaseProtocolTag -> UserEvent
+supportedProtocolUpdate u prots =
+  UserUpdated $ (emptyUserUpdatedData u) {eupSupportedProtocols = Just prots}
+
 profileUpdated :: UserId -> UserUpdate -> UserEvent
 profileUpdated u UserUpdate {..} =
   UserUpdated $
@@ -160,7 +165,8 @@ emptyUserUpdatedData u =
       eupLocale = Nothing,
       eupManagedBy = Nothing,
       eupSSOId = Nothing,
-      eupSSOIdRemoved = False
+      eupSSOIdRemoved = False,
+      eupSupportedProtocols = Nothing
     }
 
 connEventUserId :: ConnectionEvent -> UserId

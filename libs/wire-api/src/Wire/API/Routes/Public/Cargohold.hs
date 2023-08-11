@@ -22,7 +22,7 @@ import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.SOP
-import qualified Data.Swagger as Swagger
+import Data.Swagger qualified as Swagger
 import Imports
 import Servant
 import Servant.Swagger.Internal
@@ -148,6 +148,7 @@ type BaseAPIv3 (tag :: PrincipalTag) =
              :> Capture "key" AssetKey
              :> Header "Asset-Token" AssetToken
              :> QueryParam "asset_token" AssetToken
+             :> ZHostOpt
              :> GetAsset
          )
     :<|> ( Summary "Delete an asset"
@@ -179,6 +180,7 @@ type QualifiedAPI =
       :> QualifiedCapture "key" AssetKey
       :> Header "Asset-Token" AssetToken
       :> QueryParam "asset_token" AssetToken
+      :> ZHostOpt
       :> MultiVerb
            'GET
            '()
@@ -282,11 +284,13 @@ type MainAPI =
                   \while remote assets are streamed directly."
              :> MakesFederatedCall 'Cargohold "get-asset"
              :> MakesFederatedCall 'Cargohold "stream-asset"
+             :> CanThrow 'NoMatchingAssetEndpoint
              :> ZLocalUser
              :> "assets"
              :> QualifiedCapture "key" AssetKey
              :> Header "Asset-Token" AssetToken
              :> QueryParam "asset_token" AssetToken
+             :> ZHostOpt
              :> MultiVerb
                   'GET
                   '()

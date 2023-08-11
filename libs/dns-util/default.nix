@@ -26,15 +26,7 @@ mkDerivation {
     polysemy
     random
   ];
-  testHaskellDepends = [
-    base
-    dns
-    hspec
-    imports
-    iproute
-    polysemy
-    random
-  ];
+  testHaskellDepends = [ base dns hspec imports ];
   testToolDepends = [ hspec-discover ];
   description = "Library to deal with DNS SRV records";
   license = lib.licenses.agpl3Only;
