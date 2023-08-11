@@ -44,7 +44,7 @@ import Bilge qualified
 import Bilge.Assert
 import Control.Concurrent.Async qualified as Async
 import Control.Exception (throw)
-import Control.Lens (at, ix, preview, view, (.~), (?~))
+import Control.Lens (at, view, (.~), (?~))
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding (json)
 import Data.ByteString qualified as BS
@@ -66,7 +66,6 @@ import Data.Singletons
 import Data.Text qualified as T
 import Data.Text.Ascii qualified as Ascii
 import Data.Time.Clock (getCurrentTime)
-import Data.Vector qualified as V
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer
 import Galley.API.Mapping
@@ -90,6 +89,7 @@ import Wire.API.Conversation.Code hiding (Value)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
+import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
@@ -2340,7 +2340,8 @@ postConvQualifiedNonExistentDomain = do
 postConvQualifiedFederationNotEnabled :: TestM ()
 postConvQualifiedFederationNotEnabled = do
   alice <- randomUser
-  bob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
+  let domain = Domain "some-remote-backend.example.com"
+  bob <- flip Qualified domain <$> randomId
   connectWithRemoteUser alice bob
   let federatorNotConfigured o =
         o
@@ -2348,9 +2349,11 @@ postConvQualifiedFederationNotEnabled = do
           & optRabbitmq .~ Nothing
   withSettingsOverrides federatorNotConfigured $ do
     g <- viewGalley
-    postConvHelper g alice [bob] !!! do
-      const 400 === statusCode
-      const (Just "federation-not-enabled") === fmap label . responseJsonUnsafe
+    unreachable :: UnreachableBackends <-
+      responseJsonError
+        =<< postConvHelper g alice [bob] <!! do
+          const 503 === statusCode
+    liftIO $ unreachable.backends @?= [domain]
 
 -- like postConvQualified
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
@@ -2920,18 +2923,20 @@ testAddRemoteMemberInvalidDomain :: TestM ()
 testAddRemoteMemberInvalidDomain = do
   alice <- randomUser
   bobId <- randomId
-  let remoteBob = Qualified bobId (Domain "invalid.example.com")
+  let domain = Domain "invalid.example.com"
+  let remoteBob = Qualified bobId domain
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   localDomain <- viewFederationDomain
   let qconvId = Qualified convId localDomain
 
   connectWithRemoteUser alice remoteBob
 
-  postQualifiedMembers alice (remoteBob :| []) qconvId
-    !!! do
-      const 422 === statusCode
-      const (Just (Array (V.fromList ["invalid.example.com"])))
-        === preview (ix "data" . ix "domains") . responseJsonUnsafe @Value
+  e :: UnreachableBackends <-
+    responseJsonError
+      =<< postQualifiedMembers alice (remoteBob :| []) qconvId
+        <!! do
+          const 503 === statusCode
+  liftIO $ e.backends @?= [domain]
 
 -- This test is a safeguard to ensure adding remote members will fail
 -- on environments where federation isn't configured (such as our production as of May 2021)
@@ -2960,19 +2965,22 @@ testAddRemoteMemberFederationDisabled = do
 testAddRemoteMemberFederationUnavailable :: TestM ()
 testAddRemoteMemberFederationUnavailable = do
   alice <- randomUser
-  remoteBob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
+  let domain = Domain "some-remote-backend.example.com"
+  remoteBob <- flip Qualified domain <$> randomId
   qconvId <- decodeQualifiedConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   connectWithRemoteUser alice remoteBob
 
   -- federator endpoint being configured in brig and/or galley, but not being
   -- available (i.e. no service listing on that IP/port) can happen due to a
-  -- misconfiguration of federator. That should give a 500.
+  -- misconfiguration of federator. That should give an unreachable_backends error.
   -- Port 1 should always be wrong hopefully.
   let federatorUnavailable = optFederator ?~ Endpoint "127.0.0.1" 1
-  withSettingsOverrides federatorUnavailable $
-    postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
-      const 500 === statusCode
-      const (Right "federation-not-available") === fmap label . responseJsonEither
+  withSettingsOverrides federatorUnavailable $ do
+    e :: UnreachableBackends <-
+      responseJsonError
+        =<< postQualifiedMembers alice (remoteBob :| []) qconvId <!! do
+          const 503 === statusCode
+    liftIO $ e.backends @?= [domain]
 
   -- since on member add the check of connection between remote backends will fail, the member is not actually added to the conversation
   conv <- responseJsonError =<< getConvQualified alice qconvId <!! const 200 === statusCode
