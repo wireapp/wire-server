@@ -51,8 +51,8 @@ testDynamicBackendsNotFederating = do
         $ bindResponse
           (getFederationStatus uidA [domainB, domainC])
         $ \resp -> do
-          resp.status `shouldMatchInt` 422
-          resp.json %. "label" `shouldMatch` "federation-denied"
+          resp.status `shouldMatchInt` 503
+          resp.json %. "unreachable_backends" `shouldMatchSet` [domainB, domainC]
 
 testDynamicBackendsFullyConnectedWhenAllowDynamic :: HasCallStack => App ()
 testDynamicBackendsFullyConnectedWhenAllowDynamic = do
@@ -123,8 +123,8 @@ testFederationStatus = do
   bindResponse
     (getFederationStatus uid [invalidDomain])
     $ \resp -> do
-      resp.status `shouldMatchInt` 422
-      resp.json %. "label" `shouldMatch` "invalid-domain"
+      resp.status `shouldMatchInt` 503
+      resp.json %. "unreachable_backends" `shouldMatchSet` [invalidDomain]
 
   bindResponse
     (getFederationStatus uid [federatingRemoteDomain])
