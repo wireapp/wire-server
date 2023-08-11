@@ -18,6 +18,8 @@
 module Federator.Response
   ( defaultHeaders,
     serve,
+    serveServant,
+    runFederator,
     runWaiError,
     runWaiErrors,
     streamingResponseToWai,
@@ -38,19 +40,23 @@ import Federator.Service
 import Federator.Validation
 import HTTP2.Client.Manager (Http2Manager)
 import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Utilities.Error as Wai
-import qualified Network.Wai.Utilities.Server as Wai
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai (Middleware)
+import Network.Wai qualified as Wai
+import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Utilities.Error qualified as Wai
+import Network.Wai.Utilities.Server qualified as Wai
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.TinyLog
+import Servant hiding (ServerError, respond, serve)
 import Servant.Client.Core
+import Servant.Server.Generic
 import Servant.Types.SourceT
+import Wire.API.Routes.FederationDomainConfig
 import Wire.Network.DNS.Effect
 import Wire.Sem.Logger.TinyLog
 
@@ -112,6 +118,24 @@ serve action env port =
     app req respond =
       runCodensity (runFederator env (action req)) respond
 
+serveServant ::
+  forall routes.
+  (HasServer (ToServantApi routes) '[], GenericServant routes AsServer, Server (ToServantApi routes) ~ ToServant routes AsServer) =>
+  Middleware ->
+  routes AsServer ->
+  Env ->
+  Int ->
+  IO ()
+serveServant middleware server env port =
+  Warp.run port
+    . Wai.catchErrors (view applog env) []
+    . middleware
+    $ app
+  where
+    app :: Wai.Application
+    app =
+      genericServe server
+
 type AllEffects =
   '[ Remote,
      DiscoverFederator,
@@ -119,6 +143,7 @@ type AllEffects =
      ServiceStreaming,
      Input RunSettings,
      Input Http2Manager, -- needed by Remote
+     Input FederationDomainConfigs, -- needed for the domain list.
      Input Env, -- needed by Service
      Error ValidationError,
      Error RemoteError,
@@ -143,6 +168,7 @@ runFederator env =
           DiscoveryFailure
         ]
     . runInputConst env
+    . runInputSem (embed @IO (readIORef (view domainConfigs env)))
     . runInputSem (embed @IO (readIORef (view http2Manager env)))
     . runInputConst (view runSettings env)
     . interpretServiceHTTP

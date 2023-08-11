@@ -7,6 +7,7 @@
 , aeson-pretty
 , array
 , async
+, attoparsec
 , base
 , base64-bytestring
 , bytestring
@@ -17,14 +18,18 @@
 , data-default
 , directory
 , exceptions
+, extra
 , filepath
 , gitignoreSource
 , hex
 , http-client
 , http-types
 , kan-extensions
+, lens
+, lens-aeson
 , lib
 , mime
+, monad-control
 , mtl
 , network
 , network-uri
@@ -42,9 +47,11 @@
 , text
 , time
 , transformers
+, transformers-base
 , unix
 , unliftio
 , uuid
+, vector
 , websockets
 , yaml
 }:
@@ -60,6 +67,7 @@ mkDerivation {
     aeson-pretty
     array
     async
+    attoparsec
     base
     base64-bytestring
     bytestring
@@ -69,12 +77,16 @@ mkDerivation {
     data-default
     directory
     exceptions
+    extra
     filepath
     hex
     http-client
     http-types
     kan-extensions
+    lens
+    lens-aeson
     mime
+    monad-control
     mtl
     network
     network-uri
@@ -92,12 +104,13 @@ mkDerivation {
     text
     time
     transformers
+    transformers-base
     unix
     unliftio
     uuid
+    vector
     websockets
     yaml
   ];
   license = lib.licenses.agpl3Only;
-  mainProgram = "integration";
 }

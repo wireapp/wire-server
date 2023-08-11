@@ -22,14 +22,14 @@ module Galley.Cassandra.TeamFeatures
 where
 
 import Cassandra
-import qualified Cassandra as C
+import Cassandra qualified as C
 import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Misc (HttpsUrl)
 import Data.Time (NominalDiffTime)
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
-import qualified Galley.Effects.TeamFeatureStore as TFS
+import Galley.Effects.TeamFeatureStore qualified as TFS
 import Imports
 import Polysemy
 import Polysemy.Input

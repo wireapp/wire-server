@@ -50,6 +50,7 @@ from wire.conversions import obj_id
 
 from wire import api
 
+LATEST_BASEDIR='/tmp/mls-large-groups-latest'
 
 LAST_PREKEY = "pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
 
@@ -142,27 +143,29 @@ class Context:
         self.last_switched_user = None
 
     def mkurl(self, service, relative_url, internal=False):
-        if not internal:
-            service = "nginz"
+        # if not internal:
+        #     service = "nginz"
 
         name = "WIREAPI_BASEURL_" + service.upper()
         baseurl = os.environ[name]
-        if not relative_url.startswith("/access"):
+        if (not relative_url.startswith("/access")) and (not relative_url.startswith('/register')) and (not relative_url.startswith('/i'))  and (not relative_url.startswith("/login")):
             relative_url = "/v4" + relative_url
         return urljoin(baseurl, relative_url)
 
-    @staticmethod
-    def headers(user, conn_id="0"):
-        return {"Z-User": obj_id(user), "Z-Connection": conn_id}
 
-    def request(self, method, url, user=None, conn_id="0", headers=None, **kwargs):
+    def request(self, method, url, user=None, conn_id="conn", client=None, headers=None, **kwargs):
         if headers is None:
             headers = {}
-        if user is not None:
-            headers = {**headers, **self.headers(user, conn_id)}
 
-        if headers.get("Z-User") is None and self.last_switched_user:
+        headers['Z-Connection'] = conn_id
+
+        if user is not None:
+            headers['Z-User'] = obj_id(user)
+        if user is None and self.last_switched_user:
             headers["Z-User"] = self.last_switched_user
+
+        if client is not None:
+            headers['Z-Client'] = client
 
         req = Request(method, url, headers=headers, **kwargs)
 
@@ -525,26 +528,52 @@ def defNewConvMLS(client_id):
         "protocol": "mls",
     }
 
+def kp_added_marker_file(admin_dir, conv_id, kpfile):
+    return j(admin_dir, f'{conv_id}/{os.path.basename(kpfile)}')
+
+def mark_kp_added(admin_dir, conv_id, kpfile):
+    fname = kp_added_marker_file(admin_dir, conv_id, kpfile)
+    os.makedirs(os.path.dirname(fname), exist_ok=True)
+    with open(fname, 'w', encoding='utf8') as fh:
+        fh.write('')
+
+def is_kp_added(admin_dir, conv_id, kpfile):
+    f = kp_added_marker_file(admin_dir, conv_id, kpfile)
+    return os.path.exists(f)
+
 
 def create_mls_conv(ctx, basedir):
     """
     Assumes admin is logged in
     """
     ud = admin_user_dir(basedir)
+    admin = load_json_file(j(ud, "res_creation.json"))['response']['content']
 
     # create conv
     client_id = list_clients(ud)[0]
-    res_post_conv = save(
-        api.create_conversation(ctx, user=None, **defNewConvMLS(client_id)),
-        j(basedir, "res_post_conv.json"),
-    )
-    group_id = res_post_conv["response"]["content"]["group_id"]
-    simple_expect_status(201, res_post_conv)
+
+    admin = load_json_file(j(ud, "res_creation.json"))['response']['content']
 
     cdir = client_dir(ud, client_id)
-    state = ClientState.load(cdir)
-    create_group(state, group_id)
-    return state
+
+    post_conv_file = j(basedir, "res_post_conv.json")
+    if os.path.exists(post_conv_file):
+        res_post_conv = load_json_file(post_conv_file)
+        print('Loading exisiting conversation')
+        state = ClientState.load(cdir)
+        conv_id = res_post_conv['response']['content']['qualified_id']['id']
+    else:
+        res_post_conv = save(
+            api.create_conversation(ctx, user=admin, **defNewConvMLS(client_id)),
+            j(basedir, "res_post_conv.json"),
+        )
+        simple_expect_status(201, res_post_conv)
+        group_id = res_post_conv["response"]["content"]["group_id"]
+        state = ClientState.load(cdir)
+        create_group(state, group_id)
+        conv_id = res_post_conv['response']['content']['qualified_id']['id']
+
+    return state, conv_id
 
 
 def upgrade_access_token(ctx, basedir, user_id, client_id):
@@ -584,9 +613,11 @@ class LogWithContext:
         self.logger.info(line)
 
 
-def main_setup_team(basedir=None, n_users=10):
+def main_setup_team(basedir=None, n_users=5000):
     if basedir is None:
-        basedir = tempfile.TemporaryDirectory().name
+        basedir = tempfile.TemporaryDirectory(prefix='mls-large-groups').name
+        os.system(f'rm -f {LATEST_BASEDIR}')
+        os.system(f'ln -s {basedir} {LATEST_BASEDIR}')
 
     os.makedirs(basedir, exist_ok=True)
 
@@ -626,7 +657,7 @@ def main_setup_team(basedir=None, n_users=10):
             )
             simple_expect_status(200, res_kp_claim)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
             res = executor.map(create_client, range(n_users))
 
             # force iterator.
@@ -649,23 +680,34 @@ def chunk(xs, chunk_size):
         yield xs[i : i + chunk_size]
 
 
-def main_setup_add_participants(basedir, batch_size=300):
+def main_setup_add_participants(basedir, batchsize=500):
     ctx_admin = Context()
     admin_id = meta_get(basedir, "admin_user_id")
 
     admin_dir = user_dir(basedir, admin_id)
 
-    admin_res_login = load_json_file(j(admin_dir, "res_login.json"))
-    ctx_admin.load_cookies_from_response(admin_res_login)
+    res_creation = load_json_file(j(admin_dir, "res_creation.json"))
+    admin = res_creation['response']['content']
+    res_login = save(
+        api.login(ctx_admin, res_creation["request"]["body"]["email"]),
+        j(admin_dir, "res_login.json"),
+    )
+    simple_expect_status(200, res_login)
+
+    # admin_res_login = load_json_file(j(admin_dir, "res_login.json"))
+    # ctx_admin.load_cookies_from_response(admin_res_login)
 
     client_id = list_clients(admin_dir)[0]
 
     upgrade_access_token(ctx_admin, basedir, user_id=admin_id, client_id=client_id)
 
-    client_state = create_mls_conv(ctx_admin, basedir)
+    # TODO: check if mls_conv already exists
+    client_state, conv_id = create_mls_conv(ctx_admin, basedir)
 
     kpfiles = []
 
+
+    skipped = 0
     users = [u for u in list_users(basedir) if u != admin_id]
     for user_id in users:
         ud = user_dir(basedir, user_id)
@@ -687,9 +729,19 @@ def main_setup_add_participants(basedir, batch_size=300):
             p = os.path.join(ud, ref.hex())
             with open(p, "wb") as f:
                 f.write(kpdata)
-            kpfiles.append(p)
+
+            if is_kp_added(admin_dir, conv_id, p):
+                skipped += 1
+                # print(f'kp {ref.hex()} already added to conv. skipping')
+            else:
+                kpfiles.append(p)
 
     logfile = j(basedir, "setup_add_participants.log")
+
+    if skipped > 0:
+        print(f'Skipped {skipped} keypackages that are already part of the group')
+
+    print(f'Adding {len(kpfiles)} key packages to conv')
 
     with create_logger(logfile) as (logfile, logger):
 
@@ -697,7 +749,7 @@ def main_setup_add_participants(basedir, batch_size=300):
         log.log("setup_begin")
         log.context = {"admin": 1}
 
-        chunks = list(chunk(kpfiles, batch_size))
+        chunks = list(chunk(kpfiles, batchsize))
 
         for i, kpfiles in enumerate(chunks):
 
@@ -705,6 +757,11 @@ def main_setup_add_participants(basedir, batch_size=300):
 
             log.log("add_member_begin")
             message_package = add_member(client_state, kpfiles)
+
+            msg = message_package['message']
+            with open(j(admin_dir, f'commit-msg-{i}.bin'), 'wb') as f:
+                f.write(msg)
+
             log.log("add_member_end")
 
             log.log("make_bundle_begin")
@@ -714,12 +771,25 @@ def main_setup_add_participants(basedir, batch_size=300):
             log.log("post_commit_bundle_begin")
             ctx_admin.switch_user(admin_id)
             res_post_commit_bundle = save(
-                api.mls_post_commit_bundle(ctx_admin, commit_bundle),
+                api.mls_post_commit_bundle(ctx_admin, client=client_id, commit_bundle=commit_bundle),
                 j(admin_dir, "res_post_commit_bundle.json"),
             )
             log.log("post_commit_bundle_end")
 
-            simple_expect_status(201, res_post_commit_bundle)
+
+            try:
+                # if i > 0:
+                #     raise ValueError("intentional")
+                simple_expect_status(201, res_post_commit_bundle)
+            except:
+                print("Restoring admin's client state")
+                client_state = ClientState.restore_backup_into(client_state.client_dir)
+                raise
+            else:
+                for kpfile in kpfiles:
+                    mark_kp_added(admin_dir, conv_id, kpfile)
+
+            client_state.back_up()
 
 
 def main_send(basedir):
@@ -748,7 +818,8 @@ def main_send(basedir):
         log.log("message_send_begin")
         res_test_msg = save(
             api.mls_send_message(
-                ctx, create_application_message(admin_client_state, msg)["message"]
+                ctx, create_application_message(admin_client_state, msg)["message"],
+                client=client_id
             ),
             j(ud, "res_test_msg.json"),
         )
@@ -1036,19 +1107,23 @@ async def main():
         title="subcommand", description="valid subcommands", dest="subparser_name"
     )
 
-    subparsers.add_parser("setup")
-    subparsers.add_parser("add").add_argument("basedir", type=str)
-    subparsers.add_parser("send").add_argument("basedir", type=str)
-    subparsers.add_parser("receive").add_argument("basedir", type=str)
-    subparsers.add_parser("analyze").add_argument("basedir", type=str)
+    subparsers.add_parser("setup").add_argument("users", type=int)
+
+    add_parser = subparsers.add_parser("add")
+    add_parser.add_argument("--basedir", type=str, default=LATEST_BASEDIR)
+    add_parser.add_argument("--batchsize", type=int, default=500)
+
+    subparsers.add_parser("send").add_argument("--basedir", type=str, default=LATEST_BASEDIR)
+    subparsers.add_parser("receive").add_argument("--basedir", type=str, default=LATEST_BASEDIR)
+    subparsers.add_parser("analyze").add_argument("--basedir", type=str, default=LATEST_BASEDIR)
 
     args = parser.parse_args()
 
     if args.subparser_name == "setup":
-        main_setup_team()
+        main_setup_team(n_users=args.users)
 
     elif args.subparser_name == "add":
-        main_setup_add_participants(args.basedir)
+        main_setup_add_participants(args.basedir, batchsize=args.batchsize)
 
     elif args.subparser_name == "send":
         main_send(args.basedir)

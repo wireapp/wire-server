@@ -38,7 +38,7 @@ import Bilge (HttpT (..), Manager, MonadHttp, Request, runHttpT)
 import Control.Lens (makeLenses, (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Imports
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit (Assertion, testCase)
 

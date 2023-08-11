@@ -84,7 +84,7 @@ library
     , wai-route                  >=0.3
     , wai-routing
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite unit
   type:               exitcode-stdio-1.0
@@ -150,4 +150,4 @@ test-suite unit
     , imports
     , metrics-wai
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

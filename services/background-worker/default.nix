@@ -5,21 +5,44 @@
 { mkDerivation
 , aeson
 , amqp
+, async
+, base
+, bilge
+, bytestring
+, bytestring-conversion
+, containers
 , exceptions
 , extended
 , federator
 , gitignoreSource
 , HsOpenSSL
 , hspec
+, http-client
+, http-media
+, http-types
 , http2-manager
+, HUnit
 , imports
+, lens
 , lib
+, metrics-core
+, metrics-wai
 , monad-control
+, prometheus-client
 , QuickCheck
 , retry
+, servant
+, servant-client
+, servant-client-core
+, servant-server
+, text
 , tinylog
+, transformers
 , transformers-base
 , types-common
+, unliftio
+, wai
+, wai-utilities
 , wire-api
 , wire-api-federation
 }:
@@ -32,28 +55,62 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
+    async
+    base
+    bilge
+    bytestring-conversion
+    containers
     exceptions
     extended
     HsOpenSSL
+    http-client
+    http-types
     http2-manager
     imports
+    lens
+    metrics-core
+    metrics-wai
     monad-control
+    prometheus-client
     retry
+    servant-client
+    servant-server
+    text
     tinylog
     transformers-base
     types-common
+    unliftio
+    wai-utilities
+    wire-api
     wire-api-federation
   ];
   executableHaskellDepends = [ HsOpenSSL imports types-common ];
   testHaskellDepends = [
     aeson
     amqp
+    base
+    bytestring
+    containers
+    extended
     federator
     hspec
+    http-client
+    http-media
+    http-types
+    HUnit
     imports
+    prometheus-client
     QuickCheck
+    servant
+    servant-client
+    servant-client-core
+    servant-server
+    text
     tinylog
+    transformers
     types-common
+    unliftio
+    wai
     wire-api
     wire-api-federation
   ];

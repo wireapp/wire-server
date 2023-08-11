@@ -25,7 +25,7 @@ module Galley.Effects.TeamNotificationStore
   )
 where
 
-import qualified Data.Aeson as JSON
+import Data.Aeson qualified as JSON
 import Data.Id
 import Data.List1 (List1)
 import Data.Range

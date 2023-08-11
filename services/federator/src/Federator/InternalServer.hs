@@ -20,84 +20,108 @@
 
 module Federator.InternalServer where
 
+import Control.Monad.Codensity
 import Data.Binary.Builder
-import qualified Data.ByteString as BS
-import qualified Data.Text as Text
+import Data.ByteString qualified as BS
+import Data.Domain
+import Data.Metrics.Servant qualified as Metrics
+import Data.Proxy
 import Federator.Env
 import Federator.Error.ServerError
-import Federator.Options (RunSettings)
+import Federator.Health qualified as Health
+import Federator.RPC
 import Federator.Remote
 import Federator.Response
 import Federator.Validation
 import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
+import Network.HTTP.Client (Manager)
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Servant.API
+import Servant.API.Extended.Endpath
+import Servant.Server (Tagged (..))
+import Servant.Server.Generic
 import Wire.API.Federation.Component
+import Wire.API.Routes.FederationDomainConfig
 
-data RequestData = RequestData
-  { rdTargetDomain :: Text,
-    rdComponent :: Component,
-    rdRPC :: Text,
-    rdHeaders :: [HTTP.Header],
-    rdBody :: LByteString
+data API mode = API
+  { status ::
+      mode
+        :- "i"
+          :> "status"
+          -- When specified only returns status of the internal service,
+          -- otherwise ensures that the external service is also up.
+          :> QueryFlag "standalone"
+          :> Get '[PlainText] NoContent,
+    internalRequest ::
+      mode
+        :- "rpc"
+          :> Capture "domain" Domain
+          :> Capture "component" Component
+          :> Capture "rpc" RPC
+          :> Endpath
+          -- We need to use 'Raw' so we can stream request body regardless of
+          -- content-type and send a response with arbitrary content-type. Not
+          -- sure if this is the right approach.
+          :> Raw
   }
+  deriving (Generic)
 
-parseRequestData ::
-  ( Member (Error ServerError) r,
-    Member (Embed IO) r
+server ::
+  ( Member Remote r,
+    Member (Embed IO) r,
+    Member (Error ValidationError) r,
+    Member (Error ServerError) r,
+    Member (Input FederationDomainConfigs) r
   ) =>
-  Wai.Request ->
-  Sem r RequestData
-parseRequestData req = do
-  -- only POST is supported
-  when (Wai.requestMethod req /= HTTP.methodPost) $
-    throw InvalidRoute
-  -- No query parameters are allowed
-  unless (BS.null . Wai.rawQueryString $ req) $
-    throw InvalidRoute
-  -- check that the path has the expected form
-  (domain, componentSeg, rpcPath) <- case Wai.pathInfo req of
-    ["rpc", domain, comp, rpc] -> pure (domain, comp, rpc)
-    _ -> throw InvalidRoute
-  when (Text.null rpcPath) $
-    throw InvalidRoute
-
-  -- get component and body
-  component <- note (UnknownComponent componentSeg) $ parseComponent componentSeg
-  body <- embed $ Wai.lazyRequestBody req
-  pure $
-    RequestData
-      { rdTargetDomain = domain,
-        rdComponent = component,
-        rdRPC = rpcPath,
-        rdHeaders = Wai.requestHeaders req,
-        rdBody = body
-      }
+  Manager ->
+  Word16 ->
+  (Sem r Wai.Response -> Codensity IO Wai.Response) ->
+  API AsServer
+server mgr extPort interpreter =
+  API
+    { status = Health.status mgr "external server" extPort,
+      internalRequest = \remoteDomain component rpc ->
+        Tagged $ \req respond -> runCodensity (interpreter (callOutward remoteDomain component rpc req)) respond
+    }
 
 callOutward ::
   ( Member Remote r,
     Member (Embed IO) r,
     Member (Error ValidationError) r,
     Member (Error ServerError) r,
-    Member (Input RunSettings) r
+    Member (Input FederationDomainConfigs) r
   ) =>
+  Domain ->
+  Component ->
+  RPC ->
   Wai.Request ->
   Sem r Wai.Response
-callOutward req = do
-  rd <- parseRequestData req
-  domain <- parseDomainText (rdTargetDomain rd)
-  ensureCanFederateWith domain
+callOutward targetDomain component (RPC path) req = do
+  -- only POST is supported
+  when (Wai.requestMethod req /= HTTP.methodPost) $
+    throw InvalidRoute
+  -- No query parameters are allowed
+  unless (BS.null . Wai.rawQueryString $ req) $
+    throw InvalidRoute
+
+  ensureCanFederateWith targetDomain
+  body <- embed $ Wai.lazyRequestBody req
   resp <-
     discoverAndCall
-      domain
-      (rdComponent rd)
-      (rdRPC rd)
-      (rdHeaders rd)
-      (fromLazyByteString (rdBody rd))
+      targetDomain
+      component
+      path
+      (Wai.requestHeaders req)
+      (fromLazyByteString body)
   pure $ streamingResponseToWai resp
 
 serveOutward :: Env -> Int -> IO ()
-serveOutward = serve callOutward
+serveOutward env =
+  serveServant
+    (Metrics.servantPrometheusMiddleware $ Proxy @(ToServantApi API))
+    (server env._httpManager env._externalPort $ runFederator env)
+    env

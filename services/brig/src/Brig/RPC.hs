@@ -27,10 +27,10 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy qualified as BL
 import Data.Id
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as LT
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as LT
 import Imports
 import Network.HTTP.Client (HttpExceptionContent (..), checkResponse)
 import Network.HTTP.Types.Method

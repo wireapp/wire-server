@@ -1349,7 +1349,7 @@ specProvisionScimAndSAMLUserWithRole = do
             _ <- ScimT.updateUser tok userId scimUserWithRole
             ScimT.checkTeamMembersRole tid owner userId role
       mapM_ testUpdateUserWithRole [minBound .. maxBound]
-    it "update user - default to member if no role given" $ do
+    it "update user - do not change current role if no role given" $ do
       (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
       let testUpdateUserWithDefaultRole :: Role -> TestSpar ()
           testUpdateUserWithDefaultRole role = do
@@ -1358,7 +1358,7 @@ specProvisionScimAndSAMLUserWithRole = do
               pure $ u {Scim.roles = [cs $ toByteString $ role]}
             userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
             _ <- ScimT.updateUser tok userId (scimUser {Scim.roles = []})
-            ScimT.checkTeamMembersRole tid owner userId RoleMember
+            ScimT.checkTeamMembersRole tid owner userId role
       mapM_ testUpdateUserWithDefaultRole [minBound .. maxBound]
     it "updated user - fail if more than one role given" $ do
       (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta

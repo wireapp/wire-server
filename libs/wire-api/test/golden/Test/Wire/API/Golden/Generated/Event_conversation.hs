@@ -26,7 +26,7 @@ import Data.Misc (HttpsUrl (HttpsUrl))
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.Time
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import GHC.Exts (IsList (fromList))
 import Imports
 import URI.ByteString (Authority (..), Host (..), Query (..), Scheme (..), URIRef (..))

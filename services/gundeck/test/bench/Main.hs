@@ -27,7 +27,7 @@ import Amazonka (Region (Ireland))
 import Control.Lens ((^.))
 import Criterion.Main
 import Data.Id (ClientId (..), ConnId (..), randomId)
-import qualified Data.Text.Lazy as LT
+import Data.Text.Lazy qualified as LT
 import Data.UUID.V4 (nextRandom)
 import Gundeck.Options
 import Gundeck.Push.Native.Serialise

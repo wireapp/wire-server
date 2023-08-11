@@ -21,22 +21,22 @@ module Brig.Index.Migrations
 where
 
 import Brig.Index.Migrations.Types
-import qualified Brig.Index.Options as Opts
-import qualified Brig.User.Search.Index as Search
-import qualified Cassandra as C
-import qualified Cassandra.Settings as C
+import Brig.Index.Options qualified as Opts
+import Brig.User.Search.Index qualified as Search
+import Cassandra qualified as C
+import Cassandra.Settings qualified as C
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadThrow, catchAll, finally, throwM)
 import Data.Aeson (Value, object, (.=))
-import qualified Data.Metrics as Metrics
-import qualified Data.Text as Text
-import qualified Database.Bloodhound as ES
+import Data.Metrics qualified as Metrics
+import Data.Text qualified as Text
+import Database.Bloodhound qualified as ES
 import Imports
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import System.Logger.Class (Logger)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import System.Logger.Extended (runWithLogger)
-import qualified Util.Options as Options
+import Util.Options qualified as Options
 
 migrate :: Logger -> Opts.ElasticSettings -> Opts.CassandraSettings -> Options.Endpoint -> IO ()
 migrate l es cas galleyEndpoint = do

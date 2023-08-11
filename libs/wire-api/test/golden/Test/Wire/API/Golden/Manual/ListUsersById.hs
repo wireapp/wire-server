@@ -23,8 +23,8 @@ import Data.Domain
 import Data.Id
 import Data.LegalHold
 import Data.Qualified
-import qualified Data.Set as Set
-import qualified Data.UUID as UUID
+import Data.Set qualified as Set
+import Data.UUID qualified as UUID
 import Imports
 import Wire.API.User
 

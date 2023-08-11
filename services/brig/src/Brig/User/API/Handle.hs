@@ -25,11 +25,11 @@ where
 
 import Brig.API.Error (fedError)
 import Brig.API.Handler (Handler)
-import qualified Brig.API.User as API
+import Brig.API.User qualified as API
 import Brig.App
-import qualified Brig.Data.User as Data
+import Brig.Data.User qualified as Data
 import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Federation.Client as Federation
+import Brig.Federation.Client qualified as Federation
 import Brig.Options (searchSameTeamOnly)
 import Control.Lens (view)
 import Data.Handle (Handle, fromHandle)
@@ -38,11 +38,11 @@ import Data.Qualified
 import Imports
 import Network.Wai.Utilities ((!>>))
 import Polysemy
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.User
-import qualified Wire.API.User as Public
+import Wire.API.User qualified as Public
 import Wire.API.User.Search
-import qualified Wire.API.User.Search as Public
+import Wire.API.User.Search qualified as Public
 
 getHandleInfo ::
   (Member GalleyProvider r) =>

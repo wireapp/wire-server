@@ -24,8 +24,8 @@ where
 import Control.Lens (view)
 import Data.Id
 import Gundeck.Monad
-import qualified Gundeck.Notification.Data as Notifications
-import qualified Gundeck.Push.Data as Push
+import Gundeck.Notification.Data qualified as Notifications
+import Gundeck.Push.Data qualified as Push
 import Gundeck.Push.Native
 import Imports
 

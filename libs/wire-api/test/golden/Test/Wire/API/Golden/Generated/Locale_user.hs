@@ -18,7 +18,7 @@
 module Test.Wire.API.Golden.Generated.Locale_user where
 
 import Data.ISO3166_CountryCodes (CountryCode (CR, DO, EG, HT, IN, LK, LS, MA, PS, TL, VI))
-import qualified Data.LanguageCodes
+import Data.LanguageCodes qualified
   ( ISO639_1
       ( AF,
         BG,

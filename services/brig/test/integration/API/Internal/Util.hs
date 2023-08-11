@@ -33,25 +33,25 @@ import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import Bilge
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
-import qualified Data.ByteString.Base16 as B16
+import Data.ByteString.Base16 qualified as B16
 import Data.Handle (Handle)
 import Data.Id
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Proxy (Proxy (Proxy))
-import qualified Data.Set as Set
-import qualified Data.Text.Encoding as T
+import Data.Set qualified as Set
+import Data.Text.Encoding qualified as T
 import Imports
 import Servant.API ((:>))
 import Servant.API.ContentTypes (NoContent)
-import qualified Servant.Client as Client
+import Servant.Client qualified as Client
 import System.Random (randomIO)
 import Util
 import Util.Options (Endpoint, epHost, epPort)
 import Wire.API.Connection
-import qualified Wire.API.Push.V2.Token as PushToken
+import Wire.API.Push.V2.Token qualified as PushToken
 import Wire.API.Routes.Internal.Brig as IAPI
-import qualified Wire.API.Team.Feature as Public
-import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Feature qualified as Public
+import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)

@@ -156,7 +156,7 @@ optSettings:
   setUserCookieLimit: 5
   setUserCookieThrottle:
     stdDev: 5
-    retryAfter: 1
+    retryAfter: 3
   setLimitFailedLogins:
     timeout: 5  # seconds.  if you reach the limit, how long do you have to wait to try again.
     retryLimit: 5  # how many times can you have a failed login in that timeframe.
@@ -189,6 +189,8 @@ optSettings:
   #   Remember to keep it the same in Galley.
   setFederationDomain: example.com
   setFeatureFlags:  # see #RefConfigOptions in `/docs/reference`
+  setFederationDomainConfigsUpdateFreq: 1
+  setFederationStrategy: allowAll
   setFederationDomainConfigs:
     - domain: example.com
       search_policy: full_search

@@ -37,7 +37,10 @@ library
     Wire.API.Error.Gundeck
     Wire.API.Event.Conversation
     Wire.API.Event.FeatureConfig
+    Wire.API.Event.Federation
     Wire.API.Event.Team
+    Wire.API.FederationStatus
+    Wire.API.FederationUpdate
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
     Wire.API.MakesFederatedCall
@@ -79,6 +82,7 @@ library
     Wire.API.Routes.ClientAlgebra
     Wire.API.Routes.Cookies
     Wire.API.Routes.CSV
+    Wire.API.Routes.FederationDomainConfig
     Wire.API.Routes.Internal.Brig
     Wire.API.Routes.Internal.Brig.Connection
     Wire.API.Routes.Internal.Brig.EJPD
@@ -134,6 +138,7 @@ library
     Wire.API.Team.Invitation
     Wire.API.Team.LegalHold
     Wire.API.Team.LegalHold.External
+    Wire.API.Team.LegalHold.Internal
     Wire.API.Team.Member
     Wire.API.Team.Permission
     Wire.API.Team.Role
@@ -191,6 +196,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -215,6 +221,7 @@ library
 
   build-depends:
       aeson                      >=2.0.1.0
+    , async
     , attoparsec                 >=0.10
     , base                       >=4       && <5
     , base64-bytestring          >=1.0
@@ -248,6 +255,7 @@ library
     , hscim
     , HsOpenSSL
     , http-api-data
+    , http-client
     , http-media
     , http-types
     , imports
@@ -269,6 +277,7 @@ library
     , quickcheck-instances       >=0.3.16
     , random                     >=1.2.0
     , resourcet
+    , retry
     , saml2-web-sso
     , schema-profunctor
     , scientific
@@ -288,6 +297,7 @@ library
     , tagged
     , text                       >=0.11
     , time                       >=1.4
+    , tinylog
     , transitive-anns
     , types-common               >=0.16
     , unordered-containers       >=0.2
@@ -304,7 +314,7 @@ library
     , x509
     , zauth
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite wire-api-golden-tests
   type:               exitcode-stdio-1.0
@@ -465,7 +475,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.RichField_user
     Test.Wire.API.Golden.Generated.RichInfo_user
     Test.Wire.API.Golden.Generated.RichInfoAssocList_user
-    Test.Wire.API.Golden.Generated.RichInfoMapAndList_user
     Test.Wire.API.Golden.Generated.RmClient_user
     Test.Wire.API.Golden.Generated.Role_team
     Test.Wire.API.Golden.Generated.RoleName_user
@@ -547,6 +556,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.CreateGroupConversation
     Test.Wire.API.Golden.Manual.CreateScimToken
     Test.Wire.API.Golden.Manual.FeatureConfigEvent
+    Test.Wire.API.Golden.Manual.FederationStatus
     Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
     Test.Wire.API.Golden.Manual.GroupId
     Test.Wire.API.Golden.Manual.ListConversations
@@ -611,6 +621,7 @@ test-suite wire-api-golden-tests
 
   build-depends:
       aeson                    >=2.0.1.0
+    , aeson-diff
     , aeson-pretty
     , base
     , bytestring
@@ -635,7 +646,7 @@ test-suite wire-api-golden-tests
     , wire-api
     , wire-message-proto-lens
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite wire-api-tests
   type:               exitcode-stdio-1.0
@@ -730,7 +741,6 @@ test-suite wire-api-tests
     , either
     , filepath
     , hex
-    , hscim
     , hspec
     , hspec-wai
     , http-types
@@ -756,4 +766,4 @@ test-suite wire-api-tests
     , wire-api
     , wire-message-proto-lens
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

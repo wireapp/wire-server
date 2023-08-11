@@ -53,7 +53,6 @@ module Galley.API.Update
     removeMemberUnqualified,
     removeMemberFromLocalConv,
     removeMemberFromRemoteConv,
-    addLocalUsersToRemoteConv,
 
     -- * Talking
     postProteusMessage,
@@ -75,40 +74,36 @@ where
 import Control.Error.Util (hush)
 import Control.Lens
 import Control.Monad.State
-import Data.ByteString.Conversion
 import Data.Code
-import Data.Domain
 import Data.Id
 import Data.Json.Util
-import Data.List.Extra (nubOrd)
-import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.API.Message
-import qualified Galley.API.Query as Query
+import Galley.API.Query qualified as Query
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
-import qualified Galley.Effects.BrigAccess as E
-import qualified Galley.Effects.ClientStore as E
-import qualified Galley.Effects.CodeStore as E
-import qualified Galley.Effects.ConversationStore as E
-import qualified Galley.Effects.ExternalAccess as E
-import qualified Galley.Effects.FederatorAccess as E
-import qualified Galley.Effects.GundeckAccess as E
-import qualified Galley.Effects.MemberStore as E
+import Galley.Effects.BackendNotificationQueueAccess
+import Galley.Effects.ClientStore qualified as E
+import Galley.Effects.CodeStore qualified as E
+import Galley.Effects.ConversationStore qualified as E
+import Galley.Effects.ExternalAccess qualified as E
+import Galley.Effects.FederatorAccess qualified as E
+import Galley.Effects.GundeckAccess qualified as E
+import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore
-import qualified Galley.Effects.ServiceStore as E
+import Galley.Effects.ServiceStore qualified as E
 import Galley.Effects.WaiRoutes
 import Galley.Intra.Push
 import Galley.Options
@@ -125,10 +120,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
-import qualified Polysemy.TinyLog as P
 import System.Logger (Msg)
-import qualified System.Logger.Class as Log
-import Wire.API.Connection (Relation (Accepted))
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
@@ -139,12 +131,10 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
-import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Password (mkSafePassword)
 import Wire.API.Provider.Service (ServiceRef)
-import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
@@ -297,7 +287,7 @@ updateConversationAccess ::
   Sem r (UpdateResult Event)
 updateConversationAccess lusr con qcnv update = do
   lcnv <- ensureLocal lusr qcnv
-  getUpdateResult . fmap (lcuEvent . fst) $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged lusr) (Just con) update
 
 updateConversationAccessUnqualified ::
@@ -309,7 +299,7 @@ updateConversationAccessUnqualified ::
   ConversationAccessData ->
   Sem r (UpdateResult Event)
 updateConversationAccessUnqualified lusr con cnv update =
-  getUpdateResult . fmap (lcuEvent . fst) $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationAccessDataTag
       (qualifyAs lusr cnv)
       (tUntagged lusr)
@@ -320,6 +310,7 @@ updateConversationReceiptMode ::
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
+    Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationReceiptMode)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -337,19 +328,20 @@ updateConversationReceiptMode ::
   ConversationReceiptModeUpdate ->
   Sem r (UpdateResult Event)
 updateConversationReceiptMode lusr zcon qcnv update =
-  foldQualified
-    lusr
-    ( \lcnv ->
-        getUpdateResult . fmap (lcuEvent . fst) $
-          updateLocalConversation
-            @'ConversationReceiptModeUpdateTag
-            lcnv
-            (tUntagged lusr)
-            (Just zcon)
-            update
-    )
-    (\rcnv -> updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr zcon update)
-    qcnv
+  mapError @NonFederatingBackends @InternalError (\_ -> InternalErrorWithDescription "Unexpected NonFederatingBackends error when updating remote receipt mode") $
+    foldQualified
+      lusr
+      ( \lcnv ->
+          getUpdateResult . fmap lcuEvent $
+            updateLocalConversation
+              @'ConversationReceiptModeUpdateTag
+              lcnv
+              (tUntagged lusr)
+              (Just zcon)
+              update
+      )
+      (\rcnv -> updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr zcon update)
+      qcnv
 
 updateRemoteConversation ::
   forall tag r.
@@ -360,6 +352,7 @@ updateRemoteConversation ::
     Member (Input (Local ())) r,
     Member MemberStore r,
     Member TinyLog r,
+    Member (Error NonFederatingBackends) r,
     RethrowErrors (HasConversationActionGalleyErrors tag) (Error NoChanges : r),
     SingI tag
   ) =>
@@ -379,15 +372,15 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
   convUpdate <- case response of
     ConversationUpdateResponseNoChanges -> throw NoChanges
     ConversationUpdateResponseError err' -> rethrowErrors @(HasConversationActionGalleyErrors tag) err'
-    ConversationUpdateResponseUpdate convUpdate _failedToProcess -> pure convUpdate
-
-  updateLocalStateOfRemoteConv (tDomain rcnv) convUpdate
-  notifyRemoteConversationAction lusr (qualifyAs rcnv convUpdate) (Just conn)
+    ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
+    ConversationUpdateResponseNonFederatingBackends e -> throw e
+  updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) (Just conn) >>= note NoChanges
 
 updateConversationReceiptModeUnqualified ::
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
+    Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationReceiptMode)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -428,7 +421,7 @@ updateConversationMessageTimer lusr zcon qcnv update =
     foldQualified
       lusr
       ( \lcnv ->
-          lcuEvent . fst
+          lcuEvent
             <$> updateLocalConversation
               @'ConversationMessageTimerUpdateTag
               lcnv
@@ -478,7 +471,7 @@ deleteLocalConversation ::
   Local ConvId ->
   Sem r (UpdateResult Event)
 deleteLocalConversation lusr con lcnv =
-  getUpdateResult . fmap (lcuEvent . fst) $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationDeleteTag lcnv (tUntagged lusr) (Just con) ()
 
 getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
@@ -770,7 +763,7 @@ joinConversation lusr zcon conv access = do
     let users = filter (notIsConvMember lusr conv) [tUnqualified lusr]
     (extraTargets, action) <-
       addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
-    lcuEvent . fst
+    lcuEvent
       <$> notifyConversationAction
         (sing @'ConversationJoinTag)
         (tUntagged lusr)
@@ -783,7 +776,6 @@ joinConversation lusr zcon conv access = do
 addMembers ::
   ( Member BrigAccess r,
     Member ConversationStore r,
-    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
     Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
@@ -794,6 +786,8 @@ addMembers ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error FederationError) r,
+    Member (Error NonFederatingBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -813,7 +807,7 @@ addMembers ::
   Sem r (UpdateResult Event)
 addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
-  getUpdateResult . fmap (lcuEvent . fst) $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
       ConversationJoin users role
 
@@ -831,6 +825,7 @@ addMembersUnqualifiedV2 ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error NonFederatingBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -850,7 +845,7 @@ addMembersUnqualifiedV2 ::
   Sem r (UpdateResult Event)
 addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role) = do
   let lcnv = qualifyAs lusr cnv
-  getUpdateResult . fmap (lcuEvent . fst) $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
       ConversationJoin users role
 
@@ -868,6 +863,7 @@ addMembersUnqualified ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error NonFederatingBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -911,14 +907,14 @@ updateSelfMember lusr zcon qcnv update = do
   pushConversationEvent (Just zcon) e (fmap pure lusr) []
   where
     checkLocalMembership ::
-      Member MemberStore r =>
+      (Member MemberStore r) =>
       Local ConvId ->
       Sem r Bool
     checkLocalMembership lcnv =
       isMember (tUnqualified lusr)
         <$> E.getLocalMembers (tUnqualified lcnv)
     checkRemoteMembership ::
-      Member ConversationStore r =>
+      (Member ConversationStore r) =>
       Remote ConvId ->
       Sem r Bool
     checkRemoteMembership rcnv =
@@ -974,7 +970,7 @@ updateOtherMemberLocalConv ::
   Qualified UserId ->
   OtherMemberUpdate ->
   Sem r ()
-updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult . fmap (lcuEvent . fst) $ do
+updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult . fmap lcuEvent $ do
   when (tUntagged lusr == qvictim) $
     throwS @'InvalidTarget
   updateLocalConversation @'ConversationMemberUpdateTag lcnv (tUntagged lusr) (Just con) $
@@ -1032,7 +1028,7 @@ updateOtherMember lusr zcon qcnv qvictim update = do
   doUpdate qcnv lusr zcon qvictim update
 
 updateOtherMemberRemoteConv ::
-  Member (Error FederationError) r =>
+  (Member (Error FederationError) r) =>
   Remote ConvId ->
   Local UserId ->
   ConnId ->
@@ -1126,7 +1122,7 @@ removeMemberFromRemoteConv cnv lusr victim
     handleError RemoveFromConversationErrorNotFound = throwS @'ConvNotFound
     handleError RemoveFromConversationErrorUnchanged = pure Nothing
 
-    handleSuccess :: Member (Input UTCTime) r => () -> Sem r (Maybe Event)
+    handleSuccess :: (Member (Input UTCTime) r) => () -> Sem r (Maybe Event)
     handleSuccess _ = do
       t <- input
       pure . Just $
@@ -1158,12 +1154,12 @@ removeMemberFromLocalConv ::
   Sem r (Maybe Event)
 removeMemberFromLocalConv lcnv lusr con victim
   | tUntagged lusr == victim =
-      fmap (fmap lcuEvent . hush . fmap fst)
+      fmap (fmap lcuEvent . hush)
         . runError @NoChanges
         . updateLocalConversation @'ConversationLeaveTag lcnv (tUntagged lusr) con
         $ ()
   | otherwise =
-      fmap (fmap lcuEvent . hush . fmap fst)
+      fmap (fmap lcuEvent . hush)
         . runError @NoChanges
         . updateLocalConversation @'ConversationRemoveMembersTag lcnv (tUntagged lusr) con
         . pure
@@ -1176,6 +1172,7 @@ postProteusMessage ::
     Member ClientStore r,
     Member ConversationStore r,
     Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member GundeckAccess r,
     Member ExternalAccess r,
     Member (Input Opts) r,
@@ -1202,6 +1199,7 @@ postProteusBroadcast ::
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
     Member GundeckAccess r,
+    Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
@@ -1214,7 +1212,7 @@ postProteusBroadcast ::
 postProteusBroadcast sender zcon = postBroadcast sender (Just zcon)
 
 unqualifyEndpoint ::
-  Functor f =>
+  (Functor f) =>
   Local x ->
   (QualifiedNewOtrMessage -> f (PostOtrResponse MessageSendingStatus)) ->
   Maybe IgnoreMissing ->
@@ -1250,6 +1248,7 @@ postBotMessageUnqualified ::
     Member ConversationStore r,
     Member ExternalAccess r,
     Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
@@ -1280,6 +1279,7 @@ postOtrBroadcastUnqualified ::
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
     Member GundeckAccess r,
+    Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
@@ -1301,8 +1301,9 @@ postOtrMessageUnqualified ::
     Member ClientStore r,
     Member ConversationStore r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
+    Member GundeckAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
@@ -1388,7 +1389,7 @@ updateLocalConversationName ::
   ConversationRename ->
   Sem r (UpdateResult Event)
 updateLocalConversationName lusr zcon lcnv rename =
-  getUpdateResult . fmap (lcuEvent . fst) $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationRenameTag lcnv (tUntagged lusr) (Just zcon) rename
 
 memberTyping ::
@@ -1608,116 +1609,9 @@ rmBot lusr zcon b = do
         E.deliverAsync (bots `zip` repeat e)
         pure $ Updated e
 
--- | Update the local database with information on conversation members joining
--- or leaving. Finally, push out notifications to local users.
-updateLocalStateOfRemoteConv ::
-  ( Member BrigAccess r,
-    Member GundeckAccess r,
-    Member ExternalAccess r,
-    Member (Input (Local ())) r,
-    Member MemberStore r,
-    Member P.TinyLog r
-  ) =>
-  Domain ->
-  F.ConversationUpdate ->
-  Sem r ()
-updateLocalStateOfRemoteConv requestingDomain cu = do
-  loc <- qualifyLocal ()
-  let rconvId = toRemoteUnsafe requestingDomain (F.cuConvId cu)
-      qconvId = tUntagged rconvId
-
-  -- Note: we generally do not send notifications to users that are not part of
-  -- the conversation (from our point of view), to prevent spam from the remote
-  -- backend. See also the comment below.
-  (presentUsers, allUsersArePresent) <-
-    E.selectRemoteMembers (F.cuAlreadyPresentUsers cu) rconvId
-
-  -- Perform action, and determine extra notification targets.
-  --
-  -- When new users are being added to the conversation, we consider them as
-  -- notification targets. Since we check connections before letting
-  -- people being added, this is safe against spam. However, if users that
-  -- are not in the conversations are being removed or have their membership state
-  -- updated, we do **not** add them to the list of targets, because we have no
-  -- way to make sure that they are actually supposed to receive that notification.
-
-  (mActualAction :: Maybe SomeConversationAction, extraTargets :: [UserId]) <- case F.cuAction cu of
-    sca@(SomeConversationAction singTag action) -> case singTag of
-      SConversationJoinTag -> do
-        let ConversationJoin toAdd role = action
-        let (localUsers, remoteUsers) = partitionQualified loc toAdd
-        addedLocalUsers <- Set.toList <$> addLocalUsersToRemoteConv rconvId (F.cuOrigUserId cu) localUsers
-        let allAddedUsers = map (tUntagged . qualifyAs loc) addedLocalUsers <> map tUntagged remoteUsers
-        case allAddedUsers of
-          [] -> pure (Nothing, []) -- If no users get added, its like no action was performed.
-          (u : us) -> pure (Just (SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (u :| us) role)), addedLocalUsers)
-      SConversationLeaveTag -> do
-        let users = foldQualified loc (pure . tUnqualified) (const []) (F.cuOrigUserId cu)
-        E.deleteMembersInRemoteConversation rconvId users
-        pure (Just sca, [])
-      SConversationRemoveMembersTag -> do
-        let localUsers = getLocalUsers (tDomain loc) action
-        E.deleteMembersInRemoteConversation rconvId localUsers
-        pure (Just sca, [])
-      SConversationMemberUpdateTag ->
-        pure (Just sca, [])
-      SConversationDeleteTag -> do
-        E.deleteMembersInRemoteConversation rconvId presentUsers
-        pure (Just sca, [])
-      SConversationRenameTag -> pure (Just sca, [])
-      SConversationMessageTimerUpdateTag -> pure (Just sca, [])
-      SConversationReceiptModeUpdateTag -> pure (Just sca, [])
-      SConversationAccessDataTag -> pure (Just sca, [])
-
-  unless allUsersArePresent $
-    P.warn $
-      Log.field "conversation" (toByteString' (F.cuConvId cu))
-        . Log.field "domain" (toByteString' requestingDomain)
-        . Log.msg
-          ( "Attempt to send notification about conversation update \
-            \to users not in the conversation" ::
-              ByteString
-          )
-
-  -- Send notifications
-  for_ mActualAction $ \(SomeConversationAction tag action) -> do
-    let event = conversationActionToEvent tag (F.cuTime cu) (F.cuOrigUserId cu) qconvId Nothing action
-        targets = nubOrd $ presentUsers <> extraTargets
-    -- FUTUREWORK: support bots?
-    pushConversationEvent Nothing event (qualifyAs loc targets) []
-
-addLocalUsersToRemoteConv ::
-  ( Member BrigAccess r,
-    Member MemberStore r,
-    Member P.TinyLog r
-  ) =>
-  Remote ConvId ->
-  Qualified UserId ->
-  [UserId] ->
-  Sem r (Set UserId)
-addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
-  connStatus <- E.getConnections localUsers (Just [qAdder]) (Just Accepted)
-  let localUserIdsSet = Set.fromList localUsers
-      connected = Set.fromList $ fmap csv2From connStatus
-      unconnected = Set.difference localUserIdsSet connected
-      connectedList = Set.toList connected
-
-  -- FUTUREWORK: Consider handling the discrepancy between the views of the
-  -- conversation-owning backend and the local backend
-  unless (Set.null unconnected) $
-    P.warn $
-      Log.msg ("A remote user is trying to add unconnected local users to a remote conversation" :: Text)
-        . Log.field "remote_user" (show qAdder)
-        . Log.field "local_unconnected_users" (show unconnected)
-
-  -- Update the local view of the remote conversation by adding only those local
-  -- users that are connected to the adder
-  E.createMembersInRemoteConversation remoteConvId connectedList
-  pure connected
-
 -------------------------------------------------------------------------------
 -- Helpers
 
-ensureConvMember :: Member (ErrorS 'ConvNotFound) r => [LocalMember] -> UserId -> Sem r ()
+ensureConvMember :: (Member (ErrorS 'ConvNotFound) r) => [LocalMember] -> UserId -> Sem r ()
 ensureConvMember users usr =
   unless (usr `isMember` users) $ throwS @'ConvNotFound

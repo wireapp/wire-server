@@ -23,24 +23,25 @@ import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
 import Data.ByteString.Conversion
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NE
+import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword6, PlainTextPassword8)
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time
 import Galley.API.Error
 import Galley.API.Mapping
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Data.Services (BotMember, newBotMember)
-import qualified Galley.Data.Types as DataTypes
+import Galley.Data.Types qualified as DataTypes
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.CodeStore
@@ -53,7 +54,7 @@ import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import Galley.Intra.Push
 import Galley.Options
-import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), localMemberToOther, remoteMemberToOther)
+import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), localMemberToOther, remoteMemberQualify, remoteMemberToOther)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.UserList
@@ -61,14 +62,15 @@ import Imports hiding (forkIO)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, fromEither)
-import qualified Network.Wai.Utilities as Wai
+import Network.Wai.Utilities qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
+import Polysemy.TinyLog qualified as P
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
-import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation qualified as Public
+import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -83,7 +85,7 @@ import Wire.API.Routes.Public.Util
 import Wire.API.Team.Member
 import Wire.API.Team.Role
 import Wire.API.User (VerificationAction)
-import qualified Wire.API.User as User
+import Wire.API.User qualified as User
 import Wire.API.User.Auth.ReAuth
 
 type JSON = Media "application" "json"
@@ -666,13 +668,11 @@ runLocalInput = runInputConst . void
 toConversationCreated ::
   -- | The time stamp the conversation was created at
   UTCTime ->
-  -- | The domain of the user that created the conversation
-  Domain ->
   -- | The conversation to convert for sending to a remote Galley
   Data.Conversation ->
   -- | The resulting information to be sent to a remote Galley
   ConversationCreated ConvId
-toConversationCreated now localDomain Data.Conversation {convMetadata = ConversationMetadata {..}, ..} =
+toConversationCreated now Data.Conversation {convMetadata = ConversationMetadata {..}, ..} = do
   ConversationCreated
     { ccTime = now,
       ccOrigUserId = cnvmCreator,
@@ -681,20 +681,13 @@ toConversationCreated now localDomain Data.Conversation {convMetadata = Conversa
       ccCnvAccess = cnvmAccess,
       ccCnvAccessRoles = cnvmAccessRoles,
       ccCnvName = cnvmName,
-      ccNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= cnvmCreator) convLocalMembers) convRemoteMembers,
+      -- non-creator members are a function of the remote backend and will be
+      -- overridden when fanning out the notification to remote backends.
+      ccNonCreatorMembers = Set.empty,
       ccMessageTimer = cnvmMessageTimer,
       ccReceiptMode = cnvmReceiptMode,
       ccProtocol = convProtocol
     }
-  where
-    toMembers ::
-      [LocalMember] ->
-      [RemoteMember] ->
-      Set OtherMember
-    toMembers ls rs =
-      Set.fromList $
-        map (localMemberToOther localDomain) ls
-          <> map remoteMemberToOther rs
 
 -- | The function converts a 'ConversationCreated' value to a
 -- 'Wire.API.Conversation.Conversation' value for each user that is on the given
@@ -758,26 +751,107 @@ fromConversationCreated loc rc@ConversationCreated {..} =
         (ConvMembers this others)
         ProtocolProteus
 
--- | Notify remote users of being added to a new conversation. The return value
--- consists of users that could not be notified; they will not be considered to
--- be conversation members.
+-- | Notify remote users of being added to a new conversation. In case a remote
+-- domain is unreachable, an exception is thrown, the conversation deleted and
+-- the client gets an error response.
 registerRemoteConversationMemberships ::
-  (Member FederatorAccess r) =>
+  ( Member (Error UnreachableBackendsError) r,
+    Member FederatorAccess r
+  ) =>
   -- | The time stamp when the conversation was created
   UTCTime ->
-  -- | The domain of the user that created the conversation
-  Domain ->
-  Data.Conversation ->
-  Sem r (Set (Remote UserId))
-registerRemoteConversationMemberships now localDomain c = do
-  let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
-      rc = toConversationCreated now localDomain c
-  fmap toSet $ runFederatedConcurrentlyEither allRemoteMembers $ \_ ->
-    fedClient @'Galley @"on-conversation-created" rc
+  Local Data.Conversation ->
+  Sem r ()
+registerRemoteConversationMemberships now lc = do
+  let c = tUnqualified lc
+      rc = toConversationCreated now c
+
+      allRemoteMembers = nubOrd {- (but why would there be duplicates?) -} (Data.convRemoteMembers c)
+      allRemoteMembersQualified = remoteMemberQualify <$> allRemoteMembers
+      allRemoteBuckets :: [Remote [RemoteMember]] = bucketRemote allRemoteMembersQualified
+
+  do
+    -- ping involved remote backends
+    unreachableBackends <- fmap (foldMap (either (pure . tDomain . fst) mempty)) $
+      runFederatedConcurrentlyEither allRemoteMembersQualified $ \_ ->
+        void $ fedClient @'Brig @"api-version" ()
+    -- abort if there are unreachable backends
+    unless (null unreachableBackends)
+      . throw
+      . UnreachableBackendsError
+      . Set.fromList
+      $ unreachableBackends
+
+  do
+    -- let remote backends know about a subset of new joiners
+    failedToNotify :: Set Domain <- fmap (Set.fromList . foldMap (either (pure . tDomain . fst) mempty)) $
+      runFederatedConcurrentlyEither allRemoteMembersQualified $
+        \rrms ->
+          fedClient @'Galley @"on-conversation-created"
+            ( rc
+                { ccNonCreatorMembers =
+                    toMembers (tUnqualified rrms)
+                }
+            )
+    unless (null failedToNotify)
+      . throw
+      . UnreachableBackendsError
+      $ failedToNotify
+
+  -- reachable members in buckets per remote domain
+  let joined :: [Remote [RemoteMember]] = allRemoteBuckets
+      joinedCoupled =
+        foldMap
+          ( \ruids ->
+              let nj =
+                    foldMap (fmap rmId . tUnqualified) $
+                      filter (\r -> tDomain r /= tDomain ruids) joined
+               in case NE.nonEmpty nj of
+                    Nothing -> []
+                    Just v -> [(ruids, v)]
+          )
+          joined
+
+  do
+    -- Send an update to remotes about the final list of participants
+    failedToUpdate :: Set Domain <-
+      fmap (Set.fromList . foldMap (either (pure . tDomain . fst) mempty)) $
+        runFederatedConcurrentlyBucketsEither joinedCoupled $
+          fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
+    unless (null failedToUpdate)
+      . throw
+      . UnreachableBackendsError
+      $ failedToUpdate
   where
-    toSet :: forall a x e. Ord x => [Either (Remote [x], e) a] -> Set (Remote x)
-    toSet =
-      Set.fromList . foldMap (either (sequenceA . fst) mempty)
+    creator :: UserId
+    creator = cnvmCreator . DataTypes.convMetadata . tUnqualified $ lc
+
+    localNonCreators :: [OtherMember]
+    localNonCreators =
+      fmap (localMemberToOther . tDomain $ lc)
+        . filter (\lm -> lmId lm /= creator)
+        . Data.convLocalMembers
+        . tUnqualified
+        $ lc
+
+    -- Total set of members living on one remote backend (rs) or the hosting backend.
+    toMembers :: [RemoteMember] -> Set OtherMember
+    toMembers rs = Set.fromList $ localNonCreators <> fmap remoteMemberToOther rs
+
+    convUpdateJoin :: (QualifiedWithTag t [RemoteMember], NonEmpty (QualifiedWithTag t' UserId)) -> ConversationUpdate
+    convUpdateJoin (toNotify, newMembers) =
+      ConversationUpdate
+        { cuTime = now,
+          cuOrigUserId = tUntagged . qualifyAs lc $ creator,
+          cuConvId = DataTypes.convId . tUnqualified $ lc,
+          cuAlreadyPresentUsers = fmap (tUnqualified . rmId) . tUnqualified $ toNotify,
+          cuAction =
+            SomeConversationAction
+              (sing @'ConversationJoinTag)
+              -- FUTUREWORK(md): replace the member role with whatever is provided in
+              -- the NewConv input
+              (ConversationJoin (tUntagged <$> newMembers) roleNameWireMember)
+        }
 
 --------------------------------------------------------------------------------
 -- Legalhold

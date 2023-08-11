@@ -20,7 +20,7 @@
 module Test.Wire.API.Golden.Generated.UserUpdate_user where
 
 import Data.Id (Id (Id))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Asset
 import Wire.API.User

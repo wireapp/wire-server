@@ -1,26 +1,31 @@
 module Testlib.Types where
 
 import Control.Exception as E
+import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Reader
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Encode.Pretty as Aeson
+import Control.Monad.Trans.Control
+import Data.Aeson (Value)
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as C8
-import qualified Data.ByteString.Lazy as L
-import qualified Data.CaseInsensitive as CI
+import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as C8
+import Data.ByteString.Lazy qualified as L
+import Data.CaseInsensitive qualified as CI
+import Data.Default
+import Data.Function ((&))
 import Data.Functor
 import Data.Hex
 import Data.IORef
 import Data.List
-import qualified Data.Map as Map
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Map qualified as Map
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import GHC.Records
 import GHC.Stack
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Network.URI
 import Testlib.Env
 import Testlib.Printing
@@ -33,6 +38,7 @@ data Response = Response
     headers :: [HTTP.Header],
     request :: HTTP.Request
   }
+  deriving (Show)
 
 instance HasField "json" Response (App Aeson.Value) where
   getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody
@@ -100,11 +106,28 @@ newtype App a = App {unApp :: ReaderT Env IO a}
       MonadMask,
       MonadCatch,
       MonadThrow,
-      MonadReader Env
+      MonadReader Env,
+      MonadBase IO
     )
+
+instance MonadBaseControl IO App where
+  type StM App a = StM (ReaderT Env IO) a
+  liftBaseWith f = App (liftBaseWith (\g -> f (g . unApp)))
+  restoreM = App . restoreM
 
 runAppWithEnv :: Env -> App a -> IO a
 runAppWithEnv e m = runReaderT (unApp m) e
+
+-- | Convert an action in the 'App' monad to an 'IO' action.
+appToIO :: App a -> App (IO a)
+appToIO action = do
+  f <- appToIOKleisli (const action)
+  pure $ f ()
+
+appToIOKleisli :: (a -> App b) -> App (a -> IO b)
+appToIOKleisli k = do
+  env <- ask
+  pure $ \a -> runAppWithEnv env (k a)
 
 getServiceMap :: String -> App ServiceMap
 getServiceMap fedDomain = do
@@ -168,4 +191,79 @@ modifyFailure modifyAssertion action = do
         ( \(e :: AssertionFailure) ->
             E.throw (modifyAssertion e)
         )
+    )
+
+data ServiceOverrides = ServiceOverrides
+  { dbBrig :: Value -> App Value,
+    dbCannon :: Value -> App Value,
+    dbCargohold :: Value -> App Value,
+    dbGalley :: Value -> App Value,
+    dbGundeck :: Value -> App Value,
+    dbNginz :: Value -> App Value,
+    dbSpar :: Value -> App Value,
+    dbBackgroundWorker :: Value -> App Value,
+    dbStern :: Value -> App Value
+  }
+
+instance Default ServiceOverrides where
+  def = defaultServiceOverrides
+
+instance Semigroup ServiceOverrides where
+  a <> b =
+    ServiceOverrides
+      { dbBrig = dbBrig a >=> dbBrig b,
+        dbCannon = dbCannon a >=> dbCannon b,
+        dbCargohold = dbCargohold a >=> dbCargohold b,
+        dbGalley = dbGalley a >=> dbGalley b,
+        dbGundeck = dbGundeck a >=> dbGundeck b,
+        dbNginz = dbNginz a >=> dbNginz b,
+        dbSpar = dbSpar a >=> dbSpar b,
+        dbBackgroundWorker = dbBackgroundWorker a >=> dbBackgroundWorker b,
+        dbStern = dbStern a >=> dbStern b
+      }
+
+instance Monoid ServiceOverrides where
+  mempty = defaultServiceOverrides
+
+defaultServiceOverrides :: ServiceOverrides
+defaultServiceOverrides =
+  ServiceOverrides
+    { dbBrig = pure,
+      dbCannon = pure,
+      dbCargohold = pure,
+      dbGalley = pure,
+      dbGundeck = pure,
+      dbNginz = pure,
+      dbSpar = pure,
+      dbBackgroundWorker = pure,
+      dbStern = pure
+    }
+
+defaultServiceOverridesToMap :: Map.Map Service (Value -> App Value)
+defaultServiceOverridesToMap = ([minBound .. maxBound] <&> (,pure)) & Map.fromList
+
+-- | Overrides the service configurations with the given overrides.
+-- e.g.
+-- `let overrides =
+--    def
+--      { dbBrig =
+--          setField "optSettings.setFederationStrategy" "allowDynamic"
+--            >=> removeField "optSettings.setFederationDomainConfigs"
+--      }
+--  withOverrides overrides defaultServiceOverridesToMap`
+withOverrides :: ServiceOverrides -> Map.Map Service (Value -> App Value) -> Map.Map Service (Value -> App Value)
+withOverrides overrides =
+  Map.mapWithKey
+    ( \svr f ->
+        case svr of
+          Brig -> f >=> overrides.dbBrig
+          Cannon -> f >=> overrides.dbCannon
+          Cargohold -> f >=> overrides.dbCargohold
+          Galley -> f >=> overrides.dbGalley
+          Gundeck -> f >=> overrides.dbGundeck
+          Nginz -> f >=> overrides.dbNginz
+          Spar -> f >=> overrides.dbSpar
+          BackgroundWorker -> f >=> overrides.dbBackgroundWorker
+          Stern -> f >=> overrides.dbStern
+          FederatorInternal -> f
     )

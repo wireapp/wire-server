@@ -25,9 +25,9 @@ where
 
 import Data.Domain
 import Data.Id
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Imports
 import Wire.API.MLS.KeyPackage
 

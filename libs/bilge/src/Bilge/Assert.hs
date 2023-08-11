@@ -39,8 +39,8 @@ where
 import Control.Monad.Catch
 import Control.Monad.Writer.Class
 import Control.Monad.Writer.Strict
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as Lazy
+import Data.ByteString qualified as S
+import Data.ByteString.Lazy qualified as Lazy
 import Imports
 import Network.HTTP.Client
 import System.Console.ANSI

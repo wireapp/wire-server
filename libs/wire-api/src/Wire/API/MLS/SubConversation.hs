@@ -27,8 +27,8 @@ import Control.Monad.Except
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Id
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as T
+import Data.Swagger qualified as S
+import Data.Text qualified as T
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (toQueryParam))
 import Test.QuickCheck

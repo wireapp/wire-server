@@ -24,18 +24,18 @@ module Brig.Queue
 where
 
 import Amazonka.SQS.Lens (sendMessageResponse_mD5OfMessageBody)
-import qualified Brig.AWS as AWS
+import Brig.AWS qualified as AWS
 import Brig.App
 import Brig.Options
-import qualified Brig.Queue.Stomp as Stomp
+import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types
 import Control.Exception (ErrorCall (..))
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.Aeson
-import qualified Data.ByteString.Base16 as B16
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.Text.Encoding as T
+import Data.ByteString.Base16 qualified as B16
+import Data.ByteString.Lazy qualified as BL
+import Data.Text.Encoding qualified as T
 import Imports
 import OpenSSL.EVP.Digest (Digest, digestLBS)
 import System.Logger.Class as Log hiding (settings)

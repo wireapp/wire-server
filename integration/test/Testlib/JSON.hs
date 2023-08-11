@@ -4,19 +4,20 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding ((.=))
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Encode.Pretty as Aeson
-import qualified Data.Aeson.Key as KM
-import qualified Data.Aeson.KeyMap as KM
-import qualified Data.Aeson.Types as Aeson
-import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Encode.Pretty qualified as Aeson
+import Data.Aeson.Key qualified as KM
+import Data.Aeson.KeyMap qualified as KM
+import Data.Aeson.Types qualified as Aeson
+import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.List.Split (splitOn)
-import qualified Data.Scientific as Sci
+import Data.Scientific qualified as Sci
 import Data.String
-import qualified Data.Text as T
+import Data.Text qualified as T
+import Data.Vector ((!?))
 import GHC.Stack
 import Testlib.Env
 import Testlib.Types
@@ -98,6 +99,10 @@ asList x =
     (Array arr) -> pure (toList arr)
     v -> assertFailureWithJSON x ("Array" `typeWasExpectedButGot` v)
 
+asListOf :: HasCallStack => (Value -> App b) -> MakesValue a => a -> App [b]
+asListOf makeElem x =
+  asList x >>= mapM makeElem
+
 asBool :: HasCallStack => MakesValue a => a -> App Bool
 asBool x =
   make x >>= \case
@@ -105,31 +110,19 @@ asBool x =
     v -> assertFailureWithJSON x ("Bool" `typeWasExpectedButGot` v)
 
 -- | Get a (nested) field of a JSON object
--- Raise an AssertionFailure if the field at the (nested) key is missing.
+-- Raise an AssertionFailure if the field at the (nested) key is missing. See
+-- 'lookupField' for details.
 (%.) ::
   (HasCallStack, MakesValue a) =>
   a ->
   -- | A plain key, e.g. "id", or a nested key "user.profile.id"
   String ->
   App Value
-(%.) val selector = do
-  v <- make val
-  vp <- prettyJSON v
-  addFailureContext ("Getting (nested) field \"" <> selector <> "\" of object:\n" <> vp) $ do
-    let keys = splitOn "." selector
-    case keys of
-      (k : ks) -> go k ks v
-      [] -> assertFailure "No key provided"
-  where
-    go k [] v = l k v
-    go k (k2 : ks) v = do
-      r <- l k v
-      go k2 ks r
-    l k v = do
-      ob <- asObject v
-      case KM.lookup (KM.fromString k) ob of
-        Nothing -> assertFailureWithJSON ob $ "Field \"" <> k <> "\" is missing from object:"
-        Just x -> pure x
+(%.) x k = lookupField x k >>= assertField x k
+
+assertField :: (HasCallStack, MakesValue a) => a -> String -> Maybe Value -> App Value
+assertField x k Nothing = assertFailureWithJSON x $ "Field \"" <> k <> "\" is missing from object:"
+assertField _ _ (Just x) = pure x
 
 -- | Look up (nested) field of a JSON object
 --
@@ -140,6 +133,8 @@ asBool x =
 -- if the last component of the key field selector is missing from nested
 -- object. If any other component is missing this function raises an
 -- AssertionFailure.
+--
+-- Objects and arrays are supported. Array keys should be integers.
 lookupField ::
   (HasCallStack, MakesValue a) =>
   a ->
@@ -155,16 +150,17 @@ lookupField val selector = do
       (k : ks) -> go k ks v
       [] -> assertFailure "No key provided"
   where
-    go k [] v = do
-      ob <- asObject v
-      pure (KM.lookup (KM.fromString k) ob)
-    go k (k2 : ks) v = do
-      ob <- asObject v
-      r <-
-        case KM.lookup (KM.fromString k) ob of
-          Nothing -> assertFailureWithJSON ob $ "Field \"" <> k <> "\" is missing from object:"
-          Just x -> pure x
-      go k2 ks r
+    get v k = do
+      make v >>= \case
+        -- index object
+        Object ob -> pure (KM.lookup (KM.fromString k) ob)
+        -- index array
+        Array arr -> case reads k of
+          [(i, "")] -> pure (arr !? i)
+          _ -> assertFailureWithJSON arr $ "Invalid array index \"" <> k <> "\""
+        x -> assertFailureWithJSON x ("Object or Array" `typeWasExpectedButGot` x)
+    go k [] v = get v k
+    go k (k2 : ks) v = get v k >>= assertField v k >>= go k2 ks
 
 -- Update nested fields
 -- E.g. ob & "foo.bar.baz" %.= ("quux" :: String)
@@ -173,12 +169,15 @@ setField ::
   (HasCallStack, MakesValue a, ToJSON b) =>
   -- | Selector, e.g. "id", "user.team.id"
   String ->
-  -- | The value that should insert or replace the value at the selctor
+  -- | The value that should insert or replace the value at the selector
   b ->
   a ->
   App Value
 setField selector v x = do
   modifyField @a @Value selector (\_ -> pure (toJSON v)) x
+
+member :: (HasCallStack, MakesValue a) => String -> a -> App Bool
+member k x = KM.member (KM.fromString k) <$> (make x >>= asObject)
 
 -- Update nested fields, using the old value with a stateful action
 modifyField :: (HasCallStack, MakesValue a, ToJSON b) => String -> (Maybe Value -> App b) -> a -> App Value
@@ -197,6 +196,25 @@ modifyField selector up x = do
     go k (k2 : ks) v = do
       val <- v %. k
       newValue <- go k2 ks val
+      ob <- asObject v
+      pure $ Object $ KM.insert (KM.fromString k) newValue ob
+
+-- | `removeField "a.b" {"a": {"b": 3}, "c": true} == {"a": {}, "c": true}`
+removeField :: (HasCallStack, MakesValue a) => String -> a -> App Value
+removeField selector x = do
+  v <- make x
+  let keys = splitOn "." selector
+  case keys of
+    (k : ks) -> go k ks v
+    [] -> assertFailure "No key provided"
+  where
+    go k [] v = do
+      ob <- asObject v
+      let k' = KM.fromString k
+      pure $ Object $ KM.delete k' ob
+    go k (k2 : ks) v = do
+      v' <- v %. k
+      newValue <- go k2 ks v'
       ob <- asObject v
       pure $ Object $ KM.insert (KM.fromString k) newValue ob
 

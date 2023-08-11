@@ -1,11 +1,12 @@
 module Testlib.App where
 
 import Control.Monad.Reader
-import qualified Control.Retry as Retry
+import Control.Retry qualified as Retry
 import Data.Aeson hiding ((.=))
+import Data.Functor ((<&>))
 import Data.IORef
-import qualified Data.Text as T
-import qualified Data.Yaml as Yaml
+import Data.Text qualified as T
+import Data.Yaml qualified as Yaml
 import GHC.Exception
 import System.FilePath
 import Testlib.Env
@@ -38,10 +39,15 @@ getLastPrekey = App $ do
     lastPrekeyId = 65535
 
 readServiceConfig :: Service -> App Value
-readServiceConfig srv = do
-  basedir <- asks (.serviceConfigsDir)
-  let srvName = serviceName srv
-      cfgFile = basedir </> srvName </> "conf" </> (srvName <> ".yaml")
+readServiceConfig = readServiceConfig' . configName
+
+readServiceConfig' :: String -> App Value
+readServiceConfig' srvName = do
+  cfgFile <-
+    asks (.servicesCwdBase) <&> \case
+      Nothing -> "/etc/wire" </> srvName </> "conf" </> (srvName <> ".yaml")
+      Just p -> p </> srvName </> (srvName <> ".integration.yaml")
+
   eith <- liftIO (Yaml.decodeFileEither cfgFile)
   case eith of
     Left err -> failApp ("Error while parsing " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err)
@@ -57,7 +63,7 @@ instance MakesValue Domain where
 -- ~15s).  Search this package for examples how to use it.
 --
 -- Ideally, this will be the only thing you'll ever need from the retry package when writing
--- integration tests.  If you are unhappy with it,, please consider fixing it so everybody can
--- benefit.
-unrace :: App a -> App a
-unrace action = Retry.recoverAll (Retry.exponentialBackoff 8000 <> Retry.limitRetries 10) (const action)
+-- integration tests.  If you are unhappy with it, please consider making it more general in a
+-- backwards-compatible way so everybody can benefit.
+retryT :: App a -> App a
+retryT action = Retry.recoverAll (Retry.exponentialBackoff 8000 <> Retry.limitRetries 10) (const action)

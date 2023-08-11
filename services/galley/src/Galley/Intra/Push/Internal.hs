@@ -28,30 +28,33 @@ import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List1
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Galley.Env
 import Galley.Intra.Util
 import Galley.Monad
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
-import qualified Gundeck.Types.Push.V2 as Gundeck
+import Gundeck.Types.Push.V2 qualified as Gundeck
 import Imports hiding (forkIO)
 import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Event.Conversation (Event (evtFrom))
-import qualified Wire.API.Event.FeatureConfig as FeatureConfig
-import qualified Wire.API.Event.Team as Teams
+import Wire.API.Event.FeatureConfig qualified as FeatureConfig
+import Wire.API.Event.Federation qualified as Federation
+import Wire.API.Event.Team qualified as Teams
 import Wire.API.Team.Member
 
 data PushEvent
   = ConvEvent Event
   | TeamEvent Teams.Event
   | FeatureConfigEvent FeatureConfig.Event
+  | FederationEvent Federation.Event
 
 pushEventJson :: PushEvent -> Object
 pushEventJson (ConvEvent e) = toJSONObject e
 pushEventJson (TeamEvent e) = toJSONObject e
 pushEventJson (FeatureConfigEvent e) = toJSONObject e
+pushEventJson (FederationEvent e) = toJSONObject e
 
 data RecipientBy user = Recipient
   { _recipientUserId :: user,

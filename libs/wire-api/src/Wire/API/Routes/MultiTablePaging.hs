@@ -29,8 +29,8 @@ import Data.Kind
 import Data.Proxy
 import Data.Range
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports
 import Wire.API.Routes.MultiTablePaging.State

@@ -26,7 +26,7 @@ module Galley.Effects.GundeckAccess
   )
 where
 
-import qualified Galley.Intra.Push as G
+import Galley.Intra.Push qualified as G
 import Imports
 import Polysemy
 

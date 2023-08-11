@@ -3,9 +3,9 @@
 *Updated: 26.04.2021*
 
 ```{warning}
-If you already installed Wire by using `poetry`, please refer to the
+If you already installed Wire by using `poetry`, which would be the case **only** for ancient (`pre-2020`, version `0.01`) setups, please refer to the
 [old version](https://docs.wire.com/versions/install-with-poetry/how-to/index.html) of
-the installation guide.
+the installation guide. If you have never used `poetry` to install Wire, please ignore this note.
 ```
 
 ## Persistence

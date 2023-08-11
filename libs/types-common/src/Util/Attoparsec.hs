@@ -17,7 +17,7 @@
 
 module Util.Attoparsec where
 
-import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import Data.Attoparsec.ByteString.Char8 qualified as Atto
 import Imports
 
 takeUpToWhile :: Int -> (Char -> Bool) -> Atto.Parser ByteString

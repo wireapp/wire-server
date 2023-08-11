@@ -3,7 +3,7 @@ module Brig.Effects.ServiceRPC.IO where
 import Bilge (Request)
 import Brig.Effects.RPC
 import Brig.Effects.ServiceRPC
-import qualified Data.Text.Lazy as LT
+import Data.Text.Lazy qualified as LT
 import Imports
 import Polysemy
 

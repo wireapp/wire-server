@@ -87,20 +87,30 @@ endif
 # ci here doesn't refer to continuous integration, but to cabal-run-integration.sh
 # Usage: make ci                        - build & run all tests, excluding integration
 #        make ci package=all            - build & run all tests, including integration
-#        make ci package=brig           - build brig & run "brig-integration" 
+#        make ci package=brig           - build brig & run "brig-integration"
 #        make ci package=integration    - build & run "integration"
 #
 # You can pass environment variables to all the suites, like so
 # TASTY_PATTERN=".."  make ci package=brig
 #
 # If you want to pass arguments to the test-suite call cabal-run-integration.sh directly.
-.PHONY: ci
-ci: c db-migrate
+.PHONY: ci-fast
+ci-fast: c db-migrate
 ifeq ("$(package)", "all")
 	./hack/bin/cabal-run-integration.sh all
 	./hack/bin/cabal-run-integration.sh integration
 endif
 	./hack/bin/cabal-run-integration.sh $(package)
+
+# variant of `make ci-fast` that compiles the entire project even if `package` is specified.
+.PHONY: ci-safe
+ci-safe:
+	make c package=all
+	make ci-fast
+
+.PHONY: ci
+ci:
+	@echo -en "\n\n\nplease choose between goals ci-fast and ci-safe.\n\n\n"
 
 # Compile and run services
 # Usage: make crun `OR` make crun package=galley
@@ -128,7 +138,8 @@ sanitize-pr:
 
 list-flaky-tests:
 	@echo -e "\n\nif you want to run these, set RUN_FLAKY_TESTS=1\n\n"
-	@git grep -Hn '\bflakyTestCase \"'
+	@git grep -Hne '\bflakyTestCase \"'
+	@git grep -Hne '[^^]\bflakyTest\b'
 
 .PHONY: cabal-fmt
 cabal-fmt:

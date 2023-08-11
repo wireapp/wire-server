@@ -20,7 +20,8 @@
 
 module API.Util where
 
-import qualified API.SQS as SQS
+import API.Federation.Util
+import API.SQS qualified as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
@@ -35,69 +36,69 @@ import Control.Monad.Codensity (lowerCodensity)
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Aeson.Lens (key, _String)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as B8
-import qualified Data.ByteString.Char8 as C
+import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as B8
+import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as Lazy
-import qualified Data.CaseInsensitive as CI
-import qualified Data.Code as Code
-import qualified Data.Currency as Currency
+import Data.ByteString.Lazy qualified as Lazy
+import Data.CaseInsensitive qualified as CI
+import Data.Code qualified as Code
+import Data.Currency qualified as Currency
 import Data.Default
 import Data.Domain
-import qualified Data.Handle as Handle
-import qualified Data.HashMap.Strict as HashMap
+import Data.Handle qualified as Handle
+import Data.HashMap.Strict qualified as HashMap
 import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.Kind
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1 as List1
-import qualified Data.Map as LMap
-import qualified Data.Map.Strict as Map
+import Data.Map qualified as LMap
+import Data.Map.Strict qualified as Map
 import Data.Misc
-import qualified Data.ProtoLens as Protolens
+import Data.ProtoLens qualified as Protolens
 import Data.ProtocolBuffers (encodeMessage)
 import Data.Qualified hiding (isLocal)
 import Data.Range
 import Data.Serialize (runPut)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy.Encoding as T
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy.Encoding qualified as T
 import Data.Time (getCurrentTime)
 import Data.Tuple.Extra
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Data.UUID.V4
 import Federator.MockServer
-import qualified Federator.MockServer as Mock
+import Federator.MockServer qualified as Mock
 import GHC.TypeLits (KnownSymbol)
 import GHC.TypeNats
 import Galley.Intra.User (chunkify)
-import qualified Galley.Options as Opts
-import qualified Galley.Run as Run
+import Galley.Options qualified as Opts
+import Galley.Run qualified as Run
 import Galley.Types.Conversations.One2One
-import qualified Galley.Types.Teams as Team
+import Galley.Types.Teams qualified as Team
 import Galley.Types.UserList
 import Imports
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Media.MediaType
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Network.URI (pathSegments)
 import Network.Wai (defaultRequest)
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Test as Wai
+import Network.Wai qualified as Wai
+import Network.Wai.Test qualified as Wai
 import Network.Wai.Utilities.MockServer (withMockServer)
 import Servant
 import System.Exit
 import System.Process
 import System.Random
-import qualified Test.QuickCheck as Q
+import Test.QuickCheck qualified as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers (viewFederationDomain)
 import TestSetup
@@ -112,10 +113,13 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
-import qualified Wire.API.Event.Conversation as Conv
+import Wire.API.Event.Conversation qualified as Conv
+import Wire.API.Event.Federation qualified as Fed
 import Wire.API.Event.Team
-import qualified Wire.API.Event.Team as TE
+import Wire.API.Event.Team qualified as TE
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Brig
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Internal.Notification hiding (target)
@@ -124,10 +128,10 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
-import qualified Wire.API.Message.Proto as Proto
+import Wire.API.Message.Proto qualified as Proto
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
-import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
@@ -135,13 +139,13 @@ import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member hiding (userId)
-import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
 import Wire.API.User hiding (AccountStatus (..))
 import Wire.API.User.Auth hiding (Access)
 import Wire.API.User.Client
-import qualified Wire.API.User.Client as Client
+import Wire.API.User.Client qualified as Client
 import Wire.API.User.Client.Prekey
 
 -------------------------------------------------------------------------------
@@ -725,6 +729,26 @@ postConvQualified u c n = do
       . zType "access"
       . json n
 
+postConvWithRemoteUsersGeneric ::
+  HasCallStack =>
+  Mock LByteString ->
+  UserId ->
+  Maybe ClientId ->
+  NewConv ->
+  TestM (Response (Maybe LByteString))
+postConvWithRemoteUsersGeneric m u c n = do
+  let mock =
+        ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty)
+          <|> m
+  fmap fst $
+    withTempMockFederator' mock $
+      postConvQualified u c n {newConvName = setName (newConvName n)}
+        <!! const 201 === statusCode
+  where
+    setName :: (KnownNat n, KnownNat m, Within Text n m) => Maybe (Range n m Text) -> Maybe (Range n m Text)
+    setName Nothing = checked "federated gossip"
+    setName x = x
+
 postConvWithRemoteUsers ::
   HasCallStack =>
   UserId ->
@@ -733,7 +757,7 @@ postConvWithRemoteUsers ::
   TestM (Response (Maybe LByteString))
 postConvWithRemoteUsers u c n =
   fmap fst $
-    withTempMockFederator' (mockReply ()) $
+    withTempMockFederator' (("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) <|> mockReply EmptyResponse) $
       postConvQualified u c n {newConvName = setName (newConvName n)}
         <!! const 201
           === statusCode
@@ -1373,6 +1397,15 @@ postJoinCodeConv' mPw u j = do
       -- `json (JoinConversationByCode j Nothing)` and `json j` are equivalent, using the latter to test backwards compatibility
       . (if isJust mPw then json (JoinConversationByCode j mPw) else json j)
 
+deleteFederation ::
+  (MonadHttp m, HasGalley m, MonadIO m) =>
+  Domain ->
+  m ResponseLBS
+deleteFederation dom = do
+  g <- viewGalley
+  delete $
+    g . paths ["/i/federation", toByteString' dom]
+
 putQualifiedAccessUpdate ::
   (MonadHttp m, HasGalley m, MonadIO m) =>
   UserId ->
@@ -1520,20 +1553,21 @@ registerRemoteConv :: Qualified ConvId -> UserId -> Maybe Text -> Set OtherMembe
 registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
-  runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
-    ConversationCreated
-      { ccTime = now,
-        ccOrigUserId = originUser,
-        ccCnvId = qUnqualified convId,
-        ccCnvType = RegularConv,
-        ccCnvAccess = [],
-        ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
-        ccCnvName = name,
-        ccNonCreatorMembers = othMembers,
-        ccMessageTimer = Nothing,
-        ccReceiptMode = Nothing,
-        ccProtocol = ProtocolProteus
-      }
+  void $
+    runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
+      ConversationCreated
+        { ccTime = now,
+          ccOrigUserId = originUser,
+          ccCnvId = qUnqualified convId,
+          ccCnvType = RegularConv,
+          ccCnvAccess = [],
+          ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
+          ccCnvName = name,
+          ccNonCreatorMembers = othMembers,
+          ccMessageTimer = Nothing,
+          ccReceiptMode = Nothing,
+          ccProtocol = ProtocolProteus
+        }
 
 getFeatureStatusMulti :: forall cfg. KnownSymbol (FeatureSymbol cfg) => Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
 getFeatureStatusMulti req = do
@@ -1736,6 +1770,23 @@ assertJoinEvent conv usr new role e = do
   evtType e @?= Conv.MemberJoin
   evtFrom e @?= usr
   fmap (sort . mMembers) (evtData e ^? _EdMembersJoin) @?= Just (sort (fmap (`SimpleMember` role) new))
+
+wsAssertFederationDeleted ::
+  HasCallStack =>
+  Domain ->
+  Notification ->
+  IO ()
+wsAssertFederationDeleted dom n = do
+  ntfTransient n @?= False
+  assertFederationDeletedEvent dom $ List1.head (WS.unpackPayload n)
+
+assertFederationDeletedEvent ::
+  Domain ->
+  Fed.Event ->
+  IO ()
+assertFederationDeletedEvent dom e = do
+  Fed._eventType e @?= Fed.FederationDelete
+  Fed._eventDomain e @?= dom
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
 --
@@ -2273,7 +2324,7 @@ assertBroadcastMismatch ::
   [(UserId, Set ClientId)] ->
   Assertions ()
 assertBroadcastMismatch localDomain BroadcastQualified =
-  \m r d -> assertMismatchQualified mempty (mk m) (mk r) (mk d)
+  \m r d -> assertMismatchQualified mempty (mk m) (mk r) (mk d) mempty
   where
     mk :: [(UserId, Set ClientId)] -> Client.QualifiedUserClients
     mk [] = mempty
@@ -2312,12 +2363,14 @@ assertMismatchQualified ::
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
+  Client.QualifiedUserClients ->
   Assertions ()
-assertMismatchQualified failureToSend missing redundant deleted = do
+assertMismatchQualified failureToSend missing redundant deleted failedToConfirm = do
   assertExpected "failed to send" failureToSend (fmap mssFailedToSend . responseJsonMaybe)
   assertExpected "missing" missing (fmap mssMissingClients . responseJsonMaybe)
   assertExpected "redundant" redundant (fmap mssRedundantClients . responseJsonMaybe)
   assertExpected "deleted" deleted (fmap mssDeletedClients . responseJsonMaybe)
+  assertExpected "failed to confirm clients" failedToConfirm (fmap mssFailedToConfirmClients . responseJsonMaybe)
 
 otrRecipients :: [(UserId, ClientId, Text)] -> OtrRecipients
 otrRecipients =
@@ -2455,7 +2508,7 @@ instance HasSettingsOverrides TestM where
     ts :: TestSetup <- ask
     let opts = f (ts ^. tsGConf)
     liftIO . lowerCodensity $ do
-      (galleyApp, _env) <- Run.mkApp opts
+      (galleyApp, _env) <- Run.mkApp opts -- FUTUREWORK: always call Run.closeApp at the end.
       port' <- withMockServer galleyApp
       liftIO $
         runReaderT
@@ -2967,4 +3020,10 @@ createAndConnectUsers domains = do
       (True, False) -> connectWithRemoteUser (qUnqualified a) b
       (False, True) -> connectWithRemoteUser (qUnqualified b) a
       (False, False) -> pure ()
+  pure users
+
+connectBackend :: UserId -> Remote Backend -> TestM [Qualified UserId]
+connectBackend usr (tDomain &&& bUsers . tUnqualified -> (d, c)) = do
+  users <- replicateM (fromIntegral c) (randomQualifiedId d)
+  mapM_ (connectWithRemoteUser usr) users
   pure users

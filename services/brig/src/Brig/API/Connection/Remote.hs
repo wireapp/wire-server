@@ -26,9 +26,9 @@ where
 import Brig.API.Connection.Util (ConnectionM, checkLimit)
 import Brig.API.Types (ConnectionError (..))
 import Brig.App
-import qualified Brig.Data.Connection as Data
+import Brig.Data.Connection qualified as Data
 import Brig.Federation.Client (sendConnectionAction)
-import qualified Brig.IO.Intra as Intra
+import Brig.IO.Intra qualified as Intra
 import Brig.Types.User.Event
 import Control.Comonad
 import Control.Error.Util ((??))

@@ -43,7 +43,7 @@ import Data.ISO3166_CountryCodes
       ),
   )
 import Data.Id (BotId (BotId), ClientId (ClientId, client), Id (Id))
-import qualified Data.LanguageCodes
+import Data.LanguageCodes qualified
   ( ISO639_1
       ( AB,
         CO,
@@ -67,7 +67,7 @@ import qualified Data.LanguageCodes
       ),
   )
 import Data.Qualified
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust, (.))
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role (parseRoleName)

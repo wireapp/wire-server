@@ -31,7 +31,7 @@ module Gundeck.Util.DelayQueue
 where
 
 import Data.OrdPSQ (OrdPSQ)
-import qualified Data.OrdPSQ as PSQ
+import Data.OrdPSQ qualified as PSQ
 import Imports hiding (length)
 
 data DelayQueue k v = DelayQueue

@@ -25,13 +25,13 @@ import Data.Default
 import Data.Domain
 import Federator.Error.ServerError
 import Federator.InternalServer (callOutward)
-import Federator.Options (AllowedDomains (..), FederationStrategy (..), RunSettings (..))
+import Federator.RPC
 import Federator.Remote
 import Federator.Validation
 import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Utilities.Server as Wai
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai qualified as Wai
+import Network.Wai.Utilities.Server qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -43,6 +43,8 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
+import Wire.API.Routes.FederationDomainConfig
+import Wire.API.User.Search
 import Wire.Sem.Logger.TinyLog
 
 tests :: TestTree
@@ -55,10 +57,6 @@ tests =
           federatedRequestFailureAllowList
         ]
     ]
-
-settingsWithAllowList :: [Domain] -> RunSettings
-settingsWithAllowList domains =
-  noClientCertSettings {federationStrategy = AllowList (AllowedDomains domains)}
 
 federatedRequestSuccess :: TestTree
 federatedRequestSuccess =
@@ -95,18 +93,19 @@ federatedRequestSuccess =
         . assertNoError @ServerError
         . discardTinyLogs
         . runInputConst settings
-        $ callOutward request
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "target.example.com") FullSearch] 10)
+        $ callOutward targetDomain Brig (RPC "get-user-by-handle") request
     Wai.responseStatus res @?= HTTP.status200
     body <- Wai.lazyResponseBody res
     body @?= "\"bar\""
 
 -- @SF.Federation @TSFI.Federate @TSFI.DNS @S2 @S3 @S7
 --
--- Refuse to send outgoing request to non-included domain when allowlist is configured.
+-- Refuse to send outgoing request to non-included domain when AllowDynamic is configured.
 federatedRequestFailureAllowList :: TestTree
 federatedRequestFailureAllowList =
-  testCase "should not make a call when target domain not in the allowList" $ do
-    let settings = settingsWithAllowList [Domain "hello.world"]
+  testCase "should not make a call when target domain not in the allow list" $ do
+    let settings = noClientCertSettings
     let targetDomain = Domain "target.example.com"
         headers = [(originDomainHeaderName, "origin.example.com")]
     request <-
@@ -136,7 +135,8 @@ federatedRequestFailureAllowList =
         . assertNoError @ServerError
         . discardTinyLogs
         . runInputConst settings
-        $ callOutward request
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "hello.world") FullSearch] 10)
+        $ callOutward targetDomain Brig (RPC "get-user-by-handle") request
     eith @?= Left (FederationDenied targetDomain)
 
 -- @END

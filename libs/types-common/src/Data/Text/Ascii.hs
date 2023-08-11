@@ -80,15 +80,15 @@ where
 import Cassandra hiding (Ascii)
 import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey)
 import Data.Attoparsec.ByteString (Parser)
-import qualified Data.ByteString.Base16 as B16
-import qualified Data.ByteString.Base64 as B64
-import qualified Data.ByteString.Base64.URL as B64Url
-import qualified Data.ByteString.Char8 as C8
+import Data.ByteString.Base16 qualified as B16
+import Data.ByteString.Base64 qualified as B64
+import Data.ByteString.Base64.URL qualified as B64Url
+import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
 import Data.Text.Encoding (decodeLatin1, decodeUtf8')
 import Imports
 import Test.QuickCheck (Arbitrary (arbitrary), listOf, suchThatMap)

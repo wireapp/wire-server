@@ -59,39 +59,39 @@ where
 import Cassandra (ColumnType, Cql (..), Tagged, retag)
 import Control.Lens ((%~), (?~))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
-import qualified Data.Bifunctor as Bifunctor
-import qualified Data.ByteString as B
+import Data.Bifunctor qualified as Bifunctor
+import Data.ByteString qualified as B
 import Data.ByteString.Conversion
   ( FromByteString (..),
     List (fromList),
     ToByteString (..),
   )
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashSet as HashSet
+import Data.ByteString.Lazy qualified as BL
+import Data.HashMap.Strict qualified as HashMap
+import Data.HashSet qualified as HashSet
 import Data.Kind (Type)
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as N
+import Data.List.NonEmpty qualified as N
 import Data.List1 (List1, toNonEmpty)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Proxy
 import Data.Schema
 import Data.Sequence (Seq)
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
 import Data.Swagger (ParamSchema, ToParamSchema (..))
-import qualified Data.Swagger as S
-import qualified Data.Text as T
+import Data.Swagger qualified as S
+import Data.Text qualified as T
 import Data.Text.Ascii (AsciiChar, AsciiChars, AsciiText, fromAsciiChars)
-import qualified Data.Text.Ascii as Ascii
-import qualified Data.Text.Lazy as TL
+import Data.Text.Ascii qualified as Ascii
+import Data.Text.Lazy qualified as TL
 import Data.Type.Ord
 import GHC.TypeNats
 import Imports
 import Servant (FromHttpApiData (..))
 import System.Random (Random)
 import Test.QuickCheck (Arbitrary (arbitrary, shrink), Gen)
-import qualified Test.QuickCheck as QC
+import Test.QuickCheck qualified as QC
 
 -----------------------------------------------------------------------------
 

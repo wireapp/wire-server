@@ -3,7 +3,7 @@
 module Brig.Effects.PublicKeyBundle where
 
 import Control.Exception
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.PEMKeys
 import Imports

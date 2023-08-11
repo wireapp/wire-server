@@ -30,12 +30,12 @@ module Galley.Data.Types
   )
 where
 
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.Code
 import Data.Id
 import Data.Range
-import qualified Data.Text.Ascii as Ascii
+import Data.Text.Ascii qualified as Ascii
 import Galley.Data.Conversation
 import Galley.Data.Scope
 import Imports

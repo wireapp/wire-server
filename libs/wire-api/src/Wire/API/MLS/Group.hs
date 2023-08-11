@@ -17,15 +17,15 @@
 
 module Wire.API.MLS.Group where
 
-import qualified Crypto.Hash as Crypto
-import qualified Data.Aeson as A
+import Crypto.Hash qualified as Crypto
+import Data.Aeson qualified as A
 import Data.ByteArray (convert)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary

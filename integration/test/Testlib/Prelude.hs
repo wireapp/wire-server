@@ -61,6 +61,7 @@ module Testlib.Prelude
     appendFile,
     readIO,
     readLn,
+    liftIO,
 
     -- * Functor
     (<$$>),
@@ -165,7 +166,7 @@ import Prelude
     (^),
     (^^),
   )
-import qualified Prelude as P
+import Prelude qualified as P
 
 ----------------------------------------------------------------------------
 -- Lifted functions from Prelude

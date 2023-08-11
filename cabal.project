@@ -1,7 +1,5 @@
 packages:
     integration
-  , libs/api-bot/
-  , libs/api-client/
   , libs/bilge/
   , libs/brig-types/
   , libs/cargohold-types/
@@ -40,7 +38,6 @@ packages:
   , services/gundeck/
   , services/proxy/
   , services/spar/
-  , tools/api-simulations/
   , tools/db/assets/
   , tools/db/auto-whitelist/
   , tools/db/billing-team-member-backfill/
@@ -57,12 +54,6 @@ packages:
 tests: True
 benchmarks: True
 
-package api-bot
-    ghc-options: -Werror
-package api-client
-    ghc-options: -Werror
-package api-simulations
-    ghc-options: -Werror
 package assets
     ghc-options: -Werror
 package auto-whitelist

@@ -25,10 +25,10 @@ where
 
 import Cassandra
 import Crypto.Scrypt
-import qualified Data.ByteString.Base64 as B64
+import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Misc
-import qualified Data.Text.Encoding as Text
+import Data.Text.Encoding qualified as Text
 import Imports
 import OpenSSL.Random (randBytes)
 

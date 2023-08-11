@@ -43,3 +43,12 @@ If release name contains chart name it will be used as a full name.
 app.kubernetes.io/name: {{ include "coturn.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/* Allow KubeVersion to be overridden. */}}
+{{- define "kubeVersion" -}}
+  {{- default .Capabilities.KubeVersion.Version .Values.kubeVersionOverride -}}
+{{- end -}}
+
+{{- define "includeSecurityContext" -}}
+  {{- (semverCompare ">= 1.24-0" (include "kubeVersion" .)) -}}
+{{- end -}}

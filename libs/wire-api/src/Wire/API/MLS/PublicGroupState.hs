@@ -21,8 +21,8 @@ module Wire.API.MLS.PublicGroupState where
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Swagger as S
+import Data.ByteString.Lazy qualified as LBS
+import Data.Swagger qualified as S
 import Imports
 import Test.QuickCheck hiding (label)
 import Wire.API.MLS.CipherSuite

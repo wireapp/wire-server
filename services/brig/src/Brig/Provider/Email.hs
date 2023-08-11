@@ -31,12 +31,12 @@ import Brig.Provider.Template
 import Brig.Template
 import Control.Lens (view)
 import Data.ByteString.Conversion
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.Range
 import Data.Text (pack)
-import qualified Data.Text.Ascii as Ascii
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy as LT
+import Data.Text.Ascii qualified as Ascii
+import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as LT
 import Imports
 import Wire.API.Provider
 import Wire.API.User

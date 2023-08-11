@@ -19,7 +19,7 @@ module Test.Wire.API.Golden.Generated.BotUserView_provider where
 
 import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Provider.Bot (BotUserView (..))
 import Wire.API.User.Profile (ColourId (ColourId, fromColourId), Name (Name, fromName))

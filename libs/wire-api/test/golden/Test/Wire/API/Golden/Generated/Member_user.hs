@@ -20,7 +20,7 @@ module Test.Wire.API.Golden.Generated.Member_user where
 import Data.Domain (Domain (..))
 import Data.Id (Id (Id))
 import Data.Qualified (Qualified (..))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation (Member (..), MutedStatus (MutedStatus, fromMutedStatus))
 import Wire.API.Conversation.Role (parseRoleName)

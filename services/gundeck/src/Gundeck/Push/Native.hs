@@ -29,22 +29,22 @@ import Data.ByteString.Conversion.To
 import Data.Id
 import Data.List1
 import Data.Metrics (counterIncr, path)
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.UUID as UUID
-import qualified Gundeck.Aws as Aws
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.UUID qualified as UUID
+import Gundeck.Aws qualified as Aws
 import Gundeck.Env
 import Gundeck.Monad
-import qualified Gundeck.Notification.Data as Stream
+import Gundeck.Notification.Data qualified as Stream
 import Gundeck.Options
-import qualified Gundeck.Push.Data as Data
+import Gundeck.Push.Data qualified as Data
 import Gundeck.Push.Native.Serialise
 import Gundeck.Push.Native.Types as Types
 import Gundeck.Types
 import Gundeck.Util
 import Imports
 import System.Logger.Class (MonadLogger, field, msg, val, (.=), (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import UnliftIO (handleAny, mapConcurrently, pooledMapConcurrentlyN_)
 import Wire.API.Internal.Notification
 

@@ -20,42 +20,45 @@ module Main where
 import Cassandra.Schema
 import Control.Exception (finally)
 import Imports
-import qualified System.Logger.Extended as Log
+import System.Logger.Extended qualified as Log
 import Util.Options
-import qualified V43
-import qualified V44
-import qualified V45
-import qualified V46
-import qualified V47
-import qualified V48
-import qualified V49
-import qualified V50
-import qualified V51
-import qualified V52
-import qualified V53
-import qualified V54
-import qualified V55
-import qualified V56
-import qualified V57
-import qualified V58
-import qualified V59
-import qualified V60_AddFederationIdMapping
-import qualified V61_team_invitation_email
-import qualified V62_RemoveFederationIdMapping
-import qualified V63_AddUsersPendingActivation
-import qualified V64_ClientCapabilities
-import qualified V65_FederatedConnections
-import qualified V66_PersonalFeatureConfCallInit
-import qualified V67_MLSKeyPackages
-import qualified V68_AddMLSPublicKeys
-import qualified V69_MLSKeyPackageRefMapping
-import qualified V70_UserEmailUnvalidated
-import qualified V71_AddTableVCodesThrottle
-import qualified V72_AddNonceTable
-import qualified V73_ReplaceNonceTable
-import qualified V74_AddOAuthTables
-import qualified V75_AddOAuthCodeChallenge
-import qualified V76_AddSupportedProtocols
+import V43 qualified
+import V44 qualified
+import V45 qualified
+import V46 qualified
+import V47 qualified
+import V48 qualified
+import V49 qualified
+import V50 qualified
+import V51 qualified
+import V52 qualified
+import V53 qualified
+import V54 qualified
+import V55 qualified
+import V56 qualified
+import V57 qualified
+import V58 qualified
+import V59 qualified
+import V60_AddFederationIdMapping qualified
+import V61_team_invitation_email qualified
+import V62_RemoveFederationIdMapping qualified
+import V63_AddUsersPendingActivation qualified
+import V64_ClientCapabilities qualified
+import V65_FederatedConnections qualified
+import V66_PersonalFeatureConfCallInit qualified
+import V67_MLSKeyPackages qualified
+import V68_AddMLSPublicKeys qualified
+import V69_MLSKeyPackageRefMapping qualified
+import V70_UserEmailUnvalidated qualified
+import V71_AddTableVCodesThrottle qualified
+import V72_AddNonceTable qualified
+import V73_ReplaceNonceTable qualified
+import V74_AddOAuthTables qualified
+import V75_AddOAuthCodeChallenge qualified
+import V76_AddSupportedProtocols qualified
+import V77_FederationRemotes qualified
+import V78_ClientLastActive qualified
+import V79_ConnectionRemoteIndex qualified
 
 main :: IO ()
 main = do
@@ -99,7 +102,10 @@ main = do
       V73_ReplaceNonceTable.migration,
       V74_AddOAuthTables.migration,
       V75_AddOAuthCodeChallenge.migration,
-      V76_AddSupportedProtocols.migration
+      V76_AddSupportedProtocols.migration,
+      V77_FederationRemotes.migration,
+      V78_ClientLastActive.migration,
+      V79_ConnectionRemoteIndex.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Brig.App
 

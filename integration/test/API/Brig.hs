@@ -1,10 +1,10 @@
 module API.Brig where
 
 import API.Common
-import qualified Data.ByteString.Base64 as Base64
+import Data.ByteString.Base64 qualified as Base64
 import Data.Foldable
 import Data.Function
-import qualified Data.Text.Encoding as T
+import Data.Text.Encoding qualified as T
 import GHC.Stack
 import Testlib.Prelude
 
@@ -18,6 +18,18 @@ getUser user target = do
   req <-
     baseRequest user Brig Versioned $
       joinHttpPath ["users", domain, uid]
+  submit "GET" req
+
+getClient ::
+  (HasCallStack, MakesValue user, MakesValue client) =>
+  user ->
+  client ->
+  App Response
+getClient u cli = do
+  c <- make cli & asString
+  req <-
+    baseRequest u Brig Versioned $
+      joinHttpPath ["clients", c]
   submit "GET" req
 
 data AddClient = AddClient
@@ -112,17 +124,42 @@ deleteClient user client = do
         [ "password" .= defPassword
         ]
 
-searchContacts ::
-  ( MakesValue searchingUserId,
-    MakesValue searchTerm
+getClientsQualified ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue domain,
+    MakesValue otherUser
   ) =>
-  searchingUserId ->
-  searchTerm ->
+  user ->
+  domain ->
+  otherUser ->
   App Response
-searchContacts searchingUserId searchTerm = do
-  req <- baseRequest searchingUserId Brig Versioned "/search/contacts"
+getClientsQualified user domain otherUser = do
+  ouid <- objId otherUser
+  d <- objDomain domain
+  req <-
+    baseRequest user Brig Versioned $
+      "/users/"
+        <> d
+        <> "/"
+        <> ouid
+        <> "/clients"
+  submit "GET" req
+
+searchContacts ::
+  ( MakesValue user,
+    MakesValue searchTerm,
+    MakesValue domain
+  ) =>
+  user ->
+  searchTerm ->
+  domain ->
+  App Response
+searchContacts user searchTerm domain = do
+  req <- baseRequest user Brig Versioned "/search/contacts"
   q <- asString searchTerm
-  submit "GET" (req & addQueryParams [("q", q)])
+  d <- objDomain domain
+  submit "GET" (req & addQueryParams [("q", q), ("domain", d)])
 
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do
@@ -143,6 +180,21 @@ postConnection userFrom userTo = do
     baseRequest userFrom Brig Versioned $
       joinHttpPath ["/connections", userToDomain, userToId]
   submit "POST" req
+
+getConnection ::
+  ( HasCallStack,
+    MakesValue userFrom,
+    MakesValue userTo
+  ) =>
+  userFrom ->
+  userTo ->
+  App Response
+getConnection userFrom userTo = do
+  (userToDomain, userToId) <- objQid userTo
+  req <-
+    baseRequest userFrom Brig Versioned $
+      joinHttpPath ["/connections", userToDomain, userToId]
+  submit "GET" req
 
 putConnection ::
   ( HasCallStack,
@@ -181,6 +233,12 @@ claimKeyPackages u v = do
       "/mls/key-packages/claim/" <> targetDom <> "/" <> targetUid
   submit "POST" req
 
+getSelf :: HasCallStack => String -> String -> App Response
+getSelf domain uid = do
+  let user = object ["domain" .= domain, "id" .= uid]
+  req <- baseRequest user Brig Versioned "/self"
+  submit "GET" req
+
 getUserSupportedProtocols ::
   (HasCallStack, MakesValue user, MakesValue target) =>
   user ->
@@ -203,3 +261,48 @@ putUserSupportedProtocols user ps = do
     baseRequest user Brig Versioned $
       joinHttpPath ["self", "supported-protocols"]
   submit "PUT" (req & addJSONObject ["supported_protocols" .= ps])
+
+getApiVersions :: HasCallStack => App Response
+getApiVersions = do
+  req <-
+    rawBaseRequest OwnDomain Brig Unversioned $
+      joinHttpPath ["api-version"]
+  submit "GET" req
+
+getSwaggerPublicTOC :: HasCallStack => App Response
+getSwaggerPublicTOC = do
+  req <-
+    rawBaseRequest OwnDomain Brig Unversioned $
+      joinHttpPath ["api", "swagger-ui"]
+  submit "GET" req
+
+getSwaggerInternalTOC :: HasCallStack => App Response
+getSwaggerInternalTOC = error "FUTUREWORK: this API end-point does not exist."
+
+getSwaggerPublicAllUI :: HasCallStack => Int -> App Response
+getSwaggerPublicAllUI version = do
+  req <-
+    rawBaseRequest OwnDomain Brig (ExplicitVersion version) $
+      joinHttpPath ["api", "swagger-ui"]
+  submit "GET" req
+
+getSwaggerPublicAllJson :: HasCallStack => Int -> App Response
+getSwaggerPublicAllJson version = do
+  req <-
+    rawBaseRequest OwnDomain Brig (ExplicitVersion version) $
+      joinHttpPath ["api", "swagger.json"]
+  submit "GET" req
+
+getSwaggerInternalUI :: HasCallStack => String -> App Response
+getSwaggerInternalUI service = do
+  req <-
+    rawBaseRequest OwnDomain Brig Unversioned $
+      joinHttpPath ["api-internal", "swagger-ui", service]
+  submit "GET" req
+
+getSwaggerInternalJson :: HasCallStack => String -> App Response
+getSwaggerInternalJson service = do
+  req <-
+    rawBaseRequest OwnDomain Nginz Unversioned $
+      joinHttpPath ["api-internal", "swagger-ui", service <> "-swagger.json"]
+  submit "GET" req

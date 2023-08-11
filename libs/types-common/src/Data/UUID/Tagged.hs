@@ -31,8 +31,8 @@ module Data.UUID.Tagged
 where
 
 import Data.Bits
-import qualified Data.UUID as D
-import qualified Data.UUID.V4 as D4
+import Data.UUID qualified as D
+import Data.UUID.V4 qualified as D4
 import Imports
 
 -- | Versioned UUID.

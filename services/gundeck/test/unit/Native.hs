@@ -20,12 +20,12 @@ module Native where
 import Amazonka (Region (Ireland))
 import Control.Lens ((^.))
 import Data.Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Id (ClientId (..), ConnId (..), UserId, randomId)
-import qualified Data.List1 as List1
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy.Encoding as LT
+import Data.List1 qualified as List1
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.Text.Lazy.Encoding qualified as LT
 import Gundeck.Push.Native.Serialise
 import Gundeck.Push.Native.Types
 import Gundeck.Types.Push

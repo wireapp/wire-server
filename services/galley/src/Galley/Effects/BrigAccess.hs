@@ -76,7 +76,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Routes.Internal.Brig.Connection
-import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
 import Wire.API.User

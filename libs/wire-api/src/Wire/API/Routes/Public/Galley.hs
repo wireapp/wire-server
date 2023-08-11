@@ -21,7 +21,7 @@
 module Wire.API.Routes.Public.Galley where
 
 import Data.SOP
-import qualified Data.Swagger as Swagger
+import Data.Swagger qualified as Swagger
 import Servant hiding (WithStatus)
 import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()

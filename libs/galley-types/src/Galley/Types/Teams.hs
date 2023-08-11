@@ -56,6 +56,7 @@ module Galley.Types.Teams
     rolePermissions,
     roleHiddenPermissions,
     permissionsRole,
+    isAdminOrOwner,
     HiddenPerm (..),
     IsPerm (..),
   )
@@ -63,11 +64,11 @@ where
 
 import Control.Lens (makeLenses, view, (^.))
 import Data.Aeson
-import qualified Data.Aeson.Types as A
+import Data.Aeson.Types qualified as A
 import Data.Id (UserId)
-import qualified Data.Maybe as Maybe
-import qualified Data.Schema as Schema
-import qualified Data.Set as Set
+import Data.Maybe qualified as Maybe
+import Data.Schema qualified as Schema
+import Data.Set qualified as Set
 import Imports
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Error.Galley
@@ -100,6 +101,15 @@ permissionsRole (Permissions p p') =
             -- was create before the current publicly visible permissions had been stabilized.
             rolePerms role `Set.isSubsetOf` perms
         ]
+
+isAdminOrOwner :: Permissions -> Bool
+isAdminOrOwner perms =
+  case permissionsRole perms of
+    Just RoleOwner -> True
+    Just RoleAdmin -> True
+    Just RoleMember -> False
+    Just RoleExternalPartner -> False
+    Nothing -> False
 
 -- | Internal function for 'rolePermissions'.  (It works iff the two sets in 'Permissions' are
 -- identical for every 'Role', otherwise it'll need to be specialized for the resp. sides.)

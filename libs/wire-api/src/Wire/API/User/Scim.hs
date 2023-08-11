@@ -47,45 +47,45 @@ import Control.Monad.Except (throwError)
 import Crypto.Hash (hash)
 import Crypto.Hash.Algorithms (SHA512)
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Attoparsec.ByteString (string)
-import qualified Data.Binary.Builder as BB
+import Data.Binary.Builder qualified as BB
 import Data.ByteArray.Encoding (Base (..), convertToBase)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
-import qualified Data.CaseInsensitive as CI
+import Data.CaseInsensitive qualified as CI
 import Data.Code as Code
 import Data.Handle (Handle)
 import Data.Id (ScimTokenId, TeamId, UserId)
 import Data.Json.Util ((#))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.Proxy
 import Data.Swagger hiding (Operation)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
 import Servant.API (FromHttpApiData (..), ToHttpApiData (..))
-import qualified Test.QuickCheck as QC
+import Test.QuickCheck qualified as QC
 import Web.HttpApiData (parseHeaderWithPrefix)
 import Web.Scim.AttrName (AttrName (..))
-import qualified Web.Scim.Class.Auth as Scim.Auth
-import qualified Web.Scim.Class.Group as Scim.Group
-import qualified Web.Scim.Class.User as Scim.User
+import Web.Scim.Class.Auth qualified as Scim.Auth
+import Web.Scim.Class.Group qualified as Scim.Group
+import Web.Scim.Class.User qualified as Scim.User
 import Web.Scim.Filter (AttrPath (..))
-import qualified Web.Scim.Schema.Common as Scim
-import qualified Web.Scim.Schema.Error as Scim
+import Web.Scim.Schema.Common qualified as Scim
+import Web.Scim.Schema.Error qualified as Scim
 import Web.Scim.Schema.PatchOp (Operation (..), Path (NormalPath))
-import qualified Web.Scim.Schema.PatchOp as Scim
+import Web.Scim.Schema.PatchOp qualified as Scim
 import Web.Scim.Schema.Schema (Schema (CustomSchema))
-import qualified Web.Scim.Schema.Schema as Scim
-import qualified Web.Scim.Schema.User as Scim
-import qualified Web.Scim.Schema.User as Scim.User
+import Web.Scim.Schema.Schema qualified as Scim
+import Web.Scim.Schema.User qualified as Scim
+import Web.Scim.Schema.User qualified as Scim.User
 import Wire.API.Team.Role (Role)
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile as BT
-import qualified Wire.API.User.RichInfo as RI
+import Wire.API.User.RichInfo qualified as RI
 import Wire.API.User.Saml ()
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -326,7 +326,7 @@ data ValidScimUser = ValidScimUser
     _vsuRichInfo :: RI.RichInfo,
     _vsuActive :: Bool,
     _vsuLocale :: Maybe Locale,
-    _vsuRole :: Role
+    _vsuRole :: Maybe Role
   }
   deriving (Eq, Show)
 
