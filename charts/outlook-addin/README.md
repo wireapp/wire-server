@@ -64,16 +64,17 @@ d helm upgrade --install wire-server charts/wire-server --values values/wire-ser
 By default, outlook addin as a feature is disabled for all teams. To change this make the following changes in your configuration in `galley` namespace:
 
 ```
-outlookCalIntegration:
+galley:
   config:
     # ...
     settings:
       # ...
       featureFlags:
         # ...
-        defaults:
-          status: disabled
-          lockStatus: locked
+        outlookCalIntegration:
+          defaults:
+            status: enabled
+            lockStatus: unlocked
 ```
 
 Redeploy wire-server for these changes to take effect.
