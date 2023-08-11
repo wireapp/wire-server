@@ -20,7 +20,7 @@
 module Test.Wire.API.Golden.Generated.UserClientMap_20Int_user where
 
 import Data.Id (ClientId (ClientId, client), Id (Id))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import GHC.Exts (IsList (fromList))
 import Imports (Int, fromJust)
 import Wire.API.Message (UserClientMap (..))

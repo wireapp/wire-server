@@ -38,7 +38,7 @@ import Control.Concurrent.STM.TChan
 import Control.Exception (throwIO)
 import Control.Monad
 import Control.Monad.Catch hiding (bracket)
-import qualified Control.Monad.Catch as Catch
+import Control.Monad.Catch qualified as Catch
 import Control.Monad.IO.Class
 import Control.Monad.STM
 import Data.Aeson (Value (..), decodeStrict')
@@ -50,8 +50,9 @@ import Data.Maybe
 import Data.Traversable
 import Data.Word
 import GHC.Stack
-import qualified Network.HTTP.Client as Http
-import qualified Network.WebSockets as WS
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client qualified as Http
+import Network.WebSockets qualified as WS
 import System.Random (randomIO)
 import System.Timeout (timeout)
 import Testlib.App
@@ -72,6 +73,7 @@ data WebSocket = WebSocket
 -- Specifies how a Websocket at cannon should be opened
 data WSConnect = WSConnect
   { user :: String,
+    domain :: String,
     client :: Maybe String,
     -- | If this is Nothing then a random Z-Connection will be used
     conn :: Maybe String
@@ -85,23 +87,23 @@ instance {-# OVERLAPPING #-} ToWSConnect WSConnect where
 
 instance {-# OVERLAPPABLE #-} MakesValue user => ToWSConnect user where
   toWSConnect u = do
-    uid <- objId u & asString
+    (domain, uid) <- objQid u
     mc <- lookupField u "client_id"
     c <- traverse asString mc
-    pure (WSConnect uid c Nothing)
+    pure (WSConnect uid domain c Nothing)
 
 instance (MakesValue user, MakesValue conn) => ToWSConnect (user, conn) where
   toWSConnect (u, c) = do
-    uid <- objId u & asString
+    (domain, uid) <- objQid u
     conn <- make c & asString
-    pure (WSConnect uid Nothing (Just conn))
+    pure (WSConnect uid domain Nothing (Just conn))
 
 instance (MakesValue user, MakesValue conn, MakesValue client) => ToWSConnect (user, conn, client) where
   toWSConnect (u, c, cl) = do
-    uid <- objId u & asString
+    (domain, uid) <- objQid u
     client <- make cl & asString
     conn <- make c & asString
-    pure (WSConnect uid (Just client) (Just conn))
+    pure (WSConnect uid domain (Just client) (Just conn))
 
 connect :: HasCallStack => WSConnect -> App WebSocket
 connect wsConnect = do
@@ -127,9 +129,13 @@ clientApp wsChan latch conn = do
 
 -- | Start a client thread in 'Async' that opens a web socket to a Cannon, wait
 --   for the connection to register with Gundeck, and return the 'Async' thread.
-run :: HasCallStack => WSConnect -> WS.ClientApp () -> App (Async ())
+run ::
+  HasCallStack =>
+  WSConnect ->
+  WS.ClientApp () ->
+  App (Async ())
 run wsConnect app = do
-  domain <- asString OwnDomain
+  domain <- asString wsConnect.domain
   serviceMap <- getServiceMap domain
 
   let HostPort caHost caPort = serviceHostPort serviceMap Cannon
@@ -149,32 +155,49 @@ run wsConnect app = do
         [ ("Z-User", toByteString' (wsConnect.user)),
           ("Z-Connection", toByteString' connId)
         ]
+  request <- do
+    r <- rawBaseRequest domain Cannon Versioned path
+    pure r {HTTP.requestHeaders = caHdrs}
 
   wsapp <-
-    liftIO $
-      async $
-        WS.runClientWith
-          caHost
-          (fromIntegral caPort)
-          path
-          WS.defaultConnectionOptions
-          caHdrs
-          ( \conn ->
-              putMVar latch () >> app conn
-          )
-          `onException` tryPutMVar latch ()
+    liftIO
+      $ async
+      $ catch
+        ( WS.runClientWith
+            caHost
+            (fromIntegral caPort)
+            path
+            WS.defaultConnectionOptions
+            caHdrs
+            app
+        )
+      $ \(e :: SomeException) -> putMVar latch e
 
-  let waitForRegistry :: HasCallStack => App ()
-      waitForRegistry = unrace $ do
-        request <- baseRequest OwnDomain Cannon Unversioned ("/i/presences/" <> wsConnect.user <> "/" <> connId)
-        response <- submit "HEAD" request
-        status response `shouldMatchInt` 200
+  presenceRequest <-
+    baseRequest domain Cannon Unversioned $
+      "/i/presences/" <> wsConnect.user <> "/" <> connId
 
-  liftIO $ takeMVar latch
-  stat <- liftIO $ poll wsapp
-  case stat of
-    Just (Left ex) -> liftIO $ throwIO ex
-    _ -> waitForRegistry >> pure wsapp
+  waitForPresence <- appToIO $ retryT $ do
+    response <- submit "HEAD" presenceRequest
+    status response `shouldMatchInt` 200
+  let waitForException = do
+        ex <- takeMVar latch
+        -- Construct a "fake" response. We do not really have access to the
+        -- websocket connection requests and response, unfortunately, but it is
+        -- useful to display some information about the request in case an
+        -- exception occurs.
+        let r =
+              Response
+                { jsonBody = Nothing,
+                  body = "This is a fake response. The actual response from cannon is not available.",
+                  status = 101,
+                  headers = mempty,
+                  request = request
+                }
+        throwIO (AssertionFailure callStack (Just r) (displayException ex))
+
+  liftIO $ race_ waitForPresence waitForException
+  pure wsapp
 
 close :: MonadIO m => WebSocket -> m ()
 close ws = liftIO $ do
@@ -226,8 +249,8 @@ awaitAnyEvent tSecs = liftIO . timeout (tSecs * 1000 * 1000) . atomically . read
 -- | 'await' an expected number of notification events on the websocket that
 -- satisfy the provided predicate. If there isn't any new event (matching or
 -- non-matching) for a 'tSecs' seconds then AwaitResult is a failure. This
--- funciton will never terminate if there is a constant stream of events
--- received. When this functions retruns it will push any non-matching
+-- function will never terminate if there is a constant stream of events
+-- received. When this functions returns it will push any non-matching
 -- events back to the websocket.
 awaitNMatchesResult ::
   HasCallStack =>

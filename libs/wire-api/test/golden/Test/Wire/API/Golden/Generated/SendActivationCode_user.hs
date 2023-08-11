@@ -18,7 +18,7 @@
 module Test.Wire.API.Golden.Generated.SendActivationCode_user where
 
 import Data.ISO3166_CountryCodes (CountryCode (AO, BB, FI, FR, IN, MU, PM, VI, VU))
-import qualified Data.LanguageCodes (ISO639_1 (CU, DE, DV, FI, GD, GN, HO, HY, IU, KK, KW, PA, TG, VE))
+import Data.LanguageCodes qualified (ISO639_1 (CU, DE, DV, FI, GD, GN, HO, HY, IU, KK, KW, PA, TG, VE))
 import Imports (Bool (False, True), Either (Left, Right), Maybe (Just, Nothing))
 import Wire.API.User
   ( Country (Country, fromCountry),

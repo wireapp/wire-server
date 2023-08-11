@@ -44,16 +44,16 @@ where
 
 import Control.Lens ((?~))
 import Crypto.PubKey.Ed25519
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
-import qualified Data.ByteArray as BA
+import Data.ByteArray qualified as BA
 import Data.Json.Util
 import Data.Kind
 import Data.Schema
 import Data.Singletons.TH
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports hiding (cs)
 import Test.QuickCheck hiding (label)
 import Wire.API.Event.Conversation

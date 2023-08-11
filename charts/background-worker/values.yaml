@@ -2,6 +2,9 @@ replicaCount: 1
 image:
   repository: quay.io/wire/background-worker
   tag: do-not-use
+service:
+  internalPort: 8080
+  externalPort: 8080
 # FUTUREWORK: Review these values when we have some experience
 resources:
   requests:
@@ -9,10 +12,9 @@ resources:
     cpu: "100m"
   limits:
     memory: "512Mi"
-# FUTUREWORK: Implement metrics
-# metrics:
-#   serviceMonitor:
-#     enabled: false
+metrics:
+  serviceMonitor:
+    enabled: false
 config:
   logLevel: Info
   logFormat: StructuredJSON
@@ -20,7 +22,9 @@ config:
     host: rabbitmq
     port: 5672
     vHost: /
-  remoteDomains: []
+    adminPort: 15672
+  backendNotificationPusher:
+    remotesRefreshInterval: 60 # seconds
 
 serviceAccount:
   # When setting this to 'false', either make sure that a service account named
@@ -30,5 +34,13 @@ serviceAccount:
   annotations: {}
   automountServiceAccountToken: true
 
-
 secrets: {}
+
+podSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault

@@ -28,16 +28,16 @@ import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import Data.Qualified
 import Galley.API.Error
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Data.Types (convId)
 import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Polysemy.Error
-import qualified Polysemy.TinyLog as P
+import Polysemy.TinyLog qualified as P
 import System.Logger.Message (msg, val, (+++))
 import Wire.API.Conversation hiding (Member)
-import qualified Wire.API.Conversation as Conversation
+import Wire.API.Conversation qualified as Conversation
 import Wire.API.Federation.API.Galley
 
 -- | View for a given user of a stored conversation.

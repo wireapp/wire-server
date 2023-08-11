@@ -17,17 +17,17 @@
 
 module Galley.DataMigration (cassandraSettingsParser, migrate) where
 
-import qualified Cassandra as C
-import qualified Cassandra.Settings as C
+import Cassandra qualified as C
+import Cassandra.Settings qualified as C
 import Control.Monad.Catch (finally)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Galley.DataMigration.Types
 import Imports
 import Options.Applicative (Parser)
-import qualified Options.Applicative as Opts
+import Options.Applicative qualified as Opts
 import System.Logger.Class (Logger)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 
 data CassandraSettings = CassandraSettings
   { cHost :: String,

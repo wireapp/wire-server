@@ -19,20 +19,19 @@ module Brig.API.Error where
 
 import Brig.API.Types
 import Brig.Phone (PhoneException (..))
-import Brig.Types.Common (PhoneBudgetTimeout (..))
 import Control.Monad.Error.Class hiding (Error)
 import Data.Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Jwt.Tools (DPoPTokenGenerationError (..))
-import qualified Data.ZAuth.Validation as ZAuth
+import Data.ZAuth.Validation qualified as ZAuth
 import Imports
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Error
-import qualified Wire.API.Error.Brig as E
+import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error
 import Wire.API.User
 

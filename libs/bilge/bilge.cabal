@@ -98,4 +98,4 @@ library
     , wai
     , wai-extra
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

@@ -17,7 +17,7 @@
 
 module Wire.API.Routes.Public.Galley.Conversation where
 
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.CommaSeparatedList
 import Data.Id
 import Data.Range
@@ -48,21 +48,86 @@ import Wire.API.Team.Feature
 type ConversationResponse = ResponseForExistedCreated Conversation
 
 -- | A type similar to 'ConversationResponse' introduced to allow for a failure
--- to add remote members while creating a conversation.
+-- to add remote members while creating a non-group conversation. The type is
+-- not unified with 'CreateGroupConversationResponse' as that one relies on JSON
+-- for client API v4, yet 'ExtendedConversationResponse' should work for older
+-- versions too.
+data ExtendedConversationResponse
+  = ConversationResponseExisted Conversation
+  | ConversationResponseUnreachableBackends CreateConversationUnreachableBackends
+  | ConversationResponseCreated Conversation
+
+instance
+  ( ResponseType r1 ~ Conversation,
+    ResponseType r2 ~ CreateConversationUnreachableBackends,
+    ResponseType r3 ~ Conversation
+  ) =>
+  AsUnion '[r1, r2, r3] ExtendedConversationResponse
+  where
+  toUnion (ConversationResponseExisted x) = Z (I x)
+  toUnion (ConversationResponseUnreachableBackends x) = S (Z (I x))
+  toUnion (ConversationResponseCreated x) = S (S (Z (I x)))
+
+  fromUnion (Z (I x)) = ConversationResponseExisted x
+  fromUnion (S (Z (I x))) = ConversationResponseUnreachableBackends x
+  fromUnion (S (S (Z (I x)))) = ConversationResponseCreated x
+  fromUnion (S (S (S x))) = case x of {}
+
+type UnreachableBackendsResponse =
+  Respond
+    503
+    "Unreachable backends in conversation creation"
+    CreateConversationUnreachableBackends
+
+-- | JSON of the type is specific to V2
+type ExtendedConversationResponsesV2 =
+  '[ WithHeaders
+       ConversationHeaders
+       Conversation
+       (VersionedRespond 'V2 200 "Conversation existed" Conversation),
+     UnreachableBackendsResponse,
+     WithHeaders
+       ConversationHeaders
+       Conversation
+       (VersionedRespond 'V2 201 "Conversation created" Conversation)
+   ]
+
+-- | Versioned to the latest API version
+type ExtendedConversationResponses =
+  '[ WithHeaders
+       ConversationHeaders
+       Conversation
+       (Respond 200 "Conversation existed" Conversation),
+     UnreachableBackendsResponse,
+     WithHeaders
+       ConversationHeaders
+       Conversation
+       (Respond 201 "Conversation created" Conversation)
+   ]
+
+-- | A type similar to 'ConversationResponse' introduced to allow for a failure
+-- to add remote members while creating a conversation or due to involved
+-- backends forming an incomplete graph.
 data CreateGroupConversationResponse
   = GroupConversationExisted Conversation
+  | GroupConversationUnreachableBackends CreateConversationUnreachableBackends
   | GroupConversationCreated CreateGroupConversation
 
 instance
-  (ResponseType r1 ~ Conversation, ResponseType r2 ~ CreateGroupConversation) =>
-  AsUnion '[r1, r2] CreateGroupConversationResponse
+  ( ResponseType r1 ~ Conversation,
+    ResponseType r2 ~ CreateConversationUnreachableBackends,
+    ResponseType r3 ~ CreateGroupConversation
+  ) =>
+  AsUnion '[r1, r2, r3] CreateGroupConversationResponse
   where
   toUnion (GroupConversationExisted x) = Z (I x)
-  toUnion (GroupConversationCreated x) = S (Z (I x))
+  toUnion (GroupConversationUnreachableBackends x) = S (Z (I x))
+  toUnion (GroupConversationCreated x) = S (S (Z (I x)))
 
   fromUnion (Z (I x)) = GroupConversationExisted x
-  fromUnion (S (Z (I x))) = GroupConversationCreated x
-  fromUnion (S (S x)) = case x of {}
+  fromUnion (S (Z (I x))) = GroupConversationUnreachableBackends x
+  fromUnion (S (S (Z (I x)))) = GroupConversationCreated x
+  fromUnion (S (S (S x))) = case x of {}
 
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
@@ -81,6 +146,13 @@ type ConversationVerb =
      ]
     ConversationResponse
 
+type ExtendedConversationVerb =
+  MultiVerb
+    'POST
+    '[JSON]
+    ExtendedConversationResponses
+    ExtendedConversationResponse
+
 type CreateGroupConversationVerb =
   MultiVerb
     'POST
@@ -89,6 +161,7 @@ type CreateGroupConversationVerb =
          ConversationHeaders
          Conversation
          (Respond 200 "Conversation existed" Conversation),
+       UnreachableBackendsResponse,
        WithHeaders
          ConversationHeaders
          CreateGroupConversation
@@ -366,7 +439,9 @@ type ConversationAPI =
            "create-group-conversation@v2"
            ( Summary "Create a new conversation"
                :> DescriptionOAuthScope 'WriteConversations
+               :> MakesFederatedCall 'Brig "api-version"
                :> MakesFederatedCall 'Galley "on-conversation-created"
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> Until 'V3
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSMissingSenderClient
@@ -382,13 +457,19 @@ type ConversationAPI =
                :> ZOptConn
                :> "conversations"
                :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
-               :> ConversationV2Verb
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    ExtendedConversationResponsesV2
+                    ExtendedConversationResponse
            )
     :<|> Named
            "create-group-conversation@v3"
            ( Summary "Create a new conversation"
                :> DescriptionOAuthScope 'WriteConversations
+               :> MakesFederatedCall 'Brig "api-version"
                :> MakesFederatedCall 'Galley "on-conversation-created"
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> From 'V3
                :> Until 'V4
                :> CanThrow 'ConvAccessDenied
@@ -405,12 +486,15 @@ type ConversationAPI =
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
-               :> ConversationVerb
+               :> ExtendedConversationVerb
            )
     :<|> Named
            "create-group-conversation"
            ( Summary "Create a new conversation"
+               :> MakesFederatedCall 'Brig "api-version"
+               :> MakesFederatedCall 'Brig "get-not-fully-connected-backends"
                :> MakesFederatedCall 'Galley "on-conversation-created"
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> From 'V4
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSMissingSenderClient
@@ -420,6 +504,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptClient
@@ -469,6 +554,7 @@ type ConversationAPI =
     :<|> Named
            "create-one-to-one-conversation@v2"
            ( Summary "Create a 1:1 conversation"
+               :> MakesFederatedCall 'Brig "api-version"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> Until 'V3
                :> CanThrow 'ConvAccessDenied
@@ -485,7 +571,11 @@ type ConversationAPI =
                :> "conversations"
                :> "one2one"
                :> VersionedReqBody 'V2 '[JSON] NewConv
-               :> ConversationV2Verb
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    ExtendedConversationResponsesV2
+                    ExtendedConversationResponse
            )
     :<|> Named
            "create-one-to-one-conversation"
@@ -506,7 +596,7 @@ type ConversationAPI =
                :> "conversations"
                :> "one2one"
                :> ReqBody '[JSON] NewConv
-               :> ConversationVerb
+               :> ExtendedConversationVerb
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to members
@@ -515,7 +605,6 @@ type ConversationAPI =
            ( Summary "Add members to an existing conversation (deprecated)"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> Until 'V2
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
@@ -526,6 +615,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -539,7 +629,6 @@ type ConversationAPI =
            ( Summary "Add qualified members to an existing conversation."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> Until 'V2
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
@@ -550,6 +639,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -564,7 +654,6 @@ type ConversationAPI =
            ( Summary "Add qualified members to an existing conversation."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> From 'V2
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
@@ -575,6 +664,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -589,7 +679,6 @@ type ConversationAPI =
            "join-conversation-by-id-unqualified"
            ( Summary "Join a conversation by its ID (if link access enabled)"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
@@ -611,7 +700,6 @@ type ConversationAPI =
                \If the guest links team feature is disabled, this will fail with 409 GuestLinksDisabled.\
                \Note that this is currently inconsistent (for backwards compatibility reasons) with `POST /conversations/code-check` which responds with 404 CodeNotFound if guest links are disabled."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> CanThrow 'CodeNotFound
                :> CanThrow 'InvalidConversationPassword
                :> CanThrow 'ConvAccessDenied
@@ -768,7 +856,6 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "leave-conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> Until 'V2
                :> ZLocalUser
                :> ZConn
@@ -789,7 +876,6 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "leave-conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
@@ -809,7 +895,6 @@ type ConversationAPI =
                :> Description "Use `PUT /conversations/:cnv_domain/:cnv/members/:usr_domain/:usr` instead"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> ZLocalUser
                :> ZConn
                :> CanThrow 'ConvNotFound
@@ -834,7 +919,6 @@ type ConversationAPI =
                :> Description "**Note**: at least one field has to be provided."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> ZLocalUser
                :> ZConn
                :> CanThrow 'ConvNotFound
@@ -861,7 +945,6 @@ type ConversationAPI =
                :> Description "Use `/conversations/:domain/:conv/name` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
@@ -882,7 +965,6 @@ type ConversationAPI =
                :> Description "Use `/conversations/:domain/:conv/name` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
@@ -903,7 +985,6 @@ type ConversationAPI =
            ( Summary "Update conversation name"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
@@ -927,7 +1008,6 @@ type ConversationAPI =
                :> Description "Use `/conversations/:domain/:cnv/message-timer` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'ModifyConversationMessageTimer)
@@ -949,7 +1029,6 @@ type ConversationAPI =
            ( Summary "Update the message timer for a conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'ModifyConversationMessageTimer)
@@ -974,7 +1053,6 @@ type ConversationAPI =
                :> Description "Use `PUT /conversations/:domain/:cnv/receipt-mode` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "update-conversation"
                :> ZLocalUser
                :> ZConn
@@ -997,7 +1075,6 @@ type ConversationAPI =
            ( Summary "Update receipt mode for a conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "update-conversation"
                :> ZLocalUser
                :> ZConn
@@ -1023,7 +1100,6 @@ type ConversationAPI =
            ( Summary "Update access modes for a conversation (deprecated)"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> Until 'V3
                :> Description "Use PUT `/conversations/:domain/:cnv/access` instead."
                :> ZLocalUser
@@ -1049,7 +1125,6 @@ type ConversationAPI =
            ( Summary "Update access modes for a conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> Until 'V3
                :> ZLocalUser
                :> ZConn
@@ -1074,7 +1149,6 @@ type ConversationAPI =
            ( Summary "Update access modes for a conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> From 'V3
                :> ZLocalUser
                :> ZConn

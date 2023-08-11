@@ -26,11 +26,11 @@ where
 import Cassandra.CQL
 import Control.Error (note)
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain (Domain, domainText, mkDomain)
 import Data.Either.Combinators hiding (fromRight)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Galley.Types.Bot ()
 import Imports
 import Wire.API.Asset (AssetKey, assetKeyToText)
@@ -42,7 +42,7 @@ import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.SearchVisibility
 
 deriving instance Cql MutedStatus

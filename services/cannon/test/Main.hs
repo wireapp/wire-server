@@ -20,10 +20,10 @@ module Main where
 import Data.Metrics.Servant (routesToPaths)
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Imports
-import qualified Test.Cannon.Dict as D
+import Test.Cannon.Dict qualified as D
 import Test.Tasty
 import Test.Tasty.HUnit
-import qualified Wire.API.Routes.Internal.Cannon as Internal
+import Wire.API.Routes.Internal.Cannon qualified as Internal
 
 main :: IO ()
 main =

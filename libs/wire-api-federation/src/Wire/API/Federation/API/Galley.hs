@@ -26,7 +26,7 @@ import Data.Qualified
 import Data.Range
 import Data.Time.Clock (UTCTime)
 import Imports
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.JSONResponse
 import Servant.API
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
@@ -54,25 +54,24 @@ type GalleyApi =
   -- that are part of a conversation at creation time. Since MLS conversations
   -- are always created empty (i.e. they only contain the creator), this RPC is
   -- never invoked for such conversations.
-  FedEndpoint "on-conversation-created" (ConversationCreated ConvId) ()
+  FedEndpoint "on-conversation-created" (ConversationCreated ConvId) EmptyResponse
     -- This endpoint is called the first time a user from this backend is
     -- added to a remote conversation.
-    :<|> FedEndpoint "on-new-remote-conversation" NewRemoteConversation EmptyResponse
     :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
     -- used by the backend that owns a conversation to inform this backend of
     -- changes to the conversation
-    :<|> FedEndpoint "on-conversation-updated" ConversationUpdate ()
+    :<|> FedEndpoint "on-conversation-updated" ConversationUpdate EmptyResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-new-remote-conversation"
+              MakesFederatedCall 'Brig "api-version"
             ]
            "leave-conversation"
            LeaveConversationRequest
            LeaveConversationResponse
     -- used to notify this backend that a new message has been posted to a
     -- remote conversation
-    :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) ()
+    :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) EmptyResponse
     -- used by a remote backend to send a message to a conversation owned by
     -- this backend
     :<|> FedEndpointWithMods
@@ -85,15 +84,14 @@ type GalleyApi =
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-mls-message-sent",
               MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-new-remote-conversation"
+              MakesFederatedCall 'Brig "api-version"
             ]
            "on-user-deleted-conversations"
            UserDeletedConversationsNotification
            EmptyResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-new-remote-conversation"
+              MakesFederatedCall 'Galley "on-mls-message-sent"
             ]
            "update-conversation"
            ConversationUpdateRequest
@@ -103,7 +101,6 @@ type GalleyApi =
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-new-remote-conversation",
               MakesFederatedCall 'Galley "send-mls-message",
               MakesFederatedCall 'Brig "get-mls-clients"
             ]
@@ -114,7 +111,6 @@ type GalleyApi =
            '[ MakesFederatedCall 'Galley "mls-welcome",
               MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-new-remote-conversation",
               MakesFederatedCall 'Galley "send-mls-commit-bundle",
               MakesFederatedCall 'Brig "get-mls-clients"
             ]
@@ -241,23 +237,15 @@ data ConversationCreated conv = ConversationCreated
 ccRemoteOrigUserId :: ConversationCreated (Remote ConvId) -> Remote UserId
 ccRemoteOrigUserId cc = qualifyAs (ccCnvId cc) (ccOrigUserId cc)
 
-data NewRemoteConversation = NewRemoteConversation
-  { -- | The conversation ID, local to the backend invoking the RPC.
-    nrcConvId :: ConvId,
-    -- | The conversation protocol.
-    nrcProtocol :: Protocol
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded NewRemoteConversation)
-
 data ConversationUpdate = ConversationUpdate
   { cuTime :: UTCTime,
     cuOrigUserId :: Qualified UserId,
     -- | The unqualified ID of the conversation where the update is happening.
-    -- The ID is local to prevent putting arbitrary domain that is different
-    -- than that of the backend making a conversation membership update request.
+    -- The ID is local to the sender to prevent putting arbitrary domain that
+    -- is different than that of the backend making a conversation membership
+    -- update request.
     cuConvId :: ConvId,
-    -- | A list of users from a remote backend that need to be sent
+    -- | A list of users from the receiving backend that need to be sent
     -- notifications about this change. This is required as we do not expect a
     -- non-conversation owning backend to have an indexed mapping of
     -- conversation to users.
@@ -366,11 +354,11 @@ newtype MessageSendResponse = MessageSendResponse
         )
 
 newtype LeaveConversationResponse = LeaveConversationResponse
-  {leaveResponse :: Either RemoveFromConversationError FailedToProcess}
+  {leaveResponse :: Either RemoveFromConversationError ()}
   deriving stock (Eq, Show)
   deriving
     (ToJSON, FromJSON)
-    via (Either (CustomEncoded RemoveFromConversationError) FailedToProcess)
+    via (Either (CustomEncoded RemoveFromConversationError) ())
 
 type UserDeletedNotificationMaxConvs = 1000
 
@@ -399,8 +387,9 @@ data ConversationUpdateRequest = ConversationUpdateRequest
 
 data ConversationUpdateResponse
   = ConversationUpdateResponseError GalleyError
-  | ConversationUpdateResponseUpdate ConversationUpdate FailedToProcess
+  | ConversationUpdateResponseUpdate ConversationUpdate
   | ConversationUpdateResponseNoChanges
+  | ConversationUpdateResponseNonFederatingBackends NonFederatingBackends
   deriving stock (Eq, Show, Generic)
   deriving
     (ToJSON, FromJSON)
@@ -423,13 +412,14 @@ data MLSWelcomeResponse
 data MLSMessageResponse
   = MLSMessageResponseError GalleyError
   | MLSMessageResponseProtocolError Text
-  | MLSMessageResponseProposalFailure Wai.Error
+  | MLSMessageResponseProposalFailure JSONResponse
   | -- | The conversation-owning backend could not reach some of the backends that
     -- have users in the conversation when processing a commit.
     MLSMessageResponseUnreachableBackends (Set Domain)
   | -- | If the list of unreachable users is non-empty, it corresponds to users
     -- that an application message could not be sent to.
     MLSMessageResponseUpdates [ConversationUpdate] (Maybe UnreachableUsers)
+  | MLSMessageResponseNonFederatingBackends NonFederatingBackends
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
 

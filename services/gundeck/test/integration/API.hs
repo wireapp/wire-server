@@ -26,41 +26,38 @@ where
 
 import Bilge hiding (head)
 import Bilge.Assert
-import qualified Cassandra as Cql
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async (Async, async, concurrently_, forConcurrently_, wait)
-import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Async qualified as Async
 import Control.Lens (view, (%~), (.~), (?~), (^.), (^?), _2)
 import Control.Retry (constantDelay, limitRetries, recoverAll, retrying)
 import Data.Aeson hiding (json)
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Lens
-import qualified Data.Aeson.Types as Aeson
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base16 as B16
-import qualified Data.ByteString.Char8 as C
+import Data.Aeson.Types qualified as Aeson
+import Data.ByteString qualified as BS
+import Data.ByteString.Base16 qualified as B16
+import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
-import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy qualified as BL
 import Data.Id
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.List1 (List1)
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Range
-import qualified Data.Set as Set
-import qualified Data.Text.Encoding as T
-import qualified Data.UUID as UUID
+import Data.Set qualified as Set
+import Data.Text.Encoding qualified as T
+import Data.UUID qualified as UUID
 import Data.UUID.V4
 import Gundeck.Options
-import qualified Gundeck.Push.Data as Push
 import Gundeck.Types
-import qualified Gundeck.Types.Common
+import Gundeck.Types.Common qualified
 import Imports
-import qualified Network.HTTP.Client as Http
+import Network.HTTP.Client qualified as Http
 import Network.URI (parseURI)
-import qualified Network.WebSockets as WS
+import Network.WebSockets qualified as WS
 import Safe
-import qualified System.Logger.Extended as Log
 import System.Random (randomIO)
 import System.Timeout (timeout)
 import Test.Tasty
@@ -68,7 +65,7 @@ import Test.Tasty.HUnit
 import TestSetup
 import Util (runRedisProxy, withSettingsOverrides)
 import Wire.API.Internal.Notification
-import qualified Prelude
+import Prelude qualified
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -76,9 +73,7 @@ tests s =
     "API tests"
     [ testGroup
         "Push"
-        [ test s "Register a user" addUser,
-          test s "Delete a user" removeUser,
-          test s "Replace presence" replacePresence,
+        [ test s "Replace presence" replacePresence,
           test s "Remove stale presence" removeStalePresence,
           test s "Single user push" singleUserPush,
           test s "Single user push with large message" singleUserPushLargeMessage,
@@ -92,7 +87,6 @@ tests s =
       testGroup
         "Notifications"
         [ test s "No notifications" testNoNotifs,
-          test s "Fetch all notifications" testFetchAllNotifs,
           test s "Fetch new notifications" testFetchNewNotifs,
           test s "No new notifications" testNoNewNotifs,
           test s "Missing notifications (until API Version 3)" testMissingNotifsV2,
@@ -138,35 +132,6 @@ tests s =
 
 -----------------------------------------------------------------------------
 -- Push
-
--- For one-of manual sanity tests if gundeck loses its connection to redis while this test is running.
--- TODO remove commented code.
--- addUser :: TestM ()
--- addUser = forever $ do
---   putStrLn "Running Test"
---   void registerUser `catch` (\(_ :: SomeException) -> liftIO $ putStrLn "Failure")
---   putStrLn "Ran Test"
---   threadDelay 10000
---
-addUser :: TestM (UserId, ConnId)
-addUser = registerUser
-
-removeUser :: TestM ()
-removeUser = do
-  g <- view tsGundeck
-  s <- view tsCass
-  logger <- view tsLogger
-  user <- fst <$> registerUser
-  clt <- randomClientId
-  tok <- randomToken clt gcmToken
-  _ <- registerPushToken user tok
-  _ <- sendPush (buildPush user [(user, RecipientClientsAll)] (textPayload "data"))
-  deleteUser g user
-  ntfs <- listNotifications user Nothing
-  liftIO $ do
-    tokens <- Cql.runClient s (Log.runWithLogger logger $ Push.lookup user Push.LocalQuorum)
-    null tokens @?= True
-    ntfs @?= []
 
 replacePresence :: TestM ()
 replacePresence = do
@@ -463,19 +428,6 @@ testNoNotifs = do
   ally <- randomId
   ns <- listNotifications ally Nothing
   liftIO $ assertEqual "Unexpected notifications" 0 (length ns)
-
-testFetchAllNotifs :: TestM ()
-testFetchAllNotifs = do
-  ally <- randomId
-  let pload = textPayload "hello"
-  replicateM_ 10 (sendPush (buildPush ally [(ally, RecipientClientsAll)] pload))
-  ns <- listNotifications ally Nothing
-  liftIO $ assertEqual "Unexpected notification count" 10 (length ns)
-  liftIO $
-    assertEqual
-      "Unexpected notification payloads"
-      (replicate 10 (List1.toNonEmpty pload))
-      (map (view queuedNotificationPayload) ns)
 
 testFetchNewNotifs :: TestM ()
 testFetchNewNotifs = do
@@ -977,15 +929,6 @@ testRedisMigration = do
 
 -- * Helpers
 
-registerUser :: HasCallStack => TestM (UserId, ConnId)
-registerUser = do
-  ca <- view tsCannon
-  uid <- randomId
-  con <- randomConnId
-  void $ connectUser ca uid con
-  ensurePresent uid 1
-  pure (uid, con)
-
 ensurePresent :: HasCallStack => UserId -> Int -> TestM ()
 ensurePresent u n = do
   gu <- view tsGundeck
@@ -1257,9 +1200,6 @@ randomUser = do
     mkEmail loc dom = do
       uid <- nextRandom
       pure $ loc <> "+" <> UUID.toText uid <> "@" <> dom
-
-deleteUser :: HasCallStack => GundeckR -> UserId -> TestM ()
-deleteUser g uid = delete (runGundeckR g . zUser uid . path "/i/user") !!! const 200 === statusCode
 
 toRecipients :: [UserId] -> Range 1 1024 (Set Recipient)
 toRecipients = unsafeRange . Set.fromList . map (`recipient` RouteAny)

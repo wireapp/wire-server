@@ -2,7 +2,7 @@ apiVersion: k8ssandra.io/v1alpha1
 kind: K8ssandraCluster
 metadata:
   name: k8ssandra-cluster
-  namespace: databases
+  namespace: {{ .Release.Namespace }}
 spec:
   auth: false
   cassandra:

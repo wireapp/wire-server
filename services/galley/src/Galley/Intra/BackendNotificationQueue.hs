@@ -1,6 +1,6 @@
 {-# LANGUAGE NumericUnderscores #-}
 
-module Galley.Intra.BackendNotificationQueue where
+module Galley.Intra.BackendNotificationQueue (interpretBackendNotificationQueueAccess) where
 
 import Control.Lens (view)
 import Control.Monad.Catch
@@ -12,10 +12,10 @@ import Galley.Env
 import Galley.Monad
 import Galley.Options
 import Imports
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Input
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import UnliftIO.Timeout (timeout)
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Error

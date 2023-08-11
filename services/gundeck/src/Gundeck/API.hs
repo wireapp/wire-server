@@ -20,7 +20,7 @@ module Gundeck.API
   )
 where
 
-import qualified Gundeck.API.Internal as Internal
+import Gundeck.API.Internal qualified as Internal
 import Gundeck.Monad (Gundeck)
 import Network.Wai.Routing (Routes)
 

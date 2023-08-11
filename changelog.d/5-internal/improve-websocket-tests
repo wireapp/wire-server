@@ -1,0 +1,3 @@
+Improved websocket tests:
+ - better error reporting
+ - choose the correct backend when establishing a websocket connection

@@ -25,47 +25,47 @@ import AWS.Util (readAuthExpiration)
 import Brig.API (sitemap)
 import Brig.API.Federation
 import Brig.API.Handler
-import qualified Brig.API.Internal as IAPI
+import Brig.API.Internal qualified as IAPI
 import Brig.API.Public (DocsAPI, docsAPI, servantSitemap)
-import qualified Brig.API.User as API
+import Brig.API.User qualified as API
 import Brig.AWS (amazonkaEnv, sesQueue)
-import qualified Brig.AWS as AWS
-import qualified Brig.AWS.SesNotification as SesNotification
+import Brig.AWS qualified as AWS
+import Brig.AWS.SesNotification qualified as SesNotification
 import Brig.App
-import qualified Brig.Calling as Calling
+import Brig.Calling qualified as Calling
 import Brig.CanonicalInterpreter
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
-import qualified Brig.Effects.UserPendingActivationStore as UsersPendingActivationStore
-import qualified Brig.InternalEvent.Process as Internal
+import Brig.Effects.UserPendingActivationStore qualified as UsersPendingActivationStore
+import Brig.InternalEvent.Process qualified as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
-import qualified Brig.Queue as Queue
+import Brig.Queue qualified as Queue
 import Brig.Version
-import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Async qualified as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Default (Default (def))
 import Data.Id (RequestId (..))
 import Data.Metrics.AWS (gaugeTokenRemaing)
-import qualified Data.Metrics.Servant as Metrics
+import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
 import Imports hiding (head)
-import qualified Network.HTTP.Media as HTTPMedia
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Middleware.Gunzip as GZip
-import qualified Network.Wai.Middleware.Gzip as GZip
+import Network.HTTP.Media qualified as HTTPMedia
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai qualified as Wai
+import Network.Wai.Middleware.Gunzip qualified as GZip
+import Network.Wai.Middleware.Gzip qualified as GZip
 import Network.Wai.Routing (Tree)
 import Network.Wai.Routing.Route (App)
 import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
-import qualified Network.Wai.Utilities.Server as Server
+import Network.Wai.Utilities.Server qualified as Server
 import Polysemy (Member)
 import Servant (Context ((:.)), (:<|>) (..))
-import qualified Servant
+import Servant qualified
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
@@ -75,7 +75,7 @@ import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
-import qualified Wire.Sem.Paging as P
+import Wire.Sem.Paging qualified as P
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a

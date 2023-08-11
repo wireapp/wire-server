@@ -59,6 +59,7 @@ module Galley.Effects.TeamStore
     getTeamMembersWithLimit,
     getTeamMembers,
     getBillingTeamMembers,
+    getTeamAdmins,
     selectTeamMembers,
 
     -- ** Update team members
@@ -82,7 +83,7 @@ import Galley.Effects.ListItems
 import Galley.Types.Teams
 import Imports
 import Polysemy
-import qualified Proto.TeamEvents as E
+import Proto.TeamEvents qualified as E
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -105,6 +106,7 @@ data TeamStore m a where
     TeamStore m Team
   DeleteTeamMember :: TeamId -> UserId -> TeamStore m ()
   GetBillingTeamMembers :: TeamId -> TeamStore m [UserId]
+  GetTeamAdmins :: TeamId -> TeamStore m [UserId]
   GetTeam :: TeamId -> TeamStore m (Maybe TeamData)
   GetTeamName :: TeamId -> TeamStore m (Maybe Text)
   GetTeamConversation :: TeamId -> ConvId -> TeamStore m (Maybe TeamConversation)

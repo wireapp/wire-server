@@ -27,8 +27,8 @@ module Galley.Queue
   )
 where
 
-import qualified Control.Concurrent.STM as Stm
-import qualified Galley.Effects.Queue as E
+import Control.Concurrent.STM qualified as Stm
+import Galley.Effects.Queue qualified as E
 import Imports
 import Numeric.Natural (Natural)
 import Polysemy

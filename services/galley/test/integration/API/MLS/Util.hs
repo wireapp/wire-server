@@ -29,29 +29,29 @@ import Control.Error.Util
 import Control.Lens (preview, to, view, (.~), (^..))
 import Control.Monad.Catch
 import Control.Monad.State (StateT, evalStateT)
-import qualified Control.Monad.State as State
+import Control.Monad.State qualified as State
 import Control.Monad.Trans.Maybe
 import Crypto.PubKey.Ed25519
 import Data.Aeson.Lens
-import qualified Data.ByteArray as BA
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base64.URL as B64U
+import Data.ByteArray qualified as BA
+import Data.ByteString qualified as BS
+import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Hex
 import Data.Id
 import Data.Json.Util hiding ((#))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Set qualified as Set
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Time.Clock (getCurrentTime)
-import qualified Data.Tuple.Extra as Tuple
+import Data.Tuple.Extra qualified as Tuple
 import Galley.Keys
 import Galley.Options
-import qualified Galley.Options as Opts
+import Galley.Options qualified as Opts
 import Imports hiding (getSymbolicLinkTarget)
 import System.Directory (getSymbolicLinkTarget)
 import System.FilePath
@@ -59,7 +59,7 @@ import System.IO.Temp
 import System.Posix hiding (createDirectory)
 import System.Process
 import Test.QuickCheck (arbitrary, generate)
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
@@ -69,7 +69,6 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireMember)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
-import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfoBundle
@@ -957,28 +956,6 @@ clientKeyPair cid = do
           & fmap fromIntegral
           & BS.pack
   pure $ BS.splitAt 32 s
-
-receiveNewRemoteConv ::
-  (MonadReader TestSetup m, MonadIO m) =>
-  Qualified ConvId ->
-  GroupId ->
-  m ()
-receiveNewRemoteConv conv gid = do
-  client <- view tsFedGalleyClient
-  let nrc =
-        NewRemoteConversation (qUnqualified conv) $
-          ProtocolMLS
-            ( ConversationMLSData
-                gid
-                (Epoch 1)
-                MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-            )
-  void $
-    runFedClient
-      @"on-new-remote-conversation"
-      client
-      (qDomain conv)
-      nrc
 
 receiveOnConvUpdated ::
   (MonadReader TestSetup m, MonadIO m) =>

@@ -3,8 +3,8 @@
 module Brig.Effects.RPC where
 
 import Bilge
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.Text.Lazy as LT
+import Data.ByteString.Lazy qualified as BL
+import Data.Text.Lazy qualified as LT
 import Imports
 import Network.HTTP.Types.Method
 import Polysemy

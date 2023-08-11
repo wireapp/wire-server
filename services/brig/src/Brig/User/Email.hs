@@ -35,17 +35,16 @@ where
 
 import Brig.App
 import Brig.Email
-import qualified Brig.Email as Email
+import Brig.Email qualified as Email
 import Brig.Locale (formatDateTime, timeLocale)
 import Brig.Template
 import Brig.Types.Activation (ActivationPair)
-import Brig.Types.User (PasswordResetPair)
 import Brig.User.Template
 import Control.Lens (view)
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.Range
-import qualified Data.Text.Ascii as Ascii
+import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (toStrict)
 import Imports
 import Wire.API.User

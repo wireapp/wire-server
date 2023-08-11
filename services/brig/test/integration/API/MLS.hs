@@ -21,12 +21,12 @@ import API.MLS.Util
 import Bilge
 import Bilge.Assert
 import Brig.Options
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion
 import Data.Default
 import Data.Id
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Timeout
 import Federation.Util
 import Imports

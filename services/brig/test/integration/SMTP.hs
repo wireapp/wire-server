@@ -4,22 +4,22 @@
 
 module SMTP where
 
-import qualified Bilge
+import Bilge qualified
 import Brig.SMTP
 import Control.Exception
 import Data.Bifunctor
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as C
+import Data.ByteString qualified as B
+import Data.ByteString.Char8 qualified as C
 import Data.Streaming.Network (bindRandomPortTCP)
 import Data.Text (unpack)
 import Data.Text.Lazy (fromStrict)
 import Data.Time.Units
 import Imports
 import Network.Mail.Mime
-import qualified Network.Mail.Postie as Postie
+import Network.Mail.Postie qualified as Postie
 import Network.Socket
-import qualified Pipes.Prelude
-import qualified System.Logger as Logger
+import Pipes.Prelude qualified
+import System.Logger qualified as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util

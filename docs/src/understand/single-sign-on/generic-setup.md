@@ -35,3 +35,7 @@ eg.
 See
 <https://support.wire.com/hc/en-us/articles/360000954617-Pro-How-to-log-in-with-SSO>-
 on how to use this to login on wire.
+
+## Trouble shooting
+
+See {ref}`FAQ <trouble-shooting-faq>`.

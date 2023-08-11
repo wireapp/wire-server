@@ -18,7 +18,7 @@
 module DelayQueue where
 
 import Gundeck.Util.DelayQueue
-import qualified Gundeck.Util.DelayQueue as DelayQueue
+import Gundeck.Util.DelayQueue qualified as DelayQueue
 import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck

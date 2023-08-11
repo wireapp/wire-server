@@ -26,11 +26,11 @@ where
 import Control.Monad.Catch
 import Control.Monad.Except
 import Data.Aeson
-import qualified Data.ByteString as Strict
+import Data.ByteString qualified as Strict
 import Data.ByteString.Builder (byteString)
-import qualified Data.ByteString.Char8 as StrictChars
+import Data.ByteString.Char8 qualified as StrictChars
 import Data.ByteString.Conversion hiding (fromList)
-import qualified Data.ByteString.Lazy as Lazy
+import Data.ByteString.Lazy qualified as Lazy
 import Data.Id
 import Data.Misc (Milliseconds)
 import Database.Redis

@@ -32,27 +32,27 @@ import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Data.Misc (Milliseconds)
 import Data.Range
-import qualified Data.Set as Set
-import qualified Data.Text.Encoding as T
+import Data.Set qualified as Set
+import Data.Text.Encoding qualified as T
 import Imports
-import qualified Network.Wai.Utilities.Error as Error
+import Network.Wai.Utilities.Error qualified as Error
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
-import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature (FeatureStatus (..))
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Invitation
-import qualified Wire.API.Team.Member as Member
+import Wire.API.Team.Member qualified as Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
-import qualified Wire.API.User as Public
+import Wire.API.User qualified as Public
 import Wire.API.User.Activation
 
 -- | FUTUREWORK: Remove 'createPopulatedBindingTeam', 'createPopulatedBindingTeamWithNames',

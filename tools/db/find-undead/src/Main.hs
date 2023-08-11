@@ -25,12 +25,12 @@ where
 import Cassandra as C
 import Cassandra.Settings as C
 import Data.Text as Text
-import qualified Database.Bloodhound as ES
+import Database.Bloodhound qualified as ES
 import Imports
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Options as O
 import Options.Applicative
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import Work
 
 main :: IO ()

@@ -1,13 +1,26 @@
 logLevel: Info
 
+backgroundWorker:
+  host: 0.0.0.0
+  port: 8089
+
 federatorInternal:
   host: 127.0.0.1
   port: 8097
+
+galley:
+  host: 127.0.0.1
+  port: 8085
+
+brig:
+  host: 127.0.0.1
+  port: 8082
 
 rabbitmq:
   host: 127.0.0.1
   port: 5672
   vHost: /
+  adminPort: 15672
 
-remoteDomains:
-  - b.example.com
+backendNotificationPusher:
+  remotesRefreshInterval: 1

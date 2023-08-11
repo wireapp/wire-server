@@ -20,8 +20,8 @@ module Test.Galley.API.Message where
 import Control.Lens
 import Data.Domain
 import Data.Id
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Set.Lens
 import Data.UUID.Types
 import Galley.API.Message

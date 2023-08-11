@@ -20,21 +20,21 @@ module Federator.Discovery where
 
 import Data.Domain (Domain, domainText)
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy as LText
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as LText
 import Federator.Error
 import Imports
-import qualified Network.DNS as DNS
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.DNS qualified as DNS
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
-import qualified Polysemy.Error as Polysemy
+import Polysemy.Error qualified as Polysemy
 import Polysemy.TinyLog (TinyLog)
-import qualified Polysemy.TinyLog as TinyLog
-import qualified System.Logger.Class as Log
+import Polysemy.TinyLog qualified as TinyLog
+import System.Logger.Class qualified as Log
 import Wire.Network.DNS.Effect (DNSLookup)
-import qualified Wire.Network.DNS.Effect as Lookup
+import Wire.Network.DNS.Effect qualified as Lookup
 import Wire.Network.DNS.SRV (SrvEntry (srvTarget), SrvResponse (..), SrvTarget)
 
 data DiscoveryFailure

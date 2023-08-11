@@ -90,22 +90,22 @@ import Control.Lens (Lens', makeLenses, over, (.~), (^.))
 import Control.Monad.Catch
 import Data.Aeson
 import Data.Bits
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
-import qualified Data.Id
+import Data.Id qualified
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Proxy
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
-import qualified Data.ZAuth.Creation as ZC
+import Data.ZAuth.Creation qualified as ZC
 import Data.ZAuth.Token
-import qualified Data.ZAuth.Validation as ZV
+import Data.ZAuth.Validation qualified as ZV
 import Imports
 import OpenSSL.Random
 import Sodium.Crypto.Sign
-import qualified Wire.API.User.Auth as Auth
+import Wire.API.User.Auth qualified as Auth
 
 newtype ZAuth a = ZAuth {unZAuth :: ReaderT Env IO a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env)

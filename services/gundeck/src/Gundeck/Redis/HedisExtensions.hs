@@ -23,7 +23,7 @@ module Gundeck.Redis.HedisExtensions
   )
 where
 
-import qualified Data.ByteString.Char8 as Char8
+import Data.ByteString.Char8 qualified as Char8
 import Database.Redis
 import Imports hiding (Down)
 import UnliftIO

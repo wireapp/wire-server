@@ -18,7 +18,7 @@
 module Test.Wire.API.Golden.Generated.UpdateServiceWhitelist_provider where
 
 import Data.Id (Id (Id))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Bool (False, True), fromJust)
 import Wire.API.Provider.Service (UpdateServiceWhitelist (..))
 

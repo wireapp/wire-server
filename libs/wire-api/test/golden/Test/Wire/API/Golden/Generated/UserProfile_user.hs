@@ -25,7 +25,7 @@ import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 import Wire.API.User

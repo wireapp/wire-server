@@ -36,7 +36,7 @@ import Data.ISO3166_CountryCodes
         SZ
       ),
   )
-import qualified Data.LanguageCodes
+import Data.LanguageCodes qualified
   ( ISO639_1
       ( BO,
         EE,

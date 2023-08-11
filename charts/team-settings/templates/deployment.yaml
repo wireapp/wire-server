@@ -29,6 +29,10 @@ spec:
       containers:
       - name: team-settings
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        {{- if eq (include "includeSecurityContext" .) "true" }}
+        securityContext:
+          {{- toYaml .Values.podSecurityContext | nindent 10 }}
+        {{- end }}
         env:
           - name: NODE_PORT
             value: "{{ .Values.service.http.internalPort }}"

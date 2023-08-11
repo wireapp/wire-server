@@ -19,15 +19,15 @@ module Wire.API.Routes.LowLevelStream where
 
 import Control.Lens (at, (.~), (?~))
 import Data.ByteString.Char8 as B8
-import qualified Data.CaseInsensitive as CI
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.CaseInsensitive qualified as CI
+import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Metrics.Servant
 import Data.Proxy
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports
-import qualified Network.HTTP.Media as HTTP
+import Network.HTTP.Media qualified as HTTP
 import Network.HTTP.Types
 import Network.Wai
 import Servant.API

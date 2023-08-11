@@ -26,15 +26,14 @@ module Stern.API.Routes
   )
 where
 
-import Brig.Types.Intra (UserAccount)
 import Control.Lens
 import Control.Monad.Trans.Except
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Handle
 import Data.Id
 import Data.Kind
-import qualified Data.Schema as Schema
-import qualified Data.Swagger as S
+import Data.Schema qualified as Schema
+import Data.Swagger qualified as S
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities
@@ -43,9 +42,10 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import Stern.Types
+import Wire.API.CustomBackend
 import Wire.API.OAuth
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
-import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Named
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.Team.Feature
@@ -379,7 +379,35 @@ type SternAPI =
                :> "user"
                :> "meta-info"
                :> QueryParam' [Required, Strict, Description "A valid UserId"] "id" UserId
+               :> QueryParam' [Optional, Strict, Description "Max number of conversation (default 1)"] "max_conversations" Int
+               :> QueryParam' [Optional, Strict, Description "Max number of notifications (default 10)"] "max_notifications" Int
                :> Post '[JSON] UserMetaInfo
+           )
+    :<|> Named
+           "get-sso-domain-redirect"
+           ( Summary "read, update, delete domain login redirects custom backends (see https://docs.wire.com/understand/associate/custom-backend-for-desktop-client.html)"
+               :> Description "Read from cassandra table galley.custom_backend."
+               :> "sso-domain-redirect"
+               :> QueryParam' [Required, Strict, Description "Domain"] "domain" Text
+               :> Get '[JSON] (Maybe CustomBackend)
+           )
+    :<|> Named
+           "put-sso-domain-redirect"
+           ( Summary "read, update, delete domain login redirects custom backends (see https://docs.wire.com/understand/associate/custom-backend-for-desktop-client.html)"
+               :> Description "Write to cassandra table galley.custom_backend."
+               :> "sso-domain-redirect"
+               :> QueryParam' [Required, Strict, Description "Domain key (from email during login)"] "domain" Text
+               :> QueryParam' [Required, Strict, Description "Config JSON URL"] "configurl" Text
+               :> QueryParam' [Required, Strict, Description "Webapp welcome URL"] "welcomeurl" Text
+               :> Put '[JSON] ()
+           )
+    :<|> Named
+           "delete-sso-domain-redirect"
+           ( Summary "read, update, delete domain login redirects custom backends (see https://docs.wire.com/understand/associate/custom-backend-for-desktop-client.html)"
+               :> Description "Delete from cassandra table galley.custom_backend."
+               :> "sso-domain-redirect"
+               :> QueryParam' [Required, Strict, Description "Domain key (from email during login)"] "domain" Text
+               :> Delete '[JSON] ()
            )
     :<|> Named
            "register-oauth-client"

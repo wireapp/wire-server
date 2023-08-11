@@ -27,13 +27,12 @@ import Data.Id
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
 import Data.Range
-import qualified Galley.Aws as Aws
+import Galley.Aws qualified as Aws
 import Galley.Options
-import qualified Galley.Queue as Q
+import Galley.Queue qualified as Q
 import HTTP2.Client.Manager (Http2Manager)
 import Imports
-import qualified Network.AMQP as Q
-import qualified Network.AMQP.Extended as Q
+import Network.AMQP qualified as Q
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest
@@ -108,15 +107,3 @@ currentFanoutLimit o = do
   let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. (optSettings . setMaxFanoutSize))
   let maxTeamSize = fromIntegral (o ^. (optSettings . setMaxTeamSize))
   unsafeRange (min maxTeamSize optFanoutLimit)
-
-mkRabbitMqChannel :: Logger -> Opts -> IO (Maybe (MVar Q.Channel))
-mkRabbitMqChannel l (view optRabbitmq -> Just RabbitMqOpts {..}) = do
-  chan <- newEmptyMVar
-  Q.openConnectionWithRetries l _rabbitmqHost _rabbitmqPort _rabbitmqVHost $
-    Q.RabbitMqHooks
-      { onNewChannel = putMVar chan,
-        onChannelException = \_ -> void $ tryTakeMVar chan,
-        onConnectionClose = void $ tryTakeMVar chan
-      }
-  pure $ Just chan
-mkRabbitMqChannel _ _ = pure Nothing

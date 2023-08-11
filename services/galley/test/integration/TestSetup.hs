@@ -46,25 +46,25 @@ module TestSetup
 where
 
 import Bilge (Manager, MonadHttp (..), Request, withResponse)
-import qualified Cassandra as Cql
+import Cassandra qualified as Cql
 import Control.Lens (makeLenses, view, (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.Proxy
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import GHC.TypeLits
-import qualified Galley.Aws as Aws
+import Galley.Aws qualified as Aws
 import Galley.Options (Opts)
 import Imports
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Proto.TeamEvents (TeamEvent)
-import qualified Servant.Client as Servant
-import qualified Servant.Client.Core as Servant
+import Servant.Client qualified as Servant
+import Servant.Client.Core qualified as Servant
 import Test.Tasty.HUnit
 import Util.Options
-import qualified Util.Test.SQS as SQS
+import Util.Test.SQS qualified as SQS
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
 

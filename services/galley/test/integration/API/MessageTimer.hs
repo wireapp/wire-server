@@ -29,17 +29,17 @@ import Data.Aeson (eitherDecode)
 import Data.Domain
 import Data.Id
 import Data.List1
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Misc
 import Data.Qualified
 import Data.Singletons
 import Federator.MockServer
 import Imports hiding (head)
-import qualified Network.HTTP.Types as Http
+import Network.HTTP.Types qualified as Http
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
@@ -47,7 +47,8 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
-import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.API.Common
+import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
 
@@ -160,7 +161,7 @@ messageTimerChangeWithRemotes = do
 
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator' (mockReply ()) $
+      withTempMockFederator' (mockReply EmptyResponse) $
         putMessageTimerUpdateQualified bob qconv (ConversationMessageTimerUpdate timer1sec)
           !!! const 200 === statusCode
 

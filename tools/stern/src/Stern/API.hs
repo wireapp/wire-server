@@ -32,7 +32,7 @@ import Control.Error
 import Control.Lens ((^.))
 import Control.Monad.Except
 import Data.Aeson hiding (Error, json)
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
@@ -41,19 +41,19 @@ import Data.Proxy (Proxy (..))
 import Data.Range
 import Data.Schema hiding ((.=))
 import Data.Text (unpack)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Utilities
-import qualified Network.Wai.Utilities.Server as Server
+import Network.Wai.Utilities.Server qualified as Server
 import Servant (NoContent (NoContent), ServerT, (:<|>) (..))
-import qualified Servant
-import qualified Servant.Server
+import Servant qualified
+import Servant.Server qualified
 import Stern.API.Routes
 import Stern.App
-import qualified Stern.Intra as Intra
+import Stern.Intra qualified as Intra
 import Stern.Options
 import Stern.Types
 import System.Logger.Class hiding (Error, name, trace, (.=))
@@ -61,8 +61,8 @@ import Util.Options
 import Wire.API.Connection
 import Wire.API.Internal.Notification (QueuedNotification)
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
-import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
-import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
+import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.Team.SearchVisibility
@@ -164,6 +164,9 @@ sitemap' =
     :<|> Named @"post-team-billing-info" setTeamBillingInfo
     :<|> Named @"get-consent-log" getConsentLog
     :<|> Named @"get-user-meta-info" getUserData
+    :<|> Named @"get-sso-domain-redirect" Intra.getSsoDomainRedirect
+    :<|> Named @"put-sso-domain-redirect" Intra.putSsoDomainRedirect
+    :<|> Named @"delete-sso-domain-redirect" Intra.deleteSsoDomainRedirect
     :<|> Named @"register-oauth-client" Intra.registerOAuthClient
     :<|> Named @"get-oauth-client" Intra.getOAuthClient
     :<|> Named @"update-oauth-client" Intra.updateOAuthClient
@@ -395,13 +398,13 @@ getConsentLog e = do
     <$> Intra.getEmailConsentLog e
     <*> Intra.getMarketoResult e
 
-getUserData :: UserId -> Handler UserMetaInfo
-getUserData uid = do
+getUserData :: UserId -> Maybe Int -> Maybe Int -> Handler UserMetaInfo
+getUserData uid mMaxConvs mMaxNotifs = do
   account <- Intra.getUserProfiles (Left [uid]) >>= noSuchUser . listToMaybe
   conns <- Intra.getUserConnections uid
-  convs <- Intra.getUserConversations uid
+  convs <- Intra.getUserConversations uid <&> take (fromMaybe 1 mMaxConvs)
   clts <- Intra.getUserClients uid
-  notfs <- (Intra.getUserNotifications uid <&> toJSON @[QueuedNotification]) `catchE` (pure . String . cs . show)
+  notfs <- (Intra.getUserNotifications uid <&> take (fromMaybe 10 mMaxNotifs) <&> toJSON @[QueuedNotification]) `catchE` (pure . String . cs . show)
   consent <- (Intra.getUserConsentValue uid <&> toJSON @ConsentValue) `catchE` (pure . String . cs . show)
   consentLog <- (Intra.getUserConsentLog uid <&> toJSON @ConsentLog) `catchE` (pure . String . cs . show)
   cookies <- Intra.getUserCookies uid

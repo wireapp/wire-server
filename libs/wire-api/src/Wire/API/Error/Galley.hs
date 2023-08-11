@@ -26,23 +26,28 @@ module Wire.API.Error.Galley
     AuthenticationError (..),
     TeamFeatureError (..),
     MLSProposalFailure (..),
+    NonFederatingBackends (..),
   )
 where
 
-import Control.Lens ((%~))
+import Control.Lens ((%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Domain
+import Data.Proxy
+import Data.Schema
 import Data.Singletons.TH (genSingletons)
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Tagged
 import GHC.TypeLits
 import Imports
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.HTTP.Types.Status qualified as HTTP
+import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Error
 import Prelude.Singletons (Show_)
 import Wire.API.Conversation.Role
 import Wire.API.Error
-import qualified Wire.API.Error.Brig as BrigError
+import Wire.API.Error.Brig qualified as BrigError
 import Wire.API.Routes.API
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
@@ -59,6 +64,7 @@ data GalleyError
   | UserBindingExists
   | NoAddToBinding
   | TooManyTeamMembers
+  | TooManyTeamAdmins
   | -- FUTUREWORK: possibly make MissingPermission take a list of Perm
     MissingPermission (Maybe Perm)
   | ActionDenied Action
@@ -130,7 +136,7 @@ instance KnownError (MapError e) => IsSwaggerError (e :: GalleyError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
 
 instance KnownError (MapError e) => APIError (Tagged (e :: GalleyError) ()) where
-  toWai _ = toWai $ dynError @(MapError e)
+  toResponse _ = toResponse $ dynError @(MapError e)
 
 -- | Convenience synonym for an operation denied error with an unspecified permission.
 type OperationDenied = 'MissingPermission 'Nothing
@@ -167,6 +173,8 @@ type instance MapError 'UserBindingExists = 'StaticError 403 "binding-exists" "U
 type instance MapError 'NoAddToBinding = 'StaticError 403 "binding-team" "Cannot add users to binding teams, invite only"
 
 type instance MapError 'TooManyTeamMembers = 'StaticError 403 "too-many-team-members" "Maximum number of members per team reached"
+
+type instance MapError 'TooManyTeamAdmins = 'StaticError 403 "too-many-team-admins" "Maximum number of admins per team reached"
 
 type instance MapError ('MissingPermission mperm) = 'StaticError 403 "operation-denied" (MissingPermissionMessage mperm)
 
@@ -376,7 +384,7 @@ instance Member (Error DynError) r => ServerEffect (Error TeamFeatureError) r wh
 -- Proposal failure
 
 data MLSProposalFailure = MLSProposalFailure
-  { pfInner :: Wai.Error
+  { pfInner :: JSONResponse
   }
 
 type instance ErrorEffect MLSProposalFailure = Error MLSProposalFailure
@@ -395,5 +403,52 @@ instance IsSwaggerError MLSProposalFailure where
         \for more details on the possible error responses of each type of \
         \proposal."
 
-instance Member (Error Wai.Error) r => ServerEffect (Error MLSProposalFailure) r where
+instance Member (Error JSONResponse) r => ServerEffect (Error MLSProposalFailure) r where
   interpretServerEffect = mapError pfInner
+
+--------------------------------------------------------------------------------
+-- Non-federating backends
+
+-- | This is returned when adding members to the conversation is not possible
+-- because the backends involved do not form a fully connected graph.
+data NonFederatingBackends = NonFederatingBackends Domain Domain
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema NonFederatingBackends
+
+instance APIError NonFederatingBackends where
+  toResponse e =
+    JSONResponse
+      { status = nonFederatingBackendsStatus,
+        value = toJSON e
+      }
+
+nonFederatingBackendsStatus :: HTTP.Status
+nonFederatingBackendsStatus = HTTP.status409
+
+nonFederatingBackendsToList :: NonFederatingBackends -> [Domain]
+nonFederatingBackendsToList (NonFederatingBackends a b) = [a, b]
+
+nonFederatingBackendsFromList :: MonadFail m => [Domain] -> m NonFederatingBackends
+nonFederatingBackendsFromList [a, b] = pure (NonFederatingBackends a b)
+nonFederatingBackendsFromList domains =
+  fail $
+    "Expected 2 backends, found " <> show (length domains)
+
+instance ToSchema NonFederatingBackends where
+  schema =
+    object "NonFederatingBackends" $
+      withParser
+        (nonFederatingBackendsToList .= field "non_federating_backends" (array schema))
+        nonFederatingBackendsFromList
+
+instance IsSwaggerError NonFederatingBackends where
+  addToSwagger =
+    addErrorResponseToSwagger (HTTP.statusCode nonFederatingBackendsStatus) $
+      mempty
+        & S.description .~ "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph"
+        & S.schema ?~ S.Inline (S.toSchema (Proxy @NonFederatingBackends))
+
+type instance ErrorEffect NonFederatingBackends = Error NonFederatingBackends
+
+instance Member (Error JSONResponse) r => ServerEffect (Error NonFederatingBackends) r where
+  interpretServerEffect = mapError toResponse

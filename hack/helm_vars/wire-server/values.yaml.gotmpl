@@ -78,11 +78,15 @@ brig:
       # See helmfile for the real value
       setFederationDomain: integration.example.com
       setFederationDomainConfigs:
-        # See helmfile for the real value
+        # 'setFederationDomainConfigs' is deprecated as of https://github.com/wireapp/wire-server/pull/3260.  See
+        # https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+        # for details.
         - domain: integration.example.com
           search_policy: full_search
         - domain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
           search_policy: full_search
+      setFederationStrategy: allowAll
+      setFederationDomainConfigsUpdateFreq: 10
       set2FACodeGenerationDelaySecs: 5
       setNonceTtlSecs: 300
       setDpopMaxSkewSecs: 1
@@ -180,7 +184,6 @@ galley:
       maxFanoutSize: 18
       maxConvSize: 16
       conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/conversation-join/
-      enableIndexedBillingTeamMembers: true
       # See helmfile for the real value
       federationDomain: integration.example.com
       featureFlags:
@@ -219,8 +222,8 @@ gundeck:
       host: cassandra-ephemeral
       replicaCount: 1
     redis:
-      host: redis-cluster
-      connectionMode: cluster
+      host: redis-ephemeral-master
+      connectionMode: master
     aws:
       account: "123456789012"
       region: eu-west-1
@@ -300,8 +303,6 @@ federator:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     optSettings:
-      federationStrategy:
-        allowAll: true
       useSystemCAStore: false
 
 background-worker:
@@ -310,9 +311,13 @@ background-worker:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
-    # See helmfile for the real value
-    remoteDomains: []
+    backendNotificationPusher:
+      remotesRefreshInterval: 1
   secrets:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
+
+integration:
+  ingress:
+    class: "nginx-{{ .Release.Namespace }}"

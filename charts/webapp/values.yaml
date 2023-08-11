@@ -9,7 +9,7 @@ resources:
     cpu: "1"
 image:
   repository: quay.io/wire/webapp
-  tag: "2023-05-30-production.0-v0.31.16-0-1b2370b"
+  tag: "2023-07-13-production.0-v0.31.16-0-a9b67c6"
 service:
   https:
     externalPort: 443
@@ -50,3 +50,12 @@ envVars: {}
 #   CSP_EXTRA_PREFETCH_SRC: "https://*.example.com"
 #   CSP_EXTRA_STYLE_SRC: "https://*.example.com"
 #   CSP_EXTRA_WORKER_SRC: "https://*.example.com"
+
+podSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault

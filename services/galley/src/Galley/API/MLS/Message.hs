@@ -33,12 +33,12 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NE
+import Data.Map qualified as Map
 import Data.Qualified
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as LT
+import Data.Set qualified as Set
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as LT
 import Data.Time
 import Data.Tuple.Extra
 import Galley.API.Action
@@ -52,7 +52,7 @@ import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (postMLSWelcome)
 import Galley.API.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
-import qualified Galley.Data.Conversation.Types as Data
+import Galley.Data.Conversation.Types qualified as Data
 import Galley.Data.Types
 import Galley.Effects
 import Galley.Effects.BrigAccess
@@ -68,6 +68,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
+import Polysemy.Output
 import Polysemy.Resource (Resource, bracket)
 import Polysemy.TinyLog
 import Wire.API.Conversation hiding (Member)
@@ -88,7 +89,7 @@ import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
-import qualified Wire.API.MLS.Proposal as Proposal
+import Wire.API.MLS.Proposal qualified as Proposal
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -139,6 +140,7 @@ postMLSMessageFromLocalUserV1 ::
       Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
       Member (ErrorS 'MLSStaleMessage) r,
       Member (ErrorS 'MLSUnsupportedMessage) r,
+      Member (Error NonFederatingBackends) r,
       Member (Input (Local ())) r,
       Member ProposalStore r,
       Member Resource r,
@@ -175,6 +177,7 @@ postMLSMessageFromLocalUser ::
       Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
       Member (ErrorS 'MLSStaleMessage) r,
       Member (ErrorS 'MLSUnsupportedMessage) r,
+      Member (Error NonFederatingBackends) r,
       Member (Input (Local ())) r,
       Member ProposalStore r,
       Member Resource r,
@@ -201,18 +204,9 @@ postMLSMessageFromLocalUser lusr mc conn smsg = do
 postMLSCommitBundle ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
-    ( Member BrigAccess r,
-      Member (Error FederationError) r,
-      Member (Error InternalError) r,
-      Member (Error MLSProtocolError) r,
-      Member (Input (Local ())) r,
-      Member (Input Opts) r,
-      Member (Input UTCTime) r,
-      Member MemberStore r,
-      Member ProposalStore r,
-      Member Resource r,
-      Member TinyLog r
-    )
+    Member (Error FederationError) r,
+    Member (Error NonFederatingBackends) r,
+    Member Resource r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -231,18 +225,9 @@ postMLSCommitBundle loc qusr mc qcnv conn rawBundle =
 postMLSCommitBundleFromLocalUser ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
-    ( Member BrigAccess r,
-      Member (Error FederationError) r,
-      Member (Error InternalError) r,
-      Member (ErrorS 'MLSNotEnabled) r,
-      Member (Input (Local ())) r,
-      Member (Input Opts) r,
-      Member (Input UTCTime) r,
-      Member MemberStore r,
-      Member ProposalStore r,
-      Member Resource r,
-      Member TinyLog r
-    )
+    Member (Error FederationError) r,
+    Member (Error NonFederatingBackends) r,
+    Member Resource r
   ) =>
   Local UserId ->
   Maybe ClientId ->
@@ -262,16 +247,9 @@ postMLSCommitBundleFromLocalUser lusr mc conn bundle = do
 postMLSCommitBundleToLocalConv ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
-    ( Member BrigAccess r,
-      Member (Error FederationError) r,
-      Member (Error InternalError) r,
-      Member (Error MLSProtocolError) r,
-      Member (Input Opts) r,
-      Member (Input UTCTime) r,
-      Member ProposalStore r,
-      Member Resource r,
-      Member TinyLog r
-    )
+    Member (Error FederationError) r,
+    Member (Error NonFederatingBackends) r,
+    Member Resource r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -326,17 +304,18 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   pure events
 
 postMLSCommitBundleToRemoteConv ::
-  ( Members MLSBundleStaticErrors r,
-    ( Member (Error FederationError) r,
-      Member (Error InternalError) r,
-      Member (Error MLSProtocolError) r,
-      Member (Error MLSProposalFailure) r,
-      Member ExternalAccess r,
-      Member FederatorAccess r,
-      Member GundeckAccess r,
-      Member MemberStore r,
-      Member TinyLog r
-    )
+  ( Member BrigAccess r,
+    Members MLSBundleStaticErrors r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (Error MLSProtocolError) r,
+    Member (Error MLSProposalFailure) r,
+    Member (Error NonFederatingBackends) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member MemberStore r,
+    Member TinyLog r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -370,9 +349,11 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
           \non-empty list of users an application message could not be \
           \sent to. The remote end returned: "
             <> LT.pack (intercalate ", " (show <$> NE.toList (unreachableUsers us)))
-      for updates $ \update -> do
-        e <- notifyRemoteConversationAction loc (qualifyAs rcnv update) con
-        pure (LocalConversationUpdate e update)
+      fmap fst . runOutputList . runInputConst (void loc) $
+        for_ updates $ \update -> do
+          me <- updateLocalStateOfRemoteConv (qualifyAs rcnv update) con
+          for_ me $ \e -> output (LocalConversationUpdate e update)
+    MLSMessageResponseNonFederatingBackends e -> throw e
 
 postMLSMessage ::
   ( HasProposalEffects r,
@@ -391,6 +372,7 @@ postMLSMessage ::
       Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
       Member (ErrorS 'MLSStaleMessage) r,
       Member (ErrorS 'MLSUnsupportedMessage) r,
+      Member (Error NonFederatingBackends) r,
       Member (Input (Local ())) r,
       Member ProposalStore r,
       Member Resource r,
@@ -471,6 +453,7 @@ postMLSMessageToLocalConv ::
       Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
       Member (ErrorS 'MLSStaleMessage) r,
       Member (ErrorS 'MLSUnsupportedMessage) r,
+      Member (Error NonFederatingBackends) r,
       Member ProposalStore r,
       Member Resource r,
       Member TinyLog r
@@ -512,9 +495,8 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv =
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
-    ( Member (Error FederationError) r,
-      Member TinyLog r
-    ),
+    Member (Error FederationError) r,
+    Member (Error NonFederatingBackends) r,
     HasProposalEffects r
   ) =>
   Local x ->
@@ -550,11 +532,12 @@ postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
         \sent to. The remote end returned: "
           <> LT.pack (intercalate ", " (show <$> Set.toList (Set.map domainText ds)))
     MLSMessageResponseUpdates updates unreachables -> do
-      lcus <- for updates $ \update -> do
-        e <- notifyRemoteConversationAction loc (qualifyAs rcnv update) con
-        pure (LocalConversationUpdate e update)
-
+      lcus <- fmap fst . runOutputList $
+        for_ updates $ \update -> do
+          me <- updateLocalStateOfRemoteConv (qualifyAs rcnv update) con
+          for_ me $ \e -> output (LocalConversationUpdate e update)
       pure (lcus, unreachables)
+    MLSMessageResponseNonFederatingBackends e -> throw e
 
 type HasProposalEffects r =
   ( Member BrigAccess r,
@@ -637,6 +620,7 @@ processCommit ::
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error NonFederatingBackends) r,
     Member Resource r
   ) =>
   Qualified UserId ->
@@ -771,6 +755,7 @@ processCommitWithAction ::
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error NonFederatingBackends) r,
     Member Resource r
   ) =>
   Qualified UserId ->
@@ -799,6 +784,7 @@ processInternalCommit ::
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error NonFederatingBackends) r,
     Member Resource r
   ) =>
   Qualified UserId ->
@@ -1107,6 +1093,7 @@ executeProposalAction ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
+    Member (Error NonFederatingBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -1232,7 +1219,7 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
       foldMap
         ( handleNoChanges
             . handleMLSProposalFailures @ProposalErrors
-            . fmap (pure . fst)
+            . fmap pure
             . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
             . flip ConversationJoin roleNameWireMember
         )
@@ -1245,7 +1232,7 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
       foldMap
         ( handleNoChanges
             . handleMLSProposalFailures @ProposalErrors
-            . fmap (pure . fst)
+            . fmap pure
             . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
         )
         . nonEmpty
@@ -1337,7 +1324,7 @@ instance
   (APIError e, Member (Error MLSProposalFailure) r) =>
   HandleMLSProposalFailure (Error e) r
   where
-  handleMLSProposalFailure = mapError (MLSProposalFailure . toWai)
+  handleMLSProposalFailure = mapError (MLSProposalFailure . toResponse)
 
 withCommitLock ::
   forall r a.

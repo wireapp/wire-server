@@ -99,4 +99,4 @@ library
     cpp-options:   -DWITH_ARBITRARY
     build-depends: QuickCheck >=2.9
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

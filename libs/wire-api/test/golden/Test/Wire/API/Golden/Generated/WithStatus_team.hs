@@ -22,7 +22,7 @@ module Test.Wire.API.Golden.Generated.WithStatus_team where
 import Data.Domain
 import Imports
 import Wire.API.Team.Feature hiding (withStatus)
-import qualified Wire.API.Team.Feature as F
+import Wire.API.Team.Feature qualified as F
 
 testObject_WithStatus_team_1 :: WithStatus AppLockConfig
 testObject_WithStatus_team_1 = withStatus FeatureStatusEnabled LockStatusUnlocked (AppLockConfig (EnforceAppLock False) (-98))

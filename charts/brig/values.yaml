@@ -100,6 +100,8 @@ config:
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
     # setDisabledAPIVersions: [ v3 ]
+    setFederationStrategy: allowNone
+    setFederationDomainConfigsUpdateFreq: 10
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}
@@ -110,7 +112,7 @@ config:
     enabled: false
     image:
       repository: docker.io/maxmindinc/geoipupdate
-      tag: v4.9
+      tag: v5.1.1
 turnStatic:
   v1:
   - turn:localhost:3478
@@ -132,3 +134,12 @@ serviceAccount:
   automountServiceAccountToken: true
 
 secrets: {}
+
+podSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault

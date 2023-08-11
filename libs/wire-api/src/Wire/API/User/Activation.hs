@@ -36,13 +36,13 @@ module Wire.API.User.Activation
 where
 
 import Control.Lens ((?~))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Aeson.Types (Parser)
 import Data.ByteString.Conversion
 import Data.Data (Proxy (Proxy))
 import Data.Schema
 import Data.Swagger (ToParamSchema)
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Text.Ascii
 import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports

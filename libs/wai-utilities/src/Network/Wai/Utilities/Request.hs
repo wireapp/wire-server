@@ -25,18 +25,18 @@ module Network.Wai.Utilities.Request where
 import Control.Error
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.Aeson
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as Lazy
-import qualified Data.Text.Lazy as Text
+import Data.ByteString qualified as B
+import Data.ByteString.Lazy qualified as Lazy
+import Data.Text.Lazy qualified as Text
 import Imports
 import Network.HTTP.Types.Status (status400)
 import Network.Wai
 import Network.Wai.Predicate
 import Network.Wai.Predicate.Request
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.ZAuth ((.&>))
 import Pipes
-import qualified Pipes.Prelude as P
+import Pipes.Prelude qualified as P
 
 readBody :: (MonadIO m, HasRequest r) => r -> m LByteString
 readBody r = liftIO $ Lazy.fromChunks <$> P.toListM chunks

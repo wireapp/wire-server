@@ -22,7 +22,7 @@ import Data.Domain
 import Data.Id (Id (Id))
 import Data.Qualified
 import Data.Text.Ascii (AsciiChars (validate))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Functor (fmap), Maybe (Just, Nothing), fromJust, fromRight, read, undefined, (&))
 import Wire.API.Asset
 

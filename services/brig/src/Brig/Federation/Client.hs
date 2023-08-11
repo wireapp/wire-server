@@ -34,11 +34,11 @@ import Data.Handle
 import Data.Id (ClientId, UserId)
 import Data.Qualified
 import Data.Range (Range)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time.Units
 import Imports
-import qualified Network.AMQP as Q
-import qualified System.Logger.Class as Log
+import Network.AMQP qualified as Q
+import System.Logger.Class qualified as Log
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.BackendNotifications

@@ -27,7 +27,7 @@ import Brig.Types.Team (TeamSize (..))
 import Brig.User.Search.Index
 import Control.Monad.Catch (throwM)
 import Data.Id
-import qualified Database.Bloodhound as ES
+import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
 
 teamSize :: MonadIndexIO m => TeamId -> m TeamSize

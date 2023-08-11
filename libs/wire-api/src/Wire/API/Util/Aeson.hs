@@ -22,7 +22,7 @@ module Wire.API.Util.Aeson
 where
 
 import Data.Aeson
-import qualified Data.Char as Char
+import Data.Char qualified as Char
 import GHC.Generics (Rep)
 import Imports hiding (All)
 

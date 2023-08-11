@@ -15,10 +15,13 @@ library
     Wire.BackendNotificationPusher
     Wire.BackgroundWorker
     Wire.BackgroundWorker.Env
+    Wire.BackgroundWorker.Health
     Wire.BackgroundWorker.Options
+    Wire.BackgroundWorker.Util
+    Wire.Defederation
 
   hs-source-dirs:     src
-  default-language:   Haskell2010
+  default-language:   GHC2021
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
@@ -27,16 +30,33 @@ library
   build-depends:
       aeson
     , amqp
+    , async
+    , base
+    , bilge
+    , bytestring-conversion
+    , containers
     , exceptions
     , extended
     , HsOpenSSL
+    , http-client
+    , http-types
     , http2-manager
     , imports
+    , lens
+    , metrics-core
+    , metrics-wai
     , monad-control
+    , prometheus-client
     , retry
+    , servant-client
+    , servant-server
+    , text
     , tinylog
     , transformers-base
     , types-common
+    , unliftio
+    , wai-utilities
+    , wire-api
     , wire-api-federation
 
   default-extensions:
@@ -91,11 +111,12 @@ executable background-worker
     , types-common
 
   hs-source-dirs:     exec
-  default-language:   Haskell2010
+  default-language:   GHC2021
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -Wredundant-constraints -Wunused-packages
+    -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
 
   default-extensions:
     NoImplicitPrelude
@@ -140,7 +161,7 @@ executable background-worker
     ViewPatterns
 
 test-suite background-worker-test
-  default-language:   Haskell2010
+  default-language:   GHC2021
   type:               exitcode-stdio-1.0
   hs-source-dirs:     test
   main-is:            Main.hs
@@ -154,17 +175,36 @@ test-suite background-worker-test
   other-modules:
     Main
     Test.Wire.BackendNotificationPusherSpec
+    Test.Wire.DefederationSpec
+    Test.Wire.Util
 
   build-depends:
       aeson
     , amqp
     , background-worker
+    , base
+    , bytestring
+    , containers
+    , extended
     , federator
     , hspec
+    , http-client
+    , http-media
+    , http-types
+    , HUnit
     , imports
+    , prometheus-client
     , QuickCheck
+    , servant
+    , servant-client
+    , servant-client-core
+    , servant-server
+    , text
     , tinylog
+    , transformers
     , types-common
+    , unliftio
+    , wai
     , wire-api
     , wire-api-federation
 

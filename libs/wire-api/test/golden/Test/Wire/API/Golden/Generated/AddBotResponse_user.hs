@@ -22,7 +22,7 @@ module Test.Wire.API.Golden.Generated.AddBotResponse_user where
 import Data.Domain
 import Data.Id (BotId (BotId), ClientId (ClientId, client), Id (Id))
 import Data.Qualified
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust, read, (.))
 import Wire.API.Asset
 import Wire.API.Conversation

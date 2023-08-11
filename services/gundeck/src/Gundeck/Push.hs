@@ -38,37 +38,37 @@ import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
 import Data.Aeson as Aeson (Object)
 import Data.Id
-import qualified Data.List.Extra as List
+import Data.List.Extra qualified as List
 import Data.List1 (List1, list1)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Range
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.UUID as UUID
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.UUID qualified as UUID
 import Gundeck.Aws (endpointUsers)
-import qualified Gundeck.Aws as Aws
+import Gundeck.Aws qualified as Aws
 import Gundeck.Aws.Arn
 import Gundeck.Env
 import Gundeck.Monad
-import qualified Gundeck.Notification.Data as Stream
+import Gundeck.Notification.Data qualified as Data
 import Gundeck.Options
-import qualified Gundeck.Presence.Data as Presence
-import qualified Gundeck.Push.Data as Data
-import qualified Gundeck.Push.Native as Native
+import Gundeck.Presence.Data qualified as Presence
+import Gundeck.Push.Data qualified as Data
+import Gundeck.Push.Native qualified as Native
 import Gundeck.Push.Native.Types
-import qualified Gundeck.Push.Websocket as Web
+import Gundeck.Push.Websocket qualified as Web
 import Gundeck.ThreadBudget
 import Gundeck.Types
-import qualified Gundeck.Types.Presence as Presence
+import Gundeck.Types.Presence qualified as Presence
 import Gundeck.Util
 import Imports hiding (cs)
 import Network.HTTP.Types
 import Network.Wai.Utilities
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.Internal.Notification
-import qualified Wire.API.Push.Token as Public
+import Wire.API.Push.Token qualified as Public
 
 push :: [Push] -> Gundeck ()
 push ps = do
@@ -99,7 +99,7 @@ instance MonadPushAll Gundeck where
   mpaMkNotificationId = mkNotificationId
   mpaListAllPresences = runWithDefaultRedis . Presence.listAll
   mpaBulkPush = Web.bulkPush
-  mpaStreamAdd = Stream.add
+  mpaStreamAdd = Data.add
   mpaPushNative = pushNative
   mpaForkIO = void . forkIO
   mpaRunWithBudget = runWithBudget''

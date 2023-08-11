@@ -4,8 +4,6 @@
 # dependencies are added or removed.
 { gitignoreSource }: hsuper: hself: {
   integration = hself.callPackage ../integration/default.nix { inherit gitignoreSource; };
-  api-bot = hself.callPackage ../libs/api-bot/default.nix { inherit gitignoreSource; };
-  api-client = hself.callPackage ../libs/api-client/default.nix { inherit gitignoreSource; };
   bilge = hself.callPackage ../libs/bilge/default.nix { inherit gitignoreSource; };
   brig-types = hself.callPackage ../libs/brig-types/default.nix { inherit gitignoreSource; };
   cargohold-types = hself.callPackage ../libs/cargohold-types/default.nix { inherit gitignoreSource; };
@@ -44,7 +42,6 @@
   gundeck = hself.callPackage ../services/gundeck/default.nix { inherit gitignoreSource; };
   proxy = hself.callPackage ../services/proxy/default.nix { inherit gitignoreSource; };
   spar = hself.callPackage ../services/spar/default.nix { inherit gitignoreSource; };
-  api-simulations = hself.callPackage ../tools/api-simulations/default.nix { inherit gitignoreSource; };
   assets = hself.callPackage ../tools/db/assets/default.nix { inherit gitignoreSource; };
   auto-whitelist = hself.callPackage ../tools/db/auto-whitelist/default.nix { inherit gitignoreSource; };
   billing-team-member-backfill = hself.callPackage ../tools/db/billing-team-member-backfill/default.nix { inherit gitignoreSource; };

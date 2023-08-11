@@ -20,7 +20,7 @@
 module Gundeck.Types.Event where
 
 import Data.Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Json.Util
 import Gundeck.Types.Push
 import Imports

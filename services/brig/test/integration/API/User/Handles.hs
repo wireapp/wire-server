@@ -21,12 +21,12 @@ module API.User.Handles
   )
 where
 
-import qualified API.Search.Util as Search
+import API.Search.Util qualified as Search
 import API.Team.Util
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Control.Lens hiding (from, (#))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
@@ -34,15 +34,15 @@ import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Qualified (Qualified (..))
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
-import qualified Network.Wai.Utilities.Error as Error
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Error
+import Network.Wai.Utilities.Error qualified as Wai
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util

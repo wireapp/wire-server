@@ -36,7 +36,7 @@ data Address = Address
   deriving (Show, Eq, Generic)
 
 instance FromJSON Address where
-  parseJSON = genericParseJSON parseOptions . jsonLower
+  parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower
 
 instance ToJSON Address where
   toJSON = genericToJSON serializeOptions

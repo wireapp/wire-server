@@ -25,7 +25,7 @@ module Brig.Data.Types
   )
 where
 
-import qualified Cassandra
+import Cassandra qualified
 import Imports
 
 -- | An opaque page of results with an indication of whether

@@ -1,0 +1,1 @@
+In CI integration tests, use redis-ephemeral in master mode (may be reverted in the future, see PR details)
