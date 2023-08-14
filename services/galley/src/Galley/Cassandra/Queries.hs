@@ -386,6 +386,9 @@ updateRemoteMemberConvRoleName = "update member_remote_user set conversation_rol
 selectRemoteMembersByDomain :: PrepQuery R (Identity Domain) (ConvId, UserId, RoleName)
 selectRemoteMembersByDomain = "select conv, user_remote_id, conversation_role from member_remote_user where user_remote_domain = ?"
 
+selectRemoteMembersByConvAndDomain :: PrepQuery R (ConvId, Domain) (UserId, RoleName)
+selectRemoteMembersByConvAndDomain = "select conv, user_remote_id, conversation_role from member_remote_user where conv = ? and user_remote_domain = ?"
+
 -- local user with remote conversations
 
 insertUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()

@@ -4517,12 +4517,16 @@ testConnectionRemovedNotifications = do
 
   let remoteDomain1 = Domain "far-away.example.com"
       remoteDomain2 = Domain "far-away-2.example.com"
+      remoteDomain3 = Domain "far-away-3.example.com"
   -- dee and erin are remote guests
   dee <- Qualified <$> randomId <*> pure remoteDomain1
   erin <- Qualified <$> randomId <*> pure remoteDomain2
+  -- frank is a remote we are going to keep around.
+  frank <- Qualified <$> randomId <*> pure remoteDomain3
 
   connectWithRemoteUser (qUnqualified alice) dee
   connectWithRemoteUser (qUnqualified alice) erin
+  connectWithRemoteUser (qUnqualified alice) frank
 
   -- they are all in a local conversation
   conv <-
@@ -4531,13 +4535,13 @@ testConnectionRemovedNotifications = do
         (qUnqualified alice)
         Nothing
         defNewProteusConv
-          { newConvQualifiedUsers = [bob, charlie, dee, erin],
+          { newConvQualifiedUsers = [bob, charlie, dee, erin, frank],
             newConvTeam = Just (ConvTeamInfo tid)
           }
         <!! const 201 === statusCode
 
   c <- view tsCannon
-  WS.bracketRN c (map qUnqualified $ [alice, bob, charlie, dee, erin]) $ \[wsA, wsB, wsC, wsD, wsE] -> do
+  WS.bracketRN c (map qUnqualified $ [alice, bob, charlie, dee, erin, frank]) $ \[wsA, wsB, wsC, wsD, wsE, wsF] -> do
     -- conversation access role changes to team only
     (_, reqs) <- withTempMockFederator' (mockReply ()) $ do
       -- Remove the connection
@@ -4548,17 +4552,17 @@ testConnectionRemovedNotifications = do
       -- Second notification to local clients
       WS.assertMatchN_ (5 # Second) ([wsA, wsB, wsC]) $
         wsAssertFederationConnectionRemoved remoteDomain1 remoteDomain2
-      -- dee and erin's remotes don't receive a notification
-      WS.assertNoEvent (5 # Second) [wsD, wsE]
+      -- dee, erin, and frank's remotes don't receive a notification
+      WS.assertNoEvent (5 # Second) [wsD, wsE, wsF]
     -- There should be not requests out to the federtaion domain
     liftIO $ reqs @?= []
 
-  -- only alice, bob, and charlie remain
+  -- only alice, bob, charlie, and frank remain
   conv2 <-
     responseJsonError
       =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
         <!! const 200 === statusCode
-  liftIO $ sort (omQualifiedId <$> cmOthers (cnvMembers conv2)) @?= sort [bob, charlie]
+  liftIO $ sort (omQualifiedId <$> cmOthers (cnvMembers conv2)) @?= sort [bob, charlie, frank]
 
 testConnectionRemovedNotificationsNoop :: TestM ()
 testConnectionRemovedNotificationsNoop = do

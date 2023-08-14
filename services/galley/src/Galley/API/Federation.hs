@@ -21,6 +21,7 @@
 
 module Galley.API.Federation where
 
+import Cassandra (ClientState, Consistency (LocalQuorum), Page (hasMore, nextPage, result), paginate, paramsP)
 import Control.Error
 import Control.Lens
 import Data.Bifunctor
@@ -31,8 +32,9 @@ import Data.Json.Util
 import Data.List.NonEmpty qualified as N
 import Data.Map qualified as Map
 import Data.Map.Lens (toMapOf)
+import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
-import Data.Range (Range (fromRange))
+import Data.Range (Range (fromRange), toRange)
 import Data.Set qualified as Set
 import Data.Singletons (SingI (..), demote, sing)
 import Data.Tagged
@@ -51,6 +53,8 @@ import Galley.API.Message
 import Galley.API.Push
 import Galley.API.Util
 import Galley.App
+import Galley.Cassandra.Queries qualified as Q
+import Galley.Cassandra.Store
 import Galley.Data.Conversation qualified as Data
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
@@ -119,7 +123,7 @@ federationSitemap =
     :<|> Named @"on-client-removed" (callsFed (exposeAnnotations onClientRemoved))
     :<|> Named @"update-typing-indicator" (callsFed (exposeAnnotations updateTypingIndicator))
     :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
-    :<|> Named @"on-connection-removed" onFederationConnectionRemoved
+    :<|> Named @"on-connection-removed" (onFederationConnectionRemoved (toRange (Proxy @500)))
 
 onClientRemoved ::
   ( Member ConversationStore r,
@@ -768,6 +772,8 @@ onTypingIndicatorUpdated origDomain TypingDataUpdated {..} = do
 onFederationConnectionRemoved ::
   forall r.
   ( Member (Input Env) r,
+    Member (Embed IO) r,
+    Member (Input ClientState) r,
     Member (P.Logger (Msg -> Msg)) r,
     Member (Error InternalError) r,
     Member (Error FederationError) r,
@@ -777,12 +783,13 @@ onFederationConnectionRemoved ::
     Member TeamStore r,
     Member DefederationNotifications r
   ) =>
+  Range 1 1000 Int32 ->
   Domain ->
   Domain ->
   Sem r EmptyResponse
-onFederationConnectionRemoved originDomain targetDomain = do
+onFederationConnectionRemoved range originDomain targetDomain = do
   sendOnConnectionRemovedNotifications originDomain targetDomain
-  cleanupRemovedConnections originDomain targetDomain
+  cleanupRemovedConnections originDomain targetDomain range
   sendOnConnectionRemovedNotifications originDomain targetDomain
   pure EmptyResponse
 
@@ -794,6 +801,8 @@ onFederationConnectionRemoved originDomain targetDomain = do
 cleanupRemovedConnections ::
   forall r.
   ( Member (Input Env) r,
+    Member (Embed IO) r,
+    Member (Input ClientState) r,
     Member (P.Logger (Msg -> Msg)) r,
     Member (Error InternalError) r,
     Member (Error FederationError) r,
@@ -804,28 +813,41 @@ cleanupRemovedConnections ::
   ) =>
   Domain ->
   Domain ->
+  Range 1 1000 Int32 ->
   Sem r ()
-cleanupRemovedConnections domainA domainB = do
-  env <- input
-  remoteUsersA <- E.getRemoteMembersByDomain domainA
-  remoteUsersB <- E.getRemoteMembersByDomain domainB
-  let localDomain = env ^. Galley.App.options . optSettings . setFederationDomain
-      lCnvMapA = foldr insertIntoMap mempty remoteUsersA
-      lCnvMapB = foldr insertIntoMap mempty remoteUsersB
-      -- Iterate over the conversations in lConvMapA
-      -- For each of the conversations, check if it exists in lConvMapB
-      -- If it does, collect both lists of users into a new map that
-      -- contains just the overlap of the two maps
-      lCnvMap = Map.foldrWithKey mapOverlap mempty lCnvMapA
-      mapOverlap k v m =
-        maybe
-          m
-          -- Merge the values if we find a matching key
-          (\a -> Map.insert k (a <> v) m)
-          $ Map.lookup k lCnvMapB
+cleanupRemovedConnections domainA domainB (fromRange -> maxPage) = do
+  localDomain <- inputs $ view $ options . optSettings . setFederationDomain
+  usersA <- do
+    page <-
+      embedClient $
+        paginate Q.selectRemoteMembersByDomain $
+          paramsP LocalQuorum (Identity domainA) maxPage
+    go page
+  let lCnvMap = foldr insertIntoMap mempty $ shrink <$> usersA
+      shrink (a, b, _) = (a, b)
+  for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
+    remoteUsers <- do
+      page <-
+        embedClient $
+          paginate Q.selectRemoteMembersByConvAndDomain $
+            paramsP LocalQuorum (cnvId, domainB) maxPage
+      go page
+    if null remoteUsers
+      then -- No users from the second domain, so we don't have to do anything
+        pure ()
+      else -- Users from the second domain are also present, clean up both!
 
-  for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) ->
-    E.deleteMembers cnvId $ toUserList (toLocalUnsafe localDomain ()) $ tUntagged . rmId <$> rUsers
+        E.deleteMembers cnvId $
+          toUserList (toLocalUnsafe localDomain ()) $
+            N.prependList (qual domainB . fst <$> remoteUsers) (qual domainA <$> rUsers)
+  where
+    qual = flip Qualified
+    go :: Page a -> Sem r [a]
+    go page
+      | hasMore page =
+          (result page <>) <$> do
+            go <=< embedClient $ nextPage page
+      | otherwise = pure $ result page
 
 --------------------------------------------------------------------------------
 -- Utilities
