@@ -1,1 +1,1 @@
-Conversation creation endpoints can now return `unreachable_backends` error responses with status code 503 if any of the involved backends are unreachable. The conversation is not created in that case.
+Conversation creation endpoints can now return `unreachable_backends` error responses with status code 533 if any of the involved backends are unreachable. The conversation is not created in that case.
