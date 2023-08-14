@@ -35,6 +35,7 @@
 , network-uri
 , optparse-applicative
 , process
+, proto-lens
 , random
 , raw-strings-qq
 , retry
@@ -93,6 +94,7 @@ mkDerivation {
     network-uri
     optparse-applicative
     process
+    proto-lens
     random
     raw-strings-qq
     retry
