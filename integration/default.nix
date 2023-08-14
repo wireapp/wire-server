@@ -53,6 +53,7 @@
 , uuid
 , vector
 , websockets
+, wire-message-proto-lens
 , yaml
 }:
 mkDerivation {
@@ -110,6 +111,7 @@ mkDerivation {
     uuid
     vector
     websockets
+    wire-message-proto-lens
     yaml
   ];
   license = lib.licenses.agpl3Only;

@@ -1,6 +1,8 @@
 module API.Galley where
 
 import Data.Aeson qualified as Aeson
+import Data.ProtoLens qualified as Proto
+import Proto.Otr
 import Testlib.Prelude
 
 data CreateConv = CreateConv
@@ -152,6 +154,14 @@ postMLSCommitBundle cid msg = do
   req <- baseRequest cid Galley Versioned "/mls/commit-bundles"
   submit "POST" (addMLS msg req)
 
+postProteusMessage :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> QualifiedNewOtrMessage -> App Response
+postProteusMessage user conv msgs = do
+  convDomain <- objDomain conv
+  convId <- objId conv
+  let bytes = Proto.encodeMessage msgs
+  req <- baseRequest user Galley Versioned ("/conversations/" <> convDomain <> "/" <> convId <> "/proteus/messages")
+  submit "POST" (addProtobuf bytes req)
+
 getGroupInfo ::
   (HasCallStack, MakesValue user, MakesValue conv) =>
   user ->
@@ -167,7 +177,15 @@ getGroupInfo user conv = do
   submit "GET" req
 
 addMembers :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> [Value] -> App Response
-addMembers usr qcnv qUsers = do
+addMembers usr qcnv newMembers = do
   (convDomain, convId) <- objQid qcnv
+  qUsers <- mapM objQidObject newMembers
   req <- baseRequest usr Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members"])
   submit "POST" (req & addJSONObject ["qualified_users" .= qUsers])
+
+removeMember :: (HasCallStack, MakesValue remover, MakesValue conv, MakesValue removed) => remover -> conv -> removed -> App Response
+removeMember remover qcnv removed = do
+  (convDomain, convId) <- objQid qcnv
+  (removedDomain, removedId) <- objQid removed
+  req <- baseRequest remover Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members", removedDomain, removedId])
+  submit "DELETE" req

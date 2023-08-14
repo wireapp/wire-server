@@ -5,10 +5,13 @@ module Testlib.Assertions where
 import Control.Exception as E
 import Control.Monad.Reader
 import Data.Aeson (Value)
+import Data.ByteString.Base64 qualified as B64
 import Data.Char
 import Data.Foldable
 import Data.List
 import Data.Map qualified as Map
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import GHC.Stack as Stack
 import System.FilePath
 import Testlib.JSON
@@ -48,6 +51,17 @@ a `shouldMatch` b = do
     pa <- prettyJSON xa
     pb <- prettyJSON xb
     assertFailure $ "Actual:\n" <> pa <> "\nExpected:\n" <> pb
+
+shouldMatchBase64 ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  -- | The actual value, in base64
+  a ->
+  -- | The expected value, in plain text
+  b ->
+  App ()
+a `shouldMatchBase64` b = do
+  xa <- Text.decodeUtf8 . B64.decodeLenient . Text.encodeUtf8 . Text.pack <$> asString a
+  xa `shouldMatch` b
 
 shouldNotMatch ::
   (MakesValue a, MakesValue b, HasCallStack) =>
