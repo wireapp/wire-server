@@ -8,6 +8,7 @@ import Data.Aeson qualified as Aeson
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
+import API.Gundeck (getNotifications)
 
 testDefederationRemoteNotifications :: HasCallStack => App ()
 testDefederationRemoteNotifications = do
@@ -60,6 +61,14 @@ testDefederationNonFullyConnectedGraph = do
                 else pure False
         void $ awaitNMatches 2 3 isConnectionRemoved wsA
         retryT $ checkConv convId uA []
+        -- assert that the `connectionRemoved` event appears exactly 2x
+        eventPayloads <-
+          getNotifications uA "cA" def
+            >>= getJSON 200
+            >>= \n -> n %. "notifications" & asList >>= \ns -> for ns nPayload
+
+        eventTypes <- forM eventPayloads $ \p -> p %. "type" & asString
+        (length . filter (== "federation.connectionRemoved")) eventTypes `shouldMatchInt` 2
   where
     checkConv :: Value -> Value -> [Value] -> App ()
     checkConv convId user expectedOtherMembers = do
