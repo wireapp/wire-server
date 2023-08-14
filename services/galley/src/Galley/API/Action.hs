@@ -40,6 +40,7 @@ module Galley.API.Action
     addLocalUsersToRemoteConv,
     ConversationUpdate,
     getFederationStatus,
+    checkFederationStatus,
     firstConflictOrFullyConnected,
   )
 where
@@ -131,6 +132,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (ErrorS 'TooManyMembers) r,
       Member (ErrorS 'MissingLegalholdConsent) r,
       Member (Error NonFederatingBackends) r,
+      Member (Error UnreachableBackends) r,
       Member ExternalAccess r,
       Member FederatorAccess r,
       Member GundeckAccess r,
@@ -264,10 +266,29 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'ConvNotFound
      ]
 
-getFederationStatus :: Member FederatorAccess r => Local UserId -> RemoteDomains -> Sem r FederationStatus
-getFederationStatus _ req = do
-  firstConflictOrFullyConnected
-    <$> E.runFederatedConcurrently
+checkFederationStatus ::
+  ( Member (Error UnreachableBackends) r,
+    Member (Error NonFederatingBackends) r,
+    Member FederatorAccess r
+  ) =>
+  RemoteDomains ->
+  Sem r ()
+checkFederationStatus req = do
+  status <- getFederationStatus req
+  case status of
+    FullyConnected -> pure ()
+    NotConnectedDomains dom1 dom2 -> throw (NonFederatingBackends dom1 dom2)
+
+getFederationStatus ::
+  ( Member (Error UnreachableBackends) r,
+    Member FederatorAccess r
+  ) =>
+  RemoteDomains ->
+  Sem r FederationStatus
+getFederationStatus req = do
+  fmap firstConflictOrFullyConnected
+    . (ensureNoUnreachableBackends =<<)
+    $ E.runFederatedConcurrentlyEither
       (flip toRemoteUnsafe () <$> Set.toList req.rdDomains)
       (\qds -> fedClient @'Brig @"get-not-fully-connected-backends" (DomainSet (tDomain qds `Set.delete` req.rdDomains)))
 
@@ -424,9 +445,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       Sem r ()
     checkRemoteBackendsConnected lusr = do
       let remoteDomains = tDomain <$> snd (partitionQualified lusr $ NE.toList invited)
-      getFederationStatus lusr (RemoteDomains $ Set.fromList remoteDomains) >>= \case
-        NotConnectedDomains a b -> throw (NonFederatingBackends a b)
-        FullyConnected -> pure ()
+      checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
 
     conv :: Data.Conversation
     conv = tUnqualified lconv
@@ -806,7 +825,6 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
         (_, FederationNotConfigured) -> pure ()
         (_, FederationUnexpectedBody _) -> pure ()
         (_, FederationUnexpectedError _) -> pure ()
-        (_, ex@(FederationUnreachableDomainsOld _)) -> throw ex
     updates <-
       E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
         \ruids -> do
