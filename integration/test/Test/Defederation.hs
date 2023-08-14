@@ -3,12 +3,12 @@ module Test.Defederation where
 import API.BrigInternal
 import API.BrigInternal qualified as Internal
 import API.Galley (defProteus, getConversation, postConversation, qualifiedUsers)
+import API.Gundeck (getNotifications)
 import Control.Applicative
 import Data.Aeson qualified as Aeson
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
-import API.Gundeck (getNotifications)
 
 testDefederationRemoteNotifications :: HasCallStack => App ()
 testDefederationRemoteNotifications = do

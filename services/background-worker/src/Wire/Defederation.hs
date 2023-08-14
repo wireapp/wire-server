@@ -2,7 +2,6 @@ module Wire.Defederation where
 
 import Bilge.Retry
 import Control.Concurrent.Async
-import Control.Exception (throwIO)
 import Control.Lens (to, (^.))
 import Control.Monad.Catch
 import Control.Retry
@@ -17,14 +16,11 @@ import Network.AMQP.Extended
 import Network.AMQP.Lifted qualified as QL
 import Network.HTTP.Client
 import Network.HTTP.Types
-import Servant.Client (BaseUrl (..), ClientEnv, Scheme (Http), mkClientEnv, runClientM)
+import Servant.Client (BaseUrl (..), ClientEnv, Scheme (Http), mkClientEnv)
 import System.Logger.Class qualified as Log
 import Util.Options
-import Wire.API.Federation.API
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Routes.FederationDomainConfig qualified as Fed
-import Wire.API.Routes.Named (namedClient)
-import Wire.API.Routes.Version (VersionAPI, vinfoDomain)
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 
@@ -66,41 +62,6 @@ getRemoteDomains :: AppT IO [Domain]
 getRemoteDomains = do
   ref <- asks remoteDomains
   fmap Fed.domain . Fed.remotes <$> readIORef ref
-
--- Call out to Brig to get the API version information.
--- It contains the local federaion domain string, which
--- means we don't need to add another config line here.
-getOwnDomain :: AppT IO Domain
-getOwnDomain = do
-  env <- mkBrigEnv
-  recovering policy httpHandlers $ \_ ->
-    liftIO (runClientM (namedClient @VersionAPI @"get-version") env)
-      >>= either handleError (pure . vinfoDomain)
-  where
-    handleError e = do
-      Log.err $ Log.msg @String "Could not fetch API version information from Brig" . Log.field "error" (show e)
-      -- Throw the error into IO to match the other functions and to prevent the
-      -- message from rabbit being ACKed.
-      liftIO $ throwIO e
-    policy = capDelay 60_000_000 $ fullJitterBackoff 200_000
-
--- Use the notification pusher to push out these notifications to remote domains
-notifyOtherBackends :: Domain -> AppT IO ()
-notifyOtherBackends defederationDomain = do
-  remoteDomains <- getRemoteDomains
-  ownDomain <- getOwnDomain
-  mChan <- asks notificationChannel
-  withMVar mChan $ \chan ->
-    -- Just to be safe! distributed systems and all that.
-    for_ (filter (/= defederationDomain) remoteDomains) $ \remoteDomain ->
-      liftIO
-        -- Push the notificiation into the queue
-        -- We're using the origin domain as part of our effective payload
-        -- to help reduce network traffic.
-        -- We still need to explicitly send the domain that is being defederated.
-        . enqueue chan ownDomain remoteDomain Q.Persistent
-        . void
-        $ fedQueueClient @'Galley @"on-connection-removed" defederationDomain
 
 callGalleyDelete ::
   ( MonadReader Env m,
@@ -150,12 +111,7 @@ req env dom =
 -- Deadlettering has a privacy implication -- FUTUREWORK.
 deleteFederationDomainInner :: RabbitMQEnvelope e => MVar () -> (Q.Message, e) -> AppT IO ()
 deleteFederationDomainInner runningFlag (msg, envelope) =
-  deleteFederationDomainInner' (const go) (msg, envelope)
-  where
-    go :: DefederationDomain -> AppT IO ()
-    go defederationDomain = do
-      notifyOtherBackends defederationDomain
-      callGalleyDelete runningFlag envelope defederationDomain
+  deleteFederationDomainInner' (const $ callGalleyDelete runningFlag envelope) (msg, envelope)
 
 startDefederator :: IORef (Maybe (Q.ConsumerTag, MVar ())) -> Q.Channel -> AppT IO ()
 startDefederator consumerRef chan = do
