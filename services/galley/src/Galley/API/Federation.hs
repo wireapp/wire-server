@@ -21,7 +21,7 @@
 
 module Galley.API.Federation where
 
-import Cassandra (ClientState, Consistency (LocalQuorum), Page (hasMore, nextPage, result), paginate, paramsP)
+import Cassandra (ClientState, Consistency (LocalQuorum), Page (hasMore, nextPage, result), PrepQuery, QueryParams, R, Tuple, paginate, paramsP)
 import Control.Error
 import Control.Lens
 import Data.Bifunctor
@@ -75,7 +75,7 @@ import Polysemy.Resource
 import Polysemy.TinyLog
 import Polysemy.TinyLog qualified as P
 import Servant (ServerT)
-import Servant.API
+import Servant.API hiding (QueryParams)
 import System.Logger.Class qualified as Log
 import System.Logger.Message (Msg)
 import Wire.API.Conversation hiding (Member)
@@ -817,36 +817,24 @@ cleanupRemovedConnections ::
   Sem r ()
 cleanupRemovedConnections domainA domainB (fromRange -> maxPage) = do
   localDomain <- inputs $ view $ options . optSettings . setFederationDomain
-  usersA <- do
-    page <-
-      embedClient $
-        paginate Q.selectRemoteMembersByDomain $
-          paramsP LocalQuorum (Identity domainA) maxPage
-    go page
+  usersA <- runPaginated Q.selectRemoteMembersByDomain $ paramsP LocalQuorum (Identity domainA) maxPage
+  P.err $ Log.field "usersA" (toByteString' (show usersA))
   let lCnvMap = foldr insertIntoMap mempty $ shrink <$> usersA
-      shrink (a, b, _) = (a, b)
+      shrink (a, b, _) = (a, qual domainA b)
   for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
-    remoteUsers <- do
-      page <-
-        embedClient $
-          paginate Q.selectRemoteMembersByConvAndDomain $
-            paramsP LocalQuorum (cnvId, domainB) maxPage
-      go page
-    if null remoteUsers
-      then -- No users from the second domain, so we don't have to do anything
-        pure ()
-      else -- Users from the second domain are also present, clean up both!
-
-        E.deleteMembers cnvId $
-          toUserList (toLocalUnsafe localDomain ()) $
-            N.prependList (qual domainB . fst <$> remoteUsers) (qual domainA <$> rUsers)
+    remoteUsers <- runPaginated Q.selectRemoteMembersByConvAndDomain $ paramsP LocalQuorum (cnvId, domainB) maxPage
+    -- Users from the second domain are also present, clean up both!
+    unless (null remoteUsers) $ do
+      E.deleteMembers cnvId $
+        toUserList (toLocalUnsafe localDomain ()) $
+          N.prependList (qual domainB . fst <$> remoteUsers) rUsers
   where
     qual = flip Qualified
+    runPaginated :: (Tuple p, Tuple a) => PrepQuery R p a -> QueryParams p -> Sem r [a]
+    runPaginated q ps = go <=< embedClient $ paginate q ps
     go :: Page a -> Sem r [a]
     go page
-      | hasMore page =
-          (result page <>) <$> do
-            go <=< embedClient $ nextPage page
+      | hasMore page = (result page <>) <$> do embedClient (nextPage page) >>= go
       | otherwise = pure $ result page
 
 --------------------------------------------------------------------------------
