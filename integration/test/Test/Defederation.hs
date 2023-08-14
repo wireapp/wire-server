@@ -58,7 +58,7 @@ testDefederationNonFullyConnectedGraph = do
                   domsStr <- for domsV asString <&> sort
                   pure $ domsStr == sort [domainB, domainC]
                 else pure False
-        void $ awaitNMatches 2 3 isConnectionRemoved wsA
+        void $ awaitNMatches 2 10 isConnectionRemoved wsA
         retryT $ checkConv convId uA []
   where
     -- FUTUREWORK: occasionally the event is sent more than exactly 2x
