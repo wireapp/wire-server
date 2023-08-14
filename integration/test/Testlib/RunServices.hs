@@ -5,6 +5,7 @@ module Testlib.RunServices where
 import Control.Concurrent
 import Control.Monad.Codensity (lowerCodensity)
 import Data.Map qualified as Map
+import SetupHelpers
 import System.Directory
 import System.Environment (getArgs)
 import System.Exit (exitWith)
@@ -137,17 +138,12 @@ main = do
 
   runAppWithEnv env $ do
     lowerCodensity $ do
-      let fedConfig =
-            def
-              { dbBrig =
-                  setField
-                    "optSettings.setFederationDomainConfigs"
-                    [ object ["domain" .= backendA.berDomain, "search_policy" .= "full_search"],
-                      object ["domain" .= backendB.berDomain, "search_policy" .= "full_search"]
-                    ]
-              }
       _modifyEnv <-
         traverseConcurrentlyCodensity
-          (\(res, staticPorts, overrides) -> startDynamicBackend res staticPorts overrides)
-          [(backendA, staticPortsA, fedConfig), (backendB, staticPortsB, fedConfig)]
+          ( \(res, staticPorts) ->
+              -- We add the 'fullSerachWithAll' overrrides is a hack to get
+              -- around https://wearezeta.atlassian.net/browse/WPB-3796
+              startDynamicBackend res staticPorts fullSearchWithAll
+          )
+          [(backendA, staticPortsA), (backendB, staticPortsB)]
       liftIO run
