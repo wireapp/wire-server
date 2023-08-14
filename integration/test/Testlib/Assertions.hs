@@ -121,6 +121,19 @@ shouldMatchSet a b = do
   lb <- fmap sort (asList b)
   la `shouldMatch` lb
 
+shouldMatchOneOf ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  a ->
+  b ->
+  App ()
+shouldMatchOneOf a b = do
+  lb <- asList b
+  xa <- make a
+  unless (xa `elem` lb) $ do
+    pa <- prettyJSON a
+    pb <- prettyJSON b
+    assertFailure $ "Expected:\n" <> pa <> "\n to match at least one of:\n" <> pb
+
 shouldContainString ::
   HasCallStack =>
   -- | The actual value

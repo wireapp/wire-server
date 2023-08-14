@@ -63,7 +63,9 @@ testNotificationsForOfflineBackends = do
             & #recipients .~ [failedMsgForOtherUser, failedMsgForDownUser]
             & #reportAll .~ Proto.defMessage
     bindResponse (postProteusMessage delUser downBackendConv failedMsg) $ \resp ->
-      resp.status `shouldMatchInt` 521
+      -- Due to the way federation breaks in local env vs K8s, it can return 521
+      -- (local) or 533 (K8s).
+      resp.status `shouldMatchOneOf` [Number 521, Number 533]
 
     -- Conversation creation with people from down backend should fail
     bindResponse (postConversation delUser (defProteus {qualifiedUsers = [otherUser, downUser1]})) $ \resp ->
