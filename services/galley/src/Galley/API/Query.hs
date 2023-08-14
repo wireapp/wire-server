@@ -249,7 +249,7 @@ getRemoteConversationsWithFailures lusr convs = do
           lusr
           ( Map.findWithDefault
               defMemberStatus
-              (fmap rcnvId rconv)
+              ((.id) <$> rconv)
               statusMap
           )
           rconv
@@ -277,7 +277,7 @@ getRemoteConversationsWithFailures lusr convs = do
         Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
           . Logger.field "error" (show e)
       pure . Left $ failedGetConversationRemotely (sequenceA rcids) e
-    handleFailure (Right c) = pure . Right . traverse gcresConvs $ c
+    handleFailure (Right c) = pure . Right . traverse (.convs) $ c
 
 getConversationRoles ::
   ( Member ConversationStore r,

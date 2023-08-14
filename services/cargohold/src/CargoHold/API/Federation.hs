@@ -45,13 +45,13 @@ federationSitemap =
 checkAsset :: F.GetAsset -> Handler Bool
 checkAsset ga =
   fmap isJust . runMaybeT $
-    checkMetadata Nothing (F.gaKey ga) (F.gaToken ga)
+    checkMetadata Nothing (F.key ga) (F.token ga)
 
 streamAsset :: Domain -> F.GetAsset -> Handler AssetSource
 streamAsset _ ga = do
   available <- checkAsset ga
   unless available (throwE assetNotFound)
-  AssetSource <$> S3.downloadV3 (F.gaKey ga)
+  AssetSource <$> S3.downloadV3 (F.key ga)
 
 getAsset :: Domain -> F.GetAsset -> Handler F.GetAssetResponse
 getAsset _ = fmap F.GetAssetResponse . checkAsset

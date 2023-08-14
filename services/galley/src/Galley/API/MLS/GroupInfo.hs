@@ -87,8 +87,8 @@ getGroupInfoFromRemoteConv ::
 getGroupInfoFromRemoteConv lusr rcnv = do
   let getRequest =
         GetGroupInfoRequest
-          { ggireqSender = tUnqualified lusr,
-            ggireqConv = tUnqualified rcnv
+          { sender = tUnqualified lusr,
+            conv = tUnqualified rcnv
           }
   response <- E.runFederated rcnv (fedClient @'Galley @"query-group-info" getRequest)
   case response of

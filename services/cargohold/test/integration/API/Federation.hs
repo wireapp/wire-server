@@ -77,13 +77,13 @@ testGetAssetAvailable isPublicAsset = do
   let key = view assetKey ast
   let ga =
         GetAsset
-          { gaUser = uid,
-            gaToken = tok,
-            gaKey = qUnqualified key
+          { user = uid,
+            token = tok,
+            key = qUnqualified key
           }
   ok <-
     withFederationClient $
-      gaAvailable <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
+      available <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
 
   -- check that asset is available
   liftIO $ ok @?= True
@@ -97,13 +97,13 @@ testGetAssetNotAvailable = do
   let key = AssetKeyV3 assetId AssetPersistent
   let ga =
         GetAsset
-          { gaUser = uid,
-            gaToken = Just token,
-            gaKey = key
+          { user = uid,
+            token = Just token,
+            key = key
           }
   ok <-
     withFederationClient $
-      gaAvailable <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
+      available <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
 
   -- check that asset is not available
   liftIO $ ok @?= False
@@ -124,13 +124,13 @@ testGetAssetWrongToken = do
   let key = view assetKey ast
   let ga =
         GetAsset
-          { gaUser = uid,
-            gaToken = Just tok,
-            gaKey = qUnqualified key
+          { user = uid,
+            token = Just tok,
+            key = qUnqualified key
           }
   ok <-
     withFederationClient $
-      gaAvailable <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
+      available <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
 
   -- check that asset is not available
   liftIO $ ok @?= False
@@ -156,9 +156,9 @@ testLargeAsset = do
   let key = view assetKey ast
   let ga =
         GetAsset
-          { gaUser = uid,
-            gaToken = tok,
-            gaKey = qUnqualified key
+          { user = uid,
+            token = tok,
+            key = qUnqualified key
           }
   chunks <- withFederationClient $ do
     source <- getAssetSource <$> runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
@@ -188,9 +188,9 @@ testStreamAsset = do
   let key = view assetKey ast
   let ga =
         GetAsset
-          { gaUser = uid,
-            gaToken = tok,
-            gaKey = qUnqualified key
+          { user = uid,
+            token = tok,
+            key = qUnqualified key
           }
   respBody <- withFederationClient $ do
     source <- getAssetSource <$> runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
@@ -206,9 +206,9 @@ testStreamAssetNotAvailable = do
   let key = AssetKeyV3 assetId AssetPersistent
   let ga =
         GetAsset
-          { gaUser = uid,
-            gaToken = Just token,
-            gaKey = key
+          { user = uid,
+            token = Just token,
+            key = key
           }
   err <- withFederationError $ do
     runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
@@ -232,9 +232,9 @@ testStreamAssetWrongToken = do
   let key = view assetKey ast
   let ga =
         GetAsset
-          { gaUser = uid,
-            gaToken = Just tok,
-            gaKey = qUnqualified key
+          { user = uid,
+            token = Just tok,
+            key = qUnqualified key
           }
   err <- withFederationError $ do
     runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)

@@ -25,8 +25,6 @@ import API.SQS qualified as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
-import Brig.Types.Connection
-import Brig.Types.Intra
 import Control.Applicative
 import Control.Concurrent.Async
 import Control.Exception (throw)
@@ -106,9 +104,10 @@ import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
 import Wire.API.Connection
-import Wire.API.Conversation
+import Wire.API.Conversation (Access (..), AccessRole (..), ConvIdsPage (..), ConvType (..), Conversation (..), ConversationPagingState (..), GetPaginatedConversationIds (..), ListConversations (..), Member (..), NewConv (..), OtherMember (..), OtherMemberUpdate (..), ReceiptMode (..))
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code hiding (Value)
+import Wire.API.Conversation.Member (MemberUpdate (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -120,33 +119,32 @@ import Wire.API.Event.Team qualified as TE
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
-import Wire.API.Federation.API.Galley
+import Wire.API.Federation.API.Galley (ConversationCreated (..), RemoteConversation)
 import Wire.API.Federation.Domain (originDomainHeaderName)
-import Wire.API.Internal.Notification hiding (target)
-import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.Message
-import Wire.API.MLS.Proposal
-import Wire.API.MLS.Serialisation
-import Wire.API.Message
+import Wire.API.Internal.Notification (Notification (..), NotificationId (..), QueuedNotification (..), QueuedNotificationList (..))
+import Wire.API.MLS.KeyPackage (KeyPackageRef (..))
+import Wire.API.MLS.Message (Message (..), MessagePayload (..), WireFormatTag (..))
+import Wire.API.MLS.Proposal (Proposal (..))
+import Wire.API.MLS.Serialisation (ParseMLS (..))
+import Wire.API.Message (ClientMismatchStrategy (..), OtrRecipients (..), UserClients (..))
 import Wire.API.Message.Proto qualified as Proto
-import Wire.API.Routes.Internal.Brig.Connection
-import Wire.API.Routes.Internal.Galley.ConversationsIntra
+import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus (..))
+import Wire.API.Routes.Internal.Galley.ConversationsIntra (UpsertOne2OneConversationRequest (..))
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
-import Wire.API.Routes.Internal.Galley.TeamsIntra
-import Wire.API.Routes.MultiTablePaging
-import Wire.API.Routes.Version
-import Wire.API.Team
-import Wire.API.Team.Feature
-import Wire.API.Team.Invitation
-import Wire.API.Team.Member hiding (userId)
+import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamData (..), TeamStatus (..))
+import Wire.API.Routes.Version (Version (..))
+import Wire.API.Team (Team (..), TeamList (..), TeamUpdateData (..))
+import Wire.API.Team.Feature (FeatureSymbol (..))
+import Wire.API.Team.Invitation (Invitation (..), InvitationRequest (..))
+import Wire.API.Team.Member (TeamMember (..), TeamMemberList (..))
 import Wire.API.Team.Member qualified as Team
-import Wire.API.Team.Permission hiding (self)
-import Wire.API.Team.Role
-import Wire.API.User hiding (AccountStatus (..))
-import Wire.API.User.Auth hiding (Access)
-import Wire.API.User.Client
+import Wire.API.Team.Permission (Perm (..), Permissions (..))
+import Wire.API.Team.Role (Role (..))
+import Wire.API.User (Email (..), InvitationCode (..), Name (..), SelfProfile (..), User (..), UserAccount (..), UserProfile (..), UserSSOId (..), UserSet (..), userId)
+import Wire.API.User.Auth (CookieLabel (..))
+import Wire.API.User.Client (ClientCapability (..), UserClientsFull (..), newClientCapabilities, newClientPassword, updateClientCapabilities)
 import Wire.API.User.Client qualified as Client
-import Wire.API.User.Client.Prekey
+import Wire.API.User.Client.Prekey (LastPrekey, Prekey (..))
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -191,12 +189,12 @@ symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
 createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
-  first userId <$> createBindingTeam'
+  first Wire.API.User.userId <$> createBindingTeam'
 
 createBindingTeam' :: HasCallStack => TestM (User, TeamId)
 createBindingTeam' = do
   owner <- randomTeamCreator'
-  teams <- getTeams (userId owner) []
+  teams <- getTeams owner.userId []
   let [team] = view teamListTeams teams
   let tid = view teamId team
   SQS.assertTeamActivate "create team" tid
@@ -365,7 +363,7 @@ getTeamMembersPaginated usr tid n mPs = do
           . paths ["teams", toByteString' tid, "members"]
           . zUser usr
           . queryItem "maxResults" (C.pack $ show n)
-          . maybe id (queryItem "pagingState" . cs) mPs
+          . maybe Imports.id (queryItem "pagingState" . cs) mPs
       )
       <!! const 200
         === statusCode
@@ -454,7 +452,7 @@ addUserToTeamWithRole :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM
 addUserToTeamWithRole role inviter tid = do
   (inv, rsp2) <- addUserToTeamWithRole' role inviter tid
   let invitee :: User = responseJsonUnsafe rsp2
-      inviteeId = userId invitee
+      inviteeId = invitee.userId
   let invmeta = Just (inviter, inCreatedAt inv)
   mem <- getTeamMember inviter tid inviteeId
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
@@ -482,8 +480,7 @@ addUserToTeamWithRole' role inviter tid = do
 addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
 addUserToTeamWithSSO hasEmail tid = do
   let ssoid = UserSSOId mkSimpleSampleUref
-  user <- responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
-  let uid = userId user
+  uid <- fmap (\(u :: User) -> u.userId) $ responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
   getTeamMember uid tid uid
 
 makeOwner :: HasCallStack => UserId -> TeamMember -> TeamId -> TestM ()
@@ -724,7 +721,7 @@ postConvQualified u c n = do
     g
       . path "/conversations"
       . zUser u
-      . maybe id zClient c
+      . maybe Imports.id zClient c
       . zConn "conn"
       . zType "access"
       . json n
@@ -931,7 +928,7 @@ data Broadcast = Broadcast
   }
 
 instance Default Broadcast where
-  def = Broadcast BroadcastLegacyQueryParams BroadcastJSON mempty "ZXhhbXBsZQ==" mempty id
+  def = Broadcast BroadcastLegacyQueryParams BroadcastJSON mempty "ZXhhbXBsZQ==" mempty Imports.id
 
 postBroadcast ::
   (MonadIO m, MonadHttp m, HasGalley m) =>
@@ -943,8 +940,8 @@ postBroadcast lu c b = do
   let u = qUnqualified lu
   g <- viewGalley
   let (bodyReport, queryReport) = case bAPI b of
-        BroadcastLegacyQueryParams -> (Nothing, maybe id mkOtrReportMissing (bReport b))
-        _ -> (bReport b, id)
+        BroadcastLegacyQueryParams -> (Nothing, maybe Imports.id mkOtrReportMissing (bReport b))
+        _ -> (bReport b, Imports.id)
   let bdy = case (bAPI b, bType b) of
         (BroadcastQualified, BroadcastJSON) -> error "JSON not supported for the qualified broadcast API"
         (BroadcastQualified, BroadcastProto) ->
@@ -996,7 +993,7 @@ mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
     fn = fromJust . fromByteString . toByteString'
 
 postProtoOtrMessage :: UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
-postProtoOtrMessage = postProtoOtrMessage' Nothing id
+postProtoOtrMessage = postProtoOtrMessage' Nothing Imports.id
 
 postProtoOtrMessage' :: Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrMessage' reportMissing modif u d c rec = do
@@ -1556,17 +1553,17 @@ registerRemoteConv convId originUser name othMembers = do
   void $
     runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
       ConversationCreated
-        { ccTime = now,
-          ccOrigUserId = originUser,
-          ccCnvId = qUnqualified convId,
-          ccCnvType = RegularConv,
-          ccCnvAccess = [],
-          ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
-          ccCnvName = name,
-          ccNonCreatorMembers = othMembers,
-          ccMessageTimer = Nothing,
-          ccReceiptMode = Nothing,
-          ccProtocol = ProtocolProteus
+        { time = now,
+          origUserId = originUser,
+          cnvId = qUnqualified convId,
+          cnvType = RegularConv,
+          cnvAccess = [],
+          cnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
+          cnvName = name,
+          nonCreatorMembers = othMembers,
+          messageTimer = Nothing,
+          receiptMode = Nothing,
+          protocol = ProtocolProteus
         }
 
 getFeatureStatusMulti :: forall cfg. KnownSymbol (FeatureSymbol cfg) => Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
@@ -1982,7 +1979,7 @@ connectUsersUnchecked ::
   UserId ->
   List1 UserId ->
   TestM (List1 (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
-connectUsersUnchecked = connectUsersWith id
+connectUsersUnchecked = connectUsersWith Imports.id
 
 connectUsersWith ::
   (Request -> Request) ->
@@ -2155,7 +2152,7 @@ ephemeralUser = do
   let p = object ["name" .= name]
   r <- post (b . path "/register" . json p) <!! const 201 === statusCode
   user <- responseJsonError r
-  pure $ userId user
+  pure $ Wire.API.User.userId user
 
 randomClient :: HasCallStack => UserId -> LastPrekey -> TestM ClientId
 randomClient uid lk = randomClientWithCaps uid lk Nothing
@@ -2295,11 +2292,11 @@ fromBS bs =
 
 convRange :: Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Request -> Request
 convRange range size =
-  maybe id (queryItem "size" . C.pack . show) size
+  maybe Imports.id (queryItem "size" . C.pack . show) size
     . case range of
       Just (Left l) -> queryItem "ids" (C.intercalate "," $ map toByteString' l)
       Just (Right c) -> queryItem "start" (toByteString' c)
-      Nothing -> id
+      Nothing -> Imports.id
 
 privateAccess :: [Access]
 privateAccess = [PrivateAccess]
@@ -2347,7 +2344,7 @@ assertMismatchWithMessage mmsg missing redundant deleted = do
     userClients = UserClients . Map.fromList
 
     formatMessage :: String -> String
-    formatMessage = maybe id (\msg -> ((msg <> "\n") <>)) mmsg
+    formatMessage = maybe Imports.id (\msg -> ((msg <> "\n") <>)) mmsg
 
 assertMismatch ::
   HasCallStack =>

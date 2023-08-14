@@ -22,7 +22,6 @@ module Wire.API.Util.Aeson
 where
 
 import Data.Aeson
-import Data.Char qualified as Char
 import GHC.Generics (Rep)
 import Imports hiding (All)
 
@@ -33,7 +32,7 @@ import Imports hiding (All)
 customEncodingOptions :: Options
 customEncodingOptions =
   defaultOptions
-    { fieldLabelModifier = camelTo2 '_' . dropWhile (not . Char.isUpper)
+    { fieldLabelModifier = camelTo2 '_'
     }
 
 newtype CustomEncoded a = CustomEncoded {unCustomEncoded :: a}

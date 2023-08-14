@@ -68,7 +68,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import Wire.API.Connection
-import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation (Access, AccessRole (..), ConvMembers (..), ConvType (..), ConversationJoin (..), ConversationMetadata (..), OtherMember (OtherMember))
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
@@ -83,6 +83,7 @@ import Wire.API.Password (verifyPassword)
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Member
+import Wire.API.Team.Member qualified as Mem
 import Wire.API.Team.Role
 import Wire.API.User (VerificationAction)
 import Wire.API.User qualified as User
@@ -128,7 +129,7 @@ ensureConnectedOrSameTeam (tUnqualified -> u) uids = do
   uTeams <- getUserTeams u
   -- We collect all the relevant uids from same teams as the origin user
   sameTeamUids <- forM uTeams $ \team ->
-    fmap (view userId) <$> selectTeamMembers team uids
+    fmap (view Mem.userId) <$> selectTeamMembers team uids
   -- Do not check connections for users that are on the same team
   ensureConnectedToLocals u (uids \\ join sameTeamUids)
 
@@ -488,8 +489,8 @@ nonTeamMembers cm tm = filter (not . isMemberOfTeam . lmId) cm
       uid -> isTeamMember uid tm
 
 membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
-membersToRecipients Nothing = map (userRecipient . view userId)
-membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
+membersToRecipients Nothing = map (userRecipient . view Mem.userId)
+membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view Mem.userId)
 
 getSelfMemberFromLocals ::
   (Foldable t, Member (ErrorS 'ConvNotFound) r) =>
@@ -572,7 +573,7 @@ canDeleteMember :: TeamMember -> TeamMember -> Bool
 canDeleteMember deleter deletee
   | getRole deletee == RoleOwner =
       getRole deleter == RoleOwner -- owners can only be deleted by another owner
-        && (deleter ^. userId /= deletee ^. userId) -- owner cannot delete itself
+        && (deleter ^. Mem.userId /= deletee ^. Mem.userId) -- owner cannot delete itself
   | otherwise =
       True
   where
@@ -674,19 +675,19 @@ toConversationCreated ::
   ConversationCreated ConvId
 toConversationCreated now Data.Conversation {convMetadata = ConversationMetadata {..}, ..} = do
   ConversationCreated
-    { ccTime = now,
-      ccOrigUserId = cnvmCreator,
-      ccCnvId = convId,
-      ccCnvType = cnvmType,
-      ccCnvAccess = cnvmAccess,
-      ccCnvAccessRoles = cnvmAccessRoles,
-      ccCnvName = cnvmName,
+    { time = now,
+      origUserId = cnvmCreator,
+      cnvId = convId,
+      cnvType = cnvmType,
+      cnvAccess = cnvmAccess,
+      cnvAccessRoles = cnvmAccessRoles,
+      cnvName = cnvmName,
       -- non-creator members are a function of the remote backend and will be
       -- overridden when fanning out the notification to remote backends.
-      ccNonCreatorMembers = Set.empty,
-      ccMessageTimer = cnvmMessageTimer,
-      ccReceiptMode = cnvmReceiptMode,
-      ccProtocol = convProtocol
+      nonCreatorMembers = Set.empty,
+      messageTimer = cnvmMessageTimer,
+      receiptMode = cnvmReceiptMode,
+      protocol = convProtocol
     }
 
 -- | The function converts a 'ConversationCreated' value to a
@@ -699,7 +700,7 @@ fromConversationCreated ::
   ConversationCreated (Remote ConvId) ->
   [(Public.Member, Public.Conversation)]
 fromConversationCreated loc rc@ConversationCreated {..} =
-  let membersView = fmap (second Set.toList) . setHoles $ ccNonCreatorMembers
+  let membersView = fmap (second Set.toList) . setHoles $ nonCreatorMembers
       creatorOther =
         OtherMember
           (tUntagged (ccRemoteOrigUserId rc))
@@ -712,7 +713,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
         membersView
   where
     inDomain :: OtherMember -> Bool
-    inDomain = (== tDomain loc) . qDomain . omQualifiedId
+    inDomain = (== tDomain loc) . qDomain . Public.omQualifiedId
     setHoles :: Ord a => Set a -> [(a, Set a)]
     setHoles s = foldMap (\x -> [(x, Set.delete x s)]) s
     -- Currently this function creates a Member with default conversation attributes
@@ -720,33 +721,33 @@ fromConversationCreated loc rc@ConversationCreated {..} =
     toMember :: OtherMember -> Public.Member
     toMember m =
       Public.Member
-        { memId = omQualifiedId m,
-          memService = omService m,
+        { memId = Public.omQualifiedId m,
+          memService = Public.omService m,
           memOtrMutedStatus = Nothing,
           memOtrMutedRef = Nothing,
           memOtrArchived = False,
           memOtrArchivedRef = Nothing,
           memHidden = False,
           memHiddenRef = Nothing,
-          memConvRoleName = omConvRoleName m
+          memConvRoleName = Public.omConvRoleName m
         }
     conv :: Public.Member -> [OtherMember] -> Public.Conversation
     conv this others =
       Public.Conversation
-        (tUntagged ccCnvId)
+        (tUntagged cnvId)
         ConversationMetadata
-          { cnvmType = ccCnvType,
+          { cnvmType = cnvType,
             -- FUTUREWORK: Document this is the same domain as the conversation
             -- domain
-            cnvmCreator = ccOrigUserId,
-            cnvmAccess = ccCnvAccess,
-            cnvmAccessRoles = ccCnvAccessRoles,
-            cnvmName = ccCnvName,
+            cnvmCreator = origUserId,
+            cnvmAccess = cnvAccess,
+            cnvmAccessRoles = cnvAccessRoles,
+            cnvmName = cnvName,
             -- FUTUREWORK: Document this is the same domain as the conversation
             -- domain.
             cnvmTeam = Nothing,
-            cnvmMessageTimer = ccMessageTimer,
-            cnvmReceiptMode = ccReceiptMode
+            cnvmMessageTimer = messageTimer,
+            cnvmReceiptMode = receiptMode
           }
         (ConvMembers this others)
         ProtocolProteus
@@ -789,7 +790,7 @@ registerRemoteConversationMemberships now lc = do
         \rrms ->
           fedClient @'Galley @"on-conversation-created"
             ( rc
-                { ccNonCreatorMembers =
+                { nonCreatorMembers =
                     toMembers (tUnqualified rrms)
                 }
             )

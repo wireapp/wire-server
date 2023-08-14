@@ -120,7 +120,7 @@ import Wire.Sem.Paging.Cassandra
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
-  hoistAPI @InternalAPIBase id $
+  hoistAPI @InternalAPIBase Imports.id $
     mkNamedAPI @"status" (pure ())
       <@> mkNamedAPI @"delete-user" (callsFed (exposeAnnotations rmUser))
       <@> mkNamedAPI @"connect" (callsFed (exposeAnnotations Create.createConnectConversation))
@@ -136,7 +136,7 @@ federationAPI =
   mkNamedAPI @"get-federation-status" getFederationStatus
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
-legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
+legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
   where
     base :: TeamId -> API ILegalholdWhitelistedTeamsAPIBase GalleyEffects
     base tid =
@@ -145,13 +145,13 @@ legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
         <@> mkNamedAPI @"get-team-legalhold-whitelisted" (LegalHoldStore.isTeamLegalholdWhitelisted tid)
 
 iTeamsAPI :: API ITeamsAPI GalleyEffects
-iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
+iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
   where
     hoistAPISegment ::
       (ServerT (seg :> inner) (Sem r) ~ ServerT inner (Sem r)) =>
       API inner r ->
       API (seg :> inner) r
-    hoistAPISegment = hoistAPI id
+    hoistAPISegment = hoistAPI Imports.id
 
     base :: TeamId -> API ITeamsAPIBase GalleyEffects
     base tid =
@@ -409,7 +409,7 @@ rmUser lusr conn = do
 
       for_
         (maybeList1 (catMaybes pp))
-        push
+        Galley.Effects.GundeckAccess.push
 
     -- FUTUREWORK: This could be optimized to reduce the number of RPCs
     -- made. When a team is deleted the burst of RPCs created here could

@@ -96,17 +96,17 @@ federationSitemap =
 getFederationStatus :: Domain -> DomainSet -> Handler r NonConnectedBackends
 getFederationStatus _ request = do
   fedDomains <- fromList . fmap (.domain) . (.remotes) <$> getFederationRemotes
-  pure $ NonConnectedBackends (request.dsDomains \\ fedDomains)
+  pure $ NonConnectedBackends (request.domains \\ fedDomains)
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do
-  active <- lift $ wrapClient $ Data.isActivated ncrTo
+  active <- lift $ wrapClient $ Data.isActivated to
   if active
     then do
-      self <- qualifyLocal ncrTo
-      let other = toRemoteUnsafe originDomain ncrFrom
+      self <- qualifyLocal to
+      let other = toRemoteUnsafe originDomain from
       mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
-      maction <- lift $ performRemoteAction self other mconnection ncrAction
+      maction <- lift $ performRemoteAction self other mconnection action
       pure $ NewConnectionResponseOk maction
     else pure NewConnectionResponseUserNotActivated
 
@@ -160,8 +160,8 @@ fedClaimKeyPackages :: Domain -> ClaimKeyPackageRequest -> Handler r (Maybe KeyP
 fedClaimKeyPackages domain ckpr =
   isMLSEnabled >>= \case
     True -> do
-      ltarget <- qualifyLocal (ckprTarget ckpr)
-      let rusr = toRemoteUnsafe domain (ckprClaimant ckpr)
+      ltarget <- qualifyLocal ckpr.target
+      let rusr = toRemoteUnsafe domain ckpr.claimant
       lift . fmap hush . runExceptT $
         claimLocalKeyPackages (tUntagged rusr) Nothing ltarget
     False -> pure Nothing
@@ -214,12 +214,12 @@ getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> 
 
 getMLSClients :: Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do
-  Internal.getMLSClients (mcrUserId mcr) (mcrSignatureScheme mcr)
+  Internal.getMLSClients mcr.userId mcr.signatureScheme
 
 onUserDeleted :: Domain -> UserDeletedConnectionsNotification -> (Handler r) EmptyResponse
 onUserDeleted origDomain udcn = lift $ do
-  let deletedUser = toRemoteUnsafe origDomain (udcnUser udcn)
-      connections = udcnConnections udcn
+  let deletedUser = toRemoteUnsafe origDomain udcn.user
+      connections = udcn.connections
       event = pure . UserEvent $ UserDeleted (tUntagged deletedUser)
   acceptedLocals <-
     map csv2From
