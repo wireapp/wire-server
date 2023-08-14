@@ -739,9 +739,9 @@ test-suite galley-tests
   main-is:            Main.hs
   other-modules:
     Paths_galley
+    Test.Galley.API.Action
     Test.Galley.API.Message
     Test.Galley.API.One2One
-    Test.Galley.API.Query
     Test.Galley.Intra.User
     Test.Galley.Mapping
 

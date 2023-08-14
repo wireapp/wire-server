@@ -375,16 +375,17 @@ the IdP page. After entering the credentials, IdP successfully
 authenticates but is stuck at the stage where redirection needs to
 happen to Wire app.
 
-The console log may mention CSP violations.
+The console log may mention CSP violations, or declare to refuse to
+forward form data to the `finalize-login` url.
 
-**Possible cause and fix:** Some browsers prevent redirects if there
+**Possible cause and fix:** Some browsers (chrome is one example) prevent redirects if there
 is a risk of leaking sensitive form data to the redirect target. In
 your setup (in particular when you're using email domain-based
 redirect from the wire cloud to your on-prem instance), your browser
 may decide to not trust the wire app with the results of the IdP login
 procedure.  In order to circumvent this issue your IdP needs to be
-configured to add the URL of the IdP (or 'self') to the CSP
-form-action header.
+configured to add "wire://*" to the "form-action" CSP value.
+
 
 See also:
 [1](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/form-action),

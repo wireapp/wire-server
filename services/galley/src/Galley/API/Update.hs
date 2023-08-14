@@ -310,6 +310,7 @@ updateConversationReceiptMode ::
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
+    Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationReceiptMode)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -327,19 +328,20 @@ updateConversationReceiptMode ::
   ConversationReceiptModeUpdate ->
   Sem r (UpdateResult Event)
 updateConversationReceiptMode lusr zcon qcnv update =
-  foldQualified
-    lusr
-    ( \lcnv ->
-        getUpdateResult . fmap lcuEvent $
-          updateLocalConversation
-            @'ConversationReceiptModeUpdateTag
-            lcnv
-            (tUntagged lusr)
-            (Just zcon)
-            update
-    )
-    (\rcnv -> updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr zcon update)
-    qcnv
+  mapError @NonFederatingBackends @InternalError (\_ -> InternalErrorWithDescription "Unexpected NonFederatingBackends error when updating remote receipt mode") $
+    foldQualified
+      lusr
+      ( \lcnv ->
+          getUpdateResult . fmap lcuEvent $
+            updateLocalConversation
+              @'ConversationReceiptModeUpdateTag
+              lcnv
+              (tUntagged lusr)
+              (Just zcon)
+              update
+      )
+      (\rcnv -> updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr zcon update)
+      qcnv
 
 updateRemoteConversation ::
   forall tag r.
@@ -350,6 +352,7 @@ updateRemoteConversation ::
     Member (Input (Local ())) r,
     Member MemberStore r,
     Member TinyLog r,
+    Member (Error NonFederatingBackends) r,
     RethrowErrors (HasConversationActionGalleyErrors tag) (Error NoChanges : r),
     SingI tag
   ) =>
@@ -370,12 +373,14 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
     ConversationUpdateResponseNoChanges -> throw NoChanges
     ConversationUpdateResponseError err' -> rethrowErrors @(HasConversationActionGalleyErrors tag) err'
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
+    ConversationUpdateResponseNonFederatingBackends e -> throw e
   updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) (Just conn) >>= note NoChanges
 
 updateConversationReceiptModeUnqualified ::
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
+    Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationReceiptMode)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -782,6 +787,7 @@ addMembers ::
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error FederationError) r,
+    Member (Error NonFederatingBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -819,6 +825,7 @@ addMembersUnqualifiedV2 ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error NonFederatingBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -856,6 +863,7 @@ addMembersUnqualified ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error NonFederatingBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,

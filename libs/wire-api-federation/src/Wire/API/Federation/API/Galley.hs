@@ -26,7 +26,7 @@ import Data.Qualified
 import Data.Range
 import Data.Time.Clock (UTCTime)
 import Imports
-import Network.Wai.Utilities.Error qualified as Wai
+import Network.Wai.Utilities.JSONResponse
 import Servant.API
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
@@ -390,6 +390,7 @@ data ConversationUpdateResponse
   = ConversationUpdateResponseError GalleyError
   | ConversationUpdateResponseUpdate ConversationUpdate
   | ConversationUpdateResponseNoChanges
+  | ConversationUpdateResponseNonFederatingBackends NonFederatingBackends
   deriving stock (Eq, Show, Generic)
   deriving
     (ToJSON, FromJSON)
@@ -412,13 +413,14 @@ data MLSWelcomeResponse
 data MLSMessageResponse
   = MLSMessageResponseError GalleyError
   | MLSMessageResponseProtocolError Text
-  | MLSMessageResponseProposalFailure Wai.Error
+  | MLSMessageResponseProposalFailure JSONResponse
   | -- | The conversation-owning backend could not reach some of the backends that
     -- have users in the conversation when processing a commit.
     MLSMessageResponseUnreachableBackends (Set Domain)
   | -- | If the list of unreachable users is non-empty, it corresponds to users
     -- that an application message could not be sent to.
     MLSMessageResponseUpdates [ConversationUpdate] (Maybe UnreachableUsers)
+  | MLSMessageResponseNonFederatingBackends NonFederatingBackends
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
 

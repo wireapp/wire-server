@@ -197,7 +197,7 @@ versionNegotiationErrorMessage RemoteTooNew =
 instance Exception FederationError
 
 instance APIError FederationError where
-  toWai = federationErrorToWai
+  toResponse = toResponse . federationErrorToWai
 
 federationErrorToWai :: FederationError -> Wai.Error
 federationErrorToWai FederationNotImplemented = federationNotImplemented

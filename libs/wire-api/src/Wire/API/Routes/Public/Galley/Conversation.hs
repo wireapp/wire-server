@@ -110,28 +110,24 @@ type ExtendedConversationResponses =
 -- backends forming an incomplete graph.
 data CreateGroupConversationResponse
   = GroupConversationExisted Conversation
-  | GroupConversationFailedToCreate CreateConversationRejected
   | GroupConversationUnreachableBackends CreateConversationUnreachableBackends
   | GroupConversationCreated CreateGroupConversation
 
 instance
   ( ResponseType r1 ~ Conversation,
-    ResponseType r2 ~ CreateConversationRejected,
-    ResponseType r3 ~ CreateConversationUnreachableBackends,
-    ResponseType r4 ~ CreateGroupConversation
+    ResponseType r2 ~ CreateConversationUnreachableBackends,
+    ResponseType r3 ~ CreateGroupConversation
   ) =>
-  AsUnion '[r1, r2, r3, r4] CreateGroupConversationResponse
+  AsUnion '[r1, r2, r3] CreateGroupConversationResponse
   where
   toUnion (GroupConversationExisted x) = Z (I x)
-  toUnion (GroupConversationFailedToCreate x) = S (Z (I x))
-  toUnion (GroupConversationUnreachableBackends x) = S (S (Z (I x)))
-  toUnion (GroupConversationCreated x) = S (S (S (Z (I x))))
+  toUnion (GroupConversationUnreachableBackends x) = S (Z (I x))
+  toUnion (GroupConversationCreated x) = S (S (Z (I x)))
 
   fromUnion (Z (I x)) = GroupConversationExisted x
-  fromUnion (S (Z (I x))) = GroupConversationFailedToCreate x
-  fromUnion (S (S (Z (I x)))) = GroupConversationUnreachableBackends x
-  fromUnion (S (S (S (Z (I x))))) = GroupConversationCreated x
-  fromUnion (S (S (S (S x)))) = case x of {}
+  fromUnion (S (Z (I x))) = GroupConversationUnreachableBackends x
+  fromUnion (S (S (Z (I x)))) = GroupConversationCreated x
+  fromUnion (S (S (S x))) = case x of {}
 
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
@@ -165,7 +161,6 @@ type CreateGroupConversationVerb =
          ConversationHeaders
          Conversation
          (Respond 200 "Conversation existed" Conversation),
-       Respond 409 "Conversation creation rejected" CreateConversationRejected,
        UnreachableBackendsResponse,
        WithHeaders
          ConversationHeaders
@@ -509,6 +504,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptClient
@@ -619,6 +615,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -642,6 +639,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -666,6 +664,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
                :> ZLocalUser
                :> ZConn
                :> "conversations"
