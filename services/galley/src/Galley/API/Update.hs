@@ -675,7 +675,6 @@ joinConversationByReusableCode ::
   ( Member BrigAccess r,
     Member CodeStore r,
     Member ConversationStore r,
-    Member (Error FederationError) r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -709,7 +708,6 @@ joinConversationById ::
   ( Member BrigAccess r,
     Member FederatorAccess r,
     Member ConversationStore r,
-    Member (Error FederationError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -735,7 +733,6 @@ joinConversation ::
   forall r.
   ( Member BrigAccess r,
     Member FederatorAccess r,
-    Member (Error FederationError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,

@@ -328,7 +328,7 @@ testAddMembersNonFullyConnectedProteus = do
       resp.status `shouldMatchInt` 409
       resp.json %. "non_federating_backends" `shouldMatchSet` [domainB, domainC]
 
-testConvWithUnreachableRemoteUsers :: App ()
+testConvWithUnreachableRemoteUsers :: HasCallStack => App ()
 testConvWithUnreachableRemoteUsers = do
   let overrides =
         def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
@@ -348,3 +348,43 @@ testConvWithUnreachableRemoteUsers = do
   convs <- getAllConvs alice >>= asList
   regConvs <- filterM (\c -> (==) <$> (c %. "type" & asInt) <*> pure 0) convs
   regConvs `shouldMatch` ([] :: [Value])
+
+testAddReachableWithUnreachableRemoteUsers :: HasCallStack => App ()
+testAddReachableWithUnreachableRemoteUsers = do
+  let overrides =
+        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
+          <> fullSearchWithAll
+  ([alex, bob], conv) <-
+    startDynamicBackends [overrides, overrides] $ \domains -> do
+      own <- make OwnDomain & asString
+      other <- make OtherDomain & asString
+      [alice, alex, bob, charlie, dylan] <-
+        createAndConnectUsers $ [own, own, other] <> domains
+
+      let newConv = defProteus {qualifiedUsers = [alex, charlie, dylan]}
+      conv <- postConversation alice newConv >>= getJSON 201
+      pure ([alex, bob], conv)
+
+  bobId <- bob %. "qualified_id"
+  bindResponse (addMembers alex conv [bobId]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+testAddUnreachable :: HasCallStack => App ()
+testAddUnreachable = do
+  let overrides =
+        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
+          <> fullSearchWithAll
+  ([alex, charlie], [charlieDomain, _dylanDomain], conv) <-
+    startDynamicBackends [overrides, overrides] $ \domains -> do
+      own <- make OwnDomain & asString
+      [alice, alex, charlie, dylan] <-
+        createAndConnectUsers $ [own, own] <> domains
+
+      let newConv = defProteus {qualifiedUsers = [alex, dylan]}
+      conv <- postConversation alice newConv >>= getJSON 201
+      pure ([alex, charlie], domains, conv)
+
+  charlieId <- charlie %. "qualified_id"
+  bindResponse (addMembers alex conv [charlieId]) $ \resp -> do
+    resp.status `shouldMatchInt` 503
+    resp.json %. "unreachable_backends" `shouldMatchSet` [charlieDomain]
