@@ -24,8 +24,8 @@ where
 
 import Data.Binary.Get
 import Data.Binary.Put
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Swagger as S
+import Data.ByteString.Lazy qualified as LBS
+import Data.Swagger qualified as S
 import GHC.Records
 import Imports
 import Wire.API.MLS.CipherSuite

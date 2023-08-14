@@ -23,11 +23,11 @@ where
 import Cassandra
 import Cassandra.Util
 import Data.Id
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Time.Clock
 import Galley.API.MLS.Types
 import Galley.Cassandra.Conversation.MLS
-import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store (embedClient)
 import Galley.Effects.SubConversationStore (SubConversationStore (..))
 import Imports hiding (cs)

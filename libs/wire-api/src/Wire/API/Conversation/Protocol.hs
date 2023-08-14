@@ -39,7 +39,7 @@ import Control.Arrow
 import Control.Lens (Traversal', makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Time.Clock
 import Imports
 import Wire.API.Conversation.Action.Tag

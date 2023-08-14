@@ -28,13 +28,13 @@ import Data.Bifunctor
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy qualified as L
 import Data.Domain
 import Data.Id
 import Data.Qualified
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.UUID as UUID
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.UUID qualified as UUID
 import Imports hiding (cs)
 import Web.HttpApiData (FromHttpApiData (parseHeader))
 import Wire.API.Conversation

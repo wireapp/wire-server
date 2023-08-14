@@ -23,7 +23,7 @@ import Data.Qualified (Qualified (..))
 import Data.Time
 import Data.UUID qualified as UUID
 import Imports
-import qualified Wire.API.Conversation.Protocol as P
+import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Event.Conversation
 import Wire.API.MLS.SubConversation
 

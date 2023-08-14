@@ -28,7 +28,7 @@ module Wire.API.MLS.LeafNode
 where
 
 import Data.Binary
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import GHC.Records
 import Imports
 import Test.QuickCheck

@@ -26,7 +26,7 @@ import Data.Id
 import Data.Qualified
 import Data.Time.Calendar
 import Data.Time.Clock
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential

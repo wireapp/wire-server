@@ -33,7 +33,7 @@ where
 
 import Control.Arrow
 import Data.Id
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Time.Clock
 import Galley.API.MLS
@@ -44,12 +44,12 @@ import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.App (Env)
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.FederatorAccess
-import qualified Galley.Effects.MemberStore as Eff
-import qualified Galley.Effects.SubConversationStore as Eff
+import Galley.Effects.MemberStore qualified as Eff
+import Galley.Effects.SubConversationStore qualified as Eff
 import Imports hiding (cs)
 import Polysemy
 import Polysemy.Error

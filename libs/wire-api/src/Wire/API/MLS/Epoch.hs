@@ -19,7 +19,7 @@
 
 module Wire.API.MLS.Epoch where
 
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Binary
 import Data.Schema
 import Imports

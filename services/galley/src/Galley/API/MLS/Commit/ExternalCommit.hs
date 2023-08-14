@@ -23,9 +23,9 @@ where
 
 import Control.Comonad
 import Control.Lens (forOf_)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Galley.API.MLS.Commit.Core
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Removal

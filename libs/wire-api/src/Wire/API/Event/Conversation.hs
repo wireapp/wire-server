@@ -82,7 +82,7 @@ import URI.ByteString ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Code (ConversationCode (..), ConversationCodeInfo)
 import Wire.API.Conversation.Protocol (ProtocolUpdate (unProtocolUpdate))
-import qualified Wire.API.Conversation.Protocol as P
+import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.MLS.SubConversation
