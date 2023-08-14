@@ -2,7 +2,6 @@
 
 module Wire.API.Event.Federation
   ( Event (..),
-    EventData (..),
   )
 where
 
@@ -19,27 +18,19 @@ import Imports
 import Test.QuickCheck.Gen
 import Wire.Arbitrary
 
-data Event = Event
-  { _eventData :: EventData
-  }
-  deriving (Eq, Show, Generic)
-
-data EventData
+data Event
   = FederationDelete Domain
   | FederationConnectionRemoved (Domain, Domain)
   deriving stock (Eq, Show, Generic)
 
-$(makePrisms ''EventData)
+$(makePrisms ''Event)
 
-instance Arbitrary EventData where
+instance Arbitrary Event where
   arbitrary =
     oneof
       [ FederationDelete <$> arbitrary,
         FederationConnectionRemoved <$> arbitrary
       ]
-
-instance Arbitrary Event where
-  arbitrary = Event <$> arbitrary
 
 data EventType
   = FederationTypeDelete
@@ -57,13 +48,10 @@ instance ToSchema EventType where
         ]
 
 eventType :: Event -> EventType
-eventType = eventDataType . _eventData
+eventType (FederationDelete _) = FederationTypeDelete
+eventType (FederationConnectionRemoved _) = FederationTypeConnectionRemoved
 
-eventDataType :: EventData -> EventType
-eventDataType (FederationDelete _) = FederationTypeDelete
-eventDataType (FederationConnectionRemoved _) = FederationTypeConnectionRemoved
-
-taggedEventDataSchema :: ObjectSchema SwaggerDoc (EventType, EventData)
+taggedEventDataSchema :: ObjectSchema SwaggerDoc (EventType, Event)
 taggedEventDataSchema =
   bind
     (fst .= field "type" schema)
@@ -75,7 +63,7 @@ taggedEventDataSchema =
     ( snd .= dispatch dataSchema
     )
   where
-    dataSchema :: EventType -> ObjectSchema SwaggerDoc EventData
+    dataSchema :: EventType -> ObjectSchema SwaggerDoc Event
     dataSchema FederationTypeDelete = tag _FederationDelete deleteSchema
     dataSchema FederationTypeConnectionRemoved = tag _FederationConnectionRemoved connectionRemovedSchema
 
@@ -88,12 +76,10 @@ connectionRemovedSchema = field "domains" (pair schema)
 
 -- Schemas for the events, as they have different structures.
 eventObjectSchema :: ObjectSchema SwaggerDoc Event
-eventObjectSchema =
-  Event . snd
-    <$> (eventType &&& _eventData) .= taggedEventDataSchema
+eventObjectSchema = snd <$> (eventType &&& id) .= taggedEventDataSchema
 
 instance ToSchema Event where
-  schema = object "Event" eventObjectSchema
+  schema = object "FederationEvent" eventObjectSchema
 
 instance ToJSONObject Event where
   toJSONObject =

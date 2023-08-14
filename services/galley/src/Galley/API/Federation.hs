@@ -61,7 +61,7 @@ import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore (ProposalStore)
 import Galley.Options
 import Galley.Types.Conversations.Members
-import Galley.Types.UserList (UserList (UserList))
+import Galley.Types.UserList (UserList (UserList), toUserList)
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -814,19 +814,7 @@ cleanupRemovedConnections domainA domainB = do
           $ Map.lookup k lCnvMapB
 
   for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) ->
-    do
-      mapError @NoChanges (const (InternalErrorWithDescription "Federation domain removal: No changes"))
-      $ E.getConversation cnvId
-        >>= maybe
-          (pure ()) -- Conv already gone, nothing to do
-          (cleanupConv localDomain rUsers)
-  where
-    cleanupConv localDomain rUsers conv = do
-      updateLocalConversationUserUnchecked
-        @'ConversationRemoveMembersTag
-        (toLocalUnsafe localDomain conv)
-        undefined
-        $ tUntagged . rmId <$> rUsers
+    E.deleteMembers cnvId $ toUserList (toLocalUnsafe localDomain ()) $ tUntagged . rmId <$> rUsers
 
 --------------------------------------------------------------------------------
 -- Utilities

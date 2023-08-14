@@ -277,11 +277,11 @@ tests s =
               "federation notifications"
               -- Run these tests in order by having them wait on each other.
               -- The names need to be distint enough so that there isn't a loop with the regexes
-              [ test s "delete federation notifications" API.testDefederationNotifications,
-                after AllFinish "$0 ~ /delete federation notifications/" $ test s "connection removed notifications normal" API.testConnectionRemovedNotifications,
-                after AllFinish "$0 ~ /connection removed notifications normal/" $ test s "connection removed notifications no-op" API.testConnectionRemovedNotificationsNoop,
-                after AllFinish "$0 ~ /connection removed notifications no-op/" $ test s "connection removed notifications domain A bias" API.testConnectionRemovedNotificationsNoopDomainA,
-                after AllFinish "$0 ~ /connection removed notifications domain A bias/" $ test s "connection removed notifications domain B bias" API.testConnectionRemovedNotificationsNoopDomainB
+              [ test s "delete federation notifications" testDefederationNotifications,
+                after AllFinish "$0 ~ /delete federation notifications/" $ test s "connection removed notifications normal" testConnectionRemovedNotifications,
+                after AllFinish "$0 ~ /connection removed notifications normal/" $ test s "connection removed notifications no-op" testConnectionRemovedNotificationsNoop,
+                after AllFinish "$0 ~ /connection removed notifications no-op/" $ test s "connection removed notifications domain A bias" testConnectionRemovedNotificationsNoopDomainA,
+                after AllFinish "$0 ~ /connection removed notifications domain A bias/" $ test s "connection removed notifications domain B bias" testConnectionRemovedNotificationsNoopDomainB
               ]
         ]
     rb1, rb2, rb3, rb4 :: Remote Backend

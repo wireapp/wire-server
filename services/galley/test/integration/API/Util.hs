@@ -1799,7 +1799,7 @@ assertFederationDeletedEvent ::
   Fed.Event ->
   IO ()
 assertFederationDeletedEvent dom e = do
-  Fed._eventData e @?= Fed.FederationDelete dom
+  e @?= Fed.FederationDelete dom
 
 wsAssertFederationConnectionRemoved ::
   HasCallStack =>
@@ -1817,7 +1817,7 @@ assertFederationConnectionRemovedEvent ::
   Fed.Event ->
   IO ()
 assertFederationConnectionRemovedEvent domA domB e = do
-  Fed._eventData e @?= Fed.FederationConnectionRemoved (domA, domB)
+  e @?= Fed.FederationConnectionRemoved (domA, domB)
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
 --

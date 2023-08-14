@@ -150,9 +150,10 @@ req env dom =
 -- Deadlettering has a privacy implication -- FUTUREWORK.
 deleteFederationDomainInner :: RabbitMQEnvelope e => MVar () -> (Q.Message, e) -> AppT IO ()
 deleteFederationDomainInner runningFlag (msg, envelope) =
-  deleteFederationDomainInner' go (msg, envelope)
+  deleteFederationDomainInner' (const go) (msg, envelope)
   where
-    go _ defederationDomain = do
+    go :: DefederationDomain -> AppT IO ()
+    go defederationDomain = do
       notifyOtherBackends defederationDomain
       callGalleyDelete runningFlag envelope defederationDomain
 
