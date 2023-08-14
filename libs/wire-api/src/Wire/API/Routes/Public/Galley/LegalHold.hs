@@ -19,7 +19,7 @@ module Wire.API.Routes.Public.Galley.LegalHold where
 
 import Data.Id
 import GHC.Generics
-import qualified Generics.SOP as GSOP
+import Generics.SOP qualified as GSOP
 import Servant hiding (WithStatus)
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation.Role

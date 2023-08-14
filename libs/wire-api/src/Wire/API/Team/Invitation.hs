@@ -28,14 +28,14 @@ module Wire.API.Team.Invitation
 where
 
 import Control.Lens ((?~))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
 import Data.SOP
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text.Encoding as TE
+import Data.Swagger qualified as S
+import Data.Text.Encoding qualified as TE
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import URI.ByteString

@@ -24,32 +24,32 @@ module Brig.API.Internal
 where
 
 import Brig.API.Auth
-import qualified Brig.API.Client as API
-import qualified Brig.API.Connection as API
+import Brig.API.Client qualified as API
+import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.OAuth (internalOauthAPI)
 import Brig.API.Types
-import qualified Brig.API.User as API
+import Brig.API.User qualified as API
 import Brig.API.Util
 import Brig.App
-import qualified Brig.Code as Code
+import Brig.Code qualified as Code
 import Brig.Data.Activation
-import qualified Brig.Data.Client as Data
-import qualified Brig.Data.Connection as Data
-import qualified Brig.Data.Federation as Data
-import qualified Brig.Data.MLS.KeyPackage as Data
-import qualified Brig.Data.User as Data
+import Brig.Data.Client qualified as Data
+import Brig.Data.Connection qualified as Data
+import Brig.Data.Federation qualified as Data
+import Brig.Data.MLS.KeyPackage qualified as Data
+import Brig.Data.User qualified as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import qualified Brig.IO.Intra as Intra
+import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
-import qualified Brig.Provider.API as Provider
-import qualified Brig.Team.API as Team
+import Brig.Provider.API qualified as Provider
+import Brig.Team.API qualified as Team
 import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.Connection
@@ -57,9 +57,9 @@ import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User
 import Brig.Types.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId, eupSSOIdRemoved), emptyUserUpdatedData)
-import qualified Brig.User.API.Search as Search
-import qualified Brig.User.EJPD
-import qualified Brig.User.Search.Index as Index
+import Brig.User.API.Search qualified as Search
+import Brig.User.EJPD qualified
+import Brig.User.Search.Index qualified as Index
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
 import Data.Aeson hiding (json)
@@ -67,33 +67,33 @@ import Data.CommaSeparatedList
 import Data.Domain (Domain, domainText)
 import Data.Handle
 import Data.Id as Id
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Time.Clock.System
 import Imports hiding (head)
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
-import qualified System.Logger as Lg
-import qualified System.Logger.Class as Log
+import System.Logger qualified as Lg
+import System.Logger.Class qualified as Log
 import System.Random (randomRIO)
 import UnliftIO.Async
 import Wire.API.Connection
 import Wire.API.Error
-import qualified Wire.API.Error.Brig as E
+import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.FederationDomainConfig
-import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
+import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
-import qualified Wire.API.Team.Feature as ApiFt
+import Wire.API.Team.Feature qualified as ApiFt
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client
@@ -351,13 +351,12 @@ deleteFederationRemote dom = do
     queue = routingKey defederationQueue
 
 -- | Remove one-on-one conversations for the given remote domain. This is called from Galley as
--- part of the defederation process, and should not be called duriung the initial domain removal
+-- part of the defederation process, and should not be called during the initial domain removal
 -- call to brig. This is so we can ensure that domains are correctly cleaned up if a service
 -- falls over for whatever reason.
 deleteFederationRemoteGalley :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemoteGalley dom = do
   lift . wrapClient . Data.deleteRemoteConnectionsDomain $ dom
-  assertNoDomainsFromConfigFiles dom
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)

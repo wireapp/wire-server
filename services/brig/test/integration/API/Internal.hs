@@ -30,22 +30,22 @@ import Bilge
 import Bilge.Assert
 import Brig.Data.Connection
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
-import qualified Brig.Options as Opt
-import qualified Cassandra as C
-import qualified Cassandra as Cass
+import Brig.Options qualified as Opt
+import Cassandra qualified as C
+import Cassandra qualified as Cass
 import Cassandra.Exec (x1)
 import Cassandra.Util
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens ((^.), (^?!))
-import qualified Data.Aeson.Lens as Aeson
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson.Lens qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Time
 import GHC.TypeLits (KnownSymbol)
 import Imports
@@ -54,11 +54,11 @@ import Test.Tasty.HUnit
 import UnliftIO (withSystemTempDirectory)
 import Util
 import Util.Options (Endpoint)
-import qualified Wire.API.Connection as Conn
+import Wire.API.Connection qualified as Conn
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.Feature
-import qualified Wire.API.Team.Feature as ApiFt
-import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Feature qualified as ApiFt
+import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.User.Client
 

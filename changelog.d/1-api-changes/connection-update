@@ -1,1 +1,0 @@
-The `connection-update` internal Brig endpoint has a different JSON format for its request body. See the swagger documentation for details.

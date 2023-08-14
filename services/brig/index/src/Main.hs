@@ -25,7 +25,7 @@ import Brig.Index.Options
 import Imports
 import Options.Applicative
 import System.Exit
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 
 main :: IO ()
 main = do

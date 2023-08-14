@@ -22,7 +22,7 @@ module Test.Wire.API.Golden.Generated.InvitationList_team where
 import Data.Either.Combinators
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.Team.Invitation

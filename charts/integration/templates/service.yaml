@@ -1,0 +1,40 @@
+{{- $newLabels := eq (include "integrationTestHelperNewLabels" .) "true" -}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: integration
+spec:
+  ports:
+  {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
+  - name: dyn-fed-{{ $name }}
+    port: {{ $dynamicBackend.federatorExternalPort }}
+    protocol: TCP
+    targetPort: {{ $dynamicBackend.federatorExternalPort }}
+  {{- end }}
+  selector:
+    app: integration-integration
+  type: ClusterIP
+
+{{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $dynamicBackend.federatorExternalHostPrefix }}
+spec:
+  ports:
+  - name: wire-server-federator
+    port: 443
+    protocol: TCP
+    targetPort: https
+  selector:
+    {{- if $newLabels }}
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/name: ingress-nginx
+    {{- else }}
+    app: nginx-ingress
+    component: controller
+    {{- end }}
+  type: ClusterIP
+{{- end }}

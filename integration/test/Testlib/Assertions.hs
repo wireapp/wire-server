@@ -8,7 +8,7 @@ import Data.Aeson (Value)
 import Data.Char
 import Data.Foldable
 import Data.List
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import GHC.Stack as Stack
 import System.FilePath
 import Testlib.JSON
@@ -73,7 +73,7 @@ a `shouldNotMatch` b = do
 
   when (xa == xb) $ do
     pa <- prettyJSON xa
-    assertFailure $ "Expected different value but got twice:\n" <> pa
+    assertFailure $ "Expected different value but got this:\n" <> pa
 
 -- | Specialized variant of `shouldMatch` to avoid the need for type annotations.
 shouldMatchInt ::

@@ -20,10 +20,10 @@
 module Test.Federator.ExternalServer where
 
 import Control.Monad.Codensity
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.Default
 import Data.Domain
-import qualified Data.Text.Encoding as Text
+import Data.Text.Encoding qualified as Text
 import Federator.Discovery
 import Federator.Error.ServerError (ServerError (..))
 import Federator.ExternalServer
@@ -33,16 +33,16 @@ import Federator.Service (Service (..), ServiceStreaming)
 import Federator.Validation
 import Imports
 import Network.HTTP.Types
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Internal as Wai
-import qualified Network.Wai.Utilities.Server as Wai
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai qualified as Wai
+import Network.Wai.Internal qualified as Wai
+import Network.Wai.Utilities.Server qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Output
 import Polysemy.TinyLog
-import qualified Servant.Client.Core as Servant
+import Servant.Client.Core qualified as Servant
 import Servant.Server.Generic
 import Servant.Types.SourceT
 import System.Logger (Msg)

@@ -35,13 +35,13 @@ import Cassandra.CQL hiding (Set)
 import Control.Applicative
 import Control.Lens hiding (set, (.=))
 import Data.Aeson (FromJSON, ToJSON)
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.Range
 import Data.Schema hiding (HasField)
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import GHC.Records
 import Imports hiding (cs)
 import Test.QuickCheck

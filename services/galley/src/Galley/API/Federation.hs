@@ -28,14 +28,14 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified
 import Data.Range (Range (fromRange))
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons (SingI (..), demote, sing)
 import Data.Tagged
-import qualified Data.Text.Lazy as LT
+import Data.Text.Lazy qualified as LT
 import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
@@ -48,17 +48,17 @@ import Galley.API.MLS.SubConversation hiding (leaveSubConversation)
 import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome
 import Galley.API.Mapping
-import qualified Galley.API.Mapping as Mapping
+import Galley.API.Mapping qualified as Mapping
 import Galley.API.Message
 import Galley.API.Push
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
-import qualified Galley.Effects.ConversationStore as E
-import qualified Galley.Effects.FireAndForget as E
-import qualified Galley.Effects.MemberStore as E
+import Galley.Effects.ConversationStore qualified as E
+import Galley.Effects.FireAndForget qualified as E
+import Galley.Effects.MemberStore qualified as E
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.One2One
@@ -70,12 +70,12 @@ import Polysemy.Input
 import Polysemy.Internal.Kind (Append)
 import Polysemy.Resource
 import Polysemy.TinyLog
-import qualified Polysemy.TinyLog as P
+import Polysemy.TinyLog qualified as P
 import Servant (ServerT)
 import Servant.API
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
-import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -84,7 +84,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley
-import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
@@ -266,15 +266,14 @@ leaveConversation requestingDomain lc = do
                 Nothing
                 ()
         case outcome of
-          Left e@(FederationUnreachableDomains _) -> throw e
           Left e -> do
             logFederationError lcnv e
             throw . internalErr $ e
-          Right update -> pure (update, conv)
+          Right _ -> pure conv
 
   case res of
     Left e -> pure $ F.LeaveConversationResponse (Left e)
-    Right (_update, conv) -> do
+    Right conv -> do
       let remotes = filter ((== qDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
       do
@@ -289,7 +288,6 @@ leaveConversation requestingDomain lc = do
               botsAndMembers
               ()
         case outcome of
-          Left e@(FederationUnreachableDomains _) -> throw e
           Left e -> do
             logFederationError lcnv e
             throw . internalErr $ e
@@ -429,7 +427,6 @@ onUserDeleted origDomain udcn = do
                     botsAndMembers
                     ()
               case outcome of
-                Left e@(FederationUnreachableDomains _) -> throw e
                 Left e -> logFederationError lc e
                 Right _ -> pure ()
   pure EmptyResponse
@@ -518,11 +515,43 @@ updateConversation origDomain updateRequest = do
           . fmap lcuUpdate
           $ updateLocalConversation @'ConversationUpdateProtocolTag lcnv (tUntagged rusr) Nothing action
   where
-    mkResponse = fmap toResponse . runError @GalleyError . runError @NoChanges
+    mkResponse =
+      fmap (either F.ConversationUpdateResponseError id)
+        . runError @GalleyError
+        . fmap (fromRight F.ConversationUpdateResponseNoChanges)
+        . runError @NoChanges
+        . fmap (either F.ConversationUpdateResponseNonFederatingBackends id)
+        . runError @NonFederatingBackends
+        . fmap (either F.ConversationUpdateResponseUnreachableBackends id)
+        . runError @UnreachableBackends
+        . fmap F.ConversationUpdateResponseUpdate
 
-    toResponse (Left galleyErr) = F.ConversationUpdateResponseError galleyErr
-    toResponse (Right (Left NoChanges)) = F.ConversationUpdateResponseNoChanges
-    toResponse (Right (Right update)) = F.ConversationUpdateResponseUpdate update
+handleMLSMessageErrors ::
+  ( r1
+      ~ Append
+          MLSBundleStaticErrors
+          ( Error UnreachableBackends
+              ': Error NonFederatingBackends
+              ': Error MLSProposalFailure
+              ': Error GalleyError
+              ': Error MLSProtocolError
+              ': r
+          )
+  ) =>
+  Sem r1 MLSMessageResponse ->
+  Sem r MLSMessageResponse
+handleMLSMessageErrors =
+  fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
+    . runError @MLSProtocolError
+    . fmap (either F.MLSMessageResponseError id)
+    . runError
+    . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
+    . runError
+    . fmap (either F.MLSMessageResponseNonFederatingBackends id)
+    . runError
+    . fmap (either (F.MLSMessageResponseUnreachableBackends . Set.fromList . (.backends)) id)
+    . runError @UnreachableBackends
+    . mapToGalleyError @MLSBundleStaticErrors
 
 sendMLSCommitBundle ::
   ( Member BrigAccess r,
@@ -548,34 +577,26 @@ sendMLSCommitBundle ::
   Domain ->
   F.MLSMessageSendRequest ->
   Sem r F.MLSMessageResponse
-sendMLSCommitBundle remoteDomain msr =
-  fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
-    . runError @MLSProtocolError
-    . fmap (either F.MLSMessageResponseError id)
-    . runError
-    . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
-    . runError
-    . mapToGalleyError @MLSBundleStaticErrors
-    $ do
-      assertMLSEnabled
-      loc <- qualifyLocal ()
-      let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
-      bundle <-
-        either (throw . mlsProtocolError) pure $
-          decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
+sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
+  assertMLSEnabled
+  loc <- qualifyLocal ()
+  let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
+  bundle <-
+    either (throw . mlsProtocolError) pure $
+      decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
 
-      ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
-      (ctype, qConvOrSub) <- getConvFromGroupId ibundle.groupId
-      when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
-      uncurry F.MLSMessageResponseUpdates . (,mempty) . map lcuUpdate
-        <$> postMLSCommitBundle
-          loc
-          (tUntagged sender)
-          (mmsrSenderClient msr)
-          ctype
-          qConvOrSub
-          Nothing
-          ibundle
+  ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
+  (ctype, qConvOrSub) <- getConvFromGroupId ibundle.groupId
+  when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
+  uncurry F.MLSMessageResponseUpdates . (,mempty) . map lcuUpdate
+    <$> postMLSCommitBundle
+      loc
+      (tUntagged sender)
+      (mmsrSenderClient msr)
+      ctype
+      qConvOrSub
+      Nothing
+      ibundle
 
 sendMLSMessage ::
   ( Member BrigAccess r,
@@ -599,31 +620,23 @@ sendMLSMessage ::
   Domain ->
   F.MLSMessageSendRequest ->
   Sem r F.MLSMessageResponse
-sendMLSMessage remoteDomain msr =
-  fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
-    . runError @MLSProtocolError
-    . fmap (either F.MLSMessageResponseError id)
-    . runError
-    . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
-    . runError
-    . mapToGalleyError @MLSMessageStaticErrors
-    $ do
-      assertMLSEnabled
-      loc <- qualifyLocal ()
-      let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
-      raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
-      msg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage raw
-      (ctype, qConvOrSub) <- getConvFromGroupId msg.groupId
-      when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
-      uncurry F.MLSMessageResponseUpdates . first (map lcuUpdate)
-        <$> postMLSMessage
-          loc
-          (tUntagged sender)
-          (mmsrSenderClient msr)
-          ctype
-          qConvOrSub
-          Nothing
-          msg
+sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
+  assertMLSEnabled
+  loc <- qualifyLocal ()
+  let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
+  raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
+  msg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage raw
+  (ctype, qConvOrSub) <- getConvFromGroupId msg.groupId
+  when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
+  uncurry F.MLSMessageResponseUpdates . first (map lcuUpdate)
+    <$> postMLSMessage
+      loc
+      (tUntagged sender)
+      (mmsrSenderClient msr)
+      ctype
+      qConvOrSub
+      Nothing
+      msg
 
 mlsSendWelcome ::
   ( Member (Error InternalError) r,

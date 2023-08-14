@@ -5,12 +5,12 @@ module Wire.API.Event.Federation
 where
 
 import Data.Aeson (FromJSON, ToJSON)
-import qualified Data.Aeson as A
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson qualified as A
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Domain
 import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Wire.Arbitrary
 

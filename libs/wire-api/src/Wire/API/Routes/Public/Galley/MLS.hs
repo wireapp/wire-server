@@ -58,6 +58,8 @@ type MLSMessagingAPI =
         :> CanThrow 'MLSUnsupportedMessage
         :> CanThrow 'MLSUnsupportedProposal
         :> CanThrow MLSProposalFailure
+        :> CanThrow NonFederatingBackends
+        :> CanThrow UnreachableBackends
         :> "messages"
         :> ZLocalUser
         :> ZClient
@@ -95,6 +97,8 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSUnsupportedProposal
                :> CanThrow 'MLSWelcomeMismatch
                :> CanThrow MLSProposalFailure
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
                :> "commit-bundles"
                :> ZLocalUser
                :> ZClient

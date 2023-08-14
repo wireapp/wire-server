@@ -18,12 +18,12 @@
 module Brig.Calling.Internal where
 
 import Control.Lens ((?~))
-import qualified Data.ByteString.Char8 as BS
+import Data.ByteString.Char8 qualified as BS
 import Data.Misc (ensureHttpsUrl)
 import Imports
-import qualified URI.ByteString as URI
-import qualified URI.ByteString.QQ as URI
-import qualified Wire.API.Call.Config as Public
+import URI.ByteString qualified as URI
+import URI.ByteString.QQ qualified as URI
+import Wire.API.Call.Config qualified as Public
 import Wire.Network.DNS.SRV (SrvTarget (..))
 
 -- FUTUREWORK: Extract function to translate SrvTarget to HttpsUrl and use it

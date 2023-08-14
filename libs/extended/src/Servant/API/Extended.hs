@@ -19,7 +19,7 @@
 -- errors instead of plaintext.
 module Servant.API.Extended where
 
-import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy qualified as BL
 import Data.EitherR (fmapL)
 import Data.Kind
 import Data.Metrics.Servant

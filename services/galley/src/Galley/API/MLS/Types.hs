@@ -21,8 +21,8 @@ module Galley.API.MLS.Types where
 import Data.Domain
 import Data.Id
 import Data.IntMap (IntMap)
-import qualified Data.IntMap as IntMap
-import qualified Data.Map as Map
+import Data.IntMap qualified as IntMap
+import Data.Map qualified as Map
 import Data.Qualified
 import GHC.Records (HasField (..))
 import Galley.Data.Conversation.Types

@@ -20,7 +20,7 @@ module Main
   )
 where
 
-import qualified API
+import API qualified
 import Bilge hiding (body, header)
 import Cassandra.Util
 import Control.Lens
@@ -31,12 +31,12 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import Gundeck.Options
 import Imports hiding (local)
-import qualified Metrics
+import Metrics qualified
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS
 import OpenSSL (withOpenSSL)
 import Options.Applicative
-import qualified System.Logger as Logger
+import System.Logger qualified as Logger
 import Test.Tasty
 import Test.Tasty.Options
 import TestSetup

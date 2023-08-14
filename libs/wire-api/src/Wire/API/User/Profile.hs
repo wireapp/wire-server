@@ -52,7 +52,7 @@ where
 import Control.Applicative (optional)
 import Control.Error (hush, note)
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Attoparsec.ByteString.Char8 (takeByteString)
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
@@ -60,8 +60,8 @@ import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
 import Data.Range
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
 import Imports
 import Wire.API.Asset (AssetKey (..))
 import Wire.API.User.Orphans ()

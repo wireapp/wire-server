@@ -1,13 +1,11 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-{-# HLINT ignore "Use tuple-section" #-}
 module Testlib.ModService
   ( withModifiedService,
     withModifiedServices,
     startDynamicBackend,
     startDynamicBackends,
     traverseConcurrentlyCodensity,
-    commonEnv,
   )
 where
 
@@ -15,7 +13,7 @@ import Control.Applicative ((<|>))
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Exception (finally)
-import qualified Control.Exception as E
+import Control.Exception qualified as E
 import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Codensity
 import Control.Monad.Extra
@@ -27,25 +25,25 @@ import Data.Either.Extra (eitherToMaybe)
 import Data.Foldable
 import Data.Function
 import Data.Functor
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Data.Monoid
+import Data.String
 import Data.String.Conversions (cs)
-import Data.Text hiding (elem, head, map, zip)
-import qualified Data.Text.IO as Text
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import Data.Traversable
 import Data.Word (Word16)
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import GHC.Stack
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.Socket as N
+import Network.HTTP.Client qualified as HTTP
+import Network.Socket qualified as N
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
-import System.Environment (getEnv)
 import System.FilePath
 import System.IO
-import qualified System.IO.Error as Error
+import System.IO.Error qualified as Error
 import System.IO.Temp (createTempDirectory, writeTempFile)
-import System.Posix (getEnvironment, killProcess, signalProcess)
+import System.Posix (killProcess, signalProcess)
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, getPid, proc, terminateProcess, waitForProcess)
 import System.Timeout (timeout)
 import Testlib.App
@@ -160,7 +158,7 @@ startDynamicBackend resource staticPorts beOverrides = do
                   >=> setEsIndex srv
                   >=> setFederationSettings srv
                   >=> setAwsAdnQueuesConfigs srv
-                  >=> setField "logLevel" "Warn"
+                  >=> setLogLevel srv
             )
             defaultServiceOverridesToMap
   startBackend
@@ -199,6 +197,7 @@ startDynamicBackend resource staticPorts beOverrides = do
               "optSettings.setFederationDomainConfigs"
               ([] :: [Value])
             >=> setField "federatorInternal.port" resource.berFederatorInternal
+            >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
         Cargohold ->
           setField "settings.federationDomain" resource.berDomain
             >=> setField "federator.port" resource.berFederatorInternal
@@ -233,6 +232,11 @@ startDynamicBackend resource staticPorts beOverrides = do
       -- other services do not have an ES index
       _ -> pure
 
+    setLogLevel :: Service -> Value -> App Value
+    setLogLevel = \case
+      Spar -> setField "saml.logLevel" ("Warn" :: String)
+      _ -> setField "logLevel" ("Warn" :: String)
+
 setFederatorPorts :: BackendResource -> ServiceMap -> ServiceMap
 setFederatorPorts resource sm =
   sm
@@ -261,6 +265,7 @@ updateServiceMap ports serviceMap =
           Spar -> sm {spar = sm.spar {host = "127.0.0.1", port = newPort}}
           BackgroundWorker -> sm {backgroundWorker = sm.backgroundWorker {host = "127.0.0.1", port = newPort}}
           Stern -> sm {stern = sm.stern {host = "127.0.0.1", port = newPort}}
+          FederatorInternal -> sm {federatorInternal = sm.federatorInternal {host = "127.0.0.1", port = newPort}}
     )
     serviceMap
     ports
@@ -333,12 +338,14 @@ startBackend domain staticPorts nginzSslPort mFederatorOverrides services modify
             >>= startProcess' domain "federator"
             <&> (: [])
 
-    otherInstances <- for (Map.assocs services) $ \case
+    otherInstances <- for (Map.assocs $ Map.filterWithKey (\s _ -> s /= FederatorInternal) services) $ \case
       (Nginz, _) -> do
         env <- ask
         sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (modifyBackends (fromIntegral <$> ports) env.serviceMap))
         port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral) (Map.lookup Nginz ports)
-        startNginz domain port nginzHttp2Port nginzSslPort sm
+        case env.servicesCwdBase of
+          Nothing -> startNginzK8s domain sm
+          Just _ -> startNginzLocal domain port nginzHttp2Port nginzSslPort sm
       (srv, modifyConfig) -> do
         readServiceConfig srv
           >>= updateServiceMapInConfig (Just srv)
@@ -394,26 +401,8 @@ processColors =
     ("nginx", colored purpleish)
   ]
 
--- Used for services AND integration test processes (gundeck-integration needs AWS_* variables)
-commonEnv :: MonadIO m => m [(String, String)]
-commonEnv = liftIO $ do
-  environment <- getEnvironment
-  rabbitMqUserName <- getEnv "RABBITMQ_USERNAME"
-  rabbitMqPassword <- getEnv "RABBITMQ_PASSWORD"
-  pure
-    ( environment
-        <> [ ("AWS_REGION", "eu-west-1"),
-             ("AWS_ACCESS_KEY_ID", "dummykey"),
-             ("AWS_SECRET_ACCESS_KEY", "dummysecret"),
-             ("RABBITMQ_USERNAME", rabbitMqUserName),
-             ("RABBITMQ_PASSWORD", rabbitMqPassword)
-           ]
-    )
-
 startProcess' :: String -> String -> Value -> App (ProcessHandle, FilePath)
 startProcess' domain execName config = do
-  processEnv <- commonEnv
-
   tempFile <- liftIO $ writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
 
   (cwd, exe) <-
@@ -422,7 +411,7 @@ startProcess' domain execName config = do
       Just dir ->
         (Just (dir </> execName), "../../dist" </> execName)
 
-  (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, env = Just processEnv, std_out = CreatePipe, std_err = CreatePipe}
+  (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
   let prefix = "[" <> execName <> "@" <> domain <> "] "
   let colorize = fromMaybe id (lookup execName processColors)
   void $ liftIO $ forkIO $ logToConsole colorize prefix stdoutHdl
@@ -482,8 +471,31 @@ openFreePort =
               Nothing
               Nothing
 
-startNginz :: String -> Word16 -> Word16 -> Maybe Word16 -> ServiceMap -> App (ProcessHandle, FilePath)
-startNginz domain localPort http2Port mSslPort sm = do
+startNginzK8s :: String -> ServiceMap -> App (ProcessHandle, FilePath)
+startNginzK8s domain sm = do
+  tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
+  liftIO $
+    copyDirectoryRecursively "/etc/wire/nginz/" tmpDir
+
+  let nginxConfFile = tmpDir </> "conf" </> "nginx.conf"
+      upstreamsCfg = tmpDir </> "upstreams.conf"
+  liftIO $ do
+    conf <- Text.readFile nginxConfFile
+    Text.writeFile nginxConfFile $
+      ( conf
+          & Text.replace "access_log /dev/stdout" "access_log /dev/null"
+          -- TODO: Get these ports out of config
+          & Text.replace ("listen 8080;\n    listen 8081 proxy_protocol;") (cs $ "listen " <> show sm.nginz.port <> ";")
+          & Text.replace ("listen 8082;") (cs $ "listen unix:" <> (tmpDir </> "metrics-socket") <> ";")
+          & Text.replace ("/var/run/nginz.pid") (cs $ tmpDir </> "nginz.pid")
+          & Text.replace ("/etc/wire/nginz/upstreams/upstreams.conf") (cs upstreamsCfg)
+      )
+  createUpstreamsCfg upstreamsCfg sm
+  ph <- startNginz domain nginxConfFile "/"
+  pure (ph, tmpDir)
+
+startNginzLocal :: String -> Word16 -> Word16 -> Maybe Word16 -> ServiceMap -> App (ProcessHandle, FilePath)
+startNginzLocal domain localPort http2Port mSslPort sm = do
   -- Create a whole temporary directory and copy all nginx's config files.
   -- This is necessary because nginx assumes local imports are relative to
   -- the location of the main configuration file.
@@ -505,18 +517,18 @@ startNginz domain localPort http2Port mSslPort sm = do
     conf <- Text.readFile nginxConfFile
     Text.writeFile nginxConfFile $
       ( conf
-          & replace (cs "access_log /dev/stdout") (cs "access_log /dev/null")
+          & Text.replace "access_log /dev/stdout" "access_log /dev/null"
       )
 
   conf <- Prelude.lines <$> liftIO (readFile integrationConfFile)
   let sslPortParser = do
-        _ <- string (cs "listen")
+        _ <- string "listen"
         _ <- many1 space
         p <- many1 digit
         _ <- many1 space
-        _ <- string (cs "ssl")
+        _ <- string "ssl"
         _ <- many1 space
-        _ <- string (cs "http2")
+        _ <- string "http2"
         _ <- many1 space
         _ <- char ';'
         pure (read p :: Word16)
@@ -529,27 +541,54 @@ startNginz domain localPort http2Port mSslPort sm = do
 
   -- override port configuration
   let portConfigTemplate =
-        cs $
-          [r|listen {localPort};
+        [r|listen {localPort};
 listen {http2_port} http2;
 listen {ssl_port} ssl http2;
 listen [::]:{ssl_port} ssl http2;
 |]
   let portConfig =
         portConfigTemplate
-          & replace (cs "{localPort}") (cs $ show localPort)
-          & replace (cs "{http2_port}") (cs $ show http2Port)
-          & replace (cs "{ssl_port}") (cs $ show sslPort)
+          & Text.replace "{localPort}" (cs $ show localPort)
+          & Text.replace "{http2_port}" (cs $ show http2Port)
+          & Text.replace "{ssl_port}" (cs $ show sslPort)
 
   liftIO $ whenM (doesFileExist integrationConfFile) $ removeFile integrationConfFile
   liftIO $ writeFile integrationConfFile (cs portConfig)
 
   -- override upstreams
   let upstreamsCfg = tmpDir </> "conf" </> "nginz" </> "upstreams"
-  liftIO $ whenM (doesFileExist $ upstreamsCfg) $ removeFile upstreamsCfg
+  createUpstreamsCfg upstreamsCfg sm
+  let upstreamFederatorTemplate =
+        [r|upstream {name} {
+server 127.0.0.1:{port} max_fails=3 weight=1;
+}|]
+  liftIO $
+    appendFile
+      upstreamsCfg
+      ( cs $
+          upstreamFederatorTemplate
+            & Text.replace "{name}" "federator_external"
+            & Text.replace "{port}" (cs $ show sm.federatorExternal.port)
+      )
+
+  -- override pid configuration
+  let pidConfigFile = tmpDir </> "conf" </> "nginz" </> "pid.conf"
+  let pid = tmpDir </> "conf" </> "nginz" </> "nginz.pid"
+  liftIO $ do
+    whenM (doesFileExist $ pidConfigFile) $ removeFile pidConfigFile
+    writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
+
+  -- start service
+  ph <- startNginz domain nginxConfFile tmpDir
+
+  -- return handle and nginx tmp dir path
+  pure (ph, tmpDir)
+
+createUpstreamsCfg :: String -> ServiceMap -> App ()
+createUpstreamsCfg upstreamsCfg sm = do
+  liftIO $ whenM (doesFileExist upstreamsCfg) $ removeFile upstreamsCfg
   let upstreamTemplate =
-        cs $
-          [r|upstream {name} {
+        [r|upstream {name} {
 least_conn;
 keepalive 32;
 server 127.0.0.1:{port} max_fails=3 weight=1;
@@ -570,37 +609,18 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
         (srv, p) -> do
           let upstream =
                 upstreamTemplate
-                  & replace (cs "{name}") (cs $ srv)
-                  & replace (cs "{port}") (cs $ show p)
+                  & Text.replace "{name}" (cs $ srv)
+                  & Text.replace "{port}" (cs $ show p)
           liftIO $ appendFile upstreamsCfg (cs upstream)
     )
-  let upstreamFederatorTemplate =
-        cs $
-          [r|upstream {name} {
-server 127.0.0.1:{port} max_fails=3 weight=1;
-}|]
-  liftIO $
-    appendFile
-      upstreamsCfg
-      ( cs $
-          upstreamFederatorTemplate
-            & replace (cs "{name}") (cs "federator_external")
-            & replace (cs "{port}") (cs $ show sm.federatorExternal.port)
-      )
 
-  -- override pid configuration
-  let pidConfigFile = tmpDir </> "conf" </> "nginz" </> "pid.conf"
-  let pid = tmpDir </> "conf" </> "nginz" </> "nginz.pid"
-  liftIO $ do
-    whenM (doesFileExist $ pidConfigFile) $ removeFile pidConfigFile
-    writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
-
-  -- start service
+startNginz :: String -> FilePath -> FilePath -> App ProcessHandle
+startNginz domain conf workingDir = do
   (_, Just stdoutHdl, Just stderrHdl, ph) <-
     liftIO $
       createProcess
-        (proc "nginx" ["-c", tmpDir </> "conf" </> "nginz" </> "nginx.conf", "-p", tmpDir, "-g", "daemon off;", "-e", "/dev/stdout"])
-          { cwd = Just $ cs tmpDir,
+        (proc "nginx" ["-c", conf, "-g", "daemon off;", "-e", "/dev/stdout"])
+          { cwd = Just workingDir,
             std_out = CreatePipe,
             std_err = CreatePipe
           }
@@ -611,4 +631,4 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
   void $ liftIO $ forkIO $ logToConsole colorize prefix stderrHdl
 
   -- return handle and nginx tmp dir path
-  pure (ph, tmpDir)
+  pure ph

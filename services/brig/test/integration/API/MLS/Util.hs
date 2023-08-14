@@ -25,9 +25,9 @@ import Data.ByteString.Conversion
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Timeout
 import Imports
 import System.FilePath

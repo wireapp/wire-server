@@ -22,7 +22,7 @@ module Test.Wire.API.Golden.Generated.ConvMembers_user where
 import Data.Domain (Domain (Domain))
 import Data.Id (Id (Id))
 import Data.Qualified (Qualified (Qualified))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation
   ( ConvMembers (..),

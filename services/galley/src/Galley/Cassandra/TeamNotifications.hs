@@ -29,13 +29,13 @@ where
 import Cassandra
 import Control.Monad.Catch
 import Control.Retry (exponentialBackoff, limitRetries, retrying)
-import qualified Data.Aeson as JSON
+import Data.Aeson qualified as JSON
 import Data.Id
 import Data.List1 (List1)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
-import qualified Data.Sequence as Seq
-import qualified Data.UUID.V1 as UUID
+import Data.Sequence qualified as Seq
+import Data.UUID.V1 qualified as UUID
 import Galley.Cassandra.Store
 import Galley.Data.TeamNotifications
 import Galley.Effects

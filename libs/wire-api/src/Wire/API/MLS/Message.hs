@@ -39,11 +39,11 @@ module Wire.API.MLS.Message
 where
 
 import Control.Lens ((?~))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Binary
 import Data.Json.Util
 import Data.Schema hiding (HasField)
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import GHC.Records
 import Imports hiding (cs)
 import Test.QuickCheck hiding (label)

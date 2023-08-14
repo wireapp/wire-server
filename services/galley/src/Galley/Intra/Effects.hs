@@ -40,8 +40,8 @@ import Galley.Effects.GundeckAccess (GundeckAccess (..), push1)
 import Galley.Effects.SparAccess (SparAccess (..))
 import Galley.Env
 import Galley.Intra.Client
-import qualified Galley.Intra.Push as Intra
-import qualified Galley.Intra.Push.Internal as G
+import Galley.Intra.Push qualified as Intra
+import Galley.Intra.Push.Internal qualified as G
 import Galley.Intra.Spar
 import Galley.Intra.Team
 import Galley.Intra.User
@@ -50,9 +50,9 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
-import qualified UnliftIO
-import qualified Wire.API.Event.Federation as Federation
+import Polysemy.TinyLog qualified as P
+import UnliftIO qualified
+import Wire.API.Event.Federation qualified as Federation
 import Wire.API.Team.Member (ListType (ListComplete))
 
 interpretBrigAccess ::

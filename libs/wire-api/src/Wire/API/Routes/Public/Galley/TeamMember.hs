@@ -21,7 +21,7 @@ import Data.Id
 import Data.Int
 import Data.Range
 import GHC.Generics
-import qualified Generics.SOP as GSOP
+import Generics.SOP qualified as GSOP
 import Servant hiding (WithStatus)
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Error
@@ -33,7 +33,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
 import Wire.API.Team.Member
-import qualified Wire.API.User as User
+import Wire.API.User qualified as User
 
 type TeamMemberAPI =
   Named

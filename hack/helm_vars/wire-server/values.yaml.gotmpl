@@ -326,3 +326,7 @@ background-worker:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
+
+integration:
+  ingress:
+    class: "nginx-{{ .Release.Namespace }}"

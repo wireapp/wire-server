@@ -20,7 +20,7 @@
 
 module Push where
 
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Gundeck.Push (pushAll, pushAny)
 import Gundeck.Push.Websocket as Web (bulkPush)
 import Gundeck.Types

@@ -23,12 +23,12 @@ module API.SQS where
 
 import Control.Lens hiding ((.=))
 import Data.ByteString.Lazy (fromStrict)
-import qualified Data.Currency as Currency
+import Data.Currency qualified as Currency
 import Data.Id
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Text (pack)
-import qualified Data.UUID as UUID
-import qualified Galley.Aws as Aws
+import Data.UUID qualified as UUID
+import Galley.Aws qualified as Aws
 import Galley.Options (JournalOpts)
 import Imports
 import Network.HTTP.Client
@@ -37,10 +37,10 @@ import OpenSSL.Session as Ssl
 import Proto.TeamEvents as E
 import Proto.TeamEvents_Fields as E
 import Ssl.Util
-import qualified System.Logger.Class as L
+import System.Logger.Class qualified as L
 import Test.Tasty.HUnit
 import TestSetup
-import qualified Util.Test.SQS as SQS
+import Util.Test.SQS qualified as SQS
 
 withTeamEventWatcher :: HasCallStack => (SQS.SQSWatcher TeamEvent -> TestM ()) -> TestM ()
 withTeamEventWatcher action = do

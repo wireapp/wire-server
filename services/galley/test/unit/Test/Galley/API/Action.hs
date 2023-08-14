@@ -15,12 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Galley.API.Query where
+module Test.Galley.API.Action where
 
 import Data.Domain
 import Data.Qualified
-import qualified Data.Set as Set
-import Galley.API.Query
+import Data.Set qualified as Set
+import Galley.API.Action
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit (testCase, (@?=))

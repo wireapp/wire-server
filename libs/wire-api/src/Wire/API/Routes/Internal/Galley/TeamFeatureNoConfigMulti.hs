@@ -22,12 +22,12 @@ module Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
   )
 where
 
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Id
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 
 newtype TeamFeatureNoConfigMultiRequest = TeamFeatureNoConfigMultiRequest
   { teams :: [TeamId]

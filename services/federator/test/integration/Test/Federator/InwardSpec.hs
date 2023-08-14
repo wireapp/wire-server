@@ -24,17 +24,17 @@ import Bilge
 import Bilge.Assert
 import Control.Lens (view)
 import Data.Aeson
-import qualified Data.Aeson.Types as Aeson
-import qualified Data.ByteString as BS
+import Data.Aeson.Types qualified as Aeson
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (toByteString')
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Text.Encoding
 import Federator.Options
 import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai.Utilities.Error as E
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai.Utilities.Error qualified as E
 import Test.Federator.Util
 import Test.Hspec
 import Test.QuickCheck (arbitrary, generate)

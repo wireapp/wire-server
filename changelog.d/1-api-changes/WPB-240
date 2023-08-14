@@ -1,3 +1,0 @@
-Added a new notification event type, "federation.delete".
-This event contains a single domain for a remote server that the local server is de-federating from.
-This notification is sent twice during de-federation. Once before and once after cleaning up and removing references to the remote server from the local database.

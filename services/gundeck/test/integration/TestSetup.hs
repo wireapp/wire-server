@@ -39,13 +39,13 @@ module TestSetup
 where
 
 import Bilge (HttpT (..), Manager, MonadHttp, Request, runHttpT)
-import qualified Cassandra as Cql
+import Cassandra qualified as Cql
 import Control.Lens (makeLenses, (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Gundeck.Options (RedisEndpoint)
-import qualified Gundeck.Options as Gundeck
+import Gundeck.Options qualified as Gundeck
 import Imports
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit (Assertion, testCase)
 

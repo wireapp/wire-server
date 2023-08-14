@@ -55,7 +55,7 @@ import Data.Aeson
 import Data.Aeson.Types
 import Data.ByteString.Lazy (toStrict)
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.List.NonEmpty as N
+import Data.List.NonEmpty qualified as N
 import Data.Text.Encoding (decodeUtf8)
 import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)

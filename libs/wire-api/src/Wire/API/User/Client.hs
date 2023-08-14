@@ -71,27 +71,27 @@ module Wire.API.User.Client
   )
 where
 
-import qualified Cassandra as Cql
+import Cassandra qualified as Cql
 import Control.Applicative
 import Control.Lens hiding (element, enum, set, (#), (.=))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson qualified as A
+import Data.Aeson.Key qualified as Key
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Bifunctor (second)
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.Coerce
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword6, latitude, location, longitude)
 import Data.Qualified
 import Data.Schema
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Swagger hiding (Schema, ToSchema, schema)
-import qualified Data.Swagger as Swagger
-import qualified Data.Text.Encoding as Text.E
+import Data.Swagger qualified as Swagger
+import Data.Text.Encoding qualified as Text.E
 import Data.Time.Clock
 import Data.UUID (toASCIIBytes)
 import Deriving.Swagger

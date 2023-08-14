@@ -5,16 +5,16 @@ import Control.Concurrent.Async
 import Control.Lens (to, (^.))
 import Control.Monad.Catch
 import Control.Retry
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Text.Encoding
 import Imports
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 import Network.AMQP.Extended
-import qualified Network.AMQP.Lifted as QL
+import Network.AMQP.Lifted qualified as QL
 import Network.HTTP.Client
 import Network.HTTP.Types
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Util.Options
 import Wire.API.Federation.BackendNotifications
 import Wire.BackgroundWorker.Env

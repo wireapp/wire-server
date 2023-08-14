@@ -33,10 +33,10 @@ import Control.Comonad
 import Data.Domain
 import Data.Id
 import Data.Json.Util
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Data.Qualified
-import qualified Data.Set as Set
-import qualified Data.Text.Lazy as LT
+import Data.Set qualified as Set
+import Data.Text.Lazy qualified as LT
 import Data.Tuple.Extra
 import Galley.API.Action
 import Galley.API.Error
@@ -240,7 +240,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
   storeGroupInfo (tUnqualified lConvOrSub).id bundle.groupInfo
 
   propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
-    >>= mapM_ throwUnreachableUsers
+    >>= mapM_ (throw . unreachableUsersToUnreachableBackends)
 
   for_ bundle.welcome $ \welcome ->
     sendWelcomes lConvOrSubId qusr conn newClients welcome
@@ -254,6 +254,8 @@ postMLSCommitBundleToRemoteConv ::
     Member (Error InternalError) r,
     Member (Error MLSProtocolError) r,
     Member (Error MLSProposalFailure) r,
+    Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -289,7 +291,7 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
     MLSMessageResponseError e -> rethrowErrors @MLSBundleStaticErrors e
     MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
-    MLSMessageResponseUnreachableBackends ds -> throwUnreachableDomains ds
+    MLSMessageResponseUnreachableBackends ds -> throw (UnreachableBackends (toList ds))
     MLSMessageResponseUpdates updates unreachables -> do
       for_ unreachables $ \us ->
         throw . InternalErrorWithDescription $
@@ -301,6 +303,7 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
         for_ updates $ \update -> do
           me <- updateLocalStateOfRemoteConv (qualifyAs rConvOrSubId update) con
           for_ me $ \e -> output (LocalConversationUpdate e update)
+    MLSMessageResponseNonFederatingBackends e -> throw e
 
 postMLSMessage ::
   ( HasProposalEffects r,
@@ -432,8 +435,8 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
         for_ updates $ \update -> do
           me <- updateLocalStateOfRemoteConv (qualifyAs rConvOrSubId update) con
           for_ me $ \e -> output (LocalConversationUpdate e update)
-
       pure (lcus, unreachables)
+    MLSMessageResponseNonFederatingBackends e -> throw e
 
 storeGroupInfo ::
   ( Member ConversationStore r,

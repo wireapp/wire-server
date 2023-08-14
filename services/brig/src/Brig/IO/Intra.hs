@@ -55,13 +55,13 @@ import Brig.API.Types
 import Brig.API.Util
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
-import qualified Brig.Data.Connection as Data
+import Brig.Data.Connection qualified as Data
 import Brig.Federation.Client (notifyUserDeleted)
-import qualified Brig.IO.Journal as Journal
+import Brig.IO.Journal qualified as Journal
 import Brig.RPC
 import Brig.Types.User.Event
 import Brig.User.Search.Index (MonadIndexIO)
-import qualified Brig.User.Search.Index as Search
+import Brig.User.Search.Index qualified as Search
 import Cassandra (MonadClient)
 import Conduit (runConduit, (.|))
 import Control.Error (ExceptT)
@@ -71,10 +71,10 @@ import Control.Monad.Catch
 import Control.Monad.Trans.Except (runExceptT, throwE)
 import Control.Retry
 import Data.Aeson hiding (json)
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.Conduit.List as C
+import Data.ByteString.Lazy qualified as BL
+import Data.Conduit.List qualified as C
 import Data.Id
 import Data.Json.Util ((#))
 import Data.List.Split (chunksOf)
@@ -82,15 +82,15 @@ import Data.List1 (List1, list1, singleton)
 import Data.Proxy
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import GHC.TypeLits
 import Gundeck.Types.Push.V2
-import qualified Gundeck.Types.Push.V2 as Push
+import Gundeck.Types.Push.V2 qualified as Push
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import System.Logger.Class as Log hiding (name, (.=))
-import qualified System.Logger.Extended as ExLog
+import System.Logger.Extended qualified as ExLog
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Event.Conversation (Connect (Connect))
@@ -100,7 +100,7 @@ import Wire.API.Properties
 import Wire.API.Routes.Internal.Galley.ConversationsIntra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
 import Wire.API.Routes.Internal.Galley.TeamsIntra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import Wire.API.Team.LegalHold (LegalholdProtectee)
-import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.User.Client
 

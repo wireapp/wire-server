@@ -20,10 +20,10 @@
 module Test.Wire.API.Golden.Generated.NewClient_user where
 
 import Data.Code
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Misc (plainTextPassword6Unsafe)
 import Data.Range (unsafeRange)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Text.Ascii (AsciiChars (validate))
 import Imports (Maybe (Just, Nothing), fromRight, mempty, undefined)
 import Wire.API.MLS.CipherSuite

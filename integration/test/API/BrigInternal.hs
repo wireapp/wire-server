@@ -1,7 +1,7 @@
 module API.BrigInternal where
 
 import API.Common
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Function
 import Data.Maybe
 import Testlib.Prelude

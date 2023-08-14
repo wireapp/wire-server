@@ -48,7 +48,7 @@ import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
 import Data.Range
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Text as Text
 import Imports
 import Servant.API

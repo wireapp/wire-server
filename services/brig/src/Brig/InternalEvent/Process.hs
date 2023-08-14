@@ -22,13 +22,13 @@ where
 
 import Bilge.IO (MonadHttp)
 import Bilge.RPC (HasRequestId)
-import qualified Brig.API.User as API
+import Brig.API.User qualified as API
 import Brig.App
 import Brig.IO.Intra (rmClient)
-import qualified Brig.IO.Intra as Intra
+import Brig.IO.Intra qualified as Intra
 import Brig.InternalEvent.Types
 import Brig.Options (defDeleteThrottleMillis, setDeleteThrottleMillis)
-import qualified Brig.Provider.API as API
+import Brig.Provider.API qualified as API
 import Brig.Types.User.Event
 import Brig.User.Search.Index (MonadIndexIO)
 import Cassandra (MonadClient)
@@ -37,7 +37,7 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Imports
 import System.Logger.Class (field, msg, val, (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import UnliftIO (timeout)
 
 -- | Handle an internal event.

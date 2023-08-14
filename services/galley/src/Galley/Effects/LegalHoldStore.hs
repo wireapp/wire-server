@@ -40,13 +40,13 @@ module Galley.Effects.LegalHoldStore
   )
 where
 
-import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Id
 import Data.LegalHold
 import Data.Misc
 import Galley.External.LegalHoldService.Types
 import Imports
-import qualified Network.HTTP.Client as Http
+import Network.HTTP.Client qualified as Http
 import Polysemy
 import Wire.API.Provider.Service
 import Wire.API.User.Client.Prekey

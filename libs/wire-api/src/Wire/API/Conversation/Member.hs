@@ -38,13 +38,13 @@ where
 import Control.Applicative
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Id
 import Data.Qualified
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
-import qualified Test.QuickCheck as QC
+import Test.QuickCheck qualified as QC
 import Wire.API.Conversation.Role
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))

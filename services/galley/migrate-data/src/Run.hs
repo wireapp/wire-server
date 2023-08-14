@@ -20,10 +20,10 @@ module Run where
 import Galley.DataMigration
 import Imports
 import Options.Applicative
-import qualified System.Logger.Extended as Log
-import qualified V1_BackfillBillingTeamMembers
-import qualified V2_MigrateMLSMembers
-import qualified V3_BackfillTeamAdmins
+import System.Logger.Extended qualified as Log
+import V1_BackfillBillingTeamMembers qualified
+import V2_MigrateMLSMembers qualified
+import V3_BackfillTeamAdmins qualified
 
 main :: IO ()
 main = do

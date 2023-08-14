@@ -22,8 +22,8 @@ module Test.Wire.API.Golden.Generated.NewConv_user where
 import Data.Domain (Domain (Domain))
 import Data.Id
 import Data.Misc (Milliseconds (Ms, ms))
-import qualified Data.Set as Set (fromList)
-import qualified Data.UUID as UUID (fromString)
+import Data.Set qualified as Set (fromList)
+import Data.UUID qualified as UUID (fromString)
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Role

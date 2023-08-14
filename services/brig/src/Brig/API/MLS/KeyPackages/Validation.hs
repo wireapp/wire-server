@@ -26,10 +26,11 @@ where
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.App
-import qualified Brig.Data.Client as Data
+import Brig.Data.Client qualified as Data
 import Brig.Options
+import Control.Applicative
 import Control.Lens
-import qualified Data.ByteString as LBS
+import Data.ByteString qualified as LBS
 import Data.Qualified
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
@@ -97,7 +98,7 @@ validateLifetime' now mMaxLifetime lt = do
 
 mlsProtocolError :: Text -> Handler r a
 mlsProtocolError msg =
-  throwStd . toWai $
+  throwStd . dynErrorToWai $
     (dynError @(MapError 'MLSProtocolError))
       { eMessage = msg
       }

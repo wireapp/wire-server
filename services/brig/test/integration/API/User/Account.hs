@@ -22,14 +22,14 @@ module API.User.Account
   )
 where
 
-import qualified API.Search.Util as Search
+import API.Search.Util qualified as Search
 import API.Team.Util
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import qualified Brig.AWS as AWS
+import Brig.AWS qualified as AWS
 import Brig.AWS.Types
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Brig.Types.Activation
 import Brig.Types.Common
 import Brig.Types.Intra
@@ -38,10 +38,10 @@ import Control.Exception (throw)
 import Control.Lens (ix, preview, (^.), (^?))
 import Control.Monad.Catch
 import Data.Aeson hiding (json)
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Lens
-import qualified Data.Aeson.Lens as AesonL
-import qualified Data.ByteString as C8
+import Data.Aeson.Lens qualified as AesonL
+import Data.ByteString qualified as C8
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Domain
@@ -49,41 +49,40 @@ import Data.Handle
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.LegalHold
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.List1 (singleton)
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Misc (plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as T
+import Data.Set qualified as Set
+import Data.Text qualified as T
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as T
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Clock (diffUTCTime)
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
-import qualified Data.Vector as V
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
 import Federator.MockServer (FederatedRequest (..), MockException (..))
 import Imports hiding (head)
-import qualified Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.HTTP.Types as Http
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Utilities.Error as Error
-import qualified Network.Wai.Utilities.Error as Wai
+import Imports qualified
+import Network.HTTP.Types qualified as HTTP
+import Network.HTTP.Types qualified as Http
+import Network.Wai qualified as Wai
+import Network.Wai.Utilities.Error qualified as Error
+import Network.Wai.Utilities.Error qualified as Wai
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently_)
 import Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
 import Wire.API.Asset hiding (Asset)
-import qualified Wire.API.Asset as Asset
+import Wire.API.Asset qualified as Asset
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Internal.Notification
@@ -94,7 +93,7 @@ import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Auth
-import qualified Wire.API.User.Auth as Auth
+import Wire.API.User.Auth qualified as Auth
 import Wire.API.User.Client
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> UserJournalWatcher -> TestTree
@@ -634,8 +633,8 @@ testUserInvalidDomain brig = do
       const 422 === statusCode
       const (Just "/federation/api-version")
         === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
-      const (Just (Array (V.fromList ["invalid.example.com"])))
-        === preview (ix "data" . ix "domains") . responseJsonUnsafe @Value
+      const (Just "invalid.example.com")
+        === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
 
 testExistingUserUnqualified :: Brig -> Http ()
 testExistingUserUnqualified brig = do

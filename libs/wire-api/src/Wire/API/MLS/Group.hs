@@ -17,10 +17,10 @@
 
 module Wire.API.MLS.Group where
 
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Json.Util
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Servant
 import Wire.API.MLS.Serialisation

@@ -38,7 +38,7 @@ import Control.Concurrent.STM.TChan
 import Control.Exception (throwIO)
 import Control.Monad
 import Control.Monad.Catch hiding (bracket)
-import qualified Control.Monad.Catch as Catch
+import Control.Monad.Catch qualified as Catch
 import Control.Monad.IO.Class
 import Control.Monad.STM
 import Data.Aeson (Value (..), decodeStrict')
@@ -50,9 +50,9 @@ import Data.Maybe
 import Data.Traversable
 import Data.Word
 import GHC.Stack
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client as Http
-import qualified Network.WebSockets as WS
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client qualified as Http
+import Network.WebSockets qualified as WS
 import System.Random (randomIO)
 import System.Timeout (timeout)
 import Testlib.App
@@ -177,7 +177,7 @@ run wsConnect app = do
     baseRequest domain Cannon Unversioned $
       "/i/presences/" <> wsConnect.user <> "/" <> connId
 
-  waitForPresence <- appToIO $ unrace $ do
+  waitForPresence <- appToIO $ retryT $ do
     response <- submit "HEAD" presenceRequest
     status response `shouldMatchInt` 200
   let waitForException = do
@@ -249,8 +249,8 @@ awaitAnyEvent tSecs = liftIO . timeout (tSecs * 1000 * 1000) . atomically . read
 -- | 'await' an expected number of notification events on the websocket that
 -- satisfy the provided predicate. If there isn't any new event (matching or
 -- non-matching) for a 'tSecs' seconds then AwaitResult is a failure. This
--- funciton will never terminate if there is a constant stream of events
--- received. When this functions retruns it will push any non-matching
+-- function will never terminate if there is a constant stream of events
+-- received. When this functions returns it will push any non-matching
 -- events back to the websocket.
 awaitNMatchesResult ::
   HasCallStack =>

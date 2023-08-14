@@ -27,10 +27,10 @@ where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), Value)
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Text.Ascii
 import Imports
 import Servant

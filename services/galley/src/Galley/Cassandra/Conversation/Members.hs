@@ -30,13 +30,13 @@ where
 import Cassandra
 import Data.Domain
 import Data.Id
-import qualified Data.List.Extra as List
+import Data.List.Extra qualified as List
 import Data.Monoid
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Galley.Cassandra.Conversation.MLS
 import Galley.Cassandra.Instances ()
-import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Services
 import Galley.Cassandra.Store
 import Galley.Effects.MemberStore (MemberStore (..))
@@ -46,7 +46,7 @@ import Galley.Types.UserList
 import Imports hiding (Set, cs)
 import Polysemy
 import Polysemy.Input
-import qualified UnliftIO
+import UnliftIO qualified
 import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.Conversation.Role
 import Wire.API.MLS.Credential

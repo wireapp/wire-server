@@ -20,7 +20,7 @@ module Test.Wire.API.Golden.Generated.SimpleMember_user where
 import Data.Domain
 import Data.Id (Id (Id))
 import Data.Qualified
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (fromJust)
 import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Event.Conversation (SimpleMember (..))

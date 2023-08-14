@@ -1,12 +1,12 @@
 module Testlib.App where
 
 import Control.Monad.Reader
-import qualified Control.Retry as Retry
+import Control.Retry qualified as Retry
 import Data.Aeson hiding ((.=))
 import Data.Functor ((<&>))
 import Data.IORef
-import qualified Data.Text as T
-import qualified Data.Yaml as Yaml
+import Data.Text qualified as T
+import Data.Yaml qualified as Yaml
 import GHC.Exception
 import System.FilePath
 import Testlib.Env
@@ -63,7 +63,7 @@ instance MakesValue Domain where
 -- ~15s).  Search this package for examples how to use it.
 --
 -- Ideally, this will be the only thing you'll ever need from the retry package when writing
--- integration tests.  If you are unhappy with it,, please consider fixing it so everybody can
--- benefit.
-unrace :: App a -> App a
-unrace action = Retry.recoverAll (Retry.exponentialBackoff 8000 <> Retry.limitRetries 10) (const action)
+-- integration tests.  If you are unhappy with it, please consider making it more general in a
+-- backwards-compatible way so everybody can benefit.
+retryT :: App a -> App a
+retryT action = Retry.recoverAll (Retry.exponentialBackoff 8000 <> Retry.limitRetries 10) (const action)

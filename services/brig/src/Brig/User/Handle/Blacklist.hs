@@ -21,7 +21,7 @@ module Brig.User.Handle.Blacklist
 where
 
 import Data.Handle (Handle (Handle))
-import qualified Data.HashSet as HashSet
+import Data.HashSet qualified as HashSet
 import Imports
 
 -- | A blacklisted handle cannot be chosen by a (regular) user.

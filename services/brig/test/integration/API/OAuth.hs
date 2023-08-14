@@ -18,19 +18,19 @@
 
 module API.OAuth where
 
-import qualified API.Team.Util as Team
+import API.Team.Util qualified as Team
 import Bilge
 import Bilge.Assert
 import Brig.API.OAuth hiding (verifyRefreshToken)
 import Brig.Options
-import qualified Brig.Options as Opt
-import qualified Cassandra as C
+import Brig.Options qualified as Opt
+import Cassandra qualified as C
 import Control.Lens
 import Control.Monad.Catch (MonadCatch)
 import Crypto.JOSE (JOSE, JWK, bestJWSAlg, newJWSHeader, runJOSE)
 import Crypto.JWT (Audience (Audience), ClaimsSet, JWTError, NumericDate (NumericDate), SignedJWT, claimAud, claimExp, claimIat, claimIss, claimSub, defaultJWTValidationSettings, emptyClaimsSet, signClaims, signJWT, stringOrUri, verifyClaims)
-import qualified Data.Aeson as A
-import qualified Data.ByteString.Char8 as BS
+import Data.Aeson qualified as A
+import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion (fromByteString, toByteString')
 import Data.Domain (domainText)
 import Data.Id
@@ -38,13 +38,13 @@ import Data.Qualified (Qualified (qUnqualified))
 import Data.Range
 import Data.Set as Set hiding (delete, null, (\\))
 import Data.Text.Ascii (encodeBase16)
-import qualified Data.Text.Encoding as T
+import Data.Text.Encoding qualified as T
 import Data.Time
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Data.UUID.V4 (nextRandom)
 import Imports
 import Network.HTTP.Types (HeaderName)
-import qualified Network.Wai.Utilities as Error
+import Network.Wai.Utilities qualified as Error
 import Servant.API
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -53,9 +53,9 @@ import URI.ByteString
 import Util
 import Web.FormUrlEncoded
 import Wire.API.Conversation
-import qualified Wire.API.Conversation as Conv
+import Wire.API.Conversation qualified as Conv
 import Wire.API.Conversation.Code (CreateConversationCodeRequest (CreateConversationCodeRequest))
-import qualified Wire.API.Conversation.Role as Role
+import Wire.API.Conversation.Role qualified as Role
 import Wire.API.OAuth
 import Wire.API.Routes.Bearer (Bearer (Bearer, unBearer))
 import Wire.API.User

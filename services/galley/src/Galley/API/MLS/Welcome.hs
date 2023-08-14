@@ -21,6 +21,8 @@ module Galley.API.MLS.Welcome
   )
 where
 
+import Control.Comonad
+import Data.Aeson qualified as A
 import Data.Domain
 import Data.Id
 import Data.Json.Util
@@ -31,12 +33,11 @@ import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Imports
-import qualified Network.Wai.Utilities.Error as Wai
-import Network.Wai.Utilities.Server
+import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
-import qualified System.Logger.Class as Logger
+import Polysemy.TinyLog qualified as P
+import System.Logger.Class qualified as Logger
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -116,12 +117,12 @@ sendRemoteWelcomes qcnv qusr welcome clients = do
       Sem r ()
     handleError (Right x) = case tUnqualified x of
       MLSWelcomeSent -> pure ()
-      MLSWelcomeMLSNotEnabled -> logFedError x (errorToWai @'MLSNotEnabled)
-    handleError (Left (r, e)) = logFedError r (toWai e)
+      MLSWelcomeMLSNotEnabled -> logFedError x (errorToResponse @'MLSNotEnabled)
+    handleError (Left (r, e)) = logFedError r (toResponse e)
 
-    logFedError :: Member P.TinyLog r => Remote x -> Wai.Error -> Sem r ()
+    logFedError :: Member P.TinyLog r => Remote x -> JSONResponse -> Sem r ()
     logFedError r e =
       P.warn $
         Logger.msg ("A welcome message could not be delivered to a remote backend" :: ByteString)
           . Logger.field "remote_domain" (domainText (tDomain r))
-          . logErrorMsg e
+          . Logger.field "error" (A.encode e.value)

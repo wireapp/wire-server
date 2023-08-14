@@ -19,7 +19,7 @@ module Wire.API.MLS.Servant (MLS, mimeUnrenderMLSWith) where
 
 import Data.Bifunctor
 import Data.Binary
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Imports
 import Network.HTTP.Media ((//))
 import Servant.API hiding (Get)

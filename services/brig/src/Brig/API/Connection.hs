@@ -36,30 +36,30 @@ import Brig.API.Connection.Util
 import Brig.API.Types
 import Brig.API.User (getLegalHoldStatus)
 import Brig.App
-import qualified Brig.Data.Connection as Data
+import Brig.Data.Connection qualified as Data
 import Brig.Data.Types (resultHasMore, resultList)
-import qualified Brig.Data.User as Data
+import Brig.Data.User qualified as Data
 import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Effects.GalleyProvider as GalleyProvider
-import qualified Brig.IO.Intra as Intra
+import Brig.Effects.GalleyProvider qualified as GalleyProvider
+import Brig.IO.Intra qualified as Intra
 import Brig.Types.Connection
 import Brig.Types.User.Event
 import Control.Error
 import Control.Monad.Catch (throwM)
 import Data.Id as Id
-import qualified Data.LegalHold as LH
+import Data.LegalHold qualified as LH
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range
-import qualified Data.UUID.V4 as UUID
+import Data.UUID.V4 qualified as UUID
 import Imports
 import Polysemy (Member)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import System.Logger.Message
 import Wire.API.Connection hiding (relationWithHistory)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Error
-import qualified Wire.API.Error.Brig as E
+import Wire.API.Error.Brig qualified as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
 ensureIsActivated :: Local UserId -> MaybeT (AppT r) ()

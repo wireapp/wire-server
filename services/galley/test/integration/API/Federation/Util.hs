@@ -22,6 +22,7 @@ module API.Federation.Util
     BackendReachability (..),
     Backend (..),
     rbReachable,
+    participating,
   )
 where
 
@@ -124,3 +125,9 @@ data Backend = Backend
 
 rbReachable :: Remote Backend -> BackendReachability
 rbReachable = bReachable . tUnqualified
+
+participating :: Remote Backend -> [a] -> [a]
+participating rb users =
+  if rbReachable rb == BackendReachable
+    then users
+    else []

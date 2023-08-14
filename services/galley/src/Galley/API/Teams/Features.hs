@@ -45,7 +45,7 @@ import Data.Schema
 import Data.Time (UTCTime)
 import GHC.TypeLits (KnownSymbol)
 import Galley.API.Error (InternalError)
-import qualified Galley.API.LegalHold as LegalHold
+import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.Teams (ensureNotTooLargeToActivateLegalHold)
 import Galley.API.Teams.Features.Get
 import Galley.API.Util (assertTeamExists, getTeamMembersForFanout, membersToRecipients, permissionCheck)
@@ -53,9 +53,9 @@ import Galley.App
 import Galley.Effects
 import Galley.Effects.BrigAccess (updateSearchVisibilityInbound)
 import Galley.Effects.GundeckAccess
-import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
+import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamFeatureStore
-import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
+import Galley.Effects.TeamFeatureStore qualified as TeamFeatures
 import Galley.Effects.TeamStore (getLegalHoldFlag, getTeamMember)
 import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush)
 import Galley.Types.Teams
@@ -63,12 +63,12 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
-import qualified System.Logger.Class as Log
+import Polysemy.TinyLog qualified as P
+import System.Logger.Class qualified as Log
 import Wire.API.Conversation.Role (Action (RemoveConversationMember))
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley
-import qualified Wire.API.Event.FeatureConfig as Event
+import Wire.API.Event.FeatureConfig qualified as Event
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.Member

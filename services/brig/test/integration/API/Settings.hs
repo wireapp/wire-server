@@ -21,16 +21,16 @@ import API.Team.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Options (Opts)
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Control.Arrow ((&&&))
 import Control.Lens
 import Data.Aeson
 import Data.Aeson.Lens
-import qualified Data.ByteString.Char8 as C8
+import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.Id
-import qualified Data.Set as Set
-import qualified Galley.Types.Teams as Team
+import Data.Set qualified as Set
+import Galley.Types.Teams qualified as Team
 import Imports
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit

@@ -21,8 +21,8 @@ import Control.Lens
 import Data.Aeson
 import Data.Id
 import Data.Schema (ValueSchema)
-import qualified Data.Schema as S
-import qualified Data.Swagger as Swagger
+import Data.Schema qualified as S
+import Data.Swagger qualified as Swagger
 import Imports
 import Wire.API.Internal.Notification
 

@@ -17,7 +17,6 @@ flag static
 library
   exposed-modules:
     Stern.API
-    Stern.API.Predicates
     Stern.API.Routes
     Stern.App
     Stern.Intra
@@ -106,13 +105,12 @@ library
     , unliftio
     , uuid                   >=1.3
     , wai                    >=3.0
-    , wai-predicates         >=0.8
     , wai-routing            >=0.10
     , wai-utilities          >=0.9
     , wire-api               >=0.1
     , yaml
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable stern
   main-is:            exec/Main.hs
@@ -174,7 +172,7 @@ executable stern
   if flag(static)
     ld-options: -static
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite stern-tests
   type:           exitcode-stdio-1.0
@@ -280,4 +278,4 @@ executable stern-integration
     , wire-api
     , yaml
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

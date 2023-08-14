@@ -27,7 +27,7 @@ module Options
   )
 where
 
-import qualified Cassandra as C
+import Cassandra qualified as C
 import Control.Lens
 import Data.Text.Strict.Lens
 import Imports

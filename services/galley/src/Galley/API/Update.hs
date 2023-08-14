@@ -79,32 +79,32 @@ import Data.Code
 import Data.Id
 import Data.Json.Util
 import Data.List1
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.API.Message
-import qualified Galley.API.Query as Query
+import Galley.API.Query qualified as Query
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data.Conversation as Data
-import qualified Galley.Data.Conversation.Types as Data
+import Galley.Data.Conversation qualified as Data
+import Galley.Data.Conversation.Types qualified as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
-import qualified Galley.Effects.ClientStore as E
-import qualified Galley.Effects.CodeStore as E
-import qualified Galley.Effects.ConversationStore as E
-import qualified Galley.Effects.ExternalAccess as E
-import qualified Galley.Effects.FederatorAccess as E
-import qualified Galley.Effects.GundeckAccess as E
-import qualified Galley.Effects.MemberStore as E
-import qualified Galley.Effects.ServiceStore as E
+import Galley.Effects.ClientStore qualified as E
+import Galley.Effects.CodeStore qualified as E
+import Galley.Effects.ConversationStore qualified as E
+import Galley.Effects.ExternalAccess qualified as E
+import Galley.Effects.FederatorAccess qualified as E
+import Galley.Effects.GundeckAccess qualified as E
+import Galley.Effects.MemberStore qualified as E
+import Galley.Effects.ServiceStore qualified as E
 import Galley.Effects.WaiRoutes
 import Galley.Intra.Push
 import Galley.Options
@@ -125,7 +125,7 @@ import System.Logger (Msg)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
-import qualified Wire.API.Conversation.Protocol as P
+import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Error
@@ -313,6 +313,7 @@ updateConversationReceiptMode ::
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
+    Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationReceiptMode)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -330,21 +331,21 @@ updateConversationReceiptMode ::
   ConversationReceiptModeUpdate ->
   Sem r (UpdateResult Event)
 updateConversationReceiptMode lusr zcon qcnv update =
-  foldQualified
-    lusr
-    ( \lcnv ->
-        getUpdateResult . fmap lcuEvent $
-          updateLocalConversation
-            @'ConversationReceiptModeUpdateTag
-            lcnv
-            (tUntagged lusr)
-            (Just zcon)
-            update
-    )
-    ( \rcnv ->
-        updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr zcon update
-    )
-    qcnv
+  mapError @UnreachableBackends @InternalError (\_ -> InternalErrorWithDescription "Unexpected UnreachableBackends error when updating remote receipt mode")
+    . mapError @NonFederatingBackends @InternalError (\_ -> InternalErrorWithDescription "Unexpected NonFederatingBackends error when updating remote receipt mode")
+    $ foldQualified
+      lusr
+      ( \lcnv ->
+          getUpdateResult . fmap lcuEvent $
+            updateLocalConversation
+              @'ConversationReceiptModeUpdateTag
+              lcnv
+              (tUntagged lusr)
+              (Just zcon)
+              update
+      )
+      (\rcnv -> updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr zcon update)
+      qcnv
 
 updateRemoteConversation ::
   forall tag r.
@@ -356,6 +357,8 @@ updateRemoteConversation ::
     Member MemberStore r,
     Member TinyLog r,
     RethrowErrors (HasConversationActionGalleyErrors tag) r,
+    Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     SingI tag
   ) =>
   Remote ConvId ->
@@ -375,12 +378,15 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
     ConversationUpdateResponseNoChanges -> throw NoChanges
     ConversationUpdateResponseError err' -> raise $ rethrowErrors @(HasConversationActionGalleyErrors tag) err'
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
+    ConversationUpdateResponseNonFederatingBackends e -> throw e
+    ConversationUpdateResponseUnreachableBackends e -> throw e
   updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) (Just conn) >>= note NoChanges
 
 updateConversationReceiptModeUnqualified ::
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
+    Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationReceiptMode)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -682,6 +688,7 @@ updateConversationProtocolWithLocalUser ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamNotFound) r,
+    Member (Error InternalError) r,
     Member (Input UTCTime) r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
@@ -704,19 +711,21 @@ updateConversationProtocolWithLocalUser ::
   P.ProtocolUpdate ->
   Sem r (UpdateResult Event)
 updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProtocol) =
-  foldQualified
-    lusr
-    ( \lcnv -> do
-        fmap (maybe Unchanged (Updated . lcuEvent) . hush)
-          . runError @NoChanges
-          . updateLocalConversation @'ConversationUpdateProtocolTag lcnv (tUntagged lusr) (Just conn)
-          $ newProtocol
-    )
-    ( \rcnv ->
-        updateRemoteConversation @'ConversationUpdateProtocolTag rcnv lusr conn $
-          newProtocol
-    )
-    qcnv
+  mapError @UnreachableBackends @InternalError (\_ -> InternalErrorWithDescription "Unexpected UnreachableBackends error when updating remote protocol")
+    . mapError @NonFederatingBackends @InternalError (\_ -> InternalErrorWithDescription "Unexpected NonFederatingBackends error when updating remote protocol")
+    $ foldQualified
+      lusr
+      ( \lcnv -> do
+          fmap (maybe Unchanged (Updated . lcuEvent) . hush)
+            . runError @NoChanges
+            . updateLocalConversation @'ConversationUpdateProtocolTag lcnv (tUntagged lusr) (Just conn)
+            $ newProtocol
+      )
+      ( \rcnv ->
+          updateRemoteConversation @'ConversationUpdateProtocolTag rcnv lusr conn $
+            newProtocol
+      )
+      qcnv
 
 joinConversationByReusableCode ::
   forall r.
@@ -837,6 +846,8 @@ addMembers ::
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error FederationError) r,
+    Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -875,6 +886,8 @@ addMembersUnqualifiedV2 ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -913,6 +926,8 @@ addMembersUnqualified ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,

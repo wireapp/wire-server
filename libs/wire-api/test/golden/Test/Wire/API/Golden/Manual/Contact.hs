@@ -20,7 +20,7 @@ module Test.Wire.API.Golden.Manual.Contact where
 import Data.Domain (Domain (Domain))
 import Data.Id (Id (Id))
 import Data.Qualified (Qualified (Qualified))
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Wire.API.User.Search (Contact (..))
 

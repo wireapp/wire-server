@@ -26,22 +26,22 @@ module Federator.Validation
   )
 where
 
-import qualified Data.ByteString.Char8 as B8
+import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.PEM as X509
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Encoding.Error as Text
-import qualified Data.Text.Lazy as LText
-import qualified Data.X509 as X509
-import qualified Data.X509.Validation as X509
+import Data.PEM qualified as X509
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Encoding.Error qualified as Text
+import Data.Text.Lazy qualified as LText
+import Data.X509 qualified as X509
+import Data.X509.Validation qualified as X509
 import Federator.Discovery
 import Federator.Error
 import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input

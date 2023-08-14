@@ -28,7 +28,7 @@ import Cassandra.Settings
 import Control.Arrow
 import Data.Time
 import Galley.API.MLS.Types
-import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Queries qualified as Cql
 import Galley.Data.Types
 import Imports
 import Wire.API.MLS.Epoch

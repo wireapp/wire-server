@@ -27,7 +27,7 @@ import Cassandra.Settings as C
 import Imports
 import Options as O
 import Options.Applicative
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import Work
 
 main :: IO ()

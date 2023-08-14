@@ -46,17 +46,17 @@ import Control.Lens ((?~))
 import Crypto.Error
 import Crypto.Hash (hashWith)
 import Crypto.Hash.Algorithms
-import qualified Crypto.PubKey.Ed25519 as Ed25519
-import qualified Data.Aeson as Aeson
+import Crypto.PubKey.Ed25519 qualified as Ed25519
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.ByteArray hiding (index)
-import qualified Data.ByteArray as BA
+import Data.ByteArray qualified as BA
 import Data.Proxy
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Swagger.Internal.Schema as S
-import qualified Data.Text as T
+import Data.Swagger qualified as S
+import Data.Swagger.Internal.Schema qualified as S
+import Data.Text qualified as T
 import Data.Word
 import Imports hiding (cs)
 import Servant (FromHttpApiData (parseQueryParam))

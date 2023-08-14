@@ -33,15 +33,15 @@ where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.KeyMap as A
+import Data.Aeson qualified as A
+import Data.Aeson.KeyMap qualified as A
 import Data.Id
 import Data.Kind
-import qualified Data.List.NonEmpty as NonEmptyList
+import Data.List.NonEmpty qualified as NonEmptyList
 import Data.Qualified (Qualified)
 import Data.Schema hiding (tag)
 import Data.Singletons.TH
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Time.Clock
 import Imports
 import Wire.API.Conversation

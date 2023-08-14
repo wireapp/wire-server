@@ -26,7 +26,7 @@ module Brig.Allowlists
 where
 
 import Data.Aeson
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Imports
 import Wire.API.User.Identity
 

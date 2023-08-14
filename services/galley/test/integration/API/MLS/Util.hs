@@ -30,39 +30,39 @@ import Control.Lens (preview, to, view, (.~), (^..), (^?))
 import Control.Monad.Catch
 import Control.Monad.Cont
 import Control.Monad.State (StateT, evalStateT)
-import qualified Control.Monad.State as State
+import Control.Monad.State qualified as State
 import Control.Monad.Trans.Maybe
 import Data.Aeson.Lens
 import Data.Bifunctor
 import Data.Binary.Builder (toLazyByteString)
 import Data.Binary.Get
-import qualified Data.ByteArray as BA
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base64.URL as B64U
+import Data.ByteArray qualified as BA
+import Data.ByteString qualified as BS
+import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Set qualified as Set
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Time
-import qualified Data.Tuple.Extra as Tuple
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUIDV4
+import Data.Tuple.Extra qualified as Tuple
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUIDV4
 import Galley.Keys
 import Galley.Options
-import qualified Galley.Options as Opts
+import Galley.Options qualified as Opts
 import Imports hiding (getSymbolicLinkTarget)
 import System.FilePath
 import System.IO.Temp
 import System.Posix hiding (createDirectory)
 import System.Process
 import Test.QuickCheck (arbitrary, generate)
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
@@ -170,6 +170,9 @@ remotePostCommitBundle rsender qcs bundle = do
         assertFailure $
           "proposal failure while receiving commit bundle: " <> displayException e
       e@(MLSMessageResponseUnreachableBackends _) ->
+        assertFailure $
+          "error while receiving commit bundle: " <> show e
+      e@(MLSMessageResponseNonFederatingBackends _) ->
         assertFailure $
           "error while receiving commit bundle: " <> show e
       MLSMessageResponseUpdates _ _ -> pure []

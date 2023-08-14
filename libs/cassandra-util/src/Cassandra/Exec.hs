@@ -42,7 +42,7 @@ import Database.CQL.IO (ProtocolError (UnexpectedResponse), RetrySettings, RunQ,
 -- Things we just import and re-export.
 import Database.CQL.IO as C (BatchM, Client, ClientState, MonadClient, Page (..), PrepQuery, Row, addPrepQuery, addQuery, adjustConsistency, adjustResponseTimeout, adjustSendTimeout, batch, emptyPage, init, liftClient, localState, paginate, prepared, query, query1, queryString, retry, runClient, schema, setConsistency, setSerialConsistency, setType, shutdown, trans, write)
 import Database.CQL.Protocol (Error, QueryParams (QueryParams), Tuple, pagingState)
-import qualified Database.CQL.Protocol as Protocol
+import Database.CQL.Protocol qualified as Protocol
 import Imports hiding (init)
 
 params :: Consistency -> a -> QueryParams a

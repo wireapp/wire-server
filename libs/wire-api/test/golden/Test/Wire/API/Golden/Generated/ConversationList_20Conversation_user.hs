@@ -23,8 +23,8 @@ import Data.Domain (Domain (..))
 import Data.Id (Id (Id))
 import Data.Misc (Milliseconds (Ms, ms))
 import Data.Qualified (Qualified (..))
-import qualified Data.Set as Set
-import qualified Data.UUID as UUID (fromString)
+import Data.Set qualified as Set
+import Data.UUID qualified as UUID (fromString)
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol

@@ -27,14 +27,14 @@
 
 module Util.Test.SQS where
 
-import qualified Amazonka as AWS
-import qualified Amazonka.SQS as SQS
-import qualified Amazonka.SQS.Lens as SQS
+import Amazonka qualified as AWS
+import Amazonka.SQS qualified as SQS
+import Amazonka.SQS.Lens qualified as SQS
 import Control.Lens hiding ((.=))
-import qualified Data.ByteString.Base64 as B64
+import Data.ByteString.Base64 qualified as B64
 import Data.List (delete)
 import Data.ProtoLens
-import qualified Data.Text.Encoding as Text
+import Data.Text.Encoding qualified as Text
 import Imports
 import Safe (headDef)
 import UnliftIO (Async, async)

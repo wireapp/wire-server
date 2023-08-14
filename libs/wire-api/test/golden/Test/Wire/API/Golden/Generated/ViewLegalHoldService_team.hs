@@ -24,7 +24,7 @@ import Data.Id (Id (Id))
 import Data.Misc (Fingerprint (Fingerprint, fingerprintBytes), HttpsUrl (HttpsUrl))
 import Data.PEM (PEM (PEM, pemContent, pemHeader, pemName))
 import Data.Text.Ascii (AsciiChars (validate))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust, fromRight, undefined)
 import URI.ByteString
   ( Authority

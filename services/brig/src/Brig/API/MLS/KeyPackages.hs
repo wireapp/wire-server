@@ -30,15 +30,15 @@ import Brig.API.MLS.KeyPackages.Validation
 import Brig.API.MLS.Util
 import Brig.API.Types
 import Brig.App
-import qualified Brig.Data.Client as Data
-import qualified Brig.Data.MLS.KeyPackage as Data
+import Brig.Data.Client qualified as Data
+import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Federation.Client
 import Brig.IO.Intra
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Imports
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig

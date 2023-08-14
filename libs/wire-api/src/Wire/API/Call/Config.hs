@@ -71,25 +71,25 @@ where
 
 import Control.Applicative (optional)
 import Control.Lens hiding (element, enum, (.=))
-import qualified Data.Aeson as A hiding ((<?>))
-import qualified Data.Aeson.Types as A
+import Data.Aeson qualified as A hiding ((<?>))
+import Data.Aeson.Types qualified as A
 import Data.Attoparsec.Text hiding (Parser, parse)
-import qualified Data.Attoparsec.Text as Text
+import Data.Attoparsec.Text qualified as Text
 import Data.ByteString.Builder
 import Data.ByteString.Conversion (toByteString)
-import qualified Data.ByteString.Conversion as BC
-import qualified Data.IP as IP
+import Data.ByteString.Conversion qualified as BC
+import Data.IP qualified as IP
 import Data.List.NonEmpty (NonEmpty)
 import Data.Misc (HttpsUrl (..), IpAddr (IpAddr), Port (..))
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
 import Data.Text.Ascii
-import qualified Data.Text.Encoding as TE
+import Data.Text.Encoding qualified as TE
 import Data.Text.Strict.Lens (utf8)
 import Data.Time.Clock.POSIX
 import Imports
-import qualified Test.QuickCheck as QC
+import Test.QuickCheck qualified as QC
 import Text.Hostname (validHostname)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 

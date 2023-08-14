@@ -70,6 +70,8 @@ type HasProposalActionEffects r =
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
     Member (Error MLSProtocolError) r,
+    Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
@@ -192,4 +194,4 @@ instance
   (APIError e, Member (Error MLSProposalFailure) r) =>
   HandleMLSProposalFailure (Error e) r
   where
-  handleMLSProposalFailure = mapError (MLSProposalFailure . toWai)
+  handleMLSProposalFailure = mapError (MLSProposalFailure . toResponse)

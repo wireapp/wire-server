@@ -5,6 +5,7 @@ exec_until_ready() {
 }
 
 # Assumes this to be run in an environment with `aws` installed
+# Keep these in sync with .envrc
 echo 'Creating AWS resources'
 aws configure set aws_access_key_id dummykey
 aws configure set aws_secret_access_key dummysecret

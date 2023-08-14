@@ -28,9 +28,9 @@ import Crypto.PubKey.Ed25519
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.ByteArray
 import Data.Json.Util
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential

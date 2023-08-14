@@ -28,17 +28,17 @@ import Bilge.Retry
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Control.Retry
-import qualified Data.ByteString.Lazy as LB
+import Data.ByteString.Lazy qualified as LB
 import Data.Misc (portNumber)
 import Data.Text.Encoding (encodeUtf8)
-import qualified Data.Text.Lazy as LT
+import Data.Text.Lazy qualified as LT
 import Galley.Env
 import Galley.Monad
 import Galley.Options
 import Imports hiding (log)
 import Network.HTTP.Types
 import System.Logger
-import qualified System.Logger.Class as LC
+import System.Logger.Class qualified as LC
 import Util.Options
 
 data IntraComponent = Brig | Spar | Gundeck
@@ -66,7 +66,7 @@ componentRequest Gundeck o =
 componentRetryPolicy :: IntraComponent -> RetryPolicy
 componentRetryPolicy Brig = x1
 componentRetryPolicy Spar = x1
-componentRetryPolicy Gundeck = x3
+componentRetryPolicy Gundeck = limitRetries 0
 
 call ::
   IntraComponent ->
@@ -90,6 +90,3 @@ asyncCall comp req = void $ do
 
 x1 :: RetryPolicy
 x1 = limitRetries 1
-
-x3 :: RetryPolicy
-x3 = limitRetries 3 <> exponentialBackoff 100000

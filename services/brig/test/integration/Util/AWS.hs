@@ -17,19 +17,19 @@
 
 module Util.AWS where
 
-import qualified Brig.AWS as AWS
+import Brig.AWS qualified as AWS
 import Control.Lens
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as Lazy
+import Data.ByteString.Lazy qualified as Lazy
 import Data.Id
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.UUID as UUID
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.UUID qualified as UUID
 import Imports
-import qualified Proto.UserEvents as PU
-import qualified Proto.UserEvents_Fields as PU
+import Proto.UserEvents qualified as PU
+import Proto.UserEvents_Fields qualified as PU
 import Test.Tasty.HUnit
-import qualified Util.Test.SQS as SQS
+import Util.Test.SQS qualified as SQS
 import Wire.API.User
 
 type UserJournalWatcher = Maybe (SQS.SQSWatcher PU.UserEvent)

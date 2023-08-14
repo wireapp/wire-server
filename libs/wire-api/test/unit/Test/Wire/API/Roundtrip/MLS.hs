@@ -21,7 +21,7 @@ module Test.Wire.API.Roundtrip.MLS (tests) where
 
 import Data.Hex
 import Imports
-import qualified Test.Tasty as T
+import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
 import Wire.API.MLS.Commit

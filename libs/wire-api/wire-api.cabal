@@ -63,7 +63,7 @@ common common-all
     ViewPatterns
 
 library
-  import:          common-all
+  import:           common-all
 
   -- cabal-fmt: expand src
   exposed-modules:
@@ -121,6 +121,7 @@ library
     Wire.API.MLS.Proposal
     Wire.API.MLS.ProposalTag
     Wire.API.MLS.ProtocolVersion
+    Wire.API.MLS.PublicGroupState
     Wire.API.MLS.Serialisation
     Wire.API.MLS.Servant
     Wire.API.MLS.SubConversation
@@ -231,8 +232,8 @@ library
     Wire.API.VersionInfo
     Wire.API.Wrapped
 
-  other-modules:   Paths_wire_api
-  hs-source-dirs:  src
+  other-modules:    Paths_wire_api
+  hs-source-dirs:   src
   build-depends:
     , aeson                      >=2.0.1.0
     , async
@@ -328,10 +329,12 @@ library
     , x509
     , zauth
 
+  default-language: GHC2021
+
 test-suite wire-api-golden-tests
-  import:         common-all
-  type:           exitcode-stdio-1.0
-  main-is:        ../golden.hs
+  import:           common-all
+  type:             exitcode-stdio-1.0
+  main-is:          ../golden.hs
 
   -- cabal-fmt: expand test/golden
   other-modules:
@@ -584,8 +587,8 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Run
     Test.Wire.API.Golden.Runner
 
-  ghc-options:    -threaded -with-rtsopts=-N
-  hs-source-dirs: test/golden
+  ghc-options:      -threaded -with-rtsopts=-N
+  hs-source-dirs:   test/golden
   build-depends:
     , aeson                    >=2.0.1.0
     , aeson-diff
@@ -613,10 +616,12 @@ test-suite wire-api-golden-tests
     , wire-api
     , wire-message-proto-lens
 
+  default-language: GHC2021
+
 test-suite wire-api-tests
-  import:         common-all
-  type:           exitcode-stdio-1.0
-  main-is:        ../unit.hs
+  import:           common-all
+  type:             exitcode-stdio-1.0
+  main-is:          ../unit.hs
 
   -- cabal-fmt: expand test/unit
   other-modules:
@@ -644,7 +649,7 @@ test-suite wire-api-tests
     Test.Wire.API.User.RichInfo
     Test.Wire.API.User.Search
 
-  hs-source-dirs: test/unit
+  hs-source-dirs:   test/unit
   build-depends:
     , aeson                    >=2.0.1.0
     , aeson-qq
@@ -687,4 +692,5 @@ test-suite wire-api-tests
     , wire-api
     , wire-message-proto-lens
 
-  ghc-options:    -threaded -with-rtsopts=-N
+  ghc-options:      -threaded -with-rtsopts=-N
+  default-language: GHC2021

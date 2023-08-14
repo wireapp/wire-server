@@ -19,7 +19,7 @@ module Test.Wire.API.Federation.Golden.LeaveConversationRequest where
 
 import Data.Id (Id (Id))
 import Data.Maybe (fromJust)
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Wire.API.Federation.API.Galley (LeaveConversationRequest (LeaveConversationRequest))
 
 testObject_LeaveConversationRequest1 :: LeaveConversationRequest

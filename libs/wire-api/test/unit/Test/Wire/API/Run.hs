@@ -20,27 +20,27 @@ module Test.Wire.API.Run (main) where
 import Imports
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Tasty
-import qualified Test.Wire.API.Call.Config as Call.Config
-import qualified Test.Wire.API.Conversation as Conversation
-import qualified Test.Wire.API.MLS as MLS
-import qualified Test.Wire.API.MLS.Group as Group
-import qualified Test.Wire.API.OAuth as OAuth
-import qualified Test.Wire.API.RawJson as RawJson
-import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
-import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
-import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
-import qualified Test.Wire.API.Roundtrip.HttpApiData as Roundtrip.HttpApiData
-import qualified Test.Wire.API.Roundtrip.MLS as Roundtrip.MLS
-import qualified Test.Wire.API.Routes as Routes
-import qualified Test.Wire.API.Routes.Version as Routes.Version
-import qualified Test.Wire.API.Routes.Version.Wai as Routes.Version.Wai
-import qualified Test.Wire.API.Swagger as Swagger
-import qualified Test.Wire.API.Team.Export as Team.Export
-import qualified Test.Wire.API.Team.Member as Team.Member
-import qualified Test.Wire.API.User as User
-import qualified Test.Wire.API.User.Auth as User.Auth
-import qualified Test.Wire.API.User.RichInfo as User.RichInfo
-import qualified Test.Wire.API.User.Search as User.Search
+import Test.Wire.API.Call.Config qualified as Call.Config
+import Test.Wire.API.Conversation qualified as Conversation
+import Test.Wire.API.MLS qualified as MLS
+import Test.Wire.API.MLS.Group qualified as Group
+import Test.Wire.API.OAuth qualified as OAuth
+import Test.Wire.API.RawJson qualified as RawJson
+import Test.Wire.API.Roundtrip.Aeson qualified as Roundtrip.Aeson
+import Test.Wire.API.Roundtrip.ByteString qualified as Roundtrip.ByteString
+import Test.Wire.API.Roundtrip.CSV qualified as Roundtrip.CSV
+import Test.Wire.API.Roundtrip.HttpApiData qualified as Roundtrip.HttpApiData
+import Test.Wire.API.Roundtrip.MLS qualified as Roundtrip.MLS
+import Test.Wire.API.Routes qualified as Routes
+import Test.Wire.API.Routes.Version qualified as Routes.Version
+import Test.Wire.API.Routes.Version.Wai qualified as Routes.Version.Wai
+import Test.Wire.API.Swagger qualified as Swagger
+import Test.Wire.API.Team.Export qualified as Team.Export
+import Test.Wire.API.Team.Member qualified as Team.Member
+import Test.Wire.API.User qualified as User
+import Test.Wire.API.User.Auth qualified as User.Auth
+import Test.Wire.API.User.RichInfo qualified as User.RichInfo
+import Test.Wire.API.User.Search qualified as User.Search
 
 main :: IO ()
 main =
