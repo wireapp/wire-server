@@ -54,6 +54,7 @@ data Env = Env
     -- connection-removed notifications into the notifications channels.
     -- This allows us to reuse existing code. This only pushes.
     notificationChannel :: MVar Channel,
+    backendNotificationsConfig :: BackendNotificationsConfig,
     statuses :: IORef (Map Worker IsWorking)
   }
 
@@ -101,6 +102,7 @@ mkEnv opts = do
   metrics <- Metrics.metrics
   backendNotificationMetrics <- mkBackendNotificationMetrics
   notificationChannel <- mkRabbitMqChannelMVar logger $ demoteOpts opts.rabbitmq
+  let backendNotificationsConfig = opts.backendNotificationPusher
   pure (Env {..}, syncThread)
 
 initHttp2Manager :: IO Http2Manager

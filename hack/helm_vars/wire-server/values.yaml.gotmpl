@@ -312,7 +312,8 @@ background-worker:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     backendNotificationPusher:
-      remotesRefreshInterval: 1
+      pushBackoffMinWait: 1000 # 1ms
+      pushBackoffMaxWait: 500000 # 0.5s
   secrets:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
