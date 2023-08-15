@@ -555,27 +555,23 @@ addCode lusr mZcon lcnv mReq = do
   Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
   ensureAccess conv CodeAccess
   ensureGuestsOrNonTeamMembersAllowed conv
-  let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
+  convUri <- E.getConversationCodeURI
   key <- E.makeKey (tUnqualified lcnv)
-  mCode <- E.getCode key ReusableCode
-  case mCode of
+  E.getCode key ReusableCode >>= \case
     Nothing -> do
       code <- E.generateCode (tUnqualified lcnv) ReusableCode (Timeout 3600 * 24 * 365) -- one year FUTUREWORK: configurable
-      mPw <- forM ((.password) =<< mReq) mkSafePassword
+      mPw <- for (mReq >>= (.password)) mkSafePassword
       E.createCode code mPw
       now <- input
-      conversationCode <- createCode (isJust mPw) code
-      let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate conversationCode)
+      let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri))
+      let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
       pushConversationEvent mZcon event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
+    -- In case conversation already has a code this case covers the allowed no-ops
     Just (code, mPw) -> do
       when (isJust mPw || isJust (mReq >>= (.password))) $ throwS @'CreateConversationCodeConflict
-      conversationCode <- createCode (isJust mPw) code
-      pure $ CodeAlreadyExisted conversationCode
+      pure $ CodeAlreadyExisted (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri)
   where
-    createCode :: Bool -> Code -> Sem r ConversationCodeInfo
-    createCode hasPw code = do
-      mkConversationCodeInfo hasPw (codeKey code) (codeValue code) <$> E.getConversationCodeURI
     ensureGuestsOrNonTeamMembersAllowed :: Data.Conversation -> Sem r ()
     ensureGuestsOrNonTeamMembersAllowed conv =
       unless
