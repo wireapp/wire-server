@@ -4581,6 +4581,10 @@ testConnectionRemovedNotificationsNoop = do
   let remoteDomain1 = Domain "far-away.example.com"
       remoteDomain2 = Domain "far-away-2.example.com"
 
+  -- Setup federation
+  addFederation remoteDomain1 !!! const 200 === statusCode
+  addFederation remoteDomain2 !!! const 200 === statusCode
+
   -- they are all in a local conversation
   conv <-
     responseJsonError
@@ -4626,6 +4630,11 @@ testConnectionRemovedNotificationsNoopDomainA = do
 
   let remoteDomain1 = Domain "far-away.example.com"
       remoteDomain2 = Domain "far-away-2.example.com"
+
+  -- Setup federation
+  addFederation remoteDomain1 !!! const 200 === statusCode
+  addFederation remoteDomain2 !!! const 200 === statusCode
+
   -- dee is a remote guest
   dee <- Qualified <$> randomId <*> pure remoteDomain1
 
@@ -4678,6 +4687,11 @@ testConnectionRemovedNotificationsNoopDomainB = do
 
   let remoteDomain1 = Domain "far-away.example.com"
       remoteDomain2 = Domain "far-away-2.example.com"
+
+  -- Setup federation
+  addFederation remoteDomain1 !!! const 200 === statusCode
+  addFederation remoteDomain2 !!! const 200 === statusCode
+
   -- erin is a remote guest
   erin <- Qualified <$> randomId <*> pure remoteDomain2
 

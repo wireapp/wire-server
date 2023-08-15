@@ -11,6 +11,11 @@ import Testlib.Prelude
 
 testDefederationRemoteNotifications :: HasCallStack => App ()
 testDefederationRemoteNotifications = do
+  let remoteDomain = "example.example.com"
+  -- Setup federation between OtherDomain and the remote domain
+  bindResponse (createFedConn OtherDomain $ object ["domain" .= remoteDomain, "search_policy" .= "full_search"]) $ \resp ->
+    resp.status `shouldMatchInt` 200
+
   -- Setup a remote user we can get notifications for.
   user <- randomUser OtherDomain def
 
@@ -18,7 +23,7 @@ testDefederationRemoteNotifications = do
     -- Defederate from a domain that doesn't exist. This won't do anything to the databases
     -- But it will send out notifications that we can wait on.
     -- Begin the whole process at Brig, the same as an operator would.
-    void $ deleteFedConn OwnDomain "example.example.com"
+    void $ deleteFedConn OwnDomain remoteDomain
     void $ awaitNMatches 2 3 (\n -> nPayload n %. "type" `isEqual` "federation.connectionRemoved") ws
 
 testDefederationNonFullyConnectedGraph :: HasCallStack => App ()
@@ -58,7 +63,10 @@ testDefederationNonFullyConnectedGraph = do
                   domsStr <- for domsV asString <&> sort
                   pure $ domsStr == sort [domainB, domainC]
                 else pure False
-        void $ awaitNMatches 2 10 isConnectionRemoved wsA
+        -- Notifications being delivered at least n times is what we want to ensure here,
+        -- however they are often delivered more than once, so check that it doesn't happen
+        -- hundreds of times.
+        void $ awaitNToMMatches 2 10 20 isConnectionRemoved wsA
         retryT $ checkConv convId uA []
   where
     -- FUTUREWORK: occasionally the event is sent more than exactly 2x
