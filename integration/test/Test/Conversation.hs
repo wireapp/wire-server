@@ -294,9 +294,7 @@ testAddMembersNonFullyConnectedProteus = do
 
 testConvWithUnreachableRemoteUsers :: HasCallStack => App ()
 testConvWithUnreachableRemoteUsers = do
-  let overrides =
-        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
-          <> fullSearchWithAll
+  let overrides = fullSearchWithAll
   ([alice, alex, bob, charlie, dylan], domains) <-
     startDynamicBackends [overrides, overrides] $ \domains -> do
       own <- make OwnDomain & asString
