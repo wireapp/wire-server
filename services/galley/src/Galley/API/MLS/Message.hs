@@ -192,7 +192,6 @@ postMLSCommitBundleFromLocalUser lusr c conn bundle = do
 
 postMLSCommitBundleToLocalConv ::
   ( HasProposalEffects r,
-    Member (Error FederationError) r,
     Members MLSBundleStaticErrors r,
     Member Resource r,
     Member SubConversationStore r

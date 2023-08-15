@@ -748,8 +748,7 @@ joinConversationByReusableCode ::
     Member MemberStore r,
     Member TeamStore r,
     Member TeamFeatureStore r,
-    Member (Logger (Msg -> Msg)) r,
-    Member (Error FederationError) r
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -777,8 +776,7 @@ joinConversationById ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member TeamStore r,
-    Member (Logger (Msg -> Msg)) r,
-    Member (Error FederationError) r
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -801,8 +799,7 @@ joinConversation ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member TeamStore r,
-    Member (Logger (Msg -> Msg)) r,
-    Member (Error FederationError) r
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
