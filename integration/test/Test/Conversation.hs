@@ -388,3 +388,22 @@ testAddUnreachable = do
   bindResponse (addMembers alex conv [charlieId]) $ \resp -> do
     resp.status `shouldMatchInt` 503
     resp.json %. "unreachable_backends" `shouldMatchSet` [charlieDomain]
+
+testAddingUserNonFullyConnectedFederation :: HasCallStack => App ()
+testAddingUserNonFullyConnectedFederation = do
+  let overrides =
+        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
+          <> fullSearchWithAll
+  startDynamicBackends [overrides] $ \domains -> do
+    own <- make OwnDomain & asString
+    other <- make OtherDomain & asString
+    [alice, alex, bob, charlie] <-
+      createAndConnectUsers $ [own, own, other] <> domains
+
+    let newConv = defProteus {qualifiedUsers = [alex]}
+    conv <- postConversation alice newConv >>= getJSON 201
+
+    bobId <- bob %. "qualified_id"
+    charlieId <- charlie %. "qualified_id"
+    bindResponse (addMembers alex conv [bobId, charlieId]) $ \resp -> do
+      resp.status `shouldMatchInt` 409
