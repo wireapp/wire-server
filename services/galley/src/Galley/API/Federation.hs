@@ -238,7 +238,6 @@ onConversationUpdated requestingDomain cu = do
 leaveConversation ::
   ( Member ConversationStore r,
     Member (Error InternalError) r,
-    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -383,8 +382,7 @@ sendMessage originDomain msr = do
     throwErr = throw . InvalidPayload . LT.pack
 
 onUserDeleted ::
-  ( Member (Error FederationError) r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member FederatorAccess r,
     Member FireAndForget r,
     Member ExternalAccess r,
