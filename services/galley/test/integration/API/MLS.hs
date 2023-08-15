@@ -44,7 +44,6 @@ import Data.Text qualified as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
-import Network.HTTP.Types qualified as HTTP
 import Network.Wai.Utilities.Error qualified as Wai
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (Second), (#))
@@ -569,19 +568,14 @@ testAddRemotesSomeUnreachable = do
     commit <- createAddCommit alice1 [bob, charlie]
     bundle <- createBundle commit
     let unreachable = Set.singleton charlieDomain
-    (errRaw, _) <-
-      withTempMockFederator'
+    void
+      $ withTempMockFederator'
         ( receiveCommitMockByDomain [bob1]
             <|> mockUnreachableFor unreachable
             <|> welcomeMockByDomain [bobDomain]
         )
-        $ localPostCommitBundle (mpSender commit) bundle
-
-    err <- responseJsonError errRaw
-    liftIO $ do
-      Wai.label err @?= "federation-unreachable-domains-error"
-      Wai.code err @?= HTTP.status503
-      Wai.message err @?= "The following domains are unreachable: [\"charlie.example.com\"]"
+      $ localPostCommitBundle (mpSender commit) bundle
+        <!! const 533 === statusCode
 
     convAfter <- responseJsonError =<< getConvQualified (qUnqualified alice) qcnv
     liftIO $ do

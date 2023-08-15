@@ -47,7 +47,7 @@ import Wire.API.User.Client
 receiveCommitMock :: [ClientIdentity] -> Mock LByteString
 receiveCommitMock clients =
   asum
-    [ "on-conversation-updated" ~> (),
+    [ "on-conversation-updated" ~> EmptyResponse,
       "get-not-fully-connected-backends" ~> NonConnectedBackends mempty,
       "get-mls-clients" ~>
         Set.fromList
