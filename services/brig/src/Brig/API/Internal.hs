@@ -286,7 +286,7 @@ getFederationRemotes = lift $ do
   db <- wrapClient Data.getFederationRemotes
   (ms :: Maybe FederationStrategy, mf :: [FederationDomainConfig], mu :: Maybe Double) <- do
     cfg <- ask
-    domcfgs <- remotesListFromCfgFile -- (it's not very elegant to prove the env twice here, but this code is transitory.)
+    domcfgs <- remotesListFromCfgFile -- (it's not very elegant to probe the env twice here, but this code is transitory.)
     pure
       ( setFederationStrategy (cfg ^. settings),
         domcfgs,
