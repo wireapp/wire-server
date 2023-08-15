@@ -333,9 +333,13 @@ data ValidScimUser = ValidScimUser
 -- | Note that a 'SAML.UserRef' may contain an email. Even though it is possible to construct a 'ValidExternalId' from such a 'UserRef' with 'UrefOnly',
 -- this does not represent a valid 'ValidExternalId'. So in case of a 'UrefOnly', we can assume that the 'UserRef' does not contain an email.
 data ValidExternalId
-  = EmailAndUref Email SAML.UserRef
+  = ExternalIdAndUref ExternalIdWithEmail SAML.UserRef
   | UrefOnly SAML.UserRef
-  | EmailOnly Email
+  | ExternalIdOnly ExternalIdWithEmail
+  deriving (Eq, Show, Generic)
+
+-- | externalId is scoped in TeamId.  for coherence, we could add TeamId to all constructors?
+data ExternalIdWithEmail = ExternalIdWithEmail TeamId Text (Maybe Email)
   deriving (Eq, Show, Generic)
 
 -- | Take apart a 'ValidExternalId', using 'SAML.UserRef' if available, otherwise 'Email'.
