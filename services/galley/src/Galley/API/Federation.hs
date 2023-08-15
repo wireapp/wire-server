@@ -824,13 +824,12 @@ cleanupRemovedConnections ::
   Sem r ()
 cleanupRemovedConnections domainA domainB (fromRange -> maxPage) = do
   runPaginated Q.selectConvIdsByRemoteDomain (paramsP LocalQuorum (Identity domainA) maxPage) $ \convIds ->
+    -- `nub $ sort` is a small performance boost, it will drop duplicate convIds from the page results.
+    -- However we can certainly still process a conversation more than once if it is in multiple pages.
     for_ (nub $ sort convIds) $ \(runIdentity -> convId) -> do
-      -- Recheck both domains. This is needed because `select distinct` isn't going to work due to
-      -- paritioning of the table, and since we are going to potentially be processing the same conversation
-      -- multiple times, we should check that things are all in order.
-      a <- isJust <$> E.checkConvForRemoteDomain convId domainA
+      -- Check if users from domain B are in the conversation
       b <- isJust <$> E.checkConvForRemoteDomain convId domainB
-      when (a && b) $ do
+      when b $ do
         -- Users from both domains exist, delete all of them from the conversation.
         E.removeRemoteDomain convId domainA
         E.removeRemoteDomain convId domainB
