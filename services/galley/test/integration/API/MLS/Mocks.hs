@@ -37,6 +37,7 @@ import Data.Set qualified as Set
 import Federator.MockServer
 import Imports
 import Wire.API.Error.Galley
+import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
@@ -47,6 +48,7 @@ receiveCommitMock :: [ClientIdentity] -> Mock LByteString
 receiveCommitMock clients =
   asum
     [ "on-conversation-updated" ~> (),
+      "get-not-fully-connected-backends" ~> NonConnectedBackends mempty,
       "get-mls-clients" ~>
         Set.fromList
           ( map (flip ClientInfo True . ciClient) clients
