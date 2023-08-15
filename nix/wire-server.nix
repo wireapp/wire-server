@@ -269,6 +269,7 @@ let
       brig-templates
       background-worker
       pkgs.nginz
+      pkgs.mls-test-cli
       integration-dynamic-backends-db-schemas
       integration-dynamic-backends-brig-index
       integration-dynamic-backends-sqs
