@@ -1,0 +1,1 @@
+Return `unreachable_backends` error when some backends of newly added users to a conversation are not reachable

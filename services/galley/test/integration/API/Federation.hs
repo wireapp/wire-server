@@ -1165,6 +1165,7 @@ updateConversationByRemoteAdmin = do
           ConversationUpdateResponseNoChanges -> assertFailure "Expected ConversationUpdateResponseUpdate but got ConversationUpdateResponseNoChanges"
           ConversationUpdateResponseUpdate up -> pure up
           ConversationUpdateResponseNonFederatingBackends _ -> assertFailure "Expected ConversationUpdateResponseUpdate but got ConversationUpdateResponseNonFederatingBackends"
+          ConversationUpdateResponseUnreachableBackends _ -> assertFailure "Expected ConversationUpdateResponseUpdate but got ConversationUpdateResponseUnreachableBackends"
 
         liftIO $ do
           cuOrigUserId cnvUpdate' @?= qbob

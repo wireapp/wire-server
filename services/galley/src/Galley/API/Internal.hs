@@ -137,7 +137,7 @@ internalAPI =
 
 federationAPI :: API IFederationAPI GalleyEffects
 federationAPI =
-  mkNamedAPI @"get-federation-status" getFederationStatus
+  mkNamedAPI @"get-federation-status" (const getFederationStatus)
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
 legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)

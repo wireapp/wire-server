@@ -391,6 +391,7 @@ data ConversationUpdateResponse
   | ConversationUpdateResponseUpdate ConversationUpdate
   | ConversationUpdateResponseNoChanges
   | ConversationUpdateResponseNonFederatingBackends NonFederatingBackends
+  | ConversationUpdateResponseUnreachableBackends UnreachableBackends
   deriving stock (Eq, Show, Generic)
   deriving
     (ToJSON, FromJSON)
