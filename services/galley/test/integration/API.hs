@@ -423,7 +423,7 @@ postConvWithUnreachableRemoteUsers rbs = do
           { newConvName = checked convName,
             newConvQualifiedUsers = joiners
           }
-        <!! const 503 === statusCode
+        <!! const 533 === statusCode
     groupConvs <- filter ((== RegularConv) . cnvmType . cnvMetadata) <$> getAllConvs alice
     liftIO $
       assertEqual
@@ -2334,7 +2334,7 @@ postConvQualifiedNonExistentDomain = do
             alice
             Nothing
             defNewProteusConv {newConvQualifiedUsers = [bob]}
-            !!! do const 503 === statusCode
+            !!! do const 533 === statusCode
       )
 
 postConvQualifiedFederationNotEnabled :: TestM ()
@@ -2352,7 +2352,7 @@ postConvQualifiedFederationNotEnabled = do
     unreachable :: UnreachableBackends <-
       responseJsonError
         =<< postConvHelper g alice [bob] <!! do
-          const 503 === statusCode
+          const 533 === statusCode
     liftIO $ unreachable.backends @?= [domain]
 
 -- like postConvQualified
@@ -2935,7 +2935,7 @@ testAddRemoteMemberInvalidDomain = do
     responseJsonError
       =<< postQualifiedMembers alice (remoteBob :| []) qconvId
         <!! do
-          const 503 === statusCode
+          const 533 === statusCode
   liftIO $ e.backends @?= [domain]
 
 -- This test is a safeguard to ensure adding remote members will fail
@@ -2979,7 +2979,7 @@ testAddRemoteMemberFederationUnavailable = do
     e :: UnreachableBackends <-
       responseJsonError
         =<< postQualifiedMembers alice (remoteBob :| []) qconvId <!! do
-          const 503 === statusCode
+          const 533 === statusCode
     liftIO $ e.backends @?= [domain]
 
   -- since on member add the check of connection between remote backends will fail, the member is not actually added to the conversation

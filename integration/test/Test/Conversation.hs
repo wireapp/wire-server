@@ -342,7 +342,7 @@ testConvWithUnreachableRemoteUsers = do
 
   let newConv = defProteus {qualifiedUsers = [alex, bob, charlie, dylan]}
   bindResponse (postConversation alice newConv) $ \resp -> do
-    resp.status `shouldMatchInt` 503
+    resp.status `shouldMatchInt` 533
     resp.json %. "unreachable_backends" `shouldMatchSet` domains
 
   convs <- getAllConvs alice >>= asList
