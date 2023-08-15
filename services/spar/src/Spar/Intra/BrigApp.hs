@@ -58,6 +58,7 @@ import Polysemy
 import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
+import Spar.Intra.Brig (veidFromUserSSOId, veidToUserSSOId)
 import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
@@ -66,22 +67,6 @@ import Wire.API.User
 import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
 
 ----------------------------------------------------------------------
-
--- | FUTUREWORK: this is redundantly defined in "Spar.Intra.Brig"
-veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId = runValidExternalIdEither UserSSOId (UserScimExternalId . fromEmail)
-
-veidFromUserSSOId :: MonadError String m => UserSSOId -> m ValidExternalId
-veidFromUserSSOId = \case
-  UserSSOId uref ->
-    case urefToEmail uref of
-      Nothing -> pure $ UrefOnly uref
-      Just email -> pure $ EmailAndUref email uref
-  UserScimExternalId email ->
-    maybe
-      (throwError "externalId not an email and no issuer")
-      (pure . EmailOnly)
-      (parseEmail email)
 
 -- | If the brig user has a 'UserSSOId', transform that into a 'ValidExternalId' (this is a
 -- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can

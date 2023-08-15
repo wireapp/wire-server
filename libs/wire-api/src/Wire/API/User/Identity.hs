@@ -309,6 +309,9 @@ isValidPhone = either (const False) (const True) . parseOnly e164
 --
 -- FUTUREWORK: we should probably drop this entirely and store saml and scim data in separate
 -- database columns.
+--
+-- FUTUREWORK: this shouldn't exist independently from `Wire.API.User.Scim.ValidExternalId`,
+-- it's the same thing, just garbled.
 data UserSSOId
   = UserSSOId SAML.UserRef
   | UserScimExternalId Text

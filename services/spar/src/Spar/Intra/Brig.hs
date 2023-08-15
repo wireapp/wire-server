@@ -73,7 +73,20 @@ import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
 
 -- | FUTUREWORK: this is redundantly defined in "Spar.Intra.BrigApp".
 veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId = runValidExternalIdEither UserSSOId (UserScimExternalId . fromEmail)
+veidToUserSSOId = runValidExternalIdEither UserSSOId (\tid eid mbEmail -> _ . UserScimExternalId . fromEmail)
+
+veidFromUserSSOId :: MonadError String m => UserSSOId -> m ValidExternalId
+veidFromUserSSOId = \case
+  _ -> _
+  UserSSOId uref ->
+    case urefToEmail uref of
+      Nothing -> pure $ UrefOnly uref
+      Just email -> pure $ EmailAndUref email uref
+  UserScimExternalId email ->
+    maybe
+      (throwError "externalId not an email and no issuer")
+      (pure . EmailOnly)
+      (parseEmail email)
 
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
