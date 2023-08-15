@@ -51,7 +51,7 @@ testDynamicBackendsNotFederating = do
         $ bindResponse
           (getFederationStatus uidA [domainB, domainC])
         $ \resp -> do
-          resp.status `shouldMatchInt` 503
+          resp.status `shouldMatchInt` 533
           resp.json %. "unreachable_backends" `shouldMatchSet` [domainB, domainC]
 
 testDynamicBackendsFullyConnectedWhenAllowDynamic :: HasCallStack => App ()
@@ -123,7 +123,7 @@ testFederationStatus = do
   bindResponse
     (getFederationStatus uid [invalidDomain])
     $ \resp -> do
-      resp.status `shouldMatchInt` 503
+      resp.status `shouldMatchInt` 533
       resp.json %. "unreachable_backends" `shouldMatchSet` [invalidDomain]
 
   bindResponse
@@ -342,7 +342,7 @@ testConvWithUnreachableRemoteUsers = do
 
   let newConv = defProteus {qualifiedUsers = [alex, bob, charlie, dylan]}
   bindResponse (postConversation alice newConv) $ \resp -> do
-    resp.status `shouldMatchInt` 503
+    resp.status `shouldMatchInt` 533
     resp.json %. "unreachable_backends" `shouldMatchSet` domains
 
   convs <- getAllConvs alice >>= asList
@@ -386,5 +386,5 @@ testAddUnreachable = do
 
   charlieId <- charlie %. "qualified_id"
   bindResponse (addMembers alex conv [charlieId]) $ \resp -> do
-    resp.status `shouldMatchInt` 503
+    resp.status `shouldMatchInt` 533
     resp.json %. "unreachable_backends" `shouldMatchSet` [charlieDomain]

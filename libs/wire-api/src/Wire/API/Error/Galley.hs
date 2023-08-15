@@ -477,7 +477,7 @@ instance APIError UnreachableBackends where
       }
 
 unreachableBackendsStatus :: HTTP.Status
-unreachableBackendsStatus = HTTP.status503
+unreachableBackendsStatus = HTTP.mkStatus 533 "Unreachable backends"
 
 instance ToSchema UnreachableBackends where
   schema =
