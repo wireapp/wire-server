@@ -13,8 +13,6 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Lazy qualified as L
 import Data.CaseInsensitive qualified as CI
-import Data.Default
-import Data.Function ((&))
 import Data.Functor
 import Data.Hex
 import Data.IORef
@@ -202,11 +200,9 @@ data ServiceOverrides = ServiceOverrides
     dbNginz :: Value -> App Value,
     dbSpar :: Value -> App Value,
     dbBackgroundWorker :: Value -> App Value,
-    dbStern :: Value -> App Value
+    dbStern :: Value -> App Value,
+    dbFederatorInternal :: Value -> App Value
   }
-
-instance Default ServiceOverrides where
-  def = defaultServiceOverrides
 
 instance Semigroup ServiceOverrides where
   a <> b =
@@ -219,28 +215,9 @@ instance Semigroup ServiceOverrides where
         dbNginz = dbNginz a >=> dbNginz b,
         dbSpar = dbSpar a >=> dbSpar b,
         dbBackgroundWorker = dbBackgroundWorker a >=> dbBackgroundWorker b,
-        dbStern = dbStern a >=> dbStern b
+        dbStern = dbStern a >=> dbStern b,
+        dbFederatorInternal = dbFederatorInternal a >=> dbFederatorInternal b
       }
-
-instance Monoid ServiceOverrides where
-  mempty = defaultServiceOverrides
-
-defaultServiceOverrides :: ServiceOverrides
-defaultServiceOverrides =
-  ServiceOverrides
-    { dbBrig = pure,
-      dbCannon = pure,
-      dbCargohold = pure,
-      dbGalley = pure,
-      dbGundeck = pure,
-      dbNginz = pure,
-      dbSpar = pure,
-      dbBackgroundWorker = pure,
-      dbStern = pure
-    }
-
-defaultServiceOverridesToMap :: Map.Map Service (Value -> App Value)
-defaultServiceOverridesToMap = ([minBound .. maxBound] <&> (,pure)) & Map.fromList
 
 -- | Overrides the service configurations with the given overrides.
 -- e.g.
@@ -265,5 +242,5 @@ withOverrides overrides =
           Spar -> f >=> overrides.dbSpar
           BackgroundWorker -> f >=> overrides.dbBackgroundWorker
           Stern -> f >=> overrides.dbStern
-          FederatorInternal -> f
+          FederatorInternal -> f >=> overrides.dbFederatorInternal
     )

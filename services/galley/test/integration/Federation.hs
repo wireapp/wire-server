@@ -102,7 +102,7 @@ updateFedDomainsTestNoop' = do
   -- Include that domain in the old and new lists so
   -- if the function is acting up we know it will be
   -- working on the domain.
-  updateFedDomainsTestNoop env remoteDomain interval
+  updateFedDomainsTestNoop env remoteDomain (fromIntegral interval)
 
 updateFedDomainsTestAddRemote' :: TestM ()
 updateFedDomainsTestAddRemote' = do
@@ -119,7 +119,7 @@ updateFedDomainsTestAddRemote' = do
   liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
 
   -- Adding a new federation domain, this too should be a no-op
-  updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval
+  updateFedDomainsAddRemote env remoteDomain remoteDomain2 (fromIntegral interval)
 
 updateFedDomainsTestRemoveRemoteFromLocal' :: TestM ()
 updateFedDomainsTestRemoveRemoteFromLocal' = do
@@ -136,7 +136,7 @@ updateFedDomainsTestRemoveRemoteFromLocal' = do
   liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
 
   -- Remove a remote domain from local conversations
-  updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval
+  updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 (fromIntegral interval)
 
 updateFedDomainsTestRemoveLocalFromRemote' :: TestM ()
 updateFedDomainsTestRemoveLocalFromRemote' = do
@@ -153,7 +153,7 @@ updateFedDomainsTestRemoveLocalFromRemote' = do
   liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
 
   -- Remove a local domain from remote conversations
-  updateFedDomainRemoveLocalFromRemote env remoteDomain interval
+  updateFedDomainRemoveLocalFromRemote env remoteDomain (fromIntegral interval)
 
 fromFedList :: FederationDomainConfigs -> Set Domain
 fromFedList = Set.fromList . fmap domain . remotes
@@ -170,7 +170,7 @@ deleteFederationDomains old new = do
 constHandlers :: (MonadIO m) => [RetryStatus -> Handler m Bool]
 constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]
 
-updateFedDomainRemoveRemoteFromLocal :: Env -> Domain -> Domain -> Int -> TestM ()
+updateFedDomainRemoveRemoteFromLocal :: Env -> Domain -> Domain -> Double -> TestM ()
 updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = recovering x3 constHandlers $ const $ do
   let new = FederationDomainConfigs AllowDynamic [FederationDomainConfig remoteDomain2 FullSearch] interval
       old = new {remotes = FederationDomainConfig remoteDomain FullSearch : remotes new}
@@ -198,7 +198,7 @@ updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = r
     const (Right $ pure remoteCharlie) === (fmap (findRemote remoteCharlie) <$> responseJsonEither)
     const (Right qalice) === (fmap (memId . cmSelf . cnvMembers) <$> responseJsonEither)
 
-updateFedDomainRemoveLocalFromRemote :: Env -> Domain -> Int -> TestM ()
+updateFedDomainRemoveLocalFromRemote :: Env -> Domain -> Double -> TestM ()
 updateFedDomainRemoveLocalFromRemote env remoteDomain interval = recovering x3 constHandlers $ const $ do
   c <- view tsCannon
   let new = FederationDomainConfigs AllowDynamic [] interval
@@ -308,7 +308,7 @@ pageToConvIdPage table page@C.PageWithState {..} =
       mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
     }
 
-updateFedDomainsAddRemote :: Env -> Domain -> Domain -> Int -> TestM ()
+updateFedDomainsAddRemote :: Env -> Domain -> Domain -> Double -> TestM ()
 updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval = do
   s <- ask
   let opts = s ^. tsGConf
@@ -346,7 +346,7 @@ updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval = do
     const (Right $ pure remoteBob) === (fmap findRemote <$> responseJsonEither)
     const (Right qalice) === (fmap (memId . cmSelf . cnvMembers) <$> responseJsonEither)
 
-updateFedDomainsTestNoop :: Env -> Domain -> Int -> TestM ()
+updateFedDomainsTestNoop :: Env -> Domain -> Double -> TestM ()
 updateFedDomainsTestNoop env remoteDomain interval = do
   s <- ask
   let opts = s ^. tsGConf

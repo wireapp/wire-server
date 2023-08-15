@@ -9,7 +9,6 @@ import API.GalleyInternal
 import API.Gundeck (getNotifications)
 import Control.Applicative
 import Control.Concurrent (threadDelay)
-import Data.Aeson qualified as Aeson
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
@@ -56,16 +55,8 @@ testDynamicBackendsNotFederating = do
 
 testDynamicBackendsFullyConnectedWhenAllowDynamic :: HasCallStack => App ()
 testDynamicBackendsFullyConnectedWhenAllowDynamic = do
-  let overrides =
-        setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
-          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
-  startDynamicBackends
-    [ def {dbBrig = overrides},
-      def {dbBrig = overrides},
-      def {dbBrig = overrides}
-    ]
-    $ \dynDomains -> do
+  startDynamicBackends [def, def, def] $
+    \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
       sequence_ [createFedConn x (FedConn y "full_search") | x <- domains, y <- domains, x /= y]
       uidA <- randomUser domainA def {team = True}
@@ -83,14 +74,7 @@ testDynamicBackendsFullyConnectedWhenAllowDynamic = do
 
 testDynamicBackendsNotFullyConnected :: HasCallStack => App ()
 testDynamicBackendsNotFullyConnected = do
-  let overrides =
-        def
-          { dbBrig =
-              setField "optSettings.setFederationStrategy" "allowDynamic"
-                >=> removeField "optSettings.setFederationDomainConfigs"
-                >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
-          }
-  startDynamicBackends [overrides, overrides, overrides] $
+  startDynamicBackends [def, def, def] $
     \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
       -- clean federation config
@@ -134,16 +118,8 @@ testFederationStatus = do
 
 testCreateConversationFullyConnected :: HasCallStack => App ()
 testCreateConversationFullyConnected = do
-  let setFederationConfig =
-        setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
-          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
-  startDynamicBackends
-    [ def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig}
-    ]
-    $ \dynDomains -> do
+  startDynamicBackends [def, def, def] $
+    \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
       connectAllDomainsAndWaitToSync 1 domains
       [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
@@ -152,16 +128,8 @@ testCreateConversationFullyConnected = do
 
 testCreateConversationNonFullyConnected :: HasCallStack => App ()
 testCreateConversationNonFullyConnected = do
-  let setFederationConfig =
-        setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
-          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
-  startDynamicBackends
-    [ def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig}
-    ]
-    $ \dynDomains -> do
+  startDynamicBackends [def, def, def] $
+    \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
       connectAllDomainsAndWaitToSync 1 domains
       [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
@@ -175,15 +143,8 @@ testCreateConversationNonFullyConnected = do
 
 testDefederationGroupConversation :: HasCallStack => App ()
 testDefederationGroupConversation = do
-  let setFederationConfig =
-        setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
-          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
-  startDynamicBackends
-    [ def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig}
-    ]
-    $ \dynDomains -> do
+  startDynamicBackends [def, def] $
+    \dynDomains -> do
       domains@[domainA, domainB] <- pure dynDomains
       connectAllDomainsAndWaitToSync 1 domains
       [uA, uB] <- createAndConnectUsers [domainA, domainB]
@@ -241,15 +202,8 @@ testDefederationGroupConversation = do
 
 testDefederationOneOnOne :: HasCallStack => App ()
 testDefederationOneOnOne = do
-  let setFederationConfig =
-        setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
-          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
-  startDynamicBackends
-    [ def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig}
-    ]
-    $ \dynDomains -> do
+  startDynamicBackends [def, def] $
+    \dynDomains -> do
       domains@[domainA, domainB] <- pure dynDomains
       connectAllDomainsAndWaitToSync 1 domains
       [uA, uB] <- createAndConnectUsers [domainA, domainB]

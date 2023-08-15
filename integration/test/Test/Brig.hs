@@ -4,7 +4,6 @@ import API.Brig qualified as Public
 import API.BrigInternal qualified as Internal
 import API.Common qualified as API
 import API.GalleyInternal qualified as Internal
-import Data.Aeson qualified as Aeson
 import Data.Aeson.Types hiding ((.=))
 import Data.Set qualified as Set
 import Data.String.Conversions
@@ -181,11 +180,7 @@ testSwagger = do
 
 testRemoteUserSearch :: HasCallStack => App ()
 testRemoteUserSearch = do
-  let overrides =
-        setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
-          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
-  startDynamicBackends [def {dbBrig = overrides}, def {dbBrig = overrides}] $ \dynDomains -> do
+  startDynamicBackends [def, def] $ \dynDomains -> do
     domains@[d1, d2] <- pure dynDomains
     connectAllDomainsAndWaitToSync 1 domains
     [u1, u2] <- createAndConnectUsers [d1, d2]

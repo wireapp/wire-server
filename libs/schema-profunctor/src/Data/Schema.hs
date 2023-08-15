@@ -544,6 +544,12 @@ class A.ToJSON a => With a where
 instance With Text where
   with = A.withText
 
+instance With Int where
+  with _ = (A.parseJSON >=>)
+
+instance With Double where
+  with _ = (A.parseJSON >=>)
+
 instance With Integer where
   with _ = (A.parseJSON >=>)
 
@@ -900,6 +906,8 @@ instance ToSchema Word16 where schema = genericToSchema
 instance ToSchema Word32 where schema = genericToSchema
 
 instance ToSchema Word64 where schema = genericToSchema
+
+instance ToSchema Double where schema = genericToSchema
 
 instance ToSchema Char where schema = genericToSchema
 

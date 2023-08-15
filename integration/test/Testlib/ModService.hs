@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Testlib.ModService
   ( withModifiedService,
@@ -12,7 +13,7 @@ where
 import Control.Applicative ((<|>))
 import Control.Concurrent
 import Control.Concurrent.Async
-import Control.Exception (finally)
+import Control.Exception (assert, finally)
 import Control.Exception qualified as E
 import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Codensity
@@ -21,6 +22,7 @@ import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
 import Data.Attoparsec.ByteString.Char8
+import Data.Default
 import Data.Either.Extra (eitherToMaybe)
 import Data.Foldable
 import Data.Function
@@ -55,6 +57,47 @@ import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ
 import Prelude
+
+defaultServiceOverrides :: ServiceOverrides
+defaultServiceOverrides =
+  ServiceOverrides
+    { dbBrig =
+        -- see also: https://wearezeta.atlassian.net/browse/WPB-3796,
+        -- https://wearezeta.atlassian.net/browse/WPB-3797
+        setField "optSettings.setFederationStrategy" (String "allowDynamic")
+          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Number 0.05),
+      dbCannon = pure,
+      dbCargohold = pure,
+      dbGalley = pure,
+      dbGundeck = pure,
+      dbNginz = pure,
+      dbSpar = pure,
+      dbBackgroundWorker = pure,
+      dbStern = pure,
+      dbFederatorInternal = pure
+    }
+
+defaultServiceOverridesToMap :: Map.Map Service (Value -> App Value)
+defaultServiceOverridesToMap = assert ([minBound .. maxBound] == (fst <$> list)) $ Map.fromList list
+  where
+    list =
+      [ (Brig, dbBrig defaultServiceOverrides),
+        (Galley, dbGalley defaultServiceOverrides),
+        (Cannon, dbCannon defaultServiceOverrides),
+        (Gundeck, dbGundeck defaultServiceOverrides),
+        (Cargohold, dbCargohold defaultServiceOverrides),
+        (Nginz, dbNginz defaultServiceOverrides),
+        (Spar, dbSpar defaultServiceOverrides),
+        (BackgroundWorker, dbBackgroundWorker defaultServiceOverrides),
+        (Stern, dbStern defaultServiceOverrides),
+        (FederatorInternal, dbFederatorInternal defaultServiceOverrides)
+      ]
+
+instance Default ServiceOverrides where
+  def = defaultServiceOverrides
+
+instance Monoid ServiceOverrides where
+  mempty = defaultServiceOverrides
 
 withModifiedService ::
   Service ->

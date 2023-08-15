@@ -415,7 +415,7 @@ brig:
   config:
     optSettings:
       setFederationStrategy: allowNone # [allowAll | allowDynamic | allowNone]
-      setFederationDomainConfigsUpdateFreq: 10 # seconds
+      setFederationDomainConfigsUpdateFreq: 0.2 # seconds
 ```
 
 The default strategy of `allowNone` effectively disables federation

@@ -189,7 +189,7 @@ optSettings:
   #   Remember to keep it the same in Galley.
   setFederationDomain: example.com
   setFeatureFlags:  # see #RefConfigOptions in `/docs/reference`
-  setFederationDomainConfigsUpdateFreq: 1
+  setFederationDomainConfigsUpdateFreq: 0.1
   setFederationStrategy: allowAll
   setFederationDomainConfigs:
     - domain: example.com

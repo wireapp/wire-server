@@ -86,7 +86,7 @@ brig:
         - domain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
           search_policy: full_search
       setFederationStrategy: allowAll
-      setFederationDomainConfigsUpdateFreq: 10
+      setFederationDomainConfigsUpdateFreq: 1
       set2FACodeGenerationDelaySecs: 5
       setNonceTtlSecs: 300
       setDpopMaxSkewSecs: 1

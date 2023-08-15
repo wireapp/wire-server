@@ -101,7 +101,7 @@ config:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
     # setDisabledAPIVersions: [ v3 ]
     setFederationStrategy: allowNone
-    setFederationDomainConfigsUpdateFreq: 10
+    setFederationDomainConfigsUpdateFreq: 1
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}

@@ -87,7 +87,7 @@ loop logger clientEnv (SyncFedDomainConfigsCallback callback) env = forever $
           unless (domainListsEqual old new) $ callback old new
           atomicWriteIORef env new
       delay <- updateInterval <$> readIORef env
-      threadDelay (delay * 1_000_000)
+      threadDelay (round $ delay * 1000)
 
     domainListsEqual o n =
       Set.fromList (domain <$> remotes o)

@@ -284,7 +284,7 @@ getFederationRemotes = lift $ do
   -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
   -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
   db <- wrapClient Data.getFederationRemotes
-  (ms :: Maybe FederationStrategy, mf :: [FederationDomainConfig], mu :: Maybe Int) <- do
+  (ms :: Maybe FederationStrategy, mf :: [FederationDomainConfig], mu :: Maybe Double) <- do
     cfg <- ask
     domcfgs <- remotesListFromCfgFile -- (it's not very elegant to prove the env twice here, but this code is transitory.)
     pure
@@ -298,13 +298,13 @@ getFederationRemotes = lift $ do
   unless (maybe True (> 0) mu) $
     randomRIO (0 :: Int, 1000)
       >>= \case
-        0 -> Log.warn (Log.msg (Log.val "Invalid brig configuration: setFederationDomainConfigsUpdateFreq must be > 0.  setting to 1 second."))
+        0 -> Log.warn (Log.msg (Log.val "Invalid brig configuration: setFederationDomainConfigsUpdateFreq must be >= 0.  setting to 0.1 second."))
         _ -> pure ()
 
   defFederationDomainConfigs
     & maybe id (\v cfg -> cfg {strategy = v}) ms
     & (\cfg -> cfg {remotes = nub $ db <> mf})
-    & maybe id (\v cfg -> cfg {updateInterval = min 1 v}) mu
+    & maybe id (\v cfg -> cfg {updateInterval = if v < 0 then 0.1 else v}) mu
     & pure
 
 updateFederationRemote :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()

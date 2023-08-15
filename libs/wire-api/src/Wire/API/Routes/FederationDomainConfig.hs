@@ -54,7 +54,7 @@ instance ToSchema FederationDomainConfig where
 data FederationDomainConfigs = FederationDomainConfigs
   { strategy :: FederationStrategy,
     remotes :: [FederationDomainConfig],
-    updateInterval :: Int
+    updateInterval :: Double
   }
   deriving (Show, Generic, Eq)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema FederationDomainConfigs
@@ -65,7 +65,7 @@ defFederationDomainConfigs =
   FederationDomainConfigs
     { strategy = AllowNone,
       remotes = [],
-      updateInterval = 10
+      updateInterval = 1
     }
 
 instance ToSchema FederationDomainConfigs where
