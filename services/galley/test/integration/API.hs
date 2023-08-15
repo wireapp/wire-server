@@ -4524,6 +4524,11 @@ testConnectionRemovedNotifications = do
   -- frank is a remote we are going to keep around.
   frank <- Qualified <$> randomId <*> pure remoteDomain3
 
+  -- Set up the federation
+  addFederation remoteDomain1 !!! const 200 === statusCode
+  addFederation remoteDomain2 !!! const 200 === statusCode
+  addFederation remoteDomain3 !!! const 200 === statusCode
+
   connectWithRemoteUser (qUnqualified alice) dee
   connectWithRemoteUser (qUnqualified alice) erin
   connectWithRemoteUser (qUnqualified alice) frank

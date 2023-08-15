@@ -129,6 +129,7 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import Wire.API.Message.Proto qualified as Proto
+import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
@@ -147,6 +148,7 @@ import Wire.API.User.Auth hiding (Access)
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Client
 import Wire.API.User.Client.Prekey
+import Wire.API.User.Search (FederatedUserSearchPolicy (..))
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -1405,6 +1407,17 @@ deleteFederation dom = do
   g <- viewGalley
   delete $
     g . paths ["/i/federation", toByteString' dom]
+
+addFederation ::
+  (MonadHttp m, HasBrig m, MonadIO m) =>
+  Domain ->
+  m ResponseLBS
+addFederation dom = do
+  b <- viewBrig
+  post $
+    b
+      . paths ["/i/federation/remotes"]
+      . json (FederationDomainConfig dom FullSearch)
 
 connectionRemovedFederation ::
   (MonadHttp m, HasGalley m, MonadIO m) =>

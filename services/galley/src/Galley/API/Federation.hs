@@ -1,4 +1,3 @@
-{-# OPTIONS -Wno-redundant-constraints #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -21,9 +20,12 @@
 
 module Galley.API.Federation where
 
+import Bilge.Retry (httpHandlers)
 import Cassandra (ClientState, Consistency (LocalQuorum), Page (hasMore, nextPage, result), PrepQuery, QueryParams, R, Tuple, paginate, paramsP)
 import Control.Error
+import Control.Exception (throwIO)
 import Control.Lens
+import Control.Retry (capDelay, fullJitterBackoff, recovering)
 import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
@@ -38,6 +40,7 @@ import Data.Range (Range (fromRange), toRange)
 import Data.Set qualified as Set
 import Data.Singletons (SingI (..), demote, sing)
 import Data.Tagged
+import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
 import Data.Time.Clock
 import Galley.API.Action
@@ -63,9 +66,10 @@ import Galley.Effects.DefederationNotifications
 import Galley.Effects.FireAndForget qualified as E
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore (ProposalStore)
+import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
-import Galley.Types.UserList (UserList (UserList), toUserList)
+import Galley.Types.UserList (UserList (UserList))
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -76,8 +80,9 @@ import Polysemy.TinyLog
 import Polysemy.TinyLog qualified as P
 import Servant (ServerT)
 import Servant.API hiding (QueryParams)
+import Servant.Client (BaseUrl (BaseUrl), Scheme (Http), mkClientEnv)
 import System.Logger.Class qualified as Log
-import System.Logger.Message (Msg)
+import Util.Options (Endpoint (..))
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
@@ -90,6 +95,7 @@ import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
+import Wire.API.FederationUpdate (fetch)
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
@@ -98,6 +104,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
+import Wire.API.Routes.FederationDomainConfig (domain, remotes)
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
 
@@ -551,7 +558,6 @@ sendMLSCommitBundle ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
-    Member BackendNotificationQueueAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
@@ -639,9 +645,6 @@ instance
 mlsSendWelcome ::
   ( Member BrigAccess r,
     Member (Error InternalError) r,
-    Member GundeckAccess r,
-    Member ExternalAccess r,
-    Member P.TinyLog r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r
@@ -774,13 +777,7 @@ onFederationConnectionRemoved ::
   ( Member (Input Env) r,
     Member (Embed IO) r,
     Member (Input ClientState) r,
-    Member (P.Logger (Msg -> Msg)) r,
-    Member (Error InternalError) r,
-    Member (Error FederationError) r,
     Member MemberStore r,
-    Member ConversationStore r,
-    Member CodeStore r,
-    Member TeamStore r,
     Member DefederationNotifications r
   ) =>
   Range 1 1000 Int32 ->
@@ -788,10 +785,27 @@ onFederationConnectionRemoved ::
   Domain ->
   Sem r EmptyResponse
 onFederationConnectionRemoved range originDomain targetDomain = do
-  sendOnConnectionRemovedNotifications originDomain targetDomain
-  cleanupRemovedConnections originDomain targetDomain range
-  sendOnConnectionRemovedNotifications originDomain targetDomain
+  fedDomains <- getFederationDomains
+  let federatedWithBoth = all (`elem` fedDomains) [originDomain, targetDomain]
+  when federatedWithBoth $ do
+    sendOnConnectionRemovedNotifications originDomain targetDomain
+    cleanupRemovedConnections originDomain targetDomain range
+    sendOnConnectionRemovedNotifications originDomain targetDomain
   pure EmptyResponse
+
+getFederationDomains ::
+  ( Member (Input Env) r,
+    Member (Embed IO) r
+  ) =>
+  Sem r [Domain]
+getFederationDomains = do
+  Endpoint (T.unpack -> h) (fromIntegral -> p) <- inputs _brig
+  mgr <- inputs _manager
+  liftIO $ recovering policy httpHandlers $ \_ -> do
+    resp <- fetch $ mkClientEnv mgr $ BaseUrl Http h p ""
+    either throwIO (pure . fmap domain . remotes) resp
+  where
+    policy = capDelay 60_000_000 $ fullJitterBackoff 200_000
 
 -- for all conversations owned by backend C, only if there are users from both A and B,
 -- remove users from A and B from those conversations
@@ -800,42 +814,33 @@ onFederationConnectionRemoved range originDomain targetDomain = do
 -- where users for both domains are in the same conversation.
 cleanupRemovedConnections ::
   forall r.
-  ( Member (Input Env) r,
-    Member (Embed IO) r,
+  ( Member (Embed IO) r,
     Member (Input ClientState) r,
-    Member (P.Logger (Msg -> Msg)) r,
-    Member (Error InternalError) r,
-    Member (Error FederationError) r,
-    Member MemberStore r,
-    Member ConversationStore r,
-    Member CodeStore r,
-    Member TeamStore r
+    Member MemberStore r
   ) =>
   Domain ->
   Domain ->
   Range 1 1000 Int32 ->
   Sem r ()
 cleanupRemovedConnections domainA domainB (fromRange -> maxPage) = do
-  localDomain <- inputs $ view $ options . optSettings . setFederationDomain
-  usersA <- runPaginated Q.selectRemoteMembersByDomain $ paramsP LocalQuorum (Identity domainA) maxPage
-  P.err $ Log.field "usersA" (toByteString' (show usersA))
-  let lCnvMap = foldr insertIntoMap mempty $ shrink <$> usersA
-      shrink (a, b, _) = (a, qual domainA b)
-  for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
-    remoteUsers <- runPaginated Q.selectRemoteMembersByConvAndDomain $ paramsP LocalQuorum (cnvId, domainB) maxPage
-    -- Users from the second domain are also present, clean up both!
-    unless (null remoteUsers) $ do
-      E.deleteMembers cnvId $
-        toUserList (toLocalUnsafe localDomain ()) $
-          N.prependList (qual domainB . fst <$> remoteUsers) rUsers
+  runPaginated Q.selectConvIdsByRemoteDomain (paramsP LocalQuorum (Identity domainA) maxPage) $ \convIds ->
+    for_ (nub $ sort convIds) $ \(runIdentity -> convId) -> do
+      -- Recheck both domains. This is needed because `select distinct` isn't going to work due to
+      -- paritioning of the table, and since we are going to potentially be processing the same conversation
+      -- multiple times, we should check that things are all in order.
+      a <- isJust <$> E.checkConvForRemoteDomain convId domainA
+      b <- isJust <$> E.checkConvForRemoteDomain convId domainB
+      when (a && b) $ do
+        -- Users from both domains exist, delete all of them from the conversation.
+        E.removeRemoteDomain convId domainA
+        E.removeRemoteDomain convId domainB
   where
-    qual = flip Qualified
-    runPaginated :: (Tuple p, Tuple a) => PrepQuery R p a -> QueryParams p -> Sem r [a]
-    runPaginated q ps = go <=< embedClient $ paginate q ps
-    go :: Page a -> Sem r [a]
-    go page
-      | hasMore page = (result page <>) <$> do embedClient (nextPage page) >>= go
-      | otherwise = pure $ result page
+    runPaginated :: (Tuple p, Tuple a) => PrepQuery R p a -> QueryParams p -> ([a] -> Sem r b) -> Sem r b
+    runPaginated q ps f = go f <=< embedClient $ paginate q ps
+    go :: ([a] -> Sem r b) -> Page a -> Sem r b
+    go f page
+      | hasMore page = f (result page) >> embedClient (nextPage page) >>= go f
+      | otherwise = f $ result page
 
 --------------------------------------------------------------------------------
 -- Utilities

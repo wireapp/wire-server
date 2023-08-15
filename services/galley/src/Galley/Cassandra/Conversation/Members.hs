@@ -222,6 +222,18 @@ lookupLocalMembersByDomain :: Domain -> Client [(ConvId, UserId)]
 lookupLocalMembersByDomain dom = do
   retry x1 $ query Cql.selectLocalMembersByDomain (params LocalQuorum (Identity dom))
 
+removeRemoteDomain :: ConvId -> Domain -> Client ()
+removeRemoteDomain convId dom = do
+  retry x1 $ write Cql.removeRemoteDomain $ params LocalQuorum (convId, dom)
+
+selectConvIdsByRemoteDomain :: Domain -> Client [ConvId]
+selectConvIdsByRemoteDomain dom = do
+  runIdentity <$$$> retry x1 $ query Cql.selectConvIdsByRemoteDomain $ params LocalQuorum $ Identity dom
+
+checkConvForRemoteDomain :: ConvId -> Domain -> Client (Maybe ConvId)
+checkConvForRemoteDomain convId dom = do
+  runIdentity <$$$> retry x1 $ query1 Cql.checkConvForRemoteDomain $ params LocalQuorum (convId, dom)
+
 member ::
   ConvId ->
   UserId ->
@@ -417,3 +429,6 @@ interpretMemberStoreToCassandra = interpret $ \case
   GetRemoteMembersByDomain dom -> embedClient $ lookupRemoteMembersByDomain dom
   GetRemoteMembersByConvAndDomain conv dom -> embedClient $ lookupRemoteMembersByConvAndDomain conv dom
   GetLocalMembersByDomain dom -> embedClient $ lookupLocalMembersByDomain dom
+  RemoveRemoteDomain convId dom -> embedClient $ removeRemoteDomain convId dom
+  SelectConvIdsByRemoteDomain dom -> embedClient $ selectConvIdsByRemoteDomain dom
+  CheckConvForRemoteDomain convId dom -> embedClient $ checkConvForRemoteDomain convId dom
