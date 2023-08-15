@@ -436,7 +436,7 @@ awaitNToMMatches ::
   HasCallStack =>
   -- | Minimum Number of matches
   Int ->
-  -- | Minimum Number of matches
+  -- | Maximum Number of matches
   Int ->
   -- | Timeout in seconds
   Int ->
