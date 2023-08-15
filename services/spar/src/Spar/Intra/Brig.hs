@@ -73,11 +73,10 @@ import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
 
 -- | FUTUREWORK: this is redundantly defined in "Spar.Intra.BrigApp".
 veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId = runValidExternalIdEither UserSSOId (\tid eid mbEmail -> _ . UserScimExternalId . fromEmail)
+veidToUserSSOId = runValidExternalIdEither UserSSOId (\tid eid _ -> UserScimExternalId tid eid)
 
 veidFromUserSSOId :: MonadError String m => UserSSOId -> m ValidExternalId
 veidFromUserSSOId = \case
-  _ -> _
   UserSSOId uref ->
     case urefToEmail uref of
       Nothing -> pure $ UrefOnly uref

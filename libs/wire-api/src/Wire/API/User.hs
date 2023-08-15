@@ -739,10 +739,11 @@ userSSOId = ssoIdentity <=< userIdentity
 userSCIMExternalId :: User -> Maybe Text
 userSCIMExternalId usr = scimExternalId (userManagedBy usr) =<< userSSOId usr
 
--- FUTUREWORK: this is only ignoring case in the email format, and emails should be
+-- FUTUREWORK: this is only ignoring case in the email format, and email addresses should be
 -- handled case-insensitively.  https://wearezeta.atlassian.net/browse/SQSERVICES-909
 scimExternalId :: ManagedBy -> UserSSOId -> Maybe Text
-scimExternalId _ (UserScimExternalId extId) = Just extId
+scimExternalId ManagedByScim (UserScimExternalId extId) = Just extId
+scimExternalId ManagedByWire (UserScimExternalId extId) = Just extId -- (... because it may be about to be moved under scim management?)
 scimExternalId ManagedByScim (UserSSOId (SAML.UserRef _ nameIdXML)) = Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
 scimExternalId ManagedByWire (UserSSOId _) = Nothing
 

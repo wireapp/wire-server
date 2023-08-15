@@ -330,7 +330,8 @@ data ValidScimUser = ValidScimUser
   }
   deriving (Eq, Show)
 
--- | Note that a 'SAML.UserRef' may contain an email. Even though it is possible to construct a 'ValidExternalId' from such a 'UserRef' with 'UrefOnly',
+-- | crap maybe we have to drop UserSSOId now, it's too messy!
+-- Note that a 'SAML.UserRef' may or may not contain an email. Even though it is possible to construct a 'ValidExternalId' from such a 'UserRef' with 'UrefOnly',
 -- this does not represent a valid 'ValidExternalId'. So in case of a 'UrefOnly', we can assume that the 'UserRef' does not contain an email.
 data ValidExternalId
   = ExternalIdAndUref ExternalIdWithEmail SAML.UserRef
@@ -343,33 +344,40 @@ data ExternalIdWithEmail = ExternalIdWithEmail TeamId Text (Maybe Email)
   deriving (Eq, Show, Generic)
 
 -- | Take apart a 'ValidExternalId', using 'SAML.UserRef' if available, otherwise 'Email'.
-runValidExternalIdEither :: (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a
-runValidExternalIdEither doUref doEmail = \case
-  EmailAndUref _ uref -> doUref uref
+runValidExternalIdEither :: (SAML.UserRef -> a) -> (ExternalIdWithEmail -> a) -> ValidExternalId -> a
+runValidExternalIdEither doUref doEid = \case
+  ExternalIdAndUref _ uref -> doUref uref
   UrefOnly uref -> doUref uref
-  EmailOnly em -> doEmail em
+  ExternalIdOnly eid -> doEid eid
 
 -- | Take apart a 'ValidExternalId', use both 'SAML.UserRef', 'Email' if applicable, and
 -- merge the result with a given function.
-runValidExternalIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a
-runValidExternalIdBoth merge doUref doEmail = \case
-  EmailAndUref eml uref -> doUref uref `merge` doEmail eml
+runValidExternalIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (ExternalIdWithEmail -> a) -> ValidExternalId -> a
+runValidExternalIdBoth merge doUref doEid = \case
+  ExternalIdAndUref eid uref -> doUref uref `merge` doEid eid
   UrefOnly uref -> doUref uref
-  EmailOnly em -> doEmail em
+  ExternalIdOnly eid -> doEid eid
 
 veidUref :: Prism' ValidExternalId SAML.UserRef
 veidUref = prism' UrefOnly $
   \case
-    EmailAndUref _ uref -> Just uref
+    ExternalIdAndUref _ uref -> Just uref
     UrefOnly uref -> Just uref
-    EmailOnly _ -> Nothing
+    ExternalIdOnly _ -> Nothing
 
-veidEmail :: Prism' ValidExternalId Email
-veidEmail = prism' EmailOnly $
+veidExternalIdWithEmail :: Prism' ValidExternalId ExternalIdWithEmail
+veidExternalIdWithEmail = prism' ExternalIdOnly $
   \case
-    EmailAndUref em _ -> Just em
+    ExternalIdAndUref veid _ -> Just veid
     UrefOnly _ -> Nothing
-    EmailOnly em -> Just em
+    ExternalIdOnly veid -> Just veid
+
+veidEmail :: ValidExternalId -> Maybe Email
+veidEmail (ExternalIdAndUref (ExternalIdWithEmail _ _ (Just eml)) _) = Just eml
+veidEmail (ExternalIdAndUref (ExternalIdWithEmail _ _ Nothing) _) = Nothing
+veidEmail (UrefOnly _) = Nothing
+veidEmail (ExternalIdOnly (ExternalIdWithEmail _ _ (Just eml))) = Just eml
+veidEmail (ExternalIdOnly (ExternalIdWithEmail _ _ Nothing)) = Nothing
 
 makeLenses ''ValidScimUser
 makeLenses ''ValidExternalId

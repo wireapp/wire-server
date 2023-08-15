@@ -83,7 +83,11 @@ getSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
 getSAMLUser uref = do
   mbUid <- getSAMLUserNew uref
   case mbUid of
-    Nothing -> migrateLegacy uref
+    Nothing -> do
+      mbUidL <- migrateLegacy uref
+      case mbUidL of
+        Nothing -> migrateOldIdpIssuer uref
+        Just uid -> pure $ Just uid
     Just uid -> pure $ Just uid
   where
     getSAMLUserNew :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
@@ -108,6 +112,17 @@ getSAMLUser uref = do
       where
         sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
         sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
+
+    migrateOldIdpIssuer :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+    migrateOldIdpIssuer _ = do
+      -- lookup idp in spar.issuer_idp
+
+      -- go through all old issuer ids stored in spar.idp and do lookups in spar.user_v2 (and
+      -- also spar.user, maybe?)
+
+      -- if user is found, migrate it (see above)
+
+      pure Nothing
 
 deleteSAMLUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
 deleteSAMLUsersByIssuer issuer = retry x5 . write del $ params LocalQuorum (Identity issuer)

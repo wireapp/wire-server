@@ -1142,12 +1142,15 @@ testCreateUserTimeout = do
 ----------------------------------------------------------------------------
 -- Listing users
 
+dontfocus = id
+
 -- | Tests for @GET /Users@.
 specListUsers :: SpecWith TestEnv
 specListUsers = describe "GET /Users" $ do
   it "lists all SCIM users in a team" $ testListProvisionedUsers
   context "1 SAML IdP" $ do
     it "finds a SCIM-provisioned user by userName or externalId" $ testFindProvisionedUser
+    dontfocus $ it "finds a SCIM-provisioned user by userName or externalId, even if idp issuer id changes" $ testFindProvisionedUserIssuerChanged
     it "finds a user autoprovisioned via saml by externalId via email" $ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO
     it "finds a user invited via team settings by externalId via email" $ testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSO
     it "finds a user invited via team settings by UserId" $ testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSOViaUserId
@@ -1183,6 +1186,24 @@ testFindProvisionedUser = do
   let Just externalId = Scim.User.externalId user
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
   liftIO $ users' `shouldBe` [storedUser]
+
+testFindProvisionedUserIssuerChanged :: TestSpar ()
+testFindProvisionedUserIssuerChanged = do
+  {-
+     steps:
+     - create team with scim and idp
+     - scim-provision user with saml login
+     - change idp issuer id
+     - search for scim user (with all key types we support)
+
+     expected behavior: user is found, migrated to the new idp issuer id in
+     spar.user_v2, and returned in the response.
+
+     actual behavior: user is not found and not migrated
+
+     work-around: add entry with new issuer id to spar.user_v2 manually.
+  -}
+  undefined
 
 -- The user is migrated by using the email as the externalId
 testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO :: TestSpar ()

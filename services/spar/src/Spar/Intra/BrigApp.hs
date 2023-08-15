@@ -78,6 +78,7 @@ import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
 -- to just set it to 'Nothing'.
 veidFromBrigUser :: MonadError String m => User -> Maybe SAML.Issuer -> m ValidExternalId
 veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
+  _ -> _
   (Just ssoid, _, _) -> veidFromUserSSOId ssoid
   (Nothing, Just email, Just issuer) -> pure $ EmailAndUref email (SAML.UserRef issuer (emailToSAMLNameID email))
   (Nothing, Just email, Nothing) -> pure $ EmailOnly email

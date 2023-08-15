@@ -391,3 +391,46 @@ See also:
 [1](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/form-action),
 [2](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy),
 [3](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP).
+
+## I have changed the IdP issuer entity ID, and now I can't find users with SCIM search any more.
+
+[This should get fixed in Release 4.36.0, please watch the release notes.]
+
+### Problem description
+
+When logging in, the changed IdP entity ID is tried first, then the
+previous ones (this works because we have the IdP UUIDv4).  When doing
+a scim search, we only have the IdP entity ID and the User SSO ID (the
+SAML Name ID).  A bug in the server's database schema causes the user
+lookup to fail.
+
+(To be very technical: the lookup happens on table `saml.user_v2`, but
+that table is migrated lazily on login, so the entry still is indexed
+under the old IdP entity ID.  The SCIM search is implemented in a way
+that doesn't take this into account, and the lookup fails.)
+
+### Work-around options
+
+- Ask all your users to login once with SAML SSO, that will migrate
+  their user data on the fly.
+
+- Re-enter a bogus row to cassandra mapping old idp entity ID to the
+  idp id.  it shouldn't be in the way of anything as long as the old
+  idp id is not used for anything else any more.
+
+
+### scratch
+
+fix:
+
+- the function that does a lookup on spar.user_v2 always needs to pull
+  the issuer id and all old entity ids.  then it needs to do a lookup
+  cycling through older and older entity ids until a match is found,
+  or we run out of entity ids.  when a user is found under an old
+  issuer, migrate it!
+
+better fix:
+
+- don't delete old entity id entries in spar.user_v2.  write a data
+  migration that fills in all the previously deleted users keyed under
+  old issuers.

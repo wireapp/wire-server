@@ -100,7 +100,7 @@ import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.RichInfo as RI
-import Wire.API.User.Scim (ScimTokenInfo (..))
+import Wire.API.User.Scim (ScimTokenInfo (..), veidEmail, veidExternalId)
 import qualified Wire.API.User.Scim as ST
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
@@ -384,9 +384,12 @@ logEmail :: Email -> (Msg -> Msg)
 logEmail email =
   Log.field "email_sha256" (sha256String . cs . show $ email)
 
+logExternalIdWithEmail :: ExternalIdWithEmail -> (Msg -> Msg)
+logExternalIdWithEmail = undefined
+
 logVSU :: ST.ValidScimUser -> (Msg -> Msg)
 logVSU (ST.ValidScimUser veid handl _name _richInfo _active _lang _role) =
-  maybe id logEmail (veidEmail veid)
+  logExternalIdWithEmail (veidExternalId veid)
     . logHandle handl
 
 logTokenInfo :: ScimTokenInfo -> (Msg -> Msg)
@@ -397,11 +400,6 @@ logScimUserId = logUser . Scim.id . Scim.thing
 
 logScimUserIds :: Scim.ListResponse (Scim.StoredUser ST.SparTag) -> (Msg -> Msg)
 logScimUserIds lresp = foldl' (.) id (logScimUserId <$> Scim.resources lresp)
-
-veidEmail :: ST.ValidExternalId -> Maybe Email
-veidEmail (ST.EmailAndUref email _) = Just email
-veidEmail (ST.UrefOnly _) = Nothing
-veidEmail (ST.EmailOnly email) = Just email
 
 -- in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
 
@@ -625,10 +623,12 @@ updateVsuUref ::
   ST.ValidExternalId ->
   Sem r ()
 updateVsuUref team uid old new = do
+  -- if email address has changed, re-validate (if validation is enabled)
   case (veidEmail old, veidEmail new) of
     (mo, mn@(Just email)) | mo /= mn -> Spar.App.validateEmail (Just team) uid email
     _ -> pure ()
 
+  -- write externalId to all the tables
   old & ST.runValidExternalIdBoth (>>) (SAMLUserStore.delete uid) (ScimExternalIdStore.delete team)
   new & ST.runValidExternalIdBoth (>>) (`SAMLUserStore.insert` uid) (\email -> ScimExternalIdStore.insert team email uid)
 
@@ -887,7 +887,7 @@ synthesizeStoredUser usr veid =
         . logUser (userId . accountUser $ usr)
         . maybe id logHandle (userHandle . accountUser $ usr)
         . maybe id logTeam (userTeam . accountUser $ usr)
-        . maybe id logEmail (veidEmail veid)
+        . maybe id logExternalIdWithEmail (veidExternalId veid)
     )
     logScimUserId
     $ do
@@ -1078,6 +1078,7 @@ scimFindUserByEmail mIdpConfig stiTeam email = do
   -- https://wearezeta.atlassian.net/browse/SQSERVICES-157; once it is fixed, we should go back to
   -- throwing errors returned by 'mkValidExternalId' here, but *not* throw an error if the externalId is
   -- a UUID, or any other text that is valid according to SCIM.
+  -- TODO: update this comment!
   veid <- MaybeT (either (const Nothing) Just <$> runExceptT (mkValidExternalId mIdpConfig (pure email)))
   uid <- MaybeT . lift $ ST.runValidExternalIdEither withUref withEmailOnly veid
   brigUser <- MaybeT . lift . BrigAccess.getAccount Brig.WithPendingInvitations $ uid

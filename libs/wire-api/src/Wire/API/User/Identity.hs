@@ -314,7 +314,7 @@ isValidPhone = either (const False) (const True) . parseOnly e164
 -- it's the same thing, just garbled.
 data UserSSOId
   = UserSSOId SAML.UserRef
-  | UserScimExternalId Text
+  | UserScimExternalId TeamId Text
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSSOId)
 
