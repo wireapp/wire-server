@@ -223,3 +223,18 @@ removeMember remover qcnv removed = do
   (removedDomain, removedId) <- objQid removed
   req <- baseRequest remover Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members", removedDomain, removedId])
   submit "DELETE" req
+
+postConversationCode ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  Maybe String ->
+  App Response
+postConversationCode user conv mbpassword = do
+  convId <- objId conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convId, "code"])
+  submit
+    "POST"
+    ( req
+        & addJSONObject ["password" .= pw | pw <- maybeToList mbpassword]
+    )

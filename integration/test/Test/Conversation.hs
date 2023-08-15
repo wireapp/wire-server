@@ -462,3 +462,21 @@ testGetOneOnOneConvInStatusSentFromRemote = do
     filter ((==) d2ConvId) qConvIds `shouldMatch` [d2ConvId]
   resp <- getConversation d1User d2ConvId
   resp.status `shouldMatchInt` 200
+
+testMultiIngressGuestLinks :: HasCallStack => App ()
+testMultiIngressGuestLinks = do
+  (user, _) <- createTeam OwnDomain
+  conv <-
+    postConversation
+      user
+      ( defProteus
+          { access = Just ["code"],
+            accessRole = Just ["team_member", "guest"]
+          }
+      )
+      >>= getJSON 201
+  res <- postConversationCode user conv Nothing >>= getJSON 201
+  res %. "type" `shouldMatch` "conversation.code-update"
+  _uri <- res %. "data.uri" & asString
+  -- TODO: getConversationCode
+  printJSON res
