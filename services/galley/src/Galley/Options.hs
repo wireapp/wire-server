@@ -22,16 +22,18 @@ module Galley.Options
     httpPoolSize,
     maxTeamSize,
     maxFanoutSize,
-    exposeInvitationURLsTeamAllowlist,
     maxConvSize,
+    exposeInvitationURLsTeamAllowlist,
     intraListing,
     disabledAPIVersions,
     conversationCodeURI,
     concurrentDeletionEvents,
+
     deleteConvThrottleMillis,
     federationDomain,
     mlsPrivateKeyPaths,
     featureFlags,
+    multiIngress,
     defConcurrentDeletionEvents,
     defDeleteConvThrottleMillis,
     defFanoutLimit,
@@ -90,7 +92,20 @@ data Settings = Settings
     -- | Whether to call Brig for device listing
     _intraListing :: !Bool,
     -- | URI prefix for conversations with access mode @code@
-    _conversationCodeURI :: !HttpsUrl,
+    _conversationCodeURI :: !(Maybe HttpsUrl),
+    -- | Map from @Z-Host@ header to URI prefix for conversations with access mode @code@
+    --
+    -- If setMultiIngress is set then the URI prefix for guest links is looked
+    -- up in this config setting using the @Z-Host@ header value as a key. If
+    -- the lookup fails then no guest link can be created via the API.
+    --
+    -- This option is only useful in the context of multi-ingress setups where
+    -- one backend / deployment is is reachable under several domains.
+    --
+    -- setMultiIngress and setConversationCodeURI are mutually exclusive. One of
+    -- both options need to be configured.
+    -- _setMultiIngress :: Maybe (Map String HttpsUrl),
+    _multiIngress :: Maybe (Map String HttpsUrl),
     -- | Throttling: limits to concurrent deletion events
     _concurrentDeletionEvents :: !(Maybe Int),
     -- | Throttling: delay between sending events upon team deletion

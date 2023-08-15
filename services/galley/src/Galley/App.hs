@@ -21,8 +21,8 @@ module Galley.App
   ( -- * Environment
     Env,
     reqId,
-    monitor,
     options,
+    monitor,
     applog,
     manager,
     federator,
@@ -53,6 +53,7 @@ import Control.Lens hiding ((.=))
 import Data.Default (def)
 import Data.List.NonEmpty qualified as NE
 import Data.Metrics.Middleware
+import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text (unpack)
@@ -128,7 +129,7 @@ type GalleyEffects0 =
 type GalleyEffects = Append GalleyEffects1 GalleyEffects0
 
 -- Define some invariants for the options used
-validateOptions :: Opts -> IO ()
+validateOptions :: Opts -> IO (Either HttpsUrl (Map String HttpsUrl))
 validateOptions o = do
   let settings' = view settings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
@@ -140,19 +141,26 @@ validateOptions o = do
     (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
     _ -> pure ()
+  let errMsg = "Either setConversationCodeURI or setMultiIngress needs to be set."
+  case (settings' ^. conversationCodeURI, settings' ^. multiIngress) of
+    (Nothing, Nothing) -> error errMsg
+    (Nothing, Just mi) -> pure (Right mi)
+    (Just uri, Nothing) -> pure (Left uri)
+    (Just _, Just _) -> error errMsg
 
 createEnv :: Metrics -> Opts -> Logger -> IO Env
 createEnv m o l = do
   cass <- initCassandra o l
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
-  validateOptions o
+  codeURIcfg <- validateOptions o
   Env def m o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
     <*> loadAllMLSKeys (fold (o ^. settings . mlsPrivateKeyPaths))
     <*> traverse (mkRabbitMqChannelMVar l) (o ^. rabbitmq)
+    <*> pure codeURIcfg
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do

@@ -29,7 +29,6 @@ import Galley.Data.Types
 import Galley.Data.Types qualified as Code
 import Galley.Effects.CodeStore (CodeStore (..))
 import Galley.Env
-import Galley.Options
 import Imports
 import Polysemy
 import Polysemy.Input
@@ -48,8 +47,11 @@ interpretCodeStoreToCassandra = interpret $ \case
   DeleteCode k s -> embedClient $ deleteCode k s
   MakeKey cid -> Code.mkKey cid
   GenerateCode cid s t -> Code.generate cid s t
-  GetConversationCodeURI ->
-    view (options . settings . conversationCodeURI) <$> input
+  GetConversationCodeURI _mbHost -> do
+    env <- input
+    case env ^. convCodeURI of
+      Left _uri -> error "TODO"
+      Right _map -> error "TODO"
 
 -- | Insert a conversation code
 insertCode :: Code -> Maybe Password -> Client ()

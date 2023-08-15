@@ -497,11 +497,12 @@ addCodeUnqualifiedWithReqBody ::
     Member TeamFeatureStore r
   ) =>
   UserId ->
+  Maybe Text ->
   Maybe ConnId ->
   ConvId ->
   CreateConversationCodeRequest ->
   Sem r AddCodeResult
-addCodeUnqualifiedWithReqBody usr mZcon cnv req = addCodeUnqualified (Just req) usr mZcon cnv
+addCodeUnqualifiedWithReqBody usr mbZHost mZcon cnv req = addCodeUnqualified (Just req) mbZHost usr mZcon cnv
 
 addCodeUnqualified ::
   forall r.
@@ -520,14 +521,15 @@ addCodeUnqualified ::
     Member TeamFeatureStore r
   ) =>
   Maybe CreateConversationCodeRequest ->
+  Maybe Text ->
   UserId ->
   Maybe ConnId ->
   ConvId ->
   Sem r AddCodeResult
-addCodeUnqualified mReq usr mZcon cnv = do
+addCodeUnqualified mReq mbZHost usr mZcon cnv = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
-  addCode lusr mZcon lcnv mReq
+  addCode lusr mbZHost mZcon lcnv mReq
 
 addCode ::
   forall r.
@@ -545,17 +547,18 @@ addCode ::
     Member (Embed IO) r
   ) =>
   Local UserId ->
+  Maybe Text ->
   Maybe ConnId ->
   Local ConvId ->
   Maybe CreateConversationCodeRequest ->
   Sem r AddCodeResult
-addCode lusr mZcon lcnv mReq = do
+addCode lusr mbZHost mZcon lcnv mReq = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled (Data.convTeam conv)
   Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
   ensureAccess conv CodeAccess
   ensureGuestsOrNonTeamMembersAllowed conv
-  convUri <- E.getConversationCodeURI
+  convUri <- E.getConversationCodeURI mbZHost
   key <- E.makeKey (tUnqualified lcnv)
   E.getCode key ReusableCode >>= \case
     Nothing -> do
@@ -635,10 +638,11 @@ getCode ::
     Member (Input Opts) r,
     Member TeamFeatureStore r
   ) =>
+  Maybe Text ->
   Local UserId ->
   ConvId ->
   Sem r ConversationCodeInfo
-getCode lusr cnv = do
+getCode mbZHost lusr cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled (Data.convTeam conv)
@@ -646,7 +650,7 @@ getCode lusr cnv = do
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   key <- E.makeKey cnv
   (c, mPw) <- E.getCode key ReusableCode >>= noteS @'CodeNotFound
-  mkConversationCodeInfo (isJust mPw) (codeKey c) (codeValue c) <$> E.getConversationCodeURI
+  mkConversationCodeInfo (isJust mPw) (codeKey c) (codeValue c) <$> E.getConversationCodeURI mbZHost
 
 checkReusableCode ::
   forall r.

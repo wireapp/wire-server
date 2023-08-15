@@ -25,7 +25,7 @@ import Control.Lens hiding ((.=))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Metrics.Middleware
-import Data.Misc (Fingerprint, Rsa)
+import Data.Misc (Fingerprint, HttpsUrl, Rsa)
 import Data.Range
 import Galley.Aws qualified as Aws
 import Galley.Options
@@ -63,7 +63,8 @@ data Env = Env
     _extEnv :: ExtEnv,
     _aEnv :: Maybe Aws.Env,
     _mlsKeys :: SignaturePurpose -> MLSKeys,
-    _rabbitmqChannel :: Maybe (MVar Q.Channel)
+    _rabbitmqChannel :: Maybe (MVar Q.Channel),
+    _convCodeURI :: Either HttpsUrl (Map String HttpsUrl)
   }
 
 -- | Environment specific to the communication with external
