@@ -211,7 +211,7 @@ userAPI =
     :<|> getDefaultUserLocale
 
 clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)
-clientAPI = updateClientLastActive
+clientAPI = Named @"update-client-last-active" updateClientLastActive
 
 authAPI :: (Member GalleyProvider r) => ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
