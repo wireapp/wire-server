@@ -182,7 +182,7 @@ keyPackageRefSetConvId ref convId = do
     [_] -> pure True
     _ -> throwM $ ErrorCall "Primary key violation detected mls_key_package_refs.ref"
   where
-    q :: PrepQuery W (Domain, ConvId, KeyPackageRef) x
+    q :: PrepQuery W (Domain, ConvId, KeyPackageRef) Row
     q = "UPDATE mls_key_package_refs SET conv_domain = ?, conv = ? WHERE ref = ? IF EXISTS"
 
 addKeyPackageRef :: MonadClient m => KeyPackageRef -> NewKeyPackageRef -> m ()
