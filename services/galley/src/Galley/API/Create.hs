@@ -32,7 +32,6 @@ module Galley.API.Create
 where
 
 import Control.Lens hiding ((??))
-import Data.Domain
 import Data.Id
 import Data.List1 (list1)
 import Data.Misc (FutureWork (FutureWork))
@@ -104,6 +103,7 @@ createGroupConversationUpToV3 ::
     Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error UnreachableBackendsLegacy) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,
@@ -117,14 +117,16 @@ createGroupConversationUpToV3 ::
   Maybe ClientId ->
   Maybe ConnId ->
   NewConv ->
-  Sem r ExtendedConversationResponse
-createGroupConversationUpToV3 lusr mCreatorClient conn newConv =
-  createGroupConversationGeneric
-    lusr
-    mCreatorClient
-    conn
-    newConv
-    (\_ds lu conv -> toExtended <$> conversationCreated lu conv)
+  Sem r ConversationResponse
+createGroupConversationUpToV3 lusr mCreatorClient conn newConv = mapError UnreachableBackendsLegacy $
+  do
+    conv <-
+      createGroupConversationGeneric
+        lusr
+        mCreatorClient
+        conn
+        newConv
+    conversationCreated lusr conv
 
 -- | The public-facing endpoint for creating group conversations in the client
 -- API in version 4 and above.
@@ -144,6 +146,7 @@ createGroupConversation ::
     Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,
@@ -160,15 +163,16 @@ createGroupConversation ::
   Sem r CreateGroupConversationResponse
 createGroupConversation lusr mCreatorClient conn newConv = do
   let remoteDomains = tDomain <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
-  getFederationStatus lusr (RemoteDomains $ Set.fromList remoteDomains) >>= \case
-    NotConnectedDomains rd1 rd2 -> throw $ NonFederatingBackends rd1 rd2
-    FullyConnected ->
-      createGroupConversationGeneric
-        lusr
-        mCreatorClient
-        conn
-        newConv
-        groupConversationCreated
+  checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
+  cnv <-
+    createGroupConversationGeneric
+      lusr
+      mCreatorClient
+      conn
+      newConv
+  conv <- conversationView lusr cnv
+  pure . GroupConversationCreated $
+    CreateGroupConversation conv mempty
 
 createGroupConversationGeneric ::
   ( Member BrigAccess r,
@@ -185,6 +189,7 @@ createGroupConversationGeneric ::
     Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,
@@ -198,12 +203,8 @@ createGroupConversationGeneric ::
   Maybe ClientId ->
   Maybe ConnId ->
   NewConv ->
-  -- | The function that incorporates unreachable backends in the response. In
-  -- the client API up to and including V3 this function simply ignores the
-  -- first argument.
-  (Set Domain -> Local UserId -> Conversation -> Sem r resp) ->
-  Sem r resp
-createGroupConversationGeneric lusr mCreatorClient conn newConv convRespond = do
+  Sem r Conversation
+createGroupConversationGeneric lusr mCreatorClient conn newConv = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   let tinfo = newConvTeam newConv
   checkCreateConvPermissions lusr newConv tinfo allUsers
@@ -230,17 +231,9 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convRespond = do
       (ProtocolMLS _mlsMeta, Nothing) -> throwS @'MLSMissingSenderClient
 
     -- NOTE: We only send (conversation) events to members of the conversation
-    runError @UnreachableBackendsError
-      (notifyCreatedConversation lusr conn conv)
-      >>= \case
-        Left (UnreachableBackendsError ds) -> do
-          E.deleteConversation . Data.convId $ conv
-          convRespond ds lusr conv
-        Right () -> do
-          c <-
-            E.getConversation (tUnqualified lcnv)
-              >>= note (BadConvState (tUnqualified lcnv))
-          convRespond Set.empty lusr c
+    notifyCreatedConversation lusr conn conv
+    E.getConversation (tUnqualified lcnv)
+      >>= note (BadConvState (tUnqualified lcnv))
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
@@ -323,7 +316,6 @@ createProteusSelfConversation lusr = do
       conversationCreated lusr c
 
 createOne2OneConversation ::
-  forall r.
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
@@ -336,6 +328,7 @@ createOne2OneConversation ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotConnected) r,
+    Member (Error UnreachableBackendsLegacy) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -345,32 +338,46 @@ createOne2OneConversation ::
   Local UserId ->
   ConnId ->
   NewConv ->
-  Sem r ExtendedConversationResponse
-createOne2OneConversation lusr zcon j = do
-  let allUsers = newConvMembers lusr j
-  other <- ensureOne (ulAll lusr allUsers)
-  when (tUntagged lusr == other) $
-    throwS @'InvalidOperation
-  mtid <- case newConvTeam j of
-    Just ti -> do
-      foldQualified
-        lusr
-        (\lother -> checkBindingTeamPermissions lother (cnvTeamId ti))
-        (const (pure Nothing))
-        other
-    Nothing -> ensureConnected lusr allUsers $> Nothing
-  foldQualified
-    lusr
-    (fmap toExtended <$> createLegacyOne2OneConversationUnchecked lusr zcon (newConvName j) mtid)
-    (createOne2OneConversationUnchecked lusr zcon (newConvName j) mtid . tUntagged)
-    other
+  Sem r ConversationResponse
+createOne2OneConversation lusr zcon j =
+  mapError @UnreachableBackends @UnreachableBackendsLegacy UnreachableBackendsLegacy $ do
+    let allUsers = newConvMembers lusr j
+    other <- ensureOne (ulAll lusr allUsers)
+    when (tUntagged lusr == other) $
+      throwS @'InvalidOperation
+    mtid <- case newConvTeam j of
+      Just ti -> do
+        foldQualified
+          lusr
+          (\lother -> checkBindingTeamPermissions lother (cnvTeamId ti))
+          (const (pure Nothing))
+          other
+      Nothing -> ensureConnected lusr allUsers $> Nothing
+    foldQualified
+      lusr
+      (createLegacyOne2OneConversationUnchecked lusr zcon (newConvName j) mtid)
+      (createOne2OneConversationUnchecked lusr zcon (newConvName j) mtid . tUntagged)
+      other
   where
-    verifyMembership :: TeamId -> UserId -> Sem r ()
+    verifyMembership ::
+      ( Member (ErrorS 'NoBindingTeamMembers) r,
+        Member TeamStore r
+      ) =>
+      TeamId ->
+      UserId ->
+      Sem r ()
     verifyMembership tid u = do
       membership <- E.getTeamMember tid u
       when (isNothing membership) $
         throwS @'NoBindingTeamMembers
     checkBindingTeamPermissions ::
+      ( Member (ErrorS 'NoBindingTeamMembers) r,
+        Member (ErrorS 'NonBindingTeam) r,
+        Member (ErrorS 'NotATeamMember) r,
+        Member (ErrorS OperationDenied) r,
+        Member (ErrorS 'TeamNotFound) r,
+        Member TeamStore r
+      ) =>
       Local UserId ->
       TeamId ->
       Sem r (Maybe TeamId)
@@ -420,10 +427,9 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
     Just c -> conversationExisted self c
     Nothing -> do
       c <- E.createConversation lcnv nc
-      runError @UnreachableBackendsError (notifyCreatedConversation self (Just zcon) c)
+      runError @UnreachableBackends (notifyCreatedConversation self (Just zcon) c)
         >>= \case
-          Left (UnreachableBackendsError _) -> do
-            E.deleteConversation (Data.convId c)
+          Left _ -> do
             throw . InternalErrorWithDescription $
               "A one-to-one conversation on one backend cannot involve unreachable backends"
           Right () -> conversationCreated self c
@@ -432,6 +438,7 @@ createOne2OneConversationUnchecked ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
+    Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -442,7 +449,7 @@ createOne2OneConversationUnchecked ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r ExtendedConversationResponse
+  Sem r ConversationResponse
 createOne2OneConversationUnchecked self zcon name mtid other = do
   let create =
         foldQualified
@@ -455,6 +462,7 @@ createOne2OneConversationLocally ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
+    Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -466,11 +474,11 @@ createOne2OneConversationLocally ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r ExtendedConversationResponse
+  Sem r ConversationResponse
 createOne2OneConversationLocally lcnv self zcon name mtid other = do
   mc <- E.getConversation (tUnqualified lcnv)
   case mc of
-    Just c -> toExtended <$> conversationExisted self c
+    Just c -> conversationExisted self c
     Nothing -> do
       let meta =
             (defConversationMetadata (tUnqualified self))
@@ -485,15 +493,8 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
                 ncProtocol = ProtocolProteusTag
               }
       c <- E.createConversation lcnv nc
-      runError @UnreachableBackendsError (notifyCreatedConversation self (Just zcon) c)
-        >>= \case
-          Left (UnreachableBackendsError ds) -> do
-            E.deleteConversation (Data.convId c)
-            pure
-              . ConversationResponseUnreachableBackends
-              . CreateConversationUnreachableBackends
-              $ ds
-          Right () -> toExtended <$> conversationCreated self c
+      notifyCreatedConversation self (Just zcon) c
+      conversationCreated self c
 
 createOne2OneConversationRemotely ::
   Member (Error FederationError) r =>
@@ -503,7 +504,7 @@ createOne2OneConversationRemotely ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   Qualified UserId ->
-  Sem r ExtendedConversationResponse
+  Sem r ConversationResponse
 createOne2OneConversationRemotely _ _ _ _ _ _ =
   throw FederationNotImplemented
 
@@ -514,6 +515,7 @@ createConnectConversation ::
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'InvalidOperation) r,
+    Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -523,7 +525,7 @@ createConnectConversation ::
   Local UserId ->
   Maybe ConnId ->
   Connect ->
-  Sem r ExtendedConversationResponse
+  Sem r ConversationResponse
 createConnectConversation lusr conn j = do
   lrecipient <- ensureLocal lusr (cRecipient j)
   n <- rangeCheckedMaybe (cName j)
@@ -548,24 +550,16 @@ createConnectConversation lusr conn j = do
       c <- E.createConversation lcnv nc
       now <- input
       let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConnect j)
-      runError @UnreachableBackendsError (notifyCreatedConversation lusr conn c)
-        >>= \case
-          Left (UnreachableBackendsError ds) -> do
-            E.deleteConversation (Data.convId c)
-            pure
-              . ConversationResponseUnreachableBackends
-              . CreateConversationUnreachableBackends
-              $ ds
-          Right () -> do
-            for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
-              E.push1 $
-                p
-                  & pushRoute .~ RouteDirect
-                  & pushConn .~ conn
-            toExtended <$> conversationCreated lusr c
+      notifyCreatedConversation lusr conn c
+      for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
+        E.push1 $
+          p
+            & pushRoute .~ RouteDirect
+            & pushConn .~ conn
+      conversationCreated lusr c
     update n conv = do
       let mems = Data.convLocalMembers conv
-       in fmap toExtended . conversationExisted lusr
+       in conversationExisted lusr
             =<< if tUnqualified lusr `isMember` mems
               then -- we already were in the conversation, maybe also other
                 connect n conv
@@ -645,10 +639,6 @@ newRegularConversation lusr newConv = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-toExtended :: ConversationResponse -> ExtendedConversationResponse
-toExtended (Existed c) = ConversationResponseExisted c
-toExtended (Created c) = ConversationResponseCreated c
-
 conversationCreated ::
   ( Member (Error InternalError) r,
     Member P.TinyLog r
@@ -658,34 +648,15 @@ conversationCreated ::
   Sem r ConversationResponse
 conversationCreated lusr cnv = Created <$> conversationView lusr cnv
 
-groupConversationCreated ::
-  ( Member (Error InternalError) r,
-    Member P.TinyLog r
-  ) =>
-  Set Domain ->
-  Local UserId ->
-  Data.Conversation ->
-  Sem r CreateGroupConversationResponse
-groupConversationCreated ds lusr cnv = do
-  if Set.null ds
-    then do
-      conv <- conversationView lusr cnv
-      pure . GroupConversationCreated $
-        CreateGroupConversation conv mempty
-    else
-      pure
-        . GroupConversationUnreachableBackends
-        . CreateConversationUnreachableBackends
-        $ ds
-
 -- | The return set contains all the remote users that could not be contacted.
 -- Consequently, the unreachable users are not added to the member list. This
 -- behavior might be changed later on when a message/event queue per remote
 -- backend is implemented.
 notifyCreatedConversation ::
-  ( Member (Error FederationError) r,
+  ( Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (Error UnreachableBackendsError) r,
+    Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,

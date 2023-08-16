@@ -44,7 +44,6 @@ import Data.ByteString.Builder
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
-import Data.List.NonEmpty (NonEmpty)
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as Text
@@ -226,13 +225,13 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
         FederatorClientError
           ( mkFailureResponse
               (responseStatusCode resp)
-              [ceTargetDomain env]
+              (ceTargetDomain env)
               (toLazyByteString (requestPath req))
               (toLazyByteString bdy)
           )
 
-mkFailureResponse :: HTTP.Status -> NonEmpty Domain -> LByteString -> LByteString -> Wai.Error
-mkFailureResponse status domains path body
+mkFailureResponse :: HTTP.Status -> Domain -> LByteString -> LByteString -> Wai.Error
+mkFailureResponse status domain path body
   -- If the outward federator fails with 403, that means that there was an
   -- error at the level of the local federator (most likely due to a bug somewhere
   -- in wire-server). It does not make sense to return this error directly to the
@@ -252,7 +251,7 @@ mkFailureResponse status domains path body
         { Wai.errorData =
             Just
               Wai.FederationErrorData
-                { Wai.federrDomains = domains,
+                { Wai.federrDomain = domain,
                   Wai.federrPath =
                     "/federation"
                       <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path)

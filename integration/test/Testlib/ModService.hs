@@ -83,8 +83,8 @@ copyDirectoryRecursively from to = do
 -- continuation, the main continuation is run in an environment that
 -- accumulates all the individual environment changes.
 traverseConcurrentlyCodensity ::
-  (a -> Codensity App (Env -> Env)) ->
-  ([a] -> Codensity App (Env -> Env))
+  (HasCallStack => a -> Codensity App (Env -> Env)) ->
+  (HasCallStack => [a] -> Codensity App (Env -> Env))
 traverseConcurrentlyCodensity f args = do
   -- Create variables for synchronisation of the various threads:
   --  * @result@ is used to store the environment change, or possibly an exception
@@ -138,15 +138,19 @@ traverseConcurrentlyCodensity f args = do
     liftIO $ traverse_ wait asyncs
     pure result
 
-startDynamicBackends :: [ServiceOverrides] -> ([String] -> App a) -> App a
-startDynamicBackends beOverrides = runCodensity $ do
-  when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
-  pool <- asks (.resourcePool)
-  resources <- acquireResources (Prelude.length beOverrides) pool
-  void $ traverseConcurrentlyCodensity (\(res, overrides) -> startDynamicBackend res mempty overrides) (zip resources beOverrides)
-  pure $ map (.berDomain) resources
+startDynamicBackends :: HasCallStack => [ServiceOverrides] -> (HasCallStack => [String] -> App a) -> App a
+startDynamicBackends beOverrides k =
+  runCodensity
+    ( do
+        when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
+        pool <- asks (.resourcePool)
+        resources <- acquireResources (Prelude.length beOverrides) pool
+        void $ traverseConcurrentlyCodensity (\(res, overrides) -> startDynamicBackend res mempty overrides) (zip resources beOverrides)
+        pure $ map (.berDomain) resources
+    )
+    k
 
-startDynamicBackend :: BackendResource -> Map.Map Service Word16 -> ServiceOverrides -> Codensity App (Env -> Env)
+startDynamicBackend :: HasCallStack => BackendResource -> Map.Map Service Word16 -> ServiceOverrides -> Codensity App (Env -> Env)
 startDynamicBackend resource staticPorts beOverrides = do
   defDomain <- asks (.domain1)
   let services =

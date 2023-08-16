@@ -27,13 +27,18 @@ module Wire.API.Error.Galley
     TeamFeatureError (..),
     MLSProposalFailure (..),
     NonFederatingBackends (..),
+    UnreachableBackends (..),
+    unreachableUsersToUnreachableBackends,
+    UnreachableBackendsLegacy (..),
   )
 where
 
 import Control.Lens ((%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Containers.ListUtils
 import Data.Domain
 import Data.Proxy
+import Data.Qualified
 import Data.Schema
 import Data.Singletons.TH (genSingletons)
 import Data.Swagger qualified as S
@@ -41,6 +46,7 @@ import Data.Tagged
 import GHC.TypeLits
 import Imports
 import Network.HTTP.Types.Status qualified as HTTP
+import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Error
@@ -51,6 +57,7 @@ import Wire.API.Error.Brig qualified as BrigError
 import Wire.API.Routes.API
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
+import Wire.API.Unreachable
 import Wire.API.Util.Aeson (CustomEncoded (..))
 
 data GalleyError
@@ -451,4 +458,67 @@ instance IsSwaggerError NonFederatingBackends where
 type instance ErrorEffect NonFederatingBackends = Error NonFederatingBackends
 
 instance Member (Error JSONResponse) r => ServerEffect (Error NonFederatingBackends) r where
+  interpretServerEffect = mapError toResponse
+
+--------------------------------------------------------------------------------
+-- Unreachable backends
+
+-- | This is returned when adding members to the conversation is not possible
+-- because the backends involved do not form a fully connected graph.
+data UnreachableBackends = UnreachableBackends {backends :: [Domain]}
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UnreachableBackends
+
+instance APIError UnreachableBackends where
+  toResponse e =
+    JSONResponse
+      { status = unreachableBackendsStatus,
+        value = toJSON e
+      }
+
+unreachableBackendsStatus :: HTTP.Status
+unreachableBackendsStatus = HTTP.mkStatus 533 "Unreachable backends"
+
+instance ToSchema UnreachableBackends where
+  schema =
+    object "UnreachableBackends" $
+      UnreachableBackends
+        <$> (.backends) .= field "unreachable_backends" (array schema)
+
+instance IsSwaggerError UnreachableBackends where
+  addToSwagger =
+    addErrorResponseToSwagger (HTTP.statusCode unreachableBackendsStatus) $
+      mempty
+        & S.description .~ "Some domains are unreachable"
+        & S.schema ?~ S.Inline (S.toSchema (Proxy @UnreachableBackends))
+
+type instance ErrorEffect UnreachableBackends = Error UnreachableBackends
+
+instance Member (Error JSONResponse) r => ServerEffect (Error UnreachableBackends) r where
+  interpretServerEffect = mapError toResponse
+
+unreachableUsersToUnreachableBackends :: UnreachableUsers -> UnreachableBackends
+unreachableUsersToUnreachableBackends =
+  UnreachableBackends
+    . nubOrd
+    . map qDomain
+    . toList
+    . unreachableUsers
+
+-- | A newtype wrapper to preserve backward compatibility of the error response
+-- for older versions.
+newtype UnreachableBackendsLegacy = UnreachableBackendsLegacy UnreachableBackends
+  deriving (IsSwaggerError)
+
+instance APIError UnreachableBackendsLegacy where
+  toResponse _ =
+    toResponse $
+      Wai.mkError
+        unreachableBackendsStatus
+        "federation-connection-refused"
+        "Some backends are unreachable"
+
+type instance ErrorEffect UnreachableBackendsLegacy = Error UnreachableBackendsLegacy
+
+instance Member (Error JSONResponse) r => ServerEffect (Error UnreachableBackendsLegacy) r where
   interpretServerEffect = mapError toResponse

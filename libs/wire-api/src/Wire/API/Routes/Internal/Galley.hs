@@ -202,12 +202,13 @@ type InternalAPIBase =
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NotConnected
+               :> CanThrow UnreachableBackends
                :> ZLocalUser
                :> ZOptConn
                :> "conversations"
                :> "connect"
                :> ReqBody '[Servant.JSON] Connect
-               :> ExtendedConversationVerb
+               :> ConversationVerb
            )
     :<|> Named
            "guard-legalhold-policy-conflicts"
@@ -418,6 +419,7 @@ type IFederationAPI =
   Named
     "get-federation-status"
     ( Summary "Get the federation status (only needed for integration/QA tests at the time of writing it)"
+        :> CanThrow UnreachableBackends
         :> ZLocalUser
         :> "federation-status"
         :> ReqBody '[Servant.JSON] RemoteDomains
