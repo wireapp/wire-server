@@ -336,7 +336,7 @@ updateFeatureConferenceCalling uid mbStatus = do
   pure mbStatus
   where
     update :: PrepQuery W (Maybe ApiFt.FeatureStatus, UserId) ()
-    update = fromString "update user set feature_conference_calling = ? where id = ?"
+    update = fromString "update user set feature_conference_calling = ? where id = ? if exists"
 
 deleteEmail :: MonadClient m => UserId -> m ()
 deleteEmail u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u))
@@ -622,64 +622,64 @@ userInsert =
   \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userDisplayNameUpdate :: PrepQuery W (Name, UserId) ()
-userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
+userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ? IF EXISTS"
 
 userPictUpdate :: PrepQuery W (Pict, UserId) ()
-userPictUpdate = "UPDATE user SET picture = ? WHERE id = ?"
+userPictUpdate = "UPDATE user SET picture = ? WHERE id = ? IF EXISTS"
 
 userAssetsUpdate :: PrepQuery W ([Asset], UserId) ()
-userAssetsUpdate = "UPDATE user SET assets = ? WHERE id = ?"
+userAssetsUpdate = "UPDATE user SET assets = ? WHERE id = ? IF EXISTS"
 
 userAccentIdUpdate :: PrepQuery W (ColourId, UserId) ()
-userAccentIdUpdate = "UPDATE user SET accent_id = ? WHERE id = ?"
+userAccentIdUpdate = "UPDATE user SET accent_id = ? WHERE id = ? IF EXISTS"
 
 userEmailUpdate :: PrepQuery W (Email, UserId) ()
-userEmailUpdate = "UPDATE user SET email = ? WHERE id = ?"
+userEmailUpdate = "UPDATE user SET email = ? WHERE id = ? IF EXISTS"
 
 userEmailUnvalidatedUpdate :: PrepQuery W (Email, UserId) ()
-userEmailUnvalidatedUpdate = "UPDATE user SET email_unvalidated = ? WHERE id = ?"
+userEmailUnvalidatedUpdate = "UPDATE user SET email_unvalidated = ? WHERE id = ? IF EXISTS"
 
 userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
-userEmailUnvalidatedDelete = "UPDATE user SET email_unvalidated = null WHERE id = ?"
+userEmailUnvalidatedDelete = "UPDATE user SET email_unvalidated = null WHERE id = ? IF EXISTS"
 
 userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
-userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ?"
+userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ? IF EXISTS"
 
 userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) ()
-userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
+userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ? IF EXISTS"
 
 userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
-userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ?"
+userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ? IF EXISTS"
 
 userHandleUpdate :: PrepQuery W (Handle, UserId) ()
-userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"
+userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ? IF EXISTS"
 
 userSupportedProtocolUpdate :: PrepQuery W (Set BaseProtocolTag, UserId) ()
-userSupportedProtocolUpdate = "UPDATE user SET supported_protocols = ? WHERE id = ?"
+userSupportedProtocolUpdate = "UPDATE user SET supported_protocols = ? WHERE id = ? IF EXISTS"
 
 userPasswordUpdate :: PrepQuery W (Password, UserId) ()
-userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
+userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ? IF EXISTS"
 
 userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
-userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?"
+userStatusUpdate = "UPDATE user SET status = ? WHERE id = ? IF EXISTS"
 
 userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
-userDeactivatedUpdate = "UPDATE user SET activated = false WHERE id = ?"
+userDeactivatedUpdate = "UPDATE user SET activated = false WHERE id = ? IF EXISTS"
 
 userActivatedUpdate :: PrepQuery W (Maybe Email, Maybe Phone, UserId) ()
-userActivatedUpdate = "UPDATE user SET activated = true, email = ?, phone = ? WHERE id = ?"
+userActivatedUpdate = "UPDATE user SET activated = true, email = ?, phone = ? WHERE id = ? IF EXISTS"
 
 userLocaleUpdate :: PrepQuery W (Language, Maybe Country, UserId) ()
-userLocaleUpdate = "UPDATE user SET language = ?, country = ? WHERE id = ?"
+userLocaleUpdate = "UPDATE user SET language = ?, country = ? WHERE id = ? IF EXISTS"
 
 userEmailDelete :: PrepQuery W (Identity UserId) ()
-userEmailDelete = "UPDATE user SET email = null WHERE id = ?"
+userEmailDelete = "UPDATE user SET email = null WHERE id = ? IF EXISTS"
 
 userPhoneDelete :: PrepQuery W (Identity UserId) ()
-userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
+userPhoneDelete = "UPDATE user SET phone = null WHERE id = ? IF EXISTS"
 
 userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) ()
-userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ?"
+userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ? IF EXISTS"
 
 -------------------------------------------------------------------------------
 -- Conversions
