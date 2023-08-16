@@ -3,6 +3,7 @@ module Wire.API.FederationUpdate
     SyncFedDomainConfigsCallback (..),
     emptySyncFedDomainConfigsCallback,
     deleteFederationRemoteGalley,
+    fetch,
   )
 where
 

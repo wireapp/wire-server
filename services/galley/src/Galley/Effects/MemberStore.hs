@@ -36,7 +36,12 @@ module Galley.Effects.MemberStore
     checkLocalMemberRemoteConv,
     selectRemoteMembers,
     getRemoteMembersByDomain,
+    getRemoteMembersByConvAndDomain,
     getLocalMembersByDomain,
+
+    -- * Conversation checks
+    selectConvIdsByRemoteDomain,
+    checkConvForRemoteDomain,
 
     -- * Update members
     setSelfMember,
@@ -51,6 +56,7 @@ module Galley.Effects.MemberStore
     -- * Delete members
     deleteMembers,
     deleteMembersInRemoteConversation,
+    removeRemoteDomain,
   )
 where
 
@@ -92,7 +98,11 @@ data MemberStore m a where
   LookupMLSClients :: GroupId -> MemberStore m ClientMap
   LookupMLSClientLeafIndices :: GroupId -> MemberStore m (ClientMap, IndexMap)
   GetRemoteMembersByDomain :: Domain -> MemberStore m [(ConvId, RemoteMember)]
+  GetRemoteMembersByConvAndDomain :: ConvId -> Domain -> MemberStore m [RemoteMember]
   GetLocalMembersByDomain :: Domain -> MemberStore m [(ConvId, UserId)]
+  RemoveRemoteDomain :: ConvId -> Domain -> MemberStore m ()
+  SelectConvIdsByRemoteDomain :: Domain -> MemberStore m [ConvId]
+  CheckConvForRemoteDomain :: ConvId -> Domain -> MemberStore m (Maybe ConvId)
 
 makeSem ''MemberStore
 
