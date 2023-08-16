@@ -68,7 +68,8 @@ testDefederationNonFullyConnectedGraph = do
       --           pure $ domsStr == sort [domainB, domainC]
       --         else pure False
       -- void $ awaitNToMMatches 2 10 20 isConnectionRemoved wsA
-      -- retryT $ checkConv convId uA []
+
+      retryT $ checkConv convId uA []
   where
     checkConv :: Value -> Value -> [Value] -> App ()
     checkConv convId user expectedOtherMembers = do
