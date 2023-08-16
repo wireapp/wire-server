@@ -2,7 +2,7 @@
 
 module Test.Conversation where
 
-import API.Brig (getConnection, getConnections, putConnection)
+import API.Brig (getConnection, getConnections, putConnection, postConnection)
 import API.BrigInternal
 import API.Galley
 import API.GalleyInternal
@@ -353,12 +353,18 @@ testConvWithUnreachableRemoteUsers = do
 testGetOneOnOneConvInStatusSentFromRemote :: App ()
 testGetOneOnOneConvInStatusSentFromRemote = do
   d1User <- randomUser OwnDomain def
+  print "user 1"
+  printJSON d1User
   let shouldBeLocal = True
   (d2Usr, d2ConvId) <- generateRemoteAndConvIdWithDomain OtherDomain (not shouldBeLocal) d1User
-  bindResponse (putConnection d1User d2Usr "sent") $ \r -> do
-    r.status `shouldMatchInt` 200
+  print "user 2"
+  printJSON d2Usr
+  bindResponse (postConnection d1User d2Usr) $ \r -> do
+    printJSON r.json
+    r.status `shouldMatchInt` 201
     r.json %. "status" `shouldMatch` "sent"
   bindResponse (listConversationIds d1User def) $ \resp -> do
+    printJSON resp.json
     resp.status `shouldMatchInt` 200
     convIds <- resp.json %. "qualified_conversations" & asList
     filter ((==) d2ConvId) convIds `shouldMatch` [d2ConvId]
@@ -366,4 +372,5 @@ testGetOneOnOneConvInStatusSentFromRemote = do
     qConvIds <- resp.json %. "connections" & asList >>= traverse (%. "qualified_conversation")
     filter ((==) d2ConvId) qConvIds `shouldMatch` [d2ConvId]
   resp <- getConversation d1User d2ConvId
+  resp.status `shouldMatchInt` 200
   printJSON resp.json
