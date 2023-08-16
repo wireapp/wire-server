@@ -212,7 +212,7 @@ testLoginWith6CharPassword brig db = do
       p <- liftIO $ mkSafePassword t
       retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
     userPasswordUpdate :: PrepQuery W (Password, UserId) ()
-    userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
+    userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ? IF EXISTS"
 
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
