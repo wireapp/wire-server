@@ -131,7 +131,6 @@ type GalleyApi =
            TypingDataUpdateRequest
            TypingDataUpdateResponse
     :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdated EmptyResponse
-    :<|> FedEndpoint "on-connection-removed" Domain EmptyResponse
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
   { tdurTypingStatus :: TypingStatus,
