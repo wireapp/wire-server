@@ -1,3 +1,10 @@
+# [2023-08-16] (Chart Release 4.38.0)
+
+## Bug fixes and other updates
+
+* Fix syntax error in cassandra update to `brig.client`. (#3508)
+
+
 # [2023-08-16] (Chart Release 4.37.0)
 
 ## API changes
