@@ -16,6 +16,7 @@ import Data.Id
 import Data.List.NonEmpty
 import Data.List1 qualified as List1
 import Data.Qualified
+import Data.Range (toRange)
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time (getCurrentTime)
@@ -164,7 +165,7 @@ deleteFederationDomains old new = do
       deletedDomains = Set.difference prev curr
   env <- ask
   -- Call into the galley code
-  for_ deletedDomains $ liftIO . evalGalleyToIO env . deleteFederationDomain
+  for_ deletedDomains $ liftIO . evalGalleyToIO env . deleteFederationDomain (toRange $ Proxy @500)
 
 constHandlers :: (MonadIO m) => [RetryStatus -> Handler m Bool]
 constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]
