@@ -268,10 +268,11 @@ updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params LocalQ
 updateClientCapabilities :: MonadClient m => UserId -> ClientId -> Maybe (Imports.Set ClientCapability) -> m ()
 updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params LocalQuorum (C.Set . Set.toList <$> fs, u, c))
 
+-- | If the update fails, which can happen if device does not exist, then ignore the error silently.
 updateClientLastActive :: MonadClient m => UserId -> ClientId -> UTCTime -> m ()
 updateClientLastActive u c t =
-  retry x5 $
-    write
+  void . retry x5 $
+    trans
       updateClientLastActiveQuery
       (params LocalQuorum (t, u, c))
 
@@ -386,7 +387,7 @@ updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client
 updateClientCapabilitiesQuery :: PrepQuery W (Maybe (C.Set ClientCapability), UserId, ClientId) ()
 updateClientCapabilitiesQuery = "UPDATE clients SET capabilities = ? WHERE user = ? AND client = ?"
 
-updateClientLastActiveQuery :: PrepQuery W (UTCTime, UserId, ClientId) ()
+updateClientLastActiveQuery :: PrepQuery W (UTCTime, UserId, ClientId) Row
 updateClientLastActiveQuery = "UPDATE clients SET last_active = ? WHERE user = ? AND client = ? IF EXISTS"
 
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
