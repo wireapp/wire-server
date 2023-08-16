@@ -387,7 +387,7 @@ updateClientCapabilitiesQuery :: PrepQuery W (Maybe (C.Set ClientCapability), Us
 updateClientCapabilitiesQuery = "UPDATE clients SET capabilities = ? WHERE user = ? AND client = ?"
 
 updateClientLastActiveQuery :: PrepQuery W (UTCTime, UserId, ClientId) ()
-updateClientLastActiveQuery = "UPDATE clients SET last_active = ? WHERE user = ? AND client = ?"
+updateClientLastActiveQuery = "UPDATE clients SET last_active = ? WHERE user = ? AND client = ? IF EXISTS"
 
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"
