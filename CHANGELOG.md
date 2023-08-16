@@ -1,25 +1,8 @@
 # [2023-08-16] (Chart Release 4.38.0)
 
-## API changes
-
-
-* Added a new notification event type, "federation.connectionRemoved"
-  This event contains a pair of domains that are no longer federating, and is used to inform other federation members of the change.
-  This notification is sent twice to local clients of federation members who receive this notification. Once before and once after cleaning up local conversaions where users from both domains are present.
-
-  Added a new Galley federation endpoint "/federation/on-connection-removed" to receive the connection removed notification. (#3487)
-
-
 ## Bug fixes and other updates
 
-
 * Fix syntax error in cassandra update to `brig.client`. (#3508)
-
-
-## Federation changes
-
-
-* Defederating from a remote server will now inform your remaining federation members, allowing them to clean up their local conversations and inform their clients. (#3487)
 
 
 # [2023-08-16] (Chart Release 4.37.0)
