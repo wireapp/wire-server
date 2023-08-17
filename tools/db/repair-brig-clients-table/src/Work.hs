@@ -24,14 +24,10 @@ import Data.Conduit
 import Data.Conduit.Internal (zipSources)
 import Data.Conduit.List qualified as C
 import Data.Id
-import Data.Misc
 import Data.Time.Clock
 import Imports
 import System.Logger (Logger)
 import System.Logger qualified as Log
-import UnliftIO.Async (pooledMapConcurrentlyN)
-import Wire.API.Team.Feature
-import Wire.API.User
 
 runCommand :: Bool -> Logger -> ClientState -> IO ()
 runCommand dryRun l brig =
@@ -80,7 +76,7 @@ filterReportRemove dryRun l row@(user, client, Nothing, Nothing, Nothing, Nothin
       Log.info l (Log.msg @Text "removed!")
   where
     rm :: MonadClient m => UserId -> Text -> m ()
-    rm uid cid = 
+    rm uid cid =
       retry x5 $ write rmq (params LocalQuorum (uid, cid))
 
     rmq :: PrepQuery W (UserId, Text) ()
