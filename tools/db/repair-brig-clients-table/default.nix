@@ -14,8 +14,6 @@
 , time
 , tinylog
 , types-common
-, unliftio
-, wire-api
 }:
 mkDerivation {
   pname = "repair-brig-clients-table";
@@ -33,8 +31,6 @@ mkDerivation {
     time
     tinylog
     types-common
-    unliftio
-    wire-api
   ];
   description = "Removes and reports entries from brig.clients that have been accidentally upserted.";
   license = lib.licenses.agpl3Only;
