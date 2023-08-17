@@ -7,7 +7,7 @@ synopsis:
 category:      Network
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
-copyright:     (c) 2018 Wire Swiss GmbH
+copyright:     (c) 2023 Wire Swiss GmbH
 license:       AGPL-3
 build-type:    Simple
 

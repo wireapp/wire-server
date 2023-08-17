@@ -34,7 +34,7 @@ import Wire.API.Team.Feature
 import Wire.API.User
 
 runCommand :: Bool -> Logger -> ClientState -> IO ()
-runCommand dryRun l brig = do
+runCommand dryRun l brig =
   runConduit $
     zipSources
       (C.sourceList [(1 :: Int32) ..])
@@ -80,7 +80,7 @@ filterReportRemove dryRun l row@(user, client, Nothing, Nothing, Nothing, Nothin
       Log.info l (Log.msg @Text "removed!")
   where
     rm :: MonadClient m => UserId -> Text -> m ()
-    rm uid cid = do
+    rm uid cid = 
       retry x5 $ write rmq (params LocalQuorum (uid, cid))
 
     rmq :: PrepQuery W (UserId, Text) ()
