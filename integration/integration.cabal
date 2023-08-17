@@ -103,6 +103,7 @@ library
     Test.Brig
     Test.Client
     Test.Conversation
+    Test.Defederation
     Test.Demo
     Test.Federator
     Test.Notifications

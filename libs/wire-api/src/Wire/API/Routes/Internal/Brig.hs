@@ -694,12 +694,15 @@ type GetDefaultLocale =
     :> Get '[Servant.JSON] LocaleUpdate
 
 type ClientAPI =
-  Summary "Update last_active field of a client"
-    :> "clients"
-    :> Capture "uid" UserId
-    :> Capture "client" ClientId
-    :> "activity"
-    :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
+  Named
+    "update-client-last-active"
+    ( Summary "Update last_active field of a client"
+        :> "clients"
+        :> Capture "uid" UserId
+        :> Capture "client" ClientId
+        :> "activity"
+        :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
+    )
 
 type AuthAPI =
   Named

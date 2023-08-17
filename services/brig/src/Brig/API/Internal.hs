@@ -211,7 +211,7 @@ userAPI =
     :<|> getDefaultUserLocale
 
 clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)
-clientAPI = updateClientLastActive
+clientAPI = Named @"update-client-last-active" updateClientLastActive
 
 authAPI :: (Member GalleyProvider r) => ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
@@ -343,6 +343,8 @@ deleteFederationRemote dom = do
   lift . wrapClient . Data.deleteFederationRemote $ dom
   assertNoDomainsFromConfigFiles dom
   env <- ask
+  ownDomain <- viewFederationDomain
+  remoteDomains <- fmap domain . remotes <$> getFederationRemotes
   for_ (env ^. rabbitmqChannel) $ \chan -> liftIO . withMVar chan $ \chan' -> do
     -- ensureQueue uses routingKey internally
     ensureQueue chan' defederationQueue
@@ -355,6 +357,16 @@ deleteFederationRemote dom = do
             Q.msgDeliveryMode = pure Q.Persistent,
             Q.msgContentType = pure "application/json"
           }
+    -- Send a notification to remaining federation servers, telling them
+    -- that we are defederating from a given domain, and that they should
+    -- clean up their conversations and notify clients.
+    -- Just to be safe!
+    for_ (filter (/= dom) remoteDomains) $ \remoteDomain -> do
+      ensureQueue chan' $ domainText remoteDomain
+      liftIO
+        $ enqueue chan' ownDomain remoteDomain Q.Persistent
+          . void
+        $ fedQueueClient @'Galley @"on-connection-removed" dom
     -- Drop the notification queue for the domain.
     -- This will also drop all of the messages in the queue
     -- as we will no longer be able to communicate with this

@@ -21,6 +21,7 @@ testEnv = do
   httpManager <- newManager defaultManagerSettings
   remoteDomains <- newIORef defFederationDomainConfigs
   remoteDomainsChan <- newChan
+  notificationChannel <- newEmptyMVar
   let federatorInternal = Endpoint "localhost" 0
       rabbitmqAdminClient = undefined
       rabbitmqVHost = undefined
