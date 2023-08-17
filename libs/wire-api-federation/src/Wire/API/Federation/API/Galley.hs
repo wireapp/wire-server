@@ -397,7 +397,7 @@ data ConversationUpdateResponse
 
 -- | A wrapper around a raw welcome message
 newtype MLSWelcomeRequest = MLSWelcomeRequest
-  { unMLSWelcomeRequest :: Base64ByteString
+  { mlsWelcomeRequest :: Base64ByteString
   }
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)

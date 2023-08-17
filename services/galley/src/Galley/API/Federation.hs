@@ -636,7 +636,7 @@ mlsSendWelcome ::
   Domain ->
   F.MLSWelcomeRequest ->
   Sem r F.MLSWelcomeResponse
-mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawWelcome) =
+mlsSendWelcome _origDomain (fromBase64ByteString . F.mlsWelcomeRequest -> rawWelcome) =
   fmap (either (const MLSWelcomeMLSNotEnabled) (const MLSWelcomeSent))
     . runError @(Tagged 'MLSNotEnabled ())
     $ do
