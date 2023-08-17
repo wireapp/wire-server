@@ -142,6 +142,13 @@ interpretGundeckAccess = interpret $ \case
   Push ps -> embedApp $ G.push ps
   PushSlowly ps -> embedApp $ G.pushSlowly ps
 
+-- FUTUREWORK:
+-- This functions uses an in-memory set for tracking UserIds that we have already
+-- sent notifications to. This set will only grow throughout the lifttime of this
+-- function, and may cause memory & performance problems with millions of users.
+-- How we are tracking which users have already been sent 0, 1, or 2 defederation
+-- messages should be rethought to be more fault tollerant, e.g. this method doesn't
+-- handle the server crashing and restarting.
 interpretDefederationNotifications ::
   forall r a.
   ( Member (Embed IO) r,
@@ -172,8 +179,15 @@ interpretDefederationNotifications = interpret $ \case
       let (bots, mems) = localBotsAndUsers results
           recipients = Intra.recipient <$> mems
           event = Intra.FederationEvent eventData
-          -- Filter out any users that we have already sent a notification to.
-          filteredRecipients = filter (\r -> r._recipientUserId `notElem` seenRecipients) recipients
+          filteredRecipients =
+            -- Deduplicate by UserId the page of recipients that we are working on
+            nubBy (\a b -> a._recipientUserId == b._recipientUserId)
+            -- Sort the remaining recipients by their IDs
+            $
+              sortBy (\a b -> a._recipientUserId `compare` b._recipientUserId)
+              -- Filter out any recipient that we have already seen in a previous page
+              $
+                filter (\r -> r._recipientUserId `notElem` seenRecipients) recipients
       for_ (Intra.newPush ListComplete Nothing event filteredRecipients) $ \p -> do
         -- Futurework: Transient or not?
         -- RouteAny is used as it will wake up mobile clients
