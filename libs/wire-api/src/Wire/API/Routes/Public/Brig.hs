@@ -19,7 +19,7 @@
 
 module Wire.API.Routes.Public.Brig where
 
-import qualified Data.Aeson as A (FromJSON, ToJSON, Value)
+import Data.Aeson qualified as A (FromJSON, ToJSON, Value)
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
@@ -33,8 +33,8 @@ import Data.Range
 import Data.SOP
 import Data.Schema as Schema
 import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
-import qualified Data.Swagger as S
-import qualified Generics.SOP as GSOP
+import Data.Swagger qualified as S
+import Generics.SOP qualified as GSOP
 import Imports hiding (head)
 import Network.Wai.Utilities
 import Servant (JSON)

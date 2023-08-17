@@ -24,12 +24,12 @@ import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Options
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Data.Aeson
-import qualified Data.ByteString.Char8 as C
-import qualified Data.Text as T
+import Data.ByteString.Char8 qualified as C
+import Data.Text qualified as T
 import Imports
-import qualified Network.Wai.Utilities.Error as Error
+import Network.Wai.Utilities.Error qualified as Error
 import Test.Tasty hiding (Timeout)
 import Util
 import Wire.API.User

@@ -19,18 +19,18 @@
 
 module Network.Wai.Utilities.MockServer where
 
-import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Async qualified as Async
 import Control.Exception (throw)
-import qualified Control.Exception as E
+import Control.Exception qualified as E
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Data.Streaming.Network (bindRandomPortTCP)
 import Imports
-import qualified Network.HTTP2.Client as HTTP2
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Handler.WarpTLS as Warp
-import qualified System.Timeout as System
+import Network.HTTP2.Client qualified as HTTP2
+import Network.Wai qualified as Wai
+import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Handler.WarpTLS qualified as Warp
+import System.Timeout qualified as System
 
 -- | Thrown in IO by mock federator if the server could not be started after 10
 -- seconds.

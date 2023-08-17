@@ -47,14 +47,14 @@ where
 
 import Control.Lens hiding (withIndex)
 import Control.Monad.Catch (MonadCatch, MonadThrow)
-import qualified Data.ByteString as Strict
+import Data.ByteString qualified as Strict
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Time.Clock.POSIX
 import Data.UUID
 import Data.Vector (Vector, (!))
-import qualified Data.Vector as Vec
+import Data.Vector qualified as Vec
 import Data.ZAuth.Token hiding (signature)
 import Imports
 import Sodium.Crypto.Sign

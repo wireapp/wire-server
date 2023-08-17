@@ -29,13 +29,13 @@ where
 
 import Data.Metrics
 import Data.Metrics.Types
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Imports
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Internal (Response (ResponseRaw))
-import qualified Network.Wai.Route.Tree as Tree
+import Network.Wai.Route.Tree qualified as Tree
 
 withPathTemplate :: Paths -> (PathTemplate -> Middleware) -> Middleware
 withPathTemplate t f app r k = f (fromMaybe def tmp) app r k

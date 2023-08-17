@@ -19,7 +19,7 @@ Usage: $0 [options]
 Options:
    -d CHART_DIR
         to upload only a single directory
-   -r <wire|wire-develop|wire-custom> default:wire-custom
+   -r <wire|wire-develop|wire-custom|wire-bund> default:wire-custom
         to which repo to publish
    --force-push, -f
         override S3 artifacts.
@@ -70,6 +70,10 @@ while getopts "d:r:fR" optchar; do
                 wire-custom)
                   REPO_NAME="wire-custom"
                   PUBLIC_DIR="charts-custom"
+                  ;;
+                wire-bund)
+                  REPO_NAME="wire-bund"
+                  PUBLIC_DIR="charts-bund"
                   ;;
                 *)
                   exit_usage

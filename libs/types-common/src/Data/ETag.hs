@@ -43,10 +43,10 @@ import Control.Lens
 -- TODO: These package imports are only needed due to the
 -- use of GHCI. They should be removed by moving everything
 -- from cryptohash (which is deprecated) to cryptonite
-import qualified "cryptohash-md5" Crypto.Hash.MD5 as MD5
-import qualified "cryptohash-sha1" Crypto.Hash.SHA1 as SHA1
+import "cryptohash-md5" Crypto.Hash.MD5 qualified as MD5
+import "cryptohash-sha1" Crypto.Hash.SHA1 qualified as SHA1
 import Data.Attoparsec.ByteString.Char8
-import qualified Data.ByteString.Base16 as Hex
+import Data.ByteString.Base16 qualified as Hex
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion
 import Imports hiding (takeWhile)

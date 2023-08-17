@@ -27,7 +27,7 @@ where
 import Data.Id as Id
 import Data.Qualified
 import Galley.API.MLS.Types
-import qualified Galley.Data.Conversation.Types as Data
+import Galley.Data.Conversation.Types qualified as Data
 import Galley.Effects.ConversationStore
 import Galley.Types.UserList
 import Imports hiding (cs)

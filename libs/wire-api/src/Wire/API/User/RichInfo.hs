@@ -44,19 +44,19 @@ module Wire.API.User.RichInfo
 where
 
 import Control.Lens ((%~), (?~), _1)
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Key as A
-import qualified Data.Aeson.KeyMap as A
-import qualified Data.Aeson.Types as A
+import Data.Aeson qualified as A
+import Data.Aeson.Key qualified as A
+import Data.Aeson.KeyMap qualified as A
+import Data.Aeson.Types qualified as A
 import Data.CaseInsensitive (CI)
-import qualified Data.CaseInsensitive as CI
+import Data.CaseInsensitive qualified as CI
 import Data.List.Extra (nubOrdOn)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
 import Imports
-import qualified Test.QuickCheck as QC
+import Test.QuickCheck qualified as QC
 import Wire.Arbitrary (Arbitrary (arbitrary))
 
 --------------------------------------------------------------------------------

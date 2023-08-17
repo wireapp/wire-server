@@ -1,9 +1,9 @@
 module API.Galley where
 
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Base64 as B64
-import qualified Data.ByteString.Base64.URL as B64U
-import qualified Data.ByteString.Char8 as BS
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Base64 qualified as B64
+import Data.ByteString.Base64.URL qualified as B64U
+import Data.ByteString.Char8 qualified as BS
 import Testlib.Prelude
 
 data CreateConv = CreateConv
@@ -244,3 +244,9 @@ getGroupClients user groupId = do
       Unversioned
       (joinHttpPath ["i", "group", BS.unpack . B64U.encodeUnpadded . B64.decodeLenient $ BS.pack groupId])
   submit "GET" req
+
+addMembers :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> [Value] -> App Response
+addMembers usr qcnv qUsers = do
+  (convDomain, convId) <- objQid qcnv
+  req <- baseRequest usr Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members"])
+  submit "POST" (req & addJSONObject ["qualified_users" .= qUsers])

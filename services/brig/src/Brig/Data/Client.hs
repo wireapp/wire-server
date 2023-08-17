@@ -49,44 +49,44 @@ module Brig.Data.Client
   )
 where
 
-import qualified Amazonka as AWS
-import qualified Amazonka.Data.Text as AWS
-import qualified Amazonka.DynamoDB as AWS
-import qualified Amazonka.DynamoDB.Lens as AWS
+import Amazonka qualified as AWS
+import Amazonka.Data.Text qualified as AWS
+import Amazonka.DynamoDB qualified as AWS
+import Amazonka.DynamoDB.Lens qualified as AWS
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
 import Brig.App
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
-import qualified Brig.Data.User as User
+import Brig.Data.User qualified as User
 import Brig.Types.Instances ()
 import Brig.User.Auth.DB.Instances ()
 import Cassandra as C hiding (Client)
 import Cassandra.Settings as C hiding (Client)
 import Control.Error
-import qualified Control.Exception.Lens as EL
+import Control.Exception.Lens qualified as EL
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Random (randomRIO)
 import Control.Retry
-import qualified Data.ByteString.Base64 as B64
+import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Conversion (toByteString, toByteString')
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.HashMap.Strict as HashMap
+import Data.ByteString.Lazy qualified as LBS
+import Data.HashMap.Strict qualified as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import qualified Data.Map as Map
-import qualified Data.Metrics as Metrics
+import Data.Map qualified as Map
+import Data.Metrics qualified as Metrics
 import Data.Misc
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.Time.Clock
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import System.CryptoBox (Result (Success))
-import qualified System.CryptoBox as CryptoBox
+import System.CryptoBox qualified as CryptoBox
 import System.Logger.Class (field, msg, val)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import UnliftIO (pooledMapConcurrentlyN)
 import Wire.API.MLS.CipherSuite
 import Wire.API.User.Auth
@@ -268,10 +268,11 @@ updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params LocalQ
 updateClientCapabilities :: MonadClient m => UserId -> ClientId -> Maybe (Imports.Set ClientCapability) -> m ()
 updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params LocalQuorum (C.Set . Set.toList <$> fs, u, c))
 
+-- | If the update fails, which can happen if device does not exist, then ignore the error silently.
 updateClientLastActive :: MonadClient m => UserId -> ClientId -> UTCTime -> m ()
 updateClientLastActive u c t =
-  retry x5 $
-    write
+  void . retry x5 $
+    trans
       updateClientLastActiveQuery
       (params LocalQuorum (t, u, c))
 
@@ -386,8 +387,8 @@ updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client
 updateClientCapabilitiesQuery :: PrepQuery W (Maybe (C.Set ClientCapability), UserId, ClientId) ()
 updateClientCapabilitiesQuery = "UPDATE clients SET capabilities = ? WHERE user = ? AND client = ?"
 
-updateClientLastActiveQuery :: PrepQuery W (UTCTime, UserId, ClientId) ()
-updateClientLastActiveQuery = "UPDATE clients SET last_active = ? WHERE user = ? AND client = ?"
+updateClientLastActiveQuery :: PrepQuery W (UTCTime, UserId, ClientId) Row
+updateClientLastActiveQuery = "UPDATE clients SET last_active = ? WHERE user = ? AND client = ? IF EXISTS"
 
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"

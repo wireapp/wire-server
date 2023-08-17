@@ -27,7 +27,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Predicate
 import Gundeck.Monad
-import qualified Gundeck.Presence.Data as Data
+import Gundeck.Presence.Data qualified as Data
 import Gundeck.Types
 import Gundeck.Util
 import Imports

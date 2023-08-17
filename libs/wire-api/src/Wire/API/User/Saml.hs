@@ -28,11 +28,11 @@ import Control.Lens (makeLenses)
 import Control.Monad.Except
 import Data.Aeson hiding (fieldLabelModifier)
 import Data.Aeson.TH hiding (fieldLabelModifier)
-import qualified Data.ByteString.Builder as Builder
+import Data.ByteString.Builder qualified as Builder
 import Data.Id (UserId)
 import Data.Proxy (Proxy (Proxy))
 import Data.Swagger
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)

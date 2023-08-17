@@ -24,7 +24,7 @@ where
 import Bilge
 import Data.ByteString.Conversion
 import Data.Id
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Galley.Intra.Util
 import Galley.Monad
 import Imports

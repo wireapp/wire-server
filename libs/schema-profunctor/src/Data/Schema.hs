@@ -62,6 +62,7 @@ module Data.Schema
     fieldOverF,
     fieldWithDocModifierF,
     array,
+    pair,
     set,
     nonEmptyArray,
     map_,
@@ -91,24 +92,24 @@ where
 import Control.Applicative
 import Control.Comonad
 import Control.Lens hiding (element, enum, set, (.=))
-import qualified Control.Lens as Lens
+import Control.Lens qualified as Lens
 import Control.Monad.Trans.Cont
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.Types as A
+import Data.Aeson.Key qualified as Key
+import Data.Aeson.Types qualified as A
 import Data.Bifunctor.Joker
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map qualified as Map
 import Data.Monoid hiding (Product)
 import Data.Profunctor (Star (..))
 import Data.Proxy (Proxy (..))
-import qualified Data.Set as Set
-import qualified Data.Swagger as S
-import qualified Data.Swagger.Declare as S
-import qualified Data.Swagger.Internal as S
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
-import qualified Data.Vector as V
+import Data.Set qualified as Set
+import Data.Swagger qualified as S
+import Data.Swagger.Declare qualified as S
+import Data.Swagger.Internal qualified as S
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as TL
+import Data.Vector qualified as V
 import Imports hiding (Product)
 import Numeric.Natural
 
@@ -462,6 +463,24 @@ array sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
     r = A.withArray (T.unpack name) $ \arr -> mapM (schemaIn sch) $ V.toList arr
     s = mkArray (schemaDoc sch)
     w x = A.Array . V.fromList <$> mapM (schemaOut sch) x
+
+-- | A schema for a JSON pair.
+-- This is serialised as JSON array of exactly 2 elements
+-- of the same type. Any more or less is an error.
+pair ::
+  (HasArray ndoc doc, HasName ndoc) =>
+  ValueSchema ndoc a ->
+  ValueSchema doc (a, a)
+pair sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
+  where
+    name = maybe "pair" ("pair of " <>) (getName (schemaDoc sch))
+    r = A.withArray (T.unpack name) $ \arr -> do
+      l <- mapM (schemaIn sch) $ V.toList arr
+      case l of
+        [a, b] -> pure (a, b)
+        _ -> fail $ "Expected exactly 2 elements, but got " <> show (length l)
+    s = mkArray (schemaDoc sch)
+    w (a, b) = A.Array . V.fromList <$> mapM (schemaOut sch) [a, b]
 
 set ::
   (HasArray ndoc doc, HasName ndoc, Ord a) =>

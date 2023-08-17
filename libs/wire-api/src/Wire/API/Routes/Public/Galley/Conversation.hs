@@ -17,7 +17,7 @@
 
 module Wire.API.Routes.Public.Galley.Conversation where
 
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.CommaSeparatedList
 import Data.Id
 import Data.Range
@@ -50,24 +50,24 @@ import Wire.API.Team.Feature
 type ConversationResponse = ResponseForExistedCreated Conversation
 
 -- | A type similar to 'ConversationResponse' introduced to allow for a failure
--- to add remote members while creating a conversation.
+-- to add remote members while creating a conversation or due to involved
+-- backends forming an incomplete graph.
 data CreateGroupConversationResponse
   = GroupConversationExisted Conversation
   | GroupConversationCreated CreateGroupConversation
-  | GroupConversationFailedToCreate CreateConversationRejected
 
 instance
-  (ResponseType r1 ~ Conversation, ResponseType r2 ~ CreateGroupConversation, ResponseType r3 ~ CreateConversationRejected) =>
-  AsUnion '[r1, r2, r3] CreateGroupConversationResponse
+  ( ResponseType r1 ~ Conversation,
+    ResponseType r2 ~ CreateGroupConversation
+  ) =>
+  AsUnion '[r1, r2] CreateGroupConversationResponse
   where
   toUnion (GroupConversationExisted x) = Z (I x)
   toUnion (GroupConversationCreated x) = S (Z (I x))
-  toUnion (GroupConversationFailedToCreate x) = S (S (Z (I x)))
 
   fromUnion (Z (I x)) = GroupConversationExisted x
   fromUnion (S (Z (I x))) = GroupConversationCreated x
-  fromUnion (S (S (Z (I x)))) = GroupConversationFailedToCreate x
-  fromUnion (S (S (S x))) = case x of {}
+  fromUnion (S (S x)) = case x of {}
 
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
@@ -97,8 +97,7 @@ type CreateGroupConversationVerb =
        WithHeaders
          ConversationHeaders
          CreateGroupConversation
-         (Respond 201 "Conversation created" CreateGroupConversation),
-       Respond 409 "Conversation creation rejected" CreateConversationRejected
+         (Respond 201 "Conversation created" CreateGroupConversation)
      ]
     CreateGroupConversationResponse
 
@@ -372,6 +371,7 @@ type ConversationAPI =
            "create-group-conversation@v2"
            ( Summary "Create a new conversation"
                :> DescriptionOAuthScope 'WriteConversations
+               :> MakesFederatedCall 'Brig "api-version"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> Until 'V3
@@ -382,6 +382,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow UnreachableBackendsLegacy
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -393,6 +394,7 @@ type ConversationAPI =
            "create-group-conversation@v3"
            ( Summary "Create a new conversation"
                :> DescriptionOAuthScope 'WriteConversations
+               :> MakesFederatedCall 'Brig "api-version"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> From 'V3
@@ -404,6 +406,7 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow UnreachableBackendsLegacy
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -414,9 +417,10 @@ type ConversationAPI =
     :<|> Named
            "create-group-conversation"
            ( Summary "Create a new conversation"
+               :> MakesFederatedCall 'Brig "api-version"
+               :> MakesFederatedCall 'Brig "get-not-fully-connected-backends"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Brig "get-not-fully-connected-backends"
                :> From 'V4
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
@@ -425,6 +429,8 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -557,6 +563,7 @@ type ConversationAPI =
     :<|> Named
            "create-one-to-one-conversation@v2"
            ( Summary "Create a 1:1 conversation"
+               :> MakesFederatedCall 'Brig "api-version"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> Until 'V3
                :> CanThrow 'ConvAccessDenied
@@ -568,6 +575,7 @@ type ConversationAPI =
                :> CanThrow OperationDenied
                :> CanThrow 'TeamNotFound
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow UnreachableBackendsLegacy
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -589,6 +597,7 @@ type ConversationAPI =
                :> CanThrow OperationDenied
                :> CanThrow 'TeamNotFound
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow UnreachableBackendsLegacy
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -624,6 +633,8 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -647,6 +658,8 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -671,6 +684,8 @@ type ConversationAPI =
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
                :> ZLocalUser
                :> ZConn
                :> "conversations"

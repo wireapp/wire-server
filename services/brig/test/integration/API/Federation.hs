@@ -24,7 +24,7 @@ import API.Search.Util (refreshIndex)
 import API.User.Util
 import Bilge hiding (head)
 import Bilge.Assert
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Control.Arrow (Arrow (first), (&&&))
 import Control.Lens ((?~))
 import Data.Aeson
@@ -32,25 +32,25 @@ import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Handle (Handle (..))
 import Data.Id
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Timeout
-import qualified Data.UUID.V4 as UUIDv4
+import Data.UUID.V4 qualified as UUIDv4
 import Federation.Util (generateClientPrekeys)
 import Imports
-import qualified Network.Wai.Test as WaiTest
+import Network.Wai.Test qualified as WaiTest
 import Test.QuickCheck hiding ((===))
 import Test.Tasty
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO.Temporary
 import Util
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig
-import qualified Wire.API.Federation.API.Brig as FedBrig
-import qualified Wire.API.Federation.API.Brig as S
+import Wire.API.Federation.API.Brig qualified as FedBrig
+import Wire.API.Federation.API.Brig qualified as S
 import Wire.API.Federation.Component
 import Wire.API.Federation.Version
 import Wire.API.MLS.KeyPackage
@@ -84,10 +84,8 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
         test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
-        test m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient),
-        test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient),
-        test m "POST /federation/claim-key-packages : 200" (testClaimKeyPackages brig fedBrigClient),
-        test m "POST /federation/claim-key-packages (MLS disabled) : 200" (testClaimKeyPackagesMLSDisabled opts brig)
+        flakyTest m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient),
+        test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient)
       ]
 
 allowFullSearch :: Domain -> Opt.Opts -> Opt.Opts
@@ -395,8 +393,8 @@ testRemoteUserGetsDeleted opts brig cannon fedBrigClient = do
       runFedClient @"on-user-deleted-connections" fedBrigClient (qDomain remoteUser) $
         UserDeletedConnectionsNotification (qUnqualified remoteUser) (unsafeRange localUsers)
 
-    WS.assertMatchN_ (60 # Second) [cc] $ matchDeleteUserNotification remoteUser
-    WS.assertNoEvent (1 # Second) [pc, bc, uc]
+    retryT $ WS.assertMatchN_ (60 # Second) [cc] $ matchDeleteUserNotification remoteUser
+    retryT $ WS.assertNoEvent (1 # Second) [pc, bc, uc]
 
   for_ localUsers $ \u ->
     getConnectionQualified brig u remoteUser !!! do

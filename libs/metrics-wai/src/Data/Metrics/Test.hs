@@ -18,8 +18,8 @@
 module Data.Metrics.Test where
 
 import Data.Metrics.Types
-import qualified Data.Text as Text
-import qualified Data.Tree as Tree
+import Data.Text qualified as Text
+import Data.Tree qualified as Tree
 import Imports
 
 -- | It is an error for one prefix to end in two different capture variables.  eg., these two

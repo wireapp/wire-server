@@ -67,22 +67,22 @@ import Control.Applicative
 import Control.Arrow ((&&&))
 import Control.Lens (makePrisms, (?~), _1)
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson qualified as A
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.SOP
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Time
 import Imports
-import qualified Test.QuickCheck as QC
+import Test.QuickCheck qualified as QC
 import URI.ByteString ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Code (ConversationCode (..), ConversationCodeInfo)
 import Wire.API.Conversation.Protocol (ProtocolUpdate (unProtocolUpdate))
-import qualified Wire.API.Conversation.Protocol as P
+import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.MLS.SubConversation

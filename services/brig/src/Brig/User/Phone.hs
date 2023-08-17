@@ -45,14 +45,14 @@ import Brig.User.Template
 import Cassandra (MonadClient)
 import Control.Lens (view)
 import Control.Monad.Catch
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.Range
-import qualified Data.Text as Text
-import qualified Data.Text.Ascii as Ascii
+import Data.Text qualified as Text
+import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (toStrict)
 import Imports
-import qualified Ropes.Nexmo as Nexmo
-import qualified System.Logger.Class as Log
+import Ropes.Nexmo qualified as Nexmo
+import System.Logger.Class qualified as Log
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Auth

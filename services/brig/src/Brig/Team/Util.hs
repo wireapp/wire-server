@@ -19,14 +19,14 @@ module Brig.Team.Util where -- TODO: remove this module and move contents to Bri
 
 import Brig.API.Error
 import Brig.App
-import qualified Brig.Data.User as Data
+import Brig.Data.User qualified as Data
 import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Effects.GalleyProvider as GalleyProvider
+import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Control.Error
 import Control.Lens
 import Data.Id
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Galley.Types.Teams
 import Imports
 import Polysemy (Member)

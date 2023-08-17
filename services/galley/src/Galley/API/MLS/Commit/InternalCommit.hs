@@ -23,9 +23,9 @@ import Control.Lens
 import Control.Lens.Extras (is)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Tuple.Extra
 import Galley.API.Action
 import Galley.API.Error
@@ -37,7 +37,7 @@ import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
-import qualified Galley.Data.Conversation.Types as Data
+import Galley.Data.Conversation.Types qualified as Data
 import Galley.Effects
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
@@ -53,11 +53,10 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
-import qualified Wire.API.MLS.Proposal as Proposal
+import Wire.API.MLS.Proposal qualified as Proposal
 import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
 import Wire.API.User.Client
@@ -65,7 +64,6 @@ import Wire.API.User.Client
 processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
-    Member (Error FederationError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
@@ -169,7 +167,9 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
                         -- FUTUREWORK: turn this error into a proper response
                         throwS @'MLSClientMismatch
                     pure Nothing
-          for_ (unreachableFromList failedAddFetching) throwUnreachableUsers
+          for_
+            (unreachableFromList failedAddFetching)
+            (throw . unreachableUsersToUnreachableBackends)
 
           -- Some types of conversations are created lazily on the first
           -- commit. We do that here, with the commit lock held, but before

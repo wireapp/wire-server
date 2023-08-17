@@ -73,15 +73,15 @@ import Bilge.TestSession
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.CaseInsensitive (CI)
 import Imports hiding (head)
 import Network.HTTP.Client as Client hiding (httpLbs, method)
-import qualified Network.HTTP.Client as Client (method)
-import qualified Network.HTTP.Client.Internal as Client (Response (..), ResponseClose (..))
+import Network.HTTP.Client qualified as Client (method)
+import Network.HTTP.Client.Internal qualified as Client (Response (..), ResponseClose (..))
 import Network.HTTP.Types
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Test as WaiTest
+import Network.Wai qualified as Wai
+import Network.Wai.Test qualified as WaiTest
 
 -- | Debug settings may cause debug information to be printed to stdout.
 data Debug

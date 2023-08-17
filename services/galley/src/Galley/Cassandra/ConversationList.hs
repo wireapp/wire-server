@@ -27,7 +27,7 @@ import Data.Id
 import Data.Qualified
 import Data.Range
 import Galley.Cassandra.Instances ()
-import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Effects.ListItems
 import Imports hiding (max)

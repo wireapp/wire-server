@@ -25,14 +25,14 @@ import Control.Lens (makePrisms, (?~))
 import Control.Lens.Tuple (_1)
 import Control.Monad.Except
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.Schema hiding (HasField)
-import qualified Data.Swagger as S
-import qualified Data.Text as T
+import Data.Swagger qualified as S
+import Data.Text qualified as T
 import Data.Time.Clock
 import GHC.Records
 import Imports hiding (cs)

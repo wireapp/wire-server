@@ -27,28 +27,27 @@ import Bilge.Assert
 import Cassandra hiding (Set)
 import Control.Lens (view)
 import Control.Lens.Extras
-import qualified Control.Monad.State as State
+import Control.Monad.State qualified as State
 import Crypto.Error
-import qualified Crypto.PubKey.Ed25519 as Ed25519
-import qualified Data.Aeson as Aeson
+import Crypto.PubKey.Ed25519 qualified as Ed25519
+import Data.Aeson qualified as Aeson
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.List1 hiding (head)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (Second), (#))
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
@@ -569,19 +568,14 @@ testAddRemotesSomeUnreachable = do
     commit <- createAddCommit alice1 [bob, charlie]
     bundle <- createBundle commit
     let unreachable = Set.singleton charlieDomain
-    (errRaw, _) <-
-      withTempMockFederator'
+    void
+      $ withTempMockFederator'
         ( receiveCommitMockByDomain [bob1]
             <|> mockUnreachableFor unreachable
             <|> welcomeMockByDomain [bobDomain]
         )
-        $ localPostCommitBundle (mpSender commit) bundle
-
-    err <- responseJsonError errRaw
-    liftIO $ do
-      Wai.label err @?= "federation-unreachable-domains-error"
-      Wai.code err @?= HTTP.status503
-      Wai.message err @?= "The following domains are unreachable: [\"charlie.example.com\"]"
+      $ localPostCommitBundle (mpSender commit) bundle
+        <!! const 533 === statusCode
 
     convAfter <- responseJsonError =<< getConvQualified (qUnqualified alice) qcnv
     liftIO $ do

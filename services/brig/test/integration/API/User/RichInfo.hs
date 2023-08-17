@@ -26,10 +26,10 @@ import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Options
-import qualified Brig.Options as Opt
-import qualified Data.CaseInsensitive as CI
-import qualified Data.List1 as List1
-import qualified Data.Text as Text
+import Brig.Options qualified as Opt
+import Data.CaseInsensitive qualified as CI
+import Data.List1 qualified as List1
+import Data.Text qualified as Text
 import Imports
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit

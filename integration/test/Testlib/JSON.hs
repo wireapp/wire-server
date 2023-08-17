@@ -4,22 +4,22 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding ((.=))
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Encode.Pretty as Aeson
-import qualified Data.Aeson.Key as KM
-import qualified Data.Aeson.KeyMap as KM
-import qualified Data.Aeson.Types as Aeson
-import Data.ByteString hiding ((!?))
-import qualified Data.ByteString.Base64 as Base64
-import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Encode.Pretty qualified as Aeson
+import Data.Aeson.Key qualified as KM
+import Data.Aeson.KeyMap qualified as KM
+import Data.Aeson.Types qualified as Aeson
+import Data.ByteString (ByteString)
+import Data.ByteString.Base64 qualified as Base64
+import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.List.Split (splitOn)
-import qualified Data.Scientific as Sci
+import Data.Scientific qualified as Sci
 import Data.String
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Vector ((!?))
 import GHC.Stack
 import Testlib.Env
@@ -94,6 +94,9 @@ asObject x =
   make x >>= \case
     (Object o) -> pure o
     v -> assertFailureWithJSON x ("Object" `typeWasExpectedButGot` v)
+
+asInt :: HasCallStack => MakesValue a => a -> App Int
+asInt = asIntegral
 
 asIntegral :: (Integral i, HasCallStack) => MakesValue a => a -> App i
 asIntegral x =

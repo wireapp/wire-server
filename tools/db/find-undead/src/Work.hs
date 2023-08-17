@@ -26,15 +26,15 @@ import Cassandra.Util (Writetime, writetimeToUTC)
 import Conduit
 import Control.Lens (view, _1, _2)
 import Data.Aeson (FromJSON, (.:))
-import qualified Data.Aeson as Aeson
-import qualified Data.Conduit.List as C
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Aeson qualified as Aeson
+import Data.Conduit.List qualified as C
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.UUID
-import qualified Database.Bloodhound as ES
+import Database.Bloodhound qualified as ES
 import Imports
 import System.Logger (Logger)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import Wire.API.User (AccountStatus (..))
 
 runCommand :: Logger -> ClientState -> ES.BHEnv -> String -> String -> IO ()

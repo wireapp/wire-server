@@ -270,7 +270,7 @@ validateScimUser' errloc midp richInfoLimit user = do
   let active = Scim.active user
   lang <- maybe (throwError $ badRequest "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
   mRole <- validateRole user
-  pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) (fromMaybe defaultRole mRole)
+  pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
   where
     validRoleNames :: Text
     validRoleNames = cs $ intercalate ", " $ map (cs . toByteString') [minBound @Role .. maxBound]
@@ -464,10 +464,10 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
                     -- `createValidScimUser` into a function `createValidScimUserBrig` similar
                     -- to `createValidScimUserSpar`?
                     uid <- Id <$> Random.uuid
-                    BrigAccess.createSAML uref uid stiTeam name ManagedByScim (Just handl) (Just richInfo) language role
+                    BrigAccess.createSAML uref uid stiTeam name ManagedByScim (Just handl) (Just richInfo) language (fromMaybe defaultRole role)
               )
               ( \email -> do
-                  buid <- BrigAccess.createNoSAML email stiTeam name language role
+                  buid <- BrigAccess.createNoSAML email stiTeam name language (fromMaybe defaultRole role)
                   BrigAccess.setHandle buid handl -- FUTUREWORK: possibly do the same one req as we do for saml?
                   pure buid
               )
@@ -600,8 +600,9 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
             when (oldValidScimUser ^. ST.vsuLocale /= newValidScimUser ^. ST.vsuLocale) $ do
               BrigAccess.setLocale uid (newValidScimUser ^. ST.vsuLocale)
 
-            when (oldValidScimUser ^. ST.vsuRole /= newValidScimUser ^. ST.vsuRole) $ do
-              GalleyAccess.updateTeamMember uid stiTeam (newValidScimUser ^. ST.vsuRole)
+            forM_ (newValidScimUser ^. ST.vsuRole) $ \newRole -> do
+              when (oldValidScimUser ^. ST.vsuRole /= Just newRole) $ do
+                GalleyAccess.updateTeamMember uid stiTeam newRole
 
             BrigAccess.getStatusMaybe uid >>= \case
               Nothing -> pure ()
@@ -929,7 +930,7 @@ synthesizeStoredUser usr veid =
           lastUpdatedAt
           baseuri
           (userLocale (accountUser usr))
-          role
+          (Just role)
       lift $ writeState accessTimes (userManagedBy (accountUser usr)) richInfo storedUser
       pure storedUser
   where
@@ -949,9 +950,9 @@ synthesizeStoredUser' ::
   UTCTimeMillis ->
   URIBS.URI ->
   Locale ->
-  Role ->
+  Maybe Role ->
   MonadError Scim.ScimError m => m (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri locale role = do
+synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri locale mbRole = do
   let scimUser :: Scim.User ST.SparTag
       scimUser =
         synthesizeScimUser
@@ -964,7 +965,7 @@ synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpd
               ST._vsuRichInfo = richInfo,
               ST._vsuActive = ST.scimActiveFlagFromAccountStatus accStatus,
               ST._vsuLocale = Just locale,
-              ST._vsuRole = role
+              ST._vsuRole = mbRole
             }
 
   pure $ toScimStoredUser' createdAt lastUpdatedAt baseuri uid (normalizeLikeStored scimUser)
@@ -977,8 +978,10 @@ synthesizeScimUser info =
           Scim.displayName = Just $ fromName (info ^. ST.vsuName),
           Scim.active = Just . Scim.ScimBool $ info ^. ST.vsuActive,
           Scim.preferredLanguage = lan2Text . lLanguage <$> info ^. ST.vsuLocale,
-          Scim.roles = (: []) . cs . toByteString $ info ^. ST.vsuRole
+          Scim.roles = maybe [] ((: []) . cs . toByteString) (info ^. ST.vsuRole)
         }
+
+-- TODO: now write a test, either in /integration or in spar, whichever is easier.  (spar)
 
 getUserById ::
   forall r.

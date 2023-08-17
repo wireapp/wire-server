@@ -1,8 +1,8 @@
 module Test.MLS.One2One where
 
 import API.Galley
-import qualified Data.ByteString.Base64 as Base64
-import qualified Data.ByteString.Char8 as B8
+import Data.ByteString.Base64 qualified as Base64
+import Data.ByteString.Char8 qualified as B8
 import MLS.Util
 import SetupHelpers
 import Testlib.Prelude

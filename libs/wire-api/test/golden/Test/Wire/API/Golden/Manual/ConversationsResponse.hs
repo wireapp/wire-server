@@ -24,10 +24,10 @@ import Data.Domain
 import Data.Id (Id (Id))
 import Data.Misc
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Time.Calendar
 import Data.Time.Clock
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol

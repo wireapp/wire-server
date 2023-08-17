@@ -14,13 +14,13 @@ module Brig.API.Public.Swagger
 where
 
 import Control.Lens
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.FileEmbed
-import qualified Data.HashMap.Strict.InsOrd as HM
-import qualified Data.HashSet.InsOrd as InsOrdSet
-import qualified Data.Swagger as S
-import qualified Data.Swagger.Declare as S
-import qualified Data.Text as T
+import Data.HashMap.Strict.InsOrd qualified as HM
+import Data.HashSet.InsOrd qualified as InsOrdSet
+import Data.Swagger qualified as S
+import Data.Swagger.Declare qualified as S
+import Data.Text qualified as T
 import FileEmbedLzma
 import GHC.TypeLits
 import Imports hiding (head)
@@ -29,9 +29,9 @@ import Network.Socket
 import Servant
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
-import qualified Wire.API.Event.Conversation
-import qualified Wire.API.Event.FeatureConfig
-import qualified Wire.API.Event.Team
+import Wire.API.Event.Conversation qualified
+import Wire.API.Event.FeatureConfig qualified
+import Wire.API.Event.Team qualified
 import Wire.API.Routes.Version
 
 type SwaggerDocsAPIBase = SwaggerSchemaUI "swagger-ui" "swagger.json"

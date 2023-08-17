@@ -22,7 +22,7 @@ import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.SOP
-import qualified Data.Swagger as Swagger
+import Data.Swagger qualified as Swagger
 import Imports
 import Servant
 import Servant.Swagger.Internal

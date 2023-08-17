@@ -29,9 +29,9 @@ import Federator.RPC
 import Federator.Remote
 import Federator.Validation
 import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Utilities.Server as Wai
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai qualified as Wai
+import Network.Wai.Utilities.Server qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input

@@ -20,8 +20,8 @@ module Wire.API.MLS.Credential where
 import Control.Error.Util
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.Bifunctor
 import Data.Binary
 import Data.Binary.Get
@@ -32,9 +32,9 @@ import Data.Domain
 import Data.Id
 import Data.Qualified
 import Data.Schema hiding (HasField)
-import qualified Data.Swagger as S
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Swagger qualified as S
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.UUID
 import GHC.Records
 import Imports

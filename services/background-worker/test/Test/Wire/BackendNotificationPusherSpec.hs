@@ -7,23 +7,23 @@ module Test.Wire.BackendNotificationPusherSpec where
 import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.Trans.Except
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Builder as Builder
-import qualified Data.ByteString.Lazy as LBS
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Builder qualified as Builder
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Range
-import qualified Data.Sequence as Seq
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Sequence qualified as Seq
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Federator.MockServer
 import Imports
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 import Network.HTTP.Client (defaultManagerSettings, newManager, responseTimeoutNone)
 import Network.HTTP.Media
 import Network.HTTP.Types
 import Network.RabbitMqAdmin
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Internal as Wai
+import Network.Wai qualified as Wai
+import Network.Wai.Internal qualified as Wai
 import Prometheus
 import Servant hiding (respond)
 import Servant.Client
@@ -31,7 +31,7 @@ import Servant.Client.Core
 import Servant.Client.Internal.HttpClient (mkFailureResponse)
 import Servant.Server.Generic
 import Servant.Types.SourceT
-import qualified System.Logger.Class as Logger
+import System.Logger.Class qualified as Logger
 import Test.Hspec
 import Test.QuickCheck
 import Test.Wire.Util
@@ -86,6 +86,44 @@ spec = do
                          frComponent = Brig,
                          frRPC = "on-user-deleted-connections",
                          frBody = Aeson.encode notifContent
+                       }
+                   ]
+      getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
+        `shouldReturn` [(domainText targetDomain, 1)]
+
+    it "should push on-connection-removed notifications" $ do
+      let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
+      let origDomain = Domain "origin.example.com"
+          targetDomain = Domain "target.example.com"
+          defederatedDomain = Domain "defederated.example.com"
+      let notif =
+            BackendNotification
+              { targetComponent = Galley,
+                ownDomain = origDomain,
+                path = "/on-connection-removed",
+                body = RawJson $ Aeson.encode defederatedDomain
+              }
+      envelope <- newMockEnvelope
+      let msg =
+            Q.newMsg
+              { Q.msgBody = Aeson.encode notif,
+                Q.msgContentType = Just "application/json"
+              }
+      runningFlag <- newMVar ()
+      (env, fedReqs) <-
+        withTempMockFederator [] returnSuccess . runTestAppT $ do
+          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
+          ask
+
+      readIORef envelope.acks `shouldReturn` 1
+      readIORef envelope.rejections `shouldReturn` []
+      fedReqs
+        `shouldBe` [ FederatedRequest
+                       { frTargetDomain = targetDomain,
+                         frOriginDomain = origDomain,
+                         frComponent = Galley,
+                         frRPC = "on-connection-removed",
+                         frBody = Aeson.encode defederatedDomain
                        }
                    ]
       getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
@@ -183,6 +221,7 @@ spec = do
       httpManager <- newManager defaultManagerSettings
       remoteDomains <- newIORef defFederationDomainConfigs
       remoteDomainsChan <- newChan
+      notificationChannel <- newEmptyMVar
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
@@ -204,6 +243,7 @@ spec = do
       httpManager <- newManager defaultManagerSettings
       remoteDomains <- newIORef defFederationDomainConfigs
       remoteDomainsChan <- newChan
+      notificationChannel <- newEmptyMVar
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined

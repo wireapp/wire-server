@@ -34,7 +34,7 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Misc
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Text.Encoding
 import Galley.API.Error
 import Galley.Effects
@@ -49,8 +49,8 @@ import Network.Wai.Utilities.Error hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
-import qualified System.Logger.Class as Logger
+import Polysemy.TinyLog qualified as P
+import System.Logger.Class qualified as Logger
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.User.Auth.LegalHold

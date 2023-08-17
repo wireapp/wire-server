@@ -20,7 +20,7 @@
 module Test.Wire.API.Golden.Generated.ConversationList_20_28Id_20_2a_20C_29_user where
 
 import Data.Id (ConvId, Id (Id))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Bool (False), fromJust)
 import Wire.API.Conversation (ConversationList (..))
 

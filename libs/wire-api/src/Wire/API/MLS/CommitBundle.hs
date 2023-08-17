@@ -18,8 +18,8 @@
 module Wire.API.MLS.CommitBundle (CommitBundle (..)) where
 
 import Control.Applicative
-import qualified Data.Swagger as S
-import qualified Data.Text as T
+import Data.Swagger qualified as S
+import Data.Text qualified as T
 import Imports
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Message

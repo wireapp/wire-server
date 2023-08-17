@@ -19,7 +19,7 @@ custom-setup
     , filepath
 
 common common-all
-  default-language:   Haskell2010
+  default-language:   GHC2021
   ghc-options:
     -Wall -Wpartial-fields -fwarn-tabs
     -optP-Wno-nonportable-include-path
@@ -103,7 +103,9 @@ library
     Test.Brig
     Test.Client
     Test.Conversation
+    Test.Defederation
     Test.Demo
+    Test.Federator
     Test.MLS
     Test.MLS.KeyPackage
     Test.MLS.One2One

@@ -43,15 +43,15 @@ module Wire.API.Team.Permission
   )
 where
 
-import qualified Cassandra as Cql
-import qualified Control.Error.Util as Err
+import Cassandra qualified as Cql
+import Control.Error.Util qualified as Err
 import Control.Lens (makeLenses, (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bits (testBit, (.|.))
 import Data.Schema
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons.Base.TH
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))

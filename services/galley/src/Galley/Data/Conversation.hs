@@ -45,8 +45,8 @@ where
 import Data.Id
 import Data.Misc
 import Data.Set (Set)
-import qualified Data.Set as Set
-import qualified Data.UUID.Tagged as U
+import Data.Set qualified as Set
+import Data.UUID.Tagged qualified as U
 import Galley.Cassandra.Instances ()
 import Galley.Data.Conversation.Types
 import Imports hiding (Set)

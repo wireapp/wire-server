@@ -16,9 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Test.Wire.API.User.Auth where
 
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Imports
-import qualified Test.Tasty as T
+import Test.Tasty qualified as T
 import Test.Tasty.HUnit
 import Wire.API.User
 import Wire.API.User.Auth

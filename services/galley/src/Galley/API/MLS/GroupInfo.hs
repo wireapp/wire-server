@@ -24,8 +24,8 @@ import Galley.API.MLS.Enabled
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
-import qualified Galley.Effects.ConversationStore as E
-import qualified Galley.Effects.FederatorAccess as E
+import Galley.Effects.ConversationStore qualified as E
+import Galley.Effects.FederatorAccess qualified as E
 import Galley.Env
 import Imports
 import Polysemy

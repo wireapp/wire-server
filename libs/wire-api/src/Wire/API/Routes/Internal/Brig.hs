@@ -38,7 +38,7 @@ where
 
 import Control.Lens ((.~))
 import Data.Aeson (FromJSON, ToJSON)
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Handle (Handle)
@@ -46,7 +46,7 @@ import Data.Id as Id
 import Data.Qualified (Qualified)
 import Data.Schema hiding (swaggerDoc)
 import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports hiding (head)
 import Servant hiding (Handler, WithStatus, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
@@ -61,7 +61,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Internal.Brig.SearchIndex (ISearchIndexAPI)
-import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZUser {- yes, this is a bit weird -})
@@ -575,12 +575,15 @@ type GetDefaultLocale =
     :> Get '[Servant.JSON] LocaleUpdate
 
 type ClientAPI =
-  Summary "Update last_active field of a client"
-    :> "clients"
-    :> Capture "uid" UserId
-    :> Capture "client" ClientId
-    :> "activity"
-    :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
+  Named
+    "update-client-last-active"
+    ( Summary "Update last_active field of a client"
+        :> "clients"
+        :> Capture "uid" UserId
+        :> Capture "client" ClientId
+        :> "activity"
+        :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
+    )
 
 type AuthAPI =
   Named

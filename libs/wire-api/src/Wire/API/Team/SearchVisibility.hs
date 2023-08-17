@@ -25,7 +25,7 @@ where
 
 import Control.Lens ((?~))
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Deriving.Aeson
 import Imports
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))

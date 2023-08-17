@@ -17,7 +17,7 @@
 
 module Brig.Index.Types where
 
-import qualified Database.Bloodhound as ES
+import Database.Bloodhound qualified as ES
 import Imports
 
 data CreateIndexSettings = CreateIndexSettings

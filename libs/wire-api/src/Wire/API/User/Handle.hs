@@ -26,12 +26,12 @@ where
 
 import Control.Applicative
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Id (UserId)
 import Data.Qualified (Qualified (..), deprecatedSchema)
 import Data.Range
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 

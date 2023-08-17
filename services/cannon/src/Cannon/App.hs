@@ -30,7 +30,7 @@ import Data.Aeson hiding (Error, Key, (.=))
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Id (ClientId)
-import qualified Data.Text.Lazy as Text
+import Data.Text.Lazy qualified as Text
 import Data.Timeout
 import Imports hiding (threadDelay)
 import Lens.Family hiding (reset, set)
@@ -38,7 +38,7 @@ import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)
 import System.Logger.Class hiding (Error, close)
-import qualified System.Logger.Class as Logger
+import System.Logger.Class qualified as Logger
 
 -- | Connection state, updated by {read, write}Loop.
 data State = State !Int !Timeout

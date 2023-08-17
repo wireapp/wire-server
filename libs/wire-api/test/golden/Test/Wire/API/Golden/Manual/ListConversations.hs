@@ -21,7 +21,7 @@ import Data.Domain (Domain (Domain))
 import Data.Id (Id (Id))
 import Data.Qualified (Qualified (Qualified))
 import Data.Range (unsafeRange)
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Conversation (ListConversations (..))
 

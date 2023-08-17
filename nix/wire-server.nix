@@ -267,6 +267,9 @@ let
       spar-schema
       stern
       brig-templates
+      background-worker
+      pkgs.nginz
+      pkgs.mls-test-cli
       integration-dynamic-backends-db-schemas
       integration-dynamic-backends-brig-index
       integration-dynamic-backends-sqs
@@ -315,7 +318,11 @@ let
           '';
           config = {
             Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}" ];
-            Env = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt" ];
+            Env = [
+              "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+              "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
+              "LANG=en_GB.UTF-8"
+            ];
             User = "65534";
           };
         }

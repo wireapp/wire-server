@@ -19,7 +19,7 @@
 module Test.Wire.API.Golden.Manual.ConversationCoverView where
 
 import Data.Id (Id (Id))
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Conversation (ConversationCoverView (..))
 

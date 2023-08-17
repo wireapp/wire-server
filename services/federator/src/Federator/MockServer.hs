@@ -38,15 +38,15 @@ module Federator.MockServer
   )
 where
 
-import qualified Control.Exception as Exception
+import Control.Exception qualified as Exception
 import Control.Exception.Base (throw)
 import Control.Monad.Catch hiding (fromException)
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
-import qualified Data.Aeson as Aeson
-import Data.Domain (Domain)
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as LText
+import Data.Aeson qualified as Aeson
+import Data.Domain
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as LText
 import Federator.Error
 import Federator.Error.ServerError
 import Federator.InternalServer
@@ -54,10 +54,10 @@ import Federator.RPC
 import Federator.Response
 import Federator.Validation
 import Imports hiding (fromException)
-import qualified Network.HTTP.Media as HTTP
+import Network.HTTP.Media qualified as HTTP
 import Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
+import Network.Wai qualified as Wai
+import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Utilities.Error as Wai hiding (Error)
 import Network.Wai.Utilities.MockServer
 import Polysemy
@@ -72,12 +72,22 @@ import Wire.Sem.Logger.TinyLog
 
 -- | This can be thrown by actions passed to mock federator to simulate
 -- failures either in federator itself, or in the services it calls.
-data MockException = MockErrorResponse HTTP.Status LText
+data MockException
+  = MockErrorResponse HTTP.Status LText
+  | MockUnreachableBackendErrorResponse Domain
   deriving (Eq, Show, Typeable)
 
 instance AsWai MockException where
   toWai (MockErrorResponse status message) = Wai.mkError status "mock-error" message
+  toWai (MockUnreachableBackendErrorResponse d) =
+    Wai.mkError HTTP.status503 "mock-error" (unreachableMsg d)
   waiErrorDescription (MockErrorResponse _ message) = LText.toStrict message
+  waiErrorDescription (MockUnreachableBackendErrorResponse d) =
+    LText.toStrict . unreachableMsg $ d
+
+unreachableMsg :: Domain -> LText
+unreachableMsg (LText.fromStrict . domainText -> d) =
+  "unreachable_backend: " <> d
 
 instance Exception MockException
 
@@ -124,8 +134,8 @@ mockInternalRequest ::
   Wai.Request ->
   Sem r Wai.Response
 mockInternalRequest remoteCalls headers resp targetDomain component (RPC path) req = do
-  domainText <- note NoOriginDomain $ lookup originDomainHeaderName (Wai.requestHeaders req)
-  originDomain <- parseDomain domainText
+  domainTxt <- note NoOriginDomain $ lookup originDomainHeaderName (Wai.requestHeaders req)
+  originDomain <- parseDomain domainTxt
   reqBody <- embed $ Wai.lazyRequestBody req
   let fedRequest =
         ( FederatedRequest
@@ -238,13 +248,12 @@ guardComponent c = do
 mockReply :: Aeson.ToJSON a => a -> Mock LByteString
 mockReply = pure . Aeson.encode
 
--- | Provide a mock reply simulating unreachable backends given by their
--- domains.
+-- | Provide a mock reply simulating an unreachable backend.
 mockUnreachableFor :: Set Domain -> Mock LByteString
 mockUnreachableFor backends = do
   target <- frTargetDomain <$> getRequest
   guard (target `elem` backends)
-  throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
+  throw (MockUnreachableBackendErrorResponse target)
 
 -- | Abort the mock with an error.
 mockFail :: Text -> Mock a

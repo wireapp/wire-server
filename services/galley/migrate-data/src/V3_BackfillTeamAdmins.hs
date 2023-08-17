@@ -20,12 +20,12 @@ module V3_BackfillTeamAdmins where
 import Cassandra
 import Conduit
 import Data.Conduit.Internal (zipSources)
-import qualified Data.Conduit.List as C
+import Data.Conduit.List qualified as C
 import Data.Id
 import Galley.DataMigration.Types
 import Galley.Types.Teams
 import Imports
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 

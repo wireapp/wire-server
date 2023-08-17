@@ -1,8 +1,8 @@
 module API.GalleyInternal where
 
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.String.Conversions (cs)
-import qualified Data.Vector as Vector
+import Data.Vector qualified as Vector
 import GHC.Stack
 import Testlib.Prelude
 
@@ -51,3 +51,12 @@ getFederationStatus user domains =
         submit
           "GET"
           $ req & addJSONObject ["domains" .= domainList]
+
+deleteFederationDomain ::
+  ( HasCallStack
+  ) =>
+  String ->
+  App Response
+deleteFederationDomain domain = do
+  req <- rawBaseRequest OwnDomain Galley Unversioned $ joinHttpPath ["i", "federation", domain]
+  submit "DELETE" req

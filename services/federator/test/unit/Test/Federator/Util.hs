@@ -19,12 +19,12 @@
 
 module Test.Federator.Util where
 
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Default
 import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Test as Wai
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai qualified as Wai
+import Network.Wai.Test qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Test.Tasty.HUnit

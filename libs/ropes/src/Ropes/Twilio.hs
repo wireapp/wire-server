@@ -44,10 +44,10 @@ where
 import Control.Error (ExceptT (..))
 import Control.Exception
 import Data.Aeson
-import qualified Data.ByteString.Char8 as C
+import Data.ByteString.Char8 qualified as C
 import Data.ISO3166_CountryCodes (CountryCode)
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.List.NonEmpty as N
+import Data.List.NonEmpty qualified as N
 import Data.Text.Encoding (encodeUtf8)
 import Imports hiding (head, length)
 import Network.HTTP.Client

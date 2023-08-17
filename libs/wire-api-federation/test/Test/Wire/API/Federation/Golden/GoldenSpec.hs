@@ -19,14 +19,14 @@ module Test.Wire.API.Federation.Golden.GoldenSpec where
 
 import Imports
 import Test.Hspec
-import qualified Test.Wire.API.Federation.Golden.ConversationCreated as ConversationCreated
-import qualified Test.Wire.API.Federation.Golden.ConversationUpdate as ConversationUpdate
-import qualified Test.Wire.API.Federation.Golden.LeaveConversationRequest as LeaveConversationRequest
-import qualified Test.Wire.API.Federation.Golden.LeaveConversationResponse as LeaveConversationResponse
-import qualified Test.Wire.API.Federation.Golden.MLSMessageSendingStatus as MLSMessageSendingStatus
-import qualified Test.Wire.API.Federation.Golden.MessageSendResponse as MessageSendResponse
-import qualified Test.Wire.API.Federation.Golden.NewConnectionRequest as NewConnectionRequest
-import qualified Test.Wire.API.Federation.Golden.NewConnectionResponse as NewConnectionResponse
+import Test.Wire.API.Federation.Golden.ConversationCreated qualified as ConversationCreated
+import Test.Wire.API.Federation.Golden.ConversationUpdate qualified as ConversationUpdate
+import Test.Wire.API.Federation.Golden.LeaveConversationRequest qualified as LeaveConversationRequest
+import Test.Wire.API.Federation.Golden.LeaveConversationResponse qualified as LeaveConversationResponse
+import Test.Wire.API.Federation.Golden.MLSMessageSendingStatus qualified as MLSMessageSendingStatus
+import Test.Wire.API.Federation.Golden.MessageSendResponse qualified as MessageSendResponse
+import Test.Wire.API.Federation.Golden.NewConnectionRequest qualified as NewConnectionRequest
+import Test.Wire.API.Federation.Golden.NewConnectionResponse qualified as NewConnectionResponse
 import Test.Wire.API.Federation.Golden.Runner (testObjects)
 
 spec :: Spec

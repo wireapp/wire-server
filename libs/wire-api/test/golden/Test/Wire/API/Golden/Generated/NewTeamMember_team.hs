@@ -21,7 +21,7 @@ module Test.Wire.API.Golden.Generated.NewTeamMember_team where
 
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import GHC.Exts (IsList (fromList))
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Team.Member (NewTeamMember, mkNewTeamMember)

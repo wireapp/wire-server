@@ -19,7 +19,7 @@
 -- [deriving-aeson](https://hackage.haskell.org/package/deriving-aeson).
 module Deriving.Swagger where
 
-import qualified Data.Char as Char
+import Data.Char qualified as Char
 import Data.Kind (Constraint)
 import Data.List.Extra (stripSuffix)
 import Data.Proxy (Proxy (..))

@@ -27,8 +27,8 @@ import Data.Id
 import Data.List1 (List1)
 import Data.Misc
 import Data.Range (Range, fromRange, rcast, rnil)
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Imports
 import UnliftIO (mapConcurrently)
 import Wire.API.Password

@@ -8,20 +8,21 @@ import Control.Concurrent.Chan
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
-import qualified Data.Map.Strict as Map
-import qualified Data.Metrics as Metrics
+import Data.Map.Strict qualified as Map
+import Data.Metrics qualified as Metrics
 import HTTP2.Client.Manager
 import Imports
+import Network.AMQP (Channel)
 import Network.AMQP.Extended
 import Network.HTTP.Client
-import qualified Network.RabbitMqAdmin as RabbitMqAdmin
+import Network.RabbitMqAdmin qualified as RabbitMqAdmin
 import OpenSSL.Session (SSLOption (..))
-import qualified OpenSSL.Session as SSL
+import OpenSSL.Session qualified as SSL
 import Prometheus
-import qualified Servant.Client as Servant
-import qualified System.Logger as Log
+import Servant.Client qualified as Servant
+import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..))
-import qualified System.Logger.Extended as Log
+import System.Logger.Extended qualified as Log
 import Util.Options
 import Wire.API.FederationUpdate
 import Wire.API.Routes.FederationDomainConfig
@@ -49,6 +50,10 @@ data Env = Env
     remoteDomains :: IORef FederationDomainConfigs,
     remoteDomainsChan :: Chan FederationDomainConfigs,
     backendNotificationMetrics :: BackendNotificationMetrics,
+    -- This is needed so that the defederation worker can push
+    -- connection-removed notifications into the notifications channels.
+    -- This allows us to reuse existing code. This only pushes.
+    notificationChannel :: MVar Channel,
     statuses :: IORef (Map Worker IsWorking)
   }
 
@@ -95,6 +100,7 @@ mkEnv opts = do
         ]
   metrics <- Metrics.metrics
   backendNotificationMetrics <- mkBackendNotificationMetrics
+  notificationChannel <- mkRabbitMqChannelMVar logger $ demoteOpts opts.rabbitmq
   pure (Env {..}, syncThread)
 
 initHttp2Manager :: IO Http2Manager

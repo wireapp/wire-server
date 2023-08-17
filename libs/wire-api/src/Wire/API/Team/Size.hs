@@ -21,9 +21,9 @@ module Wire.API.Team.Size
 where
 
 import Control.Lens ((?~))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Numeric.Natural
 

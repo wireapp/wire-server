@@ -19,7 +19,7 @@
 
 module Test.Wire.API.Golden.Generated.ConversationRole_user where
 
-import qualified Data.Set as Set (fromList)
+import Data.Set qualified as Set (fromList)
 import Imports (Maybe (Just), fromJust)
 import Wire.API.Conversation.Role
   ( Action

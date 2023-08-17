@@ -33,10 +33,10 @@ module Wire.API.Team.Conversation
 where
 
 import Control.Lens (makeLenses, (?~))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Id (ConvId)
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 

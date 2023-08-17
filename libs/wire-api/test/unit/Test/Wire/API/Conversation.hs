@@ -20,7 +20,7 @@
 
 module Test.Wire.API.Conversation where
 
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck (testProperty, (===))

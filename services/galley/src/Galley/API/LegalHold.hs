@@ -49,14 +49,14 @@ import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.API.Util
 import Galley.App
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.FireAndForget
-import qualified Galley.Effects.LegalHoldStore as LegalHoldData
+import Galley.Effects.LegalHoldStore qualified as LegalHoldData
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
-import qualified Galley.External.LegalHoldService as LHService
+import Galley.External.LegalHoldService qualified as LHService
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams as Team
 import Imports
@@ -64,8 +64,8 @@ import Network.HTTP.Types.Status (status200)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
-import qualified System.Logger.Class as Log
+import Polysemy.TinyLog qualified as P
+import System.Logger.Class qualified as Log
 import Wire.API.Conversation (ConvType (..))
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -75,7 +75,7 @@ import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.LegalHold
 import Wire.API.Team.LegalHold
-import qualified Wire.API.Team.LegalHold as Public
+import Wire.API.Team.LegalHold qualified as Public
 import Wire.API.Team.LegalHold.External hiding (userId)
 import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey

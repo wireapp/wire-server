@@ -25,7 +25,7 @@ module Galley.Intra.Journal
 where
 
 import Control.Lens
-import qualified Data.Currency as Currency
+import Data.Currency qualified as Currency
 import Data.Id
 import Data.Proto.Id
 import Data.ProtoLens (defMessage)
@@ -39,7 +39,7 @@ import Numeric.Natural
 import Polysemy
 import Polysemy.Input
 import Proto.TeamEvents (TeamEvent'EventData, TeamEvent'EventType (..))
-import qualified Proto.TeamEvents_Fields as T
+import Proto.TeamEvents_Fields qualified as T
 
 -- [Note: journaling]
 -- Team journal operations to SQS are a no-op when the service

@@ -63,28 +63,28 @@ module Wire.API.Asset
   )
 where
 
-import qualified Codec.MIME.Type as MIME
+import Codec.MIME.Type qualified as MIME
 import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Attoparsec.ByteString.Char8 hiding (I)
 import Data.Bifunctor
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Id
 import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis)
 import Data.Proxy
 import Data.Qualified
 import Data.SOP
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as T
+import Data.Swagger qualified as S
+import Data.Text qualified as T
 import Data.Text.Ascii (AsciiBase64Url)
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Encoding.Error as T
+import Data.Text.Encoding qualified as T
+import Data.Text.Encoding.Error qualified as T
 import Data.Time.Clock
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Imports
 import Servant
 import URI.ByteString

@@ -31,12 +31,12 @@ import Cassandra
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens (unsnoc)
 import Data.ByteString.Conversion.To
-import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Id
 import Data.LegalHold
 import Data.Misc
 import Galley.Cassandra.Instances ()
-import qualified Galley.Cassandra.Queries as Q
+import Galley.Cassandra.Queries qualified as Q
 import Galley.Cassandra.Store
 import Galley.Effects.LegalHoldStore (LegalHoldStore (..))
 import Galley.Env
@@ -44,13 +44,13 @@ import Galley.External.LegalHoldService.Internal
 import Galley.Monad
 import Galley.Types.Teams
 import Imports
-import qualified OpenSSL.EVP.Digest as SSL
-import qualified OpenSSL.EVP.PKey as SSL
-import qualified OpenSSL.PEM as SSL
-import qualified OpenSSL.RSA as SSL
+import OpenSSL.EVP.Digest qualified as SSL
+import OpenSSL.EVP.PKey qualified as SSL
+import OpenSSL.PEM qualified as SSL
+import OpenSSL.RSA qualified as SSL
 import Polysemy
 import Polysemy.Input
-import qualified Ssl.Util as SSL
+import Ssl.Util qualified as SSL
 import Wire.API.Provider.Service
 import Wire.API.User.Client.Prekey
 

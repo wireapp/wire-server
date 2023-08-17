@@ -20,7 +20,7 @@
 module Test.Wire.API.Golden.Generated.PrekeyBundle_user where
 
 import Data.Id (ClientId (ClientId, client), Id (Id))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (fromJust)
 import Wire.API.User.Client.Prekey
   ( ClientPrekey (ClientPrekey, prekeyClient, prekeyData),

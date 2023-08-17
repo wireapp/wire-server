@@ -14,6 +14,7 @@ import Data.Time.Clock
 import RunAllTests
 import System.Directory
 import System.Environment
+import System.Exit
 import System.FilePath
 import Testlib.App
 import Testlib.Assertions
@@ -154,6 +155,8 @@ runTests tests cfg = do
     writeChan output Nothing
     wait displayThread
     printReport report
+    unless (null report.failures) $
+      exitFailure
 
 doListTests :: [(String, String, String, x)] -> IO ()
 doListTests tests = for_ tests $ \(qname, desc, full, _) -> do

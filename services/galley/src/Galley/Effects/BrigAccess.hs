@@ -70,7 +70,7 @@ import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Brig.Connection
-import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
 import Wire.API.User

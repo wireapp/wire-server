@@ -68,10 +68,10 @@ where
 import Cassandra
 import Control.Lens (makeLenses, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
-import qualified Data.Attoparsec.ByteString.Char8 as Chars
+import Data.Aeson qualified as A
+import Data.Attoparsec.ByteString.Char8 qualified as Chars
 import Data.Bifunctor (Bifunctor (first))
-import qualified Data.ByteString.Base64 as B64
+import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
@@ -79,18 +79,18 @@ import Data.ByteString.Lazy (toStrict)
 import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
 import Data.Range
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.TypeLits (Nat)
 import GHC.TypeNats (KnownNat)
 import Imports
 import Servant (FromHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary), chooseInteger)
-import qualified Test.QuickCheck as QC
+import Test.QuickCheck qualified as QC
 import Text.Read (Read (..))
 import URI.ByteString hiding (Port, portNumber)
-import qualified URI.ByteString.QQ as URI.QQ
+import URI.ByteString.QQ qualified as URI.QQ
 
 --------------------------------------------------------------------------------
 -- IpAddr / Port

@@ -41,12 +41,12 @@ where
 
 import Data.Id
 import Data.Json.Util (toJSONObject)
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Range (Range)
-import qualified Galley.Data.TeamNotifications as DataTeamQueue
+import Galley.Data.TeamNotifications qualified as DataTeamQueue
 import Galley.Effects
 import Galley.Effects.BrigAccess as Intra
-import qualified Galley.Effects.TeamNotificationStore as E
+import Galley.Effects.TeamNotificationStore qualified as E
 import Imports
 import Polysemy
 import Wire.API.Error

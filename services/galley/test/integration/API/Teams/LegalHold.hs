@@ -31,55 +31,55 @@ import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import Brig.Types.Intra (UserSet (..))
 import Brig.Types.Test.Arbitrary ()
-import qualified Brig.Types.User.Event as Ev
-import qualified Cassandra.Exec as Cql
+import Brig.Types.User.Event qualified as Ev
+import Cassandra.Exec qualified as Cql
 import Control.Concurrent.Chan
 import Control.Lens hiding ((#))
 import Data.Id
 import Data.LegalHold
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.List1 as List1
-import qualified Data.Map.Strict as Map
+import Data.List1 qualified as List1
+import Data.Map.Strict qualified as Map
 import Data.PEM
 import Data.Qualified (Qualified (..))
 import Data.Range
-import qualified Data.Set as Set
-import qualified Data.Time.Clock as Time
+import Data.Set qualified as Set
+import Data.Time.Clock qualified as Time
 import Data.Timeout
 import Galley.Cassandra.Client (lookupClients)
 import Galley.Cassandra.LegalHold
-import qualified Galley.Cassandra.LegalHold as LegalHoldData
-import qualified Galley.Env as Galley
+import Galley.Cassandra.LegalHold qualified as LegalHoldData
+import Galley.Env qualified as Galley
 import Galley.Options (optSettings, setFeatureFlags)
-import qualified Galley.Types.Clients as Clients
+import Galley.Types.Clients qualified as Clients
 import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types.Status (status200, status404)
 import Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Utilities.Error as Error
+import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Utilities.Error qualified as Error
 import System.IO (hPutStrLn)
 import Test.QuickCheck.Instances ()
 import Test.Tasty
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Connection (UserConnection)
-import qualified Wire.API.Connection as Conn
+import Wire.API.Connection qualified as Conn
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
-import qualified Wire.API.Message as Msg
+import Wire.API.Message qualified as Msg
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold.External
 import Wire.API.Team.Member
-import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User.Client
-import qualified Wire.API.User.Client as Client
+import Wire.API.User.Client qualified as Client
 
 onlyIfLhWhitelisted :: TestM () -> TestM ()
 onlyIfLhWhitelisted action = do

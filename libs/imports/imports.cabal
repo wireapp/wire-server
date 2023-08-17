@@ -82,4 +82,4 @@ library
     , unliftio-core
     , unordered-containers
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

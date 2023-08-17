@@ -26,7 +26,7 @@ where
 
 import Bilge
 import Bilge.Assert
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Imports

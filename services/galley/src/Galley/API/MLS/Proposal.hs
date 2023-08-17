@@ -35,9 +35,9 @@ module Galley.API.MLS.Proposal
 where
 
 import Data.Id
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Time
 import Galley.API.Error
 import Galley.API.MLS.IncomingMessage
@@ -118,6 +118,8 @@ type HasProposalEffects r =
     Member (ErrorS 'MLSClientMismatch) r,
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,

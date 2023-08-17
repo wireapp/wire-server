@@ -1,10 +1,15 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 module Test.Conversation where
 
-import qualified API.BrigInternal as Internal
-import API.Galley (defProteus, postConversation, qualifiedUsers)
-import qualified API.GalleyInternal as API
+import API.Brig (getConnection)
+import API.BrigInternal
+import API.Galley
+import API.GalleyInternal
+import API.Gundeck (getNotifications)
 import Control.Applicative
-import qualified Data.Aeson as Aeson
+import Control.Concurrent (threadDelay)
+import Data.Aeson qualified as Aeson
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
@@ -16,18 +21,20 @@ testDynamicBackendsFullyConnectedWhenAllowAll = do
           <> fullSearchWithAll
   startDynamicBackends [overrides, overrides, overrides] $ \dynDomains -> do
     [domainA, domainB, domainC] <- pure dynDomains
-    uidA <- randomUser domainA def {Internal.team = True}
-    uidB <- randomUser domainA def {Internal.team = True}
-    uidC <- randomUser domainA def {Internal.team = True}
-    let assertConnected u d d' =
-          bindResponse
-            (API.getFederationStatus u [d, d'])
-            $ \resp -> do
-              resp.status `shouldMatchInt` 200
-              resp.json %. "status" `shouldMatch` "fully-connected"
+    uidA <- randomUser domainA def {team = True}
+    uidB <- randomUser domainA def {team = True}
+    uidC <- randomUser domainA def {team = True}
     assertConnected uidA domainB domainC
     assertConnected uidB domainA domainC
     assertConnected uidC domainA domainB
+  where
+    assertConnected :: (HasCallStack, MakesValue user) => user -> String -> String -> App ()
+    assertConnected u d d' =
+      bindResponse
+        (getFederationStatus u [d, d'])
+        $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "status" `shouldMatch` "fully-connected"
 
 testDynamicBackendsNotFederating :: HasCallStack => App ()
 testDynamicBackendsNotFederating = do
@@ -39,13 +46,13 @@ testDynamicBackendsNotFederating = do
   startDynamicBackends [overrides, overrides, overrides] $
     \dynDomains -> do
       [domainA, domainB, domainC] <- pure dynDomains
-      uidA <- randomUser domainA def {Internal.team = True}
-      unrace
+      uidA <- randomUser domainA def {team = True}
+      retryT
         $ bindResponse
-          (API.getFederationStatus uidA [domainB, domainC])
+          (getFederationStatus uidA [domainB, domainC])
         $ \resp -> do
-          resp.status `shouldMatchInt` 422
-          resp.json %. "label" `shouldMatch` "federation-denied"
+          resp.status `shouldMatchInt` 533
+          resp.json %. "unreachable_backends" `shouldMatchSet` [domainB, domainC]
 
 testDynamicBackendsFullyConnectedWhenAllowDynamic :: HasCallStack => App ()
 testDynamicBackendsFullyConnectedWhenAllowDynamic = do
@@ -60,19 +67,19 @@ testDynamicBackendsFullyConnectedWhenAllowDynamic = do
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
-      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
-      uidA <- randomUser domainA def {Internal.team = True}
-      uidB <- randomUser domainB def {Internal.team = True}
-      uidC <- randomUser domainC def {Internal.team = True}
+      sequence_ [createFedConn x (FedConn y "full_search") | x <- domains, y <- domains, x /= y]
+      uidA <- randomUser domainA def {team = True}
+      uidB <- randomUser domainB def {team = True}
+      uidC <- randomUser domainC def {team = True}
       let assertConnected u d d' =
             bindResponse
-              (API.getFederationStatus u [d, d'])
+              (getFederationStatus u [d, d'])
               $ \resp -> do
                 resp.status `shouldMatchInt` 200
                 resp.json %. "status" `shouldMatch` "fully-connected"
-      unrace $ assertConnected uidA domainB domainC
-      unrace $ assertConnected uidB domainA domainC
-      unrace $ assertConnected uidC domainA domainB
+      retryT $ assertConnected uidA domainB domainC
+      retryT $ assertConnected uidB domainA domainC
+      retryT $ assertConnected uidC domainA domainB
 
 testDynamicBackendsNotFullyConnected :: HasCallStack => App ()
 testDynamicBackendsNotFullyConnected = do
@@ -87,16 +94,16 @@ testDynamicBackendsNotFullyConnected = do
     \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
       -- clean federation config
-      sequence_ [Internal.deleteFedConn x y | x <- domains, y <- domains, x /= y]
+      sequence_ [deleteFedConn x y | x <- domains, y <- domains, x /= y]
       -- A is connected to B and C, but B and C are not connected to each other
-      void $ Internal.createFedConn domainA $ Internal.FedConn domainB "full_search"
-      void $ Internal.createFedConn domainB $ Internal.FedConn domainA "full_search"
-      void $ Internal.createFedConn domainA $ Internal.FedConn domainC "full_search"
-      void $ Internal.createFedConn domainC $ Internal.FedConn domainA "full_search"
-      uidA <- randomUser domainA def {Internal.team = True}
-      unrace
+      void $ createFedConn domainA $ FedConn domainB "full_search"
+      void $ createFedConn domainB $ FedConn domainA "full_search"
+      void $ createFedConn domainA $ FedConn domainC "full_search"
+      void $ createFedConn domainC $ FedConn domainA "full_search"
+      uidA <- randomUser domainA def {team = True}
+      retryT
         $ bindResponse
-          (API.getFederationStatus uidA [domainB, domainC])
+          (getFederationStatus uidA [domainB, domainC])
         $ \resp -> do
           resp.status `shouldMatchInt` 200
           resp.json %. "status" `shouldMatch` "non-fully-connected"
@@ -104,39 +111,26 @@ testDynamicBackendsNotFullyConnected = do
 
 testFederationStatus :: HasCallStack => App ()
 testFederationStatus = do
-  uid <- randomUser OwnDomain def {Internal.team = True}
+  uid <- randomUser OwnDomain def {team = True}
   federatingRemoteDomain <- asString OtherDomain
-  let unknownDomain = "foobar.com"
-  let invalidDomain = "c.example.com" -- has no srv record
+  let invalidDomain = "c.example.com" -- Does not have any srv records
   bindResponse
-    (API.getFederationStatus uid [])
+    (getFederationStatus uid [])
     $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "status" `shouldMatch` "fully-connected"
 
   bindResponse
-    (API.getFederationStatus uid [unknownDomain])
+    (getFederationStatus uid [invalidDomain])
     $ \resp -> do
-      resp.status `shouldMatchInt` 400
-      resp.json %. "label" `shouldMatch` "discovery-failure"
+      resp.status `shouldMatchInt` 533
+      resp.json %. "unreachable_backends" `shouldMatchSet` [invalidDomain]
 
   bindResponse
-    (API.getFederationStatus uid [invalidDomain])
-    $ \resp -> do
-      resp.status `shouldMatchInt` 422
-      resp.json %. "label" `shouldMatch` "invalid-domain"
-
-  bindResponse
-    (API.getFederationStatus uid [federatingRemoteDomain])
+    (getFederationStatus uid [federatingRemoteDomain])
     $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "status" `shouldMatch` "fully-connected"
-
-  bindResponse
-    (API.getFederationStatus uid [federatingRemoteDomain, unknownDomain])
-    $ \resp -> do
-      resp.status `shouldMatchInt` 400
-      resp.json %. "label" `shouldMatch` "discovery-failure"
 
 testCreateConversationFullyConnected :: HasCallStack => App ()
 testCreateConversationFullyConnected = do
@@ -172,8 +166,235 @@ testCreateConversationNonFullyConnected = do
       connectAllDomainsAndWaitToSync 1 domains
       [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
       -- stop federation between B and C
-      void $ Internal.deleteFedConn domainB domainC
-      void $ Internal.deleteFedConn domainC domainB
+      void $ deleteFedConn domainB domainC
+      void $ deleteFedConn domainC domainB
+      liftIO $ threadDelay (2 * 1000 * 1000)
       bindResponse (postConversation u1 (defProteus {qualifiedUsers = [u2, u3]})) $ \resp -> do
         resp.status `shouldMatchInt` 409
         resp.json %. "non_federating_backends" `shouldMatchSet` [domainB, domainC]
+
+testDefederationGroupConversation :: HasCallStack => App ()
+testDefederationGroupConversation = do
+  let setFederationConfig =
+        setField "optSettings.setFederationStrategy" "allowDynamic"
+          >=> removeField "optSettings.setFederationDomainConfigs"
+          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
+  startDynamicBackends
+    [ def {dbBrig = setFederationConfig},
+      def {dbBrig = setFederationConfig}
+    ]
+    $ \dynDomains -> do
+      domains@[domainA, domainB] <- pure dynDomains
+      connectAllDomainsAndWaitToSync 1 domains
+      [uA, uB] <- createAndConnectUsers [domainA, domainB]
+      withWebSocket uA $ \ws -> do
+        -- create group conversation owned by domainB
+        convId <- bindResponse (postConversation uB (defProteus {qualifiedUsers = [uA]})) $ \r -> do
+          r.status `shouldMatchInt` 201
+          r.json %. "qualified_id"
+
+        -- check conversation exists and uB is a member from POV of uA
+        bindResponse (getConversation uA convId) $ \r -> do
+          r.status `shouldMatchInt` 200
+          members <- r.json %. "members.others" & asList
+          qIds <- for members (\m -> m %. "qualified_id")
+          uBQId <- objQidObject uB
+          qIds `shouldMatchSet` [uBQId]
+
+        -- check conversation exists and uA is a member from POV of uB
+        bindResponse (getConversation uB convId) $ \r -> do
+          r.status `shouldMatchInt` 200
+          members <- r.json %. "members.others" & asList
+          qIds <- for members (\m -> m %. "qualified_id")
+          uAQId <- objQidObject uA
+          qIds `shouldMatchSet` [uAQId]
+
+        -- domainA stops federating with domainB
+        void $ deleteFedConn domainA domainB
+
+        -- assert conversation deleted from domainA
+        retryT $
+          bindResponse (getConversation uA convId) $ \r ->
+            r.status `shouldMatchInt` 404
+
+        -- assert federation.delete event is sent twice
+        void $
+          awaitNMatches
+            2
+            3
+            ( \n -> do
+                correctType <- nPayload n %. "type" `isEqual` "federation.delete"
+                if correctType
+                  then nPayload n %. "domain" `isEqual` domainB
+                  else pure False
+            )
+            ws
+
+      -- assert no conversation.delete event is sent to uA
+      eventPayloads <-
+        getNotifications uA "cA" def
+          >>= getJSON 200
+          >>= \n -> n %. "notifications" & asList >>= \ns -> for ns nPayload
+
+      forM_ eventPayloads $ \p ->
+        p %. "type" `shouldNotMatch` "conversation.delete"
+
+testDefederationOneOnOne :: HasCallStack => App ()
+testDefederationOneOnOne = do
+  let setFederationConfig =
+        setField "optSettings.setFederationStrategy" "allowDynamic"
+          >=> removeField "optSettings.setFederationDomainConfigs"
+          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
+  startDynamicBackends
+    [ def {dbBrig = setFederationConfig},
+      def {dbBrig = setFederationConfig}
+    ]
+    $ \dynDomains -> do
+      domains@[domainA, domainB] <- pure dynDomains
+      connectAllDomainsAndWaitToSync 1 domains
+      [uA, uB] <- createAndConnectUsers [domainA, domainB]
+      -- figure out on which backend the 1:1 conversation is created
+      qConvId <- getConnection uA uB >>= \c -> c.json %. "qualified_conversation"
+
+      -- check conversation exists and uB is a member from POV of uA
+      bindResponse (getConversation uA qConvId) $ \r -> do
+        r.status `shouldMatchInt` 200
+        members <- r.json %. "members.others" & asList
+        qIds <- for members (\m -> m %. "qualified_id")
+        uBQId <- objQidObject uB
+        qIds `shouldMatchSet` [uBQId]
+
+      -- check conversation exists and uA is a member from POV of uB
+      bindResponse (getConversation uB qConvId) $ \r -> do
+        r.status `shouldMatchInt` 200
+        members <- r.json %. "members.others" & asList
+        qIds <- for members (\m -> m %. "qualified_id")
+        uAQId <- objQidObject uA
+        qIds `shouldMatchSet` [uAQId]
+
+      conversationOwningDomain <- objDomain qConvId
+
+      when (domainA == conversationOwningDomain) $ do
+        -- conversation is created on domainA
+        assertFederationTerminatingUserNoConvDeleteEvent uB qConvId domainB domainA
+
+      when (domainB == conversationOwningDomain) $ do
+        -- conversation is created on domainB
+        assertFederationTerminatingUserNoConvDeleteEvent uA qConvId domainA domainB
+
+      when (domainA /= conversationOwningDomain && domainB /= conversationOwningDomain) $ do
+        -- this should not happen
+        error "impossible"
+  where
+    assertFederationTerminatingUserNoConvDeleteEvent :: Value -> Value -> String -> String -> App ()
+    assertFederationTerminatingUserNoConvDeleteEvent user convId ownDomain otherDomain = do
+      withWebSocket user $ \ws -> do
+        void $ deleteFedConn ownDomain otherDomain
+
+        -- assert conversation deleted eventually
+        retryT $
+          bindResponse (getConversation user convId) $ \r ->
+            r.status `shouldMatchInt` 404
+
+        -- assert federation.delete event is sent twice
+        void $ awaitNMatches 2 3 (\n -> nPayload n %. "type" `isEqual` "federation.delete") ws
+
+      -- assert no conversation.delete event is sent to uA
+      eventPayloads <-
+        getNotifications user "user-client" def
+          >>= getJSON 200
+          >>= \n -> n %. "notifications" & asList >>= \ns -> for ns nPayload
+
+      forM_ eventPayloads $ \p ->
+        p %. "type" `shouldNotMatch` "conversation.delete"
+
+testAddMembersFullyConnectedProteus :: HasCallStack => App ()
+testAddMembersFullyConnectedProteus = do
+  withFederatingBackendsAllowDynamic 2 $ \(domainA, domainB, domainC) -> do
+    [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
+    -- create conversation with no users
+    cid <- postConversation u1 (defProteus {qualifiedUsers = []}) >>= getJSON 201
+    -- add members from remote backends
+    members <- for [u2, u3] (%. "qualified_id")
+    bindResponse (addMembers u1 cid members) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      users <- resp.json %. "data.users" >>= asList
+      addedUsers <- forM users (%. "qualified_id")
+      addedUsers `shouldMatchSet` members
+
+testAddMembersNonFullyConnectedProteus :: HasCallStack => App ()
+testAddMembersNonFullyConnectedProteus = do
+  withFederatingBackendsAllowDynamic 2 $ \(domainA, domainB, domainC) -> do
+    [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
+    -- create conversation with no users
+    cid <- postConversation u1 (defProteus {qualifiedUsers = []}) >>= getJSON 201
+    -- stop federation between B and C
+    void $ deleteFedConn domainB domainC
+    void $ deleteFedConn domainC domainB
+    liftIO $ threadDelay (2 * 1000 * 1000) -- wait for federation status to be updated
+    -- add members from remote backends
+    members <- for [u2, u3] (%. "qualified_id")
+    bindResponse (addMembers u1 cid members) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      resp.json %. "non_federating_backends" `shouldMatchSet` [domainB, domainC]
+
+testConvWithUnreachableRemoteUsers :: HasCallStack => App ()
+testConvWithUnreachableRemoteUsers = do
+  let overrides =
+        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
+          <> fullSearchWithAll
+  ([alice, alex, bob, charlie, dylan], domains) <-
+    startDynamicBackends [overrides, overrides] $ \domains -> do
+      own <- make OwnDomain & asString
+      other <- make OtherDomain & asString
+      users <- createAndConnectUsers $ [own, own, other] <> domains
+      pure (users, domains)
+
+  let newConv = defProteus {qualifiedUsers = [alex, bob, charlie, dylan]}
+  bindResponse (postConversation alice newConv) $ \resp -> do
+    resp.status `shouldMatchInt` 533
+    resp.json %. "unreachable_backends" `shouldMatchSet` domains
+
+  convs <- getAllConvs alice >>= asList
+  regConvs <- filterM (\c -> (==) <$> (c %. "type" & asInt) <*> pure 0) convs
+  regConvs `shouldMatch` ([] :: [Value])
+
+testAddReachableWithUnreachableRemoteUsers :: HasCallStack => App ()
+testAddReachableWithUnreachableRemoteUsers = do
+  let overrides =
+        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
+          <> fullSearchWithAll
+  ([alex, bob], conv) <-
+    startDynamicBackends [overrides, overrides] $ \domains -> do
+      own <- make OwnDomain & asString
+      other <- make OtherDomain & asString
+      [alice, alex, bob, charlie, dylan] <-
+        createAndConnectUsers $ [own, own, other] <> domains
+
+      let newConv = defProteus {qualifiedUsers = [alex, charlie, dylan]}
+      conv <- postConversation alice newConv >>= getJSON 201
+      pure ([alex, bob], conv)
+
+  bobId <- bob %. "qualified_id"
+  bindResponse (addMembers alex conv [bobId]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+testAddUnreachable :: HasCallStack => App ()
+testAddUnreachable = do
+  let overrides =
+        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
+          <> fullSearchWithAll
+  ([alex, charlie], [charlieDomain, _dylanDomain], conv) <-
+    startDynamicBackends [overrides, overrides] $ \domains -> do
+      own <- make OwnDomain & asString
+      [alice, alex, charlie, dylan] <-
+        createAndConnectUsers $ [own, own] <> domains
+
+      let newConv = defProteus {qualifiedUsers = [alex, dylan]}
+      conv <- postConversation alice newConv >>= getJSON 201
+      pure ([alex, charlie], domains, conv)
+
+  charlieId <- charlie %. "qualified_id"
+  bindResponse (addMembers alex conv [charlieId]) $ \resp -> do
+    resp.status `shouldMatchInt` 533
+    resp.json %. "unreachable_backends" `shouldMatchSet` [charlieDomain]

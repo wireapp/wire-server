@@ -297,7 +297,7 @@ library
     , wire-api-federation
     , x509
 
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable galley
   import:           common-all
@@ -314,7 +314,7 @@ executable galley
   if flag(static)
     ld-options: -static
 
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable galley-integration
   import:             common-all
@@ -487,6 +487,8 @@ executable galley-integration
     , wire-api-federation
     , yaml
 
+  default-language:   GHC2021
+
 executable galley-migrate-data
   import:           common-all
   main-is:          ../main.hs
@@ -524,7 +526,7 @@ executable galley-migrate-data
   if flag(static)
     ld-options: -static
 
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable galley-schema
   import:             common-all
@@ -615,7 +617,7 @@ executable galley-schema
   if flag(static)
     ld-options: -static
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite galley-tests
   import:           common-all
@@ -624,9 +626,9 @@ test-suite galley-tests
   other-modules:
     Paths_galley
     Run
+    Test.Galley.API.Action
     Test.Galley.API.Message
     Test.Galley.API.One2One
-    Test.Galley.API.Query
     Test.Galley.Intra.User
     Test.Galley.Mapping
 
@@ -651,4 +653,4 @@ test-suite galley-tests
     , wire-api
     , wire-api-federation
 
-  default-language: Haskell2010
+  default-language: GHC2021
