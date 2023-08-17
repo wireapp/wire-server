@@ -377,14 +377,20 @@ testAddReachableWithUnreachableRemoteUsers = do
 
   bobId <- bob %. "qualified_id"
   bindResponse (addMembers alex conv [bobId]) $ \resp -> do
-    resp.status `shouldMatchInt` 200
+    -- This test is updated to reflect the changes in `performConversationJoin`
+    -- `performConversationJoin` now does a full check between all federation members
+    -- that will be in the conversation when adding users to a conversation. This is
+    -- to ensure that users from domains that aren't federating are not directly
+    -- connected to each other.
+    resp.status `shouldMatchInt` 533
+    resp.jsonBody %. "unreachable_backends" `shouldMatchSet` ["d1.example.com", "d2.example.com"]
 
 testAddUnreachable :: HasCallStack => App ()
 testAddUnreachable = do
   let overrides =
         def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
           <> fullSearchWithAll
-  ([alex, charlie], [charlieDomain, _dylanDomain], conv) <-
+  ([alex, charlie], [charlieDomain, dylanDomain], conv) <-
     startDynamicBackends [overrides, overrides] $ \domains -> do
       own <- make OwnDomain & asString
       [alice, alex, charlie, dylan] <-
@@ -397,7 +403,9 @@ testAddUnreachable = do
   charlieId <- charlie %. "qualified_id"
   bindResponse (addMembers alex conv [charlieId]) $ \resp -> do
     resp.status `shouldMatchInt` 533
-    resp.json %. "unreachable_backends" `shouldMatchSet` [charlieDomain]
+    -- All of the domains that are in the conversation, or will be in the conversation,
+    -- need to be reachable so we can check that the graph for those domains is fully connected.
+    resp.json %. "unreachable_backends" `shouldMatchSet` [charlieDomain, dylanDomain]
 
 testAddingUserNonFullyConnectedFederation :: HasCallStack => App ()
 testAddingUserNonFullyConnectedFederation = do

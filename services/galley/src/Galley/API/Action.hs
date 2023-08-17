@@ -318,18 +318,9 @@ ensureAllowed ::
   Sem r ()
 ensureAllowed tag loc action conv origUser = do
   case tag of
-    SConversationJoinTag -> do
+    SConversationJoinTag ->
       mapErrorS @'InvalidAction @('ActionDenied 'AddConversationMember) $
         ensureConvRoleNotElevated origUser (cjRole action)
-      -- Check that the user we are adding is from a domain
-      -- that is federating with every other domain in the
-      -- conversation.
-      let existingDomains = tDomain . rmId <$> convRemoteMembers conv
-          actionDomains = qDomain <$> NE.toList (cjUsers action)
-      checkFederationStatus
-        . RemoteDomains
-        . Set.fromList
-        $ existingDomains <> actionDomains
     SConversationDeleteTag ->
       for_ (convTeam conv) $ \tid -> do
         lusr <- ensureLocal loc (convMemberId loc origUser)
@@ -451,7 +442,9 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       Local UserId ->
       Sem r ()
     checkRemoteBackendsConnected lusr = do
-      let remoteDomains = tDomain <$> snd (partitionQualified lusr $ NE.toList invited)
+      let invitedDomains = tDomain <$> snd (partitionQualified lusr $ NE.toList invited)
+          existingDomains = tDomain . rmId <$> convRemoteMembers (tUnqualified lconv)
+
       -- Note:
       --
       -- In some cases, this federation status check might be redundant (for
@@ -459,7 +452,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       -- it is important that we attempt to connect to the backends of the new
       -- users here, because that results in the correct error when those
       -- backends are not reachable.
-      checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
+      checkFederationStatus (RemoteDomains . Set.fromList $ invitedDomains <> existingDomains)
 
     conv :: Data.Conversation
     conv = tUnqualified lconv
