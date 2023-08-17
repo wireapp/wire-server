@@ -28,6 +28,7 @@ import Cassandra (ClientState, Consistency (LocalQuorum), Page (hasMore, nextPag
 import Control.Lens ((.~))
 import Data.Id (ProviderId, ServiceId, UserId)
 import Data.Range (Range (fromRange))
+import Data.Set qualified as Set
 import Galley.API.Error
 import Galley.API.Util (localBotsAndUsers)
 import Galley.Cassandra.Conversation.Members (toMember)
@@ -154,34 +155,41 @@ interpretDefederationNotifications ::
 interpretDefederationNotifications = interpret $ \case
   SendDefederationNotifications domain ->
     getPage
-      >>= void . sendNotificationPage (Federation.FederationDelete domain)
+      >>= void . sendNotificationPage mempty (Federation.FederationDelete domain)
   SendOnConnectionRemovedNotifications domainA domainB ->
     getPage
-      >>= void . sendNotificationPage (Federation.FederationConnectionRemoved (domainA, domainB))
+      >>= void . sendNotificationPage mempty (Federation.FederationConnectionRemoved (domainA, domainB))
   where
     getPage :: Sem r (Page PageType)
     getPage = do
       maxPage <- inputs (fromRange . currentFanoutLimit . _options) -- This is based on the limits in removeIfLargeFanout
+      -- selectAllMembers will return duplicate members when they are in more than one chat
+      -- however we need the full row to build out the bot members to send notifications
+      -- to them. We have to do the duplicate filtering here.
       embedClient $ paginate selectAllMembers (paramsP LocalQuorum () maxPage)
-    pushEvents :: Federation.Event -> [LocalMember] -> Sem r ()
-    pushEvents eventData results = do
+    pushEvents :: Set UserId -> Federation.Event -> [LocalMember] -> Sem r (Set UserId)
+    pushEvents seenRecipients eventData results = do
       let (bots, mems) = localBotsAndUsers results
           recipients = Intra.recipient <$> mems
           event = Intra.FederationEvent eventData
-      for_ (Intra.newPush ListComplete Nothing event recipients) $ \p -> do
+          -- Filter out any users that we have already sent a notification to.
+          filteredRecipients = filter (\r -> r._recipientUserId `notElem` seenRecipients) recipients
+      for_ (Intra.newPush ListComplete Nothing event filteredRecipients) $ \p -> do
         -- Futurework: Transient or not?
         -- RouteAny is used as it will wake up mobile clients
         -- and notify them of the changes to federation state.
         push1 $ p & Intra.pushRoute .~ Intra.RouteAny
       deliverAsync (bots `zip` repeat (G.pushEventJson event))
-    sendNotificationPage :: Federation.Event -> Page PageType -> Sem r ()
-    sendNotificationPage eventData page = do
+      -- Add the users to the set of users we've sent messages to.
+      pure $ seenRecipients <> Set.fromList ((._recipientUserId) <$> filteredRecipients)
+    sendNotificationPage :: Set UserId -> Federation.Event -> Page PageType -> Sem r ()
+    sendNotificationPage seenRecipients eventData page = do
       let res = result page
           mems = mapMaybe toMember res
-      pushEvents eventData mems
+      seenRecipients' <- pushEvents seenRecipients eventData mems
       when (hasMore page) $ do
         page' <- embedClient $ nextPage page
-        sendNotificationPage eventData page'
+        sendNotificationPage seenRecipients' eventData page'
 
 type PageType =
   ( UserId,
