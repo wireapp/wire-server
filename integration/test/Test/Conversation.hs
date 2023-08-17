@@ -425,3 +425,4 @@ testAddingUserNonFullyConnectedFederation = do
     charlieId <- charlie %. "qualified_id"
     bindResponse (addMembers alex conv [bobId, charlieId]) $ \resp -> do
       resp.status `shouldMatchInt` 409
+      resp.json %. "non_federating_backends" `shouldMatchSet` (other : domains)
