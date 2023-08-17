@@ -28,58 +28,58 @@ testDefederationRemoteNotifications = do
 
 testDefederationNonFullyConnectedGraph :: HasCallStack => App ()
 testDefederationNonFullyConnectedGraph = do
-    let setFederationConfig =
-          setField "optSettings.setFederationStrategy" "allowDynamic"
-            >=> removeField "optSettings.setFederationDomainConfigs"
-            >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
-    startDynamicBackends
-      [ def {dbBrig = setFederationConfig},
-        def {dbBrig = setFederationConfig},
-        def {dbBrig = setFederationConfig}
-      ]
-      $ \dynDomains -> do
-        domains@[domainA, domainB, domainC] <- pure dynDomains
-        connectAllDomainsAndWaitToSync 1 domains
+  let setFederationConfig =
+        setField "optSettings.setFederationStrategy" "allowDynamic"
+          >=> removeField "optSettings.setFederationDomainConfigs"
+          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
+  startDynamicBackends
+    [ def {dbBrig = setFederationConfig},
+      def {dbBrig = setFederationConfig},
+      def {dbBrig = setFederationConfig}
+    ]
+    $ \dynDomains -> do
+      domains@[domainA, domainB, domainC] <- pure dynDomains
+      connectAllDomainsAndWaitToSync 1 domains
 
-        -- create a few extra users and connections to make sure that does not lead to any extra `connectionRemoved` notifications
-        [uA, uA2, _, _, uB, uC] <- createAndConnectUsers [domainA, domainA, domainA, domainA, domainB, domainC] >>= traverse objQidObject
+      -- create a few extra users and connections to make sure that does not lead to any extra `connectionRemoved` notifications
+      [uA, uA2, _, _, uB, uC] <- createAndConnectUsers [domainA, domainA, domainA, domainA, domainB, domainC] >>= traverse objQidObject
 
-        -- create group conversation owned by domainA with users from domainB and domainC
-        convId <- bindResponse (postConversation uA (defProteus {qualifiedUsers = [uA2, uB, uC]})) $ \r -> do
-          r.status `shouldMatchInt` 201
-          r.json %. "qualified_id"
+      -- create group conversation owned by domainA with users from domainB and domainC
+      convId <- bindResponse (postConversation uA (defProteus {qualifiedUsers = [uA2, uB, uC]})) $ \r -> do
+        r.status `shouldMatchInt` 201
+        r.json %. "qualified_id"
 
-        -- check conversation exists on all backends
-        checkConv convId uA [uB, uC, uA2]
-        checkConv convId uB [uA, uC, uA2]
-        checkConv convId uC [uA, uB, uA2]
+      -- check conversation exists on all backends
+      checkConv convId uA [uB, uC, uA2]
+      checkConv convId uB [uA, uC, uA2]
+      checkConv convId uC [uA, uB, uA2]
 
-        withWebSocket uA $ \wsA -> do
-          -- one of the 2 non-conversation-owning domains (domainB and domainC)
-          -- defederate from the other non-conversation-owning domain
-          void $ Internal.deleteFedConn domainB domainC
+      withWebSocket uA $ \wsA -> do
+        -- one of the 2 non-conversation-owning domains (domainB and domainC)
+        -- defederate from the other non-conversation-owning domain
+        void $ Internal.deleteFedConn domainB domainC
 
-          -- assert that clients from domainA receive federation.connectionRemoved events
-          -- Notifications being delivered exactly twice
-          void $ awaitNMatches 2 20 (isConnectionRemoved [domainB, domainC]) wsA
+        -- assert that clients from domainA receive federation.connectionRemoved events
+        -- Notifications being delivered exactly twice
+        void $ awaitNMatches 2 20 (isConnectionRemoved [domainB, domainC]) wsA
 
-          -- remote members should be removed from local conversation eventually
-          retryT $ checkConv convId uA [uA2]
-    where
-      isConnectionRemoved :: [String] -> Value -> App Bool
-      isConnectionRemoved domains n  = do
-            correctType <- nPayload n %. "type" `isEqual` "federation.connectionRemoved"
-            if correctType
-              then do
-                domsV <- nPayload n %. "domains" & asList
-                domsStr <- for domsV asString <&> sort
-                pure $ domsStr == sort domains
-              else pure False
+        -- remote members should be removed from local conversation eventually
+        retryT $ checkConv convId uA [uA2]
+  where
+    isConnectionRemoved :: [String] -> Value -> App Bool
+    isConnectionRemoved domains n = do
+      correctType <- nPayload n %. "type" `isEqual` "federation.connectionRemoved"
+      if correctType
+        then do
+          domsV <- nPayload n %. "domains" & asList
+          domsStr <- for domsV asString <&> sort
+          pure $ domsStr == sort domains
+        else pure False
 
-      checkConv :: Value -> Value -> [Value] -> App ()
-      checkConv convId user expectedOtherMembers = do
-        bindResponse (getConversation user convId) $ \r -> do
-          r.status `shouldMatchInt` 200
-          members <- r.json %. "members.others" & asList
-          qIds <- for members (\m -> m %. "qualified_id")
-          qIds `shouldMatchSet` expectedOtherMembers
+    checkConv :: Value -> Value -> [Value] -> App ()
+    checkConv convId user expectedOtherMembers = do
+      bindResponse (getConversation user convId) $ \r -> do
+        r.status `shouldMatchInt` 200
+        members <- r.json %. "members.others" & asList
+        qIds <- for members (\m -> m %. "qualified_id")
+        qIds `shouldMatchSet` expectedOtherMembers
