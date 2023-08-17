@@ -364,7 +364,7 @@ testAddReachableWithUnreachableRemoteUsers = do
   let overrides =
         def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
           <> fullSearchWithAll
-  ([alex, bob], conv) <-
+  ([alex, bob], conv, domains) <-
     startDynamicBackends [overrides, overrides] $ \domains -> do
       own <- make OwnDomain & asString
       other <- make OtherDomain & asString
@@ -373,7 +373,7 @@ testAddReachableWithUnreachableRemoteUsers = do
 
       let newConv = defProteus {qualifiedUsers = [alex, charlie, dylan]}
       conv <- postConversation alice newConv >>= getJSON 201
-      pure ([alex, bob], conv)
+      pure ([alex, bob], conv, domains)
 
   bobId <- bob %. "qualified_id"
   bindResponse (addMembers alex conv [bobId]) $ \resp -> do
@@ -383,7 +383,7 @@ testAddReachableWithUnreachableRemoteUsers = do
     -- to ensure that users from domains that aren't federating are not directly
     -- connected to each other.
     resp.status `shouldMatchInt` 533
-    resp.jsonBody %. "unreachable_backends" `shouldMatchSet` ["d1.example.com", "d2.example.com"]
+    resp.jsonBody %. "unreachable_backends" `shouldMatchSet` domains
 
 testAddUnreachable :: HasCallStack => App ()
 testAddUnreachable = do
