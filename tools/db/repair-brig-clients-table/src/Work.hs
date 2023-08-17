@@ -36,7 +36,7 @@ import Wire.API.Team.Feature
 import Wire.API.User
 
 runCommand :: Bool -> Logger -> ClientState -> IO ()
-runCommand dryRun l brig = do
+runCommand dryRun l brig =
   runConduit $
     zipSources
       (C.sourceList [(1 :: Int32) ..])
