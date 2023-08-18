@@ -74,7 +74,7 @@ newEnv o = do
   Env (mkRequest $ O.brig o) (mkRequest $ O.galley o) (mkRequest $ O.gundeck o) (mkRequest $ O.ibis o) (mkRequest $ O.galeb o) l mt def
     <$> newManager
   where
-    mkRequest s = Bilge.host (encodeUtf8 (s ^. epHost)) . Bilge.port (s ^. epPort) $ Bilge.empty
+    mkRequest s = Bilge.host (encodeUtf8 (s ^. host)) . Bilge.port (s ^. port) $ Bilge.empty
     newManager = Bilge.newManager (Bilge.defaultManagerSettings {Bilge.managerResponseTimeout = responseTimeoutMicro 10000000})
 
 -- Monads

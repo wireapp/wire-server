@@ -69,7 +69,7 @@ import Data.Time.Clock (getCurrentTime)
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer
 import Galley.API.Mapping
-import Galley.Options (optFederator, optRabbitmq)
+import Galley.Options (federator, rabbitmq)
 import Galley.Types.Conversations.Members
 import Imports hiding (id)
 import Imports qualified as I
@@ -2354,8 +2354,8 @@ postConvQualifiedFederationNotEnabled = do
   connectWithRemoteUser alice bob
   let federatorNotConfigured o =
         o
-          & optFederator .~ Nothing
-          & optRabbitmq .~ Nothing
+          & federator .~ Nothing
+          & rabbitmq .~ Nothing
   withSettingsOverrides federatorNotConfigured $ do
     g <- viewGalley
     unreachable :: UnreachableBackends <-
@@ -2960,8 +2960,8 @@ testAddRemoteMemberFederationDisabled = do
   -- This is the case on staging/production in May 2021.
   let federatorNotConfigured o =
         o
-          & optFederator .~ Nothing
-          & optRabbitmq .~ Nothing
+          & federator .~ Nothing
+          & rabbitmq .~ Nothing
   withSettingsOverrides federatorNotConfigured $
     postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
       const 400 === statusCode
@@ -2983,7 +2983,7 @@ testAddRemoteMemberFederationUnavailable = do
   -- available (i.e. no service listing on that IP/port) can happen due to a
   -- misconfiguration of federator. That should give an unreachable_backends error.
   -- Port 1 should always be wrong hopefully.
-  let federatorUnavailable = optFederator ?~ Endpoint "127.0.0.1" 1
+  let federatorUnavailable = federator ?~ Endpoint "127.0.0.1" 1
   withSettingsOverrides federatorUnavailable $ do
     e :: UnreachableBackends <-
       responseJsonError

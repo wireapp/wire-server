@@ -69,4 +69,4 @@ interpretClientStoreToCassandra = interpret $ \case
   CreateClient uid cid -> embedClient $ updateClient True uid cid
   DeleteClient uid cid -> embedClient $ updateClient False uid cid
   DeleteClients uid -> embedClient $ eraseClients uid
-  UseIntraClientListing -> embedApp . view $ options . optSettings . setIntraListing
+  UseIntraClientListing -> embedApp . view $ options . settings . intraListing

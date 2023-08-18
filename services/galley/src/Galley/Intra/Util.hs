@@ -22,24 +22,39 @@ module Galley.Intra.Util
   )
 where
 
-import Bilge hiding (getHeader, options, statusCode)
-import Bilge.RPC
+import Bilge (Request, Response, expect2xx, method, path)
+import Bilge qualified as B
+import Bilge.RPC (RPCException, rpc, rpcExceptionMsg)
 import Bilge.Retry
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
-import Control.Retry
+  ( Handler (Handler),
+    SomeException,
+    catches,
+  )
+import Control.Retry (RetryPolicy, limitRetries, recovering)
 import Data.ByteString.Lazy qualified as LB
 import Data.Misc (portNumber)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy qualified as LT
-import Galley.Env
-import Galley.Monad
-import Galley.Options
-import Imports hiding (log)
-import Network.HTTP.Types
-import System.Logger
+import Galley.Env (options)
+import Galley.Monad (App)
+import Galley.Options (Opts, brig, gundeck, spar)
+import Imports
+  ( Maybe,
+    Show (show),
+    String,
+    const,
+    forkIO,
+    fromIntegral,
+    void,
+    ($),
+    (.),
+  )
+import Network.HTTP.Types (StdMethod (POST))
+import System.Logger (msg, (.=), (~~))
 import System.Logger.Class qualified as LC
-import Util.Options
+import Util.Options (host, port)
 
 data IntraComponent = Brig | Spar | Gundeck
   deriving (Show)
@@ -51,14 +66,14 @@ componentName Gundeck = "gundeck"
 
 componentRequest :: IntraComponent -> Opts -> Request -> Request
 componentRequest Brig o =
-  host (encodeUtf8 (o ^. optBrig . epHost))
-    . port (portNumber (fromIntegral (o ^. optBrig . epPort)))
+  B.host (encodeUtf8 (o ^. brig . host))
+    . B.port (portNumber (fromIntegral (o ^. brig . port)))
 componentRequest Spar o =
-  host (encodeUtf8 (o ^. optSpar . epHost))
-    . port (portNumber (fromIntegral (o ^. optSpar . epPort)))
+  B.host (encodeUtf8 (o ^. spar . host))
+    . B.port (portNumber (fromIntegral (o ^. spar . port)))
 componentRequest Gundeck o =
-  host (encodeUtf8 $ o ^. optGundeck . epHost)
-    . port (portNumber $ fromIntegral (o ^. optGundeck . epPort))
+  B.host (encodeUtf8 $ o ^. gundeck . host)
+    . B.port (portNumber $ fromIntegral (o ^. gundeck . port))
     . method POST
     . path "/i/push/v2"
     . expect2xx

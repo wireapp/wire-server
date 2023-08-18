@@ -36,7 +36,8 @@ import API.TeamUserSearch qualified as TeamUserSearch
 import API.User qualified as User
 import API.UserPendingActivation qualified as UserPendingActivation
 import API.Version qualified
-import Bilge hiding (header)
+import Bilge hiding (header, host, port)
+import Bilge qualified
 import Brig.API (sitemap)
 import Brig.AWS qualified as AWS
 import Brig.CanonicalInterpreter
@@ -131,9 +132,9 @@ runTests iConf brigOpts otherArgs = do
         Opts.TurnSourceFiles files -> files
         Opts.TurnSourceDNS _ -> error "The integration tests can only be run when TurnServers are sourced from files"
       localDomain = brigOpts ^. Opts.optionSettings . Opts.federationDomain
-      casHost = (\v -> Opts.cassandra v ^. casEndpoint . epHost) brigOpts
-      casPort = (\v -> Opts.cassandra v ^. casEndpoint . epPort) brigOpts
-      casKey = (\v -> Opts.cassandra v ^. casKeyspace) brigOpts
+      casHost = (\v -> Opts.cassandra v ^. endpoint . host) brigOpts
+      casPort = (\v -> Opts.cassandra v ^. endpoint . port) brigOpts
+      casKey = (\v -> Opts.cassandra v ^. keyspace) brigOpts
       awsOpts = Opts.aws brigOpts
   lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
   db <- defInitCassandra casKey casHost casPort lg
@@ -193,9 +194,9 @@ runTests iConf brigOpts otherArgs = do
         federationEnd2End
       ]
   where
-    mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
+    mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
 
-    mkVersionedRequest endpoint = maybeAddPrefix . mkRequest endpoint
+    mkVersionedRequest ep = maybeAddPrefix . mkRequest ep
 
     maybeAddPrefix :: Request -> Request
     maybeAddPrefix r = case pathSegments $ getUri r of

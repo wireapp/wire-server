@@ -57,7 +57,7 @@ import Network.TLS qualified as TLS
 import Proto.TeamEvents qualified as E
 import System.Logger qualified as Logger
 import System.Logger.Class
-import Util.Options
+import Util.Options hiding (endpoint)
 
 newtype QueueUrl = QueueUrl Text
   deriving (Show)
@@ -102,14 +102,14 @@ mkEnv :: Logger -> Manager -> JournalOpts -> IO Env
 mkEnv lgr mgr opts = do
   let g = Logger.clone (Just "aws.galley") lgr
   e <- mkAwsEnv g
-  q <- getQueueUrl e (opts ^. awsQueueName)
+  q <- getQueueUrl e (opts ^. queueName)
   pure (Env e g q)
   where
     sqs e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) SQS.defaultService
     mkAwsEnv g = do
       baseEnv <-
         AWS.newEnv AWS.discover
-          <&> AWS.configureService (sqs (opts ^. awsEndpoint))
+          <&> AWS.configureService (sqs (opts ^. endpoint))
       pure $
         baseEnv
           { AWS.logger = awsLogger g,

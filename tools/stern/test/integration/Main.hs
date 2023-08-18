@@ -36,7 +36,7 @@ import System.Logger qualified as Logger
 import Test.Tasty
 import Test.Tasty.Options
 import TestSetup
-import Util.Options
+import Util.Options (Endpoint (Endpoint))
 import Util.Test
 
 data IntegrationConfig = IntegrationConfig

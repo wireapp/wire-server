@@ -34,24 +34,48 @@ module Federator.Run
   )
 where
 
-import Control.Concurrent.Async
+import Control.Concurrent.Async (async, waitAnyCancel)
 import Control.Exception (bracket)
 import Control.Lens ((^.))
 import Data.Default (def)
 import Data.Metrics.Middleware qualified as Metrics
 import Federator.Env
+  ( Env (..),
+    applog,
+    mkHttp2Manager,
+    onNewSSLContext,
+  )
 import Federator.ExternalServer (serveInward)
 import Federator.InternalServer (serveOutward)
 import Federator.Monitor
+  ( FederationSetupError (..),
+    mkTLSSettingsOrThrow,
+    withMonitor,
+  )
 import Federator.Options as Opt
+  ( Opts
+      ( brig,
+        cargohold,
+        federatorExternal,
+        federatorInternal,
+        galley,
+        logFormat,
+        logLevel,
+        logNetStrings,
+        optSettings
+      ),
+    RunSettings (dnsHost, dnsPort),
+  )
 import Imports
 import Network.DNS qualified as DNS
 import Network.HTTP.Client qualified as HTTP
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as LogExt
-import Util.Options
-import Wire.API.Federation.Component
+import Util.Options (Endpoint (_port), port)
 import Wire.API.FederationUpdate
+import Wire.API.MakesFederatedCall
+  ( Component (Brig, Cargohold, Galley),
+  )
 import Wire.API.Routes.FederationDomainConfig
 import Wire.Network.DNS.Helper qualified as DNS
 
@@ -74,18 +98,18 @@ run opts = do
         void $ waitAnyCancel [updateFedDomainsThread, internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
-    portInternal = fromIntegral $ endpointInternal ^. epPort
+    portInternal = fromIntegral $ endpointInternal ^. port
 
     endpointExternal = federatorExternal opts
-    portExternal = fromIntegral $ endpointExternal ^. epPort
+    portExternal = fromIntegral $ endpointExternal ^. port
 
     mkResolvConf :: RunSettings -> DNS.ResolvConf -> DNS.ResolvConf
     mkResolvConf settings conf =
       case (dnsHost settings, dnsPort settings) of
-        (Just host, Nothing) ->
-          conf {DNS.resolvInfo = DNS.RCHostName host}
-        (Just host, Just port) ->
-          conf {DNS.resolvInfo = DNS.RCHostPort host (fromIntegral port)}
+        (Just h, Nothing) ->
+          conf {DNS.resolvInfo = DNS.RCHostName h}
+        (Just h, Just p) ->
+          conf {DNS.resolvInfo = DNS.RCHostPort h (fromIntegral p)}
         (_, _) -> conf
 
 -------------------------------------------------------------------------------
@@ -99,8 +123,8 @@ newEnv o _dnsResolver _applog _domainConfigs = do
       _service Brig = Opt.brig o
       _service Galley = Opt.galley o
       _service Cargohold = Opt.cargohold o
-      _externalPort = o.federatorExternal._epPort
-      _internalPort = o.federatorInternal._epPort
+      _externalPort = o.federatorExternal._port
+      _internalPort = o.federatorInternal._port
   _httpManager <- initHttpManager
   sslContext <- mkTLSSettingsOrThrow _runSettings
   _http2Manager <- newIORef =<< mkHttp2Manager sslContext

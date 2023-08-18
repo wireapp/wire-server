@@ -84,7 +84,7 @@ guardLegalholdPolicyConflicts LegalholdPlusFederationNotImplemented _otherClient
 guardLegalholdPolicyConflicts UnprotectedBot _otherClients = pure ()
 guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
   opts <- input
-  case view (optSettings . setFeatureFlags . flagLegalHold) opts of
+  case view (settings . featureFlags . flagLegalHold) opts of
     FeatureLegalHoldDisabledPermanently -> case FutureWork @'LegalholdPlusFederationNotImplemented () of
       FutureWork () -> pure () -- FUTUREWORK: if federation is enabled, we still need to run the guard!
     FeatureLegalHoldDisabledByDefault -> guardLegalholdPolicyConflictsUid self otherClients

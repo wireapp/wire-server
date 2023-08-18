@@ -22,6 +22,7 @@ module Wire.API.Util.Aeson
 where
 
 import Data.Aeson
+import Data.Json.Util (toJSONFieldName)
 import GHC.Generics (Rep)
 import Imports hiding (All)
 
@@ -30,10 +31,7 @@ import Imports hiding (All)
 --
 -- For example, it converts @_recordFieldLabel@ into @field_label@.
 customEncodingOptions :: Options
-customEncodingOptions =
-  defaultOptions
-    { fieldLabelModifier = camelTo2 '_'
-    }
+customEncodingOptions = toJSONFieldName
 
 newtype CustomEncoded a = CustomEncoded {unCustomEncoded :: a}
 

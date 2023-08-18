@@ -139,7 +139,7 @@ module Util.Core
   )
 where
 
-import Bilge hiding (getCookie) -- we use Web.Cookie instead of the http-client type
+import Bilge hiding (getCookie, host, port) -- we use Web.Cookie instead of the http-client type
 import qualified Bilge
 import Bilge.Assert (Assertions, (!!!), (<!!), (===))
 import Brig.Types.Activation
@@ -265,9 +265,9 @@ mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
   sparCtxLogger <- Log.mkLogger (samlToLevel $ saml _teOpts ^. SAML.cfgLogLevel) (logNetStrings _teOpts) (logFormat _teOpts)
   _teCql :: ClientState <- initCassandra _teOpts sparCtxLogger
-  let _teBrig = endpointToReq (cfgBrig _teTstOpts)
-      _teGalley = endpointToReq (cfgGalley _teTstOpts)
-      _teSpar = endpointToReq (cfgSpar _teTstOpts)
+  let _teBrig = endpointToReq _teTstOpts.brig
+      _teGalley = endpointToReq _teTstOpts.galley
+      _teSpar = endpointToReq _teTstOpts.spar
       _teSparEnv = Spar.Env {..}
       _teWireIdPAPIVersion = WireIdPAPIV2
       sparCtxOpts = _teOpts
@@ -377,9 +377,9 @@ createUserWithTeamDisableSSO brg gly = do
             ]
   bdy <- selfUser . responseJsonUnsafe <$> post (brg . path "/i/users" . contentJson . body p)
   let (uid, Just tid) = (userId bdy, userTeam bdy)
-  (team : _) <- (^. Galley.teamListTeams) <$> getTeams uid gly
+  (team' : _) <- (^. Galley.teamListTeams) <$> getTeams uid gly
   () <-
-    Control.Exception.assert {- "Team ID in registration and team table do not match" -} (tid == team ^. Galley.teamId) $
+    Control.Exception.assert {- "Team ID in registration and team table do not match" -} (tid == team' ^. Galley.teamId) $
       pure ()
   selfTeam <- userTeam . selfUser <$> getSelfProfile brg uid
   () <-
@@ -728,22 +728,22 @@ zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
 endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
-endpointToReq ep = Bilge.host (ep ^. epHost . to cs) . Bilge.port (ep ^. epPort)
+endpointToReq ep = Bilge.host (ep ^. host . to cs) . Bilge.port (ep ^. port)
 
 endpointToSettings :: Endpoint -> Warp.Settings
-endpointToSettings endpoint =
+endpointToSettings ep =
   Warp.defaultSettings
-    { Warp.settingsHost = Imports.fromString . cs $ endpoint ^. epHost,
-      Warp.settingsPort = fromIntegral $ endpoint ^. epPort
+    { Warp.settingsHost = Imports.fromString . cs $ ep ^. host,
+      Warp.settingsPort = fromIntegral $ ep ^. port
     }
 
 endpointToURL :: MonadIO m => Endpoint -> Text -> m URI
-endpointToURL endpoint urlpath = either err pure url
+endpointToURL ep urlpath = either err pure url
   where
     url = parseURI' ("http://" <> urlhost <> ":" <> urlport) <&> (=/ urlpath)
-    urlhost = cs $ endpoint ^. epHost
-    urlport = cs . show $ endpoint ^. epPort
-    err = liftIO . throwIO . ErrorCall . show . (,(endpoint, url))
+    urlhost = cs $ ep ^. host
+    urlport = cs . show $ ep ^. port
+    err = liftIO . throwIO . ErrorCall . show . (,(ep, url))
 
 -- spar specifics
 
@@ -821,10 +821,10 @@ registerTestIdPFrom ::
   SparReq ->
   m (UserId, TeamId, IdP)
 registerTestIdPFrom metadata mgr brig galley spar = do
-  apiVersion <- view teWireIdPAPIVersion
+  apiVer <- view teWireIdPAPIVersion
   liftIO . runHttpT mgr $ do
     (uid, tid) <- createUserWithTeam brig galley
-    (uid,tid,) <$> callIdpCreate apiVersion spar (Just uid) metadata
+    (uid,tid,) <$> callIdpCreate apiVer spar (Just uid) metadata
 
 getCookie :: KnownSymbol name => proxy name -> ResponseLBS -> Either String (SAML.SimpleSetCookie name)
 getCookie proxy rsp = do
@@ -850,7 +850,7 @@ hasPersistentCookieHeader rsp = do
 tryLogin :: HasCallStack => SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
 tryLogin privkey idp userSubject = do
   env <- ask
-  let tid = idp ^. idpExtraInfo . wiTeam
+  let tid = idp ^. idpExtraInfo . team
   spmeta <- getTestSPMetadata tid
   (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
   idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
@@ -865,7 +865,7 @@ tryLogin privkey idp userSubject = do
 tryLoginFail :: HasCallStack => SignPrivCreds -> IdP -> NameID -> String -> TestSpar ()
 tryLoginFail privkey idp userSubject bodyShouldContain = do
   env <- ask
-  let tid = idp ^. idpExtraInfo . wiTeam
+  let tid = idp ^. idpExtraInfo . team
   spmeta <- getTestSPMetadata tid
   (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
   idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
@@ -946,7 +946,7 @@ loginCreatedSsoUser ::
   m (UserId, Cookie)
 loginCreatedSsoUser nameid idp privCreds = do
   env <- ask
-  let tid = idp ^. idpExtraInfo . wiTeam
+  let tid = idp ^. idpExtraInfo . team
   authnReq <- negotiateAuthnRequest idp
   spmeta <- getTestSPMetadata tid
   authnResp <- runSimpleSP $ mkAuthnResponseWithSubj nameid privCreds idp spmeta authnReq True

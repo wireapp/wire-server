@@ -43,14 +43,51 @@ where
 import Amazonka (AWSRequest, AWSResponse)
 import qualified Amazonka as AWS
 import qualified Amazonka.S3 as S3
-import CargoHold.CloudFront
-import CargoHold.Options
+import CargoHold.CloudFront (CloudFront, initCloudFront)
+import CargoHold.Options (CloudFrontOpts, domain, keyPairId, privateKey)
 import Conduit
-import Control.Lens hiding ((.=))
+  ( MonadIO (..),
+    MonadResource,
+    MonadUnliftIO,
+    ResourceT,
+    runResourceT,
+  )
+import Control.Lens (makeLenses, view, (&), (.~), (<&>), (^.))
 import Control.Monad.Catch
+  ( Exception,
+    MonadCatch,
+    MonadMask,
+    MonadThrow (..),
+  )
 import Control.Retry
+  ( RetryPolicyM,
+    exponentialBackoff,
+    limitRetries,
+    retrying,
+  )
 import Data.ByteString.Builder (toLazyByteString)
 import Imports
+  ( Applicative (pure),
+    Bool (..),
+    Either (..),
+    Eq ((==)),
+    Functor,
+    IO,
+    Maybe (..),
+    Monad ((>>=)),
+    MonadReader,
+    ReaderT (..),
+    Semigroup ((<>)),
+    Show (show),
+    Text,
+    Typeable,
+    const,
+    either,
+    ($),
+    (.),
+    (<$>),
+    (=<<),
+  )
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
 import qualified System.Logger as Logger
 import System.Logger.Class (Logger, MonadLogger (log), (~~))
@@ -116,7 +153,7 @@ mkEnv lgr s3End s3AddrStyle s3Download bucket cfOpts mgr = do
   cf <- mkCfEnv cfOpts
   pure (Env g bucket e s3Download cf)
   where
-    mkCfEnv (Just o) = Just <$> initCloudFront (o ^. cfPrivateKey) (o ^. cfKeyPairId) 300 (o ^. cfDomain)
+    mkCfEnv (Just o) = Just <$> initCloudFront (o ^. privateKey) (o ^. keyPairId) 300 (o ^. domain)
     mkCfEnv Nothing = pure Nothing
     mkAwsEnv g s3 = do
       baseEnv <-
@@ -172,7 +209,7 @@ exec ::
   (Text -> r) ->
   m (AWSResponse r)
 exec env request = do
-  let req = request (_s3Bucket env)
+  let req = request env._s3Bucket
   resp <- execute env (sendCatch (env ^. amazonkaEnv) req)
   case resp of
     Left err -> do
@@ -191,7 +228,7 @@ execStream ::
   (Text -> r) ->
   ResourceT IO (AWSResponse r)
 execStream env request = do
-  let req = request (_s3Bucket env)
+  let req = request env._s3Bucket
   resp <- sendCatch (env ^. amazonkaEnv) req
   case resp of
     Left err -> do
@@ -210,7 +247,7 @@ execCatch ::
   (Text -> r) ->
   m (Maybe (AWSResponse r))
 execCatch env request = do
-  let req = request (_s3Bucket env)
+  let req = request env._s3Bucket
   resp <- execute env (retrying retry5x (const canRetry) (const (sendCatch (env ^. amazonkaEnv) req)))
   case resp of
     Left err -> do

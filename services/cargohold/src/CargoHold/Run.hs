@@ -25,35 +25,55 @@ where
 import AWS.Util (readAuthExpiration)
 import qualified Amazonka as AWS
 import CargoHold.API.Federation
-import CargoHold.API.Public
+  ( FederationAPI,
+    federationSitemap,
+  )
+import CargoHold.API.Public (internalSitemap, servantSitemap)
 import CargoHold.AWS (amazonkaEnv)
 import CargoHold.App
-import CargoHold.Options
+  ( Env,
+    Handler,
+    appLogger,
+    aws,
+    closeEnv,
+    metrics,
+    newEnv,
+    requestId,
+    runHandler,
+  )
+import CargoHold.Options (Opts, cargohold, disabledAPIVersions, federationDomain, settings)
 import Control.Exception (bracket)
 import Control.Lens (set, (^.))
 import Control.Monad.Codensity
-import Data.Default
-import Data.Id
+  ( Codensity (Codensity),
+    lowerCodensity,
+  )
+import Data.Default (Default (def))
+import Data.Id (RequestId (RequestId))
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
-import Data.Metrics.Servant
-import Data.Proxy
+import Data.Metrics.Servant (servantPrometheusMiddleware)
+import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
 import Imports
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gzip as GZip
-import Network.Wai.Utilities.Request
+import Network.Wai.Utilities.Request (lookupRequestId)
 import Network.Wai.Utilities.Server
+  ( catchErrors,
+    defaultServer,
+    runSettingsWithShutdown,
+  )
 import qualified Network.Wai.Utilities.Server as Server
 import qualified Servant
-import Servant.API
-import Servant.Server hiding (Handler, runHandler)
+import Servant.API (type (:<|>) (..))
+import Servant.Server (Application, Context ((:.)))
 import qualified UnliftIO.Async as Async
-import Util.Options
-import Wire.API.Routes.API
-import Wire.API.Routes.Internal.Cargohold
-import Wire.API.Routes.Public.Cargohold
-import Wire.API.Routes.Version.Wai
+import Util.Options (host, port)
+import Wire.API.Routes.API (hoistServerWithDomain)
+import Wire.API.Routes.Internal.Cargohold (InternalAPI)
+import Wire.API.Routes.Public.Cargohold (ServantAPI)
+import Wire.API.Routes.Version.Wai (versionMiddleware)
 
 type CombinedAPI = FederationAPI :<|> ServantAPI :<|> InternalAPI
 
@@ -65,8 +85,8 @@ run o = lowerCodensity $ do
     s <-
       Server.newSettings $
         defaultServer
-          (unpack $ o ^. optCargohold . epHost)
-          (o ^. optCargohold . epPort)
+          (unpack $ o ^. cargohold . host)
+          (o ^. cargohold . port)
           (e ^. appLogger)
           (e ^. metrics)
     runSettingsWithShutdown s app Nothing
@@ -78,7 +98,7 @@ mkApp o = Codensity $ \k ->
   where
     middleware :: Env -> Wai.Middleware
     middleware e =
-      versionMiddleware (fold (o ^. optSettings . setDisabledAPIVersions))
+      versionMiddleware (fold (o ^. settings . disabledAPIVersions))
         . servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.def
         . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
@@ -87,7 +107,7 @@ mkApp o = Codensity $ \k ->
       let e = set requestId (maybe def RequestId (lookupRequestId r)) e0
        in Servant.serveWithContext
             (Proxy @CombinedAPI)
-            ((o ^. optSettings . setFederationDomain) :. Servant.EmptyContext)
+            ((o ^. settings . federationDomain) :. Servant.EmptyContext)
             ( hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
                 :<|> hoistServerWithDomain @ServantAPI (toServantHandler e) servantSitemap
                 :<|> hoistServerWithDomain @InternalAPI (toServantHandler e) internalSitemap

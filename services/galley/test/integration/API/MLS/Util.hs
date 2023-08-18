@@ -94,10 +94,10 @@ mapRemoteKeyPackageRef ::
   (Request -> Request) ->
   KeyPackageBundle ->
   m ()
-mapRemoteKeyPackageRef brig bundle =
+mapRemoteKeyPackageRef galleyCall bundle =
   void $
     put
-      ( brig
+      ( galleyCall
           . paths ["i", "mls", "key-package-refs"]
           . json bundle
       )
@@ -113,9 +113,9 @@ postMessage ::
   ByteString ->
   m ResponseLBS
 postMessage sender msg = do
-  galley <- viewGalley
+  galleyCall <- viewGalley
   post
-    ( galley
+    ( galleyCall
         . paths ["mls", "messages"]
         . zUser (ciUser sender)
         . zClient (ciClient sender)
@@ -134,9 +134,9 @@ postCommitBundle ::
   ByteString ->
   m ResponseLBS
 postCommitBundle sender bundle = do
-  galley <- viewGalley
+  galleyCall <- viewGalley
   post
-    ( galley
+    ( galleyCall
         . paths ["mls", "commit-bundles"]
         . zUser (ciUser sender)
         . zClient (ciClient sender)
@@ -156,9 +156,9 @@ postWelcome ::
   ByteString ->
   m ResponseLBS
 postWelcome uid welcome = do
-  galley <- view tsUnversionedGalley
+  galleyCall <- view tsUnversionedGalley
   post
-    ( galley
+    ( galleyCall
         . paths ["v2", "mls", "welcome"]
         . zUser uid
         . zConn "conn"
@@ -190,7 +190,7 @@ mkAppAckProposalMessage gid epoch ref mrs priv pub = do
 
 saveRemovalKey :: FilePath -> TestM ()
 saveRemovalKey fp = do
-  keys <- fromJust <$> view (tsGConf . optSettings . setMlsPrivateKeyPaths)
+  keys <- fromJust <$> view (tsGConf . settings . mlsPrivateKeyPaths)
   keysByPurpose <- liftIO $ loadAllMLSKeys keys
   let (_, pub) = fromJust (mlsKeyPair_ed25519 (keysByPurpose RemovalPurpose))
   liftIO $ BS.writeFile fp (BA.convert pub)
@@ -293,10 +293,10 @@ createLocalMLSClient (tUntagged -> qusr) = do
 
   -- set public key
   pkey <- mlscli qcid ["public-key"] Nothing
-  brig <- viewBrig
+  galleyCall <- viewBrig
   let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 pkey}
   put
-    ( brig
+    ( galleyCall
         . paths ["clients", toByteString' . ciClient $ qcid]
         . zUser (ciUser qcid)
         . json update
@@ -325,9 +325,9 @@ uploadNewKeyPackage qcid = do
   (kp, _) <- generateKeyPackage qcid
 
   -- upload key package
-  brig <- viewBrig
+  brigCall <- viewBrig
   post
-    ( brig
+    ( brigCall
         . paths ["mls", "key-packages", "self", toByteString' . ciClient $ qcid]
         . zUser (ciUser qcid)
         . json (KeyPackageUpload [kp])
@@ -480,10 +480,10 @@ keyPackageFile qcid ref =
 
 claimLocalKeyPackages :: HasCallStack => ClientIdentity -> Local UserId -> MLSTest KeyPackageBundle
 claimLocalKeyPackages qcid lusr = do
-  brig <- viewBrig
+  brigCall <- viewBrig
   responseJsonError
     =<< post
-      ( brig
+      ( brigCall
           . paths ["mls", "key-packages", "claim", toByteString' (tDomain lusr), toByteString' (tUnqualified lusr)]
           . zUser (ciUser qcid)
       )
@@ -503,7 +503,7 @@ getUserClients qusr = do
 -- | Generate one key package for each client of a remote user
 claimRemoteKeyPackages :: HasCallStack => Remote UserId -> MLSTest KeyPackageBundle
 claimRemoteKeyPackages (tUntagged -> qusr) = do
-  brig <- viewBrig
+  brigCall <- viewBrig
   clients <- getUserClients qusr
   bundle <- fmap (KeyPackageBundle . Set.fromList) $
     for clients $ \cid -> do
@@ -515,7 +515,7 @@ claimRemoteKeyPackages (tUntagged -> qusr) = do
             kpbeRef = ref,
             kpbeKeyPackage = KeyPackageData (rmRaw kp)
           }
-  mapRemoteKeyPackageRef brig bundle
+  mapRemoteKeyPackageRef brigCall bundle
   pure bundle
 
 -- | Claim key package for a local user, or generate and map key packages for remote ones.
@@ -997,9 +997,9 @@ getGroupInfo ::
   Qualified ConvId ->
   m ResponseLBS
 getGroupInfo sender qcnv = do
-  galley <- viewGalley
+  galleyCall <- viewGalley
   get
-    ( galley
+    ( galleyCall
         . paths
           [ "conversations",
             toByteString' (qDomain qcnv),
@@ -1025,4 +1025,4 @@ getSelfConv u = do
 withMLSDisabled :: HasSettingsOverrides m => m a -> m a
 withMLSDisabled = withSettingsOverrides noMLS
   where
-    noMLS = Opts.optSettings . Opts.setMlsPrivateKeyPaths .~ Nothing
+    noMLS = Opts.settings . Opts.mlsPrivateKeyPaths .~ Nothing

@@ -92,7 +92,6 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
-import Wire.API.Federation.API.Galley
 import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
 import Wire.API.FederationUpdate (fetch)
@@ -145,7 +144,7 @@ onClientRemoved ::
     Member TinyLog r
   ) =>
   Domain ->
-  ClientRemovedRequest ->
+  F.ClientRemovedRequest ->
   Sem r EmptyResponse
 onClientRemoved domain req = do
   let qusr = Qualified req.user domain
@@ -461,7 +460,7 @@ updateConversation ::
   ) =>
   Domain ->
   F.ConversationUpdateRequest ->
-  Sem r ConversationUpdateResponse
+  Sem r F.ConversationUpdateResponse
 updateConversation origDomain updateRequest = do
   loc <- qualifyLocal ()
   let rusr = toRemoteUnsafe origDomain updateRequest.user
@@ -536,8 +535,8 @@ handleMLSMessageErrors ::
               ': r
           )
   ) =>
-  Sem r1 MLSMessageResponse ->
-  Sem r MLSMessageResponse
+  Sem r1 F.MLSMessageResponse ->
+  Sem r F.MLSMessageResponse
 handleMLSMessageErrors =
   fmap (either (F.MLSMessageResponseProtocolError . unTagged) Imports.id)
     . runError @MLSProtocolError
@@ -653,7 +652,7 @@ mlsSendWelcome ::
   F.MLSWelcomeRequest ->
   Sem r F.MLSWelcomeResponse
 mlsSendWelcome _origDomain (fromBase64ByteString . F.mlsWelcomeRequest -> rawWelcome) =
-  fmap (either (const MLSWelcomeMLSNotEnabled) (const MLSWelcomeSent))
+  fmap (either (const F.MLSWelcomeMLSNotEnabled) (const F.MLSWelcomeSent))
     . runError @(Tagged 'MLSNotEnabled ())
     $ do
       assertMLSEnabled
@@ -685,7 +684,7 @@ onMLSMessageSent ::
   F.RemoteMLSMessage ->
   Sem r F.RemoteMLSMessageResponse
 onMLSMessageSent domain rmm =
-  fmap (either (const RemoteMLSMessageMLSNotEnabled) (const RemoteMLSMessageOk))
+  fmap (either (const F.RemoteMLSMessageMLSNotEnabled) (const F.RemoteMLSMessageOk))
     . runError @(Tagged 'MLSNotEnabled ())
     $ do
       assertMLSEnabled
@@ -746,7 +745,7 @@ updateTypingIndicator ::
   Domain ->
   F.TypingDataUpdateRequest ->
   Sem r F.TypingDataUpdateResponse
-updateTypingIndicator origDomain TypingDataUpdateRequest {..} = do
+updateTypingIndicator origDomain F.TypingDataUpdateRequest {..} = do
   let qusr = Qualified userId origDomain
   lcnv <- qualifyLocal convId
 
@@ -756,15 +755,15 @@ updateTypingIndicator origDomain TypingDataUpdateRequest {..} = do
       (conv, _) <- getConversationAndMemberWithError @'ConvNotFound qusr lcnv
       notifyTypingIndicator conv qusr Nothing typingStatus
 
-  pure (either TypingDataUpdateError TypingDataUpdateSuccess ret)
+  pure (either F.TypingDataUpdateError F.TypingDataUpdateSuccess ret)
 
 onTypingIndicatorUpdated ::
   ( Member GundeckAccess r
   ) =>
   Domain ->
-  TypingDataUpdated ->
+  F.TypingDataUpdated ->
   Sem r EmptyResponse
-onTypingIndicatorUpdated origDomain TypingDataUpdated {..} = do
+onTypingIndicatorUpdated origDomain F.TypingDataUpdated {..} = do
   let qcnv = Qualified convId origDomain
   pushTypingIndicatorEvents origUserId time usersInConv Nothing qcnv typingStatus
   pure EmptyResponse

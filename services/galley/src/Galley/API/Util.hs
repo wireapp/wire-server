@@ -792,7 +792,7 @@ registerRemoteConversationMemberships now lc = deleteOnUnreachable $ do
       \rrms ->
         fedClient @'Galley @"on-conversation-created"
           ( rc
-              { ccNonCreatorMembers =
+              { nonCreatorMembers =
                   toMembers (tUnqualified rrms)
               }
           )
@@ -906,7 +906,7 @@ anyLegalholdActivated ::
   Sem r Bool
 anyLegalholdActivated uids = do
   opts <- input
-  case view (optSettings . setFeatureFlags . flagLegalHold) opts of
+  case view (settings . featureFlags . flagLegalHold) opts of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> check
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> check
@@ -925,7 +925,7 @@ allLegalholdConsentGiven ::
   Sem r Bool
 allLegalholdConsentGiven uids = do
   opts <- input
-  case view (optSettings . setFeatureFlags . flagLegalHold) opts of
+  case view (settings . featureFlags . flagLegalHold) opts of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> do
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
@@ -970,7 +970,7 @@ ensureMemberLimit ::
   Sem r ()
 ensureMemberLimit old new = do
   o <- input
-  let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
+  let maxSize = fromIntegral (o ^. settings . maxConvSize)
   when (length old + length new > maxSize) $
     throwS @'TooManyMembers
 

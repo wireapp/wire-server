@@ -36,39 +36,92 @@ module CargoHold.S3
   )
 where
 
-import Amazonka hiding (Error)
+import Amazonka
+  ( AWSRequest (AWSResponse),
+    ChunkedBody (ChunkedBody),
+    Seconds (Seconds),
+    ToBody (toBody),
+    defaultChunkSize,
+    presignURL,
+    _ResponseBody,
+  )
 import Amazonka.S3
+  ( BucketName (BucketName),
+    GetObject,
+    MetadataDirective (MetadataDirective_REPLACE),
+    ObjectKey (ObjectKey),
+    PutObject,
+    newCopyObject,
+    newDeleteObject,
+    newGetObject,
+    newHeadObject,
+    newPutObject,
+  )
 import Amazonka.S3.Lens
-import CargoHold.API.Error
+  ( copyObject_contentType,
+    copyObject_metadata,
+    copyObject_metadataDirective,
+    getObjectResponse_body,
+    getObject_responseContentType,
+    headObjectResponse_contentType,
+    headObjectResponse_metadata,
+    putObject_contentType,
+    putObject_metadata,
+  )
+import CargoHold.API.Error (noMatchingAssetEndpoint, serverError)
 import CargoHold.AWS (amazonkaEnvWithDownloadEndpoint)
 import qualified CargoHold.AWS as AWS
-import CargoHold.App hiding (Env, Handler)
-import CargoHold.Options
+import CargoHold.App (App, aws, multiIngress, settings)
+import CargoHold.Options (downloadLinkTTL)
 import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
 import Conduit
+  ( ConduitM,
+    ConduitT,
+    ResourceT,
+    chunksOfCE,
+    (.|),
+  )
 import Control.Error (ExceptT, throwE)
-import Control.Lens hiding (parts, (.=), (:<), (:>))
+import Control.Lens (At (at), view, (.~), (?~), (^.))
 import Data.Bifunctor (first)
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
+  ( FromByteString,
+    ToByteString,
+    fromByteString,
+    toByteString,
+    toByteString',
+  )
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
-import Data.Conduit.Binary
+import Data.Conduit.Binary (isolate)
 import qualified Data.HashMap.Lazy as HML
 import Data.Id
+  ( AssetId,
+    BotId (botUserId),
+    ConvId,
+    Id (toUUID),
+    ProviderId,
+    UserId,
+  )
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1, encodeUtf8)
 import qualified Data.Text.Encoding as Text
-import Data.Time.Clock
+import Data.Time.Clock (getCurrentTime)
 import qualified Data.UUID as UUID
 import Imports
 import Network.Wai.Utilities.Error (Error (..))
 import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (.=), (~~))
 import URI.ByteString
+  ( URI,
+    parseURI,
+    strictURIParserOptions,
+    urlEncode,
+  )
 
 newtype S3AssetKey = S3AssetKey {s3Key :: Text}
   deriving (Eq, Show, ToByteString)
@@ -218,7 +271,7 @@ signedURL path mbHost = do
   e <- awsEnvForHost
   let b = view AWS.s3Bucket e
   now <- liftIO getCurrentTime
-  ttl <- view (settings . setDownloadLinkTTL)
+  ttl <- view (settings . downloadLinkTTL)
   let req = newGetObject (BucketName b) (ObjectKey . Text.decodeLatin1 $ toByteString' path)
   signed <-
     presignURL (amazonkaEnvWithDownloadEndpoint e) now (Seconds (fromIntegral ttl)) req

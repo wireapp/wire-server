@@ -48,17 +48,17 @@ newtype IdPHandle = IdPHandle {unIdPHandle :: Text}
   deriving (Eq, Ord, Show, FromJSON, ToJSON, ToSchema, Arbitrary, Generic)
 
 data WireIdP = WireIdP
-  { _wiTeam :: TeamId,
+  { _team :: TeamId,
     -- | list of issuer names that this idp has replaced, most recent first.  this is used
     -- for finding users that are still stored under the old issuer, see
     -- 'findUserWithOldIssuer', 'moveUserToNewIssuer'.
-    _wiApiVersion :: Maybe WireIdPAPIVersion,
-    _wiOldIssuers :: [SAML.Issuer],
+    _apiVersion :: Maybe WireIdPAPIVersion,
+    _oldIssuers :: [SAML.Issuer],
     -- | the issuer that has replaced this one.  this is set iff a new issuer is created
     -- with the @"replaces"@ query parameter, and it is used to decide whether users not
     -- existing on this IdP can be auto-provisioned (if 'isJust', they can't).
-    _wiReplacedBy :: Maybe SAML.IdPId,
-    _wiHandle :: IdPHandle
+    _replacedBy :: Maybe SAML.IdPId,
+    _handle :: IdPHandle
   }
   deriving (Eq, Show, Generic)
 
@@ -124,7 +124,7 @@ instance Cql.Cql WireIdPAPIVersion where
 -- | A list of 'IdP's, returned by some endpoints. Wrapped into an object to
 -- allow extensibility later on.
 data IdPList = IdPList
-  { _idplProviders :: [IdP]
+  { _providers :: [IdP]
   }
   deriving (Eq, Show, Generic)
 

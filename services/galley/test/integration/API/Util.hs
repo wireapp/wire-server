@@ -2706,7 +2706,7 @@ withTempMockFederator' resp action = do
     [("Content-Type", "application/json")]
     mock
     $ \mockPort -> do
-      withSettingsOverrides (\opts -> opts & Opts.optFederator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
+      withSettingsOverrides (\opts -> opts & Opts.federator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
 
 -- Starts a servant Application in Network.Wai.Test session and runs the
 -- FederatedRequest against it.

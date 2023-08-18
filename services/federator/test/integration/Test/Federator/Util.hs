@@ -26,37 +26,71 @@
 module Test.Federator.Util where
 
 import Bilge
-import Bilge.Assert
-import Control.Exception
-import Control.Lens hiding ((.=))
-import Control.Monad.Catch
-import Control.Monad.Except
+  ( Manager,
+    MonadHttp (..),
+    Request,
+    RequestBody (RequestBodyLBS),
+    ResponseLBS,
+    body,
+    contentJson,
+    header,
+    host,
+    json,
+    newManager,
+    path,
+    port,
+    post,
+    put,
+    responseJsonError,
+    statusCode,
+    withResponse,
+  )
+import Bilge.Assert ((<!!), (===))
+import Control.Exception (ErrorCall (ErrorCall), throwIO)
+import Control.Lens (makeLenses, to, (^.))
+import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Crypto.Random.Types (MonadRandom, getRandomBytes)
 import Data.Aeson
-import Data.Aeson.TH
+  ( FromJSON (parseJSON),
+    KeyValue ((.=)),
+    encode,
+    object,
+  )
+import Data.Aeson.TH (deriveFromJSON)
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Char8 qualified as C8
-import Data.Id
-import Data.Misc
+import Data.Id (TeamId, UserId)
+import Data.Misc (PlainTextPassword6, plainTextPassword6Unsafe)
 import Data.Text qualified as Text
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Data.Yaml qualified as Yaml
-import Federator.Options
-import Federator.Run
+import Federator.Monitor (mkTLSSettingsOrThrow)
+import Federator.Options (Opts (optSettings), RunSettings)
 import Imports
 import Network.Connection qualified
-import Network.HTTP.Client.TLS
+import Network.HTTP.Client.TLS (mkManagerSettings)
 import OpenSSL.Session (SSLContext)
 import Options.Applicative qualified as OPA
-import Polysemy
-import Polysemy.Error
-import System.Random
-import Test.Federator.JSON
-import Test.Tasty.HUnit
-import Util.Options
+import Polysemy (Embed, Member, Sem, embed)
+import Polysemy.Error (Error, runError)
+import System.Random (randomRIO)
+import Test.Federator.JSON (deriveJSONOptions)
+import Test.Tasty.HUnit (assertFailure)
+import Util.Options (Endpoint)
+import Util.Options qualified as O
 import Wire.API.User
-import Wire.API.User.Auth
+  ( Email (Email),
+    Name (..),
+    NewUser,
+    Phone,
+    User,
+    UserSSOId,
+    fromEmail,
+    parseEmail,
+    parsePhone,
+  )
+import Wire.API.User.Auth (CookieLabel (CookieLabel))
 
 type BrigReq = Request -> Request
 
@@ -104,11 +138,11 @@ data TestEnv = TestEnv
 type Select = TestEnv -> (Request -> Request)
 
 data IntegrationConfig = IntegrationConfig
-  { cfgBrig :: Endpoint,
-    cfgCargohold :: Endpoint,
-    cfgFederatorExternal :: Endpoint,
-    cfgNginxIngress :: Endpoint,
-    cfgOriginDomain :: Text
+  { brig :: Endpoint,
+    cargohold :: Endpoint,
+    federatorExternal :: Endpoint,
+    nginxIngress :: Endpoint,
+    originDomain :: Text
   }
   deriving (Show, Generic)
 
@@ -152,8 +186,8 @@ mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   let managerSettings = mkManagerSettings (Network.Connection.TLSSettingsSimple True False False) Nothing
   _teMgr :: Manager <- newManager managerSettings
-  let _teBrig = endpointToReq (cfgBrig _teTstOpts)
-      _teCargohold = endpointToReq (cfgCargohold _teTstOpts)
+  let _teBrig = endpointToReq _teTstOpts.brig
+      _teCargohold = endpointToReq _teTstOpts.cargohold
   -- _teTLSSettings <- mkTLSSettingsOrThrow (optSettings _teOpts)
   _teSSLContext <- mkTLSSettingsOrThrow (optSettings _teOpts)
   let _teSettings = optSettings _teOpts
@@ -163,7 +197,7 @@ destroyEnv :: HasCallStack => TestEnv -> IO ()
 destroyEnv _ = pure ()
 
 endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
-endpointToReq ep = Bilge.host (ep ^. epHost . to cs) . Bilge.port (ep ^. epPort)
+endpointToReq ep = Bilge.host (ep ^. O.host . to cs) . Bilge.port (ep ^. O.port)
 
 -- All the code below is copied from brig-integration tests
 -- FUTUREWORK: This should live in another package and shared by all the integration tests

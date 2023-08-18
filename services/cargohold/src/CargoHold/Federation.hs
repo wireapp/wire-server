@@ -77,7 +77,7 @@ mkFederatorClientEnv :: Remote x -> Handler FederatorClientEnv
 mkFederatorClientEnv remote = do
   loc <- view localUnit
   endpoint <-
-    view (options . optFederator)
+    view (options . federator)
       >>= maybe (throwE federationNotConfigured) pure
   mgr <- view http2Manager
   pure

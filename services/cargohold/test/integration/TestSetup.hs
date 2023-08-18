@@ -37,40 +37,63 @@ module TestSetup
   )
 where
 
-import Bilge hiding (body, responseBody)
-import CargoHold.Options
+import Bilge.IO
+  ( Http,
+    Manager,
+    ManagerSettings (managerResponseTimeout),
+    newManager,
+    runHttpT,
+  )
+import Bilge.Request (Request, host, port)
+import CargoHold.Options (Opts, federationDomain, settings)
 import Control.Exception (catch)
-import Control.Lens
+import Control.Lens (makeLenses, view)
 import Control.Monad.Codensity
-import Control.Monad.Except
-import Control.Monad.Morph
+  ( Codensity (Codensity),
+    lowerCodensity,
+  )
+import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
+import Control.Monad.Morph (MFunctor (hoist))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as B8
-import Data.ByteString.Conversion
+import Data.ByteString.Conversion (toByteString')
 import qualified Data.Text as T
-import Data.Text.Encoding
-import Data.Yaml
+import Data.Text.Encoding (encodeUtf8)
+import Data.Yaml (FromJSON, decodeFileEither, decodeFileThrow)
 import Imports
-import Network.HTTP.Client hiding (responseBody)
+import Network.HTTP.Client
+  ( Request (requestHeaders),
+    responseTimeoutMicro,
+  )
 import qualified Network.HTTP.Client as HTTP
-import Network.HTTP.Client.TLS
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import qualified Network.Wai.Utilities.Error as Wai
 import Servant.Client.Streaming
-import Test.Tasty
-import Test.Tasty.HUnit
-import Util.Options
-import Util.Options.Common
-import Util.Test
-import Web.HttpApiData
-import Wire.API.Federation.Domain
-import Wire.API.Routes.Version
+  ( BaseUrl (BaseUrl),
+    ClientEnv (makeClientRequest),
+    ClientError (FailureResponse),
+    ClientM,
+    ResponseF (responseBody, responseStatusCode),
+    Scheme (Http),
+    defaultMakeClientRequest,
+    mkClientEnv,
+    withClientM,
+  )
+import Test.Tasty (TestName, TestTree)
+import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
+import Util.Options (Endpoint (..))
+import Util.Options.Common (optOrEnv)
+import Util.Test (handleParseError)
+import Web.HttpApiData (ToHttpApiData (toHeader))
+import Wire.API.Federation.Domain (originDomainHeaderName)
+import Wire.API.Routes.Version (Version)
 
 type Cargohold = Request -> Request
 
 type TestM = ReaderT TestSetup Http
 
 mkRequest :: Endpoint -> Request -> Request
-mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
+mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
 
 data TestSetup = TestSetup
   { _tsManager :: Manager,
@@ -151,10 +174,10 @@ createTestSetup optsPath configPath = do
       tlsManagerSettings
         { managerResponseTimeout = responseTimeoutMicro 300000000
         }
-  let localEndpoint p = Endpoint {_epHost = "127.0.0.1", _epPort = p}
+  let localEndpoint p = Endpoint {_host = "127.0.0.1", _port = p}
   iConf <- handleParseError =<< decodeFileEither configPath
   opts <- decodeFileThrow optsPath
-  endpoint <- optOrEnv cargohold iConf (localEndpoint . read) "CARGOHOLD_WEB_PORT"
+  endpoint <- optOrEnv @IntegrationConfig (.cargohold) iConf (localEndpoint . read) "CARGOHOLD_WEB_PORT"
   pure $
     TestSetup
       { _tsManager = m,
@@ -166,7 +189,7 @@ runFederationClient :: ClientM a -> ReaderT TestSetup (ExceptT ClientError (Code
 runFederationClient action = do
   man <- view tsManager
   Endpoint cHost cPort <- view tsEndpoint
-  domain <- view (tsOpts . optSettings . setFederationDomain)
+  domain <- view (tsOpts . settings . federationDomain)
   let base = BaseUrl Http (T.unpack cHost) (fromIntegral cPort) "/federation"
   let env =
         (mkClientEnv man base)

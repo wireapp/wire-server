@@ -62,7 +62,7 @@ import qualified Web.Scim.Schema.User.Phone as Phone
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
-import Wire.API.User.IdentityProvider
+import Wire.API.User.IdentityProvider (IdP, IdPMetadataInfo)
 import Wire.API.User.RichInfo
 import Wire.API.User.Scim
 

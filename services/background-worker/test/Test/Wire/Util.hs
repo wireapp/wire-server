@@ -2,15 +2,15 @@
 
 module Test.Wire.Util where
 
-import Control.Concurrent.Chan
+import Control.Concurrent.Chan (newChan)
 import Imports
-import Network.HTTP.Client
+import Network.HTTP.Client (defaultManagerSettings, newManager, responseTimeoutNone)
 import System.Logger.Class qualified as Logger
-import Util.Options
-import Wire.API.Routes.FederationDomainConfig
+import Util.Options (Endpoint (..))
+import Wire.API.Routes.FederationDomainConfig (defFederationDomainConfigs)
 import Wire.BackgroundWorker.Env hiding (federatorInternal, galley)
 import Wire.BackgroundWorker.Env qualified as E
-import Wire.BackgroundWorker.Util
+import Wire.BackgroundWorker.Util (RabbitMQEnvelope (..))
 
 testEnv :: IO Env
 testEnv = do

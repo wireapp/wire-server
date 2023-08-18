@@ -64,7 +64,7 @@ run opts = do
           -- Close the channel. `extended` will then close the connection, flushing messages to the server.
           Log.info l $ Log.msg $ Log.val "Closing RabbitMQ channel"
           Q.closeChannel chan
-  let server = defaultServer (cs $ opts.backgroundWorker._epHost) opts.backgroundWorker._epPort env.logger env.metrics
+  let server = defaultServer (cs $ opts.backgroundWorker._host) opts.backgroundWorker._port env.logger env.metrics
   settings <- newSettings server
   -- Additional cleanup when shutting down via signals.
   runSettingsWithCleanup cleanup settings (servantApp env) Nothing

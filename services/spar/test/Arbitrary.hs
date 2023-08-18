@@ -39,9 +39,7 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 
 instance Arbitrary IdPList where
-  arbitrary = do
-    _idplProviders <- arbitrary
-    pure $ IdPList {..}
+  arbitrary = IdPList <$> arbitrary
 
 instance Arbitrary WireIdP where
   arbitrary = WireIdP <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary

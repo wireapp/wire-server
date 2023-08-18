@@ -28,23 +28,20 @@ import System.Posix.Env qualified as Posix
 -- NOTE: We typically use this for options in the configuration files!
 -- If you are looking into converting record field name to JSON to be used
 -- over the API, look for toJSONFieldName in the Data.Json.Util module.
--- It removes the prefix (assumed to be anything before an uppercase
--- character) and lowers the first character
+-- It converts field names into snake_case
 --
 -- Example:
--- newtype TeamName = TeamName { tnTeamName :: Text }
--- deriveJSON toJSONFieldName ''tnTeamName
+-- newtype TeamName = TeamName { teamName :: Text }
+-- deriveJSON toJSONFieldName ''teamName
 --
 -- would generate {To/From}JSON instances where
 -- the field name is "teamName"
 toOptionFieldName :: Options
-toOptionFieldName = defaultOptions {fieldLabelModifier = lowerFirst . dropPrefix}
+toOptionFieldName = defaultOptions {fieldLabelModifier = lowerFirst}
   where
     lowerFirst :: String -> String
     lowerFirst (x : xs) = toLower x : xs
     lowerFirst [] = ""
-    dropPrefix :: String -> String
-    dropPrefix = dropWhile (not . isUpper)
 
 optOrEnv :: (a -> b) -> Maybe a -> (String -> b) -> String -> IO b
 optOrEnv getter conf reader var = case conf of

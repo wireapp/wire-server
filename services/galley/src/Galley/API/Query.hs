@@ -690,7 +690,7 @@ getConversationGuestLinksFeatureStatus ::
   Maybe TeamId ->
   Sem r (WithStatus GuestLinksConfig)
 getConversationGuestLinksFeatureStatus mbTid = do
-  defaultStatus :: WithStatus GuestLinksConfig <- input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
+  defaultStatus :: WithStatus GuestLinksConfig <- input <&> view (settings . featureFlags . flagConversationGuestLinks . unDefaults)
   case mbTid of
     Nothing -> pure defaultStatus
     Just tid -> do

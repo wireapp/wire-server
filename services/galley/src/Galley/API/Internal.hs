@@ -78,7 +78,7 @@ import Galley.Effects.ProposalStore
 import Galley.Effects.TeamStore
 import Galley.Intra.Push qualified as Intra
 import Galley.Monad
-import Galley.Options
+import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
@@ -571,7 +571,7 @@ deleteFederationDomainRemoteUserFromLocalConversations (fromRange -> maxPage) do
       getPaginatedData page
   env <- input
   let lCnvMap = foldr insertIntoMap mempty remoteUsers
-      localDomain = env ^. Galley.App.options . optSettings . setFederationDomain
+      localDomain = env ^. Galley.App.options . Galley.Options.settings . federationDomain
   for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
     let mapAllErrors ::
           Text ->
