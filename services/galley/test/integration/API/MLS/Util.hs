@@ -83,9 +83,9 @@ import Wire.API.User.Client.Prekey
 
 cid2Str :: ClientIdentity -> String
 cid2Str cid =
-  show (ciUser cid)
+  show cid.ciUser
     <> ":"
-    <> T.unpack (client . ciClient $ cid)
+    <> T.unpack cid.ciClient.client
     <> "@"
     <> T.unpack (domainText (ciDomain cid))
 

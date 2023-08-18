@@ -104,10 +104,11 @@ import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
 import Wire.API.Connection
-import Wire.API.Conversation (Access (..), AccessRole (..), ConvIdsPage (..), ConvType (..), Conversation (..), ConversationPagingState (..), GetPaginatedConversationIds (..), ListConversations (..), Member (..), NewConv (..), OtherMember (..), OtherMemberUpdate (..), ReceiptMode (..))
+import Wire.API.Conversation (Access (..), AccessRole (..), ConvIdsPage, ConvTeamInfo (..), ConvType (..), Conversation (..), ConversationMetadata (..), ConversationPagingState, GetPaginatedConversationIds, InviteQualified (..), ListConversations (..), Member (..), NewConv (..), OtherMember (..), OtherMemberUpdate (..), ReceiptMode (..), cnvCreator, cnvMessageTimer, convList, crFound, pattern GetPaginatedConversationIds)
+import Wire.API.Conversation qualified as Conv
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code hiding (Value)
-import Wire.API.Conversation.Member (MemberUpdate (..))
+import Wire.API.Conversation.Member (MemberUpdate (..), cmOthers, cmSelf)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -119,32 +120,33 @@ import Wire.API.Event.Team qualified as TE
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
-import Wire.API.Federation.API.Galley (ConversationCreated (..), RemoteConversation)
+import Wire.API.Federation.API.Galley (ConversationCreated (..), ConversationUpdate (..), RemoteConvMembers (..), RemoteConversation (..))
 import Wire.API.Federation.Domain (originDomainHeaderName)
-import Wire.API.Internal.Notification (Notification (..), NotificationId (..), QueuedNotification (..), QueuedNotificationList (..))
+import Wire.API.Internal.Notification (Notification (..), NotificationId, QueuedNotification, QueuedNotificationList, queuedHasMore, queuedNotificationId, queuedNotificationPayload, queuedNotifications, queuedTime)
 import Wire.API.MLS.KeyPackage (KeyPackageRef (..))
-import Wire.API.MLS.Message (Message (..), MessagePayload (..), Sender (..), WireFormatTag (..), tbsMsgPayload)
+import Wire.API.MLS.Message (Message (..), MessagePayload (..), Sender (..), WireFormatTag (..), tbsMsgEpoch, tbsMsgPayload, tbsMsgSender)
 import Wire.API.MLS.Proposal (Proposal (..))
-import Wire.API.MLS.Serialisation (ParseMLS (..), decodeMLS')
-import Wire.API.Message (ClientMismatchStrategy (..), OtrRecipients (..), UserClients (..))
+import Wire.API.MLS.Serialisation (ParseMLS (..), decodeMLS', rmValue)
+import Wire.API.Message (ClientMismatchStrategy (..), OtrRecipients (..), UserClients (..), deletedClients, missingClients, mkQualifiedOtrPayload, mssDeletedClients, mssFailedToConfirmClients, mssFailedToSend, mssMissingClients, mssRedundantClients, protoFromOtrRecipients, redundantClients)
 import Wire.API.Message.Proto qualified as Proto
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus (..))
-import Wire.API.Routes.Internal.Galley.ConversationsIntra (UpsertOne2OneConversationRequest (..))
+import Wire.API.Routes.Internal.Galley.ConversationsIntra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), uuorConvId)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
-import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamData (..), TeamStatus (..))
+import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamData (..), TeamStatus (..), TeamStatusUpdate (..))
+import Wire.API.Routes.MultiTablePaging (mtpResults)
 import Wire.API.Routes.Version (Version (..))
-import Wire.API.Team (Team (..), TeamList (..), TeamUpdateData (..))
-import Wire.API.Team.Feature (FeatureSymbol (..))
+import Wire.API.Team (BindingNewTeam (..), Icon (..), Team (..), TeamList (..), TeamUpdateData (..), newNewTeam, teamId, teamListTeams)
+import Wire.API.Team.Feature (FeatureSymbol (..), featureNameBS)
 import Wire.API.Team.Invitation (Invitation (..), InvitationRequest (..))
-import Wire.API.Team.Member (TeamMember (..), TeamMemberList (..), newTeamMemberDeleteData)
+import Wire.API.Team.Member (TeamMember, TeamMemberList, mkNewTeamMember, newTeamMemberDeleteData)
 import Wire.API.Team.Member qualified as Team
-import Wire.API.Team.Permission (Perm (..), Permissions (..))
+import Wire.API.Team.Permission (Perm (..), Permissions (..), fullPermissions, newPermissions)
 import Wire.API.Team.Role (Role (..))
-import Wire.API.User (Email (..), InvitationCode (..), Name (..), SelfProfile (..), User (..), UserAccount (..), UserProfile (..), UserSSOId (..), UserSet (..), userId)
+import Wire.API.User (Email (..), HandleUpdate (..), InvitationCode (..), Name (..), SelfProfile (..), UpdateConnectionsInternal (..), User (..), UserAccount (..), UserIdList (..), UserProfile (..), UserSSOId (..), UserSet (..), defSupportedProtocols, defaultAccentId, fromEmail, mkSimpleSampleUref, noPict, userId)
 import Wire.API.User.Auth (CookieLabel (..))
-import Wire.API.User.Client (ClientCapability (..), UserClientsFull (..), newClientCapabilities, newClientPassword, updateClientCapabilities)
+import Wire.API.User.Client (ClientCapability (..), ClientType (..), UserClientMap (..), UserClientsFull (..), clientCapabilities, clientId, defUpdateClient, newClient, newClientCapabilities, newClientPassword, updateClientCapabilities)
 import Wire.API.User.Client qualified as Client
-import Wire.API.User.Client.Prekey (LastPrekey, Prekey (..))
+import Wire.API.User.Client.Prekey (LastPrekey, Prekey (..), PrekeyId (..), lastPrekey)
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -1599,15 +1601,15 @@ assertNotConvMember u c =
 
 assertConvEquals :: (HasCallStack, MonadIO m) => Conversation -> Conversation -> m ()
 assertConvEquals c1 c2 = liftIO $ do
-  assertEqual "id" (cnvQualifiedId c1) (cnvQualifiedId c2)
-  assertEqual "type" (cnvType c1) (cnvType c2)
-  assertEqual "creator" (cnvCreator c1) (cnvCreator c2)
+  assertEqual "id" c1.cnvQualifiedId c2.cnvQualifiedId
+  assertEqual "type" (Conv.cnvType c1) (Conv.cnvType c2)
+  assertEqual "creator" (Conv.cnvCreator c1) (Conv.cnvCreator c2)
   assertEqual "access" (accessSet c1) (accessSet c2)
-  assertEqual "name" (cnvName c1) (cnvName c2)
+  assertEqual "name" (Conv.cnvName c1) (Conv.cnvName c2)
   assertEqual "self member" (selfMember c1) (selfMember c2)
   assertEqual "other members" (otherMembers c1) (otherMembers c2)
   where
-    accessSet = Set.fromList . toList . cnvAccess
+    accessSet = Set.fromList . toList . Conv.cnvAccess
     selfMember = cmSelf . cnvMembers
     otherMembers = Set.fromList . cmOthers . cnvMembers
 
@@ -1640,9 +1642,9 @@ assertConvWithRole r t c s us n mt role = do
   let _self = cmSelf (cnvMembers cnv)
   let others = cmOthers (cnvMembers cnv)
   liftIO $ do
-    assertEqual "id" cId (qUnqualified (cnvQualifiedId cnv))
-    assertEqual "name" n (cnvName cnv)
-    assertEqual "type" t (cnvType cnv)
+    assertEqual "id" cId (qUnqualified cnv.cnvQualifiedId)
+    assertEqual "name" n (Conv.cnvName cnv)
+    assertEqual "type" t (Conv.cnvType cnv)
     assertEqual "creator" c (cnvCreator cnv)
     assertEqual "message_timer" mt (cnvMessageTimer cnv)
     assertEqual "self" s (memId _self)
@@ -1653,9 +1655,9 @@ assertConvWithRole r t c s us n mt role = do
     assertBool "otr archived not false" (not (memOtrArchived _self))
     assertBool "otr archived ref not empty" (isNothing (memOtrArchivedRef _self))
     case t of
-      SelfConv -> assertEqual "access" privateAccess (cnvAccess cnv)
-      ConnectConv -> assertEqual "access" privateAccess (cnvAccess cnv)
-      One2OneConv -> assertEqual "access" privateAccess (cnvAccess cnv)
+      SelfConv -> assertEqual "access" privateAccess (Conv.cnvAccess cnv)
+      ConnectConv -> assertEqual "access" privateAccess (Conv.cnvAccess cnv)
+      One2OneConv -> assertEqual "access" privateAccess (Conv.cnvAccess cnv)
       _ -> pure ()
   pure (cnvQualifiedId cnv)
 

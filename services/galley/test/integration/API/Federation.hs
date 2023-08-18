@@ -50,6 +50,7 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Conversation
+import Wire.API.Conversation qualified as Conv
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
@@ -149,21 +150,21 @@ getConversationsAllFound = do
         (qUnqualified aliceQ)
         (map qUnqualified [cnv1Id, cnvQualifiedId cnv2])
 
-  let c2 = find ((== qUnqualified (cnvQualifiedId cnv2)) . rcnvId) convs
+  let c2 = find ((== qUnqualified (cnvQualifiedId cnv2)) . (.id)) convs
 
   liftIO $ do
     assertEqual
       "name mismatch"
-      (Just $ cnvName cnv2)
-      (cnvmName . rcnvMetadata <$> c2)
+      (Just $ Conv.cnvName cnv2)
+      ((.metadata.cnvmName) <$> c2)
     assertEqual
       "self member role mismatch"
       (Just . memConvRoleName . cmSelf $ cnvMembers cnv2)
-      (rcmSelfRole . rcnvMembers <$> c2)
+      ((.members.selfRole) <$> c2)
     assertEqual
       "other members mismatch"
       (Just (sort [bob, qUnqualified carlQ]))
-      (fmap (sort . map (qUnqualified . omQualifiedId) . rcmOthers . rcnvMembers) c2)
+      (fmap (sort . map (qUnqualified . omQualifiedId) . (.members.others)) c2)
 
 -- @SF.Federation @TSFI.RESTfulAPI @S2
 --
@@ -761,9 +762,9 @@ leaveConversationSuccess = do
                 . json leaveRequest
             )
             <!! const 200 === statusCode
-        parsedResp <- responseJsonError respBS
+        parsedResp :: LeaveConversationResponse <- responseJsonError respBS
         liftIO $ do
-          FedGalley.leaveResponse parsedResp @?= Right mempty
+          parsedResp.response @?= Right mempty
           void . WS.assertMatch (3 # Second) wsAlice $
             wsAssertMembersLeave qconvId qChad [qChad]
           void . WS.assertMatch (3 # Second) wsBob $
@@ -782,8 +783,8 @@ leaveConversationNonExistent = do
   g <- viewGalley
   let leaveRequest = FedGalley.LeaveConversationRequest conv (qUnqualified alice)
   resp <-
-    fmap FedGalley.leaveResponse $
-      responseJsonError
+    fmap (.response) $
+      responseJsonError @_ @LeaveConversationResponse
         =<< post
           ( g
               . paths ["federation", "leave-conversation"]
@@ -806,8 +807,8 @@ leaveConversationInvalidType = do
   g <- viewGalley
   let leaveRequest = FedGalley.LeaveConversationRequest (qUnqualified conv) (tUnqualified bob)
   resp <-
-    fmap FedGalley.leaveResponse $
-      responseJsonError
+    fmap (.response) $
+      responseJsonError @_ @LeaveConversationResponse
         =<< post
           ( g
               . paths ["federation", "leave-conversation"]
@@ -857,15 +858,15 @@ onMessageSent = do
           Map.fromListWith (<>) [(alice, msg aliceC1), (alice, msg aliceC2), (eve, msg eveC)]
       rm =
         FedGalley.RemoteMessage
-          { FedGalley.rmTime = now,
-            FedGalley.rmData = Nothing,
-            FedGalley.rmSender = qbob,
-            FedGalley.rmSenderClient = fromc,
-            FedGalley.rmConversation = conv,
-            FedGalley.rmPriority = Nothing,
-            FedGalley.rmTransient = False,
-            FedGalley.rmPush = False,
-            FedGalley.rmRecipients = rcpts
+          { FedGalley.time = now,
+            FedGalley.data' = Nothing,
+            FedGalley.sender = qbob,
+            FedGalley.senderClient = fromc,
+            FedGalley.conversation = conv,
+            FedGalley.priority = Nothing,
+            FedGalley.transient = False,
+            FedGalley.push = False,
+            FedGalley.recipients = rcpts
           }
 
   -- send message to alice and check reception
@@ -950,9 +951,9 @@ sendMessage = do
       msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
       msr =
         FedGalley.ProteusMessageSendRequest
-          { FedGalley.pmsrConvId = convId,
-            FedGalley.pmsrSender = bobId,
-            FedGalley.pmsrRawMessage = Base64ByteString (Protolens.encodeMessage msg)
+          { FedGalley.convId = convId,
+            FedGalley.sender = bobId,
+            FedGalley.rawMessage = Base64ByteString (Protolens.encodeMessage msg)
           }
   let mock = do
         guardComponent Brig
@@ -1058,8 +1059,8 @@ onUserDeleted = do
     (resp, rpcCalls) <- withTempMockFederator' (mockReply EmptyResponse) $ do
       let udcn =
             FedGalley.UserDeletedConversationsNotification
-              { FedGalley.udcvUser = tUnqualified bob,
-                FedGalley.udcvConversations =
+              { FedGalley.user = tUnqualified bob,
+                FedGalley.conversations =
                   unsafeRange
                     [ qUnqualified ooConvId,
                       qUnqualified groupConvId,
@@ -1152,9 +1153,9 @@ updateConversationByRemoteAdmin = do
         -- bob updates the conversation
         let cnvUpdateRequest =
               ConversationUpdateRequest
-                { curUser = qUnqualified qbob,
-                  curConvId = qUnqualified cnv,
-                  curAction = action
+                { user = qUnqualified qbob,
+                  convId = qUnqualified cnv,
+                  action = action
                 }
         resp <- do
           fedGalleyClient <- view tsFedGalleyClient
