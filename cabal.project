@@ -46,6 +46,7 @@ packages:
   , tools/db/migrate-sso-feature-flag/
   , tools/db/move-team/
   , tools/db/repair-handles/
+  , tools/db/repair-brig-clients-table/
   , tools/db/service-backfill/
   , tools/fedcalls/
   , tools/rex/
