@@ -129,8 +129,9 @@ import Wire.API.MLS.Proposal (Proposal (..))
 import Wire.API.MLS.Serialisation (ParseMLS (..), decodeMLS', rmValue)
 import Wire.API.Message (ClientMismatchStrategy (..), OtrRecipients (..), UserClients (..), deletedClients, missingClients, mkQualifiedOtrPayload, mssDeletedClients, mssFailedToConfirmClients, mssFailedToSend, mssMissingClients, mssRedundantClients, protoFromOtrRecipients, redundantClients)
 import Wire.API.Message.Proto qualified as Proto
-import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus (..))
-import Wire.API.Routes.Internal.Galley.ConversationsIntra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), uuorConvId)
+import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (..))
+import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamData (..), TeamStatus (..), TeamStatusUpdate (..))
 import Wire.API.Routes.MultiTablePaging (mtpResults)
@@ -146,7 +147,8 @@ import Wire.API.User (Email (..), HandleUpdate (..), InvitationCode (..), Name (
 import Wire.API.User.Auth (CookieLabel (..))
 import Wire.API.User.Client (ClientCapability (..), ClientType (..), UserClientMap (..), UserClientsFull (..), clientCapabilities, clientId, defUpdateClient, newClient, newClientCapabilities, newClientPassword, updateClientCapabilities)
 import Wire.API.User.Client qualified as Client
-import Wire.API.User.Client.Prekey (LastPrekey, Prekey (..), PrekeyId (..), lastPrekey)
+import Wire.API.User.Client.Prekey
+import Wire.API.User.Search (FederatedUserSearchPolicy (..))
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -1405,6 +1407,31 @@ deleteFederation dom = do
   delete $
     g . paths ["/i/federation", toByteString' dom]
 
+addFederation ::
+  (MonadHttp m, HasBrig m, MonadIO m) =>
+  Domain ->
+  m ResponseLBS
+addFederation dom = do
+  b <- viewBrig
+  post $
+    b
+      . paths ["/i/federation/remotes"]
+      . json (FederationDomainConfig dom FullSearch)
+
+connectionRemovedFederation ::
+  (MonadHttp m, HasGalley m, MonadIO m) =>
+  Domain ->
+  Domain ->
+  m ResponseLBS
+connectionRemovedFederation origin target = do
+  g <- viewGalley
+  post $
+    g
+      . paths ["federation", "on-connection-removed"]
+      . content "application/json"
+      . header "Wire-Origin-Domain" (toByteString' origin)
+      . json target
+
 putQualifiedAccessUpdate ::
   (MonadHttp m, HasGalley m, MonadIO m) =>
   UserId ->
@@ -1784,8 +1811,25 @@ assertFederationDeletedEvent ::
   Fed.Event ->
   IO ()
 assertFederationDeletedEvent dom e = do
-  Fed._eventType e @?= Fed.FederationDelete
-  Fed._eventDomain e @?= dom
+  e @?= Fed.FederationDelete dom
+
+wsAssertFederationConnectionRemoved ::
+  HasCallStack =>
+  Domain ->
+  Domain ->
+  Notification ->
+  IO ()
+wsAssertFederationConnectionRemoved domA domB n = do
+  ntfTransient n @?= False
+  assertFederationConnectionRemovedEvent domA domB $ List1.head (WS.unpackPayload n)
+
+assertFederationConnectionRemovedEvent ::
+  Domain ->
+  Domain ->
+  Fed.Event ->
+  IO ()
+assertFederationConnectionRemovedEvent domA domB e = do
+  e @?= Fed.FederationConnectionRemoved (domA, domB)
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
 --

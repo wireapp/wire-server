@@ -97,7 +97,6 @@ library
     , lens
     , metrics-wai
     , mtl
-    , polysemy
     , QuickCheck             >=2.13
     , schema-profunctor
     , servant                >=0.16

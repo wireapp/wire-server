@@ -131,6 +131,7 @@ type GalleyApi =
            TypingDataUpdateRequest
            TypingDataUpdateResponse
     :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdated EmptyResponse
+    :<|> FedEndpoint "on-connection-removed" Domain EmptyResponse
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
   { typingStatus :: TypingStatus,
@@ -390,6 +391,7 @@ data ConversationUpdateResponse
   | ConversationUpdateResponseUpdate ConversationUpdate
   | ConversationUpdateResponseNoChanges
   | ConversationUpdateResponseNonFederatingBackends NonFederatingBackends
+  | ConversationUpdateResponseUnreachableBackends UnreachableBackends
   deriving stock (Eq, Show, Generic)
   deriving
     (ToJSON, FromJSON)

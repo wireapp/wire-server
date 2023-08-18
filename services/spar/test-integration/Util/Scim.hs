@@ -144,7 +144,11 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
         { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
           Scim.User.emails = emails,
-          Scim.User.phoneNumbers = phones
+          Scim.User.phoneNumbers = phones,
+          Scim.User.roles = ["member"]
+          -- if we don't add this role here explicitly, some tests may show confusing failures
+          -- involving [] or null being changed to ["member"] during a create or update
+          -- operation.
         },
       subj
     )

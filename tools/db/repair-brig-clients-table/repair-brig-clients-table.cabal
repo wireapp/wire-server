@@ -1,0 +1,81 @@
+cabal-version: 1.12
+name:          repair-brig-clients-table
+version:       1.0.0
+synopsis:
+  Removes and reports entries from brig.clients that have been accidentally upserted.
+
+category:      Network
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2023 Wire Swiss GmbH
+license:       AGPL-3
+build-type:    Simple
+
+executable repair-brig-clients-table
+  main-is:            Main.hs
+  other-modules:
+    Options
+    Paths_repair_brig_clients_table
+    Work
+
+  hs-source-dirs:     src
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
+    -rtsopts -Wredundant-constraints -Wunused-packages
+
+  build-depends:
+      base
+    , cassandra-util
+    , conduit
+    , imports
+    , lens
+    , optparse-applicative
+    , time
+    , tinylog
+    , types-common
+
+  default-language:   GHC2021

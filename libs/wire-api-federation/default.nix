@@ -26,7 +26,6 @@
 , lib
 , metrics-wai
 , mtl
-, polysemy
 , QuickCheck
 , schema-profunctor
 , servant
@@ -67,7 +66,6 @@ mkDerivation {
     lens
     metrics-wai
     mtl
-    polysemy
     QuickCheck
     schema-profunctor
     servant
