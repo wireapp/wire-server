@@ -18,7 +18,13 @@ import Control.Monad.Extra
 import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
+import Data.Attoparsec.ByteString.Char8
+import Data.ByteString.Base64 qualified as Base64
+import Data.ByteString.Builder (stringUtf8)
+import Data.ByteString.Char8 qualified as C8
+import Data.ByteString.Conversion (toByteString')
 import Data.Default
+import Data.Either.Extra (eitherToMaybe)
 import Data.Foldable
 import Data.Function
 import Data.Functor
@@ -34,6 +40,8 @@ import Data.Word (Word16)
 import Data.Yaml qualified as Yaml
 import GHC.Stack
 import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Types (urlEncode)
+import Network.Socket qualified as N
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
 import System.FilePath
 import System.IO
@@ -528,3 +536,39 @@ startNginz domain conf workingDir = do
 
   -- return handle and nginx tmp dir path
   pure ph
+
+deleteAllRabbitMQQueues :: BackendResource -> App ()
+deleteAllRabbitMQQueues resource = do
+  req <- amqRequest "/api/queues"
+  res <- submit "GET" req
+  qdescs <- res.json & asList
+  queues <-
+    catMaybes
+      <$> for
+        qdescs
+        ( \q -> do
+            name <- q %. "name" & asString
+            vhost <- q %. "vhost" & asString
+            pure $
+              if vhost == resource.berVHost
+                then Just name
+                else Nothing
+        )
+  let ue s = C8.unpack (urlEncode True (C8.pack s))
+  for_ queues $ \queue -> do
+    let path = "/api/queues/" <> ue resource.berVHost <> "/" <> ue queue
+    dreq <- amqRequest path
+    dres <- submit "DELETE" dreq
+    when (dres.status /= 204) $ do
+      liftIO $ putStrLn $ prettyResponse dres
+      failApp $
+        "Failed to delete amq queue " <> resource.berVHost <> " " <> queue
+  where
+    amqRequest path = do
+      let host = "localhost"
+          port = 15672 :: Int
+      username <- asks (.amqUsername)
+      password <- asks (.amqPassword)
+      req <- liftIO . HTTP.parseRequest $ "http://" <> host <> ":" <> show port <> path
+      let token = C8.unpack $ Base64.encode (toByteString' (stringUtf8 (username <> ":" <> password)))
+      pure $ req & addHeader "Authorization" ("Basic " <> token)

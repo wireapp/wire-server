@@ -17,6 +17,7 @@ import Data.Word
 import Data.Yaml qualified as Yaml
 import GHC.Generics
 import Network.HTTP.Client qualified as HTTP
+import System.Environment
 import System.Exit
 import System.FilePath
 import System.IO
@@ -39,7 +40,9 @@ data Env = Env
     prekeys :: IORef [(Int, String)],
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
-    resourcePool :: ResourcePool BackendResource
+    resourcePool :: ResourcePool BackendResource,
+    amqUsername :: String,
+    amqPassword :: String
   }
 
 -- | Initialised once per testsuite.
@@ -52,7 +55,9 @@ data GlobalEnv = GlobalEnv
     gManager :: HTTP.Manager,
     gServicesCwdBase :: Maybe FilePath,
     gRemovalKeyPath :: FilePath,
-    gBackendResourcePool :: ResourcePool BackendResource
+    gBackendResourcePool :: ResourcePool BackendResource,
+    gamqUsername :: String,
+    gamqPassword :: String
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -136,6 +141,9 @@ mkGlobalEnv cfgFile = do
             then Just (joinPath (init ps))
             else Nothing
 
+  gamqUsername <- getEnv "RABBITMQ_USERNAME"
+  gamqPassword <- getEnv "RABBITMQ_PASSWORD"
+
   manager <- HTTP.newManager HTTP.defaultManagerSettings
   resourcePool <- createBackendResourcePool (Map.elems intConfig.dynamicBackends)
   pure
@@ -152,7 +160,9 @@ mkGlobalEnv cfgFile = do
         gManager = manager,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gRemovalKeyPath = error "Uninitialised removal key path",
-        gBackendResourcePool = resourcePool
+        gBackendResourcePool = resourcePool,
+        gamqUsername = gamqUsername,
+        gamqPassword = gamqPassword
       }
 
 mkEnv :: GlobalEnv -> Codensity IO Env
@@ -174,7 +184,9 @@ mkEnv ge = do
           prekeys = pks,
           lastPrekeys = lpks,
           mls = mls,
-          resourcePool = ge.gBackendResourcePool
+          resourcePool = ge.gBackendResourcePool,
+          amqUsername = ge.gamqUsername,
+          amqPassword = ge.gamqPassword
         }
 
 destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
