@@ -310,10 +310,10 @@ deleteOAuthClient' cid = retry x5 . write q $ params LocalQuorum (Identity cid)
     q = "DELETE FROM oauth_client WHERE id = ?"
 
 updateOAuthClient' :: (MonadClient m) => OAuthClientId -> OAuthApplicationName -> RedirectUrl -> m ()
-updateOAuthClient' cid name uri = retry x5 . write q $ params LocalQuorum (name, uri, cid)
+updateOAuthClient' cid name uri = retry x5 . void . trans q $ params LocalQuorum (name, uri, cid)
   where
-    q :: PrepQuery W (OAuthApplicationName, RedirectUrl, OAuthClientId) ()
-    q = "UPDATE oauth_client SET name = ?, redirect_uri = ? WHERE id = ?"
+    q :: PrepQuery W (OAuthApplicationName, RedirectUrl, OAuthClientId) Row
+    q = "UPDATE oauth_client SET name = ?, redirect_uri = ? WHERE id = ? IF EXISTS" -- ?
 
 insertOAuthClient :: (MonadClient m) => OAuthClientId -> OAuthApplicationName -> RedirectUrl -> Password -> m ()
 insertOAuthClient cid name uri pw = retry x5 . write q $ params LocalQuorum (cid, name, uri, pw)

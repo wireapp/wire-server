@@ -172,7 +172,7 @@ createConversation lcnv nc = do
 
 deleteConversation :: ConvId -> Client ()
 deleteConversation cid = do
-  retry x5 $ write Cql.markConvDeleted (params LocalQuorum (Identity cid))
+  retry x5 . void $ trans Cql.markConvDeleted (params LocalQuorum (Identity cid))
 
   localMembers <- members cid
   remoteMembers <- lookupRemoteMembers cid
@@ -215,29 +215,29 @@ isConvAlive cid = do
 
 updateConvType :: ConvId -> ConvType -> Client ()
 updateConvType cid ty =
-  retry x5 $
-    write Cql.updateConvType (params LocalQuorum (ty, cid))
+  retry x5 . void $
+    trans Cql.updateConvType (params LocalQuorum (ty, cid))
 
 updateConvName :: ConvId -> Range 1 256 Text -> Client ()
-updateConvName cid name = retry x5 $ write Cql.updateConvName (params LocalQuorum (fromRange name, cid))
+updateConvName cid name = retry x5 . void $ trans Cql.updateConvName (params LocalQuorum (fromRange name, cid))
 
 updateConvAccess :: ConvId -> ConversationAccessData -> Client ()
 updateConvAccess cid (ConversationAccessData acc role) =
-  retry x5 $
-    write Cql.updateConvAccess (params LocalQuorum (Cql.Set (toList acc), Cql.Set (toList role), cid))
+  retry x5 . void $
+    trans Cql.updateConvAccess (params LocalQuorum (Cql.Set (toList acc), Cql.Set (toList role), cid))
 
 updateConvReceiptMode :: ConvId -> ReceiptMode -> Client ()
-updateConvReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMode (params LocalQuorum (receiptMode, cid))
+updateConvReceiptMode cid receiptMode = retry x5 . void $ trans Cql.updateConvReceiptMode (params LocalQuorum (receiptMode, cid))
 
 updateConvMessageTimer :: ConvId -> Maybe Milliseconds -> Client ()
-updateConvMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params LocalQuorum (mtimer, cid))
+updateConvMessageTimer cid mtimer = retry x5 . void $ trans Cql.updateConvMessageTimer (params LocalQuorum (mtimer, cid))
 
 updateConvEpoch :: ConvId -> Epoch -> Client ()
-updateConvEpoch cid epoch = retry x5 $ write Cql.updateConvEpoch (params LocalQuorum (epoch, cid))
+updateConvEpoch cid epoch = retry x5 . void $ trans Cql.updateConvEpoch (params LocalQuorum (epoch, cid))
 
 setPublicGroupState :: ConvId -> OpaquePublicGroupState -> Client ()
 setPublicGroupState conv gib =
-  write Cql.updatePublicGroupState (params LocalQuorum (gib, conv))
+  void $ trans Cql.updatePublicGroupState (params LocalQuorum (gib, conv))
 
 getConversation :: ConvId -> Client (Maybe Conversation)
 getConversation conv = do

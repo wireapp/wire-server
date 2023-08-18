@@ -263,10 +263,10 @@ rmClient u c = do
   unlessM (isJust <$> view randomPrekeyLocalLock) $ deleteOptLock u c
 
 updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
-updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params LocalQuorum (l, u, c))
+updateClientLabel u c l = retry x5 . void $ trans updateClientLabelQuery (params LocalQuorum (l, u, c))
 
 updateClientCapabilities :: MonadClient m => UserId -> ClientId -> Maybe (Imports.Set ClientCapability) -> m ()
-updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params LocalQuorum (C.Set . Set.toList <$> fs, u, c))
+updateClientCapabilities u c fs = retry x5 . void $ trans updateClientCapabilitiesQuery (params LocalQuorum (C.Set . Set.toList <$> fs, u, c))
 
 -- | If the update fails, which can happen if device does not exist, then ignore the error silently.
 updateClientLastActive :: MonadClient m => UserId -> ClientId -> UTCTime -> m ()
@@ -381,11 +381,11 @@ addMLSPublicKey u c ss pk = do
 insertClient :: PrepQuery W (UserId, ClientId, UTCTimeMillis, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability)) ()
 insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, lat, lon, model, capabilities) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
-updateClientLabelQuery :: PrepQuery W (Maybe Text, UserId, ClientId) ()
-updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client = ?"
+updateClientLabelQuery :: PrepQuery W (Maybe Text, UserId, ClientId) Row
+updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client = ? IF EXISTS"
 
-updateClientCapabilitiesQuery :: PrepQuery W (Maybe (C.Set ClientCapability), UserId, ClientId) ()
-updateClientCapabilitiesQuery = "UPDATE clients SET capabilities = ? WHERE user = ? AND client = ?"
+updateClientCapabilitiesQuery :: PrepQuery W (Maybe (C.Set ClientCapability), UserId, ClientId) Row
+updateClientCapabilitiesQuery = "UPDATE clients SET capabilities = ? WHERE user = ? AND client = ? IF EXISTS"
 
 updateClientLastActiveQuery :: PrepQuery W (UTCTime, UserId, ClientId) Row
 updateClientLastActiveQuery = "UPDATE clients SET last_active = ? WHERE user = ? AND client = ? IF EXISTS"

@@ -66,13 +66,13 @@ withClaim u v t io = do
     -- [Note: Guarantees]
     claim = do
       let ttl = max minTtl (fromIntegral (t #> Second))
-      retry x5 $ write cql $ params LocalQuorum (ttl * 2, C.Set [u], v)
+      retry x5 . void $ trans cql $ params LocalQuorum (ttl * 2, C.Set [u], v)
       claimed <- (== [u]) <$> lookupClaims v
       if claimed
         then liftIO $ timeout (fromIntegral ttl # Second) io
         else pure Nothing
-    cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
-    cql = "UPDATE unique_claims USING TTL ? SET claims = claims + ? WHERE value = ?"
+    cql :: PrepQuery W (Int32, C.Set (Id a), Text) Row
+    cql = "UPDATE unique_claims USING TTL ? SET claims = claims + ? WHERE value = ? IF EXISTS" -- ?
 
 deleteClaim ::
   MonadClient m =>
@@ -91,7 +91,7 @@ deleteClaim u v t = do
   retry x5 $ write cql $ params LocalQuorum (ttl * 2, C.Set [u], v)
   where
     cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
-    cql = "UPDATE unique_claims USING TTL ? SET claims = claims - ? WHERE value = ?"
+    cql = "UPDATE unique_claims USING TTL ? SET claims = claims - ? WHERE value = ? IF EXISTS" -- ?
 
 -- | Lookup the current claims on a value.
 lookupClaims :: MonadClient m => Text -> m [Id a]

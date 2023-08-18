@@ -176,8 +176,8 @@ deleteTeamAdmin = "delete from team_admin where team = ? and user = ?"
 listTeamAdmins :: PrepQuery R (Identity TeamId) (Identity UserId)
 listTeamAdmins = "select user from team_admin where team = ?"
 
-updatePermissions :: PrepQuery W (Permissions, TeamId, UserId) ()
-updatePermissions = "update team_member set perms = ? where team = ? and user = ?"
+updatePermissions :: PrepQuery W (Permissions, TeamId, UserId) Row
+updatePermissions = "update team_member set perms = ? where team = ? and user = ? IF EXISTS"
 
 insertUserTeam :: PrepQuery W (UserId, TeamId) ()
 insertUserTeam = "insert into user_team (user, team) values (?, ?)"
@@ -185,26 +185,26 @@ insertUserTeam = "insert into user_team (user, team) values (?, ?)"
 deleteUserTeam :: PrepQuery W (UserId, TeamId) ()
 deleteUserTeam = "delete from user_team where user = ? and team = ?"
 
-markTeamDeleted :: PrepQuery W (TeamStatus, TeamId) ()
-markTeamDeleted = "update team set status = ? where team = ?"
+markTeamDeleted :: PrepQuery W (TeamStatus, TeamId) Row
+markTeamDeleted = "update team set status = ? where team = ? IF EXISTS"
 
-deleteTeam :: PrepQuery W (TeamStatus, TeamId) ()
-deleteTeam = "update team using timestamp 32503680000000000 set name = 'default', icon = 'default', status = ? where team = ? "
+deleteTeam :: PrepQuery W (TeamStatus, TeamId) Row
+deleteTeam = "update team using timestamp 32503680000000000 set name = 'default', icon = 'default', status = ? where team = ?  IF EXISTS"
 
-updateTeamName :: PrepQuery W (Text, TeamId) ()
-updateTeamName = "update team set name = ? where team = ?"
+updateTeamName :: PrepQuery W (Text, TeamId) Row
+updateTeamName = "update team set name = ? where team = ? IF EXISTS"
 
-updateTeamIcon :: PrepQuery W (Text, TeamId) ()
-updateTeamIcon = "update team set icon = ? where team = ?"
+updateTeamIcon :: PrepQuery W (Text, TeamId) Row
+updateTeamIcon = "update team set icon = ? where team = ? IF EXISTS"
 
-updateTeamIconKey :: PrepQuery W (Text, TeamId) ()
-updateTeamIconKey = "update team set icon_key = ? where team = ?"
+updateTeamIconKey :: PrepQuery W (Text, TeamId) Row
+updateTeamIconKey = "update team set icon_key = ? where team = ? IF EXISTS"
 
-updateTeamStatus :: PrepQuery W (TeamStatus, TeamId) ()
-updateTeamStatus = "update team set status = ? where team = ?"
+updateTeamStatus :: PrepQuery W (TeamStatus, TeamId) Row
+updateTeamStatus = "update team set status = ? where team = ? IF EXISTS"
 
-updateTeamSplashScreen :: PrepQuery W (Text, TeamId) ()
-updateTeamSplashScreen = "update team set splash_screen = ? where team = ?"
+updateTeamSplashScreen :: PrepQuery W (Text, TeamId) Row
+updateTeamSplashScreen = "update team set splash_screen = ? where team = ? IF EXISTS"
 
 -- Conversations ------------------------------------------------------------
 
@@ -263,35 +263,35 @@ insertMLSSelfConv =
       <> show (fromEnum ProtocolMLSTag)
       <> ", ?, ?)"
 
-updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRole, ConvId) ()
-updateConvAccess = "update conversation set access = ?, access_roles_v2 = ? where conv = ?"
+updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRole, ConvId) Row
+updateConvAccess = "update conversation set access = ?, access_roles_v2 = ? where conv = ? IF EXISTS"
 
-updateConvReceiptMode :: PrepQuery W (ReceiptMode, ConvId) ()
-updateConvReceiptMode = "update conversation set receipt_mode = ? where conv = ?"
+updateConvReceiptMode :: PrepQuery W (ReceiptMode, ConvId) Row
+updateConvReceiptMode = "update conversation set receipt_mode = ? where conv = ? IF EXISTS"
 
-updateConvMessageTimer :: PrepQuery W (Maybe Milliseconds, ConvId) ()
-updateConvMessageTimer = "update conversation set message_timer = ? where conv = ?"
+updateConvMessageTimer :: PrepQuery W (Maybe Milliseconds, ConvId) Row
+updateConvMessageTimer = "update conversation set message_timer = ? where conv = ? IF EXISTS"
 
-updateConvName :: PrepQuery W (Text, ConvId) ()
-updateConvName = "update conversation set name = ? where conv = ?"
+updateConvName :: PrepQuery W (Text, ConvId) Row
+updateConvName = "update conversation set name = ? where conv = ? IF EXISTS"
 
-updateConvType :: PrepQuery W (ConvType, ConvId) ()
-updateConvType = "update conversation set type = ? where conv = ?"
+updateConvType :: PrepQuery W (ConvType, ConvId) Row
+updateConvType = "update conversation set type = ? where conv = ? IF EXISTS"
 
-updateConvEpoch :: PrepQuery W (Epoch, ConvId) ()
-updateConvEpoch = "update conversation set epoch = ? where conv = ?"
+updateConvEpoch :: PrepQuery W (Epoch, ConvId) Row
+updateConvEpoch = "update conversation set epoch = ? where conv = ? IF EXISTS"
 
 deleteConv :: PrepQuery W (Identity ConvId) ()
 deleteConv = "delete from conversation using timestamp 32503680000000000 where conv = ?"
 
-markConvDeleted :: PrepQuery W (Identity ConvId) ()
-markConvDeleted = "update conversation set deleted = true where conv = ?"
+markConvDeleted :: PrepQuery W (Identity ConvId) Row
+markConvDeleted = "update conversation set deleted = true where conv = ? IF EXISTS"
 
 selectPublicGroupState :: PrepQuery R (Identity ConvId) (Identity (Maybe OpaquePublicGroupState))
 selectPublicGroupState = "select public_group_state from conversation where conv = ?"
 
-updatePublicGroupState :: PrepQuery W (OpaquePublicGroupState, ConvId) ()
-updatePublicGroupState = "update conversation set public_group_state = ? where conv = ?"
+updatePublicGroupState :: PrepQuery W (OpaquePublicGroupState, ConvId) Row
+updatePublicGroupState = "update conversation set public_group_state = ? where conv = ? IF EXISTS"
 
 -- Conversations accessible by code -----------------------------------------
 
@@ -348,17 +348,17 @@ insertMember = "insert into member (conv, user, service, provider, status, conve
 removeMember :: PrepQuery W (ConvId, UserId) ()
 removeMember = "delete from member where conv = ? and user = ?"
 
-updateOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, ConvId, UserId) ()
-updateOtrMemberMutedStatus = "update member set otr_muted_status = ?, otr_muted_ref = ? where conv = ? and user = ?"
+updateOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, ConvId, UserId) Row
+updateOtrMemberMutedStatus = "update member set otr_muted_status = ?, otr_muted_ref = ? where conv = ? and user = ? IF EXISTS"
 
-updateOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
-updateOtrMemberArchived = "update member set otr_archived = ?, otr_archived_ref = ? where conv = ? and user = ?"
+updateOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) Row
+updateOtrMemberArchived = "update member set otr_archived = ?, otr_archived_ref = ? where conv = ? and user = ? IF EXISTS"
 
-updateMemberHidden :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
-updateMemberHidden = "update member set hidden = ?, hidden_ref = ? where conv = ? and user = ?"
+updateMemberHidden :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) Row
+updateMemberHidden = "update member set hidden = ?, hidden_ref = ? where conv = ? and user = ? IF EXISTS"
 
-updateMemberConvRoleName :: PrepQuery W (RoleName, ConvId, UserId) ()
-updateMemberConvRoleName = "update member set conversation_role = ? where conv = ? and user = ?"
+updateMemberConvRoleName :: PrepQuery W (RoleName, ConvId, UserId) Row
+updateMemberConvRoleName = "update member set conversation_role = ? where conv = ? and user = ? IF EXISTS"
 
 -- Federated conversations -----------------------------------------------------
 --
@@ -378,8 +378,8 @@ selectRemoteMember = "select conversation_role from member_remote_user where con
 selectRemoteMembers :: PrepQuery R (Identity ConvId) (Domain, UserId, RoleName)
 selectRemoteMembers = "select user_remote_domain, user_remote_id, conversation_role from member_remote_user where conv = ?"
 
-updateRemoteMemberConvRoleName :: PrepQuery W (RoleName, ConvId, Domain, UserId) ()
-updateRemoteMemberConvRoleName = "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
+updateRemoteMemberConvRoleName :: PrepQuery W (RoleName, ConvId, Domain, UserId) Row
+updateRemoteMemberConvRoleName = "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ? IF EXISTS"
 
 removeRemoteDomain :: PrepQuery W (ConvId, Domain) ()
 removeRemoteDomain = "delete from member_remote_user where conv = ? and user_remote_domain = ?"
@@ -423,14 +423,14 @@ selectLocalMembersByDomain = "select conv_remote_id, user from user_remote_conv 
 
 -- remote conversation status for local user
 
-updateRemoteOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, Domain, ConvId, UserId) ()
-updateRemoteOtrMemberMutedStatus = "update user_remote_conv set otr_muted_status = ?, otr_muted_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
+updateRemoteOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, Domain, ConvId, UserId) Row
+updateRemoteOtrMemberMutedStatus = "update user_remote_conv set otr_muted_status = ?, otr_muted_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ? IF EXISTS"
 
-updateRemoteOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) ()
-updateRemoteOtrMemberArchived = "update user_remote_conv set otr_archived = ?, otr_archived_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
+updateRemoteOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) Row
+updateRemoteOtrMemberArchived = "update user_remote_conv set otr_archived = ?, otr_archived_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ? IF EXISTS"
 
-updateRemoteMemberHidden :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) ()
-updateRemoteMemberHidden = "update user_remote_conv set hidden = ?, hidden_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
+updateRemoteMemberHidden :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) Row
+updateRemoteMemberHidden = "update user_remote_conv set hidden = ?, hidden_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ? IF EXISTS"
 
 selectRemoteMemberStatus :: PrepQuery R (Domain, ConvId, UserId) (Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
 selectRemoteMemberStatus = "select otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from user_remote_conv where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
@@ -443,15 +443,15 @@ selectClients = "select user, clients from clients where user in ?"
 rmClients :: PrepQuery W (Identity UserId) ()
 rmClients = "delete from clients where user = ?"
 
-addMemberClient :: ClientId -> QueryString W (Identity UserId) ()
+addMemberClient :: ClientId -> QueryString W (Identity UserId) Row
 addMemberClient c =
   let t = LT.fromStrict (client c)
-   in QueryString $ "update clients set clients = clients + {'" <> t <> "'} where user = ?"
+   in QueryString $ "update clients set clients = clients + {'" <> t <> "'} where user = ? IF EXISTS"
 
-rmMemberClient :: ClientId -> QueryString W (Identity UserId) ()
+rmMemberClient :: ClientId -> QueryString W (Identity UserId) Row
 rmMemberClient c =
   let t = LT.fromStrict (client c)
-   in QueryString $ "update clients set clients = clients - {'" <> t <> "'} where user = ?"
+   in QueryString $ "update clients set clients = clients - {'" <> t <> "'} where user = ? IF EXISTS"
 
 -- MLS Clients --------------------------------------------------------------
 
@@ -564,9 +564,9 @@ selectSearchVisibility :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSea
 selectSearchVisibility =
   "select search_visibility from team where team = ?"
 
-updateSearchVisibility :: PrepQuery W (TeamSearchVisibility, TeamId) ()
+updateSearchVisibility :: PrepQuery W (TeamSearchVisibility, TeamId) Row
 updateSearchVisibility =
-  "update team set search_visibility = ? where team = ?"
+  "update team set search_visibility = ? where team = ? IF EXISTS"
 
 -- Custom Backend -----------------------------------------------------------
 
@@ -574,9 +574,9 @@ selectCustomBackend :: PrepQuery R (Identity Domain) (HttpsUrl, HttpsUrl)
 selectCustomBackend =
   "select config_json_url, webapp_welcome_url from custom_backend where domain = ?"
 
-updateCustomBackend :: PrepQuery W (HttpsUrl, HttpsUrl, Domain) ()
+updateCustomBackend :: PrepQuery W (HttpsUrl, HttpsUrl, Domain) Row
 updateCustomBackend =
-  "update custom_backend set config_json_url = ?, webapp_welcome_url = ? where domain = ?"
+  "update custom_backend set config_json_url = ?, webapp_welcome_url = ? where domain = ? IF EXISTS"
 
 deleteCustomBackend :: PrepQuery W (Identity Domain) ()
 deleteCustomBackend =

@@ -53,8 +53,8 @@ getSearchVisibility tid =
 -- | Determines whether a given team is allowed to enable/disable sso
 setSearchVisibility :: MonadClient m => TeamId -> TeamSearchVisibility -> m ()
 setSearchVisibility tid visibilityType = do
-  retry x5 $ write updateSearchVisibility (params LocalQuorum (visibilityType, tid))
+  retry x5 . void $ trans updateSearchVisibility (params LocalQuorum (visibilityType, tid))
 
 resetSearchVisibility :: MonadClient m => TeamId -> m ()
 resetSearchVisibility tid = do
-  retry x5 $ write updateSearchVisibility (params LocalQuorum (SearchVisibilityStandard, tid))
+  retry x5 . void $ trans updateSearchVisibility (params LocalQuorum (SearchVisibilityStandard, tid))

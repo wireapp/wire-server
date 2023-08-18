@@ -109,11 +109,13 @@ updateConnectionStatus :: (MonadClient m) => Local UserId -> Qualified UserId ->
 updateConnectionStatus self target status = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
   let local (tUnqualified -> ltarget) =
-        write connectionUpdate $
-          params LocalQuorum (status, now, tUnqualified self, ltarget)
+        void $
+          trans connectionUpdate $
+            params LocalQuorum (status, now, tUnqualified self, ltarget)
   let remote (tUntagged -> Qualified rtarget domain) =
-        write remoteConnectionUpdate $
-          params LocalQuorum (status, now, tUnqualified self, domain, rtarget)
+        void $
+          trans remoteConnectionUpdate $
+            params LocalQuorum (status, now, tUnqualified self, domain, rtarget)
   retry x5 $ foldQualified self local remote target
   pure now
 
@@ -339,8 +341,8 @@ deleteRemoteConnectionsDomain dom = do
 connectionInsert :: PrepQuery W (UserId, UserId, RelationWithHistory, UTCTimeMillis, ConvId) ()
 connectionInsert = "INSERT INTO connection (left, right, status, last_update, conv) VALUES (?, ?, ?, ?, ?)"
 
-connectionUpdate :: PrepQuery W (RelationWithHistory, UTCTimeMillis, UserId, UserId) ()
-connectionUpdate = "UPDATE connection SET status = ?, last_update = ? WHERE left = ? AND right = ?"
+connectionUpdate :: PrepQuery W (RelationWithHistory, UTCTimeMillis, UserId, UserId) Row
+connectionUpdate = "UPDATE connection SET status = ?, last_update = ? WHERE left = ? AND right = ? IF EXISTS"
 
 connectionSelect :: PrepQuery R (UserId, UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId)
 connectionSelect = "SELECT left, right, status, last_update, conv FROM connection WHERE left = ? AND right = ?"
@@ -390,8 +392,8 @@ remoteConnectionSelect = "SELECT right_domain, right_user, status, last_update, 
 remoteConnectionSelectFrom :: PrepQuery R (UserId, Domain, UserId) (RelationWithHistory, UTCTimeMillis, Domain, ConvId)
 remoteConnectionSelectFrom = "SELECT status, last_update, conv_domain, conv_id FROM connection_remote where left = ? AND right_domain = ? AND right_user = ?"
 
-remoteConnectionUpdate :: PrepQuery W (RelationWithHistory, UTCTimeMillis, UserId, Domain, UserId) ()
-remoteConnectionUpdate = "UPDATE connection_remote set status = ?, last_update = ? WHERE left = ? and right_domain = ? and right_user = ?"
+remoteConnectionUpdate :: PrepQuery W (RelationWithHistory, UTCTimeMillis, UserId, Domain, UserId) Row
+remoteConnectionUpdate = "UPDATE connection_remote set status = ?, last_update = ? WHERE left = ? and right_domain = ? and right_user = ? IF EXISTS"
 
 remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
 remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right_user = ?"

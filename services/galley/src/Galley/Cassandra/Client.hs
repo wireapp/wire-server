@@ -42,7 +42,7 @@ import UnliftIO qualified
 updateClient :: Bool -> UserId -> ClientId -> Client ()
 updateClient add usr cls = do
   let q = if add then Cql.addMemberClient else Cql.rmMemberClient
-  retry x5 $ write (q cls) (params LocalQuorum (Identity usr))
+  retry x5 . void $ trans (q cls) (params LocalQuorum (Identity usr))
 
 -- Do, at most, 16 parallel lookups of up to 128 users each
 lookupClients :: [UserId] -> Client Clients
