@@ -295,6 +295,7 @@ testAddMembersNonFullyConnectedProteus = do
 testConvWithUnreachableRemoteUsers :: HasCallStack => App ()
 testConvWithUnreachableRemoteUsers = do
   let overrides = fullSearchWithAll
+  () <- error <$> showServiceOverrides overrides
   ([alice, alex, bob, charlie, dylan], domains) <-
     startDynamicBackends [overrides, overrides] $ \domains -> do
       own <- make OwnDomain & asString

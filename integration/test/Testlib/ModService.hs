@@ -2,7 +2,8 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Testlib.ModService
-  ( withModifiedService,
+  ( showServiceOverrides,
+    withModifiedService,
     withModifiedServices,
     startDynamicBackend,
     startDynamicBackends,
@@ -98,6 +99,26 @@ instance Default ServiceOverrides where
 
 instance Monoid ServiceOverrides where
   mempty = defaultServiceOverrides
+
+showServiceOverrides :: ServiceOverrides -> App String
+showServiceOverrides ServiceOverrides {..} =
+  show
+    <$> sequence
+      [ ("dbBrig" :: String,) <$> showField dbBrig,
+        ("dbCannon",) <$> showField dbCannon,
+        ("dbCargohold",) <$> showField dbCargohold,
+        ("dbGalley",) <$> showField dbGalley,
+        ("dbGundeck",) <$> showField dbGundeck,
+        ("dbNginz",) <$> showField dbNginz,
+        ("dbSpar",) <$> showField dbSpar,
+        ("dbBackgroundWorker",) <$> showField dbBackgroundWorker,
+        ("dbStern",) <$> showField dbBrig,
+        ("dbFederatorInternal",) <$> showField dbFederatorInternal
+      ]
+  where
+    showField :: (Value -> App Value) -> App String
+    showField f = do
+      (f (object mempty) >>= asObject) <&> (cs . encode)
 
 withModifiedService ::
   Service ->
