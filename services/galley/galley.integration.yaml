@@ -28,7 +28,7 @@ federator:
 rabbitmq:
   host: 127.0.0.1
   port: 5672
-  vHost: /
+  vHost: example.com
 
 settings:
   httpPoolSize: 128
