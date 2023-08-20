@@ -1,0 +1,1 @@
+Make sure cassandra updates do not re-introduce removed content (follow-up to #3504) (#3513)
