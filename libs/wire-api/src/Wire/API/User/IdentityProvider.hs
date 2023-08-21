@@ -39,6 +39,7 @@ import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
 import Wire.API.User.Orphans (samlSchemaOptions)
+import Wire.API.Util.Aeson (defaultOptsDropChar)
 import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 
 -- | The identity provider type used in Spar.
@@ -80,7 +81,9 @@ defWireIdPAPIVersion = WireIdPAPIV1
 makeLenses ''WireIdP
 
 deriveJSON deriveJSONOptions ''WireIdPAPIVersion
-deriveJSON deriveJSONOptions ''WireIdP
+
+-- Changing the encoder since we've dropped the field prefixes
+deriveJSON (defaultOptsDropChar '_') ''WireIdP
 
 instance BSC.ToByteString WireIdPAPIVersion where
   builder =
@@ -130,7 +133,8 @@ data IdPList = IdPList
 
 makeLenses ''IdPList
 
-deriveJSON deriveJSONOptions ''IdPList
+-- Same as WireIdP, we want the lenses, so we have to drop a prefix
+deriveJSON (defaultOptsDropChar '_') ''IdPList
 
 -- | JSON-encoded information about metadata: @{"value": <xml>}@.  (Here we could also
 -- implement @{"uri": <url>, "cert": <pinned_pubkey>}@.  check both the certificate we get
@@ -167,14 +171,19 @@ instance ToJSON IdPMetadataInfo where
 
 -- Swagger instances
 
+-- Same as WireIdP, check there for why this has different handling
 instance ToSchema IdPList where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+  declareNamedSchema = genericDeclareNamedSchema $ fromAesonOptions $ defaultOptsDropChar '_'
 
 instance ToSchema WireIdPAPIVersion where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema WireIdP where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+  -- We don't want to use `samlSchemaOptions`, as it pulls from saml2-web-sso json options which
+  -- as a `dropWhile not . isUpper` modifier. All we need is to drop the underscore prefix and
+  -- keep the rest of the default processing. This isn't strictly in line with WPB-3798's requirements
+  -- but it is close, and maintains the lens template haskell.
+  declareNamedSchema = genericDeclareNamedSchema $ fromAesonOptions $ defaultOptsDropChar '_'
 
 -- TODO: would be nice to add an example here, but that only works for json?
 

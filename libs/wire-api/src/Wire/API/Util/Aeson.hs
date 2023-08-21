@@ -17,6 +17,8 @@
 
 module Wire.API.Util.Aeson
   ( customEncodingOptions,
+    customEncodingOptionsDropChar,
+    defaultOptsDropChar,
     CustomEncoded (..),
   )
 where
@@ -32,6 +34,22 @@ import Imports hiding (All)
 -- For example, it converts @_recordFieldLabel@ into @field_label@.
 customEncodingOptions :: Options
 customEncodingOptions = toJSONFieldName
+
+-- This is useful for structures that are also creating lenses.
+-- If the field name doesn't have a leading underscore then the
+-- default `makeLenses` call won't make any lenses.
+customEncodingOptionsDropChar :: Char -> Options
+customEncodingOptionsDropChar c =
+  toJSONFieldName
+    { fieldLabelModifier = fieldLabelModifier toJSONFieldName . dropWhile (c ==)
+    }
+
+-- Similar to customEncodingOptionsDropChar, but not doing snake_case
+defaultOptsDropChar :: Char -> Options
+defaultOptsDropChar c =
+  defaultOptions
+    { fieldLabelModifier = fieldLabelModifier defaultOptions . dropWhile (c ==)
+    }
 
 newtype CustomEncoded a = CustomEncoded {unCustomEncoded :: a}
 
