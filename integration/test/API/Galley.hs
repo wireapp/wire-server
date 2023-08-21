@@ -1,8 +1,16 @@
+{-# LANGUAGE OverloadedLabels #-}
+
 module API.Galley where
 
+import Control.Lens hiding ((.=))
+import Control.Monad.Reader
 import Data.Aeson qualified as Aeson
+import Data.ByteString.Lazy qualified as LBS
 import Data.ProtoLens qualified as Proto
-import Proto.Otr
+import Data.ProtoLens.Labels ()
+import Data.UUID qualified as UUID
+import Numeric.Lens
+import Proto.Otr as Proto
 import Testlib.Prelude
 
 data CreateConv = CreateConv
@@ -161,6 +169,24 @@ postProteusMessage user conv msgs = do
   let bytes = Proto.encodeMessage msgs
   req <- baseRequest user Galley Versioned ("/conversations/" <> convDomain <> "/" <> convId <> "/proteus/messages")
   submit "POST" (addProtobuf bytes req)
+
+mkProteusRecipient :: (HasCallStack, MakesValue user, MakesValue client) => user -> client -> String -> App Proto.QualifiedUserEntry
+mkProteusRecipient user client msg = do
+  userDomain <- objDomain user
+  userId <- LBS.toStrict . UUID.toByteString . fromJust . UUID.fromString <$> objId user
+  clientId <- (^?! hex) <$> objId client
+  pure $
+    Proto.defMessage
+      & #domain .~ fromString userDomain
+      & #entries
+        .~ [ Proto.defMessage
+               & #user . #uuid .~ userId
+               & #clients
+                 .~ [ Proto.defMessage
+                        & #client . #client .~ clientId
+                        & #text .~ fromString msg
+                    ]
+           ]
 
 getGroupInfo ::
   (HasCallStack, MakesValue user, MakesValue conv) =>

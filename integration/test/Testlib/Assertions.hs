@@ -4,7 +4,6 @@ module Testlib.Assertions where
 
 import Control.Exception as E
 import Control.Monad.Reader
-import Data.Aeson (Value)
 import Data.ByteString.Base64 qualified as B64
 import Data.Char
 import Data.Foldable
@@ -144,22 +143,6 @@ shouldContainString ::
 super `shouldContainString` sub = do
   unless (sub `isInfixOf` super) $ do
     assertFailure $ "String:\n" <> show super <> "\nDoes not contain:\n" <> show sub
-
-liftP2 ::
-  (MakesValue a, MakesValue b, HasCallStack) =>
-  (Value -> Value -> c) ->
-  a ->
-  b ->
-  App c
-liftP2 f a b = do
-  f <$> make a <*> make b
-
-isEqual ::
-  (MakesValue a, MakesValue b, HasCallStack) =>
-  a ->
-  b ->
-  App Bool
-isEqual = liftP2 (==)
 
 printFailureDetails :: AssertionFailure -> IO String
 printFailureDetails (AssertionFailure stack mbResponse msg) = do

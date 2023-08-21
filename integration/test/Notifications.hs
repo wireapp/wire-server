@@ -51,3 +51,22 @@ awaitNotification ::
 awaitNotification user client lastNotifId tSecs selector = do
   since0 <- mapM objId lastNotifId
   head <$> awaitNotifications user client since0 tSecs 1 selector
+
+isDeleteUserNotif :: MakesValue a => a -> App Bool
+isDeleteUserNotif n =
+  nPayload n %. "type" `isEqual` "user.delete"
+
+isNewMessageNotif :: MakesValue a => a -> App Bool
+isNewMessageNotif n = fieldEquals n "payload.0.type" "conversation.otr-message-add"
+
+isMemberJoinNotif :: MakesValue a => a -> App Bool
+isMemberJoinNotif n = fieldEquals n "payload.0.type" "conversation.member-join"
+
+isConvLeaveNotif :: MakesValue a => a -> App Bool
+isConvLeaveNotif n = fieldEquals n "payload.0.type" "conversation.member-leave"
+
+isNotifConv :: (MakesValue conv, MakesValue a) => conv -> a -> App Bool
+isNotifConv conv n = fieldEquals n "payload.0.qualified_conversation" (objQidObject conv)
+
+isNotifForUser :: (MakesValue user, MakesValue a) => user -> a -> App Bool
+isNotifForUser user n = fieldEquals n "payload.0.data.qualified_user_ids.0" (objQidObject user)

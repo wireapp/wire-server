@@ -1,6 +1,7 @@
 module Testlib.JSON where
 
 import Control.Monad
+import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding ((.=))
@@ -119,6 +120,30 @@ asBool x =
   String ->
   App Value
 (%.) x k = lookupField x k >>= assertField x k
+
+isEqual ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  a ->
+  b ->
+  App Bool
+isEqual = liftP2 (==)
+
+liftP2 ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  (Value -> Value -> c) ->
+  a ->
+  b ->
+  App c
+liftP2 f a b = do
+  f <$> make a <*> make b
+
+fieldEquals :: (MakesValue a, MakesValue b) => a -> String -> b -> App Bool
+fieldEquals a fieldSelector b = do
+  ma <- lookupField a fieldSelector `catchAll` const (pure Nothing)
+  case ma of
+    Nothing -> pure False
+    Just f ->
+      f `isEqual` b
 
 assertField :: (HasCallStack, MakesValue a) => a -> String -> Maybe Value -> App Value
 assertField x k Nothing = assertFailureWithJSON x $ "Field \"" <> k <> "\" is missing from object:"

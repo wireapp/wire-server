@@ -6,13 +6,10 @@ module Test.Federation where
 import API.Brig qualified as API
 import API.Galley
 import Control.Lens
-import Control.Monad.Catch
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import Data.ByteString.Lazy qualified as LBS
 import Data.ProtoLens qualified as Proto
 import Data.ProtoLens.Labels ()
-import Data.UUID qualified as UUID
 import Notifications
 import Numeric.Lens
 import Proto.Otr qualified as Proto
@@ -131,48 +128,3 @@ allPreds :: (Applicative f) => [a -> f Bool] -> a -> f Bool
 allPreds [] _ = pure True
 allPreds [p] x = p x
 allPreds (p1 : ps) x = (&&) <$> p1 x <*> allPreds ps x
-
-isDeleteUserNotif :: MakesValue a => a -> App Bool
-isDeleteUserNotif n =
-  nPayload n %. "type" `isEqual` "user.delete"
-
-isNewMessageNotif :: MakesValue a => a -> App Bool
-isNewMessageNotif n = fieldEquals n "payload.0.type" "conversation.otr-message-add"
-
-isMemberJoinNotif :: MakesValue a => a -> App Bool
-isMemberJoinNotif n = fieldEquals n "payload.0.type" "conversation.member-join"
-
-isConvLeaveNotif :: MakesValue a => a -> App Bool
-isConvLeaveNotif n = fieldEquals n "payload.0.type" "conversation.member-leave"
-
-isNotifConv :: (MakesValue conv, MakesValue a) => conv -> a -> App Bool
-isNotifConv conv n = fieldEquals n "payload.0.qualified_conversation" (objQidObject conv)
-
-isNotifForUser :: (MakesValue user, MakesValue a) => user -> a -> App Bool
-isNotifForUser user n = fieldEquals n "payload.0.data.qualified_user_ids.0" (objQidObject user)
-
-fieldEquals :: (MakesValue a, MakesValue b) => a -> String -> b -> App Bool
-fieldEquals a fieldSelector b = do
-  ma <- lookupField a fieldSelector `catchAll` const (pure Nothing)
-  case ma of
-    Nothing -> pure False
-    Just f ->
-      f `isEqual` b
-
-mkProteusRecipient :: (HasCallStack, MakesValue user, MakesValue client) => user -> client -> String -> App Proto.QualifiedUserEntry
-mkProteusRecipient user client msg = do
-  userDomain <- objDomain user
-  userId <- LBS.toStrict . UUID.toByteString . fromJust . UUID.fromString <$> objId user
-  clientId <- (^?! hex) <$> objId client
-  pure $
-    Proto.defMessage
-      & #domain .~ fromString userDomain
-      & #entries
-        .~ [ Proto.defMessage
-               & #user . #uuid .~ userId
-               & #clients
-                 .~ [ Proto.defMessage
-                        & #client . #client .~ clientId
-                        & #text .~ fromString msg
-                    ]
-           ]
