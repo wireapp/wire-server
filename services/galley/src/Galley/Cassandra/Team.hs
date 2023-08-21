@@ -369,12 +369,12 @@ getTeamsBindings =
 deleteTeam :: TeamId -> Client ()
 deleteTeam tid = do
   -- TODO: delete service_whitelist records that mention this team
-  retry x5 . void $ trans Cql.markTeamDeleted (params LocalQuorum (PendingDelete, tid))
+  retry x5 $ write Cql.markTeamDeleted (params LocalQuorum (PendingDelete, tid))
   mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
   removeTeamMembers mems
   cnvs <- teamConversationsForPagination tid Nothing (unsafeRange 2000)
   removeConvs cnvs
-  retry x5 . void $ trans Cql.deleteTeam (params LocalQuorum (Deleted, tid))
+  retry x5 $ write Cql.deleteTeam (params LocalQuorum (Deleted, tid))
   where
     removeConvs :: Page TeamConversation -> Client ()
     removeConvs cnvs = do
@@ -406,7 +406,7 @@ removeTeamConv tid cid = liftClient $ do
   C.deleteConversation cid
 
 updateTeamStatus :: TeamId -> TeamStatus -> Client ()
-updateTeamStatus t s = retry x5 . void $ trans Cql.updateTeamStatus (params LocalQuorum (s, t))
+updateTeamStatus t s = retry x5 $ write Cql.updateTeamStatus (params LocalQuorum (s, t))
 
 updateTeam :: TeamId -> TeamUpdateData -> Client ()
 updateTeam tid u = retry x5 . batch $ do

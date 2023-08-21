@@ -133,7 +133,7 @@ updateAccountPassword ::
   m ()
 updateAccountPassword pid pwd = do
   p <- liftIO $ mkSafePassword pwd
-  retry x5 . void $ trans cql $ params LocalQuorum (p, pid)
+  retry x5 $ write cql $ params LocalQuorum (p, pid)
   where
     cql :: PrepQuery W (Password, ProviderId) ()
     cql = "UPDATE provider SET password = ? where id = ?" -- `IF EXISTS`, but that is too expensive

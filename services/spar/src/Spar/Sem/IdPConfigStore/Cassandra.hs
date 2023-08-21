@@ -353,7 +353,7 @@ setReplacedBy ::
   Replacing ->
   m ()
 setReplacedBy (Replaced old) (Replacing new) = do
-  retry x5 . void . trans ins $ params LocalQuorum (new, old)
+  retry x5 . write ins $ params LocalQuorum (new, old)
   where
     ins :: PrepQuery W (SAML.IdPId, SAML.IdPId) ()
     ins = "UPDATE idp SET replaced_by = ? WHERE idp = ?" -- `IF EXISTS`, but that is too expensive
@@ -364,7 +364,7 @@ clearReplacedBy ::
   Replaced ->
   m ()
 clearReplacedBy (Replaced old) = do
-  retry x5 . void . trans ins $ params LocalQuorum (Identity old)
+  retry x5 . write ins $ params LocalQuorum (Identity old)
   where
     ins :: PrepQuery W (Identity SAML.IdPId) ()
     ins = "UPDATE idp SET replaced_by = null WHERE idp = ?" -- `IF EXISTS`, but that is too expensive -- `IF EXISTS`, but that is too expensive

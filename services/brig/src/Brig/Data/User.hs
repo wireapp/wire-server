@@ -281,7 +281,7 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
       \VALUES (?, ?, ?, ?, ?)"
 
 updateLocale :: MonadClient m => UserId -> Locale -> m ()
-updateLocale u (Locale l c) = void $ trans userLocaleUpdate (params LocalQuorum (l, c, u))
+updateLocale u (Locale l c) = write userLocaleUpdate (params LocalQuorum (l, c, u))
 
 updateUser :: MonadClient m => UserId -> UserUpdate -> m ()
 updateUser u UserUpdate {..} = retry x5 . batch $ do
@@ -293,59 +293,59 @@ updateUser u UserUpdate {..} = retry x5 . batch $ do
   for_ uupAccentId $ \c -> addPrepQuery userAccentIdUpdate (c, u)
 
 updateEmail :: MonadClient m => UserId -> Email -> m ()
-updateEmail u e = retry x5 . void $ trans userEmailUpdate (params LocalQuorum (e, u))
+updateEmail u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
 
 updateEmailUnvalidated :: MonadClient m => UserId -> Email -> m ()
-updateEmailUnvalidated u e = retry x5 . void $ trans userEmailUnvalidatedUpdate (params LocalQuorum (e, u))
+updateEmailUnvalidated u e = retry x5 $ write userEmailUnvalidatedUpdate (params LocalQuorum (e, u))
 
 updatePhone :: MonadClient m => UserId -> Phone -> m ()
-updatePhone u p = retry x5 . void $ trans userPhoneUpdate (params LocalQuorum (p, u))
+updatePhone u p = retry x5 $ write userPhoneUpdate (params LocalQuorum (p, u))
 
 updateSSOId :: MonadClient m => UserId -> Maybe UserSSOId -> m Bool
 updateSSOId u ssoid = do
   mteamid <- lookupUserTeam u
   case mteamid of
     Just _ -> do
-      retry x5 . void $ trans userSSOIdUpdate (params LocalQuorum (ssoid, u))
+      retry x5 $ write userSSOIdUpdate (params LocalQuorum (ssoid, u))
       pure True
     Nothing -> pure False
 
 updateManagedBy :: MonadClient m => UserId -> ManagedBy -> m ()
-updateManagedBy u h = retry x5 . void $ trans userManagedByUpdate (params LocalQuorum (h, u))
+updateManagedBy u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (h, u))
 
 updateHandle :: MonadClient m => UserId -> Handle -> m ()
-updateHandle u h = retry x5 . void $ trans userHandleUpdate (params LocalQuorum (h, u))
+updateHandle u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h, u))
 
 updateSupportedProtocols :: MonadClient m => UserId -> Set BaseProtocolTag -> m ()
 updateSupportedProtocols u prots =
-  retry x5 . void $
-    trans userSupportedProtocolUpdate (params LocalQuorum (prots, u))
+  retry x5 $
+    write userSupportedProtocolUpdate (params LocalQuorum (prots, u))
 
 updatePassword :: MonadClient m => UserId -> PlainTextPassword8 -> m ()
 updatePassword u t = do
   p <- liftIO $ mkSafePassword t
-  retry x5 . void $ trans userPasswordUpdate (params LocalQuorum (p, u))
+  retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
 
 updateRichInfo :: MonadClient m => UserId -> RichInfoAssocList -> m ()
-updateRichInfo u ri = retry x5 . void $ trans userRichInfoUpdate (params LocalQuorum (ri, u))
+updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params LocalQuorum (ri, u))
 
 updateFeatureConferenceCalling :: MonadClient m => UserId -> Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig) -> m (Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig))
 updateFeatureConferenceCalling uid mbStatus = do
   let flag = ApiFt.wssStatus <$> mbStatus
-  retry x5 . void $ trans update (params LocalQuorum (flag, uid))
+  retry x5 $ write update (params LocalQuorum (flag, uid))
   pure mbStatus
   where
     update :: PrepQuery W (Maybe ApiFt.FeatureStatus, UserId) ()
     update = fromString "update user set feature_conference_calling = ? where id = ?"
 
 deleteEmail :: MonadClient m => UserId -> m ()
-deleteEmail u = retry x5 . void $ trans userEmailDelete (params LocalQuorum (Identity u))
+deleteEmail u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u))
 
 deleteEmailUnvalidated :: MonadClient m => UserId -> m ()
-deleteEmailUnvalidated u = retry x5 . void $ trans userEmailUnvalidatedDelete (params LocalQuorum (Identity u))
+deleteEmailUnvalidated u = retry x5 $ write userEmailUnvalidatedDelete (params LocalQuorum (Identity u))
 
 deletePhone :: MonadClient m => UserId -> m ()
-deletePhone u = retry x5 . void $ trans userPhoneDelete (params LocalQuorum (Identity u))
+deletePhone u = retry x5 $ write userPhoneDelete (params LocalQuorum (Identity u))
 
 deleteServiceUser :: MonadClient m => ProviderId -> ServiceId -> BotId -> m ()
 deleteServiceUser pid sid bid = do
@@ -369,7 +369,7 @@ deleteServiceUser pid sid bid = do
 
 updateStatus :: MonadClient m => UserId -> AccountStatus -> m ()
 updateStatus u s =
-  retry x5 . void $ trans userStatusUpdate (params LocalQuorum (s, u))
+  retry x5 $ write userStatusUpdate (params LocalQuorum (s, u))
 
 userExists :: MonadClient m => UserId -> m Bool
 userExists uid = isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
@@ -397,11 +397,11 @@ activateUser :: MonadClient m => UserId -> UserIdentity -> m ()
 activateUser u ident = do
   let email = emailIdentity ident
   let phone = phoneIdentity ident
-  retry x5 . void $ trans userActivatedUpdate (params LocalQuorum (email, phone, u))
+  retry x5 $ write userActivatedUpdate (params LocalQuorum (email, phone, u))
 
 deactivateUser :: MonadClient m => UserId -> m ()
 deactivateUser u =
-  retry x5 . void $ trans userDeactivatedUpdate (params LocalQuorum (Identity u))
+  retry x5 $ write userDeactivatedUpdate (params LocalQuorum (Identity u))
 
 lookupLocale :: (MonadClient m, MonadReader Env m) => UserId -> m (Maybe Locale)
 lookupLocale u = do
