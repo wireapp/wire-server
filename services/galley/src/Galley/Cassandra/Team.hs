@@ -232,6 +232,7 @@ addTeamMember t m =
         m ^? invitation . _Just . _2
       )
     addPrepQuery Cql.insertUserTeam (m ^. userId, t)
+
     when (m `hasPermission` SetBilling) $
       addPrepQuery Cql.insertBillingTeamMember (t, m ^. userId)
 
