@@ -340,7 +340,7 @@ connectionInsert :: PrepQuery W (UserId, UserId, RelationWithHistory, UTCTimeMil
 connectionInsert = "INSERT INTO connection (left, right, status, last_update, conv) VALUES (?, ?, ?, ?, ?)"
 
 connectionUpdate :: PrepQuery W (RelationWithHistory, UTCTimeMillis, UserId, UserId) ()
-connectionUpdate = "UPDATE connection SET status = ?, last_update = ? WHERE left = ? AND right = ?" -- `IF EXISTS`, but that is too expensive
+connectionUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE connection SET status = ?, last_update = ? WHERE left = ? AND right = ?"
 
 connectionSelect :: PrepQuery R (UserId, UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId)
 connectionSelect = "SELECT left, right, status, last_update, conv FROM connection WHERE left = ? AND right = ?"
@@ -391,7 +391,7 @@ remoteConnectionSelectFrom :: PrepQuery R (UserId, Domain, UserId) (RelationWith
 remoteConnectionSelectFrom = "SELECT status, last_update, conv_domain, conv_id FROM connection_remote where left = ? AND right_domain = ? AND right_user = ?"
 
 remoteConnectionUpdate :: PrepQuery W (RelationWithHistory, UTCTimeMillis, UserId, Domain, UserId) ()
-remoteConnectionUpdate = "UPDATE connection_remote set status = ?, last_update = ? WHERE left = ? and right_domain = ? and right_user = ?" -- `IF EXISTS`, but that is too expensive
+remoteConnectionUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE connection_remote set status = ?, last_update = ? WHERE left = ? and right_domain = ? and right_user = ?"
 
 remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
 remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right_user = ?"

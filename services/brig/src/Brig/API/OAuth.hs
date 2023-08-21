@@ -313,7 +313,7 @@ updateOAuthClient' :: (MonadClient m) => OAuthClientId -> OAuthApplicationName -
 updateOAuthClient' cid name uri = retry x5 . write q $ params LocalQuorum (name, uri, cid)
   where
     q :: PrepQuery W (OAuthApplicationName, RedirectUrl, OAuthClientId) ()
-    q = "UPDATE oauth_client SET name = ?, redirect_uri = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
+    q = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE oauth_client SET name = ?, redirect_uri = ? WHERE id = ?"
 
 insertOAuthClient :: (MonadClient m) => OAuthClientId -> OAuthApplicationName -> RedirectUrl -> Password -> m ()
 insertOAuthClient cid name uri pw = retry x5 . write q $ params LocalQuorum (cid, name, uri, pw)

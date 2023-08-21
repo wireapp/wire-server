@@ -215,7 +215,7 @@ testLoginWith6CharPassword brig db = do
       retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
 
     userPasswordUpdate :: PrepQuery W (Password, UserId) ()
-    userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
+    userPasswordUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET password = ? WHERE id = ?"
 
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.

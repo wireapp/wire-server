@@ -72,11 +72,11 @@ updateAccountProfile p name url descr = retry x5 . batch $ do
   for_ descr $ \x -> addPrepQuery cqlDescr (x, p)
   where
     cqlName :: PrepQuery W (Name, ProviderId) ()
-    cqlName = "UPDATE provider SET name = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
+    cqlName = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE provider SET name = ? WHERE id = ?"
     cqlUrl :: PrepQuery W (HttpsUrl, ProviderId) ()
-    cqlUrl = "UPDATE provider SET url = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
+    cqlUrl = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE provider SET url = ? WHERE id = ?"
     cqlDescr :: PrepQuery W (Text, ProviderId) ()
-    cqlDescr = "UPDATE provider SET descr = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
+    cqlDescr = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE provider SET descr = ? WHERE id = ?"
 
 -- | Lookup the raw account data of a (possibly unverified) provider.
 lookupAccountData ::
@@ -136,7 +136,7 @@ updateAccountPassword pid pwd = do
   retry x5 $ write cql $ params LocalQuorum (p, pid)
   where
     cql :: PrepQuery W (Password, ProviderId) ()
-    cql = "UPDATE provider SET password = ? where id = ?" -- `IF EXISTS`, but that is too expensive
+    cql = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE provider SET password = ? where id = ?"
 
 --------------------------------------------------------------------------------
 -- Unique (Natural) Keys
@@ -161,7 +161,7 @@ insertKey p old new = retry x5 . batch $ do
     cqlKeyDelete = "DELETE FROM provider_keys WHERE key = ?"
 
     cqlEmail :: PrepQuery W (Email, ProviderId) ()
-    cqlEmail = "UPDATE provider SET email = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
+    cqlEmail = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE provider SET email = ? WHERE id = ?"
 
 lookupKey ::
   MonadClient m =>
@@ -308,15 +308,15 @@ updateService pid sid svcName svcTags nameChange summary descr assets tagsChange
   for_ assets $ \x -> addPrepQuery cqlAssets (x, pid, sid)
   where
     cqlName :: PrepQuery W (Name, ProviderId, ServiceId) ()
-    cqlName = "UPDATE service SET name = ? WHERE provider = ? AND id = ?" -- `IF EXISTS`, but that is too expensive
+    cqlName = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE service SET name = ? WHERE provider = ? AND id = ?"
     cqlSummary :: PrepQuery W (Text, ProviderId, ServiceId) ()
-    cqlSummary = "UPDATE service SET summary = ? WHERE provider = ? AND id = ?" -- `IF EXISTS`, but that is too expensive
+    cqlSummary = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE service SET summary = ? WHERE provider = ? AND id = ?"
     cqlDescr :: PrepQuery W (Text, ProviderId, ServiceId) ()
-    cqlDescr = "UPDATE service SET descr = ? WHERE provider = ? AND id = ?" -- `IF EXISTS`, but that is too expensive
+    cqlDescr = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE service SET descr = ? WHERE provider = ? AND id = ?"
     cqlAssets :: PrepQuery W ([Asset], ProviderId, ServiceId) ()
-    cqlAssets = "UPDATE service SET assets = ? WHERE provider = ? AND id = ?" -- `IF EXISTS`, but that is too expensive
+    cqlAssets = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE service SET assets = ? WHERE provider = ? AND id = ?"
     cqlTags :: PrepQuery W (C.Set ServiceTag, ProviderId, ServiceId) ()
-    cqlTags = "UPDATE service SET tags = ? WHERE provider = ? AND id = ?" -- `IF EXISTS`, but that is too expensive
+    cqlTags = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE service SET tags = ? WHERE provider = ? AND id = ?"
 
 -- NB: can take a significant amount of time if many teams were using the service
 deleteService ::
@@ -440,15 +440,15 @@ updateServiceConn pid sid url tokens keys enabled = retry x5 . batch $ do
     (pks, fps) = (fmap fst &&& fmap snd) (unzip . toList <$> keys)
 
     cqlBaseUrl :: PrepQuery W (HttpsUrl, ProviderId, ServiceId) ()
-    cqlBaseUrl = "UPDATE service SET base_url = ? WHERE provider = ? AND id = ?" -- `IF EXISTS`, but that is too expensive
+    cqlBaseUrl = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE service SET base_url = ? WHERE provider = ? AND id = ?"
     cqlTokens :: PrepQuery W (List1 ServiceToken, ProviderId, ServiceId) ()
-    cqlTokens = "UPDATE service SET auth_tokens = ? WHERE provider = ? AND id = ?" -- `IF EXISTS`, but that is too expensive
+    cqlTokens = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE service SET auth_tokens = ? WHERE provider = ? AND id = ?"
     cqlKeys :: PrepQuery W ([ServiceKey], ProviderId, ServiceId) ()
-    cqlKeys = "UPDATE service SET pubkeys = ? WHERE provider = ? AND id = ?" -- `IF EXISTS`, but that is too expensive
+    cqlKeys = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE service SET pubkeys = ? WHERE provider = ? AND id = ?"
     cqlFps :: PrepQuery W ([Fingerprint Rsa], ProviderId, ServiceId) ()
-    cqlFps = "UPDATE service SET fingerprints = ? WHERE provider = ? AND id = ?" -- `IF EXISTS`, but that is too expensive
+    cqlFps = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE service SET fingerprints = ? WHERE provider = ? AND id = ?"
     cqlEnabled :: PrepQuery W (Bool, ProviderId, ServiceId) ()
-    cqlEnabled = "UPDATE service SET enabled = ? WHERE provider = ? AND id = ?" -- `IF EXISTS`, but that is too expensive
+    cqlEnabled = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE service SET enabled = ? WHERE provider = ? AND id = ?"
 
 --------------------------------------------------------------------------------
 -- Service "Indexes" (tag and prefix); contain only enabled services
