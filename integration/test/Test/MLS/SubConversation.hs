@@ -8,7 +8,7 @@ import Testlib.Prelude
 testJoinSubConv :: App ()
 testJoinSubConv = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+  [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
   traverse_ uploadNewKeyPackage [bob1, bob2]
   (_, qcnv) <- createNewGroup alice1
   void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
@@ -32,7 +32,7 @@ testDeleteParentOfSubConv secondDomain = do
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
-  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   traverse_ uploadNewKeyPackage [alice1, bob1]
   (_, qcnv) <- createNewGroup alice1
   void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
@@ -80,7 +80,7 @@ testDeleteSubConversation :: HasCallStack => Domain -> App ()
 testDeleteSubConversation otherDomain = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
   charlie <- randomUser OwnDomain def
-  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   void $ uploadNewKeyPackage bob1
   (_, qcnv) <- createNewGroup alice1
   void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle

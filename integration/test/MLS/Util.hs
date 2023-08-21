@@ -128,18 +128,23 @@ createWireClient u = do
   c <- addClient u def {lastPrekey = Just lpk} >>= getJSON 201
   mkClientIdentity u c
 
-initMLSClient :: HasCallStack => ClientIdentity -> App ()
-initMLSClient cid = do
+data InitMLSClient = InitMLSClient
+
+instance Default InitMLSClient where
+  def = InitMLSClient
+
+initMLSClient :: HasCallStack => InitMLSClient -> ClientIdentity -> App ()
+initMLSClient _opts cid = do
   bd <- getBaseDir
   mls <- getMLSState
   liftIO $ createDirectory (bd </> cid2Str cid)
   void $ mlscli cid ["init", "--ciphersuite", mls.ciphersuite.code, cid2Str cid] Nothing
 
 -- | Create new mls client and register with backend.
-createMLSClient :: (MakesValue u, HasCallStack) => u -> App ClientIdentity
-createMLSClient u = do
+createMLSClient :: (MakesValue u, HasCallStack) => InitMLSClient -> u -> App ClientIdentity
+createMLSClient opts u = do
   cid <- createWireClient u
-  initMLSClient cid
+  initMLSClient opts cid
 
   -- set public key
   pkey <- mlscli cid ["public-key"] Nothing
