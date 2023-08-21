@@ -98,11 +98,6 @@ testNotificationsForOfflineBackends = do
       memberJoinNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
       asListOf objQidObject (memberJoinNotif %. "payload.0.data.users") `shouldMatch` mapM objQidObject [otherUser2]
 
-      -- TODO: Broken
-      -- delUserLeftDownConvNotif <- nPayload $ awaitNotification otherUser otherClient (Just newMsgNotif) 1 (allPreds [isConvLeaveNotif, isNotifConv downBackendConv])
-      -- delUserLeftDownConvNotif %. "qualified_conversation" `shouldMatch` objQidObject downBackendConv
-      -- delUserLeftDownConvNotif %. "data.qualified_user_ids.0" `shouldMatch` objQidObject delUser
-
       delUserDeletedNotif <- nPayload $ awaitNotification otherUser otherClient (Just newMsgNotif) 1 isDeleteUserNotif
       objQid delUserDeletedNotif `shouldMatch` objQid delUser
 
@@ -123,6 +118,7 @@ testNotificationsForOfflineBackends = do
                 isNotifForUser delUser
               ]
       void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isDelUserLeaveDownConvNotif
+      void $ awaitNotification otherUser otherClient noValue 1 isDelUserLeaveDownConvNotif
 
       -- FUTUREWORK: Uncomment after fixing this bug: https://wearezeta.atlassian.net/browse/WPB-3664
       -- void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 (allPreds [isConvLeaveNotif, isNotifConv upBackendConv, isNotifForUser otherUser])
