@@ -447,15 +447,15 @@ selectClients = "select user, clients from clients where user in ?"
 rmClients :: PrepQuery W (Identity UserId) ()
 rmClients = "delete from clients where user = ?"
 
-addMemberClient :: ClientId -> QueryString W (Identity UserId) Row
-addMemberClient c =
+upsertMemberAddClient :: ClientId -> QueryString W (Identity UserId) Row
+upsertMemberAddClient c =
   let t = LT.fromStrict (client c)
-   in QueryString $ "update clients set clients = clients + {'" <> t <> "'} where user = ? IF EXISTS"
+   in QueryString $ "update clients set clients = clients + {'" <> t <> "'} where user = ?"
 
-rmMemberClient :: ClientId -> QueryString W (Identity UserId) Row
-rmMemberClient c =
+upsertMemberRmClient :: ClientId -> QueryString W (Identity UserId) Row
+upsertMemberRmClient c =
   let t = LT.fromStrict (client c)
-   in QueryString $ "update clients set clients = clients - {'" <> t <> "'} where user = ? IF EXISTS"
+   in QueryString $ "update clients set clients = clients - {'" <> t <> "'} where user = ?"
 
 -- MLS Clients --------------------------------------------------------------
 
