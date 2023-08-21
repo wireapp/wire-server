@@ -143,6 +143,7 @@ executeAction env = \case
       where
         updateHandle :: PrepQuery W (Handle, UserId) ()
         updateHandle = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET handle = ? WHERE id = ?"
+
     removeHandle :: Env -> Handle -> IO ()
     removeHandle Env {..} handle =
       runClient envBrig $
