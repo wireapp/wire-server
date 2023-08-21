@@ -176,8 +176,12 @@ deleteTeamAdmin = "delete from team_admin where team = ? and user = ?"
 listTeamAdmins :: PrepQuery R (Identity TeamId) (Identity UserId)
 listTeamAdmins = "select user from team_admin where team = ?"
 
+-- | This is not an upsert, but we can't add `IF EXISTS` here, or cassandra will yell `Invalid
+-- "Batch with conditions cannot span multiple tables"` at us.  So we make sure in the
+-- application logic to only call this if the user exists (in the handler, not entirely
+-- race-condition-proof, unfortunately).
 updatePermissions :: PrepQuery W (Permissions, TeamId, UserId) Row
-updatePermissions = "update team_member set perms = ? where team = ? and user = ? IF EXISTS"
+updatePermissions = "update team_member set perms = ? where team = ? and user = ?"
 
 insertUserTeam :: PrepQuery W (UserId, TeamId) ()
 insertUserTeam = "insert into user_team (user, team) values (?, ?)"
