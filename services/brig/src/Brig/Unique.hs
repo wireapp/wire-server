@@ -66,7 +66,7 @@ withClaim u v t io = do
     -- [Note: Guarantees]
     claim = do
       let ttl = max minTtl (fromIntegral (t #> Second))
-      retry x5 . void $ trans upsertQuery $ params LocalQuorum (ttl * 2, C.Set [u], v)
+      retry x5 $ write upsertQuery $ params LocalQuorum (ttl * 2, C.Set [u], v)
       claimed <- (== [u]) <$> lookupClaims v
       if claimed
         then liftIO $ timeout (fromIntegral ttl # Second) io

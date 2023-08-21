@@ -367,7 +367,7 @@ clearReplacedBy (Replaced old) = do
   retry x5 . write ins $ params LocalQuorum (Identity old)
   where
     ins :: PrepQuery W (Identity SAML.IdPId) ()
-    ins = "UPDATE idp SET replaced_by = null WHERE idp = ?" -- `IF EXISTS`, but that is too expensive -- `IF EXISTS`, but that is too expensive
+    ins = "UPDATE idp SET replaced_by = null WHERE idp = ?" -- `IF EXISTS`, but that is too expensive
 
 -- | If the IdP is 'WireIdPAPIV1', it must be deleted globally, if it is 'WireIdPAPIV2', it
 -- must be deleted inside one team.  'V1' can be either in the old table without team index,
