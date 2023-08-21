@@ -69,7 +69,7 @@ testNotificationsForOfflineBackends = do
 
     -- Conversation creation with people from down backend should fail
     bindResponse (postConversation delUser (defProteus {qualifiedUsers = [otherUser, downUser1]})) $ \resp ->
-      resp.status `shouldMatchInt` 503
+      resp.status `shouldMatchInt` 533
 
     -- Adding users to an up backend conversation should work even when one of
     -- the participating backends is down
@@ -80,7 +80,7 @@ testNotificationsForOfflineBackends = do
 
     -- Adding users from down backend to a conversation should also fail
     bindResponse (addMembers delUser upBackendConv [downUser2]) $ \resp ->
-      resp.status `shouldMatchInt` 503
+      resp.status `shouldMatchInt` 533
 
     -- Removing users from an up backend conversation should work even when one
     -- of the participating backends is down.
