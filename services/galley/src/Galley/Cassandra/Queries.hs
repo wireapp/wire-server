@@ -578,9 +578,9 @@ selectCustomBackend :: PrepQuery R (Identity Domain) (HttpsUrl, HttpsUrl)
 selectCustomBackend =
   "select config_json_url, webapp_welcome_url from custom_backend where domain = ?"
 
-updateCustomBackend :: PrepQuery W (HttpsUrl, HttpsUrl, Domain) Row
-updateCustomBackend =
-  "update custom_backend set config_json_url = ?, webapp_welcome_url = ? where domain = ? IF EXISTS"
+upsertCustomBackend :: PrepQuery W (HttpsUrl, HttpsUrl, Domain) ()
+upsertCustomBackend =
+  "update custom_backend set config_json_url = ?, webapp_welcome_url = ? where domain = ?"
 
 deleteCustomBackend :: PrepQuery W (Identity Domain) ()
 deleteCustomBackend =

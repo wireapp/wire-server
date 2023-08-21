@@ -51,7 +51,7 @@ getCustomBackend domain =
 
 setCustomBackend :: MonadClient m => Domain -> CustomBackend -> m ()
 setCustomBackend domain CustomBackend {..} = do
-  retry x5 . void $ trans Cql.updateCustomBackend (params LocalQuorum (backendConfigJsonUrl, backendWebappWelcomeUrl, domain))
+  retry x5 $ write Cql.updateCustomBackend (params LocalQuorum (backendConfigJsonUrl, backendWebappWelcomeUrl, domain))
 
 deleteCustomBackend :: MonadClient m => Domain -> m ()
 deleteCustomBackend domain = do
