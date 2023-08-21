@@ -50,7 +50,6 @@ import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.Aeson.TH
 import Imports
-import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
 import qualified Spar.App as Spar
 import Spar.Options
@@ -100,7 +99,7 @@ data IntegrationConfig = IntegrationConfig
   }
   deriving (Show, Generic)
 
-deriveFromJSON deriveJSONOptions ''IntegrationConfig
+deriveFromJSON Aeson.defaultOptions ''IntegrationConfig
 
 makeLenses ''TestEnv
 

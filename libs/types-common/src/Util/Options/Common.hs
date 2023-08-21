@@ -37,11 +37,13 @@ import System.Posix.Env qualified as Posix
 -- would generate {To/From}JSON instances where
 -- the field name is "teamName"
 toOptionFieldName :: Options
-toOptionFieldName = defaultOptions {fieldLabelModifier = lowerFirst}
+toOptionFieldName = defaultOptions {fieldLabelModifier = lowerFirst . dropPrefix}
   where
     lowerFirst :: String -> String
     lowerFirst (x : xs) = toLower x : xs
     lowerFirst [] = ""
+    dropPrefix :: String -> String
+    dropPrefix = dropWhile ('_' ==)
 
 optOrEnv :: (a -> b) -> Maybe a -> (String -> b) -> String -> IO b
 optOrEnv getter conf reader var = case conf of
