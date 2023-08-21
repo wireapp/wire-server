@@ -263,16 +263,16 @@ rmClient u c = do
   unlessM (isJust <$> view randomPrekeyLocalLock) $ deleteOptLock u c
 
 updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
-updateClientLabel u c l = retry x5 . void $ trans updateClientLabelQuery (params LocalQuorum (l, u, c))
+updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params LocalQuorum (l, u, c))
 
 updateClientCapabilities :: MonadClient m => UserId -> ClientId -> Maybe (Imports.Set ClientCapability) -> m ()
-updateClientCapabilities u c fs = retry x5 . void $ trans updateClientCapabilitiesQuery (params LocalQuorum (C.Set . Set.toList <$> fs, u, c))
+updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params LocalQuorum (C.Set . Set.toList <$> fs, u, c))
 
 -- | If the update fails, which can happen if device does not exist, then ignore the error silently.
 updateClientLastActive :: MonadClient m => UserId -> ClientId -> UTCTime -> m ()
 updateClientLastActive u c t =
-  void . retry x5 $
-    trans
+  retry x5 $
+    write
       updateClientLastActiveQuery
       (params LocalQuorum (t, u, c))
 
@@ -388,7 +388,7 @@ updateClientCapabilitiesQuery :: PrepQuery W (Maybe (C.Set ClientCapability), Us
 updateClientCapabilitiesQuery = "UPDATE clients SET capabilities = ? WHERE user = ? AND client = ?" -- `IF EXISTS`, but that is too expensive
 
 updateClientLastActiveQuery :: PrepQuery W (UTCTime, UserId, ClientId) ()
-updateClientLastActiveQuery = "UPDATE clients SET last_active = ? WHERE user = ? AND client = ?" -- `IF EXISTS`, but that is too expensive
+updateClientLastActiveQuery = "UPDATE clients SET last_active = ? WHERE user = ? AND client = ? IF EXISTS"
 
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"

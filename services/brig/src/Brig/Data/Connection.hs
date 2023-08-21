@@ -109,13 +109,11 @@ updateConnectionStatus :: (MonadClient m) => Local UserId -> Qualified UserId ->
 updateConnectionStatus self target status = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
   let local (tUnqualified -> ltarget) =
-        void $
-          trans connectionUpdate $
-            params LocalQuorum (status, now, tUnqualified self, ltarget)
+        write connectionUpdate $
+          params LocalQuorum (status, now, tUnqualified self, ltarget)
   let remote (tUntagged -> Qualified rtarget domain) =
-        void $
-          trans remoteConnectionUpdate $
-            params LocalQuorum (status, now, tUnqualified self, domain, rtarget)
+        write remoteConnectionUpdate $
+          params LocalQuorum (status, now, tUnqualified self, domain, rtarget)
   retry x5 $ foldQualified self local remote target
   pure now
 

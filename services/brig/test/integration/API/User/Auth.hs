@@ -214,7 +214,7 @@ testLoginWith6CharPassword brig db = do
       p <- liftIO $ mkSafePassword t
       retry x5 . void $ trans userPasswordUpdate (params LocalQuorum (p, u))
 
-    userPasswordUpdate :: PrepQuery W (Password, UserId) Row
+    userPasswordUpdate :: PrepQuery W (Password, UserId) ()
     userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 --------------------------------------------------------------------------------

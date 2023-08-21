@@ -51,7 +51,7 @@ insert u t a p e o c = retry x5 $ write q (params LocalQuorum (u, t, a, p, e, o,
 updateArn :: MonadClient m => UserId -> Transport -> AppName -> Token -> EndpointArn -> m ()
 updateArn uid transport app token arn = retry x5 . void $ trans q (params LocalQuorum (arn, uid, transport, app, token))
   where
-    q :: PrepQuery W (EndpointArn, UserId, Transport, AppName, Token) Row
+    q :: PrepQuery W (EndpointArn, UserId, Transport, AppName, Token) ()
     q = "update user_push set arn = ? where usr = ? and transport = ? and app = ? and ptoken = ?" -- `IF EXISTS`, but that is too expensive
 
 delete :: MonadClient m => UserId -> Transport -> AppName -> Token -> m ()

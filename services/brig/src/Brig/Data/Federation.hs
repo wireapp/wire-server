@@ -66,7 +66,7 @@ updateFederationRemote (FederationDomainConfig rdom spol) = do
     _ -> throwM $ ErrorCall "Primary key violation detected federation_remotes"
   where
     upd :: PrepQuery W (FederatedUserSearchPolicy, Domain) x
-    upd = "UPDATE federation_remotes SET search_policy = ? WHERE domain = ?" -- `IF EXISTS`, but that is too expensive
+    upd = "UPDATE federation_remotes SET search_policy = ? WHERE domain = ? IF EXISTS"
 
 deleteFederationRemote :: MonadClient m => Domain -> m ()
 deleteFederationRemote rdom =

@@ -335,8 +335,8 @@ updateFeatureConferenceCalling uid mbStatus = do
   retry x5 . void $ trans update (params LocalQuorum (flag, uid))
   pure mbStatus
   where
-    update :: PrepQuery W (Maybe ApiFt.FeatureStatus, UserId) Row
-    update = fromString "update user set feature_conference_calling = ? where id = ? if exists"
+    update :: PrepQuery W (Maybe ApiFt.FeatureStatus, UserId) ()
+    update = fromString "update user set feature_conference_calling = ? where id = ?"
 
 deleteEmail :: MonadClient m => UserId -> m ()
 deleteEmail u = retry x5 . void $ trans userEmailDelete (params LocalQuorum (Identity u))
@@ -621,64 +621,64 @@ userInsert =
   \country, provider, service, handle, team, managed_by, supported_protocols) \
   \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
-userDisplayNameUpdate :: PrepQuery W (Name, UserId) Row
+userDisplayNameUpdate :: PrepQuery W (Name, UserId) ()
 userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userPictUpdate :: PrepQuery W (Pict, UserId) Row
+userPictUpdate :: PrepQuery W (Pict, UserId) ()
 userPictUpdate = "UPDATE user SET picture = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userAssetsUpdate :: PrepQuery W ([Asset], UserId) Row
+userAssetsUpdate :: PrepQuery W ([Asset], UserId) ()
 userAssetsUpdate = "UPDATE user SET assets = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userAccentIdUpdate :: PrepQuery W (ColourId, UserId) Row
+userAccentIdUpdate :: PrepQuery W (ColourId, UserId) ()
 userAccentIdUpdate = "UPDATE user SET accent_id = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userEmailUpdate :: PrepQuery W (Email, UserId) Row
+userEmailUpdate :: PrepQuery W (Email, UserId) ()
 userEmailUpdate = "UPDATE user SET email = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userEmailUnvalidatedUpdate :: PrepQuery W (Email, UserId) Row
+userEmailUnvalidatedUpdate :: PrepQuery W (Email, UserId) ()
 userEmailUnvalidatedUpdate = "UPDATE user SET email_unvalidated = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) Row
+userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
 userEmailUnvalidatedDelete = "UPDATE user SET email_unvalidated = null WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userPhoneUpdate :: PrepQuery W (Phone, UserId) Row
+userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
 userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) Row
+userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) ()
 userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) Row
+userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
 userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userHandleUpdate :: PrepQuery W (Handle, UserId) Row
+userHandleUpdate :: PrepQuery W (Handle, UserId) ()
 userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userSupportedProtocolUpdate :: PrepQuery W (Set BaseProtocolTag, UserId) Row
+userSupportedProtocolUpdate :: PrepQuery W (Set BaseProtocolTag, UserId) ()
 userSupportedProtocolUpdate = "UPDATE user SET supported_protocols = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userPasswordUpdate :: PrepQuery W (Password, UserId) Row
+userPasswordUpdate :: PrepQuery W (Password, UserId) ()
 userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userStatusUpdate :: PrepQuery W (AccountStatus, UserId) Row
+userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
 userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userDeactivatedUpdate :: PrepQuery W (Identity UserId) Row
+userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
 userDeactivatedUpdate = "UPDATE user SET activated = false WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userActivatedUpdate :: PrepQuery W (Maybe Email, Maybe Phone, UserId) Row
+userActivatedUpdate :: PrepQuery W (Maybe Email, Maybe Phone, UserId) ()
 userActivatedUpdate = "UPDATE user SET activated = true, email = ?, phone = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userLocaleUpdate :: PrepQuery W (Language, Maybe Country, UserId) Row
+userLocaleUpdate :: PrepQuery W (Language, Maybe Country, UserId) ()
 userLocaleUpdate = "UPDATE user SET language = ?, country = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userEmailDelete :: PrepQuery W (Identity UserId) Row
+userEmailDelete :: PrepQuery W (Identity UserId) ()
 userEmailDelete = "UPDATE user SET email = null WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userPhoneDelete :: PrepQuery W (Identity UserId) Row
+userPhoneDelete :: PrepQuery W (Identity UserId) ()
 userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
-userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) Row
+userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) ()
 userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ?" -- `IF EXISTS`, but that is too expensive
 
 -------------------------------------------------------------------------------
