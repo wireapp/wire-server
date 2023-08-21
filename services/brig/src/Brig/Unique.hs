@@ -66,13 +66,13 @@ withClaim u v t io = do
     -- [Note: Guarantees]
     claim = do
       let ttl = max minTtl (fromIntegral (t #> Second))
-      retry x5 . void $ trans cql $ params LocalQuorum (ttl * 2, C.Set [u], v)
+      retry x5 . void $ trans upsertQuery $ params LocalQuorum (ttl * 2, C.Set [u], v)
       claimed <- (== [u]) <$> lookupClaims v
       if claimed
         then liftIO $ timeout (fromIntegral ttl # Second) io
         else pure Nothing
-    cql :: PrepQuery W (Int32, C.Set (Id a), Text) Row
-    cql = "UPDATE unique_claims USING TTL ? SET claims = claims + ? WHERE value = ?" -- (UPSERT is intentional!)
+    upsertQuery :: PrepQuery W (Int32, C.Set (Id a), Text) Row
+    upsertQuery = "UPDATE unique_claims USING TTL ? SET claims = claims + ? WHERE value = ?"
 
 deleteClaim ::
   MonadClient m =>

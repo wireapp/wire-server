@@ -189,11 +189,11 @@ addKeyPackageRef :: MonadClient m => KeyPackageRef -> NewKeyPackageRef -> m ()
 addKeyPackageRef ref nkpr = do
   retry x5 $
     write
-      q
+      upsertQuery
       (params LocalQuorum (nkprClientId nkpr, qUnqualified (nkprConversation nkpr), qDomain (nkprConversation nkpr), qDomain (nkprUserId nkpr), qUnqualified (nkprUserId nkpr), ref))
   where
-    q :: PrepQuery W (ClientId, ConvId, Domain, Domain, UserId, KeyPackageRef) x -- (UPSERT is intentional!)
-    q = "UPDATE mls_key_package_refs SET client = ?, conv = ?, conv_domain = ?, domain = ?, user = ? WHERE ref = ?"
+    upsertQuery :: PrepQuery W (ClientId, ConvId, Domain, Domain, UserId, KeyPackageRef) x
+    upsertQuery = "UPDATE mls_key_package_refs SET client = ?, conv = ?, conv_domain = ?, domain = ?, user = ? WHERE ref = ?"
 
 -- | Update key package ref, used in Galley when commit reveals key package ref update for the sender.
 -- Nothing is changed if the previous key package ref is not found in the table.
