@@ -50,6 +50,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
+import Servant.API
 import System.Logger.Class qualified as Logger
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
@@ -184,10 +185,7 @@ getLocalMLSClients lusr suite =
           ]
         . queryItem
           "ciphersuite"
-          ( "0x"
-              <> toByteString'
-                (Hex (cipherSuiteNumber (tagCipherSuite suite)))
-          )
+          (toHeader (tagCipherSuite suite))
         . expect2xx
     )
     >>= parseResponse (mkError status502 "server-error")
