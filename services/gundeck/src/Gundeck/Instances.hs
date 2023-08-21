@@ -25,11 +25,11 @@ where
 
 import Amazonka.Data
 import Cassandra.CQL
-import qualified Data.Attoparsec.Text as Parser
-import qualified Data.ByteString.Lazy as Bytes
+import Data.Attoparsec.Text qualified as Parser
+import Data.ByteString.Lazy qualified as Bytes
 import Data.Id
-import qualified Data.Text.Encoding as Text
-import qualified Data.UUID as Uuid
+import Data.Text.Encoding qualified as Text
+import Data.UUID qualified as Uuid
 import Gundeck.Aws.Arn (EndpointArn)
 import Gundeck.Types
 import Imports

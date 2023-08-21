@@ -58,7 +58,7 @@ import Cassandra
 import Control.Monad.Morph
 import Control.Monad.Trans.Maybe
 import Data.Conduit (ConduitT, runConduit, (.|))
-import qualified Data.Conduit.List as C
+import Data.Conduit.List qualified as C
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)

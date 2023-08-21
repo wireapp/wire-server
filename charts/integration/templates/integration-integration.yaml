@@ -35,7 +35,7 @@ spec:
 
     - name: "cannon-config"
       configMap:
-        name: cannon
+        name: "cannon"
 
     - name: "gundeck-config"
       configMap:
@@ -48,6 +48,33 @@ spec:
     - name: "spar-config"
       configMap:
         name: "spar"
+
+    - name: "federator-config"
+      configMap:
+        name: "federator"
+
+    - name: "federator-secrets"
+      secret:
+        secretName: "federator-certificate-secret"
+
+    - name: "federator-ca"
+      configMap:
+        name: "federator-ca"
+    - name: "background-worker-config"
+      configMap:
+        name: "background-worker"
+
+    - name: "stern-config"
+      configMap:
+        name: "backoffice"
+
+    - name: "nginz-config"
+      configMap:
+        name: "nginz"
+
+    - name: "nginz-secrets"
+      secret:
+        secretName: "nginz"
 
   restartPolicy: Never
 
@@ -81,13 +108,17 @@ spec:
     command:
       - /bin/sh
       - -c
-      - >-
-        integration-dynamic-backends-db-schemas.sh --host {{ .Values.config.cassandra.host }} --port 9042 --replication-factor {{ .Values.config.cassandra.replicationFactor }};
-        integration-dynamic-backends-brig-index.sh --elasticsearch-server http://{{ .Values.config.elasticsearch.host }}:9200;
-        integration-dynamic-backends-sqs.sh {{ .Values.config.sqsEndpointUrl }};
-        integration-dynamic-backends-ses.sh {{ .Values.config.sesEndpointUrl }};
-        integration-dynamic-backends-s3.sh {{ .Values.config.s3EndpointUrl }};
-        integration-dynamic-backends-vhosts.sh {{ .Values.config.rabbitmqPutVHostUrl }}
+      - |
+        set -euo pipefail
+        # FUTUREWORK: Do all of this in the integration test binary
+        integration-dynamic-backends-db-schemas.sh --host {{ .Values.config.cassandra.host }} --port 9042 --replication-factor {{ .Values.config.cassandra.replicationFactor }}
+        integration-dynamic-backends-brig-index.sh --elasticsearch-server http://{{ .Values.config.elasticsearch.host }}:9200
+        integration-dynamic-backends-sqs.sh {{ .Values.config.sqsEndpointUrl }}
+        integration-dynamic-backends-ses.sh {{ .Values.config.sesEndpointUrl }}
+        integration-dynamic-backends-s3.sh {{ .Values.config.s3EndpointUrl }}
+        {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
+        integration-dynamic-backends-vhosts.sh {{ $.Values.config.rabbitmqPutVHostUrl }} {{ $dynamicBackend.federatorExternalHostPrefix}}.{{ $.Release.Namespace }}.svc.cluster.local
+        {{- end }}
     resources:
       requests:
         memory: "512Mi"
@@ -134,15 +165,36 @@ spec:
     - name: cargohold-config
       mountPath: /etc/wire/cargohold/conf
 
-    - name: "spar-config"
-      mountPath: "/etc/wire/spar/conf"
+    - name: spar-config
+      mountPath: /etc/wire/spar/conf
+
+    - name: federator-config
+      mountPath: /etc/wire/federator/conf
+
+    - name: federator-secrets
+      mountPath: /etc/wire/federator/secrets
+
+    - name: federator-ca
+      mountPath: /etc/wire/federator/ca
+
+    - name: background-worker-config
+      mountPath: /etc/wire/background-worker/conf
+
+    - name: stern-config
+      mountPath: /etc/wire/stern/conf
+
+    - name: nginz-config
+      mountPath: /etc/wire/nginz/conf
+
+    - name: nginz-secrets
+      mountPath: /etc/wire/nginz/secrets
 
     env:
     # these dummy values are necessary for Amazonka's "Discover"
     - name: AWS_ACCESS_KEY_ID
-      value: "dummy"
+      value: "dummykey"
     - name: AWS_SECRET_ACCESS_KEY
-      value: "dummy"
+      value: "dummysecret"
     - name: AWS_REGION
       value: "eu-west-1"
     - name: RABBITMQ_USERNAME

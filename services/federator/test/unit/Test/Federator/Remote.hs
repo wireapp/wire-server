@@ -28,8 +28,8 @@ import Federator.Run (mkTLSSettingsOrThrow)
 import Imports
 import Network.HTTP.Types (status200)
 import Network.Wai
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Handler.WarpTLS as Warp
+import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Handler.WarpTLS qualified as Warp
 import Network.Wai.Utilities.MockServer (startMockServer)
 import OpenSSL.Session (SSLContext)
 import Polysemy

@@ -27,12 +27,12 @@ module Brig.Queue.Stomp
 where
 
 import BasePrelude hiding (Handler, throwIO)
-import qualified Brig.Options as Opts
-import qualified Codec.MIME.Type as MIME
+import Brig.Options qualified as Opts
+import Codec.MIME.Type qualified as MIME
 import Control.Monad.Catch (Handler (..), MonadMask)
 import Control.Retry hiding (retryPolicy)
 import Data.Aeson as Aeson
-import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy qualified as BL
 import Data.Conduit.Network.TLS
 import Data.Text
 import Data.Text.Encoding

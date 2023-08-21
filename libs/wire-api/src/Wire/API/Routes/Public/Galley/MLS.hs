@@ -54,7 +54,6 @@ type MLSMessagingAPI =
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "send-mls-message"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Brig "get-mls-clients"
                :> Until 'V2
                :> CanThrow 'ConvAccessDenied
@@ -76,6 +75,8 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
                :> "messages"
                :> ZLocalUser
                :> ZOptClient
@@ -89,7 +90,6 @@ type MLSMessagingAPI =
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "send-mls-message"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Brig "get-mls-clients"
                :> From 'V2
                :> CanThrow 'ConvAccessDenied
@@ -111,6 +111,8 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
                :> "messages"
                :> ZLocalUser
                :> ZOptClient
@@ -125,7 +127,6 @@ type MLSMessagingAPI =
                :> MakesFederatedCall 'Galley "mls-welcome"
                :> MakesFederatedCall 'Galley "send-mls-commit-bundle"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Brig "get-mls-clients"
                :> From 'V4
                :> CanThrow 'ConvAccessDenied
@@ -148,6 +149,8 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSWelcomeMismatch
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
                :> "commit-bundles"
                :> ZLocalUser
                :> ZOptClient

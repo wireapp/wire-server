@@ -63,20 +63,20 @@ import Cassandra.CQL hiding (Set)
 import Control.Applicative (optional)
 import Control.Lens (at, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.TH as A
+import Data.Aeson qualified as A
+import Data.Aeson.TH qualified as A
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.Hashable
 import Data.Range (fromRange, genRangeText)
 import Data.Schema
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons.TH
-import qualified Data.Swagger as S
-import qualified Deriving.Swagger as S
+import Data.Swagger qualified as S
+import Deriving.Swagger qualified as S
 import GHC.TypeLits
 import Imports
-import qualified Test.QuickCheck as QC
+import Test.QuickCheck qualified as QC
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------

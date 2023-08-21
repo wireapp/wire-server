@@ -99,6 +99,7 @@ library
     Galley.Effects.CodeStore
     Galley.Effects.ConversationStore
     Galley.Effects.CustomBackendStore
+    Galley.Effects.DefederationNotifications
     Galley.Effects.ExternalAccess
     Galley.Effects.FederatorAccess
     Galley.Effects.FireAndForget
@@ -279,7 +280,7 @@ library
     , wire-api-federation
     , x509
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable galley
   main-is:            exec/Main.hs
@@ -343,7 +344,7 @@ executable galley
   if flag(static)
     ld-options: -static
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable galley-integration
   main-is:            Main.hs
@@ -512,7 +513,7 @@ executable galley-integration
     , wire-api-federation
     , yaml
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable galley-migrate-data
   main-is:            Main.hs
@@ -525,6 +526,7 @@ executable galley-migrate-data
     Paths_galley
     V1_BackfillBillingTeamMembers
     V2_MigrateMLSMembers
+    V3_BackfillTeamAdmins
 
   hs-source-dirs:     migrate-data/src
   default-extensions:
@@ -583,6 +585,7 @@ executable galley-migrate-data
     , exceptions
     , extended
     , galley
+    , galley-types
     , imports
     , lens
     , optparse-applicative
@@ -596,7 +599,7 @@ executable galley-migrate-data
   if flag(static)
     ld-options: -static
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable galley-schema
   main-is:            Main.hs
@@ -667,6 +670,7 @@ executable galley-schema
     V80_AddConversationCodePassword
     V81_TeamFeatureMlsE2EIdUpdate
     V82_RemoteDomainIndexes
+    V83_CreateTableTeamAdmin
 
   hs-source-dirs:     schema/src
   default-extensions:
@@ -728,16 +732,16 @@ executable galley-schema
   if flag(static)
     ld-options: -static
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite galley-tests
   type:               exitcode-stdio-1.0
   main-is:            Main.hs
   other-modules:
     Paths_galley
+    Test.Galley.API.Action
     Test.Galley.API.Message
     Test.Galley.API.One2One
-    Test.Galley.API.Query
     Test.Galley.Intra.User
     Test.Galley.Mapping
 
@@ -810,4 +814,4 @@ test-suite galley-tests
     , wire-api
     , wire-api-federation
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

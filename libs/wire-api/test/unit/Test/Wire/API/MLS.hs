@@ -18,20 +18,20 @@
 module Test.Wire.API.MLS where
 
 import Control.Concurrent.Async
-import qualified Crypto.PubKey.Ed25519 as Ed25519
+import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Data.ByteArray
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Either.Combinators
 import Data.Hex
 import Data.Id
 import Data.Json.Util (toBase64Text)
 import Data.Qualified
-import qualified Data.Text as T
-import qualified Data.Text as Text
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
+import Data.Text qualified as T
+import Data.Text qualified as Text
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
 import Imports
 import System.Exit
 import System.FilePath ((</>))

@@ -23,29 +23,29 @@ import Bilge hiding (head)
 import Bilge.Assert
 import Control.Exception
 import Control.Lens hiding ((#))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1 hiding (head)
-import qualified Data.List1 as List1
-import qualified Data.Map as Map
-import qualified Data.ProtoLens as Protolens
+import Data.List1 qualified as List1
+import Data.Map qualified as Map
+import Data.ProtoLens qualified as Protolens
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
 import Federator.MockServer
 import Imports
-import qualified Network.HTTP.Types as Http
+import Network.HTTP.Types qualified as Http
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
@@ -56,7 +56,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
-import qualified Wire.API.Federation.API.Galley as FedGalley
+import Wire.API.Federation.API.Galley qualified as FedGalley
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification
 import Wire.API.Message
@@ -1163,7 +1163,9 @@ updateConversationByRemoteAdmin = do
         cnvUpdate' <- liftIO $ case resp of
           ConversationUpdateResponseError err -> assertFailure ("Expected ConversationUpdateResponseUpdate but got " <> show err)
           ConversationUpdateResponseNoChanges -> assertFailure "Expected ConversationUpdateResponseUpdate but got ConversationUpdateResponseNoChanges"
-          ConversationUpdateResponseUpdate up _ftp -> pure up
+          ConversationUpdateResponseUpdate up -> pure up
+          ConversationUpdateResponseNonFederatingBackends _ -> assertFailure "Expected ConversationUpdateResponseUpdate but got ConversationUpdateResponseNonFederatingBackends"
+          ConversationUpdateResponseUnreachableBackends _ -> assertFailure "Expected ConversationUpdateResponseUpdate but got ConversationUpdateResponseUnreachableBackends"
 
         liftIO $ do
           cuOrigUserId cnvUpdate' @?= qbob

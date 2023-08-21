@@ -40,7 +40,7 @@ import Imports
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Proxy.Options
-import qualified System.Logger.Extended as Logger
+import System.Logger.Extended qualified as Logger
 
 data Env = Env
   { _reqId :: !RequestId,

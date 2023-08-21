@@ -26,14 +26,14 @@ module Test.Wire.API.Golden.Runner
 where
 
 import Data.Aeson
-import qualified Data.Aeson.Diff as AD
+import Data.Aeson.Diff qualified as AD
 import Data.Aeson.Encode.Pretty (Config (..), defConfig, encodePretty')
-import qualified Data.ByteString as ByteString
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString qualified as ByteString
+import Data.ByteString.Lazy qualified as LBS
 import Data.ProtoLens.Encoding (decodeMessage, encodeMessage)
 import Data.ProtoLens.Message (Message)
 import Data.ProtoLens.TextFormat (pprintMessage, readMessage)
-import qualified Data.Text.Lazy.IO as LText
+import Data.Text.Lazy.IO qualified as LText
 import Imports
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit

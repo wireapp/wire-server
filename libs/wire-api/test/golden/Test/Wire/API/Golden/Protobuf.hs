@@ -18,7 +18,7 @@
 module Test.Wire.API.Golden.Protobuf where
 
 import Imports
-import qualified Proto.Otr
+import Proto.Otr qualified
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Generated.QualifiedNewOtrMessage_user

@@ -1,10 +1,10 @@
 module API.Brig where
 
 import API.Common
-import qualified Data.ByteString.Base64 as Base64
+import Data.ByteString.Base64 qualified as Base64
 import Data.Foldable
 import Data.Function
-import qualified Data.Text.Encoding as T
+import Data.Text.Encoding qualified as T
 import GHC.Stack
 import Testlib.Prelude
 
@@ -180,6 +180,21 @@ postConnection userFrom userTo = do
     baseRequest userFrom Brig Versioned $
       joinHttpPath ["/connections", userToDomain, userToId]
   submit "POST" req
+
+getConnection ::
+  ( HasCallStack,
+    MakesValue userFrom,
+    MakesValue userTo
+  ) =>
+  userFrom ->
+  userTo ->
+  App Response
+getConnection userFrom userTo = do
+  (userToDomain, userToId) <- objQid userTo
+  req <-
+    baseRequest userFrom Brig Versioned $
+      joinHttpPath ["/connections", userToDomain, userToId]
+  submit "GET" req
 
 putConnection ::
   ( HasCallStack,

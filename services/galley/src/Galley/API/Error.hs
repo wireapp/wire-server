@@ -36,7 +36,7 @@ import Data.Text.Lazy as LT (pack)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities (Error (message))
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Error
 
 data InternalError
@@ -48,14 +48,17 @@ data InternalError
   deriving (Eq)
 
 internalErrorDescription :: InternalError -> LText
-internalErrorDescription = message . toWai
+internalErrorDescription = message . internalErrorToWai
+
+internalErrorToWai :: InternalError -> Wai.Error
+internalErrorToWai (BadConvState convId) = badConvState convId
+internalErrorToWai BadMemberState = Wai.mkError status500 "bad-state" "Bad internal member state."
+internalErrorToWai NoPrekeyForUser = internalError
+internalErrorToWai CannotCreateManagedConv = internalError
+internalErrorToWai (InternalErrorWithDescription t) = internalErrorWithDescription t
 
 instance APIError InternalError where
-  toWai (BadConvState convId) = badConvState convId
-  toWai BadMemberState = Wai.mkError status500 "bad-state" "Bad internal member state."
-  toWai NoPrekeyForUser = internalError
-  toWai CannotCreateManagedConv = internalError
-  toWai (InternalErrorWithDescription t) = internalErrorWithDescription t
+  toResponse = toResponse . internalErrorToWai
 
 data InvalidInput
   = CustomRolesNotSupported
@@ -64,10 +67,10 @@ data InvalidInput
   | InvalidPayload LText
 
 instance APIError InvalidInput where
-  toWai CustomRolesNotSupported = badRequest "Custom roles not supported"
-  toWai (InvalidRange t) = invalidRange t
-  toWai InvalidUUID4 = invalidUUID4
-  toWai (InvalidPayload t) = invalidPayload t
+  toResponse CustomRolesNotSupported = toResponse $ badRequest "Custom roles not supported"
+  toResponse (InvalidRange t) = toResponse $ invalidRange t
+  toResponse InvalidUUID4 = toResponse invalidUUID4
+  toResponse (InvalidPayload t) = toResponse $ invalidPayload t
 
 ----------------------------------------------------------------------------
 -- Other errors

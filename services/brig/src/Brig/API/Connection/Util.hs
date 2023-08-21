@@ -23,7 +23,7 @@ where
 
 import Brig.API.Types
 import Brig.App
-import qualified Brig.Data.Connection as Data
+import Brig.Data.Connection qualified as Data
 import Brig.Options (Settings (setUserMaxConnections))
 import Control.Error (noteT)
 import Control.Lens (view)

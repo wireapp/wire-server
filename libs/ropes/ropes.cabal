@@ -76,4 +76,4 @@ library
     , text                   >=0.11
     , time                   >=1.1
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

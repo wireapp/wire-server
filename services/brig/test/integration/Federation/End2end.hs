@@ -23,10 +23,10 @@ import API.User.Util
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
 import Brig.API.Client (pubClient)
-import qualified Brig.Options as BrigOpts
+import Brig.Options qualified as BrigOpts
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((#))
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Default
 import Data.Domain
@@ -35,17 +35,17 @@ import Data.Id
 import Data.Json.Util (toBase64Text)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 as List1
-import qualified Data.Map as Map
-import qualified Data.ProtoLens as Protolens
+import Data.Map qualified as Map
+import Data.ProtoLens qualified as Protolens
 import Data.Qualified
 import Data.Range (checked)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Federation.Util (connectUsersEnd2End, generateClientPrekeys, getConvQualified)
 import Imports hiding (cs)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO.Temporary
 import Util

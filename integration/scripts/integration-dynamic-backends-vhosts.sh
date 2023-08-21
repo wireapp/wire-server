@@ -3,12 +3,11 @@
 set -eo pipefail
 
 ENDPOINT_URL=$1
+DOMAIN=$2
 
 echo 'Creating RabbitMQ resources'
 
-curl -u "$RABBITMQ_USERNAME":"$RABBITMQ_PASSWORD" -X PUT "$ENDPOINT_URL"/d1.example.com
-curl -u "$RABBITMQ_USERNAME":"$RABBITMQ_PASSWORD" -X PUT "$ENDPOINT_URL"/d2.example.com
-curl -u "$RABBITMQ_USERNAME":"$RABBITMQ_PASSWORD" -X PUT "$ENDPOINT_URL"/d3.example.com
+curl -u "$RABBITMQ_USERNAME":"$RABBITMQ_PASSWORD" -X PUT "$ENDPOINT_URL/$DOMAIN"
 
-echo 'RabbitMQ resources created successfully!'
+echo "RabbitMQ vhost created successfully for $DOMAIN"
 

@@ -49,20 +49,20 @@ import Control.Applicative
 import Control.Comonad
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..))
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Bifunctor
 import Data.Binary
 import Data.Binary.Builder
 import Data.Binary.Get
 import Data.Binary.Put
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Json.Util
 import Data.Kind
 import Data.Proxy
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
 import Imports
 
 -- | Parse a value encoded using the "TLS presentation" format.

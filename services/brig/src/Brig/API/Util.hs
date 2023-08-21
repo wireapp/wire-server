@@ -37,10 +37,9 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
 import Brig.App
-import qualified Brig.Code as Code
-import qualified Brig.Data.User as Data
+import Brig.Code qualified as Code
+import Brig.Data.User qualified as Data
 import Brig.Options (set2FACodeGenerationDelaySecs)
-import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except
@@ -52,9 +51,9 @@ import Data.Qualified
 import Data.Text.Ascii (AsciiText (toText))
 import Imports
 import Polysemy
-import qualified Polysemy.Error as E
+import Polysemy.Error qualified as E
 import System.Logger (Msg)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import UnliftIO.Async
 import UnliftIO.Exception (throwIO, try)
 import Util.Logging (sha256String)
@@ -62,7 +61,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Federation.Error
 import Wire.API.User
-import qualified Wire.Sem.Concurrency as C
+import Wire.Sem.Concurrency qualified as C
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do

@@ -34,7 +34,7 @@ import Network.Wai.Predicate hiding (Error, setStatus)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Wire.API.CustomBackend
-import qualified Wire.API.CustomBackend as Public
+import Wire.API.CustomBackend qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
 

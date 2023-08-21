@@ -25,18 +25,18 @@ where
 import Brig.Index.Migrations
 import Brig.Index.Options
 import Brig.User.Search.Index
-import qualified Cassandra as C
-import qualified Cassandra.Settings as C
+import Cassandra qualified as C
+import Cassandra.Settings qualified as C
 import Control.Lens
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson (FromJSON)
-import qualified Data.Aeson as Aeson
-import qualified Data.Metrics as Metrics
-import qualified Database.Bloodhound as ES
+import Data.Aeson qualified as Aeson
+import Data.Metrics qualified as Metrics
+import Database.Bloodhound qualified as ES
 import Imports
 import Network.HTTP.Client as HTTP
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..))
 
 runCommand :: Logger -> Command -> IO ()

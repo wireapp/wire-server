@@ -23,10 +23,10 @@ where
 import Cassandra
 import Control.Lens
 import Data.Code
-import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Data.Types
-import qualified Galley.Data.Types as Code
+import Galley.Data.Types qualified as Code
 import Galley.Effects.CodeStore (CodeStore (..))
 import Galley.Env
 import Galley.Options

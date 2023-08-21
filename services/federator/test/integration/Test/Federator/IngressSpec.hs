@@ -20,19 +20,19 @@ module Test.Federator.IngressSpec where
 import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Codensity
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Binary.Builder
 import Data.Domain
 import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
-import qualified Data.Text.Encoding as Text
+import Data.Text.Encoding qualified as Text
 import Federator.Discovery
 import Federator.Monitor (FederationSetupError)
 import Federator.Monitor.Internal (mkSSLContextWithoutCert)
 import Federator.Remote
 import HTTP2.Client.Manager (http2ManagerWithSSLCtx)
 import Imports
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types qualified as HTTP
 import OpenSSL.Session (SSLContext)
 import Polysemy
 import Polysemy.Embed

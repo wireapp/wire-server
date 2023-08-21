@@ -23,6 +23,7 @@ library
     Network.RabbitMqAdmin
     Options.Applicative.Extended
     Servant.API.Extended
+    Servant.API.Extended.Endpath
     Servant.API.Extended.RawM
     System.Logger.Extended
 
@@ -104,7 +105,7 @@ library
     , unliftio
     , wai
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite extended-tests
   type:               exitcode-stdio-1.0
@@ -171,4 +172,4 @@ test-suite extended-tests
     , imports
     , temporary
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

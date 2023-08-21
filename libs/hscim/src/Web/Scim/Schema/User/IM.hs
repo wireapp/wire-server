@@ -29,7 +29,7 @@ data IM = IM
   deriving (Show, Eq, Generic)
 
 instance FromJSON IM where
-  parseJSON = genericParseJSON parseOptions . jsonLower
+  parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower
 
 instance ToJSON IM where
   toJSON = genericToJSON serializeOptions

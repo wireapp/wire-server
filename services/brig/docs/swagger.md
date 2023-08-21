@@ -49,8 +49,7 @@ For errors that are more likely to be transient, we suggest clients to retry wha
 **Note**: when a failure occurs as a result of making a federated RPC to another backend, the error response contains the following extra fields:
 
  - `type`: "federation" (just the literal string in quotes, which can be used as an error type identifier when parsing errors)
- - `domain`: the target backend of the RPC that failed (deprecated in favour for `domains`);
- - `domains`: the target backends of the RPC which failed;
+ - `domain`: the target backend of the RPC that failed;
  - `path`: the path of the RPC that failed.
 
 ### Domain errors
@@ -58,7 +57,6 @@ For errors that are more likely to be transient, we suggest clients to retry wha
 Errors in this category result from trying to communicate with a backend that is considered non-existent or invalid. They can result from invalid user input or client issues, but they can also be a symptom of misconfiguration in one or multiple backends. These errors have a 4xx status code.
 
  - **Remote backend not found** (status: 422, label: `invalid-domain`): This backend attempted to contact a backend which does not exist or is not properly configured. For the most part, clients can consider this error equivalent to a domain not existing, although it should be noted that certain mistakes in the DNS configuration on a remote backend can lead to the backend not being recognized, and hence to this error. It is therefore not advisable to take any destructive action upon encountering this error, such as deleting remote users from conversations.
- - **Remote backend unreachable** (status: 503, label: `federation-unreachable-domains-error`): Similar to `invalid-domain`.
  - **Federation denied locally** (status: 400, label: `federation-denied`): This backend attempted an RPC to a non-whitelisted backend. Similar considerations as for the previous error apply.
  - **Federation not enabled** (status: 400, label: `federation-not-enabled`): Federation has not been configured for this backend. This will happen if a federation-aware client tries to talk to a backend for which federation is disabled, or if federation was disabled on the backend after reaching a federation-specific state (e.g. conversations with remote users). There is no way to cleanly recover from these errors at this point.
 

@@ -89,4 +89,4 @@ library
     , uuid
     , wreq                  >=0.2
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

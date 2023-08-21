@@ -18,17 +18,17 @@
 module Galley.Types.Conversations.One2One (one2OneConvId) where
 
 import Control.Error (atMay)
-import qualified Crypto.Hash as Crypto
+import Crypto.Hash qualified as Crypto
 import Data.Bits
 import Data.ByteArray (convert)
-import qualified Data.ByteString as B
+import Data.ByteString qualified as B
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy qualified as L
 import Data.Id
 import Data.Qualified
 import Data.UUID (UUID)
-import qualified Data.UUID as UUID
-import qualified Data.UUID.Tagged as U
+import Data.UUID qualified as UUID
+import Data.UUID.Tagged qualified as U
 import Imports
 
 -- | The hash function used to obtain the 1-1 conversation ID for a pair of users.

@@ -23,7 +23,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Id
 import Data.Qualified
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Wire.API.Connection
 

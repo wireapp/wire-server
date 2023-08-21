@@ -68,27 +68,27 @@ module Wire.API.User.Client
   )
 where
 
-import qualified Cassandra as Cql
+import Cassandra qualified as Cql
 import Control.Applicative
 import Control.Lens hiding (element, enum, set, (#), (.=))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson qualified as A
+import Data.Aeson.Key qualified as Key
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Bifunctor (second)
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.Coerce
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword6, latitude, location, longitude)
 import Data.Qualified
 import Data.Schema
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Swagger hiding (Schema, ToSchema, schema)
-import qualified Data.Swagger as Swagger
-import qualified Data.Text.Encoding as Text.E
+import Data.Swagger qualified as Swagger
+import Data.Text.Encoding qualified as Text.E
 import Data.Time.Clock
 import Data.UUID (toASCIIBytes)
 import Deriving.Swagger
@@ -359,6 +359,18 @@ newtype UserClientsFull = UserClientsFull
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Semigroup, Monoid)
+
+-- | Json rendering of `UserClientsFull` is dynamic in the object fields, so it's unclear how
+-- machine-generated swagger would look like.  We just leave the manual aeson instances in
+-- place and write something in English into the docs here.
+instance Swagger.ToSchema UserClientsFull where
+  declareNamedSchema _ = do
+    pure $
+      NamedSchema (Just "UserClientsFull") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & description ?~ "Dictionary object of `Client` objects indexed by `UserId`."
+          & example ?~ "{\"1355c55a-0ac8-11ee-97ee-db1a6351f093\": <Client object>, ...}"
 
 instance ToJSON UserClientsFull where
   toJSON =

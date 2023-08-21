@@ -36,7 +36,7 @@ emptyName :: Name
 emptyName = Name Nothing Nothing Nothing Nothing Nothing Nothing
 
 instance FromJSON Name where
-  parseJSON = genericParseJSON parseOptions . jsonLower
+  parseJSON = either (fail . show) (genericParseJSON parseOptions) . jsonLower
 
 instance ToJSON Name where
   toJSON = genericToJSON serializeOptions

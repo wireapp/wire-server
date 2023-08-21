@@ -19,13 +19,13 @@ module Test.Wire.API.Roundtrip.HttpApiData (tests) where
 
 import Imports
 import Servant.API
-import qualified Test.Tasty as T
+import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)
-import qualified Wire.API.Routes.Version
-import qualified Wire.API.User
-import qualified Wire.API.User.Search
-import qualified Wire.Arbitrary as Arbitrary ()
+import Wire.API.Routes.Version qualified
+import Wire.API.User qualified
+import Wire.API.User.Search qualified
+import Wire.Arbitrary qualified as Arbitrary ()
 
 tests :: T.TestTree
 tests =

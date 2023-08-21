@@ -34,15 +34,15 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Text.Encoding
 import Data.UUID.V4 (nextRandom)
-import qualified Galley.Aws as Aws
-import qualified Galley.Cassandra.Conversation as C
+import Galley.Aws qualified as Aws
+import Galley.Cassandra.Conversation qualified as C
 import Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted)
-import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Effects.ListItems
 import Galley.Effects.TeamMemberStore
@@ -54,7 +54,7 @@ import Galley.Types.Teams
 import Imports hiding (Set, max)
 import Polysemy
 import Polysemy.Input
-import qualified UnliftIO
+import UnliftIO qualified
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Conversation
@@ -77,6 +77,7 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   CreateTeam t uid n i k b -> embedClient $ createTeam t uid n i k b
   DeleteTeamMember tid uid -> embedClient $ removeTeamMember tid uid
   GetBillingTeamMembers tid -> embedClient $ listBillingTeamMembers tid
+  GetTeamAdmins tid -> embedClient $ listTeamAdmins tid
   GetTeam tid -> embedClient $ team tid
   GetTeamName tid -> embedClient $ getTeamName tid
   GetTeamConversation tid cid -> embedClient $ teamConversation tid cid
@@ -171,6 +172,11 @@ listBillingTeamMembers tid =
   fmap runIdentity
     <$> retry x1 (query Cql.listBillingTeamMembers (params LocalQuorum (Identity tid)))
 
+listTeamAdmins :: TeamId -> Client [UserId]
+listTeamAdmins tid =
+  fmap runIdentity
+    <$> retry x1 (query Cql.listTeamAdmins (params LocalQuorum (Identity tid)))
+
 getTeamName :: TeamId -> Client (Maybe Text)
 getTeamName tid =
   fmap runIdentity
@@ -229,8 +235,11 @@ addTeamMember t m =
     when (m `hasPermission` SetBilling) $
       addPrepQuery Cql.insertBillingTeamMember (t, m ^. userId)
 
+    when (isAdminOrOwner (m ^. permissions)) $
+      addPrepQuery Cql.insertTeamAdmin (t, m ^. userId)
+
 updateTeamMember ::
-  -- | Old permissions, used for maintaining 'billing_team_member' table
+  -- | Old permissions, used for maintaining 'billing_team_member' and 'team_admin' tables
   Permissions ->
   TeamId ->
   UserId ->
@@ -243,15 +252,25 @@ updateTeamMember oldPerms tid uid newPerms = do
     setConsistency LocalQuorum
     addPrepQuery Cql.updatePermissions (newPerms, tid, uid)
 
+    -- update billing_team_member table
+    let permDiff = Set.difference `on` view self
+        acquiredPerms = newPerms `permDiff` oldPerms
+        lostPerms = oldPerms `permDiff` newPerms
+
     when (SetBilling `Set.member` acquiredPerms) $
       addPrepQuery Cql.insertBillingTeamMember (tid, uid)
-
     when (SetBilling `Set.member` lostPerms) $
       addPrepQuery Cql.deleteBillingTeamMember (tid, uid)
-  where
-    permDiff = Set.difference `on` view self
-    acquiredPerms = newPerms `permDiff` oldPerms
-    lostPerms = oldPerms `permDiff` newPerms
+
+    -- update team_admin table
+    let wasAdmin = isAdminOrOwner oldPerms
+        isAdmin = isAdminOrOwner newPerms
+
+    when (isAdmin && not wasAdmin) $
+      addPrepQuery Cql.insertTeamAdmin (tid, uid)
+
+    when (not isAdmin && wasAdmin) $
+      addPrepQuery Cql.deleteTeamAdmin (tid, uid)
 
 removeTeamMember :: TeamId -> UserId -> Client ()
 removeTeamMember t m =
@@ -261,6 +280,7 @@ removeTeamMember t m =
     addPrepQuery Cql.deleteTeamMember (t, m)
     addPrepQuery Cql.deleteUserTeam (m, t)
     addPrepQuery Cql.deleteBillingTeamMember (t, m)
+    addPrepQuery Cql.deleteTeamAdmin (t, m)
 
 team :: TeamId -> Client (Maybe TeamData)
 team tid =

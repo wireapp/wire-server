@@ -23,7 +23,7 @@ import Data.Domain
 import Data.Id (Id (Id))
 import Data.Maybe
 import Data.Qualified
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (read)
 import Wire.API.Conversation.Bot (RemoveBotResponse (..))
 import Wire.API.Event.Conversation

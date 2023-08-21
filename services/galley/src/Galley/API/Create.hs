@@ -32,33 +32,31 @@ module Galley.API.Create
 where
 
 import Control.Lens hiding ((??))
-import Data.Domain
 import Data.Id
 import Data.List1 (list1)
 import Data.Misc (FutureWork (FutureWork))
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Time
-import qualified Data.UUID.Tagged as U
+import Data.UUID.Tagged qualified as U
+import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.KeyPackage (nullKeyPackageRef)
 import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.Mapping
 import Galley.API.One2One
-import Galley.API.Query
 import Galley.API.Util
 import Galley.App (Env)
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Data.Conversation.Types
-import qualified Galley.Data.Types as Data
 import Galley.Effects
-import qualified Galley.Effects.ConversationStore as E
-import qualified Galley.Effects.FederatorAccess as E
-import qualified Galley.Effects.GundeckAccess as E
-import qualified Galley.Effects.MemberStore as E
-import qualified Galley.Effects.TeamStore as E
+import Galley.Effects.ConversationStore qualified as E
+import Galley.Effects.FederatorAccess qualified as E
+import Galley.Effects.GundeckAccess qualified as E
+import Galley.Effects.MemberStore qualified as E
+import Galley.Effects.TeamStore qualified as E
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
@@ -70,7 +68,7 @@ import Imports hiding ((\\))
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
+import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
@@ -105,6 +103,7 @@ createGroupConversationUpToV3 ::
     Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error UnreachableBackendsLegacy) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,
@@ -119,13 +118,15 @@ createGroupConversationUpToV3 ::
   Maybe ConnId ->
   NewConv ->
   Sem r ConversationResponse
-createGroupConversationUpToV3 lusr mCreatorClient conn newConv =
-  createGroupConversationGeneric
-    lusr
-    mCreatorClient
-    conn
-    newConv
-    (const conversationCreated)
+createGroupConversationUpToV3 lusr mCreatorClient conn newConv = mapError UnreachableBackendsLegacy $
+  do
+    conv <-
+      createGroupConversationGeneric
+        lusr
+        mCreatorClient
+        conn
+        newConv
+    conversationCreated lusr conv
 
 -- | The public-facing endpoint for creating group conversations in the client
 -- API in version 4 and above.
@@ -139,11 +140,13 @@ createGroupConversation ::
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
+    Member (Error NonFederatingBackends) r,
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,
@@ -160,15 +163,16 @@ createGroupConversation ::
   Sem r CreateGroupConversationResponse
 createGroupConversation lusr mCreatorClient conn newConv = do
   let remoteDomains = tDomain <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
-  getFederationStatus lusr (RemoteDomains $ Set.fromList remoteDomains) >>= \case
-    NotConnectedDomains rd1 rd2 -> pure $ GroupConversationFailedToCreate $ CreateConversationRejected (rd1, rd2)
-    FullyConnected ->
-      createGroupConversationGeneric
-        lusr
-        mCreatorClient
-        conn
-        newConv
-        groupConversationCreated
+  checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
+  cnv <-
+    createGroupConversationGeneric
+      lusr
+      mCreatorClient
+      conn
+      newConv
+  conv <- conversationView lusr cnv
+  pure . GroupConversationCreated $
+    CreateGroupConversation conv mempty
 
 createGroupConversationGeneric ::
   ( Member BrigAccess r,
@@ -185,6 +189,7 @@ createGroupConversationGeneric ::
     Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,
@@ -198,12 +203,8 @@ createGroupConversationGeneric ::
   Maybe ClientId ->
   Maybe ConnId ->
   NewConv ->
-  -- | The function that incorporates the failed to add remote users in the
-  -- response. In the client API up to and including V3 this function simply
-  -- ignores the first argument.
-  (Set (Remote UserId) -> Local UserId -> Conversation -> Sem r resp) ->
-  Sem r resp
-createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
+  Sem r Conversation
+createGroupConversationGeneric lusr mCreatorClient conn newConv = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   let tinfo = newConvTeam newConv
   checkCreateConvPermissions lusr newConv tinfo allUsers
@@ -216,7 +217,7 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
       throw (InternalErrorWithDescription "No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Refusing to create MLS conversation.")
 
   lcnv <- traverse (const E.createConversationId) lusr
-  notifyStatus <- do
+  do
     conv <- E.createConversation lcnv nc
 
     -- set creator client for MLS conversations
@@ -230,19 +231,9 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
       (ProtocolMLS _mlsMeta, Nothing) -> throwS @'MLSMissingSenderClient
 
     -- NOTE: We only send (conversation) events to members of the conversation
-    notifyStatus <- notifyCreatedConversation lusr conn conv
-    -- We already added all the invitees, but now remove from the conversation
-    -- those that could not be notified
-    E.deleteMembers (convId conv)
-      . ulFromRemotes
-      . Set.toList
-      $ notifyStatus
-    pure notifyStatus
-  conv <-
+    notifyCreatedConversation lusr conn conv
     E.getConversation (tUnqualified lcnv)
       >>= note (BadConvState (tUnqualified lcnv))
-
-  convCreated notifyStatus lusr conv
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
@@ -325,7 +316,6 @@ createProteusSelfConversation lusr = do
       conversationCreated lusr c
 
 createOne2OneConversation ::
-  forall r.
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
@@ -338,6 +328,7 @@ createOne2OneConversation ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotConnected) r,
+    Member (Error UnreachableBackendsLegacy) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -348,31 +339,45 @@ createOne2OneConversation ::
   ConnId ->
   NewConv ->
   Sem r ConversationResponse
-createOne2OneConversation lusr zcon j = do
-  let allUsers = newConvMembers lusr j
-  other <- ensureOne (ulAll lusr allUsers)
-  when (tUntagged lusr == other) $
-    throwS @'InvalidOperation
-  mtid <- case newConvTeam j of
-    Just ti -> do
-      foldQualified
-        lusr
-        (\lother -> checkBindingTeamPermissions lother (cnvTeamId ti))
-        (const (pure Nothing))
-        other
-    Nothing -> ensureConnected lusr allUsers $> Nothing
-  foldQualified
-    lusr
-    (createLegacyOne2OneConversationUnchecked lusr zcon (newConvName j) mtid)
-    (createOne2OneConversationUnchecked lusr zcon (newConvName j) mtid . tUntagged)
-    other
+createOne2OneConversation lusr zcon j =
+  mapError @UnreachableBackends @UnreachableBackendsLegacy UnreachableBackendsLegacy $ do
+    let allUsers = newConvMembers lusr j
+    other <- ensureOne (ulAll lusr allUsers)
+    when (tUntagged lusr == other) $
+      throwS @'InvalidOperation
+    mtid <- case newConvTeam j of
+      Just ti -> do
+        foldQualified
+          lusr
+          (\lother -> checkBindingTeamPermissions lother (cnvTeamId ti))
+          (const (pure Nothing))
+          other
+      Nothing -> ensureConnected lusr allUsers $> Nothing
+    foldQualified
+      lusr
+      (createLegacyOne2OneConversationUnchecked lusr zcon (newConvName j) mtid)
+      (createOne2OneConversationUnchecked lusr zcon (newConvName j) mtid . tUntagged)
+      other
   where
-    verifyMembership :: TeamId -> UserId -> Sem r ()
+    verifyMembership ::
+      ( Member (ErrorS 'NoBindingTeamMembers) r,
+        Member TeamStore r
+      ) =>
+      TeamId ->
+      UserId ->
+      Sem r ()
     verifyMembership tid u = do
       membership <- E.getTeamMember tid u
       when (isNothing membership) $
         throwS @'NoBindingTeamMembers
     checkBindingTeamPermissions ::
+      ( Member (ErrorS 'NoBindingTeamMembers) r,
+        Member (ErrorS 'NonBindingTeam) r,
+        Member (ErrorS 'NotATeamMember) r,
+        Member (ErrorS OperationDenied) r,
+        Member (ErrorS 'TeamNotFound) r,
+        Member TeamStore r
+      ) =>
       Local UserId ->
       TeamId ->
       Sem r (Maybe TeamId)
@@ -422,13 +427,18 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
     Just c -> conversationExisted self c
     Nothing -> do
       c <- E.createConversation lcnv nc
-      void $ notifyCreatedConversation self (Just zcon) c
-      conversationCreated self c
+      runError @UnreachableBackends (notifyCreatedConversation self (Just zcon) c)
+        >>= \case
+          Left _ -> do
+            throw . InternalErrorWithDescription $
+              "A one-to-one conversation on one backend cannot involve unreachable backends"
+          Right () -> conversationCreated self c
 
 createOne2OneConversationUnchecked ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
+    Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -452,6 +462,7 @@ createOne2OneConversationLocally ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
+    Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -482,7 +493,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
                 ncProtocol = ProtocolProteusTag
               }
       c <- E.createConversation lcnv nc
-      void $ notifyCreatedConversation self (Just zcon) c
+      notifyCreatedConversation self (Just zcon) c
       conversationCreated self c
 
 createOne2OneConversationRemotely ::
@@ -504,6 +515,7 @@ createConnectConversation ::
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'InvalidOperation) r,
+    Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -538,7 +550,7 @@ createConnectConversation lusr conn j = do
       c <- E.createConversation lcnv nc
       now <- input
       let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConnect j)
-      void $ notifyCreatedConversation lusr conn c
+      notifyCreatedConversation lusr conn c
       for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
         E.push1 $
           p
@@ -636,29 +648,15 @@ conversationCreated ::
   Sem r ConversationResponse
 conversationCreated lusr cnv = Created <$> conversationView lusr cnv
 
-groupConversationCreated ::
-  ( Member (Error InternalError) r,
-    Member P.TinyLog r
-  ) =>
-  Set (Remote UserId) ->
-  Local UserId ->
-  Data.Conversation ->
-  Sem r CreateGroupConversationResponse
-groupConversationCreated failedToAdd lusr cnv = do
-  conv <- conversationView lusr cnv
-  pure . GroupConversationCreated $
-    CreateGroupConversation conv (toMap failedToAdd)
-  where
-    toMap :: Ord a => Set (Remote a) -> Map Domain (Set a)
-    toMap = fmap Set.fromList . indexQualified @[] . foldMap (pure . tUntagged)
-
 -- | The return set contains all the remote users that could not be contacted.
 -- Consequently, the unreachable users are not added to the member list. This
 -- behavior might be changed later on when a message/event queue per remote
 -- backend is implemented.
 notifyCreatedConversation ::
-  ( Member (Error FederationError) r,
+  ( Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
+    Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -667,38 +665,26 @@ notifyCreatedConversation ::
   Local UserId ->
   Maybe ConnId ->
   Data.Conversation ->
-  Sem r Data.MemberAddFailed
+  Sem r ()
 notifyCreatedConversation lusr conn c = do
   now <- input
-  -- Ask remote server to store conversation membership and notify remote users
+  -- Ask remote servers to store conversation membership and notify remote users
   -- of being added to a conversation
-  failedToNotify <- registerRemoteConversationMemberships now (qualifyAs lusr c)
-  let allRemotes = Data.convRemoteMembers c
-      notifiedRemotes =
-        filter
-          (\rm -> Set.notMember (rmId rm) failedToNotify)
-          allRemotes
-      localOthers = map (localMemberToOther (tDomain lusr)) $ Data.convLocalMembers c
-  unless (null allRemotes) $
+  registerRemoteConversationMemberships now (qualifyAs lusr c)
+  unless (null (Data.convRemoteMembers c)) $
     unlessM E.isFederationConfigured $
       throw FederationNotConfigured
 
   -- Notify local users
-  E.push
-    =<< mapM
-      ( toPush
-          now
-          (remoteMemberToOther <$> notifiedRemotes)
-          localOthers
-      )
-      (Data.convLocalMembers c)
-  pure failedToNotify
+  E.push =<< mapM (toPush now) (Data.convLocalMembers c)
   where
     route
       | Data.convType c == RegularConv = RouteAny
       | otherwise = RouteDirect
-    toPush t remoteOthers localOthers m = do
-      let lconv = qualifyAs lusr (Data.convId c)
+    toPush t m = do
+      let remoteOthers = remoteMemberToOther <$> Data.convRemoteMembers c
+          localOthers = map (localMemberToOther (tDomain lusr)) $ Data.convLocalMembers c
+          lconv = qualifyAs lusr (Data.convId c)
       c' <- conversationViewWithCachedOthers remoteOthers localOthers c (qualifyAs lusr (lmId m))
       let e = Event (tUntagged lconv) Nothing (tUntagged lusr) t (EdConversation c')
       pure $

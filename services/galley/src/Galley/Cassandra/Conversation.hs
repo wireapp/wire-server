@@ -23,21 +23,21 @@ module Galley.Cassandra.Conversation
 where
 
 import Cassandra hiding (Set)
-import qualified Cassandra as Cql
+import Cassandra qualified as Cql
 import Control.Error.Util
 import Control.Monad.Trans.Maybe
 import Data.ByteString.Conversion
 import Data.Id
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.UUID.V4 (nextRandom)
 import Galley.Cassandra.Access
 import Galley.Cassandra.Conversation.MLS
 import Galley.Cassandra.Conversation.Members
-import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Data.Conversation
 import Galley.Data.Conversation.Types
@@ -49,8 +49,8 @@ import Imports hiding (cs)
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
-import qualified System.Logger as Log
-import qualified UnliftIO
+import System.Logger qualified as Log
+import UnliftIO qualified
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite

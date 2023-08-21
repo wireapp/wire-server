@@ -17,9 +17,9 @@
 
 module Wire.API.Team.Export (TeamExportUser (..), quoted, unquoted) where
 
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Attoparsec.ByteString.Lazy (parseOnly)
-import qualified Data.ByteString.Char8 as C
+import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Conversion (FromByteString (..), ToByteString, toByteString')
 import Data.Csv (DefaultOrdered (..), FromNamedRecord (..), Parser, ToNamedRecord (..), namedRecord, (.:))
 import Data.Handle (Handle)

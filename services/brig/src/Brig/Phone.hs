@@ -45,15 +45,15 @@ import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Retry
 import Data.LanguageCodes
-import qualified Data.Metrics as Metrics
-import qualified Data.Text as Text
+import Data.Metrics qualified as Metrics
+import Data.Text qualified as Text
 import Data.Time.Clock
 import Imports
 import Network.HTTP.Client (HttpException, Manager)
-import qualified Ropes.Nexmo as Nexmo
+import Ropes.Nexmo qualified as Nexmo
 import Ropes.Twilio (LookupDetail (..))
-import qualified Ropes.Twilio as Twilio
-import qualified System.Logger.Class as Log
+import Ropes.Twilio qualified as Twilio
+import System.Logger.Class qualified as Log
 import System.Logger.Message (field, msg, val, (~~))
 import Wire.API.User
 

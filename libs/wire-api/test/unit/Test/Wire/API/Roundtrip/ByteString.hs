@@ -19,30 +19,30 @@ module Test.Wire.API.Roundtrip.ByteString (tests) where
 
 import Data.ByteString.Conversion
 import Imports
-import qualified Test.Tasty as T
+import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)
-import qualified Wire.API.Asset as Asset
-import qualified Wire.API.Call.Config as Call.Config
-import qualified Wire.API.Conversation.Code as Conversation.Code
-import qualified Wire.API.Conversation.Role as Conversation.Role
-import qualified Wire.API.OAuth as OAuth
-import qualified Wire.API.Properties as Properties
-import qualified Wire.API.Provider as Provider
-import qualified Wire.API.Provider.Service as Provider.Service
-import qualified Wire.API.Provider.Service.Tag as Provider.Service.Tag
-import qualified Wire.API.Push.V2.Token as Push.V2.Token
-import qualified Wire.API.Team.Feature as Team.Feature
-import qualified Wire.API.Team.Role as Team.Role
-import qualified Wire.API.User as User
-import qualified Wire.API.User.Activation as User.Activation
-import qualified Wire.API.User.Auth as User.Auth
-import qualified Wire.API.User.Identity as User.Identity
-import qualified Wire.API.User.IdentityProvider as User.IdentityProvider
-import qualified Wire.API.User.Password as User.Password
-import qualified Wire.API.User.Profile as User.Profile
-import qualified Wire.API.User.Search as User.Search
-import qualified Wire.Arbitrary as Arbitrary ()
+import Wire.API.Asset qualified as Asset
+import Wire.API.Call.Config qualified as Call.Config
+import Wire.API.Conversation.Code qualified as Conversation.Code
+import Wire.API.Conversation.Role qualified as Conversation.Role
+import Wire.API.OAuth qualified as OAuth
+import Wire.API.Properties qualified as Properties
+import Wire.API.Provider qualified as Provider
+import Wire.API.Provider.Service qualified as Provider.Service
+import Wire.API.Provider.Service.Tag qualified as Provider.Service.Tag
+import Wire.API.Push.V2.Token qualified as Push.V2.Token
+import Wire.API.Team.Feature qualified as Team.Feature
+import Wire.API.Team.Role qualified as Team.Role
+import Wire.API.User qualified as User
+import Wire.API.User.Activation qualified as User.Activation
+import Wire.API.User.Auth qualified as User.Auth
+import Wire.API.User.Identity qualified as User.Identity
+import Wire.API.User.IdentityProvider qualified as User.IdentityProvider
+import Wire.API.User.Password qualified as User.Password
+import Wire.API.User.Profile qualified as User.Profile
+import Wire.API.User.Search qualified as User.Search
+import Wire.Arbitrary qualified as Arbitrary ()
 
 tests :: T.TestTree
 tests =

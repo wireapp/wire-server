@@ -23,25 +23,25 @@ import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
 import Data.ByteString.Conversion
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NE
+import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword6, PlainTextPassword8)
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time
 import Galley.API.Error
 import Galley.API.Mapping
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
 import Galley.Data.Services (BotMember, newBotMember)
-import qualified Galley.Data.Types as DataTypes
+import Galley.Data.Types qualified as DataTypes
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.CodeStore
@@ -62,14 +62,14 @@ import Imports hiding (forkIO)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, fromEither)
-import qualified Network.Wai.Utilities as Wai
+import Network.Wai.Utilities qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
+import Polysemy.TinyLog qualified as P
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
-import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
@@ -85,7 +85,7 @@ import Wire.API.Routes.Public.Util
 import Wire.API.Team.Member
 import Wire.API.Team.Role
 import Wire.API.User (VerificationAction)
-import qualified Wire.API.User as User
+import Wire.API.User qualified as User
 import Wire.API.User.Auth.ReAuth
 
 type JSON = Media "application" "json"
@@ -751,24 +751,42 @@ fromConversationCreated loc rc@ConversationCreated {..} =
         (ConvMembers this others)
         ProtocolProteus
 
--- | Notify remote users of being added to a new conversation. The return value
--- consists of a set of users that could not be notified. Users that could not
--- be notified will effectively not be added to the conversation.
+ensureNoUnreachableBackends ::
+  Member (Error UnreachableBackends) r =>
+  [Either (Remote e, b) a] ->
+  Sem r [a]
+ensureNoUnreachableBackends results = do
+  let (errors, values) = partitionEithers results
+  unless (null errors) $
+    throw (UnreachableBackends (map (tDomain . fst) errors))
+  pure values
+
+-- | Notify remote users of being added to a new conversation. In case a remote
+-- domain is unreachable, an exception is thrown, the conversation deleted and
+-- the client gets an error response.
 registerRemoteConversationMemberships ::
-  (Member FederatorAccess r) =>
+  ( Member ConversationStore r,
+    Member (Error UnreachableBackends) r,
+    Member FederatorAccess r
+  ) =>
   -- | The time stamp when the conversation was created
   UTCTime ->
   Local Data.Conversation ->
-  Sem r DataTypes.MemberAddFailed
-registerRemoteConversationMemberships now lc = do
+  Sem r ()
+registerRemoteConversationMemberships now lc = deleteOnUnreachable $ do
   let c = tUnqualified lc
       rc = toConversationCreated now c
-
       allRemoteMembers = nubOrd {- (but why would there be duplicates?) -} (Data.convRemoteMembers c)
       allRemoteMembersQualified = remoteMemberQualify <$> allRemoteMembers
       allRemoteBuckets :: [Remote [RemoteMember]] = bucketRemote allRemoteMembersQualified
 
-  failedToNotify :: [Remote RemoteMember] <- fmap (foldMap (either (sequenceA . fst) mempty)) $
+  -- ping involved remote backends
+  void . (ensureNoUnreachableBackends =<<) $
+    runFederatedConcurrentlyEither allRemoteMembersQualified $ \_ ->
+      void $ fedClient @'Brig @"api-version" ()
+
+  void . (ensureNoUnreachableBackends =<<) $
+    -- let remote backends know about a subset of new joiners
     runFederatedConcurrentlyEither allRemoteMembersQualified $
       \rrms ->
         fedClient @'Galley @"on-conversation-created"
@@ -778,18 +796,8 @@ registerRemoteConversationMemberships now lc = do
               }
           )
 
-  let failedToNotifySet :: Set (Remote UserId) =
-        Set.map (fmap (tUnqualified . rmId)) . Set.fromList $ failedToNotify
-
-      -- unreachable domains
-      failedToNotifyDomains :: Set Domain = Set.fromList . foldMap (pure . tDomain) $ failedToNotify
-
-      -- reachable members in buckets per remote domain
-      joined :: [Remote [RemoteMember]] =
-        filter
-          (\rmems -> Set.notMember (tDomain rmems) failedToNotifyDomains)
-          allRemoteBuckets
-
+  -- reachable members in buckets per remote domain
+  let joined :: [Remote [RemoteMember]] = allRemoteBuckets
       joinedCoupled =
         foldMap
           ( \ruids ->
@@ -802,11 +810,10 @@ registerRemoteConversationMemberships now lc = do
           )
           joined
 
-  -- Send an update to remotes about the final list of participants
-  void . runFederatedConcurrentlyBucketsEither joinedCoupled $
-    fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
-
-  pure failedToNotifySet
+  void . (ensureNoUnreachableBackends =<<) $
+    -- Send an update to remotes about the final list of participants
+    runFederatedConcurrentlyBucketsEither joinedCoupled $
+      fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
   where
     creator :: UserId
     creator = cnvmCreator . DataTypes.convMetadata . tUnqualified $ lc
@@ -837,6 +844,16 @@ registerRemoteConversationMemberships now lc = do
               -- the NewConv input
               (ConversationJoin (tUntagged <$> newMembers) roleNameWireMember)
         }
+
+    deleteOnUnreachable ::
+      ( Member ConversationStore r,
+        Member (Error UnreachableBackends) r
+      ) =>
+      Sem r a ->
+      Sem r a
+    deleteOnUnreachable m = catch @UnreachableBackends m $ \e -> do
+      deleteConversation (DataTypes.convId (tUnqualified lc))
+      throw e
 
 --------------------------------------------------------------------------------
 -- Legalhold

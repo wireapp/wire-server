@@ -31,8 +31,8 @@ where
 
 import Control.Lens (set)
 import Data.Id
-import qualified Data.List1 as List1
-import qualified Data.Map as Map
+import Data.List1 qualified as List1
+import Data.Map qualified as Map
 import Data.Qualified
 import Galley.Data.Services
 import Galley.Effects.ExternalAccess
@@ -43,7 +43,7 @@ import Gundeck.Types.Push (RecipientClients (RecipientClientsSome))
 import Imports
 import Polysemy
 import Polysemy.TinyLog
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.Event.Conversation
 import Wire.API.Message
 import Wire.API.Team.Member

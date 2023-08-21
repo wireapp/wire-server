@@ -1,10 +1,10 @@
 module Test.Wire.DefederationSpec where
 
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Domain
 import Federator.MockServer
 import Imports
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
 import Test.HUnit.Lang
 import Test.Hspec
 import Test.Wire.Util

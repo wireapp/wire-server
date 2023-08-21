@@ -18,6 +18,8 @@
 module Galley.Cassandra.Conversation.Members
   ( addMembers,
     members,
+    allMembers,
+    toMember,
     lookupRemoteMembers,
     removeMembersFromLocalConv,
     toMemberStatus,
@@ -28,13 +30,13 @@ where
 import Cassandra
 import Data.Domain
 import Data.Id
-import qualified Data.List.Extra as List
+import Data.List.Extra qualified as List
 import Data.Monoid
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Galley.API.MLS.Types
 import Galley.Cassandra.Instances ()
-import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Services
 import Galley.Cassandra.Store
 import Galley.Effects.MemberStore (MemberStore (..))
@@ -44,7 +46,7 @@ import Galley.Types.UserList
 import Imports hiding (Set, cs)
 import Polysemy
 import Polysemy.Input
-import qualified UnliftIO
+import UnliftIO qualified
 import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.Conversation.Role
 import Wire.API.MLS.Group
@@ -121,6 +123,11 @@ members :: ConvId -> Client [LocalMember]
 members conv =
   fmap (mapMaybe toMember) . retry x1 $
     query Cql.selectMembers (params LocalQuorum (Identity conv))
+
+allMembers :: Client [LocalMember]
+allMembers =
+  fmap (mapMaybe toMember) . retry x1 $
+    query Cql.selectAllMembers (params LocalQuorum ())
 
 toMemberStatus ::
   ( -- otr muted
@@ -201,13 +208,31 @@ lookupRemoteMembers conv = do
 
 lookupRemoteMembersByDomain :: Domain -> Client [(ConvId, RemoteMember)]
 lookupRemoteMembersByDomain dom = do
-  fmap (fmap mkConvMem) . retry x1 $ query Cql.selectRemoteMembersByDomain (params LocalQuorum (Identity dom))
+  mkConvMem <$$$> retry x1 $ query Cql.selectRemoteMembersByDomain (params LocalQuorum (Identity dom))
   where
     mkConvMem (convId, usr, role) = (convId, RemoteMember (toRemoteUnsafe dom usr) role)
+
+lookupRemoteMembersByConvAndDomain :: ConvId -> Domain -> Client [RemoteMember]
+lookupRemoteMembersByConvAndDomain conv dom = do
+  mkMem <$$$> retry x1 $ query Cql.selectRemoteMembersByConvAndDomain (params LocalQuorum (conv, dom))
+  where
+    mkMem (usr, role) = RemoteMember (toRemoteUnsafe dom usr) role
 
 lookupLocalMembersByDomain :: Domain -> Client [(ConvId, UserId)]
 lookupLocalMembersByDomain dom = do
   retry x1 $ query Cql.selectLocalMembersByDomain (params LocalQuorum (Identity dom))
+
+removeRemoteDomain :: ConvId -> Domain -> Client ()
+removeRemoteDomain convId dom = do
+  retry x1 $ write Cql.removeRemoteDomain $ params LocalQuorum (convId, dom)
+
+selectConvIdsByRemoteDomain :: Domain -> Client [ConvId]
+selectConvIdsByRemoteDomain dom = do
+  runIdentity <$$$> retry x1 $ query Cql.selectConvIdsByRemoteDomain $ params LocalQuorum $ Identity dom
+
+checkConvForRemoteDomain :: ConvId -> Domain -> Client (Maybe ConvId)
+checkConvForRemoteDomain convId dom = do
+  runIdentity <$$$> retry x1 $ query1 Cql.checkConvForRemoteDomain $ params LocalQuorum (convId, dom)
 
 member ::
   ConvId ->
@@ -386,6 +411,7 @@ interpretMemberStoreToCassandra = interpret $ \case
   CreateBotMember sr bid cid -> embedClient $ addBotMember sr bid cid
   GetLocalMember cid uid -> embedClient $ member cid uid
   GetLocalMembers cid -> embedClient $ members cid
+  GetAllLocalMembers -> embedClient allMembers
   GetRemoteMember cid uid -> embedClient $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)
   GetRemoteMembers rcid -> embedClient $ lookupRemoteMembers rcid
   CheckLocalMemberRemoteConv uid rcnv -> fmap (not . null) $ embedClient $ lookupLocalMemberRemoteConv uid rcnv
@@ -401,4 +427,8 @@ interpretMemberStoreToCassandra = interpret $ \case
   RemoveMLSClients lcnv quid cs -> embedClient $ removeMLSClients lcnv quid cs
   LookupMLSClients lcnv -> embedClient $ lookupMLSClients lcnv
   GetRemoteMembersByDomain dom -> embedClient $ lookupRemoteMembersByDomain dom
+  GetRemoteMembersByConvAndDomain conv dom -> embedClient $ lookupRemoteMembersByConvAndDomain conv dom
   GetLocalMembersByDomain dom -> embedClient $ lookupLocalMembersByDomain dom
+  RemoveRemoteDomain convId dom -> embedClient $ removeRemoteDomain convId dom
+  SelectConvIdsByRemoteDomain dom -> embedClient $ selectConvIdsByRemoteDomain dom
+  CheckConvForRemoteDomain convId dom -> embedClient $ checkConvForRemoteDomain convId dom

@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE NoGeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- Disabling to stop warnings on HasCallStack
@@ -34,12 +35,12 @@ import GHC.Generics
 import Gundeck.Options
 import Gundeck.ThreadBudget.Internal
 import Imports
-import qualified System.Logger.Class as LC
+import System.Logger.Class qualified as LC
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
 import Test.StateMachine
-import qualified Test.StateMachine.Types as STM
-import qualified Test.StateMachine.Types.Rank2 as Rank2
+import Test.StateMachine.Types qualified as STM
+import Test.StateMachine.Types.Rank2 qualified as Rank2
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
@@ -108,13 +109,13 @@ instance LC.MonadLogger (ReaderT LogHistory IO) where
           | otherwise = Unknown raw
     enterLogHistory parsed
 
-delayms :: MilliSeconds -> (MonadCatch m, MonadIO m) => m ()
+delayms :: (MonadCatch m, MonadIO m) => MilliSeconds -> m ()
 delayms = delay' . (* 1000) . fromMilliSeconds
 
-delayndt :: NominalDiffTime -> (MonadCatch m, MonadIO m) => m ()
+delayndt :: (MonadCatch m, MonadIO m) => NominalDiffTime -> m ()
 delayndt = delay' . round . (* 1000) . (* 1000) . toRational
 
-delay' :: Int -> (MonadCatch m, MonadIO m) => m ()
+delay' :: (MonadCatch m, MonadIO m) => Int -> m ()
 delay' microsecs = threadDelay microsecs `catch` \AsyncCancelled -> pure ()
 
 burstActions ::

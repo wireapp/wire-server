@@ -49,9 +49,9 @@ module Wire.API.Message.Proto
   )
 where
 
-import qualified Data.Id as Id
+import Data.Id qualified as Id
 import Data.ProtocolBuffers
-import qualified Data.Text.Lazy as Text
+import Data.Text.Lazy qualified as Text
 import Data.Text.Lazy.Read (hexadecimal)
 import Imports
 

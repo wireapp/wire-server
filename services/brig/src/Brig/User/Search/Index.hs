@@ -50,7 +50,7 @@ module Brig.User.Search.Index
 where
 
 import Bilge (MonadHttp, expect2xx, header, lbytes)
-import qualified Bilge as RPC
+import Bilge qualified as RPC
 import Bilge.RPC (RPCException (RPCException))
 import Bilge.Request (paths)
 import Bilge.Response (responseJsonThrow)
@@ -59,7 +59,7 @@ import Brig.Data.Instances ()
 import Brig.Index.Types (CreateIndexSettings (..))
 import Brig.Types.Search (SearchVisibilityInbound, defaultSearchVisibilityInbound, searchVisibilityInboundFromFeatureStatus)
 import Brig.User.Search.Index.Types as Types
-import qualified Cassandra as C
+import Cassandra qualified as C
 import Cassandra.Util
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM, try)
@@ -70,32 +70,32 @@ import Data.Aeson.Encoding
 import Data.Aeson.Lens
 import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.ByteString.Conversion (toByteString')
-import qualified Data.ByteString.Conversion as Bytes
-import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Conversion qualified as Bytes
+import Data.ByteString.Lazy qualified as BL
 import Data.Handle (Handle)
 import Data.Id
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Metrics
-import qualified Data.Text as T
-import qualified Data.Text as Text
+import Data.Text qualified as T
+import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import qualified Data.Text.Lazy as LT
+import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
-import qualified Data.UUID as UUID
-import qualified Database.Bloodhound as ES
+import Data.UUID qualified as UUID
+import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
 import Network.HTTP.Client hiding (path)
 import Network.HTTP.Types (StdMethod (POST), hContentType, statusCode)
-import qualified SAML2.WebSSO.Types as SAML
-import qualified System.Logger as Log
+import SAML2.WebSSO.Types qualified as SAML
+import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..), field, info, msg, val, (+++), (~~))
 import URI.ByteString (URI, serializeURIRef)
 import Util.Options (Endpoint, epHost, epPort)
-import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Feature (SearchVisibilityInboundConfig, featureNameBS)
 import Wire.API.User
-import qualified Wire.API.User as User
+import Wire.API.User qualified as User
 import Wire.API.User.Search (Sso (..))
 
 --------------------------------------------------------------------------------

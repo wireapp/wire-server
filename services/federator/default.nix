@@ -46,6 +46,7 @@
 , servant
 , servant-client
 , servant-client-core
+, servant-server
 , tasty
 , tasty-hunit
 , tasty-quickcheck
@@ -106,6 +107,7 @@ mkDerivation {
     polysemy-wire-zoo
     servant
     servant-client-core
+    servant-server
     text
     tinylog
     transformers
@@ -177,11 +179,13 @@ mkDerivation {
     servant
     servant-client
     servant-client-core
+    servant-server
     tasty
     tasty-hunit
     tasty-quickcheck
     temporary
     text
+    tinylog
     transformers
     types-common
     unix

@@ -38,22 +38,22 @@ import Control.Concurrent.Async
 import Control.Exception (bracket)
 import Control.Lens ((^.))
 import Data.Default (def)
-import qualified Data.Metrics.Middleware as Metrics
+import Data.Metrics.Middleware qualified as Metrics
 import Federator.Env
 import Federator.ExternalServer (serveInward)
 import Federator.InternalServer (serveOutward)
 import Federator.Monitor
 import Federator.Options as Opt
 import Imports
-import qualified Network.DNS as DNS
-import qualified Network.HTTP.Client as HTTP
-import qualified System.Logger as Log
-import qualified System.Logger.Extended as LogExt
+import Network.DNS qualified as DNS
+import Network.HTTP.Client qualified as HTTP
+import System.Logger qualified as Log
+import System.Logger.Extended qualified as LogExt
 import Util.Options
 import Wire.API.Federation.Component
 import Wire.API.FederationUpdate
 import Wire.API.Routes.FederationDomainConfig
-import qualified Wire.Network.DNS.Helper as DNS
+import Wire.Network.DNS.Helper qualified as DNS
 
 ------------------------------------------------------------------------------
 -- run/app
@@ -99,6 +99,8 @@ newEnv o _dnsResolver _applog _domainConfigs = do
       _service Brig = Opt.brig o
       _service Galley = Opt.galley o
       _service Cargohold = Opt.cargohold o
+      _externalPort = o.federatorExternal._epPort
+      _internalPort = o.federatorInternal._epPort
   _httpManager <- initHttpManager
   sslContext <- mkTLSSettingsOrThrow _runSettings
   _http2Manager <- newIORef =<< mkHttp2Manager sslContext

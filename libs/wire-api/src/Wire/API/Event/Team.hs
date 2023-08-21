@@ -37,16 +37,16 @@ where
 
 import Control.Lens (makeLenses, (?~))
 import Data.Aeson hiding (object, (.=))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson qualified as A
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (Parser)
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Json.Util
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Time (UTCTime)
 import Imports
-import qualified Test.QuickCheck as QC
+import Test.QuickCheck qualified as QC
 import Wire.API.Team (Team, TeamUpdateData)
 import Wire.API.Team.Permission (Permissions)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))

@@ -30,7 +30,6 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra (UserAccount (..), accountStatus, accountUser)
 import Brig.Types.User as Brig
 import qualified Control.Exception
 import Control.Lens
@@ -84,7 +83,7 @@ import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Export as CsvExport
 import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
-import Wire.API.Team.Role (Role (RoleExternalPartner, RoleMember), defaultRole)
+import Wire.API.Team.Role (Role (..), defaultRole)
 import Wire.API.User hiding (scimExternalId)
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.IdentityProvider as User
@@ -1781,13 +1780,14 @@ testUpdateUserRole = do
   let galley = env ^. teGalley
   (owner, tid) <- call $ createUserWithTeam brig galley
   tok <- registerScimToken tid Nothing
-  let mTargetRoles = Nothing : map Just [minBound ..]
+  let mRoles = Nothing : map Just [minBound @Role ..]
   let testUpdate = testCreateUserWithInitalRoleAndUpdateToTargetRole brig tid owner tok
-  let testWithTarget = forM_ mTargetRoles . testUpdate
-  forM_ [minBound ..] testWithTarget
+  forM_ (catMaybes mRoles) $ \initialRole -> do
+    forM_ mRoles $ \mUpdateRole -> do
+      testUpdate initialRole mUpdateRole (fromMaybe initialRole mUpdateRole)
   where
-    testCreateUserWithInitalRoleAndUpdateToTargetRole :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> Maybe Role -> TestSpar ()
-    testCreateUserWithInitalRoleAndUpdateToTargetRole brig tid owner tok initialRole mTargetRole = do
+    testCreateUserWithInitalRoleAndUpdateToTargetRole :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> Maybe Role -> Role -> TestSpar ()
+    testCreateUserWithInitalRoleAndUpdateToTargetRole brig tid owner tok initialRole mUpdatedRole targetRoleExpected = do
       email <- randomEmail
       scimUser <-
         randomScimUser <&> \u ->
@@ -1805,8 +1805,8 @@ testUpdateUserRole = do
         Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
         registerInvitation email userName inviteeCode True
       checkTeamMembersRole tid owner userid initialRole
-      _ <- updateUser tok userid (scimUser {Scim.User.roles = cs . toByteString <$> maybeToList mTargetRole})
-      checkTeamMembersRole tid owner userid (fromMaybe defaultRole mTargetRole)
+      _ <- updateUser tok userid (scimUser {Scim.User.roles = cs . toByteString <$> maybeToList mUpdatedRole})
+      checkTeamMembersRole tid owner userid targetRoleExpected
 
 ----------------------------------------------------------------------------
 -- Patching users
@@ -2015,11 +2015,11 @@ testPatchRole replaceOrAdd = do
     testCreateUserWithInitialRoleAndPatchToTargetRole brig tid owner tok initialRole mTargetRole = do
       userId <- createScimUserWithRole brig tid owner tok initialRole
       void $ patchUser tok userId $ PatchOp.PatchOp [replaceOrAdd "roles" (maybeToList mTargetRole)]
-      checkTeamMembersRole tid owner userId (fromMaybe defaultRole mTargetRole)
+      checkTeamMembersRole tid owner userId (fromMaybe initialRole mTargetRole)
       -- also check if remove works
       let removeAttrib name = PatchOp.Operation PatchOp.Remove (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name))) Nothing
       void $ patchUser tok userId $ PatchOp.PatchOp [removeAttrib "roles"]
-      checkTeamMembersRole tid owner userId defaultRole
+      checkTeamMembersRole tid owner userId (fromMaybe initialRole mTargetRole)
 
 createScimUserWithRole :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> TestSpar UserId
 createScimUserWithRole brig tid owner tok initialRole = do

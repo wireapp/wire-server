@@ -19,7 +19,7 @@ module Test.Wire.Network.DNS.SRVSpec where
 
 import Data.List.NonEmpty (NonEmpty (..))
 import Imports
-import qualified Network.DNS as DNS
+import Network.DNS qualified as DNS
 import Test.Hspec
 import Wire.Network.DNS.SRV
 

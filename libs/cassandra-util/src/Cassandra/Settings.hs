@@ -29,7 +29,7 @@ module Cassandra.Settings
 where
 
 import Control.Lens
-import qualified Data.Aeson.Key as Key
+import Data.Aeson.Key qualified as Key
 import Data.Aeson.Lens
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (pack, stripSuffix, unpack)
@@ -37,7 +37,7 @@ import Database.CQL.IO as C hiding (values)
 import Database.CQL.IO.Tinylog as C (mkLogger)
 import Imports
 import Network.Wreq
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 
 -- | This function is likely only useful at Wire, as it is Wire-infra specific.
 -- Given a server name and a url returning a wire-custom "disco" json (AWS describe-instances-like json), e.g.

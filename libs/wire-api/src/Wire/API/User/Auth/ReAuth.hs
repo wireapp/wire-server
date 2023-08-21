@@ -22,11 +22,11 @@ module Wire.API.User.Auth.ReAuth
 where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Code
 import Data.Misc
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Wire.API.User
 

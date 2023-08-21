@@ -222,8 +222,8 @@ gundeck:
       host: cassandra-ephemeral
       replicaCount: 1
     redis:
-      host: redis-cluster
-      connectionMode: cluster
+      host: redis-ephemeral-master
+      connectionMode: master
     aws:
       account: "123456789012"
       region: eu-west-1
@@ -317,3 +317,7 @@ background-worker:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
+
+integration:
+  ingress:
+    class: "nginx-{{ .Release.Namespace }}"

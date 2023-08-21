@@ -26,15 +26,15 @@ module Data.Handle
 where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import Data.Attoparsec.ByteString.Char8 qualified as Atto
 import Data.Bifunctor (Bifunctor (first))
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (FromByteString (parser), ToByteString)
 import Data.Hashable (Hashable)
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text.E
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text.E
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary), choose, elements, oneof)

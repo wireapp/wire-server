@@ -46,19 +46,19 @@ where
 
 import Bilge hiding (Request, header, options, statusCode, statusMessage)
 import Cassandra hiding (Set)
-import qualified Cassandra as C
-import qualified Cassandra.Settings as C
+import Cassandra qualified as C
+import Cassandra.Settings qualified as C
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
 import Data.Default (def)
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Data.Metrics.Middleware
 import Data.Qualified
 import Data.Range
 import Data.Text (unpack)
 import Data.Time.Clock
 import Galley.API.Error
-import qualified Galley.Aws as Aws
+import Galley.Aws qualified as Aws
 import Galley.Cassandra.Client
 import Galley.Cassandra.Code
 import Galley.Cassandra.Conversation
@@ -83,31 +83,31 @@ import Galley.Intra.Federator
 import Galley.Keys
 import Galley.Options
 import Galley.Queue
-import qualified Galley.Queue as Q
-import qualified Galley.Types.Teams as Teams
+import Galley.Queue qualified as Q
+import Galley.Types.Teams qualified as Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (forkIO)
 import Network.AMQP.Extended
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.JSONResponse
 import OpenSSL.Session as Ssl
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal (Append)
 import Polysemy.Resource
-import qualified Polysemy.TinyLog as P
-import qualified Servant
+import Polysemy.TinyLog qualified as P
+import Servant qualified
 import Ssl.Util
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import System.Logger.Class
-import qualified System.Logger.Extended as Logger
-import qualified UnliftIO.Exception as UnliftIO
+import System.Logger.Extended qualified as Logger
+import UnliftIO.Exception qualified as UnliftIO
 import Util.Options
 import Wire.API.Error
 import Wire.API.Federation.Error
-import qualified Wire.Sem.Logger
+import Wire.Sem.Logger qualified
 
 -- Effects needed by the interpretation of other effects
 type GalleyEffects0 =
@@ -119,7 +119,7 @@ type GalleyEffects0 =
      -- having to declare it every single time, and simply handle it here
      Error FederationError,
      Embed IO,
-     Error Wai.Error,
+     Error JSONResponse,
      Resource,
      Final IO
    ]
@@ -228,19 +228,19 @@ evalGalleyToIO env action = do
 toServantHandler :: Env -> Sem GalleyEffects a -> Servant.Handler a
 toServantHandler env = liftIO . evalGalleyToIO env
 
-evalGalley :: Env -> Sem GalleyEffects a -> ExceptT Wai.Error IO a
+evalGalley :: Env -> Sem GalleyEffects a -> ExceptT JSONResponse IO a
 evalGalley e =
   ExceptT
     . runFinal @IO
     . resourceToIOFinal
     . runError
     . embedToFinal @IO
-    . mapError toWai
-    . mapError toWai
-    . mapError toWai
+    . mapError toResponse
+    . mapError toResponse
+    . mapError toResponse
     . runInputConst e
     . runInputConst (e ^. cstate)
-    . mapError toWai -- DynError
+    . mapError toResponse -- DynError
     . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
     . runInputSem (embed getCurrentTime) -- FUTUREWORK: could we take the time only once instead?
@@ -272,6 +272,7 @@ evalGalley e =
     . interpretFederatorAccess
     . interpretExternalAccess
     . interpretGundeckAccess
+    . interpretDefederationNotifications
     . interpretSparAccess
     . interpretBrigAccess
   where

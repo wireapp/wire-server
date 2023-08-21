@@ -1,8 +1,8 @@
 module Testlib.ResourcePool
   ( ResourcePool,
     BackendResource (..),
+    DynamicBackendConfig (..),
     backendResources,
-    remoteDomains,
     createBackendResourcePool,
     acquireResources,
   )
@@ -12,14 +12,16 @@ import Control.Concurrent
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
+import Data.Aeson
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
-import Data.List.Extra ((\\))
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.String
 import Data.Tuple
 import Data.Word
+import GHC.Generics
+import GHC.Stack (HasCallStack)
 import System.IO
 import Prelude
 
@@ -28,7 +30,7 @@ data ResourcePool a = ResourcePool
     resources :: IORef (Set.Set a)
   }
 
-acquireResources :: forall m a. (Ord a, MonadIO m, MonadMask m) => Int -> ResourcePool a -> Codensity m [a]
+acquireResources :: forall m a. (Ord a, MonadIO m, MonadMask m, HasCallStack) => Int -> ResourcePool a -> Codensity m [a]
 acquireResources n pool = Codensity $ \f -> bracket acquire release (f . Set.toList)
   where
     release :: Set.Set a -> m ()
@@ -42,11 +44,11 @@ acquireResources n pool = Codensity $ \f -> bracket acquire release (f . Set.toL
       waitQSemN pool.sem n
       atomicModifyIORef pool.resources $ swap . Set.splitAt n
 
-createBackendResourcePool :: IO (ResourcePool BackendResource)
-createBackendResourcePool =
-  let resources = backendResources 3
+createBackendResourcePool :: [DynamicBackendConfig] -> IO (ResourcePool BackendResource)
+createBackendResourcePool dynConfs =
+  let resources = backendResources dynConfs
    in ResourcePool
-        <$> newQSemN 3
+        <$> newQSemN (length dynConfs)
         <*> newIORef resources
 
 data BackendResource = BackendResource
@@ -71,10 +73,18 @@ data BackendResource = BackendResource
   }
   deriving (Show, Eq, Ord)
 
-backendResources :: Word16 -> Set.Set BackendResource
-backendResources n =
-  [1 .. n]
-    <&> ( \i ->
+data DynamicBackendConfig = DynamicBackendConfig
+  { domain :: String,
+    federatorExternalPort :: Word16
+  }
+  deriving (Show, Generic)
+
+instance FromJSON DynamicBackendConfig
+
+backendResources :: [DynamicBackendConfig] -> Set.Set BackendResource
+backendResources dynConfs =
+  (zip dynConfs [1 ..])
+    <&> ( \(dynConf, i) ->
             BackendResource
               { berBrigKeyspace = "brig_test_dyn_" <> show i,
                 berGalleyKeyspace = "galley_test_dyn_" <> show i,
@@ -82,8 +92,8 @@ backendResources n =
                 berGundeckKeyspace = "gundeck_test_dyn_" <> show i,
                 berElasticsearchIndex = "directory_dyn_" <> show i <> "_test",
                 berFederatorInternal = federatorInternalPort i,
-                berFederatorExternal = federatorExternalPort i,
-                berDomain = domain i,
+                berFederatorExternal = dynConf.federatorExternalPort,
+                berDomain = dynConf.domain,
                 berAwsUserJournalQueue = "integration-user-events.fifo" <> suffix i,
                 berAwsPrekeyTable = "integration-brig-prekeys" <> suffix i,
                 berAwsS3Bucket = "dummy-bucket" <> suffix i,
@@ -92,7 +102,7 @@ backendResources n =
                 berEmailSMSSesQueue = "integration-brig-events" <> suffix i,
                 berEmailSMSEmailSender = "backend-integration" <> suffix i <> "@wire.com",
                 berGalleyJournal = "integration-team-events.fifo" <> suffix i,
-                berVHost = mkVHost i,
+                berVHost = dynConf.domain,
                 berNginzSslPort = mkNginzSslPort i
               }
         )
@@ -107,17 +117,3 @@ backendResources n =
     -- Fixed internal port for federator, e.g. for dynamic backends: 1 -> 10097, 2 -> 11097, etc.
     federatorInternalPort :: Num a => a -> a
     federatorInternalPort i = 8097 + ((1 + i) * 1000)
-
-    -- Fixed external port for federator, e.g. for dynamic backends: 1 -> 10098, 2 -> 11098, etc.
-    federatorExternalPort :: Num a => a -> a
-    federatorExternalPort i = 8098 + ((1 + i) * 1000)
-
-    -- Fixed domain for a backend resource, e.g. for dynamic backends: 1 -> "d1.example.com", 2 -> "d2.example.com", etc.
-    domain :: Integral a => a -> String
-    domain i = "d" <> show @Int (fromIntegral i) <> ".example.com"
-
-    mkVHost :: Integral a => a -> String
-    mkVHost = domain
-
-remoteDomains :: String -> [String]
-remoteDomains domain = ["example.com", "b.example.com", "d1.example.com", "d2.example.com", "d3.example.com"] \\ [domain]

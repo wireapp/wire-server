@@ -22,9 +22,9 @@
 module Arbitraries where
 
 import Control.Lens ((.~))
-import qualified Data.Text.Lazy as LT
-import qualified Data.Text.Lazy.Builder as LT
-import qualified Data.Text.Lazy.Builder.Int as LT
+import Data.Text.Lazy qualified as LT
+import Data.Text.Lazy.Builder qualified as LT
+import Data.Text.Lazy.Builder.Int qualified as LT
 import Data.UUID hiding (fromString)
 import Data.ZAuth.Token
 import Imports

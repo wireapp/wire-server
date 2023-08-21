@@ -3,7 +3,7 @@ module Test.AssetDownload where
 import API.Cargohold
 import GHC.Stack
 import Network.HTTP.Client (Request (redirectCount))
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import SetupHelpers
 import Testlib.Prelude
 
@@ -15,7 +15,7 @@ testDownloadAsset = do
     resp.status `shouldMatchInt` 201
     resp.json %. "key"
 
-  bindResponse (downloadAsset user key id) $ \resp -> do
+  bindResponse (downloadAsset user user key id) $ \resp -> do
     resp.status `shouldMatchInt` 200
     assertBool
       ("Expect 'Hello World!' as text asset content. Got: " ++ show resp.body)
@@ -34,17 +34,17 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
     key' <- doUploadAsset user
     checkAssetDownload user key'
   where
-    checkAssetDownload :: Value -> Value -> App ()
+    checkAssetDownload :: HasCallStack => Value -> Value -> App ()
     checkAssetDownload user key = withModifiedService Cargohold modifyConfig $ \_ -> do
-      bindResponse (downloadAsset user key noRedirects) $ \resp -> do
+      bindResponse (downloadAsset user user key noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 404
-      bindResponse (downloadAsset' user key "red.example.com" noRedirects) $ \resp -> do
+      bindResponse (downloadAsset' user user key "red.example.com" noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 302
         locationHeaderHost resp `shouldMatch` "s3-download.red.example.com"
-      bindResponse (downloadAsset' user key "green.example.com" noRedirects) $ \resp -> do
+      bindResponse (downloadAsset' user user key "green.example.com" noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 302
         locationHeaderHost resp `shouldMatch` "s3-download.green.example.com"
-      bindResponse (downloadAsset' user key "unknown.example.com" noRedirects) $ \resp -> do
+      bindResponse (downloadAsset' user user key "unknown.example.com" noRedirects) $ \resp -> do
         resp.status `shouldMatchInt` 404
         resp.json %. "label" `shouldMatch` "not-found"
 
@@ -59,7 +59,7 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
             "green.example.com" .= "http://s3-download.green.example.com"
           ]
 
-    doUploadAsset :: Value -> App Value
+    doUploadAsset :: HasCallStack => Value -> App Value
     doUploadAsset user = bindResponse (uploadAsset user) $ \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "key"

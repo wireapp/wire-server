@@ -5,48 +5,50 @@ module Federation where
 import API.Util
 import Bilge.Assert
 import Bilge.Response
-import qualified Cassandra as C
+import Cassandra qualified as C
 import Cassandra.Exec (x1)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Control.Monad.Codensity (lowerCodensity)
-import qualified Data.ByteString as LBS
+import Data.ByteString qualified as LBS
 import Data.Domain
 import Data.Id
 import Data.List.NonEmpty
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Range (toRange)
+import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time (getCurrentTime)
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Federator.MockServer
 import Galley.API.Internal
 import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Queries
-import qualified Galley.Data.Conversation.Types as Types
+import Galley.Data.Conversation.Types qualified as Types
 import Galley.Monad
 import Galley.Options
 import Galley.Run
 import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), defMemberStatus, localMemberToOther)
 import Imports
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestSetup
 import UnliftIO.Retry
 import Wire.API.Conversation
-import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol (Protocol (..))
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
 import Wire.API.Event.Conversation
+import Wire.API.Federation.API.Brig (NonConnectedBackends (NonConnectedBackends))
 import Wire.API.Federation.API.Galley (ConversationUpdate (..), GetConversationsResponse (..))
 import Wire.API.Internal.Notification
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.MultiTablePaging
-import qualified Wire.API.Routes.MultiTablePaging as Public
+import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.User.Search
 
 x3 :: RetryPolicy
@@ -163,7 +165,7 @@ deleteFederationDomains old new = do
       deletedDomains = Set.difference prev curr
   env <- ask
   -- Call into the galley code
-  for_ deletedDomains $ liftIO . evalGalleyToIO env . deleteFederationDomain
+  for_ deletedDomains $ liftIO . evalGalleyToIO env . deleteFederationDomain (toRange $ Proxy @500)
 
 constHandlers :: (MonadIO m) => [RetryStatus -> Handler m Bool]
 constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]
@@ -183,7 +185,7 @@ updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = r
   let qConvId = decodeQualifiedConvId conv
   connectWithRemoteUser alice remoteBob
   connectWithRemoteUser alice remoteCharlie
-  _ <- postQualifiedMembers alice (remoteCharlie <| remoteBob :| []) qConvId
+  _ <- withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) $ postQualifiedMembers alice (remoteCharlie <| remoteBob :| []) qConvId
   -- Remove the remote user from the local domain
   liftIO $ runApp env $ deleteFederationDomains old new
   -- Check that the conversation still exists.
@@ -332,7 +334,7 @@ updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval = do
   let convId = decodeConvId conv
   let qConvId = Qualified convId localDomain
   connectWithRemoteUser alice remoteBob
-  _ <- postQualifiedMembers alice (remoteBob :| []) qConvId
+  _ <- withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) $ postQualifiedMembers alice (remoteBob :| []) qConvId
 
   -- No-op
   liftIO $ runApp env $ deleteFederationDomains old new
@@ -359,7 +361,7 @@ updateFedDomainsTestNoop env remoteDomain interval = do
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   let qConvId = Qualified convId localDomain
   connectWithRemoteUser alice remoteBob
-  _ <- postQualifiedMembers alice (remoteBob :| []) qConvId
+  _ <- withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) $ postQualifiedMembers alice (remoteBob :| []) qConvId
   -- No-op
   liftIO $ runApp env $ deleteFederationDomains old new
   -- Check that the conversation still exists.

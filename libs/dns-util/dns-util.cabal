@@ -74,7 +74,7 @@ library
     , polysemy
     , random
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite spec
   type:               exitcode-stdio-1.0
@@ -140,4 +140,4 @@ test-suite spec
     , hspec
     , imports
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

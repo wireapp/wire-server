@@ -24,9 +24,9 @@ module Data.List1 where
 import Cassandra
 import Data.Aeson
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as N
+import Data.List.NonEmpty qualified as N
 import Data.Schema as S
-import qualified Data.Swagger as Swagger
+import Data.Swagger qualified as Swagger
 import Imports
 import Test.QuickCheck (Arbitrary)
 import Test.QuickCheck.Instances ()

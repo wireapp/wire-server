@@ -41,13 +41,15 @@ where
 
 import Control.Lens ((.~))
 import Data.Aeson (FromJSON, ToJSON)
-import qualified Data.Code as Code
+import Data.Code qualified as Code
+import Data.CommaSeparatedList
 import Data.Domain (Domain)
+import Data.Handle (Handle)
 import Data.Id as Id
 import Data.Qualified (Qualified)
 import Data.Schema hiding (swaggerDoc)
 import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports hiding (head)
 import Servant hiding (Handler, WithStatus, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
@@ -63,17 +65,19 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Internal.Brig.SearchIndex (ISearchIndexAPI)
-import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZUser {- yes, this is a bit weird -})
 import Wire.API.Team.Feature
+import Wire.API.Team.LegalHold.Internal
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
+import Wire.API.User.RichInfo
 
 type EJPDRequest =
   Summary
@@ -223,6 +227,257 @@ type AccountAPI =
                :> Capture "uid" UserId
                :> "status"
                :> Get '[Servant.JSON] AccountStatusResp
+           )
+    :<|> Named
+           "iGetUsersByVariousKeys"
+           ( "users"
+               :> QueryParam' [Optional, Strict] "ids" (CommaSeparatedList UserId)
+               :> QueryParam' [Optional, Strict] "handles" (CommaSeparatedList Handle)
+               :> QueryParam' [Optional, Strict] "email" (CommaSeparatedList Email) -- don't rename to `emails`, for backwards compat!
+               :> QueryParam' [Optional, Strict] "phone" (CommaSeparatedList Phone) -- don't rename to `phones`, for backwards compat!
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Also return new accounts with team invitation pending"
+                    ]
+                    "includePendingInvitations"
+                    Bool
+               :> Get '[Servant.JSON] [UserAccount]
+           )
+    :<|> Named
+           "iGetUserContacts"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "contacts"
+               :> Get '[Servant.JSON] UserIds
+           )
+    :<|> Named
+           "iGetUserActivationCode"
+           ( "users"
+               :> "activation-code"
+               :> QueryParam' [Optional, Strict] "email" Email
+               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> Get '[Servant.JSON] GetActivationCodeResp
+           )
+    :<|> Named
+           "iGetUserPasswordResetCode"
+           ( "users"
+               :> "password-reset-code"
+               :> QueryParam' [Optional, Strict] "email" Email
+               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> Get '[Servant.JSON] GetPasswordResetCodeResp
+           )
+    :<|> Named
+           "iRevokeIdentity"
+           ( Summary "This endpoint can lead to the following events being sent: UserIdentityRemoved event to target user"
+               :> "users"
+               :> "revoke-identity"
+               :> QueryParam' [Optional, Strict] "email" Email
+               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> Post '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iHeadBlacklist"
+           ( "users"
+               :> "blacklist"
+               :> QueryParam' [Optional, Strict] "email" Email
+               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> MultiVerb
+                    'HEAD
+                    '[Servant.JSON]
+                    '[ Respond 404 "Not blacklisted" (),
+                       Respond 200 "Yes blacklisted" ()
+                     ]
+                    CheckBlacklistResponse
+           )
+    :<|> Named
+           "iDeleteBlacklist"
+           ( "users"
+               :> "blacklist"
+               :> QueryParam' [Optional, Strict] "email" Email
+               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> Delete '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iPostBlacklist"
+           ( "users"
+               :> "blacklist"
+               :> QueryParam' [Optional, Strict] "email" Email
+               :> QueryParam' [Optional, Strict] "phone" Phone
+               :> Post '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iGetPhonePrefix"
+           ( Summary
+               "given a phone number (or phone number prefix), see whether it is blocked \
+               \via a prefix (and if so, via which specific prefix)"
+               :> "users"
+               :> "phone-prefixes"
+               :> Capture "prefix" PhonePrefix
+               :> MultiVerb
+                    'GET
+                    '[Servant.JSON]
+                    '[ RespondEmpty 404 "PhonePrefixNotFound",
+                       Respond 200 "PhonePrefixesFound" [ExcludedPrefix]
+                     ]
+                    GetPhonePrefixResponse
+           )
+    :<|> Named
+           "iDeletePhonePrefix"
+           ( "users"
+               :> "phone-prefixes"
+               :> Capture "prefix" PhonePrefix
+               :> Delete '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iPostPhonePrefix"
+           ( "users"
+               :> "phone-prefixes"
+               :> ReqBody '[Servant.JSON] ExcludedPrefix
+               :> Post '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iPutUserSsoId"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "sso-id"
+               :> ReqBody '[Servant.JSON] UserSSOId
+               :> MultiVerb
+                    'PUT
+                    '[Servant.JSON]
+                    '[ RespondEmpty 200 "UpdateSSOIdSuccess",
+                       RespondEmpty 404 "UpdateSSOIdNotFound"
+                     ]
+                    UpdateSSOIdResponse
+           )
+    :<|> Named
+           "iDeleteUserSsoId"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "sso-id"
+               :> MultiVerb
+                    'DELETE
+                    '[Servant.JSON]
+                    '[ RespondEmpty 200 "UpdateSSOIdSuccess",
+                       RespondEmpty 404 "UpdateSSOIdNotFound"
+                     ]
+                    UpdateSSOIdResponse
+           )
+    :<|> Named
+           "iPutManagedBy"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "managed-by"
+               :> ReqBody '[Servant.JSON] ManagedByUpdate
+               :> Put '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iPutRichInfo"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "rich-info"
+               :> ReqBody '[Servant.JSON] RichInfoUpdate
+               :> Put '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iPutHandle"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "handle"
+               :> ReqBody '[Servant.JSON] HandleUpdate
+               :> Put '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iPutHandle"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "name"
+               :> ReqBody '[Servant.JSON] NameUpdate
+               :> Put '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iGetRichInfo"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "rich-info"
+               :> Get '[Servant.JSON] RichInfo
+           )
+    :<|> Named
+           "iGetRichInfoMulti"
+           ( "users"
+               :> "rich-info"
+               :> QueryParam' '[Optional, Strict] "ids" (CommaSeparatedList UserId)
+               :> Get '[Servant.JSON] [(UserId, RichInfo)]
+           )
+    :<|> Named
+           "iHeadHandle"
+           ( CanThrow 'InvalidHandle
+               :> "users"
+               :> "handles"
+               :> Capture "handle" Handle
+               :> MultiVerb
+                    'HEAD
+                    '[Servant.JSON]
+                    '[ RespondEmpty 200 "CheckHandleResponseFound",
+                       RespondEmpty 404 "CheckHandleResponseNotFound"
+                     ]
+                    CheckHandleResponse
+           )
+    :<|> Named
+           "iConnectionUpdate"
+           ( "connections"
+               :> "connection-update"
+               :> ReqBody '[Servant.JSON] UpdateConnectionsInternal
+               :> Put '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iListClients"
+           ( "clients"
+               :> ReqBody '[Servant.JSON] UserSet
+               :> Post '[Servant.JSON] UserClients
+           )
+    :<|> Named
+           "iListClientsFull"
+           ( "clients"
+               :> "full"
+               :> ReqBody '[Servant.JSON] UserSet
+               :> Post '[Servant.JSON] UserClientsFull
+           )
+    :<|> Named
+           "iAddClient"
+           ( Summary
+               "This endpoint can lead to the following events being sent: ClientAdded event to the user; \
+               \ClientRemoved event to the user, if removing old clients due to max number of clients; \
+               \UserLegalHoldEnabled event to contacts of the user, if client type is legalhold."
+               :> "clients"
+               :> Capture "uid" UserId
+               :> QueryParam' [Optional, Strict] "skip_reauth" Bool
+               :> ReqBody '[Servant.JSON] NewClient
+               :> Header' [Optional, Strict] "Z-Connection" ConnId
+               :> Verb 'POST 201 '[Servant.JSON] Client
+           )
+    :<|> Named
+           "iLegalholdAddClient"
+           ( Summary
+               "This endpoint can lead to the following events being sent: \
+               \LegalHoldClientRequested event to contacts of the user"
+               :> "clients"
+               :> "legalhold"
+               :> Capture "uid" UserId
+               :> "request"
+               :> ReqBody '[Servant.JSON] LegalHoldClientRequest
+               :> Post '[Servant.JSON] NoContent
+           )
+    :<|> Named
+           "iLegalholdDeleteClient"
+           ( Summary
+               "This endpoint can lead to the following events being sent: \
+               \ClientRemoved event to the user; UserLegalHoldDisabled event \
+               \to contacts of the user"
+               :> "clients"
+               :> "legalhold"
+               :> Capture "uid" UserId
+               :> Delete '[Servant.JSON] NoContent
            )
 
 -- | The missing ref is implicit by the capture
@@ -439,12 +694,15 @@ type GetDefaultLocale =
     :> Get '[Servant.JSON] LocaleUpdate
 
 type ClientAPI =
-  Summary "Update last_active field of a client"
-    :> "clients"
-    :> Capture "uid" UserId
-    :> Capture "client" ClientId
-    :> "activity"
-    :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
+  Named
+    "update-client-last-active"
+    ( Summary "Update last_active field of a client"
+        :> "clients"
+        :> Capture "uid" UserId
+        :> Capture "client" ClientId
+        :> "activity"
+        :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
+    )
 
 type AuthAPI =
   Named

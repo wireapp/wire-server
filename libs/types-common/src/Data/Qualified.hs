@@ -54,9 +54,9 @@ import Data.Bifunctor (first)
 import Data.Domain (Domain)
 import Data.Handle (Handle (..))
 import Data.Id
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports hiding (local)
 import Test.QuickCheck (Arbitrary (arbitrary))
 

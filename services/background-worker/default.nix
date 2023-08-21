@@ -58,7 +58,6 @@ mkDerivation {
     async
     base
     bilge
-    bytestring
     bytestring-conversion
     containers
     exceptions
