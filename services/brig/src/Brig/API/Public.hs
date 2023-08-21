@@ -166,6 +166,21 @@ docsAPI =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
+versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
+  swaggerSchemaUIServer $
+    ( brigSwagger
+        <> versionSwagger
+        <> GalleyAPI.swaggerDoc
+        <> SparAPI.swaggerDoc
+        <> CargoholdAPI.swaggerDoc
+        <> CannonAPI.swaggerDoc
+        <> GundeckAPI.swaggerDoc
+        <> ProxyAPI.swaggerDoc
+        <> OAuth.swaggerDoc
+    )
+      & S.info . S.title .~ "Wire-Server API"
+      & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
+      & cleanupSwagger
 versionedSwaggerDocsAPI (Just (VersionNumber V4)) =
   swaggerSchemaUIServer $
     ( brigSwagger
@@ -218,6 +233,11 @@ internalEndpointsSwaggerDocsAPI ::
   PortNumber ->
   S.Swagger ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
+internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V5)) =
+  swaggerSchemaUIServer $
+    swagger
+      & adjustSwaggerForInternalEndpoint service examplePort
+      & cleanupSwagger
 internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V4)) =
   swaggerSchemaUIServer $
     swagger
