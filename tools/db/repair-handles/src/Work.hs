@@ -136,9 +136,9 @@ executeAction env = \case
     removeHandle env handleRemove
   where
     setUserHandle :: Env -> UserId -> Handle -> IO ()
-    setUserHandle Env {..} uid handle = void $ do
+    setUserHandle Env {..} uid handle = do
       runClient envBrig $
-        Cas.trans updateHandle $
+        Cas.write updateHandle $
           params LocalQuorum (handle, uid)
       where
         updateHandle :: PrepQuery W (Handle, UserId) ()

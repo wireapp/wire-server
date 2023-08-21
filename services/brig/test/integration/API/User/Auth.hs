@@ -212,7 +212,7 @@ testLoginWith6CharPassword brig db = do
     updatePassword :: MonadClient m => UserId -> PlainTextPassword6 -> m ()
     updatePassword u t = do
       p <- liftIO $ mkSafePassword t
-      retry x5 . void $ trans userPasswordUpdate (params LocalQuorum (p, u))
+      retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
 
     userPasswordUpdate :: PrepQuery W (Password, UserId) ()
     userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
