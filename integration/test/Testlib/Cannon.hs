@@ -22,6 +22,7 @@ module Testlib.Cannon
   ( WebSocket (..),
     WSConnect (..),
     ToWSConnect (..),
+    AwaitResult (..),
     withWebSocket,
     withWebSockets,
     awaitNMatchesResult,
@@ -31,6 +32,7 @@ module Testlib.Cannon
     awaitAtLeastNMatches,
     awaitNToMMatchesResult,
     awaitNToMMatches,
+    assertAwaitResult,
     nPayload,
     printAwaitResult,
     printAwaitAtLeastResult,
@@ -406,10 +408,14 @@ awaitNMatches ::
   App [Value]
 awaitNMatches nExpected tSecs checkMatch ws = do
   res <- awaitNMatchesResult nExpected tSecs checkMatch ws
+  assertAwaitResult res
+
+assertAwaitResult :: HasCallStack => AwaitResult -> App [Value]
+assertAwaitResult res = do
   if res.success
     then pure res.matches
     else do
-      let msgHeader = "Expected " <> show nExpected <> " matching events, but got " <> show (length res.matches) <> "."
+      let msgHeader = "Expected " <> show res.nMatchesExpected <> " matching events, but got " <> show (length res.matches) <> "."
       details <- ("Details:\n" <>) <$> prettyAwaitResult res
       assertFailure $ unlines [msgHeader, details]
 

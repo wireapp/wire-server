@@ -188,6 +188,8 @@ startDynamicBackend resource staticPorts beOverrides = do
       Gundeck -> setField "aws.queueName" resource.berAwsQueueName
       Galley ->
         setField "journal.queueName" resource.berGalleyJournal
+          >=> setField "rabbitmq.vHost" resource.berVHost
+      BackgroundWorker -> setField "rabbitmq.vHost" resource.berVHost
       _ -> pure
 
     setFederationSettings :: Service -> Value -> App Value
