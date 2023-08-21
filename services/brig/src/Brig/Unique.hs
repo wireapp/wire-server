@@ -71,7 +71,7 @@ withClaim u v t io = do
       if claimed
         then liftIO $ timeout (fromIntegral ttl # Second) io
         else pure Nothing
-    upsertQuery :: PrepQuery W (Int32, C.Set (Id a), Text) Row
+    upsertQuery :: PrepQuery W (Int32, C.Set (Id a), Text) ()
     upsertQuery = "UPDATE unique_claims USING TTL ? SET claims = claims + ? WHERE value = ?"
 
 deleteClaim ::
