@@ -5,3 +5,7 @@ federationDomain2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
 ingressChart: {{ requiredEnv "INGRESS_CHART" }}
 rabbitmqUsername: guest
 rabbitmqPassword: guest
+
+dynBackendDomain1: dynamic-backend-1.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster.local
+dynBackendDomain2: dynamic-backend-2.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster.local
+dynBackendDomain3: dynamic-backend-3.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster.local
