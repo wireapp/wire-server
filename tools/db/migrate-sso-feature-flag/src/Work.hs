@@ -69,4 +69,4 @@ writeSsoFlags = mapM_ (`setSSOTeamConfig` FeatureStatusEnabled)
       retry x5 . void $ trans updateSSOTeamConfig $ params LocalQuorum (ssoTeamConfigStatus, tid)
 
     updateSSOTeamConfig :: PrepQuery W (FeatureStatus, TeamId) Row
-    updateSSOTeamConfig = "update team_features set sso_status = ? where team_id = ? IF EXISTS"
+    updateSSOTeamConfig = "update team_features set sso_status = ? where team_id = ?" -- `IF EXISTS`, but that is too expensive

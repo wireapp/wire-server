@@ -190,25 +190,25 @@ deleteUserTeam :: PrepQuery W (UserId, TeamId) ()
 deleteUserTeam = "delete from user_team where user = ? and team = ?"
 
 markTeamDeleted :: PrepQuery W (TeamStatus, TeamId) Row
-markTeamDeleted = "update team set status = ? where team = ? IF EXISTS"
+markTeamDeleted = "update team set status = ? where team = ?" -- `IF EXISTS`, but that is too expensive
 
 deleteTeam :: PrepQuery W (TeamStatus, TeamId) Row
-deleteTeam = "update team using timestamp 32503680000000000 set name = 'default', icon = 'default', status = ? where team = ?  IF EXISTS"
+deleteTeam = "update team using timestamp 32503680000000000 set name = 'default', icon = 'default', status = ? where team = ? " -- `IF EXISTS`, but that is too expensive
 
 updateTeamName :: PrepQuery W (Text, TeamId) Row
-updateTeamName = "update team set name = ? where team = ? IF EXISTS"
+updateTeamName = "update team set name = ? where team = ?" -- `IF EXISTS`, but that is too expensive
 
 updateTeamIcon :: PrepQuery W (Text, TeamId) Row
-updateTeamIcon = "update team set icon = ? where team = ? IF EXISTS"
+updateTeamIcon = "update team set icon = ? where team = ?" -- `IF EXISTS`, but that is too expensive
 
 updateTeamIconKey :: PrepQuery W (Text, TeamId) Row
-updateTeamIconKey = "update team set icon_key = ? where team = ? IF EXISTS"
+updateTeamIconKey = "update team set icon_key = ? where team = ?" -- `IF EXISTS`, but that is too expensive
 
 updateTeamStatus :: PrepQuery W (TeamStatus, TeamId) Row
-updateTeamStatus = "update team set status = ? where team = ? IF EXISTS"
+updateTeamStatus = "update team set status = ? where team = ?" -- `IF EXISTS`, but that is too expensive
 
 updateTeamSplashScreen :: PrepQuery W (Text, TeamId) Row
-updateTeamSplashScreen = "update team set splash_screen = ? where team = ? IF EXISTS"
+updateTeamSplashScreen = "update team set splash_screen = ? where team = ?" -- `IF EXISTS`, but that is too expensive
 
 -- Conversations ------------------------------------------------------------
 
@@ -268,34 +268,34 @@ insertMLSSelfConv =
       <> ", ?, ?)"
 
 updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRole, ConvId) Row
-updateConvAccess = "update conversation set access = ?, access_roles_v2 = ? where conv = ? IF EXISTS"
+updateConvAccess = "update conversation set access = ?, access_roles_v2 = ? where conv = ?" -- `IF EXISTS`, but that is too expensive
 
 updateConvReceiptMode :: PrepQuery W (ReceiptMode, ConvId) Row
-updateConvReceiptMode = "update conversation set receipt_mode = ? where conv = ? IF EXISTS"
+updateConvReceiptMode = "update conversation set receipt_mode = ? where conv = ?" -- `IF EXISTS`, but that is too expensive
 
 updateConvMessageTimer :: PrepQuery W (Maybe Milliseconds, ConvId) Row
-updateConvMessageTimer = "update conversation set message_timer = ? where conv = ? IF EXISTS"
+updateConvMessageTimer = "update conversation set message_timer = ? where conv = ?" -- `IF EXISTS`, but that is too expensive
 
 updateConvName :: PrepQuery W (Text, ConvId) Row
-updateConvName = "update conversation set name = ? where conv = ? IF EXISTS"
+updateConvName = "update conversation set name = ? where conv = ?" -- `IF EXISTS`, but that is too expensive
 
 updateConvType :: PrepQuery W (ConvType, ConvId) Row
-updateConvType = "update conversation set type = ? where conv = ? IF EXISTS"
+updateConvType = "update conversation set type = ? where conv = ?" -- `IF EXISTS`, but that is too expensive
 
 updateConvEpoch :: PrepQuery W (Epoch, ConvId) Row
-updateConvEpoch = "update conversation set epoch = ? where conv = ? IF EXISTS"
+updateConvEpoch = "update conversation set epoch = ? where conv = ?" -- `IF EXISTS`, but that is too expensive
 
 deleteConv :: PrepQuery W (Identity ConvId) ()
 deleteConv = "delete from conversation using timestamp 32503680000000000 where conv = ?"
 
 markConvDeleted :: PrepQuery W (Identity ConvId) Row
-markConvDeleted = "update conversation set deleted = true where conv = ? IF EXISTS"
+markConvDeleted = "update conversation set deleted = true where conv = ?" -- `IF EXISTS`, but that is too expensive
 
 selectPublicGroupState :: PrepQuery R (Identity ConvId) (Identity (Maybe OpaquePublicGroupState))
 selectPublicGroupState = "select public_group_state from conversation where conv = ?"
 
 updatePublicGroupState :: PrepQuery W (OpaquePublicGroupState, ConvId) Row
-updatePublicGroupState = "update conversation set public_group_state = ? where conv = ? IF EXISTS"
+updatePublicGroupState = "update conversation set public_group_state = ? where conv = ?" -- `IF EXISTS`, but that is too expensive
 
 -- Conversations accessible by code -----------------------------------------
 
@@ -353,16 +353,16 @@ removeMember :: PrepQuery W (ConvId, UserId) ()
 removeMember = "delete from member where conv = ? and user = ?"
 
 updateOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, ConvId, UserId) Row
-updateOtrMemberMutedStatus = "update member set otr_muted_status = ?, otr_muted_ref = ? where conv = ? and user = ? IF EXISTS"
+updateOtrMemberMutedStatus = "update member set otr_muted_status = ?, otr_muted_ref = ? where conv = ? and user = ?" -- `IF EXISTS`, but that is too expensive
 
 updateOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) Row
-updateOtrMemberArchived = "update member set otr_archived = ?, otr_archived_ref = ? where conv = ? and user = ? IF EXISTS"
+updateOtrMemberArchived = "update member set otr_archived = ?, otr_archived_ref = ? where conv = ? and user = ?" -- `IF EXISTS`, but that is too expensive
 
 updateMemberHidden :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) Row
-updateMemberHidden = "update member set hidden = ?, hidden_ref = ? where conv = ? and user = ? IF EXISTS"
+updateMemberHidden = "update member set hidden = ?, hidden_ref = ? where conv = ? and user = ?" -- `IF EXISTS`, but that is too expensive
 
 updateMemberConvRoleName :: PrepQuery W (RoleName, ConvId, UserId) Row
-updateMemberConvRoleName = "update member set conversation_role = ? where conv = ? and user = ? IF EXISTS"
+updateMemberConvRoleName = "update member set conversation_role = ? where conv = ? and user = ?" -- `IF EXISTS`, but that is too expensive
 
 -- Federated conversations -----------------------------------------------------
 --
@@ -383,7 +383,7 @@ selectRemoteMembers :: PrepQuery R (Identity ConvId) (Domain, UserId, RoleName)
 selectRemoteMembers = "select user_remote_domain, user_remote_id, conversation_role from member_remote_user where conv = ?"
 
 updateRemoteMemberConvRoleName :: PrepQuery W (RoleName, ConvId, Domain, UserId) Row
-updateRemoteMemberConvRoleName = "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ? IF EXISTS"
+updateRemoteMemberConvRoleName = "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ?" -- `IF EXISTS`, but that is too expensive
 
 removeRemoteDomain :: PrepQuery W (ConvId, Domain) ()
 removeRemoteDomain = "delete from member_remote_user where conv = ? and user_remote_domain = ?"
@@ -428,13 +428,13 @@ selectLocalMembersByDomain = "select conv_remote_id, user from user_remote_conv 
 -- remote conversation status for local user
 
 updateRemoteOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, Domain, ConvId, UserId) Row
-updateRemoteOtrMemberMutedStatus = "update user_remote_conv set otr_muted_status = ?, otr_muted_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ? IF EXISTS"
+updateRemoteOtrMemberMutedStatus = "update user_remote_conv set otr_muted_status = ?, otr_muted_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?" -- `IF EXISTS`, but that is too expensive
 
 updateRemoteOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) Row
-updateRemoteOtrMemberArchived = "update user_remote_conv set otr_archived = ?, otr_archived_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ? IF EXISTS"
+updateRemoteOtrMemberArchived = "update user_remote_conv set otr_archived = ?, otr_archived_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?" -- `IF EXISTS`, but that is too expensive
 
 updateRemoteMemberHidden :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) Row
-updateRemoteMemberHidden = "update user_remote_conv set hidden = ?, hidden_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ? IF EXISTS"
+updateRemoteMemberHidden = "update user_remote_conv set hidden = ?, hidden_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?" -- `IF EXISTS`, but that is too expensive
 
 selectRemoteMemberStatus :: PrepQuery R (Domain, ConvId, UserId) (Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
 selectRemoteMemberStatus = "select otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from user_remote_conv where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
@@ -570,7 +570,7 @@ selectSearchVisibility =
 
 updateSearchVisibility :: PrepQuery W (TeamSearchVisibility, TeamId) Row
 updateSearchVisibility =
-  "update team set search_visibility = ? where team = ? IF EXISTS"
+  "update team set search_visibility = ? where team = ?" -- `IF EXISTS`, but that is too expensive
 
 -- Custom Backend -----------------------------------------------------------
 

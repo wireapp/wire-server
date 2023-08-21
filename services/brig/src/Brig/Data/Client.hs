@@ -381,14 +381,14 @@ addMLSPublicKey u c ss pk = do
 insertClient :: PrepQuery W (UserId, ClientId, UTCTimeMillis, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability)) ()
 insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, lat, lon, model, capabilities) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
-updateClientLabelQuery :: PrepQuery W (Maybe Text, UserId, ClientId) Row
-updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client = ? IF EXISTS"
+updateClientLabelQuery :: PrepQuery W (Maybe Text, UserId, ClientId) ()
+updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client = ?" -- `IF EXISTS`, but that is too expensive
 
-updateClientCapabilitiesQuery :: PrepQuery W (Maybe (C.Set ClientCapability), UserId, ClientId) Row
-updateClientCapabilitiesQuery = "UPDATE clients SET capabilities = ? WHERE user = ? AND client = ? IF EXISTS"
+updateClientCapabilitiesQuery :: PrepQuery W (Maybe (C.Set ClientCapability), UserId, ClientId) ()
+updateClientCapabilitiesQuery = "UPDATE clients SET capabilities = ? WHERE user = ? AND client = ?" -- `IF EXISTS`, but that is too expensive
 
-updateClientLastActiveQuery :: PrepQuery W (UTCTime, UserId, ClientId) Row
-updateClientLastActiveQuery = "UPDATE clients SET last_active = ? WHERE user = ? AND client = ? IF EXISTS"
+updateClientLastActiveQuery :: PrepQuery W (UTCTime, UserId, ClientId) ()
+updateClientLastActiveQuery = "UPDATE clients SET last_active = ? WHERE user = ? AND client = ?" -- `IF EXISTS`, but that is too expensive
 
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"

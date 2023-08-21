@@ -142,7 +142,7 @@ executeAction env = \case
           params LocalQuorum (handle, uid)
       where
         updateHandle :: PrepQuery W (Handle, UserId) Row
-        updateHandle = "UPDATE user SET handle = ? WHERE id = ? IF EXISTS"
+        updateHandle = "UPDATE user SET handle = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
     removeHandle :: Env -> Handle -> IO ()
     removeHandle Env {..} handle =

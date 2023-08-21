@@ -622,64 +622,64 @@ userInsert =
   \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userDisplayNameUpdate :: PrepQuery W (Name, UserId) Row
-userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ? IF EXISTS"
+userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userPictUpdate :: PrepQuery W (Pict, UserId) Row
-userPictUpdate = "UPDATE user SET picture = ? WHERE id = ? IF EXISTS"
+userPictUpdate = "UPDATE user SET picture = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userAssetsUpdate :: PrepQuery W ([Asset], UserId) Row
-userAssetsUpdate = "UPDATE user SET assets = ? WHERE id = ? IF EXISTS"
+userAssetsUpdate = "UPDATE user SET assets = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userAccentIdUpdate :: PrepQuery W (ColourId, UserId) Row
-userAccentIdUpdate = "UPDATE user SET accent_id = ? WHERE id = ? IF EXISTS"
+userAccentIdUpdate = "UPDATE user SET accent_id = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userEmailUpdate :: PrepQuery W (Email, UserId) Row
-userEmailUpdate = "UPDATE user SET email = ? WHERE id = ? IF EXISTS"
+userEmailUpdate = "UPDATE user SET email = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userEmailUnvalidatedUpdate :: PrepQuery W (Email, UserId) Row
-userEmailUnvalidatedUpdate = "UPDATE user SET email_unvalidated = ? WHERE id = ? IF EXISTS"
+userEmailUnvalidatedUpdate = "UPDATE user SET email_unvalidated = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) Row
-userEmailUnvalidatedDelete = "UPDATE user SET email_unvalidated = null WHERE id = ? IF EXISTS"
+userEmailUnvalidatedDelete = "UPDATE user SET email_unvalidated = null WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userPhoneUpdate :: PrepQuery W (Phone, UserId) Row
-userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ? IF EXISTS"
+userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) Row
-userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ? IF EXISTS"
+userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) Row
-userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ? IF EXISTS"
+userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userHandleUpdate :: PrepQuery W (Handle, UserId) Row
-userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ? IF EXISTS"
+userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userSupportedProtocolUpdate :: PrepQuery W (Set BaseProtocolTag, UserId) Row
-userSupportedProtocolUpdate = "UPDATE user SET supported_protocols = ? WHERE id = ? IF EXISTS"
+userSupportedProtocolUpdate = "UPDATE user SET supported_protocols = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userPasswordUpdate :: PrepQuery W (Password, UserId) Row
-userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ? IF EXISTS"
+userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userStatusUpdate :: PrepQuery W (AccountStatus, UserId) Row
-userStatusUpdate = "UPDATE user SET status = ? WHERE id = ? IF EXISTS"
+userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userDeactivatedUpdate :: PrepQuery W (Identity UserId) Row
-userDeactivatedUpdate = "UPDATE user SET activated = false WHERE id = ? IF EXISTS"
+userDeactivatedUpdate = "UPDATE user SET activated = false WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userActivatedUpdate :: PrepQuery W (Maybe Email, Maybe Phone, UserId) Row
-userActivatedUpdate = "UPDATE user SET activated = true, email = ?, phone = ? WHERE id = ? IF EXISTS"
+userActivatedUpdate = "UPDATE user SET activated = true, email = ?, phone = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userLocaleUpdate :: PrepQuery W (Language, Maybe Country, UserId) Row
-userLocaleUpdate = "UPDATE user SET language = ?, country = ? WHERE id = ? IF EXISTS"
+userLocaleUpdate = "UPDATE user SET language = ?, country = ? WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userEmailDelete :: PrepQuery W (Identity UserId) Row
-userEmailDelete = "UPDATE user SET email = null WHERE id = ? IF EXISTS"
+userEmailDelete = "UPDATE user SET email = null WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userPhoneDelete :: PrepQuery W (Identity UserId) Row
-userPhoneDelete = "UPDATE user SET phone = null WHERE id = ? IF EXISTS"
+userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?" -- `IF EXISTS`, but that is too expensive
 
 userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) Row
-userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ? IF EXISTS"
+userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ?" -- `IF EXISTS`, but that is too expensive
 
 -------------------------------------------------------------------------------
 -- Conversions

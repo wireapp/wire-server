@@ -91,7 +91,7 @@ deleteClaim u v t = do
   retry x5 $ write cql $ params LocalQuorum (ttl * 2, C.Set [u], v)
   where
     cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
-    cql = "UPDATE unique_claims USING TTL ? SET claims = claims - ? WHERE value = ? IF EXISTS"
+    cql = "UPDATE unique_claims USING TTL ? SET claims = claims - ? WHERE value = ?" -- `IF EXISTS`, but that is too expensive
 
 -- | Lookup the current claims on a value.
 lookupClaims :: MonadClient m => Text -> m [Id a]
