@@ -150,10 +150,6 @@ Append the following configuration (change the example.com with your domain).
 host: "outlook.example.com" # this entry has to be without https://!!!
 wireApiBaseUrl: "https://nginz-https.example.com"
 wireAuthorizationEndpoint: "https://webapp.example.com/auth"
-tls:
-  issuerRef:
-    name: letsencrypt-http01
-# Should probably comment here
 clientId: ""
 ```
 
@@ -167,10 +163,26 @@ As of the time of writing nginz used by wire-server is not set up to whitelist o
     - outlook # add outlook entry so your addin doesnt get CORS blocked
 ```
 
+### Certificates
+
+If you are using cert-manager just make the following configuration in values.yaml:
+
+```
+tls:
+  issuerRef:
+    name: letsencrypt-http01 # letsencrypt-http01 is a default config in wire-server, change if needed in your instance
+```
+
 Now deploy outlook addin chart with:
 
 ```
 d helm upgrade --install outlook-addin charts/outlook-addin --values values/outlook-addin/values.yaml
+```
+
+If you are using your own provided certificates, deploy the addin with this command:
+
+```
+d helm upgrade --install outlook-addin charts/outlook-addin --values values/outlook-addin/values.yaml --set-file tls.crt=/path/to/tls.crt --set-file tls.key=/path/to/tls.key
 ```
 
 ## Install Wire AddIn in Microsoft Outlook
