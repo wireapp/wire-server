@@ -1,1 +1,1 @@
-Make sure cassandra updates do not re-introduce removed content (follow-up to #3504) (#3513)
+Distinguish between update and upsert cassandra commands (follow-up to #3504) (#3513)
