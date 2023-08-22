@@ -123,7 +123,7 @@ startPusher consumersRef chan = do
         throwM e
 
   -- If this thread is cancelled, catch the exception, kill the consumers, and carry on.
-  -- FUTUREWORK?:
+  --
   -- If this throws an exception on the Chan / in the forever loop, the exception will
   -- bubble all the way up and kill the pod. Kubernetes should restart the pod automatically.
   flip
@@ -132,25 +132,12 @@ startPusher consumersRef chan = do
       Handler $ cleanup @SomeAsyncException
     ]
     $ do
-      -- Get an initial set of domains from the sync thread
-      -- The Chan that we will be waiting on isn't initialised with a
-      -- value until the domain update loop runs the callback for the
-      -- first time.
-      initRemotes <- liftIO $ readIORef env.remoteDomains
-      -- Get an initial set of consumers for the domains pulled from the IORef
-      -- so that we aren't just sitting around not doing anything for a bit at
-      -- the start.
-      ensureConsumers consumersRef chan $ domain <$> initRemotes.remotes
-      -- Wait for updates to the domains, this is where the bulk of the action
-      -- is going to take place
+      consumers <- newIORef mempty
+      BackendNotificationPusherOpts {..} <- asks (.backendNotificationPusher)
       forever $ do
-        -- Wait for a new set of domains. This is a blocking action
-        -- so we will only move past here when we get a new set of domains.
-        -- It is a bit nicer than having another timeout value, as Brig is
-        -- already providing one in the domain update message.
-        chanRemotes <- liftIO $ readChan env.remoteDomainsChan
-        -- Make new consumers for the new domains, clean up old ones from the consumer map.
-        ensureConsumers consumersRef chan $ domain <$> chanRemotes.remotes
+        remoteDomains <- getRemoteDomains
+        ensureConsumers consumers chan remoteDomains
+        threadDelay (1_000_000 * remotesRefreshInterval)
 
 ensureConsumers :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> [Domain] -> AppT IO ()
 ensureConsumers consumers chan domains = do
