@@ -132,5 +132,5 @@ type NotificationAPI =
                     (Maybe QueuedNotificationList)
            )
 
-swaggerDoc :: Swagger.Swagger
-swaggerDoc = toSwagger (Proxy @GundeckAPI)
+swaggerDoc :: forall v. HasSwagger (SpecialiseToVersion v GundeckAPI) => Swagger.Swagger
+swaggerDoc = toSwagger (Proxy @(SpecialiseToVersion v GundeckAPI))

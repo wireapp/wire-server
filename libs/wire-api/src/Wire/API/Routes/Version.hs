@@ -244,6 +244,10 @@ type instance
   SpecialiseToVersion v (Description desc :> api) =
     Description desc :> SpecialiseToVersion v api
 
+type instance
+  SpecialiseToVersion v (StreamBody' opts f t x :> api) =
+    StreamBody' opts f t x :> SpecialiseToVersion v api
+
 type instance SpecialiseToVersion v EmptyAPI = EmptyAPI
 
 type instance

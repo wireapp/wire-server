@@ -56,8 +56,9 @@ type instance ApplyPrincipalPath 'BotPrincipalTag api = ZBot :> "bot" :> "assets
 
 type instance ApplyPrincipalPath 'ProviderPrincipalTag api = ZProvider :> "provider" :> "assets" :> api
 
-instance HasSwagger (ApplyPrincipalPath tag api) => HasSwagger (tag :> api) where
-  toSwagger _ = toSwagger (Proxy @(ApplyPrincipalPath tag api))
+type instance
+  SpecialiseToVersion v ((tag :: PrincipalTag) :> api) =
+    SpecialiseToVersion v (ApplyPrincipalPath tag api)
 
 instance HasServer (ApplyPrincipalPath tag api) ctx => HasServer (tag :> api) ctx where
   type ServerT (tag :> api) m = ServerT (ApplyPrincipalPath tag api) m
@@ -315,5 +316,5 @@ type MainAPI =
                   ()
          )
 
-swaggerDoc :: Swagger.Swagger
-swaggerDoc = toSwagger (Proxy @ServantAPI)
+swaggerDoc :: forall v. HasSwagger (SpecialiseToVersion v ServantAPI) => Swagger.Swagger
+swaggerDoc = toSwagger (Proxy @(SpecialiseToVersion v ServantAPI))

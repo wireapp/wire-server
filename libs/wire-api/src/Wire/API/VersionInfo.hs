@@ -42,7 +42,6 @@ import Servant
 import Servant.Client.Core
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
-import Servant.Swagger
 import Wire.API.Routes.ClientAlgebra
 
 vinfoObjectSchema :: ValueSchema NamedSwaggerDoc v -> ObjectSchema SwaggerDoc [v]
@@ -108,9 +107,6 @@ instance
       clientWithRoute pm (Proxy @api) req
   hoistClientMonad pm _ f = hoistClientMonad pm (Proxy @api) f
 
-instance HasSwagger (Until v :> api) where
-  toSwagger _ = mempty
-
 instance RoutesToPaths api => RoutesToPaths (Until v :> api) where
   getRoutes = getRoutes @api
 
@@ -158,9 +154,6 @@ instance
     $ \_ ->
       clientWithRoute pm (Proxy @api) req
   hoistClientMonad pm _ f = hoistClientMonad pm (Proxy @api) f
-
-instance HasSwagger api => HasSwagger (From v :> api) where
-  toSwagger _ = toSwagger (Proxy @api)
 
 instance RoutesToPaths api => RoutesToPaths (From v :> api) where
   getRoutes = getRoutes @api

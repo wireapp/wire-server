@@ -75,9 +75,9 @@ swaggers =
 
     BrigRoutes.brigSwagger @'V5, -- TODO: s/brigSwagger/swaggerDoc/ like everybody else!
     CannonRoutes.swaggerDoc,
-    CargoholdRoutes.swaggerDoc,
+    CargoholdRoutes.swaggerDoc @'V5,
     GalleyRoutes.swaggerDoc @'V5,
-    GundeckRoutes.swaggerDoc,
+    GundeckRoutes.swaggerDoc @'V5,
     ProxyRoutes.swaggerDoc,
     SparRoutes.swaggerDoc,
     -- TODO: collect all internal apis somewhere else (brig?), and expose them

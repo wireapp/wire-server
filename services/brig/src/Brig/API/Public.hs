@@ -172,9 +172,9 @@ versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
         <> versionSwagger
         <> GalleyAPI.swaggerDoc @'V5
         <> SparAPI.swaggerDoc
-        <> CargoholdAPI.swaggerDoc
+        <> CargoholdAPI.swaggerDoc @'V5
         <> CannonAPI.swaggerDoc
-        <> GundeckAPI.swaggerDoc
+        <> GundeckAPI.swaggerDoc @'V5
         <> ProxyAPI.swaggerDoc
         <> OAuth.swaggerDoc
     )
@@ -187,9 +187,9 @@ versionedSwaggerDocsAPI (Just (VersionNumber V4)) =
         <> versionSwagger
         <> GalleyAPI.swaggerDoc @'V4
         <> SparAPI.swaggerDoc
-        <> CargoholdAPI.swaggerDoc
+        <> CargoholdAPI.swaggerDoc @'V4
         <> CannonAPI.swaggerDoc
-        <> GundeckAPI.swaggerDoc
+        <> GundeckAPI.swaggerDoc @'V4
         <> ProxyAPI.swaggerDoc
         <> OAuth.swaggerDoc
     )
