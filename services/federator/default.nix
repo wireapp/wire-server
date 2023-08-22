@@ -140,7 +140,6 @@ mkDerivation {
     imports
     kan-extensions
     lens
-    mtl
     optparse-applicative
     polysemy
     QuickCheck

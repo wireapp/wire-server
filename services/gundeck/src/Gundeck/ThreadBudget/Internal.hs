@@ -135,10 +135,10 @@ runWithBudget' metrics (ThreadBudgetState limits ref) spent fallback action = do
   key <- liftIO nextRandom
   (`finally` unregister ref key) $ do
     oldsize <- allocate ref key spent
-    let softLimitBreached = maybe False (oldsize >=) (limits ^. limitSoft)
-        hardLimitBreached = maybe False (oldsize >=) (limits ^. limitHard)
+    let softLimitBreached = maybe False (oldsize >=) (limits ^. soft)
+        hardLimitBreached = maybe False (oldsize >=) (limits ^. hard)
     warnNoBudget softLimitBreached hardLimitBreached oldsize
-    if maybe True (oldsize <) (limits ^. limitHard)
+    if maybe True (oldsize <) (limits ^. hard)
       then go key oldsize
       else pure fallback
   where
@@ -154,14 +154,14 @@ runWithBudget' metrics (ThreadBudgetState limits ref) spent fallback action = do
     -- iff soft and/or hard limit are breached, log a warning-level message.
     warnNoBudget :: Bool -> Bool -> Int -> m ()
     warnNoBudget False False _ = pure ()
-    warnNoBudget soft hard oldsize = do
-      let limit = if hard then "hard" else "soft"
+    warnNoBudget soft' hard' oldsize = do
+      let limit = if hard' then "hard" else "soft"
           metric = "net.nativepush." <> limit <> "_limit_breached"
       counterIncr (path metric) metrics
       LC.warn $
         "spent" LC..= show oldsize
-          LC.~~ "soft-breach" LC..= soft
-          LC.~~ "hard-breach" LC..= hard
+          LC.~~ "soft-breach" LC..= soft'
+          LC.~~ "hard-breach" LC..= hard'
           LC.~~ LC.msg ("runWithBudget: " <> limit <> " limit reached")
 
 -- | Fork a thread that checks with the given frequency if any async handles stored in the
@@ -194,9 +194,9 @@ recordMetrics ::
 recordMetrics metrics limits ref = do
   (BudgetMap spent _) <- readIORef ref
   gaugeSet (fromIntegral spent) (path "net.nativepush.thread_budget_allocated") metrics
-  forM_ (limits ^. limitHard) $ \lim ->
+  forM_ (limits ^. hard) $ \lim ->
     gaugeSet (fromIntegral lim) (path "net.nativepush.thread_budget_hard_limit") metrics
-  forM_ (limits ^. limitSoft) $ \lim ->
+  forM_ (limits ^. soft) $ \lim ->
     gaugeSet (fromIntegral lim) (path "net.nativepush.thread_budget_soft_limit") metrics
 
 threadDelayNominalDiffTime :: NominalDiffTime -> MonadIO m => m ()

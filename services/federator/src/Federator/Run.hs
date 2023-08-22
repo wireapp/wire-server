@@ -74,18 +74,18 @@ run opts = do
         void $ waitAnyCancel [updateFedDomainsThread, internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
-    portInternal = fromIntegral $ endpointInternal ^. epPort
+    portInternal = fromIntegral $ endpointInternal ^. port
 
     endpointExternal = federatorExternal opts
-    portExternal = fromIntegral $ endpointExternal ^. epPort
+    portExternal = fromIntegral $ endpointExternal ^. port
 
     mkResolvConf :: RunSettings -> DNS.ResolvConf -> DNS.ResolvConf
     mkResolvConf settings conf =
       case (dnsHost settings, dnsPort settings) of
-        (Just host, Nothing) ->
-          conf {DNS.resolvInfo = DNS.RCHostName host}
-        (Just host, Just port) ->
-          conf {DNS.resolvInfo = DNS.RCHostPort host (fromIntegral port)}
+        (Just h, Nothing) ->
+          conf {DNS.resolvInfo = DNS.RCHostName h}
+        (Just h, Just p) ->
+          conf {DNS.resolvInfo = DNS.RCHostPort h (fromIntegral p)}
         (_, _) -> conf
 
 -------------------------------------------------------------------------------
@@ -99,8 +99,8 @@ newEnv o _dnsResolver _applog _domainConfigs = do
       _service Brig = Opt.brig o
       _service Galley = Opt.galley o
       _service Cargohold = Opt.cargohold o
-      _externalPort = o.federatorExternal._epPort
-      _internalPort = o.federatorInternal._epPort
+      _externalPort = o.federatorExternal._port
+      _internalPort = o.federatorInternal._port
   _httpManager <- initHttpManager
   sslContext <- mkTLSSettingsOrThrow _runSettings
   _http2Manager <- newIORef =<< mkHttp2Manager sslContext

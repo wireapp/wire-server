@@ -338,9 +338,9 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
     runFederated rcnv $
       fedClient @'Galley @"send-mls-commit-bundle" $
         MLSMessageSendRequest
-          { mmsrConvOrSubId = Conv $ tUnqualified rcnv,
-            mmsrSender = tUnqualified lusr,
-            mmsrRawMessage = Base64ByteString (serializeCommitBundle bundle)
+          { convOrSubId = Conv $ tUnqualified rcnv,
+            sender = tUnqualified lusr,
+            rawMessage = Base64ByteString (serializeCommitBundle bundle)
           }
   case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSBundleStaticErrors e
@@ -523,9 +523,9 @@ postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
     runFederated rcnv $
       fedClient @'Galley @"send-mls-message" $
         MLSMessageSendRequest
-          { mmsrConvOrSubId = Conv $ tUnqualified rcnv,
-            mmsrSender = tUnqualified lusr,
-            mmsrRawMessage = Base64ByteString (rmRaw smsg)
+          { convOrSubId = Conv $ tUnqualified rcnv,
+            sender = tUnqualified lusr,
+            rawMessage = Base64ByteString (rmRaw smsg)
           }
   case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e
@@ -728,7 +728,7 @@ processExternalCommit qusr mSenderClient lconv mlsMeta cm epoch action updatePat
   -- increment epoch number
   setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
   -- fetch local conversation with new epoch
-  lc <- qualifyAs lconv <$> getLocalConvForUser qusr (convId <$> lconv)
+  lc <- qualifyAs lconv <$> getLocalConvForUser qusr ((.convId) <$> lconv)
   -- fetch backend remove proposals of the previous epoch
   kpRefs <- getPendingBackendRemoveProposals (cnvmlsGroupId mlsMeta) epoch
   -- requeue backend remove proposals for the current epoch
@@ -929,10 +929,10 @@ applyProposalRef conv mlsMeta groupId epoch _suite (Ref ref) = do
   p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
   checkEpoch epoch mlsMeta
   checkGroup groupId mlsMeta
-  applyProposal (convId conv) groupId (rmValue p)
+  applyProposal conv.convId groupId (rmValue p)
 applyProposalRef conv _mlsMeta groupId _epoch suite (Inline p) = do
   checkProposalCipherSuite suite p
-  applyProposal (convId conv) groupId p
+  applyProposal conv.convId groupId p
 
 applyProposal ::
   forall r.
@@ -1021,11 +1021,11 @@ processProposal qusr conv mlsMeta msg prop = do
     foldQualified
       loc
       ( fmap isJust
-          . getLocalMember (convId conv)
+          . getLocalMember conv.convId
           . tUnqualified
       )
       ( fmap isJust
-          . getRemoteMember (convId conv)
+          . getRemoteMember conv.convId
       )
       qusr
   unless isMember' $ throwS @'ConvNotFound
@@ -1273,8 +1273,8 @@ getRemoteMLSClients rusr ss = do
   runFederated rusr $
     fedClient @'Brig @"get-mls-clients" $
       MLSClientsRequest
-        { mcrUserId = tUnqualified rusr,
-          mcrSignatureScheme = ss
+        { userId = tUnqualified rusr,
+          signatureScheme = ss
         }
 
 -- | Check if the epoch number matches that of a conversation
@@ -1321,7 +1321,7 @@ class HandleMLSProposalFailure eff r where
   handleMLSProposalFailure :: Sem (eff ': r) a -> Sem r a
 
 instance HandleMLSProposalFailures '[] r where
-  handleMLSProposalFailures = id
+  handleMLSProposalFailures = Imports.id
 
 instance
   ( HandleMLSProposalFailures effs r,

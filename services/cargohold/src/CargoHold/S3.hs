@@ -43,7 +43,7 @@ import CargoHold.API.Error
 import CargoHold.AWS (amazonkaEnvWithDownloadEndpoint)
 import qualified CargoHold.AWS as AWS
 import CargoHold.App hiding (Env, Handler)
-import CargoHold.Options
+import CargoHold.Options (downloadLinkTTL)
 import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
@@ -218,7 +218,7 @@ signedURL path mbHost = do
   e <- awsEnvForHost
   let b = view AWS.s3Bucket e
   now <- liftIO getCurrentTime
-  ttl <- view (settings . setDownloadLinkTTL)
+  ttl <- view (settings . downloadLinkTTL)
   let req = newGetObject (BucketName b) (ObjectKey . Text.decodeLatin1 $ toByteString' path)
   signed <-
     presignURL (amazonkaEnvWithDownloadEndpoint e) now (Seconds (fromIntegral ttl)) req

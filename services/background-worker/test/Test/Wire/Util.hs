@@ -6,7 +6,7 @@ import Control.Concurrent.Chan
 import Imports
 import Network.HTTP.Client
 import System.Logger.Class qualified as Logger
-import Util.Options
+import Util.Options (Endpoint (..))
 import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Env hiding (federatorInternal, galley)
 import Wire.BackgroundWorker.Env qualified as E

@@ -99,7 +99,7 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   SetTeamStatus tid st -> embedClient $ updateTeamStatus tid st
   FanoutLimit -> embedApp $ currentFanoutLimit <$> view options
   GetLegalHoldFlag ->
-    view (options . optSettings . setFeatureFlags . flagLegalHold) <$> input
+    view (options . settings . featureFlags . flagLegalHold) <$> input
   EnqueueTeamEvent e -> do
     menv <- inputs (view aEnv)
     for_ menv $ \env ->

@@ -88,7 +88,7 @@ claimKeyPackagesMock kpb = "claim-key-packages" ~> kpb
 queryGroupStateMock :: ByteString -> Qualified UserId -> Mock LByteString
 queryGroupStateMock gs qusr = do
   guardRPC "query-group-info"
-  uid <- ggireqSender <$> getRequestBody
+  uid <- (\(a :: GetGroupInfoRequest) -> a.sender) <$> getRequestBody
   mockReply $
     if uid == qUnqualified qusr
       then GetGroupInfoResponseState (Base64ByteString gs)

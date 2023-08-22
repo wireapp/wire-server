@@ -59,7 +59,7 @@ import Data.UUID.V1 qualified as UUID
 import Data.Vector qualified as V
 import GHC.TypeLits (KnownSymbol)
 import Galley.Env qualified as Galley
-import Galley.Options (optSettings, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
+import Galley.Options (featureFlags, maxConvSize, maxFanoutSize, settings)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Imports
@@ -415,7 +415,7 @@ testEnableSSOPerTeam = do
         liftIO $ do
           assertEqual "bad status" status403 status
           assertEqual "bad label" "not-implemented" label
-  featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
+  featureSSO <- view (tsGConf . settings . featureFlags . flagSSO)
   case featureSSO of
     FeatureSSOEnabledByDefault -> check "Teams should start with SSO enabled" Public.FeatureStatusEnabled
     FeatureSSODisabledByDefault -> check "Teams should start with SSO disabled" Public.FeatureStatusDisabled
@@ -1732,8 +1732,8 @@ postCryptoBroadcastMessageFilteredTooLargeTeam bcast = do
       WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
         -- We change also max conv size due to the invariants that galley forces us to keep
         let newOpts =
-              ((optSettings . setMaxFanoutSize) ?~ unsafeRange 4)
-                . (optSettings . setMaxConvSize .~ 4)
+              ((settings . maxFanoutSize) ?~ unsafeRange 4)
+                . (settings . maxConvSize .~ 4)
         withSettingsOverrides newOpts $ do
           -- Untargeted, Alice's team is too large
           Util.postBroadcast (q alice) ac bcast {bMessage = msg} !!! do

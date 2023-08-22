@@ -56,7 +56,7 @@ type AssId = ID Assertion
 -- so that the verdict handler can act on it.
 data VerdictFormat
   = VerdictFormatWeb
-  | VerdictFormatMobile {_verdictFormatGrantedURI :: URI, _verdictFormatDeniedURI :: URI}
+  | VerdictFormatMobile {_formatGrantedURI :: URI, _formatDeniedURI :: URI}
   deriving (Eq, Show, Generic)
 
 makeLenses ''VerdictFormat

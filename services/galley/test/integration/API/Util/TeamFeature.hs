@@ -33,7 +33,7 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Schema
 import GHC.TypeLits (KnownSymbol)
-import Galley.Options (optSettings, setFeatureFlags)
+import Galley.Options (featureFlags, settings)
 import Galley.Types.Teams
 import Imports
 import TestSetup
@@ -41,7 +41,7 @@ import Wire.API.Team.Feature qualified as Public
 
 withCustomSearchFeature :: FeatureTeamSearchVisibilityAvailability -> TestM () -> TestM ()
 withCustomSearchFeature flag action = do
-  Util.withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamSearchVisibility .~ flag) action
+  Util.withSettingsOverrides (\opts -> opts & settings . featureFlags . flagTeamSearchVisibility .~ flag) action
 
 getTeamSearchVisibilityAvailable :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> MonadHttp m => m ResponseLBS
 getTeamSearchVisibilityAvailable = getTeamFeatureFlagWithGalley @Public.SearchVisibilityAvailableConfig

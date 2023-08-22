@@ -38,7 +38,8 @@ import Spar.Data.Instances ()
 import Spar.Error
 import Spar.Sem.IdPConfigStore (IdPConfigStore (..), Replaced (..), Replacing (..))
 import URI.ByteString
-import Wire.API.User.IdentityProvider
+import Wire.API.User.IdentityProvider hiding (apiVersion, oldIssuers, replacedBy, team)
+import qualified Wire.API.User.IdentityProvider as IP
 
 idPToCassandra ::
   forall m r a.
@@ -59,8 +60,8 @@ idPToCassandra =
       DeleteConfig idp ->
         let idpid = idp ^. SAML.idpId
             issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-            team = idp ^. SAML.idpExtraInfo . wiTeam
-         in embed @m $ deleteIdPConfig idpid issuer team
+            team' = idp ^. SAML.idpExtraInfo . IP.team
+         in embed @m $ deleteIdPConfig idpid issuer team'
       SetReplacedBy r r11 -> embed @m $ setReplacedBy r r11
       ClearReplacedBy r -> embed @m $ clearReplacedBy r
       DeleteIssuer i t -> embed @m $ deleteIssuer i t
@@ -85,32 +86,32 @@ insertIdPConfig idp = do
         NL.head (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse),
         NL.tail (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse),
         -- (the 'List1' is split up into head and tail to make migration from one-element-only easier.)
-        idp ^. SAML.idpExtraInfo . wiTeam,
-        idp ^. SAML.idpExtraInfo . wiApiVersion,
-        idp ^. SAML.idpExtraInfo . wiOldIssuers,
-        idp ^. SAML.idpExtraInfo . wiReplacedBy,
-        Just (unIdPHandle $ idp ^. SAML.idpExtraInfo . wiHandle)
+        idp ^. SAML.idpExtraInfo . IP.team,
+        idp ^. SAML.idpExtraInfo . IP.apiVersion,
+        idp ^. SAML.idpExtraInfo . IP.oldIssuers,
+        idp ^. SAML.idpExtraInfo . IP.replacedBy,
+        Just (unIdPHandle $ idp ^. SAML.idpExtraInfo . handle)
       )
     addPrepQuery
       byIssuer
       ( idp ^. SAML.idpMetadata . SAML.edIssuer,
-        idp ^. SAML.idpExtraInfo . wiTeam,
+        idp ^. SAML.idpExtraInfo . IP.team,
         idp ^. SAML.idpId
       )
     addPrepQuery
       byTeam
       ( idp ^. SAML.idpId,
-        idp ^. SAML.idpExtraInfo . wiTeam
+        idp ^. SAML.idpExtraInfo . IP.team
       )
   where
     ensureDoNotMixApiVersions :: m ()
     ensureDoNotMixApiVersions = do
-      let thisVersion = fromMaybe defWireIdPAPIVersion $ idp ^. SAML.idpExtraInfo . wiApiVersion
+      let thisVersion = fromMaybe defWireIdPAPIVersion $ idp ^. SAML.idpExtraInfo . IP.apiVersion
           issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
 
           failIfNot :: WireIdPAPIVersion -> IdP -> m ()
           failIfNot expectedVersion idp' = do
-            let actualVersion = fromMaybe defWireIdPAPIVersion $ idp' ^. SAML.idpExtraInfo . wiApiVersion
+            let actualVersion = fromMaybe defWireIdPAPIVersion $ idp' ^. SAML.idpExtraInfo . IP.apiVersion
             unless (actualVersion == expectedVersion) $
               throwError InsertIdPConfigCannotMixApiVersions
 
@@ -144,10 +145,10 @@ newUniqueHandle = newUniqueHandle' 1
   where
     newUniqueHandle' :: Int -> [Text] -> Text
     newUniqueHandle' n handles =
-      let handle = "IdP " <> pack (show n)
-       in if handle `elem` handles
+      let handle' = "IdP " <> pack (show n)
+       in if handle' `elem` handles
             then newUniqueHandle' (n + 1) handles
-            else handle
+            else handle'
 
 getIdPConfig ::
   forall m.
@@ -293,7 +294,7 @@ doNotMixApiVersions ::
   IdP ->
   m ()
 doNotMixApiVersions expectVersion idp = do
-  let actualVersion = fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . wiApiVersion)
+  let actualVersion = fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . IP.apiVersion)
   unless (actualVersion == expectVersion) $ do
     throwError $ case expectVersion of
       WireIdPAPIV1 -> AttemptToGetV1IssuerViaV2API

@@ -300,16 +300,15 @@ newEnv o = do
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)
     emailConn lgr (Opt.EmailSMTP s) = do
-      let host = Opt.smtpEndpoint s ^. epHost
-          port = Just $ fromInteger $ toInteger $ Opt.smtpEndpoint s ^. epPort
+      let h = Opt.smtpEndpoint s ^. host
+          p = Just $ fromInteger $ toInteger $ Opt.smtpEndpoint s ^. port
       smtpCredentials <- case Opt.smtpCredentials s of
-        Just (Opt.EmailSMTPCredentials u p) -> do
-          pass <- initCredentials p
-          pure $ Just (SMTP.Username u, SMTP.Password pass)
+        Just (Opt.EmailSMTPCredentials u p') -> do
+          Just . (SMTP.Username u,) . SMTP.Password <$> initCredentials p'
         _ -> pure Nothing
-      smtp <- SMTP.initSMTP lgr host port smtpCredentials (Opt.smtpConnType s)
+      smtp <- SMTP.initSMTP lgr h p smtpCredentials (Opt.smtpConnType s)
       pure (Nothing, Just smtp)
-    mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
+    mkEndpoint service = RPC.host (encodeUtf8 (service ^. host)) . RPC.port (service ^. port) $ RPC.empty
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
 mkIndexEnv o lgr mgr mtr galleyEndpoint =
@@ -425,21 +424,21 @@ initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g = do
   c <-
     maybe
-      (Cas.initialContactsPlain (Opt.cassandra o ^. casEndpoint . epHost))
+      (Cas.initialContactsPlain (Opt.cassandra o ^. endpoint . host))
       (Cas.initialContactsDisco "cassandra_brig" . unpack)
       (Opt.discoUrl o)
   p <-
     Cas.init
       $ Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
         . Cas.setContacts (NE.head c) (NE.tail c)
-        . Cas.setPortNumber (fromIntegral (Opt.cassandra o ^. casEndpoint . epPort))
-        . Cas.setKeyspace (Keyspace (Opt.cassandra o ^. casKeyspace))
+        . Cas.setPortNumber (fromIntegral (Opt.cassandra o ^. endpoint . port))
+        . Cas.setKeyspace (Keyspace (Opt.cassandra o ^. keyspace))
         . Cas.setMaxConnections 4
         . Cas.setPoolStripes 4
         . Cas.setSendTimeout 3
         . Cas.setResponseTimeout 10
         . Cas.setProtocolVersion Cas.V4
-        . Cas.setPolicy (Cas.dcFilterPolicyIfConfigured g (Opt.cassandra o ^. casFilterNodesByDatacentre))
+        . Cas.setPolicy (Cas.dcFilterPolicyIfConfigured g (Opt.cassandra o ^. filterNodesByDatacentre))
       $ Cas.defSettings
   runClient p $ versionCheck schemaVersion
   pure p

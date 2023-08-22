@@ -23,6 +23,7 @@ import Data.Bifunctor
 import Data.Qualified
 import Galley.Effects.FederatorAccess (FederatorAccess (..))
 import Galley.Env
+import Galley.Env qualified as E
 import Galley.Monad
 import Galley.Options
 import Imports
@@ -48,15 +49,15 @@ interpretFederatorAccess = interpret $ \case
   RunFederatedConcurrentlyBucketsEither rs f ->
     embedApp $
       runFederatedConcurrentlyBucketsEither rs f
-  IsFederationConfigured -> embedApp $ isJust <$> view federator
+  IsFederationConfigured -> embedApp $ isJust <$> view E.federator
 
 runFederatedEither ::
   Remote x ->
   FederatorClient c a ->
   App (Either FederationError a)
 runFederatedEither (tDomain -> remoteDomain) rpc = do
-  ownDomain <- view (options . optSettings . setFederationDomain)
-  mfedEndpoint <- view federator
+  ownDomain <- view (options . settings . federationDomain)
+  mfedEndpoint <- view E.federator
   mgr <- view http2Manager
   case mfedEndpoint of
     Nothing -> pure (Left FederationNotConfigured)

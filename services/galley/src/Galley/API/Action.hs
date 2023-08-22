@@ -356,7 +356,7 @@ performAction ::
   ConversationAction tag ->
   Sem r (BotsAndMembers, ConversationAction tag)
 performAction tag origUser lconv action = do
-  let lcnv = fmap convId lconv
+  let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
   case tag of
     SConversationJoinTag -> do
@@ -436,7 +436,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
   checkRemoteBackendsConnected lusr
 
-  addMembersToLocalConversation (fmap convId lconv) newMembers role
+  addMembersToLocalConversation (fmap (.convId) lconv) newMembers role
   where
     checkRemoteBackendsConnected ::
       Local UserId ->
@@ -464,9 +464,9 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       Sem r ()
     checkLocals lusr (Just tid) newUsers = do
       tms <-
-        Map.fromList . map (view userId &&& id)
+        Map.fromList . map (view Wire.API.Team.Member.userId &&& Imports.id)
           <$> E.selectTeamMembers tid newUsers
-      let userMembershipMap = map (id &&& flip Map.lookup tms) newUsers
+      let userMembershipMap = map (Imports.id &&& flip Map.lookup tms) newUsers
       ensureAccessRole (convAccessRoles conv) userMembershipMap
       ensureConnectedOrSameTeam lusr newUsers
     checkLocals lusr Nothing newUsers = do
@@ -568,7 +568,7 @@ performConversationAccessData qusr lconv action = do
 
   pure (mempty, action)
   where
-    lcnv = fmap convId lconv
+    lcnv = fmap (.convId) lconv
     conv = tUnqualified lconv
 
     maybeRemoveBots :: BotsAndMembers -> Sem r BotsAndMembers
@@ -673,7 +673,7 @@ updateLocalConversationUnchecked ::
   Sem r LocalConversationUpdate
 updateLocalConversationUnchecked lconv qusr con action = do
   let tag = sing @tag
-      lcnv = fmap convId lconv
+      lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
 
   -- retrieve member
@@ -777,7 +777,7 @@ notifyConversationAction ::
   Sem r LocalConversationUpdate
 notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
-  let lcnv = fmap convId lconv
+  let lcnv = fmap (.convId) lconv
       e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
 
   let mkUpdate uids =
@@ -990,11 +990,11 @@ notifyTypingIndicator conv qusr mcon ts = do
   let (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)
       tdu users =
         TypingDataUpdated
-          { tudTime = now,
-            tudOrigUserId = qusr,
-            tudConvId = Data.convId conv,
-            tudUsersInConv = users,
-            tudTypingStatus = ts
+          { time = now,
+            origUserId = qusr,
+            convId = Data.convId conv,
+            usersInConv = users,
+            typingStatus = ts
           }
 
   void $ E.runFederatedConcurrentlyEither (fmap rmId remoteMemsOther) $ \rmems -> do

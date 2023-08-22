@@ -38,7 +38,7 @@ module TestSetup
 where
 
 import Bilge hiding (body, responseBody)
-import CargoHold.Options
+import CargoHold.Options hiding (domain)
 import Control.Exception (catch)
 import Control.Lens
 import Control.Monad.Codensity
@@ -58,7 +58,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Servant.Client.Streaming
 import Test.Tasty
 import Test.Tasty.HUnit
-import Util.Options
+import Util.Options (Endpoint (..))
 import Util.Options.Common
 import Util.Test
 import Web.HttpApiData
@@ -151,10 +151,10 @@ createTestSetup optsPath configPath = do
       tlsManagerSettings
         { managerResponseTimeout = responseTimeoutMicro 300000000
         }
-  let localEndpoint p = Endpoint {_epHost = "127.0.0.1", _epPort = p}
+  let localEndpoint p = Endpoint {_host = "127.0.0.1", _port = p}
   iConf <- handleParseError =<< decodeFileEither configPath
   opts <- decodeFileThrow optsPath
-  endpoint <- optOrEnv cargohold iConf (localEndpoint . read) "CARGOHOLD_WEB_PORT"
+  endpoint <- optOrEnv @IntegrationConfig (.cargohold) iConf (localEndpoint . read) "CARGOHOLD_WEB_PORT"
   pure $
     TestSetup
       { _tsManager = m,
@@ -166,7 +166,7 @@ runFederationClient :: ClientM a -> ReaderT TestSetup (ExceptT ClientError (Code
 runFederationClient action = do
   man <- view tsManager
   Endpoint cHost cPort <- view tsEndpoint
-  domain <- view (tsOpts . optSettings . setFederationDomain)
+  domain <- view (tsOpts . settings . federationDomain)
   let base = BaseUrl Http (T.unpack cHost) (fromIntegral cPort) "/federation"
   let env =
         (mkClientEnv man base)

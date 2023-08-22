@@ -34,14 +34,14 @@ import Wire.API.Provider.Service
 testObject_ConversationCreated1 :: ConversationCreated ConvId
 testObject_ConversationCreated1 =
   ConversationCreated
-    { ccTime = read "1864-04-12 12:22:43.673 UTC",
-      ccOrigUserId = Id (fromJust (UUID.fromString "eed9dea3-5468-45f8-b562-7ad5de2587d0")),
-      ccCnvId = Id (fromJust (UUID.fromString "d13dbe58-d4e3-450f-9c0c-1e632f548740")),
-      ccCnvType = RegularConv,
-      ccCnvAccess = [InviteAccess, CodeAccess],
-      ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
-      ccCnvName = Just "gossip",
-      ccNonCreatorMembers =
+    { time = read "1864-04-12 12:22:43.673 UTC",
+      origUserId = Id (fromJust (UUID.fromString "eed9dea3-5468-45f8-b562-7ad5de2587d0")),
+      cnvId = Id (fromJust (UUID.fromString "d13dbe58-d4e3-450f-9c0c-1e632f548740")),
+      cnvType = RegularConv,
+      cnvAccess = [InviteAccess, CodeAccess],
+      cnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
+      cnvName = Just "gossip",
+      nonCreatorMembers =
         Set.fromList
           [ OtherMember
               { omQualifiedId =
@@ -66,23 +66,23 @@ testObject_ConversationCreated1 =
                 omConvRoleName = roleNameWireMember
               }
           ],
-      ccMessageTimer = Just (Ms 1000),
-      ccReceiptMode = Just (ReceiptMode 42),
-      ccProtocol = ProtocolProteus
+      messageTimer = Just (Ms 1000),
+      receiptMode = Just (ReceiptMode 42),
+      protocol = ProtocolProteus
     }
 
 testObject_ConversationCreated2 :: ConversationCreated ConvId
 testObject_ConversationCreated2 =
   ConversationCreated
-    { ccTime = read "1864-04-12 12:22:43.673 UTC",
-      ccOrigUserId = Id (fromJust (UUID.fromString "eed9dea3-5468-45f8-b562-7ad5de2587d0")),
-      ccCnvId = Id (fromJust (UUID.fromString "d13dbe58-d4e3-450f-9c0c-1e632f548740")),
-      ccCnvType = One2OneConv,
-      ccCnvAccess = [],
-      ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
-      ccCnvName = Nothing,
-      ccNonCreatorMembers = Set.fromList [],
-      ccMessageTimer = Nothing,
-      ccReceiptMode = Nothing,
-      ccProtocol = ProtocolMLS (ConversationMLSData (GroupId "group") (Epoch 3) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
+    { time = read "1864-04-12 12:22:43.673 UTC",
+      origUserId = Id (fromJust (UUID.fromString "eed9dea3-5468-45f8-b562-7ad5de2587d0")),
+      cnvId = Id (fromJust (UUID.fromString "d13dbe58-d4e3-450f-9c0c-1e632f548740")),
+      cnvType = One2OneConv,
+      cnvAccess = [],
+      cnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
+      cnvName = Nothing,
+      nonCreatorMembers = Set.fromList [],
+      messageTimer = Nothing,
+      receiptMode = Nothing,
+      protocol = ProtocolMLS (ConversationMLSData (GroupId "group") (Epoch 3) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
     }

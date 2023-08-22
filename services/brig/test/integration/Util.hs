@@ -22,7 +22,7 @@
 
 module Util where
 
-import Bilge
+import Bilge hiding (host, port)
 import Bilge.Assert
 import Brig.AWS.Types
 import Brig.App (applog, fsWatcher, sftEnv, turnEnv)
@@ -176,14 +176,14 @@ runFedClient ::
   FedClient comp ->
   Domain ->
   Servant.Client Http api
-runFedClient (FedClient mgr endpoint) domain =
+runFedClient (FedClient mgr ep) domain =
   Servant.hoistClient (Proxy @api) (servantClientMToHttp domain) $
     Servant.clientIn (Proxy @api) (Proxy @Servant.ClientM)
   where
     servantClientMToHttp :: Domain -> Servant.ClientM a -> Http a
     servantClientMToHttp originDomain action = liftIO $ do
-      let brigHost = Text.unpack $ endpoint ^. epHost
-          brigPort = fromInteger . toInteger $ endpoint ^. epPort
+      let brigHost = Text.unpack $ ep ^. host
+          brigPort = fromInteger . toInteger $ ep ^. port
           baseUrl = Servant.BaseUrl Servant.Http brigHost brigPort "/federation"
           clientEnv = Servant.ClientEnv mgr baseUrl Nothing (makeClientRequest originDomain)
       eitherRes <- Servant.runClientM action clientEnv

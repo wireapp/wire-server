@@ -50,7 +50,6 @@ import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.Aeson.TH
 import Imports
-import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
 import qualified Spar.App as Spar
 import Spar.Options
@@ -93,14 +92,14 @@ data TestEnv = TestEnv
 type Select = TestEnv -> (Request -> Request)
 
 data IntegrationConfig = IntegrationConfig
-  { cfgBrig :: Endpoint,
-    cfgGalley :: Endpoint,
-    cfgSpar :: Endpoint,
-    cfgBrigSettingsTeamInvitationTimeout :: Int
+  { brig :: Endpoint,
+    galley :: Endpoint,
+    spar :: Endpoint,
+    brigSettingsTeamInvitationTimeout :: Int
   }
   deriving (Show, Generic)
 
-deriveFromJSON deriveJSONOptions ''IntegrationConfig
+deriveFromJSON Aeson.defaultOptions ''IntegrationConfig
 
 makeLenses ''TestEnv
 

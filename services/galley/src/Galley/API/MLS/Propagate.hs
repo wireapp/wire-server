@@ -87,12 +87,12 @@ propagateMessage qusr lconv cm con raw = do
     $ \(tUnqualified -> rs) ->
       fedClient @'Galley @"on-mls-message-sent" $
         RemoteMLSMessage
-          { rmmTime = now,
-            rmmSender = qusr,
-            rmmMetadata = mm,
-            rmmConversation = tUnqualified lcnv,
-            rmmRecipients = rs >>= remoteMemberMLSClients,
-            rmmMessage = Base64ByteString raw
+          { time = now,
+            sender = qusr,
+            metadata = mm,
+            conversation = tUnqualified lcnv,
+            recipients = rs >>= remoteMemberMLSClients,
+            message = Base64ByteString raw
           }
   where
     localMemberMLSClients :: Local x -> LocalMember -> [(UserId, ClientId)]

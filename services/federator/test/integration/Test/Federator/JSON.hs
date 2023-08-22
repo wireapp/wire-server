@@ -26,4 +26,4 @@ deriveJSONOptions :: Options
 deriveJSONOptions = defaultOptions {fieldLabelModifier = labelmod}
 
 labelmod :: String -> String
-labelmod = (ix 0 %~ toLower) . dropWhile (not . isUpper)
+labelmod = (ix 0 %~ toLower)
