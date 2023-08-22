@@ -594,11 +594,11 @@ You do this by running:
 
 .. code:: sh
 
-   curl -i -s --show-error -XDELETE "$BRIG_HOST/teams/$TEAM_ID" -H'Content-type: application/json' -d'{"password":"$PASSWORD","verification_code":"$VERIFICATION_CODE"}}'
+   curl -i -s --show-error -XDELETE "$GALLEY_HOST/teams/$TEAM_ID" -H'Content-type: application/json' -d'{"password":"$PASSWORD","verification_code":"$VERIFICATION_CODE"}}'
 
 Where:
 
-* `$BRIG_HOST` is the base URL for your brig service
+* `$GALLEY_HOST` is the base URL for your brig service
 * `$TEAM_ID` is the id of the team you want to delete
-* `$PASSWORD` is the password for that team
+* `$PASSWORD` is the user password for that team admin
 * `$VERIFICATION_CODE` is required only if you have 2FA enabled
