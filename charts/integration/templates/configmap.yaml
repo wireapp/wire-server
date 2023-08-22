@@ -119,3 +119,5 @@ data:
         domain: {{ $dynamicBackend.federatorExternalHostPrefix }}.{{ $.Release.Namespace }}.svc.cluster.local
         federatorExternalPort: {{ $dynamicBackend.federatorExternalPort }}
       {{- end }}
+    cassandra:
+{{ toYaml .Values.config.cassandra | indent 6}}

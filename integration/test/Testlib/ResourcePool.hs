@@ -20,9 +20,14 @@ import Data.Functor
 import Data.IORef
 import Data.Set qualified as Set
 import Data.String
+import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Tuple
 import Data.Word
-import GHC.Generics
+import Database.CQL.IO
+import Database.CQL.IO qualified as Cas
+import Database.CQL.Protocol qualified as Cas
+import GHC.Generics hiding (R)
 import GHC.Stack (HasCallStack)
 import System.IO
 import Testlib.Ports qualified as Ports
@@ -31,11 +36,14 @@ import Prelude
 
 data ResourcePool a = ResourcePool
   { sem :: QSemN,
-    resources :: IORef (Set.Set a)
+    resources :: IORef (Set.Set a),
+    onAcquire :: a -> IO ()
   }
 
 acquireResources :: forall m a. (Ord a, MonadIO m, MonadMask m, HasCallStack) => Int -> ResourcePool a -> Codensity m [a]
-acquireResources n pool = Codensity $ \f -> bracket acquire release (f . Set.toList)
+acquireResources n pool = Codensity $ \f -> bracket acquire release $ \s -> do
+  liftIO $ mapM_ pool.onAcquire s
+  f $ Set.toList s
   where
     release :: Set.Set a -> m ()
     release s =
@@ -48,12 +56,16 @@ acquireResources n pool = Codensity $ \f -> bracket acquire release (f . Set.toL
       waitQSemN pool.sem n
       atomicModifyIORef pool.resources $ swap . Set.splitAt n
 
-createBackendResourcePool :: [DynamicBackendConfig] -> IO (ResourcePool BackendResource)
-createBackendResourcePool dynConfs =
+createBackendResourcePool :: String -> Word16 -> [DynamicBackendConfig] -> IO (ResourcePool BackendResource)
+createBackendResourcePool cassandraHost cassandraPort dynConfs =
   let resources = backendResources dynConfs
    in ResourcePool
         <$> newQSemN (length dynConfs)
         <*> newIORef resources
+        <*> pure
+          ( do
+              deleteAllRabbitMQQueues
+          )
 
 data BackendResource = BackendResource
   { berName :: BackendName,

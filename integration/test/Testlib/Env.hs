@@ -66,7 +66,8 @@ data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig,
     dynamicBackends :: Map String DynamicBackendConfig,
-    rabbitmq :: RabbitMQConfig
+    rabbitmq :: RabbitMQConfig,
+    cassandra :: HostPort
   }
   deriving (Show, Generic)
 
@@ -78,6 +79,7 @@ instance FromJSON IntegrationConfig where
         <*> o .: "backendTwo"
         <*> o .: "dynamicBackends"
         <*> o .: "rabbitmq"
+        <*> o .: "cassandra"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
@@ -162,7 +164,7 @@ mkGlobalEnv cfgFile = do
   gamqPassword <- getEnv "RABBITMQ_PASSWORD"
 
   manager <- HTTP.newManager HTTP.defaultManagerSettings
-  resourcePool <- createBackendResourcePool (Map.elems intConfig.dynamicBackends)
+  resourcePool <- createBackendResourcePool intConfig.cassandra.host intConfig.cassandra.port (Map.elems intConfig.dynamicBackends)
   pure
     GlobalEnv
       { gServiceMap =

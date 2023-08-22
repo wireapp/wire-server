@@ -144,6 +144,8 @@ library
     , case-insensitive
     , containers
     , cryptonite
+    , cql
+    , cql-io
     , data-default
     , directory
     , errors
