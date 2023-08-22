@@ -36,6 +36,7 @@ import Wire.API.Routes.Public.Galley.Team
 import Wire.API.Routes.Public.Galley.TeamConversation
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Routes.Public.Galley.TeamNotification (TeamNotificationAPI)
+import Wire.API.Routes.Version
 
 type ServantAPI =
   ConversationAPI
@@ -50,5 +51,5 @@ type ServantAPI =
     :<|> TeamMemberAPI
     :<|> TeamNotificationAPI
 
-swaggerDoc :: Swagger.Swagger
-swaggerDoc = toSwagger (Proxy @ServantAPI)
+swaggerDoc :: forall v. HasSwagger (SpecialiseToVersion v ServantAPI) => Swagger.Swagger
+swaggerDoc = toSwagger (Proxy @(SpecialiseToVersion v ServantAPI))

@@ -76,7 +76,7 @@ swaggers =
     BrigRoutes.brigSwagger @'V5, -- TODO: s/brigSwagger/swaggerDoc/ like everybody else!
     CannonRoutes.swaggerDoc,
     CargoholdRoutes.swaggerDoc,
-    GalleyRoutes.swaggerDoc,
+    GalleyRoutes.swaggerDoc @'V5,
     GundeckRoutes.swaggerDoc,
     ProxyRoutes.swaggerDoc,
     SparRoutes.swaggerDoc,

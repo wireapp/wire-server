@@ -170,7 +170,7 @@ versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
   swaggerSchemaUIServer $
     ( brigSwagger @'V5
         <> versionSwagger
-        <> GalleyAPI.swaggerDoc
+        <> GalleyAPI.swaggerDoc @'V5
         <> SparAPI.swaggerDoc
         <> CargoholdAPI.swaggerDoc
         <> CannonAPI.swaggerDoc
@@ -185,7 +185,7 @@ versionedSwaggerDocsAPI (Just (VersionNumber V4)) =
   swaggerSchemaUIServer $
     ( brigSwagger @'V4
         <> versionSwagger
-        <> GalleyAPI.swaggerDoc
+        <> GalleyAPI.swaggerDoc @'V4
         <> SparAPI.swaggerDoc
         <> CargoholdAPI.swaggerDoc
         <> CannonAPI.swaggerDoc
