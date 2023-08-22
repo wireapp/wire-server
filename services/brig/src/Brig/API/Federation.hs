@@ -33,10 +33,12 @@ import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.IO.Intra (notify)
+import Brig.Options
 import Brig.Types.User.Event
 import Brig.User.API.Handle
 import Brig.User.Search.SearchIndex qualified as Q
 import Control.Error.Util
+import Control.Lens ((^.))
 import Control.Monad.Trans.Except
 import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
@@ -95,8 +97,12 @@ federationSitemap =
 -- with the subset of those we aren't connected to.
 getFederationStatus :: Domain -> DomainSet -> Handler r NonConnectedBackends
 getFederationStatus _ request = do
-  fedDomains <- fromList . fmap (.domain) . (.remotes) <$> getFederationRemotes
-  pure $ NonConnectedBackends (request.domains \\ fedDomains)
+  cfg <- ask
+  case setFederationStrategy (cfg ^. settings) of
+    Just AllowAll -> pure $ NonConnectedBackends mempty
+    _ -> do
+      fedDomains <- fromList . fmap (.domain) . (.remotes) <$> getFederationRemotes
+      pure $ NonConnectedBackends (request.domains \\ fedDomains)
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do

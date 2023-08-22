@@ -1,6 +1,6 @@
 module SetupHelpers where
 
-import API.Brig qualified as Public
+import API.Brig qualified as Brig
 import API.BrigInternal qualified as Internal
 import API.Galley
 import Control.Concurrent (threadDelay)
@@ -25,6 +25,10 @@ randomUser domain cu = bindResponse (Internal.createUser domain cu) $ \resp -> d
   resp.status `shouldMatchInt` 201
   resp.json
 
+deleteUser :: (HasCallStack, MakesValue user) => user -> App ()
+deleteUser user = bindResponse (Brig.deleteUser user) $ \resp -> do
+  resp.status `shouldMatchInt` 200
+
 -- | returns (user, team id)
 createTeam :: (HasCallStack, MakesValue domain) => domain -> App (Value, String)
 createTeam domain = do
@@ -45,8 +49,8 @@ connectUsers ::
   bob ->
   App ()
 connectUsers alice bob = do
-  bindResponse (Public.postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
-  bindResponse (Public.putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
+  bindResponse (Brig.postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
+  bindResponse (Brig.putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
 
 createAndConnectUsers :: (HasCallStack, MakesValue domain) => [domain] -> App [Value]
 createAndConnectUsers domains = do

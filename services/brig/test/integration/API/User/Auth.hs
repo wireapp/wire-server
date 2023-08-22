@@ -202,17 +202,20 @@ testLoginWith6CharPassword brig db = do
         (PasswordLogin (PasswordLoginData (LoginByEmail email) pw Nothing Nothing))
         PersistentCookie
         !!! const expectedStatusCode === statusCode
+
     -- Since 8 char passwords are required, when setting a password via the API,
     -- we need to write this directly to the db, to be able to test this
     writeDirectlyToDB :: UserId -> PlainTextPassword6 -> Http ()
     writeDirectlyToDB uid pw =
       liftIO (runClient db (updatePassword uid pw >> revokeAllCookies uid))
+
     updatePassword :: MonadClient m => UserId -> PlainTextPassword6 -> m ()
     updatePassword u t = do
       p <- liftIO $ mkSafePassword t
       retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
+
     userPasswordUpdate :: PrepQuery W (Password, UserId) ()
-    userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
+    userPasswordUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET password = ? WHERE id = ?"
 
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
