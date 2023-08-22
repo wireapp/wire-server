@@ -404,7 +404,7 @@ getUserData uid mMaxConvs mMaxNotifs = do
   conns <- Intra.getUserConnections uid
   convs <- Intra.getUserConversations uid <&> take (fromMaybe 1 mMaxConvs)
   clts <- Intra.getUserClients uid
-  notfs <- (Intra.getUserNotifications uid <&> take (fromMaybe 10 mMaxNotifs) <&> toJSON @[QueuedNotification]) `catchE` (pure . String . cs . show)
+  notfs <- (Intra.getUserNotifications uid (fromMaybe 10 mMaxNotifs) <&> toJSON @[QueuedNotification]) `catchE` (pure . String . cs . show)
   consent <- (Intra.getUserConsentValue uid <&> toJSON @ConsentValue) `catchE` (pure . String . cs . show)
   consentLog <- (Intra.getUserConsentLog uid <&> toJSON @ConsentLog) `catchE` (pure . String . cs . show)
   cookies <- Intra.getUserCookies uid

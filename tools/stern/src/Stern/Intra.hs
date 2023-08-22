@@ -829,25 +829,27 @@ getUserProperties uid = do
       value <- parseResponse (mkError status502 "bad-upstream") r
       fetchProperty b xs (Map.insert x value acc)
 
-getUserNotifications :: UserId -> Handler [QueuedNotification]
-getUserNotifications uid = do
+getUserNotifications :: UserId -> Int -> Handler [QueuedNotification]
+getUserNotifications uid maxNotifs = do
   info $ msg "Getting user notifications"
-  fetchAll [] Nothing
+  fetchAll [] Nothing maxNotifs
   where
-    fetchAll xs start = do
-      userNotificationList <- fetchBatch start
+    fetchAll :: [QueuedNotification] -> Maybe NotificationId -> Int -> ExceptT Error App [QueuedNotification]
+    fetchAll xs start remaining = do
+      userNotificationList <- fetchBatch start (min 100 remaining)
       let batch = view queuedNotifications userNotificationList
-      if (not . null) batch && view queuedHasMore userNotificationList
-        then fetchAll (batch ++ xs) (Just . view queuedNotificationId $ last batch)
+          remaining' = remaining - length batch
+      if (not . null) batch && view queuedHasMore userNotificationList && remaining' > 0
+        then fetchAll (batch ++ xs) (Just . view queuedNotificationId $ last batch) remaining'
         else pure (batch ++ xs)
-    fetchBatch :: Maybe NotificationId -> Handler QueuedNotificationList
-    fetchBatch start = do
-      b <- view gundeck
+    fetchBatch :: Maybe NotificationId -> Int -> Handler QueuedNotificationList
+    fetchBatch start batchSize = do
+      baseReq <- view gundeck
       r <-
         catchRpcErrors $
           rpc'
-            "galley"
-            b
+            "gundeck"
+            baseReq
             ( method GET
                 . header "Z-User" (toByteString' uid)
                 . versionedPath "notifications"
@@ -861,7 +863,6 @@ getUserNotifications uid = do
         200 -> parseResponse (mkError status502 "bad-upstream") r
         404 -> parseResponse (mkError status502 "bad-upstream") r
         _ -> throwE (mkError status502 "bad-upstream" "")
-    batchSize = 100 :: Int
 
 getSsoDomainRedirect :: Text -> Handler (Maybe CustomBackend)
 getSsoDomainRedirect domain = do
