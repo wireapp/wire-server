@@ -21,6 +21,7 @@ module Federator.ExternalServer
     RPC (..),
     CertHeader (..),
     server,
+    theClient,
   )
 where
 
@@ -56,7 +57,9 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import Servant.API
 import Servant.API.Extended.Endpath
+import Servant.Client
 import Servant.Client.Core
+import Servant.Client.Generic
 import Servant.Server (ErrorFormatters, HasContextEntry, HasServer (..), Tagged (..))
 import Servant.Server.Generic
 import Servant.Server.Internal.ErrorFormatter (MkContextWithErrorFormatter)
@@ -115,6 +118,16 @@ data API mode = API
           :> Raw
   }
   deriving (Generic)
+
+instance HasClient m api => HasClient m (ClientCertificate :> api) where
+  type Client m (ClientCertificate :> api) = Client m api
+
+instance HasClient m api => HasClient m (Endpath :> api)
+
+instance ToHttpApiData RPC
+
+theClient :: RunClient m => API (AsClientT m)
+theClient = genericClient
 
 server ::
   ( Member ServiceStreaming r,
