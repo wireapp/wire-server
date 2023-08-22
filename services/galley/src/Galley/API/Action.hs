@@ -442,7 +442,9 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       Local UserId ->
       Sem r ()
     checkRemoteBackendsConnected lusr = do
-      let remoteDomains = tDomain <$> snd (partitionQualified lusr $ NE.toList invited)
+      let invitedDomains = tDomain <$> snd (partitionQualified lusr $ NE.toList invited)
+          existingDomains = tDomain . rmId <$> convRemoteMembers (tUnqualified lconv)
+
       -- Note:
       --
       -- In some cases, this federation status check might be redundant (for
@@ -450,7 +452,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       -- it is important that we attempt to connect to the backends of the new
       -- users here, because that results in the correct error when those
       -- backends are not reachable.
-      checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
+      checkFederationStatus (RemoteDomains . Set.fromList $ invitedDomains <> existingDomains)
 
     conv :: Data.Conversation
     conv = tUnqualified lconv
