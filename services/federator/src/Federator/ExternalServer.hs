@@ -57,8 +57,9 @@ import Polysemy.TinyLog qualified as Log
 import Servant.API
 import Servant.API.Extended.Endpath
 import Servant.Client.Core
-import Servant.Server (Tagged (..))
+import Servant.Server (ErrorFormatters, HasContextEntry, HasServer (..), Tagged (..))
 import Servant.Server.Generic
+import Servant.Server.Internal.ErrorFormatter (MkContextWithErrorFormatter)
 import System.Logger.Message qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
@@ -71,6 +72,25 @@ instance FromHttpApiData CertHeader where
   parseUrlPiece :: Text -> Either Text CertHeader
   parseUrlPiece cert =
     bimap Text.pack CertHeader $ decodeCertificate $ HTTP.urlDecode True $ Text.encodeUtf8 cert
+
+data ClientCertificate
+
+type XSSLCertificateHeader = Header' '[Required, Strict] "X-SSL-Certificate" CertHeader
+
+instance
+  ( HasServer api ctx,
+    HasContextEntry (MkContextWithErrorFormatter ctx) ErrorFormatters
+  ) =>
+  HasServer (ClientCertificate :> api) ctx
+  where
+  type ServerT (ClientCertificate :> api) m = ServerT (XSSLCertificateHeader :> api) m
+
+  route _ = route (Proxy :: Proxy (XSSLCertificateHeader :> api))
+
+  hoistServerWithContext _ = hoistServerWithContext (Proxy :: Proxy (XSSLCertificateHeader :> api))
+
+instance Metrics.RoutesToPaths api => Metrics.RoutesToPaths (ClientCertificate :> api) where
+  getRoutes = Metrics.getRoutes @api
 
 data API mode = API
   { status ::
@@ -87,7 +107,7 @@ data API mode = API
           :> Capture "component" Component
           :> Capture "rpc" RPC
           :> Header' '[Required, Strict] OriginDomainHeaderName Domain
-          :> Header' '[Required, Strict] "X-SSL-Certificate" CertHeader
+          :> ClientCertificate
           :> Endpath
           -- We need to use 'Raw' so we can stream request body regardless of
           -- content-type and send a response with arbitrary content-type. Not
