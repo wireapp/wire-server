@@ -36,6 +36,9 @@ module Wire.API.Routes.Version
     -- * Servant combinators
     Until,
     From,
+
+    -- * Swagger instances
+    SpecialiseToVersion,
   )
 where
 
@@ -49,13 +52,15 @@ import Data.ByteString.Conversion (ToByteString (builder), toByteString')
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Schema
-import Data.Singletons.TH
+import Data.Singletons.Base.TH
 import Data.Swagger qualified as S
 import Data.Text as Text
 import Data.Text.Encoding as Text
+import GHC.TypeLits
 import Imports
 import Servant
 import Servant.Swagger
+import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
 import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
@@ -184,3 +189,63 @@ versionSwagger :: S.Swagger
 versionSwagger = toSwagger (Proxy @VersionAPI)
 
 $(genSingletons [''Version])
+
+-- Version-aware swagger generation
+
+$(promoteOrdInstances [''Version])
+
+type family SpecialiseToVersion (v :: Version) api
+
+type instance
+  SpecialiseToVersion v (From w :> api) =
+    If (v < w) EmptyAPI (SpecialiseToVersion v api)
+
+type instance
+  SpecialiseToVersion v (Until w :> api) =
+    If (v < w) (SpecialiseToVersion v api) EmptyAPI
+
+type instance
+  SpecialiseToVersion v ((s :: Symbol) :> api) =
+    s :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (Named n api) =
+    Named n (SpecialiseToVersion v api)
+
+type instance
+  SpecialiseToVersion v (Capture' mod sym a :> api) =
+    Capture' mod sym a :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (Summary s :> api) =
+    Summary s :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (Verb m s t r) =
+    Verb m s t r
+
+type instance
+  SpecialiseToVersion v (MultiVerb m t r x) =
+    MultiVerb m t r x
+
+type instance
+  SpecialiseToVersion v (ReqBody t x :> api) =
+    ReqBody t x :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (QueryParam' mods l x :> api) =
+    QueryParam' mods l x :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (Header' opts l x :> api) =
+    Header' opts l x :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (Description desc :> api) =
+    Description desc :> SpecialiseToVersion v api
+
+type instance SpecialiseToVersion v EmptyAPI = EmptyAPI
+
+type instance
+  SpecialiseToVersion v (api1 :<|> api2) =
+    SpecialiseToVersion v api1 :<|> SpecialiseToVersion v api2

@@ -93,8 +93,8 @@ type BrigAPI =
     :<|> SystemSettingsAPI
     :<|> OAuthAPI
 
-brigSwagger :: Swagger
-brigSwagger = toSwagger (Proxy @BrigAPI)
+brigSwagger :: forall (v :: Version). HasSwagger (SpecialiseToVersion v BrigAPI) => Swagger
+brigSwagger = toSwagger (Proxy @(SpecialiseToVersion v BrigAPI))
 
 -------------------------------------------------------------------------------
 -- User API
@@ -1166,6 +1166,7 @@ type MLSKeyPackageAPI =
                :> Summary "Upload a fresh batch of key packages"
                :> Description "The request body should be a json object containing a list of base64-encoded key packages."
                :> ZLocalUser
+               :> From 'V5
                :> CanThrow 'MLSProtocolError
                :> CanThrow 'MLSIdentityMismatch
                :> CaptureClientId "client"
@@ -1178,6 +1179,7 @@ type MLSKeyPackageAPI =
                       :> Summary "Claim one key package for each client of the given user"
                       :> MakesFederatedCall 'Brig "claim-key-packages"
                       :> ZLocalUser
+                      :> From 'V5
                       :> QualifiedCaptureUserId "user"
                       :> QueryParam'
                            [ Optional,
@@ -1192,6 +1194,7 @@ type MLSKeyPackageAPI =
                   "mls-key-packages-count"
                   ( "self"
                       :> ZLocalUser
+                      :> From 'V5
                       :> CaptureClientId "client"
                       :> "count"
                       :> Summary "Return the number of unused key packages for the given client"

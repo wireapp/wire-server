@@ -168,7 +168,7 @@ docsAPI =
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
 versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
   swaggerSchemaUIServer $
-    ( brigSwagger
+    ( brigSwagger @'V5
         <> versionSwagger
         <> GalleyAPI.swaggerDoc
         <> SparAPI.swaggerDoc
@@ -183,7 +183,7 @@ versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
       & cleanupSwagger
 versionedSwaggerDocsAPI (Just (VersionNumber V4)) =
   swaggerSchemaUIServer $
-    ( brigSwagger
+    ( brigSwagger @'V4
         <> versionSwagger
         <> GalleyAPI.swaggerDoc
         <> SparAPI.swaggerDoc

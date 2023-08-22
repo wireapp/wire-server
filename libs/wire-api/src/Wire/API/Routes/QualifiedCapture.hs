@@ -34,6 +34,7 @@ import Servant.API.Modifiers
 import Servant.Client.Core.HasClient
 import Servant.Server.Internal.ErrorFormatter
 import Servant.Swagger
+import Wire.API.Routes.Version
 
 -- | Capture a value qualified by a domain, with modifiers.
 data QualifiedCapture' (mods :: [Type]) (capture :: Symbol) (a :: Type)
@@ -49,6 +50,10 @@ type WithDomain mods capture a api =
   Capture (AppendSymbol capture "_domain") Domain
     :> Capture' mods capture a
     :> api
+
+type instance
+  SpecialiseToVersion v (QualifiedCapture' mods capture a :> api) =
+    QualifiedCapture' mods capture a :> SpecialiseToVersion v api
 
 instance
   ( Typeable a,

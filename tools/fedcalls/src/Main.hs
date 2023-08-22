@@ -53,6 +53,7 @@ import Wire.API.Routes.Public.Proxy qualified as ProxyRoutes
 -- import qualified Wire.API.Routes.Internal.Cargohold as CargoholdIRoutes
 -- import qualified Wire.API.Routes.Internal.LegalHold as LegalHoldIRoutes
 import Wire.API.Routes.Public.Spar qualified as SparRoutes
+import Wire.API.Routes.Version
 
 ------------------------------
 
@@ -72,7 +73,7 @@ swaggers =
     -- services, use that in /services/brig/src/Brig/API/Public.hs instead of
     -- doing it by hand.
 
-    BrigRoutes.brigSwagger, -- TODO: s/brigSwagger/swaggerDoc/ like everybody else!
+    BrigRoutes.brigSwagger @'V5, -- TODO: s/brigSwagger/swaggerDoc/ like everybody else!
     CannonRoutes.swaggerDoc,
     CargoholdRoutes.swaggerDoc,
     GalleyRoutes.swaggerDoc,
