@@ -565,10 +565,9 @@ deleteAllRabbitMQQueues resource = do
         "Failed to delete amq queue " <> resource.berVHost <> " " <> queue
   where
     amqRequest path = do
-      let host = "localhost"
-          port = 15672 :: Int
+      rc <- asks (.rabbitMQConfig)
       username <- asks (.amqUsername)
       password <- asks (.amqPassword)
-      req <- liftIO . HTTP.parseRequest $ "http://" <> host <> ":" <> show port <> path
+      req <- liftIO . HTTP.parseRequest $ "http://" <> rc.host <> ":" <> show rc.adminPort <> path
       let token = C8.unpack $ Base64.encode (toByteString' (stringUtf8 (username <> ":" <> password)))
       pure $ req & addHeader "Authorization" ("Basic " <> token)

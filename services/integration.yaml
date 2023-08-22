@@ -134,3 +134,7 @@ dynamicBackends:
   dynamic-backend-3:
     domain: d3.example.com
     federatorExternalPort: 12098
+
+rabbitmq:
+  host: localhost
+  adminPort: 15672

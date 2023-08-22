@@ -42,7 +42,8 @@ data Env = Env
     mls :: IORef MLSState,
     resourcePool :: ResourcePool BackendResource,
     amqUsername :: String,
-    amqPassword :: String
+    amqPassword :: String,
+    rabbitMQConfig :: RabbitMQConfig
   }
 
 -- | Initialised once per testsuite.
@@ -57,13 +58,15 @@ data GlobalEnv = GlobalEnv
     gRemovalKeyPath :: FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
     gamqUsername :: String,
-    gamqPassword :: String
+    gamqPassword :: String,
+    gRabbitMQConfig :: RabbitMQConfig
   }
 
 data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig,
-    dynamicBackends :: Map String DynamicBackendConfig
+    dynamicBackends :: Map String DynamicBackendConfig,
+    rabbitmq :: RabbitMQConfig
   }
   deriving (Show, Generic)
 
@@ -74,6 +77,7 @@ instance FromJSON IntegrationConfig where
         <$> parseJSON (Object o)
         <*> o .: "backendTwo"
         <*> o .: "dynamicBackends"
+        <*> o .: "rabbitmq"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
@@ -125,6 +129,19 @@ serviceHostPort m BackgroundWorker = m.backgroundWorker
 serviceHostPort m Stern = m.stern
 serviceHostPort m FederatorInternal = m.federatorInternal
 
+data RabbitMQConfig = RabbitMQConfig
+  { host :: String,
+    adminPort :: Word16
+  }
+  deriving (Show)
+
+instance FromJSON RabbitMQConfig where
+  parseJSON =
+    withObject "RabbitMQConfig" $ \ob ->
+      RabbitMQConfig
+        <$> ob .: fromString "host"
+        <*> ob .: fromString "adminPort"
+
 mkGlobalEnv :: FilePath -> IO GlobalEnv
 mkGlobalEnv cfgFile = do
   eith <- Yaml.decodeFileEither cfgFile
@@ -162,7 +179,8 @@ mkGlobalEnv cfgFile = do
         gRemovalKeyPath = error "Uninitialised removal key path",
         gBackendResourcePool = resourcePool,
         gamqUsername = gamqUsername,
-        gamqPassword = gamqPassword
+        gamqPassword = gamqPassword,
+        gRabbitMQConfig = intConfig.rabbitmq
       }
 
 mkEnv :: GlobalEnv -> Codensity IO Env
@@ -186,7 +204,8 @@ mkEnv ge = do
           mls = mls,
           resourcePool = ge.gBackendResourcePool,
           amqUsername = ge.gamqUsername,
-          amqPassword = ge.gamqPassword
+          amqPassword = ge.gamqPassword,
+          rabbitMQConfig = ge.gRabbitMQConfig
         }
 
 destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
