@@ -26,71 +26,37 @@
 module Test.Federator.Util where
 
 import Bilge
-  ( Manager,
-    MonadHttp (..),
-    Request,
-    RequestBody (RequestBodyLBS),
-    ResponseLBS,
-    body,
-    contentJson,
-    header,
-    host,
-    json,
-    newManager,
-    path,
-    port,
-    post,
-    put,
-    responseJsonError,
-    statusCode,
-    withResponse,
-  )
-import Bilge.Assert ((<!!), (===))
-import Control.Exception (ErrorCall (ErrorCall), throwIO)
-import Control.Lens (makeLenses, to, (^.))
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
-import Crypto.Random.Types (MonadRandom, getRandomBytes)
+import Bilge.Assert
+import Control.Exception
+import Control.Lens hiding ((.=))
+import Control.Monad.Catch
+import Crypto.Random.Types
 import Data.Aeson
-  ( FromJSON (parseJSON),
-    KeyValue ((.=)),
-    encode,
-    object,
-  )
-import Data.Aeson.TH (deriveFromJSON)
+import Data.Aeson.TH
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Char8 qualified as C8
-import Data.Id (TeamId, UserId)
-import Data.Misc (PlainTextPassword6, plainTextPassword6Unsafe)
+import Data.Id
+import Data.Misc
 import Data.Text qualified as Text
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Data.Yaml qualified as Yaml
-import Federator.Monitor (mkTLSSettingsOrThrow)
-import Federator.Options (Opts (optSettings), RunSettings)
+import Federator.Options
+import Federator.Run
 import Imports
 import Network.Connection qualified
-import Network.HTTP.Client.TLS (mkManagerSettings)
+import Network.HTTP.Client.TLS
 import OpenSSL.Session (SSLContext)
 import Options.Applicative qualified as OPA
-import Polysemy (Embed, Member, Sem, embed)
-import Polysemy.Error (Error, runError)
-import System.Random (randomRIO)
-import Test.Federator.JSON (deriveJSONOptions)
-import Test.Tasty.HUnit (assertFailure)
+import Polysemy
+import Polysemy.Error
+import System.Random
+import Test.Federator.JSON
+import Test.Tasty.HUnit
 import Util.Options (Endpoint)
 import Util.Options qualified as O
 import Wire.API.User
-  ( Email (Email),
-    Name (..),
-    NewUser,
-    Phone,
-    User,
-    UserSSOId,
-    fromEmail,
-    parseEmail,
-    parsePhone,
-  )
-import Wire.API.User.Auth (CookieLabel (CookieLabel))
+import Wire.API.User.Auth
 
 type BrigReq = Request -> Request
 

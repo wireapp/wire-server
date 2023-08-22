@@ -25,7 +25,7 @@ where
 import AWS.Util (readAuthExpiration)
 import qualified Amazonka as AWS
 import CargoHold.API.Federation
-import CargoHold.API.Public (internalSitemap, servantSitemap)
+import CargoHold.API.Public
 import CargoHold.AWS (amazonkaEnv)
 import CargoHold.App hiding (settings)
 import CargoHold.Options hiding (aws)

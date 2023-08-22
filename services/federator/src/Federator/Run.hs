@@ -34,48 +34,24 @@ module Federator.Run
   )
 where
 
-import Control.Concurrent.Async (async, waitAnyCancel)
+import Control.Concurrent.Async
 import Control.Exception (bracket)
 import Control.Lens ((^.))
 import Data.Default (def)
 import Data.Metrics.Middleware qualified as Metrics
 import Federator.Env
-  ( Env (..),
-    applog,
-    mkHttp2Manager,
-    onNewSSLContext,
-  )
 import Federator.ExternalServer (serveInward)
 import Federator.InternalServer (serveOutward)
 import Federator.Monitor
-  ( FederationSetupError (..),
-    mkTLSSettingsOrThrow,
-    withMonitor,
-  )
 import Federator.Options as Opt
-  ( Opts
-      ( brig,
-        cargohold,
-        federatorExternal,
-        federatorInternal,
-        galley,
-        logFormat,
-        logLevel,
-        logNetStrings,
-        optSettings
-      ),
-    RunSettings (dnsHost, dnsPort),
-  )
 import Imports
 import Network.DNS qualified as DNS
 import Network.HTTP.Client qualified as HTTP
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as LogExt
-import Util.Options (Endpoint (_port), port)
+import Util.Options
+import Wire.API.Federation.Component
 import Wire.API.FederationUpdate
-import Wire.API.MakesFederatedCall
-  ( Component (Brig, Cargohold, Galley),
-  )
 import Wire.API.Routes.FederationDomainConfig
 import Wire.Network.DNS.Helper qualified as DNS
 

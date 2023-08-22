@@ -37,63 +37,40 @@ module TestSetup
   )
 where
 
-import Bilge.IO
-  ( Http,
-    Manager,
-    ManagerSettings (managerResponseTimeout),
-    newManager,
-    runHttpT,
-  )
-import Bilge.Request (Request, host, port)
-import CargoHold.Options (Opts, federationDomain, settings)
+import Bilge hiding (body, responseBody)
+import CargoHold.Options hiding (domain)
 import Control.Exception (catch)
-import Control.Lens (makeLenses, view)
+import Control.Lens
 import Control.Monad.Codensity
-  ( Codensity (Codensity),
-    lowerCodensity,
-  )
-import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
-import Control.Monad.Morph (MFunctor (hoist))
+import Control.Monad.Except
+import Control.Monad.Morph
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as B8
-import Data.ByteString.Conversion (toByteString')
+import Data.ByteString.Conversion
 import qualified Data.Text as T
-import Data.Text.Encoding (encodeUtf8)
-import Data.Yaml (FromJSON, decodeFileEither, decodeFileThrow)
+import Data.Text.Encoding
+import Data.Yaml
 import Imports
-import Network.HTTP.Client
-  ( Request (requestHeaders),
-    responseTimeoutMicro,
-  )
+import Network.HTTP.Client hiding (responseBody)
 import qualified Network.HTTP.Client as HTTP
-import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Network.HTTP.Client.TLS
 import qualified Network.Wai.Utilities.Error as Wai
 import Servant.Client.Streaming
-  ( BaseUrl (BaseUrl),
-    ClientEnv (makeClientRequest),
-    ClientError (FailureResponse),
-    ClientM,
-    ResponseF (responseBody, responseStatusCode),
-    Scheme (Http),
-    defaultMakeClientRequest,
-    mkClientEnv,
-    withClientM,
-  )
-import Test.Tasty (TestName, TestTree)
-import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
+import Test.Tasty
+import Test.Tasty.HUnit
 import Util.Options (Endpoint (..))
-import Util.Options.Common (optOrEnv)
-import Util.Test (handleParseError)
-import Web.HttpApiData (ToHttpApiData (toHeader))
-import Wire.API.Federation.Domain (originDomainHeaderName)
-import Wire.API.Routes.Version (Version)
+import Util.Options.Common
+import Util.Test
+import Web.HttpApiData
+import Wire.API.Federation.Domain
+import Wire.API.Routes.Version
 
 type Cargohold = Request -> Request
 
 type TestM = ReaderT TestSetup Http
 
 mkRequest :: Endpoint -> Request -> Request
-mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
+mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
 
 data TestSetup = TestSetup
   { _tsManager :: Manager,

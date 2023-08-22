@@ -23,86 +23,22 @@ module Spar.Sem.IdPConfigStore.Cassandra
   )
 where
 
-import Cassandra.CQL
-  ( BatchType (BatchLogged),
-    Consistency (LocalQuorum),
-    R,
-    W,
-  )
-import Cassandra.Exec
-  ( MonadClient,
-    PrepQuery,
-    addPrepQuery,
-    batch,
-    params,
-    query,
-    query1,
-    retry,
-    setConsistency,
-    setType,
-    write,
-    x1,
-    x5,
-  )
+import Cassandra
 import Control.Lens ((^.))
 import Control.Monad.Except
-  ( Monad ((>>=)),
-    MonadError (throwError),
-    mapM,
-    mapM_,
-    runExceptT,
-    unless,
-    (=<<),
-  )
-import Data.Id (TeamId)
+import Data.Id
 import qualified Data.List.NonEmpty as NL
 import Data.Text (pack)
 import Data.X509 (SignedCertificate)
 import Imports
-  ( Applicative (pure),
-    Eq ((==)),
-    Foldable (elem),
-    HasCallStack,
-    Identity (..),
-    Int,
-    Maybe (..),
-    Num ((+)),
-    Semigroup ((<>)),
-    Show (show),
-    Text,
-    Traversable (traverse),
-    either,
-    fromMaybe,
-    mapMaybe,
-    maybe,
-    ($),
-    (.),
-    (<$$>),
-    (<$>),
-  )
-import Polysemy (Embed, Member, Sem, embed, interpret)
+import Polysemy
 import Polysemy.Error (Error, throw)
 import qualified SAML2.WebSSO as SAML
 import Spar.Data.Instances ()
 import Spar.Error
-  ( IdpDbError
-      ( AttemptToGetV1IssuerViaV2API,
-        AttemptToGetV2IssuerViaV1API,
-        IdpNonUnique,
-        IdpNotFound,
-        InsertIdPConfigCannotMixApiVersions
-      ),
-  )
 import Spar.Sem.IdPConfigStore (IdPConfigStore (..), Replaced (..), Replacing (..))
-import URI.ByteString (URI)
-import Wire.API.User.IdentityProvider
-  ( IdP,
-    IdPHandle (..),
-    WireIdP (WireIdP),
-    WireIdPAPIVersion (..),
-    defWireIdPAPIVersion,
-    handle,
-  )
+import URI.ByteString
+import Wire.API.User.IdentityProvider hiding (apiVersion, oldIssuers, replacedBy, team)
 import qualified Wire.API.User.IdentityProvider as IP
 
 idPToCassandra ::

@@ -68,7 +68,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import Wire.API.Connection
-import Wire.API.Conversation (Access, AccessRole (..), ConvMembers (..), ConvType (..), ConversationJoin (..), ConversationMetadata (..), OtherMember (OtherMember))
+import Wire.API.Conversation hiding (Member, cnvAccess, cnvAccessRoles, cnvName, cnvType)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol

@@ -44,163 +44,70 @@ module Galley.App
   )
 where
 
-import Bilge
-  ( Manager,
-    ManagerSettings
-      ( managerConnCount,
-        managerIdleConnectionCount,
-        managerResponseTimeout
-      ),
-    RequestId (unRequestId),
-    newManager,
-  )
-import Cassandra (ClientState, Keyspace (Keyspace))
+import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
+import Cassandra hiding (Set)
 import Cassandra qualified as C
 import Cassandra.Settings qualified as C
-import Control.Error (ExceptT (..), runExceptT)
-import Control.Lens (view, (^.))
+import Control.Error hiding (err)
+import Control.Lens hiding ((.=))
 import Data.Default (def)
 import Data.List.NonEmpty qualified as NE
-import Data.Metrics.Middleware (Metrics)
-import Data.Qualified (toLocalUnsafe)
-import Data.Range (Range (fromRange))
+import Data.Metrics.Middleware
+import Data.Qualified
+import Data.Range
 import Data.Text (unpack)
-import Data.Time.Clock (getCurrentTime)
-import Galley.API.Error (InternalError, InvalidInput)
+import Data.Time.Clock
+import Galley.API.Error
 import Galley.Aws qualified as Aws
-import Galley.Cassandra.Client (interpretClientStoreToCassandra)
-import Galley.Cassandra.Code (interpretCodeStoreToCassandra)
+import Galley.Cassandra.Client
+import Galley.Cassandra.Code
 import Galley.Cassandra.Conversation
-  ( interpretConversationStoreToCassandra,
-  )
 import Galley.Cassandra.Conversation.Members
-  ( interpretMemberStoreToCassandra,
-  )
 import Galley.Cassandra.ConversationList
-  ( interpretConversationListToCassandra,
-    interpretLegacyConversationListToCassandra,
-    interpretRemoteConversationListToCassandra,
-  )
 import Galley.Cassandra.CustomBackend
-  ( interpretCustomBackendStoreToCassandra,
-  )
 import Galley.Cassandra.LegalHold
-  ( interpretLegalHoldStoreToCassandra,
-  )
 import Galley.Cassandra.Proposal
-  ( interpretProposalStoreToCassandra,
-  )
 import Galley.Cassandra.SearchVisibility
-  ( interpretSearchVisibilityStoreToCassandra,
-  )
 import Galley.Cassandra.Services
-  ( interpretServiceStoreToCassandra,
-  )
 import Galley.Cassandra.Team
-  ( interpretInternalTeamListToCassandra,
-    interpretTeamListToCassandra,
-    interpretTeamMemberStoreToCassandra,
-    interpretTeamMemberStoreToCassandraWithPaging,
-    interpretTeamStoreToCassandra,
-  )
 import Galley.Cassandra.TeamFeatures
-  ( interpretTeamFeatureStoreToCassandra,
-  )
 import Galley.Cassandra.TeamNotifications
-  ( interpretTeamNotificationStoreToCassandra,
-  )
-import Galley.Effects (GalleyEffects1, Member)
+import Galley.Effects
 import Galley.Effects.FireAndForget (interpretFireAndForget)
-import Galley.Effects.WaiRoutes.IO (interpretWaiRoutes)
+import Galley.Effects.WaiRoutes.IO
 import Galley.Env
-  ( DeleteItem (..),
-    Env (Env),
-    ExtEnv (..),
-    aEnv,
-    applog,
-    brig,
-    cstate,
-    currentFanoutLimit,
-    deleteQueue,
-    extEnv,
-    extGetManager,
-    federator,
-    initExtEnv,
-    manager,
-    monitor,
-    options,
-    reqId,
-    reqIdMsg,
-  )
-import Galley.External (interpretExternalAccess)
+import Galley.External
 import Galley.Intra.BackendNotificationQueue
-  ( interpretBackendNotificationQueueAccess,
-  )
 import Galley.Intra.Effects
-  ( interpretBotAccess,
-    interpretBrigAccess,
-    interpretDefederationNotifications,
-    interpretGundeckAccess,
-    interpretSparAccess,
-  )
-import Galley.Intra.Federator (interpretFederatorAccess)
-import Galley.Keys (loadAllMLSKeys)
-import Galley.Options
-  ( Opts,
-    cassandra,
-    discoUrl,
-    featureFlags,
-    federationDomain,
-    httpPoolSize,
-    journal,
-    maxConvSize,
-    maxTeamSize,
-    mlsPrivateKeyPaths,
-    rabbitmq,
-    settings,
-  )
+import Galley.Intra.Federator
+import Galley.Keys
+import Galley.Options hiding (brig, endpoint, federator)
 import Galley.Options qualified as O
-import Galley.Queue (interpretQueue)
+import Galley.Queue
 import Galley.Queue qualified as Q
 import Galley.Types.Teams qualified as Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (forkIO)
 import Network.AMQP.Extended (mkRabbitMqChannelMVar)
 import Network.HTTP.Client (responseTimeoutMicro)
-import Network.HTTP.Client.OpenSSL (opensslManagerSettings)
-import Network.Wai.Utilities.JSONResponse (JSONResponse)
+import Network.HTTP.Client.OpenSSL
+import Network.Wai.Utilities.JSONResponse
 import OpenSSL.Session as Ssl
-  ( SSLOption (SSL_OP_NO_SSLv2, SSL_OP_NO_SSLv3, SSL_OP_NO_TLSv1),
-    VerificationMode (VerifyPeer),
-    context,
-    contextAddOption,
-    contextSetCiphers,
-    contextSetDefaultVerifyPaths,
-    contextSetVerificationMode,
-  )
 import Polysemy
-  ( Embed,
-    Final,
-    Sem,
-    embed,
-    embedToFinal,
-    interpret,
-    runFinal,
-  )
-import Polysemy.Error (Error, mapError, runError)
-import Polysemy.Input (Input, runInputConst, runInputSem)
+import Polysemy.Error
+import Polysemy.Input
 import Polysemy.Internal (Append)
-import Polysemy.Resource (Resource, resourceToIOFinal)
+import Polysemy.Resource
 import Polysemy.TinyLog qualified as P
 import Servant qualified
-import Ssl.Util (rsaCiphers)
+import Ssl.Util
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import System.Logger.Extended qualified as Logger
 import UnliftIO.Exception qualified as UnliftIO
-import Util.Options (endpoint, filterNodesByDatacentre, host, keyspace, port)
-import Wire.API.Error (APIError (toResponse))
-import Wire.API.Federation.Error (FederationError)
+import Util.Options
+import Wire.API.Error
+import Wire.API.Federation.Error
 import Wire.Sem.Logger qualified
 
 -- Effects needed by the interpretation of other effects

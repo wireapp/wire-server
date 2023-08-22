@@ -104,11 +104,10 @@ import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
 import Wire.API.Connection
-import Wire.API.Conversation (Access (..), AccessRole (..), ConvIdsPage, ConvTeamInfo (..), ConvType (..), Conversation (..), ConversationMetadata (..), ConversationPagingState, GetPaginatedConversationIds, InviteQualified (..), ListConversations (..), Member (..), NewConv (..), OtherMember (..), OtherMemberUpdate (..), ReceiptMode (..), cnvCreator, cnvMessageTimer, convList, crFound, pattern GetPaginatedConversationIds)
+import Wire.API.Conversation
 import Wire.API.Conversation qualified as Conv
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code hiding (Value)
-import Wire.API.Conversation.Member (MemberUpdate (..), cmOthers, cmSelf)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -120,32 +119,32 @@ import Wire.API.Event.Team qualified as TE
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
-import Wire.API.Federation.API.Galley (ConversationCreated (..), ConversationUpdate (..), RemoteConvMembers (..), RemoteConversation (..))
+import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
-import Wire.API.Internal.Notification (Notification (..), NotificationId, QueuedNotification, QueuedNotificationList, queuedHasMore, queuedNotificationId, queuedNotificationPayload, queuedNotifications, queuedTime)
-import Wire.API.MLS.KeyPackage (KeyPackageRef (..))
-import Wire.API.MLS.Message (Message (..), MessagePayload (..), Sender (..), WireFormatTag (..), tbsMsgEpoch, tbsMsgPayload, tbsMsgSender)
-import Wire.API.MLS.Proposal (Proposal (..))
-import Wire.API.MLS.Serialisation (ParseMLS (..), decodeMLS', rmValue)
-import Wire.API.Message (ClientMismatchStrategy (..), OtrRecipients (..), UserClients (..), deletedClients, missingClients, mkQualifiedOtrPayload, mssDeletedClients, mssFailedToConfirmClients, mssFailedToSend, mssMissingClients, mssRedundantClients, protoFromOtrRecipients, redundantClients)
+import Wire.API.Internal.Notification hiding (target)
+import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Message
+import Wire.API.MLS.Proposal
+import Wire.API.MLS.Serialisation
+import Wire.API.Message
 import Wire.API.Message.Proto qualified as Proto
 import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
-import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamData (..), TeamStatus (..), TeamStatusUpdate (..))
-import Wire.API.Routes.MultiTablePaging (mtpResults)
-import Wire.API.Routes.Version (Version (..))
-import Wire.API.Team (BindingNewTeam (..), Icon (..), Team (..), TeamList (..), TeamUpdateData (..), newNewTeam, teamId, teamListTeams)
-import Wire.API.Team.Feature (FeatureSymbol (..), featureNameBS)
-import Wire.API.Team.Invitation (Invitation (..), InvitationRequest (..))
-import Wire.API.Team.Member (TeamMember, TeamMemberList, mkNewTeamMember, newTeamMemberDeleteData)
+import Wire.API.Routes.Internal.Galley.TeamsIntra
+import Wire.API.Routes.MultiTablePaging
+import Wire.API.Routes.Version
+import Wire.API.Team
+import Wire.API.Team.Feature
+import Wire.API.Team.Invitation
+import Wire.API.Team.Member hiding (userId)
 import Wire.API.Team.Member qualified as Team
-import Wire.API.Team.Permission (Perm (..), Permissions (..), fullPermissions, newPermissions)
-import Wire.API.Team.Role (Role (..))
-import Wire.API.User (Email (..), HandleUpdate (..), InvitationCode (..), Name (..), SelfProfile (..), UpdateConnectionsInternal (..), User (..), UserAccount (..), UserIdList (..), UserProfile (..), UserSSOId (..), UserSet (..), defSupportedProtocols, defaultAccentId, fromEmail, mkSimpleSampleUref, noPict, userId)
-import Wire.API.User.Auth (CookieLabel (..))
-import Wire.API.User.Client (ClientCapability (..), ClientType (..), UserClientMap (..), UserClientsFull (..), clientCapabilities, clientId, defUpdateClient, newClient, newClientCapabilities, newClientPassword, updateClientCapabilities)
+import Wire.API.Team.Permission hiding (self)
+import Wire.API.Team.Role
+import Wire.API.User hiding (AccountStatus (..))
+import Wire.API.User.Auth hiding (Access)
+import Wire.API.User.Client
 import Wire.API.User.Client qualified as Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Search (FederatedUserSearchPolicy (..))

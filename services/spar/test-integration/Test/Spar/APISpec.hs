@@ -93,18 +93,6 @@ import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.IdentityProvider
-  ( IdP,
-    IdPHandle (IdPHandle),
-    IdPList (_providers),
-    IdPMetadataInfo (..),
-    WireIdPAPIVersion (WireIdPAPIV1, WireIdPAPIV2),
-    apiVersion,
-    defWireIdPAPIVersion,
-    handle,
-    oldIssuers,
-    replacedBy,
-    team,
-  )
 import Wire.API.User.Scim
 
 spec :: SpecWith TestEnv

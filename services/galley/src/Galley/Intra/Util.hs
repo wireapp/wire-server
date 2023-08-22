@@ -22,39 +22,25 @@ module Galley.Intra.Util
   )
 where
 
-import Bilge (Request, Response, expect2xx, method, path)
+import Bilge hiding (getHeader, host, options, port, statusCode)
 import Bilge qualified as B
-import Bilge.RPC (RPCException, rpc, rpcExceptionMsg)
+import Bilge.RPC
 import Bilge.Retry
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
-  ( Handler (Handler),
-    SomeException,
-    catches,
-  )
-import Control.Retry (RetryPolicy, limitRetries, recovering)
+import Control.Retry
 import Data.ByteString.Lazy qualified as LB
 import Data.Misc (portNumber)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy qualified as LT
-import Galley.Env (options)
-import Galley.Monad (App)
-import Galley.Options (Opts, brig, gundeck, spar)
-import Imports
-  ( Maybe,
-    Show (show),
-    String,
-    const,
-    forkIO,
-    fromIntegral,
-    void,
-    ($),
-    (.),
-  )
-import Network.HTTP.Types (StdMethod (POST))
-import System.Logger (msg, (.=), (~~))
+import Galley.Env hiding (brig)
+import Galley.Monad
+import Galley.Options
+import Imports hiding (log)
+import Network.HTTP.Types
+import System.Logger
 import System.Logger.Class qualified as LC
-import Util.Options (host, port)
+import Util.Options
 
 data IntraComponent = Brig | Spar | Gundeck
   deriving (Show)
