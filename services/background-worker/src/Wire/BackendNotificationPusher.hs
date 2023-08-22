@@ -154,7 +154,7 @@ startPusher consumersRef chan = do
 
 ensureConsumers :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> [Domain] -> AppT IO ()
 ensureConsumers consumers chan domains = do
-  keys' <- Set.fromList . Map.keys <$> readIORef consumers
+  keys' <- Map.keysSet <$> readIORef consumers
   let domains' = Set.fromList domains
       droppedDomains = Set.difference keys' domains'
   -- Loop over all of the new domains. We can check for existing consumers and add new ones.
