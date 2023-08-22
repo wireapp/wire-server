@@ -161,11 +161,8 @@ runTests tests cfg = do
       exitFailure
 
 doListTests :: [(String, String, String, x)] -> IO ()
-doListTests tests = for_ tests $ \(qname, desc, full, _) -> do
-  putStrLn $ qname <> "  " <> colored gray desc
-  unless (null full) $
-    putStr $
-      colored gray (indent 2 full)
+doListTests tests = for_ tests $ \(qname, _desc, _full, _) -> do
+  putStrLn qname
 
 -- like `main` but meant to run from a repl
 mainI :: [String] -> IO ()
