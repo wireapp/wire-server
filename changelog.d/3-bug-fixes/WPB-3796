@@ -1,0 +1,1 @@
+[background-worker] Get federation remote domains from rabbitMQ, not from brig (this fixes a bug in federation policy `allowAll`)
