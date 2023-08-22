@@ -111,3 +111,98 @@ galley:
               acmeDiscoveryUrl: null
             lockStatus: unlocked
 ```
+
+## URL configuration.
+
+URLs pointing to things such as the privary policy and support are displayed at various places in the clients.
+
+These URLs are configured and can be changed in the backend, by modifying the following configuration options:
+
+In `values.yaml` ([example](https://github.com/wireapp/wire-server-deploy/blob/master/values/wire-server/prod-values.example.yaml#L250)):
+
+```yaml
+webapp:
+  # ...
+  envVars:
+    # ...
+    URL_ACCOUNT_BASE: "https://account.example.com"
+    #URL_MOBILE_BASE: "https://wire-pwa-staging.zinfra.io" # TODO: is this needed?
+    URL_PRIVACY_POLICY: "https://www.example.com/terms-conditions"
+    URL_SUPPORT_BASE: "https://www.example.com/support"
+    URL_TEAMS_BASE: "https://teams.example.com"
+    URL_TEAMS_CREATE: "https://teams.example.com"
+    URL_TERMS_OF_USE_PERSONAL: "https://www.example.com/terms-conditions"
+    URL_TERMS_OF_USE_TEAMS: "https://www.example.com/terms-conditions"
+    URL_WEBSITE_BASE: "https://www.example.com"
+```
+
+Separately, you should also edit the `wire-team-settings` file [`.env.defaults`](https://github.com/wireapp/wire-web-config-wire/blob/master/wire-team-settings/.env.defaults#L111) :
+
+```
+# Specifies the user facing domain of the app, e.g. https://teams.wire.com
+APP_BASE="https://teams.wire.com"
+
+# [...]
+
+# Sets the host URL for the account service (password reset, account deletion, etc.), e.g. https://account.wire.com
+URL_ACCOUNT_BASE="https://account.wire.com"
+
+URL_ACCOUNT_DELETE_SURVEY="https://wireapp.typeform.com/to/quYBS7"
+
+URL_CREATE_BOT="https://github.com/wireapp/lithium"
+
+URL_DOWNLOAD="https://wire.com/download/"
+
+URL_GET_WIRE_BASE="https://get.wire.com"
+
+URL_LEGAL="https://wire.com/legal/"
+
+URL_PRIVACY_POLICY="https://wire.com/legal/"
+
+URL_SALES="https://wire.com/en/contact-sales"
+
+# Sets the URL for pricing information, e.g. https://wire.com/pricing
+URL_PRICING="https://wire.com/pricing"
+
+URL_SUPPORT_GETTING_STARTED="https://support.wire.com/hc/categories/360000242937?section=start"
+
+URL_SUPPORT_E2EID_INFO_URL="https://support.wire.com/hc/articles/9211300150685"
+
+URL_SUPPORT_LEGAL_HOLD="https://support.wire.com/hc/articles/360002018278"
+
+URL_SUPPORT_NEW_DE="https://support.wire.com/hc/de/requests/new"
+
+URL_SUPPORT_NEW_EN="https://support.wire.com/hc/en-us/requests/new"
+
+URL_SUPPORT_NEW_FR="https://support.wire.com/hc/fr/requests/new"
+
+URL_SUPPORT_NEW="https://support.wire.com/hc/requests/new"
+
+URL_SUPPORT_ROLES="https://support.wire.com/hc/articles/115003862509"
+
+URL_SUPPORT_SSO_CONFIGURATION="https://support.wire.com/hc/requests/new"
+
+URL_SUPPORT_SSO_LOGIN_DESKTOP="https://support.wire.com/hc/articles/360000954617"
+
+URL_SUPPORT_SSO_LOGIN_MOBILE="https://support.wire.com/hc/articles/360000955017"
+
+URL_SUPPORT_SCIM="https://docs.wire.com/how-to/scim/index.html"
+
+# Sets the URL for the teams terms of use
+URL_TERMS_OF_USE_TEAMS="https://wire.com/legal/terms/teams"
+
+# Sets the host URL for the webapp, e.g. https://app.wire.com
+URL_WEBAPP_BASE="https://app.wire.com"
+
+# Sets the host URL for the website, e.g. https://wire.com
+URL_WEBSITE_BASE="https://wire.com"
+```
+
+
+
+
+ 
+
+
+
+
