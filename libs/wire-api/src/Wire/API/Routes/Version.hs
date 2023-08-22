@@ -22,8 +22,8 @@
 module Wire.API.Routes.Version
   ( -- * API version endpoint
     VersionAPI,
+    VersionAPITag,
     VersionInfo (..),
-    versionSwagger,
     versionHeader,
     VersionHeader,
 
@@ -31,6 +31,7 @@ module Wire.API.Routes.Version
     Version (..),
     VersionNumber (..),
     supportedVersions,
+    isDevelopmentVersion,
     developmentVersions,
 
     -- * Servant combinators
@@ -54,12 +55,12 @@ import Data.Domain
 import Data.Schema
 import Data.Singletons.Base.TH
 import Data.Swagger qualified as S
-import Data.Text as Text
+import Data.Text qualified as Text
 import Data.Text.Encoding as Text
 import GHC.TypeLits
 import Imports
 import Servant
-import Servant.Swagger
+import Servant.API.Extended.RawM
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
@@ -93,10 +94,7 @@ versionInt V4 = 4
 versionInt V5 = 5
 
 supportedVersions :: [Version]
-supportedVersions = [minBound .. V5]
-
-developmentVersions :: [Version]
-developmentVersions = [V4, V5]
+supportedVersions = [minBound .. maxBound]
 
 ----------------------------------------------------------------------
 
@@ -185,10 +183,25 @@ type VersionAPI =
         :> Get '[JSON] VersionInfo
     )
 
-versionSwagger :: S.Swagger
-versionSwagger = toSwagger (Proxy @VersionAPI)
+data VersionAPITag
+
+-- Development versions
 
 $(genSingletons [''Version])
+
+$( promote
+     [d|
+       isDevelopmentVersion :: Version -> Bool
+       isDevelopmentVersion V0 = False
+       isDevelopmentVersion V1 = False
+       isDevelopmentVersion V2 = False
+       isDevelopmentVersion V3 = False
+       isDevelopmentVersion _ = True
+       |]
+ )
+
+developmentVersions :: [Version]
+developmentVersions = filter isDevelopmentVersion supportedVersions
 
 -- Version-aware swagger generation
 
@@ -227,6 +240,8 @@ type instance
 type instance
   SpecialiseToVersion v (MultiVerb m t r x) =
     MultiVerb m t r x
+
+type instance SpecialiseToVersion v RawM = RawM
 
 type instance
   SpecialiseToVersion v (ReqBody t x :> api) =

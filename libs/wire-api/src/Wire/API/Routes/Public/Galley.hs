@@ -20,11 +20,9 @@
 
 module Wire.API.Routes.Public.Galley where
 
-import Data.SOP
-import Data.Swagger qualified as Swagger
 import Servant hiding (WithStatus)
-import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
+import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Bot
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Galley.CustomBackend
@@ -36,9 +34,8 @@ import Wire.API.Routes.Public.Galley.Team
 import Wire.API.Routes.Public.Galley.TeamConversation
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Routes.Public.Galley.TeamNotification (TeamNotificationAPI)
-import Wire.API.Routes.Version
 
-type ServantAPI =
+type GalleyAPI =
   ConversationAPI
     :<|> TeamConversationAPI
     :<|> MessagingAPI
@@ -51,5 +48,7 @@ type ServantAPI =
     :<|> TeamMemberAPI
     :<|> TeamNotificationAPI
 
-swaggerDoc :: forall v. HasSwagger (SpecialiseToVersion v ServantAPI) => Swagger.Swagger
-swaggerDoc = toSwagger (Proxy @(SpecialiseToVersion v ServantAPI))
+data GalleyAPITag
+
+instance ServiceAPI GalleyAPITag v where
+  type ServiceAPIRoutes GalleyAPITag = GalleyAPI

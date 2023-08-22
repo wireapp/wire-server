@@ -42,17 +42,15 @@ import Data.Swagger
   )
 import Imports
 import Language.Dot as D
+import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
-import Wire.API.Routes.Public.Brig qualified as BrigRoutes
-import Wire.API.Routes.Public.Cannon qualified as CannonRoutes
-import Wire.API.Routes.Public.Cargohold qualified as CargoholdRoutes
-import Wire.API.Routes.Public.Galley qualified as GalleyRoutes
-import Wire.API.Routes.Public.Gundeck qualified as GundeckRoutes
-import Wire.API.Routes.Public.Proxy qualified as ProxyRoutes
--- import qualified Wire.API.Routes.Internal.Cannon as CannonIRoutes
--- import qualified Wire.API.Routes.Internal.Cargohold as CargoholdIRoutes
--- import qualified Wire.API.Routes.Internal.LegalHold as LegalHoldIRoutes
-import Wire.API.Routes.Public.Spar qualified as SparRoutes
+import Wire.API.Routes.Public.Brig
+import Wire.API.Routes.Public.Cannon
+import Wire.API.Routes.Public.Cargohold
+import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Gundeck
+import Wire.API.Routes.Public.Proxy
+import Wire.API.Routes.Public.Spar
 import Wire.API.Routes.Version
 
 ------------------------------
@@ -73,13 +71,13 @@ swaggers =
     -- services, use that in /services/brig/src/Brig/API/Public.hs instead of
     -- doing it by hand.
 
-    BrigRoutes.brigSwagger @'V5, -- TODO: s/brigSwagger/swaggerDoc/ like everybody else!
-    CannonRoutes.swaggerDoc,
-    CargoholdRoutes.swaggerDoc @'V5,
-    GalleyRoutes.swaggerDoc @'V5,
-    GundeckRoutes.swaggerDoc @'V5,
-    ProxyRoutes.swaggerDoc,
-    SparRoutes.swaggerDoc,
+    serviceSwagger @BrigAPITag @'V5,
+    serviceSwagger @CannonAPITag @'V5,
+    serviceSwagger @CargoholdAPITag @'V5,
+    serviceSwagger @GalleyAPITag @'V5,
+    serviceSwagger @GundeckAPITag @'V5,
+    serviceSwagger @ProxyAPITag @'V5,
+    serviceSwagger @SparAPITag @'V5,
     -- TODO: collect all internal apis somewhere else (brig?), and expose them
     -- via an internal swagger api end-point.
 

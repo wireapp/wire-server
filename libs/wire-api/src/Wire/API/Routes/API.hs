@@ -16,7 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Routes.API
-  ( API,
+  ( ServiceAPI (..),
+    API,
     hoistAPIHandler,
     hoistAPI,
     mkAPI,
@@ -29,14 +30,28 @@ module Wire.API.Routes.API
 where
 
 import Data.Domain
+import Data.Kind
 import Data.Proxy
+import Data.Swagger qualified as S
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Internal
 import Servant hiding (Union)
+import Servant.Swagger
 import Wire.API.Error
 import Wire.API.Routes.Named
+import Wire.API.Routes.Version
+
+class ServiceAPI service (v :: Version) where
+  type ServiceAPIRoutes service
+  type SpecialisedAPIRoutes v service :: Type
+  type SpecialisedAPIRoutes v service = SpecialiseToVersion v (ServiceAPIRoutes service)
+  serviceSwagger :: HasSwagger (SpecialisedAPIRoutes v service) => S.Swagger
+  serviceSwagger = toSwagger (Proxy @(SpecialisedAPIRoutes v service))
+
+instance ServiceAPI VersionAPITag v where
+  type ServiceAPIRoutes VersionAPITag = VersionAPI
 
 -- | A Servant handler on a polysemy stack. This is used to help with type inference.
 newtype API api r = API {unAPI :: ServerT api (Sem r)}

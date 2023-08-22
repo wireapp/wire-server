@@ -19,15 +19,13 @@ module Wire.API.Routes.Public.Gundeck where
 
 import Data.Id (ClientId)
 import Data.Range
-import Data.SOP
-import Data.Swagger qualified as Swagger
 import Imports
 import Servant
-import Servant.Swagger
 import Wire.API.Error
 import Wire.API.Error.Gundeck as E
 import Wire.API.Notification
 import Wire.API.Push.V2.Token
+import Wire.API.Routes.API
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -132,5 +130,7 @@ type NotificationAPI =
                     (Maybe QueuedNotificationList)
            )
 
-swaggerDoc :: forall v. HasSwagger (SpecialiseToVersion v GundeckAPI) => Swagger.Swagger
-swaggerDoc = toSwagger (Proxy @(SpecialiseToVersion v GundeckAPI))
+data GundeckAPITag
+
+instance ServiceAPI GundeckAPITag v where
+  type ServiceAPIRoutes GundeckAPITag = GundeckAPI

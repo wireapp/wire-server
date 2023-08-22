@@ -39,7 +39,6 @@ import Imports hiding (head)
 import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
@@ -51,6 +50,7 @@ import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
 import Wire.API.OAuth
 import Wire.API.Properties
+import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
 import Wire.API.Routes.MultiVerb
@@ -93,8 +93,10 @@ type BrigAPI =
     :<|> SystemSettingsAPI
     :<|> OAuthAPI
 
-brigSwagger :: forall (v :: Version). HasSwagger (SpecialiseToVersion v BrigAPI) => Swagger
-brigSwagger = toSwagger (Proxy @(SpecialiseToVersion v BrigAPI))
+data BrigAPITag
+
+instance ServiceAPI BrigAPITag v where
+  type ServiceAPIRoutes BrigAPITag = BrigAPI
 
 -------------------------------------------------------------------------------
 -- User API

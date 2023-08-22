@@ -22,16 +22,15 @@ import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.SOP
-import Data.Swagger qualified as Swagger
 import Imports
 import Servant
-import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import URI.ByteString
 import Wire.API.Asset
 import Wire.API.Error
 import Wire.API.Error.Cargohold
 import Wire.API.MakesFederatedCall
+import Wire.API.Routes.API
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public
@@ -91,7 +90,7 @@ type GetAsset =
     '[ErrorResponse 'AssetNotFound, AssetRedirect]
     (Maybe (AssetLocation Absolute))
 
-type ServantAPI =
+type CargoholdAPI =
   ( Summary "Renew an asset token"
       :> Until 'V2
       :> CanThrow 'AssetNotFound
@@ -316,5 +315,7 @@ type MainAPI =
                   ()
          )
 
-swaggerDoc :: forall v. HasSwagger (SpecialiseToVersion v ServantAPI) => Swagger.Swagger
-swaggerDoc = toSwagger (Proxy @(SpecialiseToVersion v ServantAPI))
+data CargoholdAPITag
+
+instance ServiceAPI CargoholdAPITag v where
+  type ServiceAPIRoutes CargoholdAPITag = CargoholdAPI
