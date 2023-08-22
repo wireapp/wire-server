@@ -55,6 +55,7 @@ instance ToSchema CountryCode
 -- for 'ToJSON' instances elsewhere.
 --
 -- FUTUREWORK: This should be removed once the saml2-web-sso types are updated to remove their prefixes.
+-- FUTUREWORK: Ticket for these changes https://wearezeta.atlassian.net/browse/WPB-3972
 -- Preserve the old prefix semantics for types that are coming from outside of this repo.
 samlSchemaOptions :: SchemaOptions
 samlSchemaOptions = fromAesonOptions $ deriveJSONOptions {A.fieldLabelModifier = fieldMod . dropPrefix}

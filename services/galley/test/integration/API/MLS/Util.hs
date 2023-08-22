@@ -94,10 +94,10 @@ mapRemoteKeyPackageRef ::
   (Request -> Request) ->
   KeyPackageBundle ->
   m ()
-mapRemoteKeyPackageRef galleyCall bundle =
+mapRemoteKeyPackageRef brigCall bundle =
   void $
     put
-      ( galleyCall
+      ( brigCall
           . paths ["i", "mls", "key-package-refs"]
           . json bundle
       )
@@ -293,10 +293,10 @@ createLocalMLSClient (tUntagged -> qusr) = do
 
   -- set public key
   pkey <- mlscli qcid ["public-key"] Nothing
-  galleyCall <- viewBrig
+  brigCall <- viewBrig
   let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 pkey}
   put
-    ( galleyCall
+    ( brigCall
         . paths ["clients", toByteString' . ciClient $ qcid]
         . zUser (ciUser qcid)
         . json update

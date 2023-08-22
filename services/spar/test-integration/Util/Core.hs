@@ -261,22 +261,32 @@ cliOptsParser =
 -- <https://github.com/wireapp/wire-server/pull/466/commits/9c93f1e278500522a0565639140ac55dc21ee2d2>
 -- would be a good place to look for code to steal.
 mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
-mkEnv _teTstOpts _teOpts = do
-  _teMgr :: Manager <- newManager defaultManagerSettings
-  sparCtxLogger <- Log.mkLogger (samlToLevel $ saml _teOpts ^. SAML.cfgLogLevel) (logNetStrings _teOpts) (logFormat _teOpts)
-  _teCql :: ClientState <- initCassandra _teOpts sparCtxLogger
-  let _teBrig = endpointToReq _teTstOpts.brig
-      _teGalley = endpointToReq _teTstOpts.galley
-      _teSpar = endpointToReq _teTstOpts.spar
-      _teSparEnv = Spar.Env {..}
-      _teWireIdPAPIVersion = WireIdPAPIV2
-      sparCtxOpts = _teOpts
-      sparCtxCas = _teCql
-      sparCtxHttpManager = _teMgr
-      sparCtxHttpBrig = _teBrig empty
-      sparCtxHttpGalley = _teGalley empty
+mkEnv tstOpts opts = do
+  mgr :: Manager <- newManager defaultManagerSettings
+  sparCtxLogger <- Log.mkLogger (samlToLevel $ saml opts ^. SAML.cfgLogLevel) (logNetStrings opts) (logFormat opts)
+  cql :: ClientState <- initCassandra opts sparCtxLogger
+  let brig = endpointToReq tstOpts.brig
+      galley = endpointToReq tstOpts.galley
+      spar = endpointToReq tstOpts.spar
+      sparEnv = Spar.Env {..}
+      wireIdPAPIVersion = WireIdPAPIV2
+      sparCtxOpts = opts
+      sparCtxCas = cql
+      sparCtxHttpManager = mgr
+      sparCtxHttpBrig = brig empty
+      sparCtxHttpGalley = galley empty
       sparCtxRequestId = RequestId "<fake request id>"
-  pure TestEnv {..}
+  pure $
+    TestEnv
+      mgr
+      cql
+      brig
+      galley
+      spar
+      sparEnv
+      opts
+      tstOpts
+      wireIdPAPIVersion
 
 destroyEnv :: HasCallStack => TestEnv -> IO ()
 destroyEnv _ = pure ()
