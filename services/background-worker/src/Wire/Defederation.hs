@@ -7,7 +7,6 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
-import Data.Domain
 import Data.Text (unpack)
 import Data.Text.Encoding
 import Imports
@@ -21,7 +20,6 @@ import System.Logger.Class qualified as Log
 import Util.Options
 import Util.Options qualified as O
 import Wire.API.Federation.BackendNotifications
-import Wire.API.Routes.FederationDomainConfig qualified as Fed
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 
@@ -58,11 +56,6 @@ mkBrigEnv = do
   mkClientEnv
     <$> asks httpManager
     <*> pure (BaseUrl Http (unpack brigHost) (fromIntegral brigPort) "")
-
-getRemoteDomains :: AppT IO [Domain]
-getRemoteDomains = do
-  ref <- asks remoteDomains
-  fmap Fed.domain . Fed.remotes <$> readIORef ref
 
 callGalleyDelete ::
   ( MonadReader Env m,
