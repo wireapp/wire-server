@@ -13,7 +13,6 @@ data Opts = Opts
     federatorInternal :: !Endpoint,
     rabbitmq :: !RabbitMqAdminOpts,
     galley :: !Endpoint,
-    brig :: !Endpoint,
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,
     backendNotificationPusher :: BackendNotificationsConfig

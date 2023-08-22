@@ -31,7 +31,6 @@ library
       aeson
     , amqp
     , async
-    , base
     , bilge
     , bytestring-conversion
     , containers
@@ -56,7 +55,6 @@ library
     , types-common
     , unliftio
     , wai-utilities
-    , wire-api
     , wire-api-federation
 
   default-extensions:

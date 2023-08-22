@@ -4,7 +4,6 @@
 
 module Test.Wire.BackendNotificationPusherSpec where
 
-import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.Trans.Except
 import Data.Aeson qualified as Aeson
@@ -42,7 +41,6 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.BackendNotifications
 import Wire.API.RawJson
-import Wire.API.Routes.FederationDomainConfig
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
@@ -220,8 +218,6 @@ spec = do
           ]
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
-      remoteDomains <- newIORef defFederationDomainConfigs
-      remoteDomainsChan <- newChan
       notificationChannel <- newEmptyMVar
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
@@ -231,7 +227,6 @@ spec = do
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
           galley = Endpoint "localhost" 8085
-          brig = Endpoint "localhost" 8082
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 (Just 0.5)
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
@@ -243,8 +238,6 @@ spec = do
       mockAdmin <- newMockRabbitMqAdmin True ["backend-notifications.foo.example"]
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
-      remoteDomains <- newIORef defFederationDomainConfigs
-      remoteDomainsChan <- newChan
       notificationChannel <- newEmptyMVar
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
@@ -254,7 +247,6 @@ spec = do
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
           galley = Endpoint "localhost" 8085
-          brig = Endpoint "localhost" 8082
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000 (Just 0.5)
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domainsThread <- async $ runAppT Env {..} getRemoteDomains

@@ -7,7 +7,6 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
-import Data.Text (unpack)
 import Data.Text.Encoding
 import Imports
 import Network.AMQP qualified as Q
@@ -15,9 +14,7 @@ import Network.AMQP.Extended
 import Network.AMQP.Lifted qualified as QL
 import Network.HTTP.Client
 import Network.HTTP.Types
-import Servant.Client (BaseUrl (..), ClientEnv, Scheme (Http), mkClientEnv)
 import System.Logger.Class qualified as Log
-import Util.Options
 import Util.Options qualified as O
 import Wire.API.Federation.BackendNotifications
 import Wire.BackgroundWorker.Env
@@ -49,13 +46,6 @@ deleteFederationDomainInner' go (msg, envelope) = do
       Log.err $
         Log.msg (Log.val "Failed to delete federation domain")
           . Log.field "error" err
-
-mkBrigEnv :: AppT IO ClientEnv
-mkBrigEnv = do
-  Endpoint brigHost brigPort <- asks brig
-  mkClientEnv
-    <$> asks httpManager
-    <*> pure (BaseUrl Http (unpack brigHost) (fromIntegral brigPort) "")
 
 callGalleyDelete ::
   ( MonadReader Env m,
