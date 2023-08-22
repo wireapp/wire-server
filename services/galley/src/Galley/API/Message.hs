@@ -654,7 +654,7 @@ sendRemoteMessages domain now sender senderClient lcnv metadata messages = (hand
       rm =
         RemoteMessage
           { time = now,
-            data' = mmData metadata,
+            _data = mmData metadata,
             sender = sender,
             senderClient = senderClient,
             conversation = tUnqualified lcnv,

@@ -25,55 +25,35 @@ where
 import AWS.Util (readAuthExpiration)
 import qualified Amazonka as AWS
 import CargoHold.API.Federation
-  ( FederationAPI,
-    federationSitemap,
-  )
 import CargoHold.API.Public (internalSitemap, servantSitemap)
 import CargoHold.AWS (amazonkaEnv)
-import CargoHold.App
-  ( Env,
-    Handler,
-    appLogger,
-    aws,
-    closeEnv,
-    metrics,
-    newEnv,
-    requestId,
-    runHandler,
-  )
-import CargoHold.Options (Opts, cargohold, disabledAPIVersions, federationDomain, settings)
+import CargoHold.App hiding (settings)
+import CargoHold.Options hiding (aws)
 import Control.Exception (bracket)
 import Control.Lens (set, (^.))
 import Control.Monad.Codensity
-  ( Codensity (Codensity),
-    lowerCodensity,
-  )
-import Data.Default (Default (def))
-import Data.Id (RequestId (RequestId))
+import Data.Default
+import Data.Id
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
-import Data.Metrics.Servant (servantPrometheusMiddleware)
-import Data.Proxy (Proxy (Proxy))
+import Data.Metrics.Servant
+import Data.Proxy
 import Data.Text (unpack)
 import Imports
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gzip as GZip
-import Network.Wai.Utilities.Request (lookupRequestId)
+import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server
-  ( catchErrors,
-    defaultServer,
-    runSettingsWithShutdown,
-  )
 import qualified Network.Wai.Utilities.Server as Server
 import qualified Servant
-import Servant.API (type (:<|>) (..))
-import Servant.Server (Application, Context ((:.)))
+import Servant.API
+import Servant.Server hiding (Handler, runHandler)
 import qualified UnliftIO.Async as Async
-import Util.Options (host, port)
-import Wire.API.Routes.API (hoistServerWithDomain)
-import Wire.API.Routes.Internal.Cargohold (InternalAPI)
-import Wire.API.Routes.Public.Cargohold (ServantAPI)
-import Wire.API.Routes.Version.Wai (versionMiddleware)
+import Util.Options
+import Wire.API.Routes.API
+import Wire.API.Routes.Internal.Cargohold
+import Wire.API.Routes.Public.Cargohold
+import Wire.API.Routes.Version.Wai
 
 type CombinedAPI = FederationAPI :<|> ServantAPI :<|> InternalAPI
 

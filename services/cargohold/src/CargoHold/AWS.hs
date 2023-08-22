@@ -43,51 +43,14 @@ where
 import Amazonka (AWSRequest, AWSResponse)
 import qualified Amazonka as AWS
 import qualified Amazonka.S3 as S3
-import CargoHold.CloudFront (CloudFront, initCloudFront)
-import CargoHold.Options (CloudFrontOpts, domain, keyPairId, privateKey)
+import CargoHold.CloudFront
+import CargoHold.Options hiding (cloudFront, s3Bucket)
 import Conduit
-  ( MonadIO (..),
-    MonadResource,
-    MonadUnliftIO,
-    ResourceT,
-    runResourceT,
-  )
-import Control.Lens (makeLenses, view, (&), (.~), (<&>), (^.))
+import Control.Lens hiding ((.=))
 import Control.Monad.Catch
-  ( Exception,
-    MonadCatch,
-    MonadMask,
-    MonadThrow (..),
-  )
 import Control.Retry
-  ( RetryPolicyM,
-    exponentialBackoff,
-    limitRetries,
-    retrying,
-  )
 import Data.ByteString.Builder (toLazyByteString)
 import Imports
-  ( Applicative (pure),
-    Bool (..),
-    Either (..),
-    Eq ((==)),
-    Functor,
-    IO,
-    Maybe (..),
-    Monad ((>>=)),
-    MonadReader,
-    ReaderT (..),
-    Semigroup ((<>)),
-    Show (show),
-    Text,
-    Typeable,
-    const,
-    either,
-    ($),
-    (.),
-    (<$>),
-    (=<<),
-  )
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
 import qualified System.Logger as Logger
 import System.Logger.Class (Logger, MonadLogger (log), (~~))

@@ -324,7 +324,7 @@ onMessageSent domain rmUnqualified = do
           { mmNativePush = F.push rm,
             mmTransient = F.transient rm,
             mmNativePriority = F.priority rm,
-            mmData = F.data' rm
+            mmData = F._data rm
           }
       recipientMap = userClientMap rm.recipients
       msgs = toMapOf (itraversed <.> itraversed) recipientMap

@@ -859,7 +859,7 @@ onMessageSent = do
       rm =
         FedGalley.RemoteMessage
           { FedGalley.time = now,
-            FedGalley.data' = Nothing,
+            FedGalley._data = Nothing,
             FedGalley.sender = qbob,
             FedGalley.senderClient = fromc,
             FedGalley.conversation = conv,

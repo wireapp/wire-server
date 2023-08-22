@@ -63,48 +63,21 @@ import Brig.User.Search.Index.Types as Types
 import Cassandra.CQL qualified as C
 import Cassandra.Exec qualified as C
 import Cassandra.Util
-import Control.Lens
-  ( Prism',
-    preview,
-    prism',
-    re,
-    review,
-    set,
-    toListOf,
-    view,
-    (^.),
-  )
+import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM, try)
 import Control.Monad.Except
-  ( ExceptT,
-  )
 import Control.Retry (RetryPolicy, exponentialBackoff, limitRetries, recovering)
 import Data.Aeson as Aeson
-  ( KeyValue ((.=)),
-    ToJSON (toEncoding, toJSON),
-    Value (String),
-    encode,
-    fromEncoding,
-    object,
-    pairs,
-  )
-import Data.Aeson.Encoding (pair)
-import Data.Aeson.Lens (AsNumber (_Integer), key, values, _Integral)
+import Data.Aeson.Encoding
+import Data.Aeson.Lens
 import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Conversion qualified as Bytes
 import Data.ByteString.Lazy qualified as BL
 import Data.Handle (Handle)
 import Data.Id
-  ( Id (..),
-    RequestId (unRequestId),
-    ServiceId,
-    TeamId,
-    UserId,
-    idToText,
-  )
 import Data.Map qualified as Map
-import Data.Metrics (Metrics, counterAdd, counterIncr, path)
+import Data.Metrics
 import Data.Text qualified as T
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -114,15 +87,7 @@ import Data.Text.Lens hiding (text)
 import Data.UUID qualified as UUID
 import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
-import Network.HTTP.Client
-  ( Manager,
-    Request (method, requestBody, requestHeaders),
-    RequestBody (RequestBodyLBS),
-    Response (responseBody, responseStatus),
-    httpLbs,
-    parseRequest,
-    withResponse,
-  )
+import Network.HTTP.Client hiding (host, path, port)
 import Network.HTTP.Types (StdMethod (POST), hContentType, statusCode)
 import SAML2.WebSSO.Types qualified as SAML
 import System.Logger qualified as Log
@@ -132,13 +97,6 @@ import Util.Options (Endpoint, host, port)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Feature (SearchVisibilityInboundConfig, featureNameBS)
 import Wire.API.User
-  ( AccountStatus (..),
-    ColourId,
-    Email,
-    ManagedBy,
-    Name,
-    UserSSOId (..),
-  )
 import Wire.API.User qualified as User
 import Wire.API.User.Search (Sso (..))
 

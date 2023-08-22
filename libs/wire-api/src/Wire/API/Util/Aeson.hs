@@ -20,6 +20,7 @@ module Wire.API.Util.Aeson
     customEncodingOptionsDropChar,
     defaultOptsDropChar,
     CustomEncoded (..),
+    CustomEncodedLensable (..),
   )
 where
 
@@ -58,3 +59,14 @@ instance (Generic a, GToJSON Zero (Rep a)) => ToJSON (CustomEncoded a) where
 
 instance (Generic a, GFromJSON Zero (Rep a)) => FromJSON (CustomEncoded a) where
   parseJSON = fmap CustomEncoded . genericParseJSON @a customEncodingOptions
+
+-- Similar to CustomEncoded except that it will first strip off leading '_' characters.
+-- This is important for records with field names that would otherwise be keywords, like type or data
+-- It is also useful if the record has lenses being generated.
+newtype CustomEncodedLensable a = CustomEncodedLensable {unCustomEncodedLensable :: a}
+
+instance (Generic a, GToJSON Zero (Rep a)) => ToJSON (CustomEncodedLensable a) where
+  toJSON = genericToJSON @a (customEncodingOptionsDropChar '_') . unCustomEncodedLensable
+
+instance (Generic a, GFromJSON Zero (Rep a)) => FromJSON (CustomEncodedLensable a) where
+  parseJSON = fmap CustomEncodedLensable . genericParseJSON @a (customEncodingOptionsDropChar '_')

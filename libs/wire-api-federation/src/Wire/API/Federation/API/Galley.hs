@@ -41,7 +41,7 @@ import Wire.API.MakesFederatedCall
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Unreachable
-import Wire.API.Util.Aeson (CustomEncoded (..))
+import Wire.API.Util.Aeson (CustomEncoded (..), CustomEncodedLensable (..))
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
@@ -287,7 +287,7 @@ data RemoveFromConversationError
 -- (e.g. as the argument of the corresponding handler).
 data RemoteMessage conv = RemoteMessage
   { time :: UTCTime,
-    data' :: Maybe Text,
+    _data :: Maybe Text,
     sender :: Qualified UserId,
     senderClient :: ClientId,
     conversation :: conv,
@@ -298,7 +298,7 @@ data RemoteMessage conv = RemoteMessage
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (Arbitrary) via (GenericUniform (RemoteMessage conv))
-  deriving (ToJSON, FromJSON) via (CustomEncoded (RemoteMessage conv))
+  deriving (ToJSON, FromJSON) via (CustomEncodedLensable (RemoteMessage conv))
 
 data RemoteMLSMessage = RemoteMLSMessage
   { time :: UTCTime,
