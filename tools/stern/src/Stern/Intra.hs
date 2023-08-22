@@ -749,25 +749,27 @@ getUserCookies uid = do
         )
   parseResponse (mkError status502 "bad-upstream") r
 
-getUserConversations :: UserId -> Handler [Conversation]
-getUserConversations uid = do
+getUserConversations :: UserId -> Int -> Handler [Conversation]
+getUserConversations uid maxConvs = do
   info $ msg "Getting user conversations"
-  fetchAll [] Nothing
+  fetchAll [] Nothing maxConvs
   where
-    fetchAll xs start = do
-      userConversationList <- fetchBatch start
+    fetchAll :: [Conversation] -> Maybe ConvId -> Int -> Handler [Conversation]
+    fetchAll xs start remaining = do
+      userConversationList <- fetchBatch start (min 100 remaining)
       let batch = convList userConversationList
-      if (not . null) batch && convHasMore userConversationList
-        then fetchAll (batch ++ xs) (Just . qUnqualified . cnvQualifiedId $ last batch)
+          remaining' = remaining - length batch
+      if (not . null) batch && convHasMore userConversationList && remaining' > 0
+        then fetchAll (batch ++ xs) (Just . qUnqualified . cnvQualifiedId $ last batch) remaining'
         else pure (batch ++ xs)
-    fetchBatch :: Maybe ConvId -> Handler (ConversationList Conversation)
-    fetchBatch start = do
-      b <- view galley
+    fetchBatch :: Maybe ConvId -> Int -> Handler (ConversationList Conversation)
+    fetchBatch start batchSize = do
+      baseReq <- view galley
       r <-
         catchRpcErrors $
           rpc'
             "galley"
-            b
+            baseReq
             ( method GET
                 . header "Z-User" (toByteString' uid)
                 . versionedPath "conversations"
@@ -776,7 +778,6 @@ getUserConversations uid = do
                 . expect2xx
             )
       unVersioned @'V2 <$> parseResponse (mkError status502 "bad-upstream") r
-    batchSize = 100 :: Int
 
 getUserClients :: UserId -> Handler [Client]
 getUserClients uid = do

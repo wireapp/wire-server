@@ -402,7 +402,7 @@ getUserData :: UserId -> Maybe Int -> Maybe Int -> Handler UserMetaInfo
 getUserData uid mMaxConvs mMaxNotifs = do
   account <- Intra.getUserProfiles (Left [uid]) >>= noSuchUser . listToMaybe
   conns <- Intra.getUserConnections uid
-  convs <- Intra.getUserConversations uid <&> take (fromMaybe 1 mMaxConvs)
+  convs <- Intra.getUserConversations uid (fromMaybe 1 mMaxConvs)
   clts <- Intra.getUserClients uid
   notfs <- (Intra.getUserNotifications uid (fromMaybe 10 mMaxNotifs) <&> toJSON @[QueuedNotification]) `catchE` (pure . String . cs . show)
   consent <- (Intra.getUserConsentValue uid <&> toJSON @ConsentValue) `catchE` (pure . String . cs . show)
