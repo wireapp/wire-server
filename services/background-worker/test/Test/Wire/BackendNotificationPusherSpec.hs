@@ -232,7 +232,7 @@ spec = do
           defederationTimeout = responseTimeoutNone
           galley = Endpoint "localhost" 8085
           brig = Endpoint "localhost" 8082
-          backendNotificationsConfig = BackendNotificationsConfig 1000 500000
+          backendNotificationsConfig = BackendNotificationsConfig 1000 500000 (Just 0.5)
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domains <- runAppT Env {..} getRemoteDomains
@@ -255,7 +255,7 @@ spec = do
           defederationTimeout = responseTimeoutNone
           galley = Endpoint "localhost" 8085
           brig = Endpoint "localhost" 8082
-          backendNotificationsConfig = BackendNotificationsConfig 1000 500000
+          backendNotificationsConfig = BackendNotificationsConfig 1000 500000 (Just 0.5)
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domainsThread <- async $ runAppT Env {..} getRemoteDomains
 

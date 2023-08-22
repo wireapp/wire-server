@@ -31,7 +31,9 @@ data BackendNotificationsConfig = BackendNotificationsConfig
     -- | Upper limit on amount of time (in microseconds) to wait before retrying
     -- any notification. This exists to ensure that exponential back-off doesn't
     -- cause wait times to be very big.
-    pushBackoffMaxWait :: Int
+    pushBackoffMaxWait :: Int,
+    -- | Number of seconds between two calls to `getRemoteDomains`.
+    remotesRefreshInterval :: Maybe Double
   }
   deriving (Show, Generic)
 

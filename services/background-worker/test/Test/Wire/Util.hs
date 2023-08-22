@@ -30,7 +30,7 @@ testEnv = do
       galley = Endpoint "localhost" 8085
       brig = Endpoint "localhost" 8082
       defederationTimeout = responseTimeoutNone
-      backendNotificationsConfig = BackendNotificationsConfig 1000 500000
+      backendNotificationsConfig = BackendNotificationsConfig 1000 500000 (Just 0.5)
   pure Env {..}
 
 runTestAppT :: AppT IO a -> Int -> IO a

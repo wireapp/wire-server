@@ -21,7 +21,6 @@ import System.Logger.Class qualified as Log
 import UnliftIO
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
-import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
@@ -133,11 +132,10 @@ startPusher consumersRef chan = do
     ]
     $ do
       consumers <- newIORef mempty
-      BackendNotificationPusherOpts {..} <- asks (.backendNotificationPusher)
       forever $ do
         remoteDomains <- getRemoteDomains
         ensureConsumers consumers chan remoteDomains
-        threadDelay (1_000_000 * remotesRefreshInterval)
+        threadDelay (round $ 1_000_000 * fromMaybe 60 env.backendNotificationsConfig.remotesRefreshInterval)
 
 ensureConsumers :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> [Domain] -> AppT IO ()
 ensureConsumers consumers chan domains = do
