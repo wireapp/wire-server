@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Test.Conversation where
 
@@ -410,19 +411,35 @@ testAddUnreachable = do
 testAddingUserNonFullyConnectedFederation :: HasCallStack => App ()
 testAddingUserNonFullyConnectedFederation = do
   let overrides =
-        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
-          <> fullSearchWithAll
-  startDynamicBackends [overrides] $ \domains -> do
-    own <- make OwnDomain & asString
-    other <- make OtherDomain & asString
-    [alice, alex, bob, charlie] <-
-      createAndConnectUsers $ [own, own, other] <> domains
+        def
+          { dbBrig =
+              setField "optSettings.setFederationStrategy" "allowDynamic"
+                >=> removeField "optSettings.setFederationDomainConfigs"
+          }
+  startDynamicBackends [overrides] $ \[dynBackend] -> do
+    own <- asString OwnDomain
+    other <- asString OtherDomain
 
-    let newConv = defProteus {qualifiedUsers = [alex]}
+    -- Ensure that dynamic backend only federates with own domain, but not other
+    -- domain.
+    --
+    -- FUTUREWORK: deleteAllFedConns at the time of acquiring a backend, so
+    -- tests don't affect each other.
+    deleteAllFedConns dynBackend
+    void $ createFedConn dynBackend (FedConn own "full_search")
+
+    alice <- randomUser own def
+    bob <- randomUser other def
+    charlie <- randomUser dynBackend def
+    -- We use retryT here so the dynamic federated connection changes can take
+    -- some time to be propagated. Remove after fixing https://wearezeta.atlassian.net/browse/WPB-3797
+    mapM_ (retryT . connectUsers alice) [bob, charlie]
+
+    let newConv = defProteus {qualifiedUsers = []}
     conv <- postConversation alice newConv >>= getJSON 201
 
     bobId <- bob %. "qualified_id"
     charlieId <- charlie %. "qualified_id"
-    bindResponse (addMembers alex conv [bobId, charlieId]) $ \resp -> do
+    bindResponse (addMembers alice conv [bobId, charlieId]) $ \resp -> do
       resp.status `shouldMatchInt` 409
-      resp.json %. "non_federating_backends" `shouldMatchSet` (other : domains)
+      resp.json %. "non_federating_backends" `shouldMatchSet` [other, dynBackend]
