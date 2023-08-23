@@ -69,8 +69,8 @@ testNotificationsForOfflineBackends = do
     bindResponse (postConversation delUser (defProteus {qualifiedUsers = [otherUser, downUser1]})) $ \resp ->
       resp.status `shouldMatchInt` 533
 
-    -- Adding users to an up backend conversation should work not work when one
-    -- of the participating backends is down. This is due to not being able to
+    -- Adding users to an up backend conversation should not work when one of
+    -- the participating backends is down. This is due to not being able to
     -- check non-fully connected graph between all participating backends
     otherUser3 <- randomUser OtherDomain def
     connectUsers delUser otherUser3
