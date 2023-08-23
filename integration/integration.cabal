@@ -119,6 +119,7 @@ library
     Testlib.JSON
     Testlib.ModService
     Testlib.Options
+    Testlib.Ports
     Testlib.Prekeys
     Testlib.Prelude
     Testlib.Printing
@@ -126,6 +127,7 @@ library
     Testlib.ResourcePool
     Testlib.Run
     Testlib.RunServices
+    Testlib.Service
     Testlib.Types
 
   build-depends:

@@ -12,6 +12,7 @@ import System.Exit (exitWith)
 import System.FilePath
 import System.Posix (getWorkingDirectory)
 import System.Process
+import Testlib.Ports qualified as Ports
 import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.Run (createGlobalEnv)
@@ -19,13 +20,14 @@ import Testlib.Run (createGlobalEnv)
 backendA :: BackendResource
 backendA =
   BackendResource
-    { berBrigKeyspace = "brig_test",
+    { berName = BackendA,
+      berBrigKeyspace = "brig_test",
       berGalleyKeyspace = "galley_test",
       berSparKeyspace = "spar_test",
       berGundeckKeyspace = "gundeck_test",
       berElasticsearchIndex = "directory_test",
-      berFederatorInternal = 8097,
-      berFederatorExternal = 8098,
+      berFederatorInternal = Ports.port (Ports.ServiceInternal FederatorInternal) BackendA,
+      berFederatorExternal = Ports.port Ports.FederatorExternal BackendA,
       berDomain = "example.com",
       berAwsUserJournalQueue = "integration-user-events.fifo",
       berAwsPrekeyTable = "integration-brig-prekeys",
@@ -36,7 +38,8 @@ backendA =
       berEmailSMSEmailSender = "backend-integration@wire.com",
       berGalleyJournal = "integration-team-events.fifo",
       berVHost = "backendA",
-      berNginzSslPort = 8443
+      berNginzSslPort = Ports.port Ports.NginzSSL BackendA,
+      berInternalServicePorts = Ports.internalServicePorts BackendA
     }
 
 staticPortsA :: Map.Map Service Word16
@@ -56,13 +59,14 @@ staticPortsA =
 backendB :: BackendResource
 backendB =
   BackendResource
-    { berBrigKeyspace = "brig_test2",
+    { berName = BackendB,
+      berBrigKeyspace = "brig_test2",
       berGalleyKeyspace = "galley_test2",
       berSparKeyspace = "spar_test2",
       berGundeckKeyspace = "gundeck_test2",
       berElasticsearchIndex = "directory2_test",
-      berFederatorInternal = 9097,
-      berFederatorExternal = 9098,
+      berFederatorInternal = Ports.port (Ports.ServiceInternal FederatorInternal) BackendB,
+      berFederatorExternal = Ports.port Ports.FederatorExternal BackendB,
       berDomain = "b.example.com",
       berAwsUserJournalQueue = "integration-user-events.fifo2",
       berAwsPrekeyTable = "integration-brig-prekeys2",
@@ -76,7 +80,8 @@ backendB =
       -- in case we want backendA and backendB to federate with a third backend
       -- (because otherwise both queues will overlap)
       berVHost = "backendB",
-      berNginzSslPort = 9443
+      berNginzSslPort = Ports.port Ports.NginzSSL BackendB,
+      berInternalServicePorts = Ports.internalServicePorts BackendB
     }
 
 staticPortsB :: Map.Map Service Word16

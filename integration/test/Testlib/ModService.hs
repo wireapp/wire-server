@@ -52,6 +52,7 @@ import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Printing
 import Testlib.ResourcePool
+import Testlib.Service
 import Testlib.Types
 import Text.RawString.QQ
 import Prelude

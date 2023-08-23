@@ -23,6 +23,8 @@ import Data.Word
 import GHC.Generics
 import GHC.Stack (HasCallStack)
 import System.IO
+import Testlib.Ports qualified as Ports
+import Testlib.Service
 import Prelude
 
 data ResourcePool a = ResourcePool
@@ -52,7 +54,8 @@ createBackendResourcePool dynConfs =
         <*> newIORef resources
 
 data BackendResource = BackendResource
-  { berBrigKeyspace :: String,
+  { berName :: BackendName,
+    berBrigKeyspace :: String,
     berGalleyKeyspace :: String,
     berSparKeyspace :: String,
     berGundeckKeyspace :: String,
@@ -69,9 +72,15 @@ data BackendResource = BackendResource
     berEmailSMSEmailSender :: String,
     berGalleyJournal :: String,
     berVHost :: String,
-    berNginzSslPort :: Word16
+    berNginzSslPort :: Word16,
+    berInternalServicePorts :: forall a. Num a => Service -> a
   }
-  deriving (Show, Eq, Ord)
+
+instance Eq BackendResource where
+  a == b = a.berName == b.berName
+
+instance Ord BackendResource where
+  a `compare` b = a.berName `compare` b.berName
 
 data DynamicBackendConfig = DynamicBackendConfig
   { domain :: String,
@@ -85,35 +94,31 @@ backendResources :: [DynamicBackendConfig] -> Set.Set BackendResource
 backendResources dynConfs =
   (zip dynConfs [1 ..])
     <&> ( \(dynConf, i) ->
-            BackendResource
-              { berBrigKeyspace = "brig_test_dyn_" <> show i,
-                berGalleyKeyspace = "galley_test_dyn_" <> show i,
-                berSparKeyspace = "spar_test_dyn_" <> show i,
-                berGundeckKeyspace = "gundeck_test_dyn_" <> show i,
-                berElasticsearchIndex = "directory_dyn_" <> show i <> "_test",
-                berFederatorInternal = federatorInternalPort i,
-                berFederatorExternal = dynConf.federatorExternalPort,
-                berDomain = dynConf.domain,
-                berAwsUserJournalQueue = "integration-user-events.fifo" <> suffix i,
-                berAwsPrekeyTable = "integration-brig-prekeys" <> suffix i,
-                berAwsS3Bucket = "dummy-bucket" <> suffix i,
-                berAwsQueueName = "integration-gundeck-events" <> suffix i,
-                berBrigInternalEvents = "integration-brig-events-internal" <> suffix i,
-                berEmailSMSSesQueue = "integration-brig-events" <> suffix i,
-                berEmailSMSEmailSender = "backend-integration" <> suffix i <> "@wire.com",
-                berGalleyJournal = "integration-team-events.fifo" <> suffix i,
-                berVHost = dynConf.domain,
-                berNginzSslPort = mkNginzSslPort i
-              }
+            let name = DynamicBackend i
+             in BackendResource
+                  { berName = name,
+                    berBrigKeyspace = "brig_test_dyn_" <> show i,
+                    berGalleyKeyspace = "galley_test_dyn_" <> show i,
+                    berSparKeyspace = "spar_test_dyn_" <> show i,
+                    berGundeckKeyspace = "gundeck_test_dyn_" <> show i,
+                    berElasticsearchIndex = "directory_dyn_" <> show i <> "_test",
+                    berFederatorInternal = Ports.portForDyn (Ports.ServiceInternal FederatorInternal) i,
+                    berFederatorExternal = dynConf.federatorExternalPort,
+                    berDomain = dynConf.domain,
+                    berAwsUserJournalQueue = "integration-user-events.fifo" <> suffix i,
+                    berAwsPrekeyTable = "integration-brig-prekeys" <> suffix i,
+                    berAwsS3Bucket = "dummy-bucket" <> suffix i,
+                    berAwsQueueName = "integration-gundeck-events" <> suffix i,
+                    berBrigInternalEvents = "integration-brig-events-internal" <> suffix i,
+                    berEmailSMSSesQueue = "integration-brig-events" <> suffix i,
+                    berEmailSMSEmailSender = "backend-integration" <> suffix i <> "@wire.com",
+                    berGalleyJournal = "integration-team-events.fifo" <> suffix i,
+                    berVHost = dynConf.domain,
+                    berNginzSslPort = Ports.portForDyn Ports.NginzSSL i,
+                    berInternalServicePorts = Ports.internalServicePorts name
+                  }
         )
     & Set.fromList
   where
-    suffix :: Word16 -> String
+    suffix :: (Show a, Num a) => a -> String
     suffix i = show $ i + 2
-
-    mkNginzSslPort :: Word16 -> Word16
-    mkNginzSslPort i = 8443 + ((1 + i) * 1000)
-
-    -- Fixed internal port for federator, e.g. for dynamic backends: 1 -> 10097, 2 -> 11097, etc.
-    federatorInternalPort :: Num a => a -> a
-    federatorInternalPort i = 8097 + ((1 + i) * 1000)

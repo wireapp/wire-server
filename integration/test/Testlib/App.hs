@@ -12,6 +12,7 @@ import GHC.Stack (HasCallStack)
 import System.FilePath
 import Testlib.Env
 import Testlib.JSON
+import Testlib.Service
 import Testlib.Types
 import Prelude
 
