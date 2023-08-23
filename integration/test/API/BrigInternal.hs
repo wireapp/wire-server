@@ -110,6 +110,14 @@ deleteFedConn' owndom dom = do
   req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes/" <> dom)
   submit "DELETE" req
 
+deleteAllFedConns :: (HasCallStack, MakesValue dom) => dom -> App ()
+deleteAllFedConns dom = do
+  readFedConns dom >>= \resp ->
+    resp.json %. "remotes"
+      & asList
+      >>= traverse (\v -> v %. "domain" & asString)
+      >>= mapM_ (deleteFedConn dom)
+
 registerOAuthClient :: (HasCallStack, MakesValue user, MakesValue name, MakesValue url) => user -> name -> url -> App Response
 registerOAuthClient user name url = do
   req <- baseRequest user Brig Unversioned "i/oauth/clients"
