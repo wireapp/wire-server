@@ -195,7 +195,6 @@ test-suite spec
     , imports
     , QuickCheck           >=2.13
     , singletons
-    , time
     , types-common
     , uuid
     , wire-api

@@ -199,7 +199,7 @@ createBindingTeam = do
 createBindingTeam' :: HasCallStack => TestM (User, TeamId)
 createBindingTeam' = do
   owner <- randomTeamCreator'
-  teams <- getTeams (userId owner) []
+  teams <- getTeams owner.userId []
   team <- assertOne $ view teamListTeams teams
   let tid = view teamId team
   SQS.assertTeamActivate "create team" tid

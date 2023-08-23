@@ -433,7 +433,7 @@ testAddingUserNonFullyConnectedFederation = do
     charlie <- randomUser dynBackend def
     -- We use retryT here so the dynamic federated connection changes can take
     -- some time to be propagated. Remove after fixing https://wearezeta.atlassian.net/browse/WPB-3797
-    mapM_ (retryT . connectUsers alice) [bob, charlie]
+    mapM_ (retryT . connectUsers2 alice) [bob, charlie]
 
     let newConv = defProteus {qualifiedUsers = []}
     conv <- postConversation alice newConv >>= getJSON 201

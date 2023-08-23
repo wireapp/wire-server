@@ -69,15 +69,15 @@ localMLSOne2OneConversationAsRemote ::
 localMLSOne2OneConversationAsRemote lcnv =
   let members =
         RemoteConvMembers
-          { rcmSelfRole = roleNameWireMember,
-            rcmOthers = []
+          { selfRole = roleNameWireMember,
+            others = []
           }
       (metadata, mlsData) = localMLSOne2OneConversationMetadata (tUntagged lcnv)
    in RemoteConversation
-        { rcnvId = tUnqualified lcnv,
-          rcnvMetadata = metadata,
-          rcnvMembers = members,
-          rcnvProtocol = ProtocolMLS mlsData
+        { id = tUnqualified lcnv,
+          metadata = metadata,
+          members = members,
+          protocol = ProtocolMLS mlsData
         }
 
 localMLSOne2OneConversationMetadata ::
@@ -112,10 +112,10 @@ remoteMLSOne2OneConversation lself rother rc =
             cmOthers = []
           }
    in Conversation
-        { cnvQualifiedId = tUntagged (qualifyAs rother (rcnvId rc)),
-          cnvMetadata = rcnvMetadata rc,
+        { cnvQualifiedId = tUntagged (qualifyAs rother rc.id),
+          cnvMetadata = rc.metadata,
           cnvMembers = members,
-          cnvProtocol = rcnvProtocol rc
+          cnvProtocol = rc.protocol
         }
 
 -- | Create a new record for an MLS 1-1 conversation in the database and add

@@ -34,9 +34,9 @@ testNotificationsForOfflineBackends = do
       downUser1 <- randomUser downBackend.berDomain def
       downUser2 <- randomUser downBackend.berDomain def
       downClient1 <- objId $ bindResponse (API.addClient downUser1 def) $ getJSON 201
-      connectUsers delUser downUser1
-      connectUsers delUser downUser2
-      connectUsers otherUser downUser1
+      connectUsers2 delUser downUser1
+      connectUsers2 delUser downUser2
+      connectUsers2 otherUser downUser1
       upBackendConv <- bindResponse (postConversation delUser (defProteus {qualifiedUsers = [otherUser, otherUser2, downUser1]})) $ getJSON 201
       downBackendConv <- bindResponse (postConversation downUser1 (defProteus {qualifiedUsers = [otherUser, delUser]})) $ getJSON 201
       pure (downUser1, downClient1, downUser2, upBackendConv, downBackendConv)
@@ -73,7 +73,7 @@ testNotificationsForOfflineBackends = do
     -- the participating backends is down. This is due to not being able to
     -- check non-fully connected graph between all participating backends
     otherUser3 <- randomUser OtherDomain def
-    connectUsers delUser otherUser3
+    connectUsers2 delUser otherUser3
     bindResponse (addMembers delUser upBackendConv [otherUser3]) $ \resp ->
       resp.status `shouldMatchInt` 533
 

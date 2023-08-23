@@ -4,6 +4,7 @@ module Testlib.Assertions where
 
 import Control.Exception as E
 import Control.Monad.Reader
+import Data.Aeson (Value)
 import Data.ByteString.Base64 qualified as B64
 import Data.Char
 import Data.Foldable

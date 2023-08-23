@@ -150,8 +150,8 @@ getRemoteMLSClients rusr ss = do
   runFederatedEither rusr $
     fedClient @'Brig @"get-mls-clients" $
       MLSClientsRequest
-        { mcrUserId = tUnqualified rusr,
-          mcrSignatureScheme = ss
+        { userId = tUnqualified rusr,
+          signatureScheme = ss
         }
 
 --------------------------------------------------------------------------------

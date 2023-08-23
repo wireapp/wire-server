@@ -126,7 +126,7 @@ localPostCommitBundle ::
   ByteString ->
   m ResponseLBS
 localPostCommitBundle sender bundle = do
-  galley <- viewGalley
+  galleyCall <- viewGalley
   post
     ( galleyCall
         . paths ["mls", "commit-bundles"]
@@ -149,10 +149,10 @@ remotePostCommitBundle rsender qcs bundle = do
   client <- view tsFedGalleyClient
   let msr =
         MLSMessageSendRequest
-          { mmsrConvOrSubId = qUnqualified qcs,
-            mmsrSender = ciUser (tUnqualified rsender),
-            mmsrSenderClient = ciClient (tUnqualified rsender),
-            mmsrRawMessage = Base64ByteString bundle
+          { convOrSubId = qUnqualified qcs,
+            sender = ciUser (tUnqualified rsender),
+            senderClient = ciClient (tUnqualified rsender),
+            rawMessage = Base64ByteString bundle
           }
   runFedClient
     @"send-mls-commit-bundle"
@@ -306,7 +306,7 @@ mlscli qcid args mbstdin = do
         gs <- getClientGroupState qcid
         fn <- toRandomFile gs
         pure (argSubst "<group-in>" fn)
-      else pure id
+      else pure Imports.id
 
   out <-
     liftIO $
@@ -1010,11 +1010,11 @@ localGetGroupInfo ::
   Qualified ConvOrSubConvId ->
   m ResponseLBS
 localGetGroupInfo sender qcs = do
-  galley <- viewGalley
+  galleyCall <- viewGalley
   case qUnqualified qcs of
     Conv cnv ->
       get
-        ( galley
+        ( galleyCall
             . paths
               [ "conversations",
                 toByteString' (qDomain qcs),
@@ -1026,7 +1026,7 @@ localGetGroupInfo sender qcs = do
         )
     SubConv cnv sub ->
       get
-        ( galley
+        ( galleyCall
             . paths
               [ "conversations",
                 toByteString' (qDomain qcs),
@@ -1051,8 +1051,8 @@ remoteGetGroupInfo rusr qcs = do
       client
       (tDomain rusr)
       GetGroupInfoRequest
-        { ggireqConv = qUnqualified qcs,
-          ggireqSender = tUnqualified rusr
+        { conv = qUnqualified qcs,
+          sender = tUnqualified rusr
         }
   pure pgs
 
@@ -1071,7 +1071,7 @@ getSelfConv u = do
 withMLSDisabled :: HasSettingsOverrides m => m a -> m a
 withMLSDisabled = withSettingsOverrides noMLS
   where
-    noMLS = Opts.optSettings . Opts.setMlsPrivateKeyPaths .~ Nothing
+    noMLS = Opts.settings . Opts.mlsPrivateKeyPaths .~ Nothing
 
 getSubConv ::
   UserId ->

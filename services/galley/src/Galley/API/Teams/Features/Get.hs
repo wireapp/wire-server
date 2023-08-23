@@ -488,7 +488,7 @@ instance GetFeatureConfig MlsE2EIdConfig where
 
 instance GetFeatureConfig MlsMigrationConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagMlsMigration . unDefaults)
+    input <&> view (settings . featureFlags . flagMlsMigration . unDefaults)
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --
