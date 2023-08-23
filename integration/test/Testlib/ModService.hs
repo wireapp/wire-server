@@ -37,11 +37,9 @@ import Data.Word (Word16)
 import Data.Yaml qualified as Yaml
 import GHC.Stack
 import Network.HTTP.Client qualified as HTTP
-import Network.Socket qualified as N
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
 import System.FilePath
 import System.IO
-import System.IO.Error qualified as Error
 import System.IO.Temp (createTempDirectory, writeTempFile)
 import System.Posix (killProcess, signalProcess)
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, getPid, proc, terminateProcess, waitForProcess)
@@ -146,13 +144,13 @@ startDynamicBackends beOverrides k =
         when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
         pool <- asks (.resourcePool)
         resources <- acquireResources (Prelude.length beOverrides) pool
-        void $ traverseConcurrentlyCodensity (\(res, overrides) -> startDynamicBackend res mempty overrides) (zip resources beOverrides)
+        void $ traverseConcurrentlyCodensity (uncurry startDynamicBackend) (zip resources beOverrides)
         pure $ map (.berDomain) resources
     )
     k
 
-startDynamicBackend :: HasCallStack => BackendResource -> Map.Map Service Word16 -> ServiceOverrides -> Codensity App (Env -> Env)
-startDynamicBackend resource staticPorts beOverrides = do
+startDynamicBackend :: HasCallStack => BackendResource -> ServiceOverrides -> Codensity App (Env -> Env)
+startDynamicBackend resource beOverrides = do
   defDomain <- asks (.domain1)
   let services =
         withOverrides beOverrides $
@@ -167,9 +165,7 @@ startDynamicBackend resource staticPorts beOverrides = do
             )
             defaultServiceOverridesToMap
   startBackend
-    resource.berDomain
-    staticPorts
-    (Just resource.berNginzSslPort)
+    resource
     (Just setFederatorConfig)
     services
     ( \ports sm -> do
@@ -254,10 +250,19 @@ setFederatorPorts resource sm =
 
 withModifiedServices :: Map.Map Service (Value -> App Value) -> Codensity App String
 withModifiedServices services = do
-  domain <- lift $ asks (.domain1)
+  pool <- asks (.resourcePool)
+  [resource] <- acquireResources 1 pool
+  defDomain <- asks (.domain1)
   void $
-    startBackend domain mempty Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain)
-  pure domain
+    startBackend
+      resource
+      Nothing
+      services
+      ( \ports sm -> do
+          let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
+           in Map.insert resource.berDomain (setFederatorPorts resource $ updateServiceMap ports templateBackend) sm
+      )
+  pure (resource.berDomain)
 
 updateServiceMap :: Map.Map Service Word16 -> ServiceMap -> ServiceMap
 updateServiceMap ports serviceMap =
@@ -280,33 +285,18 @@ updateServiceMap ports serviceMap =
 
 startBackend ::
   HasCallStack =>
-  String ->
-  Map.Map Service Word16 ->
-  Maybe Word16 ->
+  BackendResource ->
   Maybe (Value -> App Value) ->
   Map.Map Service (Value -> App Value) ->
   (Map.Map Service Word16 -> Map.Map String ServiceMap -> Map.Map String ServiceMap) ->
   Codensity App (Env -> Env)
-startBackend domain staticPorts nginzSslPort mFederatorOverrides services modifyBackends = do
-  -- We already close sockets before starting any services that want to bind to
-  -- it, because if done later some services might already connect to the
-  -- dummy sockets (e.g. federator connecting to nginz) and blocking the ports
-  -- from being bindable
-  ports <-
-    Map.traverseWithKey
-      ( \srv _ ->
-          case Map.lookup srv staticPorts of
-            Just port -> pure port
-            Nothing -> do
-              (port, sock) <- liftIO openFreePort
-              liftIO $ N.close sock
-              pure (fromIntegral port)
-      )
-      services
-  nginzHttp2Port <- liftIO $ do
-    (port, sock) <- openFreePort
-    N.close sock
-    pure (fromIntegral port)
+startBackend resource mFederatorOverrides services modifyBackends = do
+  let domain = resource.berDomain
+      staticPorts :: Map.Map Service Word16 = Map.fromList [(srv, berInternalServicePorts resource srv) | srv <- Map.keys services]
+      nginzSslPort :: Maybe Word16 = (Just resource.berNginzSslPort)
+      nginzHttp2Port :: Word16 = resource.berNginzSslPort
+
+  liftIO $ print staticPorts
 
   let updateServiceMapInConfig :: Maybe Service -> Value -> App Value
       updateServiceMapInConfig forSrv config =
@@ -332,7 +322,7 @@ startBackend domain staticPorts nginzSslPort mFederatorOverrides services modify
                 _ -> pure overridden
           )
           config
-          (Map.assocs ports)
+          (Map.assocs staticPorts)
 
   -- close all sockets before starting the services
   stopInstances <- lift $ do
@@ -349,8 +339,8 @@ startBackend domain staticPorts nginzSslPort mFederatorOverrides services modify
     otherInstances <- for (Map.assocs $ Map.filterWithKey (\s _ -> s /= FederatorInternal) services) $ \case
       (Nginz, _) -> do
         env <- ask
-        sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (modifyBackends (fromIntegral <$> ports) env.serviceMap))
-        port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral) (Map.lookup Nginz ports)
+        sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (modifyBackends (fromIntegral <$> staticPorts) env.serviceMap))
+        port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral) (Map.lookup Nginz staticPorts)
         case env.servicesCwdBase of
           Nothing -> startNginzK8s domain sm
           Just _ -> startNginzLocal domain port nginzHttp2Port nginzSslPort sm
@@ -382,13 +372,13 @@ startBackend domain staticPorts nginzSslPort mFederatorOverrides services modify
     pure stopInstances
 
   let modifyEnv env =
-        env {serviceMap = modifyBackends (fromIntegral <$> ports) env.serviceMap}
+        env {serviceMap = modifyBackends (fromIntegral <$> staticPorts) env.serviceMap}
 
   Codensity $ \action -> local modifyEnv $ do
     waitForService <- appToIOKleisli (waitUntilServiceUp domain)
     ioAction <- appToIO (action ())
     liftIO $
-      (mapConcurrently_ waitForService (Map.keys ports) >> ioAction)
+      (mapConcurrently_ waitForService (Map.keys staticPorts) >> ioAction)
         `finally` stopInstances
 
   pure modifyEnv
@@ -455,29 +445,6 @@ waitUntilServiceUp domain = \case
         )
     unless isUp $
       failApp ("Time out for service " <> show srv <> " to come up")
-
--- | Open a TCP socket on a random free port. This is like 'warp''s
---   openFreePort.
---
---   Since 0.0.0.1
-openFreePort :: IO (Int, N.Socket)
-openFreePort =
-  E.bracketOnError (N.socket N.AF_INET N.Stream N.defaultProtocol) N.close $
-    \sock -> do
-      N.bind sock $ N.SockAddrInet 0 $ N.tupleToHostAddress (127, 0, 0, 1)
-      N.getSocketName sock >>= \case
-        N.SockAddrInet port _ -> do
-          pure (fromIntegral port, sock)
-        addr ->
-          E.throwIO $
-            Error.mkIOError
-              Error.userErrorType
-              ( "openFreePort was unable to create socket with a SockAddrInet. "
-                  <> "Got "
-                  <> show addr
-              )
-              Nothing
-              Nothing
 
 startNginzK8s :: String -> ServiceMap -> App (ProcessHandle, FilePath)
 startNginzK8s domain sm = do
@@ -550,7 +517,6 @@ startNginzLocal domain localPort http2Port mSslPort sm = do
   -- override port configuration
   let portConfigTemplate =
         [r|listen {localPort};
-listen {http2_port} http2;
 listen {ssl_port} ssl http2;
 listen [::]:{ssl_port} ssl http2;
 |]

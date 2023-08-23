@@ -37,8 +37,8 @@ testModifiedBrig = do
   withModifiedService
     Brig
     (setField "optSettings.setFederationDomain" "overridden.example.com")
-    $ \_domain -> do
-      bindResponse (Public.getAPIVersion OwnDomain)
+    $ \domain -> do
+      bindResponse (Public.getAPIVersion domain)
       $ \resp -> do
         resp.status `shouldMatchInt` 200
         (resp.json %. "domain") `shouldMatch` "overridden.example.com"

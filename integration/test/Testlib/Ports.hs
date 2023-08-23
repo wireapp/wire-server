@@ -5,11 +5,13 @@ import Prelude
 
 data PortNamespace
   = NginzSSL
+  | NginzHttp2
   | FederatorExternal
   | ServiceInternal Service.Service
 
 port :: Num a => PortNamespace -> Service.BackendName -> a
 port NginzSSL bn = mkPort 8443 bn
+port NginzHttp2 bn = mkPort 8099 bn
 port FederatorExternal bn = mkPort 8098 bn
 port (ServiceInternal Service.BackgroundWorker) bn = mkPort 8089 bn
 port (ServiceInternal Service.Brig) bn = mkPort 8082 bn
