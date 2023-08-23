@@ -636,7 +636,7 @@ data NewConv = NewConv
     -- | A list of qualified users, which can include some local qualified users
     -- too.
     newConvQualifiedUsers :: [Qualified UserId],
-    newConvName :: Maybe (Range 1 256 Text),
+    newConvName :: Range 1 256 Text,
     newConvAccess :: Set Access,
     newConvAccessRoles :: Maybe (Set AccessRole),
     newConvTeam :: Maybe ConvTeamInfo,
@@ -794,7 +794,7 @@ newInvite us = Invite us roleNameWireAdmin
 -- update
 
 newtype ConversationRename = ConversationRename
-  { cupName :: Text
+  { cupName :: Range 1 256 Text
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
