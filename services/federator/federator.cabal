@@ -135,6 +135,7 @@ library
     , polysemy
     , polysemy-wire-zoo
     , servant
+    , servant-client
     , servant-client-core
     , servant-server
     , text

@@ -33,7 +33,6 @@ import OpenSSL.Session (SSLContext)
 import System.Logger.Class qualified as LC
 import Util.Options
 import Wire.API.Federation.Component
-import Wire.API.Routes.FederationDomainConfig (FederationDomainConfigs)
 
 data Env = Env
   { _metrics :: Metrics,
@@ -41,7 +40,6 @@ data Env = Env
     _requestId :: RequestId,
     _dnsResolver :: Resolver,
     _runSettings :: RunSettings,
-    _domainConfigs :: IORef FederationDomainConfigs,
     _service :: Component -> Endpoint,
     _externalPort :: Word16,
     _internalPort :: Word16,
