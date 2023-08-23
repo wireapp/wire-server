@@ -189,16 +189,12 @@ data VersionAPITag
 
 $(genSingletons [''Version])
 
-$( promote
-     [d|
-       isDevelopmentVersion :: Version -> Bool
-       isDevelopmentVersion V0 = False
-       isDevelopmentVersion V1 = False
-       isDevelopmentVersion V2 = False
-       isDevelopmentVersion V3 = False
-       isDevelopmentVersion _ = True
-       |]
- )
+isDevelopmentVersion :: Version -> Bool
+isDevelopmentVersion V0 = False
+isDevelopmentVersion V1 = False
+isDevelopmentVersion V2 = False
+isDevelopmentVersion V3 = False
+isDevelopmentVersion _ = True
 
 developmentVersions :: [Version]
 developmentVersions = filter isDevelopmentVersion supportedVersions
