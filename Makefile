@@ -190,6 +190,9 @@ regen-local-nix-derivations:
 check-local-nix-derivations: regen-local-nix-derivations
 	git diff --exit-code
 
+nixpkgs-update:
+	niv update nixpkgs
+
 # Build everything (Haskell services and nginz)
 .PHONY: services
 services: init install
