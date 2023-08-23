@@ -23,6 +23,7 @@ module Wire.API.MLS.KeyPackage
     KeyPackageData (..),
     DeleteKeyPackages (..),
     KeyPackage (..),
+    credentialIdentity,
     keyPackageIdentity,
     kpRef,
     kpRef',
@@ -35,6 +36,7 @@ import Cassandra.CQL hiding (Set)
 import Control.Applicative
 import Control.Lens hiding (set, (.=))
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Bifunctor
 import Data.ByteString.Lazy qualified as LBS
 import Data.Id
 import Data.Json.Util
@@ -42,6 +44,9 @@ import Data.Qualified
 import Data.Range
 import Data.Schema hiding (HasField)
 import Data.Swagger qualified as S
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.X509 qualified as X509
 import GHC.Records
 import Imports hiding (cs)
 import Test.QuickCheck
@@ -226,8 +231,43 @@ instance HasField "extensions" KeyPackage [Extension] where
 instance HasField "leafNode" KeyPackage LeafNode where
   getField = (.tbs.value.leafNode)
 
+credentialIdentity :: Credential -> Either Text ClientIdentity
+credentialIdentity (BasicCredential i) = decodeMLS' i
+credentialIdentity (X509Credential certs) = do
+  bs <- case certs of
+    [] -> Left "Invalid x509 certificate chain"
+    (c : _) -> pure c
+  signed <-
+    first (\e -> "Failed to decode x509 certificate: " <> T.pack e) $
+      X509.decodeSignedCertificate bs
+  -- FUTUREWORK: verify signature
+  let cert = X509.getCertificate signed
+  certificateIdentity cert
+
 keyPackageIdentity :: KeyPackage -> Either Text ClientIdentity
-keyPackageIdentity = decodeMLS' @ClientIdentity . (.leafNode.credential.identityData)
+keyPackageIdentity kp = credentialIdentity kp.leafNode.credential
+
+certificateIdentity :: X509.Certificate -> Either Text ClientIdentity
+certificateIdentity cert =
+  let getNames (X509.ExtSubjectAltName names) = names
+      getURI (X509.AltNameURI u) = Just u
+      getURI _ = Nothing
+      altNames = maybe [] getNames (X509.extensionGet (X509.certExtensions cert))
+      ids = map sanIdentity (mapMaybe getURI altNames)
+   in case partitionEithers ids of
+        (_, (cid : _)) -> pure cid
+        ((e : _), []) -> Left e
+        _ -> Left "No SAN URIs found"
+
+sanIdentity :: String -> Either Text ClientIdentity
+sanIdentity s = case break (== '=') s of
+  ("im:wireapp", '=' : s') ->
+    first (\e -> e <> " (while parsing identity string " <> T.pack (show s') <> ")")
+      . decodeMLSWith' parseX509ClientIdentity
+      . T.encodeUtf8
+      . T.pack
+      $ s'
+  _ -> Left "No im:wireapp label found"
 
 rawKeyPackageSchema :: ValueSchema NamedSwaggerDoc (RawMLS KeyPackage)
 rawKeyPackageSchema =

@@ -99,13 +99,14 @@ validateLeafNode cs mIdentity extra leafNode = do
 
   validateCredential mIdentity leafNode.credential
   validateSource extra.tag leafNode.source
-  validateCapabilities leafNode.capabilities
+  validateCapabilities (credentialTag leafNode.credential) leafNode.capabilities
 
 validateCredential :: Maybe ClientIdentity -> Credential -> Either Text ()
-validateCredential mIdentity (BasicCredential cred) = do
+validateCredential mIdentity cred = do
+  -- FUTUREWORK: check signature in the case of an x509 credential
   identity <-
     either credentialError pure $
-      decodeMLS' cred
+      credentialIdentity cred
   unless (maybe True (identity ==) mIdentity) $
     Left "client identity does not match credential identity"
   where
@@ -126,7 +127,7 @@ validateSource t s = do
           <> t'.name
           <> "'"
 
-validateCapabilities :: Capabilities -> Either Text ()
-validateCapabilities caps =
-  unless (fromMLSEnum BasicCredentialTag `elem` caps.credentials) $
+validateCapabilities :: CredentialTag -> Capabilities -> Either Text ()
+validateCapabilities ctag caps =
+  unless (fromMLSEnum ctag `elem` caps.credentials) $
     Left "missing BasicCredential capability"

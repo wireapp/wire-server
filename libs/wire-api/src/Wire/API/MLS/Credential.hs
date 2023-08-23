@@ -28,6 +28,8 @@ import Data.Binary.Get
 import Data.Binary.Parser
 import Data.Binary.Parser.Char8
 import Data.Binary.Put
+import Data.ByteString.Base64.URL qualified as B64URL
+import Data.ByteString.Lazy qualified as L
 import Data.Domain
 import Data.Id
 import Data.Qualified
@@ -36,7 +38,6 @@ import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.UUID
-import GHC.Records
 import Imports
 import Web.HttpApiData
 import Wire.API.MLS.Serialisation
@@ -44,14 +45,12 @@ import Wire.Arbitrary
 
 -- | An MLS credential.
 --
--- Only the @BasicCredential@ type is supported.
 -- https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-5.3-3
-data Credential = BasicCredential ByteString
+data Credential = BasicCredential ByteString | X509Credential [ByteString]
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform Credential
 
-data CredentialTag where
-  BasicCredentialTag :: CredentialTag
+data CredentialTag = BasicCredentialTag | X509CredentialTag
   deriving stock (Enum, Bounded, Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CredentialTag)
 
@@ -67,17 +66,21 @@ instance ParseMLS Credential where
       BasicCredentialTag ->
         BasicCredential
           <$> parseMLSBytes @VarInt
+      X509CredentialTag ->
+        X509Credential
+          <$> parseMLSVector @VarInt (parseMLSBytes @VarInt)
 
 instance SerialiseMLS Credential where
   serialiseMLS (BasicCredential i) = do
     serialiseMLS BasicCredentialTag
     serialiseMLSBytes @VarInt i
+  serialiseMLS (X509Credential certs) = do
+    serialiseMLS X509CredentialTag
+    serialiseMLSVector @VarInt (serialiseMLSBytes @VarInt) certs
 
 credentialTag :: Credential -> CredentialTag
-credentialTag BasicCredential {} = BasicCredentialTag
-
-instance HasField "identityData" Credential ByteString where
-  getField (BasicCredential i) = i
+credentialTag (BasicCredential _) = BasicCredentialTag
+credentialTag (X509Credential _) = X509CredentialTag
 
 data ClientIdentity = ClientIdentity
   { ciDomain :: Domain,
@@ -131,6 +134,18 @@ instance ParseMLS ClientIdentity where
     dom <-
       either fail pure . (mkDomain . T.pack) =<< many' anyChar
     pure $ ClientIdentity dom uid cid
+
+parseX509ClientIdentity :: Get ClientIdentity
+parseX509ClientIdentity = do
+  b64uuid <- getByteString 22
+  uidBytes <- either fail pure $ B64URL.decodeUnpadded b64uuid
+  uid <- maybe (fail "Invalid UUID") (pure . Id) $ fromByteString (L.fromStrict uidBytes)
+  char '/'
+  cid <- newClientId <$> hexadecimal
+  char '@'
+  dom <-
+    either fail pure . (mkDomain . T.pack) =<< many' anyChar
+  pure $ ClientIdentity dom uid cid
 
 instance SerialiseMLS ClientIdentity where
   serialiseMLS cid = do
