@@ -33,6 +33,12 @@ getClient u cli = do
       joinHttpPath ["clients", c]
   submit "GET" req
 
+deleteUser :: (HasCallStack, MakesValue user) => user -> App Response
+deleteUser user = do
+  req <- baseRequest user Brig Versioned "/self"
+  submit "DELETE" $
+    req & addJSONObject ["password" .= defPassword]
+
 data AddClient = AddClient
   { ctype :: String,
     internal :: Bool,

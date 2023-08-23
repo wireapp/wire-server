@@ -87,8 +87,6 @@ import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
 import Imports
-import Network.HTTP.Types.Status qualified as Wai
-import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -358,7 +356,7 @@ performAction ::
   ConversationAction tag ->
   Sem r (BotsAndMembers, ConversationAction tag)
 performAction tag origUser lconv action = do
-  let lcnv = fmap convId lconv
+  let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
   case tag of
     SConversationJoinTag -> do
@@ -438,14 +436,23 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
   checkRemoteBackendsConnected lusr
 
-  addMembersToLocalConversation (fmap convId lconv) newMembers role
+  addMembersToLocalConversation (fmap (.convId) lconv) newMembers role
   where
     checkRemoteBackendsConnected ::
       Local UserId ->
       Sem r ()
     checkRemoteBackendsConnected lusr = do
-      let remoteDomains = tDomain <$> snd (partitionQualified lusr $ NE.toList invited)
-      checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
+      let invitedDomains = tDomain <$> snd (partitionQualified lusr $ NE.toList invited)
+          existingDomains = tDomain . rmId <$> convRemoteMembers (tUnqualified lconv)
+
+      -- Note:
+      --
+      -- In some cases, this federation status check might be redundant (for
+      -- example if there are only local users in the conversation). However,
+      -- it is important that we attempt to connect to the backends of the new
+      -- users here, because that results in the correct error when those
+      -- backends are not reachable.
+      checkFederationStatus (RemoteDomains . Set.fromList $ invitedDomains <> existingDomains)
 
     conv :: Data.Conversation
     conv = tUnqualified lconv
@@ -457,9 +464,9 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       Sem r ()
     checkLocals lusr (Just tid) newUsers = do
       tms <-
-        Map.fromList . map (view userId &&& id)
+        Map.fromList . map (view Wire.API.Team.Member.userId &&& Imports.id)
           <$> E.selectTeamMembers tid newUsers
-      let userMembershipMap = map (id &&& flip Map.lookup tms) newUsers
+      let userMembershipMap = map (Imports.id &&& flip Map.lookup tms) newUsers
       ensureAccessRole (convAccessRoles conv) userMembershipMap
       ensureConnectedOrSameTeam lusr newUsers
     checkLocals lusr Nothing newUsers = do
@@ -561,7 +568,7 @@ performConversationAccessData qusr lconv action = do
 
   pure (mempty, action)
   where
-    lcnv = fmap convId lconv
+    lcnv = fmap (.convId) lconv
     conv = tUnqualified lconv
 
     maybeRemoveBots :: BotsAndMembers -> Sem r BotsAndMembers
@@ -666,7 +673,7 @@ updateLocalConversationUnchecked ::
   Sem r LocalConversationUpdate
 updateLocalConversationUnchecked lconv qusr con action = do
   let tag = sing @tag
-      lcnv = fmap convId lconv
+      lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
 
   -- retrieve member
@@ -754,8 +761,7 @@ addMembersToLocalConversation lcnv users role = do
 
 notifyConversationAction ::
   forall tag r.
-  ( Member (Error FederationError) r,
-    Member FederatorAccess r,
+  ( Member FederatorAccess r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -771,8 +777,7 @@ notifyConversationAction ::
   Sem r LocalConversationUpdate
 notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
-  let lcnv = fmap convId lconv
-      conv = tUnqualified lconv
+  let lcnv = fmap (.convId) lconv
       e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
 
   let mkUpdate uids =
@@ -783,48 +788,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
           uids
           (SomeConversationAction tag action)
 
-  -- call `api-version` on backends that are seeing this
-  -- conversation for the first time
-  let newDomains =
-        Set.difference
-          (Set.map void (bmRemotes targets))
-          (Set.fromList (map (void . rmId) (convRemoteMembers conv)))
-      newRemotes =
-        Set.filter (\r -> Set.member (void r) newDomains)
-          . bmRemotes
-          $ targets
   update <- do
-    do
-      -- ping new remote backends
-      notifyEithers <-
-        E.runFederatedConcurrentlyEither (toList newRemotes) $ \_ -> do
-          void $ fedClient @'Brig @"api-version" ()
-      -- For now these users will not be able to join the conversation until
-      -- queueing and retrying is implemented.
-      let failedNotifies = lefts notifyEithers
-      for_ failedNotifies $
-        logError
-          "api-version"
-          "An error occurred while communicating with federated server: "
-      for_ failedNotifies $ \case
-        -- rethrow invalid-domain errors and mis-configured federation errors
-        (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 422 _) _ _ _)))) -> throw ex
-        -- FUTUREWORK: This error occurs when federation strategy is set to `allowDynamic`
-        -- and the remote domain is not in the allow list
-        -- Is it ok to throw all 400 errors?
-        (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 400 _) _ _ _)))) -> throw ex
-        (_, ex@(FederationCallFailure (FederatorClientHTTP2Error (FederatorClientConnectionError _)))) -> throw ex
-        -- FUTUREWORK: Default case (`_ -> pure ()`) is now explicit. Do we really want to ignore all these errors?
-        (_, FederationCallFailure (FederatorClientHTTP2Error _)) -> pure ()
-        (_, FederationCallFailure (FederatorClientError _)) -> pure ()
-        (_, FederationCallFailure FederatorClientStreamingNotSupported) -> pure ()
-        (_, FederationCallFailure (FederatorClientServantError _)) -> pure ()
-        (_, FederationCallFailure (FederatorClientVersionNegotiationError _)) -> pure ()
-        (_, FederationCallFailure FederatorClientVersionMismatch) -> pure ()
-        (_, FederationNotImplemented) -> pure ()
-        (_, FederationNotConfigured) -> pure ()
-        (_, FederationUnexpectedBody _) -> pure ()
-        (_, FederationUnexpectedError _) -> pure ()
     updates <-
       E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
         \ruids -> do
@@ -1026,11 +990,11 @@ notifyTypingIndicator conv qusr mcon ts = do
   let (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)
       tdu users =
         TypingDataUpdated
-          { tudTime = now,
-            tudOrigUserId = qusr,
-            tudConvId = Data.convId conv,
-            tudUsersInConv = users,
-            tudTypingStatus = ts
+          { time = now,
+            origUserId = qusr,
+            convId = Data.convId conv,
+            usersInConv = users,
+            typingStatus = ts
           }
 
   void $ E.runFederatedConcurrentlyEither (fmap rmId remoteMemsOther) $ \rmems -> do

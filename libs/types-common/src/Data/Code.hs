@@ -119,8 +119,8 @@ deriving instance Cql Value
 -- (but without a type, using plain fields). This will make it easier to re-use a key/value
 -- pair in the API, keeping "code" in the JSON for backwards compatibility
 data KeyValuePair = KeyValuePair
-  { kcKey :: !Key,
-    kcCode :: !Value
+  { key :: !Key,
+    code :: !Value
   }
   deriving (Eq, Generic, Show)
 

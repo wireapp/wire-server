@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -18,7 +18,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Options
-  ( setCasGalley,
+  ( setCasBrig,
+    setDryRun,
     cHosts,
     cPort,
     cKeyspace,
@@ -27,24 +28,41 @@ module Options
 where
 
 import Cassandra qualified as C
-import Data.Text qualified as Text
+import Control.Lens
+import Data.Text.Strict.Lens
 import Imports
 import Options.Applicative
 
-newtype MigratorSettings = MigratorSettings {setCasGalley :: CassandraSettings}
+data MigratorSettings = MigratorSettings
+  { _setCasBrig :: !CassandraSettings,
+    _setDryRun :: !Bool
+  }
   deriving (Show)
 
 data CassandraSettings = CassandraSettings
-  { cHosts :: !String,
-    cPort :: !Word16,
-    cKeyspace :: !C.Keyspace
+  { _cHosts :: !String,
+    _cPort :: !Word16,
+    _cKeyspace :: !C.Keyspace
   }
   deriving (Show)
+
+makeLenses ''MigratorSettings
+
+makeLenses ''CassandraSettings
 
 settingsParser :: Parser MigratorSettings
 settingsParser =
   MigratorSettings
-    <$> cassandraSettingsParser "galley"
+    <$> cassandraSettingsParser "brig"
+    <*> dryRunParser
+
+dryRunParser :: Parser Bool
+dryRunParser =
+  flag False True $
+    ( long ("dry-run")
+        <> help ("Just detect offending rows, don't change the db")
+        <> showDefault
+    )
 
 cassandraSettingsParser :: String -> Parser CassandraSettings
 cassandraSettingsParser ks =
@@ -64,7 +82,7 @@ cassandraSettingsParser ks =
           <> value 9042
           <> showDefault
       )
-    <*> ( C.Keyspace . Text.pack
+    <*> ( C.Keyspace . view packed
             <$> strOption
               ( long ("cassandra-keyspace-" ++ ks)
                   <> metavar "STRING"

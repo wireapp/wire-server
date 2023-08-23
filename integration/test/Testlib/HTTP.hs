@@ -52,10 +52,17 @@ addBody body contentType req =
 addMLS :: ByteString -> HTTP.Request -> HTTP.Request
 addMLS bytes req =
   req
-    { HTTP.requestBody = HTTP.RequestBodyLBS (L.fromStrict bytes),
+    { HTTP.requestBody = HTTP.RequestBodyBS bytes,
       HTTP.requestHeaders =
         (fromString "Content-Type", fromString "message/mls")
           : HTTP.requestHeaders req
+    }
+
+addProtobuf :: ByteString -> HTTP.Request -> HTTP.Request
+addProtobuf bytes req =
+  req
+    { HTTP.requestBody = HTTP.RequestBodyBS bytes,
+      HTTP.requestHeaders = (fromString "Content-Type", fromString "application/x-protobuf") : HTTP.requestHeaders req
     }
 
 addHeader :: String -> String -> HTTP.Request -> HTTP.Request
@@ -92,6 +99,9 @@ getJSON :: HasCallStack => Int -> Response -> App Aeson.Value
 getJSON status resp = withResponse resp $ \r -> do
   r.status `shouldMatch` status
   r.json
+
+assertSuccess :: Response -> App ()
+assertSuccess resp = withResponse resp $ \r -> r.status `shouldMatchRange` (200, 299)
 
 onFailureAddResponse :: HasCallStack => Response -> App a -> App a
 onFailureAddResponse r m = App $ do

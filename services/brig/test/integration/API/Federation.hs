@@ -134,7 +134,7 @@ testFulltextSearchMultipleUsers opts brig = do
   update'' :: UserUpdate <- liftIO $ generate arbitrary
   let update' = update'' {uupName = Just (Name (fromHandle handle))}
       update = RequestBodyLBS . encode $ update'
-  put (brig . path "/self" . contentJson . zUser (userId identityThief) . zConn "c" . body update) !!! const 200 === statusCode
+  put (brig . path "/self" . contentJson . zUser identityThief.userId . zConn "c" . body update) !!! const 200 === statusCode
 
   refreshIndex brig
 
@@ -272,9 +272,9 @@ testGetUsersByIdsSuccess :: Brig -> FedClient 'Brig -> Http ()
 testGetUsersByIdsSuccess brig fedBrigClient = do
   user1 <- randomUser brig
   user2 <- randomUser brig
-  let uid1 = userId user1
+  let uid1 = user1.userId
       quid1 = userQualifiedId user1
-      uid2 = userId user2
+      uid2 = user2.userId
       quid2 = userQualifiedId user2
   profiles <- runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") [uid1, uid2]
   liftIO $ do
@@ -287,7 +287,7 @@ testGetUsersByIdsPartial brig fedBrigClient = do
   absentUserId :: UserId <- Id <$> lift UUIDv4.nextRandom
   profiles <-
     runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") $
-      [userId presentUser, absentUserId]
+      [presentUser.userId, absentUserId]
   liftIO $
     assertEqual "should return the present user and skip the absent ones" [userQualifiedId presentUser] (profileQualifiedId <$> profiles)
 
@@ -302,7 +302,7 @@ testGetUsersByIdsNoneFound fedBrigClient = do
 testClaimPrekeySuccess :: Brig -> FedClient 'Brig -> Http ()
 testClaimPrekeySuccess brig fedBrigClient = do
   user <- randomUser brig
-  let uid = userId user
+  let uid = user.userId
   let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
   c <- responseJsonError =<< addClient brig uid new
   mkey <- runFedClient @"claim-prekey" fedBrigClient (Domain "example.com") (uid, clientId c)
@@ -351,7 +351,7 @@ addTestClients brig uid idxs =
 
 testGetUserClients :: Brig -> FedClient 'Brig -> Http ()
 testGetUserClients brig fedBrigClient = do
-  uid1 <- userId <$> randomUser brig
+  uid1 <- (.userId) <$> randomUser brig
   clients :: [Client] <- addTestClients brig uid1 [0, 1, 2]
   UserMap userClients <- runFedClient @"get-user-clients" fedBrigClient (Domain "example.com") (GetUserClients [uid1])
   liftIO $
@@ -372,10 +372,10 @@ testGetUserClientsNotFound fedBrigClient = do
 
 testRemoteUserGetsDeleted :: Opt.Opts -> Brig -> Cannon -> FedClient 'Brig -> Http ()
 testRemoteUserGetsDeleted opts brig cannon fedBrigClient = do
-  connectedUser <- userId <$> randomUser brig
-  pendingUser <- userId <$> randomUser brig
-  blockedUser <- userId <$> randomUser brig
-  unconnectedUser <- userId <$> randomUser brig
+  connectedUser <- (.userId) <$> randomUser brig
+  pendingUser <- (.userId) <$> randomUser brig
+  blockedUser <- (.userId) <$> randomUser brig
+  unconnectedUser <- (.userId) <$> randomUser brig
   remoteUser <- fakeRemoteUser
 
   sendConnectionAction brig opts connectedUser remoteUser (Just FedBrig.RemoteConnect) Accepted

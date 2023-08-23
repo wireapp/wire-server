@@ -24,6 +24,7 @@ where
 
 import Cassandra as C
 import Cassandra.Settings as C
+import Control.Lens hiding ((.=))
 import Imports
 import Options as O
 import Options.Applicative
@@ -34,12 +35,12 @@ main :: IO ()
 main = do
   s <- execParser (info (helper <*> settingsParser) desc)
   lgr <- initLogger
-  gc <- initCas (setCasGalley s) lgr
-  runCommand lgr gc
+  bc <- initCas (s ^. setCasBrig) lgr -- Brig's Cassandra
+  runCommand (s ^. setDryRun) lgr bc
   where
     desc =
-      header "billing-team-member-backfill"
-        <> progDesc "Backfill billing_team_member table"
+      header "repair-brig-clients-table"
+        <> progDesc "Removes and reports entries from brig.clients that have been accidentally upserted."
         <> fullDesc
     initLogger =
       Log.new
@@ -50,8 +51,8 @@ main = do
     initCas cas l =
       C.init
         . C.setLogger (C.mkLogger l)
-        . C.setContacts (cHosts cas) []
-        . C.setPortNumber (fromIntegral $ cPort cas)
-        . C.setKeyspace (cKeyspace cas)
+        . C.setContacts (cas ^. cHosts) []
+        . C.setPortNumber (fromIntegral $ cas ^. cPort)
+        . C.setKeyspace (cas ^. cKeyspace)
         . C.setProtocolVersion C.V4
         $ C.defSettings

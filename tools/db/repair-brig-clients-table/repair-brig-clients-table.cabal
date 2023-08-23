@@ -1,19 +1,21 @@
 cabal-version: 1.12
-name:          billing-team-member-backfill
+name:          repair-brig-clients-table
 version:       1.0.0
-synopsis:      Backfill billing_team_member table
+synopsis:
+  Removes and reports entries from brig.clients that have been accidentally upserted.
+
 category:      Network
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
-copyright:     (c) 2020 Wire Swiss GmbH
+copyright:     (c) 2023 Wire Swiss GmbH
 license:       AGPL-3
 build-type:    Simple
 
-executable billing-team-member-backfill
+executable repair-brig-clients-table
   main-is:            Main.hs
   other-modules:
     Options
-    Paths_billing_team_member_backfill
+    Paths_repair_brig_clients_table
     Work
 
   hs-source-dirs:     src
@@ -69,13 +71,11 @@ executable billing-team-member-backfill
       base
     , cassandra-util
     , conduit
-    , containers
     , imports
     , lens
     , optparse-applicative
-    , text
+    , time
     , tinylog
     , types-common
-    , wire-api
 
   default-language:   GHC2021

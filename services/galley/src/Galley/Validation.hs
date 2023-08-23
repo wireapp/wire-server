@@ -62,7 +62,7 @@ checkedConvSize ::
   Sem r (ConvSizeChecked f a)
 checkedConvSize o x = do
   let minV :: Integer = 0
-      limit = o ^. optSettings . setMaxConvSize - 1
+      limit = o ^. settings . maxConvSize - 1
   if length x <= fromIntegral limit
     then pure (ConvSizeChecked x)
     else throwErr (errorMsg minV limit "")

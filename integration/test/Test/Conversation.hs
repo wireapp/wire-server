@@ -54,7 +54,7 @@ testDynamicBackendsNotFederating = do
         $ bindResponse
           (getFederationStatus uidA [domainB, domainC])
         $ \resp -> do
-          resp.status `shouldMatchInt` 503
+          resp.status `shouldMatchInt` 533
           resp.json %. "unreachable_backends" `shouldMatchSet` [domainB, domainC]
 
 testDynamicBackendsFullyConnectedWhenAllowDynamic :: HasCallStack => App ()
@@ -126,7 +126,7 @@ testFederationStatus = do
   bindResponse
     (getFederationStatus uid [invalidDomain])
     $ \resp -> do
-      resp.status `shouldMatchInt` 503
+      resp.status `shouldMatchInt` 533
       resp.json %. "unreachable_backends" `shouldMatchSet` [invalidDomain]
 
   bindResponse
@@ -221,7 +221,17 @@ testDefederationGroupConversation = do
             r.status `shouldMatchInt` 404
 
         -- assert federation.delete event is sent twice
-        void $ awaitNMatches 2 3 (\n -> nPayload n %. "type" `isEqual` "federation.delete") ws
+        void $
+          awaitNMatches
+            2
+            3
+            ( \n -> do
+                correctType <- nPayload n %. "type" `isEqual` "federation.delete"
+                if correctType
+                  then nPayload n %. "domain" `isEqual` domainB
+                  else pure False
+            )
+            ws
 
       -- assert no conversation.delete event is sent to uA
       eventPayloads <-
@@ -331,7 +341,7 @@ testAddMembersNonFullyConnectedProteus = do
       resp.status `shouldMatchInt` 409
       resp.json %. "non_federating_backends" `shouldMatchSet` [domainB, domainC]
 
-testConvWithUnreachableRemoteUsers :: App ()
+testConvWithUnreachableRemoteUsers :: HasCallStack => App ()
 testConvWithUnreachableRemoteUsers = do
   let overrides =
         def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
@@ -345,12 +355,80 @@ testConvWithUnreachableRemoteUsers = do
 
   let newConv = defProteus {qualifiedUsers = [alex, bob, charlie, dylan]}
   bindResponse (postConversation alice newConv) $ \resp -> do
-    resp.status `shouldMatchInt` 503
+    resp.status `shouldMatchInt` 533
     resp.json %. "unreachable_backends" `shouldMatchSet` domains
 
   convs <- getAllConvs alice >>= asList
   regConvs <- filterM (\c -> (==) <$> (c %. "type" & asInt) <*> pure 0) convs
   regConvs `shouldMatch` ([] :: [Value])
+
+testAddReachableWithUnreachableRemoteUsers :: HasCallStack => App ()
+testAddReachableWithUnreachableRemoteUsers = do
+  let overrides =
+        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
+          <> fullSearchWithAll
+  ([alex, bob], conv, domains) <-
+    startDynamicBackends [overrides, overrides] $ \domains -> do
+      own <- make OwnDomain & asString
+      other <- make OtherDomain & asString
+      [alice, alex, bob, charlie, dylan] <-
+        createAndConnectUsers $ [own, own, other] <> domains
+
+      let newConv = defProteus {qualifiedUsers = [alex, charlie, dylan]}
+      conv <- postConversation alice newConv >>= getJSON 201
+      pure ([alex, bob], conv, domains)
+
+  bobId <- bob %. "qualified_id"
+  bindResponse (addMembers alex conv [bobId]) $ \resp -> do
+    -- This test is updated to reflect the changes in `performConversationJoin`
+    -- `performConversationJoin` now does a full check between all federation members
+    -- that will be in the conversation when adding users to a conversation. This is
+    -- to ensure that users from domains that aren't federating are not directly
+    -- connected to each other.
+    resp.status `shouldMatchInt` 533
+    resp.jsonBody %. "unreachable_backends" `shouldMatchSet` domains
+
+testAddUnreachable :: HasCallStack => App ()
+testAddUnreachable = do
+  let overrides =
+        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
+          <> fullSearchWithAll
+  ([alex, charlie], [charlieDomain, dylanDomain], conv) <-
+    startDynamicBackends [overrides, overrides] $ \domains -> do
+      own <- make OwnDomain & asString
+      [alice, alex, charlie, dylan] <-
+        createAndConnectUsers $ [own, own] <> domains
+
+      let newConv = defProteus {qualifiedUsers = [alex, dylan]}
+      conv <- postConversation alice newConv >>= getJSON 201
+      pure ([alex, charlie], domains, conv)
+
+  charlieId <- charlie %. "qualified_id"
+  bindResponse (addMembers alex conv [charlieId]) $ \resp -> do
+    resp.status `shouldMatchInt` 533
+    -- All of the domains that are in the conversation, or will be in the conversation,
+    -- need to be reachable so we can check that the graph for those domains is fully connected.
+    resp.json %. "unreachable_backends" `shouldMatchSet` [charlieDomain, dylanDomain]
+
+testAddingUserNonFullyConnectedFederation :: HasCallStack => App ()
+testAddingUserNonFullyConnectedFederation = do
+  let overrides =
+        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
+          <> fullSearchWithAll
+  startDynamicBackends [overrides] $ \domains -> do
+    own <- make OwnDomain & asString
+    other <- make OtherDomain & asString
+    [alice, alex, bob, charlie] <-
+      createAndConnectUsers $ [own, own, other] <> domains
+
+    let newConv = defProteus {qualifiedUsers = [alex]}
+    conv <- postConversation alice newConv >>= getJSON 201
+
+    bobId <- bob %. "qualified_id"
+    charlieId <- charlie %. "qualified_id"
+    bindResponse (addMembers alex conv [bobId, charlieId]) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      resp.json %. "non_federating_backends" `shouldMatchSet` (other : domains)
 
 testGetOneOnOneConvInStatusSentFromRemote :: App ()
 testGetOneOnOneConvInStatusSentFromRemote = do
@@ -392,3 +470,4 @@ testGetOneOnOneConvInStatusSentFromRemote = do
       putStrLn "```json"
       printJSON r.json
       putStrLn "```\n"
+

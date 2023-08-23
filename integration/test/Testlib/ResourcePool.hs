@@ -21,6 +21,7 @@ import Data.String
 import Data.Tuple
 import Data.Word
 import GHC.Generics
+import GHC.Stack (HasCallStack)
 import System.IO
 import Prelude
 
@@ -29,7 +30,7 @@ data ResourcePool a = ResourcePool
     resources :: IORef (Set.Set a)
   }
 
-acquireResources :: forall m a. (Ord a, MonadIO m, MonadMask m) => Int -> ResourcePool a -> Codensity m [a]
+acquireResources :: forall m a. (Ord a, MonadIO m, MonadMask m, HasCallStack) => Int -> ResourcePool a -> Codensity m [a]
 acquireResources n pool = Codensity $ \f -> bracket acquire release (f . Set.toList)
   where
     release :: Set.Set a -> m ()

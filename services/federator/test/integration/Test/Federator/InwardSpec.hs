@@ -31,7 +31,7 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Text.Encoding
-import Federator.Options
+import Federator.Options hiding (federatorExternal)
 import Imports
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai.Utilities.Error qualified as E
@@ -126,7 +126,7 @@ spec env =
     -- and "IngressSpec".
     it "rejectRequestsWithoutClientCertInward" $
       runTestFederator env $ do
-        originDomain <- cfgOriginDomain <$> view teTstOpts
+        originDomain <- originDomain <$> view teTstOpts
         hdl <- randomHandle
         inwardCallWithHeaders
           "federation/brig/get-user-by-handle"
@@ -145,7 +145,7 @@ inwardCallWithHeaders ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCallWithHeaders requestPath hh payload = do
-  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
+  Endpoint fedHost fedPort <- federatorExternal <$> view teTstOpts
   post
     ( host (encodeUtf8 fedHost)
         . port fedPort
@@ -160,7 +160,7 @@ inwardCall ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCall requestPath payload = do
-  originDomain :: Text <- cfgOriginDomain <$> view teTstOpts
+  originDomain :: Text <- originDomain <$> view teTstOpts
   inwardCallWithOriginDomain (toByteString' originDomain) requestPath payload
 
 inwardCallWithOriginDomain ::
@@ -170,7 +170,7 @@ inwardCallWithOriginDomain ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCallWithOriginDomain originDomain requestPath payload = do
-  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
+  Endpoint fedHost fedPort <- federatorExternal <$> view teTstOpts
   clientCertFilename <- clientCertificate . optSettings . view teOpts <$> ask
   clientCert <- liftIO $ BS.readFile clientCertFilename
   post

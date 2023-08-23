@@ -6,19 +6,17 @@
 , base
 , cassandra-util
 , conduit
-, containers
 , gitignoreSource
 , imports
 , lens
 , lib
 , optparse-applicative
-, text
+, time
 , tinylog
 , types-common
-, wire-api
 }:
 mkDerivation {
-  pname = "billing-team-member-backfill";
+  pname = "repair-brig-clients-table";
   version = "1.0.0";
   src = gitignoreSource ./.;
   isLibrary = false;
@@ -27,16 +25,14 @@ mkDerivation {
     base
     cassandra-util
     conduit
-    containers
     imports
     lens
     optparse-applicative
-    text
+    time
     tinylog
     types-common
-    wire-api
   ];
-  description = "Backfill billing_team_member table";
+  description = "Removes and reports entries from brig.clients that have been accidentally upserted.";
   license = lib.licenses.agpl3Only;
-  mainProgram = "billing-team-member-backfill";
+  mainProgram = "repair-brig-clients-table";
 }

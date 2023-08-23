@@ -83,8 +83,8 @@ copyDirectoryRecursively from to = do
 -- continuation, the main continuation is run in an environment that
 -- accumulates all the individual environment changes.
 traverseConcurrentlyCodensity ::
-  (a -> Codensity App (Env -> Env)) ->
-  ([a] -> Codensity App (Env -> Env))
+  (HasCallStack => a -> Codensity App (Env -> Env)) ->
+  (HasCallStack => [a] -> Codensity App (Env -> Env))
 traverseConcurrentlyCodensity f args = do
   -- Create variables for synchronisation of the various threads:
   --  * @result@ is used to store the environment change, or possibly an exception
@@ -138,15 +138,19 @@ traverseConcurrentlyCodensity f args = do
     liftIO $ traverse_ wait asyncs
     pure result
 
-startDynamicBackends :: [ServiceOverrides] -> ([String] -> App a) -> App a
-startDynamicBackends beOverrides = runCodensity $ do
-  when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
-  pool <- asks (.resourcePool)
-  resources <- acquireResources (Prelude.length beOverrides) pool
-  void $ traverseConcurrentlyCodensity (\(res, overrides) -> startDynamicBackend res mempty overrides) (zip resources beOverrides)
-  pure $ map (.berDomain) resources
+startDynamicBackends :: HasCallStack => [ServiceOverrides] -> (HasCallStack => [String] -> App a) -> App a
+startDynamicBackends beOverrides k =
+  runCodensity
+    ( do
+        when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
+        pool <- asks (.resourcePool)
+        resources <- acquireResources (Prelude.length beOverrides) pool
+        void $ traverseConcurrentlyCodensity (\(res, overrides) -> startDynamicBackend res mempty overrides) (zip resources beOverrides)
+        pure $ map (.berDomain) resources
+    )
+    k
 
-startDynamicBackend :: BackendResource -> Map.Map Service Word16 -> ServiceOverrides -> Codensity App (Env -> Env)
+startDynamicBackend :: HasCallStack => BackendResource -> Map.Map Service Word16 -> ServiceOverrides -> Codensity App (Env -> Env)
 startDynamicBackend resource staticPorts beOverrides = do
   defDomain <- asks (.domain1)
   let services =
@@ -157,7 +161,7 @@ startDynamicBackend resource staticPorts beOverrides = do
                   >=> setKeyspace srv
                   >=> setEsIndex srv
                   >=> setFederationSettings srv
-                  >=> setAwsAdnQueuesConfigs srv
+                  >=> setAwsConfigs srv
                   >=> setLogLevel srv
             )
             defaultServiceOverridesToMap
@@ -172,20 +176,20 @@ startDynamicBackend resource staticPorts beOverrides = do
          in Map.insert resource.berDomain (setFederatorPorts resource $ updateServiceMap ports templateBackend) sm
     )
   where
-    setAwsAdnQueuesConfigs :: Service -> Value -> App Value
-    setAwsAdnQueuesConfigs = \case
+    setAwsConfigs :: Service -> Value -> App Value
+    setAwsConfigs = \case
       Brig ->
         setField "aws.userJournalQueue" resource.berAwsUserJournalQueue
           >=> setField "aws.prekeyTable" resource.berAwsPrekeyTable
           >=> setField "internalEvents.queueName" resource.berBrigInternalEvents
           >=> setField "emailSMS.email.sesQueue" resource.berEmailSMSSesQueue
           >=> setField "emailSMS.general.emailSender" resource.berEmailSMSEmailSender
-          >=> setField "rabbitmq.vHost" resource.berVHost
       Cargohold -> setField "aws.s3Bucket" resource.berAwsS3Bucket
       Gundeck -> setField "aws.queueName" resource.berAwsQueueName
       Galley ->
         setField "journal.queueName" resource.berGalleyJournal
           >=> setField "rabbitmq.vHost" resource.berVHost
+      BackgroundWorker -> setField "rabbitmq.vHost" resource.berVHost
       _ -> pure
 
     setFederationSettings :: Service -> Value -> App Value
@@ -193,21 +197,24 @@ startDynamicBackend resource staticPorts beOverrides = do
       \case
         Brig ->
           setField "optSettings.setFederationDomain" resource.berDomain
-            >=> setField
-              "optSettings.setFederationDomainConfigs"
-              ([] :: [Value])
+            >=> setField "optSettings.setFederationDomainConfigs" ([] :: [Value])
             >=> setField "federatorInternal.port" resource.berFederatorInternal
             >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
+            >=> setField "rabbitmq.vHost" resource.berVHost
         Cargohold ->
           setField "settings.federationDomain" resource.berDomain
+            >=> setField "federator.host" ("127.0.0.1" :: String)
             >=> setField "federator.port" resource.berFederatorInternal
         Galley ->
           setField "settings.federationDomain" resource.berDomain
             >=> setField "settings.featureFlags.classifiedDomains.config.domains" [resource.berDomain]
+            >=> setField "federator.host" ("127.0.0.1" :: String)
             >=> setField "federator.port" resource.berFederatorInternal
+            >=> setField "rabbitmq.vHost" resource.berVHost
         Gundeck -> setField "settings.federationDomain" resource.berDomain
         BackgroundWorker ->
           setField "federatorInternal.port" resource.berFederatorInternal
+            >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
             >=> setField "rabbitmq.vHost" resource.berVHost
         _ -> pure
 

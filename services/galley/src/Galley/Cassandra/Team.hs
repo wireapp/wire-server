@@ -99,7 +99,7 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   SetTeamStatus tid st -> embedClient $ updateTeamStatus tid st
   FanoutLimit -> embedApp $ currentFanoutLimit <$> view options
   GetLegalHoldFlag ->
-    view (options . optSettings . setFeatureFlags . flagLegalHold) <$> input
+    view (options . settings . featureFlags . flagLegalHold) <$> input
   EnqueueTeamEvent e -> do
     menv <- inputs (view aEnv)
     for_ menv $ \env ->
@@ -232,6 +232,7 @@ addTeamMember t m =
         m ^? invitation . _Just . _2
       )
     addPrepQuery Cql.insertUserTeam (m ^. userId, t)
+
     when (m `hasPermission` SetBilling) $
       addPrepQuery Cql.insertBillingTeamMember (t, m ^. userId)
 

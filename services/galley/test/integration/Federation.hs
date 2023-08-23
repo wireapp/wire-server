@@ -16,6 +16,7 @@ import Data.Id
 import Data.List.NonEmpty
 import Data.List1 qualified as List1
 import Data.Qualified
+import Data.Range (toRange)
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time (getCurrentTime)
@@ -57,7 +58,7 @@ isConvMemberLTests :: TestM ()
 isConvMemberLTests = do
   s <- ask
   let opts = s ^. tsGConf
-      localDomain = opts ^. optSettings . setFederationDomain
+      localDomain = opts ^. settings . federationDomain
       remoteDomain = Domain "far-away.example.com"
       convId = Id $ fromJust $ UUID.fromString "8cc34301-6949-46c5-bb93-00a72268e2f5"
       convLocalMembers = [LocalMember userId defMemberStatus Nothing roleNameWireMember]
@@ -95,8 +96,8 @@ updateFedDomainsTestNoop' = do
   let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
       remoteDomain = Domain "far-away.example.com"
       remoteDomain2 = Domain "far-away-two.example.com"
-  liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. optSettings . setFederationDomain
-  liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
+  liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. settings . federationDomain
+  liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. settings . federationDomain
   -- Setup a conversation for a known remote domain.
   -- Include that domain in the old and new lists so
   -- if the function is acting up we know it will be
@@ -114,8 +115,8 @@ updateFedDomainsTestAddRemote' = do
   let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
       remoteDomain = Domain "far-away.example.com"
       remoteDomain2 = Domain "far-away-two.example.com"
-  liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. optSettings . setFederationDomain
-  liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
+  liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. settings . federationDomain
+  liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. settings . federationDomain
 
   -- Adding a new federation domain, this too should be a no-op
   updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval
@@ -131,8 +132,8 @@ updateFedDomainsTestRemoveRemoteFromLocal' = do
   let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
       remoteDomain = Domain "far-away.example.com"
       remoteDomain2 = Domain "far-away-two.example.com"
-  liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. optSettings . setFederationDomain
-  liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
+  liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. settings . federationDomain
+  liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. settings . federationDomain
 
   -- Remove a remote domain from local conversations
   updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval
@@ -148,8 +149,8 @@ updateFedDomainsTestRemoveLocalFromRemote' = do
   let interval = (maxBound :: Int) `div` 2 -- Very large values so that we don't have to worry about automatic updates
       remoteDomain = Domain "far-away.example.com"
       remoteDomain2 = Domain "far-away-two.example.com"
-  liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. optSettings . setFederationDomain
-  liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. optSettings . setFederationDomain
+  liftIO $ assertBool "remoteDomain is different to local domain" $ remoteDomain /= opts ^. settings . federationDomain
+  liftIO $ assertBool "remoteDomain2 is different to local domain" $ remoteDomain2 /= opts ^. settings . federationDomain
 
   -- Remove a local domain from remote conversations
   updateFedDomainRemoveLocalFromRemote env remoteDomain interval
@@ -164,7 +165,7 @@ deleteFederationDomains old new = do
       deletedDomains = Set.difference prev curr
   env <- ask
   -- Call into the galley code
-  for_ deletedDomains $ liftIO . evalGalleyToIO env . deleteFederationDomain
+  for_ deletedDomains $ liftIO . evalGalleyToIO env . deleteFederationDomain (toRange $ Proxy @500)
 
 constHandlers :: (MonadIO m) => [RetryStatus -> Handler m Bool]
 constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]
@@ -311,7 +312,7 @@ updateFedDomainsAddRemote :: Env -> Domain -> Domain -> Int -> TestM ()
 updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval = do
   s <- ask
   let opts = s ^. tsGConf
-      localDomain = opts ^. optSettings . setFederationDomain
+      localDomain = opts ^. settings . federationDomain
       old = FederationDomainConfigs AllowDynamic [FederationDomainConfig remoteDomain FullSearch] interval
       new = old {remotes = FederationDomainConfig remoteDomain2 FullSearch : remotes old}
       -- Just check against the domains, as the search
@@ -349,7 +350,7 @@ updateFedDomainsTestNoop :: Env -> Domain -> Int -> TestM ()
 updateFedDomainsTestNoop env remoteDomain interval = do
   s <- ask
   let opts = s ^. tsGConf
-      localDomain = opts ^. optSettings . setFederationDomain
+      localDomain = opts ^. settings . federationDomain
       old = FederationDomainConfigs AllowDynamic [FederationDomainConfig remoteDomain FullSearch] interval
       new = old
   qalice <- randomQualifiedUser

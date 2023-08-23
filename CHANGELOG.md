@@ -1,3 +1,30 @@
+# [2023-08-16] (Chart Release 4.38.0)
+
+## Bug fixes and other updates
+
+* Fix syntax error in cassandra update to `brig.client`. (#3508)
+
+
+# [2023-08-16] (Chart Release 4.37.0)
+
+## API changes
+
+
+* Conversation creation endpoints can now return `unreachable_backends` error responses with status code 533 if any of the involved backends are unreachable. The conversation is not created in that case. (#3486)
+
+
+## Bug fixes and other updates
+
+
+* Make sure cassandra updates do not re-introduce removed content. (#3504)
+
+
+## Federation changes
+
+
+* Return `unreachable_backends` error when some backends of newly added users to a conversation are not reachable (#3496)
+
+
 # [2023-08-11] (Chart Release 4.36.0)
 
 ## Release notes

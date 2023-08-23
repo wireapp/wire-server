@@ -69,12 +69,12 @@ import Wire.API.Routes.Version.Wai
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
   (app, env) <- mkApp opts
-  settings <-
+  settings' <-
     lift $
       newSettings $
         defaultServer
-          (unpack $ opts ^. optGalley . epHost)
-          (portNumber $ fromIntegral $ opts ^. optGalley . epPort)
+          (unpack $ opts ^. galley . host)
+          (portNumber $ fromIntegral $ opts ^. galley . port)
           (env ^. App.applog)
           (env ^. monitor)
 
@@ -83,17 +83,17 @@ run opts = lowerCodensity $ do
 
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
-  lift $ finally (runSettingsWithShutdown settings app Nothing) (closeApp env)
+  lift $ finally (runSettingsWithShutdown settings' app Nothing) (closeApp env)
 
 mkApp :: Opts -> Codensity IO (Application, Env)
 mkApp opts =
   do
-    logger <- lift $ mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
+    logger <- lift $ mkLogger (opts ^. logLevel) (opts ^. logNetStrings) (opts ^. logFormat)
     metrics <- lift $ M.metrics
     env <- lift $ App.createEnv metrics opts logger
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
-          versionMiddleware (opts ^. optSettings . setDisabledAPIVersions . traverse)
+          versionMiddleware (opts ^. settings . disabledAPIVersions . traverse)
             . servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def
@@ -111,7 +111,7 @@ mkApp opts =
       let e = reqId .~ lookupReqId r $ e0
        in Servant.serveWithContext
             (Proxy @CombinedAPI)
-            ( view (options . optSettings . setFederationDomain) e
+            ( view (options . settings . federationDomain) e
                 :. customFormatters
                 :. Servant.EmptyContext
             )

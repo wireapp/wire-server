@@ -107,8 +107,8 @@ claimRemoteKeyPackages lusr target = do
       $ runBrigFederatorClient (tDomain target)
       $ fedClient @'Brig @"claim-key-packages"
       $ ClaimKeyPackageRequest
-        { ckprClaimant = tUnqualified lusr,
-          ckprTarget = tUnqualified target
+        { claimant = tUnqualified lusr,
+          target = tUnqualified target
         }
 
   -- validate and set up mappings for all claimed key packages

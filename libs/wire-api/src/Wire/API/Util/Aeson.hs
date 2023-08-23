@@ -17,12 +17,15 @@
 
 module Wire.API.Util.Aeson
   ( customEncodingOptions,
+    customEncodingOptionsDropChar,
+    defaultOptsDropChar,
     CustomEncoded (..),
+    CustomEncodedLensable (..),
   )
 where
 
 import Data.Aeson
-import Data.Char qualified as Char
+import Data.Json.Util (toJSONFieldName)
 import GHC.Generics (Rep)
 import Imports hiding (All)
 
@@ -31,9 +34,22 @@ import Imports hiding (All)
 --
 -- For example, it converts @_recordFieldLabel@ into @field_label@.
 customEncodingOptions :: Options
-customEncodingOptions =
+customEncodingOptions = toJSONFieldName
+
+-- This is useful for structures that are also creating lenses.
+-- If the field name doesn't have a leading underscore then the
+-- default `makeLenses` call won't make any lenses.
+customEncodingOptionsDropChar :: Char -> Options
+customEncodingOptionsDropChar c =
+  toJSONFieldName
+    { fieldLabelModifier = fieldLabelModifier toJSONFieldName . dropWhile (c ==)
+    }
+
+-- Similar to customEncodingOptionsDropChar, but not doing snake_case
+defaultOptsDropChar :: Char -> Options
+defaultOptsDropChar c =
   defaultOptions
-    { fieldLabelModifier = camelTo2 '_' . dropWhile (not . Char.isUpper)
+    { fieldLabelModifier = fieldLabelModifier defaultOptions . dropWhile (c ==)
     }
 
 newtype CustomEncoded a = CustomEncoded {unCustomEncoded :: a}
@@ -43,3 +59,14 @@ instance (Generic a, GToJSON Zero (Rep a)) => ToJSON (CustomEncoded a) where
 
 instance (Generic a, GFromJSON Zero (Rep a)) => FromJSON (CustomEncoded a) where
   parseJSON = fmap CustomEncoded . genericParseJSON @a customEncodingOptions
+
+-- Similar to CustomEncoded except that it will first strip off leading '_' characters.
+-- This is important for records with field names that would otherwise be keywords, like type or data
+-- It is also useful if the record has lenses being generated.
+newtype CustomEncodedLensable a = CustomEncodedLensable {unCustomEncodedLensable :: a}
+
+instance (Generic a, GToJSON Zero (Rep a)) => ToJSON (CustomEncodedLensable a) where
+  toJSON = genericToJSON @a (customEncodingOptionsDropChar '_') . unCustomEncodedLensable
+
+instance (Generic a, GFromJSON Zero (Rep a)) => FromJSON (CustomEncodedLensable a) where
+  parseJSON = fmap CustomEncodedLensable . genericParseJSON @a (customEncodingOptionsDropChar '_')
