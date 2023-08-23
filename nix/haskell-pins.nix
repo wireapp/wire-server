@@ -85,6 +85,13 @@ let
         amazonka-sts = "lib/services/amazonka-sts";
       };
     };
+    bytestring-conversion = {
+      src = fetchgit {
+        url = "https://gitlab.com/elland/bytestring-conversion.git";
+        rev = "77cf3d4f2714c2548866956b82240e3403612ec2";
+        sha256 = "sha256-TYI7bLT+ZZ3/g8zr4Sk6xft8CkIlhVRRVDSySYxANrs=";
+      };
+    };
     bloodhound = {
       src = fetchgit {
         url = "https://github.com/wireapp/bloodhound";

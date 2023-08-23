@@ -2,7 +2,6 @@
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
-  aeson = (hlib.doJailbreak hsuper.aeson_2_1_2_1);
   binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
   cql = hlib.markUnbroken hsuper.cql;
@@ -15,7 +14,7 @@ hself: hsuper: {
   polysemy-check = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-check);
   polysemy-plugin = hlib.doJailbreak hsuper.polysemy-plugin;
   quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
-  servant-foreign = hlib.doJailbreak hsuper.servant-foreign;
+  servant-foreign = hlib.markUnbroken (hlib.dontCheck hsuper.servant-foreign_0_16);
   servant-multipart = hlib.doJailbreak hsuper.servant-multipart;
   servant-swagger-ui = hlib.doJailbreak hsuper.servant-swagger-ui;
   servant-swagger-ui-core = hlib.doJailbreak hsuper.servant-swagger-ui-core;
