@@ -85,7 +85,6 @@ import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
-import Galley.Validation
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -401,8 +400,7 @@ performAction tag origUser lconv action = do
         Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
       pure (mempty, action)
     SConversationRenameTag -> do
-      cn <- rangeChecked (cupName action)
-      E.setConversationName (tUnqualified lcnv) cn
+      E.setConversationName (tUnqualified lcnv) (cupName action)
       pure (mempty, action)
     SConversationMessageTimerUpdateTag -> do
       when (Data.convMessageTimer conv == cupMessageTimer action) noChanges

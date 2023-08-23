@@ -126,7 +126,7 @@ data ConversationMetadata = ConversationMetadata
     cnvmCreator :: UserId,
     cnvmAccess :: [Access],
     cnvmAccessRoles :: Set AccessRole,
-    cnvmName :: Maybe Text,
+    cnvmName :: Range 1 256 Text,
     -- FUTUREWORK: Think if it makes sense to make the team ID qualified due to
     -- federation.
     cnvmTeam :: Maybe TeamId,
@@ -137,14 +137,14 @@ data ConversationMetadata = ConversationMetadata
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
   deriving (FromJSON, ToJSON) via Schema ConversationMetadata
 
-defConversationMetadata :: UserId -> ConversationMetadata
-defConversationMetadata creator =
+defConversationMetadata :: UserId -> Range 1 256 Text -> ConversationMetadata
+defConversationMetadata creator name =
   ConversationMetadata
     { cnvmType = RegularConv,
       cnvmCreator = creator,
       cnvmAccess = [PrivateAccess],
       cnvmAccessRoles = mempty,
-      cnvmName = Nothing,
+      cnvmName = name,
       cnvmTeam = Nothing,
       cnvmMessageTimer = Nothing,
       cnvmReceiptMode = Nothing
@@ -196,7 +196,7 @@ conversationMetadataObjectSchema sch =
         schema
     <*> cnvmAccess .= field "access" (array schema)
     <*> cnvmAccessRoles .= sch
-    <*> cnvmName .= optField "name" (maybeWithDefault A.Null schema)
+    <*> cnvmName .= field "name" (maybeWithDefault A.Null schema) -- TODO: could this be the A.Null that made it into cassandra somehow?
     <* const ("0.0" :: Text) .= optional (field "last_event" schema)
     <* const ("1970-01-01T00:00:00.000Z" :: Text)
       .= optional (field "last_event_time" schema)
@@ -681,7 +681,7 @@ newConvSchema sch =
                (array schema)
                <|> pure []
            )
-      <*> newConvName .= maybe_ (optField "name" schema)
+      <*> newConvName .= field "name" schema
       <*> (Set.toList . newConvAccess)
         .= (fromMaybe mempty <$> optField "access" (Set.fromList <$> array schema))
       <*> newConvAccessRoles .= sch
@@ -808,7 +808,7 @@ instance ToSchema ConversationRename where
           .= fieldWithDocModifier
             "name"
             (description ?~ desc)
-            (unnamed (schema @Text))
+            (unnamed (schema @(Range 1 256 Text)))
     where
       desc = "The new conversation name"
 

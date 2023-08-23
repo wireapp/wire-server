@@ -404,7 +404,7 @@ createLegacyOne2OneConversationUnchecked ::
   ) =>
   Local UserId ->
   ConnId ->
-  Maybe (Range 1 256 Text) ->
+  Range 1 256 Text ->
   Maybe TeamId ->
   Local UserId ->
   Sem r ConversationResponse
@@ -414,7 +414,7 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
         (defConversationMetadata (tUnqualified self))
           { cnvmType = One2OneConv,
             cnvmTeam = mtid,
-            cnvmName = fmap fromRange name
+            cnvmName = name
           }
   let nc =
         NewConversation
@@ -446,7 +446,7 @@ createOne2OneConversationUnchecked ::
   ) =>
   Local UserId ->
   ConnId ->
-  Maybe (Range 1 256 Text) ->
+  Range 1 256 Text ->
   Maybe TeamId ->
   Qualified UserId ->
   Sem r ConversationResponse
@@ -626,7 +626,7 @@ newRegularConversation lusr newConv = do
                   cnvmCreator = tUnqualified lusr,
                   cnvmAccess = access newConv,
                   cnvmAccessRoles = accessRoles newConv,
-                  cnvmName = fmap fromRange (newConvName newConv),
+                  cnvmName = newConvName newConv,
                   cnvmMessageTimer = newConvMessageTimer newConv,
                   cnvmReceiptMode = newConvReceiptMode newConv,
                   cnvmTeam = fmap cnvTeamId (newConvTeam newConv)
