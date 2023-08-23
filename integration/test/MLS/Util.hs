@@ -128,17 +128,30 @@ createWireClient u = do
   c <- addClient u def {lastPrekey = Just lpk} >>= getJSON 201
   mkClientIdentity u c
 
+data CredentialType = BasicCredentialType | X509CredentialType
+
+instance MakesValue CredentialType where
+  make BasicCredentialType = make "basic"
+  make X509CredentialType = make "x509"
+
+instance HasTests x => HasTests (CredentialType -> x) where
+  mkTests m n s f x =
+    mkTests m (n <> "[ctype=basic]") s f (x BasicCredentialType)
+      <> mkTests m (n <> "[ctype=x509]") s f (x X509CredentialType)
+
 data InitMLSClient = InitMLSClient
+  {credType :: CredentialType}
 
 instance Default InitMLSClient where
-  def = InitMLSClient
+  def = InitMLSClient {credType = BasicCredentialType}
 
 initMLSClient :: HasCallStack => InitMLSClient -> ClientIdentity -> App ()
-initMLSClient _opts cid = do
+initMLSClient opts cid = do
   bd <- getBaseDir
   mls <- getMLSState
   liftIO $ createDirectory (bd </> cid2Str cid)
-  void $ mlscli cid ["init", "--ciphersuite", mls.ciphersuite.code, cid2Str cid] Nothing
+  ctype <- make opts.credType & asString
+  void $ mlscli cid ["init", "--ciphersuite", mls.ciphersuite.code, "-t", ctype, cid2Str cid] Nothing
 
 -- | Create new mls client and register with backend.
 createMLSClient :: (MakesValue u, HasCallStack) => InitMLSClient -> u -> App ClientIdentity

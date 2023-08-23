@@ -311,12 +311,11 @@ testMLSProtocolUpgrade secondDomain = do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mls"
 
-testAddUserSimple :: HasCallStack => Ciphersuite -> App ()
-testAddUserSimple suite = do
+testAddUserSimple :: HasCallStack => Ciphersuite -> CredentialType -> App ()
+testAddUserSimple suite ctype = do
   setMLSCiphersuite suite
-
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
+  [alice1, bob1, bob2] <- traverse (createMLSClient def {credType = ctype}) [alice, bob, bob]
 
   traverse_ uploadNewKeyPackage [bob1, bob2]
   (_, qcnv) <- createNewGroup alice1
