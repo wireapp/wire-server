@@ -38,7 +38,7 @@ type MLSMessagingAPI =
   Named
     "mls-welcome-message"
     ( Summary "Post an MLS welcome message"
-        :> From 'V5
+        :> Until 'V3
         :> MakesFederatedCall 'Galley "mls-welcome"
         :> CanThrow 'MLSKeyPackageRefNotFound
         :> CanThrow 'MLSNotEnabled
@@ -55,7 +55,7 @@ type MLSMessagingAPI =
                :> MakesFederatedCall 'Galley "send-mls-message"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Brig "get-mls-clients"
-               :> From 'V5
+               :> Until 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound
@@ -91,7 +91,7 @@ type MLSMessagingAPI =
                :> MakesFederatedCall 'Galley "send-mls-message"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Brig "get-mls-clients"
-               :> From 'V5
+               :> From 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound
@@ -128,7 +128,7 @@ type MLSMessagingAPI =
                :> MakesFederatedCall 'Galley "send-mls-commit-bundle"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Brig "get-mls-clients"
-               :> From 'V5
+               :> From 'V4
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound
@@ -161,7 +161,7 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-public-keys"
            ( Summary "Get public keys used by the backend to sign external proposals"
-               :> From 'V5
+               :> From 'V4
                :> CanThrow 'MLSNotEnabled
                :> "public-keys"
                :> ZLocalUser
