@@ -48,6 +48,7 @@ import Servant.Swagger
 import Test.QuickCheck (Arbitrary)
 import TransitiveAnns.Types
 import Unsafe.Coerce (unsafeCoerce)
+import Wire.API.Routes.Version
 import Wire.Arbitrary (GenericUniform (..))
 
 -- | This function exists only to provide a convenient place for the
@@ -150,6 +151,10 @@ type family ShowComponent (x :: Component) = (res :: Symbol) | res -> x where
   ShowComponent 'Brig = "brig"
   ShowComponent 'Galley = "galley"
   ShowComponent 'Cargohold = "cargohold"
+
+type instance
+  SpecialiseToVersion v (MakesFederatedCall comp name :> api) =
+    MakesFederatedCall comp name :> SpecialiseToVersion v api
 
 -- | 'MakesFederatedCall' annotates the swagger documentation with an extension
 -- tag @x-wire-makes-federated-calls-to@.

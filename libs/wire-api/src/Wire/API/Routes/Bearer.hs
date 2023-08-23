@@ -26,6 +26,7 @@ import Data.Text.Encoding qualified as T
 import Imports
 import Servant
 import Servant.Swagger
+import Wire.API.Routes.Version
 
 newtype Bearer a = Bearer {unBearer :: a}
 
@@ -41,6 +42,10 @@ type BearerQueryParam =
   QueryParam'
     [Lenient, Description "Access token"]
     "access_token"
+
+type instance
+  SpecialiseToVersion v (Bearer a :> api) =
+    Bearer a :> SpecialiseToVersion v api
 
 instance HasSwagger api => HasSwagger (Bearer a :> api) where
   toSwagger _ =

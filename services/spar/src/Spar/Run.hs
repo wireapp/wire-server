@@ -44,7 +44,7 @@ import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai.Utilities.Request (lookupRequestId)
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
-import Spar.API (API, app)
+import Spar.API (SparAPI, app)
 import Spar.App
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
@@ -116,7 +116,7 @@ mkApp sparCtxOpts = do
   let wrappedApp =
         versionMiddleware (fold (disabledAPIVersions sparCtxOpts))
           . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
-          . servantPrometheusMiddleware (Proxy @API)
+          . servantPrometheusMiddleware (Proxy @SparAPI)
           . WU.catchErrors sparCtxLogger []
           -- Error 'Response's are usually not thrown as exceptions, but logged in
           -- 'renderSparErrorWithLogging' before the 'Application' can construct a 'Response'
