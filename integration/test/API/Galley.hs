@@ -171,22 +171,30 @@ postProteusMessage user conv msgs = do
   submit "POST" (addProtobuf bytes req)
 
 mkProteusRecipient :: (HasCallStack, MakesValue user, MakesValue client) => user -> client -> String -> App Proto.QualifiedUserEntry
-mkProteusRecipient user client msg = do
-  userDomain <- objDomain user
-  userId <- LBS.toStrict . UUID.toByteString . fromJust . UUID.fromString <$> objId user
-  clientId <- (^?! hex) <$> objId client
+mkProteusRecipient user client = mkProteusRecipients user [(user, [client])]
+
+mkProteusRecipients :: (HasCallStack, MakesValue domain, MakesValue user, MakesValue client) => domain -> [(user, [client])] -> String -> App Proto.QualifiedUserEntry
+mkProteusRecipients dom userClients msg = do
+  userDomain <- asString =<< objDomain dom
+  userEntries <- mapM mkUserEntry userClients
   pure $
     Proto.defMessage
       & #domain .~ fromString userDomain
-      & #entries
-        .~ [ Proto.defMessage
-               & #user . #uuid .~ userId
-               & #clients
-                 .~ [ Proto.defMessage
-                        & #client . #client .~ clientId
-                        & #text .~ fromString msg
-                    ]
-           ]
+      & #entries .~ userEntries
+  where
+    mkUserEntry (user, clients) = do
+      userId <- LBS.toStrict . UUID.toByteString . fromJust . UUID.fromString <$> objId user
+      clientEntries <- mapM mkClientEntry clients
+      pure $
+        Proto.defMessage
+          & #user . #uuid .~ userId
+          & #clients .~ clientEntries
+    mkClientEntry client = do
+      clientId <- (^?! hex) <$> objId client
+      pure $
+        Proto.defMessage
+          & #client . #client .~ clientId
+          & #text .~ fromString msg
 
 getGroupInfo ::
   (HasCallStack, MakesValue user, MakesValue conv) =>

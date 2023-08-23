@@ -22,9 +22,10 @@ testNotificationsForOfflineBackends :: HasCallStack => App ()
 testNotificationsForOfflineBackends = do
   resourcePool <- asks (.resourcePool)
   -- `delUser` will eventually get deleted.
-  [delUser, otherUser] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  [delUser, otherUser, otherUser2] <- createAndConnectUsers [OwnDomain, OtherDomain, OtherDomain]
   delClient <- objId $ bindResponse (API.addClient delUser def) $ getJSON 201
   otherClient <- objId $ bindResponse (API.addClient otherUser def) $ getJSON 201
+  otherClient2 <- objId $ bindResponse (API.addClient otherUser2 def) $ getJSON 201
 
   -- We call it 'downBackend' because it is down for the most of this test
   -- except for setup and assertions. Perhaps there is a better name.
@@ -36,18 +37,18 @@ testNotificationsForOfflineBackends = do
       connectUsers delUser downUser1
       connectUsers delUser downUser2
       connectUsers otherUser downUser1
-      upBackendConv <- bindResponse (postConversation delUser (defProteus {qualifiedUsers = [otherUser, downUser1]})) $ getJSON 201
+      upBackendConv <- bindResponse (postConversation delUser (defProteus {qualifiedUsers = [otherUser, otherUser2, downUser1]})) $ getJSON 201
       downBackendConv <- bindResponse (postConversation downUser1 (defProteus {qualifiedUsers = [otherUser, delUser]})) $ getJSON 201
       pure (downUser1, downClient1, downUser2, upBackendConv, downBackendConv)
 
     -- Even when a participating backend is down, messages to conversations
     -- owned by other backends should go.
-    successfulMsgForOtherUser <- mkProteusRecipient otherUser otherClient "success message for other user"
+    successfulMsgForOtherUsers <- mkProteusRecipients otherUser [(otherUser, [otherClient]), (otherUser2, [otherClient2])] "success message for other user"
     successfulMsgForDownUser <- mkProteusRecipient downUser1 downClient1 "success message for down user"
     let successfulMsg =
           Proto.defMessage @Proto.QualifiedNewOtrMessage
             & #sender . Proto.client .~ (delClient ^?! hex)
-            & #recipients .~ [successfulMsgForOtherUser, successfulMsgForDownUser]
+            & #recipients .~ [successfulMsgForOtherUsers, successfulMsgForDownUser]
             & #reportAll .~ Proto.defMessage
     bindResponse (postProteusMessage delUser upBackendConv successfulMsg) assertSuccess
 
@@ -68,12 +69,13 @@ testNotificationsForOfflineBackends = do
     bindResponse (postConversation delUser (defProteus {qualifiedUsers = [otherUser, downUser1]})) $ \resp ->
       resp.status `shouldMatchInt` 533
 
-    -- Adding users to an up backend conversation should work even when one of
-    -- the participating backends is down
-    otherUser2 <- randomUser OtherDomain def
-    connectUsers delUser otherUser2
-    bindResponse (addMembers delUser upBackendConv [otherUser2]) $ \resp ->
-      resp.status `shouldMatchInt` 200
+    -- Adding users to an up backend conversation should work not work when one
+    -- of the participating backends is down. This is due to not being able to
+    -- check non-fully connected graph between all participating backends
+    otherUser3 <- randomUser OtherDomain def
+    connectUsers delUser otherUser3
+    bindResponse (addMembers delUser upBackendConv [otherUser3]) $ \resp ->
+      resp.status `shouldMatchInt` 533
 
     -- Adding users from down backend to a conversation should also fail
     bindResponse (addMembers delUser upBackendConv [downUser2]) $ \resp ->
@@ -86,14 +88,17 @@ testNotificationsForOfflineBackends = do
 
     -- User deletions should eventually make it to the other backend.
     deleteUser delUser
+
+    let isOtherUser2LeaveUpConvNotif = allPreds [isConvLeaveNotif, isNotifConv upBackendConv, isNotifForUser otherUser2]
+        isDelUserLeaveUpConvNotif = allPreds [isConvLeaveNotif, isNotifConv upBackendConv, isNotifForUser delUser]
+
     do
       newMsgNotif <- awaitNotification otherUser otherClient noValue 1 isNewMessageNotif
       newMsgNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
       newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` "success message for other user"
 
-      memberJoinNotif <- awaitNotification otherUser otherClient (Just newMsgNotif) 1 isMemberJoinNotif
-      memberJoinNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
-      asListOf objQidObject (memberJoinNotif %. "payload.0.data.users") `shouldMatch` mapM objQidObject [otherUser2]
+      void $ awaitNotification otherUser otherClient (Just newMsgNotif) 1 isOtherUser2LeaveUpConvNotif
+      void $ awaitNotification otherUser otherClient (Just newMsgNotif) 1 isDelUserLeaveUpConvNotif
 
       delUserDeletedNotif <- nPayload $ awaitNotification otherUser otherClient (Just newMsgNotif) 1 isDeleteUserNotif
       objQid delUserDeletedNotif `shouldMatch` objQid delUser
@@ -103,11 +108,6 @@ testNotificationsForOfflineBackends = do
       newMsgNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
       newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` "success message for down user"
 
-      -- FUTUREWORK: Uncomment after fixing this bug: https://wearezeta.atlassian.net/browse/WPB-3664
-      -- memberJoinNotif <- awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isMemberJoinNotif
-      -- memberJoinNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
-      -- asListOf objQidObject (memberJoinNotif %. "payload.0.data.users") `shouldMatch` mapM objQidObject [downUser2]
-
       let isDelUserLeaveDownConvNotif =
             allPreds
               [ isConvLeaveNotif,
@@ -115,11 +115,10 @@ testNotificationsForOfflineBackends = do
                 isNotifForUser delUser
               ]
       void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isDelUserLeaveDownConvNotif
-      void $ awaitNotification otherUser otherClient noValue 1 isDelUserLeaveDownConvNotif
 
       -- FUTUREWORK: Uncomment after fixing this bug: https://wearezeta.atlassian.net/browse/WPB-3664
-      -- void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 (allPreds [isConvLeaveNotif, isNotifConv upBackendConv, isNotifForUser otherUser])
-      -- void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 (allPreds [isConvLeaveNotif, isNotifConv upBackendConv, isNotifForUser delUser])
+      -- void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isOtherUser2LeaveUpConvNotif
+      -- void $ awaitNotification otherUser otherClient (Just newMsgNotif) 1 isDelUserLeaveDownConvNotif
 
       delUserDeletedNotif <- nPayload $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isDeleteUserNotif
       objQid delUserDeletedNotif `shouldMatch` objQid delUser
