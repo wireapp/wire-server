@@ -277,7 +277,7 @@ startBackend resource overrides services = do
                 gundeck = g Gundeck,
                 nginz = g Nginz,
                 spar = g Spar,
-                -- FUREWORK: Set to g Proxy, when we add Proxy to spawned services
+                -- FUTUREWORK: Set to g Proxy, when we add Proxy to spawned services
                 proxy = HostPort "127.0.0.1" 9087,
                 stern = g Stern
               }
