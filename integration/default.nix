@@ -15,8 +15,10 @@
 , Cabal
 , case-insensitive
 , containers
+, cryptonite
 , data-default
 , directory
+, errors
 , exceptions
 , extra
 , filepath
@@ -28,6 +30,7 @@
 , lens
 , lens-aeson
 , lib
+, memory
 , mime
 , monad-control
 , mtl
@@ -76,8 +79,10 @@ mkDerivation {
     bytestring-conversion
     case-insensitive
     containers
+    cryptonite
     data-default
     directory
+    errors
     exceptions
     extra
     filepath
@@ -87,6 +92,7 @@ mkDerivation {
     kan-extensions
     lens
     lens-aeson
+    memory
     mime
     monad-control
     mtl
