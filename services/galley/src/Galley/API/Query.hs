@@ -253,7 +253,7 @@ getRemoteConversationsWithFailures lusr convs = do
           lusr
           ( Map.findWithDefault
               defMemberStatus
-              (fmap rcnvId rconv)
+              ((.id) <$> rconv)
               statusMap
           )
           rconv
@@ -281,7 +281,7 @@ getRemoteConversationsWithFailures lusr convs = do
         Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
           . Logger.field "error" (show e)
       pure . Left $ failedGetConversationRemotely (sequenceA rcids) e
-    handleFailure (Right c) = pure . Right . traverse gcresConvs $ c
+    handleFailure (Right c) = pure . Right . traverse (.convs) $ c
 
 getConversationRoles ::
   ( Member ConversationStore r,
@@ -694,7 +694,7 @@ getConversationGuestLinksFeatureStatus ::
   Maybe TeamId ->
   Sem r (WithStatus GuestLinksConfig)
 getConversationGuestLinksFeatureStatus mbTid = do
-  defaultStatus :: WithStatus GuestLinksConfig <- input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
+  defaultStatus :: WithStatus GuestLinksConfig <- input <&> view (settings . featureFlags . flagConversationGuestLinks . unDefaults)
   case mbTid of
     Nothing -> pure defaultStatus
     Just tid -> do

@@ -141,8 +141,8 @@ newtype MarketoResult = MarketoResult
   deriving (Eq, Show, ToJSON, FromJSON)
 
 data ConsentLogAndMarketo = ConsentLogAndMarketo
-  { clamConsentLog :: ConsentLog,
-    clamMarketo :: MarketoResult
+  { consentLog :: ConsentLog,
+    marketo :: MarketoResult
   }
   deriving (Eq, Show)
 

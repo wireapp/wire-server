@@ -17,7 +17,7 @@
 
 module API.Util where
 
-import Bilge hiding (body)
+import Bilge hiding (body, host, port)
 import CargoHold.Options
 import CargoHold.Run
 import qualified Codec.MIME.Parse as MIME
@@ -64,11 +64,11 @@ uploadRaw ::
   Lazy.ByteString ->
   TestM (Response (Maybe Lazy.ByteString))
 uploadRaw c usr bs = do
-  cargohold <- viewUnversionedCargohold
+  cargohold' <- viewUnversionedCargohold
   post $
     apiVersion "v1"
       . c
-      . cargohold
+      . cargohold'
       . method POST
       . zUser usr
       . zConn "conn"
@@ -177,7 +177,7 @@ deleteToken uid key = do
       . paths ["assets", toByteString' key, "token"]
 
 viewFederationDomain :: TestM Domain
-viewFederationDomain = view (tsOpts . optSettings . setFederationDomain)
+viewFederationDomain = view (tsOpts . settings . federationDomain)
 
 --------------------------------------------------------------------------------
 -- Mocking utilities
@@ -192,7 +192,7 @@ withSettingsOverrides f action = do
     liftIO $ runTestM (ts & tsEndpoint %~ setLocalEndpoint p) action
 
 setLocalEndpoint :: Word16 -> Endpoint -> Endpoint
-setLocalEndpoint p = (epPort .~ p) . (epHost .~ "127.0.0.1")
+setLocalEndpoint p = (port .~ p) . (host .~ "127.0.0.1")
 
 withMockFederator ::
   (FederatedRequest -> IO (HTTP.MediaType, LByteString)) ->
@@ -201,5 +201,5 @@ withMockFederator ::
 withMockFederator respond action = do
   withTempMockFederator [] respond $ \p ->
     withSettingsOverrides
-      (optFederator . _Just %~ setLocalEndpoint (fromIntegral p))
+      (federator . _Just %~ setLocalEndpoint (fromIntegral p))
       action

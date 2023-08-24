@@ -49,17 +49,19 @@ module Brig.User.Search.Index
   )
 where
 
-import Bilge (MonadHttp, expect2xx, header, lbytes)
-import Bilge qualified as RPC
+import Bilge (expect2xx, header, lbytes, paths)
+import Bilge.IO (MonadHttp)
+import Bilge.IO qualified as RPC
 import Bilge.RPC (RPCException (RPCException))
-import Bilge.Request (paths)
+import Bilge.Request qualified as RPC (empty, host, method, port)
 import Bilge.Response (responseJsonThrow)
 import Bilge.Retry (rpcHandlers)
 import Brig.Data.Instances ()
 import Brig.Index.Types (CreateIndexSettings (..))
 import Brig.Types.Search (SearchVisibilityInbound, defaultSearchVisibilityInbound, searchVisibilityInboundFromFeatureStatus)
 import Brig.User.Search.Index.Types as Types
-import Cassandra qualified as C
+import Cassandra.CQL qualified as C
+import Cassandra.Exec qualified as C
 import Cassandra.Util
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM, try)
@@ -85,13 +87,13 @@ import Data.Text.Lens hiding (text)
 import Data.UUID qualified as UUID
 import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
-import Network.HTTP.Client hiding (path)
+import Network.HTTP.Client hiding (host, path, port)
 import Network.HTTP.Types (StdMethod (POST), hContentType, statusCode)
 import SAML2.WebSSO.Types qualified as SAML
 import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..), field, info, msg, val, (+++), (~~))
 import URI.ByteString (URI, serializeURIRef)
-import Util.Options (Endpoint, epHost, epPort)
+import Util.Options (Endpoint, host, port)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Feature (SearchVisibilityInboundConfig, featureNameBS)
 import Wire.API.User
@@ -933,7 +935,7 @@ getTeamSearchVisibilityInboundMulti tids = do
             Left x -> throwM $ RPCException nm rq x
             Right x -> pure x
       where
-        mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
+        mkEndpoint service = RPC.host (encodeUtf8 (service ^. host)) . RPC.port (service ^. port) $ RPC.empty
 
         x3 :: RetryPolicy
         x3 = limitRetries 3 <> exponentialBackoff 100000

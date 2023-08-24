@@ -290,11 +290,11 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
   oldStatus <- fmap tdStatus $ E.getTeam tid >>= noteS @'TeamNotFound
   valid <- validateTransition (oldStatus, newStatus)
   when valid $ do
-    journal newStatus cur
+    runJournal newStatus cur
     E.setTeamStatus tid newStatus
   where
-    journal Suspended _ = Journal.teamSuspend tid
-    journal Active c = do
+    runJournal Suspended _ = Journal.teamSuspend tid
+    runJournal Active c = do
       teamCreationTime <- E.getTeamCreationTime tid
       -- When teams are created, they are activated immediately. In this situation, Brig will
       -- most likely report team size as 0 due to ES taking some time to index the team creator.
@@ -305,7 +305,7 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
               then 1
               else possiblyStaleSize
       Journal.teamActivate tid size c teamCreationTime
-    journal _ _ = throwS @'InvalidTeamStatusUpdate
+    runJournal _ _ = throwS @'InvalidTeamStatusUpdate
     validateTransition :: Member (ErrorS 'InvalidTeamStatusUpdate) r => (TeamStatus, TeamStatus) -> Sem r Bool
     validateTransition = \case
       (PendingActive, Active) -> pure True
@@ -437,10 +437,10 @@ uncheckedDeleteTeam lusr zcon tid = do
   where
     pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Sem r ()
     pushDeleteEvents membs e ue = do
-      o <- inputs (view optSettings)
+      o <- inputs (view settings)
       let r = list1 (userRecipient (tUnqualified lusr)) (membersToRecipients (Just (tUnqualified lusr)) membs)
       -- To avoid DoS on gundeck, send team deletion events in chunks
-      let chunkSize = fromMaybe defConcurrentDeletionEvents (o ^. setConcurrentDeletionEvents)
+      let chunkSize = fromMaybe defConcurrentDeletionEvents (o ^. concurrentDeletionEvents)
       let chunks = List.chunksOf chunkSize (toList r)
       forM_ chunks $ \case
         [] -> pure ()
@@ -1220,7 +1220,7 @@ ensureNotTooLarge ::
 ensureNotTooLarge tid = do
   o <- input
   (TeamSize size) <- E.getSize tid
-  unless (size < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
+  unless (size < fromIntegral (o ^. settings . maxTeamSize)) $
     throwS @'TooManyTeamMembers
   pure $ TeamSize size
 

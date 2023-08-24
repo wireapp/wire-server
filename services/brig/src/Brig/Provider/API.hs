@@ -549,11 +549,11 @@ updateAccountPasswordH (pid ::: req) = do
 updateAccountPassword :: ProviderId -> Public.PasswordChange -> (Handler r) ()
 updateAccountPassword pid upd = do
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
-  unless (verifyPassword (cpOldPassword upd) pass) $
+  unless (verifyPassword (oldPassword upd) pass) $
     throwStd (errorToWai @'E.BadCredentials)
-  when (verifyPassword (cpNewPassword upd) pass) $
+  when (verifyPassword (newPassword upd) pass) $
     throwStd newPasswordMustDiffer
-  wrapClientE $ DB.updateAccountPassword pid (cpNewPassword upd)
+  wrapClientE $ DB.updateAccountPassword pid (newPassword upd)
 
 addServiceH :: Member GalleyProvider r => ProviderId ::: JsonRequest Public.NewService -> (Handler r) Response
 addServiceH (pid ::: req) = do

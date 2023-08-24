@@ -110,8 +110,8 @@ run o = do
     Async.cancel authMetrics
     closeEnv e
   where
-    endpoint = brig o
-    server e = defaultServer (unpack $ endpoint ^. epHost) (endpoint ^. epPort) (e ^. applog) (e ^. metrics)
+    endpoint' = brig o
+    server e = defaultServer (unpack $ endpoint' ^. host) (endpoint' ^. port) (e ^. applog) (e ^. metrics)
 
 mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp o = do

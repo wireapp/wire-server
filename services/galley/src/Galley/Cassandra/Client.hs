@@ -41,7 +41,7 @@ import UnliftIO qualified
 
 updateClient :: Bool -> UserId -> ClientId -> Client ()
 updateClient add usr cls = do
-  let q = if add then Cql.addMemberClient else Cql.rmMemberClient
+  let q = if add then Cql.upsertMemberAddClient else Cql.upsertMemberRmClient
   retry x5 $ write (q cls) (params LocalQuorum (Identity usr))
 
 -- Do, at most, 16 parallel lookups of up to 128 users each
@@ -69,4 +69,4 @@ interpretClientStoreToCassandra = interpret $ \case
   CreateClient uid cid -> embedClient $ updateClient True uid cid
   DeleteClient uid cid -> embedClient $ updateClient False uid cid
   DeleteClients uid -> embedClient $ eraseClients uid
-  UseIntraClientListing -> embedApp . view $ options . optSettings . setIntraListing
+  UseIntraClientListing -> embedApp . view $ options . settings . intraListing

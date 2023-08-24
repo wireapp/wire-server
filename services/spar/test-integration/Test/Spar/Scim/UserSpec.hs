@@ -1057,7 +1057,7 @@ samlUserShouldSatisfy uref property = do
 createViaSamlResp :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ResponseLBS
 createViaSamlResp idp privCreds (SAML.UserRef _ subj) = do
   authnReq <- negotiateAuthnRequest idp
-  let tid = idp ^. SAML.idpExtraInfo . User.wiTeam
+  let tid = idp ^. SAML.idpExtraInfo . User.team
   spmeta <- getTestSPMetadata tid
   authnResp <-
     runSimpleSP $
@@ -1135,7 +1135,7 @@ testCreateUserTimeout = do
       tryquery (filterBy "externalId" $ fromEmail email)
 
     waitUserExpiration = do
-      timeoutSecs <- view (teTstOpts . to cfgBrigSettingsTeamInvitationTimeout)
+      timeoutSecs <- view (teTstOpts . to brigSettingsTeamInvitationTimeout)
       Control.Exception.assert (timeoutSecs < 30) $ do
         threadDelay $ (timeoutSecs + 1) * 1_000_000
 

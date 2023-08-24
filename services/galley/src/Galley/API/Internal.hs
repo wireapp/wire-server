@@ -76,7 +76,7 @@ import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore
 import Galley.Intra.Push qualified as Intra
 import Galley.Monad
-import Galley.Options
+import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
@@ -123,7 +123,7 @@ import Wire.Sem.Paging.Cassandra
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
-  hoistAPI @InternalAPIBase id $
+  hoistAPI @InternalAPIBase Imports.id $
     mkNamedAPI @"status" (pure ())
       <@> mkNamedAPI @"delete-user" (callsFed (exposeAnnotations rmUser))
       <@> mkNamedAPI @"connect" (callsFed (exposeAnnotations Create.createConnectConversation))
@@ -140,7 +140,7 @@ federationAPI =
   mkNamedAPI @"get-federation-status" (const getFederationStatus)
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
-legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
+legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
   where
     base :: TeamId -> API ILegalholdWhitelistedTeamsAPIBase GalleyEffects
     base tid =
@@ -149,13 +149,13 @@ legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
         <@> mkNamedAPI @"get-team-legalhold-whitelisted" (LegalHoldStore.isTeamLegalholdWhitelisted tid)
 
 iTeamsAPI :: API ITeamsAPI GalleyEffects
-iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
+iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
   where
     hoistAPISegment ::
       (ServerT (seg :> inner) (Sem r) ~ ServerT inner (Sem r)) =>
       API inner r ->
       API (seg :> inner) r
-    hoistAPISegment = hoistAPI id
+    hoistAPISegment = hoistAPI Imports.id
 
     base :: TeamId -> API ITeamsAPIBase GalleyEffects
     base tid =
@@ -418,7 +418,7 @@ rmUser lusr conn = do
 
       for_
         (maybeList1 (catMaybes pp))
-        push
+        Galley.Effects.GundeckAccess.push
 
     -- FUTUREWORK: This could be optimized to reduce the number of RPCs
     -- made. When a team is deleted the burst of RPCs created here could
@@ -612,7 +612,7 @@ deleteFederationDomainRemoteUserFromLocalConversations (fromRange -> maxPage) do
       getPaginatedData page
   env <- input
   let lCnvMap = foldr insertIntoMap mempty remoteUsers
-      localDomain = env ^. Galley.App.options . optSettings . setFederationDomain
+      localDomain = env ^. Galley.App.options . Galley.Options.settings . federationDomain
   for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
     let mapAllErrors ::
           Text ->

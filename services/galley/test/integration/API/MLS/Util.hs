@@ -89,7 +89,7 @@ import Wire.API.User.Client.Prekey
 
 cid2Str :: ClientIdentity -> String
 cid2Str cid =
-  show (ciUser cid)
+  show cid.ciUser
     <> ":"
     <> T.unpack cid.ciClient.client
     <> "@"
@@ -105,9 +105,9 @@ postMessage ::
   ByteString ->
   m ResponseLBS
 postMessage sender msg = do
-  galley <- viewGalley
+  galleyCall <- viewGalley
   post
-    ( galley
+    ( galleyCall
         . paths ["mls", "messages"]
         . zUser (ciUser sender)
         . zClient (ciClient sender)
@@ -128,7 +128,7 @@ localPostCommitBundle ::
 localPostCommitBundle sender bundle = do
   galley <- viewGalley
   post
-    ( galley
+    ( galleyCall
         . paths ["mls", "commit-bundles"]
         . zUser (ciUser sender)
         . zClient (ciClient sender)
@@ -197,7 +197,7 @@ postCommitBundle sender qcs bundle = do
 
 saveRemovalKey :: FilePath -> TestM ()
 saveRemovalKey fp = do
-  keys <- fromJust <$> view (tsGConf . optSettings . setMlsPrivateKeyPaths)
+  keys <- fromJust <$> view (tsGConf . settings . mlsPrivateKeyPaths)
   keysByPurpose <- liftIO $ loadAllMLSKeys keys
   let (_, pub) = fromJust (mlsKeyPair_ed25519 (keysByPurpose RemovalPurpose))
   liftIO $ BS.writeFile fp (BA.convert pub)
@@ -348,10 +348,10 @@ createLocalMLSClient (tUntagged -> qusr) = do
 
   -- set public key
   pkey <- mlscli qcid ["public-key"] Nothing
-  brig <- viewBrig
+  brigCall <- viewBrig
   let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 pkey}
   put
-    ( brig
+    ( brigCall
         . paths ["clients", toByteString' . ciClient $ qcid]
         . zUser (ciUser qcid)
         . json update
@@ -380,9 +380,9 @@ uploadNewKeyPackage qcid = do
   (kp, _) <- generateKeyPackage qcid
 
   -- upload key package
-  brig <- viewBrig
+  brigCall <- viewBrig
   post
-    ( brig
+    ( brigCall
         . paths ["mls", "key-packages", "self", toByteString' . ciClient $ qcid]
         . zUser (ciUser qcid)
         . json (KeyPackageUpload [kp])
@@ -530,10 +530,10 @@ setupFakeMLSGroup creator mSubId = do
 
 claimLocalKeyPackages :: HasCallStack => ClientIdentity -> Local UserId -> MLSTest KeyPackageBundle
 claimLocalKeyPackages qcid lusr = do
-  brig <- viewBrig
+  brigCall <- viewBrig
   responseJsonError
     =<< post
-      ( brig
+      ( brigCall
           . paths ["mls", "key-packages", "claim", toByteString' (tDomain lusr), toByteString' (tUnqualified lusr)]
           . zUser (ciUser qcid)
       )

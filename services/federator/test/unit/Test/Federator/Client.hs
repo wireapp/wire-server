@@ -45,7 +45,7 @@ import Servant.Types.SourceT
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.HUnit
-import Util.Options
+import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.API
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error

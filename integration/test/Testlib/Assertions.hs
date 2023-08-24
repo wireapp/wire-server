@@ -4,11 +4,13 @@ module Testlib.Assertions where
 
 import Control.Exception as E
 import Control.Monad.Reader
-import Data.Aeson (Value)
+import Data.ByteString.Base64 qualified as B64
 import Data.Char
 import Data.Foldable
 import Data.List
 import Data.Map qualified as Map
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import GHC.Stack as Stack
 import System.FilePath
 import Testlib.JSON
@@ -49,6 +51,17 @@ a `shouldMatch` b = do
     pa <- prettyJSON xa
     pb <- prettyJSON xb
     assertFailure $ "Actual:\n" <> pa <> "\nExpected:\n" <> pb
+
+shouldMatchBase64 ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  -- | The actual value, in base64
+  a ->
+  -- | The expected value, in plain text
+  b ->
+  App ()
+a `shouldMatchBase64` b = do
+  xa <- Text.decodeUtf8 . B64.decodeLenient . Text.encodeUtf8 . Text.pack <$> asString a
+  xa `shouldMatch` b
 
 shouldNotMatch ::
   (MakesValue a, MakesValue b, HasCallStack) =>
@@ -111,6 +124,19 @@ shouldMatchSet a b = do
 shouldBeEmpty :: (MakesValue a, HasCallStack) => a -> App ()
 shouldBeEmpty a = a `shouldMatch` (mempty :: [Value])
 
+shouldMatchOneOf ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  a ->
+  b ->
+  App ()
+shouldMatchOneOf a b = do
+  lb <- asList b
+  xa <- make a
+  unless (xa `elem` lb) $ do
+    pa <- prettyJSON a
+    pb <- prettyJSON b
+    assertFailure $ "Expected:\n" <> pa <> "\n to match at least one of:\n" <> pb
+
 shouldContainString ::
   HasCallStack =>
   -- | The actual value
@@ -121,22 +147,6 @@ shouldContainString ::
 super `shouldContainString` sub = do
   unless (sub `isInfixOf` super) $ do
     assertFailure $ "String:\n" <> show super <> "\nDoes not contain:\n" <> show sub
-
-liftP2 ::
-  (MakesValue a, MakesValue b, HasCallStack) =>
-  (Value -> Value -> c) ->
-  a ->
-  b ->
-  App c
-liftP2 f a b = do
-  f <$> make a <*> make b
-
-isEqual ::
-  (MakesValue a, MakesValue b, HasCallStack) =>
-  a ->
-  b ->
-  App Bool
-isEqual = liftP2 (==)
 
 printFailureDetails :: AssertionFailure -> IO String
 printFailureDetails (AssertionFailure stack mbResponse msg) = do

@@ -45,6 +45,7 @@ import Wire.API.RawJson
 import Wire.API.Routes.FederationDomainConfig
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
+import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
 
 spec :: Spec
@@ -231,6 +232,7 @@ spec = do
           defederationTimeout = responseTimeoutNone
           galley = Endpoint "localhost" 8085
           brig = Endpoint "localhost" 8082
+          backendNotificationsConfig = BackendNotificationsConfig 1000 500000
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domains <- runAppT Env {..} getRemoteDomains
@@ -253,6 +255,7 @@ spec = do
           defederationTimeout = responseTimeoutNone
           galley = Endpoint "localhost" 8085
           brig = Endpoint "localhost" 8082
+          backendNotificationsConfig = BackendNotificationsConfig 1000 500000
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domainsThread <- async $ runAppT Env {..} getRemoteDomains
 

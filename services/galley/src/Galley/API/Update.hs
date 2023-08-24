@@ -369,9 +369,9 @@ updateRemoteConversation ::
 updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
   let updateRequest =
         ConversationUpdateRequest
-          { curUser = tUnqualified lusr,
-            curConvId = tUnqualified rcnv,
-            curAction = SomeConversationAction (sing @tag) action
+          { user = tUnqualified lusr,
+            convId = tUnqualified rcnv,
+            action = SomeConversationAction (sing @tag) action
           }
   response <- E.runFederated rcnv (fedClient @'Galley @"update-conversation" updateRequest)
   convUpdate <- case response of
@@ -807,7 +807,7 @@ joinConversation ::
   Access ->
   Sem r (UpdateResult Event)
 joinConversation lusr zcon conv access = do
-  let lcnv = qualifyAs lusr (convId conv)
+  let lcnv = qualifyAs lusr conv.convId
   ensureConversationAccess (tUnqualified lusr) conv access
   ensureGroupConversation conv
   -- FUTUREWORK: remote users?
@@ -1171,7 +1171,7 @@ removeMemberFromRemoteConv cnv lusr victim
   | tUntagged lusr == victim = do
       let lc = LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
       let rpc = fedClient @'Galley @"leave-conversation" lc
-      (either handleError handleSuccess . void . leaveResponse =<<) $
+      (either handleError handleSuccess . void . (.response) =<<) $
         E.runFederated cnv rpc
   | otherwise = throwS @('ActionDenied 'RemoveConversationMember)
   where
@@ -1483,14 +1483,14 @@ memberTyping lusr zcon qcnv ts = do
         unless isMemberRemoteConv $ throwS @'ConvNotFound
         let rpc =
               TypingDataUpdateRequest
-                { tdurTypingStatus = ts,
-                  tdurUserId = tUnqualified lusr,
-                  tdurConvId = tUnqualified rcnv
+                { typingStatus = ts,
+                  userId = tUnqualified lusr,
+                  convId = tUnqualified rcnv
                 }
         res <- E.runFederated rcnv (fedClient @'Galley @"update-typing-indicator" rpc)
         case res of
           TypingDataUpdateSuccess (TypingDataUpdated {..}) -> do
-            pushTypingIndicatorEvents tudOrigUserId tudTime tudUsersInConv (Just zcon) qcnv tudTypingStatus
+            pushTypingIndicatorEvents origUserId time usersInConv (Just zcon) qcnv typingStatus
           TypingDataUpdateError _ -> pure ()
     )
     qcnv

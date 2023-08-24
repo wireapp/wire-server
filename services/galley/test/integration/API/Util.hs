@@ -25,8 +25,6 @@ import API.SQS qualified as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
-import Brig.Types.Connection
-import Brig.Types.Intra
 import Control.Applicative
 import Control.Concurrent.Async
 import Control.Exception (throw)
@@ -108,6 +106,7 @@ import Util.Options
 import Web.Cookie
 import Wire.API.Connection
 import Wire.API.Conversation
+import Wire.API.Conversation qualified as Conv
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code hiding (Value)
 import Wire.API.Conversation.Protocol
@@ -195,7 +194,7 @@ symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
 createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
-  first userId <$> createBindingTeam'
+  first Wire.API.User.userId <$> createBindingTeam'
 
 createBindingTeam' :: HasCallStack => TestM (User, TeamId)
 createBindingTeam' = do
@@ -369,7 +368,7 @@ getTeamMembersPaginated usr tid n mPs = do
           . paths ["teams", toByteString' tid, "members"]
           . zUser usr
           . queryItem "maxResults" (C.pack $ show n)
-          . maybe id (queryItem "pagingState" . cs) mPs
+          . maybe Imports.id (queryItem "pagingState" . cs) mPs
       )
       <!! const 200
         === statusCode
@@ -458,7 +457,7 @@ addUserToTeamWithRole :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM
 addUserToTeamWithRole role inviter tid = do
   (inv, rsp2) <- addUserToTeamWithRole' role inviter tid
   let invitee :: User = responseJsonUnsafe rsp2
-      inviteeId = userId invitee
+      inviteeId = invitee.userId
   let invmeta = Just (inviter, inCreatedAt inv)
   mem <- getTeamMember inviter tid inviteeId
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
@@ -486,8 +485,7 @@ addUserToTeamWithRole' role inviter tid = do
 addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
 addUserToTeamWithSSO hasEmail tid = do
   let ssoid = UserSSOId mkSimpleSampleUref
-  user <- responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
-  let uid = userId user
+  uid <- fmap (\(u :: User) -> u.userId) $ responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
   getTeamMember uid tid uid
 
 makeOwner :: HasCallStack => UserId -> TeamMember -> TeamId -> TestM ()
@@ -728,7 +726,7 @@ postConvQualified u c n = do
     g
       . path "/conversations"
       . zUser u
-      . maybe id zClient c
+      . maybe Imports.id zClient c
       . zConn "conn"
       . zType "access"
       . json n
@@ -935,7 +933,7 @@ data Broadcast = Broadcast
   }
 
 instance Default Broadcast where
-  def = Broadcast BroadcastLegacyQueryParams BroadcastJSON mempty "ZXhhbXBsZQ==" mempty id
+  def = Broadcast BroadcastLegacyQueryParams BroadcastJSON mempty "ZXhhbXBsZQ==" mempty Imports.id
 
 postBroadcast ::
   (MonadIO m, MonadHttp m, HasGalley m) =>
@@ -947,8 +945,8 @@ postBroadcast lu c b = do
   let u = qUnqualified lu
   g <- viewGalley
   let (bodyReport, queryReport) = case bAPI b of
-        BroadcastLegacyQueryParams -> (Nothing, maybe id mkOtrReportMissing (bReport b))
-        _ -> (bReport b, id)
+        BroadcastLegacyQueryParams -> (Nothing, maybe Imports.id mkOtrReportMissing (bReport b))
+        _ -> (bReport b, Imports.id)
   let bdy = case (bAPI b, bType b) of
         (BroadcastQualified, BroadcastJSON) -> error "JSON not supported for the qualified broadcast API"
         (BroadcastQualified, BroadcastProto) ->
@@ -1000,7 +998,7 @@ mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
     fn = fromJust . fromByteString . toByteString'
 
 postProtoOtrMessage :: UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
-postProtoOtrMessage = postProtoOtrMessage' Nothing id
+postProtoOtrMessage = postProtoOtrMessage' Nothing Imports.id
 
 postProtoOtrMessage' :: Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrMessage' reportMissing modif u d c rec = do
@@ -1594,17 +1592,17 @@ registerRemoteConv convId originUser name othMembers = do
   void $
     runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
       ConversationCreated
-        { ccTime = now,
-          ccOrigUserId = originUser,
-          ccCnvId = qUnqualified convId,
-          ccCnvType = RegularConv,
-          ccCnvAccess = [],
-          ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
-          ccCnvName = name,
-          ccNonCreatorMembers = othMembers,
-          ccMessageTimer = Nothing,
-          ccReceiptMode = Nothing,
-          ccProtocol = ProtocolProteus
+        { time = now,
+          origUserId = originUser,
+          cnvId = qUnqualified convId,
+          cnvType = RegularConv,
+          cnvAccess = [],
+          cnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
+          cnvName = name,
+          nonCreatorMembers = othMembers,
+          messageTimer = Nothing,
+          receiptMode = Nothing,
+          protocol = ProtocolProteus
         }
 
 getFeatureStatusMulti :: forall cfg. KnownSymbol (FeatureSymbol cfg) => Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
@@ -1640,15 +1638,15 @@ assertNotConvMember u c =
 
 assertConvEquals :: (HasCallStack, MonadIO m) => Conversation -> Conversation -> m ()
 assertConvEquals c1 c2 = liftIO $ do
-  assertEqual "id" (cnvQualifiedId c1) (cnvQualifiedId c2)
-  assertEqual "type" (cnvType c1) (cnvType c2)
-  assertEqual "creator" (cnvCreator c1) (cnvCreator c2)
+  assertEqual "id" c1.cnvQualifiedId c2.cnvQualifiedId
+  assertEqual "type" (Conv.cnvType c1) (Conv.cnvType c2)
+  assertEqual "creator" (Conv.cnvCreator c1) (Conv.cnvCreator c2)
   assertEqual "access" (accessSet c1) (accessSet c2)
-  assertEqual "name" (cnvName c1) (cnvName c2)
+  assertEqual "name" (Conv.cnvName c1) (Conv.cnvName c2)
   assertEqual "self member" (selfMember c1) (selfMember c2)
   assertEqual "other members" (otherMembers c1) (otherMembers c2)
   where
-    accessSet = Set.fromList . toList . cnvAccess
+    accessSet = Set.fromList . toList . Conv.cnvAccess
     selfMember = cmSelf . cnvMembers
     otherMembers = Set.fromList . cmOthers . cnvMembers
 
@@ -1681,9 +1679,9 @@ assertConvWithRole r t c s us n mt role = do
   let _self = cmSelf (cnvMembers cnv)
   let others = cmOthers (cnvMembers cnv)
   liftIO $ do
-    assertEqual "id" cId (qUnqualified (cnvQualifiedId cnv))
-    assertEqual "name" n (cnvName cnv)
-    assertEqual "type" t (cnvType cnv)
+    assertEqual "id" cId (qUnqualified cnv.cnvQualifiedId)
+    assertEqual "name" n (Conv.cnvName cnv)
+    assertEqual "type" t (Conv.cnvType cnv)
     assertEqual "creator" c (cnvCreator cnv)
     assertEqual "message_timer" mt (cnvMessageTimer cnv)
     assertEqual "self" s (memId _self)
@@ -1694,9 +1692,9 @@ assertConvWithRole r t c s us n mt role = do
     assertBool "otr archived not false" (not (memOtrArchived _self))
     assertBool "otr archived ref not empty" (isNothing (memOtrArchivedRef _self))
     case t of
-      SelfConv -> assertEqual "access" privateAccess (cnvAccess cnv)
-      ConnectConv -> assertEqual "access" privateAccess (cnvAccess cnv)
-      One2OneConv -> assertEqual "access" privateAccess (cnvAccess cnv)
+      SelfConv -> assertEqual "access" privateAccess (Conv.cnvAccess cnv)
+      ConnectConv -> assertEqual "access" privateAccess (Conv.cnvAccess cnv)
+      One2OneConv -> assertEqual "access" privateAccess (Conv.cnvAccess cnv)
       _ -> pure ()
   pure (cnvQualifiedId cnv)
 
@@ -2042,7 +2040,7 @@ connectUsersUnchecked ::
   UserId ->
   List1 UserId ->
   TestM (List1 (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
-connectUsersUnchecked = connectUsersWith id
+connectUsersUnchecked = connectUsersWith Imports.id
 
 connectUsersWith ::
   (Request -> Request) ->
@@ -2215,7 +2213,7 @@ ephemeralUser = do
   let p = object ["name" .= name]
   r <- post (b . path "/register" . json p) <!! const 201 === statusCode
   user <- responseJsonError r
-  pure $ userId user
+  pure $ Wire.API.User.userId user
 
 randomClient :: HasCallStack => UserId -> LastPrekey -> TestM ClientId
 randomClient uid lk = randomClientWithCaps uid lk Nothing
@@ -2355,11 +2353,11 @@ fromBS bs =
 
 convRange :: Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Request -> Request
 convRange range size =
-  maybe id (queryItem "size" . C.pack . show) size
+  maybe Imports.id (queryItem "size" . C.pack . show) size
     . case range of
       Just (Left l) -> queryItem "ids" (C.intercalate "," $ map toByteString' l)
       Just (Right c) -> queryItem "start" (toByteString' c)
-      Nothing -> id
+      Nothing -> Imports.id
 
 privateAccess :: [Access]
 privateAccess = [PrivateAccess]
@@ -2407,7 +2405,7 @@ assertMismatchWithMessage mmsg missing redundant deleted = do
     userClients = UserClients . Map.fromList
 
     formatMessage :: String -> String
-    formatMessage = maybe id (\msg -> ((msg <> "\n") <>)) mmsg
+    formatMessage = maybe Imports.id (\msg -> ((msg <> "\n") <>)) mmsg
 
 assertMismatch ::
   HasCallStack =>
@@ -2723,7 +2721,7 @@ withTempMockFederator' resp action = do
     [("Content-Type", "application/json")]
     mock
     $ \mockPort -> do
-      withSettingsOverrides (\opts -> opts & Opts.optFederator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
+      withSettingsOverrides (\opts -> opts & Opts.federator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
 
 -- Starts a servant Application in Network.Wai.Test session and runs the
 -- FederatedRequest against it.

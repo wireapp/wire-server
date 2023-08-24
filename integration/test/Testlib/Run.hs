@@ -11,6 +11,7 @@ import Data.Function
 import Data.Functor
 import Data.List
 import Data.Time.Clock
+import Data.Traversable (for)
 import RunAllTests
 import System.Directory
 import System.Environment
@@ -134,7 +135,7 @@ runTests tests cfg = do
   genv <- createGlobalEnv cfg
 
   withAsync displayOutput $ \displayThread -> do
-    report <- fmap mconcat $ pooledForConcurrently tests $ \(qname, _, _, action) -> do
+    report <- fmap mconcat $ for tests $ \(qname, _, _, action) -> do
       do
         (mErr, tm) <- withTime (runTest genv action)
         case mErr of

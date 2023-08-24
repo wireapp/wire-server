@@ -35,7 +35,7 @@ module Galley.Intra.User
   )
 where
 
-import Bilge hiding (getHeader, options, statusCode)
+import Bilge hiding (getHeader, host, options, port, statusCode)
 import Bilge.RPC
 import Brig.Types.Intra qualified as Brig
 import Control.Error hiding (bool, isRight)
@@ -253,7 +253,7 @@ runHereClientM action = do
   mgr <- view manager
   brigep <- view brig
   let env = Client.mkClientEnv mgr baseurl
-      baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. epHost) (fromIntegral $ brigep ^. epPort) ""
+      baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. host) (fromIntegral $ brigep ^. port) ""
   liftIO $ Client.runClientM action env
 
 handleServantResp ::

@@ -33,7 +33,7 @@ interpretBackendNotificationQueueAccess = interpret $ \case
 enqueueNotification :: Domain -> Q.DeliveryMode -> FedQueueClient c () -> App (Either FederationError ())
 enqueueNotification remoteDomain deliveryMode action = do
   mChanVar <- view rabbitmqChannel
-  ownDomain <- view (options . optSettings . setFederationDomain)
+  ownDomain <- view (options . settings . federationDomain)
   case mChanVar of
     Nothing -> pure (Left FederationNotConfigured)
     Just chanVar -> do

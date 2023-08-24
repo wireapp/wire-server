@@ -39,7 +39,7 @@ import Gundeck.Aws qualified as Aws
 import Gundeck.Env
 import Gundeck.Env qualified as Env
 import Gundeck.Monad
-import Gundeck.Options
+import Gundeck.Options hiding (host, port)
 import Gundeck.React
 import Gundeck.ThreadBudget
 import Imports hiding (head)
@@ -62,8 +62,8 @@ run o = do
   runClient (e ^. cstate) $
     versionCheck schemaVersion
   let l = e ^. applog
-  s <- newSettings $ defaultServer (unpack $ o ^. optGundeck . epHost) (o ^. optGundeck . epPort) l m
-  let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (optSettings . setSqsThrottleMillis)
+  s <- newSettings $ defaultServer (unpack $ o ^. gundeck . host) (o ^. gundeck . port) l m
+  let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (settings . sqsThrottleMillis)
 
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 10
@@ -81,7 +81,7 @@ run o = do
   where
     middleware :: Env -> Wai.Middleware
     middleware e =
-      versionMiddleware (fold (o ^. optSettings . setDisabledAPIVersions))
+      versionMiddleware (fold (o ^. settings . disabledAPIVersions))
         . waiPrometheusMiddleware sitemap
         . GZip.gunzip
         . GZip.gzip GZip.def

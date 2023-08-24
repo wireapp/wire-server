@@ -72,7 +72,7 @@ import Wire.API.Push.Token qualified as Public
 
 push :: [Push] -> Gundeck ()
 push ps = do
-  bulk :: Bool <- view (options . optSettings . setBulkPush)
+  bulk :: Bool <- view (options . settings . bulkPush)
   rs <-
     if bulk
       then (Right <$> pushAll ps) `catch` (pure . Left . Seq.singleton)
@@ -95,7 +95,7 @@ class MonadThrow m => MonadPushAll m where
   mpaRunWithBudget :: Int -> a -> m a -> m a
 
 instance MonadPushAll Gundeck where
-  mpaNotificationTTL = view (options . optSettings . setNotificationTTL)
+  mpaNotificationTTL = view (options . settings . notificationTTL)
   mpaMkNotificationId = mkNotificationId
   mpaListAllPresences = runWithDefaultRedis . Presence.listAll
   mpaBulkPush = Web.bulkPush
@@ -126,7 +126,7 @@ class Monad m => MonadMapAsync m where
   mntgtPerPushConcurrency :: m (Maybe Int)
 
 instance MonadMapAsync Gundeck where
-  mntgtPerPushConcurrency = view (options . optSettings . setPerNativePushConcurrency)
+  mntgtPerPushConcurrency = view (options . settings . perNativePushConcurrency)
   mntgtMapAsync f l = do
     perPushConcurrency <- mntgtPerPushConcurrency
     case perPushConcurrency of
@@ -451,9 +451,9 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
       let trp = t ^. tokenTransport
       let app = t ^. tokenApp
       let tok = t ^. token
-      env <- view (options . optAws . awsArnEnv)
-      aws <- view awsEnv
-      ept <- Aws.execute aws (Aws.createEndpoint uid trp env app tok)
+      env <- view (options . aws . arnEnv)
+      aws' <- view awsEnv
+      ept <- Aws.execute aws' (Aws.createEndpoint uid trp env app tok)
       case ept of
         Left (Aws.EndpointInUse arn) -> do
           Log.info $ "arn" .= toText arn ~~ msg (val "ARN in use")
@@ -483,8 +483,8 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
       when (n >= 3) $ do
         Log.err $ msg (val "AWS SNS inconsistency w.r.t. " +++ toText arn)
         throwM (mkError status500 "server-error" "Server Error")
-      aws <- view awsEnv
-      ept <- Aws.execute aws (Aws.lookupEndpoint arn)
+      aws' <- view awsEnv
+      ept <- Aws.execute aws' (Aws.lookupEndpoint arn)
       case ept of
         Nothing -> create (n + 1) t
         Just ep ->

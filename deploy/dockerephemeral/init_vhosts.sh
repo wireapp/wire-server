@@ -6,6 +6,8 @@ exec_until_ready() {
 
 echo 'Creating RabbitMQ resources'
 
+exec_until_ready "curl -u $RABBITMQ_USERNAME:$RABBITMQ_PASSWORD -X PUT http://rabbitmq:15672/api/vhosts/backendA"
+exec_until_ready "curl -u $RABBITMQ_USERNAME:$RABBITMQ_PASSWORD -X PUT http://rabbitmq:15672/api/vhosts/backendB"
 exec_until_ready "curl -u $RABBITMQ_USERNAME:$RABBITMQ_PASSWORD -X PUT http://rabbitmq:15672/api/vhosts/d1.example.com"
 exec_until_ready "curl -u $RABBITMQ_USERNAME:$RABBITMQ_PASSWORD -X PUT http://rabbitmq:15672/api/vhosts/d2.example.com"
 exec_until_ready "curl -u $RABBITMQ_USERNAME:$RABBITMQ_PASSWORD -X PUT http://rabbitmq:15672/api/vhosts/d3.example.com"

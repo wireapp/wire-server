@@ -622,64 +622,64 @@ userInsert =
   \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userDisplayNameUpdate :: PrepQuery W (Name, UserId) ()
-userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
+userDisplayNameUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET name = ? WHERE id = ?"
 
 userPictUpdate :: PrepQuery W (Pict, UserId) ()
-userPictUpdate = "UPDATE user SET picture = ? WHERE id = ?"
+userPictUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET picture = ? WHERE id = ?"
 
 userAssetsUpdate :: PrepQuery W ([Asset], UserId) ()
-userAssetsUpdate = "UPDATE user SET assets = ? WHERE id = ?"
+userAssetsUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET assets = ? WHERE id = ?"
 
 userAccentIdUpdate :: PrepQuery W (ColourId, UserId) ()
-userAccentIdUpdate = "UPDATE user SET accent_id = ? WHERE id = ?"
+userAccentIdUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET accent_id = ? WHERE id = ?"
 
 userEmailUpdate :: PrepQuery W (Email, UserId) ()
-userEmailUpdate = "UPDATE user SET email = ? WHERE id = ?"
+userEmailUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = ? WHERE id = ?"
 
 userEmailUnvalidatedUpdate :: PrepQuery W (Email, UserId) ()
-userEmailUnvalidatedUpdate = "UPDATE user SET email_unvalidated = ? WHERE id = ?"
+userEmailUnvalidatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email_unvalidated = ? WHERE id = ?"
 
 userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
-userEmailUnvalidatedDelete = "UPDATE user SET email_unvalidated = null WHERE id = ?"
+userEmailUnvalidatedDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email_unvalidated = null WHERE id = ?"
 
 userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
-userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ?"
+userPhoneUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET phone = ? WHERE id = ?"
 
 userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) ()
-userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
+userSSOIdUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET sso_id = ? WHERE id = ?"
 
 userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
-userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ?"
+userManagedByUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET managed_by = ? WHERE id = ?"
 
 userHandleUpdate :: PrepQuery W (Handle, UserId) ()
-userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"
+userHandleUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET handle = ? WHERE id = ?"
 
 userSupportedProtocolUpdate :: PrepQuery W (Set BaseProtocolTag, UserId) ()
-userSupportedProtocolUpdate = "UPDATE user SET supported_protocols = ? WHERE id = ?"
+userSupportedProtocolUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET supported_protocols = ? WHERE id = ?"
 
 userPasswordUpdate :: PrepQuery W (Password, UserId) ()
-userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
+userPasswordUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET password = ? WHERE id = ?"
 
 userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
-userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?"
+userStatusUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET status = ? WHERE id = ?"
 
 userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
-userDeactivatedUpdate = "UPDATE user SET activated = false WHERE id = ?"
+userDeactivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = false WHERE id = ?"
 
 userActivatedUpdate :: PrepQuery W (Maybe Email, Maybe Phone, UserId) ()
-userActivatedUpdate = "UPDATE user SET activated = true, email = ?, phone = ? WHERE id = ?"
+userActivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = true, email = ?, phone = ? WHERE id = ?"
 
 userLocaleUpdate :: PrepQuery W (Language, Maybe Country, UserId) ()
-userLocaleUpdate = "UPDATE user SET language = ?, country = ? WHERE id = ?"
+userLocaleUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET language = ?, country = ? WHERE id = ?"
 
 userEmailDelete :: PrepQuery W (Identity UserId) ()
-userEmailDelete = "UPDATE user SET email = null WHERE id = ?"
+userEmailDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = null WHERE id = ?"
 
 userPhoneDelete :: PrepQuery W (Identity UserId) ()
-userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
+userPhoneDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET phone = null WHERE id = ?"
 
 userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) ()
-userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ?"
+userRichInfoUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE rich_info SET json = ? WHERE user = ?"
 
 -------------------------------------------------------------------------------
 -- Conversions
