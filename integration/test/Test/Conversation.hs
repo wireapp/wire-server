@@ -10,9 +10,7 @@ import API.Gundeck (getNotifications)
 import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Data.Aeson qualified as Aeson
-import Data.String.Conversions (cs)
 import GHC.Stack
-import Network.HTTP.Client qualified as HTTP
 import SetupHelpers
 import Testlib.One2One (generateRemoteAndConvIdWithDomain)
 import Testlib.Prelude
@@ -433,41 +431,18 @@ testAddingUserNonFullyConnectedFederation = do
 testGetOneOnOneConvInStatusSentFromRemote :: App ()
 testGetOneOnOneConvInStatusSentFromRemote = do
   d1User <- randomUser OwnDomain def
-  putStrLn "## user 1 on example.com\n"
-  putStrLn "```json"
-  objQidObject d1User >>= printJSON
-  putStrLn "```\n"
   let shouldBeLocal = True
   (d2Usr, d2ConvId) <- generateRemoteAndConvIdWithDomain OtherDomain (not shouldBeLocal) d1User
-  putStrLn "## user 2 on b.example.com\n"
-  putStrLn "```json"
-  objQidObject d2Usr >>= printJSON
-  putStrLn "```\n"
   bindResponse (postConnection d1User d2Usr) $ \r -> do
-    putStrLn "## user 1 sends connection request to user 2\n"
-    printReq r
     r.status `shouldMatchInt` 201
     r.json %. "status" `shouldMatch` "sent"
   bindResponse (listConversationIds d1User def) $ \r -> do
-    putStrLn "## user 1 lists conversations ids\n"
-    printReq r
     r.status `shouldMatchInt` 200
     convIds <- r.json %. "qualified_conversations" & asList
     filter ((==) d2ConvId) convIds `shouldMatch` [d2ConvId]
   bindResponse (getConnections d1User) $ \r -> do
-    putStrLn "## user 1 lists connections\n"
-    printReq r
     qConvIds <- r.json %. "connections" & asList >>= traverse (%. "qualified_conversation")
     filter ((==) d2ConvId) qConvIds `shouldMatch` [d2ConvId]
   resp <- getConversation d1User d2ConvId
-  putStrLn "## user 1 gets conversation\n"
-  printReq resp
   resp.status `shouldMatchInt` 200
-  where
-    printReq r = do
-      putStrLn $ "request: `" <> cs (HTTP.method r.request) <> " " <> cs (HTTP.path r.request) <> "`"
-      putStrLn "response:\n"
-      putStrLn "```json"
-      printJSON r.json
-      putStrLn "```\n"
 

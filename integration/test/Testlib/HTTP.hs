@@ -69,6 +69,10 @@ addHeader :: String -> String -> HTTP.Request -> HTTP.Request
 addHeader name value req =
   req {HTTP.requestHeaders = (CI.mk . C8.pack $ name, C8.pack value) : HTTP.requestHeaders req}
 
+setCookie :: String -> HTTP.Request -> HTTP.Request
+setCookie c r =
+  addHeader "Cookie" (cs c) r
+
 addQueryParams :: [(String, String)] -> HTTP.Request -> HTTP.Request
 addQueryParams params req =
   HTTP.setQueryString (map (\(k, v) -> (cs k, Just (cs v))) params) req
