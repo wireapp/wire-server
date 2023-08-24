@@ -19,6 +19,7 @@ import Control.Monad.Extra
 import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
+import Data.Default
 import Data.Foldable
 import Data.Function
 import Data.Functor
@@ -148,84 +149,108 @@ startDynamicBackends beOverrides k =
 
 startDynamicBackend :: HasCallStack => BackendResource -> ServiceOverrides -> Codensity App (Env -> Env)
 startDynamicBackend resource beOverrides = do
-  let services =
-        withOverrides beOverrides $
-          Map.mapWithKey
-            ( \srv conf ->
-                conf
-                  >=> setKeyspace srv
-                  >=> setEsIndex srv
-                  >=> setFederationSettings srv
-                  >=> setAwsConfigs srv
-                  >=> setLogLevel srv
-            )
-            defaultServiceOverridesToMap
-  startBackend
-    resource
-    services
+  let overrides =
+        mconcat
+          [ setKeyspace,
+            setEsIndex,
+            setFederationSettings,
+            setAwsConfigs,
+            setLogLevel,
+            beOverrides
+          ]
+  let services = toOverridesMap overrides
+  startBackend resource services
   where
-    setAwsConfigs :: Service -> Value -> App Value
-    setAwsConfigs = \case
-      Brig ->
-        setField "aws.userJournalQueue" resource.berAwsUserJournalQueue
-          >=> setField "aws.prekeyTable" resource.berAwsPrekeyTable
-          >=> setField "internalEvents.queueName" resource.berBrigInternalEvents
-          >=> setField "emailSMS.email.sesQueue" resource.berEmailSMSSesQueue
-          >=> setField "emailSMS.general.emailSender" resource.berEmailSMSEmailSender
-      Cargohold -> setField "aws.s3Bucket" resource.berAwsS3Bucket
-      Gundeck -> setField "aws.queueName" resource.berAwsQueueName
-      Galley -> setField "journal.queueName" resource.berGalleyJournal
-      _ -> pure
+    setAwsConfigs :: ServiceOverrides
+    setAwsConfigs =
+      def
+        { dbBrig =
+            setField "aws.userJournalQueue" resource.berAwsUserJournalQueue
+              >=> setField "aws.prekeyTable" resource.berAwsPrekeyTable
+              >=> setField "internalEvents.queueName" resource.berBrigInternalEvents
+              >=> setField "emailSMS.email.sesQueue" resource.berEmailSMSSesQueue
+              >=> setField "emailSMS.general.emailSender" resource.berEmailSMSEmailSender,
+          dbCargohold = setField "aws.s3Bucket" resource.berAwsS3Bucket,
+          dbGundeck = setField "aws.queueName" resource.berAwsQueueName,
+          dbGalley = setField "journal.queueName" resource.berGalleyJournal
+        }
 
-    setFederationSettings :: Service -> Value -> App Value
+    setFederationSettings :: ServiceOverrides
     setFederationSettings =
-      \case
-        Brig ->
-          setField "optSettings.setFederationDomain" resource.berDomain
-            >=> setField "optSettings.setFederationDomainConfigs" ([] :: [Value])
-            >=> setField "federatorInternal.port" resource.berFederatorInternal
-            >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
-            >=> setField "rabbitmq.vHost" resource.berVHost
-        Cargohold ->
-          setField "settings.federationDomain" resource.berDomain
-            >=> setField "federator.host" ("127.0.0.1" :: String)
-            >=> setField "federator.port" resource.berFederatorInternal
-        Galley ->
-          setField "settings.federationDomain" resource.berDomain
-            >=> setField "settings.featureFlags.classifiedDomains.config.domains" [resource.berDomain]
-            >=> setField "federator.host" ("127.0.0.1" :: String)
-            >=> setField "federator.port" resource.berFederatorInternal
-            >=> setField "rabbitmq.vHost" resource.berVHost
-        Gundeck -> setField "settings.federationDomain" resource.berDomain
-        BackgroundWorker ->
-          setField "federatorInternal.port" resource.berFederatorInternal
-            >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
-            >=> setField "rabbitmq.vHost" resource.berVHost
-        FederatorInternal ->
-          setField "federatorInternal.port" resource.berFederatorInternal
-            >=> setField "federatorExternal.port" resource.berFederatorExternal
-            >=> setField "optSettings.setFederationDomain" resource.berDomain
-        _ -> pure
+      def
+        { dbBrig =
+            setField "optSettings.setFederationDomain" resource.berDomain
+              >=> setField "optSettings.setFederationDomainConfigs" ([] :: [Value])
+              >=> setField "federatorInternal.port" resource.berFederatorInternal
+              >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
+              >=> setField "rabbitmq.vHost" resource.berVHost,
+          dbCargohold =
+            setField "settings.federationDomain" resource.berDomain
+              >=> setField "federator.host" ("127.0.0.1" :: String)
+              >=> setField "federator.port" resource.berFederatorInternal,
+          dbGalley =
+            setField "settings.federationDomain" resource.berDomain
+              >=> setField "settings.featureFlags.classifiedDomains.config.domains" [resource.berDomain]
+              >=> setField "federator.host" ("127.0.0.1" :: String)
+              >=> setField "federator.port" resource.berFederatorInternal
+              >=> setField "rabbitmq.vHost" resource.berVHost,
+          dbGundeck = setField "settings.federationDomain" resource.berDomain,
+          dbBackgroundWorker =
+            setField "federatorInternal.port" resource.berFederatorInternal
+              >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
+              >=> setField "rabbitmq.vHost" resource.berVHost,
+          dbFederatorInternal =
+            setField "federatorInternal.port" resource.berFederatorInternal
+              >=> setField "federatorExternal.port" resource.berFederatorExternal
+              >=> setField "optSettings.setFederationDomain" resource.berDomain
+        }
 
-    setKeyspace :: Service -> Value -> App Value
-    setKeyspace = \case
-      Galley -> setField "cassandra.keyspace" resource.berGalleyKeyspace
-      Brig -> setField "cassandra.keyspace" resource.berBrigKeyspace
-      Spar -> setField "cassandra.keyspace" resource.berSparKeyspace
-      Gundeck -> setField "cassandra.keyspace" resource.berGundeckKeyspace
-      -- other services do not have a DB
-      _ -> pure
+    setKeyspace :: ServiceOverrides
+    setKeyspace =
+      def
+        { dbGalley = setField "cassandra.keyspace" resource.berGalleyKeyspace,
+          dbBrig = setField "cassandra.keyspace" resource.berBrigKeyspace,
+          dbSpar = setField "cassandra.keyspace" resource.berSparKeyspace,
+          dbGundeck = setField "cassandra.keyspace" resource.berGundeckKeyspace
+        }
 
-    setEsIndex :: Service -> Value -> App Value
-    setEsIndex = \case
-      Brig -> setField "elasticsearch.index" resource.berElasticsearchIndex
-      -- other services do not have an ES index
-      _ -> pure
+    setEsIndex :: ServiceOverrides
+    setEsIndex =
+      def
+        { dbBrig = setField "elasticsearch.index" resource.berElasticsearchIndex
+        }
 
-    setLogLevel :: Service -> Value -> App Value
-    setLogLevel = \case
-      Spar -> setField "saml.logLevel" ("Warn" :: String)
-      _ -> setField "logLevel" ("Warn" :: String)
+    setLogLevel :: ServiceOverrides
+    setLogLevel =
+      def
+        { dbSpar = setField "saml.logLevel" ("Warn" :: String),
+          dbBrig = setField "logLevel" ("Warn" :: String),
+          dbCannon = setField "logLevel" ("Warn" :: String),
+          dbCargohold = setField "logLevel" ("Warn" :: String),
+          dbGalley = setField "logLevel" ("Warn" :: String),
+          dbGundeck = setField "logLevel" ("Warn" :: String),
+          dbNginz = setField "logLevel" ("Warn" :: String),
+          dbBackgroundWorker = setField "logLevel" ("Warn" :: String),
+          dbStern = setField "logLevel" ("Warn" :: String),
+          dbFederatorInternal = setField "logLevel" ("Warn" :: String)
+        }
+
+    toOverridesMap :: ServiceOverrides -> Map.Map Service (Value -> App Value)
+    toOverridesMap overrides =
+      Map.fromList $ flip map allServices $ \srv ->
+        let override =
+              case srv of
+                Brig -> overrides.dbBrig
+                Cannon -> overrides.dbCannon
+                Cargohold -> overrides.dbCargohold
+                Galley -> overrides.dbGalley
+                Gundeck -> overrides.dbGundeck
+                Nginz -> overrides.dbNginz
+                Spar -> overrides.dbSpar
+                BackgroundWorker -> overrides.dbBackgroundWorker
+                Stern -> overrides.dbStern
+                FederatorInternal -> pure
+         in (srv, override)
 
 withModifiedServices :: Map.Map Service (Value -> App Value) -> Codensity App String
 withModifiedServices services = do

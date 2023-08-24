@@ -14,7 +14,6 @@ import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Lazy qualified as L
 import Data.CaseInsensitive qualified as CI
 import Data.Default
-import Data.Function ((&))
 import Data.Functor
 import Data.Hex
 import Data.IORef
@@ -29,7 +28,6 @@ import Network.HTTP.Types qualified as HTTP
 import Network.URI
 import Testlib.Env
 import Testlib.Printing
-import Testlib.Service
 import UnliftIO (MonadUnliftIO)
 import Prelude
 
@@ -201,7 +199,8 @@ data ServiceOverrides = ServiceOverrides
     dbNginz :: Value -> App Value,
     dbSpar :: Value -> App Value,
     dbBackgroundWorker :: Value -> App Value,
-    dbStern :: Value -> App Value
+    dbStern :: Value -> App Value,
+    dbFederatorInternal :: Value -> App Value
   }
 
 instance Default ServiceOverrides where
@@ -218,7 +217,8 @@ instance Semigroup ServiceOverrides where
         dbNginz = dbNginz a >=> dbNginz b,
         dbSpar = dbSpar a >=> dbSpar b,
         dbBackgroundWorker = dbBackgroundWorker a >=> dbBackgroundWorker b,
-        dbStern = dbStern a >=> dbStern b
+        dbStern = dbStern a >=> dbStern b,
+        dbFederatorInternal = dbFederatorInternal a >=> dbFederatorInternal b
       }
 
 instance Monoid ServiceOverrides where
@@ -235,34 +235,6 @@ defaultServiceOverrides =
       dbNginz = pure,
       dbSpar = pure,
       dbBackgroundWorker = pure,
-      dbStern = pure
+      dbStern = pure,
+      dbFederatorInternal = pure
     }
-
-defaultServiceOverridesToMap :: Map.Map Service (Value -> App Value)
-defaultServiceOverridesToMap = ([minBound .. maxBound] <&> (,pure)) & Map.fromList
-
--- | Overrides the service configurations with the given overrides.
--- e.g.
--- `let overrides =
---    def
---      { dbBrig =
---          setField "optSettings.setFederationStrategy" "allowDynamic"
---            >=> removeField "optSettings.setFederationDomainConfigs"
---      }
---  withOverrides overrides defaultServiceOverridesToMap`
-withOverrides :: ServiceOverrides -> Map.Map Service (Value -> App Value) -> Map.Map Service (Value -> App Value)
-withOverrides overrides =
-  Map.mapWithKey
-    ( \svr f ->
-        case svr of
-          Brig -> f >=> overrides.dbBrig
-          Cannon -> f >=> overrides.dbCannon
-          Cargohold -> f >=> overrides.dbCargohold
-          Galley -> f >=> overrides.dbGalley
-          Gundeck -> f >=> overrides.dbGundeck
-          Nginz -> f >=> overrides.dbNginz
-          Spar -> f >=> overrides.dbSpar
-          BackgroundWorker -> f >=> overrides.dbBackgroundWorker
-          Stern -> f >=> overrides.dbStern
-          FederatorInternal -> f
-    )

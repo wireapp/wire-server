@@ -44,3 +44,6 @@ data BackendName
   | -- | 1..
     DynamicBackend Int
   deriving (Show, Eq, Ord)
+
+allServices :: [Service]
+allServices = [minBound .. maxBound]
