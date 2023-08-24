@@ -54,7 +54,7 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
     modifyConfig :: ServiceOverrides
     modifyConfig =
       def
-        { dbCargohold =
+        { cargoholdCfg =
             setField "aws.multiIngress" $
               object
                 [ "red.example.com" .= "http://s3-download.red.example.com",

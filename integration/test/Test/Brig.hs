@@ -31,7 +31,7 @@ testCrudFederationRemotes = do
   otherDomain <- asString OtherDomain
   let overrides =
         def
-          { dbBrig =
+          { brigCfg =
               setField
                 "optSettings.setFederationDomainConfigs"
                 [object ["domain" .= otherDomain, "search_policy" .= "full_search"]]
@@ -187,7 +187,7 @@ testRemoteUserSearch = do
         setField "optSettings.setFederationStrategy" "allowDynamic"
           >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
-  startDynamicBackends [def {dbBrig = overrides}, def {dbBrig = overrides}] $ \dynDomains -> do
+  startDynamicBackends [def {brigCfg = overrides}, def {brigCfg = overrides}] $ \dynDomains -> do
     domains@[d1, d2] <- pure dynDomains
     connectAllDomainsAndWaitToSync 1 domains
     [u1, u2] <- createAndConnectUsers [d1, d2]

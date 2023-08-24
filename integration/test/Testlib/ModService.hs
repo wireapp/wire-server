@@ -162,42 +162,42 @@ startDynamicBackend resource beOverrides = do
     setAwsConfigs :: ServiceOverrides
     setAwsConfigs =
       def
-        { dbBrig =
+        { brigCfg =
             setField "aws.userJournalQueue" resource.berAwsUserJournalQueue
               >=> setField "aws.prekeyTable" resource.berAwsPrekeyTable
               >=> setField "internalEvents.queueName" resource.berBrigInternalEvents
               >=> setField "emailSMS.email.sesQueue" resource.berEmailSMSSesQueue
               >=> setField "emailSMS.general.emailSender" resource.berEmailSMSEmailSender,
-          dbCargohold = setField "aws.s3Bucket" resource.berAwsS3Bucket,
-          dbGundeck = setField "aws.queueName" resource.berAwsQueueName,
-          dbGalley = setField "journal.queueName" resource.berGalleyJournal
+          cargoholdCfg = setField "aws.s3Bucket" resource.berAwsS3Bucket,
+          gundeckCfg = setField "aws.queueName" resource.berAwsQueueName,
+          galleyCfg = setField "journal.queueName" resource.berGalleyJournal
         }
 
     setFederationSettings :: ServiceOverrides
     setFederationSettings =
       def
-        { dbBrig =
+        { brigCfg =
             setField "optSettings.setFederationDomain" resource.berDomain
               >=> setField "optSettings.setFederationDomainConfigs" ([] :: [Value])
               >=> setField "federatorInternal.port" resource.berFederatorInternal
               >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
               >=> setField "rabbitmq.vHost" resource.berVHost,
-          dbCargohold =
+          cargoholdCfg =
             setField "settings.federationDomain" resource.berDomain
               >=> setField "federator.host" ("127.0.0.1" :: String)
               >=> setField "federator.port" resource.berFederatorInternal,
-          dbGalley =
+          galleyCfg =
             setField "settings.federationDomain" resource.berDomain
               >=> setField "settings.featureFlags.classifiedDomains.config.domains" [resource.berDomain]
               >=> setField "federator.host" ("127.0.0.1" :: String)
               >=> setField "federator.port" resource.berFederatorInternal
               >=> setField "rabbitmq.vHost" resource.berVHost,
-          dbGundeck = setField "settings.federationDomain" resource.berDomain,
-          dbBackgroundWorker =
+          gundeckCfg = setField "settings.federationDomain" resource.berDomain,
+          backgroundWorkerCfg =
             setField "federatorInternal.port" resource.berFederatorInternal
               >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
               >=> setField "rabbitmq.vHost" resource.berVHost,
-          dbFederatorInternal =
+          federatorInternalCfg =
             setField "federatorInternal.port" resource.berFederatorInternal
               >=> setField "federatorExternal.port" resource.berFederatorExternal
               >=> setField "optSettings.setFederationDomain" resource.berDomain
@@ -206,31 +206,31 @@ startDynamicBackend resource beOverrides = do
     setKeyspace :: ServiceOverrides
     setKeyspace =
       def
-        { dbGalley = setField "cassandra.keyspace" resource.berGalleyKeyspace,
-          dbBrig = setField "cassandra.keyspace" resource.berBrigKeyspace,
-          dbSpar = setField "cassandra.keyspace" resource.berSparKeyspace,
-          dbGundeck = setField "cassandra.keyspace" resource.berGundeckKeyspace
+        { galleyCfg = setField "cassandra.keyspace" resource.berGalleyKeyspace,
+          brigCfg = setField "cassandra.keyspace" resource.berBrigKeyspace,
+          sparCfg = setField "cassandra.keyspace" resource.berSparKeyspace,
+          gundeckCfg = setField "cassandra.keyspace" resource.berGundeckKeyspace
         }
 
     setEsIndex :: ServiceOverrides
     setEsIndex =
       def
-        { dbBrig = setField "elasticsearch.index" resource.berElasticsearchIndex
+        { brigCfg = setField "elasticsearch.index" resource.berElasticsearchIndex
         }
 
     setLogLevel :: ServiceOverrides
     setLogLevel =
       def
-        { dbSpar = setField "saml.logLevel" ("Warn" :: String),
-          dbBrig = setField "logLevel" ("Warn" :: String),
-          dbCannon = setField "logLevel" ("Warn" :: String),
-          dbCargohold = setField "logLevel" ("Warn" :: String),
-          dbGalley = setField "logLevel" ("Warn" :: String),
-          dbGundeck = setField "logLevel" ("Warn" :: String),
-          dbNginz = setField "logLevel" ("Warn" :: String),
-          dbBackgroundWorker = setField "logLevel" ("Warn" :: String),
-          dbStern = setField "logLevel" ("Warn" :: String),
-          dbFederatorInternal = setField "logLevel" ("Warn" :: String)
+        { sparCfg = setField "saml.logLevel" ("Warn" :: String),
+          brigCfg = setField "logLevel" ("Warn" :: String),
+          cannonCfg = setField "logLevel" ("Warn" :: String),
+          cargoholdCfg = setField "logLevel" ("Warn" :: String),
+          galleyCfg = setField "logLevel" ("Warn" :: String),
+          gundeckCfg = setField "logLevel" ("Warn" :: String),
+          nginzCfg = setField "logLevel" ("Warn" :: String),
+          backgroundWorkerCfg = setField "logLevel" ("Warn" :: String),
+          sternCfg = setField "logLevel" ("Warn" :: String),
+          federatorInternalCfg = setField "logLevel" ("Warn" :: String)
         }
 
 withModifiedServices :: ServiceOverrides -> [Service] -> Codensity App String

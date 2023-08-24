@@ -35,7 +35,7 @@ testModifiedBrig :: HasCallStack => App ()
 testModifiedBrig = do
   withModifiedService
     Brig
-    (def {dbBrig = setField "optSettings.setFederationDomain" "overridden.example.com"})
+    (def {brigCfg = setField "optSettings.setFederationDomain" "overridden.example.com"})
     $ \domain -> do
       bindResponse (Public.getAPIVersion domain)
       $ \resp -> do
@@ -56,7 +56,7 @@ testModifiedGalley = do
 
   withModifiedService
     Galley
-    def {dbGalley = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"}
+    def {galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"}
     $ \_ -> getFeatureStatus `shouldMatch` "enabled"
 
 testModifiedCannon :: HasCallStack => App ()
@@ -79,8 +79,8 @@ testModifiedServices :: HasCallStack => App ()
 testModifiedServices = do
   let serviceMap =
         def
-          { dbBrig = setField "optSettings.setFederationDomain" "overridden.example.com",
-            dbGalley = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"
+          { brigCfg = setField "optSettings.setFederationDomain" "overridden.example.com",
+            galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"
           }
 
   runCodensity (withModifiedServices serviceMap [Brig, Galley]) $ \_domain -> do

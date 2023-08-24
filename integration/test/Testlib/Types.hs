@@ -192,16 +192,16 @@ modifyFailure modifyAssertion action = do
     )
 
 data ServiceOverrides = ServiceOverrides
-  { dbBrig :: Value -> App Value,
-    dbCannon :: Value -> App Value,
-    dbCargohold :: Value -> App Value,
-    dbGalley :: Value -> App Value,
-    dbGundeck :: Value -> App Value,
-    dbNginz :: Value -> App Value,
-    dbSpar :: Value -> App Value,
-    dbBackgroundWorker :: Value -> App Value,
-    dbStern :: Value -> App Value,
-    dbFederatorInternal :: Value -> App Value
+  { brigCfg :: Value -> App Value,
+    cannonCfg :: Value -> App Value,
+    cargoholdCfg :: Value -> App Value,
+    galleyCfg :: Value -> App Value,
+    gundeckCfg :: Value -> App Value,
+    nginzCfg :: Value -> App Value,
+    sparCfg :: Value -> App Value,
+    backgroundWorkerCfg :: Value -> App Value,
+    sternCfg :: Value -> App Value,
+    federatorInternalCfg :: Value -> App Value
   }
 
 instance Default ServiceOverrides where
@@ -210,16 +210,16 @@ instance Default ServiceOverrides where
 instance Semigroup ServiceOverrides where
   a <> b =
     ServiceOverrides
-      { dbBrig = dbBrig a >=> dbBrig b,
-        dbCannon = dbCannon a >=> dbCannon b,
-        dbCargohold = dbCargohold a >=> dbCargohold b,
-        dbGalley = dbGalley a >=> dbGalley b,
-        dbGundeck = dbGundeck a >=> dbGundeck b,
-        dbNginz = dbNginz a >=> dbNginz b,
-        dbSpar = dbSpar a >=> dbSpar b,
-        dbBackgroundWorker = dbBackgroundWorker a >=> dbBackgroundWorker b,
-        dbStern = dbStern a >=> dbStern b,
-        dbFederatorInternal = dbFederatorInternal a >=> dbFederatorInternal b
+      { brigCfg = brigCfg a >=> brigCfg b,
+        cannonCfg = cannonCfg a >=> cannonCfg b,
+        cargoholdCfg = cargoholdCfg a >=> cargoholdCfg b,
+        galleyCfg = galleyCfg a >=> galleyCfg b,
+        gundeckCfg = gundeckCfg a >=> gundeckCfg b,
+        nginzCfg = nginzCfg a >=> nginzCfg b,
+        sparCfg = sparCfg a >=> sparCfg b,
+        backgroundWorkerCfg = backgroundWorkerCfg a >=> backgroundWorkerCfg b,
+        sternCfg = sternCfg a >=> sternCfg b,
+        federatorInternalCfg = federatorInternalCfg a >=> federatorInternalCfg b
       }
 
 instance Monoid ServiceOverrides where
@@ -228,16 +228,16 @@ instance Monoid ServiceOverrides where
 defaultServiceOverrides :: ServiceOverrides
 defaultServiceOverrides =
   ServiceOverrides
-    { dbBrig = pure,
-      dbCannon = pure,
-      dbCargohold = pure,
-      dbGalley = pure,
-      dbGundeck = pure,
-      dbNginz = pure,
-      dbSpar = pure,
-      dbBackgroundWorker = pure,
-      dbStern = pure,
-      dbFederatorInternal = pure
+    { brigCfg = pure,
+      cannonCfg = pure,
+      cargoholdCfg = pure,
+      galleyCfg = pure,
+      gundeckCfg = pure,
+      nginzCfg = pure,
+      sparCfg = pure,
+      backgroundWorkerCfg = pure,
+      sternCfg = pure,
+      federatorInternalCfg = pure
     }
 
 lookupConfigOverride :: ServiceOverrides -> Service -> (Value -> App Value)
