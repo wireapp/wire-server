@@ -16,7 +16,7 @@ import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Input
 import System.Logger.Class qualified as Log
-import UnliftIO.Timeout (timeout)
+import UnliftIO
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Error
 
@@ -29,6 +29,8 @@ interpretBackendNotificationQueueAccess ::
 interpretBackendNotificationQueueAccess = interpret $ \case
   EnqueueNotification remote deliveryMode action -> do
     embedApp $ enqueueNotification (tDomain remote) deliveryMode action
+  EnqueueNotificationsConcurrently m xs rpc -> do
+    embedApp $ enqueueNotificationsConcurrently m xs rpc
 
 enqueueNotification :: Domain -> Q.DeliveryMode -> FedQueueClient c () -> App (Either FederationError ())
 enqueueNotification remoteDomain deliveryMode action = do
@@ -55,6 +57,18 @@ enqueueNotification remoteDomain deliveryMode action = do
         Nothing -> throwM NoRabbitMqChannel
         Just chan -> do
           liftIO $ enqueue chan ownDomain remoteDomain deliveryMode action
+
+enqueueNotificationsConcurrently ::
+  (Foldable f, Functor f) =>
+  Q.DeliveryMode ->
+  f (Remote a) ->
+  (Remote [a] -> (FedQueueClient c (), b)) ->
+  App [Either (Remote [a], FederationError) (Remote b)]
+enqueueNotificationsConcurrently m xs f =
+  pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
+    let o = f r
+     in bimap (r,) (qualifyAs r . const (snd o))
+          <$> enqueueNotification (tDomain r) m (fst o)
 
 data NoRabbitMqChannel = NoRabbitMqChannel
   deriving (Show)

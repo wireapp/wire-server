@@ -17,5 +17,11 @@ data BackendNotificationQueueAccess m a where
     Q.DeliveryMode ->
     FedQueueClient c () ->
     BackendNotificationQueueAccess m (Either FederationError ())
+  EnqueueNotificationsConcurrently ::
+    (KnownComponent c, Foldable f, Functor f) =>
+    Q.DeliveryMode ->
+    f (Remote x) ->
+    (Remote [x] -> (FedQueueClient c (), b)) ->
+    BackendNotificationQueueAccess m [Either (Remote [x], FederationError) (Remote b)]
 
 makeSem ''BackendNotificationQueueAccess
