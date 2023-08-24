@@ -17,11 +17,9 @@
 
 module Wire.API.Routes.Public.Proxy where
 
-import Data.SOP
-import Data.Swagger qualified as Swagger
 import Servant
 import Servant.API.Extended.RawM (RawM)
-import Servant.Swagger
+import Wire.API.Routes.API
 import Wire.API.Routes.Named
 
 type ProxyAPI =
@@ -50,6 +48,8 @@ type family ProxyAPISummary name where
   ProxyAPISummary "gmaps-path" =
     "[DEPRECATED] proxy: `get /proxy/googlemaps/maps/api/geocode/:path`; see google maps API docs"
 
+data ProxyAPITag
+
 -- | FUTUREWORK(fisx): (1) the verb could be added to the swagger docs in the appropriate
 -- place here; it's always defined in the `Summary`, but the `RawM` doesn't allow to constrain
 -- it.  (2) there should be a way to make this more type-safe: `assertMethod` in
@@ -58,5 +58,5 @@ type family ProxyAPISummary name where
 -- "api" :> "token" :> OnlyMethod "POST" :> RawM`, and then the `ServerT` instance for
 -- `OnlyMethod` requires a proxy argument in the handler of the same type.  Or something.  (am
 -- i massifly over-engineering things here?)
-swaggerDoc :: Swagger.Swagger
-swaggerDoc = toSwagger (Proxy @ProxyAPI)
+instance ServiceAPI ProxyAPITag v where
+  type ServiceAPIRoutes ProxyAPITag = ProxyAPI

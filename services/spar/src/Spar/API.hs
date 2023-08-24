@@ -32,7 +32,7 @@ module Spar.API
     api,
 
     -- * API types
-    API,
+    SparAPI,
 
     -- ** Individual API pieces
     APIAuthReqPrecheck,
@@ -113,7 +113,7 @@ import qualified Wire.Sem.Random as Random
 app :: Env -> Application
 app ctx =
   SAML.setHttpCachePolicy $
-    serve (Proxy @API) (hoistServer (Proxy @API) (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server API)
+    serve (Proxy @SparAPI) (hoistServer (Proxy @SparAPI) (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server SparAPI)
 
 api ::
   ( Member GalleyAccess r,
@@ -144,7 +144,7 @@ api ::
     Member (Logger (Msg -> Msg)) r
   ) =>
   Opts ->
-  ServerT API (Sem r)
+  ServerT SparAPI (Sem r)
 api opts =
   apiSSO opts
     :<|> apiIDP

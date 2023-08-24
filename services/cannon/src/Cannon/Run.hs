@@ -58,7 +58,7 @@ import Wire.API.Routes.Internal.Cannon qualified as Internal
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version.Wai
 
-type CombinedAPI = PublicAPI :<|> Internal.API
+type CombinedAPI = CannonAPI :<|> Internal.API
 
 run :: Opts -> IO ()
 run o = do
@@ -88,7 +88,7 @@ run o = do
       app = middleware (serve (Proxy @CombinedAPI) server)
       server :: Servant.Server CombinedAPI
       server =
-        hoistServer (Proxy @PublicAPI) (runCannonToServant e) publicAPIServer
+        hoistServer (Proxy @CannonAPI) (runCannonToServant e) publicAPIServer
           :<|> hoistServer (Proxy @Internal.API) (runCannonToServant e) internalServer
   tid <- myThreadId
   E.handle uncaughtExceptionHandler $ do

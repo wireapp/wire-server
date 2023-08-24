@@ -68,6 +68,7 @@ import Servant
 import Servant.Swagger
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named)
+import Wire.API.Routes.Version
 
 -- | Runtime representation of a statically-known error.
 data DynError = DynError
@@ -167,6 +168,10 @@ instance RoutesToPaths api => RoutesToPaths (CanThrow err :> api) where
 instance RoutesToPaths api => RoutesToPaths (CanThrowMany errs :> api) where
   getRoutes = getRoutes @api
 
+type instance
+  SpecialiseToVersion v (CanThrow e :> api) =
+    CanThrow e :> SpecialiseToVersion v api
+
 instance (HasServer api ctx) => HasServer (CanThrow e :> api) ctx where
   type ServerT (CanThrow e :> api) m = ServerT api m
 
@@ -184,6 +189,10 @@ instance
   HasSwagger (CanThrow e :> api)
   where
   toSwagger _ = addToSwagger @e (toSwagger (Proxy @api))
+
+type instance
+  SpecialiseToVersion v (CanThrowMany es :> api) =
+    CanThrowMany es :> SpecialiseToVersion v api
 
 instance HasSwagger api => HasSwagger (CanThrowMany '() :> api) where
   toSwagger _ = toSwagger (Proxy @api)
