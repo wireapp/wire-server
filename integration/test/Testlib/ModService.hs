@@ -55,11 +55,10 @@ import Prelude
 
 withModifiedService ::
   Service ->
-  -- | function that edits the config
-  (Value -> App Value) ->
+  ServiceOverrides ->
   (String -> App a) ->
   App a
-withModifiedService srv modConfig = runCodensity $ withModifiedServices (Map.singleton srv modConfig)
+withModifiedService srv overrides = runCodensity $ withModifiedServices overrides [srv]
 
 copyDirectoryRecursively :: FilePath -> FilePath -> IO ()
 copyDirectoryRecursively from to = do
@@ -158,8 +157,7 @@ startDynamicBackend resource beOverrides = do
             setLogLevel,
             beOverrides
           ]
-  let services = toOverridesMap overrides
-  startBackend resource services
+  startBackend resource overrides allServices
   where
     setAwsConfigs :: ServiceOverrides
     setAwsConfigs =
@@ -235,36 +233,20 @@ startDynamicBackend resource beOverrides = do
           dbFederatorInternal = setField "logLevel" ("Warn" :: String)
         }
 
-    toOverridesMap :: ServiceOverrides -> Map.Map Service (Value -> App Value)
-    toOverridesMap overrides =
-      Map.fromList $ flip map allServices $ \srv ->
-        let override =
-              case srv of
-                Brig -> overrides.dbBrig
-                Cannon -> overrides.dbCannon
-                Cargohold -> overrides.dbCargohold
-                Galley -> overrides.dbGalley
-                Gundeck -> overrides.dbGundeck
-                Nginz -> overrides.dbNginz
-                Spar -> overrides.dbSpar
-                BackgroundWorker -> overrides.dbBackgroundWorker
-                Stern -> overrides.dbStern
-                FederatorInternal -> pure
-         in (srv, override)
-
-withModifiedServices :: Map.Map Service (Value -> App Value) -> Codensity App String
-withModifiedServices services = do
+withModifiedServices :: ServiceOverrides -> [Service] -> Codensity App String
+withModifiedServices overrides services = do
   pool <- asks (.resourcePool)
   [resource] <- acquireResources 1 pool
-  void $ startBackend resource services
+  void $ startBackend resource overrides services
   pure (resource.berDomain)
 
 startBackend ::
   HasCallStack =>
   BackendResource ->
-  Map.Map Service (Value -> App Value) ->
+  ServiceOverrides ->
+  [Service] ->
   Codensity App (Env -> Env)
-startBackend resource services = do
+startBackend resource overrides services = do
   let domain = resource.berDomain
 
   let updateServiceMapInConfig :: Service -> Value -> App Value
@@ -291,7 +273,7 @@ startBackend resource services = do
                 _ -> pure overridden
           )
           config
-          [(srv, berInternalServicePorts resource srv :: Int) | srv <- Map.keys services]
+          [(srv, berInternalServicePorts resource srv :: Int) | srv <- services]
 
   let serviceMap =
         let g srv = HostPort "127.0.0.1" (berInternalServicePorts resource srv)
@@ -312,16 +294,16 @@ startBackend resource services = do
               }
 
   stopInstances <- lift $ do
-    instances <- for (Map.assocs services) $ \case
-      (Nginz, _) -> do
+    instances <- for services $ \case
+      Nginz -> do
         env <- ask
         case env.servicesCwdBase of
           Nothing -> startNginzK8s domain serviceMap
           Just _ -> startNginzLocal domain resource.berNginzSslPort resource.berNginzSslPort serviceMap
-      (srv, modifyConfig) -> do
+      srv -> do
         readServiceConfig srv
           >>= updateServiceMapInConfig srv
-          >>= modifyConfig
+          >>= lookupConfigOverride overrides srv
           >>= startProcess domain srv
 
     let stopInstances = liftIO $ do
@@ -349,7 +331,7 @@ startBackend resource services = do
     waitForService <- appToIOKleisli (waitUntilServiceUp domain)
     ioAction <- appToIO (action ())
     liftIO $
-      (mapConcurrently_ waitForService (Map.keys services) >> ioAction)
+      (mapConcurrently_ waitForService services >> ioAction)
         `finally` stopInstances
 
   pure modifyEnv

@@ -51,13 +51,16 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
     noRedirects :: HTTP.Request -> HTTP.Request
     noRedirects req = (req {redirectCount = 0})
 
-    modifyConfig :: Value -> App Value
+    modifyConfig :: ServiceOverrides
     modifyConfig =
-      setField "aws.multiIngress" $
-        object
-          [ "red.example.com" .= "http://s3-download.red.example.com",
-            "green.example.com" .= "http://s3-download.green.example.com"
-          ]
+      def
+        { dbCargohold =
+            setField "aws.multiIngress" $
+              object
+                [ "red.example.com" .= "http://s3-download.red.example.com",
+                  "green.example.com" .= "http://s3-download.green.example.com"
+                ]
+        }
 
     doUploadAsset :: HasCallStack => Value -> App Value
     doUploadAsset user = bindResponse (uploadAsset user) $ \resp -> do

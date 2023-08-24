@@ -7,7 +7,6 @@ import API.GalleyInternal qualified as Internal
 import API.Nginz qualified as Nginz
 import Control.Monad.Codensity
 import Control.Monad.Cont
-import Data.Map qualified as Map
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
@@ -36,7 +35,7 @@ testModifiedBrig :: HasCallStack => App ()
 testModifiedBrig = do
   withModifiedService
     Brig
-    (setField "optSettings.setFederationDomain" "overridden.example.com")
+    (def {dbBrig = setField "optSettings.setFederationDomain" "overridden.example.com"})
     $ \domain -> do
       bindResponse (Public.getAPIVersion domain)
       $ \resp -> do
@@ -57,33 +56,34 @@ testModifiedGalley = do
 
   withModifiedService
     Galley
-    (setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
+    def {dbGalley = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"}
     $ \_ -> getFeatureStatus `shouldMatch` "enabled"
 
 testModifiedCannon :: HasCallStack => App ()
 testModifiedCannon = do
-  withModifiedService Cannon pure $ \_ -> pure ()
+  withModifiedService Cannon def $ \_ -> pure ()
 
 testModifiedGundeck :: HasCallStack => App ()
 testModifiedGundeck = do
-  withModifiedService Gundeck pure $ \_ -> pure ()
+  withModifiedService Gundeck def $ \_ -> pure ()
 
 testModifiedCargohold :: HasCallStack => App ()
 testModifiedCargohold = do
-  withModifiedService Cargohold pure $ \_ -> pure ()
+  withModifiedService Cargohold def $ \_ -> pure ()
 
 testModifiedSpar :: HasCallStack => App ()
 testModifiedSpar = do
-  withModifiedService Spar pure $ \_ -> pure ()
+  withModifiedService Spar def $ \_ -> pure ()
 
 testModifiedServices :: HasCallStack => App ()
 testModifiedServices = do
   let serviceMap =
-        Map.fromList
-          [ (Brig, setField "optSettings.setFederationDomain" "overridden.example.com"),
-            (Galley, setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
-          ]
-  runCodensity (withModifiedServices serviceMap) $ \_domain -> do
+        def
+          { dbBrig = setField "optSettings.setFederationDomain" "overridden.example.com",
+            dbGalley = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"
+          }
+
+  runCodensity (withModifiedServices serviceMap [Brig, Galley]) $ \_domain -> do
     (_user, tid) <- createTeam OwnDomain
     bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
       res.status `shouldMatchInt` 200

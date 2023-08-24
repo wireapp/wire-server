@@ -28,6 +28,7 @@ import Network.HTTP.Types qualified as HTTP
 import Network.URI
 import Testlib.Env
 import Testlib.Printing
+import Testlib.Service
 import UnliftIO (MonadUnliftIO)
 import Prelude
 
@@ -238,3 +239,6 @@ defaultServiceOverrides =
       dbStern = pure,
       dbFederatorInternal = pure
     }
+
+lookupConfigOverride :: ServiceOverrides -> Service -> (Value -> App Value)
+lookupConfigOverride = error "TODO"
