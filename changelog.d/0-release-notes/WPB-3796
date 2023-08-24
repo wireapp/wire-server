@@ -1,1 +1,5 @@
 New config value `background-worker.backendNotificationPusher.remotesRefreshIntervalMs`.  If in doubt, set to 30000 ms.  (This controls the delay between backend-to-backend notification queue update pulls from rabbitMQ to background-worker.)
+
+Remote federation domains in the config file are no longer supported (deprecated since Charts...).  Before deploying this release, make sure you have completed the migration steps from [the CHANGELOG of that release](...).
+
+If you have enabled federation and therefore rabbitMQ before this upgrade, you may need to remove all queues called `backend-notifications.delete-federation` manually, or this release won't start.
