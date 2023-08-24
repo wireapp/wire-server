@@ -89,6 +89,8 @@ routingKey t = "backend-notifications." <> t
 -- they are stored in Rabbit.
 type DefederationDomain = Domain
 
+-- | FUTUREWORK: This really doesn't belong here in a module about pushing backend-to-backend
+-- notifications.  Maybe "Wire.API.Federation.Defederate"?  (Same for `ensureTLQueue`.)
 defederationQueue :: Text
 defederationQueue = "delete-federation"
 
