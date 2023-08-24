@@ -71,6 +71,7 @@ import Galley.Data.Conversation qualified as Data
 import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Data.Services
 import Galley.Effects
+import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.BotAccess qualified as E
 import Galley.Effects.BrigAccess qualified as E
 import Galley.Effects.CodeStore qualified as E
@@ -88,6 +89,7 @@ import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
 import Imports hiding ((\\))
+import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -349,6 +351,7 @@ ensureAllowed tag loc action conv origUser = do
 performAction ::
   forall tag r.
   ( HasConversationActionEffects tag r,
+    Member BackendNotificationQueueAccess r,
     Member (Error FederationError) r
   ) =>
   Sing tag ->
@@ -419,7 +422,8 @@ performAction tag origUser lconv action = do
 
 performConversationJoin ::
   forall r.
-  ( HasConversationActionEffects 'ConversationJoinTag r
+  ( HasConversationActionEffects 'ConversationJoinTag r,
+    Member BackendNotificationQueueAccess r
   ) =>
   Qualified UserId ->
   Local Conversation ->
@@ -529,7 +533,8 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
 
 performConversationAccessData ::
   ( HasConversationActionEffects 'ConversationAccessDataTag r,
-    Member (Error FederationError) r
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
   ) =>
   Qualified UserId ->
   Local Conversation ->
@@ -615,13 +620,13 @@ data LocalConversationUpdate = LocalConversationUpdate
 
 updateLocalConversation ::
   forall tag r.
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member (Logger (Log.Msg -> Log.Msg)) r,
@@ -656,12 +661,12 @@ updateLocalConversation lcnv qusr con action = do
 updateLocalConversationUnchecked ::
   forall tag r.
   ( SingI tag,
+    Member BackendNotificationQueueAccess r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member (Logger (Log.Msg -> Log.Msg)) r,
@@ -704,6 +709,7 @@ updateLocalConversationUserUnchecked ::
   forall tag r.
   ( SingI tag,
     HasConversationActionEffects tag r,
+    Member BackendNotificationQueueAccess r,
     Member (Error FederationError) r
   ) =>
   Local Conversation ->
@@ -762,7 +768,7 @@ addMembersToLocalConversation lcnv users role = do
 
 notifyConversationAction ::
   forall tag r.
-  ( Member FederatorAccess r,
+  ( Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -790,16 +796,16 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
           (SomeConversationAction tag action)
 
   update <- do
+    let remoteTargets = toList (bmRemotes targets)
     updates <-
-      E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
-        \ruids -> do
-          let update = mkUpdate (tUnqualified ruids)
-          -- if notifyOrigDomain is false, filter out user from quid's domain,
-          -- because quid's backend will update local state and notify its users
-          -- itself using the ConversationUpdate returned by this function
-          if notifyOrigDomain || tDomain ruids /= qDomain quid
-            then fedClient @'Galley @"on-conversation-updated" update $> Nothing
-            else pure (Just update)
+      enqueueNotificationsConcurrently Q.Persistent remoteTargets $ \ruids -> do
+        let update = mkUpdate (tUnqualified ruids)
+        -- if notifyOrigDomain is false, filter out user from quid's domain,
+        -- because quid's backend will update local state and notify its users
+        -- itself using the ConversationUpdate returned by this function
+        if notifyOrigDomain || tDomain ruids /= qDomain quid
+          then (void $ fedQueueClient @'Galley @"on-conversation-updated" update, Nothing)
+          else (pure (), Just update)
     let f = fromMaybe (mkUpdate []) . asum . map tUnqualified . rights
         update = f updates
         failedUpdates = lefts updates
@@ -938,7 +944,8 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 -- leave, but then sends notifications as if the user was removed by someone
 -- else.
 kickMember ::
-  ( Member (Error FederationError) r,
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
