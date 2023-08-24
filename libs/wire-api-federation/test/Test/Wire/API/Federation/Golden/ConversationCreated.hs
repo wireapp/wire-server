@@ -22,6 +22,8 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
+import Data.Time.Calendar
+import Data.Time.Clock
 import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Conversation
@@ -74,7 +76,7 @@ testObject_ConversationCreated1 =
 testObject_ConversationCreated2 :: ConversationCreated ConvId
 testObject_ConversationCreated2 =
   ConversationCreated
-    { time = read "2022-04-12 12:22:43.673 UTC",
+    { time = read "1864-04-12 12:22:43.673 UTC",
       origUserId = Id (fromJust (UUID.fromString "eed9dea3-5468-45f8-b562-7ad5de2587d0")),
       cnvId = Id (fromJust (UUID.fromString "d13dbe58-d4e3-450f-9c0c-1e632f548740")),
       cnvType = One2OneConv,
@@ -84,12 +86,5 @@ testObject_ConversationCreated2 =
       nonCreatorMembers = Set.fromList [],
       messageTimer = Nothing,
       receiptMode = Nothing,
-      protocol =
-        ProtocolMLS
-          ( ConversationMLSData
-              (GroupId "group")
-              (Epoch 3)
-              (read "2022-04-11 09:22:43.673 UTC")
-              MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-          )
+      protocol = ProtocolMLS (ConversationMLSData (GroupId "group") (Epoch 3) (Just (UTCTime (fromGregorian 2020 8 29) 0)) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
     }
