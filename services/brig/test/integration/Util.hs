@@ -1333,3 +1333,8 @@ spawn cp minput = do
 assertJust :: (HasCallStack, MonadIO m) => Maybe a -> m a
 assertJust (Just a) = pure a
 assertJust Nothing = liftIO $ error "Expected Just, got Nothing"
+
+assertElem :: (HasCallStack, Eq a, Show a) => String -> a -> [a] -> Assertion
+assertElem msg x xs =
+  unless (x `elem` xs) $
+    assertFailure (msg <> "\nExpected to find: \n" <> show x <> "\nin:\n" <> show xs)
