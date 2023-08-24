@@ -1,0 +1,1 @@
+New config value `background-worker.backendNotificationPusher.remotesRefreshIntervalMs`.  If in doubt, set to 30000 ms.  (This controls the delay between backend-to-backend notification queue update pulls from rabbitMQ to background-worker.)
