@@ -1,0 +1,3 @@
+JSON derived schemas have been changed to no longer pre-process record fields to drop prefixes that were required to disambiguate fields.
+Prefix processing still exists to drop leading underscores from field names, as we are using prefixed field names with `makeLenses`.
+Code has been updated to use `OverloadedRecordDot` with the changed field names.

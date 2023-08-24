@@ -80,8 +80,6 @@ let
     proxy = [ "proxy" ];
     spar = [ "spar" "spar-integration" "spar-schema" "spar-migrate-data" ];
     stern = [ "stern" "stern-integration" ];
-
-    billing-team-member-backfill = [ "billing-team-member-backfill" ];
     inconsistencies = [ "inconsistencies" ];
     zauth = [ "zauth" ];
     background-worker = [ "background-worker" ];

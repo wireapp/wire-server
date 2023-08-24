@@ -276,7 +276,7 @@ postcondition model@(Model (Just _)) cmd@Measure {} resp@(MeasureResponse concre
     Model (Just state) = transition model cmd resp
     threadLimit :: Int
     threadLimit = case opaque state of
-      (tbs, _, _) -> tbs ^?! Control.Lens.to threadBudgetLimits . limitHard . _Just
+      (tbs, _, _) -> tbs ^?! Control.Lens.to threadBudgetLimits . hard . _Just
     -- number of running threads is never above the limit.
     threadLimitExceeded = Annotate "thread limit exceeded" $ concreteRunning .<= threadLimit
 -- FUTUREWORK: check that the number of running threads matches the model exactly.  looks

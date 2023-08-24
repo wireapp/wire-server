@@ -143,15 +143,15 @@ runFedClient ::
   FedClient comp ->
   Domain ->
   Servant.Client m api
-runFedClient (FedClient mgr endpoint) domain =
+runFedClient (FedClient mgr ep) domain =
   Servant.hoistClient (Proxy @api) (servantClientMToHttp domain) $
     Servant.clientIn (Proxy @api) (Proxy @Servant.ClientM)
   where
     servantClientMToHttp :: Domain -> Servant.ClientM a -> m a
     servantClientMToHttp originDomain action = liftIO $ do
-      let host = Text.unpack $ endpoint ^. epHost
-          port = fromInteger . toInteger $ endpoint ^. epPort
-          baseUrl = Servant.BaseUrl Servant.Http host port "/federation"
+      let h = Text.unpack $ ep ^. host
+          p = fromInteger . toInteger $ ep ^. port
+          baseUrl = Servant.BaseUrl Servant.Http h p "/federation"
           clientEnv = Servant.ClientEnv mgr baseUrl Nothing (makeClientRequest originDomain)
       eitherRes <- Servant.runClientM action clientEnv
       case eitherRes of

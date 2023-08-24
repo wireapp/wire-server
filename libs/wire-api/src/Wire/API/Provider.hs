@@ -255,7 +255,7 @@ instance FromJSON DeleteProvider where
 -- Password Change/Reset
 
 -- | The payload for initiating a password reset.
-newtype PasswordReset = PasswordReset {nprEmail :: Email}
+newtype PasswordReset = PasswordReset {email :: Email}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
 
@@ -263,9 +263,9 @@ deriveJSON toJSONFieldName ''PasswordReset
 
 -- | The payload for completing a password reset.
 data CompletePasswordReset = CompletePasswordReset
-  { cpwrKey :: Code.Key,
-    cpwrCode :: Code.Value,
-    cpwrPassword :: PlainTextPassword6
+  { key :: Code.Key,
+    code :: Code.Value,
+    password :: PlainTextPassword6
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CompletePasswordReset)
@@ -274,8 +274,8 @@ deriveJSON toJSONFieldName ''CompletePasswordReset
 
 -- | The payload for changing a password.
 data PasswordChange = PasswordChange
-  { cpOldPassword :: PlainTextPassword6,
-    cpNewPassword :: PlainTextPassword6
+  { oldPassword :: PlainTextPassword6,
+    newPassword :: PlainTextPassword6
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordChange)
@@ -283,7 +283,7 @@ data PasswordChange = PasswordChange
 deriveJSON toJSONFieldName ''PasswordChange
 
 -- | The payload for updating an email address
-newtype EmailUpdate = EmailUpdate {euEmail :: Email}
+newtype EmailUpdate = EmailUpdate {email :: Email}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
 

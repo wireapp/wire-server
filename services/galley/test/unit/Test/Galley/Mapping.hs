@@ -83,19 +83,19 @@ tests =
       testProperty "self user role in remote conversation view is correct" $
         \(ConvWithRemoteUser c ruid) dom ->
           qDomain (tUntagged ruid) /= dom ==>
-            fmap (rcmSelfRole . rcnvMembers) (conversationToRemote dom ruid c)
+            fmap (selfRole . members) (conversationToRemote dom ruid c)
               == Just roleNameWireMember,
       testProperty "remote conversation view metadata is correct" $
         \(ConvWithRemoteUser c ruid) dom ->
           qDomain (tUntagged ruid) /= dom ==>
-            fmap rcnvMetadata (conversationToRemote dom ruid c)
+            fmap (.metadata) (conversationToRemote dom ruid c)
               == Just (Data.convMetadata c),
       testProperty "remote conversation view does not contain self" $
         \(ConvWithRemoteUser c ruid) dom -> case conversationToRemote dom ruid c of
           Nothing -> False
           Just rcnv ->
             tUntagged ruid
-              `notElem` map omQualifiedId (rcmOthers (rcnvMembers rcnv))
+              `notElem` map omQualifiedId rcnv.members.others
     ]
 
 cnvUids :: Conversation -> [Qualified UserId]

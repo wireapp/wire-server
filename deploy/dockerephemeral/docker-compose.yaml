@@ -14,6 +14,10 @@ services:
     container_name: demo_wire_dynamodb
 #    image: cnadiminti/dynamodb-local:2018-04-11
     image: julialongtin/dynamodb_local:0.0.9
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     ports:
       - 127.0.0.1:4567:8000
     networks:
@@ -164,6 +168,10 @@ services:
     image: julialongtin/elasticsearch:0.0.9-amd64
     # https://hub.docker.com/_/elastic is deprecated, but 6.2.4 did not work without further changes.
     # image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     ports:
       - "127.0.0.1:9200:9200"
       - "127.0.0.1:9300:9300"

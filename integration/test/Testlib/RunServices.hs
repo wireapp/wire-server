@@ -5,6 +5,7 @@ module Testlib.RunServices where
 import Control.Concurrent
 import Control.Monad.Codensity (lowerCodensity)
 import Data.Map qualified as Map
+import SetupHelpers
 import System.Directory
 import System.Environment (getArgs)
 import System.Exit (exitWith)
@@ -34,7 +35,7 @@ backendA =
       berEmailSMSSesQueue = "integration-brig-events",
       berEmailSMSEmailSender = "backend-integration@wire.com",
       berGalleyJournal = "integration-team-events.fifo",
-      berVHost = "/",
+      berVHost = "backendA",
       berNginzSslPort = 8443
     }
 
@@ -74,7 +75,7 @@ backendB =
       -- FUTUREWORK: set up vhosts in dev/ci for example.com and b.example.com
       -- in case we want backendA and backendB to federate with a third backend
       -- (because otherwise both queues will overlap)
-      berVHost = "/",
+      berVHost = "backendB",
       berNginzSslPort = 9443
     }
 
@@ -137,17 +138,12 @@ main = do
 
   runAppWithEnv env $ do
     lowerCodensity $ do
-      let fedConfig =
-            def
-              { dbBrig =
-                  setField
-                    "optSettings.setFederationDomainConfigs"
-                    [ object ["domain" .= backendA.berDomain, "search_policy" .= "full_search"],
-                      object ["domain" .= backendB.berDomain, "search_policy" .= "full_search"]
-                    ]
-              }
       _modifyEnv <-
         traverseConcurrentlyCodensity
-          (\(res, staticPorts, overrides) -> startDynamicBackend res staticPorts overrides)
-          [(backendA, staticPortsA, fedConfig), (backendB, staticPortsB, fedConfig)]
+          ( \(res, staticPorts) ->
+              -- We add the 'fullSerachWithAll' overrrides is a hack to get
+              -- around https://wearezeta.atlassian.net/browse/WPB-3796
+              startDynamicBackend res staticPorts fullSearchWithAll
+          )
+          [(backendA, staticPortsA), (backendB, staticPortsB)]
       liftIO run

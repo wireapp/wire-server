@@ -23,6 +23,7 @@ import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Env
+import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
 
 startPushingNotifications ::
@@ -36,11 +37,12 @@ startPushingNotifications runningFlag chan domain = do
 
 pushNotification :: RabbitMQEnvelope e => MVar () -> Domain -> (Q.Message, e) -> AppT IO (Async ())
 pushNotification runningFlag targetDomain (msg, envelope) = do
+  cfg <- asks (.backendNotificationsConfig)
   -- Jittered exponential backoff with 10ms as starting delay and 300s as max
   -- delay. When 300s is reached, every retry will happen after 300s.
   --
   -- FUTUREWORK: Pull these numbers into config.s
-  let policy = capDelay 300_000_000 $ fullJitterBackoff 10000
+  let policy = capDelay cfg.pushBackoffMaxWait $ fullJitterBackoff cfg.pushBackoffMinWait
       logErrr willRetry (SomeException e) rs = do
         Log.err $
           Log.msg (Log.val "Exception occurred while pushing notification")

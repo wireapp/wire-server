@@ -1,0 +1,1 @@
+The JSON schema of `NonConnectedBackends` has changed to have its single field now called `non_connected_backends`.

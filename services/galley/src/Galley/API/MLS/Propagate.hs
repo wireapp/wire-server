@@ -95,13 +95,13 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
     $ \(tUnqualified -> rs) ->
       fedClient @'Galley @"on-mls-message-sent" $
         RemoteMLSMessage
-          { rmmTime = now,
-            rmmSender = qusr,
-            rmmMetadata = mm,
-            rmmConversation = qUnqualified qcnv,
-            rmmSubConversation = sconv,
-            rmmRecipients = rs >>= remoteMemberMLSClients,
-            rmmMessage = Base64ByteString msg.raw
+          { time = now,
+            sender = qusr,
+            metadata = mm,
+            conversation = qUnqualified qcnv,
+            subConversation = sconv,
+            recipients = rs >>= remoteMemberMLSClients,
+            message = Base64ByteString msg.raw
           }
   where
     cmWithoutSender = maybe cm (flip cmRemoveClient cm . mkClientIdentity qusr) mSenderClient

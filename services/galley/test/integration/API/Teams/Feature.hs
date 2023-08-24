@@ -42,7 +42,7 @@ import Data.Schema (ToSchema)
 import Data.Set qualified as Set
 import Data.Timeout (TimeoutUnit (Second), (#))
 import GHC.TypeLits (KnownSymbol)
-import Galley.Options (optSettings, setExposeInvitationURLsTeamAllowlist, setFeatureFlags)
+import Galley.Options (exposeInvitationURLsTeamAllowlist, featureFlags, settings)
 import Galley.Types.Teams
 import Imports
 import Network.Wai.Utilities (label)
@@ -293,7 +293,7 @@ testSSO setSSOFeature = do
 
   assertFlagForbidden $ getTeamFeatureFlag @SSOConfig nonMember tid
 
-  featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
+  featureSSO <- view (tsGConf . settings . featureFlags . flagSSO)
   case featureSSO of
     FeatureSSODisabledByDefault -> do
       -- Test default
@@ -340,7 +340,7 @@ testLegalHold setLegalHoldInternal = do
   assertFlagForbidden $ getTeamFeatureFlag @LegalholdConfig nonMember tid
 
   -- FUTUREWORK: run two galleys, like below for custom search visibility.
-  featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
+  featureLegalHold <- view (tsGConf . settings . featureFlags . flagLegalHold)
   case featureLegalHold of
     FeatureLegalHoldDisabledByDefault -> do
       -- Test default
@@ -492,7 +492,7 @@ testClassifiedDomainsDisabled = do
   let classifiedDomainsDisabled opts =
         opts
           & over
-            (optSettings . setFeatureFlags . flagClassifiedDomains)
+            (settings . featureFlags . flagClassifiedDomains)
             (\(ImplicitLockStatus s) -> ImplicitLockStatus (s & setStatus FeatureStatusDisabled & setConfig (ClassifiedDomainsConfig [])))
   withSettingsOverrides classifiedDomainsDisabled $ do
     getClassifiedDomains member tid expected
@@ -850,8 +850,8 @@ testSelfDeletingMessages = do
   defLockStatus :: LockStatus <-
     view
       ( tsGConf
-          . optSettings
-          . setFeatureFlags
+          . settings
+          . featureFlags
           . flagSelfDeletingMessages
           . unDefaults
           . to wsLockStatus
@@ -1005,8 +1005,8 @@ testAllFeatures = do
   defLockStatus :: LockStatus <-
     view
       ( tsGConf
-          . optSettings
-          . setFeatureFlags
+          . settings
+          . featureFlags
           . flagSelfDeletingMessages
           . unDefaults
           . to wsLockStatus
@@ -1334,7 +1334,7 @@ testExposeInvitationURLsToTeamAdminTeamIdInAllowList = do
   tid <- createBindingTeamInternal "foo" owner
   assertTeamActivate "create team" tid
   void $
-    withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
+    withSettingsOverrides (\opts -> opts & settings . exposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
       g <- viewGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusUnlocked
       let enabled = WithStatusNoLock FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
@@ -1349,7 +1349,7 @@ testExposeInvitationURLsToTeamAdminEmptyAllowList = do
   tid <- createBindingTeamInternal "foo" owner
   assertTeamActivate "create team" tid
   void $
-    withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist .~ Nothing) $ do
+    withSettingsOverrides (\opts -> opts & settings . exposeInvitationURLsTeamAllowlist .~ Nothing) $ do
       g <- viewGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusLocked
       let enabled = WithStatusNoLock FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
@@ -1361,7 +1361,7 @@ testExposeInvitationURLsToTeamAdminEmptyAllowList = do
 -- | Ensure that the server config takes precedence over a saved team config.
 --
 -- In other words: When a team id is no longer in the
--- `setExposeInvitationURLsTeamAllowlist` the
+-- `exposeInvitationURLsTeamAllowlist` the
 -- `ExposeInvitationURLsToTeamAdminConfig` is always disabled (even tough it
 -- might have been enabled before).
 testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence :: TestM ()
@@ -1370,7 +1370,7 @@ testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
   tid <- createBindingTeamInternal "foo" owner
   assertTeamActivate "create team" tid
   void $
-    withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
+    withSettingsOverrides (\opts -> opts & settings . exposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
       g <- viewGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusUnlocked
       let enabled = WithStatusNoLock FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
@@ -1379,7 +1379,7 @@ testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
           const 200 === statusCode
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusEnabled LockStatusUnlocked
   void $
-    withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist .~ Nothing) $ do
+    withSettingsOverrides (\opts -> opts & settings . exposeInvitationURLsTeamAllowlist .~ Nothing) $ do
       g <- viewGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusLocked
       let enabled = WithStatusNoLock FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited

@@ -57,6 +57,10 @@ instance
 
   route _p ctx d = route (Proxy :: Proxy (ReqBody cts (Versioned v a) :> api)) ctx (fmap (. unVersioned) d)
 
+type instance
+  SpecialiseToVersion w (VersionedReqBody v cts a :> api) =
+    VersionedReqBody v cts a :> SpecialiseToVersion w api
+
 instance
   ( S.ToSchema (Versioned v a),
     HasSwagger api,

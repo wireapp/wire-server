@@ -33,11 +33,11 @@ import Data.Time.Clock.POSIX
 import Data.UUID qualified as UUID
 import Gundeck.Monad
 import Gundeck.Notification.Data qualified as Data
-import Gundeck.Options
+import Gundeck.Options hiding (host, port)
 import Imports hiding (getLast)
 import System.Logger.Class
 import System.Logger.Class qualified as Log
-import Util.Options
+import Util.Options hiding (host, port)
 import Wire.API.Internal.Notification
 
 data PaginateResult = PaginateResult
@@ -64,7 +64,7 @@ paginate uid since mclt size = do
 updateActivity :: UserId -> ClientId -> Gundeck ()
 updateActivity uid clt = do
   r <- do
-    Endpoint h p <- view $ options . optBrig
+    Endpoint h p <- view $ options . brig
     post
       ( host (toByteString' h)
           . port p

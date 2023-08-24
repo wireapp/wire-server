@@ -281,10 +281,10 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
     runFederated rConvOrSubId $
       fedClient @'Galley @"send-mls-commit-bundle" $
         MLSMessageSendRequest
-          { mmsrConvOrSubId = tUnqualified rConvOrSubId,
-            mmsrSender = tUnqualified lusr,
-            mmsrSenderClient = c,
-            mmsrRawMessage = Base64ByteString bundle.serialized
+          { convOrSubId = tUnqualified rConvOrSubId,
+            sender = tUnqualified lusr,
+            senderClient = c,
+            rawMessage = Base64ByteString bundle.serialized
           }
   case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSBundleStaticErrors e
@@ -425,10 +425,10 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
     runFederated rConvOrSubId $
       fedClient @'Galley @"send-mls-message" $
         MLSMessageSendRequest
-          { mmsrConvOrSubId = tUnqualified rConvOrSubId,
-            mmsrSender = tUnqualified lusr,
-            mmsrSenderClient = senderClient,
-            mmsrRawMessage = Base64ByteString msg.rawMessage.raw
+          { convOrSubId = tUnqualified rConvOrSubId,
+            sender = tUnqualified lusr,
+            senderClient = senderClient,
+            rawMessage = Base64ByteString msg.rawMessage.raw
           }
   case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e

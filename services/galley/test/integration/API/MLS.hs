@@ -712,13 +712,13 @@ testRemoteAppMessage = do
     liftIO $ do
       req <- assertOne $ filter ((== "on-mls-message-sent") . frRPC) reqs
       frTargetDomain req @?= qDomain bob
-      bdy <- case Aeson.eitherDecode (frBody req) of
+      bdy :: RemoteMLSMessage <- case Aeson.eitherDecode (frBody req) of
         Right b -> pure b
         Left e -> assertFailure $ "Could not parse on-mls-message-sent request body: " <> e
-      rmmSender bdy @?= alice
-      rmmConversation bdy @?= qUnqualified qcnv
-      rmmRecipients bdy @?= [(ciUser bob1, ciClient bob1)]
-      rmmMessage bdy @?= Base64ByteString (mpMessage message)
+      bdy.sender @?= alice
+      bdy.conversation @?= qUnqualified qcnv
+      bdy.recipients @?= [(ciUser bob1, ciClient bob1)]
+      bdy.message @?= Base64ByteString (mpMessage message)
 
     liftIO $ assertBool "Unexpected events returned" (null events)
 
@@ -784,12 +784,12 @@ testLocalToRemote = do
       req <- assertOne reqs
       frRPC req @?= "send-mls-message"
       frTargetDomain req @?= qDomain qcnv
-      bdy <- case Aeson.eitherDecode (frBody req) of
+      bdy :: MLSMessageSendRequest <- case Aeson.eitherDecode (frBody req) of
         Right b -> pure b
         Left e -> assertFailure $ "Could not parse send-mls-message request body: " <> e
-      mmsrConvOrSubId bdy @?= Conv (qUnqualified qcnv)
-      mmsrSender bdy @?= qUnqualified bob
-      mmsrRawMessage bdy @?= Base64ByteString (mpMessage message)
+      bdy.convOrSubId @?= Conv (qUnqualified qcnv)
+      bdy.sender @?= qUnqualified bob
+      bdy.rawMessage @?= Base64ByteString (mpMessage message)
 
 testLocalToRemoteNonMember :: TestM ()
 testLocalToRemoteNonMember = do
@@ -1089,13 +1089,13 @@ testRemoteToRemote = do
       rcpts = [(alice, aliceC1), (alice, aliceC2), (eve, eveC)]
       rm =
         RemoteMLSMessage
-          { rmmTime = now,
-            rmmMetadata = defMessageMetadata,
-            rmmSender = qbob,
-            rmmConversation = conv,
-            rmmSubConversation = Nothing,
-            rmmRecipients = rcpts,
-            rmmMessage = Base64ByteString txt
+          { time = now,
+            metadata = defMessageMetadata,
+            sender = qbob,
+            conversation = conv,
+            subConversation = Nothing,
+            recipients = rcpts,
+            message = Base64ByteString txt
           }
 
   -- send message to alice and check reception
@@ -1145,13 +1145,13 @@ testRemoteToRemoteInSub = do
       rcpts = [(alice, aliceC1), (alice, aliceC2), (eve, eveC)]
       rm =
         RemoteMLSMessage
-          { rmmTime = now,
-            rmmMetadata = defMessageMetadata,
-            rmmSender = qbob,
-            rmmConversation = conv,
-            rmmSubConversation = Just subConvId,
-            rmmRecipients = rcpts,
-            rmmMessage = Base64ByteString txt
+          { time = now,
+            metadata = defMessageMetadata,
+            sender = qbob,
+            conversation = conv,
+            subConversation = Just subConvId,
+            recipients = rcpts,
+            message = Base64ByteString txt
           }
 
   -- send message to alice and check reception
@@ -1202,10 +1202,10 @@ testRemoteToLocal = do
     -- actual test
     let msr =
           MLSMessageSendRequest
-            { mmsrConvOrSubId = Conv (qUnqualified qcnv),
-              mmsrSender = qUnqualified bob,
-              mmsrSenderClient = ciClient bob1,
-              mmsrRawMessage = Base64ByteString (mpMessage message)
+            { convOrSubId = Conv (qUnqualified qcnv),
+              sender = qUnqualified bob,
+              senderClient = ciClient bob1,
+              rawMessage = Base64ByteString (mpMessage message)
             }
 
     WS.bracketR cannon (qUnqualified alice) $ \ws -> do
@@ -1246,10 +1246,10 @@ testRemoteToLocalWrongConversation = do
     randomConfId <- randomId
     let msr =
           MLSMessageSendRequest
-            { mmsrConvOrSubId = Conv randomConfId,
-              mmsrSender = qUnqualified bob,
-              mmsrSenderClient = ciClient bob1,
-              mmsrRawMessage = Base64ByteString (mpMessage message)
+            { convOrSubId = Conv randomConfId,
+              sender = qUnqualified bob,
+              senderClient = ciClient bob1,
+              rawMessage = Base64ByteString (mpMessage message)
             }
 
     resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
@@ -1280,10 +1280,10 @@ testRemoteNonMemberToLocal = do
 
     let msr =
           MLSMessageSendRequest
-            { mmsrConvOrSubId = Conv (qUnqualified qcnv),
-              mmsrSender = qUnqualified bob,
-              mmsrSenderClient = ciClient bob1,
-              mmsrRawMessage = Base64ByteString (mpMessage message)
+            { convOrSubId = Conv (qUnqualified qcnv),
+              sender = qUnqualified bob,
+              senderClient = ciClient bob1,
+              rawMessage = Base64ByteString (mpMessage message)
             }
 
     fedGalleyClient <- view tsFedGalleyClient
@@ -1647,8 +1647,8 @@ testBackendRemoveProposalLocalConvRemoteUser = do
             fedGalleyClient
             (qDomain bob)
             ( UserDeletedConversationsNotification
-                { udcvUser = qUnqualified bob,
-                  udcvConversations = unsafeRange [qUnqualified qcnv]
+                { user = qUnqualified bob,
+                  conversations = unsafeRange [qUnqualified qcnv]
                 }
             )
 
@@ -1792,9 +1792,9 @@ testBackendRemoveProposalLocalConvRemoteLeaver = do
             fedGalleyClient
             (qDomain bob)
             ConversationUpdateRequest
-              { curUser = qUnqualified bob,
-                curConvId = qUnqualified qcnv,
-                curAction = SomeConversationAction SConversationLeaveTag ()
+              { user = qUnqualified bob,
+                convId = qUnqualified qcnv,
+                action = SomeConversationAction SConversationLeaveTag ()
               }
 
         for_ bobClients $ \(_, idx) ->
@@ -2005,13 +2005,13 @@ testAddUserToRemoteConvWithBundle = do
       frRPC req @?= "send-mls-commit-bundle"
       frTargetDomain req @?= qDomain qcnv
 
-      msr <- case Aeson.eitherDecode (frBody req) of
+      msr :: MLSMessageSendRequest <- case Aeson.eitherDecode (frBody req) of
         Right b -> pure b
         Left e -> assertFailure $ "Could not parse send-mls-commit-bundle request body: " <> e
 
-      mmsrConvOrSubId msr @?= Conv (qUnqualified qcnv)
-      mmsrSender msr @?= qUnqualified bob
-      fromBase64ByteString (mmsrRawMessage msr) @?= commitBundle
+      msr.convOrSubId @?= Conv (qUnqualified qcnv)
+      msr.sender @?= qUnqualified bob
+      fromBase64ByteString (msr.rawMessage) @?= commitBundle
 
 -- | The MLS self-conversation should be available even without explicitly
 -- creating it by calling `GET /conversations/mls-self` starting from version 3
@@ -2270,10 +2270,10 @@ testJoinRemoteSubConv = do
     -- check that commit bundle is sent to remote backend
     fr <- assertOne (filter ((== "send-mls-commit-bundle") . frRPC) reqs)
     liftIO $ do
-      mmsr <- assertJust (Aeson.decode (frBody fr))
-      mmsrConvOrSubId mmsr @?= qUnqualified qcs
-      mmsrSender mmsr @?= ciUser bob1
-      mmsrSenderClient mmsr @?= ciClient bob1
+      mmsr :: MLSMessageSendRequest <- assertJust (Aeson.decode (frBody fr))
+      mmsr.convOrSubId @?= qUnqualified qcs
+      mmsr.sender @?= ciUser bob1
+      mmsr.senderClient @?= ciClient bob1
 
 testRemoteSubConvNotificationWhenUserJoins :: TestM ()
 testRemoteSubConvNotificationWhenUserJoins = do
@@ -2674,14 +2674,14 @@ testLeaveSubConv isSubConvCreator = do
       (_, reqs) <-
         withTempMockFederator' messageSentMock $
           leaveCurrentConv firstLeaver qsub
-      req <-
+      req :: RemoteMLSMessage <-
         assertOne
           ( toList . Aeson.decode . frBody
               =<< filter ((== "on-mls-message-sent") . frRPC) reqs
           )
-      let msg = fromBase64ByteString $ rmmMessage req
+      let msg = fromBase64ByteString $ req.message
       liftIO $
-        rmmRecipients req @?= [(ciUser charlie1, ciClient charlie1)]
+        req.recipients @?= [(ciUser charlie1, ciClient charlie1)]
       consumeMessage1 charlie1 msg
 
       msgs <-

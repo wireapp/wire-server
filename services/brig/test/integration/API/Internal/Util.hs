@@ -30,7 +30,7 @@ module API.Internal.Util
 where
 
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
-import Bilge
+import Bilge hiding (host, port)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
 import Data.ByteString.Base16 qualified as B16
@@ -46,7 +46,7 @@ import Servant.API.ContentTypes (NoContent)
 import Servant.Client qualified as Client
 import System.Random (randomIO)
 import Util
-import Util.Options (Endpoint, epHost, epPort)
+import Util.Options (Endpoint, host, port)
 import Wire.API.Connection
 import Wire.API.Push.V2.Token qualified as PushToken
 import Wire.API.Routes.Internal.Brig as IAPI
@@ -146,5 +146,5 @@ deleteAccountConferenceCallingConfigClient brigep mgr uid = runHereClientM brige
 runHereClientM :: (HasCallStack, MonadIO m) => Endpoint -> Manager -> Client.ClientM a -> m (Either Client.ClientError a)
 runHereClientM brigep mgr action = do
   let env = Client.mkClientEnv mgr baseurl
-      baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. epHost) (fromIntegral $ brigep ^. epPort) ""
+      baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. host) (fromIntegral $ brigep ^. port) ""
   liftIO $ Client.runClientM action env

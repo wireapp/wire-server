@@ -154,7 +154,7 @@ spec = do
       it "getIdPByIssuer works" $ do
         idp <- makeTestIdP
         () <- runSpar $ IdPEffect.insertConfig idp
-        midp <- getIdPByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+        midp <- getIdPByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . team)
         liftIO $ midp `shouldBe` Just idp
       it "getIdPConfigsByTeam works" $ do
         skipIdPAPIVersions [WireIdPAPIV1]
@@ -176,10 +176,10 @@ spec = do
           idpOrError <- runSparE $ IdPEffect.getConfig (idp ^. idpId)
           liftIO $ idpOrError `shouldBe` Left (SAML.CustomError $ IdpDbError IdpNotFound)
         do
-          midp <- getIdPByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+          midp <- getIdPByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . team)
           liftIO $ midp `shouldBe` Nothing
         do
-          midp <- getIdPByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+          midp <- getIdPByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . team)
           liftIO $ midp `shouldBe` Nothing
         do
           idps <- runSpar $ IdPEffect.getConfigsByTeam teamid
@@ -274,7 +274,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   -- The config from 'issuer_idp':
   do
     let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-    mbIdp <- getIdPByIssuer issuer (idp ^. SAML.idpExtraInfo . wiTeam)
+    mbIdp <- getIdPByIssuer issuer (idp ^. SAML.idpExtraInfo . team)
     liftIO $ mbIdp `shouldBe` Nothing
   -- The config from 'team_idp':
   do

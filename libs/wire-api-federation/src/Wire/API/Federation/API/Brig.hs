@@ -75,26 +75,29 @@ type BrigApi =
     :<|> FedEndpoint "get-not-fully-connected-backends" DomainSet NonConnectedBackends
 
 newtype DomainSet = DomainSet
-  { dsDomains :: Set Domain
+  { domains :: Set Domain
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded DomainSet)
 
 newtype NonConnectedBackends = NonConnectedBackends
+  -- TODO:
+  -- The encoding rules that were in place would make this "connectedBackends" over the wire.
+  -- I do not think that this was intended, so I'm leaving this note as it will be an API break.
   { nonConnectedBackends :: Set Domain
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded NonConnectedBackends)
 
 newtype GetUserClients = GetUserClients
-  { gucUsers :: [UserId]
+  { users :: [UserId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetUserClients)
 
 data MLSClientsRequest = MLSClientsRequest
-  { mcrUserId :: UserId, -- implicitly qualified by the local domain
-    mcrSignatureScheme :: SignatureSchemeTag
+  { userId :: UserId, -- implicitly qualified by the local domain
+    signatureScheme :: SignatureSchemeTag
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSClientsRequest)
@@ -117,10 +120,10 @@ data MLSClientsRequest = MLSClientsRequest
 
 data NewConnectionRequest = NewConnectionRequest
   { -- | The 'from' userId is understood to always have the domain of the backend making the connection request
-    ncrFrom :: UserId,
+    from :: UserId,
     -- | The 'to' userId is understood to always have the domain of the receiving backend.
-    ncrTo :: UserId,
-    ncrAction :: RemoteConnectionAction
+    to :: UserId,
+    action :: RemoteConnectionAction
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConnectionRequest)
@@ -144,9 +147,9 @@ type UserDeletedNotificationMaxConnections = 1000
 
 data UserDeletedConnectionsNotification = UserDeletedConnectionsNotification
   { -- | This is qualified implicitly by the origin domain
-    udcnUser :: UserId,
+    user :: UserId,
     -- | These are qualified implicitly by the target domain
-    udcnConnections :: Range 1 UserDeletedNotificationMaxConnections [UserId]
+    connections :: Range 1 UserDeletedNotificationMaxConnections [UserId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConnectionsNotification)
@@ -154,10 +157,10 @@ data UserDeletedConnectionsNotification = UserDeletedConnectionsNotification
 
 data ClaimKeyPackageRequest = ClaimKeyPackageRequest
   { -- | The user making the request, implictly qualified by the origin domain.
-    ckprClaimant :: UserId,
+    claimant :: UserId,
     -- | The user whose key packages are being claimed, implictly qualified by
     -- the target domain.
-    ckprTarget :: UserId
+    target :: UserId
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClaimKeyPackageRequest)

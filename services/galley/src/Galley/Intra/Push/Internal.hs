@@ -60,7 +60,7 @@ data RecipientBy user = Recipient
   { _recipientUserId :: user,
     _recipientClients :: RecipientClients
   }
-  deriving stock (Functor, Foldable, Traversable, Show)
+  deriving stock (Functor, Foldable, Traversable, Show, Ord, Eq)
 
 makeLenses ''RecipientBy
 
@@ -191,7 +191,7 @@ newConversationEventPush e users =
 
 pushSlowly :: Foldable f => f Push -> App ()
 pushSlowly ps = do
-  mmillis <- view (options . optSettings . setDeleteConvThrottleMillis)
+  mmillis <- view (options . settings . deleteConvThrottleMillis)
   let delay = 1000 * fromMaybe defDeleteConvThrottleMillis mmillis
   forM_ ps $ \p -> do
     push [p]

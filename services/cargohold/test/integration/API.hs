@@ -23,7 +23,7 @@ import API.Util
 import Bilge hiding (body)
 import Bilge.Assert
 import CargoHold.API.Error
-import CargoHold.Options (awsS3DownloadEndpoint, optAws)
+import CargoHold.Options (aws, s3DownloadEndpoint)
 import CargoHold.Types
 import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Type as MIME
@@ -228,7 +228,7 @@ testDownloadURLOverride = do
   -- This is a .example domain, it shouldn't resolve. But it is also not
   -- supposed to be used by cargohold to make connections.
   let downloadEndpoint = "external-s3-url.example"
-  withSettingsOverrides (optAws . awsS3DownloadEndpoint ?~ AWSEndpoint downloadEndpoint True 443) $ do
+  withSettingsOverrides (aws . s3DownloadEndpoint ?~ AWSEndpoint downloadEndpoint True 443) $ do
     uid <- liftIO $ Id <$> nextRandom
 
     -- Upload, should work, shouldn't try to use the S3DownloadEndpoint

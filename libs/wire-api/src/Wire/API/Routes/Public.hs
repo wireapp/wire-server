@@ -55,6 +55,7 @@ import Servant.Server.Internal.DelayedIO
 import Servant.Server.Internal.Router (Router)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Wire.API.OAuth qualified as OAuth
+import Wire.API.Routes.Version
 
 mapRequestArgument ::
   forall mods a b.
@@ -196,20 +197,29 @@ type ZOptHostHeader =
 instance HasSwagger api => HasSwagger (ZHostOpt :> api) where
   toSwagger _ = toSwagger (Proxy @api)
 
+type instance SpecialiseToVersion v (ZHostOpt :> api) = ZHostOpt :> SpecialiseToVersion v api
+
+addZAuthSwagger :: Swagger -> Swagger
+addZAuthSwagger s =
+  s
+    & securityDefinitions <>~ SecurityDefinitions (InsOrdHashMap.singleton "ZAuth" secScheme)
+    & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
+  where
+    secScheme =
+      SecurityScheme
+        { _securitySchemeType = SecuritySchemeApiKey (ApiKeyParams "Authorization" ApiKeyHeader),
+          _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
+        }
+
+type instance
+  SpecialiseToVersion v (ZAuthServant t opts :> api) =
+    ZAuthServant t opts :> SpecialiseToVersion v api
+
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) where
-  toSwagger _ =
-    toSwagger (Proxy @api)
-      & securityDefinitions <>~ SecurityDefinitions (InsOrdHashMap.singleton "ZAuth" secScheme)
-      & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
-    where
-      secScheme =
-        SecurityScheme
-          { _securitySchemeType = SecuritySchemeApiKey (ApiKeyParams "Authorization" ApiKeyHeader),
-            _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
-          }
+  toSwagger _ = addZAuthSwagger (toSwagger (Proxy @api))
 
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZLocalAuthUser opts :> api) where
-  toSwagger _ = toSwagger (Proxy @(ZAuthServant 'ZAuthUser opts :> api))
+  toSwagger _ = addZAuthSwagger (toSwagger (Proxy @api))
 
 instance HasLink endpoint => HasLink (ZAuthServant usr opts :> endpoint) where
   type MkLink (ZAuthServant _ _ :> endpoint) a = MkLink endpoint a
@@ -286,11 +296,18 @@ instance ToSchema a => ToSchema (Headers ls a) where
 
 data DescriptionOAuthScope (scope :: OAuth.OAuthScope)
 
-instance (HasSwagger api, OAuth.IsOAuthScope scope) => HasSwagger (DescriptionOAuthScope scope :> api) where
-  toSwagger _ = toSwagger (Proxy @api) & addScopeDescription
-    where
-      addScopeDescription :: Swagger -> Swagger
-      addScopeDescription = allOperations . description %~ Just . (<> "\nOAuth scope: `" <> cs (toByteString (OAuth.toOAuthScope @scope)) <> "`") . fold
+type instance
+  SpecialiseToVersion v (DescriptionOAuthScope scope :> api) =
+    DescriptionOAuthScope scope :> SpecialiseToVersion v api
+
+instance
+  (HasSwagger api, OAuth.IsOAuthScope scope) =>
+  HasSwagger (DescriptionOAuthScope scope :> api)
+  where
+  toSwagger _ = addScopeDescription @scope (toSwagger (Proxy @api))
+
+addScopeDescription :: forall scope. OAuth.IsOAuthScope scope => Swagger -> Swagger
+addScopeDescription = allOperations . description %~ Just . (<> "\nOAuth scope: `" <> cs (toByteString (OAuth.toOAuthScope @scope)) <> "`") . fold
 
 instance (HasServer api ctx) => HasServer (DescriptionOAuthScope scope :> api) ctx where
   type ServerT (DescriptionOAuthScope scope :> api) m = ServerT api m

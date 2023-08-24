@@ -31,6 +31,7 @@ import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.RouteResult
 import Servant.Server.Internal.Router
 import Servant.Swagger
+import Wire.API.Routes.Version
 
 -- | A websocket that relates to a 'PendingConnection'
 -- Copied and adapted from: <https://hackage.haskell.org/package/servant-websockets-2.0.0/docs/Servant-API-WebSocket.html#t:WebSocketPending>
@@ -61,6 +62,8 @@ instance HasServer WebSocketPending ctx where
                 errBody = mempty,
                 errHeaders = mempty
               }
+
+type instance SpecialiseToVersion v WebSocketPending = WebSocketPending
 
 instance HasSwagger WebSocketPending where
   toSwagger _ =
