@@ -44,17 +44,19 @@ testModifiedGalley :: HasCallStack => App ()
 testModifiedGalley = do
   (_user, tid) <- createTeam OwnDomain
 
-  let getFeatureStatus = do
-        bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
+  let getFeatureStatus :: (MakesValue domain) => domain -> String -> App Value
+      getFeatureStatus domain team = do
+        bindResponse (Internal.getTeamFeature domain "searchVisibility" team) $ \res -> do
           res.status `shouldMatchInt` 200
           res.json %. "status"
 
-  do
-    getFeatureStatus `shouldMatch` "disabled"
+  getFeatureStatus OwnDomain tid `shouldMatch` "disabled"
 
   withModifiedBackend
     def {galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"}
-    $ \_ -> getFeatureStatus `shouldMatch` "enabled"
+    $ \domain -> do
+      (_user, tid') <- createTeam domain
+      getFeatureStatus domain tid' `shouldMatch` "enabled"
 
 testModifiedCannon :: HasCallStack => App ()
 testModifiedCannon = do
@@ -80,18 +82,18 @@ testModifiedServices = do
             galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"
           }
 
-  withModifiedBackend serviceMap $ \_domain -> do
-    (_user, tid) <- createTeam OwnDomain
-    bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
+  withModifiedBackend serviceMap $ \domain -> do
+    (_user, tid) <- createTeam domain
+    bindResponse (Internal.getTeamFeature domain "searchVisibility" tid) $ \res -> do
       res.status `shouldMatchInt` 200
       res.json %. "status" `shouldMatch` "enabled"
 
-    bindResponse (Public.getAPIVersion OwnDomain) $
+    bindResponse (Public.getAPIVersion domain) $
       \resp -> do
         resp.status `shouldMatchInt` 200
         (resp.json %. "domain") `shouldMatch` "overridden.example.com"
 
-    bindResponse (Nginz.getSystemSettingsUnAuthorized OwnDomain) $
+    bindResponse (Nginz.getSystemSettingsUnAuthorized domain) $
       \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "setRestrictUserCreation" `shouldMatch` False
