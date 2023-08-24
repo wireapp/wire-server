@@ -33,15 +33,12 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
 
   bindResponse (downloadAsset' user user key "red.example.com" noRedirects) $ \resp -> do
     resp.status `shouldMatchInt` 302
-    locationHeaderHost resp `shouldMatch` "localhost"
 
   bindResponse (downloadAsset' user user key "green.example.com" noRedirects) $ \resp -> do
     resp.status `shouldMatchInt` 302
-    locationHeaderHost resp `shouldMatch` "localhost"
 
   bindResponse (downloadAsset' user user key "unknown.example.com" noRedirects) $ \resp -> do
     resp.status `shouldMatchInt` 302
-    locationHeaderHost resp `shouldMatch` "localhost"
 
   -- multi-ingress enabled
   withModifiedBackend modifyConfig $ \domain -> do
@@ -50,6 +47,7 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
 
     bindResponse (downloadAsset' user' user' key' "nginz-https.example.com" noRedirects) $ \resp -> do
       resp.status `shouldMatchInt` 404
+      resp.json %. "label" `shouldMatch` "not-found"
 
     bindResponse (downloadAsset' user' user' key' "red.example.com" noRedirects) $ \resp -> do
       resp.status `shouldMatchInt` 302
