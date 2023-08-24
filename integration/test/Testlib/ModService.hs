@@ -167,7 +167,6 @@ startDynamicBackend resource beOverrides = do
     resource
     (Just setFederatorConfig)
     services
-    (\_ports sm -> Map.insert resource.berDomain (serviceMapForResource resource) sm)
   where
     setAwsConfigs :: Service -> Value -> App Value
     setAwsConfigs = \case
@@ -264,7 +263,6 @@ withModifiedServices services = do
       resource
       Nothing
       services
-      (\_ports sm -> Map.insert resource.berDomain (serviceMapForResource resource) sm)
   pure (resource.berDomain)
 
 startBackend ::
@@ -272,9 +270,8 @@ startBackend ::
   BackendResource ->
   Maybe (Value -> App Value) ->
   Map.Map Service (Value -> App Value) ->
-  (Map.Map Service Word16 -> Map.Map String ServiceMap -> Map.Map String ServiceMap) ->
   Codensity App (Env -> Env)
-startBackend resource mFederatorOverrides services modifyBackends = do
+startBackend resource mFederatorOverrides services = do
   let domain = resource.berDomain
       staticPorts :: Map.Map Service Word16 = Map.fromList [(srv, berInternalServicePorts resource srv) | srv <- Map.keys services]
       nginzSslPort :: Maybe Word16 = (Just resource.berNginzSslPort)
@@ -308,6 +305,8 @@ startBackend resource mFederatorOverrides services modifyBackends = do
           config
           (Map.assocs staticPorts)
 
+  let updateServiceMap sm = Map.insert resource.berDomain (serviceMapForResource resource) sm
+
   -- close all sockets before starting the services
   stopInstances <- lift $ do
     fedInstance <-
@@ -323,7 +322,7 @@ startBackend resource mFederatorOverrides services modifyBackends = do
     otherInstances <- for (Map.assocs $ Map.filterWithKey (\s _ -> s /= FederatorInternal) services) $ \case
       (Nginz, _) -> do
         env <- ask
-        sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (modifyBackends (fromIntegral <$> staticPorts) env.serviceMap))
+        sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (updateServiceMap env.serviceMap))
         port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral) (Map.lookup Nginz staticPorts)
         case env.servicesCwdBase of
           Nothing -> startNginzK8s domain sm
@@ -334,7 +333,7 @@ startBackend resource mFederatorOverrides services modifyBackends = do
           >>= modifyConfig
           >>= startProcess domain srv
 
-    let instances = fedInstance <> otherInstances
+    let instances = maybeToList fedInstance <> otherInstances
 
     let stopInstances = liftIO $ do
           -- Running waitForProcess would hang for 30 seconds when the test suite
@@ -355,8 +354,7 @@ startBackend resource mFederatorOverrides services modifyBackends = do
 
     pure stopInstances
 
-  let modifyEnv env =
-        env {serviceMap = modifyBackends (fromIntegral <$> staticPorts) env.serviceMap}
+  let modifyEnv env = env {serviceMap = updateServiceMap env.serviceMap}
 
   Codensity $ \action -> local modifyEnv $ do
     waitForService <- appToIOKleisli (waitUntilServiceUp domain)
