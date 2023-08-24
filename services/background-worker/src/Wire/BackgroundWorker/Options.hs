@@ -34,7 +34,7 @@ data BackendNotificationsConfig = BackendNotificationsConfig
     -- | Number of milliseconds between two calls to `getRemoteDomains`.  (good
     -- defaults are 3 seconds, or 30 seconds, but for testing we sometimes set
     -- it below 1 second.)
-    remotesRefreshInterval :: Int
+    remotesRefreshIntervalMs :: Int
   }
   deriving (Show, Generic)
 
