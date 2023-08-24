@@ -354,10 +354,10 @@ newtype BotId = BotId
       FromHttpApiData,
       Hashable,
       NFData,
-      FromJSON,
-      ToJSON,
       Generic
     )
+  deriving newtype (ToSchema)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema BotId
 
 instance Show BotId where
   show = show . botUserId
