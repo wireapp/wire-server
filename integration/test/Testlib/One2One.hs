@@ -34,7 +34,6 @@ import Testlib.Prelude
 generateRemoteAndConvIdWithDomain :: (MakesValue domain, MakesValue a) => domain -> Bool -> a -> App (Value, Value)
 generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId = do
   (localDomain, localUser) <- objQid lUserId
-  -- TODO(leif): maybe only generate an id?
   otherUsr <- randomUser remoteDomain def >>= objId
   otherDomain <- asString remoteDomain
   let (cId, cDomain) =
