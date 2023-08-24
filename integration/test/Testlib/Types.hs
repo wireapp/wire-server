@@ -241,4 +241,14 @@ defaultServiceOverrides =
     }
 
 lookupConfigOverride :: ServiceOverrides -> Service -> (Value -> App Value)
-lookupConfigOverride = error "TODO"
+lookupConfigOverride overrides = \case
+  Brig -> overrides.brigCfg
+  Cannon -> overrides.cannonCfg
+  Cargohold -> overrides.cargoholdCfg
+  Galley -> overrides.galleyCfg
+  Gundeck -> overrides.gundeckCfg
+  Nginz -> overrides.nginzCfg
+  Spar -> overrides.sparCfg
+  BackgroundWorker -> overrides.backgroundWorkerCfg
+  Stern -> overrides.sternCfg
+  FederatorInternal -> overrides.federatorInternalCfg
