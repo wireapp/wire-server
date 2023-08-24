@@ -15,7 +15,7 @@ testDownloadAsset = do
     resp.status `shouldMatchInt` 201
     resp.json %. "key"
 
-  bindResponse (downloadAsset user user key id) $ \resp -> do
+  bindResponse (downloadAsset' user user key "nginz-https.example.com" id) $ \resp -> do
     resp.status `shouldMatchInt` 200
     assertBool
       ("Expect 'Hello World!' as text asset content. Got: " ++ show resp.body)
@@ -27,27 +27,42 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
 
   -- multi-ingress disabled
   key <- doUploadAsset user
-  checkAssetDownload user key
 
-  withModifiedService Cargohold modifyConfig $ \_ -> do
-    -- multi-ingress enabled
-    key' <- doUploadAsset user
-    checkAssetDownload user key'
+  bindResponse (downloadAsset' user user key "nginz-https.example.com" noRedirects) $ \resp -> do
+    resp.status `shouldMatchInt` 302
+
+  bindResponse (downloadAsset' user user key "red.example.com" noRedirects) $ \resp -> do
+    resp.status `shouldMatchInt` 302
+    locationHeaderHost resp `shouldMatch` "localhost"
+
+  bindResponse (downloadAsset' user user key "green.example.com" noRedirects) $ \resp -> do
+    resp.status `shouldMatchInt` 302
+    locationHeaderHost resp `shouldMatch` "localhost"
+
+  bindResponse (downloadAsset' user user key "unknown.example.com" noRedirects) $ \resp -> do
+    resp.status `shouldMatchInt` 302
+    locationHeaderHost resp `shouldMatch` "localhost"
+
+  -- multi-ingress enabled
+  withModifiedBackend modifyConfig $ \domain -> do
+    user' <- randomUser domain def
+    key' <- doUploadAsset user'
+
+    bindResponse (downloadAsset' user' user' key' "nginz-https.example.com" noRedirects) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+
+    bindResponse (downloadAsset' user' user' key' "red.example.com" noRedirects) $ \resp -> do
+      resp.status `shouldMatchInt` 302
+      locationHeaderHost resp `shouldMatch` "s3-download.red.example.com"
+
+    bindResponse (downloadAsset' user' user' key' "green.example.com" noRedirects) $ \resp -> do
+      resp.status `shouldMatchInt` 302
+      locationHeaderHost resp `shouldMatch` "s3-download.green.example.com"
+
+    bindResponse (downloadAsset' user' user' key' "unknown.example.com" noRedirects) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+      resp.json %. "label" `shouldMatch` "not-found"
   where
-    checkAssetDownload :: HasCallStack => Value -> Value -> App ()
-    checkAssetDownload user key = withModifiedService Cargohold modifyConfig $ \_ -> do
-      bindResponse (downloadAsset user user key noRedirects) $ \resp -> do
-        resp.status `shouldMatchInt` 404
-      bindResponse (downloadAsset' user user key "red.example.com" noRedirects) $ \resp -> do
-        resp.status `shouldMatchInt` 302
-        locationHeaderHost resp `shouldMatch` "s3-download.red.example.com"
-      bindResponse (downloadAsset' user user key "green.example.com" noRedirects) $ \resp -> do
-        resp.status `shouldMatchInt` 302
-        locationHeaderHost resp `shouldMatch` "s3-download.green.example.com"
-      bindResponse (downloadAsset' user user key "unknown.example.com" noRedirects) $ \resp -> do
-        resp.status `shouldMatchInt` 404
-        resp.json %. "label" `shouldMatch` "not-found"
-
     noRedirects :: HTTP.Request -> HTTP.Request
     noRedirects req = (req {redirectCount = 0})
 

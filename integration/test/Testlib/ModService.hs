@@ -1,8 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Testlib.ModService
-  ( withModifiedService,
-    withModifiedServices,
+  ( withModifiedBackend,
     startDynamicBackend,
     startDynamicBackends,
     traverseConcurrentlyCodensity,
@@ -53,12 +52,14 @@ import Testlib.Types
 import Text.RawString.QQ
 import Prelude
 
-withModifiedService ::
-  Service ->
-  ServiceOverrides ->
-  (String -> App a) ->
-  App a
-withModifiedService srv overrides = runCodensity $ withModifiedServices overrides [srv]
+withModifiedBackend :: HasCallStack => ServiceOverrides -> (HasCallStack => String -> App a) -> App a
+withModifiedBackend overrides k =
+  startDynamicBackends
+    [overrides]
+    ( \domains -> do
+        [domain] <- pure domains
+        k domain
+    )
 
 copyDirectoryRecursively :: FilePath -> FilePath -> IO ()
 copyDirectoryRecursively from to = do
@@ -232,13 +233,6 @@ startDynamicBackend resource beOverrides = do
           sternCfg = setField "logLevel" ("Warn" :: String),
           federatorInternalCfg = setField "logLevel" ("Warn" :: String)
         }
-
-withModifiedServices :: ServiceOverrides -> [Service] -> Codensity App String
-withModifiedServices overrides services = do
-  pool <- asks (.resourcePool)
-  [resource] <- acquireResources 1 pool
-  void $ startBackend resource overrides services
-  pure (resource.berDomain)
 
 startBackend ::
   HasCallStack =>

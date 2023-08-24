@@ -36,7 +36,7 @@ testCrudFederationRemotes = do
                 "optSettings.setFederationDomainConfigs"
                 [object ["domain" .= otherDomain, "search_policy" .= "full_search"]]
           }
-  withModifiedService Brig overrides $ \_ -> do
+  withModifiedBackend overrides $ \_ -> do
     let parseFedConns :: HasCallStack => Response -> App [Value]
         parseFedConns resp =
           -- Pick out the list of federation domain configs

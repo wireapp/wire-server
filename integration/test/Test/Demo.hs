@@ -5,7 +5,6 @@ import API.Brig qualified as Public
 import API.BrigInternal qualified as Internal
 import API.GalleyInternal qualified as Internal
 import API.Nginz qualified as Nginz
-import Control.Monad.Codensity
 import Control.Monad.Cont
 import GHC.Stack
 import SetupHelpers
@@ -33,8 +32,7 @@ testDeleteUnknownClient = do
 
 testModifiedBrig :: HasCallStack => App ()
 testModifiedBrig = do
-  withModifiedService
-    Brig
+  withModifiedBackend
     (def {brigCfg = setField "optSettings.setFederationDomain" "overridden.example.com"})
     $ \domain -> do
       bindResponse (Public.getAPIVersion domain)
@@ -54,26 +52,25 @@ testModifiedGalley = do
   do
     getFeatureStatus `shouldMatch` "disabled"
 
-  withModifiedService
-    Galley
+  withModifiedBackend
     def {galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"}
     $ \_ -> getFeatureStatus `shouldMatch` "enabled"
 
 testModifiedCannon :: HasCallStack => App ()
 testModifiedCannon = do
-  withModifiedService Cannon def $ \_ -> pure ()
+  withModifiedBackend def $ \_ -> pure ()
 
 testModifiedGundeck :: HasCallStack => App ()
 testModifiedGundeck = do
-  withModifiedService Gundeck def $ \_ -> pure ()
+  withModifiedBackend def $ \_ -> pure ()
 
 testModifiedCargohold :: HasCallStack => App ()
 testModifiedCargohold = do
-  withModifiedService Cargohold def $ \_ -> pure ()
+  withModifiedBackend def $ \_ -> pure ()
 
 testModifiedSpar :: HasCallStack => App ()
 testModifiedSpar = do
-  withModifiedService Spar def $ \_ -> pure ()
+  withModifiedBackend def $ \_ -> pure ()
 
 testModifiedServices :: HasCallStack => App ()
 testModifiedServices = do
@@ -83,7 +80,7 @@ testModifiedServices = do
             galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"
           }
 
-  runCodensity (withModifiedServices serviceMap [Brig, Galley]) $ \_domain -> do
+  withModifiedBackend serviceMap $ \_domain -> do
     (_user, tid) <- createTeam OwnDomain
     bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
       res.status `shouldMatchInt` 200
