@@ -293,8 +293,8 @@ startBackend resource overrides services = do
                 stern = g Stern
               }
 
-  stopInstances <- lift $ do
-    instances <- for services $ \case
+  instances <- lift $ do
+    for services $ \case
       Nginz -> do
         env <- ask
         case env.servicesCwdBase of
@@ -306,24 +306,22 @@ startBackend resource overrides services = do
           >>= lookupConfigOverride overrides srv
           >>= startProcess domain srv
 
-    let stopInstances = liftIO $ do
-          -- Running waitForProcess would hang for 30 seconds when the test suite
-          -- is run from within ghci, so we don't wait here.
-          for_ instances $ \(ph, path) -> do
-            terminateProcess ph
-            timeout 50000 (waitForProcess ph) >>= \case
-              Just _ -> pure ()
-              Nothing -> do
-                timeout 100000 (waitForProcess ph) >>= \case
-                  Just _ -> pure ()
-                  Nothing -> do
-                    mPid <- getPid ph
-                    for_ mPid (signalProcess killProcess)
-                    void $ waitForProcess ph
-            whenM (doesFileExist path) $ removeFile path
-            whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
-
-    pure stopInstances
+  let stopInstances = liftIO $ do
+        -- Running waitForProcess would hang for 30 seconds when the test suite
+        -- is run from within ghci, so we don't wait here.
+        for_ instances $ \(ph, path) -> do
+          terminateProcess ph
+          timeout 50000 (waitForProcess ph) >>= \case
+            Just _ -> pure ()
+            Nothing -> do
+              timeout 100000 (waitForProcess ph) >>= \case
+                Just _ -> pure ()
+                Nothing -> do
+                  mPid <- getPid ph
+                  for_ mPid (signalProcess killProcess)
+                  void $ waitForProcess ph
+          whenM (doesFileExist path) $ removeFile path
+          whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
   let modifyEnv env = env {serviceMap = Map.insert resource.berDomain serviceMap env.serviceMap}
 
