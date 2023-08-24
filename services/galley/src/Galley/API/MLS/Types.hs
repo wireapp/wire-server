@@ -27,7 +27,7 @@ import Data.Qualified
 import GHC.Records (HasField (..))
 import Galley.Data.Conversation.Types
 import Galley.Types.Conversations.Members
-import Imports
+import Imports hiding (cs)
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
@@ -214,3 +214,15 @@ instance HasField "id" ConvOrSubConv ConvOrSubConvId where
 instance HasField "migrationState" ConvOrSubConv MLSMigrationState where
   getField (Conv c) = c.mcMigrationState
   getField (SubConv _ _) = MLSMigrationMLS
+
+convOrSubConvSetCipherSuite :: CipherSuiteTag -> ConvOrSubConv -> ConvOrSubConv
+convOrSubConvSetCipherSuite cs (Conv c) =
+  Conv $
+    c
+      { mcMLSData = (mcMLSData c) {cnvmlsCipherSuite = cs}
+      }
+convOrSubConvSetCipherSuite cs (SubConv c s) =
+  SubConv c $
+    s
+      { scMLSData = (scMLSData s) {cnvmlsCipherSuite = cs}
+      }

@@ -23,6 +23,9 @@ module Wire.API.MLS.Validation
 where
 
 import Control.Applicative
+import Data.Text.Lazy qualified as LT
+import Data.Text.Lazy.Builder qualified as LT
+import Data.Text.Lazy.Builder.Int qualified as LT
 import Imports hiding (cs)
 import Wire.API.MLS.Capabilities
 import Wire.API.MLS.CipherSuite
@@ -41,7 +44,11 @@ validateKeyPackage mIdentity kp = do
   -- get ciphersuite
   cs <-
     maybe
-      (Left "Unsupported ciphersuite")
+      ( Left
+          ( "Unsupported ciphersuite 0x"
+              <> LT.toStrict (LT.toLazyText (LT.hexadecimal kp.cipherSuite.cipherSuiteNumber))
+          )
+      )
       pure
       $ cipherSuiteTag kp.cipherSuite
 

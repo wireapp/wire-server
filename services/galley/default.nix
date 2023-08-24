@@ -233,7 +233,6 @@ mkDerivation {
     conduit
     containers
     cookie
-    cryptonite
     currency-codes
     data-default
     data-timeout

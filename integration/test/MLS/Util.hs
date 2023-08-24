@@ -76,20 +76,17 @@ randomFileName = do
 
 mlscli :: HasCallStack => ClientIdentity -> [String] -> Maybe ByteString -> App ByteString
 mlscli cid args mbstdin = do
-  bd <- getBaseDir
-  let cdir = bd </> cid2Str cid
-
   groupOut <- randomFileName
   let substOut = argSubst "<group-out>" groupOut
 
-  hasState <- hasClientGroupState cid
-  substIn <-
-    if hasState
-      then do
-        gs <- getClientGroupState cid
-        fn <- toRandomFile gs
-        pure (argSubst "<group-in>" fn)
-      else pure id
+  gs <- getClientGroupState cid
+
+  substIn <- case gs.group of
+    Nothing -> pure id
+    Just groupData -> do
+      fn <- toRandomFile groupData
+      pure (argSubst "<group-in>" fn)
+  store <- maybe randomFileName toRandomFile gs.keystore
 
   let args' = map (substIn . substOut) args
   for_ args' $ \arg ->
@@ -100,16 +97,25 @@ mlscli cid args mbstdin = do
     spawn
       ( proc
           "mls-test-cli"
-          ( ["--store", cdir </> "store"]
+          ( ["--store", store]
               <> args'
           )
       )
       mbstdin
 
-  groupOutWritten <- liftIO $ doesFileExist groupOut
-  when groupOutWritten $ do
-    gs <- liftIO (BS.readFile groupOut)
-    setClientGroupState cid gs
+  setGroup <- do
+    groupOutWritten <- liftIO $ doesFileExist groupOut
+    if groupOutWritten
+      then do
+        groupData <- liftIO (BS.readFile groupOut)
+        pure $ \x -> x {group = Just groupData}
+      else pure id
+  setStore <- do
+    storeData <- liftIO (BS.readFile store)
+    pure $ \x -> x {keystore = Just storeData}
+
+  setClientGroupState cid ((setGroup . setStore) gs)
+
   pure out
 
 argSubst :: String -> String -> String -> String
@@ -125,8 +131,9 @@ createWireClient u = do
 initMLSClient :: HasCallStack => ClientIdentity -> App ()
 initMLSClient cid = do
   bd <- getBaseDir
+  mls <- getMLSState
   liftIO $ createDirectory (bd </> cid2Str cid)
-  void $ mlscli cid ["init", cid2Str cid] Nothing
+  void $ mlscli cid ["init", "--ciphersuite", mls.ciphersuite.code, cid2Str cid] Nothing
 
 -- | Create new mls client and register with backend.
 createMLSClient :: (MakesValue u, HasCallStack) => u -> App ClientIdentity
@@ -160,7 +167,8 @@ uploadNewKeyPackage cid = do
 
 generateKeyPackage :: HasCallStack => ClientIdentity -> App (ByteString, String)
 generateKeyPackage cid = do
-  kp <- mlscli cid ["key-package", "create"] Nothing
+  mls <- getMLSState
+  kp <- mlscli cid ["key-package", "create", "--ciphersuite", mls.ciphersuite.code] Nothing
   ref <- B8.unpack . Base64.encode <$> mlscli cid ["key-package", "ref", "-"] (Just kp)
   fp <- keyPackageFile cid ref
   liftIO $ BS.writeFile fp kp
@@ -217,17 +225,21 @@ resetGroup cid conv = do
 resetClientGroup :: ClientIdentity -> String -> App ()
 resetClientGroup cid gid = do
   removalKeyPath <- asks (.removalKeyPath)
-  groupJSON <-
+  mls <- getMLSState
+  void $
     mlscli
       cid
       [ "group",
         "create",
         "--removal-key",
         removalKeyPath,
+        "--group-out",
+        "<group-out>",
+        "--ciphersuite",
+        mls.ciphersuite.code,
         gid
       ]
       Nothing
-  setClientGroupState cid groupJSON
 
 keyPackageFile :: HasCallStack => ClientIdentity -> String -> App FilePath
 keyPackageFile cid ref = do
@@ -260,8 +272,9 @@ unbundleKeyPackages bundle = do
 -- group to the previous state by using an older version of the group file.
 createAddCommit :: HasCallStack => ClientIdentity -> [Value] -> App MessagePackage
 createAddCommit cid users = do
+  mls <- getMLSState
   kps <- fmap concat . for users $ \user -> do
-    bundle <- claimKeyPackages cid user >>= getJSON 200
+    bundle <- claimKeyPackages mls.ciphersuite cid user >>= getJSON 200
     unbundleKeyPackages bundle
   createAddCommitWithKeyPackages cid kps
 
@@ -325,7 +338,10 @@ createRemoveCommit cid targets = do
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   giFile <- liftIO $ emptyTempFile bd "gi"
 
-  groupStateMap <- Map.fromList <$> (getClientGroupState cid >>= readGroupState)
+  groupStateMap <- do
+    gs <- getClientGroupState cid
+    groupData <- assertJust "Group state not initialised" gs.group
+    Map.fromList <$> readGroupState groupData
   let indices = map (fromMaybe (error "could not find target") . flip Map.lookup groupStateMap) targets
 
   commit <-
@@ -359,9 +375,25 @@ createRemoveCommit cid targets = do
 
 createAddProposals :: HasCallStack => ClientIdentity -> [Value] -> App [MessagePackage]
 createAddProposals cid users = do
-  bundles <- for users $ (claimKeyPackages cid >=> getJSON 200)
+  mls <- getMLSState
+  bundles <- for users $ (claimKeyPackages mls.ciphersuite cid >=> getJSON 200)
   kps <- concat <$> traverse unbundleKeyPackages bundles
   traverse (createAddProposalWithKeyPackage cid) kps
+
+createReInitProposal :: HasCallStack => ClientIdentity -> App MessagePackage
+createReInitProposal cid = do
+  prop <-
+    mlscli
+      cid
+      ["proposal", "--group-in", "<group-in>", "--group-out", "<group-out>", "re-init"]
+      Nothing
+  pure
+    MessagePackage
+      { sender = cid,
+        message = prop,
+        welcome = Nothing,
+        groupInfo = Nothing
+      }
 
 createAddProposalWithKeyPackage ::
   ClientIdentity ->
@@ -503,8 +535,10 @@ consumeWelcome :: HasCallStack => ByteString -> App ()
 consumeWelcome welcome = do
   mls <- getMLSState
   for_ mls.newMembers $ \cid -> do
-    hasState <- hasClientGroupState cid
-    assertBool "Existing clients in a conversation should not consume welcomes" (not hasState)
+    gs <- getClientGroupState cid
+    assertBool
+      "Existing clients in a conversation should not consume welcomes"
+      (isNothing gs.group)
     void $
       mlscli
         cid
@@ -546,19 +580,12 @@ spawn cp minput = do
     (Just out, ExitSuccess) -> pure out
     _ -> assertFailure "Failed spawning process"
 
-hasClientGroupState :: HasCallStack => ClientIdentity -> App Bool
-hasClientGroupState cid = do
-  mls <- getMLSState
-  pure $ Map.member cid mls.clientGroupState
-
-getClientGroupState :: HasCallStack => ClientIdentity -> App ByteString
+getClientGroupState :: HasCallStack => ClientIdentity -> App ClientGroupState
 getClientGroupState cid = do
   mls <- getMLSState
-  case Map.lookup cid mls.clientGroupState of
-    Nothing -> assertFailure ("Attempted to get non-existing group state for client " <> cid2Str cid)
-    Just g -> pure g
+  pure $ Map.findWithDefault emptyClientGroupState cid mls.clientGroupState
 
-setClientGroupState :: HasCallStack => ClientIdentity -> ByteString -> App ()
+setClientGroupState :: HasCallStack => ClientIdentity -> ClientGroupState -> App ()
 setClientGroupState cid g =
   modifyMLSState $ \s ->
     s {clientGroupState = Map.insert cid g (clientGroupState s)}
@@ -607,3 +634,6 @@ createApplicationMessage cid messageContent = do
         welcome = Nothing,
         groupInfo = Nothing
       }
+
+setMLSCiphersuite :: Ciphersuite -> App ()
+setMLSCiphersuite suite = modifyMLSState $ \mls -> mls {ciphersuite = suite}

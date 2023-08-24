@@ -203,7 +203,7 @@ testMixedProtocolAddPartialClients secondDomain = do
 
   -- create add commit for only one of bob's two clients
   do
-    bundle <- claimKeyPackages alice1 bob >>= getJSON 200
+    bundle <- claimKeyPackages def alice1 bob >>= getJSON 200
     kps <- unbundleKeyPackages bundle
     kp1 <- assertOne (filter ((== bob1) . fst) kps)
     mp <- createAddCommitWithKeyPackages alice1 [kp1]
@@ -212,7 +212,7 @@ testMixedProtocolAddPartialClients secondDomain = do
   -- this tests that bob's backend has a mapping of group id to the remote conv
   -- this test is only interesting when bob is on OtherDomain
   do
-    bundle <- claimKeyPackages bob1 bob >>= getJSON 200
+    bundle <- claimKeyPackages def bob1 bob >>= getJSON 200
     kps <- unbundleKeyPackages bundle
     kp2 <- assertOne (filter ((== bob2) . fst) kps)
     mp <- createAddCommitWithKeyPackages bob1 [kp2]
@@ -311,14 +311,13 @@ testMLSProtocolUpgrade secondDomain = do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mls"
 
-testAddUser :: HasCallStack => App ()
-testAddUser = do
+testAddUserSimple :: HasCallStack => Ciphersuite -> App ()
+testAddUserSimple suite = do
+  setMLSCiphersuite suite
+
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-
   [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
-
   traverse_ uploadNewKeyPackage [bob1, bob2]
-
   (_, qcnv) <- createNewGroup alice1
 
   resp <- createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
@@ -378,8 +377,9 @@ testRemoteRemoveClient = do
     msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexBob
     msg %. "message.content.sender.External" `shouldMatchInt` 0
 
-testCreateSubConv :: HasCallStack => App ()
-testCreateSubConv = do
+testCreateSubConv :: HasCallStack => Ciphersuite -> App ()
+testCreateSubConv suite = do
+  setMLSCiphersuite suite
   alice <- randomUser OwnDomain def
   alice1 <- createMLSClient alice
   (_, conv) <- createNewGroup alice1
@@ -499,7 +499,7 @@ testFirstCommitAllowsPartialAdds = do
 
   (_, _qcnv) <- createNewGroup alice1
 
-  bundle <- claimKeyPackages alice1 alice >>= getJSON 200
+  bundle <- claimKeyPackages def alice1 alice >>= getJSON 200
   kps <- unbundleKeyPackages bundle
 
   -- first commit only adds kp for alice2 (not alice2 and alice3)
@@ -525,7 +525,7 @@ testAddUserPartial = do
 
   -- alice sends a commit now, and should get a conflict error
   kps <- fmap concat . for [bob, charlie] $ \user -> do
-    bundle <- claimKeyPackages alice1 user >>= getJSON 200
+    bundle <- claimKeyPackages def alice1 user >>= getJSON 200
     unbundleKeyPackages bundle
   mp <- createAddCommitWithKeyPackages alice1 kps
 
@@ -607,3 +607,149 @@ testLocalWelcome = do
   event %. "conversation" `shouldMatch` objId qcnv
   addedUser <- (event %. "data.users") >>= asList >>= assertOne
   objQid addedUser `shouldMatch` objQid bob
+
+testStaleCommit :: HasCallStack => App ()
+testStaleCommit = do
+  (alice : users) <- createAndConnectUsers (replicate 5 OwnDomain)
+  let (users1, users2) = splitAt 2 users
+
+  (alice1 : clients) <- traverse createMLSClient (alice : users)
+  traverse_ uploadNewKeyPackage clients
+  void $ createNewGroup alice1
+
+  gsBackup <- getClientGroupState alice1
+
+  -- add the first batch of users to the conversation
+  void $ createAddCommit alice1 users1 >>= sendAndConsumeCommitBundle
+
+  -- now roll back alice1 and try to add the second batch of users
+  setClientGroupState alice1 gsBackup
+
+  mp <- createAddCommit alice1 users2
+  bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 409
+    resp.json %. "label" `shouldMatch` "mls-stale-message"
+
+testPropInvalidEpoch :: HasCallStack => App ()
+testPropInvalidEpoch = do
+  users@[_alice, bob, charlie, dee] <- createAndConnectUsers (replicate 4 OwnDomain)
+  [alice1, bob1, charlie1, dee1] <- traverse createMLSClient users
+  void $ createNewGroup alice1
+
+  -- Add bob -> epoch 1
+  void $ uploadNewKeyPackage bob1
+  gsBackup <- getClientGroupState alice1
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+  gsBackup2 <- getClientGroupState alice1
+
+  -- try to send a proposal from an old epoch (0)
+  do
+    setClientGroupState alice1 gsBackup
+    void $ uploadNewKeyPackage dee1
+    [prop] <- createAddProposals alice1 [dee]
+    bindResponse (postMLSMessage alice1 prop.message) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      resp.json %. "label" `shouldMatch` "mls-stale-message"
+
+  -- try to send a proposal from a newer epoch (2)
+  do
+    void $ uploadNewKeyPackage dee1
+    void $ uploadNewKeyPackage charlie1
+    setClientGroupState alice1 gsBackup2
+    void $ createAddCommit alice1 [charlie] -- --> epoch 2
+    [prop] <- createAddProposals alice1 [dee]
+    bindResponse (postMLSMessage alice1 prop.message) $ \resp -> do
+      resp.status `shouldMatchInt` 409
+      resp.json %. "label" `shouldMatch` "mls-stale-message"
+    -- remove charlie from users expected to get a welcome message
+    modifyMLSState $ \mls -> mls {newMembers = mempty}
+
+  -- alice send a well-formed proposal and commits it
+  void $ uploadNewKeyPackage dee1
+  setClientGroupState alice1 gsBackup2
+  createAddProposals alice1 [dee] >>= traverse_ sendAndConsumeMessage
+  void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+--- | This test submits a ReInit proposal, which is currently ignored by the
+-- backend, in order to check that unsupported proposal types are accepted.
+testPropUnsupported :: HasCallStack => App ()
+testPropUnsupported = do
+  users@[_alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
+  [alice1, bob1] <- traverse createMLSClient users
+  void $ uploadNewKeyPackage bob1
+  void $ createNewGroup alice1
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+  mp <- createReInitProposal alice1
+
+  -- we cannot consume this message, because the membership tag is fake
+  void $ postMLSMessage mp.sender mp.message >>= getJSON 201
+
+testAddUserBareProposalCommit :: HasCallStack => App ()
+testAddUserBareProposalCommit = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
+  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+  (_, qcnv) <- createNewGroup alice1
+  void $ uploadNewKeyPackage bob1
+  void $ createAddCommit alice1 [] >>= sendAndConsumeCommitBundle
+
+  createAddProposals alice1 [bob]
+    >>= traverse_ sendAndConsumeMessage
+  commit <- createPendingProposalCommit alice1
+  void $ assertJust "Expected welcome" commit.welcome
+  void $ sendAndConsumeCommitBundle commit
+
+  -- check that bob can now see the conversation
+  convs <- getAllConvs bob
+  convIds <- traverse (%. "qualified_id") convs
+  void $
+    assertBool
+      "Users added to an MLS group should find it when listing conversations"
+      (qcnv `elem` convIds)
+
+testPropExistingConv :: HasCallStack => App ()
+testPropExistingConv = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 OwnDomain)
+  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+  void $ uploadNewKeyPackage bob1
+  void $ createNewGroup alice1
+  void $ createAddCommit alice1 [] >>= sendAndConsumeCommitBundle
+  res <- createAddProposals alice1 [bob] >>= traverse sendAndConsumeMessage >>= assertOne
+  shouldBeEmpty (res %. "events")
+
+testCommitNotReferencingAllProposals :: HasCallStack => App ()
+testCommitNotReferencingAllProposals = do
+  users@[_alice, bob, charlie] <- createAndConnectUsers (replicate 3 OwnDomain)
+
+  [alice1, bob1, charlie1] <- traverse createMLSClient users
+  void $ createNewGroup alice1
+  traverse_ uploadNewKeyPackage [bob1, charlie1]
+  void $ createAddCommit alice1 [] >>= sendAndConsumeCommitBundle
+
+  gsBackup <- getClientGroupState alice1
+
+  -- create proposals for bob and charlie
+  createAddProposals alice1 [bob, charlie]
+    >>= traverse_ sendAndConsumeMessage
+
+  -- now create a commit referencing only the first proposal
+  setClientGroupState alice1 gsBackup
+  commit <- createPendingProposalCommit alice1
+
+  -- send commit and expect and error
+  bindResponse (postMLSCommitBundle alice1 (mkBundle commit)) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-commit-missing-references"
+
+testUnsupportedCiphersuite :: HasCallStack => App ()
+testUnsupportedCiphersuite = do
+  setMLSCiphersuite (Ciphersuite "0x0002")
+  alice <- randomUser OwnDomain def
+  alice1 <- createMLSClient alice
+  void $ createNewGroup alice1
+
+  mp <- createPendingProposalCommit alice1
+
+  bindResponse (postMLSCommitBundle alice1 (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-protocol-error"

@@ -22,6 +22,8 @@ where
 
 import Cassandra
 import Cassandra.Util
+import Control.Error.Util
+import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Map qualified as Map
 import Data.Time.Clock
@@ -40,24 +42,29 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 
 selectSubConversation :: ConvId -> SubConvId -> Client (Maybe SubConversation)
-selectSubConversation convId subConvId = do
-  m <- retry x5 (query1 Cql.selectSubConversation (params LocalQuorum (convId, subConvId)))
-  for m $ \(suite, epoch, epochWritetime, groupId) -> do
-    (cm, im) <- lookupMLSClientLeafIndices groupId
-    pure $
-      SubConversation
-        { scParentConvId = convId,
-          scSubConvId = subConvId,
-          scMLSData =
-            ConversationMLSData
-              { cnvmlsGroupId = groupId,
-                cnvmlsEpoch = epoch,
-                cnvmlsEpochTimestamp = epochTimestamp epoch epochWritetime,
-                cnvmlsCipherSuite = suite
-              },
-          scMembers = cm,
-          scIndexMap = im
-        }
+selectSubConversation convId subConvId = runMaybeT $ do
+  (mSuite, mEpoch, mEpochWritetime, mGroupId) <-
+    MaybeT $
+      retry x5 (query1 Cql.selectSubConversation (params LocalQuorum (convId, subConvId)))
+  suite <- hoistMaybe mSuite
+  epoch <- hoistMaybe mEpoch
+  epochWritetime <- hoistMaybe mEpochWritetime
+  groupId <- hoistMaybe mGroupId
+  (cm, im) <- lift $ lookupMLSClientLeafIndices groupId
+  pure $
+    SubConversation
+      { scParentConvId = convId,
+        scSubConvId = subConvId,
+        scMLSData =
+          ConversationMLSData
+            { cnvmlsGroupId = groupId,
+              cnvmlsEpoch = epoch,
+              cnvmlsEpochTimestamp = epochTimestamp epoch epochWritetime,
+              cnvmlsCipherSuite = suite
+            },
+        scMembers = cm,
+        scIndexMap = im
+      }
 
 insertSubConversation ::
   ConvId ->
@@ -93,6 +100,10 @@ setEpochForSubConversation :: ConvId -> SubConvId -> Epoch -> Client ()
 setEpochForSubConversation cid sconv epoch =
   retry x5 (write Cql.insertEpochForSubConversation (params LocalQuorum (epoch, cid, sconv)))
 
+setCipherSuiteForSubConversation :: ConvId -> SubConvId -> CipherSuiteTag -> Client ()
+setCipherSuiteForSubConversation cid sconv cs =
+  retry x5 (write Cql.insertCipherSuiteForSubConversation (params LocalQuorum (cs, cid, sconv)))
+
 deleteSubConversation :: ConvId -> SubConvId -> Client ()
 deleteSubConversation cid sconv =
   retry x5 $ write Cql.deleteSubConversation (params LocalQuorum (cid, sconv))
@@ -124,6 +135,7 @@ interpretSubConversationStoreToCassandra = interpret $ \case
   GetSubConversationEpoch convId subConvId -> embedClient (selectSubConvEpoch convId subConvId)
   SetSubConversationGroupInfo convId subConvId mPgs -> embedClient (updateSubConvGroupInfo convId subConvId mPgs)
   SetSubConversationEpoch cid sconv epoch -> embedClient $ setEpochForSubConversation cid sconv epoch
+  SetSubConversationCipherSuite cid sconv cs -> embedClient $ setCipherSuiteForSubConversation cid sconv cs
   ListSubConversations cid -> embedClient $ listSubConversations cid
   DeleteSubConversation convId subConvId -> embedClient $ deleteSubConversation convId subConvId
 

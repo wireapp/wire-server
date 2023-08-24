@@ -149,8 +149,8 @@ testKeyPackageSelfClaim brig = do
         =<< post
           ( brig
               . paths ["mls", "key-packages", "claim", toByteString' (qDomain u), toByteString' (qUnqualified u)]
-              . queryItem "skip_own" (toByteString' c1)
               . zUser (qUnqualified u)
+              . zClient c1
           )
           <!! const 200 === statusCode
     liftIO $ Set.map (\e -> (e.user, e.client)) bundle.entries @?= Set.fromList [(u, c2)]

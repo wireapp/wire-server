@@ -222,9 +222,10 @@ CREATE TABLE brig_test.user_cookies (
 CREATE TABLE brig_test.mls_key_packages (
     user uuid,
     client text,
+    cipher_suite int,
     ref blob,
     data blob,
-    PRIMARY KEY ((user, client), ref)
+    PRIMARY KEY ((user, client, cipher_suite), ref)
 ) WITH CLUSTERING ORDER BY (ref ASC)
     AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}

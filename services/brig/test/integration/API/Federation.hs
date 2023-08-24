@@ -53,6 +53,7 @@ import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.API.Brig qualified as S
 import Wire.API.Federation.Component
 import Wire.API.Federation.Version
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.User
@@ -420,7 +421,10 @@ testClaimKeyPackages brig fedBrigClient = do
 
   Just bundle <-
     runFedClient @"claim-key-packages" fedBrigClient (qDomain alice) $
-      ClaimKeyPackageRequest (qUnqualified alice) (qUnqualified bob)
+      ClaimKeyPackageRequest
+        (qUnqualified alice)
+        (qUnqualified bob)
+        (tagCipherSuite defCipherSuite)
 
   liftIO $
     Set.map (\e -> (e.user, e.client)) bundle.entries
@@ -440,6 +444,9 @@ testClaimKeyPackagesMLSDisabled opts brig = do
     withSettingsOverrides (opts & Opt.optionSettings . Opt.enableMLS ?~ False) $
       runWaiTestFedClient (qDomain alice) $
         createWaiTestFedClient @"claim-key-packages" @'Brig $
-          ClaimKeyPackageRequest (qUnqualified alice) (qUnqualified bob)
+          ClaimKeyPackageRequest
+            (qUnqualified alice)
+            (qUnqualified bob)
+            (tagCipherSuite defCipherSuite)
 
   liftIO $ mbundle @?= Nothing

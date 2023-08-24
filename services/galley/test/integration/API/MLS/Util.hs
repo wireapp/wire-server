@@ -661,6 +661,7 @@ createApplicationMessage cid messageContent = do
       }
 
 createAddCommitWithKeyPackages ::
+  HasCallStack =>
   ClientIdentity ->
   [(ClientIdentity, ByteString)] ->
   MLSTest MessagePackage

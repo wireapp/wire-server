@@ -20,6 +20,7 @@
 module Wire.API.MLS.CipherSuite
   ( -- * MLS ciphersuites
     CipherSuite (..),
+    defCipherSuite,
     CipherSuiteTag (..),
     cipherSuiteTag,
     tagCipherSuite,
@@ -50,6 +51,7 @@ import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
 import Data.Aeson.Types qualified as Aeson
+import Data.Bifunctor
 import Data.ByteArray hiding (index)
 import Data.ByteArray qualified as BA
 import Data.Proxy
@@ -57,24 +59,54 @@ import Data.Schema
 import Data.Swagger qualified as S
 import Data.Swagger.Internal.Schema qualified as S
 import Data.Text qualified as T
+import Data.Text.Lazy qualified as LT
+import Data.Text.Lazy.Builder qualified as LT
+import Data.Text.Lazy.Builder.Int qualified as LT
+import Data.Text.Read qualified as T
 import Data.Word
 import Imports hiding (cs)
-import Servant (FromHttpApiData (parseQueryParam))
+import Web.HttpApiData
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
 newtype CipherSuite = CipherSuite {cipherSuiteNumber :: Word16}
   deriving stock (Eq, Show)
   deriving newtype (ParseMLS, SerialiseMLS, Arbitrary)
+  deriving (FromJSON, ToJSON) via Schema CipherSuite
 
 instance ToSchema CipherSuite where
   schema =
     named "CipherSuite" $
       cipherSuiteNumber .= fmap CipherSuite (unnamed schema)
 
-data CipherSuiteTag = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+instance S.ToParamSchema CipherSuite where
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.SwaggerNumber
+
+instance FromHttpApiData CipherSuite where
+  parseUrlPiece t = do
+    (x, rest) <- first T.pack $ T.hexadecimal t
+    unless (T.null rest) $
+      Left "Trailing characters after ciphersuite number"
+    pure (CipherSuite x)
+
+instance ToHttpApiData CipherSuite where
+  toUrlPiece =
+    LT.toStrict
+      . LT.toLazyText
+      . ("0x" <>)
+      . LT.hexadecimal
+      . cipherSuiteNumber
+
+data CipherSuiteTag
+  = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+  | MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519
   deriving stock (Bounded, Enum, Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform CipherSuiteTag)
+
+defCipherSuite :: CipherSuiteTag
+defCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
 
 instance S.ToSchema CipherSuiteTag where
   declareNamedSchema _ =
@@ -99,20 +131,29 @@ instance ToSchema CipherSuiteTag where
 
 -- | See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5.
 cipherSuiteTag :: CipherSuite -> Maybe CipherSuiteTag
-cipherSuiteTag (CipherSuite n) = case n of
-  1 -> pure MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-  _ -> Nothing
+cipherSuiteTag cs = listToMaybe $ do
+  t <- [minBound .. maxBound]
+  guard (tagCipherSuite t == cs)
+  pure t
 
 -- | Inverse of 'cipherSuiteTag'
 tagCipherSuite :: CipherSuiteTag -> CipherSuite
 tagCipherSuite MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = CipherSuite 1
+tagCipherSuite MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = CipherSuite 0xf031
 
 csHash :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString
-csHash MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 ctx value =
-  convert . hashWith SHA256 . encodeMLS' $ RefHashInput ctx value
+csHash MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = sha256Hash
+csHash MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = sha256Hash
+
+sha256Hash :: ByteString -> RawMLS a -> ByteString
+sha256Hash ctx value = convert . hashWith SHA256 . encodeMLS' $ RefHashInput ctx value
 
 csVerifySignature :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString -> Bool
-csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 pub x sig =
+csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = ed25519VerifySignature
+csVerifySignature MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = ed25519VerifySignature
+
+ed25519VerifySignature :: ByteString -> RawMLS a -> ByteString -> Bool
+ed25519VerifySignature pub x sig =
   fromMaybe False . maybeCryptoError $ do
     pub' <- Ed25519.publicKey pub
     sig' <- Ed25519.signature sig
@@ -158,6 +199,7 @@ signWithLabel sigLabel priv pub x = BA.convert $ Ed25519.sign priv pub (encodeML
 
 csSignatureScheme :: CipherSuiteTag -> SignatureSchemeTag
 csSignatureScheme MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = Ed25519
+csSignatureScheme MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = Ed25519
 
 -- | A TLS signature scheme.
 --
