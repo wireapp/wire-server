@@ -68,6 +68,7 @@ import Testlib.Env
 import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Printing
+import Testlib.Service
 import Testlib.Types
 import Prelude
 

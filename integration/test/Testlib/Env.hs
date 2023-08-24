@@ -23,6 +23,7 @@ import System.IO
 import System.IO.Temp
 import Testlib.Prekeys
 import Testlib.ResourcePool
+import Testlib.Service
 import Prelude
 
 -- | Initialised once per test.
@@ -106,42 +107,6 @@ data HostPort = HostPort
   deriving (Show, Generic)
 
 instance FromJSON HostPort
-
-data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker | Stern | FederatorInternal
-  deriving
-    ( Show,
-      Eq,
-      Ord,
-      Enum,
-      Bounded
-    )
-
-serviceName :: Service -> String
-serviceName = \case
-  Brig -> "brig"
-  Galley -> "galley"
-  Cannon -> "cannon"
-  Gundeck -> "gundeck"
-  Cargohold -> "cargohold"
-  Nginz -> "nginz"
-  Spar -> "spar"
-  BackgroundWorker -> "backgroundWorker"
-  Stern -> "stern"
-  FederatorInternal -> "federator"
-
--- | Converts the service name to kebab-case.
-configName :: Service -> String
-configName = \case
-  Brig -> "brig"
-  Galley -> "galley"
-  Cannon -> "cannon"
-  Gundeck -> "gundeck"
-  Cargohold -> "cargohold"
-  Nginz -> "nginz"
-  Spar -> "spar"
-  BackgroundWorker -> "background-worker"
-  Stern -> "stern"
-  FederatorInternal -> "federator"
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
