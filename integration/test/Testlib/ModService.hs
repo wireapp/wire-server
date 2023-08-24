@@ -9,7 +9,6 @@ module Testlib.ModService
   )
 where
 
-import Control.Applicative ((<|>))
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Exception (finally)
@@ -20,8 +19,6 @@ import Control.Monad.Extra
 import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
-import Data.Attoparsec.ByteString.Char8
-import Data.Either.Extra (eitherToMaybe)
 import Data.Foldable
 import Data.Function
 import Data.Functor
@@ -177,10 +174,7 @@ startDynamicBackend resource beOverrides = do
           >=> setField "emailSMS.general.emailSender" resource.berEmailSMSEmailSender
       Cargohold -> setField "aws.s3Bucket" resource.berAwsS3Bucket
       Gundeck -> setField "aws.queueName" resource.berAwsQueueName
-      Galley ->
-        setField "journal.queueName" resource.berGalleyJournal
-          >=> setField "rabbitmq.vHost" resource.berVHost
-      BackgroundWorker -> setField "rabbitmq.vHost" resource.berVHost
+      Galley -> setField "journal.queueName" resource.berGalleyJournal
       _ -> pure
 
     setFederationSettings :: Service -> Value -> App Value
@@ -233,32 +227,11 @@ startDynamicBackend resource beOverrides = do
       Spar -> setField "saml.logLevel" ("Warn" :: String)
       _ -> setField "logLevel" ("Warn" :: String)
 
-serviceMapForResource :: BackendResource -> ServiceMap
-serviceMapForResource resource =
-  let g srv = HostPort "127.0.0.1" (berInternalServicePorts resource srv)
-   in ServiceMap
-        { brig = g Brig,
-          backgroundWorker = g BackgroundWorker,
-          cannon = g Cannon,
-          cargohold = g Cargohold,
-          federatorInternal = g FederatorInternal,
-          federatorExternal = HostPort "127.0.0.1" resource.berFederatorExternal,
-          galley = g Galley,
-          gundeck = g Gundeck,
-          nginz = g Nginz,
-          spar = g Spar,
-          proxy = HostPort "127.0.0.1" 6666,
-          stern = g Stern
-        }
-
 withModifiedServices :: Map.Map Service (Value -> App Value) -> Codensity App String
 withModifiedServices services = do
   pool <- asks (.resourcePool)
   [resource] <- acquireResources 1 pool
-  void $
-    startBackend
-      resource
-      services
+  void $ startBackend resource services
   pure (resource.berDomain)
 
 startBackend ::
@@ -268,7 +241,6 @@ startBackend ::
   Codensity App (Env -> Env)
 startBackend resource services = do
   let domain = resource.berDomain
-      staticPorts :: Map.Map Service Word16 = Map.fromList [(srv, berInternalServicePorts resource srv) | srv <- Map.keys services]
 
   let updateServiceMapInConfig :: Service -> Value -> App Value
       updateServiceMapInConfig forSrv config =
@@ -294,19 +266,33 @@ startBackend resource services = do
                 _ -> pure overridden
           )
           config
-          (Map.assocs staticPorts)
+          [(srv, berInternalServicePorts resource srv :: Int) | srv <- Map.keys services]
 
-  let updateServiceMap sm = Map.insert resource.berDomain (serviceMapForResource resource) sm
+  let serviceMap =
+        let g srv = HostPort "127.0.0.1" (berInternalServicePorts resource srv)
+         in ServiceMap
+              { brig = g Brig,
+                backgroundWorker = g BackgroundWorker,
+                cannon = g Cannon,
+                cargohold = g Cargohold,
+                federatorInternal = g FederatorInternal,
+                federatorExternal = HostPort "127.0.0.1" resource.berFederatorExternal,
+                galley = g Galley,
+                gundeck = g Gundeck,
+                nginz = g Nginz,
+                spar = g Spar,
+                -- FUREWORK: Set to g Proxy, when we add Proxy to spawned services
+                proxy = HostPort "127.0.0.1" 9999,
+                stern = g Stern
+              }
 
   stopInstances <- lift $ do
     instances <- for (Map.assocs services) $ \case
       (Nginz, _) -> do
         env <- ask
-        sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (updateServiceMap env.serviceMap))
-        port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral) (Map.lookup Nginz staticPorts)
         case env.servicesCwdBase of
-          Nothing -> startNginzK8s domain sm
-          Just _ -> startNginzLocal domain port resource.berNginzSslPort (Just resource.berNginzSslPort) sm
+          Nothing -> startNginzK8s domain serviceMap
+          Just _ -> startNginzLocal domain resource.berNginzSslPort resource.berNginzSslPort serviceMap
       (srv, modifyConfig) -> do
         readServiceConfig srv
           >>= updateServiceMapInConfig srv
@@ -332,7 +318,7 @@ startBackend resource services = do
 
     pure stopInstances
 
-  let modifyEnv env = env {serviceMap = updateServiceMap env.serviceMap}
+  let modifyEnv env = env {serviceMap = Map.insert resource.berDomain serviceMap env.serviceMap}
 
   Codensity $ \action -> local modifyEnv $ do
     waitForService <- appToIOKleisli (waitUntilServiceUp domain)
@@ -429,8 +415,8 @@ startNginzK8s domain sm = do
   ph <- startNginz domain nginxConfFile "/"
   pure (ph, tmpDir)
 
-startNginzLocal :: String -> Word16 -> Word16 -> Maybe Word16 -> ServiceMap -> App (ProcessHandle, FilePath)
-startNginzLocal domain localPort http2Port mSslPort sm = do
+startNginzLocal :: String -> Word16 -> Word16 -> ServiceMap -> App (ProcessHandle, FilePath)
+startNginzLocal domain http2Port sslPort sm = do
   -- Create a whole temporary directory and copy all nginx's config files.
   -- This is necessary because nginx assumes local imports are relative to
   -- the location of the main configuration file.
@@ -455,25 +441,6 @@ startNginzLocal domain localPort http2Port mSslPort sm = do
           & Text.replace "access_log /dev/stdout" "access_log /dev/null"
       )
 
-  conf <- Prelude.lines <$> liftIO (readFile integrationConfFile)
-  let sslPortParser = do
-        _ <- string "listen"
-        _ <- many1 space
-        p <- many1 digit
-        _ <- many1 space
-        _ <- string "ssl"
-        _ <- many1 space
-        _ <- string "http2"
-        _ <- many1 space
-        _ <- char ';'
-        pure (read p :: Word16)
-
-  let mParsedPort =
-        mapMaybe (eitherToMaybe . parseOnly sslPortParser . cs) conf
-          & (\case [] -> Nothing; (p : _) -> Just p)
-
-  sslPort <- maybe (failApp "could not determine nginz's ssl port") pure (mSslPort <|> mParsedPort)
-
   -- override port configuration
   let portConfigTemplate =
         [r|listen {localPort};
@@ -482,7 +449,7 @@ listen [::]:{ssl_port} ssl http2;
 |]
   let portConfig =
         portConfigTemplate
-          & Text.replace "{localPort}" (cs $ show localPort)
+          & Text.replace "{localPort}" (cs $ show (sm.nginz.port))
           & Text.replace "{http2_port}" (cs $ show http2Port)
           & Text.replace "{ssl_port}" (cs $ show sslPort)
 
