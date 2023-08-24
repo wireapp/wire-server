@@ -41,7 +41,7 @@ configName = \case
 data BackendName
   = BackendA
   | BackendB
-  | -- | 1..
+  | -- | The index of dynamic backends begin with 1
     DynamicBackend Int
   deriving (Show, Eq, Ord)
 
