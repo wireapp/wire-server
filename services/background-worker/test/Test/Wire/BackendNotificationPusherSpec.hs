@@ -227,7 +227,7 @@ spec = do
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
           galley = Endpoint "localhost" 8085
-          backendNotificationsConfig = BackendNotificationsConfig 1000 500000 (Just 0.5)
+          backendNotificationsConfig = BackendNotificationsConfig 1000 500000 500
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domains <- runAppT Env {..} getRemoteDomains
@@ -247,7 +247,7 @@ spec = do
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
           galley = Endpoint "localhost" 8085
-          backendNotificationsConfig = BackendNotificationsConfig 1000 500000 (Just 0.5)
+          backendNotificationsConfig = BackendNotificationsConfig 1000 500000 500
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domainsThread <- async $ runAppT Env {..} getRemoteDomains
 

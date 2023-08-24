@@ -25,7 +25,7 @@ testEnv = do
       metrics = undefined
       galley = Endpoint "localhost" 8085
       defederationTimeout = responseTimeoutNone
-      backendNotificationsConfig = BackendNotificationsConfig 1000 500000 (Just 0.5)
+      backendNotificationsConfig = BackendNotificationsConfig 1000 500000 500
   pure Env {..}
 
 runTestAppT :: AppT IO a -> Int -> IO a
