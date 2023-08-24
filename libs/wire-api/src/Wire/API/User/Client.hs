@@ -529,19 +529,14 @@ data PubClient = PubClient
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform PubClient)
   deriving (Swagger.ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "pubClient", LowerCase)] PubClient)
+  deriving (FromJSON, ToJSON) via Schema PubClient
 
-instance ToJSON PubClient where
-  toJSON c =
-    A.object $
-      "id" A..= pubClientId c
-        # "class" A..= pubClientClass c
-        # []
-
-instance FromJSON PubClient where
-  parseJSON = A.withObject "PubClient" $ \o ->
-    PubClient
-      <$> o A..: "id"
-      <*> o A..:? "class"
+instance ToSchema PubClient where
+  schema =
+    object "PubClient" $
+      PubClient
+        <$> pubClientId .= field "id" schema
+        <*> pubClientClass .= maybe_ (optField "class" schema)
 
 --------------------------------------------------------------------------------
 -- Client Type/Class
