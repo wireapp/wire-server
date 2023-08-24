@@ -3,18 +3,22 @@
 
 module Test.Conversation where
 
-import API.Brig (getConnections, postConnection)
-import API.BrigInternal as Internal
+import API.Brig
+import API.BrigInternal
 import API.Galley
 import API.GalleyInternal
 import Control.Applicative
 import Control.Concurrent (threadDelay)
+import Control.Monad.Codensity
+import Control.Monad.Reader
 import Data.Aeson qualified as Aeson
 import Data.Text qualified as T
 import GHC.Stack
+import Notifications
 import SetupHelpers
 import Testlib.One2One (generateRemoteAndConvIdWithDomain)
 import Testlib.Prelude
+import Testlib.ResourcePool
 
 testDynamicBackendsFullyConnectedWhenAllowAll :: HasCallStack => App ()
 testDynamicBackendsFullyConnectedWhenAllowAll = do
@@ -410,3 +414,29 @@ testAddUserWhenOtherBackendOffline = do
       pure ([alice, alex], conv)
   bindResponse (addMembers alice conv [alex]) $ \resp -> do
     resp.status `shouldMatchInt` 200
+
+testSynchroniseUserRemovalNotification :: HasCallStack => App ()
+testSynchroniseUserRemovalNotification = do
+  resourcePool <- asks resourcePool
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] -> do
+    (conv, charlie, client) <-
+      runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
+        charlie <- randomUser dynBackend.berDomain def
+        client <- objId $ bindResponse (addClient charlie def) $ getJSON 201
+        mapM_ (connectUsers charlie) [alice, bob]
+        conv <-
+          postConversation alice (defProteus {qualifiedUsers = [bob, charlie]})
+            >>= getJSON 201
+        pure (conv, charlie, client)
+
+    let newConvName = "The new conversation name"
+    bindResponse (changeConversationName alice conv newConvName) $ \resp ->
+      resp.status `shouldMatchInt` 200
+    bindResponse (removeMember alice conv charlie) $ \resp ->
+      resp.status `shouldMatchInt` 200
+    runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
+      nameNotif <- awaitNotification charlie client noValue 2 $ isConvNameChangeNotif newConvName
+      nameNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+      leaveNotif <- awaitNotification charlie client noValue 2 isConvLeaveNotif
+      leaveNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
