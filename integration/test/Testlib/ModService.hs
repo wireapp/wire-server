@@ -151,7 +151,6 @@ startDynamicBackends beOverrides k =
 
 startDynamicBackend :: HasCallStack => BackendResource -> ServiceOverrides -> Codensity App (Env -> Env)
 startDynamicBackend resource beOverrides = do
-  defDomain <- asks (.domain1)
   let services =
         withOverrides beOverrides $
           Map.mapWithKey
@@ -168,10 +167,7 @@ startDynamicBackend resource beOverrides = do
     resource
     (Just setFederatorConfig)
     services
-    ( \ports sm -> do
-        let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
-         in Map.insert resource.berDomain (setFederatorPorts resource $ updateServiceMap ports templateBackend) sm
-    )
+    (\_ports sm -> Map.insert resource.berDomain (serviceMapForResource resource) sm)
   where
     setAwsConfigs :: Service -> Value -> App Value
     setAwsConfigs = \case
@@ -241,47 +237,35 @@ startDynamicBackend resource beOverrides = do
       Spar -> setField "saml.logLevel" ("Warn" :: String)
       _ -> setField "logLevel" ("Warn" :: String)
 
-setFederatorPorts :: BackendResource -> ServiceMap -> ServiceMap
-setFederatorPorts resource sm =
-  sm
-    { federatorInternal = sm.federatorInternal {host = "127.0.0.1", port = resource.berFederatorInternal},
-      federatorExternal = sm.federatorExternal {host = "127.0.0.1", port = resource.berFederatorExternal}
-    }
+serviceMapForResource :: BackendResource -> ServiceMap
+serviceMapForResource resource =
+  let g srv = HostPort "127.0.0.1" (berInternalServicePorts resource srv)
+   in ServiceMap
+        { brig = g Brig,
+          backgroundWorker = g BackgroundWorker,
+          cannon = g Cannon,
+          cargohold = g Cargohold,
+          federatorInternal = g FederatorInternal,
+          federatorExternal = HostPort "127.0.0.1" resource.berFederatorExternal,
+          galley = g Galley,
+          gundeck = g Gundeck,
+          nginz = g Nginz,
+          spar = g Spar,
+          proxy = HostPort "127.0.0.1" 6666,
+          stern = g Stern
+        }
 
 withModifiedServices :: Map.Map Service (Value -> App Value) -> Codensity App String
 withModifiedServices services = do
   pool <- asks (.resourcePool)
   [resource] <- acquireResources 1 pool
-  defDomain <- asks (.domain1)
   void $
     startBackend
       resource
       Nothing
       services
-      ( \ports sm -> do
-          let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
-           in Map.insert resource.berDomain (setFederatorPorts resource $ updateServiceMap ports templateBackend) sm
-      )
+      (\_ports sm -> Map.insert resource.berDomain (serviceMapForResource resource) sm)
   pure (resource.berDomain)
-
-updateServiceMap :: Map.Map Service Word16 -> ServiceMap -> ServiceMap
-updateServiceMap ports serviceMap =
-  Map.foldrWithKey
-    ( \srv newPort sm ->
-        case srv of
-          Brig -> sm {brig = sm.brig {host = "127.0.0.1", port = newPort}}
-          Galley -> sm {galley = sm.galley {host = "127.0.0.1", port = newPort}}
-          Cannon -> sm {cannon = sm.cannon {host = "127.0.0.1", port = newPort}}
-          Gundeck -> sm {gundeck = sm.gundeck {host = "127.0.0.1", port = newPort}}
-          Cargohold -> sm {cargohold = sm.cargohold {host = "127.0.0.1", port = newPort}}
-          Nginz -> sm {nginz = sm.nginz {host = "127.0.0.1", port = newPort}}
-          Spar -> sm {spar = sm.spar {host = "127.0.0.1", port = newPort}}
-          BackgroundWorker -> sm {backgroundWorker = sm.backgroundWorker {host = "127.0.0.1", port = newPort}}
-          Stern -> sm {stern = sm.stern {host = "127.0.0.1", port = newPort}}
-          FederatorInternal -> sm {federatorInternal = sm.federatorInternal {host = "127.0.0.1", port = newPort}}
-    )
-    serviceMap
-    ports
 
 startBackend ::
   HasCallStack =>
