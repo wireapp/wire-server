@@ -31,7 +31,7 @@ startPushingNotifications ::
   Domain ->
   AppT IO Q.ConsumerTag
 startPushingNotifications runningFlag chan domain = do
-  lift $ ensureQueue chan domain._domainText
+  lift $ ensureB2BQueue chan domain._domainText
   QL.consumeMsgs chan (routingKey domain._domainText) Q.Ack (void . pushNotification runningFlag domain)
 
 pushNotification :: RabbitMQEnvelope e => MVar () -> Domain -> (Q.Message, e) -> AppT IO (Async ())

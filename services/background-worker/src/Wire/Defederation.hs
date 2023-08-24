@@ -22,8 +22,8 @@ import Wire.BackgroundWorker.Util
 
 deleteFederationDomain :: MVar () -> Q.Channel -> AppT IO Q.ConsumerTag
 deleteFederationDomain runningFlag chan = do
-  lift $ ensureQueue chan defederationQueue
-  QL.consumeMsgs chan (routingKey defederationQueue) Q.Ack $ deleteFederationDomainInner runningFlag
+  lift $ ensureTLQueue chan defederationQueue
+  QL.consumeMsgs chan defederationQueue Q.Ack $ deleteFederationDomainInner runningFlag
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000

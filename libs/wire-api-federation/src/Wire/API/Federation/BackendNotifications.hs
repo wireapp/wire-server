@@ -92,14 +92,19 @@ type DefederationDomain = Domain
 defederationQueue :: Text
 defederationQueue = "delete-federation"
 
+-- | Create a queue under routingKey (`backend-notifications`).  If you want to do something
+-- else use `ensureTLQueue`.
+ensureB2BQueue :: Q.Channel -> Text -> IO ()
+ensureB2BQueue chan = ensureTLQueue chan . routingKey
+
 -- | If you ever change this function and modify
 -- queue parameters, know that it will start failing in the
 -- next release! So be prepared to write migrations.
-ensureQueue :: Q.Channel -> Text -> IO ()
-ensureQueue chan queue = do
+ensureTLQueue :: Q.Channel -> Text -> IO ()
+ensureTLQueue chan queue = do
   let opts =
         Q.QueueOpts
-          { Q.queueName = routingKey queue,
+          { Q.queueName = queue,
             Q.queuePassive = False,
             Q.queueDurable = True,
             Q.queueExclusive = False,
@@ -169,7 +174,7 @@ instance (KnownComponent c) => RunClient (FedQueueClient c) where
         -- Empty string means default exchange
         exchange = ""
     liftIO $ do
-      ensureQueue env.channel env.targetDomain._domainText
+      ensureB2BQueue env.channel env.targetDomain._domainText
       void $ Q.publishMsg env.channel exchange (routingKey env.targetDomain._domainText) msg
     pure $
       Response

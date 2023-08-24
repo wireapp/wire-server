@@ -347,7 +347,7 @@ deleteFederationRemote dom = do
   remoteDomains <- fmap domain . remotes <$> getFederationRemotes
   for_ (env ^. rabbitmqChannel) $ \chan -> liftIO . withMVar chan $ \chan' -> do
     -- ensureQueue uses routingKey internally
-    ensureQueue chan' defederationQueue
+    ensureTLQueue chan' defederationQueue
     void $
       Q.publishMsg chan' "" queue $
         Q.newMsg
@@ -362,7 +362,7 @@ deleteFederationRemote dom = do
     -- clean up their conversations and notify clients.
     -- Just to be safe!
     for_ (filter (/= dom) remoteDomains) $ \remoteDomain -> do
-      ensureQueue chan' $ domainText remoteDomain
+      ensureB2BQueue chan' $ domainText remoteDomain
       liftIO
         $ enqueue chan' ownDomain remoteDomain Q.Persistent
           . void
