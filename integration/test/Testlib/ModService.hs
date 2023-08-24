@@ -165,7 +165,6 @@ startDynamicBackend resource beOverrides = do
             defaultServiceOverridesToMap
   startBackend
     resource
-    (Just setFederatorConfig)
     services
   where
     setAwsConfigs :: Service -> Value -> App Value
@@ -208,13 +207,11 @@ startDynamicBackend resource beOverrides = do
           setField "federatorInternal.port" resource.berFederatorInternal
             >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
             >=> setField "rabbitmq.vHost" resource.berVHost
+        FederatorInternal ->
+          setField "federatorInternal.port" resource.berFederatorInternal
+            >=> setField "federatorExternal.port" resource.berFederatorExternal
+            >=> setField "optSettings.setFederationDomain" resource.berDomain
         _ -> pure
-
-    setFederatorConfig :: Value -> App Value
-    setFederatorConfig =
-      setField "federatorInternal.port" resource.berFederatorInternal
-        >=> setField "federatorExternal.port" resource.berFederatorExternal
-        >=> setField "optSettings.setFederationDomain" resource.berDomain
 
     setKeyspace :: Service -> Value -> App Value
     setKeyspace = \case
@@ -261,25 +258,19 @@ withModifiedServices services = do
   void $
     startBackend
       resource
-      Nothing
       services
   pure (resource.berDomain)
 
 startBackend ::
   HasCallStack =>
   BackendResource ->
-  Maybe (Value -> App Value) ->
   Map.Map Service (Value -> App Value) ->
   Codensity App (Env -> Env)
-startBackend resource mFederatorOverrides services = do
+startBackend resource services = do
   let domain = resource.berDomain
       staticPorts :: Map.Map Service Word16 = Map.fromList [(srv, berInternalServicePorts resource srv) | srv <- Map.keys services]
-      nginzSslPort :: Maybe Word16 = (Just resource.berNginzSslPort)
-      nginzHttp2Port :: Word16 = resource.berNginzSslPort
 
-  liftIO $ print staticPorts
-
-  let updateServiceMapInConfig :: Maybe Service -> Value -> App Value
+  let updateServiceMapInConfig :: Service -> Value -> App Value
       updateServiceMapInConfig forSrv config =
         foldlM
           ( \c (srv, port) -> do
@@ -295,7 +286,7 @@ startBackend resource mFederatorOverrides services = do
                         )
                     )
               case (srv, forSrv) of
-                (Spar, Just Spar) -> do
+                (Spar, Spar) -> do
                   overridden
                     -- FUTUREWORK: override "saml.spAppUri" and "saml.spSsoUri" with correct port, too?
                     & setField "saml.spHost" ("127.0.0.1" :: String)
@@ -307,33 +298,20 @@ startBackend resource mFederatorOverrides services = do
 
   let updateServiceMap sm = Map.insert resource.berDomain (serviceMapForResource resource) sm
 
-  -- close all sockets before starting the services
   stopInstances <- lift $ do
-    fedInstance <-
-      case mFederatorOverrides of
-        Nothing -> pure []
-        Just override ->
-          readServiceConfig' "federator"
-            >>= updateServiceMapInConfig Nothing
-            >>= override
-            >>= startProcess' domain "federator"
-            <&> (: [])
-
-    otherInstances <- for (Map.assocs $ Map.filterWithKey (\s _ -> s /= FederatorInternal) services) $ \case
+    instances <- for (Map.assocs services) $ \case
       (Nginz, _) -> do
         env <- ask
         sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (updateServiceMap env.serviceMap))
         port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral) (Map.lookup Nginz staticPorts)
         case env.servicesCwdBase of
           Nothing -> startNginzK8s domain sm
-          Just _ -> startNginzLocal domain port nginzHttp2Port nginzSslPort sm
+          Just _ -> startNginzLocal domain port resource.berNginzSslPort (Just resource.berNginzSslPort) sm
       (srv, modifyConfig) -> do
         readServiceConfig srv
-          >>= updateServiceMapInConfig (Just srv)
+          >>= updateServiceMapInConfig srv
           >>= modifyConfig
           >>= startProcess domain srv
-
-    let instances = maybeToList fedInstance <> otherInstances
 
     let stopInstances = liftIO $ do
           -- Running waitForProcess would hang for 30 seconds when the test suite
@@ -360,7 +338,7 @@ startBackend resource mFederatorOverrides services = do
     waitForService <- appToIOKleisli (waitUntilServiceUp domain)
     ioAction <- appToIO (action ())
     liftIO $
-      (mapConcurrently_ waitForService (Map.keys staticPorts) >> ioAction)
+      (mapConcurrently_ waitForService (Map.keys services) >> ioAction)
         `finally` stopInstances
 
   pure modifyEnv
