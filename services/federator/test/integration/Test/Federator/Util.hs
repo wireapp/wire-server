@@ -108,12 +108,18 @@ data IntegrationConfig = IntegrationConfig
     cargohold :: Endpoint,
     federatorExternal :: Endpoint,
     nginxIngress :: Endpoint,
-    originDomain :: Text
+    originDomain :: Text,
+    backendTwo :: BackendTwoConfig
   }
   deriving (Show, Generic)
 
-deriveFromJSON deriveJSONOptions ''IntegrationConfig
+newtype BackendTwoConfig = BackendTwoConfig
+  { originDomain :: Text
+  }
+  deriving (Show, Generic)
 
+deriveFromJSON deriveJSONOptions ''BackendTwoConfig
+deriveFromJSON deriveJSONOptions ''IntegrationConfig
 makeLenses ''TestEnv
 
 -- | Call 'mkEnv' with options from config files.

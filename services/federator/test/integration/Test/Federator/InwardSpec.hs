@@ -75,9 +75,11 @@ spec env =
         _ <- putHandle brig (userId user) hdl
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
+        backendTwoDomain <- toByteString' <$> asks (._teTstOpts.backendTwo.originDomain)
         bdy <-
           responseJsonError
-            =<< inwardCall "/federation/brig/get-user-by-handle" (encode hdl)
+            -- Explicitly make the call from a domain outside of Federator's own domain
+            =<< inwardCallWithOriginDomain backendTwoDomain "/federation/brig/get-user-by-handle" (encode hdl)
               <!! const 200 === statusCode
         liftIO $ bdy `shouldBe` expectedProfile
 
@@ -126,7 +128,7 @@ spec env =
     -- and "IngressSpec".
     it "rejectRequestsWithoutClientCertInward" $
       runTestFederator env $ do
-        originDomain <- originDomain <$> view teTstOpts
+        originDomain <- (.originDomain) <$> view teTstOpts
         hdl <- randomHandle
         inwardCallWithHeaders
           "federation/brig/get-user-by-handle"
@@ -160,7 +162,7 @@ inwardCall ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCall requestPath payload = do
-  originDomain :: Text <- originDomain <$> view teTstOpts
+  originDomain :: Text <- (.originDomain) <$> view teTstOpts
   inwardCallWithOriginDomain (toByteString' originDomain) requestPath payload
 
 inwardCallWithOriginDomain ::
