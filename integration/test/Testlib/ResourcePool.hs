@@ -67,6 +67,43 @@ createBackendResourcePool cassandraHost cassandraPort dynConfs =
               deleteAllRabbitMQQueues
           )
 
+deleteAllRabbitMQQueues :: BackendResource -> IO ()
+deleteAllRabbitMQQueues resource = do
+  pure ()
+
+-- req <- amqRequest "/api/queues"
+-- res <- submit "GET" req
+-- qdescs <- res.json & asList
+-- queues <-
+--   catMaybes
+--     <$> for
+--       qdescs
+--       ( \q -> do
+--           name <- q %. "name" & asString
+--           vhost <- q %. "vhost" & asString
+--           pure $
+--             if vhost == resource.berVHost
+--               then Just name
+--               else Nothing
+--       )
+-- let ue s = C8.unpack (urlEncode True (C8.pack s))
+-- for_ queues $ \queue -> do
+--   let path = "/api/queues/" <> ue resource.berVHost <> "/" <> ue queue
+--   dreq <- amqRequest path
+--   dres <- submit "DELETE" dreq
+--   when (dres.status /= 204) $ do
+--     liftIO $ putStrLn $ prettyResponse dres
+--     failApp $
+--       "Failed to delete amq queue " <> resource.berVHost <> " " <> queue
+-- where
+--   amqRequest path = do
+--     rc <- asks (.rabbitMQConfig)
+--     username <- asks (.amqUsername)
+--     password <- asks (.amqPassword)
+--     req <- liftIO . HTTP.parseRequest $ "http://" <> rc.host <> ":" <> show rc.adminPort <> path
+--     let token = C8.unpack $ Base64.encode (toByteString' (stringUtf8 (username <> ":" <> password)))
+--     pure $ req & addHeader "Authorization" ("Basic " <> token)
+
 data BackendResource = BackendResource
   { berName :: BackendName,
     berBrigKeyspace :: String,
