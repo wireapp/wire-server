@@ -30,7 +30,7 @@ import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
-import Data.ByteString.Conversion (toByteString')
+import Data.ByteString.Conversion
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -50,6 +50,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
+import Servant.API
 import System.Logger.Class qualified as Logger
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
@@ -171,8 +172,8 @@ brigAddClient uid connId client = do
     else pure (Left ReAuthFailed)
 
 -- | Calls 'Brig.API.Internal.getMLSClients'.
-getLocalMLSClients :: Local UserId -> SignatureSchemeTag -> App (Set ClientInfo)
-getLocalMLSClients lusr ss =
+getLocalMLSClients :: Local UserId -> CipherSuiteTag -> App (Set ClientInfo)
+getLocalMLSClients lusr suite =
   call
     Brig
     ( method GET
@@ -182,7 +183,9 @@ getLocalMLSClients lusr ss =
             "clients",
             toByteString' (tUnqualified lusr)
           ]
-        . queryItem "sig_scheme" (toByteString' (signatureSchemeName ss))
+        . queryItem
+          "ciphersuite"
+          (toHeader (tagCipherSuite suite))
         . expect2xx
     )
     >>= parseResponse (mkError status502 "server-error")

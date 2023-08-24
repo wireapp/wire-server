@@ -59,6 +59,7 @@ import V76_AddSupportedProtocols qualified
 import V77_FederationRemotes qualified
 import V78_ClientLastActive qualified
 import V79_ConnectionRemoteIndex qualified
+import V80_KeyPackageCiphersuite qualified
 
 main :: IO ()
 main = do
@@ -105,7 +106,8 @@ main = do
       V76_AddSupportedProtocols.migration,
       V77_FederationRemotes.migration,
       V78_ClientLastActive.migration,
-      V79_ConnectionRemoteIndex.migration
+      V79_ConnectionRemoteIndex.migration,
+      V80_KeyPackageCiphersuite.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Brig.App
 

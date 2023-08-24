@@ -47,7 +47,7 @@ import Wire.API.MLS.Validation
 validateUploadedKeyPackage ::
   ClientIdentity ->
   RawMLS KeyPackage ->
-  Handler r (KeyPackageRef, KeyPackageData)
+  Handler r (KeyPackageRef, CipherSuiteTag, KeyPackageData)
 validateUploadedKeyPackage identity kp = do
   (cs, lt) <- either mlsProtocolError pure $ validateKeyPackage (Just identity) kp.value
 
@@ -77,7 +77,7 @@ validateUploadedKeyPackage identity kp = do
     (cidQualifiedClient identity)
 
   let kpd = KeyPackageData kp.raw
-  pure (kpRef cs kpd, kpd)
+  pure (kpRef cs kpd, cs, kpd)
 
 validateLifetime :: Lifetime -> Handler r ()
 validateLifetime lt = do

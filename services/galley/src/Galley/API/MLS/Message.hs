@@ -74,6 +74,7 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit hiding (output)
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
@@ -204,7 +205,27 @@ postMLSCommitBundleToLocalConv ::
   Local ConvOrSubConvId ->
   Sem r [LocalConversationUpdate]
 postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
-  lConvOrSub <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
+  lConvOrSub <- do
+    lConvOrSub <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
+    let convOrSub = tUnqualified lConvOrSub
+    giCipherSuite <-
+      note (mlsProtocolError "Unsupported ciphersuite") $
+        cipherSuiteTag bundle.groupInfo.value.groupContext.cipherSuite
+    let convCipherSuite = convOrSub.mlsMeta.cnvmlsCipherSuite
+    -- if this is the first commit of the conversation, update ciphersuite
+    if (giCipherSuite == convCipherSuite)
+      then pure lConvOrSub
+      else do
+        unless (convOrSub.mlsMeta.cnvmlsEpoch == Epoch 0) $
+          throw $
+            mlsProtocolError "GroupInfo ciphersuite does not match conversation"
+        -- save to cassandra
+        case convOrSub.id of
+          Conv cid -> setConversationCipherSuite cid giCipherSuite
+          SubConv cid sub ->
+            setSubConversationCipherSuite cid sub giCipherSuite
+        pure $ fmap (convOrSubConvSetCipherSuite giCipherSuite) lConvOrSub
+
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
   (events, newClients) <- case bundle.sender of
@@ -236,7 +257,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
         bundle.commit.value.path
       pure ([], [])
 
-  storeGroupInfo (tUnqualified lConvOrSub).id bundle.groupInfo
+  storeGroupInfo (tUnqualified lConvOrSub).id (GroupInfoData bundle.groupInfo.raw)
 
   propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
     >>= mapM_ (throw . unreachableUsersToUnreachableBackends)

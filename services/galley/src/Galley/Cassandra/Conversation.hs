@@ -244,6 +244,13 @@ getConvEpoch cid =
 updateConvEpoch :: ConvId -> Epoch -> Client ()
 updateConvEpoch cid epoch = retry x5 $ write Cql.updateConvEpoch (params LocalQuorum (epoch, cid))
 
+updateConvCipherSuite :: ConvId -> CipherSuiteTag -> Client ()
+updateConvCipherSuite cid cs =
+  retry x5 $
+    write
+      Cql.updateConvCipherSuite
+      (params LocalQuorum (cs, cid))
+
 setGroupInfo :: ConvId -> GroupInfoData -> Client ()
 setGroupInfo conv gid =
   write Cql.updateGroupInfo (params LocalQuorum (gid, conv))
@@ -460,6 +467,7 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationReceiptMode cid value -> embedClient $ updateConvReceiptMode cid value
   SetConversationMessageTimer cid value -> embedClient $ updateConvMessageTimer cid value
   SetConversationEpoch cid epoch -> embedClient $ updateConvEpoch cid epoch
+  SetConversationCipherSuite cid cs -> embedClient $ updateConvCipherSuite cid cs
   DeleteConversation cid -> embedClient $ deleteConversation cid
   SetGroupInfo cid gib -> embedClient $ setGroupInfo cid gib
   AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl

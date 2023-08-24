@@ -54,7 +54,7 @@ import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
-import Wire.API.MLS.CipherSuite (SignatureSchemeTag)
+import Wire.API.MLS.CipherSuite
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.Connection
@@ -64,7 +64,7 @@ import Wire.API.Routes.Internal.Brig.SearchIndex (ISearchIndexAPI)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
-import Wire.API.Routes.Public (ZUser {- yes, this is a bit weird -})
+import Wire.API.Routes.Public (ZUser)
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.User
@@ -500,7 +500,7 @@ type GetMLSClients =
     :> "clients"
     :> CanThrow 'UserNotFound
     :> Capture "user" UserId
-    :> QueryParam' '[Required, Strict] "sig_scheme" SignatureSchemeTag
+    :> QueryParam' '[Required, Strict] "ciphersuite" CipherSuite
     :> MultiVerb1
          'GET
          '[Servant.JSON]

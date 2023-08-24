@@ -45,6 +45,7 @@ import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Empty
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
@@ -1098,6 +1099,8 @@ type ConnectionAPI =
                :> Get '[Servant.JSON] (SearchResult Contact)
            )
 
+-- Properties API -----------------------------------------------------
+
 type PropertiesAPI =
   LiftNamed
     ( ZUser
@@ -1158,7 +1161,16 @@ type PropertiesAPI =
                :> Get '[JSON] PropertyKeysAndValues
            )
 
--- Properties API -----------------------------------------------------
+-- MLS API ---------------------------------------------------------------------
+
+type CipherSuiteParam =
+  QueryParam'
+    [ Optional,
+      Strict,
+      Description "Ciphersuite in hex format (e.g. 0xf031) - default is 0x0001"
+    ]
+    "ciphersuite"
+    CipherSuite
 
 type MLSKeyPackageAPI =
   "key-packages"
@@ -1178,25 +1190,21 @@ type MLSKeyPackageAPI =
                   "mls-key-packages-claim"
                   ( "claim"
                       :> Summary "Claim one key package for each client of the given user"
-                      :> MakesFederatedCall 'Brig "claim-key-packages"
+                      :> Description "Only key packages for the specified ciphersuite are claimed. For backwards compatibility, the `ciphersuite` parameter is optional, defaulting to ciphersuite 0x0001 when omitted."
                       :> ZLocalUser
+                      :> ZOptClient
                       :> QualifiedCaptureUserId "user"
-                      :> QueryParam'
-                           [ Optional,
-                             Strict,
-                             Description "Do not claim a key package for the given own client"
-                           ]
-                           "skip_own"
-                           ClientId
+                      :> CipherSuiteParam
                       :> MultiVerb1 'POST '[JSON] (Respond 200 "Claimed key packages" KeyPackageBundle)
                   )
            :<|> Named
                   "mls-key-packages-count"
                   ( "self"
+                      :> Summary "Return the number of unclaimed key packages for a given ciphersuite and client"
                       :> ZLocalUser
                       :> CaptureClientId "client"
                       :> "count"
-                      :> Summary "Return the number of unused key packages for the given client"
+                      :> CipherSuiteParam
                       :> MultiVerb1 'GET '[JSON] (Respond 200 "Number of key packages" KeyPackageCount)
                   )
            :<|> Named
@@ -1204,7 +1212,8 @@ type MLSKeyPackageAPI =
                   ( "self"
                       :> ZLocalUser
                       :> CaptureClientId "client"
-                      :> Summary "Return the number of unused key packages for the given client"
+                      :> Summary "Delete all key packages for a given ciphersuite and client"
+                      :> CipherSuiteParam
                       :> ReqBody '[JSON] DeleteKeyPackages
                       :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 201 "OK")
                   )

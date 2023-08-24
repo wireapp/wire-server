@@ -28,6 +28,7 @@ import Brig.API.Client qualified as API
 import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.MLS.KeyPackages.Validation
 import Brig.API.OAuth (internalOauthAPI)
 import Brig.API.Types
 import Brig.API.User qualified as API
@@ -384,12 +385,12 @@ deleteAccountConferenceCallingConfig :: UserId -> (Handler r) NoContent
 deleteAccountConferenceCallingConfig uid =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
 
-getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientInfo)
-getMLSClients usr _ss = do
-  -- FUTUREWORK: check existence of key packages with a given ciphersuite
+getMLSClients :: UserId -> CipherSuite -> Handler r (Set ClientInfo)
+getMLSClients usr suite = do
   lusr <- qualifyLocal usr
+  suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
   allClients <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
-  clientInfo <- lift . wrapClient $ pooledMapConcurrentlyN 16 (getValidity lusr) (toList allClients)
+  clientInfo <- lift . wrapClient $ pooledMapConcurrentlyN 16 (\c -> getValidity lusr c suiteTag) (toList allClients)
   pure . Set.fromList . map (uncurry ClientInfo) $ clientInfo
   where
     getResult [] = pure mempty
@@ -397,9 +398,9 @@ getMLSClients usr _ss = do
       | u == usr = pure cs'
       | otherwise = getResult rs
 
-    getValidity lusr cid =
+    getValidity lusr cid suiteTag =
       (cid,) . (> 0)
-        <$> Data.countKeyPackages lusr cid
+        <$> Data.countKeyPackages lusr cid suiteTag
 
 getVerificationCode :: UserId -> VerificationAction -> Handler r (Maybe Code.Value)
 getVerificationCode uid action = do

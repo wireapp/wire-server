@@ -6,6 +6,7 @@ import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Data.Aeson hiding ((.=))
 import Data.ByteString (ByteString)
+import Data.Default
 import Data.Functor
 import Data.IORef
 import Data.Map (Map)
@@ -224,6 +225,24 @@ create ioRef =
         Nothing -> error "No resources available"
         Just (r, s') -> (s', r)
 
+data ClientGroupState = ClientGroupState
+  { group :: Maybe ByteString,
+    keystore :: Maybe ByteString
+  }
+  deriving (Show)
+
+emptyClientGroupState :: ClientGroupState
+emptyClientGroupState = ClientGroupState Nothing Nothing
+
+newtype Ciphersuite = Ciphersuite {code :: String}
+  deriving (Eq, Ord, Show)
+
+instance Default Ciphersuite where
+  def = Ciphersuite "0x0001"
+
+allCiphersuites :: [Ciphersuite]
+allCiphersuites = map Ciphersuite ["0x0001", "0xf031"]
+
 data MLSState = MLSState
   { baseDir :: FilePath,
     members :: Set ClientIdentity,
@@ -231,8 +250,9 @@ data MLSState = MLSState
     newMembers :: Set ClientIdentity,
     groupId :: Maybe String,
     convId :: Maybe Value,
-    clientGroupState :: Map ClientIdentity ByteString,
-    epoch :: Word64
+    clientGroupState :: Map ClientIdentity ClientGroupState,
+    epoch :: Word64,
+    ciphersuite :: Ciphersuite
   }
   deriving (Show)
 
@@ -247,7 +267,8 @@ mkMLSState = Codensity $ \k ->
           groupId = Nothing,
           convId = Nothing,
           clientGroupState = mempty,
-          epoch = 0
+          epoch = 0,
+          ciphersuite = def
         }
 
 data ClientIdentity = ClientIdentity

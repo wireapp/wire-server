@@ -254,18 +254,22 @@ uploadKeyPackage cid kp = do
         & addJSONObject ["key_packages" .= [T.decodeUtf8 (Base64.encode kp)]]
     )
 
-claimKeyPackages :: (MakesValue u, MakesValue v) => u -> v -> App Response
-claimKeyPackages u v = do
+claimKeyPackages :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> App Response
+claimKeyPackages suite u v = do
   (targetDom, targetUid) <- objQid v
   req <-
     baseRequest u Brig Versioned $
       "/mls/key-packages/claim/" <> targetDom <> "/" <> targetUid
-  submit "POST" req
+  submit "POST" $
+    req
+      & addQueryParams [("ciphersuite", suite.code)]
 
-countKeyPackages :: ClientIdentity -> App Response
-countKeyPackages cid = do
-  baseRequest cid Brig Versioned ("/mls/key-packages/self/" <> cid.client <> "/count")
-    >>= submit "GET"
+countKeyPackages :: Ciphersuite -> ClientIdentity -> App Response
+countKeyPackages suite cid = do
+  req <- baseRequest cid Brig Versioned ("/mls/key-packages/self/" <> cid.client <> "/count")
+  submit "GET" $
+    req
+      & addQueryParams [("ciphersuite", suite.code)]
 
 deleteKeyPackages :: ClientIdentity -> [String] -> App Response
 deleteKeyPackages cid kps = do

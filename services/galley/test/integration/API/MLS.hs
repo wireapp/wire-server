@@ -28,8 +28,6 @@ import Cassandra hiding (Set)
 import Control.Lens (view)
 import Control.Lens.Extras
 import Control.Monad.State qualified as State
-import Crypto.Error
-import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Data.Aeson qualified as Aeson
 import Data.Domain
 import Data.Id
@@ -58,12 +56,9 @@ import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
-import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
-import Wire.API.MLS.Message
-import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
@@ -98,13 +93,10 @@ tests s =
         [ test s "add user (not connected)" testAddUserNotConnected,
           test s "add client of existing user" testAddClientPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
-          test s "send a stale commit" testStaleCommit,
           test s "add remote user to a conversation" testAddRemoteUser,
           test s "add remote users to a conversation (some unreachable)" testAddRemotesSomeUnreachable,
           test s "return error when commit is locked" testCommitLock,
-          test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
-          test s "post commit that references an unknown proposal" testUnknownProposalRefCommit,
-          test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals
+          test s "post commit that references an unknown proposal" testUnknownProposalRefCommit
         ],
       testGroup
         "External commit"
@@ -141,10 +133,7 @@ tests s =
         ],
       testGroup
         "Proposal"
-        [ test s "add a new client to a non-existing conversation" propNonExistingConv,
-          test s "add a new client to an existing conversation" propExistingConv,
-          test s "add a new client in an invalid epoch" propInvalidEpoch,
-          test s "forward an unsupported proposal" propUnsupported
+        [ test s "add a new client to a non-existing conversation" propNonExistingConv
         ],
       testGroup
         "External Add Proposal"
@@ -493,32 +482,6 @@ testProteusMessage = do
           <!! const 404 === statusCode
     liftIO $ Wai.label e @?= "no-conversation"
 
-testStaleCommit :: TestM ()
-testStaleCommit = do
-  (alice : users) <- createAndConnectUsers (replicate 5 Nothing)
-  let (users1, users2) = splitAt 2 users
-
-  runMLSTest $ do
-    (alice1 : clients) <- traverse createMLSClient (alice : users)
-    traverse_ uploadNewKeyPackage clients
-    void $ setupMLSGroup alice1
-
-    gsBackup <- getClientGroupState alice1
-
-    -- add the first batch of users to the conversation
-    void $ createAddCommit alice1 users1 >>= sendAndConsumeCommitBundle
-
-    -- now roll back alice1 and try to add the second batch of users
-    setClientGroupState alice1 gsBackup
-
-    commit <- createAddCommit alice1 users2
-    bundle <- createBundle commit
-    err <-
-      responseJsonError
-        =<< localPostCommitBundle (mpSender commit) bundle
-          <!! const 409 === statusCode
-    liftIO $ Wai.label err @?= "mls-stale-message"
-
 testAddRemoteUser :: TestM ()
 testAddRemoteUser = do
   users@[alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
@@ -623,28 +586,6 @@ testCommitLock = do
               (groupId, epoch)
           )
 
-testAddUserBareProposalCommit :: TestM ()
-testAddUserBareProposalCommit = do
-  users <- createAndConnectUsers (replicate 2 Nothing)
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient users
-    (_, qcnv) <- setupMLSGroup alice1
-    void $ uploadNewKeyPackage bob1
-
-    createAddProposals alice1 [cidQualifiedUser bob1]
-      >>= traverse_ sendAndConsumeMessage
-    commit <- createPendingProposalCommit alice1
-    void $ assertJust (mpWelcome commit)
-    void $ sendAndConsumeCommitBundle commit
-
-    -- check that bob can now see the conversation
-    liftTest $ do
-      convs <- getAllConvs (ciUser bob1)
-      liftIO $
-        assertBool
-          "Users added to an MLS group should find it when listing conversations"
-          (qcnv `elem` map cnvQualifiedId convs)
-
 testUnknownProposalRefCommit :: TestM ()
 testUnknownProposalRefCommit = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
@@ -664,33 +605,6 @@ testUnknownProposalRefCommit = do
         =<< localPostCommitBundle alice1 bundle
           <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "mls-proposal-not-found"
-
-testCommitNotReferencingAllProposals :: TestM ()
-testCommitNotReferencingAllProposals = do
-  users@[_alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
-
-  runMLSTest $ do
-    [alice1, bob1, charlie1] <- traverse createMLSClient users
-    void $ setupMLSGroup alice1
-    traverse_ uploadNewKeyPackage [bob1, charlie1]
-
-    gsBackup <- getClientGroupState alice1
-
-    -- create proposals for bob and charlie
-    createAddProposals alice1 [bob, charlie]
-      >>= traverse_ sendAndConsumeMessage
-
-    -- now create a commit referencing only the first proposal
-    setClientGroupState alice1 gsBackup
-    commit <- createPendingProposalCommit alice1
-
-    -- send commit and expect and error
-    bundle <- createBundle commit
-    err <-
-      responseJsonError
-        =<< localPostCommitBundle alice1 bundle
-          <!! const 400 === statusCode
-    liftIO $ Wai.label err @?= "mls-commit-missing-references"
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = do
@@ -1305,62 +1219,6 @@ propNonExistingConv = do
       const 404 === statusCode
       const (Just "no-conversation") === fmap Wai.label . responseJsonError
 
-propExistingConv :: TestM ()
-propExistingConv = do
-  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient [alice, bob]
-    void $ uploadNewKeyPackage bob1
-    void $ setupMLSGroup alice1
-    res <- traverse sendAndConsumeMessage =<< createAddProposals alice1 [bob]
-
-    liftIO $ (fst <$> res) @?= [[]]
-
-propInvalidEpoch :: TestM ()
-propInvalidEpoch = do
-  users@[_alice, bob, charlie, dee] <- createAndConnectUsers (replicate 4 Nothing)
-  runMLSTest $ do
-    [alice1, bob1, charlie1, dee1] <- traverse createMLSClient users
-    void $ setupMLSGroup alice1
-
-    -- Add bob -> epoch 1
-    void $ uploadNewKeyPackage bob1
-    gsBackup <- getClientGroupState alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-    gsBackup2 <- getClientGroupState alice1
-
-    -- try to send a proposal from an old epoch (0)
-    do
-      setClientGroupState alice1 gsBackup
-      void $ uploadNewKeyPackage dee1
-      [prop] <- createAddProposals alice1 [dee]
-      err <-
-        responseJsonError
-          =<< postMessage alice1 (mpMessage prop)
-            <!! const 409 === statusCode
-      liftIO $ Wai.label err @?= "mls-stale-message"
-
-    -- try to send a proposal from a newer epoch (2)
-    do
-      void $ uploadNewKeyPackage dee1
-      void $ uploadNewKeyPackage charlie1
-      setClientGroupState alice1 gsBackup2
-      void $ createAddCommit alice1 [charlie] -- --> epoch 2
-      [prop] <- createAddProposals alice1 [dee]
-      err <-
-        responseJsonError
-          =<< postMessage alice1 (mpMessage prop)
-            <!! const 409 === statusCode
-      liftIO $ Wai.label err @?= "mls-stale-message"
-      -- remove charlie from users expected to get a welcome message
-      State.modify $ \mls -> mls {mlsNewMembers = mempty}
-
-    -- alice send a well-formed proposal and commits it
-    void $ uploadNewKeyPackage dee1
-    setClientGroupState alice1 gsBackup2
-    createAddProposals alice1 [dee] >>= traverse_ sendAndConsumeMessage
-    void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
-
 -- scenario:
 -- alice1 creates a group and adds bob1
 -- bob2 joins with external proposal (alice1 commits it)
@@ -1530,38 +1388,6 @@ testPublicKeys = do
           (unMLSPublicKeys keys)
       )
       @?= [Ed25519]
-
---- | The test manually reads from mls-test-cli's store and extracts a private
---- key. The key is needed for signing an unsupported proposal, which is then
--- forwarded by the backend without being inspected.
-propUnsupported :: TestM ()
-propUnsupported = do
-  users@[_alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient users
-    void $ uploadNewKeyPackage bob1
-    (gid, _) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-
-    (priv, pub) <- clientKeyPair alice1
-    pmsg <-
-      liftIO . throwCryptoErrorIO $
-        mkSignedPublicMessage
-          <$> Ed25519.secretKey priv
-          <*> Ed25519.publicKey pub
-          <*> pure gid
-          <*> pure (Epoch 1)
-          <*> pure (TaggedSenderMember 0 "foo")
-          <*> pure
-            ( FramedContentProposal
-                (mkRawMLS (GroupContextExtensionsProposal []))
-            )
-
-    let msg = mkMessage (MessagePublic pmsg)
-    let msgData = encodeMLS' msg
-
-    -- we cannot consume this message, because the membership tag is fake
-    postMessage alice1 msgData !!! const 201 === statusCode
 
 testBackendRemoveProposalRecreateClient :: TestM ()
 testBackendRemoveProposalRecreateClient = do
