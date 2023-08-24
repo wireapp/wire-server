@@ -18,14 +18,13 @@
 module Wire.API.Routes.Public.Cannon where
 
 import Data.Id
-import Data.Swagger
 import Servant
-import Servant.Swagger
+import Wire.API.Routes.API
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZConn, ZUser)
 import Wire.API.Routes.WebSocket
 
-type PublicAPI =
+type CannonAPI =
   Named
     "await-notifications"
     ( Summary "Establish websocket connection"
@@ -43,5 +42,7 @@ type PublicAPI =
         :> WebSocketPending
     )
 
-swaggerDoc :: Swagger
-swaggerDoc = toSwagger (Proxy @PublicAPI)
+data CannonAPITag
+
+instance ServiceAPI CannonAPITag v where
+  type ServiceAPIRoutes CannonAPITag = CannonAPI

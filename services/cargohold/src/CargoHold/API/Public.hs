@@ -41,7 +41,7 @@ import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
 
-servantSitemap :: ServerT ServantAPI Handler
+servantSitemap :: ServerT CargoholdAPI Handler
 servantSitemap =
   renewTokenV3
     :<|> deleteTokenV3

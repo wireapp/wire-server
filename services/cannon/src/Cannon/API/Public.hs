@@ -31,7 +31,7 @@ import Servant
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cannon
 
-publicAPIServer :: ServerT PublicAPI Cannon
+publicAPIServer :: ServerT CannonAPI Cannon
 publicAPIServer = Named @"await-notifications" streamData
 
 streamData :: UserId -> ConnId -> Maybe ClientId -> PendingConnection -> Cannon ()

@@ -55,7 +55,7 @@ import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
 import Wire.API.Routes.Version.Wai
 
-type CombinedAPI = FederationAPI :<|> ServantAPI :<|> InternalAPI
+type CombinedAPI = FederationAPI :<|> CargoholdAPI :<|> InternalAPI
 
 run :: Opts -> IO ()
 run o = lowerCodensity $ do
@@ -89,7 +89,7 @@ mkApp o = Codensity $ \k ->
             (Proxy @CombinedAPI)
             ((o ^. settings . federationDomain) :. Servant.EmptyContext)
             ( hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
-                :<|> hoistServerWithDomain @ServantAPI (toServantHandler e) servantSitemap
+                :<|> hoistServerWithDomain @CargoholdAPI (toServantHandler e) servantSitemap
                 :<|> hoistServerWithDomain @InternalAPI (toServantHandler e) internalSitemap
             )
             r
