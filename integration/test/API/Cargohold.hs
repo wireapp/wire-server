@@ -122,11 +122,8 @@ buildMultipartBody header body bodyMimeType =
           MIME.mime_val_content = MIME.Single ((decodeUtf8 . LBS.toStrict) c)
         }
 
--- downloadAsset :: (HasCallStack, MakesValue user, MakesValue assetDomain, MakesValue key) => user -> assetDomain -> key -> (HTTP.Request -> HTTP.Request) -> App Response
--- downloadAsset user assetDomain key trans = downloadAsset' user assetDomain key "nginz-https.example.com" trans
-
-downloadAsset' :: (HasCallStack, MakesValue user, MakesValue key, MakesValue assetDomain) => user -> assetDomain -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
-downloadAsset' user assetDomain key zHostHeader trans = do
+downloadAsset :: (HasCallStack, MakesValue user, MakesValue key, MakesValue assetDomain) => user -> assetDomain -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
+downloadAsset user assetDomain key zHostHeader trans = do
   uid <- objId user
   domain <- objDomain assetDomain
   key' <- asString key
