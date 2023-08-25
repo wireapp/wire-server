@@ -36,10 +36,10 @@ import Test.QuickCheck
 import Test.Wire.Util
 import UnliftIO.Async
 import Util.Options
+import Wire.API.BackgroundWorker
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
-import Wire.API.BackgroundWorker
 import Wire.API.RawJson
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env

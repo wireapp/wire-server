@@ -83,11 +83,11 @@ import System.Logger qualified as Lg
 import System.Logger.Class qualified as Log
 import System.Random (randomRIO)
 import UnliftIO.Async
+import Wire.API.BackgroundWorker
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API
-import Wire.API.BackgroundWorker
 import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
