@@ -31,7 +31,7 @@ startPushingNotifications ::
   Domain ->
   AppT IO Q.ConsumerTag
 startPushingNotifications runningFlag chan domain = do
-  lift $ ensureB2BQueue chan domain._domainText
+  lift $ ensureBackendNotificationsQueue chan domain._domainText
   QL.consumeMsgs chan (routingKey domain._domainText) Q.Ack (void . pushNotification runningFlag domain)
 
 pushNotification :: RabbitMQEnvelope e => MVar () -> Domain -> (Q.Message, e) -> AppT IO (Async ())
@@ -135,7 +135,7 @@ startPusher consumersRef chan = do
       forever $ do
         remoteDomains <- getRemoteDomains
         ensureConsumers consumers chan remoteDomains
-        threadDelay (1_000 * env.backendNotificationsConfig.remotesRefreshIntervalMs)
+        threadDelay env.backendNotificationsConfig.remotesRefreshInterval
 
 ensureConsumers :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> [Domain] -> AppT IO ()
 ensureConsumers consumers chan domains = do

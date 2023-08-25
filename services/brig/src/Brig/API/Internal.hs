@@ -346,10 +346,9 @@ deleteFederationRemote dom = do
   ownDomain <- viewFederationDomain
   remoteDomains <- fmap domain . remotes <$> getFederationRemotes
   for_ (env ^. rabbitmqChannel) $ \chan -> liftIO . withMVar chan $ \chan' -> do
-    -- ensureQueue uses routingKey internally
-    ensureTLQueue chan' defederationQueue
+    ensureQueue chan' defederationQueue
     void $
-      Q.publishMsg chan' "" queue $
+      Q.publishMsg chan' "" defederationQueue $
         Q.newMsg
           { -- Check that this message type is compatible with what
             -- background worker is expecting
@@ -362,7 +361,7 @@ deleteFederationRemote dom = do
     -- clean up their conversations and notify clients.
     -- Just to be safe!
     for_ (filter (/= dom) remoteDomains) $ \remoteDomain -> do
-      ensureB2BQueue chan' $ domainText remoteDomain
+      ensureBackendNotificationsQueue chan' $ domainText remoteDomain
       liftIO
         $ enqueue chan' ownDomain remoteDomain Q.Persistent
           . void
@@ -373,9 +372,6 @@ deleteFederationRemote dom = do
     -- domain.
     num <- Q.deleteQueue chan' . routingKey $ domainText dom
     Lg.info (env ^. applog) $ Log.msg @String "Dropped Notifications" . Log.field "domain" (domainText dom) . Log.field "count" (show num)
-  where
-    -- Ensure that this is kept in sync with background worker
-    queue = routingKey defederationQueue
 
 -- | Remove one-on-one conversations for the given remote domain. This is called from Galley as
 -- part of the defederation process, and should not be called during the initial domain removal

@@ -22,7 +22,7 @@ import Wire.BackgroundWorker.Util
 
 deleteFederationDomain :: MVar () -> Q.Channel -> AppT IO Q.ConsumerTag
 deleteFederationDomain runningFlag chan = do
-  lift $ ensureTLQueue chan defederationQueue
+  lift $ ensureQueue chan defederationQueue
   QL.consumeMsgs chan defederationQueue Q.Ack $ deleteFederationDomainInner runningFlag
 
 x3 :: RetryPolicy
