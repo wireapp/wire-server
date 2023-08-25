@@ -23,9 +23,12 @@ module Wire.API.MLS.Validation
 where
 
 import Control.Applicative
+import Control.Error.Util
+import Data.ByteArray qualified as BA
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder qualified as LT
 import Data.Text.Lazy.Builder.Int qualified as LT
+import Data.X509 qualified as X509
 import Imports hiding (cs)
 import Wire.API.MLS.Capabilities
 import Wire.API.MLS.CipherSuite
@@ -97,22 +100,28 @@ validateLeafNode cs mIdentity extra leafNode = do
     )
     $ Left "Invalid LeafNode signature"
 
-  validateCredential mIdentity leafNode.credential
+  validateCredential cs leafNode.signatureKey mIdentity leafNode.credential
   validateSource extra.tag leafNode.source
   validateCapabilities (credentialTag leafNode.credential) leafNode.capabilities
 
-validateCredential :: Maybe ClientIdentity -> Credential -> Either Text ()
-validateCredential mIdentity cred = do
+validateCredential :: CipherSuiteTag -> ByteString -> Maybe ClientIdentity -> Credential -> Either Text ()
+validateCredential cs pkey mIdentity cred = do
   -- FUTUREWORK: check signature in the case of an x509 credential
-  identity <-
+  (identity, mkey) <-
     either credentialError pure $
-      credentialIdentity cred
+      credentialIdentityAndKey cred
+  traverse_ (validateCredentialKey (csSignatureScheme cs) pkey) mkey
   unless (maybe True (identity ==) mIdentity) $
     Left "client identity does not match credential identity"
   where
     credentialError e =
       Left $
         "Failed to parse identity: " <> e
+
+validateCredentialKey :: SignatureSchemeTag -> ByteString -> X509.PubKey -> Either Text ()
+validateCredentialKey Ed25519 pk1 (X509.PubKeyEd25519 pk2) =
+  note "Certificate public key does not match client's" $ guard (pk1 == BA.convert pk2)
+validateCredentialKey _ _ _ = Left "Certificate signature scheme does not match client's public key"
 
 validateSource :: LeafNodeSourceTag -> LeafNodeSource -> Either Text ()
 validateSource t s = do

@@ -23,7 +23,7 @@ module Wire.API.MLS.KeyPackage
     KeyPackageData (..),
     DeleteKeyPackages (..),
     KeyPackage (..),
-    credentialIdentity,
+    credentialIdentityAndKey,
     keyPackageIdentity,
     kpRef,
     kpRef',
@@ -231,9 +231,9 @@ instance HasField "extensions" KeyPackage [Extension] where
 instance HasField "leafNode" KeyPackage LeafNode where
   getField = (.tbs.value.leafNode)
 
-credentialIdentity :: Credential -> Either Text ClientIdentity
-credentialIdentity (BasicCredential i) = decodeMLS' i
-credentialIdentity (X509Credential certs) = do
+credentialIdentityAndKey :: Credential -> Either Text (ClientIdentity, Maybe X509.PubKey)
+credentialIdentityAndKey (BasicCredential i) = (,) <$> decodeMLS' i <*> pure Nothing
+credentialIdentityAndKey (X509Credential certs) = do
   bs <- case certs of
     [] -> Left "Invalid x509 certificate chain"
     (c : _) -> pure c
@@ -242,20 +242,20 @@ credentialIdentity (X509Credential certs) = do
       X509.decodeSignedCertificate bs
   -- FUTUREWORK: verify signature
   let cert = X509.getCertificate signed
-  certificateIdentity cert
+  certificateIdentityAndKey cert
 
 keyPackageIdentity :: KeyPackage -> Either Text ClientIdentity
-keyPackageIdentity kp = credentialIdentity kp.leafNode.credential
+keyPackageIdentity kp = fst <$> credentialIdentityAndKey kp.leafNode.credential
 
-certificateIdentity :: X509.Certificate -> Either Text ClientIdentity
-certificateIdentity cert =
+certificateIdentityAndKey :: X509.Certificate -> Either Text (ClientIdentity, Maybe X509.PubKey)
+certificateIdentityAndKey cert =
   let getNames (X509.ExtSubjectAltName names) = names
       getURI (X509.AltNameURI u) = Just u
       getURI _ = Nothing
       altNames = maybe [] getNames (X509.extensionGet (X509.certExtensions cert))
       ids = map sanIdentity (mapMaybe getURI altNames)
    in case partitionEithers ids of
-        (_, (cid : _)) -> pure cid
+        (_, (cid : _)) -> pure (cid, Just (X509.certPubKey cert))
         ((e : _), []) -> Left e
         _ -> Left "No SAN URIs found"
 
