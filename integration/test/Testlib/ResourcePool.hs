@@ -24,6 +24,7 @@ import Data.Tuple
 import Data.Word
 import GHC.Stack (HasCallStack)
 import Network.AMQP.Extended
+import Network.RabbitMqAdmin
 import System.IO
 import Testlib.Ports qualified as Ports
 import Testlib.Types
@@ -62,41 +63,10 @@ deleteAllRabbitMQQueues rc resource = do
             adminPort = fromIntegral rc.adminPort,
             vHost = T.pack resource.berVHost
           }
-  _client <- mkRabbitMqAdminClientEnv opts
+  client <- mkRabbitMqAdminClientEnv opts
+  x <- listQueuesByVHost client (T.pack resource.berVHost)
+  print ("queues", x)
   pure ()
-
--- req <- amqRequest "/api/queues"
--- res <- submit "GET" req
--- qdescs <- res.json & asList
--- queues <-
---   catMaybes
---     <$> for
---       qdescs
---       ( \q -> do
---           name <- q %. "name" & asString
---           vhost <- q %. "vhost" & asString
---           pure $
---             if vhost == resource.berVHost
---               then Just name
---               else Nothing
---       )
--- let ue s = C8.unpack (urlEncode True (C8.pack s))
--- for_ queues $ \queue -> do
---   let path = "/api/queues/" <> ue resource.berVHost <> "/" <> ue queue
---   dreq <- amqRequest path
---   dres <- submit "DELETE" dreq
---   when (dres.status /= 204) $ do
---     liftIO $ putStrLn $ prettyResponse dres
---     failApp $
---       "Failed to delete amq queue " <> resource.berVHost <> " " <> queue
--- where
---   amqRequest path = do
---     rc <- asks (.rabbitMQConfig)
---     username <- asks (.amqUsername)
---     password <- asks (.amqPassword)
---     req <- liftIO . HTTP.parseRequest $ "http://" <> rc.host <> ":" <> show rc.adminPort <> path
---     let token = C8.unpack $ Base64.encode (toByteString' (stringUtf8 (username <> ":" <> password)))
---     pure $ req & addHeader "Authorization" ("Basic " <> token)
 
 backendResources :: [DynamicBackendConfig] -> Set.Set BackendResource
 backendResources dynConfs =
