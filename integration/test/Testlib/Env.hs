@@ -4,120 +4,21 @@ module Testlib.Env where
 
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
-import Data.Aeson hiding ((.=))
-import Data.ByteString (ByteString)
 import Data.Functor
 import Data.IORef
-import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
-import Data.String
-import Data.Word
 import Data.Yaml qualified as Yaml
-import GHC.Generics
 import Network.HTTP.Client qualified as HTTP
-import System.Environment
 import System.Exit
 import System.FilePath
 import System.IO
 import System.IO.Temp
 import Testlib.Prekeys
 import Testlib.ResourcePool
-import Testlib.Service
+import Testlib.Types
 import Prelude
-
--- | Initialised once per test.
-data Env = Env
-  { serviceMap :: Map String ServiceMap,
-    domain1 :: String,
-    domain2 :: String,
-    dynamicDomains :: [String],
-    defaultAPIVersion :: Int,
-    manager :: HTTP.Manager,
-    servicesCwdBase :: Maybe FilePath,
-    removalKeyPath :: FilePath,
-    prekeys :: IORef [(Int, String)],
-    lastPrekeys :: IORef [String],
-    mls :: IORef MLSState,
-    resourcePool :: ResourcePool BackendResource,
-    amqUsername :: String,
-    amqPassword :: String,
-    rabbitMQConfig :: RabbitMQConfig
-  }
-
--- | Initialised once per testsuite.
-data GlobalEnv = GlobalEnv
-  { gServiceMap :: Map String ServiceMap,
-    gDomain1 :: String,
-    gDomain2 :: String,
-    gDynamicDomains :: [String],
-    gDefaultAPIVersion :: Int,
-    gManager :: HTTP.Manager,
-    gServicesCwdBase :: Maybe FilePath,
-    gRemovalKeyPath :: FilePath,
-    gBackendResourcePool :: ResourcePool BackendResource,
-    gamqUsername :: String,
-    gamqPassword :: String,
-    gRabbitMQConfig :: RabbitMQConfig
-  }
-
-data IntegrationConfig = IntegrationConfig
-  { backendOne :: BackendConfig,
-    backendTwo :: BackendConfig,
-    dynamicBackends :: Map String DynamicBackendConfig,
-    rabbitmq :: RabbitMQConfig,
-    cassandra :: HostPort
-  }
-  deriving (Show, Generic)
-
-instance FromJSON IntegrationConfig where
-  parseJSON =
-    withObject "IntegrationConfig" $ \o ->
-      IntegrationConfig
-        <$> parseJSON (Object o)
-        <*> o .: "backendTwo"
-        <*> o .: "dynamicBackends"
-        <*> o .: "rabbitmq"
-        <*> o .: "cassandra"
-
-data ServiceMap = ServiceMap
-  { brig :: HostPort,
-    backgroundWorker :: HostPort,
-    cannon :: HostPort,
-    cargohold :: HostPort,
-    federatorInternal :: HostPort,
-    federatorExternal :: HostPort,
-    galley :: HostPort,
-    gundeck :: HostPort,
-    nginz :: HostPort,
-    spar :: HostPort,
-    proxy :: HostPort,
-    stern :: HostPort
-  }
-  deriving (Show, Generic)
-
-instance FromJSON ServiceMap
-
-data BackendConfig = BackendConfig
-  { beServiceMap :: ServiceMap,
-    originDomain :: String
-  }
-  deriving (Show, Generic)
-
-instance FromJSON BackendConfig where
-  parseJSON v =
-    BackendConfig
-      <$> parseJSON v
-      <*> withObject "BackendConfig" (\ob -> ob .: fromString "originDomain") v
-
-data HostPort = HostPort
-  { host :: String,
-    port :: Word16
-  }
-  deriving (Show, Generic)
-
-instance FromJSON HostPort
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
@@ -130,19 +31,6 @@ serviceHostPort m Spar = m.spar
 serviceHostPort m BackgroundWorker = m.backgroundWorker
 serviceHostPort m Stern = m.stern
 serviceHostPort m FederatorInternal = m.federatorInternal
-
-data RabbitMQConfig = RabbitMQConfig
-  { host :: String,
-    adminPort :: Word16
-  }
-  deriving (Show)
-
-instance FromJSON RabbitMQConfig where
-  parseJSON =
-    withObject "RabbitMQConfig" $ \ob ->
-      RabbitMQConfig
-        <$> ob .: fromString "host"
-        <*> ob .: fromString "adminPort"
 
 mkGlobalEnv :: FilePath -> IO GlobalEnv
 mkGlobalEnv cfgFile = do
@@ -160,11 +48,13 @@ mkGlobalEnv cfgFile = do
             then Just (joinPath (init ps))
             else Nothing
 
-  gamqUsername <- getEnv "RABBITMQ_USERNAME"
-  gamqPassword <- getEnv "RABBITMQ_PASSWORD"
-
   manager <- HTTP.newManager HTTP.defaultManagerSettings
-  resourcePool <- createBackendResourcePool intConfig.cassandra.host intConfig.cassandra.port (Map.elems intConfig.dynamicBackends)
+  resourcePool <-
+    createBackendResourcePool
+      intConfig.cassandra.host
+      intConfig.cassandra.port
+      (Map.elems intConfig.dynamicBackends)
+      intConfig.rabbitmq
   pure
     GlobalEnv
       { gServiceMap =
@@ -180,8 +70,6 @@ mkGlobalEnv cfgFile = do
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gRemovalKeyPath = error "Uninitialised removal key path",
         gBackendResourcePool = resourcePool,
-        gamqUsername = gamqUsername,
-        gamqPassword = gamqPassword,
         gRabbitMQConfig = intConfig.rabbitmq
       }
 
@@ -205,8 +93,6 @@ mkEnv ge = do
           lastPrekeys = lpks,
           mls = mls,
           resourcePool = ge.gBackendResourcePool,
-          amqUsername = ge.gamqUsername,
-          amqPassword = ge.gamqPassword,
           rabbitMQConfig = ge.gRabbitMQConfig
         }
 
@@ -222,18 +108,6 @@ create ioRef =
         Nothing -> error "No resources available"
         Just (r, s') -> (s', r)
 
-data MLSState = MLSState
-  { baseDir :: FilePath,
-    members :: Set ClientIdentity,
-    -- | users expected to receive a welcome message after the next commit
-    newMembers :: Set ClientIdentity,
-    groupId :: Maybe String,
-    convId :: Maybe Value,
-    clientGroupState :: Map ClientIdentity ByteString,
-    epoch :: Word64
-  }
-  deriving (Show)
-
 mkMLSState :: Codensity IO MLSState
 mkMLSState = Codensity $ \k ->
   withSystemTempDirectory "mls" $ \tmp -> do
@@ -247,10 +121,3 @@ mkMLSState = Codensity $ \k ->
           clientGroupState = mempty,
           epoch = 0
         }
-
-data ClientIdentity = ClientIdentity
-  { domain :: String,
-    user :: String,
-    client :: String
-  }
-  deriving (Show, Eq, Ord)

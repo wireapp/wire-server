@@ -14,31 +14,20 @@ import Control.Concurrent
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
-import Data.Aeson
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
 import Data.Set qualified as Set
 import Data.String
-import Data.Text (Text)
-import Data.Text qualified as Text
+import Data.Text qualified as T
 import Data.Tuple
 import Data.Word
-import Database.CQL.IO
-import Database.CQL.IO qualified as Cas
-import Database.CQL.Protocol qualified as Cas
-import GHC.Generics hiding (R)
 import GHC.Stack (HasCallStack)
+import Network.AMQP.Extended
 import System.IO
 import Testlib.Ports qualified as Ports
-import Testlib.Service
+import Testlib.Types
 import Prelude
-
-data ResourcePool a = ResourcePool
-  { sem :: QSemN,
-    resources :: IORef (Set.Set a),
-    onAcquire :: a -> IO ()
-  }
 
 acquireResources :: forall m a. (Ord a, MonadIO m, MonadMask m, HasCallStack) => Int -> ResourcePool a -> Codensity m [a]
 acquireResources n pool = Codensity $ \f -> bracket acquire release $ \s -> do
@@ -56,19 +45,24 @@ acquireResources n pool = Codensity $ \f -> bracket acquire release $ \s -> do
       waitQSemN pool.sem n
       atomicModifyIORef pool.resources $ swap . Set.splitAt n
 
-createBackendResourcePool :: String -> Word16 -> [DynamicBackendConfig] -> IO (ResourcePool BackendResource)
-createBackendResourcePool cassandraHost cassandraPort dynConfs =
+createBackendResourcePool :: String -> Word16 -> [DynamicBackendConfig] -> RabbitMQConfig -> IO (ResourcePool BackendResource)
+createBackendResourcePool _cassandraHost _cassandraPort dynConfs rabbitmq =
   let resources = backendResources dynConfs
    in ResourcePool
         <$> newQSemN (length dynConfs)
         <*> newIORef resources
-        <*> pure
-          ( do
-              deleteAllRabbitMQQueues
-          )
+        <*> pure (deleteAllRabbitMQQueues rabbitmq)
 
-deleteAllRabbitMQQueues :: BackendResource -> IO ()
-deleteAllRabbitMQQueues resource = do
+deleteAllRabbitMQQueues :: RabbitMQConfig -> BackendResource -> IO ()
+deleteAllRabbitMQQueues rc resource = do
+  let opts =
+        RabbitMqAdminOpts
+          { host = rc.host,
+            port = 0,
+            adminPort = fromIntegral rc.adminPort,
+            vHost = T.pack resource.berVHost
+          }
+  _client <- mkRabbitMqAdminClientEnv opts
   pure ()
 
 -- req <- amqRequest "/api/queues"
@@ -103,44 +97,6 @@ deleteAllRabbitMQQueues resource = do
 --     req <- liftIO . HTTP.parseRequest $ "http://" <> rc.host <> ":" <> show rc.adminPort <> path
 --     let token = C8.unpack $ Base64.encode (toByteString' (stringUtf8 (username <> ":" <> password)))
 --     pure $ req & addHeader "Authorization" ("Basic " <> token)
-
-data BackendResource = BackendResource
-  { berName :: BackendName,
-    berBrigKeyspace :: String,
-    berGalleyKeyspace :: String,
-    berSparKeyspace :: String,
-    berGundeckKeyspace :: String,
-    berElasticsearchIndex :: String,
-    berFederatorInternal :: Word16,
-    berFederatorExternal :: Word16,
-    berDomain :: String,
-    berAwsUserJournalQueue :: String,
-    berAwsPrekeyTable :: String,
-    berAwsS3Bucket :: String,
-    berAwsQueueName :: String,
-    berBrigInternalEvents :: String,
-    berEmailSMSSesQueue :: String,
-    berEmailSMSEmailSender :: String,
-    berGalleyJournal :: String,
-    berVHost :: String,
-    berNginzSslPort :: Word16,
-    berNginzHttp2Port :: Word16,
-    berInternalServicePorts :: forall a. Num a => Service -> a
-  }
-
-instance Eq BackendResource where
-  a == b = a.berName == b.berName
-
-instance Ord BackendResource where
-  a `compare` b = a.berName `compare` b.berName
-
-data DynamicBackendConfig = DynamicBackendConfig
-  { domain :: String,
-    federatorExternalPort :: Word16
-  }
-  deriving (Show, Generic)
-
-instance FromJSON DynamicBackendConfig
 
 backendResources :: [DynamicBackendConfig] -> Set.Set BackendResource
 backendResources dynConfs =
