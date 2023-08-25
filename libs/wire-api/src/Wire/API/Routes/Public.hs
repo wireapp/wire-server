@@ -90,8 +90,16 @@ data ZType
   | -- | (Typically short-lived) access token.
     ZAuthAccess
 
+class HasTokenType (ztype :: ZType) where
+  -- | The expected value of the "Z-Type" header.
+  tokenType :: Maybe ByteString
+  tokenType = Nothing
+
 class
-  (KnownSymbol (ZHeader ztype), FromHttpApiData (ZParam ztype)) =>
+  ( KnownSymbol (ZHeader ztype),
+    FromHttpApiData (ZParam ztype),
+    HasTokenType ztype
+  ) =>
   IsZType (ztype :: ZType) ctx
   where
   type ZHeader ztype :: Symbol
@@ -100,12 +108,7 @@ class
 
   qualifyZParam :: Context ctx -> ZParam ztype -> ZQualifiedParam ztype
 
-class HasTokenType ztype where
-  -- | The expected value of the "Z-Type" header.
-  tokenType :: Maybe ByteString
-
-instance {-# OVERLAPPABLE #-} HasTokenType ztype where
-  tokenType = Nothing
+instance HasTokenType 'ZLocalAuthUser
 
 instance HasContextEntry ctx Domain => IsZType 'ZLocalAuthUser ctx where
   type ZHeader 'ZLocalAuthUser = "Z-User"
@@ -114,12 +117,16 @@ instance HasContextEntry ctx Domain => IsZType 'ZLocalAuthUser ctx where
 
   qualifyZParam ctx = toLocalUnsafe (getContextEntry ctx)
 
+instance HasTokenType 'ZAuthUser
+
 instance IsZType 'ZAuthUser ctx where
   type ZHeader 'ZAuthUser = "Z-User"
   type ZParam 'ZAuthUser = UserId
   type ZQualifiedParam 'ZAuthUser = UserId
 
   qualifyZParam _ = id
+
+instance HasTokenType 'ZAuthClient
 
 instance IsZType 'ZAuthClient ctx where
   type ZHeader 'ZAuthClient = "Z-Client"
@@ -128,12 +135,17 @@ instance IsZType 'ZAuthClient ctx where
 
   qualifyZParam _ = id
 
+instance HasTokenType 'ZAuthConn
+
 instance IsZType 'ZAuthConn ctx where
   type ZHeader 'ZAuthConn = "Z-Connection"
   type ZParam 'ZAuthConn = ConnId
   type ZQualifiedParam 'ZAuthConn = ConnId
 
   qualifyZParam _ = id
+
+instance HasTokenType 'ZAuthBot where
+  tokenType = Just "bot"
 
 instance IsZType 'ZAuthBot ctx where
   type ZHeader 'ZAuthBot = "Z-Bot"
@@ -142,6 +154,8 @@ instance IsZType 'ZAuthBot ctx where
 
   qualifyZParam _ = id
 
+instance HasTokenType 'ZAuthConv
+
 instance IsZType 'ZAuthConv ctx where
   type ZHeader 'ZAuthConv = "Z-Conversation"
   type ZParam 'ZAuthConv = ConvId
@@ -149,8 +163,8 @@ instance IsZType 'ZAuthConv ctx where
 
   qualifyZParam _ = id
 
-instance HasTokenType 'ZAuthBot where
-  tokenType = Just "bot"
+instance HasTokenType 'ZAuthProvider where
+  tokenType = Just "provider"
 
 instance IsZType 'ZAuthProvider ctx where
   type ZHeader 'ZAuthProvider = "Z-Provider"
@@ -159,18 +173,15 @@ instance IsZType 'ZAuthProvider ctx where
 
   qualifyZParam _ = id
 
+instance HasTokenType 'ZAuthAccess where
+  tokenType = Just "access"
+
 instance IsZType 'ZAuthAccess ctx where
   type ZHeader 'ZAuthAccess = "Z-User"
   type ZParam 'ZAuthAccess = UserId
   type ZQualifiedParam 'ZAuthAccess = UserId
 
   qualifyZParam _ = id
-
-instance HasTokenType 'ZAuthProvider where
-  tokenType = Just "provider"
-
-instance HasTokenType 'ZAuthAccess where
-  tokenType = Just "access"
 
 data ZAuthServant (ztype :: ZType) (opts :: [Type])
 
