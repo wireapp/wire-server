@@ -32,9 +32,9 @@ testDefederationNonFullyConnectedGraph = do
         setField "optSettings.setFederationStrategy" "allowDynamic"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
-    [ def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig}
+    [ def {brigCfg = setFederationConfig},
+      def {brigCfg = setFederationConfig},
+      def {brigCfg = setFederationConfig}
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains

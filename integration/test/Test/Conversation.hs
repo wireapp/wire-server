@@ -3,7 +3,7 @@
 
 module Test.Conversation where
 
-import API.Brig (getConnection)
+import API.Brig (getConnection, getConnections, postConnection)
 import API.BrigInternal
 import API.Galley
 import API.GalleyInternal
@@ -13,12 +13,13 @@ import Control.Concurrent (threadDelay)
 import Data.Aeson qualified as Aeson
 import GHC.Stack
 import SetupHelpers
+import Testlib.One2One (generateRemoteAndConvIdWithDomain)
 import Testlib.Prelude
 
 testDynamicBackendsFullyConnectedWhenAllowAll :: HasCallStack => App ()
 testDynamicBackendsFullyConnectedWhenAllowAll = do
   let overrides =
-        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
+        def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
           <> fullSearchWithAll
   startDynamicBackends [overrides, overrides, overrides] $ \dynDomains -> do
     [domainA, domainB, domainC] <- pure dynDomains
@@ -41,7 +42,7 @@ testDynamicBackendsNotFederating :: HasCallStack => App ()
 testDynamicBackendsNotFederating = do
   let overrides =
         def
-          { dbBrig =
+          { brigCfg =
               setField "optSettings.setFederationStrategy" "allowNone"
           }
   startDynamicBackends [overrides, overrides, overrides] $
@@ -61,9 +62,9 @@ testDynamicBackendsFullyConnectedWhenAllowDynamic = do
         setField "optSettings.setFederationStrategy" "allowDynamic"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
-    [ def {dbBrig = overrides},
-      def {dbBrig = overrides},
-      def {dbBrig = overrides}
+    [ def {brigCfg = overrides},
+      def {brigCfg = overrides},
+      def {brigCfg = overrides}
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
@@ -85,7 +86,7 @@ testDynamicBackendsNotFullyConnected :: HasCallStack => App ()
 testDynamicBackendsNotFullyConnected = do
   let overrides =
         def
-          { dbBrig =
+          { brigCfg =
               setField "optSettings.setFederationStrategy" "allowDynamic"
                 >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
           }
@@ -137,9 +138,9 @@ testCreateConversationFullyConnected = do
         setField "optSettings.setFederationStrategy" "allowDynamic"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
-    [ def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig}
+    [ def {brigCfg = setFederationConfig},
+      def {brigCfg = setFederationConfig},
+      def {brigCfg = setFederationConfig}
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
@@ -154,9 +155,9 @@ testCreateConversationNonFullyConnected = do
         setField "optSettings.setFederationStrategy" "allowDynamic"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
-    [ def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig}
+    [ def {brigCfg = setFederationConfig},
+      def {brigCfg = setFederationConfig},
+      def {brigCfg = setFederationConfig}
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
@@ -176,8 +177,8 @@ testDefederationGroupConversation = do
         setField "optSettings.setFederationStrategy" "allowDynamic"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
-    [ def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig}
+    [ def {brigCfg = setFederationConfig},
+      def {brigCfg = setFederationConfig}
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB] <- pure dynDomains
@@ -241,8 +242,8 @@ testDefederationOneOnOne = do
         setField "optSettings.setFederationStrategy" "allowDynamic"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
-    [ def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig}
+    [ def {brigCfg = setFederationConfig},
+      def {brigCfg = setFederationConfig}
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB] <- pure dynDomains
@@ -336,7 +337,7 @@ testAddMembersNonFullyConnectedProteus = do
 testConvWithUnreachableRemoteUsers :: HasCallStack => App ()
 testConvWithUnreachableRemoteUsers = do
   let overrides =
-        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
+        def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
           <> fullSearchWithAll
   ([alice, alex, bob, charlie, dylan], domains) <-
     startDynamicBackends [overrides, overrides] $ \domains -> do
@@ -357,7 +358,7 @@ testConvWithUnreachableRemoteUsers = do
 testAddReachableWithUnreachableRemoteUsers :: HasCallStack => App ()
 testAddReachableWithUnreachableRemoteUsers = do
   let overrides =
-        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
+        def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
           <> fullSearchWithAll
   ([alex, bob], conv, domains) <-
     startDynamicBackends [overrides, overrides] $ \domains -> do
@@ -383,7 +384,7 @@ testAddReachableWithUnreachableRemoteUsers = do
 testAddUnreachable :: HasCallStack => App ()
 testAddUnreachable = do
   let overrides =
-        def {dbBrig = setField "optSettings.setFederationStrategy" "allowAll"}
+        def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
           <> fullSearchWithAll
   ([alex, charlie], [charlieDomain, dylanDomain], conv) <-
     startDynamicBackends [overrides, overrides] $ \domains -> do
@@ -406,7 +407,7 @@ testAddingUserNonFullyConnectedFederation :: HasCallStack => App ()
 testAddingUserNonFullyConnectedFederation = do
   let overrides =
         def
-          { dbBrig =
+          { brigCfg =
               setField "optSettings.setFederationStrategy" "allowDynamic"
           }
   startDynamicBackends [overrides] $ \[dynBackend] -> do
@@ -436,3 +437,21 @@ testAddingUserNonFullyConnectedFederation = do
     bindResponse (addMembers alice conv [bobId, charlieId]) $ \resp -> do
       resp.status `shouldMatchInt` 409
       resp.json %. "non_federating_backends" `shouldMatchSet` [other, dynBackend]
+
+testGetOneOnOneConvInStatusSentFromRemote :: App ()
+testGetOneOnOneConvInStatusSentFromRemote = do
+  d1User <- randomUser OwnDomain def
+  let shouldBeLocal = True
+  (d2Usr, d2ConvId) <- generateRemoteAndConvIdWithDomain OtherDomain (not shouldBeLocal) d1User
+  bindResponse (postConnection d1User d2Usr) $ \r -> do
+    r.status `shouldMatchInt` 201
+    r.json %. "status" `shouldMatch` "sent"
+  bindResponse (listConversationIds d1User def) $ \r -> do
+    r.status `shouldMatchInt` 200
+    convIds <- r.json %. "qualified_conversations" & asList
+    filter ((==) d2ConvId) convIds `shouldMatch` [d2ConvId]
+  bindResponse (getConnections d1User) $ \r -> do
+    qConvIds <- r.json %. "connections" & asList >>= traverse (%. "qualified_conversation")
+    filter ((==) d2ConvId) qConvIds `shouldMatch` [d2ConvId]
+  resp <- getConversation d1User d2ConvId
+  resp.status `shouldMatchInt` 200

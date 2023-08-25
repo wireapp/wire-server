@@ -106,7 +106,7 @@ addFullSearchFor domains val =
 fullSearchWithAll :: ServiceOverrides
 fullSearchWithAll =
   def
-    { dbBrig = \val -> do
+    { brigCfg = \val -> do
         ownDomain <- asString =<< val %. "optSettings.setFederationDomain"
         env <- ask
         let remoteDomains = List.delete ownDomain $ [env.domain1, env.domain2] <> env.dynamicDomains
@@ -119,9 +119,9 @@ withFederatingBackendsAllowDynamic n k = do
         setField "optSettings.setFederationStrategy" "allowDynamic"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
-    [ def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig}
+    [ def {brigCfg = setFederationConfig},
+      def {brigCfg = setFederationConfig},
+      def {brigCfg = setFederationConfig}
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains

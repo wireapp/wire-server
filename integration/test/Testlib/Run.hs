@@ -23,6 +23,7 @@ import Testlib.Env
 import Testlib.JSON
 import Testlib.Options
 import Testlib.Printing
+import Testlib.Service
 import Testlib.Types
 import Text.Printf
 import UnliftIO.Async
