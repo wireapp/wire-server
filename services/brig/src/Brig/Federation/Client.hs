@@ -41,7 +41,7 @@ import Network.AMQP qualified as Q
 import System.Logger.Class qualified as Log
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
-import Wire.API.Federation.BackendNotifications
+import Wire.API.BackgroundWorker
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 import Wire.API.User

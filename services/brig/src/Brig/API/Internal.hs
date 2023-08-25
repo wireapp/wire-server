@@ -87,7 +87,7 @@ import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API
-import Wire.API.Federation.BackendNotifications
+import Wire.API.BackgroundWorker
 import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage

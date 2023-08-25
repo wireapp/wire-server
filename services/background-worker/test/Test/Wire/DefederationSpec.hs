@@ -9,7 +9,7 @@ import Test.HUnit.Lang
 import Test.Hspec
 import Test.Wire.Util
 import Wire.API.Federation.API.Common
-import Wire.API.Federation.BackendNotifications
+import Wire.API.BackgroundWorker
 import Wire.BackgroundWorker.Util
 import Wire.Defederation
 

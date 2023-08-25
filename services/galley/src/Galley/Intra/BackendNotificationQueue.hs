@@ -17,7 +17,7 @@ import Polysemy
 import Polysemy.Input
 import System.Logger.Class qualified as Log
 import UnliftIO.Timeout (timeout)
-import Wire.API.Federation.BackendNotifications
+import Wire.API.BackgroundWorker
 import Wire.API.Federation.Error
 
 interpretBackendNotificationQueueAccess ::

@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Wire.API.Federation.BackendNotifications where
+module Wire.API.BackgroundWorker where
 
 import Control.Exception
 import Control.Monad.Except
@@ -84,13 +84,11 @@ enqueue channel originDomain targetDomain deliveryMode (FedQueueClient action) =
 routingKey :: Text -> Text
 routingKey t = "backend-notifications." <> t
 
--- Shared values for both brig and background worker so they are
+-- | Shared values for both brig and background worker so they are
 -- kept in sync about what types they are expecting and where
 -- they are stored in Rabbit.
 type DefederationDomain = Domain
 
--- | FUTUREWORK: This really doesn't belong here in a module about pushing backend-to-backend
--- notifications.  Maybe "Wire.API.Federation.Defederate"?  (Same for `ensureTLQueue`.)
 defederationQueue :: Text
 defederationQueue = "delete-federation"
 

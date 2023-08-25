@@ -39,7 +39,7 @@ import Util.Options
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
-import Wire.API.Federation.BackendNotifications
+import Wire.API.BackgroundWorker
 import Wire.API.RawJson
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env

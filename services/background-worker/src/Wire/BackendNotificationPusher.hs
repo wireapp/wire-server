@@ -19,7 +19,7 @@ import Network.RabbitMqAdmin
 import Prometheus
 import System.Logger.Class qualified as Log
 import UnliftIO
-import Wire.API.Federation.BackendNotifications
+import Wire.API.BackgroundWorker
 import Wire.API.Federation.Client
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options

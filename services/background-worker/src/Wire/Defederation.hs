@@ -16,7 +16,7 @@ import Network.HTTP.Client
 import Network.HTTP.Types
 import System.Logger.Class qualified as Log
 import Util.Options qualified as O
-import Wire.API.Federation.BackendNotifications
+import Wire.API.BackgroundWorker
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 

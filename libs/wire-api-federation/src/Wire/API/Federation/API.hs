@@ -42,7 +42,7 @@ import Servant.Client.Core
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.API.Galley
-import Wire.API.Federation.BackendNotifications
+import Wire.API.BackgroundWorker
 import Wire.API.Federation.Client
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named

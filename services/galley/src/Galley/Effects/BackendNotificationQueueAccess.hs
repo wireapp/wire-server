@@ -6,7 +6,7 @@ import Data.Qualified
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
-import Wire.API.Federation.BackendNotifications
+import Wire.API.BackgroundWorker
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 
