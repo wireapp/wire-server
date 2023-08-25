@@ -14,6 +14,7 @@ import Control.Concurrent
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
+import Data.Foldable (for_)
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
@@ -64,9 +65,9 @@ deleteAllRabbitMQQueues rc resource = do
             vHost = T.pack resource.berVHost
           }
   client <- mkRabbitMqAdminClientEnv opts
-  x <- listQueuesByVHost client (T.pack resource.berVHost)
-  print ("queues", x)
-  pure ()
+  queues <- listQueuesByVHost client (T.pack resource.berVHost)
+  for_ queues $ \queue ->
+    deleteQueue client (T.pack resource.berVHost) queue.name
 
 backendResources :: [DynamicBackendConfig] -> Set.Set BackendResource
 backendResources dynConfs =
