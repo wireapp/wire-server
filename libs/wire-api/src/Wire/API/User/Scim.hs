@@ -60,6 +60,7 @@ import Data.Json.Util ((#))
 import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.Proxy
+import Data.Singletons.TH
 import Data.Swagger hiding (Operation)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (UTCTime)
@@ -511,3 +512,84 @@ instance ToSchema ScimTokenList where
             .~ [ ("tokens", infoListSchema)
                ]
           & required .~ ["tokens"]
+
+-- This should support the following set of options
+-- {scim, saml, saml + email, saml + password - skim}
+-- This is used in `ValidExternalIdF f` with Const () and Identity functors.
+-- Const () means that there is no value in that position, and it can be ignored.
+-- Identity means that there is a value in that position, and it needs to be considered.
+data ExternalIdF a b c d e = ExternalIdF
+  { eSaml :: a SAML.UserRef,
+    eScim :: b Text,
+    eEmail :: c Email,
+    ePassword :: d Text,
+    eExternalId :: e Text
+  }
+  deriving (Generic)
+
+-- Konst exists to make the next set of declarations easier to write
+type Konst = Const ()
+
+data ExternalIdTag
+  = Scim
+  | Saml
+  | SamlAndEmail
+  | SamlAndPassword
+  | Email
+  | ExternalId
+  deriving (Show, Eq, Generic, Bounded, Enum)
+
+$(genSingletons [''ExternalIdTag])
+$(singDecideInstance ''ExternalIdTag)
+
+-- The types we actually want to use.
+-- This is using the closed form, giving us a single place to define
+-- what is and is not a valid combination of functors in ExternalIdF
+type family ValidExternalIdF (f :: ExternalIdTag) where
+  ValidExternalIdF 'Scim = ExternalIdF Konst Identity Konst Konst Konst
+  ValidExternalIdF 'Saml = ExternalIdF Identity Konst Konst Konst Konst
+  ValidExternalIdF 'SamlAndEmail = ExternalIdF Identity Konst Identity Konst Konst
+  ValidExternalIdF 'SamlAndPassword = ExternalIdF Identity Konst Konst Identity Konst
+  ValidExternalIdF 'Email = ExternalIdF Konst Konst Identity Konst Konst
+  ValidExternalIdF 'ExternalId = ExternalIdF Konst Konst Konst Konst Identity
+
+runValidExternalIdFEither ::
+  forall tag a.
+  SingI tag =>
+  (SAML.UserRef -> a) ->
+  (Email -> a) ->
+  ValidExternalIdF tag ->
+  a
+runValidExternalIdFEither doUref doEmail extId = case tag of
+  -- TODO!
+  SScim -> undefined $ runIdentity extId.eScim
+  SSaml -> doUref $ runIdentity extId.eSaml
+  SSamlAndEmail -> doUref $ runIdentity extId.eSaml
+  SSamlAndPassword -> doUref $ runIdentity extId.eSaml
+  SEmail -> doEmail $ runIdentity extId.eEmail
+  -- TODO!
+  SExternalId -> undefined $ runIdentity extId.eExternalId
+  where
+    tag = sing @tag
+
+runValidExternalIdFBoth ::
+  forall tag a.
+  SingI tag =>
+  (a -> a -> a) ->
+  (SAML.UserRef -> a) ->
+  (Email -> a) ->
+  ValidExternalIdF tag ->
+  a
+runValidExternalIdFBoth merge doUref doEmail extId = case tag of
+  -- TODO!
+  SScim -> undefined $ runIdentity extId.eScim
+  SSaml -> doUref $ runIdentity extId.eSaml
+  SSamlAndEmail ->
+    doUref (runIdentity extId.eSaml)
+      `merge` doEmail (runIdentity extId.eEmail)
+  SSamlAndPassword -> doUref $ runIdentity extId.eSaml
+  SEmail -> doEmail $ runIdentity extId.eEmail
+  -- TODO!
+  SExternalId -> undefined $ runIdentity extId.eExternalId
+  where
+    tag = sing @tag
