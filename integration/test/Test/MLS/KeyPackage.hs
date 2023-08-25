@@ -8,7 +8,7 @@ import Testlib.Prelude
 testDeleteKeyPackages :: App ()
 testDeleteKeyPackages = do
   alice <- randomUser OwnDomain def
-  alice1 <- createMLSClient alice
+  alice1 <- createMLSClient def alice
   kps <- replicateM 3 (uploadNewKeyPackage alice1)
 
   -- add an extra non-existing key package to the delete request
@@ -24,7 +24,7 @@ testDeleteKeyPackages = do
 testKeyPackageMultipleCiphersuites :: App ()
 testKeyPackageMultipleCiphersuites = do
   alice <- randomUser OwnDomain def
-  [alice1, alice2] <- replicateM 2 (createMLSClient alice)
+  [alice1, alice2] <- replicateM 2 (createMLSClient def alice)
 
   kp <- uploadNewKeyPackage alice2
 
@@ -51,7 +51,7 @@ testUnsupportedCiphersuite :: HasCallStack => App ()
 testUnsupportedCiphersuite = do
   setMLSCiphersuite (Ciphersuite "0x0002")
   bob <- randomUser OwnDomain def
-  bob1 <- createMLSClient bob
+  bob1 <- createMLSClient def bob
   (kp, _) <- generateKeyPackage bob1
   bindResponse (uploadKeyPackage bob1 kp) $ \resp -> do
     resp.status `shouldMatchInt` 400
