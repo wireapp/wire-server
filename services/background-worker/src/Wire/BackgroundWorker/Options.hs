@@ -31,10 +31,10 @@ data BackendNotificationsConfig = BackendNotificationsConfig
     -- any notification. This exists to ensure that exponential back-off doesn't
     -- cause wait times to be very big.
     pushBackoffMaxWait :: Int,
-    -- | Number of milliseconds between two calls to `getRemoteDomains`.  (good
+    -- | Number of microseconds between two calls to `getRemoteDomains`.  (good
     -- defaults are 3 seconds, or 30 seconds, but for testing we sometimes set
     -- it below 1 second.)
-    remotesRefreshIntervalMs :: Int
+    remotesRefreshInterval :: Int
   }
   deriving (Show, Generic)
 
