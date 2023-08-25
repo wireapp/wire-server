@@ -117,7 +117,6 @@ withFederatingBackendsAllowDynamic :: HasCallStack => Int -> ((String, String, S
 withFederatingBackendsAllowDynamic n k = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
     [ def {dbBrig = setFederationConfig},

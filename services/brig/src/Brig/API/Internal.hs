@@ -230,7 +230,6 @@ federationRemotesAPI =
 
 addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 addFederationRemote fedDomConf = do
-  assertNoDivergingDomainInConfigFiles fedDomConf
   result <- lift . wrapClient $ Data.addFederationRemote fedDomConf
   case result of
     Data.AddFederationRemoteSuccess -> pure ()
@@ -239,57 +238,13 @@ addFederationRemote fedDomConf = do
         "Maximum number of remote backends reached.  If you need to create more connections, \
         \please contact wire.com."
 
--- | Compile config file list into a map indexed by domains.  Use this to make sure the config
--- file is consistent (ie., no two entries for the same domain).
-remotesMapFromCfgFile :: AppT r (Map Domain FederationDomainConfig)
-remotesMapFromCfgFile = do
-  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
-  let dict = [(domain cnf, cnf) | cnf <- cfg]
-      merge c c' =
-        if c == c'
-          then c
-          else error $ "error in config file: conflicting parameters on domain: " <> show (c, c')
-  pure $ Map.fromListWith merge dict
-
--- | Return the config file list.  Use this to make sure the config file is consistent (ie.,
--- no two entries for the same domain).  Based on `remotesMapFromCfgFile`.
-remotesListFromCfgFile :: AppT r [FederationDomainConfig]
-remotesListFromCfgFile = Map.elems <$> remotesMapFromCfgFile
-
--- | If remote domain is registered in config file, the version that can be added to the
--- database must be the same.
-assertNoDivergingDomainInConfigFiles :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
-assertNoDivergingDomainInConfigFiles fedComConf = do
-  cfg <- lift remotesMapFromCfgFile
-  let diverges = case Map.lookup (domain fedComConf) cfg of
-        Nothing -> False
-        Just fedComConf' -> fedComConf' /= fedComConf
-  when diverges $ do
-    throwError . fedError . FederationUnexpectedError $
-      "keeping track of remote domains in the brig config file is deprecated, but as long as we \
-      \do that, adding a domain with different settings than in the config file is nto allowed.  want "
-        <> ( "Just "
-               <> cs (show fedComConf)
-               <> "or Nothing, "
-           )
-        <> ( "got "
-               <> cs (show (Map.lookup (domain fedComConf) cfg))
-           )
-
 getFederationRemotes :: ExceptT Brig.API.Error.Error (AppT r) FederationDomainConfigs
 getFederationRemotes = lift $ do
-  -- FUTUREWORK: we should solely rely on `db` in the future for remote domains; merging
-  -- remote domains from `cfg` is just for providing an easier, more robust migration path.
-  -- See
-  -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
-  -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
   db <- wrapClient Data.getFederationRemotes
-  (ms :: Maybe FederationStrategy, mf :: [FederationDomainConfig], mu :: Maybe Int) <- do
+  (ms :: Maybe FederationStrategy, mu :: Maybe Int) <- do
     cfg <- ask
-    domcfgs <- remotesListFromCfgFile -- (it's not very elegant to prove the env twice here, but this code is transitory.)
     pure
       ( setFederationStrategy (cfg ^. settings),
-        domcfgs,
         setFederationDomainConfigsUpdateFreq (cfg ^. settings)
       )
 
@@ -303,14 +258,13 @@ getFederationRemotes = lift $ do
 
   defFederationDomainConfigs
     & maybe id (\v cfg -> cfg {strategy = v}) ms
-    & (\cfg -> cfg {remotes = nub $ db <> mf})
+    & (\cfg -> cfg {remotes = db})
     & maybe id (\v cfg -> cfg {updateInterval = min 1 v}) mu
     & pure
 
 updateFederationRemote :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 updateFederationRemote dom fedcfg = do
   assertDomainIsNotUpdated dom fedcfg
-  assertNoDomainsFromConfigFiles dom
   (lift . wrapClient . Data.updateFederationRemote $ fedcfg) >>= \case
     True -> pure ()
     False ->
@@ -323,15 +277,6 @@ assertDomainIsNotUpdated dom fedcfg = do
     throwError . fedError . FederationUnexpectedError . cs $
       "federation domain of a given peer cannot be changed from " <> show (domain fedcfg) <> " to " <> show dom <> "."
 
--- | FUTUREWORK: should go away in the future; see 'getFederationRemotes'.
-assertNoDomainsFromConfigFiles :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
-assertNoDomainsFromConfigFiles dom = do
-  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
-  when (dom `elem` (domain <$> cfg)) $ do
-    throwError . fedError . FederationUnexpectedError $
-      "keeping track of remote domains in the brig config file is deprecated, but as long as we \
-      \do that, removing or updating items listed in the config file is not allowed."
-
 -- | Remove the entry from the database if present (or do nothing if not).  This responds with
 -- 533 if the entry was also present in the config file, but only *after* it has removed the
 -- entry from cassandra.
@@ -341,7 +286,6 @@ assertNoDomainsFromConfigFiles dom = do
 deleteFederationRemote :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemote dom = do
   lift . wrapClient . Data.deleteFederationRemote $ dom
-  assertNoDomainsFromConfigFiles dom
   env <- ask
   ownDomain <- viewFederationDomain
   remoteDomains <- fmap domain . remotes <$> getFederationRemotes

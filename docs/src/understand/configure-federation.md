@@ -506,9 +506,11 @@ search policy if you create an entry.
 #### If your instance has been federating before
 
 You only need to read this section if your instance has been
-federating with other instances prior to
-[PR#3260](https://github.com/wireapp/wire-server/pull/3260), and you
-are upgrading to the release containing that PR.
+federating with other instances prior to [Chart Release
+4.36.0](https://github.com/wireapp/wire-server/releases/tag/v2023-08-11),
+and you are upgrading to that PR.
+
+Ignore this section if your release is more recent than 4.38.0..
 
 From now on the federation policy set in the federator config under
 `federationStrategy` is ignored.  Instead, the federation strategy is

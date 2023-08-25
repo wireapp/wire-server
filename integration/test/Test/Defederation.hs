@@ -30,7 +30,6 @@ testDefederationNonFullyConnectedGraph :: HasCallStack => App ()
 testDefederationNonFullyConnectedGraph = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
     [ def {dbBrig = setFederationConfig},

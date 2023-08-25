@@ -59,7 +59,6 @@ testDynamicBackendsFullyConnectedWhenAllowDynamic :: HasCallStack => App ()
 testDynamicBackendsFullyConnectedWhenAllowDynamic = do
   let overrides =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
     [ def {dbBrig = overrides},
@@ -88,7 +87,6 @@ testDynamicBackendsNotFullyConnected = do
         def
           { dbBrig =
               setField "optSettings.setFederationStrategy" "allowDynamic"
-                >=> removeField "optSettings.setFederationDomainConfigs"
                 >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
           }
   startDynamicBackends [overrides, overrides, overrides] $
@@ -137,7 +135,6 @@ testCreateConversationFullyConnected :: HasCallStack => App ()
 testCreateConversationFullyConnected = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
     [ def {dbBrig = setFederationConfig},
@@ -155,7 +152,6 @@ testCreateConversationNonFullyConnected :: HasCallStack => App ()
 testCreateConversationNonFullyConnected = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
     [ def {dbBrig = setFederationConfig},
@@ -178,7 +174,6 @@ testDefederationGroupConversation :: HasCallStack => App ()
 testDefederationGroupConversation = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
     [ def {dbBrig = setFederationConfig},
@@ -244,7 +239,6 @@ testDefederationOneOnOne :: HasCallStack => App ()
 testDefederationOneOnOne = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
     [ def {dbBrig = setFederationConfig},
@@ -414,7 +408,6 @@ testAddingUserNonFullyConnectedFederation = do
         def
           { dbBrig =
               setField "optSettings.setFederationStrategy" "allowDynamic"
-                >=> removeField "optSettings.setFederationDomainConfigs"
           }
   startDynamicBackends [overrides] $ \[dynBackend] -> do
     own <- asString OwnDomain

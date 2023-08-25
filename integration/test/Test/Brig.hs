@@ -29,12 +29,14 @@ testSearchContactForExternalUsers = do
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
   otherDomain <- asString OtherDomain
-  let overrides =
+  withModifiedService Brig overrides $ \_ -> do
+    do
+      TODO
         ( setField
             "optSettings.setFederationDomainConfigs"
             [object ["domain" .= otherDomain, "search_policy" .= "full_search"]]
         )
-  withModifiedService Brig overrides $ \_ -> do
+
     let parseFedConns :: HasCallStack => Response -> App [Value]
         parseFedConns resp =
           -- Pick out the list of federation domain configs
@@ -183,7 +185,6 @@ testRemoteUserSearch :: HasCallStack => App ()
 testRemoteUserSearch = do
   let overrides =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends [def {dbBrig = overrides}, def {dbBrig = overrides}] $ \dynDomains -> do
     domains@[d1, d2] <- pure dynDomains

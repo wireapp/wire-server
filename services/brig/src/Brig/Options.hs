@@ -552,13 +552,6 @@ data Settings = Settings
     -- | See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
     -- default: AllowNone
     setFederationStrategy :: !(Maybe FederationStrategy),
-    -- | 'setFederationDomainConfigs' is introduced in
-    -- https://github.com/wireapp/wire-server/pull/3260 for the sole purpose of transitioning
-    -- to dynamic federation remote configuration.  See
-    -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
-    -- for details.
-    -- default: []
-    setFederationDomainConfigs :: !(Maybe [FederationDomainConfig]),
     -- | In seconds.  Default: 10 seconds.  Values <1 are silently replaced by 1.  See
     -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
     setFederationDomainConfigsUpdateFreq :: !(Maybe Int),
@@ -913,7 +906,6 @@ Lens.makeLensesFor
     ("setSqsThrottleMillis", "sqsThrottleMillis"),
     ("setSftStaticUrl", "sftStaticUrl"),
     ("setSftListAllServers", "sftListAllServers"),
-    ("setFederationDomainConfigs", "federationDomainConfigs"),
     ("setEnableDevelopmentVersions", "enableDevelopmentVersions"),
     ("setRestrictUserCreation", "restrictUserCreation"),
     ("setEnableMLS", "enableMLS"),
