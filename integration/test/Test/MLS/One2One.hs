@@ -71,7 +71,7 @@ testMLSOne2One scenario = do
   let otherDomain = one2OneScenarioDomain scenario
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
-  [alice1, bob1] <- traverse createMLSClient [alice, bob]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   traverse_ uploadNewKeyPackage [bob1]
 
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200

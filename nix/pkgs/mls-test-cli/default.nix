@@ -13,8 +13,8 @@ let
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "mls-test-cli";
-    rev = "cc815d71a1d9485265b7ae158daf7b27badedee6";
-    sha256 = "sha256-CJoc20pOtsxAQNCA3qhv8NtPbzZ4yCIMvuhlgcqPrds=";
+    rev = "d16b4e9d4e93b731e81cd04a00620f2c6a36e696";
+    sha256 = "sha256-2p5m6R80dnyJShAvjmO+ZbX8wxMtuFmvPnp9uX4eezc=";
   };
   cargoLockFile = builtins.toFile "cargo.lock" (builtins.readFile "${src}/Cargo.lock");
 in rustPlatform.buildRustPackage rec {
@@ -24,8 +24,8 @@ in rustPlatform.buildRustPackage rec {
   cargoLock = {
     lockFile = cargoLockFile;
     outputHashes = {
-      "hpke-0.10.0" = "sha256-6zyTb2c2DU4mXn9vRQe+lXNaeQ3JOVUz+BS15Xb2E+Y=";
-      "openmls-0.20.2" = "sha256-QgQb5Ts8TB2nwfxMss4qHCz096ijMXBxyq7q2ITyEGg=";
+      "hpke-0.10.0" = "sha256-T1+BFwX6allljNZ/8T3mrWhOejnUU27BiWQetqU+0fY=";
+      "openmls-1.0.0" = "sha256-s1ejM/aicFGvsKY7ajEun1Mc645/k8QVrE8YSbyD3Fg=";
       "safe_pqc_kyber-0.6.0" = "sha256-Ch1LA+by+ezf5RV0LDSQGC1o+IWKXk8IPvkwSrAos68=";
       "tls_codec-0.3.0" = "sha256-IO6tenXKkC14EoUDp/+DtFNOVzDfOlLu8K1EJI7sOzs=";
     };
