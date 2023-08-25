@@ -520,10 +520,9 @@ instance ToSchema ScimTokenList where
 -- Identity means that there is a value in that position, and it needs to be considered.
 data ExternalIdF a b c d e = ExternalIdF
   { eSaml :: a SAML.UserRef,
-    eScim :: b Text,
+    eScimExternalId :: b Text,
     eEmail :: c Email,
-    ePassword :: d Text,
-    eExternalId :: e Text
+    ePassword :: d Text
   }
   deriving (Generic)
 
@@ -531,12 +530,11 @@ data ExternalIdF a b c d e = ExternalIdF
 type Konst = Const ()
 
 data ExternalIdTag
-  = Scim
+  = ScimExternalId
   | Saml
   | SamlAndEmail
   | SamlAndPassword
   | Email
-  | ExternalId
   deriving (Show, Eq, Generic, Bounded, Enum)
 
 $(genSingletons [''ExternalIdTag])
@@ -545,13 +543,14 @@ $(singDecideInstance ''ExternalIdTag)
 -- The types we actually want to use.
 -- This is using the closed form, giving us a single place to define
 -- what is and is not a valid combination of functors in ExternalIdF
+{- ORMOLU_DISABLE -}
 type family ValidExternalIdF (f :: ExternalIdTag) where
-  ValidExternalIdF 'Scim = ExternalIdF Konst Identity Konst Konst Konst
-  ValidExternalIdF 'Saml = ExternalIdF Identity Konst Konst Konst Konst
-  ValidExternalIdF 'SamlAndEmail = ExternalIdF Identity Konst Identity Konst Konst
-  ValidExternalIdF 'SamlAndPassword = ExternalIdF Identity Konst Konst Identity Konst
-  ValidExternalIdF 'Email = ExternalIdF Konst Konst Identity Konst Konst
-  ValidExternalIdF 'ExternalId = ExternalIdF Konst Konst Konst Konst Identity
+  ValidExternalIdF 'ScimExternalId  = ExternalIdF Konst    Identity Konst    Konst
+  ValidExternalIdF 'Saml            = ExternalIdF Identity Konst    Konst    Konst
+  ValidExternalIdF 'SamlAndEmail    = ExternalIdF Identity Konst    Identity Konst
+  ValidExternalIdF 'SamlAndPassword = ExternalIdF Identity Konst    Konst    Identity
+  ValidExternalIdF 'Email           = ExternalIdF Konst    Konst    Identity Konst
+{- ORMOLU_ENABLE -}
 
 runValidExternalIdFEither ::
   forall tag a.
@@ -562,13 +561,11 @@ runValidExternalIdFEither ::
   a
 runValidExternalIdFEither doUref doEmail extId = case tag of
   -- TODO!
-  SScim -> undefined $ runIdentity extId.eScim
+  SScimExternalId -> undefined $ runIdentity extId.eScim
   SSaml -> doUref $ runIdentity extId.eSaml
   SSamlAndEmail -> doUref $ runIdentity extId.eSaml
   SSamlAndPassword -> doUref $ runIdentity extId.eSaml
   SEmail -> doEmail $ runIdentity extId.eEmail
-  -- TODO!
-  SExternalId -> undefined $ runIdentity extId.eExternalId
   where
     tag = sing @tag
 
