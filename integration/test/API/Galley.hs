@@ -263,3 +263,16 @@ getConversationCode user conv mbZHost = do
         & addQueryParams [("cnv", convId)]
         & maybe id zHost mbZHost
     )
+
+changeConversationName ::
+  (HasCallStack, MakesValue user, MakesValue conv, MakesValue name) =>
+  user ->
+  conv ->
+  name ->
+  App Response
+changeConversationName user qcnv name = do
+  (convDomain, convId) <- objQid qcnv
+  let path = joinHttpPath ["conversations", convDomain, convId, "name"]
+  nameReq <- make name
+  req <- baseRequest user Galley Versioned path
+  submit "PUT" (req & addJSONObject ["name" .= nameReq])
