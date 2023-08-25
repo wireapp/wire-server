@@ -143,13 +143,5 @@ releases:
         value: {{ .Values.federationDomain2 }}
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain2 }}
-      - name: brig.config.optSettings.setFederationDomainConfigs[0].domain
-        value: {{ .Values.federationDomain1 }}
-      - name: brig.config.optSettings.setFederationDomainConfigs[2].domain
-        value: {{ .Values.dynBackendDomain1 }}
-      - name: brig.config.optSettings.setFederationDomainConfigs[3].domain
-        value: {{ .Values.dynBackendDomain2 }}
-      - name: brig.config.optSettings.setFederationDomainConfigs[4].domain
-        value: {{ .Values.dynBackendDomain3 }}
     needs:
       - 'databases-ephemeral'

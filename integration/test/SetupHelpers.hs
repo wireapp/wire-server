@@ -92,17 +92,6 @@ randomUserId domain = do
   uid <- randomId
   pure $ object ["id" .= uid, "domain" .= d]
 
-addFullSearchFor :: [String] -> Value -> App Value
-addFullSearchFor domains val =
-  modifyField
-    "optSettings.setFederationDomainConfigs"
-    ( \configs -> do
-        cfg <- assertJust "" configs
-        xs <- cfg & asList
-        pure (xs <> [object ["domain" .= domain, "search_policy" .= "full_search"] | domain <- domains])
-    )
-    val
-
 fullSearchWithAll :: ServiceOverrides
 fullSearchWithAll =
   def

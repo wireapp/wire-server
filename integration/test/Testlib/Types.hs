@@ -249,7 +249,6 @@ defaultServiceOverridesToMap = ([minBound .. maxBound] <&> (,pure)) & Map.fromLi
 --    def
 --      { dbBrig =
 --          setField "optSettings.setFederationStrategy" "allowDynamic"
---            >=> removeField "optSettings.setFederationDomainConfigs"
 --      }
 --  withOverrides overrides defaultServiceOverridesToMap`
 withOverrides :: ServiceOverrides -> Map.Map Service (Value -> App Value) -> Map.Map Service (Value -> App Value)
