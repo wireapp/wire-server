@@ -1520,6 +1520,16 @@ getBotPreKeyIds brig bid =
       . header "Z-Type" "bot"
       . header "Z-Bot" (toByteString' bid)
 
+updateBotPrekeys :: Brig -> BotId -> [Prekey] -> Http ResponseLBS
+updateBotPrekeys brig bid prekeys =
+  post $
+    brig
+      . path "/bot/client/prekeys"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+      . contentJson
+      . body (RequestBodyLBS (encode (UpdateBotPrekeys prekeys)))
+
 --------------------------------------------------------------------------------
 -- DB Operations
 
@@ -2054,8 +2064,11 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
         qbuid = Qualified (botUserId bid) localDomain
     getBotSelf brig bid !!! const 200 === statusCode
     bot <- svcAssertBotCreated buf bid cid
-    liftIO $ assertEqual "bot client" (rsAddBotClient rs) (testBotClient bot)
+    liftIO $ assertEqual "bot client" rs.rsAddBotClient bot.testBotClient
     liftIO $ assertEqual "bot event" MemberJoin (evtType (rsAddBotEvent rs))
+    -- just check that these endpoints works
+    getBotPreKeyIds brig bid !!! const 200 === statusCode
+    updateBotPrekeys brig bid bot.testBotPrekeys !!! const 200 === statusCode
     -- Member join event for both users
     forM_ [ws1, ws2] $ \ws -> wsAssertMemberJoin ws qcid quid1 [qbuid]
     -- Member join event for the bot
@@ -2085,8 +2098,7 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
     assertEqual "colour" defaultAccentId (profileAccentId bp)
     assertEqual "assets" defServiceAssets (profileAssets bp)
   -- Check that the bot client exists and has prekeys
-  getBotPreKeyIds brig bid !!! const 200 === statusCode
-  let isBotPrekey = (`elem` testBotPrekeys bot) . prekeyData
+  let isBotPrekey = (`elem` bot.testBotPrekeys) . prekeyData
   getPreKey brig buid buid (rsAddBotClient rs) !!! do
     const 200 === statusCode
     const (Just True) === fmap isBotPrekey . responseJsonMaybe

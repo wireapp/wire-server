@@ -135,6 +135,7 @@ botAPI =
     :<|> Named @"bot-get-self" botGetSelf
     :<|> Named @"bot-delete-self" botDeleteSelf
     :<|> Named @"bot-list-prekeys" botListPrekeys
+    :<|> Named @"bot-update-prekeys" botUpdatePrekeys
 
 routesPublic ::
   ( Member GalleyProvider r,
@@ -283,11 +284,6 @@ routesPublic = do
         .&. jsonRequest @Public.UpdateServiceWhitelist
 
   -- Bot API -----------------------------------------------------------------
-
-  post "/bot/client/prekeys" (continue botUpdatePrekeysH) $
-    zauth ZAuthBot
-      .&> zauthBotId
-        .&. jsonRequest @Public.UpdateBotPrekeys
 
   get "/bot/client" (continue botGetClientH) $
     contentType "application" "json"
@@ -1006,13 +1002,9 @@ botListPrekeys bot = do
     Nothing -> pure []
     Just ci -> lift (wrapClient $ User.lookupPrekeyIds (botUserId bot) ci)
 
-botUpdatePrekeysH :: Member GalleyProvider r => BotId ::: JsonRequest Public.UpdateBotPrekeys -> (Handler r) Response
-botUpdatePrekeysH (bot ::: req) = do
-  guardSecondFactorDisabled (Just (botUserId bot))
-  empty <$ (botUpdatePrekeys bot =<< parseJsonBody req)
-
-botUpdatePrekeys :: BotId -> Public.UpdateBotPrekeys -> (Handler r) ()
+botUpdatePrekeys :: Member GalleyProvider r => BotId -> Public.UpdateBotPrekeys -> (Handler r) ()
 botUpdatePrekeys bot upd = do
+  guardSecondFactorDisabled (Just (botUserId bot))
   clt <- lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
   case clt of
     Nothing -> throwStd (errorToWai @'E.ClientNotFound)

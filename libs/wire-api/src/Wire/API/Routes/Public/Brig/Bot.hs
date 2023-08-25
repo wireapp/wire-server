@@ -96,6 +96,18 @@ type BotAPI =
                :> "prekeys"
                :> Get '[JSON] [PrekeyId]
            )
+    :<|> Named
+           "bot-update-prekeys"
+           ( Summary "Update prekeys for bot"
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'ClientNotFound
+               :> ZBot
+               :> "bot"
+               :> "client"
+               :> "prekeys"
+               :> ReqBody '[JSON] UpdateBotPrekeys
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
+           )
 
 data BotAPITag
 
