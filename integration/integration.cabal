@@ -143,9 +143,9 @@ library
     , bytestring-conversion
     , case-insensitive
     , containers
-    , cryptonite
     , cql
     , cql-io
+    , cryptonite
     , data-default
     , directory
     , errors
