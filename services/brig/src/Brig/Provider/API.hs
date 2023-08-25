@@ -93,7 +93,7 @@ import OpenSSL.PEM qualified as SSL
 import OpenSSL.RSA qualified as SSL
 import OpenSSL.Random (randBytes)
 import Polysemy
-import Servant (ServerT)
+import Servant (ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -131,6 +131,10 @@ import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 botAPI :: Member GalleyProvider r => ServerT BotAPI (Handler r)
 botAPI =
   Named @"add-bot" addBot
+    :<|> Named @"remove-bot" removeBot
+    :<|> Named @"bot-get-self" botGetSelf
+    :<|> Named @"bot-delete-self" botDeleteSelf
+    :<|> Named @"bot-list-prekeys" botListPrekeys
 
 routesPublic ::
   ( Member GalleyProvider r,
@@ -279,28 +283,6 @@ routesPublic = do
         .&. jsonRequest @Public.UpdateServiceWhitelist
 
   -- Bot API -----------------------------------------------------------------
-
-  delete "/conversations/:cnv/bots/:bot" (continue removeBotH) $
-    zauth ZAuthAccess
-      .&> zauthUserId
-        .&. zauthConnId
-        .&. capture "cnv"
-        .&. capture "bot"
-
-  get "/bot/self" (continue botGetSelfH) $
-    accept "application" "json"
-      .&> zauth ZAuthBot
-      .&> zauthBotId
-
-  delete "/bot/self" (continue botDeleteSelfH) $
-    zauth ZAuthBot
-      .&> zauthBotId
-        .&. zauthConvId
-
-  get "/bot/client/prekeys" (continue botListPrekeysH) $
-    accept "application" "json"
-      .&> zauth ZAuthBot
-      .&> zauthBotId
 
   post "/bot/client/prekeys" (continue botUpdatePrekeysH) $
     zauth ZAuthBot
@@ -887,6 +869,9 @@ updateServiceWhitelist uid con tid upd = do
       wrapClientE $ DB.deleteServiceWhitelist (Just tid) pid sid
       pure UpdateServiceWhitelistRespChanged
 
+--------------------------------------------------------------------------------
+-- Bot API
+
 addBot :: Member GalleyProvider r => UserId -> ConnId -> ConvId -> Public.AddBot -> (Handler r) Public.AddBotResponse
 addBot zuid zcon cid add = do
   guardSecondFactorDisabled (Just zuid)
@@ -906,18 +891,18 @@ addBot zuid zcon cid add = do
   guardConvAdmin cnv
   let mems = cnvMembers cnv
   unless (cnvType cnv == RegularConv) $
-    throwStd invalidConv
+    throwStd (errorToWai @'E.InvalidConversation)
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   unless (length (cmOthers mems) < maxSize - 1) $
-    throwStd tooManyMembers
+    throwStd (errorToWai @'E.TooManyConversationMembers)
   -- For team conversations: bots are not allowed in
   -- team-only conversations
   unless (Set.member ServiceAccessRole (cnvAccessRoles cnv)) $
-    throwStd invalidConv
+    throwStd (errorToWai @'E.InvalidConversation)
   -- Lookup the relevant service data
   scon <- wrapClientE (DB.lookupServiceConn pid sid) >>= maybeServiceNotFound
   unless (sconEnabled scon) $
-    throwStd serviceDisabled
+    throwStd (errorToWai @'E.ServiceDisabled)
   svp <- wrapClientE (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
   for_ (cnvTeam cnv) $ \tid -> do
     whitelisted <- wrapClientE $ DB.getServiceWhitelistStatus tid pid sid
@@ -971,13 +956,9 @@ addBot zuid zcon cid add = do
         Public.rsAddBotEvent = ev
       }
 
-removeBotH :: Member GalleyProvider r => UserId ::: ConnId ::: ConvId ::: BotId -> (Handler r) Response
-removeBotH (zusr ::: zcon ::: cid ::: bid) = do
-  guardSecondFactorDisabled (Just zusr)
-  maybe (setStatus status204 empty) json <$> removeBot zusr zcon cid bid
-
 removeBot :: Member GalleyProvider r => UserId -> ConnId -> ConvId -> BotId -> (Handler r) (Maybe Public.RemoveBotResponse)
 removeBot zusr zcon cid bid = do
+  guardSecondFactorDisabled (Just zusr)
   -- Get the conversation and check preconditions
   lcid <- qualifyLocal cid
   cnv <- lift (liftSem $ GalleyProvider.getConv zusr lcid) >>= maybeConvNotFound
@@ -989,7 +970,7 @@ removeBot zusr zcon cid bid = do
   guardConvAdmin cnv
   let mems = cnvMembers cnv
   unless (cnvType cnv == RegularConv) $
-    throwStd invalidConv
+    (throwStd (errorToWai @'E.InvalidConversation))
   -- Find the bot in the member list and delete it
   let busr = botUserId bid
   let bot = List.find ((== busr) . qUnqualified . omQualifiedId) (cmOthers mems)
@@ -1001,15 +982,7 @@ removeBot zusr zcon cid bid = do
 guardConvAdmin :: Conversation -> ExceptT Error (AppT r) ()
 guardConvAdmin conv = do
   let selfMember = cmSelf . cnvMembers $ conv
-  unless (memConvRoleName selfMember == roleNameWireAdmin) $ throwStd accessDenied
-
---------------------------------------------------------------------------------
--- Bot API
-
-botGetSelfH :: Member GalleyProvider r => BotId -> (Handler r) Response
-botGetSelfH bot = do
-  guardSecondFactorDisabled (Just (botUserId bot))
-  json <$> botGetSelf bot
+  unless (memConvRoleName selfMember == roleNameWireAdmin) $ (throwStd (errorToWai @'E.AccessDenied))
 
 botGetSelf :: BotId -> (Handler r) Public.UserProfile
 botGetSelf bot = do
@@ -1025,13 +998,9 @@ botGetClient :: BotId -> (AppT r) (Maybe Public.Client)
 botGetClient bot =
   listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
 
-botListPrekeysH :: Member GalleyProvider r => BotId -> (Handler r) Response
-botListPrekeysH bot = do
-  guardSecondFactorDisabled (Just (botUserId bot))
-  json <$> botListPrekeys bot
-
-botListPrekeys :: BotId -> (Handler r) [Public.PrekeyId]
+botListPrekeys :: Member GalleyProvider r => BotId -> (Handler r) [Public.PrekeyId]
 botListPrekeys bot = do
+  guardSecondFactorDisabled (Just (botUserId bot))
   clt <- lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
   case clientId <$> clt of
     Nothing -> pure []
@@ -1092,16 +1061,11 @@ botGetUserClients uid =
   where
     pubClient c = Public.PubClient (clientId c) (clientClass c)
 
-botDeleteSelfH :: Member GalleyProvider r => BotId ::: ConvId -> (Handler r) Response
-botDeleteSelfH (bid ::: cid) = do
-  guardSecondFactorDisabled (Just (botUserId bid))
-  empty <$ botDeleteSelf bid cid
-
 botDeleteSelf :: Member GalleyProvider r => BotId -> ConvId -> (Handler r) ()
 botDeleteSelf bid cid = do
   guardSecondFactorDisabled (Just (botUserId bid))
   bot <- lift . wrapClient $ User.lookupUser NoPendingInvitations (botUserId bid)
-  _ <- maybeInvalidBot (userService =<< bot)
+  _ <- maybe (throwStd (errorToWai @'E.InvalidBot)) pure $ (userService =<< bot)
   _ <- lift $ wrapHttpClient $ deleteBot (botUserId bid) Nothing bid cid
   pure ()
 
@@ -1116,7 +1080,7 @@ guardSecondFactorDisabled ::
   ExceptT Error (AppT r) ()
 guardSecondFactorDisabled mbUserId = do
   enabled <- lift $ liftSem $ (==) Feature.FeatureStatusEnabled . Feature.wsStatus . Feature.afcSndFactorPasswordChallenge <$> GalleyProvider.getAllFeatureConfigsForUser mbUserId
-  when enabled $ throwStd accessDenied
+  when enabled $ (throwStd (errorToWai @'E.AccessDenied))
 
 minRsaKeySize :: Int
 minRsaKeySize = 256 -- Bytes (= 2048 bits)
@@ -1227,9 +1191,6 @@ maybeBadCredentials = maybe (throwStd (errorToWai @'E.BadCredentials)) pure
 maybeInvalidServiceKey :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeInvalidServiceKey = maybe (throwStd invalidServiceKey) pure
 
-maybeInvalidBot :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeInvalidBot = maybe (throwStd invalidBot) pure
-
 maybeInvalidUser :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeInvalidUser = maybe (throwStd (errorToWai @'E.InvalidUser)) pure
 
@@ -1242,23 +1203,11 @@ invalidServiceKey = Wai.mkError status400 "invalid-service-key" "Invalid service
 invalidProvider :: Wai.Error
 invalidProvider = Wai.mkError status403 "invalid-provider" "The provider does not exist."
 
-invalidBot :: Wai.Error
-invalidBot = Wai.mkError status403 "invalid-bot" "The targeted user is not a bot."
-
-invalidConv :: Wai.Error
-invalidConv = Wai.mkError status403 "invalid-conversation" "The operation is not allowed in this conversation."
-
 badGateway :: Wai.Error
 badGateway = Wai.mkError status502 "bad-gateway" "The upstream service returned an invalid response."
 
-tooManyMembers :: Wai.Error
-tooManyMembers = Wai.mkError status403 "too-many-members" "Maximum number of members per conversation reached."
-
 tooManyBots :: Wai.Error
 tooManyBots = Wai.mkError status409 "too-many-bots" "Maximum number of bots for the service reached."
-
-serviceDisabled :: Wai.Error
-serviceDisabled = Wai.mkError status403 "service-disabled" "The desired service is currently disabled."
 
 serviceNotWhitelisted :: Wai.Error
 serviceNotWhitelisted = Wai.mkError status403 "service-not-whitelisted" "The desired service is not on the whitelist of allowed services for this team."
@@ -1266,9 +1215,6 @@ serviceNotWhitelisted = Wai.mkError status403 "service-not-whitelisted" "The des
 serviceError :: RPC.ServiceError -> Wai.Error
 serviceError RPC.ServiceUnavailable = badGateway
 serviceError RPC.ServiceBotConflict = tooManyBots
-
-accessDenied :: Wai.Error
-accessDenied = Wai.mkError status403 "access-denied" "Access denied."
 
 randServiceToken :: MonadIO m => m Public.ServiceToken
 randServiceToken = ServiceToken . Ascii.encodeBase64Url <$> liftIO (randBytes 18)

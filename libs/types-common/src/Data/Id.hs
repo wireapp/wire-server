@@ -354,7 +354,8 @@ newtype BotId = BotId
       FromHttpApiData,
       Hashable,
       NFData,
-      Generic
+      Generic,
+      ToParamSchema
     )
   deriving newtype (ToSchema)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema BotId

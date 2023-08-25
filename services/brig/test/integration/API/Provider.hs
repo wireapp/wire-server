@@ -1343,32 +1343,14 @@ addBot ::
   ConvId ->
   Http ResponseLBS
 addBot brig uid pid sid cid =
-  post $ (addBotReqNoZTypeAccess brig uid pid sid cid . header "Z-Type" "access")
-
-addBotNoZTypeAccess ::
-  Brig ->
-  UserId ->
-  ProviderId ->
-  ServiceId ->
-  ConvId ->
-  Http ResponseLBS
-addBotNoZTypeAccess brig uid pid sid cid =
-  post $ (addBotReqNoZTypeAccess brig uid pid sid cid)
-
-addBotReqNoZTypeAccess ::
-  Brig ->
-  UserId ->
-  ProviderId ->
-  ServiceId ->
-  ConvId ->
-  (Request -> Request)
-addBotReqNoZTypeAccess brig uid pid sid cid =
-  brig
-    . paths ["conversations", toByteString' cid, "bots"]
-    . header "Z-User" (toByteString' uid)
-    . header "Z-Connection" "conn"
-    . contentJson
-    . body (RequestBodyLBS (encode (AddBot pid sid Nothing)))
+  post $
+    brig
+      . paths ["conversations", toByteString' cid, "bots"]
+      . header "Z-Type" "access"
+      . header "Z-User" (toByteString' uid)
+      . header "Z-Connection" "conn"
+      . contentJson
+      . body (RequestBodyLBS (encode (AddBot pid sid Nothing)))
 
 removeBot ::
   Brig ->
@@ -1521,6 +1503,22 @@ enabled2ndFaForTeamInternal galley tid = do
         . Bilge.json (Public.WithStatusNoLock Public.FeatureStatusEnabled Public.SndFactorPasswordChallengeConfig Public.FeatureTTLUnlimited)
     )
     !!! const 200 === statusCode
+
+getBotSelf :: Brig -> BotId -> Http ResponseLBS
+getBotSelf brig bid =
+  get $
+    brig
+      . path "/bot/self"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+
+getBotPreKeyIds :: Brig -> BotId -> Http ResponseLBS
+getBotPreKeyIds brig bid =
+  get $
+    brig
+      . path "/bot/client/prekeys"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
 
 --------------------------------------------------------------------------------
 -- DB Operations
@@ -2050,12 +2048,11 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
   -- Add the bot and check that everyone is notified via an event,
   -- including the bot itself.
   (rs, bot) <- WS.bracketR2 cannon uid1 uid2 $ \(ws1, ws2) -> do
-    -- add bot without the `Z-Tpye: access` header should be forbidden
-    addBotNoZTypeAccess brig uid1 pid sid cid !!! const 403 === statusCode
     _rs <- addBot brig uid1 pid sid cid <!! const 201 === statusCode
     let Just rs = responseJsonMaybe _rs
         bid = rsAddBotId rs
         qbuid = Qualified (botUserId bid) localDomain
+    getBotSelf brig bid !!! const 200 === statusCode
     bot <- svcAssertBotCreated buf bid cid
     liftIO $ assertEqual "bot client" (rsAddBotClient rs) (testBotClient bot)
     liftIO $ assertEqual "bot event" MemberJoin (evtType (rsAddBotEvent rs))
@@ -2088,6 +2085,7 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
     assertEqual "colour" defaultAccentId (profileAccentId bp)
     assertEqual "assets" defServiceAssets (profileAssets bp)
   -- Check that the bot client exists and has prekeys
+  getBotPreKeyIds brig bid !!! const 200 === statusCode
   let isBotPrekey = (`elem` testBotPrekeys bot) . prekeyData
   getPreKey brig buid buid (rsAddBotClient rs) !!! do
     const 200 === statusCode

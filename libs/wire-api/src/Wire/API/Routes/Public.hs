@@ -45,7 +45,6 @@ import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.Swagger hiding (Header)
-import Debug.Trace (traceM)
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (All, head)
@@ -297,12 +296,10 @@ instance
       )
     where
       checkType :: Maybe ByteString -> Wai.Request -> DelayedIO ()
-      checkType token req = do
-        traceM $ ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" <> show (Wai.requestHeaders req)
+      checkType token req =
         case (token, lookup "Z-Type" (Wai.requestHeaders req)) of
           (Just t, value)
-            | value /= Just t -> do
-                traceM $ ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" <> show (t, value)
+            | value /= Just t ->
                 delayedFail
                   ServerError
                     { errHTTPCode = 403,
@@ -310,9 +307,7 @@ instance
                       errBody = "",
                       errHeaders = []
                     }
-          x -> do
-            traceM $ ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" <> show x
-            pure ()
+          _ -> pure ()
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
