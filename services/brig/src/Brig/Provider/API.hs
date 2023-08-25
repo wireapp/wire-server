@@ -19,6 +19,7 @@ module Brig.Provider.API
   ( -- * Main stuff
     routesPublic,
     routesInternal,
+    botAPI,
 
     -- * Event handlers
     finishDeleteService,
@@ -92,6 +93,7 @@ import OpenSSL.PEM qualified as SSL
 import OpenSSL.RSA qualified as SSL
 import OpenSSL.Random (randBytes)
 import Polysemy
+import Servant (ServerT)
 import Ssl.Util qualified as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -113,6 +115,8 @@ import Wire.API.Provider.External qualified as Ext
 import Wire.API.Provider.Service
 import Wire.API.Provider.Service qualified as Public
 import Wire.API.Provider.Service.Tag qualified as Public
+import Wire.API.Routes.Named (Named (Named))
+import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Team.Feature qualified as Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import Wire.API.Team.Permission
@@ -123,6 +127,10 @@ import Wire.API.User.Client qualified as Public (Client, ClientCapability (Clien
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
 import Wire.API.User.Identity qualified as Public (Email)
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
+
+botAPI :: Member GalleyProvider r => ServerT BotAPI (Handler r)
+botAPI =
+  Named @"add-bot" addBot
 
 routesPublic ::
   ( Member GalleyProvider r,
@@ -270,13 +278,7 @@ routesPublic = do
         .&. capture "tid"
         .&. jsonRequest @Public.UpdateServiceWhitelist
 
-  post "/conversations/:cnv/bots" (continue addBotH) $
-    accept "application" "json"
-      .&> zauth ZAuthAccess
-      .&> zauthUserId
-        .&. zauthConnId
-        .&. capture "cnv"
-        .&. jsonRequest @Public.AddBot
+  -- Bot API -----------------------------------------------------------------
 
   delete "/conversations/:cnv/bots/:bot" (continue removeBotH) $
     zauth ZAuthAccess
@@ -284,8 +286,6 @@ routesPublic = do
         .&. zauthConnId
         .&. capture "cnv"
         .&. capture "bot"
-
-  -- Bot API -----------------------------------------------------------------
 
   get "/bot/self" (continue botGetSelfH) $
     accept "application" "json"
@@ -887,13 +887,9 @@ updateServiceWhitelist uid con tid upd = do
       wrapClientE $ DB.deleteServiceWhitelist (Just tid) pid sid
       pure UpdateServiceWhitelistRespChanged
 
-addBotH :: Member GalleyProvider r => UserId ::: ConnId ::: ConvId ::: JsonRequest Public.AddBot -> (Handler r) Response
-addBotH (zuid ::: zcon ::: cid ::: req) = do
-  guardSecondFactorDisabled (Just zuid)
-  setStatus status201 . json <$> (addBot zuid zcon cid =<< parseJsonBody req)
-
 addBot :: Member GalleyProvider r => UserId -> ConnId -> ConvId -> Public.AddBot -> (Handler r) Public.AddBotResponse
 addBot zuid zcon cid add = do
+  guardSecondFactorDisabled (Just zuid)
   zusr <- lift (wrapClient $ User.lookupUser NoPendingInvitations zuid) >>= maybeInvalidUser
   let pid = addBotProvider add
   let sid = addBotService add

@@ -56,6 +56,7 @@ import Wire.API.Routes.Cookies
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
@@ -92,6 +93,7 @@ type BrigAPI =
     :<|> TeamsAPI
     :<|> SystemSettingsAPI
     :<|> OAuthAPI
+    :<|> BotAPI
 
 data BrigAPITag
 

@@ -30,6 +30,7 @@ module Wire.API.Routes.Public
     ZBot,
     ZConversation,
     ZProvider,
+    ZAccess,
     DescriptionOAuthScope,
     ZHostOpt,
   )
@@ -44,6 +45,7 @@ import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.Swagger hiding (Header)
+import Debug.Trace (traceM)
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (All, head)
@@ -85,6 +87,8 @@ data ZType
   | ZAuthBot
   | ZAuthConv
   | ZAuthProvider
+  | -- | (Typically short-lived) access token.
+    ZAuthAccess
 
 class
   (KnownSymbol (ZHeader ztype), FromHttpApiData (ZParam ztype)) =>
@@ -155,8 +159,18 @@ instance IsZType 'ZAuthProvider ctx where
 
   qualifyZParam _ = id
 
+instance IsZType 'ZAuthAccess ctx where
+  type ZHeader 'ZAuthAccess = "Z-User"
+  type ZParam 'ZAuthAccess = UserId
+  type ZQualifiedParam 'ZAuthAccess = UserId
+
+  qualifyZParam _ = id
+
 instance HasTokenType 'ZAuthProvider where
   tokenType = Just "provider"
+
+instance HasTokenType 'ZAuthAccess where
+  tokenType = Just "access"
 
 data ZAuthServant (ztype :: ZType) (opts :: [Type])
 
@@ -181,6 +195,8 @@ type ZBot = ZAuthServant 'ZAuthBot InternalAuthDefOpts
 type ZConversation = ZAuthServant 'ZAuthConv InternalAuthDefOpts
 
 type ZProvider = ZAuthServant 'ZAuthProvider InternalAuthDefOpts
+
+type ZAccess = ZAuthServant 'ZAuthAccess InternalAuthDefOpts
 
 type ZOptUser = ZAuthServant 'ZAuthUser '[Servant.Optional, Servant.Strict]
 
@@ -270,17 +286,22 @@ instance
       )
     where
       checkType :: Maybe ByteString -> Wai.Request -> DelayedIO ()
-      checkType token req = case (token, lookup "Z-Type" (Wai.requestHeaders req)) of
-        (Just t, value)
-          | value /= Just t ->
-              delayedFail
-                ServerError
-                  { errHTTPCode = 403,
-                    errReasonPhrase = "Access denied",
-                    errBody = "",
-                    errHeaders = []
-                  }
-        _ -> pure ()
+      checkType token req = do
+        traceM $ ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" <> show (Wai.requestHeaders req)
+        case (token, lookup "Z-Type" (Wai.requestHeaders req)) of
+          (Just t, value)
+            | value /= Just t -> do
+                traceM $ ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" <> show (t, value)
+                delayedFail
+                  ServerError
+                    { errHTTPCode = 403,
+                      errReasonPhrase = "Access denied",
+                      errBody = "",
+                      errHeaders = []
+                    }
+          x -> do
+            traceM $ ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" <> show x
+            pure ()
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 

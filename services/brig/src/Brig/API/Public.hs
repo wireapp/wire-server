@@ -56,6 +56,7 @@ import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents, sesQueue)
+import Brig.Provider.API (botAPI)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
@@ -122,6 +123,7 @@ import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
+import Wire.API.Routes.Public.Brig.Bot
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Public.Cargohold
@@ -178,6 +180,7 @@ versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
         <> serviceSwagger @GundeckAPITag @'V5
         <> serviceSwagger @ProxyAPITag @'V5
         <> serviceSwagger @OAuthAPITag @'V5
+        <> serviceSwagger @BotAPITag @'V5
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
@@ -193,6 +196,7 @@ versionedSwaggerDocsAPI (Just (VersionNumber V4)) =
         <> serviceSwagger @GundeckAPITag @'V4
         <> serviceSwagger @ProxyAPITag @'V4
         <> serviceSwagger @OAuthAPITag @'V4
+        <> serviceSwagger @BotAPITag @'V4
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
@@ -283,6 +287,7 @@ servantSitemap =
     :<|> Team.servantAPI
     :<|> systemSettingsAPI
     :<|> oauthAPI
+    :<|> botAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
