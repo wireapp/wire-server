@@ -296,58 +296,6 @@ isValidPhone = either (const False) (const True) . parseOnly e164
   where
     e164 = char '+' *> count 8 digit *> count 7 (optional digit) *> endOfInput
 
---------------------------------------------------------------------------------
--- UserSSOId
-
--- | User's external identity.
---
--- NB: this type is serialized to the full xml encoding of the `SAML.UserRef` components, but
--- deserialiation is more lenient: it also allows for the `Issuer` to be a plain URL (without
--- xml around it), and the `NameID` to be an email address (=> format "email") or an arbitrary
--- text (=> format "unspecified").  This is for backwards compatibility and general
--- robustness.
---
--- FUTUREWORK: we should probably drop this entirely and store saml and scim data in separate
--- database columns.
-data UserSSOId
-  = UserSSOId SAML.UserRef
-  | UserScimExternalId Text
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserSSOId)
-
--- | FUTUREWORK: This schema should ideally be a choice of either tenant+subject, or scim_external_id
--- but this is currently not possible to derive in swagger2
--- Maybe this becomes possible with swagger 3?
-instance S.ToSchema UserSSOId where
-  declareNamedSchema _ = do
-    tenantSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'Issuer'
-    subjectSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'NameID'
-    scimSchema <- S.declareSchemaRef (Proxy @Text)
-    pure $
-      S.NamedSchema (Just "UserSSOId") $
-        mempty
-          & S.type_ ?~ S.SwaggerObject
-          & S.properties
-            .~ [ ("tenant", tenantSchema),
-                 ("subject", subjectSchema),
-                 ("scim_external_id", scimSchema)
-               ]
-
-instance ToJSON UserSSOId where
-  toJSON = \case
-    UserSSOId (SAML.UserRef tenant subject) -> A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
-    UserScimExternalId eid -> A.object ["scim_external_id" A..= eid]
-
-instance FromJSON UserSSOId where
-  parseJSON = A.withObject "UserSSOId" $ \obj -> do
-    mtenant <- lenientlyParseSAMLIssuer =<< (obj A..:? "tenant")
-    msubject <- lenientlyParseSAMLNameID =<< (obj A..:? "subject")
-    meid <- obj A..:? "scim_external_id"
-    case (mtenant, msubject, meid) of
-      (Just tenant, Just subject, Nothing) -> pure $ UserSSOId (SAML.UserRef tenant subject)
-      (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
-      _ -> fail "either need tenant and subject, or scim_external_id, but not both"
-
 -- | If the budget for SMS and voice calls for a phone number
 -- has been exhausted within a certain time frame, this timeout
 -- indicates in seconds when another attempt may be made.
@@ -362,6 +310,56 @@ instance FromJSON PhoneBudgetTimeout where
 
 instance ToJSON PhoneBudgetTimeout where
   toJSON (PhoneBudgetTimeout t) = A.object ["expires_in" A..= t]
+
+--------------------------------------------------------------------------------
+-- UserSSOId
+
+-- | User's legacy external identity (DEPRECATED).
+--
+-- NB: this type is serialized to the full xml encoding of the `SAML.UserRef` components, but
+-- deserialiation is more lenient: it also allows for the `Issuer` to be a plain URL (without
+-- xml around it), and the `NameID` to be an email address (=> format "email") or an arbitrary
+-- text (=> format "unspecified").  This is for backwards compatibility and general
+-- robustness.
+data LegacyUserSSOId = LegacyUserSSOId {fromLegacyUserSSOId :: PartialUAuthId}
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserSSOId)
+
+instance S.ToSchema LegacyUserSSOId where
+  declareNamedSchema _ = do
+    tenantSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'Issuer'
+    subjectSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'NameID'
+    scimSchema <- S.declareSchemaRef (Proxy @Text)
+    pure $
+      S.NamedSchema (Just "UserSSOId") $
+        mempty
+          & S.type_ ?~ S.SwaggerObject
+          & S.description
+            ?~ "[DEPRECATED] Only combinations tenant+subject or scim_external_id are allowed. \
+               \If both are available, fill in only tenant+subject.  (This is deprecated, \
+               \so please don't ask...)"
+          & S.properties
+            .~ [ ("tenant", tenantSchema),
+                 ("subject", subjectSchema),
+                 ("scim_external_id", scimSchema)
+               ]
+
+instance ToJSON LegacyUserSSOId where
+  toJSON = \case
+    -- TODO
+    UserSSOId (SAML.UserRef tenant subject) -> A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
+    UserScimExternalId eid -> A.object ["scim_external_id" A..= eid]
+
+instance FromJSON LegacyUserSSOId where
+  parseJSON = A.withObject "UserSSOId" $ \obj -> do
+    -- TODO
+    mtenant <- lenientlyParseSAMLIssuer =<< (obj A..:? "tenant")
+    msubject <- lenientlyParseSAMLNameID =<< (obj A..:? "subject")
+    meid <- obj A..:? "scim_external_id"
+    case (mtenant, msubject, meid) of
+      (Just tenant, Just subject, Nothing) -> pure $ UserSSOId (SAML.UserRef tenant subject)
+      (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
+      _ -> fail "either need tenant and subject, or scim_external_id, but not both"
 
 lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)
 lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do

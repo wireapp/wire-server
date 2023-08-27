@@ -569,6 +569,12 @@ type family ValidUAuthIdF (f :: UAuthIdTag) where
   ValidUAuthIdF 'UASamlNoScimNoEmail = UAuthIdF Identity  Konst    Konst
 {- ORMOLU_ENABLE -}
 
+-- | In brig, we don't really care about these values and never have to validate them.  We
+-- just get them from spar, and write them to the database and later communicate them back to
+-- spar or to team-management or to clients.  So in order to keep things from getting out of
+-- hand, we decide the presence of all fields at run time.
+type PartialUAuthId = UAuthIdF 'Maybe 'Maybe 'Maybe
+
 runValidUAuthIdFEither ::
   forall tag a.
   SingI tag =>
