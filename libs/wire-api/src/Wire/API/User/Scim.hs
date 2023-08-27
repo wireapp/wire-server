@@ -521,7 +521,11 @@ instance ToSchema ScimTokenList where
 data UAuthIdF a b c = UAuthIdF
   { samlId :: a SAML.UserRef,
     scimExternalId :: b Text,
-    email :: c Email
+    email :: c Email,
+    -- | only team users support saml and/or scim.  exzternalId is scoped in
+    -- team, so once we have parsed a scim user record, the externalId should
+    -- never occur anywhere without team it!
+    teamId :: TeamId
   }
   deriving (Generic)
 
