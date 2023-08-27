@@ -662,7 +662,18 @@ CREATE TABLE brig_test.user (
     provider uuid,
     searchable boolean,
     service uuid,
-    sso_id text,
+    --
+    -- NOTE(fisx): i'm breaking this on purpose to make it more obvious where i'm going with the schema migration.
+    -- we'll regenerate this file once we're done.
+    --
+    sso_id text, -- deprecated, but honored for compatibility if it is non-null and the following 3 fields are all null.
+    saml_entity_id text, -- issuer from UserRef, can be null
+    saml_name_id text, -- name id from UserRef, can be null
+    scim_external_id text, -- what you think it is, can be null
+    --
+    -- NOTE(fisx): cassandra does not prevent illegal cases like "entity_id null and name_id non-null".
+    -- i wouldn't know how, so that's the job of all parsers of incoming data, see `ValidUAuthIdF`
+    --
     status int,
     supported_protocols int,
     team uuid
@@ -2171,4 +2182,3 @@ CREATE TABLE spar_test.user (
     AND min_index_interval = 128
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
-

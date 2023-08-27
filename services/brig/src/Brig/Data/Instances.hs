@@ -79,16 +79,6 @@ instance Cql Email where
 
   toCql = toCql . fromEmail
 
-instance Cql UserSSOId where
-  ctype = Tagged TextColumn
-
-  fromCql (CqlText t) = case eitherDecode $ cs t of
-    Right i -> pure i
-    Left msg -> Left $ "fromCql: Invalid UserSSOId: " ++ msg
-  fromCql _ = Left "fromCql: UserSSOId: CqlText expected"
-
-  toCql = toCql . cs @LByteString @Text . encode
-
 instance Cql RelationWithHistory where
   ctype = Tagged IntColumn
 

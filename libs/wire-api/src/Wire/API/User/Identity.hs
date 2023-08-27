@@ -92,7 +92,7 @@ data UserIdentity
   = FullIdentity Email Phone
   | EmailIdentity Email
   | PhoneIdentity Phone
-  | SSOIdentity UserSSOId (Maybe Email) (Maybe Phone)
+  | UAuthIdentity PartialUAuthId -- email is already represented in this type; phone is not supported for saml/scim users.
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserIdentity)
 

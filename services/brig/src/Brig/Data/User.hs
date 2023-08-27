@@ -55,7 +55,7 @@ module Brig.Data.User
     updateEmail,
     updateEmailUnvalidated,
     updatePhone,
-    updateSSOId,
+    updateUAuthId,
     updateManagedBy,
     activateUser,
     deactivateUser,
@@ -223,9 +223,9 @@ reauthenticate u pw =
 isSamlUser :: (MonadClient m, MonadReader Env m) => UserId -> m Bool
 isSamlUser uid = do
   account <- lookupAccount uid
-  case userIdentity . accountUser =<< account of
-    Just (SSOIdentity (UserSSOId _) _ _) -> pure True
-    _ -> pure False
+  pure $ case userIdentity . accountUser =<< account of
+    Just (UAuthIdentity (Just _) (Just _) _) -> True
+    _ -> False
 
 insertAccount ::
   MonadClient m =>
@@ -301,12 +301,13 @@ updateEmailUnvalidated u e = retry x5 $ write userEmailUnvalidatedUpdate (params
 updatePhone :: MonadClient m => UserId -> Phone -> m ()
 updatePhone u p = retry x5 $ write userPhoneUpdate (params LocalQuorum (p, u))
 
-updateSSOId :: MonadClient m => UserId -> Maybe UserSSOId -> m Bool
-updateSSOId u ssoid = do
-  mteamid <- lookupUserTeam u
+updateUAuthId :: MonadClient m => UserId -> Maybe PartialUAuthId -> m Bool
+updateUAuthId uid uauthid = do
+  -- NOTE(fisx): this probably doesn't compile yet, but the idea should be appearent?
+  mteamid <- lookupUserTeam uid
   case mteamid of
     Just _ -> do
-      retry x5 $ write userSSOIdUpdate (params LocalQuorum (ssoid, u))
+      retry x5 $ write uauthIdUpdate (params LocalQuorum (uauthid.samlId.issuer, uauthid.samlId.nameid, uauthid.scimExternalId, u))
       pure True
     Nothing -> pure False
 
@@ -645,8 +646,8 @@ userEmailUnvalidatedDelete = {- `IF EXISTS`, but that requires benchmarking -} "
 userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
 userPhoneUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET phone = ? WHERE id = ?"
 
-userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) ()
-userSSOIdUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET sso_id = ? WHERE id = ?"
+uauthIdUpdate :: PrepQuery W (Maybe Text, Maybe Text, Maybe Text, UserId) ()
+uauthIdUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET saml_entity_id = ?, saml_name_id = ?, scim_external_id = ?, sso_id = null WHERE id = ?"
 
 userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
 userManagedByUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET managed_by = ? WHERE id = ?"
