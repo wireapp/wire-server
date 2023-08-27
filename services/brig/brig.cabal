@@ -664,6 +664,7 @@ executable brig-schema
     V77_FederationRemotes
     V78_ClientLastActive
     V79_ConnectionRemoteIndex
+    V80_spar_user_auth_id
     V_FUTUREWORK
 
   hs-source-dirs:     schema/src

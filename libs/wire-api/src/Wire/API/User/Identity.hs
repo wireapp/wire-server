@@ -104,7 +104,19 @@ maybeUserIdentityObjectSchema :: ObjectSchema SwaggerDoc (Maybe UserIdentity)
 maybeUserIdentityObjectSchema =
   dimap maybeUserIdentityToComponents maybeUserIdentityFromComponents userIdentityComponentsObjectSchema
 
-type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe UserSSOId)
+-- | NOTE(fisx): this is getting interesting, and it's late...
+--
+-- brig sometimes may parse user identities, eg. updates from team-management.  (i'm not sure
+-- about this, if it makes a difference i need to go check.)
+--
+-- if it parser an untrusted value, it must validate the saml stuff, so we need a parser for
+-- "`ValidSamlIdF t` for any tag".  not sure how to accomplish that, smells like existential
+-- types?  worst case we can decide to leave the validation for later, and just write what we
+-- have, even if it's inconsistent.  maybe.  it's possible this is just for parsing cassandra
+-- answers.
+--
+-- the 3 maybe texts at the end here are for the PartialUAuthId.
+type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe Text, Maybe Text, Maybe Text)
 
 userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
 userIdentityComponentsObjectSchema =
@@ -312,7 +324,7 @@ instance ToJSON PhoneBudgetTimeout where
   toJSON (PhoneBudgetTimeout t) = A.object ["expires_in" A..= t]
 
 --------------------------------------------------------------------------------
--- UserSSOId
+-- UserSSOId (DEPRECATED)
 
 -- | User's legacy external identity (DEPRECATED).
 --
