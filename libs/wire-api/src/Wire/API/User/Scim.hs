@@ -521,8 +521,7 @@ instance ToSchema ScimTokenList where
 data ExternalIdF a b c d e = ExternalIdF
   { eSaml :: a SAML.UserRef,
     eScimExternalId :: b Text,
-    eEmail :: c Email,
-    ePassword :: d Text
+    eEmail :: c Email
   }
   deriving (Generic)
 
