@@ -513,52 +513,70 @@ instance ToSchema ScimTokenList where
                ]
           & required .~ ["tokens"]
 
--- This should support the following set of options
--- {scim, saml, saml + email, saml + password - skim}
--- This is used in `ValidExternalIdF f` with Const () and Identity functors.
+-- | This is used in `ValidUAuthIdF f` with Const () and Identity functors.
 -- Const () means that there is no value in that position, and it can be ignored.
 -- Identity means that there is a value in that position, and it needs to be considered.
-data ExternalIdF a b c d e = ExternalIdF
-  { eSaml :: a SAML.UserRef,
-    eScimExternalId :: b Text,
-    eEmail :: c Email
+--
+-- NOTE(fisx): we're using dot syntax for records these days, so ambiguous field names are ok!
+data UAuthIdF a b c = UAuthIdF
+  { samlId :: a SAML.UserRef,
+    scimExternalId :: b Text,
+    email :: c Email
   }
   deriving (Generic)
 
--- Konst exists to make the next set of declarations easier to write
+-- | Konst exists to make the next set of declarations easier to write
 type Konst = Const ()
 
-data ExternalIdTag
-  = ScimExternalId
-  | Saml
-  | SamlAndEmail
-  | SamlAndPassword
-  | Email
+-- | We currently support the following user authentication and provisioning setups.
+--
+-- (there is a sixth case: no scim, no saml, email and password, but that does not involve
+-- spar, so we don't need to consider that setup here.)
+--
+-- (We also sometimes validate email addresses by sending an email with a code from brig, and
+-- sometimes not, but i think this should be documented and considered elsewhere.)
+data UAuthIdTag
+  = -- | scim with saml and email (distinguishable by location: nameid + externalId vs. scim emails field)
+    UAScimSamlEmail
+  | -- | scim with saml and no email
+    UAScimSamlNoEmail
+  | -- | scim, email and password (via traditional invitation email, emulating the team-settings flow), no saml
+    UAScimEmailNoSaml
+  | -- | no scim, saml with email in nameid
+    UASamlEmailNoScim
+  | -- | no scim, saml with no email
+    UASamlNoScimNoEmail
   deriving (Show, Eq, Generic, Bounded, Enum)
 
-$(genSingletons [''ExternalIdTag])
-$(singDecideInstance ''ExternalIdTag)
+$(genSingletons [''UAuthIdTag])
+$(singDecideInstance ''UAuthIdTag)
 
--- The types we actually want to use.
+-- | The types we actually want to use.
 -- This is using the closed form, giving us a single place to define
--- what is and is not a valid combination of functors in ExternalIdF
+-- what is and is not a valid combination of functors in `UAuthIdF`
+--
+-- NOTE(fisx): this may not be as useful as we'd hope, but `UAuthIdF` may be more useful in
+-- return.  example: a function that cares about email, but not about samlId or
+-- scimExternalId, should be typed using `UAuthIdF a b Konst`.  But there are probably a few
+-- places where we want to limit the number of legal combinations, especially when parsing
+-- incoming data.
 {- ORMOLU_DISABLE -}
-type family ValidExternalIdF (f :: ExternalIdTag) where
-  ValidExternalIdF 'ScimExternalId  = ExternalIdF Konst    Identity Konst    Konst
-  ValidExternalIdF 'Saml            = ExternalIdF Identity Konst    Konst    Konst
-  ValidExternalIdF 'SamlAndEmail    = ExternalIdF Identity Konst    Identity Konst
-  ValidExternalIdF 'SamlAndPassword = ExternalIdF Identity Konst    Konst    Identity
-  ValidExternalIdF 'Email           = ExternalIdF Konst    Konst    Identity Konst
+type family ValidUAuthIdF (f :: UAuthIdTag) where
+  ValidUAuthIdF 'UAScimSamlEmail     = UAuthIdF Identity  Identity Identity
+  ValidUAuthIdF 'UAScimSamlNoEmail   = UAuthIdF Identity  Identity Konst
+  ValidUAuthIdF 'UAScimEmailNoSaml   = UAuthIdF Konst     Identity Identity
+  ValidUAuthIdF 'UASamlEmailNoScim   = UAuthIdF Identity  Konst    Identity
+  ValidUAuthIdF 'UASamlNoScimNoEmail = UAuthIdF Identity  Konst    Konst
 {- ORMOLU_ENABLE -}
 
-runValidExternalIdFEither ::
+runValidUAuthIdFEither ::
   forall tag a.
   SingI tag =>
   (SAML.UserRef -> a) ->
   (Email -> a) ->
-  ValidExternalIdF tag ->
+  ValidUAuthIdF tag ->
   a
-runValidExternalIdFEither doUref doEmail extId = case tag of
+runValidUAuthIdFEither doUref doEmail extId = case tag of
   -- TODO!
   SScimExternalId -> undefined $ runIdentity extId.eScim
   SSaml -> doUref $ runIdentity extId.eSaml
@@ -568,15 +586,15 @@ runValidExternalIdFEither doUref doEmail extId = case tag of
   where
     tag = sing @tag
 
-runValidExternalIdFBoth ::
+runValidUAuthIdFBoth ::
   forall tag a.
   SingI tag =>
   (a -> a -> a) ->
   (SAML.UserRef -> a) ->
   (Email -> a) ->
-  ValidExternalIdF tag ->
+  ValidUAuthIdF tag ->
   a
-runValidExternalIdFBoth merge doUref doEmail extId = case tag of
+runValidUAuthIdFBoth merge doUref doEmail extId = case tag of
   -- TODO!
   SScim -> undefined $ runIdentity extId.eScim
   SSaml -> doUref $ runIdentity extId.eSaml
