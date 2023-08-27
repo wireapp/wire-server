@@ -521,13 +521,29 @@ instance ToSchema ScimTokenList where
 data UAuthIdF a b c = UAuthIdF
   { samlId :: a SAML.UserRef,
     scimExternalId :: b Text,
-    email :: c Email,
+    email :: c EmailWithSource,
     -- | only team users support saml and/or scim.  exzternalId is scoped in
     -- team, so once we have parsed a scim user record, the externalId should
     -- never occur anywhere without team it!
     teamId :: TeamId
   }
   deriving (Generic)
+
+-- | in order to be able to reconstruct scim records, we need to know where in the scim record
+-- the email came from (externalId?  emails field?)
+data EmailWithSource = EmailWithSource
+  { ewsEmail :: Email,
+    ewsEmailSource :: EmailSource
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform EmailWithSource)
+
+data EmailSource
+  = EmailFromScimExternalIdField
+  | EmailFromScimEmailsField
+  | EmailFromSamlNameId -- saml, but no scim.  deprecated, but we need to support this for the foreseeable future.
+  deriving (Eq, Show, Bounded, Enum, Generic)
+  deriving (Arbitrary) via (GenericUniform EmailSource)
 
 -- | Konst exists to make the next set of declarations easier to write
 type Konst = Const ()
