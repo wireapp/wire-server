@@ -562,11 +562,11 @@ $(singDecideInstance ''UAuthIdTag)
 -- incoming data.
 {- ORMOLU_DISABLE -}
 type family ValidUAuthIdF (f :: UAuthIdTag) where
-  ValidUAuthIdF 'UAScimSamlEmail     = UAuthIdF Identity  Identity Identity
-  ValidUAuthIdF 'UAScimSamlNoEmail   = UAuthIdF Identity  Identity Konst
-  ValidUAuthIdF 'UAScimEmailNoSaml   = UAuthIdF Konst     Identity Identity
-  ValidUAuthIdF 'UASamlEmailNoScim   = UAuthIdF Identity  Konst    Identity
-  ValidUAuthIdF 'UASamlNoScimNoEmail = UAuthIdF Identity  Konst    Konst
+  ValidUAuthIdF 'UAScimSamlEmail     = UAuthIdF Identity Identity Identity
+  ValidUAuthIdF 'UAScimSamlNoEmail   = UAuthIdF Identity Identity Konst
+  ValidUAuthIdF 'UAScimEmailNoSaml   = UAuthIdF Konst    Identity Identity
+  ValidUAuthIdF 'UASamlEmailNoScim   = UAuthIdF Identity Konst    Identity
+  ValidUAuthIdF 'UASamlNoScimNoEmail = UAuthIdF Identity Konst    Konst
 {- ORMOLU_ENABLE -}
 
 -- | In brig, we don't really care about these values and never have to validate them.  We
