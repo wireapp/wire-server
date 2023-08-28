@@ -32,7 +32,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named (..))
 import Wire.API.Routes.Public
 import Wire.API.User
-import Wire.API.User.Client (Client, UserClientPrekeyMap, UserClients)
+import Wire.API.User.Client
 import Wire.API.User.Client.Prekey (PrekeyId)
 
 type DeleteResponses =
@@ -149,6 +149,17 @@ type BotAPI =
                :> "users"
                :> QueryParam' [Required, Strict] "ids" (CommaSeparatedList UserId)
                :> Get '[JSON] [BotUserView]
+           )
+    :<|> Named
+           "bot-get-user-clients"
+           ( Summary "Get user clients"
+               :> CanThrow 'AccessDenied
+               :> ZBot
+               :> "bot"
+               :> "users"
+               :> Capture "User ID" UserId
+               :> "clients"
+               :> Get '[JSON] [PubClient]
            )
 
 data BotAPITag

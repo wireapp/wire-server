@@ -144,6 +144,7 @@ botAPI =
     :<|> Named @"bot-get-client" botGetClient
     :<|> Named @"bot-claim-users-prekeys" botClaimUsersPrekeys
     :<|> Named @"bot-list-users" botListUserProfiles
+    :<|> Named @"bot-get-user-clients" botGetUserClients
 
 routesPublic ::
   ( Member GalleyProvider r
@@ -289,13 +290,6 @@ routesPublic = do
         .&. zauthConnId
         .&. capture "tid"
         .&. jsonRequest @Public.UpdateServiceWhitelist
-
-  -- Bot API -----------------------------------------------------------------
-
-  get "/bot/users/:uid/clients" (continue botGetUserClientsH) $
-    accept "application" "json"
-      .&> zauth ZAuthBot
-      .&> capture "uid"
 
 routesInternal :: Member GalleyProvider r => Routes a (Handler r) ()
 routesInternal = do
@@ -1018,14 +1012,10 @@ botListUserProfiles _ uids = do
   us <- lift . wrapClient $ User.lookupUsers NoPendingInvitations (fromCommaSeparatedList uids)
   pure (map mkBotUserView us)
 
-botGetUserClientsH :: Member GalleyProvider r => UserId -> (Handler r) Response
-botGetUserClientsH uid = do
+botGetUserClients :: Member GalleyProvider r => BotId -> UserId -> (Handler r) [Public.PubClient]
+botGetUserClients _ uid = do
   guardSecondFactorDisabled (Just uid)
-  json <$> lift (botGetUserClients uid)
-
-botGetUserClients :: UserId -> (AppT r) [Public.PubClient]
-botGetUserClients uid =
-  pubClient <$$> wrapClient (User.lookupClients uid)
+  lift $ pubClient <$$> wrapClient (User.lookupClients uid)
   where
     pubClient c = Public.PubClient (clientId c) (clientClass c)
 

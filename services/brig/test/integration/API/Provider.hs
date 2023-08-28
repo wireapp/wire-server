@@ -148,7 +148,8 @@ tests dom conf p db b c g = do
             test p "bad fingerprint" $ testBadFingerprint conf db b g c,
             test p "add bot forbidden" $ testAddBotForbidden conf db b g,
             test p "claim user prekeys" $ testClaimUserPrekeys conf db b g,
-            test p "list user profiles" $ testListUserProfiles conf db b g
+            test p "list user profiles" $ testListUserProfiles conf db b g,
+            test p "get user clients" $ testGetUserClients conf db b g
           ],
         testGroup
           "bot-teams"
@@ -598,6 +599,21 @@ testListUserProfiles config db brig galley = withTestService config db brig defS
   let bid = addBotResponse.rsAddBotId
   resp :: [Ext.BotUserView] <- responseJsonError =<< listUserProfiles brig bid [u1.userId, u2.userId] <!! const 200 === statusCode
   liftIO $ Set.fromList (fmap (.botUserViewId) resp) @?= Set.fromList [u1.userId, u2.userId]
+
+testGetUserClients :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testGetUserClients config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
+  (pid, sid, u1, _u2, _h) <- prepareUsers sref brig
+  cid <- do
+    rs <- createConv galley u1.userId [] <!! const 201 === statusCode
+    let Just cnv = responseJsonMaybe rs
+    let cid = qUnqualified . cnvQualifiedId $ cnv
+    pure cid
+  addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig u1.userId pid sid cid <!! const 201 === statusCode
+  let bid = addBotResponse.rsAddBotId
+  let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
+  expected :: Client <- responseJsonError =<< addClient brig u1.userId new
+  [actual] :: [PubClient] <- responseJsonError =<< getUserClients brig bid u1.userId <!! const 200 === statusCode
+  liftIO $ actual.pubClientId @?= expected.clientId
 
 testAddBotBlocked :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
 testAddBotBlocked config db brig galley = withTestService config db brig defServiceApp $ \sref _buf -> do
@@ -1596,6 +1612,14 @@ listUserProfiles brig bid uids =
       . header "Z-Type" "bot"
       . header "Z-Bot" (toByteString' bid)
       . queryItem "ids" (C8.intercalate "," $ toByteString' <$> uids)
+
+getUserClients :: Brig -> BotId -> UserId -> Http ResponseLBS
+getUserClients brig bid uid =
+  get $
+    brig
+      . paths ["bot", "users", toByteString' uid, "clients"]
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
 
 --------------------------------------------------------------------------------
 -- DB Operations
