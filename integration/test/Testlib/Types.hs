@@ -240,34 +240,6 @@ defaultServiceOverrides =
       federatorInternalCfg = pure
     }
 
-defaultServiceOverridesToMap :: Map.Map Service (Value -> App Value)
-defaultServiceOverridesToMap = ([minBound .. maxBound] <&> (,pure)) & Map.fromList
-
--- | Overrides the service configurations with the given overrides.
--- e.g.
--- `let overrides =
---    def
---      { dbBrig =
---          setField "optSettings.setFederationStrategy" "allowDynamic"
---      }
---  withOverrides overrides defaultServiceOverridesToMap`
-withOverrides :: ServiceOverrides -> Map.Map Service (Value -> App Value) -> Map.Map Service (Value -> App Value)
-withOverrides overrides =
-  Map.mapWithKey
-    ( \svr f ->
-        case svr of
-          Brig -> f >=> overrides.dbBrig
-          Cannon -> f >=> overrides.dbCannon
-          Cargohold -> f >=> overrides.dbCargohold
-          Galley -> f >=> overrides.dbGalley
-          Gundeck -> f >=> overrides.dbGundeck
-          Nginz -> f >=> overrides.dbNginz
-          Spar -> f >=> overrides.dbSpar
-          BackgroundWorker -> f >=> overrides.dbBackgroundWorker
-          Stern -> f >=> overrides.dbStern
-          FederatorInternal -> f
-    )
-
 lookupConfigOverride :: ServiceOverrides -> Service -> (Value -> App Value)
 lookupConfigOverride overrides = \case
   Brig -> overrides.brigCfg
