@@ -1512,6 +1512,15 @@ getBotSelf brig bid =
       . header "Z-Type" "bot"
       . header "Z-Bot" (toByteString' bid)
 
+getBotClient :: Brig -> BotId -> Http ResponseLBS
+getBotClient brig bid =
+  get $
+    brig
+      . path "/bot/client"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+      . contentJson
+
 getBotPreKeyIds :: Brig -> BotId -> Http ResponseLBS
 getBotPreKeyIds brig bid =
   get $
@@ -2063,6 +2072,10 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
         bid = rsAddBotId rs
         qbuid = Qualified (botUserId bid) localDomain
     getBotSelf brig bid !!! const 200 === statusCode
+    (randomId >>= getBotSelf brig . BotId) !!! const 404 === statusCode
+    botClient :: Client <- responseJsonError =<< getBotClient brig bid <!! const 200 === statusCode
+    liftIO $ assertEqual "bot client" rs.rsAddBotClient botClient.clientId
+    (randomId >>= getBotClient brig . BotId) !!! const 404 === statusCode
     bot <- svcAssertBotCreated buf bid cid
     liftIO $ assertEqual "bot client" rs.rsAddBotClient bot.testBotClient
     liftIO $ assertEqual "bot event" MemberJoin (evtType (rsAddBotEvent rs))

@@ -23,18 +23,24 @@ import Servant (JSON)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation.Bot
-import Wire.API.Error (CanThrow)
+import Wire.API.Error (CanThrow, ErrorResponse)
 import Wire.API.Error.Brig (BrigError (..))
 import Wire.API.Routes.API (ServiceAPI (..))
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named (..))
 import Wire.API.Routes.Public
 import Wire.API.User
+import Wire.API.User.Client (Client)
 import Wire.API.User.Client.Prekey (PrekeyId)
 
 type DeleteResponses =
   '[ RespondEmpty 204 "",
      Respond 200 "User found" RemoveBotResponse
+   ]
+
+type GetClientResponses =
+  '[ ErrorResponse 'ClientNotFound,
+     Respond 200 "Client found" Client
    ]
 
 type BotAPI =
@@ -107,6 +113,16 @@ type BotAPI =
                :> "prekeys"
                :> ReqBody '[JSON] UpdateBotPrekeys
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
+           )
+    :<|> Named
+           "bot-get-client"
+           ( Summary "Get client for bot"
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'ClientNotFound
+               :> ZBot
+               :> "bot"
+               :> "client"
+               :> MultiVerb 'GET '[JSON] GetClientResponses (Maybe Client)
            )
 
 data BotAPITag

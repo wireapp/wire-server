@@ -80,7 +80,7 @@ import GHC.TypeNats
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
-import Network.Wai.Predicate (accept, contentType, def, opt, query)
+import Network.Wai.Predicate (accept, def, opt, query)
 import Network.Wai.Routing
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
@@ -136,6 +136,7 @@ botAPI =
     :<|> Named @"bot-delete-self" botDeleteSelf
     :<|> Named @"bot-list-prekeys" botListPrekeys
     :<|> Named @"bot-update-prekeys" botUpdatePrekeys
+    :<|> Named @"bot-get-client" botGetClient
 
 routesPublic ::
   ( Member GalleyProvider r,
@@ -284,11 +285,6 @@ routesPublic = do
         .&. jsonRequest @Public.UpdateServiceWhitelist
 
   -- Bot API -----------------------------------------------------------------
-
-  get "/bot/client" (continue botGetClientH) $
-    contentType "application" "json"
-      .&> zauth ZAuthBot
-      .&> zauthBotId
 
   post "/bot/users/prekeys" (continue botClaimUsersPrekeysH) $
     accept "application" "json"
@@ -985,14 +981,10 @@ botGetSelf bot = do
   p <- lift $ wrapClient $ User.lookupUser NoPendingInvitations (botUserId bot)
   maybe (throwStd (errorToWai @'E.UserNotFound)) (pure . (`Public.publicProfile` UserLegalHoldNoConsent)) p
 
-botGetClientH :: Member GalleyProvider r => BotId -> (Handler r) Response
-botGetClientH bot = do
+botGetClient :: Member GalleyProvider r => BotId -> (Handler r) (Maybe Public.Client)
+botGetClient bot = do
   guardSecondFactorDisabled (Just (botUserId bot))
-  maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . json) =<< lift (botGetClient bot)
-
-botGetClient :: BotId -> (AppT r) (Maybe Public.Client)
-botGetClient bot =
-  listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
+  lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
 
 botListPrekeys :: Member GalleyProvider r => BotId -> (Handler r) [Public.PrekeyId]
 botListPrekeys bot = do
