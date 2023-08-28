@@ -17,6 +17,7 @@
 
 module Wire.API.Routes.Public.Brig.Bot where
 
+import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Id as Id
 import Imports
 import Servant (JSON)
@@ -25,6 +26,7 @@ import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation.Bot
 import Wire.API.Error (CanThrow, ErrorResponse)
 import Wire.API.Error.Brig (BrigError (..))
+import Wire.API.Provider.Bot (BotUserView)
 import Wire.API.Routes.API (ServiceAPI (..))
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named (..))
@@ -96,6 +98,7 @@ type BotAPI =
     :<|> Named
            "bot-list-prekeys"
            ( Summary "List prekeys for bot"
+               :> CanThrow 'AccessDenied
                :> ZBot
                :> "bot"
                :> "client"
@@ -127,6 +130,7 @@ type BotAPI =
     :<|> Named
            "bot-claim-users-prekeys"
            ( Summary "Claim users prekeys"
+               :> CanThrow 'AccessDenied
                :> CanThrow 'TooManyClients
                :> CanThrow 'MissingLegalholdConsent
                :> ZBot
@@ -135,6 +139,16 @@ type BotAPI =
                :> "prekeys"
                :> ReqBody '[JSON] UserClients
                :> Post '[JSON] UserClientPrekeyMap
+           )
+    :<|> Named
+           "bot-list-users"
+           ( Summary "List users"
+               :> CanThrow 'AccessDenied
+               :> ZBot
+               :> "bot"
+               :> "users"
+               :> QueryParam' [Required, Strict] "ids" (CommaSeparatedList UserId)
+               :> Get '[JSON] [BotUserView]
            )
 
 data BotAPITag

@@ -60,6 +60,7 @@ import Control.Monad.Except
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Char8 qualified as LC8
+import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Conduit (runConduit, (.|))
 import Data.Conduit.List qualified as C
 import Data.Hashable (hash)
@@ -142,6 +143,7 @@ botAPI =
     :<|> Named @"bot-update-prekeys" botUpdatePrekeys
     :<|> Named @"bot-get-client" botGetClient
     :<|> Named @"bot-claim-users-prekeys" botClaimUsersPrekeys
+    :<|> Named @"bot-list-users" botListUserProfiles
 
 routesPublic ::
   ( Member GalleyProvider r
@@ -289,11 +291,6 @@ routesPublic = do
         .&. jsonRequest @Public.UpdateServiceWhitelist
 
   -- Bot API -----------------------------------------------------------------
-
-  get "/bot/users" (continue botListUserProfilesH) $
-    accept "application" "json"
-      .&> zauth ZAuthBot
-      .&> query "ids"
 
   get "/bot/users/:uid/clients" (continue botGetUserClientsH) $
     accept "application" "json"
@@ -1004,24 +1001,21 @@ botUpdatePrekeys bot upd = do
       wrapClientE (User.updatePrekeys (botUserId bot) (clientId c) pks) !>> clientDataError
 
 botClaimUsersPrekeys ::
-  Member (Concurrency 'Unsafe) r =>
+  (Member (Concurrency 'Unsafe) r, Member GalleyProvider r) =>
   BotId ->
   Public.UserClients ->
   Handler r Public.UserClientPrekeyMap
 botClaimUsersPrekeys _ body = do
+  guardSecondFactorDisabled Nothing
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients body) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
   Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientError
 
-botListUserProfilesH :: Member GalleyProvider r => List UserId -> (Handler r) Response
-botListUserProfilesH uids = do
+botListUserProfiles :: Member GalleyProvider r => BotId -> (CommaSeparatedList UserId) -> (Handler r) [Public.BotUserView]
+botListUserProfiles _ uids = do
   guardSecondFactorDisabled Nothing -- should we check all user ids?
-  json <$> botListUserProfiles uids
-
-botListUserProfiles :: List UserId -> (Handler r) [Public.BotUserView]
-botListUserProfiles uids = do
-  us <- lift . wrapClient $ User.lookupUsers NoPendingInvitations (fromList uids)
+  us <- lift . wrapClient $ User.lookupUsers NoPendingInvitations (fromCommaSeparatedList uids)
   pure (map mkBotUserView us)
 
 botGetUserClientsH :: Member GalleyProvider r => UserId -> (Handler r) Response
