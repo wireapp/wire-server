@@ -171,32 +171,32 @@ startDynamicBackend resource beOverrides = do
 
     setFederationSettings :: ServiceOverrides
     setFederationSettings =
-      \case
-        Brig ->
-          setField "optSettings.setFederationDomain" resource.berDomain
-            >=> setField "federatorInternal.port" resource.berFederatorInternal
-            >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
-            >=> setField "rabbitmq.vHost" resource.berVHost
-        Cargohold ->
-          setField "settings.federationDomain" resource.berDomain
-            >=> setField "federator.host" ("127.0.0.1" :: String)
-            >=> setField "federator.port" resource.berFederatorInternal
-        Galley ->
-          setField "settings.federationDomain" resource.berDomain
-            >=> setField "settings.featureFlags.classifiedDomains.config.domains" [resource.berDomain]
-            >=> setField "federator.host" ("127.0.0.1" :: String)
-            >=> setField "federator.port" resource.berFederatorInternal
-            >=> setField "rabbitmq.vHost" resource.berVHost
-        Gundeck -> setField "settings.federationDomain" resource.berDomain
-        BackgroundWorker ->
-          setField "federatorInternal.port" resource.berFederatorInternal
-            >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
-            >=> setField "rabbitmq.vHost" resource.berVHost
-        FederatorInternal ->
-          setField "federatorInternal.port" resource.berFederatorInternal
-            >=> setField "federatorExternal.port" resource.berFederatorExternal
-            >=> setField "optSettings.setFederationDomain" resource.berDomain
-        _ -> pure
+      def
+        { brigCfg =
+            setField "optSettings.setFederationDomain" resource.berDomain
+              >=> setField "federatorInternal.port" resource.berFederatorInternal
+              >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
+              >=> setField "rabbitmq.vHost" resource.berVHost,
+          cargoholdCfg =
+            setField "settings.federationDomain" resource.berDomain
+              >=> setField "federator.host" ("127.0.0.1" :: String)
+              >=> setField "federator.port" resource.berFederatorInternal,
+          galleyCfg =
+            setField "settings.federationDomain" resource.berDomain
+              >=> setField "settings.featureFlags.classifiedDomains.config.domains" [resource.berDomain]
+              >=> setField "federator.host" ("127.0.0.1" :: String)
+              >=> setField "federator.port" resource.berFederatorInternal
+              >=> setField "rabbitmq.vHost" resource.berVHost,
+          gundeckCfg = setField "settings.federationDomain" resource.berDomain,
+          backgroundWorkerCfg =
+            setField "federatorInternal.port" resource.berFederatorInternal
+              >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
+              >=> setField "rabbitmq.vHost" resource.berVHost,
+          federatorInternalCfg =
+            setField "federatorInternal.port" resource.berFederatorInternal
+              >=> setField "federatorExternal.port" resource.berFederatorExternal
+              >=> setField "optSettings.setFederationDomain" resource.berDomain
+        }
 
     setKeyspace :: ServiceOverrides
     setKeyspace =
