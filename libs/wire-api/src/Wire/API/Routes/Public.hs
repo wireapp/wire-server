@@ -32,6 +32,7 @@ module Wire.API.Routes.Public
     ZProvider,
     DescriptionOAuthScope,
     ZHostOpt,
+    ZHostValue,
   )
 where
 
@@ -191,8 +192,10 @@ type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict]
 -- | Optional @Z-Host@ header (added by @nginz@)
 data ZHostOpt
 
+type ZHostValue = Text
+
 type ZOptHostHeader =
-  Header' '[Servant.Optional, Strict] "Z-Host" Text
+  Header' '[Servant.Optional, Strict] "Z-Host" ZHostValue
 
 instance HasSwagger api => HasSwagger (ZHostOpt :> api) where
   toSwagger _ = toSwagger (Proxy @api)

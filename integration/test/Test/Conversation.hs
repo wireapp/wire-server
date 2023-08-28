@@ -465,18 +465,27 @@ testGetOneOnOneConvInStatusSentFromRemote = do
 
 testMultiIngressGuestLinks :: HasCallStack => App ()
 testMultiIngressGuestLinks = do
-  (user, _) <- createTeam OwnDomain
-  conv <-
-    postConversation
-      user
-      ( defProteus
-          { access = Just ["code"],
-            accessRole = Just ["team_member", "guest"]
-          }
-      )
-      >>= getJSON 201
-  res <- postConversationCode user conv Nothing >>= getJSON 201
-  res %. "type" `shouldMatch` "conversation.code-update"
-  _uri <- res %. "data.uri" & asString
-  -- TODO: getConversationCode
-  printJSON res
+  do
+    (user, _) <- createTeam OwnDomain
+    conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
+    res <- postConversationCode user conv Nothing Nothing >>= getJSON 201
+    res %. "type" `shouldMatch` "conversation.code-update"
+    _uri <- res %. "data.uri" & asString
+    -- TODO: getConversationCode
+    printJSON res
+
+  withModifiedBackend
+    ( def
+        { galleyCfg =
+            setField "settings.conversationCodeURI" (Null)
+              >=> setField "settings.multiIngress" (object ["red.example.com" .= "https://red.example.com"])
+        }
+    )
+    $ \domain -> do
+      (user, _) <- createTeam domain
+      conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
+      res <- postConversationCode user conv Nothing (Just "red.example.com") >>= getJSON 201
+      res %. "type" `shouldMatch` "conversation.code-update"
+      _uri <- res %. "data.uri" & asString
+      -- TODO: getConversationCode
+      printJSON res

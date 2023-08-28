@@ -64,7 +64,7 @@ data Env = Env
     _aEnv :: Maybe Aws.Env,
     _mlsKeys :: SignaturePurpose -> MLSKeys,
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
-    _convCodeURI :: Either HttpsUrl (Map String HttpsUrl)
+    _convCodeURI :: Either HttpsUrl (Map Text HttpsUrl)
   }
 
 -- | Environment specific to the communication with external

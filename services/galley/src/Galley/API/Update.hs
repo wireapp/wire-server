@@ -79,6 +79,7 @@ import Data.Id
 import Data.Json.Util
 import Data.List1
 import Data.Map.Strict qualified as Map
+import Data.Misc (HttpsUrl)
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
@@ -135,6 +136,7 @@ import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Password (mkSafePassword)
 import Wire.API.Provider.Service (ServiceRef)
+import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
@@ -558,7 +560,7 @@ addCode lusr mbZHost mZcon lcnv mReq = do
   Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
   ensureAccess conv CodeAccess
   ensureGuestsOrNonTeamMembersAllowed conv
-  convUri <- E.getConversationCodeURI mbZHost
+  convUri <- getConversationCodeURI mbZHost
   key <- E.makeKey (tUnqualified lcnv)
   E.getCode key ReusableCode >>= \case
     Nothing -> do
@@ -638,7 +640,7 @@ getCode ::
     Member (Input Opts) r,
     Member TeamFeatureStore r
   ) =>
-  Maybe Text ->
+  Maybe ZHostValue ->
   Local UserId ->
   ConvId ->
   Sem r ConversationCodeInfo
@@ -650,7 +652,8 @@ getCode mbZHost lusr cnv = do
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   key <- E.makeKey cnv
   (c, mPw) <- E.getCode key ReusableCode >>= noteS @'CodeNotFound
-  mkConversationCodeInfo (isJust mPw) (codeKey c) (codeValue c) <$> E.getConversationCodeURI mbZHost
+  convUri <- getConversationCodeURI mbZHost
+  pure $ mkConversationCodeInfo (isJust mPw) (codeKey c) (codeValue c) convUri
 
 checkReusableCode ::
   forall r.
@@ -1618,3 +1621,15 @@ rmBot lusr zcon b = do
 ensureConvMember :: (Member (ErrorS 'ConvNotFound) r) => [LocalMember] -> UserId -> Sem r ()
 ensureConvMember users usr =
   unless (usr `isMember` users) $ throwS @'ConvNotFound
+
+getConversationCodeURI ::
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member CodeStore r
+  ) =>
+  Maybe ZHostValue ->
+  Sem r HttpsUrl
+getConversationCodeURI mbZHost = do
+  mbURI <- E.getConversationCodeURI mbZHost
+  case mbURI of
+    Just uri -> pure uri
+    Nothing -> throwS @'ConvNotFound

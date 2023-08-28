@@ -28,7 +28,6 @@ module Galley.Options
     disabledAPIVersions,
     conversationCodeURI,
     concurrentDeletionEvents,
-
     deleteConvThrottleMillis,
     federationDomain,
     mlsPrivateKeyPaths,
@@ -102,10 +101,9 @@ data Settings = Settings
     -- This option is only useful in the context of multi-ingress setups where
     -- one backend / deployment is is reachable under several domains.
     --
-    -- setMultiIngress and setConversationCodeURI are mutually exclusive. One of
+    -- multiIngress and conversationCodeURI are mutually exclusive. One of
     -- both options need to be configured.
-    -- _setMultiIngress :: Maybe (Map String HttpsUrl),
-    _multiIngress :: Maybe (Map String HttpsUrl),
+    _multiIngress :: Maybe (Map Text HttpsUrl),
     -- | Throttling: limits to concurrent deletion events
     _concurrentDeletionEvents :: !(Maybe Int),
     -- | Throttling: delay between sending events upon team deletion

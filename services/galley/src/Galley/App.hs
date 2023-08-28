@@ -129,7 +129,7 @@ type GalleyEffects0 =
 type GalleyEffects = Append GalleyEffects1 GalleyEffects0
 
 -- Define some invariants for the options used
-validateOptions :: Opts -> IO (Either HttpsUrl (Map String HttpsUrl))
+validateOptions :: Opts -> IO (Either HttpsUrl (Map Text HttpsUrl))
 validateOptions o = do
   let settings' = view settings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
@@ -141,7 +141,7 @@ validateOptions o = do
     (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
     _ -> pure ()
-  let errMsg = "Either setConversationCodeURI or setMultiIngress needs to be set."
+  let errMsg = "Either conversationCodeURI or multiIngress needs to be set."
   case (settings' ^. conversationCodeURI, settings' ^. multiIngress) of
     (Nothing, Nothing) -> error errMsg
     (Nothing, Just mi) -> pure (Right mi)
