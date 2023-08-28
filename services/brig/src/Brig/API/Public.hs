@@ -184,26 +184,11 @@ versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
       & cleanupSwagger
-versionedSwaggerDocsAPI (Just (VersionNumber V4)) =
-  swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V4
-        <> serviceSwagger @BrigAPITag @'V4
-        <> serviceSwagger @GalleyAPITag @'V4
-        <> serviceSwagger @SparAPITag @'V4
-        <> serviceSwagger @CargoholdAPITag @'V4
-        <> serviceSwagger @CannonAPITag @'V4
-        <> serviceSwagger @GundeckAPITag @'V4
-        <> serviceSwagger @ProxyAPITag @'V4
-        <> serviceSwagger @OAuthAPITag @'V4
-        <> serviceSwagger @BotAPITag @'V4
-    )
-      & S.info . S.title .~ "Wire-Server API"
-      & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
-      & cleanupSwagger
 versionedSwaggerDocsAPI (Just (VersionNumber V0)) = swaggerPregenUIServer $(pregenSwagger V0)
 versionedSwaggerDocsAPI (Just (VersionNumber V1)) = swaggerPregenUIServer $(pregenSwagger V1)
 versionedSwaggerDocsAPI (Just (VersionNumber V2)) = swaggerPregenUIServer $(pregenSwagger V2)
 versionedSwaggerDocsAPI (Just (VersionNumber V3)) = swaggerPregenUIServer $(pregenSwagger V3)
+versionedSwaggerDocsAPI (Just (VersionNumber V4)) = swaggerPregenUIServer $(pregenSwagger V4)
 versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
   where
     allroutes ::
