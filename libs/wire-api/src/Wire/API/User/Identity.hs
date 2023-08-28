@@ -81,6 +81,7 @@ import Text.Email.Validate qualified as Email.V
 import URI.ByteString qualified as URI
 import URI.ByteString.QQ (uri)
 import Wire.API.User.Profile (fromName, mkName)
+import Wire.API.User.Types
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -116,6 +117,17 @@ maybeUserIdentityObjectSchema =
 -- answers.
 --
 -- the 3 maybe texts at the end here are for the PartialUAuthId.
+--
+-- NOTE(owen): The last 3 fields being Maybe Text is isn't going to be enough for PartialUAuthId
+-- as it has the teamId field that must be filled. At a stretch we could use "", but that feels
+-- like asking for trouble. Additionally, what order are the fields in and how should we parse them?
+-- We could change the representation of UAuthIdF from it's current functor parameterised form to
+-- regular generics for each field, and then have an intermediate type synonum for the functor
+-- form to be used in the type family.
+-- Eg. data UAuthIdF a b c = UAuthIdF { samlId :: a, scimExternalId :: b }
+--     type UAuthIdFunctor a b c = UAuthIdF (a SAML.UserRef) (b Text) (c EmailWithSource)
+--     type family ValidUAuthIdF (f :: UAuthIdTag) where
+--       ValidUAuthIdF 'UAScimSamlEmail     = UAuthIdFunctor Identity Identity Identity
 type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe Text, Maybe Text, Maybe Text)
 
 userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
@@ -127,21 +139,27 @@ userIdentityComponentsObjectSchema =
 
 maybeUserIdentityFromComponents :: UserIdentityComponents -> Maybe UserIdentity
 maybeUserIdentityFromComponents = \case
-  (maybeEmail, maybePhone, Just ssoid) -> Just $ SSOIdentity ssoid maybeEmail maybePhone
-  (Just email, Just phone, Nothing) -> Just $ FullIdentity email phone
-  (Just email, Nothing, Nothing) -> Just $ EmailIdentity email
-  (Nothing, Just phone, Nothing) -> Just $ PhoneIdentity phone
-  (Nothing, Nothing, Nothing) -> Nothing
+  (maybeEmail, maybePhone, Just ssoid, _, _) -> Just $ UAuthIdentity $ UAuthIdF _ ssoid maybeEmail _ -- maybePhone
+  (Just email, Just phone, Nothing, _, _) -> Just $ FullIdentity email phone
+  (Just email, Nothing, Nothing, _, _) -> Just $ EmailIdentity email
+  (Nothing, Just phone, Nothing, _, _) -> Just $ PhoneIdentity phone
+  (Nothing, Nothing, Nothing, _, _) -> Nothing
 
 maybeUserIdentityToComponents :: Maybe UserIdentity -> UserIdentityComponents
-maybeUserIdentityToComponents Nothing = (Nothing, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing)
-maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing)
-maybeUserIdentityToComponents (Just (SSOIdentity ssoid m_email m_phone)) = (m_email, m_phone, Just ssoid)
+maybeUserIdentityToComponents Nothing = (Nothing, Nothing, Nothing, _, _)
+maybeUserIdentityToComponents (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing, _, _)
+maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing, Nothing, _, _)
+maybeUserIdentityToComponents (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing, _, _)
+maybeUserIdentityToComponents (Just (UAuthIdentity uaid)) = (ewsEmail <$> uaid.email, _ uaid, uaid.scimExternalId, _, _)
 
-newIdentity :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
-newIdentity email phone (Just sso) = Just $! SSOIdentity sso email phone
+newIdentity :: Maybe Email -> Maybe Phone -> Maybe LegacyUserSSOId -> Maybe UserIdentity
+newIdentity email phone (Just sso) =
+  Just $!
+    UAuthIdentity $
+      sso.fromLegacyUserSSOId
+        { email = flip EmailWithSource _ <$> email
+        }
+-- UAuthIdF _ sso  _ -- phone
 newIdentity Nothing Nothing Nothing = Nothing
 newIdentity (Just e) Nothing Nothing = Just $! EmailIdentity e
 newIdentity Nothing (Just p) Nothing = Just $! PhoneIdentity p
@@ -151,74 +169,17 @@ emailIdentity :: UserIdentity -> Maybe Email
 emailIdentity (FullIdentity email _) = Just email
 emailIdentity (EmailIdentity email) = Just email
 emailIdentity (PhoneIdentity _) = Nothing
-emailIdentity (SSOIdentity _ (Just email) _) = Just email
-emailIdentity (SSOIdentity _ Nothing _) = Nothing
+emailIdentity (UAuthIdentity uaid) = ewsEmail <$> uaid.email
 
 phoneIdentity :: UserIdentity -> Maybe Phone
 phoneIdentity (FullIdentity _ phone) = Just phone
 phoneIdentity (PhoneIdentity phone) = Just phone
 phoneIdentity (EmailIdentity _) = Nothing
-phoneIdentity (SSOIdentity _ _ (Just phone)) = Just phone
-phoneIdentity (SSOIdentity _ _ Nothing) = Nothing
+phoneIdentity (UAuthIdentity uaid) = uaid.phone
 
-ssoIdentity :: UserIdentity -> Maybe UserSSOId
-ssoIdentity (SSOIdentity ssoid _ _) = Just ssoid
+ssoIdentity :: UserIdentity -> Maybe LegacyUserSSOId
+ssoIdentity (UAuthIdentity uaid) = pure $ LegacyUserSSOId uaid
 ssoIdentity _ = Nothing
-
---------------------------------------------------------------------------------
--- Email
-
--- FUTUREWORK: replace this type with 'EmailAddress'
-data Email = Email
-  { emailLocal :: Text,
-    emailDomain :: Text
-  }
-  deriving stock (Eq, Ord, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Email
-
-instance ToParamSchema Email where
-  toParamSchema _ = toParamSchema (Proxy @Text)
-
-instance ToSchema Email where
-  schema =
-    fromEmail
-      .= parsedText
-        "Email"
-        ( maybe
-            (Left "Invalid email. Expected '<local>@<domain>'.")
-            pure
-            . parseEmail
-        )
-
-instance Show Email where
-  show = Text.unpack . fromEmail
-
-instance ToByteString Email where
-  builder = builder . fromEmail
-
-instance FromByteString Email where
-  parser = parser >>= maybe (fail "Invalid email") pure . parseEmail
-
-instance S.FromHttpApiData Email where
-  parseUrlPiece = maybe (Left "Invalid email") Right . fromByteString . cs
-
-instance S.ToHttpApiData Email where
-  toUrlPiece = cs . toByteString'
-
-instance Arbitrary Email where
-  arbitrary = do
-    localPart <- Text.filter (/= '@') <$> arbitrary
-    domain <- Text.filter (/= '@') <$> arbitrary
-    pure $ Email localPart domain
-
-fromEmail :: Email -> Text
-fromEmail (Email loc dom) = loc <> "@" <> dom
-
--- | Parses an email address of the form <local-part>@<domain>.
-parseEmail :: Text -> Maybe Email
-parseEmail t = case Text.split (== '@') t of
-  [localPart, domain] -> Just $! Email localPart domain
-  _ -> Nothing
 
 -- |
 -- FUTUREWORK:
@@ -327,7 +288,6 @@ instance ToJSON PhoneBudgetTimeout where
 -- UserSSOId (DEPRECATED)
 
 -- | User's legacy external identity (DEPRECATED).
---
 -- NB: this type is serialized to the full xml encoding of the `SAML.UserRef` components, but
 -- deserialiation is more lenient: it also allows for the `Issuer` to be a plain URL (without
 -- xml around it), and the `NameID` to be an email address (=> format "email") or an arbitrary
@@ -335,7 +295,7 @@ instance ToJSON PhoneBudgetTimeout where
 -- robustness.
 data LegacyUserSSOId = LegacyUserSSOId {fromLegacyUserSSOId :: PartialUAuthId}
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserSSOId)
+  deriving (Arbitrary) via (GenericUniform LegacyUserSSOId)
 
 instance S.ToSchema LegacyUserSSOId where
   declareNamedSchema _ = do
@@ -357,10 +317,11 @@ instance S.ToSchema LegacyUserSSOId where
                ]
 
 instance ToJSON LegacyUserSSOId where
-  toJSON = \case
-    -- TODO
-    UserSSOId (SAML.UserRef tenant subject) -> A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
-    UserScimExternalId eid -> A.object ["scim_external_id" A..= eid]
+  toJSON uid = case uid.samlId of
+    Just (SAML.UserRef tenant subject) -> A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
+    Nothing -> case uid.scimExternalId of
+      Just eid -> A.object ["scim_external_id" A..= eid]
+      Nothing -> A.object []
 
 instance FromJSON LegacyUserSSOId where
   parseJSON = A.withObject "UserSSOId" $ \obj -> do
@@ -369,8 +330,8 @@ instance FromJSON LegacyUserSSOId where
     msubject <- lenientlyParseSAMLNameID =<< (obj A..:? "subject")
     meid <- obj A..:? "scim_external_id"
     case (mtenant, msubject, meid) of
-      (Just tenant, Just subject, Nothing) -> pure $ UserSSOId (SAML.UserRef tenant subject)
-      (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
+      (Just tenant, Just subject, Nothing) -> pure $ LegacyUserSSOId $ UAuthIdF (pure $ SAML.UserRef tenant subject) Nothing Nothing _
+      (Nothing, Nothing, Just eid) -> pure $ LegacyUserSSOId $ UAuthIdF Nothing eid Nothing _
       _ -> fail "either need tenant and subject, or scim_external_id, but not both"
 
 lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)

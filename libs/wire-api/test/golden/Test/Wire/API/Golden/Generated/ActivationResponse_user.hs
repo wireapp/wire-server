@@ -20,6 +20,7 @@ module Test.Wire.API.Golden.Generated.ActivationResponse_user where
 import Imports (Bool (False, True), Maybe (Just, Nothing))
 import Wire.API.User
   ( Email (Email, emailDomain, emailLocal),
+    LegacyUserSSOId (UserSSOId, UserScimExternalId),
     Phone (Phone, fromPhone),
     UserIdentity
       ( EmailIdentity,
@@ -27,7 +28,6 @@ import Wire.API.User
         PhoneIdentity,
         SSOIdentity
       ),
-    UserSSOId (UserSSOId, UserScimExternalId),
   )
 import Wire.API.User.Activation (ActivationResponse (..))
 import Wire.API.User.Identity (mkSimpleSampleUref)

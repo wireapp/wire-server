@@ -88,6 +88,7 @@ import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile as BT
 import Wire.API.User.RichInfo qualified as RI
 import Wire.API.User.Saml ()
+import Wire.API.User.Types
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 ----------------------------------------------------------------------------
@@ -513,38 +514,6 @@ instance ToSchema ScimTokenList where
                ]
           & required .~ ["tokens"]
 
--- | This is used in `ValidUAuthIdF f` with Const () and Identity functors.
--- Const () means that there is no value in that position, and it can be ignored.
--- Identity means that there is a value in that position, and it needs to be considered.
---
--- NOTE(fisx): we're using dot syntax for records these days, so ambiguous field names are ok!
-data UAuthIdF a b c = UAuthIdF
-  { samlId :: a SAML.UserRef,
-    scimExternalId :: b Text,
-    email :: c EmailWithSource,
-    -- | only team users support saml and/or scim.  exzternalId is scoped in
-    -- team, so once we have parsed a scim user record, the externalId should
-    -- never occur anywhere without team it!
-    teamId :: TeamId
-  }
-  deriving (Generic)
-
--- | in order to be able to reconstruct scim records, we need to know where in the scim record
--- the email came from (externalId?  emails field?)
-data EmailWithSource = EmailWithSource
-  { ewsEmail :: Email,
-    ewsEmailSource :: EmailSource
-  }
-  deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform EmailWithSource)
-
-data EmailSource
-  = EmailFromScimExternalIdField
-  | EmailFromScimEmailsField
-  | EmailFromSamlNameId -- saml, but no scim.  deprecated, but we need to support this for the foreseeable future.
-  deriving (Eq, Show, Bounded, Enum, Generic)
-  deriving (Arbitrary) via (GenericUniform EmailSource)
-
 -- | Konst exists to make the next set of declarations easier to write
 type Konst = Const ()
 
@@ -580,6 +549,13 @@ $(singDecideInstance ''UAuthIdTag)
 -- scimExternalId, should be typed using `UAuthIdF a b Konst`.  But there are probably a few
 -- places where we want to limit the number of legal combinations, especially when parsing
 -- incoming data.
+-- NOTE(owen): Yes, that was part of the goal. This should be used most of the time, and code and
+-- drop down to using the bare representation when it is needed. Basically we should try to use
+-- this type family where we can to limit what representations are passed around to only valid
+-- combinations, but code that only cares about one field can set its types based on that, kind
+-- of like `HasFoo` classes if you squint a bit.
+-- However, this is getting close to the point where it won't be limiting anything. Currently there
+-- are 8 (2^3) options of Const and Identity.
 {- ORMOLU_DISABLE -}
 type family ValidUAuthIdF (f :: UAuthIdTag) where
   ValidUAuthIdF 'UAScimSamlEmail     = UAuthIdF Identity Identity Identity
@@ -589,22 +565,18 @@ type family ValidUAuthIdF (f :: UAuthIdTag) where
   ValidUAuthIdF 'UASamlNoScimNoEmail = UAuthIdF Identity Konst    Konst
 {- ORMOLU_ENABLE -}
 
--- | In brig, we don't really care about these values and never have to validate them.  We
--- just get them from spar, and write them to the database and later communicate them back to
--- spar or to team-management or to clients.  So in order to keep things from getting out of
--- hand, we decide the presence of all fields at run time.
-type PartialUAuthId = UAuthIdF 'Maybe 'Maybe 'Maybe
-
+-- TODO?
+{-
 runValidUAuthIdFEither ::
   forall tag a.
   SingI tag =>
   (SAML.UserRef -> a) ->
+  (Text -> a) ->
   (Email -> a) ->
   ValidUAuthIdF tag ->
   a
-runValidUAuthIdFEither doUref doEmail extId = case tag of
-  -- TODO!
-  SScimExternalId -> undefined $ runIdentity extId.eScim
+runValidUAuthIdFEither doUref doExternal doEmail extId = case tag of
+  SScimExternalId -> doExternal $ runIdentity extId.eScim
   SSaml -> doUref $ runIdentity extId.eSaml
   SSamlAndEmail -> doUref $ runIdentity extId.eSaml
   SSamlAndPassword -> doUref $ runIdentity extId.eSaml
@@ -617,19 +589,19 @@ runValidUAuthIdFBoth ::
   SingI tag =>
   (a -> a -> a) ->
   (SAML.UserRef -> a) ->
+  (Text -> a) ->
   (Email -> a) ->
   ValidUAuthIdF tag ->
   a
-runValidUAuthIdFBoth merge doUref doEmail extId = case tag of
-  -- TODO!
-  SScim -> undefined $ runIdentity extId.eScim
+runValidUAuthIdFBoth merge doUref doExternal doEmail extId = case tag of
+  SScim -> doText $ runIdentity extId.eScim
   SSaml -> doUref $ runIdentity extId.eSaml
   SSamlAndEmail ->
     doUref (runIdentity extId.eSaml)
       `merge` doEmail (runIdentity extId.eEmail)
   SSamlAndPassword -> doUref $ runIdentity extId.eSaml
   SEmail -> doEmail $ runIdentity extId.eEmail
-  -- TODO!
-  SExternalId -> undefined $ runIdentity extId.eExternalId
+  SExternalId -> doExternal $ runIdentity extId.eExternalId
   where
     tag = sing @tag
+-}
