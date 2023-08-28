@@ -30,7 +30,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named (..))
 import Wire.API.Routes.Public
 import Wire.API.User
-import Wire.API.User.Client (Client)
+import Wire.API.User.Client (Client, UserClientPrekeyMap, UserClients)
 import Wire.API.User.Client.Prekey (PrekeyId)
 
 type DeleteResponses =
@@ -123,6 +123,18 @@ type BotAPI =
                :> "bot"
                :> "client"
                :> MultiVerb 'GET '[JSON] GetClientResponses (Maybe Client)
+           )
+    :<|> Named
+           "bot-claim-users-prekeys"
+           ( Summary "Claim users prekeys"
+               :> CanThrow 'TooManyClients
+               :> CanThrow 'MissingLegalholdConsent
+               :> ZBot
+               :> "bot"
+               :> "users"
+               :> "prekeys"
+               :> ReqBody '[JSON] UserClients
+               :> Post '[JSON] UserClientPrekeyMap
            )
 
 data BotAPITag

@@ -128,7 +128,11 @@ import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
 import Wire.API.User.Identity qualified as Public (Email)
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 
-botAPI :: Member GalleyProvider r => ServerT BotAPI (Handler r)
+botAPI ::
+  ( Member GalleyProvider r,
+    Member (Concurrency 'Unsafe) r
+  ) =>
+  ServerT BotAPI (Handler r)
 botAPI =
   Named @"add-bot" addBot
     :<|> Named @"remove-bot" removeBot
@@ -137,10 +141,10 @@ botAPI =
     :<|> Named @"bot-list-prekeys" botListPrekeys
     :<|> Named @"bot-update-prekeys" botUpdatePrekeys
     :<|> Named @"bot-get-client" botGetClient
+    :<|> Named @"bot-claim-users-prekeys" botClaimUsersPrekeys
 
 routesPublic ::
-  ( Member GalleyProvider r,
-    Member (Concurrency 'Unsafe) r
+  ( Member GalleyProvider r
   ) =>
   Routes () (Handler r) ()
 routesPublic = do
@@ -285,11 +289,6 @@ routesPublic = do
         .&. jsonRequest @Public.UpdateServiceWhitelist
 
   -- Bot API -----------------------------------------------------------------
-
-  post "/bot/users/prekeys" (continue botClaimUsersPrekeysH) $
-    accept "application" "json"
-      .&> zauth ZAuthBot
-      .&> jsonRequest @Public.UserClients
 
   get "/bot/users" (continue botListUserProfilesH) $
     accept "application" "json"
@@ -1004,21 +1003,12 @@ botUpdatePrekeys bot upd = do
       let pks = updateBotPrekeyList upd
       wrapClientE (User.updatePrekeys (botUserId bot) (clientId c) pks) !>> clientDataError
 
-botClaimUsersPrekeysH ::
-  ( Member GalleyProvider r,
-    Member (Concurrency 'Unsafe) r
-  ) =>
-  JsonRequest Public.UserClients ->
-  Handler r Response
-botClaimUsersPrekeysH req = do
-  guardSecondFactorDisabled Nothing
-  json <$> (botClaimUsersPrekeys =<< parseJsonBody req)
-
 botClaimUsersPrekeys ::
   Member (Concurrency 'Unsafe) r =>
+  BotId ->
   Public.UserClients ->
   Handler r Public.UserClientPrekeyMap
-botClaimUsersPrekeys body = do
+botClaimUsersPrekeys _ body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients body) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)

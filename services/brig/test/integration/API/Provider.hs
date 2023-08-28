@@ -47,6 +47,7 @@ import Data.Id hiding (client)
 import Data.Json.Util (toBase64Text)
 import Data.List1 (List1)
 import Data.List1 qualified as List1
+import Data.Map qualified as Map
 import Data.Misc
 import Data.PEM
 import Data.Qualified
@@ -145,7 +146,8 @@ tests dom conf p db b c g = do
           [ test p "add-remove" $ testAddRemoveBot conf db b g c,
             test p "message" $ testMessageBot conf db b g c,
             test p "bad fingerprint" $ testBadFingerprint conf db b g c,
-            test p "add bot forbidden" $ testAddBotForbidden conf db b g
+            test p "add bot forbidden" $ testAddBotForbidden conf db b g,
+            test p "claim user prekeys" $ testClaimUserPrekeys conf db b g
           ],
         testGroup
           "bot-teams"
@@ -559,6 +561,29 @@ testAddBotForbidden config db brig galley = withTestService config db brig defSe
   addBot brig uid1 pid sid cid !!! do
     const 403 === statusCode
     const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
+
+testClaimUserPrekeys :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testClaimUserPrekeys config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
+  (pid, sid, u1, _u2, _h) <- prepareUsers sref brig
+  cid <- do
+    rs <- createConv galley u1.userId [] <!! const 201 === statusCode
+    let Just cnv = responseJsonMaybe rs
+    let cid = qUnqualified . cnvQualifiedId $ cnv
+    pure cid
+  addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig u1.userId pid sid cid <!! const 201 === statusCode
+  let bid = addBotResponse.rsAddBotId
+  let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
+  c :: Client <- responseJsonError =<< addClient brig u1.userId new
+
+  let userClients = UserClients $ Map.fromList [(u1.userId, Set.fromList [c.clientId])]
+  actual <- responseJsonError =<< claimUsersPrekeys brig bid userClients <!! const 200 === statusCode
+
+  let expected =
+        UserClientPrekeyMap $
+          UserClientMap $
+            Map.fromList [(u1.userId, Map.fromList [(c.clientId, Just (Imports.head somePrekeys))])]
+
+  liftIO $ assertEqual "claim prekeys" expected actual
 
 testAddBotBlocked :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
 testAddBotBlocked config db brig galley = withTestService config db brig defServiceApp $ \sref _buf -> do
@@ -1538,6 +1563,16 @@ updateBotPrekeys brig bid prekeys =
       . header "Z-Bot" (toByteString' bid)
       . contentJson
       . body (RequestBodyLBS (encode (UpdateBotPrekeys prekeys)))
+
+claimUsersPrekeys :: Brig -> BotId -> UserClients -> Http ResponseLBS
+claimUsersPrekeys brig bid ucs =
+  post $
+    brig
+      . path "/bot/users/prekeys"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+      . contentJson
+      . body (RequestBodyLBS (encode ucs))
 
 --------------------------------------------------------------------------------
 -- DB Operations

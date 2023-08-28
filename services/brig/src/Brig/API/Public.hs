@@ -429,8 +429,7 @@ servantSitemap =
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
 sitemap ::
-  ( Member (Concurrency 'Unsafe) r,
-    Member GalleyProvider r
+  ( Member GalleyProvider r
   ) =>
   Routes () (Handler r) ()
 sitemap = do
