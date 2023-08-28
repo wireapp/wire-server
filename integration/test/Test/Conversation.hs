@@ -20,9 +20,7 @@ testDynamicBackendsFullyConnectedWhenAllowAll :: HasCallStack => App ()
 testDynamicBackendsFullyConnectedWhenAllowAll = do
   let overrides =
         def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
-          <> fullSearchWithAll
-  startDynamicBackends [overrides, overrides, overrides] $ \dynDomains -> do
-    [domainA, domainB, domainC] <- pure dynDomains
+  startDynamicBackends [overrides, overrides, overrides] $ \[domainA, domainB, domainC] -> do
     uidA <- randomUser domainA def {team = True}
     uidB <- randomUser domainA def {team = True}
     uidC <- randomUser domainA def {team = True}
@@ -338,7 +336,7 @@ testConvWithUnreachableRemoteUsers :: HasCallStack => App ()
 testConvWithUnreachableRemoteUsers = do
   let overrides =
         def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
-          <> fullSearchWithAll
+
   ([alice, alex, bob, charlie, dylan], domains) <-
     startDynamicBackends [overrides, overrides] $ \domains -> do
       own <- make OwnDomain & asString
@@ -359,7 +357,6 @@ testAddReachableWithUnreachableRemoteUsers :: HasCallStack => App ()
 testAddReachableWithUnreachableRemoteUsers = do
   let overrides =
         def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
-          <> fullSearchWithAll
   ([alex, bob], conv, domains) <-
     startDynamicBackends [overrides, overrides] $ \domains -> do
       own <- make OwnDomain & asString
@@ -385,7 +382,6 @@ testAddUnreachable :: HasCallStack => App ()
 testAddUnreachable = do
   let overrides =
         def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
-          <> fullSearchWithAll
   ([alex, charlie], [charlieDomain, dylanDomain], conv) <-
     startDynamicBackends [overrides, overrides] $ \domains -> do
       own <- make OwnDomain & asString

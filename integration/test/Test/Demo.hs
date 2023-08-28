@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 -- | This module is meant to show how Testlib can be used
 module Test.Demo where
 
@@ -173,8 +175,7 @@ testIndependentESIndices = do
 
 testDynamicBackendsFederation :: HasCallStack => App ()
 testDynamicBackendsFederation = do
-  startDynamicBackends [def <> fullSearchWithAll, def <> fullSearchWithAll] $ \dynDomains -> do
-    [aDynDomain, anotherDynDomain] <- pure dynDomains
+  startDynamicBackends [def, def] $ \[aDynDomain, anotherDynDomain] -> do
     u1 <- randomUser aDynDomain def
     u2 <- randomUser anotherDynDomain def
     uid2 <- objId u2

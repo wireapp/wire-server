@@ -9,7 +9,6 @@ import Data.Aeson hiding ((.=))
 import Data.Aeson.Types qualified as Aeson
 import Data.Default
 import Data.Function
-import Data.List qualified as List
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
 import Testlib.Prelude
@@ -91,16 +90,6 @@ randomUserId domain = do
   d <- make domain
   uid <- randomId
   pure $ object ["id" .= uid, "domain" .= d]
-
-fullSearchWithAll :: ServiceOverrides
-fullSearchWithAll =
-  def
-    { brigCfg = \val -> do
-        ownDomain <- asString =<< val %. "optSettings.setFederationDomain"
-        env <- ask
-        let remoteDomains = List.delete ownDomain $ [env.domain1, env.domain2] <> env.dynamicDomains
-        addFullSearchFor remoteDomains val
-    }
 
 withFederatingBackendsAllowDynamic :: HasCallStack => Int -> ((String, String, String) -> App a) -> App a
 withFederatingBackendsAllowDynamic n k = do
