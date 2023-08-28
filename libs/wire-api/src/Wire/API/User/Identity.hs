@@ -53,7 +53,7 @@ module Wire.API.User.Identity
 where
 
 import Control.Applicative (optional)
-import Control.Lens (dimap, over, (.~), (?~), (^.))
+import Control.Lens (dimap, ix, over, view, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
@@ -67,7 +67,6 @@ import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Data.Time.Clock
-import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports
 import SAML2.WebSSO.Test.Arbitrary ()
 import SAML2.WebSSO.Types qualified as SAML
@@ -132,14 +131,20 @@ type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe Text, Maybe Text,
 
 userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
 userIdentityComponentsObjectSchema =
-  (,,)
-    <$> fst3 .= maybe_ (optField "email" schema)
-    <*> snd3 .= maybe_ (optField "phone" schema)
-    <*> thd3 .= maybe_ (optField "sso_id" genericToSchema)
+  (,,,,)
+    <$> fst5 .= maybe_ (optField "email" schema)
+    <*> snd5 .= maybe_ (optField "phone" schema)
+    <*> thd5 .= maybe_ (optField "sso_id" genericToSchema)
+    <*> _
+    <*> _
+  where
+    fst5 (a, _, _, _, _) = a
+    snd5 (_, a, _, _, _) = a
+    thd5 (_, _, a, _, _) = a
 
 maybeUserIdentityFromComponents :: UserIdentityComponents -> Maybe UserIdentity
 maybeUserIdentityFromComponents = \case
-  (maybeEmail, maybePhone, Just ssoid, _, _) -> Just $ UAuthIdentity $ UAuthIdF _ ssoid maybeEmail _ -- maybePhone
+  (maybeEmail, maybePhone, Just ssoid, _, _) -> Just $ UAuthIdentity $ UAuthIdF _ (pure ssoid) (flip EmailWithSource _ <$> maybeEmail) _ -- maybePhone
   (Just email, Just phone, Nothing, _, _) -> Just $ FullIdentity email phone
   (Just email, Nothing, Nothing, _, _) -> Just $ EmailIdentity email
   (Nothing, Just phone, Nothing, _, _) -> Just $ PhoneIdentity phone
