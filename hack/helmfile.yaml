@@ -135,12 +135,6 @@ releases:
         value: {{ .Values.dynBackendDomain2 }}
       - name: brig.config.optSettings.setFederationDomainConfigs[4].domain
         value: {{ .Values.dynBackendDomain3 }}
-      - name: brig.config.rabbitmq.vHost
-        value: {{ .Values.federationDomain1 }}
-      - name: galley.config.rabbitmq.vHost
-        value: {{ .Values.federationDomain1 }}
-      - name: background-worker.config.rabbitmq.vHost
-        value: {{ .Values.federationDomain1 }}
     needs:
       - 'databases-ephemeral'
 
@@ -165,11 +159,5 @@ releases:
         value: {{ .Values.dynBackendDomain2 }}
       - name: brig.config.optSettings.setFederationDomainConfigs[4].domain
         value: {{ .Values.dynBackendDomain3 }}
-      - name: brig.config.rabbitmq.vHost
-        value: {{ .Values.federationDomain2 }}
-      - name: galley.config.rabbitmq.vHost
-        value: {{ .Values.federationDomain2 }}
-      - name: background-worker.config.rabbitmq.vHost
-        value: {{ .Values.federationDomain2 }}
     needs:
       - 'databases-ephemeral'
