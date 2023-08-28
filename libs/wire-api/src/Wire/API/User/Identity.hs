@@ -61,6 +61,7 @@ import Data.Attoparsec.Text
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion
 import Data.CaseInsensitive qualified as CI
+import Data.Id (TeamId)
 import Data.Schema
 import Data.Swagger (ToParamSchema (..))
 import Data.Swagger qualified as S
@@ -155,7 +156,7 @@ maybeUserIdentityToComponents Nothing = (Nothing, Nothing, Nothing, _, _)
 maybeUserIdentityToComponents (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing, _, _)
 maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing, Nothing, _, _)
 maybeUserIdentityToComponents (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing, _, _)
-maybeUserIdentityToComponents (Just (UAuthIdentity uaid)) = (ewsEmail <$> uaid.email, _ uaid, uaid.scimExternalId, _, _)
+maybeUserIdentityToComponents (Just (UAuthIdentity uaid)) = (ewsEmail <$> uaid.email, Nothing, uaid.scimExternalId, _, _)
 
 newIdentity :: Maybe Email -> Maybe Phone -> Maybe LegacyUserSSOId -> Maybe UserIdentity
 newIdentity email phone (Just sso) =
@@ -180,7 +181,7 @@ phoneIdentity :: UserIdentity -> Maybe Phone
 phoneIdentity (FullIdentity _ phone) = Just phone
 phoneIdentity (PhoneIdentity phone) = Just phone
 phoneIdentity (EmailIdentity _) = Nothing
-phoneIdentity (UAuthIdentity uaid) = uaid.phone
+phoneIdentity (UAuthIdentity _) = Nothing
 
 ssoIdentity :: UserIdentity -> Maybe LegacyUserSSOId
 ssoIdentity (UAuthIdentity uaid) = pure $ LegacyUserSSOId uaid
@@ -322,7 +323,7 @@ instance S.ToSchema LegacyUserSSOId where
                ]
 
 instance ToJSON LegacyUserSSOId where
-  toJSON uid = case uid.samlId of
+  toJSON (LegacyUserSSOId uid) = case uid.samlId of
     Just (SAML.UserRef tenant subject) -> A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
     Nothing -> case uid.scimExternalId of
       Just eid -> A.object ["scim_external_id" A..= eid]
