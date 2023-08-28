@@ -178,7 +178,7 @@ uploadNewKeyPackage cid = do
   (kp, ref) <- generateKeyPackage cid
 
   -- upload key package
-  bindResponse (uploadKeyPackage cid kp) $ \resp ->
+  bindResponse (uploadKeyPackages cid [kp]) $ \resp ->
     resp.status `shouldMatchInt` 201
 
   pure ref

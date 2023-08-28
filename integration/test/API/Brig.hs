@@ -243,15 +243,15 @@ putConnection userFrom userTo status = do
   statusS <- asString status
   submit "POST" (req & addJSONObject ["status" .= statusS])
 
-uploadKeyPackage :: ClientIdentity -> ByteString -> App Response
-uploadKeyPackage cid kp = do
+uploadKeyPackages :: ClientIdentity -> [ByteString] -> App Response
+uploadKeyPackages cid kps = do
   req <-
     baseRequest cid Brig Versioned $
       "/mls/key-packages/self/" <> cid.client
   submit
     "POST"
     ( req
-        & addJSONObject ["key_packages" .= [T.decodeUtf8 (Base64.encode kp)]]
+        & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
     )
 
 claimKeyPackages :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> App Response
