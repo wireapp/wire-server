@@ -109,6 +109,9 @@ data:
 
       originDomain: federation-test-helper.{{ .Release.Namespace }}-fed2.svc.cluster.local
 
+      backendTwo:
+        originDomain: federation-test-helper.{{ .Release.Namespace }}-fed2.svc.cluster.local
+
     dynamicBackends:
       {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
       {{ $name }}:
