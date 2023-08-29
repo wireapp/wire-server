@@ -73,6 +73,9 @@ asString x =
     (String s) -> pure (T.unpack s)
     v -> assertFailureWithJSON x ("String" `typeWasExpectedButGot` v)
 
+asText :: HasCallStack => MakesValue a => a -> App T.Text
+asText = (fmap T.pack) . asString
+
 asStringM :: HasCallStack => MakesValue a => a -> App (Maybe String)
 asStringM x =
   make x >>= \case

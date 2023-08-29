@@ -247,3 +247,19 @@ postConversationCode user conv mbpassword mbZHost = do
         & addJSONObject ["password" .= pw | pw <- maybeToList mbpassword]
         & maybe id zHost mbZHost
     )
+
+getConversationCode ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  Maybe String ->
+  App Response
+getConversationCode user conv mbZHost = do
+  convId <- objId conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convId, "code"])
+  submit
+    "GET"
+    ( req
+        & addQueryParams [("cnv", convId)]
+        & maybe id zHost mbZHost
+    )
