@@ -1623,7 +1623,7 @@ ensureConvMember users usr =
   unless (usr `isMember` users) $ throwS @'ConvNotFound
 
 getConversationCodeURI ::
-  ( Member (ErrorS 'ConvNotFound) r,
+  ( Member (ErrorS 'ConvAccessDenied) r,
     Member CodeStore r
   ) =>
   Maybe ZHostValue ->
@@ -1632,4 +1632,4 @@ getConversationCodeURI mbZHost = do
   mbURI <- E.getConversationCodeURI mbZHost
   case mbURI of
     Just uri -> pure uri
-    Nothing -> throwS @'ConvNotFound
+    Nothing -> throwS @'ConvAccessDenied
