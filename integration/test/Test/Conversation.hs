@@ -3,7 +3,7 @@
 
 module Test.Conversation where
 
-import API.Brig (getConnection)
+import API.Brig (getConnection, getConnections, postConnection)
 import API.BrigInternal
 import API.Galley
 import API.GalleyInternal
@@ -13,6 +13,7 @@ import Control.Concurrent (threadDelay)
 import Data.Aeson qualified as Aeson
 import GHC.Stack
 import SetupHelpers
+import Testlib.One2One (generateRemoteAndConvIdWithDomain)
 import Testlib.Prelude
 
 testDynamicBackendsFullyConnectedWhenAllowAll :: HasCallStack => App ()
@@ -443,3 +444,21 @@ testAddingUserNonFullyConnectedFederation = do
     bindResponse (addMembers alice conv [bobId, charlieId]) $ \resp -> do
       resp.status `shouldMatchInt` 409
       resp.json %. "non_federating_backends" `shouldMatchSet` [other, dynBackend]
+
+testGetOneOnOneConvInStatusSentFromRemote :: App ()
+testGetOneOnOneConvInStatusSentFromRemote = do
+  d1User <- randomUser OwnDomain def
+  let shouldBeLocal = True
+  (d2Usr, d2ConvId) <- generateRemoteAndConvIdWithDomain OtherDomain (not shouldBeLocal) d1User
+  bindResponse (postConnection d1User d2Usr) $ \r -> do
+    r.status `shouldMatchInt` 201
+    r.json %. "status" `shouldMatch` "sent"
+  bindResponse (listConversationIds d1User def) $ \r -> do
+    r.status `shouldMatchInt` 200
+    convIds <- r.json %. "qualified_conversations" & asList
+    filter ((==) d2ConvId) convIds `shouldMatch` [d2ConvId]
+  bindResponse (getConnections d1User) $ \r -> do
+    qConvIds <- r.json %. "connections" & asList >>= traverse (%. "qualified_conversation")
+    filter ((==) d2ConvId) qConvIds `shouldMatch` [d2ConvId]
+  resp <- getConversation d1User d2ConvId
+  resp.status `shouldMatchInt` 200
