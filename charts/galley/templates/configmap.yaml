@@ -59,7 +59,9 @@ data:
       {{- if .settings.exposeInvitationURLsTeamAllowlist }}
       exposeInvitationURLsTeamAllowlist: {{ .settings.exposeInvitationURLsTeamAllowlist }}
       {{- end }}
+      {{- if .settings.conversationCodeURI }}
       conversationCodeURI: {{ .settings.conversationCodeURI | quote }}
+      {{- end }}
       federationDomain: {{ .settings.federationDomain }}
       {{- if $.Values.secrets.mlsPrivateKeys }}
       mlsPrivateKeyPaths:
