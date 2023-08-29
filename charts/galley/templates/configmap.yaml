@@ -62,6 +62,7 @@ data:
       {{- if .settings.conversationCodeURI }}
       conversationCodeURI: {{ .settings.conversationCodeURI | quote }}
       {{- end }}
+      # TODO: add multi ingress setting
       federationDomain: {{ .settings.federationDomain }}
       {{- if $.Values.secrets.mlsPrivateKeys }}
       mlsPrivateKeyPaths:
