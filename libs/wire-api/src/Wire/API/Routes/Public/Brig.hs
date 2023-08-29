@@ -58,6 +58,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
+import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
@@ -94,6 +95,7 @@ type BrigAPI =
     :<|> SystemSettingsAPI
     :<|> OAuthAPI
     :<|> BotAPI
+    :<|> ProviderAPI
 
 data BrigAPITag
 

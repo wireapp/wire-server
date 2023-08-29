@@ -20,6 +20,7 @@ module Brig.Provider.API
     routesPublic,
     routesInternal,
     botAPI,
+    providerAPI,
 
     -- * Event handlers
     finishDeleteService,
@@ -118,6 +119,7 @@ import Wire.API.Provider.Service qualified as Public
 import Wire.API.Provider.Service.Tag qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
+import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
 import Wire.API.Team.Feature qualified as Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import Wire.API.Team.Permission
@@ -146,16 +148,15 @@ botAPI =
     :<|> Named @"bot-list-users" botListUserProfiles
     :<|> Named @"bot-get-user-clients" botGetUserClients
 
+providerAPI :: Member GalleyProvider r => ServerT ProviderAPI (Handler r)
+providerAPI = Named @"provider-register" newAccount
+
 routesPublic ::
   ( Member GalleyProvider r
   ) =>
   Routes () (Handler r) ()
 routesPublic = do
   -- Public API (Unauthenticated) --------------------------------------------
-
-  post "/provider/register" (continue newAccountH) $
-    accept "application" "json"
-      .&> jsonRequest @Public.NewProvider
 
   get "/provider/activate" (continue activateAccountKeyH) $
     accept "application" "json"
@@ -300,13 +301,9 @@ routesInternal = do
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
 
-newAccountH :: Member GalleyProvider r => JsonRequest Public.NewProvider -> (Handler r) Response
-newAccountH req = do
-  guardSecondFactorDisabled Nothing
-  setStatus status201 . json <$> (newAccount =<< parseJsonBody req)
-
-newAccount :: Public.NewProvider -> (Handler r) Public.NewProviderResponse
+newAccount :: Member GalleyProvider r => Public.NewProvider -> (Handler r) Public.NewProviderResponse
 newAccount new = do
+  guardSecondFactorDisabled Nothing
   email <- case validateEmail (Public.newProviderEmail new) of
     Right em -> pure em
     Left _ -> throwStd (errorToWai @'E.InvalidEmail)

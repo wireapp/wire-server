@@ -85,9 +85,12 @@ data BrigError
   | TooManyConversationMembers
   | ServiceDisabled
   | InvalidBot
+  | VerificationCodeThrottled
 
 instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
+
+type instance MapError 'VerificationCodeThrottled = 'StaticError 429 "too-many-requests" "Too many request to generate a verification code."
 
 type instance MapError 'ServiceDisabled = 'StaticError 403 "service-disabled" "The desired service is currently disabled."
 

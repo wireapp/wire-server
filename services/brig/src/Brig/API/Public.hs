@@ -56,7 +56,7 @@ import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents, sesQueue)
-import Brig.Provider.API (botAPI)
+import Brig.Provider.API
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
@@ -288,6 +288,7 @@ servantSitemap =
     :<|> systemSettingsAPI
     :<|> oauthAPI
     :<|> botAPI
+    :<|> providerAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
