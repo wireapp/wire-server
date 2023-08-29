@@ -160,11 +160,6 @@ routesPublic ::
 routesPublic = do
   -- Public API (Unauthenticated) --------------------------------------------
 
-  get "/provider/approve" (continue approveAccountKeyH) $
-    accept "application" "json"
-      .&> query "key"
-        .&. query "code"
-
   post "/provider/login" (continue loginH) $
     jsonRequest @Public.ProviderLogin
 
@@ -374,21 +369,6 @@ instance ToJSON FoundActivationCode where
   toJSON (FoundActivationCode vcode) =
     toJSON $
       Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
-
-approveAccountKeyH :: Member GalleyProvider r => Code.Key ::: Code.Value -> (Handler r) Response
-approveAccountKeyH (key ::: val) = do
-  guardSecondFactorDisabled Nothing
-  empty <$ approveAccountKey key val
-
-approveAccountKey :: Code.Key -> Code.Value -> (Handler r) ()
-approveAccountKey key val = do
-  c <- wrapClientE (Code.verify key Code.AccountApproval val) >>= maybeInvalidCode
-  case (Code.codeAccount c, Code.codeForEmail c) of
-    (Just pid, Just email) -> do
-      (name, _, _, _) <- wrapClientE (DB.lookupAccountData (Id pid)) >>= maybeInvalidCode
-      activate (Id pid) Nothing email
-      lift $ sendApprovalConfirmMail name email
-    _ -> throwStd (errorToWai @'E.InvalidCode)
 
 loginH :: Member GalleyProvider r => JsonRequest Public.ProviderLogin -> (Handler r) Response
 loginH req = do
