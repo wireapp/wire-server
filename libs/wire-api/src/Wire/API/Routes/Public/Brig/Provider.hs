@@ -17,6 +17,8 @@
 
 module Wire.API.Routes.Public.Brig.Provider where
 
+import Data.Code qualified as Code
+import Imports
 import Servant (JSON)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
@@ -24,8 +26,13 @@ import Wire.API.Error (CanThrow)
 import Wire.API.Error.Brig
 import Wire.API.Provider
 import Wire.API.Routes.API (ServiceAPI (..))
-import Wire.API.Routes.MultiVerb (MultiVerb1, Respond)
+import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named (..))
+
+type ActivateResponses =
+  '[ RespondEmpty 204 "",
+     Respond 200 "" ProviderActivationResponse
+   ]
 
 type ProviderAPI =
   Named
@@ -39,6 +46,17 @@ type ProviderAPI =
         :> ReqBody '[JSON] NewProvider
         :> MultiVerb1 'POST '[JSON] (Respond 201 "" NewProviderResponse)
     )
+    :<|> Named
+           "provider-activate"
+           ( Summary "Activate a provider"
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'InvalidCode
+               :> "provider"
+               :> "activate"
+               :> QueryParam' '[Required, Strict] "key" Code.Key
+               :> QueryParam' '[Required, Strict] "code" Code.Value
+               :> MultiVerb 'GET '[JSON] ActivateResponses (Maybe ProviderActivationResponse)
+           )
 
 data ProviderAPITag
 

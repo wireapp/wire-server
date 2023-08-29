@@ -149,7 +149,9 @@ botAPI =
     :<|> Named @"bot-get-user-clients" botGetUserClients
 
 providerAPI :: Member GalleyProvider r => ServerT ProviderAPI (Handler r)
-providerAPI = Named @"provider-register" newAccount
+providerAPI =
+  Named @"provider-register" newAccount
+    :<|> Named @"provider-activate" activateAccountKey
 
 routesPublic ::
   ( Member GalleyProvider r
@@ -157,11 +159,6 @@ routesPublic ::
   Routes () (Handler r) ()
 routesPublic = do
   -- Public API (Unauthenticated) --------------------------------------------
-
-  get "/provider/activate" (continue activateAccountKeyH) $
-    accept "application" "json"
-      .&> query "key"
-        .&. query "code"
 
   get "/provider/approve" (continue approveAccountKeyH) $
     accept "application" "json"
@@ -334,13 +331,9 @@ newAccount new = do
   lift $ sendActivationMail name email key val False
   pure $ Public.NewProviderResponse pid newPass
 
-activateAccountKeyH :: Member GalleyProvider r => Code.Key ::: Code.Value -> (Handler r) Response
-activateAccountKeyH (key ::: val) = do
-  guardSecondFactorDisabled Nothing
-  maybe (setStatus status204 empty) json <$> activateAccountKey key val
-
-activateAccountKey :: Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
+activateAccountKey :: Member GalleyProvider r => Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
 activateAccountKey key val = do
+  guardSecondFactorDisabled Nothing
   c <- wrapClientE (Code.verify key Code.IdentityVerification val) >>= maybeInvalidCode
   (pid, email) <- case (Code.codeAccount c, Code.codeForEmail c) of
     (Just p, Just e) -> pure (Id p, e)
