@@ -25,13 +25,6 @@ import Servant qualified as S
 import Test.QuickCheck.Arbitrary (Arbitrary, arbitrary)
 import Wire.Arbitrary (GenericUniform (..))
 
-data EmailSource
-  = EmailFromScimExternalIdField
-  | EmailFromScimEmailsField
-  | EmailFromSamlNameId -- saml, but no scim.  deprecated, but we need to support this for the foreseeable future.
-  deriving (Eq, Show, Bounded, Enum, Generic)
-  deriving (Arbitrary) via (GenericUniform EmailSource)
-
 --------------------------------------------------------------------------------
 -- Email
 
@@ -88,13 +81,20 @@ parseEmail t = case Text.split (== '@') t of
   _ -> Nothing
 
 -- | in order to be able to reconstruct scim records, we need to know where in the scim record
--- the email came from (externalId?  emails field?)
+-- the email came from.
 data EmailWithSource = EmailWithSource
   { ewsEmail :: Email,
     ewsEmailSource :: EmailSource
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EmailWithSource)
+
+data EmailSource
+  = EmailFromScimExternalIdField
+  | EmailFromScimEmailsField
+  | EmailFromSamlNameId -- saml, but no scim.  deprecated, but we need to support this for the foreseeable future.
+  deriving (Eq, Show, Bounded, Enum, Generic)
+  deriving (Arbitrary) via (GenericUniform EmailSource)
 
 -- | This is used in `ValidUAuthIdF f` with Const () and Identity functors.
 -- Const () means that there is no value in that position, and it can be ignored.
