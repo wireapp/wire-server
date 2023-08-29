@@ -32,8 +32,8 @@ import Data.Json.Util
 import Data.Map qualified as Map
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Set qualified as Set
 import Imports
-import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 
 data JWK = JWK
@@ -41,7 +41,7 @@ data JWK = JWK
     curve :: String,
     pubKey :: ByteString
   }
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
 instance ToSchema JWK where
   schema =
@@ -67,7 +67,7 @@ instance Monoid MLSKeys where
   mempty = MLSKeys Nothing
 
 newtype MLSPublicKeys = MLSPublicKeys
-  { unMLSPublicKeys :: Map SignaturePurpose (Map SignatureSchemeTag JWK)
+  { unMLSPublicKeys :: Map SignaturePurpose (Set JWK)
   }
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema MLSPublicKeys
   deriving newtype (Semigroup, Monoid)
@@ -77,11 +77,11 @@ instance ToSchema MLSPublicKeys where
     named "MLSKeys" $
       MLSPublicKeys
         <$> unMLSPublicKeys
-          .= map_ (map_ schema)
+          .= map_ (object "JWKSet" (field "keys" (set schema)))
 
-mlsKeysToPublic1 :: MLSKeys -> Map SignatureSchemeTag JWK
+mlsKeysToPublic1 :: MLSKeys -> Set JWK
 mlsKeysToPublic1 (MLSKeys mEd25519key) =
-  foldMap (Map.singleton Ed25519 . mkEd25519JWK . snd) mEd25519key
+  foldMap (Set.singleton . mkEd25519JWK . snd) mEd25519key
 
 mlsKeysToPublic :: (SignaturePurpose -> MLSKeys) -> MLSPublicKeys
 mlsKeysToPublic f = flip foldMap [minBound .. maxBound] $ \purpose ->
