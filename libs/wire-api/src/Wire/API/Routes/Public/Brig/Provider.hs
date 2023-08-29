@@ -28,6 +28,7 @@ import Wire.API.Provider
 import Wire.API.Routes.API (ServiceAPI (..))
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named (..))
+import Wire.API.User.Auth
 
 type ActivateResponses =
   '[ RespondEmpty 204 "",
@@ -56,6 +57,25 @@ type ProviderAPI =
                :> QueryParam' '[Required, Strict] "key" Code.Key
                :> QueryParam' '[Required, Strict] "code" Code.Value
                :> MultiVerb 'GET '[JSON] ActivateResponses (Maybe ProviderActivationResponse)
+           )
+    :<|> Named
+           "provider-login"
+           ( Summary "Login as a provider"
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'BadCredentials
+               :> "provider"
+               :> "login"
+               :> ReqBody '[JSON] ProviderLogin
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[ WithHeaders
+                         '[ Header "Set-Cookie" ProviderTokenCookie
+                          ]
+                         ProviderTokenCookie
+                         (RespondEmpty 200 "OK")
+                     ]
+                    ProviderTokenCookie
            )
 
 data ProviderAPITag

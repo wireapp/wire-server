@@ -77,7 +77,6 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
-import Data.ZAuth.Token qualified as ZAuth
 import GHC.TypeNats
 import Imports
 import Network.HTTP.Types.Status
@@ -87,7 +86,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.Request (JsonRequest, jsonRequest)
-import Network.Wai.Utilities.Response (addHeader, empty, json, setStatus)
+import Network.Wai.Utilities.Response (empty, json, setStatus)
 import Network.Wai.Utilities.ZAuth
 import OpenSSL.EVP.Digest qualified as SSL
 import OpenSSL.EVP.PKey qualified as SSL
@@ -99,7 +98,6 @@ import Servant (ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
-import Web.Cookie qualified as Cookie
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Bot
 import Wire.API.Conversation.Bot qualified as Public
@@ -125,6 +123,7 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import Wire.API.Team.Permission
 import Wire.API.User hiding (cpNewPassword, cpOldPassword)
 import Wire.API.User qualified as Public (UserProfile, publicProfile)
+import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
@@ -152,6 +151,7 @@ providerAPI :: Member GalleyProvider r => ServerT ProviderAPI (Handler r)
 providerAPI =
   Named @"provider-register" newAccount
     :<|> Named @"provider-activate" activateAccountKey
+    :<|> Named @"provider-login" login
 
 routesPublic ::
   ( Member GalleyProvider r
@@ -159,9 +159,6 @@ routesPublic ::
   Routes () (Handler r) ()
 routesPublic = do
   -- Public API (Unauthenticated) --------------------------------------------
-
-  post "/provider/login" (continue loginH) $
-    jsonRequest @Public.ProviderLogin
 
   post "/provider/password-reset" (continue beginPasswordResetH) $
     accept "application" "json"
@@ -370,19 +367,16 @@ instance ToJSON FoundActivationCode where
     toJSON $
       Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
 
-loginH :: Member GalleyProvider r => JsonRequest Public.ProviderLogin -> (Handler r) Response
-loginH req = do
-  guardSecondFactorDisabled Nothing
-  tok <- login =<< parseJsonBody req
-  setProviderCookie tok empty
-
-login :: Public.ProviderLogin -> Handler r (ZAuth.Token ZAuth.Provider)
+login :: Member GalleyProvider r => ProviderLogin -> Handler r ProviderTokenCookie
 login l = do
+  guardSecondFactorDisabled Nothing
   pid <- wrapClientE (DB.lookupKey (mkEmailKey (providerLoginEmail l))) >>= maybeBadCredentials
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (providerLoginPassword l) pass) $
     throwStd (errorToWai @'E.BadCredentials)
-  ZAuth.newProviderToken pid
+  token <- ZAuth.newProviderToken pid
+  s <- view settings
+  pure $ ProviderTokenCookie (ProviderToken token) (not (setCookieInsecure s))
 
 beginPasswordResetH :: Member GalleyProvider r => JsonRequest Public.PasswordReset -> (Handler r) Response
 beginPasswordResetH req = do
@@ -1081,22 +1075,6 @@ mkBotUserView u =
       Ext.botUserViewHandle = userHandle u,
       Ext.botUserViewTeam = userTeam u
     }
-
-setProviderCookie :: ZAuth.Token ZAuth.Provider -> Response -> (Handler r) Response
-setProviderCookie t r = do
-  s <- view settings
-  let hdr = toByteString' (Cookie.renderSetCookie (cookie s))
-  pure (addHeader "Set-Cookie" hdr r)
-  where
-    cookie s =
-      Cookie.def
-        { Cookie.setCookieName = "zprovider",
-          Cookie.setCookieValue = toByteString' t,
-          Cookie.setCookiePath = Just "/provider",
-          Cookie.setCookieExpires = Just (ZAuth.tokenExpiresUTC t),
-          Cookie.setCookieSecure = not (setCookieInsecure s),
-          Cookie.setCookieHttpOnly = True
-        }
 
 maybeInvalidProvider :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeInvalidProvider = maybe (throwStd invalidProvider) pure
