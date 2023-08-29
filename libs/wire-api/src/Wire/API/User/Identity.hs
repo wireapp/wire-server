@@ -128,20 +128,20 @@ maybeUserIdentityObjectSchema =
 --     type UAuthIdFunctor a b c = UAuthIdF (a SAML.UserRef) (b Text) (c EmailWithSource)
 --     type family ValidUAuthIdF (f :: UAuthIdTag) where
 --       ValidUAuthIdF 'UAScimSamlEmail     = UAuthIdFunctor Identity Identity Identity
-type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe Text, Maybe Text, Maybe Text)
+type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe LegacyUserSSOId, Maybe PartialUAuthId)
 
 userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
 userIdentityComponentsObjectSchema =
   (,,,,)
-    <$> fst5 .= maybe_ (optField "email" schema)
-    <*> snd5 .= maybe_ (optField "phone" schema)
-    <*> thd5 .= maybe_ (optField "sso_id" genericToSchema)
-    <*> _
-    <*> _
+    <$> fst4 .= maybe_ (optField "email" schema)
+    <*> snd4 .= maybe_ (optField "phone" schema)
+    <*> thd4 .= maybe_ (optField "sso_id" genericToSchema)
+    <*> fth4 .= maybe_ (optField "uauth_id" genericToSchema)
   where
-    fst5 (a, _, _, _, _) = a
-    snd5 (_, a, _, _, _) = a
-    thd5 (_, _, a, _, _) = a
+    fst4 (a, _, _, _) = a
+    snd4 (_, a, _, _) = a
+    thd4 (_, _, a, _) = a
+    fth4 (_, _, _, a) = a
 
 maybeUserIdentityFromComponents :: UserIdentityComponents -> Maybe UserIdentity
 maybeUserIdentityFromComponents = \case
