@@ -125,6 +125,7 @@ import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Public.Brig.Bot
 import Wire.API.Routes.Public.Brig.OAuth
+import Wire.API.Routes.Public.Brig.Provider
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Public.Cargohold
 import Wire.API.Routes.Public.Galley
@@ -181,6 +182,7 @@ versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
         <> serviceSwagger @ProxyAPITag @'V5
         <> serviceSwagger @OAuthAPITag @'V5
         <> serviceSwagger @BotAPITag @'V5
+        <> serviceSwagger @ProviderAPITag @'V5
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
@@ -197,6 +199,7 @@ versionedSwaggerDocsAPI (Just (VersionNumber V4)) =
         <> serviceSwagger @ProxyAPITag @'V4
         <> serviceSwagger @OAuthAPITag @'V4
         <> serviceSwagger @BotAPITag @'V4
+        <> serviceSwagger @ProviderAPITag @'V4
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
