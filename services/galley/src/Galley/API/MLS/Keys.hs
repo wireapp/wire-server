@@ -18,7 +18,7 @@
 module Galley.API.MLS.Keys (getMLSRemovalKey) where
 
 import Control.Lens (view)
-import Crypto.PubKey.Ed25519 (PublicKey, SecretKey)
+import Crypto.PubKey.Ed25519
 import Galley.Env
 import Imports
 import Polysemy

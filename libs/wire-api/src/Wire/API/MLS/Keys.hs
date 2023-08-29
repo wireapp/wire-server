@@ -21,6 +21,7 @@ module Wire.API.MLS.Keys
   ( MLSKeys (..),
     MLSPublicKeys (..),
     mlsKeysToPublic,
+    JWK (..),
   )
 where
 
@@ -35,9 +36,28 @@ import Imports
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 
+data JWK = JWK
+  { keyType :: String,
+    curve :: String,
+    pubKey :: ByteString
+  }
+  deriving (Show)
+
+instance ToSchema JWK where
+  schema =
+    object "JWK" $
+      JWK
+        <$> (.keyType) .= field "kty" schema
+        <*> (.curve) .= field "crv" schema
+        <*> (.pubKey) .= field "x" base64URLSchema
+
+mkEd25519JWK :: PublicKey -> JWK
+mkEd25519JWK = JWK "OKP" "Ed25519" . convert
+
 data MLSKeys = MLSKeys
   { mlsKeyPair_ed25519 :: Maybe (SecretKey, PublicKey)
   }
+  deriving (Show)
 
 instance Semigroup MLSKeys where
   MLSKeys Nothing <> MLSKeys ed2 = MLSKeys ed2
@@ -47,7 +67,7 @@ instance Monoid MLSKeys where
   mempty = MLSKeys Nothing
 
 newtype MLSPublicKeys = MLSPublicKeys
-  { unMLSPublicKeys :: Map SignaturePurpose (Map SignatureSchemeTag ByteString)
+  { unMLSPublicKeys :: Map SignaturePurpose (Map SignatureSchemeTag JWK)
   }
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema MLSPublicKeys
   deriving newtype (Semigroup, Monoid)
@@ -57,11 +77,11 @@ instance ToSchema MLSPublicKeys where
     named "MLSKeys" $
       MLSPublicKeys
         <$> unMLSPublicKeys
-          .= map_ (map_ base64Schema)
+          .= map_ (map_ schema)
 
-mlsKeysToPublic1 :: MLSKeys -> Map SignatureSchemeTag ByteString
+mlsKeysToPublic1 :: MLSKeys -> Map SignatureSchemeTag JWK
 mlsKeysToPublic1 (MLSKeys mEd25519key) =
-  foldMap (Map.singleton Ed25519 . convert . snd) mEd25519key
+  foldMap (Map.singleton Ed25519 . mkEd25519JWK . snd) mEd25519key
 
 mlsKeysToPublic :: (SignaturePurpose -> MLSKeys) -> MLSPublicKeys
 mlsKeysToPublic f = flip foldMap [minBound .. maxBound] $ \purpose ->
