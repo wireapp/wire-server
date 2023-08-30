@@ -69,7 +69,6 @@ data:
       {{- if (and .settings.conversationCodeURI .settings.multiIngress) }}
       {{ fail "settings.conversationCodeURI and settings.multiIngress are mutually exclusive" }}
       {{- end }}
-      # TODO: add multi ingress setting
       federationDomain: {{ .settings.federationDomain }}
       {{- if $.Values.secrets.mlsPrivateKeys }}
       mlsPrivateKeyPaths:
