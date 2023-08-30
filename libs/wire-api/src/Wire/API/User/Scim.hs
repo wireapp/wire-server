@@ -60,7 +60,6 @@ import Data.Json.Util ((#))
 import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.Proxy
-import Data.Singletons.TH
 import Data.Swagger hiding (Operation)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (UTCTime)
@@ -512,95 +511,3 @@ instance ToSchema ScimTokenList where
             .~ [ ("tokens", infoListSchema)
                ]
           & required .~ ["tokens"]
-
--- | Konst exists to make the next set of declarations easier to write
-type Konst = Const ()
-
--- | We currently support the following user authentication and provisioning setups.
---
--- (there is a sixth case: no scim, no saml, email and password, but that does not involve
--- spar, so we don't need to consider that setup here.)
---
--- (We also sometimes validate email addresses by sending an email with a code from brig, and
--- sometimes not, but i think this should be documented and considered elsewhere.)
-data UAuthIdTag
-  = -- | scim with saml and email (distinguishable by location: nameid + externalId vs. scim emails field)
-    UAScimSamlEmail
-  | -- | scim with saml and no email
-    UAScimSamlNoEmail
-  | -- | scim, email and password (via traditional invitation email, emulating the team-settings flow), no saml
-    UAScimEmailNoSaml
-  | -- | no scim, saml with email in nameid
-    UASamlEmailNoScim
-  | -- | no scim, saml with no email
-    UASamlNoScimNoEmail
-  deriving (Show, Eq, Generic, Bounded, Enum)
-
-$(genSingletons [''UAuthIdTag])
-$(singDecideInstance ''UAuthIdTag)
-
--- | The types we actually want to use.
--- This is using the closed form, giving us a single place to define
--- what is and is not a valid combination of functors in `UAuthIdF`
---
--- NOTE(fisx): this may not be as useful as we'd hope, but `UAuthIdF` may be more useful in
--- return.  example: a function that cares about email, but not about samlId or
--- scimExternalId, should be typed using `UAuthIdF a b Konst`.  But there are probably a few
--- places where we want to limit the number of legal combinations, especially when parsing
--- incoming data.
--- NOTE(owen): Yes, that was part of the goal. This should be used most of the time, and code and
--- drop down to using the bare representation when it is needed. Basically we should try to use
--- this type family where we can to limit what representations are passed around to only valid
--- combinations, but code that only cares about one field can set its types based on that, kind
--- of like `HasFoo` classes if you squint a bit.
--- However, this is getting close to the point where it won't be limiting anything. Currently there
--- are 8 (2^3) options of Const and Identity.
-{- ORMOLU_DISABLE -}
-type family ValidUAuthIdF (f :: UAuthIdTag) where
-  ValidUAuthIdF 'UAScimSamlEmail     = UAuthIdF Identity Identity Identity Identity
-  ValidUAuthIdF 'UAScimSamlNoEmail   = UAuthIdF Identity Identity Konst    Identity
-  ValidUAuthIdF 'UAScimEmailNoSaml   = UAuthIdF Konst    Identity Identity Identity
-  ValidUAuthIdF 'UASamlEmailNoScim   = UAuthIdF Identity Konst    Identity Identity
-  ValidUAuthIdF 'UASamlNoScimNoEmail = UAuthIdF Identity Konst    Konst    Identity
-{- ORMOLU_ENABLE -}
-
--- TODO?
-{-
-runValidUAuthIdFEither ::
-  forall tag a.
-  SingI tag =>
-  (SAML.UserRef -> a) ->
-  (Text -> a) ->
-  (Email -> a) ->
-  ValidUAuthIdF tag ->
-  a
-runValidUAuthIdFEither doUref doExternal doEmail extId = case tag of
-  SScimExternalId -> doExternal $ runIdentity extId.eScim
-  SSaml -> doUref $ runIdentity extId.eSaml
-  SSamlAndEmail -> doUref $ runIdentity extId.eSaml
-  SSamlAndPassword -> doUref $ runIdentity extId.eSaml
-  SEmail -> doEmail $ runIdentity extId.eEmail
-  where
-    tag = sing @tag
-
-runValidUAuthIdFBoth ::
-  forall tag a.
-  SingI tag =>
-  (a -> a -> a) ->
-  (SAML.UserRef -> a) ->
-  (Text -> a) ->
-  (Email -> a) ->
-  ValidUAuthIdF tag ->
-  a
-runValidUAuthIdFBoth merge doUref doExternal doEmail extId = case tag of
-  SScim -> doText $ runIdentity extId.eScim
-  SSaml -> doUref $ runIdentity extId.eSaml
-  SSamlAndEmail ->
-    doUref (runIdentity extId.eSaml)
-      `merge` doEmail (runIdentity extId.eEmail)
-  SSamlAndPassword -> doUref $ runIdentity extId.eSaml
-  SEmail -> doEmail $ runIdentity extId.eEmail
-  SExternalId -> doExternal $ runIdentity extId.eExternalId
-  where
-    tag = sing @tag
--}

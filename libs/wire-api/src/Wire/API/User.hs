@@ -1110,9 +1110,9 @@ data NewUserRaw = NewUserRaw
     newUserRawUUID :: Maybe UUID,
     newUserRawEmail :: Maybe Email,
     newUserRawPhone :: Maybe Phone,
-    newUserRawSSOId :: Maybe PartialUAuthId,
-    -- | DEPRECATED
-    newUserRawPict :: Maybe Pict,
+    newUserRawSSOId :: Maybe UserSSOId,
+    newUserRawUAuthId :: Maybe PartialUAuthId, -- NOTE(fisx): This defines a json object under a json field, just like newUserRawSSOId.
+    newUserRawPict {-# DEPRECATED #-} :: Maybe Pict,
     newUserRawAssets :: [Asset],
     newUserRawAccentId :: Maybe ColourId,
     newUserRawEmailCode :: Maybe ActivationCode,

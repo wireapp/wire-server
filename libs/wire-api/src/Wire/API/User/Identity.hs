@@ -116,56 +116,46 @@ maybeUserIdentityObjectSchema =
 --
 -- the 3 maybe texts at the end here are for the PartialUAuthId.
 --
--- NOTE(owen): The last 3 fields being Maybe Text is isn't going to be enough for PartialUAuthId
--- as it has the teamId field that must be filled. At a stretch we could use "", but that feels
--- like asking for trouble. Additionally, what order are the fields in and how should we parse them?
--- We could change the representation of UAuthIdF from it's current functor parameterised form to
--- regular generics for each field, and then have an intermediate type synonum for the functor
--- form to be used in the type family.
--- Eg. data UAuthIdF a b c = UAuthIdF { samlId :: a, scimExternalId :: b }
---     type UAuthIdFunctor a b c = UAuthIdF (a SAML.UserRef) (b Text) (c EmailWithSource)
---     type family ValidUAuthIdF (f :: UAuthIdTag) where
---       ValidUAuthIdF 'UAScimSamlEmail     = UAuthIdFunctor Identity Identity Identity
-type ExternalId {- Is this actually and external ID? -} = Text
-
-type Unknown = Text
-
-type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe ExternalId, Maybe Unknown, Maybe TeamId)
+-- NOTE(owen): The last two fields in this are basically the same.
+-- LegacyUserSSOId is a single value data constructir around PartialUAuthId. Is there a semantics difference
+-- between them, or should we have another look at what LegacyUserSSOId is, and if it is still needed?
+-- From its ToJSON and FromJSON instances, it is only looking at the scimExternalId and samlId fields.
+-- Maybe we should change the type within LegacyUserSSOId to better reflect how it is being used, than having
+-- everything in it be Maybe
+type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe LegacyUserSSOId, Maybe PartialUAuthId)
 
 userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
 userIdentityComponentsObjectSchema =
-  (,,,,)
-    <$> fst5 .= maybe_ (optField "email" schema)
-    <*> snd5 .= maybe_ (optField "phone" schema)
-    <*> thd5 .= maybe_ (optField "sso_id" genericToSchema)
-    -- TODO: (owen) check what these two fields are expected to be
-    <*> frh5 .= maybe_ (optField "team_id" schema)
-    <*> fif5 .= maybe_ (optField "" schema)
+  (,,,)
+    <$> fst4 .= maybe_ (optField "email" schema)
+    <*> snd4 .= maybe_ (optField "phone" schema)
+    <*> thd4 .= maybe_ (optField "sso_id" genericToSchema)
+    <*> fth4 .= maybe_ (optField "uauth_id" genericToSchema)
   where
-    fst5 (a, _, _, _, _) = a
-    snd5 (_, a, _, _, _) = a
-    thd5 (_, _, a, _, _) = a
-    frh5 (_, _, _, a, _) = a
-    fif5 (_, _, _, _, a) = a
+    fst4 (a, _, _, _) = a
+    snd4 (_, a, _, _) = a
+    thd4 (_, _, a, _) = a
+    fth4 (_, _, _, a) = a
 
 maybeUserIdentityFromComponents :: UserIdentityComponents -> Maybe UserIdentity
 maybeUserIdentityFromComponents = \case
-  -- TODO: Check that this is actually from SCIM email field
-  (maybeEmail, _, Just ssoid, _, teamId) ->
+  (maybeEmail, _, Just ssoid, _) ->
     Just $
       UAuthIdentity $
-        UAuthIdF Nothing (pure ssoid) (flip EmailWithSource EmailFromScimEmailsField <$> maybeEmail) teamId
-  (Just email, Just phone, Nothing, _, _) -> Just $ FullIdentity email phone
-  (Just email, Nothing, Nothing, _, _) -> Just $ EmailIdentity email
-  (Nothing, Just phone, Nothing, _, _) -> Just $ PhoneIdentity phone
-  (Nothing, Nothing, Nothing, _, _) -> Nothing
+        ssoid.fromLegacyUserSSOId
+          { email = (flip EmailWithSource EmailFromScimEmailsField <$> maybeEmail)
+          }
+  (Just email, Just phone, Nothing, _) -> Just $ FullIdentity email phone
+  (Just email, Nothing, Nothing, _) -> Just $ EmailIdentity email
+  (Nothing, Just phone, Nothing, _) -> Just $ PhoneIdentity phone
+  (Nothing, Nothing, Nothing, _) -> Nothing
 
 maybeUserIdentityToComponents :: Maybe UserIdentity -> UserIdentityComponents
-maybeUserIdentityToComponents Nothing = (Nothing, Nothing, Nothing, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing, Nothing, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (UAuthIdentity uaid)) = (ewsEmail <$> uaid.email, Nothing, uaid.scimExternalId, Nothing, uaid.teamId)
+maybeUserIdentityToComponents Nothing = (Nothing, Nothing, Nothing, Nothing)
+maybeUserIdentityToComponents (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing, Nothing)
+maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing, Nothing, Nothing)
+maybeUserIdentityToComponents (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing, Nothing)
+maybeUserIdentityToComponents (Just (UAuthIdentity uaid)) = (ewsEmail <$> uaid.email, Nothing, pure $ LegacyUserSSOId uaid, pure uaid)
 
 newIdentity :: Maybe Email -> Maybe Phone -> Maybe LegacyUserSSOId -> Maybe UserIdentity
 newIdentity email _ (Just sso) =
@@ -348,8 +338,8 @@ instance FromJSON LegacyUserSSOId where
     msubject <- lenientlyParseSAMLNameID =<< (obj A..:? "subject")
     meid <- obj A..:? "scim_external_id"
     case (mtenant, msubject, meid) of
-      (Just tenant, Just subject, Nothing) -> pure $ LegacyUserSSOId $ UAuthIdF (pure $ SAML.UserRef tenant subject) Nothing Nothing Nothing
-      (Nothing, Nothing, Just eid) -> pure $ LegacyUserSSOId $ UAuthIdF Nothing eid Nothing Nothing
+      (Just tenant, Just subject, Nothing) -> pure $ LegacyUserSSOId $ UAuthIdF (pure $ SAML.UserRef tenant subject) Nothing Nothing _
+      (Nothing, Nothing, Just eid) -> pure $ LegacyUserSSOId $ UAuthIdF Nothing eid Nothing _
       _ -> fail "either need tenant and subject, or scim_external_id, but not both"
 
 lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)
