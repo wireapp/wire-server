@@ -21,7 +21,7 @@
 module CargoHold.Options where
 
 import Amazonka (S3AddressingStyle (..))
-import CargoHold.CloudFront qualified as CF
+import qualified CargoHold.CloudFront as CF
 import Control.Lens hiding (Level)
 import Data.Aeson (FromJSON (..), withText)
 import Data.Aeson.TH
