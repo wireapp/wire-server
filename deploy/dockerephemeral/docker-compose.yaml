@@ -186,20 +186,9 @@ services:
 
   cassandra:
     container_name: demo_wire_cassandra
-    #image: cassandra:3.11.2
-    image: julialongtin/cassandra:0.0.9
+    image: scylladb/scylla:5.2.7
     ports:
       - "127.0.0.1:9042:9042"
-    ulimits:
-      memlock: 65536
-      nofile: 100000
-      nproc: 32768
-    environment:
-      - "CS_JVM_OPTIONS=-Xmx1024M -Xms1024M -Xmn200M"
-
-      # on nixos, you also may need to run
-      #   sysctl -w vm.max_map_count=1048576
-      # or add that to your `configuration.nix`
     networks:
       - demo_wire
 
