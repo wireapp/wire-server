@@ -61,6 +61,13 @@ data:
       {{- end }}
       {{- if .settings.conversationCodeURI }}
       conversationCodeURI: {{ .settings.conversationCodeURI | quote }}
+      {{- else if .settings.multiIngress }}
+      multiIngress: {{- toYaml .settings.multiIngress | nindent 8 }}
+      {{- else }}
+      {{ fail "Either settings.conversationCodeURI or settings.multiIngress have to be set"}}
+      {{- end }}
+      {{- if (and .settings.conversationCodeURI .settings.multiIngress) }}
+      {{ fail "settings.conversationCodeURI and settings.multiIngress are mutually exclusive" }}
       {{- end }}
       # TODO: add multi ingress setting
       federationDomain: {{ .settings.federationDomain }}
